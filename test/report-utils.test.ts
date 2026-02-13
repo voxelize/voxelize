@@ -10,6 +10,7 @@ import {
   deriveFailureMessageFromReport,
   hasCliOption,
   parseJsonOutput,
+  parseUnknownCliOptions,
   resolveLastOptionValue,
   resolveOutputPath,
   serializeReportWithOptionalWrite,
@@ -293,6 +294,46 @@ describe("report-utils", () => {
       hasCliOption(["--json", "--", "--verify"], "--no-build", ["--verify"])
     ).toBe(false);
     expect(hasCliOption(["--json"], "--no-build", ["--verify"])).toBe(false);
+  });
+
+  it("parses unknown cli options with alias and value support", () => {
+    const unknownFromMixedArgs = parseUnknownCliOptions(
+      [
+        "--json",
+        "--output",
+        "./report.json",
+        "--verify",
+        "--output=./inline-report.json",
+        "--mystery",
+        "--mystery",
+        "-x",
+      ],
+      {
+        canonicalOptions: ["--json", "--output", "--no-build"],
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+        optionsWithValues: ["--output"],
+      }
+    );
+    expect(unknownFromMixedArgs).toEqual(["--mystery", "-x"]);
+
+    const unknownWithTerminator = parseUnknownCliOptions(
+      ["--json", "--", "--mystery"],
+      {
+        canonicalOptions: ["--json"],
+      }
+    );
+    expect(unknownWithTerminator).toEqual([]);
+
+    const unknownWithMissingValueFollowedByUnknown = parseUnknownCliOptions(
+      ["--output", "--mystery"],
+      {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+      }
+    );
+    expect(unknownWithMissingValueFollowedByUnknown).toEqual(["--mystery"]);
   });
 
   it("writes report json payloads to output paths", () => {

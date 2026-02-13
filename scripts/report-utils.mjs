@@ -237,6 +237,98 @@ export const hasCliOption = (args, canonicalOption, aliases = []) => {
   return aliases.some((alias) => optionArgs.includes(alias));
 };
 
+const createCanonicalOptionMap = (canonicalOptions, optionAliases = {}) => {
+  const canonicalMap = new Map(canonicalOptions.map((option) => [option, option]));
+
+  for (const [canonicalOption, aliases] of Object.entries(optionAliases)) {
+    for (const alias of aliases) {
+      canonicalMap.set(alias, canonicalOption);
+    }
+  }
+
+  return canonicalMap;
+};
+
+const resolveCanonicalOptionToken = (
+  optionToken,
+  canonicalOptionMap,
+  optionsWithValues
+) => {
+  const canonicalOption = canonicalOptionMap.get(optionToken);
+  if (canonicalOption !== undefined) {
+    return {
+      canonicalOption,
+      hasInlineValue: false,
+    };
+  }
+
+  for (const optionWithValue of optionsWithValues) {
+    if (optionToken.startsWith(`${optionWithValue}=`)) {
+      return {
+        canonicalOption: optionWithValue,
+        hasInlineValue: true,
+      };
+    }
+  }
+
+  return null;
+};
+
+export const parseUnknownCliOptions = (
+  args,
+  {
+    canonicalOptions = [],
+    optionAliases = {},
+    optionsWithValues = [],
+  } = {}
+) => {
+  const { optionArgs } = splitCliArgs(args);
+  const canonicalOptionMap = createCanonicalOptionMap(
+    canonicalOptions,
+    optionAliases
+  );
+  const valueOptions = new Set(optionsWithValues);
+  const unknownOptions = [];
+  const seenUnknownOptions = new Set();
+
+  for (let index = 0; index < optionArgs.length; index += 1) {
+    const optionToken = optionArgs[index];
+    if (
+      !optionToken.startsWith("-") ||
+      optionToken === "-" ||
+      optionToken === "--"
+    ) {
+      continue;
+    }
+
+    const resolvedOption = resolveCanonicalOptionToken(
+      optionToken,
+      canonicalOptionMap,
+      valueOptions
+    );
+    if (resolvedOption !== null) {
+      if (
+        valueOptions.has(resolvedOption.canonicalOption) &&
+        !resolvedOption.hasInlineValue
+      ) {
+        const nextArg = optionArgs[index + 1] ?? null;
+        if (nextArg !== null && !nextArg.startsWith("--")) {
+          index += 1;
+        }
+      }
+      continue;
+    }
+
+    if (seenUnknownOptions.has(optionToken)) {
+      continue;
+    }
+    seenUnknownOptions.add(optionToken);
+    unknownOptions.push(optionToken);
+  }
+
+  return unknownOptions;
+};
+
 export const resolveLastOptionValue = (args, optionName) => {
   const { optionArgs } = splitCliArgs(args);
   const inlineOptionPrefix = `${optionName}=`;

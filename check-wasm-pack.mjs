@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { resolveCommand } from "./scripts/command-utils.mjs";
 import {
   createTimedReportBuilder,
+  parseUnknownCliOptions,
   resolveOutputPath,
   serializeReportWithOptionalWrite,
   splitCliArgs,
@@ -20,11 +21,27 @@ const positionalArgCount = positionalArgs.length;
 const isQuiet = cliOptionArgs.includes("--quiet");
 const isJson = cliOptionArgs.includes("--json");
 const isCompact = cliOptionArgs.includes("--compact");
+const supportedCliOptions = ["--compact", "--json", "--output", "--quiet"];
+const unknownOptions = parseUnknownCliOptions(cliOptionArgs, {
+  canonicalOptions: supportedCliOptions,
+  optionsWithValues: ["--output"],
+});
+const unknownOptionCount = unknownOptions.length;
+const unsupportedOptionsError =
+  unknownOptionCount === 0
+    ? null
+    : `Unsupported option(s): ${unknownOptions.join(", ")}. Supported options: ${supportedCliOptions.join(", ")}.`;
 const jsonFormat = { compact: isCompact };
 const { outputPath, error: outputPathError } = resolveOutputPath(cliOptionArgs);
+const validationErrorCode =
+  outputPathError !== null
+    ? "output_option_missing_value"
+    : unsupportedOptionsError !== null
+      ? "unsupported_options"
+      : null;
 const buildTimedReport = createTimedReportBuilder();
 
-if (isJson && outputPathError !== null) {
+if (isJson && (outputPathError !== null || unsupportedOptionsError !== null)) {
   console.log(
     toReportJson(
       buildTimedReport({
@@ -35,12 +52,21 @@ if (isJson && outputPathError !== null) {
         positionalArgCount,
         command: wasmPackCommand,
         version: null,
-        outputPath: null,
-        message: outputPathError,
+        outputPath: outputPathError === null ? outputPath : null,
+        unknownOptions,
+        unknownOptionCount,
+        supportedCliOptions,
+        validationErrorCode,
+        message: outputPathError ?? unsupportedOptionsError,
       }),
       jsonFormat
     )
   );
+  process.exit(1);
+}
+
+if (!isJson && unsupportedOptionsError !== null) {
+  console.error(unsupportedOptionsError);
   process.exit(1);
 }
 
@@ -72,6 +98,10 @@ if (checkStatus === 0) {
       command: wasmPackCommand,
       version: firstLine,
       outputPath,
+      unknownOptions,
+      unknownOptionCount,
+      supportedCliOptions,
+      validationErrorCode: null,
     });
     const { reportJson, writeError } = serializeReportWithOptionalWrite(report, {
       jsonFormat,
@@ -99,6 +129,10 @@ if (isJson) {
     command: wasmPackCommand,
     version: null,
     outputPath,
+    unknownOptions,
+    unknownOptionCount,
+    supportedCliOptions,
+    validationErrorCode: null,
     message: failureMessage,
   });
   const { reportJson, writeError } = serializeReportWithOptionalWrite(report, {

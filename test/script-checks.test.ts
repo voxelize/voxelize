@@ -27,6 +27,13 @@ type WasmPackJsonReport = OptionTerminatorMetadata & {
   command: string;
   version: string | null;
   outputPath: string | null;
+  unknownOptions: string[];
+  unknownOptionCount: number;
+  supportedCliOptions: string[];
+  validationErrorCode:
+    | "output_option_missing_value"
+    | "unsupported_options"
+    | null;
   startedAt: string;
   endedAt: string;
   durationMs: number;
@@ -201,6 +208,15 @@ describe("root preflight scripts", () => {
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
     expect(report.command).toContain("wasm-pack");
     expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual([
+      "--compact",
+      "--json",
+      "--output",
+      "--quiet",
+    ]);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.validationErrorCode).toBeNull();
     expectTimingMetadata(report);
     expectOptionTerminatorMetadata(report);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
@@ -305,6 +321,9 @@ describe("root preflight scripts", () => {
     expect(report.exitCode).toBe(1);
     expectTimingMetadata(report);
     expectOptionTerminatorMetadata(report);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
     expect(report.message).toBe("Missing value for --output option.");
     expect(result.status).toBe(1);
   });
@@ -317,7 +336,32 @@ describe("root preflight scripts", () => {
     expect(report.exitCode).toBe(1);
     expectTimingMetadata(report);
     expectOptionTerminatorMetadata(report);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
     expect(report.message).toBe("Missing value for --output option.");
+    expect(result.status).toBe(1);
+  });
+
+  it("check-wasm-pack json mode reports unsupported options", () => {
+    const result = runScript("check-wasm-pack.mjs", ["--json", "--mystery"]);
+    const report = JSON.parse(result.output) as WasmPackJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual([
+      "--compact",
+      "--json",
+      "--output",
+      "--quiet",
+    ]);
+    expect(report.unknownOptions).toEqual(["--mystery"]);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --mystery. Supported options: --compact, --json, --output, --quiet."
+    );
     expect(result.status).toBe(1);
   });
 
@@ -328,9 +372,20 @@ describe("root preflight scripts", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.outputPath).toBeNull();
     expect(report.message).not.toBe("Missing value for --output option.");
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
     expectTimingMetadata(report);
     expectOptionTerminatorMetadata(report, true, ["--output"]);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
+  it("check-wasm-pack non-json mode fails on unsupported options", () => {
+    const result = runScript("check-wasm-pack.mjs", ["--mystery"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(
+      "Unsupported option(s): --mystery. Supported options: --compact, --json, --output, --quiet."
+    );
   });
 
   it("check-wasm-pack json mode reports output write failures with details", () => {
