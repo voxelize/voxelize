@@ -2695,9 +2695,17 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.isTrackingChunks = true;
 
-    let remaining = blockUpdates;
-    while (remaining.length > 0) {
-      remaining = this.processLightUpdates(remaining);
+    let processedOffset = 0;
+    while (processedOffset < blockUpdates.length) {
+      const { consumedCount } = this.processLightUpdates(
+        blockUpdates,
+        processedOffset,
+        blockUpdates.length
+      );
+      if (consumedCount === 0) {
+        break;
+      }
+      processedOffset += consumedCount;
     }
 
     this.flushAccumulatedLightOps();
@@ -5237,17 +5245,25 @@ export class World<T = any> extends Scene implements NetIntercept {
     };
   }
 
-  private processLightUpdates = (updates: BlockUpdateWithSource[]) => {
+  private processLightUpdates = (
+    updates: BlockUpdateWithSource[],
+    startIndex = 0,
+    endIndex = updates.length
+  ) => {
     const startTime = performance.now();
     const startSequenceId = this.deltaSequenceCounter;
 
     const { maxHeight, maxLightsUpdateTime } = this.options;
 
+    let consumedCount = 0;
+    const processedClientUpdates: BlockUpdate[] = [];
     const processedUpdates: ProcessedUpdate[] = [];
-    let processedCount = 0;
 
-    for (const update of updates) {
-      if (performance.now() - startTime > maxLightsUpdateTime) {
+    for (let index = startIndex; index < endIndex; index++) {
+      if (
+        consumedCount > 0 &&
+        performance.now() - startTime > maxLightsUpdateTime
+      ) {
         if (Math.random() < 0.01) {
           console.warn(
             "Approaching maxLightsUpdateTime during light updates, continuing to ensure correctness"
@@ -5255,6 +5271,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
         break;
       }
+
+      const update = updates[index];
+      consumedCount++;
 
       const {
         update: { type, vx, vy, vz, rotation, yRotation, stage },
@@ -5294,8 +5313,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         oldStage: currentStage,
         stage: stage,
       });
-
-      processedCount++;
+      if (update.source === "client") {
+        processedClientUpdates.push(update.update);
+      }
     }
     const lightOps = this.analyzeLightOperations(processedUpdates);
 
@@ -5317,7 +5337,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.executeLightOperationsSyncAll(lightOps);
     }
 
-    return updates.slice(processedCount);
+    return {
+      consumedCount,
+      processedClientUpdates,
+    };
   };
 
   private processClientUpdates = () => {
@@ -5333,22 +5356,17 @@ export class World<T = any> extends Scene implements NetIntercept {
           this.blockUpdatesQueueHead + this.options.maxUpdatesPerUpdate,
           this.blockUpdatesQueue.length
         );
-        const updates = this.blockUpdatesQueue.slice(
+
+        const { consumedCount, processedClientUpdates } = this.processLightUpdates(
+          this.blockUpdatesQueue,
           this.blockUpdatesQueueHead,
           batchEnd
         );
-
-        const remainingUpdates = this.processLightUpdates(updates);
-        const processedCount = updates.length - remainingUpdates.length;
-        this.blockUpdatesQueueHead += processedCount;
+        this.blockUpdatesQueueHead += consumedCount;
         this.normalizeBlockUpdatesQueue();
 
-        const processedLimit = processedCount;
-        for (let i = 0; i < processedLimit; i++) {
-          const processedUpdate = updates[i];
-          if (processedUpdate.source === "client") {
-            this.blockUpdatesToEmit.push(processedUpdate.update);
-          }
+        for (const processedUpdate of processedClientUpdates) {
+          this.blockUpdatesToEmit.push(processedUpdate);
         }
 
         if (this.hasPendingBlockUpdates()) {
