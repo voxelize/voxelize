@@ -60,6 +60,17 @@ const availableSpecialCheckSelectors = Object.keys(availableSpecialCheckAliases)
 const specialSelectorChecks = {
   all: availableCheckNames,
 };
+const specialSelectorHintText = availableSpecialCheckSelectors
+  .map((selector) => {
+    const selectorAliases = availableSpecialCheckAliases[selector].filter((alias) => {
+      return alias !== selector;
+    });
+    if (selectorAliases.length === 0) {
+      return selector;
+    }
+    return `${selector} (${selectorAliases.join(", ")})`;
+  })
+  .join("; ");
 const normalizeCheckToken = (value) => {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
 };
@@ -147,9 +158,9 @@ const parseSelectedChecks = () => {
 
     const availableChecksHint = `Available checks: ${availableCheckNames.join(", ")}.`;
     const availableSpecialSelectorsHint =
-      availableSpecialCheckSelectors.length === 0
+      specialSelectorHintText.length === 0
         ? ""
-        : ` Special selectors: ${availableSpecialCheckSelectors.join(", ")}.`;
+        : ` Special selectors: ${specialSelectorHintText}.`;
 
     return {
       selectedChecks: [],

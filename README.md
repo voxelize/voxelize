@@ -214,7 +214,7 @@ JSON preflight commands include `startedAt`, `endedAt`, and `durationMs`.
 Client and onboarding JSON reports also include `totalSteps`, `passedStepCount`, `failedStepCount`, `skippedStepCount`, and `firstFailedStep`.
 If `--output` is provided without a value, JSON commands return a structured error report.
 If `--output` or `--only` is passed multiple times, the last value is used.
-Invalid `--only` errors include available canonical check names and special selectors (such as `all`) for quick correction.
+Invalid `--only` errors include available canonical check names and special selector aliases (for example `all`, `all-checks`, `all_checks`, `allchecks`) for quick correction.
 Invalid `--only` errors also include `invalidChecks` for machine-readable diagnostics.
 Aggregate preflight reports include `availableCheckAliases` so automation can map user-facing aliases to canonical check names.
 Aggregate preflight reports include `availableSpecialCheckAliases` for non-check selectors such as `all`.

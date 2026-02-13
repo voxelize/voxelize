@@ -604,7 +604,7 @@ describe("preflight aggregate report", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.message).toBe(
-      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, client. Special selectors: all."
+      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, client. Special selectors: all (all-checks, all_checks, allchecks)."
     );
     expect(report.invalidChecks).toEqual(["invalidCheck"]);
     expect(report.selectedChecks).toEqual([]);
@@ -912,7 +912,7 @@ describe("preflight aggregate report", () => {
     expect(report.failedCheckCount).toBe(0);
     expect(report.firstFailedCheck).toBeNull();
     expect(report.message).toBe(
-      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, client. Special selectors: all."
+      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, client. Special selectors: all (all-checks, all_checks, allchecks)."
     );
     expect(report.invalidChecks).toEqual(["invalidCheck"]);
     expect(report.requestedChecks).toEqual(["devEnvironment", "invalidCheck"]);
@@ -946,7 +946,7 @@ describe("preflight aggregate report", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.message).toBe(
-      "Invalid check name(s): invalidCheck, otherInvalid. Available checks: devEnvironment, wasmPack, client. Special selectors: all."
+      "Invalid check name(s): invalidCheck, otherInvalid. Available checks: devEnvironment, wasmPack, client. Special selectors: all (all-checks, all_checks, allchecks)."
     );
     expect(report.invalidChecks).toEqual(["invalidCheck", "otherInvalid"]);
     expect(report.requestedChecks).toEqual([
@@ -983,7 +983,7 @@ describe("preflight aggregate report", () => {
     expect(stdoutReport.exitCode).toBe(1);
     expect(stdoutReport.outputPath).toBe(outputPath);
     expect(stdoutReport.message).toBe(
-      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, client. Special selectors: all."
+      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, client. Special selectors: all (all-checks, all_checks, allchecks)."
     );
     expect(stdoutReport.invalidChecks).toEqual(["invalidCheck"]);
     expect(stdoutReport.requestedChecks).toEqual(["invalidCheck"]);
