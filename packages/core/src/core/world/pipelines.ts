@@ -153,7 +153,8 @@ export class ChunkPipeline {
   }
 
   getLoadedChunkAt(cx: number, cz: number): Chunk | undefined {
-    return this.getLoadedChunk(ChunkUtils.getChunkNameAt(cx, cz));
+    const state = this.states.get(ChunkUtils.getChunkNameAt(cx, cz));
+    return state?.stage === "loaded" ? state.chunk : undefined;
   }
 
   getProcessingData(
