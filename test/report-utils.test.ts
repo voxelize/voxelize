@@ -104,6 +104,23 @@ describe("report-utils", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("includes failure details when report write fails", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "report-utils-write-failure-")
+    );
+    const reportJson = toReportJson({ passed: false, exitCode: 1 });
+    const failureMessage = writeReportToPath(reportJson, tempDirectory);
+
+    expect(failureMessage).toContain(`Failed to write report to ${tempDirectory}.`);
+    if (failureMessage !== null) {
+      expect(failureMessage.length).toBeGreaterThan(
+        `Failed to write report to ${tempDirectory}.`.length
+      );
+    }
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("builds timed reports with stable startedAt and duration", () => {
     let tick = 0;
     const now = () => {

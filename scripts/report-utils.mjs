@@ -171,7 +171,11 @@ export const writeReportToPath = (reportJson, outputPath) => {
     fs.mkdirSync(path.dirname(outputPath), { recursive: true });
     fs.writeFileSync(outputPath, reportJson);
     return null;
-  } catch {
-    return `Failed to write report to ${outputPath}.`;
+  } catch (error) {
+    const detail =
+      error instanceof Error && error.message.length > 0
+        ? ` ${error.message}`
+        : "";
+    return `Failed to write report to ${outputPath}.${detail}`;
   }
 };

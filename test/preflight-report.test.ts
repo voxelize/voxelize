@@ -480,7 +480,7 @@ describe("preflight aggregate report", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.outputPath).toBe(tempDirectory);
-    expect(report.message).toBe(`Failed to write report to ${tempDirectory}.`);
+    expect(report.message).toContain(`Failed to write report to ${tempDirectory}.`);
     expect(result.status).toBe(1);
 
     fs.rmSync(tempDirectory, { recursive: true, force: true });
