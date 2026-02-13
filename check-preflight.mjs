@@ -89,6 +89,7 @@ const parseSelectedChecks = () => {
     return {
       selectedChecks: availableCheckNames,
       requestedChecks: [],
+      requestedCheckResolutions: [],
       selectionMode: "default",
       specialSelectorsUsed: [],
       error: null,
@@ -101,6 +102,7 @@ const parseSelectedChecks = () => {
     return {
       selectedChecks: [],
       requestedChecks: [],
+      requestedCheckResolutions: [],
       selectionMode: "only",
       specialSelectorsUsed: [],
       error: "Missing value for --only option.",
@@ -117,6 +119,7 @@ const parseSelectedChecks = () => {
     return {
       selectedChecks: [],
       requestedChecks: [],
+      requestedCheckResolutions: [],
       selectionMode: "only",
       specialSelectorsUsed: [],
       error: "Missing value for --only option.",
@@ -127,25 +130,54 @@ const parseSelectedChecks = () => {
   const invalidChecks = [];
   const resolvedChecks = [];
   const usedSpecialSelectors = new Set();
+  const requestedCheckResolutions = [];
   for (const parsedCheck of tokenizedChecks) {
     const normalizedParsedCheck = normalizeCheckToken(parsedCheck);
     const resolvedSpecialSelector = specialCheckAliases.get(normalizedParsedCheck);
     if (resolvedSpecialSelector !== undefined) {
       const resolvedSpecialChecks = specialSelectorChecks[resolvedSpecialSelector];
-      if (resolvedSpecialChecks !== undefined) {
-        resolvedChecks.push(...resolvedSpecialChecks);
-        usedSpecialSelectors.add(resolvedSpecialSelector);
+      if (resolvedSpecialChecks === undefined) {
+        invalidChecks.push(parsedCheck);
+        requestedCheckResolutions.push({
+          token: parsedCheck,
+          normalizedToken: normalizedParsedCheck,
+          kind: "invalid",
+          resolvedTo: [],
+        });
+        continue;
       }
+
+      resolvedChecks.push(...resolvedSpecialChecks);
+      usedSpecialSelectors.add(resolvedSpecialSelector);
+      requestedCheckResolutions.push({
+        token: parsedCheck,
+        normalizedToken: normalizedParsedCheck,
+        kind: "specialSelector",
+        selector: resolvedSpecialSelector,
+        resolvedTo: resolvedSpecialChecks,
+      });
       continue;
     }
 
     const resolvedCheck = checkAliases.get(normalizedParsedCheck) ?? null;
     if (resolvedCheck === null) {
       invalidChecks.push(parsedCheck);
+      requestedCheckResolutions.push({
+        token: parsedCheck,
+        normalizedToken: normalizedParsedCheck,
+        kind: "invalid",
+        resolvedTo: [],
+      });
       continue;
     }
 
     resolvedChecks.push(resolvedCheck);
+    requestedCheckResolutions.push({
+      token: parsedCheck,
+      normalizedToken: normalizedParsedCheck,
+      kind: "check",
+      resolvedTo: [resolvedCheck],
+    });
   }
 
   if (invalidChecks.length > 0) {
@@ -169,6 +201,7 @@ const parseSelectedChecks = () => {
     return {
       selectedChecks: [],
       requestedChecks: tokenizedChecks,
+      requestedCheckResolutions,
       selectionMode: "only",
       specialSelectorsUsed: Array.from(usedSpecialSelectors),
       error: `Invalid check name(s): ${uniqueInvalidChecks.join(", ")}. ${availableChecksHint}${availableSpecialSelectorsHint}`,
@@ -184,6 +217,7 @@ const parseSelectedChecks = () => {
   return {
     selectedChecks: normalizedChecks,
     requestedChecks: tokenizedChecks,
+    requestedCheckResolutions,
     selectionMode: "only",
     specialSelectorsUsed: Array.from(usedSpecialSelectors),
     error: null,
@@ -193,6 +227,7 @@ const parseSelectedChecks = () => {
 const {
   selectedChecks,
   requestedChecks,
+  requestedCheckResolutions,
   selectionMode,
   specialSelectorsUsed,
   error: selectedChecksError,
@@ -239,6 +274,7 @@ if (outputPathError !== null || selectedChecksError !== null) {
     nodeVersion,
     selectedChecks: [],
     requestedChecks,
+    requestedCheckResolutions,
     selectionMode,
     specialSelectorsUsed,
     skippedChecks: availableCheckNames,
@@ -297,6 +333,7 @@ const report = buildTimedReport({
   nodeVersion,
   selectedChecks,
   requestedChecks,
+  requestedCheckResolutions,
   selectionMode,
   specialSelectorsUsed,
   skippedChecks,

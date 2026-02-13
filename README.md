@@ -222,6 +222,7 @@ Aggregate preflight reports include `availableSpecialCheckAliases` for non-check
 Aggregate preflight reports include `requestedChecks` so CI logs can capture the exact `--only` inputs after tokenization.
 Aggregate preflight reports include `selectionMode` (`default` or `only`) to show whether selection came from defaults or an explicit `--only` filter.
 Aggregate preflight reports include `specialSelectorsUsed` to show which special selector names (for example `all`) were used in `--only`.
+Aggregate preflight reports include `requestedCheckResolutions` to map each `--only` token to its resolved check, special selector, or invalid status.
 When `--only` is omitted, `requestedChecks` is an empty array and `selectedChecks` contains the default aggregate checks.
 When `--output` validation fails, `requestedChecks` still reflects parsed `--only` tokens for easier debugging.
 If report writing fails, JSON error reports include both `message` and `writeError`.
