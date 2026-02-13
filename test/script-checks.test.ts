@@ -747,7 +747,7 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
-  it("check-wasm-pack json mode preserves inline known-flag misuse tokens", () => {
+  it("check-wasm-pack json mode redacts inline known-flag misuse tokens", () => {
     const result = runScript("check-wasm-pack.mjs", [
       "--json",
       "--json=1",
@@ -971,6 +971,17 @@ describe("root preflight scripts", () => {
     expect(result.output).not.toContain("--mystery=alpha");
     expect(result.output).not.toContain("--mystery=beta");
     expect(result.output).not.toContain("-x=1");
+  });
+
+  it("check-wasm-pack non-json mode redacts inline known-flag misuse tokens", () => {
+    const result = runScript("check-wasm-pack.mjs", ["--json=1", "--mystery=alpha"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(
+      "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --output, --quiet."
+    );
+    expect(result.output).not.toContain("--json=1");
+    expect(result.output).not.toContain("--mystery=alpha");
   });
 
   it("check-wasm-pack non-json mode fails on missing output value", () => {
@@ -1512,6 +1523,40 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-dev-env json mode redacts inline known-flag misuse tokens", () => {
+    const result = runScript("check-dev-env.mjs", [
+      "--json",
+      "--json=1",
+      "--mystery=alpha",
+    ]);
+    const report = JSON.parse(result.output) as DevEnvJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedStandardCliOptions);
+    expectCliOptionCatalogMetadata(report, {}, expectedStandardCliOptions);
+    expect(report.unknownOptions).toEqual(["--json=<value>", "--mystery"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --output, --quiet."
+    );
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("check-dev-env json mode writes unsupported-option validation reports to output files", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-dev-env-validation-report-")
@@ -1666,6 +1711,17 @@ describe("root preflight scripts", () => {
     expect(result.output).not.toContain("--mystery=alpha");
     expect(result.output).not.toContain("--mystery=beta");
     expect(result.output).not.toContain("-x=1");
+  });
+
+  it("check-dev-env non-json mode redacts inline known-flag misuse tokens", () => {
+    const result = runScript("check-dev-env.mjs", ["--json=1", "--mystery=alpha"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(
+      "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --output, --quiet."
+    );
+    expect(result.output).not.toContain("--json=1");
+    expect(result.output).not.toContain("--mystery=alpha");
   });
 
   it("check-dev-env non-json mode fails on missing output value", () => {
@@ -2348,6 +2404,44 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-client json mode redacts inline known-flag misuse tokens", () => {
+    const result = runScript("check-client.mjs", [
+      "--json",
+      "--json=1",
+      "--mystery=alpha",
+    ]);
+    const report = JSON.parse(result.output) as ClientJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedNoBuildCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedNoBuildCliOptions
+    );
+    expect(report.unknownOptions).toEqual(["--json=<value>", "--mystery"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("check-client json mode writes unsupported-option validation reports to output files", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-client-validation-report-")
@@ -2569,6 +2663,17 @@ describe("root preflight scripts", () => {
     expect(result.output).not.toContain("--mystery=alpha");
     expect(result.output).not.toContain("--mystery=beta");
     expect(result.output).not.toContain("-x=1");
+  });
+
+  it("check-client non-json mode redacts inline known-flag misuse tokens", () => {
+    const result = runScript("check-client.mjs", ["--json=1", "--mystery=alpha"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(
+      "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expect(result.output).not.toContain("--json=1");
+    expect(result.output).not.toContain("--mystery=alpha");
   });
 
   it("check-client non-json mode fails on missing output value", () => {
@@ -3261,6 +3366,44 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-onboarding json mode redacts inline known-flag misuse tokens", () => {
+    const result = runScript("check-onboarding.mjs", [
+      "--json",
+      "--json=1",
+      "--mystery=alpha",
+    ]);
+    const report = JSON.parse(result.output) as OnboardingJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedNoBuildCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedNoBuildCliOptions
+    );
+    expect(report.unknownOptions).toEqual(["--json=<value>", "--mystery"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("check-onboarding json mode writes unsupported-option validation reports to output files", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-onboarding-validation-report-")
@@ -3482,6 +3625,17 @@ describe("root preflight scripts", () => {
     expect(result.output).not.toContain("--mystery=alpha");
     expect(result.output).not.toContain("--mystery=beta");
     expect(result.output).not.toContain("-x=1");
+  });
+
+  it("check-onboarding non-json mode redacts inline known-flag misuse tokens", () => {
+    const result = runScript("check-onboarding.mjs", ["--json=1", "--mystery=alpha"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(
+      "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expect(result.output).not.toContain("--json=1");
+    expect(result.output).not.toContain("--mystery=alpha");
   });
 
   it("check-onboarding non-json mode fails on missing output value", () => {

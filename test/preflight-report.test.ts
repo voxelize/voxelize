@@ -1507,7 +1507,7 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(1);
   });
 
-  it("preserves inline known-flag misuse tokens in unsupported-option output", () => {
+  it("redacts inline known-flag misuse tokens in unsupported-option output", () => {
     const result = spawnSync(
       process.execPath,
       [preflightScript, "--json=1", "--mystery=alpha"],

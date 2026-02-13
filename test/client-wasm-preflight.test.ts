@@ -802,6 +802,48 @@ describe("client wasm preflight script", () => {
     expect(result.status).toBe(1);
   });
 
+  it("redacts inline known-flag misuse tokens in structured output", () => {
+    const result = spawnSync(
+      process.execPath,
+      [wasmMesherScript, "--json", "--json=1", "--mystery=alpha"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const report = JSON.parse(`${result.stdout}${result.stderr}`) as WasmMesherJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedWasmMesherCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedWasmMesherCliOptions
+    );
+    expect(report.unknownOptions).toEqual(["--json=<value>", "--mystery"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --verify."
+    );
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("normalizes inline unsupported options in structured output", () => {
     const result = spawnSync(
       process.execPath,
@@ -1110,6 +1152,26 @@ describe("client wasm preflight script", () => {
     expect(output).toContain(
       "Unsupported option(s): --mystery. Supported options: --compact, --json, --no-build, --output, --verify."
     );
+  });
+
+  it("fails in non-json mode with redacted inline known-flag misuse tokens", () => {
+    const result = spawnSync(
+      process.execPath,
+      [wasmMesherScript, "--json=1", "--mystery=alpha"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output).toContain(
+      "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --verify."
+    );
+    expect(output).not.toContain("--json=1");
+    expect(output).not.toContain("--mystery=alpha");
   });
 
   it("fails in non-json mode with normalized inline unsupported options", () => {
