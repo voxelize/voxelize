@@ -209,7 +209,7 @@ pub struct Registry {
     #[serde(skip)]
     lookup_cache: Option<HashMap<u32, usize>>,
     #[serde(skip)]
-    dense_lookup: Option<Vec<i32>>,
+    dense_lookup: Option<Vec<usize>>,
 }
 
 impl Registry {
@@ -235,9 +235,9 @@ impl Registry {
 
         let dense_limit = self.blocks_by_id.len().saturating_mul(16);
         if (max_id as usize) <= dense_limit {
-            let mut dense = vec![-1; max_id as usize + 1];
+            let mut dense = vec![usize::MAX; max_id as usize + 1];
             for (idx, (id, _)) in self.blocks_by_id.iter().enumerate() {
-                dense[*id as usize] = idx as i32;
+                dense[*id as usize] = idx;
             }
             self.dense_lookup = Some(dense);
         } else {
@@ -248,8 +248,8 @@ impl Registry {
     pub fn get_block_by_id(&self, id: u32) -> Option<&Block> {
         if let Some(dense) = &self.dense_lookup {
             if let Some(&idx) = dense.get(id as usize) {
-                if idx >= 0 {
-                    return Some(&self.blocks_by_id[idx as usize].1);
+                if idx != usize::MAX {
+                    return Some(&self.blocks_by_id[idx].1);
                 }
             }
             None
@@ -265,7 +265,10 @@ impl Registry {
 
     pub fn has_type(&self, id: u32) -> bool {
         if let Some(dense) = &self.dense_lookup {
-            dense.get(id as usize).map(|idx| *idx >= 0).unwrap_or(false)
+            dense
+                .get(id as usize)
+                .map(|idx| *idx != usize::MAX)
+                .unwrap_or(false)
         } else if let Some(cache) = &self.lookup_cache {
             cache.contains_key(&id)
         } else {
