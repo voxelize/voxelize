@@ -9,6 +9,7 @@ import {
   createTimedReportBuilder,
   parseJsonOutput,
   resolveOutputPath,
+  summarizeCheckResults,
   summarizeStepResults,
   toReport,
   toReportJson,
@@ -120,6 +121,23 @@ describe("report-utils", () => {
       failedStepCount: 1,
       skippedStepCount: 1,
       firstFailedStep: "step-b",
+    });
+  });
+
+  it("summarizes check outcomes for aggregate preflight reports", () => {
+    const summary = summarizeCheckResults([
+      { name: "devEnvironment", passed: false },
+      { name: "wasmPack", passed: true },
+      { name: "client", passed: false },
+    ]);
+
+    expect(summary).toEqual({
+      totalChecks: 3,
+      passedCheckCount: 1,
+      failedCheckCount: 2,
+      firstFailedCheck: "devEnvironment",
+      passedChecks: ["wasmPack"],
+      failedChecks: ["devEnvironment", "client"],
     });
   });
 });

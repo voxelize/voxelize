@@ -70,6 +70,20 @@ export const summarizeStepResults = (steps) => {
   };
 };
 
+export const summarizeCheckResults = (checks) => {
+  const passedChecks = checks.filter((check) => check.passed).map((check) => check.name);
+  const failedChecks = checks.filter((check) => !check.passed).map((check) => check.name);
+
+  return {
+    totalChecks: checks.length,
+    passedCheckCount: passedChecks.length,
+    failedCheckCount: failedChecks.length,
+    firstFailedCheck: failedChecks[0] ?? null,
+    passedChecks,
+    failedChecks,
+  };
+};
+
 export const resolveOutputPath = (args, cwd = process.cwd()) => {
   const outputArgIndex = args.indexOf("--output");
   if (outputArgIndex === -1) {
