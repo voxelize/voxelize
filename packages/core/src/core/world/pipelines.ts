@@ -29,14 +29,6 @@ export class ChunkPipeline {
     this.indices[stage.stage].add(name);
   }
 
-  private removeStage(name: string): void {
-    const old = this.states.get(name);
-    if (old) {
-      this.indices[old.stage].delete(name);
-      this.states.delete(name);
-    }
-  }
-
   getStage(name: string): StageType | null {
     return this.states.get(name)?.stage ?? null;
   }
