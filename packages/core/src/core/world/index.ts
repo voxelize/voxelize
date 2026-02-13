@@ -3859,9 +3859,11 @@ export class World<T = any> extends Scene implements NetIntercept {
     // Loading the block registry
     this.blockEntityTypeBlockCache.clear();
     this.blockFaceNameCache.clear();
-    const blockNames = Object.keys(blocks);
-    for (let blockIndex = 0; blockIndex < blockNames.length; blockIndex++) {
-      const name = blockNames[blockIndex];
+    const hasOwnBlock = Object.prototype.hasOwnProperty;
+    for (const name in blocks) {
+      if (!hasOwnBlock.call(blocks, name)) {
+        continue;
+      }
       const block = blocks[name];
       const { id, aabbs, isDynamic } = block;
 
