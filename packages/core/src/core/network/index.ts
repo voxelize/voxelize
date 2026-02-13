@@ -380,9 +380,16 @@ export class Network {
     const perWorker = Math.ceil(packetCount / availableWorkers);
 
     if (packetCount <= perWorker) {
-      const packets = this.packetQueue.slice(this.packetQueueHead, batchEnd);
-      this.packetQueueHead = batchEnd;
-      this.normalizePacketQueue();
+      let packets: ArrayBuffer[];
+      if (this.packetQueueHead === 0 && batchEnd === this.packetQueue.length) {
+        packets = this.packetQueue;
+        this.packetQueue = [];
+        this.packetQueueHead = 0;
+      } else {
+        packets = this.packetQueue.slice(this.packetQueueHead, batchEnd);
+        this.packetQueueHead = batchEnd;
+        this.normalizePacketQueue();
+      }
       this.decode(packets)
         .then((messages) => {
           for (
