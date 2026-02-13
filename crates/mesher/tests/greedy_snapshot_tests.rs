@@ -1,6 +1,6 @@
 use std::{fs, path::PathBuf};
 use voxelize_mesher::{
-    mesh_space_greedy, AABB, Block, BlockConditionalPart, BlockDynamicPattern, BlockFace,
+    mesh_space, mesh_space_greedy, AABB, Block, BlockConditionalPart, BlockDynamicPattern, BlockFace,
     BlockRotation, BlockRule, BlockSimpleRule, BlockUtils, CornerData, GeometryProtocol,
     LightColor, LightUtils, Registry, UV, VoxelAccess,
 };
@@ -484,10 +484,15 @@ fn assert_geometry_integrity(geometries: &[GeometryProtocol]) {
     }
 }
 
-fn mesh_and_snapshot(name: &str, space: &TestSpace, registry: &Registry) {
+fn mesh_and_snapshot_with_mode(
+    name: &str,
+    space: &TestSpace,
+    registry: &Registry,
+    mesh_fn: fn(&[i32; 3], &[i32; 3], &TestSpace, &Registry) -> Vec<GeometryProtocol>,
+) {
     let min = [0, 0, 0];
     let max = [space.shape[0] as i32, space.shape[1] as i32, space.shape[2] as i32];
-    let geometries = mesh_space_greedy(&min, &max, space, registry);
+    let geometries = mesh_fn(&min, &max, space, registry);
     assert_geometry_integrity(&geometries);
     assert_snapshot(name, &canonicalize(geometries));
 }
@@ -515,7 +520,18 @@ fn snapshot_transparency_properties() {
     space.set_light(2, 2, 2, 15, 0, 0, 0);
     space.set_light(3, 2, 4, 12, 4, 0, 0);
 
-    mesh_and_snapshot("greedy_snapshot_transparency_properties", &space, &registry);
+    mesh_and_snapshot_with_mode(
+        "greedy_snapshot_transparency_properties",
+        &space,
+        &registry,
+        mesh_space_greedy::<TestSpace>,
+    );
+    mesh_and_snapshot_with_mode(
+        "non_greedy_snapshot_transparency_properties",
+        &space,
+        &registry,
+        mesh_space::<TestSpace>,
+    );
 }
 
 #[test]
@@ -532,7 +548,18 @@ fn snapshot_dynamic_patterns_and_rules() {
     space.set_voxel_id(1, 2, 1, 1);
     space.set_voxel_id(1, 3, 1, 1);
 
-    mesh_and_snapshot("greedy_snapshot_dynamic_patterns_and_rules", &space, &registry);
+    mesh_and_snapshot_with_mode(
+        "greedy_snapshot_dynamic_patterns_and_rules",
+        &space,
+        &registry,
+        mesh_space_greedy::<TestSpace>,
+    );
+    mesh_and_snapshot_with_mode(
+        "non_greedy_snapshot_dynamic_patterns_and_rules",
+        &space,
+        &registry,
+        mesh_space::<TestSpace>,
+    );
 }
 
 #[test]
@@ -552,10 +579,17 @@ fn snapshot_fluid_waterlogged_and_occlusion_properties() {
     space.set_light(2, 1, 2, 15, 0, 0, 3);
     space.set_light(3, 1, 2, 13, 2, 1, 0);
 
-    mesh_and_snapshot(
+    mesh_and_snapshot_with_mode(
         "greedy_snapshot_fluid_waterlogged_and_occlusion_properties",
         &space,
         &registry,
+        mesh_space_greedy::<TestSpace>,
+    );
+    mesh_and_snapshot_with_mode(
+        "non_greedy_snapshot_fluid_waterlogged_and_occlusion_properties",
+        &space,
+        &registry,
+        mesh_space::<TestSpace>,
     );
 }
 
@@ -571,10 +605,17 @@ fn snapshot_rotation_independent_and_isolated_faces() {
     space.set_voxel_id(5, 2, 3, 10);
     space.set_voxel_id(5, 3, 2, 1);
 
-    mesh_and_snapshot(
+    mesh_and_snapshot_with_mode(
         "greedy_snapshot_rotation_independent_and_isolated_faces",
         &space,
         &registry,
+        mesh_space_greedy::<TestSpace>,
+    );
+    mesh_and_snapshot_with_mode(
+        "non_greedy_snapshot_rotation_independent_and_isolated_faces",
+        &space,
+        &registry,
+        mesh_space::<TestSpace>,
     );
 }
 
@@ -617,5 +658,16 @@ fn snapshot_seeded_property_mix() {
         }
     }
 
-    mesh_and_snapshot("greedy_snapshot_seeded_property_mix", &space, &registry);
+    mesh_and_snapshot_with_mode(
+        "greedy_snapshot_seeded_property_mix",
+        &space,
+        &registry,
+        mesh_space_greedy::<TestSpace>,
+    );
+    mesh_and_snapshot_with_mode(
+        "non_greedy_snapshot_seeded_property_mix",
+        &space,
+        &registry,
+        mesh_space::<TestSpace>,
+    );
 }

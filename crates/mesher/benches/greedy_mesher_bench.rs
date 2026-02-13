@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use voxelize_mesher::{
-    mesh_space_greedy, mesh_space_greedy_legacy, AABB, Block, BlockConditionalPart,
+    mesh_space, mesh_space_greedy, mesh_space_greedy_legacy, AABB, Block, BlockConditionalPart,
     BlockDynamicPattern, BlockFace, BlockRotation, BlockRule, BlockSimpleRule, BlockUtils,
     CornerData, GeometryProtocol, LightColor, LightUtils, Registry, UV, VoxelAccess,
 };
@@ -477,5 +477,35 @@ fn greedy_mesher_benchmark(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, greedy_mesher_benchmark);
+fn non_greedy_mesher_benchmark(c: &mut Criterion) {
+    let registry = build_registry();
+    let scenes = vec![
+        ("terrain_16x24x16", terrain_scene()),
+        ("dynamic_16x20x16", dynamic_scene()),
+    ];
+    let mut group = c.benchmark_group("non_greedy_mesher");
+
+    for (scene_name, space) in &scenes {
+        let min = [0, 0, 0];
+        let max = [space.shape[0] as i32, space.shape[1] as i32, space.shape[2] as i32];
+        group.bench_with_input(
+            BenchmarkId::new("mesh_space", scene_name),
+            scene_name,
+            |bench, _| {
+                bench.iter(|| {
+                    mesh_space(
+                        black_box(&min),
+                        black_box(&max),
+                        black_box(space),
+                        black_box(&registry),
+                    )
+                });
+            },
+        );
+    }
+
+    group.finish();
+}
+
+criterion_group!(benches, greedy_mesher_benchmark, non_greedy_mesher_benchmark);
 criterion_main!(benches);
