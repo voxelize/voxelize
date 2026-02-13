@@ -21,7 +21,7 @@ if (fs.existsSync(wasmMesherEntry)) {
 
 const wasmPackCheck = spawnSync(
   process.execPath,
-  [rootWasmCheckScript],
+  [rootWasmCheckScript, "--quiet"],
   {
     stdio: "inherit",
     shell: false,
