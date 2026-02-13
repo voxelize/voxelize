@@ -5538,10 +5538,16 @@ export class World<T = any> extends Scene implements NetIntercept {
         relevantDeltas[chunkName] = recentDeltas.map((delta) => ({
           ...delta,
           oldRotation: delta.oldRotation
-            ? JSON.parse(JSON.stringify(delta.oldRotation))
+            ? new BlockRotation(
+                delta.oldRotation.value,
+                delta.oldRotation.yRotation
+              )
             : undefined,
           newRotation: delta.newRotation
-            ? JSON.parse(JSON.stringify(delta.newRotation))
+            ? new BlockRotation(
+                delta.newRotation.value,
+                delta.newRotation.yRotation
+              )
             : undefined,
         }));
       }
