@@ -1612,6 +1612,30 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-dev-env json mode deduplicates literal redaction placeholders", () => {
+    const result = runScript("check-dev-env.mjs", [
+      "--json",
+      "--json=<value>",
+      "--json=secret",
+      "--mystery=alpha",
+    ]);
+    const report = JSON.parse(result.output) as DevEnvJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedStandardCliOptions);
+    expectCliOptionCatalogMetadata(report, {}, expectedStandardCliOptions);
+    expect(report.unknownOptions).toEqual(["--json=<value>", "--mystery"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --output, --quiet."
+    );
+    expect(result.output).not.toContain("--json=secret");
+    expect(result.status).toBe(1);
+  });
+
   it("check-dev-env json mode redacts malformed inline option names", () => {
     const result = runScript("check-dev-env.mjs", [
       "--json",
@@ -1813,6 +1837,21 @@ describe("root preflight scripts", () => {
       "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --output, --quiet."
     );
     expect(result.output).not.toContain("--json=1");
+    expect(result.output).not.toContain("--mystery=alpha");
+  });
+
+  it("check-dev-env non-json mode deduplicates literal redaction placeholders", () => {
+    const result = runScript("check-dev-env.mjs", [
+      "--json=<value>",
+      "--json=secret",
+      "--mystery=alpha",
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(
+      "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --output, --quiet."
+    );
+    expect(result.output).not.toContain("--json=secret");
     expect(result.output).not.toContain("--mystery=alpha");
   });
 

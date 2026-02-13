@@ -552,6 +552,29 @@ describe("report-utils", () => {
       "--=<value>",
       "-=<value>",
     ]);
+
+    const unknownWithLiteralRedactionPlaceholderAndKnownMisuse = parseUnknownCliOptions(
+      ["--json=<value>", "--json=secret", "--mystery=alpha"],
+      {
+        canonicalOptions: ["--json"],
+      }
+    );
+    expect(unknownWithLiteralRedactionPlaceholderAndKnownMisuse).toEqual([
+      "--json=<value>",
+      "--mystery",
+    ]);
+
+    const unknownWithLiteralMalformedPlaceholderAndMalformedMisuse =
+      parseUnknownCliOptions(
+        ["--=<value>", "--=secret", "-=<value>", "-=secret"],
+        {
+          canonicalOptions: ["--json"],
+        }
+      );
+    expect(unknownWithLiteralMalformedPlaceholderAndMalformedMisuse).toEqual([
+      "--=<value>",
+      "-=<value>",
+    ]);
   });
 
   it("creates structured cli option validation metadata", () => {
@@ -641,6 +664,23 @@ describe("report-utils", () => {
       "Unsupported option(s): --=<value>, -=<value>. Supported options: --json, --output."
     );
     expect(unsupportedMalformedInlineOptionNames.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+
+    const unsupportedWithLiteralPlaceholderAndKnownMisuse =
+      createCliOptionValidation(["--json=<value>", "--json=secret", "--mystery=alpha"], {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+      });
+    expect(unsupportedWithLiteralPlaceholderAndKnownMisuse.unknownOptions).toEqual([
+      "--json=<value>",
+      "--mystery",
+    ]);
+    expect(unsupportedWithLiteralPlaceholderAndKnownMisuse.unknownOptionCount).toBe(2);
+    expect(unsupportedWithLiteralPlaceholderAndKnownMisuse.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --json=<value>, --mystery. Supported options: --json, --output."
+    );
+    expect(unsupportedWithLiteralPlaceholderAndKnownMisuse.validationErrorCode).toBe(
       "unsupported_options"
     );
 

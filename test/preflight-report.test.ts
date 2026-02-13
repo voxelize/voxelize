@@ -1537,6 +1537,33 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(1);
   });
 
+  it("deduplicates literal redaction placeholders in unsupported-option output", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--json=<value>", "--json=secret", "--mystery=alpha"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(false);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.unknownOptions).toEqual(["--json=<value>", "--mystery"]);
+    expect(report.message).toBe(
+      expectedUnsupportedOptionsMessage(["--json=<value>", "--mystery"])
+    );
+    expect(output).not.toContain("--json=secret");
+    expect(result.status).toBe(1);
+  });
+
   it("redacts inline alias misuse tokens in unsupported-option output", () => {
     const result = spawnSync(
       process.execPath,

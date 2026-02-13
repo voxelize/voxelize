@@ -844,6 +844,37 @@ describe("client wasm preflight script", () => {
     expect(result.status).toBe(1);
   });
 
+  it("deduplicates literal redaction placeholders in structured output", () => {
+    const result = spawnSync(
+      process.execPath,
+      [wasmMesherScript, "--json", "--json=<value>", "--json=secret", "--mystery=alpha"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const report = JSON.parse(`${result.stdout}${result.stderr}`) as WasmMesherJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedWasmMesherCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedWasmMesherCliOptions
+    );
+    expect(report.unknownOptions).toEqual(["--json=<value>", "--mystery"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --verify."
+    );
+    expect(`${result.stdout}${result.stderr}`).not.toContain("--json=secret");
+    expect(result.status).toBe(1);
+  });
+
   it("redacts inline alias misuse tokens in structured output", () => {
     const result = spawnSync(
       process.execPath,
@@ -1255,6 +1286,26 @@ describe("client wasm preflight script", () => {
       "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --verify."
     );
     expect(output).not.toContain("--json=1");
+    expect(output).not.toContain("--mystery=alpha");
+  });
+
+  it("fails in non-json mode with deduplicated literal redaction placeholders", () => {
+    const result = spawnSync(
+      process.execPath,
+      [wasmMesherScript, "--json=<value>", "--json=secret", "--mystery=alpha"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output).toContain(
+      "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --verify."
+    );
+    expect(output).not.toContain("--json=secret");
     expect(output).not.toContain("--mystery=alpha");
   });
 

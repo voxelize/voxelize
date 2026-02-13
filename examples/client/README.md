@@ -98,6 +98,7 @@ Unsupported CLI flags return structured errors and include `unknownOptions`, `un
 Inline unsupported-option forms are normalized in diagnostics (for example `--mystery=alpha` is reported as `--mystery`) and deduplicated by option token.
 Inline misuse of supported non-value flags is redacted without exposing raw values (for example `--json=secret` is reported as `--json=<value>`).
 Alias misuse uses canonical redacted forms (for example `--verify=secret` is reported as `--no-build=<value>`).
+Malformed inline option names are redacted and deduplicated (for example `--=secret` and `--=` are reported as `--=<value>`, while `-=secret` and `-=` are reported as `-=<value>`).
 JSON preflight reports also include `activeCliOptions`, `activeCliOptionTokens`, `activeCliOptionResolutions`, and `activeCliOptionOccurrences` for option-usage diagnostics.
 JSON preflight reports include `availableCliOptionAliases` and `availableCliOptionCanonicalMap` to expose alias-to-canonical option mappings.
 If report writing fails, JSON error reports include both `message` and `writeError`.
