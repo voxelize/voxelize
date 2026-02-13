@@ -138,6 +138,7 @@ pnpm run check:preflight:verify:json
 # all json report commands include schemaVersion: 1
 # includes passedChecks/failedChecks and runtime metadata (platform/nodeVersion)
 # includes failureSummaries for quick CI diagnostics
+# failureSummaries are derived from nested step/check report messages when available
 # optionally write the same report to disk
 pnpm run check:preflight:verify:json -- --output ./preflight-report.json
 
