@@ -3052,7 +3052,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                             block.has_independent_or_isolated_faces_cached();
                         let has_dynamic_patterns = block.has_dynamic_patterns_cached();
                         let mut rotation = BlockRotation::PY(0.0);
-                        if block.rotatable || block.y_rotatable || has_dynamic_patterns {
+                        if block.rotatable || block.y_rotatable {
                             rotation = space.get_voxel_rotation(vx, vy, vz);
                         }
                         processed_non_greedy[current_voxel_index] = true;
@@ -3557,7 +3557,7 @@ pub fn mesh_space<S: VoxelAccess>(
                 }
 
                 let mut rotation = BlockRotation::PY(0.0);
-                if block.rotatable || block.y_rotatable || has_dynamic_patterns {
+                if block.rotatable || block.y_rotatable {
                     rotation = space.get_voxel_rotation(vx, vy, vz);
                 }
                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
