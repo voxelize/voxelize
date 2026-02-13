@@ -240,7 +240,6 @@ const serializeChunkGrid = (
         voxels: Uint32Array;
         lights: Uint32Array;
         shape: [number, number, number];
-        min: [number, number, number];
       }
     | null
   )[] = [];
@@ -253,13 +252,11 @@ const serializeChunkGrid = (
         continue;
       }
 
-      const [cx, cz] = chunk.coords;
       const { size, maxHeight } = chunk.options;
       serialized.push({
         voxels: chunk.voxels.data,
         lights: chunk.lights.data,
         shape: [size, maxHeight, size],
-        min: [cx * size, 0, cz * size],
       });
     }
   }

@@ -16,7 +16,7 @@
     "build:wasm:dev:lighter": "cd crates/wasm-lighter && wasm-pack build --target web --dev",
     "build:wasm:release:mesher": "cd crates/wasm-mesher && wasm-pack build --target web --release",
     "build:wasm:release:lighter": "cd crates/wasm-lighter && wasm-pack build --target web --release",
-    "build": "pnpm build:wasm && cd packages && pnpm -r --workspace-concurrency=1 --filter \"@voxelize/*\" --filter \"!@voxelize/core\" build && cd core && pnpm build",
+    "build": "pnpm build:wasm && cd packages && pnpm -r --workspace-concurrency=1 --filter \"@voxelize/*\" --filter \"!@voxelize/core\" --filter \"!@voxelize/wasm-mesher\" --filter \"!@voxelize/wasm-lighter\" build && cd core && pnpm build",
     "demo:ts": "cd examples/client && pnpm demo",
     "demo:rs": "cross-env RUST_BACKTRACE=1 cargo watch -w examples/server -w server -x \"run --release --example demo\"",
     "test-dev": "vitest",
