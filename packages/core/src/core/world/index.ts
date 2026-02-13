@@ -1486,16 +1486,23 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     let firstFaceInGroup: { blockId: number; face: Block["faces"][0] } | null =
       null;
-    outer: for (const [id, block] of this.registry.blocksById) {
+    let blockEntries = this.registry.blocksById.entries();
+    let blockEntry = blockEntries.next();
+    while (!blockEntry.done) {
+      const [id, block] = blockEntry.value;
       const blockFaces = block.faces;
       for (let faceIndex = 0; faceIndex < blockFaces.length; faceIndex++) {
         const face = blockFaces[faceIndex];
         if (face.isolated) continue;
         if (face.textureGroup === groupName) {
           firstFaceInGroup = { blockId: id, face };
-          break outer;
+          break;
         }
       }
+      if (firstFaceInGroup) {
+        break;
+      }
+      blockEntry = blockEntries.next();
     }
 
     if (!firstFaceInGroup) {
@@ -2393,8 +2400,13 @@ export class World<T = any> extends Scene implements NetIntercept {
       countPerSide: number;
     } | null = null;
 
-    for (const [id, block] of this.registry.blocksById) {
-      for (const face of block.faces) {
+    let blockEntries = this.registry.blocksById.entries();
+    let blockEntry = blockEntries.next();
+    while (!blockEntry.done) {
+      const [id, block] = blockEntry.value;
+      const blockFaces = block.faces;
+      for (let faceIndex = 0; faceIndex < blockFaces.length; faceIndex++) {
+        const face = blockFaces[faceIndex];
         const isIsolated = face.isolated;
         const isIndependent = face.independent && !face.isolated;
 
@@ -2436,6 +2448,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           materialKey,
         });
       }
+      blockEntry = blockEntries.next();
     }
 
     return { sharedAtlas, textures };
@@ -3902,8 +3915,14 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     this._plantBlockIds.clear();
-    for (const [id, block] of this.registry.blocksById) {
-      if (block.faces.length === 0) continue;
+    let blockEntries = this.registry.blocksById.entries();
+    let blockEntry = blockEntries.next();
+    while (!blockEntry.done) {
+      const [id, block] = blockEntry.value;
+      if (block.faces.length === 0) {
+        blockEntry = blockEntries.next();
+        continue;
+      }
       const blockFaces = block.faces;
       let allDiagonal = true;
       for (let faceIndex = 0; faceIndex < blockFaces.length; faceIndex++) {
@@ -3916,6 +3935,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       if (allDiagonal) {
         this._plantBlockIds.add(id);
       }
+      blockEntry = blockEntries.next();
     }
 
     // Loading the options
@@ -7305,9 +7325,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     const blocksById = this.registry.blocksById;
     const blocks = new Array<Block>(blocksById.size);
     let blockWriteIndex = 0;
-    for (const block of blocksById.values()) {
-      blocks[blockWriteIndex] = block;
+    let blocksByIdValues = blocksById.values();
+    let blockValue = blocksByIdValues.next();
+    while (!blockValue.done) {
+      blocks[blockWriteIndex] = blockValue.value;
       blockWriteIndex++;
+      blockValue = blocksByIdValues.next();
     }
 
     const textureGroups = new Set<string>();
