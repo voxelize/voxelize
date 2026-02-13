@@ -3937,10 +3937,10 @@ export class World<T = any> extends Scene implements NetIntercept {
         return;
       }
 
-      toRequestClosest[farthestRequestIndex] = {
-        coords: [cx, cz],
-        distance,
-      };
+      const farthestRequest = toRequestClosest[farthestRequestIndex];
+      farthestRequest.coords[0] = cx;
+      farthestRequest.coords[1] = cz;
+      farthestRequest.distance = distance;
       recomputeFarthestRequest();
     };
 
@@ -4054,7 +4054,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         return;
       }
 
-      toProcessArray[farthestProcessIndex] = { data, distance };
+      const farthestProcess = toProcessArray[farthestProcessIndex];
+      farthestProcess.data = data;
+      farthestProcess.distance = distance;
       recomputeFarthestProcess();
     };
 
