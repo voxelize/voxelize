@@ -2877,28 +2877,29 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     let is_see_through = block.is_see_through;
 
                     if is_non_greedy_block {
-                        let faces: Vec<(BlockFace, bool)> =
-                            if is_fluid && block.has_standard_six_faces_cached() {
-                                create_fluid_faces(vx, vy, vz, block.id, space, block, registry)
-                                    .into_iter()
-                                    .map(|face| (face, false))
-                                    .collect()
-                            } else if block.dynamic_patterns.is_some() {
-                                get_dynamic_faces(block, [vx, vy, vz], space, &rotation)
-                            } else {
-                                block.faces.iter().cloned().map(|face| (face, false)).collect()
-                            };
-
                         processed_non_greedy[current_voxel_index] = true;
-                        for (face, world_space) in faces {
-                            non_greedy_faces.push((
-                                vx,
-                                vy,
-                                vz,
-                                voxel_id,
-                                face,
-                                world_space,
-                            ));
+                        if is_fluid && block.has_standard_six_faces_cached() {
+                            let fluid_faces =
+                                create_fluid_faces(vx, vy, vz, block.id, space, block, registry);
+                            for face in fluid_faces {
+                                non_greedy_faces.push((vx, vy, vz, voxel_id, face, false));
+                            }
+                        } else if block.dynamic_patterns.is_some() {
+                            let faces = get_dynamic_faces(block, [vx, vy, vz], space, &rotation);
+                            for (face, world_space) in faces {
+                                non_greedy_faces.push((
+                                    vx,
+                                    vy,
+                                    vz,
+                                    voxel_id,
+                                    face,
+                                    world_space,
+                                ));
+                            }
+                        } else {
+                            for face in &block.faces {
+                                non_greedy_faces.push((vx, vy, vz, voxel_id, face.clone(), false));
+                            }
                         }
                         continue;
                     }
