@@ -67,6 +67,12 @@ export class CSMRenderer {
   private tempVec3 = new Vector3();
 
   private skipShadowObjectsCache: Object3D[] = [];
+  private hiddenObjectsBuffer: Object3D[] = [];
+  private hiddenEntitiesBuffer: Object3D[] = [];
+  private reparentedEntitiesBuffer: Object3D[] = [];
+  private reparentedParentsBuffer: Array<Object3D | null> = [];
+  private poolOriginalMaterials: Map<Object3D, THREE.Material | THREE.Material[]> =
+    new Map();
 
   private cascadeFrustum = new Frustum();
   private cascadeMatrix = new Matrix4();
@@ -206,7 +212,7 @@ export class CSMRenderer {
 
   private hideEntitySkipShadowChildren(
     entity: Object3D,
-    hiddenObjects: { object: Object3D; visible: boolean }[]
+    hiddenObjects: Object3D[]
   ) {
     const objectTraversalStack = this.objectTraversalStack;
     objectTraversalStack.length = 0;
@@ -227,7 +233,7 @@ export class CSMRenderer {
         (child as { material: { userData?: { skipShadow?: boolean } } }).material
           ?.userData?.skipShadow === true
       ) {
-        hiddenObjects.push({ object: child, visible: true });
+        hiddenObjects.push(child);
         child.visible = false;
       }
 
@@ -444,7 +450,8 @@ export class CSMRenderer {
 
     const originalOverrideMaterial = scene.overrideMaterial;
 
-    const hiddenObjects: { object: Object3D; visible: boolean }[] = [];
+    const hiddenObjects = this.hiddenObjectsBuffer;
+    hiddenObjects.length = 0;
     for (
       let objectIndex = 0;
       objectIndex < this.skipShadowObjectsCache.length;
@@ -452,7 +459,7 @@ export class CSMRenderer {
     ) {
       const object = this.skipShadowObjectsCache[objectIndex];
       if (object.visible) {
-        hiddenObjects.push({ object, visible: true });
+        hiddenObjects.push(object);
         object.visible = false;
       }
     }
@@ -463,10 +470,8 @@ export class CSMRenderer {
       }
     }
 
-    const poolOriginalMaterials: Map<
-      Object3D,
-      THREE.Material | THREE.Material[]
-    > = new Map();
+    const poolOriginalMaterials = this.poolOriginalMaterials;
+    poolOriginalMaterials.clear();
     if (this.shouldRenderEntityShadows && instancePools) {
       for (let poolIndex = 0; poolIndex < instancePools.length; poolIndex++) {
         this.applyPoolDepthMaterials(
@@ -493,12 +498,13 @@ export class CSMRenderer {
       renderer.setRenderTarget(cascade.renderTarget);
       renderer.clear();
 
-      const hiddenEntities: { object: Object3D; visible: boolean }[] = [];
+      const hiddenEntities = this.hiddenEntitiesBuffer;
+      hiddenEntities.length = 0;
       if (i >= 2 && entities) {
         for (let entityIndex = 0; entityIndex < entities.length; entityIndex++) {
           const entity = entities[entityIndex];
           if (entity.visible) {
-            hiddenEntities.push({ object: entity, visible: true });
+            hiddenEntities.push(entity);
             entity.visible = false;
           }
         }
@@ -507,7 +513,7 @@ export class CSMRenderer {
         for (let poolIndex = 0; poolIndex < instancePools.length; poolIndex++) {
           const pool = instancePools[poolIndex];
           if (pool.visible) {
-            hiddenEntities.push({ object: pool, visible: true });
+            hiddenEntities.push(pool);
             pool.visible = false;
           }
         }
@@ -516,8 +522,7 @@ export class CSMRenderer {
       renderer.render(scene, cascade.camera);
 
       for (let hiddenIndex = 0; hiddenIndex < hiddenEntities.length; hiddenIndex++) {
-        const hiddenEntity = hiddenEntities[hiddenIndex];
-        hiddenEntity.object.visible = hiddenEntity.visible;
+        hiddenEntities[hiddenIndex].visible = true;
       }
 
       if (
@@ -535,7 +540,10 @@ export class CSMRenderer {
 
       if (this.shouldRenderEntityShadows && entities && i < 2) {
         const maxDistSq = maxEntityShadowDistance * maxEntityShadowDistance;
-        const originalParents: Map<Object3D, Object3D | null> = new Map();
+        const reparentedEntities = this.reparentedEntitiesBuffer;
+        const reparentedParents = this.reparentedParentsBuffer;
+        reparentedEntities.length = 0;
+        reparentedParents.length = 0;
         for (let entityIndex = 0; entityIndex < entities.length; entityIndex++) {
           const entity = entities[entityIndex];
           if (entity.userData.castsShadow === false) continue;
@@ -544,7 +552,8 @@ export class CSMRenderer {
           );
           if (distSq >= maxDistSq) continue;
           if (!this.cascadeFrustum.containsPoint(entity.position)) continue;
-          originalParents.set(entity, entity.parent);
+          reparentedEntities.push(entity);
+          reparentedParents.push(entity.parent);
           this.entityBatchGroup.add(entity);
         }
         if (this.entityBatchGroup.children.length > 0) {
@@ -552,7 +561,13 @@ export class CSMRenderer {
           batchAsScene.overrideMaterial = this.depthMaterial;
           renderer.render(batchAsScene, cascade.camera);
           batchAsScene.overrideMaterial = null;
-          for (const [entity, originalParent] of originalParents) {
+          for (
+            let reparentIndex = 0;
+            reparentIndex < reparentedEntities.length;
+            reparentIndex++
+          ) {
+            const entity = reparentedEntities[reparentIndex];
+            const originalParent = reparentedParents[reparentIndex];
             if (originalParent) {
               originalParent.add(entity);
             } else {
@@ -569,10 +584,10 @@ export class CSMRenderer {
     for (const [mesh, originalMaterial] of poolOriginalMaterials) {
       (mesh as THREE.Mesh).material = originalMaterial;
     }
+    poolOriginalMaterials.clear();
 
     for (let hiddenIndex = 0; hiddenIndex < hiddenObjects.length; hiddenIndex++) {
-      const hiddenObject = hiddenObjects[hiddenIndex];
-      hiddenObject.object.visible = hiddenObject.visible;
+      hiddenObjects[hiddenIndex].visible = true;
     }
 
     scene.overrideMaterial = originalOverrideMaterial;
