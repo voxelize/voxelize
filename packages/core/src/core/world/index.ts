@@ -4255,6 +4255,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private maintainChunks(center: Coords2) {
     const { deleteRadius } = this;
+    const deleteRadiusSquared = deleteRadius * deleteRadius;
 
     const [centerX, centerZ] = center;
     const deleted: Coords2[] = [];
@@ -4262,8 +4263,10 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     for (const [name, chunk] of this.chunkPipeline.loadedEntries()) {
       const [x, z] = chunk.coords;
+      const dx = x - centerX;
+      const dz = z - centerZ;
 
-      if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
+      if (dx * dx + dz * dz > deleteRadiusSquared) {
         for (const [level, meshes] of chunk.meshes) {
           for (const mesh of meshes) {
             if (mesh) {
@@ -4297,7 +4300,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     for (const [name, x, z] of this.chunkPipeline.requestedEntries()) {
-      if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
+      const dx = x - centerX;
+      const dz = z - centerZ;
+      if (dx * dx + dz * dz > deleteRadiusSquared) {
         this.chunkPipeline.remove(name);
         deleted.push([x, z]);
       }
@@ -4306,7 +4311,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     const processingToRemove: string[] = [];
     for (const [name, procData] of this.chunkPipeline.processingEntries()) {
       const { x, z } = procData;
-      if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
+      const dx = x - centerX;
+      const dz = z - centerZ;
+      if (dx * dx + dz * dz > deleteRadiusSquared) {
         processingToRemove.push(name);
       }
     }
@@ -4348,7 +4355,9 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     for (const [, chunk] of this.chunkPipeline.loadedEntries()) {
       const [x, z] = chunk.coords;
-      const showPlants = (x - cx) ** 2 + (z - cz) ** 2 <= radiusSq;
+      const dx = x - cx;
+      const dz = z - cz;
+      const showPlants = dx * dx + dz * dz <= radiusSq;
 
       for (const levelMeshes of chunk.meshes.values()) {
         this.setPlantMeshVisibility(levelMeshes, showPlants);
@@ -4906,7 +4915,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     chunk.meshes.get(level)?.push(...meshes);
 
     const [pcx, pcz] = this._lastCenterChunk;
-    const showPlants = (cx - pcx) ** 2 + (cz - pcz) ** 2 <= this.plantRadiusSq;
+    const dx = cx - pcx;
+    const dz = cz - pcz;
+    const showPlants = dx * dx + dz * dz <= this.plantRadiusSq;
     if (!showPlants) {
       this.setPlantMeshVisibility(meshes, false);
     }
