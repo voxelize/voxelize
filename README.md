@@ -88,6 +88,9 @@ pnpm run build
 
 # in a separate terminal, start both frontend/backend demo
 pnpm run demo
+
+# typecheck the client example only
+pnpm run typecheck:client
 ```
 
 visit http://localhost:3000
