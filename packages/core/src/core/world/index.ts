@@ -123,6 +123,7 @@ import {
   BlockUpdate,
   BlockUpdateWithSource,
   PY_ROTATION,
+  Y_ROT_SEGMENTS,
 } from "./block";
 import { Chunk } from "./chunk";
 import { ChunkRenderer } from "./chunk-renderer";
@@ -2570,6 +2571,24 @@ export class World<T = any> extends Scene implements NetIntercept {
       return normalized;
     };
 
+    const normalizeRotationAxis = (value: number | undefined) => {
+      const normalized = Math.round(normalizeNumeric(value, 0));
+      if (normalized < 0) {
+        return 0;
+      }
+
+      if (normalized > 5) {
+        return 5;
+      }
+
+      return normalized;
+    };
+
+    const normalizeYRotationSegment = (value: number | undefined) => {
+      const normalized = Math.round(normalizeNumeric(value, 0));
+      return ((normalized % Y_ROT_SEGMENTS) + Y_ROT_SEGMENTS) % Y_ROT_SEGMENTS;
+    };
+
     const voxelUpdates = updates
       .filter((update) => {
         if (update.vy < 0 || update.vy >= this.options.maxHeight) {
@@ -2583,8 +2602,8 @@ export class World<T = any> extends Scene implements NetIntercept {
         const [, currYRotation] = BlockRotation.decode(currRot);
         const currStage = this.getVoxelStageAt(vx, vy, vz);
 
-        const normalizedRotation = normalizeNumeric(rotation, 0);
-        const normalizedYRotation = normalizeNumeric(yRotation, 0);
+        const normalizedRotation = normalizeRotationAxis(rotation);
+        const normalizedYRotation = normalizeYRotationSegment(yRotation);
         const normalizedStage = normalizeStage(stage);
 
         if (!this.getBlockById(type)) {
@@ -2604,8 +2623,8 @@ export class World<T = any> extends Scene implements NetIntercept {
         return true;
       })
       .map((update) => {
-        update.rotation = normalizeNumeric(update.rotation, 0);
-        update.yRotation = normalizeNumeric(update.yRotation, 0);
+        update.rotation = normalizeRotationAxis(update.rotation);
+        update.yRotation = normalizeYRotationSegment(update.yRotation);
         update.stage = normalizeStage(update.stage);
 
         if (!this.getBlockById(update.type).yRotatable) {
