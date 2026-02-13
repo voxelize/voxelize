@@ -3069,9 +3069,9 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
                     let is_fluid = block.is_fluid;
                     let is_see_through = block.is_see_through;
-                    let cache_ready = block.cache_ready;
 
                     if is_non_greedy_block {
+                        let cache_ready = block.cache_ready;
                         let mut rotation = BlockRotation::PY(0.0);
                         if block.rotatable || block.y_rotatable {
                             rotation = space.get_voxel_rotation(vx, vy, vz);
