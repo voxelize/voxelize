@@ -13,6 +13,18 @@ const isJson = process.argv.includes("--json");
 const stepResults = [];
 let exitCode = 0;
 
+const parseJsonOutput = (value) => {
+  if (value.length === 0) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+};
+
 const runStep = (name, command, args) => {
   if (!isQuiet && !isJson) {
     console.log(`Running client check step: ${name}`);
@@ -33,11 +45,13 @@ const runStep = (name, command, args) => {
   const resolvedStatus = result.status ?? 1;
   if (isJson) {
     const output = `${result.stdout ?? ""}${result.stderr ?? ""}`.trim();
+    const report = parseJsonOutput(output);
     stepResults.push({
       name,
       passed: resolvedStatus === 0,
       exitCode: resolvedStatus,
-      output,
+      report,
+      output: report === null ? output : null,
     });
   }
 
@@ -57,7 +71,10 @@ const runStep = (name, command, args) => {
 const wasmPreflightPassed = runStep(
   "WASM artifact preflight",
   process.execPath,
-  [path.resolve(__dirname, "./examples/client/scripts/check-wasm-mesher.mjs")]
+  [
+    path.resolve(__dirname, "./examples/client/scripts/check-wasm-mesher.mjs"),
+    ...(isJson ? ["--json"] : []),
+  ]
 );
 
 if (wasmPreflightPassed) {

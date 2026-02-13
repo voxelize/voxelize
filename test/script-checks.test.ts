@@ -36,11 +36,24 @@ type DevEnvJsonReport = {
   checks: DevEnvJsonCheck[];
 };
 
+type WasmMesherJsonReport = {
+  passed: boolean;
+  exitCode: number;
+  artifactPath: string;
+  artifactFound: boolean;
+  attemptedBuild: boolean;
+  wasmPackAvailable: boolean | null;
+  wasmPackCheckReport: WasmPackJsonReport | null;
+  buildOutput: string | null;
+  message: string;
+};
+
 type ClientJsonStep = {
   name: string;
   passed: boolean;
   exitCode: number;
-  output: string;
+  report: WasmMesherJsonReport | null;
+  output: string | null;
 };
 
 type ClientJsonReport = {
@@ -177,6 +190,13 @@ describe("root preflight scripts", () => {
     expect(Array.isArray(report.steps)).toBe(true);
     expect(report.steps.length).toBeGreaterThan(0);
     expect(report.steps[0].name).toBe("WASM artifact preflight");
+    expect(report.steps[0].report).not.toBeNull();
+    if (report.steps[0].report !== null) {
+      expect(report.steps[0].report.artifactPath).toBe(
+        "crates/wasm-mesher/pkg/voxelize_wasm_mesher.js"
+      );
+      expect(typeof report.steps[0].report.passed).toBe("boolean");
+    }
     expect(result.status).toBe(report.passed ? 0 : 1);
     expect(result.output).not.toContain("Running client check step:");
     expect(result.output).not.toContain("Client check failed:");
