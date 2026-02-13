@@ -5197,19 +5197,28 @@ export class World<T = any> extends Scene implements NetIntercept {
             vz,
             dynamicPatterns
           );
-          return aabbsWithFlags.map(({ aabb, worldSpace }) =>
-            worldSpace
-              ? aabb.translate([vx, vy, vz])
-              : rotation.rotateAABB(aabb).translate([vx, vy, vz])
-          );
+          const coords: Coords3 = [vx, vy, vz];
+          const translatedAabbs = new Array<AABB>(aabbsWithFlags.length);
+          for (let index = 0; index < aabbsWithFlags.length; index++) {
+            const aabbWithFlag = aabbsWithFlags[index];
+            translatedAabbs[index] = aabbWithFlag.worldSpace
+              ? aabbWithFlag.aabb.translate(coords)
+              : rotation.rotateAABB(aabbWithFlag.aabb).translate(coords);
+          }
+          return translatedAabbs;
         }
 
         if (isPassable || isFluid) return [];
 
         const rotation = chunk.getVoxelRotation(vx, vy, vz);
-        return aabbs.map((aabb) =>
-          rotation.rotateAABB(aabb).translate([vx, vy, vz])
-        );
+        const coords: Coords3 = [vx, vy, vz];
+        const translatedAabbs = new Array<AABB>(aabbs.length);
+        for (let index = 0; index < aabbs.length; index++) {
+          translatedAabbs[index] = rotation.rotateAABB(aabbs[index]).translate(
+            coords
+          );
+        }
+        return translatedAabbs;
       },
       (vx: number, vy: number, vz: number) => {
         const chunk = this.getChunkByPosition(vx, vy, vz);
@@ -5233,9 +5242,14 @@ export class World<T = any> extends Scene implements NetIntercept {
         if (!isClimbable) return [];
 
         const rotation = chunk.getVoxelRotation(vx, vy, vz);
-        return aabbs.map((aabb) =>
-          rotation.rotateAABB(aabb).translate([vx, vy, vz])
-        );
+        const coords: Coords3 = [vx, vy, vz];
+        const translatedAabbs = new Array<AABB>(aabbs.length);
+        for (let index = 0; index < aabbs.length; index++) {
+          translatedAabbs[index] = rotation.rotateAABB(aabbs[index]).translate(
+            coords
+          );
+        }
+        return translatedAabbs;
       },
       (vx: number, vy: number, vz: number) => {
         const chunk = this.getChunkByPosition(vx, vy, vz);
