@@ -874,6 +874,10 @@ export class World<T = any> extends Scene implements NetIntercept {
   private processLightUpdateBlockCache = new Map<number, Block>();
   private maxHeightBlockCache = new Map<number, Block>();
   private blockEntityTypeBlockCache = new Map<string, Block | null>();
+  private blockFaceNameCache = new Map<
+    number,
+    Map<string, Block["faces"][number]>
+  >();
   private syncLightAffectedChunks = new Map<number, Set<number>>();
   private reusableSyncLightAffectedZSets: Set<number>[] = [];
   private dynamicAABBRuleCoords: Coords3 = [0, 0, 0];
@@ -3837,6 +3841,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     // Loading the block registry
     this.blockEntityTypeBlockCache.clear();
+    this.blockFaceNameCache.clear();
     const blockNames = Object.keys(blocks);
     for (let blockIndex = 0; blockIndex < blockNames.length; blockIndex++) {
       const name = blockNames[blockIndex];
@@ -3847,10 +3852,12 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       block.independentFaces = new Set();
       block.isolatedFaces = new Set();
+      const faceNameMap = new Map<string, Block["faces"][number]>();
 
       const faces = block.faces;
       for (let faceIndex = 0; faceIndex < faces.length; faceIndex++) {
         const face = faces[faceIndex];
+        faceNameMap.set(face.name, face);
         if (face.independent) {
           block.independentFaces.add(face.name);
         }
@@ -3858,6 +3865,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           block.isolatedFaces.add(face.name);
         }
       }
+      this.blockFaceNameCache.set(id, faceNameMap);
 
       const blockAabbs = new Array<AABB>(aabbs.length);
       for (let aabbIndex = 0; aabbIndex < aabbs.length; aabbIndex++) {
@@ -7317,6 +7325,11 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private findBlockFaceByName(block: Block, faceName: string) {
+    const cachedFaces = this.blockFaceNameCache.get(block.id);
+    if (cachedFaces) {
+      return cachedFaces.get(faceName) ?? null;
+    }
+
     const faces = block.faces;
     for (let faceIndex = 0; faceIndex < faces.length; faceIndex++) {
       const face = faces[faceIndex];
