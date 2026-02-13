@@ -1,7 +1,8 @@
 import { spawnSync } from "node:child_process";
 
-const isWindows = process.platform === "win32";
-const wasmPackCommand = isWindows ? "wasm-pack.exe" : "wasm-pack";
+import { resolveCommand } from "./scripts/command-utils.mjs";
+
+const wasmPackCommand = resolveCommand("wasm-pack");
 const isQuiet = process.argv.includes("--quiet");
 
 const versionCheck = spawnSync(wasmPackCommand, ["--version"], {

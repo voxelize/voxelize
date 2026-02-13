@@ -2,11 +2,12 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { resolvePnpmCommand } from "./scripts/command-utils.mjs";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const isWindows = process.platform === "win32";
-const pnpmCommand = isWindows ? "pnpm.cmd" : "pnpm";
+const pnpmCommand = resolvePnpmCommand();
 
 const runStep = (name, command, args) => {
   const result = spawnSync(command, args, {

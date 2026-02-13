@@ -3,22 +3,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { resolveCommand } from "./scripts/command-utils.mjs";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-const isWindows = process.platform === "win32";
-
-const resolveCommand = (command) => {
-  if (!isWindows) {
-    return command;
-  }
-
-  if (command === "pnpm") {
-    return "pnpm.cmd";
-  }
-
-  return `${command}.exe`;
-};
 
 const parseSemver = (value) => {
   const match = value.match(/(\d+)(?:\.(\d+))?(?:\.(\d+))?/);
