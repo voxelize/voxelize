@@ -3348,13 +3348,22 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         continue;
                     }
 
-                    let mut current_voxel_index = usize::MAX;
+                    let greedy_without_rotation = if block.cache_ready {
+                        block.greedy_mesh_eligible_no_rotation
+                    } else {
+                        block.can_greedy_mesh_without_rotation()
+                    };
+                    let is_non_greedy_block = !greedy_without_rotation;
+
+                    let current_voxel_index = if block.is_opaque || is_non_greedy_block {
+                        ((vx - min_x) as usize) * yz_span
+                            + ((vy - min_y) as usize) * z_span
+                            + (vz - min_z) as usize
+                    } else {
+                        0
+                    };
+
                     if block.is_opaque {
-                        if current_voxel_index == usize::MAX {
-                            current_voxel_index = ((vx - min_x) as usize) * yz_span
-                                + ((vy - min_y) as usize) * z_span
-                                + (vz - min_z) as usize;
-                        }
                         let cached = fully_occluded_opaque[current_voxel_index];
                         let is_fully_occluded = if cached == OCCLUSION_UNKNOWN {
                             let value = is_surrounded_by_opaque_neighbors(vx, vy, vz, space, registry);
@@ -3367,19 +3376,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                             continue;
                         }
                     }
-
-                    let greedy_without_rotation = if block.cache_ready {
-                        block.greedy_mesh_eligible_no_rotation
-                    } else {
-                        block.can_greedy_mesh_without_rotation()
-                    };
-                    let is_non_greedy_block = !greedy_without_rotation;
                     if is_non_greedy_block {
-                        if current_voxel_index == usize::MAX {
-                            current_voxel_index = ((vx - min_x) as usize) * yz_span
-                                + ((vy - min_y) as usize) * z_span
-                                + (vz - min_z) as usize;
-                        }
                         if processed_non_greedy[current_voxel_index] {
                             continue;
                         }
