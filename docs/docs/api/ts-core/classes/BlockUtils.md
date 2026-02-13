@@ -91,7 +91,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `id` | `number` |
-| `rotation?` | [`BlockRotation`](BlockRotation.md) |
+| `rotation?` | [`RotationLike`](../interfaces/RotationLike.md) |
 | `stage?` | `number` |
 
 #### Returns
@@ -143,7 +143,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `voxel` | `number` |
-| `rotation` | [`BlockRotation`](BlockRotation.md) |
+| `rotation` | [`RotationLike`](../interfaces/RotationLike.md) |
 
 #### Returns
 

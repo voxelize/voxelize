@@ -44,7 +44,7 @@ ___
 | :------ | :------ |
 | `fields` | `Object` |
 | `fields.id` | `number` |
-| `fields.rotation?` | [`BlockRotation`](BlockRotation.md) |
+| `fields.rotation?` | [`RotationLike`](../interfaces/RotationLike.md) |
 | `fields.stage?` | `number` |
 
 #### Returns
@@ -127,7 +127,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `voxel` | `number` |
-| `rotation` | [`BlockRotation`](BlockRotation.md) |
+| `rotation` | [`RotationLike`](../interfaces/RotationLike.md) |
 
 #### Returns
 

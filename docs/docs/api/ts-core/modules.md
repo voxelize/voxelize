@@ -31,6 +31,7 @@ custom_edit_url: null
 - [BlockRuleEvaluationOptions](interfaces/BlockRuleEvaluationOptions.md)
 - [CornerData](interfaces/CornerData.md)
 - [LightChannels](interfaces/LightChannels.md)
+- [RotationLike](interfaces/RotationLike.md)
 - [UV](interfaces/UV.md)
 - [VoxelAccess](interfaces/VoxelAccess.md)
 - [VoxelFields](interfaces/VoxelFields.md)
