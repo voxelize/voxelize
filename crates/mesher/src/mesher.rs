@@ -277,6 +277,27 @@ impl Registry {
                 .any(|(block_id, _)| *block_id == id)
         }
     }
+
+    #[inline]
+    pub fn is_opaque_id(&self, id: u32) -> bool {
+        if let Some(dense) = &self.dense_lookup {
+            if let Some(&idx) = dense.get(id as usize) {
+                return idx != usize::MAX && self.blocks_by_id[idx].1.is_opaque;
+            }
+            false
+        } else if let Some(cache) = &self.lookup_cache {
+            cache
+                .get(&id)
+                .map(|&idx| self.blocks_by_id[idx].1.is_opaque)
+                .unwrap_or(false)
+        } else {
+            self.blocks_by_id
+                .iter()
+                .find(|(block_id, _)| *block_id == id)
+                .map(|(_, block)| block.is_opaque)
+                .unwrap_or(false)
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -379,10 +400,7 @@ fn build_neighbor_opaque_mask(neighbors: &NeighborCache, registry: &Registry) ->
             for z in -1..=1 {
                 let idx = NeighborCache::offset_to_index(x, y, z);
                 let id = neighbors.get_voxel(x, y, z);
-                mask[idx] = registry
-                    .get_block_by_id(id)
-                    .map(|block| block.is_opaque)
-                    .unwrap_or(false);
+                mask[idx] = registry.is_opaque_id(id);
             }
         }
     }
@@ -1101,11 +1119,7 @@ fn is_surrounded_by_opaque_neighbors<S: VoxelAccess>(
 ) -> bool {
     for [nx, ny, nz] in VOXEL_NEIGHBORS {
         let id = space.get_voxel(vx + nx, vy + ny, vz + nz);
-        if !registry
-            .get_block_by_id(id)
-            .map(|block| block.is_opaque)
-            .unwrap_or(false)
-        {
+        if !registry.is_opaque_id(id) {
             return false;
         }
     }
