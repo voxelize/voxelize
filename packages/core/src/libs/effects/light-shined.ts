@@ -66,6 +66,8 @@ export class LightShined {
   private positionOverrides = new Map<Object3D, Vector3>();
   private torchLightColor = new Color();
   private traversalStack: Object3D[] = [];
+  private raycastOrigin: [number, number, number] = [0, 0, 0];
+  private raycastDirection: [number, number, number] = [0, 0, 0];
 
   /**
    * Construct a light shined effect manager.
@@ -416,18 +418,17 @@ export class LightShined {
 
     if (shadowStrength.value < 0.01) return 1.0;
 
-    const dir: [number, number, number] = [
-      sunDirection.value.x,
-      sunDirection.value.y,
-      sunDirection.value.z,
-    ];
+    const dir = this.raycastDirection;
+    dir[0] = sunDirection.value.x;
+    dir[1] = sunDirection.value.y;
+    dir[2] = sunDirection.value.z;
+    const origin = this.raycastOrigin;
+    origin[0] = pos.x;
+    origin[1] = pos.y;
+    origin[2] = pos.z;
     const maxDist = 64;
 
-    const hit = this.world.raycastVoxels(
-      pos.toArray() as [number, number, number],
-      dir,
-      maxDist
-    );
+    const hit = this.world.raycastVoxels(origin, dir, maxDist);
 
     if (hit) {
       return 1.0 - shadowStrength.value;
