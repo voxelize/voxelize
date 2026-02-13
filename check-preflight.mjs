@@ -255,6 +255,22 @@ const {
   error: selectedChecksError,
   invalidChecks,
 } = parseSelectedChecks();
+const createRequestedCheckResolutionCounts = (resolutions) => {
+  const counts = {
+    check: 0,
+    specialSelector: 0,
+    invalid: 0,
+  };
+
+  for (const resolution of resolutions) {
+    counts[resolution.kind] += 1;
+  }
+
+  return counts;
+};
+const requestedCheckResolutionCounts = createRequestedCheckResolutionCounts(
+  requestedCheckResolutions
+);
 
 const runCheck = (name, scriptName, extraArgs = []) => {
   const checkStartMs = Date.now();
@@ -298,6 +314,7 @@ if (outputPathError !== null || selectedChecksError !== null) {
     selectedChecks: [],
     requestedChecks,
     requestedCheckResolutions,
+    requestedCheckResolutionCounts,
     selectionMode,
     specialSelectorsUsed,
     skippedChecks: availableCheckNames,
@@ -340,6 +357,7 @@ if (isListChecks) {
     selectedChecks,
     requestedChecks,
     requestedCheckResolutions,
+    requestedCheckResolutionCounts,
     selectionMode,
     specialSelectorsUsed,
     skippedChecks,
@@ -399,6 +417,7 @@ const report = buildTimedReport({
   selectedChecks,
   requestedChecks,
   requestedCheckResolutions,
+  requestedCheckResolutionCounts,
   selectionMode,
   specialSelectorsUsed,
   skippedChecks,
