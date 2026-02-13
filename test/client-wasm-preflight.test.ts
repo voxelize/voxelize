@@ -124,6 +124,28 @@ describe("client wasm preflight script", () => {
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
+  it("supports verify alias for no-build mode in machine-readable output", () => {
+    const result = spawnSync(
+      process.execPath,
+      [wasmMesherScript, "--json", "--verify"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as WasmMesherJsonReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.buildSkipped).toBe(true);
+    expect(report.attemptedBuild).toBe(false);
+    expect(report.outputPath).toBeNull();
+    expectTimingMetadata(report);
+    expectOptionTerminatorMetadata(report);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
   it("supports compact json mode", () => {
     const result = spawnSync(
       process.execPath,

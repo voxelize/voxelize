@@ -21,9 +21,17 @@ const {
   optionTerminatorUsed,
 } = splitCliArgs(cliArgs);
 const positionalArgCount = positionalArgs.length;
+const noBuildOptionAliases = ["--verify"];
+const hasCliOption = (canonicalOption, aliases = []) => {
+  if (cliOptionArgs.includes(canonicalOption)) {
+    return true;
+  }
+
+  return aliases.some((alias) => cliOptionArgs.includes(alias));
+};
 const isQuiet = cliOptionArgs.includes("--quiet");
 const isJson = cliOptionArgs.includes("--json");
-const isNoBuild = cliOptionArgs.includes("--no-build");
+const isNoBuild = hasCliOption("--no-build", noBuildOptionAliases);
 const isCompact = cliOptionArgs.includes("--compact");
 const jsonFormat = { compact: isCompact };
 const { outputPath, error: outputPathError } = resolveOutputPath(cliOptionArgs);

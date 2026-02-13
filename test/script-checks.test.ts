@@ -841,6 +841,27 @@ describe("root preflight scripts", () => {
     }
   });
 
+  it("check-client json verify mode aliases no-build behavior", () => {
+    const result = runScript("check-client.mjs", ["--json", "--verify"]);
+    const report = JSON.parse(result.output) as ClientJsonReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.noBuild).toBe(true);
+    expect(report.outputPath).toBeNull();
+    expectTimingMetadata(report);
+    expect(report.totalSteps).toBe(report.steps.length);
+    expect(report.passedStepCount + report.failedStepCount + report.skippedStepCount).toBe(
+      report.totalSteps
+    );
+    expect(report.steps.length).toBeGreaterThan(0);
+    expect(report.steps[0].name).toBe("WASM artifact preflight");
+    if (report.steps[0].report !== null) {
+      expect(report.steps[0].report.buildSkipped).toBe(true);
+      expect(report.steps[0].report.attemptedBuild).toBe(false);
+      expectTimingMetadata(report.steps[0].report);
+    }
+  });
+
   it("check-onboarding returns pass or fail summary", () => {
     const result = runScript("check-onboarding.mjs");
     expect(result.output).toContain(
@@ -1112,5 +1133,23 @@ describe("root preflight scripts", () => {
         "Developer environment preflight failed"
       );
     }
+  });
+
+  it("check-onboarding json verify mode aliases no-build behavior", () => {
+    const result = runScript("check-onboarding.mjs", ["--json", "--verify"]);
+    const report = JSON.parse(result.output) as OnboardingJsonReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.noBuild).toBe(true);
+    expect(report.outputPath).toBeNull();
+    expectTimingMetadata(report);
+    expect(report.totalSteps).toBe(report.steps.length);
+    expect(report.passedStepCount + report.failedStepCount + report.skippedStepCount).toBe(
+      report.totalSteps
+    );
+    expect(report.steps.length).toBeGreaterThan(0);
+    expect(report.steps[0].name).toBe("Developer environment preflight");
+    const clientStep = report.steps.find((step) => step.name === "Client checks");
+    expect(clientStep).toBeDefined();
   });
 });
