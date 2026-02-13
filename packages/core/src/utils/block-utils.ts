@@ -147,7 +147,7 @@ export class BlockUtils {
     }
 
     if (rule.type === "simple") {
-      const { offset, id, rotation, stage } = rule;
+      const { offset, id, rotation: ruleRotation, stage } = rule;
       const [vx, vy, vz] = voxel;
       let [offsetX, offsetY, offsetZ] = offset;
 
@@ -172,15 +172,15 @@ export class BlockUtils {
         if (voxelId !== id) return false;
       }
 
-      if (rotation != null) {
+      if (ruleRotation != null) {
         const voxelRotation = functions.getVoxelRotationAt(ox, oy, oz);
         const actualRotation = new TSCoreBlockRotation(
           voxelRotation.value,
           voxelRotation.yRotation
         );
         const expectedRotation = new TSCoreBlockRotation(
-          rotation.value,
-          rotation.yRotation
+          ruleRotation.value,
+          ruleRotation.yRotation
         );
 
         if (!actualRotation.equals(expectedRotation))
@@ -192,7 +192,6 @@ export class BlockUtils {
         if (voxelStage !== stage) return false;
       }
 
-      // If all conditions pass, return true
       return true;
     }
 
@@ -215,11 +214,11 @@ export class BlockUtils {
             : true;
         }
         default:
-          return false; // Unsupported logic
+          return false;
       }
     }
 
-    return false; // Default case for safety
+    return false;
   };
 
   static getBlockEntityId(id: string, voxel: Coords3) {
