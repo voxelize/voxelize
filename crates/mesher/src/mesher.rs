@@ -3562,15 +3562,11 @@ pub fn mesh_space<S: VoxelAccess>(
                 let is_empty = block.is_empty;
                 let is_opaque = block.is_opaque;
                 let is_fluid = block.is_fluid;
-                let has_dynamic_patterns = if block.cache_ready {
+                let cache_ready = block.cache_ready;
+                let has_dynamic_patterns = if cache_ready {
                     block.has_dynamic_patterns
                 } else {
                     block.has_dynamic_patterns_cached()
-                };
-                let has_independent_or_isolated_faces = if block.cache_ready {
-                    block.has_independent_or_isolated_faces
-                } else {
-                    block.has_independent_or_isolated_faces_cached()
                 };
 
                 if is_empty {
@@ -3608,9 +3604,16 @@ pub fn mesh_space<S: VoxelAccess>(
                     block_min: block_min_corner(block),
                 };
 
-                let uses_main_geometry_only = !is_fluid
-                    && !has_dynamic_patterns
-                    && !has_independent_or_isolated_faces;
+                let uses_main_geometry_only = if is_fluid || has_dynamic_patterns {
+                    false
+                } else {
+                    let has_independent_or_isolated_faces = if cache_ready {
+                        block.has_independent_or_isolated_faces
+                    } else {
+                        block.has_independent_or_isolated_faces_cached()
+                    };
+                    !has_independent_or_isolated_faces
+                };
                 if uses_main_geometry_only {
                     let geometry = map.entry(GeometryMapKey::Block(block.id)).or_insert_with(|| {
                         let mut entry = GeometryProtocol::default();
@@ -3682,7 +3685,7 @@ pub fn mesh_space<S: VoxelAccess>(
                         );
                     };
 
-                    let has_standard_six_faces = if block.cache_ready {
+                    let has_standard_six_faces = if cache_ready {
                         block.has_standard_six_faces
                     } else {
                         block.has_standard_six_faces_cached()
