@@ -6240,6 +6240,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
 
         let chunkResult = chunkResultsByZ.get(cz);
+        const isNewChunkResult = chunkResult === undefined;
         if (!chunkResult) {
           chunkResult = {
             coords,
@@ -6248,39 +6249,31 @@ export class World<T = any> extends Scene implements NetIntercept {
             firstLights: lights,
           };
           chunkResultsByZ.set(cz, chunkResult);
-        } else {
-          let hasExistingColor = false;
-          switch (result.color) {
-            case "SUNLIGHT":
-              hasExistingColor = chunkResult.sunlight !== undefined;
-              break;
-            case "RED":
-              hasExistingColor = chunkResult.red !== undefined;
-              break;
-            case "GREEN":
-              hasExistingColor = chunkResult.green !== undefined;
-              break;
-            case "BLUE":
-              hasExistingColor = chunkResult.blue !== undefined;
-              break;
-          }
-
-          if (!hasExistingColor) {
-            chunkResult.colorCount++;
-          }
         }
 
         switch (result.color) {
           case "SUNLIGHT":
+            if (!isNewChunkResult && chunkResult.sunlight === undefined) {
+              chunkResult.colorCount++;
+            }
             chunkResult.sunlight = lights;
             break;
           case "RED":
+            if (!isNewChunkResult && chunkResult.red === undefined) {
+              chunkResult.colorCount++;
+            }
             chunkResult.red = lights;
             break;
           case "GREEN":
+            if (!isNewChunkResult && chunkResult.green === undefined) {
+              chunkResult.colorCount++;
+            }
             chunkResult.green = lights;
             break;
           case "BLUE":
+            if (!isNewChunkResult && chunkResult.blue === undefined) {
+              chunkResult.colorCount++;
+            }
             chunkResult.blue = lights;
             break;
         }
