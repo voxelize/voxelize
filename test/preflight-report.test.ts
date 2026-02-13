@@ -301,6 +301,26 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
+  it("deduplicates mixed alias forms to canonical selected checks", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--no-build", "--only", "devEnvironment,DEV_ENV,dev"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.selectedChecks).toEqual(["devEnvironment"]);
+    expect(report.skippedChecks).toEqual(["wasmPack", "client"]);
+    expect(report.checks.map((check) => check.name)).toEqual(["devEnvironment"]);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
   it("uses the last only flag when multiple are provided", () => {
     const result = spawnSync(
       process.execPath,
