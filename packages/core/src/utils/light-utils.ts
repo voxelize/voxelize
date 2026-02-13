@@ -18,6 +18,19 @@ import { LightUtils as TSCoreLightUtils } from "@voxelize/ts-core";
  * @category Utils
  */
 export class LightUtils {
+  private static isSingleAxisDirection = (dx: number, dy: number, dz: number) => {
+    if (!Number.isInteger(dx) || !Number.isInteger(dy) || !Number.isInteger(dz)) {
+      return false;
+    }
+
+    const nonZeroCount = [dx, dy, dz].filter((value) => value !== 0).length;
+    if (nonZeroCount !== 1) {
+      return false;
+    }
+
+    return Math.abs(dx) + Math.abs(dy) + Math.abs(dz) === 1;
+  };
+
   /**
    * Extract the sunlight level from a number.
    *
@@ -117,7 +130,7 @@ export class LightUtils {
     dy: number,
     dz: number
   ) => {
-    if (Math.abs(dx) + Math.abs(dy) + Math.abs(dz) !== 1) {
+    if (!LightUtils.isSingleAxisDirection(dx, dy, dz)) {
       throw new Error(
         "This isn't supposed to happen. Light neighboring direction should be on 1 axis only."
       );
@@ -171,7 +184,7 @@ export class LightUtils {
     dy: number,
     dz: number
   ) => {
-    if (Math.abs(dx) + Math.abs(dy) + Math.abs(dz) !== 1) {
+    if (!LightUtils.isSingleAxisDirection(dx, dy, dz)) {
       throw new Error(
         "This isn't supposed to happen. Light neighboring direction should be on 1 axis only."
       );

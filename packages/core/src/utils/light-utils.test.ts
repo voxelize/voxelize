@@ -35,4 +35,25 @@ describe("LightUtils parity", () => {
       )
     ).toThrowError(Error);
   });
+
+  it("rejects fractional and oversized directions", () => {
+    expect(() =>
+      LightUtils.canEnterInto(
+        [true, true, true, true, true, true],
+        0.5,
+        0.5,
+        0
+      )
+    ).toThrowError(Error);
+
+    expect(() =>
+      LightUtils.canEnter(
+        [true, true, true, true, true, true],
+        [true, true, true, true, true, true],
+        2,
+        0,
+        0
+      )
+    ).toThrowError(Error);
+  });
 });
