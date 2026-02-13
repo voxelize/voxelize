@@ -6,6 +6,7 @@ import {
   createTimedReportBuilder,
   deriveFailureMessageFromReport,
   hasCliOption as hasCliOptionInArgs,
+  parseActiveCliOptionMetadata,
   parseJsonOutput,
   parseUnknownCliOptions,
   resolveLastOptionValue,
@@ -66,26 +67,6 @@ for (const [canonicalOption, aliases] of Object.entries(availableCliOptionAliase
     cliOptionCanonicalMap.set(alias, canonicalOption);
   }
 }
-const parseCanonicalCliOption = (optionToken) => {
-  const directMatch = cliOptionCanonicalMap.get(optionToken);
-  if (directMatch !== undefined) {
-    return {
-      canonicalOption: directMatch,
-      hasInlineValue: false,
-    };
-  }
-
-  for (const optionName of cliOptionsWithValues) {
-    if (optionToken.startsWith(`${optionName}=`)) {
-      return {
-        canonicalOption: optionName,
-        hasInlineValue: true,
-      };
-    }
-  }
-
-  return null;
-};
 const availableCliOptionCanonicalMap = Object.fromEntries(
   supportedCliOptions.map((optionToken) => {
     const canonicalOption = cliOptionCanonicalMap.get(optionToken);
@@ -354,98 +335,19 @@ const unknownOptions = parseUnknownCliOptions(cliOptionArgs, {
   optionAliases: availableCliOptionAliases,
   optionsWithValues: Array.from(cliOptionsWithValues),
 });
-const parseActiveCliOptions = (args) => {
-  const activeCliOptions = new Set();
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index];
-    const optionResolution = parseCanonicalCliOption(arg);
-    if (optionResolution !== null) {
-      activeCliOptions.add(optionResolution.canonicalOption);
-      if (
-        cliOptionsWithValues.has(optionResolution.canonicalOption) &&
-        !optionResolution.hasInlineValue
-      ) {
-        const nextArg = args[index + 1] ?? null;
-        if (nextArg !== null && !nextArg.startsWith("--")) {
-          index += 1;
-        }
-      }
-    }
-  }
-
-  return canonicalCliOptions.filter((option) => activeCliOptions.has(option));
-};
-const activeCliOptions = parseActiveCliOptions(cliOptionArgs);
-const activeCliOptionCount = activeCliOptions.length;
-const parseActiveCliOptionTokens = (args) => {
-  const activeTokens = [];
-  const seenActiveTokens = new Set();
-
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index];
-    const optionResolution = parseCanonicalCliOption(arg);
-    if (optionResolution === null) {
-      continue;
-    }
-    if (seenActiveTokens.has(arg)) {
-      continue;
-    }
-
-    seenActiveTokens.add(arg);
-    activeTokens.push(arg);
-    if (
-      cliOptionsWithValues.has(optionResolution.canonicalOption) &&
-      !optionResolution.hasInlineValue
-    ) {
-      const nextArg = args[index + 1] ?? null;
-      if (nextArg !== null && !nextArg.startsWith("--")) {
-        index += 1;
-      }
-    }
-  }
-
-  return activeTokens;
-};
-const activeCliOptionTokens = parseActiveCliOptionTokens(cliOptionArgs);
-const activeCliOptionResolutions = activeCliOptionTokens.map((token) => {
-  const optionResolution = parseCanonicalCliOption(token);
-  return {
-    token,
-    canonicalOption:
-      optionResolution === null ? token : optionResolution.canonicalOption,
-  };
+const {
+  activeCliOptions,
+  activeCliOptionCount,
+  activeCliOptionTokens,
+  activeCliOptionResolutions,
+  activeCliOptionResolutionCount,
+  activeCliOptionOccurrences,
+  activeCliOptionOccurrenceCount,
+} = parseActiveCliOptionMetadata(cliOptionArgs, {
+  canonicalOptions: canonicalCliOptions,
+  optionAliases: availableCliOptionAliases,
+  optionsWithValues: Array.from(cliOptionsWithValues),
 });
-const activeCliOptionResolutionCount = activeCliOptionResolutions.length;
-const parseActiveCliOptionOccurrences = (args) => {
-  const occurrences = [];
-
-  for (let index = 0; index < args.length; index += 1) {
-    const token = args[index];
-    const optionResolution = parseCanonicalCliOption(token);
-    if (optionResolution === null) {
-      continue;
-    }
-
-    occurrences.push({
-      token,
-      canonicalOption: optionResolution.canonicalOption,
-      index,
-    });
-    if (
-      cliOptionsWithValues.has(optionResolution.canonicalOption) &&
-      !optionResolution.hasInlineValue
-    ) {
-      const nextArg = args[index + 1] ?? null;
-      if (nextArg !== null && !nextArg.startsWith("--")) {
-        index += 1;
-      }
-    }
-  }
-
-  return occurrences;
-};
-const activeCliOptionOccurrences = parseActiveCliOptionOccurrences(cliOptionArgs);
-const activeCliOptionOccurrenceCount = activeCliOptionOccurrences.length;
 const unsupportedOptionsError =
   unknownOptions.length === 0
     ? null

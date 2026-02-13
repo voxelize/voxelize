@@ -370,6 +370,88 @@ export const createCliOptionValidation = (
   };
 };
 
+export const parseActiveCliOptionMetadata = (
+  args,
+  {
+    canonicalOptions = [],
+    optionAliases = {},
+    optionsWithValues = [],
+  } = {}
+) => {
+  const { optionArgs } = splitCliArgs(args);
+  const canonicalOptionMap = createCanonicalOptionMap(
+    canonicalOptions,
+    optionAliases
+  );
+  const valueOptions = new Set(optionsWithValues);
+  const activeCliOptionsSet = new Set();
+  const activeCliOptionTokens = [];
+  const seenActiveTokens = new Set();
+  const activeCliOptionOccurrences = [];
+
+  for (let index = 0; index < optionArgs.length; index += 1) {
+    const token = optionArgs[index];
+    const resolvedOption = resolveCanonicalOptionToken(
+      token,
+      canonicalOptionMap,
+      valueOptions
+    );
+    if (resolvedOption === null) {
+      continue;
+    }
+
+    activeCliOptionsSet.add(resolvedOption.canonicalOption);
+    if (!seenActiveTokens.has(token)) {
+      seenActiveTokens.add(token);
+      activeCliOptionTokens.push(token);
+    }
+    activeCliOptionOccurrences.push({
+      token,
+      canonicalOption: resolvedOption.canonicalOption,
+      index,
+    });
+
+    if (
+      valueOptions.has(resolvedOption.canonicalOption) &&
+      !resolvedOption.hasInlineValue
+    ) {
+      const nextArg = optionArgs[index + 1] ?? null;
+      if (nextArg !== null && !nextArg.startsWith("--")) {
+        index += 1;
+      }
+    }
+  }
+
+  const uniqueCanonicalOptions = canonicalOptions.filter((optionToken, index) => {
+    return canonicalOptions.indexOf(optionToken) === index;
+  });
+  const activeCliOptions = uniqueCanonicalOptions.filter((optionToken) => {
+    return activeCliOptionsSet.has(optionToken);
+  });
+  const activeCliOptionResolutions = activeCliOptionTokens.map((token) => {
+    const resolvedOption = resolveCanonicalOptionToken(
+      token,
+      canonicalOptionMap,
+      valueOptions
+    );
+    return {
+      token,
+      canonicalOption:
+        resolvedOption === null ? token : resolvedOption.canonicalOption,
+    };
+  });
+
+  return {
+    activeCliOptions,
+    activeCliOptionCount: activeCliOptions.length,
+    activeCliOptionTokens,
+    activeCliOptionResolutions,
+    activeCliOptionResolutionCount: activeCliOptionResolutions.length,
+    activeCliOptionOccurrences,
+    activeCliOptionOccurrenceCount: activeCliOptionOccurrences.length,
+  };
+};
+
 export const resolveLastOptionValue = (args, optionName) => {
   const { optionArgs } = splitCliArgs(args);
   const inlineOptionPrefix = `${optionName}=`;

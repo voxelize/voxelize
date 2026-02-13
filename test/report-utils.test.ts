@@ -10,6 +10,7 @@ import {
   createCliOptionValidation,
   deriveFailureMessageFromReport,
   hasCliOption,
+  parseActiveCliOptionMetadata,
   parseJsonOutput,
   parseUnknownCliOptions,
   resolveLastOptionValue,
@@ -382,6 +383,88 @@ describe("report-utils", () => {
     expect(outputErrorPriority.validationErrorCode).toBe(
       "output_option_missing_value"
     );
+  });
+
+  it("parses active cli option metadata with aliases and option values", () => {
+    const activeMetadata = parseActiveCliOptionMetadata(
+      [
+        "--json",
+        "--output",
+        "-l",
+        "--verify",
+        "--verify",
+        "--output=./report.json",
+        "--",
+        "--json",
+      ],
+      {
+        canonicalOptions: ["--json", "--no-build", "--output"],
+        optionAliases: {
+          "--no-build": ["--verify"],
+          "--json": ["-j"],
+        },
+        optionsWithValues: ["--output"],
+      }
+    );
+    expect(activeMetadata.activeCliOptions).toEqual([
+      "--json",
+      "--no-build",
+      "--output",
+    ]);
+    expect(activeMetadata.activeCliOptionCount).toBe(3);
+    expect(activeMetadata.activeCliOptionTokens).toEqual([
+      "--json",
+      "--output",
+      "--verify",
+      "--output=./report.json",
+    ]);
+    expect(activeMetadata.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+      {
+        token: "--output=./report.json",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionResolutionCount).toBe(4);
+    expect(activeMetadata.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 1,
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+        index: 3,
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+        index: 4,
+      },
+      {
+        token: "--output=./report.json",
+        canonicalOption: "--output",
+        index: 5,
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(5);
   });
 
   it("writes report json payloads to output paths", () => {
