@@ -2620,28 +2620,30 @@ export class World<T = any> extends Scene implements NetIntercept {
         continue;
       }
 
+      const normalizedRotation =
+        rotation === undefined || isNaN(rotation) ? 0 : rotation;
+      const normalizedYRotation = block.yRotatable ? (yRotation ?? 0) : 0;
+      const normalizedStage = stage ?? 0;
+
       const currId = this.getVoxelAt(vx, vy, vz);
       const currRot = this.getVoxelRotationAt(vx, vy, vz);
       const currStage = this.getVoxelStageAt(vx, vy, vz);
-      const currYRotation =
-        yRotation !== undefined ? BlockRotation.decode(currRot)[1] : undefined;
+      const currYRotation = BlockRotation.decode(currRot)[1];
 
       if (
         currId === type &&
-        (rotation !== undefined ? currRot.value === rotation : false) &&
-        (yRotation !== undefined ? currYRotation === yRotation : false) &&
-        (stage !== undefined ? currStage === stage : false)
+        currRot.value === normalizedRotation &&
+        currYRotation === normalizedYRotation &&
+        currStage === normalizedStage
       ) {
         continue;
       }
 
       const normalizedUpdate: BlockUpdate = {
         ...update,
-        rotation:
-          update.rotation === undefined || isNaN(update.rotation)
-            ? 0
-            : update.rotation,
-        yRotation: block.yRotatable ? update.yRotation : 0,
+        rotation: normalizedRotation,
+        yRotation: normalizedYRotation,
+        stage: normalizedStage,
       };
       this.blockUpdatesQueue.push({ source, update: normalizedUpdate });
     }
