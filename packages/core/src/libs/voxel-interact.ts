@@ -235,6 +235,10 @@ export class VoxelInteract extends Group {
    * An arrow that points to the y axis rotation of the potential block placement.
    */
   private yRotArrow: ArrowHelper;
+  private raycastOrigin = new Vector3();
+  private raycastDirection = new Vector3();
+  private raycastOriginCoords: Coords3 = [0, 0, 0];
+  private raycastDirectionCoords: Coords3 = [0, 0, 0];
 
   /**
    * Create a new VoxelInteract instance.
@@ -301,8 +305,8 @@ export class VoxelInteract extends Group {
       this.options.highlightLerp
     );
 
-    const objPos = new Vector3();
-    const objDir = new Vector3();
+    const objPos = this.raycastOrigin;
+    const objDir = this.raycastDirection;
     this.object.getWorldPosition(objPos);
     this.object.getWorldDirection(objDir);
     objDir.normalize();
@@ -311,9 +315,19 @@ export class VoxelInteract extends Group {
       objDir.multiplyScalar(-1);
     }
 
+    const raycastOrigin = this.raycastOriginCoords;
+    raycastOrigin[0] = objPos.x;
+    raycastOrigin[1] = objPos.y;
+    raycastOrigin[2] = objPos.z;
+
+    const raycastDirection = this.raycastDirectionCoords;
+    raycastDirection[0] = objDir.x;
+    raycastDirection[1] = objDir.y;
+    raycastDirection[2] = objDir.z;
+
     const result = this.world.raycastVoxels(
-      objPos.toArray(),
-      objDir.toArray(),
+      raycastOrigin,
+      raycastDirection,
       reachDistance,
       {
         ignoreFluids: this.options.ignoreFluids,
