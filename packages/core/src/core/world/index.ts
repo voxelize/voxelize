@@ -797,6 +797,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       data: T | null;
     }
   > = new Map();
+  private blockEntityKeysByChunk = new Map<string, Set<string>>();
   // TODO: fix a bug where if the chunk is not loaded, the block entity will not be updated and will just go stray
   private blockEntityUpdateListeners = new Set<BlockEntityUpdateListener<T>>();
 
@@ -4001,6 +4002,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       switch (operation) {
         case "DELETE": {
           this.blockEntitiesMap.delete(voxelId);
+          this.untrackBlockEntityKey(chunkName, voxelId);
           const block = this.getBlockByName(type.split("::")[1]);
           if (block) {
             for (const face of block.faces) {
@@ -4027,6 +4029,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         case "CREATE":
         case "UPDATE": {
           this.blockEntitiesMap.set(voxelId, { id, data });
+          this.trackBlockEntityKey(chunkName, voxelId);
           break;
         }
       }
@@ -4384,6 +4387,27 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
   }
 
+  private trackBlockEntityKey(chunkName: string, voxelKey: string) {
+    let keys = this.blockEntityKeysByChunk.get(chunkName);
+    if (!keys) {
+      keys = new Set<string>();
+      this.blockEntityKeysByChunk.set(chunkName, keys);
+    }
+    keys.add(voxelKey);
+  }
+
+  private untrackBlockEntityKey(chunkName: string, voxelKey: string) {
+    const keys = this.blockEntityKeysByChunk.get(chunkName);
+    if (!keys) {
+      return;
+    }
+
+    keys.delete(voxelKey);
+    if (keys.size === 0) {
+      this.blockEntityKeysByChunk.delete(chunkName);
+    }
+  }
+
   private buildChunkMeshesForChunkData(
     x: number,
     z: number,
@@ -4426,28 +4450,17 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private pruneBlockEntitiesInChunk(chunkCoords: Coords2) {
-    const { chunkSize } = this.options;
     const [targetCx, targetCz] = chunkCoords;
-
-    for (const key of this.blockEntitiesMap.keys()) {
-      const firstSeparator = key.indexOf("|");
-      if (firstSeparator < 0) {
-        continue;
-      }
-      const secondSeparator = key.indexOf("|", firstSeparator + 1);
-      if (secondSeparator < 0) {
-        continue;
-      }
-
-      const vx = parseInt(key.slice(0, firstSeparator), 10);
-      const vz = parseInt(key.slice(secondSeparator + 1), 10);
-      const cx = Math.floor(vx / chunkSize);
-      const cz = Math.floor(vz / chunkSize);
-
-      if (cx === targetCx && cz === targetCz) {
-        this.blockEntitiesMap.delete(key);
-      }
+    const chunkName = ChunkUtils.getChunkNameAt(targetCx, targetCz);
+    const keys = this.blockEntityKeysByChunk.get(chunkName);
+    if (!keys || keys.size === 0) {
+      return;
     }
+
+    for (const key of keys) {
+      this.blockEntitiesMap.delete(key);
+    }
+    this.blockEntityKeysByChunk.delete(chunkName);
   }
 
   private maintainChunks(centerX: number, centerZ: number) {
