@@ -2551,7 +2551,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         return (
           isDynamic
             ? dynamicFn
-              ? dynamicFn([wx | 0, wy | 0, wz | 0]).aabbs
+              ? dynamicFn([vx, vy, vz]).aabbs
               : aabbs
             : aabbs
         ).map((aabb) => rotation.rotateAABB(aabb).translate([vx, vy, vz]));
