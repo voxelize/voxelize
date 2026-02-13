@@ -3049,7 +3049,15 @@ export class World<T = any> extends Scene implements NetIntercept {
           ? [true, true, true, true, true, true]
           : BlockUtils.getBlockRotatedTransparency(sourceBlock, sourceRotation);
 
-      for (const [ox, oy, oz] of VOXEL_NEIGHBORS) {
+      for (
+        let neighborIndex = 0;
+        neighborIndex < VOXEL_NEIGHBORS.length;
+        neighborIndex++
+      ) {
+        const neighborOffset = VOXEL_NEIGHBORS[neighborIndex];
+        const ox = neighborOffset[0];
+        const oy = neighborOffset[1];
+        const oz = neighborOffset[2];
         const nvy = vy + oy;
 
         if (nvy < 0 || nvy >= maxHeight) {
@@ -3161,7 +3169,15 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       const [vx, vy, vz] = voxel;
 
-      for (const [ox, oy, oz] of VOXEL_NEIGHBORS) {
+      for (
+        let neighborIndex = 0;
+        neighborIndex < VOXEL_NEIGHBORS.length;
+        neighborIndex++
+      ) {
+        const neighborOffset = VOXEL_NEIGHBORS[neighborIndex];
+        const ox = neighborOffset[0];
+        const oy = neighborOffset[1];
+        const oz = neighborOffset[2];
         const nvy = vy + oy;
 
         if (nvy < 0 || nvy >= maxHeight) {
@@ -3259,7 +3275,11 @@ export class World<T = any> extends Scene implements NetIntercept {
     };
 
     // Initialise the queue with all voxels to be cleared.
-    for (const [vx, vy, vz] of voxels) {
+    for (let voxelIndex = 0; voxelIndex < voxels.length; voxelIndex++) {
+      const voxel = voxels[voxelIndex];
+      const vx = voxel[0];
+      const vy = voxel[1];
+      const vz = voxel[2];
       const level = isSunlight
         ? this.getSunlightAtUnchecked(vx, vy, vz)
         : this.getTorchLightAtUnchecked(vx, vy, vz, color);
@@ -3279,7 +3299,15 @@ export class World<T = any> extends Scene implements NetIntercept {
       const { voxel, level } = queue[head++];
       const [vx, vy, vz] = voxel;
 
-      for (const [ox, oy, oz] of VOXEL_NEIGHBORS) {
+      for (
+        let neighborIndex = 0;
+        neighborIndex < VOXEL_NEIGHBORS.length;
+        neighborIndex++
+      ) {
+        const neighborOffset = VOXEL_NEIGHBORS[neighborIndex];
+        const ox = neighborOffset[0];
+        const oy = neighborOffset[1];
+        const oz = neighborOffset[2];
         const nvy = vy + oy;
         if (nvy < 0 || nvy >= maxHeight) continue;
 
