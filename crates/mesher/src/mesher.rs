@@ -1485,6 +1485,7 @@ fn compute_face_ao_and_light_fast(
     let mut aos = [0i32; 4];
     let mut lights = [0i32; 4];
     let mask = &opaque_mask;
+    let center_opaque = neighbor_is_opaque(mask, 0, 0, 0);
 
     for (i, pos) in corner_positions.iter().enumerate() {
         let dx = if pos[0] <= block_min_x_eps {
@@ -1546,13 +1547,15 @@ fn compute_face_ao_and_light_fast(
                         continue;
                     }
 
-                    if dir[0] * ddx + dir[1] * ddy + dir[2] * ddz == 0 {
-                        let facing_opaque =
-                            neighbor_is_opaque(mask, ddx * dir[0], ddy * dir[1], ddz * dir[2]);
-
-                        if facing_opaque {
-                            continue;
-                        }
+                    let is_face_plane_sample = if dir_is_x {
+                        ddx == 0
+                    } else if dir_is_y {
+                        ddy == 0
+                    } else {
+                        ddz == 0
+                    };
+                    if is_face_plane_sample && center_opaque {
+                        continue;
                     }
 
                     if ddx.abs() + ddy.abs() + ddz.abs() == 3 {
