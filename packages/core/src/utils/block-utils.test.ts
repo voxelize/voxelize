@@ -127,4 +127,13 @@ describe("BlockRotation.rotateTransparency", () => {
     const equivalent = BlockRotation.encode(PY_ROTATION, 4);
     expect(base.equals(equivalent)).toBe(true);
   });
+
+  it("supports uppercase constructor aliases", () => {
+    expect(BlockRotation.PX(0).value).toBe(2);
+    expect(BlockRotation.NX(0).value).toBe(3);
+    expect(BlockRotation.PY(0).value).toBe(0);
+    expect(BlockRotation.NY(0).value).toBe(1);
+    expect(BlockRotation.PZ(0).value).toBe(4);
+    expect(BlockRotation.NZ(0).value).toBe(5);
+  });
 });

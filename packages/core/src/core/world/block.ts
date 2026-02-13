@@ -324,6 +324,18 @@ export class BlockRotation {
     this.yRotation = yRotation;
   }
 
+  static PX = (yRotation = 0) => new BlockRotation(PX_ROTATION, yRotation);
+
+  static NX = (yRotation = 0) => new BlockRotation(NX_ROTATION, yRotation);
+
+  static PY = (yRotation = 0) => new BlockRotation(PY_ROTATION, yRotation);
+
+  static NY = (yRotation = 0) => new BlockRotation(NY_ROTATION, yRotation);
+
+  static PZ = (yRotation = 0) => new BlockRotation(PZ_ROTATION, yRotation);
+
+  static NZ = (yRotation = 0) => new BlockRotation(NZ_ROTATION, yRotation);
+
   get axis() {
     return this.value;
   }
