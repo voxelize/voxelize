@@ -423,7 +423,7 @@ impl Registry {
             .map(|(name, block)| (name.clone(), block.id))
             .collect::<HashMap<String, u32>>();
         let mut id_to_name = self.name_map.clone();
-        let reserved_explicit_ids = blocks
+        let mut reserved_explicit_ids = blocks
             .iter()
             .filter(|block| block.id != 0)
             .map(|block| block.id)
@@ -435,6 +435,10 @@ impl Registry {
             let mut block = block.to_owned();
             let lower_name = block.name.to_lowercase();
             let existing_id_for_name = name_to_id.get(&lower_name).copied();
+
+            if block.id != 0 {
+                reserved_explicit_ids.remove(&block.id);
+            }
 
             if block.id == 0 {
                 while occupied_ids.contains(&next_available)

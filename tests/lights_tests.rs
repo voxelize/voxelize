@@ -395,6 +395,24 @@ fn test_register_blocks_can_reuse_id_freed_earlier_in_batch() {
 }
 
 #[test]
+fn test_register_blocks_auto_id_can_reuse_processed_explicit_id() {
+    let mut registry = create_test_registry();
+
+    registry.register_blocks(&[
+        Block::new("ephemeral").id(3).build(),
+        Block::new("ephemeral").id(4).build(),
+        Block::new("late-auto").is_passable(true).build(),
+    ]);
+
+    assert_eq!(registry.get_block_by_name("ephemeral").id, 4);
+    assert_eq!(
+        registry.get_block_by_name("late-auto").id,
+        3,
+        "auto-id allocation should reuse explicit ids that are no longer reserved and no longer occupied"
+    );
+}
+
+#[test]
 fn test_register_blocks_panics_on_duplicate_ids_in_batch() {
     let mut registry = create_test_registry();
 
