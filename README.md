@@ -170,6 +170,9 @@ pnpm run check:preflight:json -- --only devEnvironment,client
 pnpm run check:preflight:dev-env:json
 pnpm run check:preflight:wasm-pack:json
 pnpm run check:preflight:client:json
+# shorthand aliases for single-check aggregate reports
+pnpm run check:preflight:dev:json
+pnpm run check:preflight:wasm:json
 # single client check without auto-build
 pnpm run check:preflight:client:verify:json
 # compact single-check aggregate reports
@@ -177,6 +180,9 @@ pnpm run check:preflight:dev-env:json:compact
 pnpm run check:preflight:wasm-pack:json:compact
 pnpm run check:preflight:client:json:compact
 pnpm run check:preflight:client:verify:json:compact
+# shorthand compact aliases
+pnpm run check:preflight:dev:json:compact
+pnpm run check:preflight:wasm:json:compact
 # includes per-check and total duration metadata
 # includes startedAt/endedAt plus totalChecks/passedCheckCount/failedCheckCount
 # all json report commands include schemaVersion: 1
