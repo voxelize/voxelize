@@ -2199,6 +2199,7 @@ where
 struct FaceProcessCache {
     opaque_mask: Option<[bool; 27]>,
     center_light: Option<u32>,
+    center_rgb: Option<[u32; 3]>,
     fluid_surface_above: bool,
     block_min: [f32; 3],
 }
@@ -2218,17 +2219,20 @@ fn build_face_process_cache<S: VoxelAccess>(
 ) -> FaceProcessCache {
     let is_all_transparent = block.is_all_transparent;
 
+    let center_light = if is_see_through || is_all_transparent {
+        Some(neighbors.get_raw_light(0, 0, 0) & 0xFFFF)
+    } else {
+        None
+    };
+
     FaceProcessCache {
         opaque_mask: if !(is_see_through || is_all_transparent) {
             Some(build_neighbor_opaque_mask(neighbors, registry))
         } else {
             None
         },
-        center_light: if is_see_through || is_all_transparent {
-            Some(neighbors.get_raw_light(0, 0, 0) & 0xFFFF)
-        } else {
-            None
-        },
+        center_light,
+        center_rgb: center_light.map(|light| [(light >> 8) & 0xF, (light >> 4) & 0xF, light & 0xF]),
         fluid_surface_above: is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space),
         block_min: block_min_corner(block),
     }
@@ -2357,17 +2361,12 @@ fn process_face<S: VoxelAccess>(
     } else {
         None
     };
-    let (center_red_light, center_green_light, center_blue_light) = if skip_opaque_checks {
-        let center_light = cache
-            .center_light
-            .expect("center light exists when opaque checks are skipped");
-        (
-            (center_light >> 8) & 0xF,
-            (center_light >> 4) & 0xF,
-            center_light & 0xF,
-        )
+    let [center_red_light, center_green_light, center_blue_light] = if skip_opaque_checks {
+        cache
+            .center_rgb
+            .expect("center rgb exists when opaque checks are skipped")
     } else {
-        (0, 0, 0)
+        [0, 0, 0]
     };
     let center_light_packed = if skip_opaque_checks {
         cache
@@ -3635,17 +3634,25 @@ pub fn mesh_space<S: VoxelAccess>(
                 }
                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
                 let is_all_transparent = block.is_all_transparent;
+                let center_light = if is_see_through || is_all_transparent {
+                    Some(neighbors.get_raw_light(0, 0, 0) & 0xFFFF)
+                } else {
+                    None
+                };
                 let face_cache = FaceProcessCache {
                     opaque_mask: if !(is_see_through || is_all_transparent) {
                         Some(build_neighbor_opaque_mask(&neighbors, registry))
                     } else {
                         None
                     },
-                    center_light: if is_see_through || is_all_transparent {
-                        Some(neighbors.get_raw_light(0, 0, 0) & 0xFFFF)
-                    } else {
-                        None
-                    },
+                    center_light,
+                    center_rgb: center_light.map(|center_light| {
+                        [
+                            (center_light >> 8) & 0xF,
+                            (center_light >> 4) & 0xF,
+                            center_light & 0xF,
+                        ]
+                    }),
                     fluid_surface_above: is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space),
                     block_min: block_min_corner(block),
                 };
