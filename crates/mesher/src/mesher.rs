@@ -383,6 +383,34 @@ impl Registry {
             (false, false)
         }
     }
+
+    #[inline(always)]
+    pub fn has_type_and_opaque_and_empty(&self, id: u32) -> (bool, bool, bool) {
+        if let Some(dense) = &self.dense_lookup {
+            if let Some(&idx) = dense.get(id as usize) {
+                if idx != usize::MAX {
+                    let block = &self.blocks_by_id[idx].1;
+                    return (true, block.is_opaque, block.is_empty);
+                }
+            }
+            (false, false, false)
+        } else if let Some(cache) = &self.lookup_cache {
+            if let Some(&idx) = cache.get(&id) {
+                let block = &self.blocks_by_id[idx].1;
+                (true, block.is_opaque, block.is_empty)
+            } else {
+                (false, false, false)
+            }
+        } else if let Some((_, block)) = self
+            .blocks_by_id
+            .iter()
+            .find(|(block_id, _)| *block_id == id)
+        {
+            (true, block.is_opaque, block.is_empty)
+        } else {
+            (false, false, false)
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -1236,7 +1264,8 @@ fn should_render_face<S: VoxelAccess>(
         return !is_opaque && block.transparent_standalone;
     }
 
-    let (neighbor_has_type, neighbor_is_opaque) = registry.has_type_and_is_opaque(neighbor_id);
+    let (neighbor_has_type, neighbor_is_opaque, neighbor_is_empty) =
+        registry.has_type_and_opaque_and_empty(neighbor_id);
 
     if neighbor_is_opaque {
         return false;
@@ -1248,7 +1277,7 @@ fn should_render_face<S: VoxelAccess>(
         return !space.contains(nvx, nvy, nvz);
     }
     if is_opaque {
-        return registry.is_empty_id(neighbor_id);
+        return neighbor_is_empty;
     }
 
     true
