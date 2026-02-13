@@ -246,6 +246,11 @@ const processMeshMessage = (message: MeshBatchMessage) => {
   const { chunksData, min, max } = message;
   const { chunkSize, greedyMeshing = true } = message.options;
 
+  if (max[0] <= min[0] || max[1] <= min[1] || max[2] <= min[2]) {
+    postEmptyMeshResult();
+    return;
+  }
+
   const chunks: (ChunkData | null)[] = new Array(chunksData.length);
   let hasAnyChunk = false;
   for (let i = 0; i < chunksData.length; i++) {
