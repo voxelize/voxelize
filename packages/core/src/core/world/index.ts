@@ -4169,20 +4169,18 @@ export class World<T = any> extends Scene implements NetIntercept {
     vx: number,
     vy: number,
     vz: number,
+    oldVal: number,
     newVal: number
   ) {
-    const chunk = this.getChunkByPosition(vx, vy, vz);
-    if (!chunk) return;
-
-    const oldVal = chunk.getRawValue(vx, vy, vz);
-
-    if (oldVal !== newVal) {
-      const name = ChunkUtils.getVoxelNameAt(vx, vy, vz);
-      const arr = this.oldBlocks.get(name) || [];
-      arr.push(oldVal);
-      this.oldBlocks.set(name, arr);
-      this.triggerBlockUpdateListeners(vx, vy, vz, oldVal, newVal);
+    if (oldVal === newVal) {
+      return;
     }
+
+    const name = ChunkUtils.getVoxelNameAt(vx, vy, vz);
+    const arr = this.oldBlocks.get(name) || [];
+    arr.push(oldVal);
+    this.oldBlocks.set(name, arr);
+    this.triggerBlockUpdateListeners(vx, vy, vz, oldVal, newVal);
   }
 
   /**
@@ -5351,7 +5349,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         continue;
       }
 
-      this.attemptBlockCache(vx, vy, vz, newValue);
+      this.attemptBlockCache(vx, vy, vz, currentRaw, newValue);
       chunk.setRawValue(vx, vy, vz, newValue);
 
       const voxelChanged = currentId !== type;
