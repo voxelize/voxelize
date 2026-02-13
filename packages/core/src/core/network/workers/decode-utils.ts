@@ -46,7 +46,7 @@ function decompressToUint32Array(
 
 function decompressToInt32Array(
   data: Uint8Array,
-  transferables: ArrayBuffer[]
+  transferables?: ArrayBuffer[]
 ): Int32Array {
   if (!data || data.length === 0) return new Int32Array(0);
   const bytes = decompressLz4Block(data);
@@ -55,7 +55,9 @@ function decompressToInt32Array(
     bytes.byteOffset,
     bytes.byteLength / 4
   );
-  transferables.push(result.buffer as ArrayBuffer);
+  if (transferables) {
+    transferables.push(result.buffer as ArrayBuffer);
+  }
   return result;
 }
 
@@ -181,8 +183,7 @@ export function decodeMessage(
               if (geo) {
                 if (geo.indices) {
                   const decompressedI32 = decompressToInt32Array(
-                    geo.indices as Uint8Array,
-                    []
+                    geo.indices as Uint8Array
                   );
                   const indices = new Uint16Array(decompressedI32.length);
                   for (let idx = 0; idx < decompressedI32.length; idx++) {
