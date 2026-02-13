@@ -172,7 +172,7 @@ export class RawChunk {
    * @returns The voxel type ID at the given voxel coordinate.
    */
   getVoxel(vx: number, vy: number, vz: number) {
-    return BlockUtils.extractID(this.getRawValue(vx | 0, vy | 0, vz | 0));
+    return BlockUtils.extractID(this.getRawValue(vx, vy, vz));
   }
 
   /**
@@ -528,7 +528,11 @@ export class RawChunk {
 
   private toLocal(vx: number, vy: number, vz: number) {
     const [mx, my, mz] = this.min;
-    return [(vx | 0) - mx, (vy | 0) - my, (vz | 0) - mz];
+    return [
+      Math.floor(vx) - mx,
+      Math.floor(vy) - my,
+      Math.floor(vz) - mz,
+    ];
   }
 
   private contains(vx: number, vy: number, vz: number) {
