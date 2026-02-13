@@ -204,6 +204,16 @@ const config: Config = {
     [
       "docusaurus-plugin-typedoc",
       {
+        entryPoints: ["../packages/ts-core/src/index.ts"],
+        id: "@voxelize/ts-core",
+        out: "api/ts-core",
+        tsconfig: "../packages/ts-core/tsconfig.json",
+        ...sharedTypeDocConfig("TS Core API"),
+      },
+    ],
+    [
+      "docusaurus-plugin-typedoc",
+      {
         entryPoints: ["../packages/core/src/index.ts"],
         id: "@voxelize/core",
         out: "api/client",

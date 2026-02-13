@@ -1,0 +1,116 @@
+---
+sidebar_position: 14
+---
+
+# TypeScript Core (Rust-free voxel primitives)
+
+`@voxelize/ts-core` provides the core voxel data model from Voxelize as a standalone TypeScript library.
+
+Use it when you want to:
+
+- build tools in Node.js without Rust
+- author voxel/light data in services or pipelines
+- share deterministic packing rules across server-side TS code
+
+## Install
+
+```bash
+pnpm add @voxelize/ts-core
+```
+
+## What it includes
+
+```mermaid
+flowchart LR
+    V[Voxel pack/unpack] --> R[BlockRotation]
+    V --> B[BlockRuleEvaluator]
+    L[Light pack/unpack] --> B
+    A[AABB math] --> B
+```
+
+- `Voxel` / `BlockUtils`: voxel id + rotation + stage bit encoding
+- `Light` / `LightUtils`: sunlight + RGB torch channels
+- `BlockRotation`: axis/y-rotation encoding and transforms
+- `AABB`: geometry math helpers
+- `BlockRuleEvaluator`: dynamic rule matching
+- `VoxelAccess`: shared access contract
+
+## Basic usage
+
+```ts title="Packing voxel and light data"
+import { BlockRotation, Light, Voxel } from "@voxelize/ts-core";
+
+const rotation = BlockRotation.encode(0, 4);
+
+const voxel = Voxel.pack({
+  id: 42,
+  rotation,
+  stage: 7,
+});
+
+const light = Light.pack({
+  sunlight: 15,
+  red: 10,
+  green: 5,
+  blue: 3,
+});
+
+const unpackedVoxel = Voxel.unpack(voxel);
+const unpackedLight = Light.unpack(light);
+```
+
+## Evaluating rules with your own data source
+
+```ts title="Rule evaluation"
+import {
+  BlockRotation,
+  BlockRuleEvaluator,
+  BlockRuleLogic,
+  Voxel,
+} from "@voxelize/ts-core";
+
+const stored = Voxel.pack({
+  id: 12,
+  rotation: BlockRotation.py(0),
+  stage: 3,
+});
+
+const access = {
+  getVoxel: () => Voxel.id(stored),
+  getVoxelRotation: () => Voxel.rotation(stored),
+  getVoxelStage: () => Voxel.stage(stored),
+};
+
+const rule = {
+  type: "combination",
+  logic: BlockRuleLogic.And,
+  rules: [
+    { type: "simple", offset: [0, 0, 0], id: 12 },
+    { type: "simple", offset: [0, 0, 0], stage: 3 },
+  ],
+} as const;
+
+const matched = BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access);
+```
+
+## End-to-end runnable example
+
+The package includes a full end-to-end script that:
+
+1. Packs voxel and light values
+2. Stores and reads values from an in-memory space
+3. Rotates an AABB
+4. Evaluates block rules
+5. Verifies JSON serialization roundtrip
+
+Run it with:
+
+```bash
+pnpm --filter @voxelize/ts-core example:end-to-end
+```
+
+## API reference
+
+Typed API docs are generated under:
+
+- `API` → `TS Core API`
