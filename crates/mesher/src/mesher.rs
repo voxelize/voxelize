@@ -3415,16 +3415,15 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         continue;
                     }
                     let cache_ready = block.cache_ready;
-                    let mut has_dynamic_patterns_cached_value = false;
-                    let mut has_dynamic_patterns_cached_known = false;
+                    let mut has_dynamic_patterns_cached: Option<bool> = None;
                     if !is_fluid && faces_empty {
-                        has_dynamic_patterns_cached_value = if cache_ready {
+                        let has_dynamic_patterns = if cache_ready {
                             block.has_dynamic_patterns
                         } else {
                             block.has_dynamic_patterns_cached()
                         };
-                        has_dynamic_patterns_cached_known = true;
-                        if !has_dynamic_patterns_cached_value {
+                        has_dynamic_patterns_cached = Some(has_dynamic_patterns);
+                        if !has_dynamic_patterns {
                             continue;
                         }
                     }
@@ -3534,8 +3533,10 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 );
                             }
                         } else {
-                            let has_dynamic_patterns = if has_dynamic_patterns_cached_known {
-                                has_dynamic_patterns_cached_value
+                            let has_dynamic_patterns = if let Some(cached) =
+                                has_dynamic_patterns_cached
+                            {
+                                cached
                             } else if cache_ready {
                                 block.has_dynamic_patterns
                             } else {
