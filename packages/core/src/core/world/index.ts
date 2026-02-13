@@ -2394,6 +2394,24 @@ export class World<T = any> extends Scene implements NetIntercept {
     direction: Vector3,
     threshold: number
   ) {
+    return this.isChunkInViewByTanAt(
+      cx,
+      cz,
+      tx,
+      tz,
+      direction,
+      Math.tan(threshold)
+    );
+  }
+
+  private isChunkInViewByTanAt(
+    cx: number,
+    cz: number,
+    tx: number,
+    tz: number,
+    direction: Vector3,
+    tanThreshold: number
+  ) {
     const dx = cx - tx;
     const dz = cz - tz;
 
@@ -2403,10 +2421,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     const dot = (tz - cz) * direction.z + (tx - cx) * direction.x;
+    if (dot <= 0) {
+      return false;
+    }
     const det = (tz - cz) * direction.x - (tx - cx) * direction.z;
-    const angle = Math.atan2(det, dot);
 
-    return Math.abs(angle) < threshold;
+    return Math.abs(det) < dot * tanThreshold;
   }
 
   /**
@@ -3907,6 +3927,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       ratio === 1
         ? (Math.PI * 3) / 8
         : Math.max(ratio ** chunkLoadExponent, 0.1);
+    const tanAngleThreshold = Math.tan(angleThreshold);
 
     const [centerX, centerZ] = center;
     const toRequestClosest: Array<{ coords: Coords2; distance: number }> = [];
@@ -3968,13 +3989,13 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         if (
           hasDirection &&
-          !this.isChunkInViewAt(
+          !this.isChunkInViewByTanAt(
             centerX,
             centerZ,
             cx,
             cz,
             direction,
-            angleThreshold
+            tanAngleThreshold
           )
         ) {
           continue;
