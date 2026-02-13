@@ -354,6 +354,15 @@ export class Network {
       batches.push(packets.slice(i, i + perWorker));
     }
 
+    if (batches.length === 1) {
+      this.decode(batches[0]).then((messages) => {
+        for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
+          this.onMessage(messages[messageIndex]);
+        }
+      });
+      return;
+    }
+
     const decodePromises = new Array<Promise<MessageProtocol[]>>(batches.length);
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
       decodePromises[batchIndex] = this.decode(batches[batchIndex]);
