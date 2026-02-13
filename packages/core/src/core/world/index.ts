@@ -5834,24 +5834,30 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.floodLight(lightOps.floods, color);
     }
 
-    const allVoxels = [
-      ...lightOps.removals,
-      ...lightOps.floods.map((n) => n.voxel),
-    ];
+    const { chunkSize } = this.options;
+    const affectedChunks = new Map<string, Coords2>();
 
-    const affectedChunks = new Set<string>();
-    allVoxels.forEach((voxel) => {
-      const chunkCoords = ChunkUtils.mapVoxelToChunk(
-        voxel,
-        this.options.chunkSize
-      );
-      affectedChunks.add(ChunkUtils.getChunkName(chunkCoords));
-    });
+    const addAffectedChunk = (vx: number, vz: number) => {
+      const cx = Math.floor(vx / chunkSize);
+      const cz = Math.floor(vz / chunkSize);
+      const chunkName = ChunkUtils.getChunkNameAt(cx, cz);
 
-    affectedChunks.forEach((chunkName) => {
-      const coords = ChunkUtils.parseChunkNameAt(chunkName);
-      this.markChunkForRemesh(coords as Coords2);
-    });
+      if (!affectedChunks.has(chunkName)) {
+        affectedChunks.set(chunkName, [cx, cz]);
+      }
+    };
+
+    for (const voxel of lightOps.removals) {
+      addAffectedChunk(voxel[0], voxel[2]);
+    }
+
+    for (const { voxel } of lightOps.floods) {
+      addAffectedChunk(voxel[0], voxel[2]);
+    }
+
+    for (const coords of affectedChunks.values()) {
+      this.markChunkForRemesh(coords);
+    }
   }
 
   private executeLightOperationsSyncAll(lightOps: LightOperations) {
