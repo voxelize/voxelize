@@ -819,6 +819,13 @@ fn extract_id(voxel: u32) -> u32 {
     voxel & 0xFFFF
 }
 
+#[inline(always)]
+fn extract_rotation(voxel: u32) -> BlockRotation {
+    let rotation = (voxel >> 16) & 0xF;
+    let y_rotation = (voxel >> 20) & 0xF;
+    BlockRotation::encode(rotation, y_rotation)
+}
+
 fn vertex_ao(side1: bool, side2: bool, corner: bool) -> i32 {
     let num_s1 = !side1 as i32;
     let num_s2 = !side2 as i32;
@@ -2735,7 +2742,8 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         _ => continue,
                     };
 
-                    let voxel_id = space.get_voxel(vx, vy, vz);
+                    let raw_voxel = space.get_raw_voxel(vx, vy, vz);
+                    let voxel_id = extract_id(raw_voxel);
                     let block = match registry.get_block_by_id(voxel_id) {
                         Some(b) => b,
                         None => continue,
@@ -2762,7 +2770,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     let block_needs_face_rotation = block.rotatable || block.y_rotatable;
                     let mut rotation = BlockRotation::PY(0.0);
                     if block_needs_face_rotation {
-                        rotation = space.get_voxel_rotation(vx, vy, vz);
+                        rotation = extract_rotation(raw_voxel);
                     }
 
                     let has_standard_six_faces = is_fluid
@@ -3103,7 +3111,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         _ => continue,
                     };
 
-                    let voxel_id = space.get_voxel(vx, vy, vz);
+                    let raw_voxel = space.get_raw_voxel(vx, vy, vz);
+                    let voxel_id = extract_id(raw_voxel);
                     let block = match registry.get_block_by_id(voxel_id) {
                         Some(candidate) => candidate,
                         None => continue,
@@ -3159,7 +3168,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         let block_needs_rotation = block.rotatable || block.y_rotatable;
                         let mut rotation = BlockRotation::PY(0.0);
                         if block_needs_rotation {
-                            rotation = space.get_voxel_rotation(vx, vy, vz);
+                            rotation = extract_rotation(raw_voxel);
                         }
                         processed_non_greedy[non_greedy_voxel_index] = true;
                         let has_standard_six_faces = is_fluid
@@ -3623,7 +3632,8 @@ pub fn mesh_space<S: VoxelAccess>(
     for vx in min_x..max_x {
         for vz in min_z..max_z {
             for vy in min_y..max_y {
-                let voxel_id = space.get_voxel(vx, vy, vz);
+                let raw_voxel = space.get_raw_voxel(vx, vy, vz);
+                let voxel_id = extract_id(raw_voxel);
                 let block = match registry.get_block_by_id(voxel_id) {
                     Some(b) => b,
                     None => continue,
@@ -3655,7 +3665,7 @@ pub fn mesh_space<S: VoxelAccess>(
 
                 let mut rotation = BlockRotation::PY(0.0);
                 if block.rotatable || block.y_rotatable {
-                    rotation = space.get_voxel_rotation(vx, vy, vz);
+                    rotation = extract_rotation(raw_voxel);
                 }
                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
                 let is_all_transparent = block.is_all_transparent;
