@@ -17,6 +17,13 @@ type WasmPackJsonReport = OptionTerminatorMetadata & {
   exitCode: number;
   command: string;
   version: string | null;
+  unknownOptions: string[];
+  unknownOptionCount: number;
+  supportedCliOptions: string[];
+  validationErrorCode:
+    | "output_option_missing_value"
+    | "unsupported_options"
+    | null;
   startedAt: string;
   endedAt: string;
   durationMs: number;
@@ -36,6 +43,13 @@ type WasmMesherJsonReport = OptionTerminatorMetadata & {
   wasmPackCheckReport: WasmPackJsonReport | null;
   buildOutput: string | null;
   outputPath: string | null;
+  unknownOptions: string[];
+  unknownOptionCount: number;
+  supportedCliOptions: string[];
+  validationErrorCode:
+    | "output_option_missing_value"
+    | "unsupported_options"
+    | null;
   writeError?: string;
   message: string;
   startedAt: string;
@@ -90,6 +104,16 @@ describe("client wasm preflight script", () => {
     expect(typeof report.attemptedBuild).toBe("boolean");
     expect(typeof report.buildSkipped).toBe("boolean");
     expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual([
+      "--compact",
+      "--json",
+      "--no-build",
+      "--output",
+      "--verify",
+    ]);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.validationErrorCode).toBeNull();
     expect(typeof report.message).toBe("string");
     expectTimingMetadata(report);
     expectOptionTerminatorMetadata(report);
@@ -97,6 +121,15 @@ describe("client wasm preflight script", () => {
 
     if (report.wasmPackCheckReport !== null) {
       expect(report.wasmPackCheckReport.command).toContain("wasm-pack");
+      expect(report.wasmPackCheckReport.supportedCliOptions).toEqual([
+        "--compact",
+        "--json",
+        "--output",
+        "--quiet",
+      ]);
+      expect(report.wasmPackCheckReport.unknownOptions).toEqual([]);
+      expect(report.wasmPackCheckReport.unknownOptionCount).toBe(0);
+      expect(report.wasmPackCheckReport.validationErrorCode).toBeNull();
       expectTimingMetadata(report.wasmPackCheckReport);
       expectOptionTerminatorMetadata(report.wasmPackCheckReport);
     }
@@ -281,6 +314,9 @@ describe("client wasm preflight script", () => {
     expect(report.outputPath).toBeNull();
     expectTimingMetadata(report);
     expectOptionTerminatorMetadata(report);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
     expect(report.message).toBe("Missing value for --output option.");
     expect(result.status).toBe(1);
   });
@@ -302,7 +338,41 @@ describe("client wasm preflight script", () => {
     expect(report.outputPath).toBeNull();
     expectTimingMetadata(report);
     expectOptionTerminatorMetadata(report);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
     expect(report.message).toBe("Missing value for --output option.");
+    expect(result.status).toBe(1);
+  });
+
+  it("reports unsupported options in structured output", () => {
+    const result = spawnSync(
+      process.execPath,
+      [wasmMesherScript, "--json", "--mystery"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const report = JSON.parse(`${result.stdout}${result.stderr}`) as WasmMesherJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual([
+      "--compact",
+      "--json",
+      "--no-build",
+      "--output",
+      "--verify",
+    ]);
+    expect(report.unknownOptions).toEqual(["--mystery"]);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --mystery. Supported options: --compact, --json, --no-build, --output, --verify."
+    );
     expect(result.status).toBe(1);
   });
 
@@ -321,6 +391,8 @@ describe("client wasm preflight script", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.outputPath).toBeNull();
     expectOptionTerminatorMetadata(report, true, ["--output"]);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
     expect(report.message).not.toBe("Missing value for --output option.");
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
@@ -372,5 +444,19 @@ describe("client wasm preflight script", () => {
     expect(result.status).toBe(1);
 
     fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("fails in non-json mode for unsupported options", () => {
+    const result = spawnSync(process.execPath, [wasmMesherScript, "--mystery"], {
+      cwd: rootDir,
+      encoding: "utf8",
+      shell: false,
+    });
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output).toContain(
+      "Unsupported option(s): --mystery. Supported options: --compact, --json, --no-build, --output, --verify."
+    );
   });
 });

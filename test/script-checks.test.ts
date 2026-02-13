@@ -83,6 +83,13 @@ type WasmMesherJsonReport = OptionTerminatorMetadata & {
   wasmPackAvailable: boolean | null;
   wasmPackCheckReport: WasmPackJsonReport | null;
   buildOutput: string | null;
+  unknownOptions: string[];
+  unknownOptionCount: number;
+  supportedCliOptions: string[];
+  validationErrorCode:
+    | "output_option_missing_value"
+    | "unsupported_options"
+    | null;
   message: string;
   startedAt: string;
   endedAt: string;
@@ -105,6 +112,13 @@ type ClientJsonReport = OptionTerminatorMetadata & {
   exitCode: number;
   noBuild: boolean;
   outputPath: string | null;
+  unknownOptions: string[];
+  unknownOptionCount: number;
+  supportedCliOptions: string[];
+  validationErrorCode:
+    | "output_option_missing_value"
+    | "unsupported_options"
+    | null;
   steps: ClientJsonStep[];
   totalSteps: number;
   passedStepCount: number;
@@ -134,6 +148,13 @@ type OnboardingJsonReport = OptionTerminatorMetadata & {
   exitCode: number;
   noBuild: boolean;
   outputPath: string | null;
+  unknownOptions: string[];
+  unknownOptionCount: number;
+  supportedCliOptions: string[];
+  validationErrorCode:
+    | "output_option_missing_value"
+    | "unsupported_options"
+    | null;
   steps: OnboardingJsonStep[];
   totalSteps: number;
   passedStepCount: number;
@@ -698,6 +719,17 @@ describe("root preflight scripts", () => {
     expect(report.noBuild).toBe(false);
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
     expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual([
+      "--compact",
+      "--json",
+      "--no-build",
+      "--output",
+      "--quiet",
+      "--verify",
+    ]);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.validationErrorCode).toBeNull();
     expectTimingMetadata(report);
     expectOptionTerminatorMetadata(report);
     expect(Array.isArray(report.steps)).toBe(true);
@@ -828,6 +860,9 @@ describe("root preflight scripts", () => {
     expect(report.exitCode).toBe(1);
     expectTimingMetadata(report);
     expectOptionTerminatorMetadata(report);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
     expect(report.totalSteps).toBe(0);
     expect(report.passedStepCount).toBe(0);
     expect(report.failedStepCount).toBe(0);
@@ -845,6 +880,9 @@ describe("root preflight scripts", () => {
     expect(report.exitCode).toBe(1);
     expectTimingMetadata(report);
     expectOptionTerminatorMetadata(report);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
     expect(report.totalSteps).toBe(0);
     expect(report.passedStepCount).toBe(0);
     expect(report.failedStepCount).toBe(0);
@@ -866,9 +904,35 @@ describe("root preflight scripts", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.outputPath).toBeNull();
     expectOptionTerminatorMetadata(report, true, ["--output"]);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
     expect(report.totalSteps).toBeGreaterThan(0);
     expect(report.message).not.toBe("Missing value for --output option.");
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
+  it("check-client json mode reports unsupported options", () => {
+    const result = runScript("check-client.mjs", ["--json", "--mystery"]);
+    const report = JSON.parse(result.output) as ClientJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual([
+      "--compact",
+      "--json",
+      "--no-build",
+      "--output",
+      "--quiet",
+      "--verify",
+    ]);
+    expect(report.unknownOptions).toEqual(["--mystery"]);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expect(result.status).toBe(1);
   });
 
   it("check-client json mode fails when last output flag value is missing", () => {
@@ -919,6 +983,15 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
 
     fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("check-client non-json mode fails on unsupported options", () => {
+    const result = runScript("check-client.mjs", ["--mystery"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(
+      "Unsupported option(s): --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
   });
 
   it("check-client json no-build mode reports skipped build intent", () => {
@@ -1002,6 +1075,17 @@ describe("root preflight scripts", () => {
     expect(report.noBuild).toBe(false);
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
     expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual([
+      "--compact",
+      "--json",
+      "--no-build",
+      "--output",
+      "--quiet",
+      "--verify",
+    ]);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.validationErrorCode).toBeNull();
     expectTimingMetadata(report);
     expectOptionTerminatorMetadata(report);
     expect(Array.isArray(report.steps)).toBe(true);
@@ -1127,6 +1211,9 @@ describe("root preflight scripts", () => {
     expect(report.exitCode).toBe(1);
     expectTimingMetadata(report);
     expectOptionTerminatorMetadata(report);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
     expect(report.totalSteps).toBe(0);
     expect(report.passedStepCount).toBe(0);
     expect(report.failedStepCount).toBe(0);
@@ -1144,6 +1231,9 @@ describe("root preflight scripts", () => {
     expect(report.exitCode).toBe(1);
     expectTimingMetadata(report);
     expectOptionTerminatorMetadata(report);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
     expect(report.totalSteps).toBe(0);
     expect(report.passedStepCount).toBe(0);
     expect(report.failedStepCount).toBe(0);
@@ -1165,9 +1255,35 @@ describe("root preflight scripts", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.outputPath).toBeNull();
     expectOptionTerminatorMetadata(report, true, ["--output"]);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
     expect(report.totalSteps).toBeGreaterThan(0);
     expect(report.message).not.toBe("Missing value for --output option.");
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
+  it("check-onboarding json mode reports unsupported options", () => {
+    const result = runScript("check-onboarding.mjs", ["--json", "--mystery"]);
+    const report = JSON.parse(result.output) as OnboardingJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual([
+      "--compact",
+      "--json",
+      "--no-build",
+      "--output",
+      "--quiet",
+      "--verify",
+    ]);
+    expect(report.unknownOptions).toEqual(["--mystery"]);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expect(result.status).toBe(1);
   });
 
   it("check-onboarding json mode fails when last output flag value is missing", () => {
@@ -1218,6 +1334,15 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
 
     fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("check-onboarding non-json mode fails on unsupported options", () => {
+    const result = runScript("check-onboarding.mjs", ["--mystery"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(
+      "Unsupported option(s): --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
   });
 
   it("check-onboarding json no-build mode propagates option", () => {

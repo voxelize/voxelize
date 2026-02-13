@@ -92,6 +92,7 @@ Client aggregate JSON reports include `totalSteps`, `passedStepCount`, `failedSt
 Skipped JSON steps are represented with `skipped: true` and `exitCode: null`.
 If `--output` is provided without a value, JSON commands return a structured error report.
 If `--output` is passed multiple times, the last value is used.
+Unsupported CLI flags return structured errors and include `unknownOptions`, `unknownOptionCount`, `supportedCliOptions`, and `validationErrorCode`.
 If report writing fails, JSON error reports include both `message` and `writeError`.
 Add `--compact` to each JSON preflight command for single-line JSON output.
 

@@ -6,6 +6,7 @@ import { resolvePnpmCommand } from "./scripts/command-utils.mjs";
 import {
   createTimedReportBuilder,
   hasCliOption,
+  parseUnknownCliOptions,
   parseJsonOutput,
   resolveOutputPath,
   serializeReportWithOptionalWrite,
@@ -30,13 +31,39 @@ const isQuiet = cliOptionArgs.includes("--quiet");
 const isJson = cliOptionArgs.includes("--json");
 const isNoBuild = hasCliOption(cliOptionArgs, "--no-build", noBuildOptionAliases);
 const isCompact = cliOptionArgs.includes("--compact");
+const canonicalCliOptions = [
+  "--compact",
+  "--json",
+  "--no-build",
+  "--output",
+  "--quiet",
+];
+const supportedCliOptions = [...canonicalCliOptions, ...noBuildOptionAliases];
+const unknownOptions = parseUnknownCliOptions(cliOptionArgs, {
+  canonicalOptions: canonicalCliOptions,
+  optionAliases: {
+    "--no-build": noBuildOptionAliases,
+  },
+  optionsWithValues: ["--output"],
+});
+const unknownOptionCount = unknownOptions.length;
+const unsupportedOptionsError =
+  unknownOptionCount === 0
+    ? null
+    : `Unsupported option(s): ${unknownOptions.join(", ")}. Supported options: ${supportedCliOptions.join(", ")}.`;
 const jsonFormat = { compact: isCompact };
 const { outputPath, error: outputPathError } = resolveOutputPath(cliOptionArgs);
+const validationErrorCode =
+  outputPathError !== null
+    ? "output_option_missing_value"
+    : unsupportedOptionsError !== null
+      ? "unsupported_options"
+      : null;
 const buildTimedReport = createTimedReportBuilder();
 const stepResults = [];
 let exitCode = 0;
 
-if (isJson && outputPathError !== null) {
+if (isJson && (outputPathError !== null || unsupportedOptionsError !== null)) {
   console.log(
     toReportJson(
       buildTimedReport({
@@ -46,14 +73,23 @@ if (isJson && outputPathError !== null) {
         positionalArgs,
         positionalArgCount,
         noBuild: isNoBuild,
-        outputPath: null,
+        outputPath: outputPathError === null ? outputPath : null,
+        unknownOptions,
+        unknownOptionCount,
+        supportedCliOptions,
+        validationErrorCode,
         steps: [],
         ...summarizeStepResults([]),
-        message: outputPathError,
+        message: outputPathError ?? unsupportedOptionsError,
       }),
       jsonFormat
     )
   );
+  process.exit(1);
+}
+
+if (!isJson && unsupportedOptionsError !== null) {
+  console.error(unsupportedOptionsError);
   process.exit(1);
 }
 
@@ -149,6 +185,10 @@ if (isJson) {
     positionalArgCount,
     noBuild: isNoBuild,
     outputPath,
+    unknownOptions,
+    unknownOptionCount,
+    supportedCliOptions,
+    validationErrorCode: null,
     steps: stepResults,
     ...stepSummary,
   });
