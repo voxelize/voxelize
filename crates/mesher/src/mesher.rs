@@ -594,7 +594,7 @@ impl<'a> VoxelSpace<'a> {
         0
     }
 
-    #[inline]
+    #[inline(always)]
     fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> BlockRotation {
         let raw = self.get_raw_voxel(vx, vy, vz);
         let rotation = (raw >> 16) & 0xF;
@@ -602,7 +602,7 @@ impl<'a> VoxelSpace<'a> {
         BlockRotation::encode(rotation, y_rotation)
     }
 
-    #[inline]
+    #[inline(always)]
     fn get_voxel_stage(&self, vx: i32, vy: i32, vz: i32) -> u32 {
         let raw = self.get_raw_voxel(vx, vy, vz);
         (raw >> 24) & 0xF
