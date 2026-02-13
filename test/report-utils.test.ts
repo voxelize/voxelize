@@ -423,6 +423,18 @@ describe("report-utils", () => {
       }
     );
     expect(unknownWithAliasCanonicalOnly).toEqual(["--mystery"]);
+
+    const unknownWithAliasCanonicalValueOption = parseUnknownCliOptions(
+      ["--output", "./report.json", "--mystery"],
+      {
+        canonicalOptions: ["--json"],
+        optionAliases: {
+          "--output": ["--report-path"],
+        },
+        optionsWithValues: ["--output"],
+      }
+    );
+    expect(unknownWithAliasCanonicalValueOption).toEqual(["--mystery"]);
   });
 
   it("creates structured cli option validation metadata", () => {
@@ -878,6 +890,38 @@ describe("report-utils", () => {
       {
         token: "--verify",
         canonicalOption: "--no-build",
+        index: 0,
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(1);
+  });
+
+  it("tracks alias-defined canonical options that consume values", () => {
+    const activeMetadata = parseActiveCliOptionMetadata(
+      ["--output", "./report.json", "--mystery"],
+      {
+        canonicalOptions: ["--json"],
+        optionAliases: {
+          "--output": ["--report-path"],
+        },
+        optionsWithValues: ["--output"],
+      }
+    );
+
+    expect(activeMetadata.activeCliOptions).toEqual(["--output"]);
+    expect(activeMetadata.activeCliOptionCount).toBe(1);
+    expect(activeMetadata.activeCliOptionTokens).toEqual(["--output"]);
+    expect(activeMetadata.activeCliOptionResolutions).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionResolutionCount).toBe(1);
+    expect(activeMetadata.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
         index: 0,
       },
     ]);
