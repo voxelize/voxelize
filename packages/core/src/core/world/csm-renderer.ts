@@ -562,10 +562,12 @@ export class CSMRenderer {
           this.entityBatchGroup.add(entity);
         }
         if (this.entityBatchGroup.children.length > 0) {
-          const batchAsScene = this.entityBatchGroup as unknown as Scene;
-          batchAsScene.overrideMaterial = this.depthMaterial;
-          renderer.render(batchAsScene, cascade.camera);
-          batchAsScene.overrideMaterial = null;
+          const batchWithOverrideMaterial = this.entityBatchGroup as Group & {
+            overrideMaterial: THREE.Material | null;
+          };
+          batchWithOverrideMaterial.overrideMaterial = this.depthMaterial;
+          renderer.render(this.entityBatchGroup, cascade.camera);
+          batchWithOverrideMaterial.overrideMaterial = null;
           for (
             let reparentIndex = 0;
             reparentIndex < reparentedEntities.length;
@@ -642,7 +644,8 @@ export class CSMRenderer {
   }
 
   dispose() {
-    for (const cascade of this.cascades) {
+    for (let cascadeIndex = 0; cascadeIndex < this.cascades.length; cascadeIndex++) {
+      const cascade = this.cascades[cascadeIndex];
       cascade.renderTarget.dispose();
       cascade.renderTarget.depthTexture?.dispose();
     }
