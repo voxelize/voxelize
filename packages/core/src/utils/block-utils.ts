@@ -120,10 +120,7 @@ export class BlockUtils {
   };
 
   static getBlockRotatedTransparency(block: Block, rotation: BlockRotation) {
-    return new TSCoreBlockRotation(
-      rotation.value,
-      rotation.yRotation
-    ).rotateTransparency(block.isTransparent);
+    return rotation.rotateTransparency(block.isTransparent);
   }
 
   static evaluateBlockRule = (
