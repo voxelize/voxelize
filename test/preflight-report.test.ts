@@ -227,6 +227,32 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
+  it("fails when the last only flag is missing a value", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--only", "devEnvironment", "--only"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.message).toBe("Missing value for --only option.");
+    expect(report.selectedChecks).toEqual([]);
+    expect(report.skippedChecks).toEqual([
+      "devEnvironment",
+      "wasmPack",
+      "client",
+    ]);
+    expect(result.status).toBe(1);
+  });
+
   it("supports compact json output formatting", () => {
     const result = spawnSync(
       process.execPath,
