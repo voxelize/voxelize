@@ -6709,11 +6709,13 @@ export class World<T = any> extends Scene implements NetIntercept {
       zSet.add(cz);
     };
 
-    for (const voxel of lightOps.removals) {
+    for (let removalIndex = 0; removalIndex < lightOps.removals.length; removalIndex++) {
+      const voxel = lightOps.removals[removalIndex];
       addAffectedChunk(voxel[0], voxel[2]);
     }
 
-    for (const { voxel } of lightOps.floods) {
+    for (let floodIndex = 0; floodIndex < lightOps.floods.length; floodIndex++) {
+      const voxel = lightOps.floods[floodIndex].voxel;
       addAffectedChunk(voxel[0], voxel[2]);
     }
 
@@ -6725,7 +6727,12 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private executeLightOperationsSyncAll(lightOps: LightOperations) {
-    for (const { color, channel } of LIGHT_COLOR_CHANNELS) {
+    for (
+      let channelIndex = 0;
+      channelIndex < LIGHT_COLOR_CHANNELS.length;
+      channelIndex++
+    ) {
+      const { color, channel } = LIGHT_COLOR_CHANNELS[channelIndex];
       const removals = lightOps.removals[channel];
       const floods = lightOps.floods[channel];
 
