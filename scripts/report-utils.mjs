@@ -84,6 +84,61 @@ export const summarizeCheckResults = (checks) => {
   };
 };
 
+export const deriveFailureMessageFromReport = (report) => {
+  if (report === null || typeof report !== "object") {
+    return null;
+  }
+
+  if ("message" in report && typeof report.message === "string") {
+    return report.message;
+  }
+
+  if (
+    "requiredFailures" in report &&
+    typeof report.requiredFailures === "number"
+  ) {
+    return `${report.requiredFailures} required check(s) failed.`;
+  }
+
+  if ("steps" in report && Array.isArray(report.steps)) {
+    const firstFailedStep = report.steps.find((step) => {
+      return (
+        step !== null &&
+        typeof step === "object" &&
+        "passed" in step &&
+        step.passed === false &&
+        (!("skipped" in step) || step.skipped !== true)
+      );
+    });
+
+    if (
+      firstFailedStep !== undefined &&
+      firstFailedStep !== null &&
+      typeof firstFailedStep === "object" &&
+      "name" in firstFailedStep &&
+      typeof firstFailedStep.name === "string"
+    ) {
+      if (
+        "report" in firstFailedStep &&
+        firstFailedStep.report !== null &&
+        typeof firstFailedStep.report === "object" &&
+        "message" in firstFailedStep.report &&
+        typeof firstFailedStep.report.message === "string"
+      ) {
+        return `${firstFailedStep.name}: ${firstFailedStep.report.message}`;
+      }
+
+      if ("reason" in firstFailedStep && typeof firstFailedStep.reason === "string") {
+        return `${firstFailedStep.name}: ${firstFailedStep.reason}`;
+      }
+
+      return `${firstFailedStep.name} failed.`;
+    }
+  }
+
+  return null;
+};
+
 export const resolveOutputPath = (args, cwd = process.cwd()) => {
   const outputArgIndex = args.indexOf("--output");
   if (outputArgIndex === -1) {

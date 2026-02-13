@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   REPORT_SCHEMA_VERSION,
   createTimedReportBuilder,
+  deriveFailureMessageFromReport,
   parseJsonOutput,
   resolveOutputPath,
   summarizeCheckResults,
@@ -139,5 +140,46 @@ describe("report-utils", () => {
       passedChecks: ["wasmPack"],
       failedChecks: ["devEnvironment", "client"],
     });
+  });
+
+  it("derives failure messages from nested report structures", () => {
+    expect(deriveFailureMessageFromReport(null)).toBeNull();
+    expect(deriveFailureMessageFromReport({})).toBeNull();
+    expect(
+      deriveFailureMessageFromReport({ message: "top-level failure message" })
+    ).toBe("top-level failure message");
+    expect(
+      deriveFailureMessageFromReport({ requiredFailures: 2 })
+    ).toBe("2 required check(s) failed.");
+    expect(
+      deriveFailureMessageFromReport({
+        steps: [
+          { name: "Skipped", passed: false, skipped: true },
+          {
+            name: "WASM artifact preflight",
+            passed: false,
+            skipped: false,
+            report: { message: "artifact missing" },
+          },
+        ],
+      })
+    ).toBe("WASM artifact preflight: artifact missing");
+    expect(
+      deriveFailureMessageFromReport({
+        steps: [
+          {
+            name: "TypeScript typecheck",
+            passed: false,
+            skipped: false,
+            reason: "previous step failed",
+          },
+        ],
+      })
+    ).toBe("TypeScript typecheck: previous step failed");
+    expect(
+      deriveFailureMessageFromReport({
+        steps: [{ name: "Client checks", passed: false, skipped: false }],
+      })
+    ).toBe("Client checks failed.");
   });
 });
