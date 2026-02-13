@@ -539,10 +539,13 @@ impl NeighborCache {
 fn build_neighbor_opaque_mask(neighbors: &NeighborCache, registry: &Registry) -> [bool; 27] {
     let mut mask = [false; 27];
     if let Some(dense) = &registry.dense_lookup {
+        let blocks = &registry.blocks_by_id;
+        let dense_len = dense.len();
         for (idx, entry) in neighbors.data.iter().enumerate() {
             let voxel_id = (entry[0] & 0xFFFF) as usize;
-            if let Some(&dense_index) = dense.get(voxel_id) {
-                mask[idx] = dense_index != usize::MAX && registry.blocks_by_id[dense_index].1.is_opaque;
+            if voxel_id < dense_len {
+                let dense_index = dense[voxel_id];
+                mask[idx] = dense_index != usize::MAX && blocks[dense_index].1.is_opaque;
             }
         }
         return mask;
