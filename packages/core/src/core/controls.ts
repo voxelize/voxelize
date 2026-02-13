@@ -23,26 +23,6 @@ import { World } from "./world";
 const PI_2 = Math.PI / 2;
 const emptyQ = new Quaternion();
 
-function rotateY(a: number[], b: number[], c: number) {
-  const bx = b[0];
-  const bz = b[2];
-
-  // translate point to the origin
-  const px = a[0] - bx;
-  const pz = a[2] - bz;
-
-  const sc = Math.sin(c);
-  const cc = Math.cos(c);
-
-  // perform rotation and translate to correct position
-  const out = [0, 0, 0];
-  out[0] = bx + pz * sc + px * cc;
-  out[1] = a[1];
-  out[2] = bz + pz * cc - px * sc;
-
-  return out;
-}
-
 /**
  * The state of which a Voxelize {@link Controls} is in.
  */
@@ -425,6 +405,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    * The new position of the controls. This is used to lerp the position of the controls.
    */
   private newPosition = new Vector3();
+  private movementVector: Coords3 = [0, 0, 0];
+  private pushVector: Coords3 = [0, 0, 0];
 
   /**
    * Whether or not is the first movement back on lock. This is because Chrome has a bug where
@@ -1029,7 +1011,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     const fb = front ? (back ? 0 : 1) : back ? -1 : 0;
     const rl = left ? (right ? 0 : 1) : right ? -1 : 0;
 
-    const vec = new Vector3();
+    const vec = this.vector;
 
     // get the frontwards-backwards direction vectors
     vec.setFromMatrixColumn(object.matrix, 0);
@@ -1177,36 +1159,34 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       }
 
       // apply movement forces if entity is moving, otherwise just friction
-      let m = [0, 0, 0];
-      let push = [0, 0, 0];
+      const m = this.movementVector;
+      const push = this.pushVector;
       if (this.state.running) {
         let speed = maxSpeed;
         // todo: add crouch/sprint modifiers if needed
         if (this.state.sprinting) speed *= sprintFactor;
         if (this.state.crouching && this.body.resting[1] === -1)
           speed *= crouchFactor;
-        m[2] = speed;
-
-        // rotate move vector to entity's heading
-
-        m = rotateY(m, [0, 0, 0], this.state.heading);
+        const heading = this.state.heading;
+        const sinHeading = Math.sin(heading);
+        const cosHeading = Math.cos(heading);
+        m[0] = speed * sinHeading;
+        m[1] = 0;
+        m[2] = speed * cosHeading;
 
         // push vector to achieve desired speed & dir
         // following code to adjust 2D velocity to desired amount is patterned on Quake:
         // https://github.com/id-Software/Quake-III-Arena/blob/master/code/game/bg_pmove.c#L275
-        push = [
-          m[0] - this.body.velocity[0],
-          m[1] - this.body.velocity[1],
-          m[2] - this.body.velocity[2],
-        ];
+        push[0] = m[0] - this.body.velocity[0];
         push[1] = 0;
-        const pushLen = Math.sqrt(push[0] ** 2 + push[1] ** 2 + push[2] ** 2);
+        push[2] = m[2] - this.body.velocity[2];
+        const pushLen = Math.sqrt(push[0] ** 2 + push[2] ** 2);
 
         // Guard against a zero-length vector which would result in NaN / Infinity
         if (pushLen > 0) {
-          push[0] /= pushLen;
-          push[1] /= pushLen;
-          push[2] /= pushLen;
+          const invPushLen = 1 / pushLen;
+          push[0] *= invPushLen;
+          push[2] *= invPushLen;
 
           // No need to normalise the Y-component – it is always zero for planar movement
 
@@ -1248,34 +1228,35 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       }
 
       // apply movement forces if entity is moving, otherwise just friction
-      let m = [0, 0, 0];
-      let push = [0, 0, 0];
+      const m = this.movementVector;
+      const push = this.pushVector;
       if (this.state.running) {
         let speed = flySpeed;
         // todo: add crouch/sprint modifiers if needed
         if (this.state.sprinting) speed *= sprintFactor;
         if (this.state.crouching) speed *= crouchFactor;
-        m[2] = speed;
+        const heading = this.state.heading;
+        const sinHeading = Math.sin(heading);
+        const cosHeading = Math.cos(heading);
+        m[0] = speed * sinHeading;
+        m[1] = 0;
+        m[2] = speed * cosHeading;
 
         // rotate move vector to entity's heading
-        m = rotateY(m, [0, 0, 0], this.state.heading);
 
         // push vector to achieve desired speed & dir
         // following code to adjust 2D velocity to desired amount is patterned on Quake:
         // https://github.com/id-Software/Quake-III-Arena/blob/master/code/game/bg_pmove.c#L275
-        push = [
-          m[0] - this.body.velocity[0],
-          m[1] - this.body.velocity[1],
-          m[2] - this.body.velocity[2],
-        ];
-
+        push[0] = m[0] - this.body.velocity[0];
         push[1] = 0;
+        push[2] = m[2] - this.body.velocity[2];
         const pushLen = Math.sqrt(push[0] ** 2 + push[2] ** 2);
 
         // Guard against a zero-length vector which would result in NaN / Infinity
         if (pushLen > 0) {
-          push[0] /= pushLen;
-          push[2] /= pushLen;
+          const invPushLen = 1 / pushLen;
+          push[0] *= invPushLen;
+          push[2] *= invPushLen;
 
           // pushing force vector
           let canPush = flyForce;
