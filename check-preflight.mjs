@@ -346,6 +346,7 @@ const parseActiveCliOptions = (args) => {
   return canonicalCliOptions.filter((option) => activeCliOptions.has(option));
 };
 const activeCliOptions = parseActiveCliOptions(cliArgs);
+const activeCliOptionCount = activeCliOptions.length;
 const unsupportedOptionsError =
   unknownOptions.length === 0
     ? null
@@ -445,6 +446,7 @@ if (
     unknownOptionCount,
     supportedCliOptions,
     activeCliOptions,
+    activeCliOptionCount,
     availableCliOptionAliases,
     availableChecks: availableCheckNames,
     availableCheckMetadata,
@@ -500,6 +502,7 @@ if (isListChecks) {
     unknownOptionCount,
     supportedCliOptions,
     activeCliOptions,
+    activeCliOptionCount,
     availableCliOptionAliases,
     availableChecks: availableCheckNames,
     availableCheckMetadata,
@@ -572,6 +575,7 @@ const report = buildTimedReport({
   unknownOptionCount,
   supportedCliOptions,
   activeCliOptions,
+  activeCliOptionCount,
   availableCliOptionAliases,
   availableChecks: availableCheckNames,
   availableCheckMetadata,
