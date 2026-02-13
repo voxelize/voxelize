@@ -11,19 +11,22 @@ const wasmMesherEntry = path.resolve(
   "../../../crates/wasm-mesher/pkg/voxelize_wasm_mesher.js"
 );
 const repositoryRoot = path.resolve(__dirname, "../../..");
+const isWindows = process.platform === "win32";
+const wasmPackCommand = isWindows ? "wasm-pack.exe" : "wasm-pack";
+const pnpmCommand = isWindows ? "pnpm.cmd" : "pnpm";
 
 if (fs.existsSync(wasmMesherEntry)) {
   process.exit(0);
 }
 
-const wasmPackCheck = spawnSync("wasm-pack", ["--version"], {
+const wasmPackCheck = spawnSync(wasmPackCommand, ["--version"], {
   stdio: "ignore",
   shell: false,
 });
 
 if (wasmPackCheck.status === 0) {
   const buildResult = spawnSync(
-    "pnpm",
+    pnpmCommand,
     ["--dir", repositoryRoot, "build:wasm:dev"],
     {
       stdio: "inherit",
