@@ -757,14 +757,20 @@ pub struct MeshOutput {
 struct VoxelSpace<'a> {
     chunks: &'a [Option<ChunkData>],
     chunk_size: i32,
+    chunk_size_mask: i32,
+    chunk_size_is_pow2: bool,
     center_coords: [i32; 2],
 }
 
 impl<'a> VoxelSpace<'a> {
     fn new(chunks: &'a [Option<ChunkData>], chunk_size: i32, center_coords: [i32; 2]) -> Self {
+        let chunk_size_is_pow2 = chunk_size > 0 && (chunk_size & (chunk_size - 1)) == 0;
+        let chunk_size_mask = if chunk_size_is_pow2 { chunk_size - 1 } else { 0 };
         Self {
             chunks,
             chunk_size,
+            chunk_size_mask,
+            chunk_size_is_pow2,
             center_coords,
         }
     }
@@ -793,9 +799,17 @@ impl<'a> VoxelSpace<'a> {
         if vy < 0 {
             return None;
         }
-        let lx = vx.rem_euclid(self.chunk_size) as usize;
+        let lx = if self.chunk_size_is_pow2 {
+            (vx & self.chunk_size_mask) as usize
+        } else {
+            vx.rem_euclid(self.chunk_size) as usize
+        };
         let ly = vy as usize;
-        let lz = vz.rem_euclid(self.chunk_size) as usize;
+        let lz = if self.chunk_size_is_pow2 {
+            (vz & self.chunk_size_mask) as usize
+        } else {
+            vz.rem_euclid(self.chunk_size) as usize
+        };
 
         if ly >= chunk.shape[1] {
             return None;
