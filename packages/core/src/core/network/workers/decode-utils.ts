@@ -37,7 +37,7 @@ function decompressToUint32Array(
   data: Uint8Array,
   transferables: ArrayBuffer[]
 ): Uint32Array {
-  if (!data || data.length === 0) return EMPTY_U32;
+  if (data.length === 0) return EMPTY_U32;
   const bytes = decompressLz4Block(data);
   const result = new Uint32Array(
     bytes.buffer,
@@ -52,7 +52,7 @@ function decompressToInt32Array(
   data: Uint8Array,
   transferables?: ArrayBuffer[]
 ): Int32Array {
-  if (!data || data.length === 0) return EMPTY_I32;
+  if (data.length === 0) return EMPTY_I32;
   const bytes = decompressLz4Block(data);
   const result = new Int32Array(
     bytes.buffer,
@@ -69,7 +69,7 @@ function decompressToFloat32Array(
   data: Uint8Array,
   transferables: ArrayBuffer[]
 ): Float32Array {
-  if (!data || data.length === 0) return EMPTY_F32;
+  if (data.length === 0) return EMPTY_F32;
   const bytes = decompressLz4Block(data);
   const result = new Float32Array(
     bytes.buffer,
