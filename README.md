@@ -146,6 +146,8 @@ pnpm run check:onboarding:verify:json -- --output ./onboarding-verify-report.jso
 pnpm run check:preflight:json
 # aggregated preflight report without auto-building wasm artifacts
 pnpm run check:preflight:verify:json
+# run only specific checks (available: devEnvironment, wasmPack, client)
+pnpm run check:preflight:json -- --only devEnvironment,client
 # includes per-check and total duration metadata
 # all json report commands include schemaVersion: 1
 # includes passedChecks/failedChecks and runtime metadata (platform/nodeVersion)
