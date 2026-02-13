@@ -31,6 +31,7 @@ type PreflightReport = {
   startedAt: string;
   endedAt: string;
   durationMs: number;
+  selectionMode: "default" | "only";
   selectedChecks: string[];
   requestedChecks: string[];
   skippedChecks: string[];
@@ -95,6 +96,7 @@ describe("preflight aggregate report", () => {
       "client",
     ]);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
+    expect(report.selectionMode).toBe("default");
     expect(report.selectedChecks).toEqual(report.availableChecks);
     expect(report.requestedChecks).toEqual([]);
     expect(report.skippedChecks).toEqual([]);
@@ -165,6 +167,7 @@ describe("preflight aggregate report", () => {
     const report = JSON.parse(output) as PreflightReport;
 
     expect(report.schemaVersion).toBe(1);
+    expect(report.selectionMode).toBe("only");
     expect(report.selectedChecks).toEqual(["devEnvironment", "client"]);
     expect(report.requestedChecks).toEqual(["devEnvironment", "client"]);
     expect(report.skippedChecks).toEqual(["wasmPack"]);
@@ -473,6 +476,7 @@ describe("preflight aggregate report", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
+    expect(report.selectionMode).toBe("only");
     expect(report.message).toBe("Missing value for --only option.");
     expect(report.invalidChecks).toEqual([]);
     expect(report.selectedChecks).toEqual([]);

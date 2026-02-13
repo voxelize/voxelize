@@ -68,6 +68,7 @@ const parseSelectedChecks = () => {
     return {
       selectedChecks: availableCheckNames,
       requestedChecks: [],
+      selectionMode: "default",
       error: null,
       invalidChecks: [],
     };
@@ -78,6 +79,7 @@ const parseSelectedChecks = () => {
     return {
       selectedChecks: [],
       requestedChecks: [],
+      selectionMode: "only",
       error: "Missing value for --only option.",
       invalidChecks: [],
     };
@@ -92,6 +94,7 @@ const parseSelectedChecks = () => {
     return {
       selectedChecks: [],
       requestedChecks: [],
+      selectionMode: "only",
       error: "Missing value for --only option.",
       invalidChecks: [],
     };
@@ -130,6 +133,7 @@ const parseSelectedChecks = () => {
     return {
       selectedChecks: [],
       requestedChecks: tokenizedChecks,
+      selectionMode: "only",
       error: `Invalid check name(s): ${uniqueInvalidChecks.join(", ")}. Available checks: ${availableCheckNames.join(", ")}.`,
       invalidChecks: uniqueInvalidChecks,
     };
@@ -143,6 +147,7 @@ const parseSelectedChecks = () => {
   return {
     selectedChecks: normalizedChecks,
     requestedChecks: tokenizedChecks,
+    selectionMode: "only",
     error: null,
     invalidChecks: [],
   };
@@ -150,6 +155,7 @@ const parseSelectedChecks = () => {
 const {
   selectedChecks,
   requestedChecks,
+  selectionMode,
   error: selectedChecksError,
   invalidChecks,
 } = parseSelectedChecks();
@@ -195,6 +201,7 @@ if (outputPathError !== null || selectedChecksError !== null) {
     nodeVersion,
     selectedChecks: [],
     requestedChecks: effectiveRequestedChecks,
+    selectionMode,
     skippedChecks: availableCheckNames,
     ...summarizeCheckResults([]),
     checks: [],
@@ -249,6 +256,7 @@ const report = buildTimedReport({
   nodeVersion,
   selectedChecks,
   requestedChecks,
+  selectionMode,
   skippedChecks,
   ...checkSummary,
   failureSummaries,
