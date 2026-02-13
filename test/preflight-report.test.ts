@@ -961,6 +961,158 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
+  it("uses the last only flag when no-build aliases appear between only flags", () => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        preflightScript,
+        "--list-checks",
+        "--only",
+        "devEnvironment",
+        "--verify",
+        "--only",
+        "client",
+      ],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(true);
+    expect(report.exitCode).toBe(0);
+    expect(report.listChecksOnly).toBe(true);
+    expect(report.noBuild).toBe(true);
+    expect(report.selectedChecks).toEqual(["client"]);
+    expect(report.selectedCheckCount).toBe(1);
+    expect(report.requestedChecks).toEqual(["client"]);
+    expect(report.requestedCheckCount).toBe(1);
+    expect(report.requestedCheckResolutions).toEqual([
+      {
+        token: "client",
+        normalizedToken: "client",
+        kind: "check",
+        resolvedTo: ["client"],
+      },
+    ]);
+    expect(report.requestedCheckResolutionCounts).toEqual({
+      check: 1,
+      specialSelector: 0,
+      invalid: 0,
+    });
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual([
+      "--list-checks",
+      "--no-build",
+      "--only",
+    ]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual([
+      "--list-checks",
+      "--only",
+      "--verify",
+    ]);
+    expect(report.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions(["--list-checks", "--only", "--verify"])
+    );
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences([
+        "--list-checks",
+        "--only",
+        "devEnvironment",
+        "--verify",
+        "--only",
+        "client",
+      ])
+    );
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(result.status).toBe(0);
+  });
+
+  it("keeps last only parsing when inline no-build misuse appears between only flags", () => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        preflightScript,
+        "--list-checks",
+        "--only",
+        "devEnvironment",
+        "--verify=1",
+        "--only",
+        "client",
+      ],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.listChecksOnly).toBe(true);
+    expect(report.noBuild).toBe(false);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      expectedUnsupportedOptionsMessage(["--no-build=<value>"])
+    );
+    expect(report.selectedChecks).toEqual([]);
+    expect(report.selectedCheckCount).toBe(0);
+    expect(report.requestedChecks).toEqual(["client"]);
+    expect(report.requestedCheckCount).toBe(1);
+    expect(report.requestedCheckResolutions).toEqual([
+      {
+        token: "client",
+        normalizedToken: "client",
+        kind: "check",
+        resolvedTo: ["client"],
+      },
+    ]);
+    expect(report.requestedCheckResolutionCounts).toEqual({
+      check: 1,
+      specialSelector: 0,
+      invalid: 0,
+    });
+    expect(report.unknownOptions).toEqual(["--no-build=<value>"]);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(report.activeCliOptions).toEqual(["--list-checks", "--only"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--list-checks", "--only"]);
+    expect(report.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions(["--list-checks", "--only"])
+    );
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences([
+        "--list-checks",
+        "--only",
+        "devEnvironment",
+        "--verify=1",
+        "--only",
+        "client",
+      ])
+    );
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("fails when the last only flag is missing a value", () => {
     const result = spawnSync(
       process.execPath,
