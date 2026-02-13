@@ -1,74 +1,18 @@
 import { spawnSync } from "node:child_process";
-import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { resolveCommand } from "./scripts/command-utils.mjs";
+import {
+  formatSemver,
+  isSemverAtLeast,
+  loadWorkspaceMinimumVersions,
+  parseSemver,
+} from "./scripts/dev-env-utils.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-const parseSemver = (value) => {
-  const match = value.match(/(\d+)(?:\.(\d+))?(?:\.(\d+))?/);
-  if (!match) {
-    return null;
-  }
-
-  return [
-    Number(match[1]),
-    Number(match[2] ?? "0"),
-    Number(match[3] ?? "0"),
-  ];
-};
-
-const isSemverAtLeast = (version, minimumVersion) => {
-  for (let index = 0; index < minimumVersion.length; index += 1) {
-    if (version[index] > minimumVersion[index]) {
-      return true;
-    }
-
-    if (version[index] < minimumVersion[index]) {
-      return false;
-    }
-  }
-
-  return true;
-};
-
-const formatSemver = (version) => {
-  return `${version[0]}.${version[1]}.${version[2]}`;
-};
-
-const loadWorkspaceMinimumVersions = () => {
-  const defaultMinimumVersions = {
-    node: [18, 0, 0],
-    pnpm: [10, 0, 0],
-  };
-
-  try {
-    const packageJsonPath = path.resolve(__dirname, "package.json");
-    const packageJsonRaw = fs.readFileSync(packageJsonPath, "utf8");
-    const packageJson = JSON.parse(packageJsonRaw);
-
-    const configuredNodeVersion =
-      typeof packageJson.engines?.node === "string"
-        ? parseSemver(packageJson.engines.node)
-        : null;
-    const configuredPnpmVersion =
-      typeof packageJson.packageManager === "string"
-        ? parseSemver(packageJson.packageManager)
-        : null;
-
-    return {
-      node: configuredNodeVersion ?? defaultMinimumVersions.node,
-      pnpm: configuredPnpmVersion ?? defaultMinimumVersions.pnpm,
-    };
-  } catch {
-    return defaultMinimumVersions;
-  }
-};
-
-const minimumVersions = loadWorkspaceMinimumVersions();
+const minimumVersions = loadWorkspaceMinimumVersions(__dirname);
 
 const checks = [
   {
