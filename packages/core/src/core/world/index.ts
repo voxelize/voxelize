@@ -4864,6 +4864,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.options;
     const { level, geometries } = data;
     const heightPerSubChunk = Math.floor(maxHeight / subChunks);
+    const chunkBaseX = cx * chunkSize;
+    const chunkBaseY = level * heightPerSubChunk;
+    const chunkBaseZ = cz * chunkSize;
 
     const oldMeshes = chunk.meshes.get(level);
     if (oldMeshes) {
@@ -4972,11 +4975,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         finalGeometry.computeBoundingSphere();
 
         const mesh = new Mesh(finalGeometry, material);
-        mesh.position.set(
-          cx * chunkSize,
-          level * heightPerSubChunk,
-          cz * chunkSize
-        );
+        mesh.position.set(chunkBaseX, chunkBaseY, chunkBaseZ);
         mesh.updateMatrix();
         mesh.matrixAutoUpdate = false;
         mesh.userData = { isChunk: true, merged: true, voxel };
@@ -5055,11 +5054,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           }
         }
         const mesh = new Mesh(geometry, material);
-        mesh.position.set(
-          cx * chunkSize,
-          level * heightPerSubChunk,
-          cz * chunkSize
-        );
+        mesh.position.set(chunkBaseX, chunkBaseY, chunkBaseZ);
         mesh.updateMatrix();
         mesh.matrixAutoUpdate = false;
         mesh.userData = { isChunk: true, voxel };
