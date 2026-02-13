@@ -886,6 +886,18 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private findFirstDeltaAfter(deltas: VoxelDelta[], sequenceId: number): number {
+    if (deltas.length === 0) {
+      return 0;
+    }
+
+    if (deltas[deltas.length - 1].sequenceId <= sequenceId) {
+      return deltas.length;
+    }
+
+    if (deltas[0].sequenceId > sequenceId) {
+      return 0;
+    }
+
     let low = 0;
     let high = deltas.length;
 
