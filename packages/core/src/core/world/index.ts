@@ -873,6 +873,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   private applyServerUpdateBlockCache = new Map<number, Block>();
   private processLightUpdateBlockCache = new Map<number, Block>();
   private maxHeightBlockCache = new Map<number, Block>();
+  private blockEntityTypeBlockCache = new Map<string, Block | null>();
   private syncLightAffectedChunks = new Map<number, Set<number>>();
   private reusableSyncLightAffectedZSets: Set<number>[] = [];
   private dynamicAABBRuleCoords: Coords3 = [0, 0, 0];
@@ -3829,6 +3830,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     // Loading the block registry
+    this.blockEntityTypeBlockCache.clear();
     const blockNames = Object.keys(blocks);
     for (let blockIndex = 0; blockIndex < blockNames.length; blockIndex++) {
       const name = blockNames[blockIndex];
@@ -4119,13 +4121,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         case "DELETE": {
           this.blockEntitiesMap.delete(voxelId);
           this.untrackBlockEntityKey(chunkName, voxelId);
-          const blockNameStart = type.indexOf("::") + 2;
-          const blockNameEnd = type.indexOf("::", blockNameStart);
-          const blockName =
-            blockNameEnd >= 0
-              ? type.slice(blockNameStart, blockNameEnd)
-              : type.slice(blockNameStart);
-          const block = this.registry.blocksByName.get(blockName.toLowerCase());
+          const block = this.resolveBlockByEntityType(type);
           if (block) {
             for (const face of block.faces) {
               if (face.isolated) {
@@ -7291,6 +7287,22 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     }
     return null;
+  }
+
+  private resolveBlockByEntityType(type: string): Block | null {
+    if (this.blockEntityTypeBlockCache.has(type)) {
+      return this.blockEntityTypeBlockCache.get(type) ?? null;
+    }
+
+    const blockNameStart = type.indexOf("::") + 2;
+    const blockNameEnd = type.indexOf("::", blockNameStart);
+    const blockName =
+      blockNameEnd >= 0
+        ? type.slice(blockNameStart, blockNameEnd)
+        : type.slice(blockNameStart);
+    const block = this.registry.blocksByName.get(blockName.toLowerCase()) ?? null;
+    this.blockEntityTypeBlockCache.set(type, block);
+    return block;
   }
 
   private markTrackedChunkLevels(
