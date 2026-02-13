@@ -94,6 +94,7 @@ If `--output` is provided without a value, commands fail fast. JSON commands ret
 When `--output` is valid, JSON validation-error reports are also written to that output path.
 If `--output` is passed multiple times, the last value is used.
 Empty or whitespace-only split/inline output values (for example `--output ""`, `--output "   "`, `--output=`, or `--output=   `) are treated as missing values.
+If a split output value position is followed by a recognized option token (for example `--output --json`), that token is treated as an option and the output value is considered missing.
 Unsupported CLI flags return structured errors and include `unknownOptions`, `unknownOptionCount`, `supportedCliOptions`, `supportedCliOptionCount`, and `validationErrorCode`.
 Inline unsupported-option forms are normalized in diagnostics (for example `--mystery=alpha` is reported as `--mystery`) and deduplicated by option token.
 Inline misuse of supported non-value flags is redacted without exposing raw values (for example `--json=secret` is reported as `--json=<value>`).

@@ -42,7 +42,16 @@ const isJson = cliOptionArgs.includes("--json");
 const isNoBuild = hasCliOption(cliOptionArgs, "--no-build", noBuildOptionAliases);
 const isCompact = cliOptionArgs.includes("--compact");
 const jsonFormat = { compact: isCompact };
-const { outputPath, error: outputPathError } = resolveOutputPath(cliOptionArgs);
+const supportedCliOptionTokens = [
+  ...canonicalCliOptions,
+  ...Object.keys(optionAliases),
+  ...Object.values(optionAliases).flat(),
+];
+const { outputPath, error: outputPathError } = resolveOutputPath(
+  cliOptionArgs,
+  process.cwd(),
+  supportedCliOptionTokens
+);
 const {
   availableCliOptionAliases,
   availableCliOptionCanonicalMap,

@@ -22,8 +22,12 @@ const isQuiet = cliOptionArgs.includes("--quiet");
 const isJson = cliOptionArgs.includes("--json");
 const isCompact = cliOptionArgs.includes("--compact");
 const jsonFormat = { compact: isCompact };
-const { outputPath, error: outputPathError } = resolveOutputPath(cliOptionArgs);
 const canonicalCliOptions = ["--compact", "--json", "--output", "--quiet"];
+const { outputPath, error: outputPathError } = resolveOutputPath(
+  cliOptionArgs,
+  process.cwd(),
+  canonicalCliOptions
+);
 const {
   availableCliOptionAliases,
   availableCliOptionCanonicalMap,

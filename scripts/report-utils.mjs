@@ -663,8 +663,13 @@ export const createCliDiagnostics = (
   };
 };
 
-export const resolveLastOptionValue = (args, optionName) => {
+export const resolveLastOptionValue = (
+  args,
+  optionName,
+  recognizedOptionTokens = []
+) => {
   const { optionArgs } = splitCliArgs(args);
+  const recognizedOptionTokenSet = new Set(recognizedOptionTokens);
   const inlineOptionPrefix = `${optionName}=`;
   let hasOption = false;
   let resolvedValue = null;
@@ -679,6 +684,7 @@ export const resolveLastOptionValue = (args, optionName) => {
       if (
         nextArg === null ||
         nextArg.startsWith("--") ||
+        recognizedOptionTokenSet.has(nextArg) ||
         nextArg.trim().length === 0
       ) {
         resolvedValue = null;
@@ -714,8 +720,16 @@ export const resolveLastOptionValue = (args, optionName) => {
   };
 };
 
-export const resolveOutputPath = (args, cwd = process.cwd()) => {
-  const outputPathValue = resolveLastOptionValue(args, "--output");
+export const resolveOutputPath = (
+  args,
+  cwd = process.cwd(),
+  recognizedOptionTokens = []
+) => {
+  const outputPathValue = resolveLastOptionValue(
+    args,
+    "--output",
+    recognizedOptionTokens
+  );
   if (!outputPathValue.hasOption) {
     return {
       outputPath: null,

@@ -51,7 +51,7 @@ const supportedCliOptions = [
 const cliOptionsWithValues = new Set(["--only", "--output"]);
 const jsonFormat = { compact: isCompact };
 const { outputPath: resolvedOutputPath, error: outputPathError } =
-  resolveOutputPath(cliOptionArgs);
+  resolveOutputPath(cliOptionArgs, process.cwd(), supportedCliOptions);
 const {
   hasOption: hasOnlyOption,
   value: onlyOptionValue,

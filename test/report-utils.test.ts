@@ -275,6 +275,26 @@ describe("report-utils", () => {
       "Missing value for --output option."
     );
     expect(inlineBeforeMissingTrailing.outputPath).toBeNull();
+
+    const recognizedAliasTokenAfterOutput = resolveOutputPath(
+      ["--output", "-l"],
+      "/workspace",
+      ["--output", "--list-checks", "-l"]
+    );
+    expect(recognizedAliasTokenAfterOutput.error).toBe(
+      "Missing value for --output option."
+    );
+    expect(recognizedAliasTokenAfterOutput.outputPath).toBeNull();
+
+    const unknownDashPrefixedValueAfterOutput = resolveOutputPath(
+      ["--output", "-artifact-report.json"],
+      "/workspace",
+      ["--output", "--list-checks", "-l"]
+    );
+    expect(unknownDashPrefixedValueAfterOutput.error).toBeNull();
+    expect(unknownDashPrefixedValueAfterOutput.outputPath).toBe(
+      "/workspace/-artifact-report.json"
+    );
   });
 
   it("resolves last option values for both split and inline forms", () => {
@@ -382,6 +402,26 @@ describe("report-utils", () => {
     expect(ignoresAfterTerminator.hasOption).toBe(false);
     expect(ignoresAfterTerminator.value).toBeNull();
     expect(ignoresAfterTerminator.error).toBeNull();
+
+    const recognizedOptionTokenAsSplitValue = resolveLastOptionValue(
+      ["--output", "-l"],
+      "--output",
+      ["--list-checks", "-l"]
+    );
+    expect(recognizedOptionTokenAsSplitValue.hasOption).toBe(true);
+    expect(recognizedOptionTokenAsSplitValue.value).toBeNull();
+    expect(recognizedOptionTokenAsSplitValue.error).toBe(
+      "Missing value for --output option."
+    );
+
+    const unknownDashValueRemainsValid = resolveLastOptionValue(
+      ["--output", "-artifact-report.json"],
+      "--output",
+      ["--list-checks", "-l"]
+    );
+    expect(unknownDashValueRemainsValid.hasOption).toBe(true);
+    expect(unknownDashValueRemainsValid.value).toBe("-artifact-report.json");
+    expect(unknownDashValueRemainsValid.error).toBeNull();
   });
 
   it("splits option and positional args using option terminator", () => {
