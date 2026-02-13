@@ -225,15 +225,23 @@ const deserializeChunkGrid = (
   chunksData: (SerializedChunkData | null)[],
   gridWidth: number,
   gridDepth: number
-): (RawChunk | null)[] => {
-  const chunkGrid: (RawChunk | null)[] = new Array(gridWidth * gridDepth);
+): { chunkGrid: (RawChunk | null)[]; hasAnyChunk: boolean } => {
+  const cellCount = gridWidth * gridDepth;
+  const chunkGrid: (RawChunk | null)[] = new Array(cellCount);
+  let hasAnyChunk = false;
 
-  for (let index = 0; index < chunkGrid.length; index++) {
+  for (let index = 0; index < cellCount; index++) {
     const chunkData = chunksData[index];
-    chunkGrid[index] = chunkData ? RawChunk.deserialize(chunkData) : null;
+    if (!chunkData) {
+      chunkGrid[index] = null;
+      continue;
+    }
+
+    hasAnyChunk = true;
+    chunkGrid[index] = RawChunk.deserialize(chunkData);
   }
 
-  return chunkGrid;
+  return { chunkGrid, hasAnyChunk };
 };
 
 const applyRelevantDeltas = (
@@ -327,7 +335,17 @@ const serializeChunksData = (
   chunksData: (SerializedChunkData | null)[],
   gridWidth: number,
   gridDepth: number
-) => {
+): {
+  serialized: (
+    | {
+        voxels: Uint32Array;
+        lights: Uint32Array;
+        shape: [number, number, number];
+      }
+    | null
+  )[];
+  hasAnyChunk: boolean;
+} => {
   const cellCount = gridWidth * gridDepth;
   const serialized: (
     | {
@@ -337,6 +355,7 @@ const serializeChunksData = (
       }
     | null
   )[] = new Array(cellCount);
+  let hasAnyChunk = false;
 
   for (let index = 0; index < cellCount; index++) {
     const chunkData = chunksData[index];
@@ -345,6 +364,7 @@ const serializeChunksData = (
       continue;
     }
 
+    hasAnyChunk = true;
     const { size, maxHeight } = chunkData.options;
     serialized[index] = {
       voxels: chunkData.voxels.byteLength
@@ -357,7 +377,7 @@ const serializeChunksData = (
     };
   }
 
-  return serialized;
+  return { serialized, hasAnyChunk };
 };
 
 const processBatchMessage = (message: LightBatchMessage) => {
@@ -376,19 +396,6 @@ const processBatchMessage = (message: LightBatchMessage) => {
   const [gridWidth, gridDepth] = chunkGridDimensions;
   const [gridOffsetX, gridOffsetZ] = chunkGridOffset;
 
-  let hasAnyChunk = false;
-  for (let index = 0; index < chunksData.length; index++) {
-    if (chunksData[index]) {
-      hasAnyChunk = true;
-      break;
-    }
-  }
-
-  if (!hasAnyChunk) {
-    postEmptyBatchResult(jobId, 0);
-    return;
-  }
-
   let lastSequenceId = 0;
   let serializedChunks:
     | (
@@ -401,9 +408,19 @@ const processBatchMessage = (message: LightBatchMessage) => {
       )[];
 
   if (relevantDeltas.length === 0) {
-    serializedChunks = serializeChunksData(chunksData, gridWidth, gridDepth);
+    const result = serializeChunksData(chunksData, gridWidth, gridDepth);
+    if (!result.hasAnyChunk) {
+      postEmptyBatchResult(jobId, 0);
+      return;
+    }
+    serializedChunks = result.serialized;
   } else {
-    const chunkGrid = deserializeChunkGrid(chunksData, gridWidth, gridDepth);
+    const result = deserializeChunkGrid(chunksData, gridWidth, gridDepth);
+    if (!result.hasAnyChunk) {
+      postEmptyBatchResult(jobId, 0);
+      return;
+    }
+    const { chunkGrid } = result;
     lastSequenceId = applyRelevantDeltas(
       chunkGrid,
       gridWidth,
