@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::sync::Arc;
 
 use voxelize::{
     Block, BlockConditionalPart, BlockDynamicPattern, BlockRule, BlockSimpleRule, Chunk,
@@ -184,5 +185,46 @@ fn test_to_lighter_registry_keeps_dynamic_light_pattern_rules() {
         light_block.get_torch_light_level_at(&[4, 4, 4], &chunks, &LightColor::Red),
         2,
         "static block light level should be used when dynamic rule does not match"
+    );
+}
+
+#[test]
+fn test_mesher_registry_cache_invalidates_on_registry_mutation() {
+    let mut registry = create_test_registry();
+
+    let before = registry.mesher_registry();
+    assert!(!before.has_type(7));
+
+    registry.register_block(&Block::new("cached-new-stone").id(7).build());
+
+    let after = registry.mesher_registry();
+    assert!(after.has_type(7));
+    assert!(
+        !Arc::ptr_eq(&before, &after),
+        "mesher registry cache should refresh after block registration"
+    );
+}
+
+#[test]
+fn test_lighter_registry_cache_invalidates_on_registry_mutation() {
+    let mut registry = create_test_registry();
+
+    let before = registry.lighter_registry();
+    assert!(!before.has_type(8));
+
+    registry.register_block(
+        &Block::new("cached-new-torch")
+            .id(8)
+            .is_passable(true)
+            .red_light_level(9)
+            .build(),
+    );
+
+    let after = registry.lighter_registry();
+    assert!(after.has_type(8));
+    assert_eq!(after.get_block_by_id(8).red_light_level, 9);
+    assert!(
+        !Arc::ptr_eq(&before, &after),
+        "lighter registry cache should refresh after block registration"
     );
 }
