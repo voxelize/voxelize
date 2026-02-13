@@ -152,6 +152,29 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
+  it("normalizes duplicated and spaced check names in --only", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--only", "devEnvironment, client , devEnvironment"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.selectedChecks).toEqual(["devEnvironment", "client"]);
+    expect(report.skippedChecks).toEqual(["wasmPack"]);
+    expect(report.checks.map((check) => check.name)).toEqual([
+      "devEnvironment",
+      "client",
+    ]);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
   it("supports compact json output formatting", () => {
     const result = spawnSync(
       process.execPath,
