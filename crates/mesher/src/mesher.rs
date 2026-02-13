@@ -2661,9 +2661,13 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         continue;
                     }
 
-                    let rotation = space.get_voxel_rotation(vx, vy, vz);
                     let is_fluid = block.is_fluid;
                     let is_see_through = block.is_see_through;
+                    let has_dynamic_patterns = block.has_dynamic_patterns_cached();
+                    let mut rotation = BlockRotation::PY(0.0);
+                    if block.rotatable || block.y_rotatable {
+                        rotation = space.get_voxel_rotation(vx, vy, vz);
+                    }
 
                     let faces: Vec<(BlockFace, bool)> =
                         if is_fluid && block.has_standard_six_faces_cached() {
@@ -2671,7 +2675,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                 .into_iter()
                                 .map(|f| (f, false))
                                 .collect()
-                        } else if block.has_dynamic_patterns_cached() {
+                        } else if has_dynamic_patterns {
                             let mut faces = Vec::with_capacity(8);
                             visit_dynamic_faces(
                                 block,
