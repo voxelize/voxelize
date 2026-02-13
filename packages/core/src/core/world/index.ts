@@ -2995,12 +2995,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.setTorchLightAt(vx, vy, vz, 0, color);
     }
 
-    let iterationCount = 0;
-    const startTime = performance.now();
-
     let head = 0;
     while (head < queue.length) {
-      iterationCount++;
       const node = queue[head++];
       const { voxel, level } = node;
 
@@ -3073,13 +3069,6 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
       }
     }
-
-    const endTime = performance.now();
-    console.log(
-      `removeLight executed in ${
-        endTime - startTime
-      }ms with ${iterationCount} iterations, color: ${color}`
-    );
 
     this.floodLight(fill, color);
   }
