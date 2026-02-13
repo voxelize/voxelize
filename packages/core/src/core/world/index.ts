@@ -5520,49 +5520,40 @@ export class World<T = any> extends Scene implements NetIntercept {
     const maxChunkX = Math.floor(maxX / chunkSize);
     const maxChunkZ = Math.floor(maxZ / chunkSize);
 
-    const chunksInSpace: string[] = [];
-    for (let cx = minChunkX; cx <= maxChunkX; cx++) {
-      for (let cz = minChunkZ; cz <= maxChunkZ; cz++) {
-        chunksInSpace.push(ChunkUtils.getChunkName([cx, cz]));
-      }
-    }
-
     const relevantDeltas: Record<string, VoxelDelta[]> = {};
-    chunksInSpace.forEach((chunkName) => {
-      const allDeltas = this.voxelDeltas.get(chunkName) || [];
-      const recentDeltas: VoxelDelta[] = [];
-      for (const delta of allDeltas) {
-        if (delta.sequenceId <= startSequenceId) {
-          continue;
-        }
-
-        recentDeltas.push({
-          ...delta,
-          oldRotation: delta.oldRotation
-            ? new BlockRotation(
-                delta.oldRotation.value,
-                delta.oldRotation.yRotation
-              )
-            : undefined,
-          newRotation: delta.newRotation
-            ? new BlockRotation(
-                delta.newRotation.value,
-                delta.newRotation.yRotation
-              )
-            : undefined,
-        });
-      }
-
-      if (recentDeltas.length > 0) {
-        relevantDeltas[chunkName] = recentDeltas;
-      }
-    });
-
     const chunksData: (object | null)[] = [];
     const arrayBuffers: ArrayBuffer[] = [];
 
     for (let cx = minChunkX; cx <= maxChunkX; cx++) {
       for (let cz = minChunkZ; cz <= maxChunkZ; cz++) {
+        const chunkName = ChunkUtils.getChunkName([cx, cz]);
+        const allDeltas = this.voxelDeltas.get(chunkName) || [];
+        const recentDeltas: VoxelDelta[] = [];
+        for (const delta of allDeltas) {
+          if (delta.sequenceId <= startSequenceId) {
+            continue;
+          }
+
+          recentDeltas.push({
+            ...delta,
+            oldRotation: delta.oldRotation
+              ? new BlockRotation(
+                  delta.oldRotation.value,
+                  delta.oldRotation.yRotation
+                )
+              : undefined,
+            newRotation: delta.newRotation
+              ? new BlockRotation(
+                  delta.newRotation.value,
+                  delta.newRotation.yRotation
+                )
+              : undefined,
+          });
+        }
+        if (recentDeltas.length > 0) {
+          relevantDeltas[chunkName] = recentDeltas;
+        }
+
         const chunk = this.getChunkByCoords(cx, cz);
 
         if (chunk && chunk.isReady) {
