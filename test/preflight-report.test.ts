@@ -93,6 +93,12 @@ type PreflightReport = {
   failureSummaries: PreflightFailureSummary[];
   checks: PreflightCheckResult[];
   outputPath: string | null;
+  validationErrorCode:
+    | "output_option_missing_value"
+    | "only_option_missing_value"
+    | "only_option_invalid_value"
+    | "unsupported_options"
+    | null;
   invalidChecks: string[];
   invalidCheckCount: number;
   unknownOptions: string[];
@@ -268,6 +274,7 @@ describe("preflight aggregate report", () => {
       expect(clientFailure.message).toContain("WASM artifact preflight");
     }
     expect(report.outputPath).toBeNull();
+    expect(report.validationErrorCode).toBeNull();
     expect(Array.isArray(report.checks)).toBe(true);
     expect(report.checks.length).toBe(3);
     expect(report.checks.map((check) => check.name)).toEqual([
@@ -840,6 +847,7 @@ describe("preflight aggregate report", () => {
 
     expect(report.schemaVersion).toBe(1);
     expect(report.listChecksOnly).toBe(true);
+    expect(report.validationErrorCode).toBeNull();
     expect(report.passed).toBe(true);
     expect(report.exitCode).toBe(0);
     expect(report.selectionMode).toBe("default");
@@ -876,6 +884,7 @@ describe("preflight aggregate report", () => {
 
     expect(report.schemaVersion).toBe(1);
     expect(report.listChecksOnly).toBe(true);
+    expect(report.validationErrorCode).toBeNull();
     expect(report.passed).toBe(true);
     expect(report.exitCode).toBe(0);
     expect(report.availableCliOptionAliases).toEqual(
@@ -979,6 +988,7 @@ describe("preflight aggregate report", () => {
 
     expect(report.schemaVersion).toBe(1);
     expect(report.listChecksOnly).toBe(true);
+    expect(report.validationErrorCode).toBe("only_option_invalid_value");
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.invalidCheckCount).toBe(1);
@@ -1015,6 +1025,7 @@ describe("preflight aggregate report", () => {
     expect(report.listChecksOnly).toBe(false);
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
     expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
     expect(report.availableCliOptionAliases).toEqual(
       expectedAvailableCliOptionAliases
@@ -1051,6 +1062,7 @@ describe("preflight aggregate report", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
     expect(report.invalidCheckCount).toBe(0);
     expect(report.unknownOptionCount).toBe(2);
     expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
@@ -1077,6 +1089,7 @@ describe("preflight aggregate report", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
     expect(report.invalidCheckCount).toBe(0);
     expect(report.unknownOptionCount).toBe(1);
     expect(report.unknownOptions).toEqual(["-x"]);
@@ -1100,6 +1113,7 @@ describe("preflight aggregate report", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
     expect(report.message).toBe("Missing value for --output option.");
     expect(report.invalidChecks).toEqual([]);
     expect(report.invalidCheckCount).toBe(0);
@@ -1126,6 +1140,7 @@ describe("preflight aggregate report", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("only_option_invalid_value");
     expect(report.message).toBe(
       "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, client. Special selectors: all (all-checks, all_checks, allchecks)."
     );

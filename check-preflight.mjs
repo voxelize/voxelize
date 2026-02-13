@@ -343,6 +343,34 @@ const unsupportedOptionsError =
   unknownOptions.length === 0
     ? null
     : `Unsupported option(s): ${unknownOptions.join(", ")}. Supported options: ${supportedCliOptions.join(", ")}.`;
+const deriveValidationErrorCode = ({
+  outputPathError,
+  selectedChecksError,
+  unsupportedOptionsError,
+}) => {
+  if (outputPathError !== null) {
+    return "output_option_missing_value";
+  }
+
+  if (selectedChecksError === "Missing value for --only option.") {
+    return "only_option_missing_value";
+  }
+
+  if (selectedChecksError !== null) {
+    return "only_option_invalid_value";
+  }
+
+  if (unsupportedOptionsError !== null) {
+    return "unsupported_options";
+  }
+
+  return null;
+};
+const validationErrorCode = deriveValidationErrorCode({
+  outputPathError,
+  selectedChecksError,
+  unsupportedOptionsError,
+});
 
 const runCheck = (name, scriptName, extraArgs = []) => {
   const checkStartMs = Date.now();
@@ -402,6 +430,7 @@ if (
     ...summarizeCheckResults([]),
     checks: [],
     outputPath: outputPathError === null ? resolvedOutputPath : null,
+    validationErrorCode,
     message: outputPathError ?? selectedChecksError ?? unsupportedOptionsError,
     invalidChecks: effectiveInvalidChecks,
     invalidCheckCount,
@@ -457,6 +486,7 @@ if (isListChecks) {
     failureSummaries: [],
     checks: [],
     outputPath: resolvedOutputPath,
+    validationErrorCode: null,
     invalidChecks: [],
     invalidCheckCount,
     unknownOptions,
@@ -528,6 +558,7 @@ const report = buildTimedReport({
   failureSummaries,
   checks,
   outputPath: resolvedOutputPath,
+  validationErrorCode: null,
   invalidChecks: [],
   invalidCheckCount,
   unknownOptions,

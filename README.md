@@ -249,6 +249,7 @@ Invalid `--only` errors include available canonical check names and special sele
 Invalid `--only` errors also include `invalidChecks` for machine-readable diagnostics.
 Unsupported CLI flags return structured errors and include `unknownOptions` for machine-readable diagnostics.
 Aggregate preflight reports include `invalidCheckCount` and `unknownOptionCount` for quick numeric filtering in CI/log pipelines.
+Aggregate preflight validation errors include `validationErrorCode` for machine-readable error classification.
 Aggregate preflight reports include `supportedCliOptions` to enumerate accepted CLI flags for this command.
 Aggregate preflight reports include `activeCliOptions` with canonical option names detected from the current invocation.
 Aggregate preflight reports include `availableCliOptionAliases` to map canonical options (such as `--list-checks`) to accepted aliases (`--list`, `-l`).
