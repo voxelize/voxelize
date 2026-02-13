@@ -2557,6 +2557,19 @@ export class World<T = any> extends Scene implements NetIntercept {
       return Number.isFinite(value) ? value : fallback;
     };
 
+    const normalizeStage = (value: number | undefined) => {
+      const normalized = Math.round(normalizeNumeric(value, 0));
+      if (normalized < 0) {
+        return 0;
+      }
+
+      if (normalized > 15) {
+        return 15;
+      }
+
+      return normalized;
+    };
+
     const voxelUpdates = updates
       .filter((update) => {
         if (update.vy < 0 || update.vy >= this.options.maxHeight) {
@@ -2572,7 +2585,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         const normalizedRotation = normalizeNumeric(rotation, 0);
         const normalizedYRotation = normalizeNumeric(yRotation, 0);
-        const normalizedStage = normalizeNumeric(stage, 0);
+        const normalizedStage = normalizeStage(stage);
 
         if (!this.getBlockById(type)) {
           console.warn(`Block ID ${type} does not exist.`);
@@ -2593,7 +2606,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       .map((update) => {
         update.rotation = normalizeNumeric(update.rotation, 0);
         update.yRotation = normalizeNumeric(update.yRotation, 0);
-        update.stage = normalizeNumeric(update.stage, 0);
+        update.stage = normalizeStage(update.stage);
 
         if (!this.getBlockById(update.type).yRotatable) {
           update.yRotation = 0;
