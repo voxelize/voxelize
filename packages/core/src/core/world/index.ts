@@ -868,6 +868,14 @@ export class World<T = any> extends Scene implements NetIntercept {
   private meshJobKeys: string[] = [];
   private meshWorkerPromises: Array<Promise<GeometryProtocol[] | null>> = [];
   private meshJobArrayCapacity = 0;
+  private readonly dynamicRuleQuery = {
+    getVoxelAt: (x: number, y: number, z: number) =>
+      this.getVoxelAtUnchecked(x, y, z),
+    getVoxelRotationAt: (x: number, y: number, z: number) =>
+      this.getVoxelRotationAtUnchecked(x, y, z),
+    getVoxelStageAt: (x: number, y: number, z: number) =>
+      this.getVoxelStageAtUnchecked(x, y, z),
+  };
 
   private static readonly warmColor = new Color(1.0, 0.95, 0.9);
   private static readonly coolColor = new Color(0.9, 0.95, 1.0);
@@ -2673,13 +2681,6 @@ export class World<T = any> extends Scene implements NetIntercept {
     dynamicPatterns: BlockDynamicPattern[]
   ): { aabb: AABB; worldSpace: boolean }[] => {
     const voxelCoords: Coords3 = [vx, vy, vz];
-    const ruleFunctions = {
-      getVoxelAt: (x: number, y: number, z: number) => this.getVoxelAt(x, y, z),
-      getVoxelRotationAt: (x: number, y: number, z: number) =>
-        this.getVoxelRotationAt(x, y, z),
-      getVoxelStageAt: (x: number, y: number, z: number) =>
-        this.getVoxelStageAt(x, y, z),
-    };
 
     for (let patternIndex = 0; patternIndex < dynamicPatterns.length; patternIndex++) {
       const dynamicPattern = dynamicPatterns[patternIndex];
@@ -2688,7 +2689,13 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       for (let partIndex = 0; partIndex < parts.length; partIndex++) {
         const part = parts[partIndex];
-        if (!BlockUtils.evaluateBlockRule(part.rule, voxelCoords, ruleFunctions)) {
+        if (
+          !BlockUtils.evaluateBlockRule(
+            part.rule,
+            voxelCoords,
+            this.dynamicRuleQuery
+          )
+        ) {
           continue;
         }
 
@@ -2727,20 +2734,17 @@ export class World<T = any> extends Scene implements NetIntercept {
     defaultPassable: boolean
   ): boolean => {
     const voxelCoords: Coords3 = [vx, vy, vz];
-    const ruleFunctions = {
-      getVoxelAt: (x: number, y: number, z: number) => this.getVoxelAt(x, y, z),
-      getVoxelRotationAt: (x: number, y: number, z: number) =>
-        this.getVoxelRotationAt(x, y, z),
-      getVoxelStageAt: (x: number, y: number, z: number) =>
-        this.getVoxelStageAt(x, y, z),
-    };
 
     for (let patternIndex = 0; patternIndex < dynamicPatterns.length; patternIndex++) {
       const parts = dynamicPatterns[patternIndex].parts;
       for (let partIndex = 0; partIndex < parts.length; partIndex++) {
         const part = parts[partIndex];
         if (
-          BlockUtils.evaluateBlockRule(part.rule, voxelCoords, ruleFunctions) &&
+          BlockUtils.evaluateBlockRule(
+            part.rule,
+            voxelCoords,
+            this.dynamicRuleQuery
+          ) &&
           part.isPassable !== undefined
         ) {
           return part.isPassable;
