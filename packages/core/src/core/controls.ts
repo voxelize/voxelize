@@ -412,6 +412,9 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   private characterPosition: Coords3 = [0, 0, 0];
   private characterDirection: Coords3 = [0, 0, 0];
   private resetDirection = new Vector3();
+  private stepResetTimeout: ReturnType<typeof setTimeout> | null = null;
+  private stepLerpActive = false;
+  private positionLerpBeforeStep = 0;
 
   /**
    * Whether or not is the first movement back on lock. This is because Chrome has a bug where
@@ -480,6 +483,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       ...defaultOptions,
       ...options,
     });
+    this.positionLerpBeforeStep = this.options.positionLerp;
 
     this.object.add(this.camera);
     this.world.add(this.object);
@@ -489,12 +493,20 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       onStep: (newAABB) => {
         const { positionLerp, stepLerp } = this.options;
 
+        if (!this.stepLerpActive) {
+          this.positionLerpBeforeStep = positionLerp;
+        }
+        this.stepLerpActive = true;
         this.options.positionLerp = stepLerp;
         this.body.aabb = newAABB.clone();
 
-        const stepTimeout = setTimeout(() => {
-          this.options.positionLerp = positionLerp;
-          clearTimeout(stepTimeout);
+        if (this.stepResetTimeout) {
+          clearTimeout(this.stepResetTimeout);
+        }
+        this.stepResetTimeout = setTimeout(() => {
+          this.options.positionLerp = this.positionLerpBeforeStep;
+          this.stepLerpActive = false;
+          this.stepResetTimeout = null;
         }, 500);
       },
       stepHeight: this.options.stepHeight,
