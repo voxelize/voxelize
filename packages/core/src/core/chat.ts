@@ -540,8 +540,14 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     }
 
     const result: ArgMetadata[] = [];
+    const shape = schema.shape;
+    const hasOwn = Object.prototype.hasOwnProperty;
 
-    for (const [name, zodType] of Object.entries(schema.shape)) {
+    for (const name in shape) {
+      if (!hasOwn.call(shape, name)) {
+        continue;
+      }
+      const zodType = shape[name];
       let innerType = zodType as ZodTypeAny;
       let required = true;
       let defaultValue: string | number | undefined;
