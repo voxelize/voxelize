@@ -35,7 +35,10 @@ export class Chunk extends RawChunk {
   }
 
   dispose() {
-    for (const meshes of this.meshes.values()) {
+    let meshGroups = this.meshes.values();
+    let meshGroup = meshGroups.next();
+    while (!meshGroup.done) {
+      const meshes = meshGroup.value;
       for (let meshIndex = 0; meshIndex < meshes.length; meshIndex++) {
         const subMesh = meshes[meshIndex];
         if (!subMesh) {
@@ -59,6 +62,7 @@ export class Chunk extends RawChunk {
           subMesh.parent.remove(subMesh);
         }
       }
+      meshGroup = meshGroups.next();
     }
 
     this.meshes.clear();
