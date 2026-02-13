@@ -524,23 +524,25 @@ gl_FragColor.rgb *= shadow;
    * Paint the arm with a texture or color. Only works when showing the empty arm (no held object).
    */
   public paintArm = (texture: THREE.Texture | THREE.Color) => {
-    this.children.forEach((child) => {
+    for (let childIndex = 0; childIndex < this.children.length; childIndex++) {
+      const child = this.children[childIndex];
       if (child instanceof CanvasBox) {
         child.paint("all", texture);
 
         child.traverse((obj) => {
           if (obj instanceof THREE.Mesh) {
             if (Array.isArray(obj.material)) {
-              obj.material.forEach((mat) => {
-                mat.needsUpdate = true;
-              });
+              const materials = obj.material;
+              for (let materialIndex = 0; materialIndex < materials.length; materialIndex++) {
+                materials[materialIndex].needsUpdate = true;
+              }
             } else {
               obj.material.needsUpdate = true;
             }
           }
         });
       }
-    });
+    }
   };
 
   /**
