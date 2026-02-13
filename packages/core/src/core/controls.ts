@@ -737,9 +737,13 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   };
 
   getPositionVector = (target?: Vector3) => {
-    const [x, y, z] = this.body.getPosition();
+    const bodyPosition = this.body.getPosition();
     const position = target ?? new Vector3();
-    position.set(x, y - this.options.bodyHeight * 0.5, z);
+    position.set(
+      bodyPosition[0],
+      bodyPosition[1] - this.options.bodyHeight * 0.5,
+      bodyPosition[2]
+    );
     return position;
   };
 
@@ -855,7 +859,10 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    */
   toggleGhostMode = () => {
     const { aabb } = this.body;
-    const [px, py, pz] = this.body.getPosition();
+    const bodyPosition = this.body.getPosition();
+    const px = bodyPosition[0];
+    const py = bodyPosition[1];
+    const pz = bodyPosition[2];
     const { bodyWidth, bodyHeight, bodyDepth } = this.options;
 
     if (this.ghostMode) {
@@ -1025,12 +1032,12 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    * floored to the voxel coordinate.
    */
   get voxel() {
-    const [x, y, z] = this.body.getPosition();
+    const bodyPosition = this.body.getPosition();
 
     return ChunkUtils.mapWorldToVoxel([
-      x,
-      y - this.options.bodyHeight * 0.5,
-      z,
+      bodyPosition[0],
+      bodyPosition[1] - this.options.bodyHeight * 0.5,
+      bodyPosition[2],
     ]);
   }
 
@@ -1045,8 +1052,12 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    * The chunk that the client is situated in.
    */
   get chunk() {
-    const [x, , z] = this.body.getPosition();
-    return ChunkUtils.mapVoxelToChunkAt(x, z, this.world.options.chunkSize);
+    const bodyPosition = this.body.getPosition();
+    return ChunkUtils.mapVoxelToChunkAt(
+      bodyPosition[0],
+      bodyPosition[2],
+      this.world.options.chunkSize
+    );
   }
 
   /**
@@ -1332,9 +1343,13 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       }
     }
 
-    const [x, y, z] = this.body.getPosition();
+    const bodyPosition = this.body.getPosition();
     const { eyeHeight, bodyHeight } = this.options;
-    this.newPosition.set(x, y + bodyHeight * (eyeHeight - 0.5), z);
+    this.newPosition.set(
+      bodyPosition[0],
+      bodyPosition[1] + bodyHeight * (eyeHeight - 0.5),
+      bodyPosition[2]
+    );
   };
 
   /**
