@@ -3057,10 +3057,10 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         }
                     }
 
-                    let is_fluid = block.is_fluid;
                     let is_see_through = block.is_see_through;
 
                     if is_non_greedy_block {
+                        let is_fluid = block.is_fluid;
                         if current_voxel_index == usize::MAX {
                             current_voxel_index = ((vx - min_x) as usize) * yz_span
                                 + ((vy - min_y) as usize) * z_span
@@ -3314,6 +3314,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     if !should_render {
                         continue;
                     }
+                    let is_fluid = block.is_fluid;
                     let current_mask_index =
                         (v - v_range.0) as usize * mask_width + (u - u_range.0) as usize;
 
