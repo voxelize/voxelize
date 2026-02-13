@@ -1752,6 +1752,7 @@ fn extract_greedy_quads_dense(
     quads
 }
 
+#[inline(always)]
 fn process_greedy_quad(
     quad: &GreedyQuad,
     axis: usize,
