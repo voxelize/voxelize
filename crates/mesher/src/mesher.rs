@@ -2648,6 +2648,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
     for (dx, dy, dz) in directions {
         let dir = [dx, dy, dz];
+        let dir_index =
+            cardinal_dir_index(dir).expect("greedy directions are always cardinal unit vectors");
 
         let (axis, u_axis, v_axis) = if dx != 0 {
             (0, 2, 1)
@@ -2826,9 +2828,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         });
                     };
 
-                    let Some(dir_index) = cardinal_dir_index(dir) else {
-                        continue;
-                    };
                     let face_index = block.greedy_face_indices[dir_index];
                     if face_index >= 0 {
                         if let Some(face) = block.faces.get(face_index as usize) {
