@@ -82,33 +82,33 @@ const parseSelectedChecks = () => {
     };
   }
 
-  const unknownChecks = [];
+  const invalidChecks = [];
   const resolvedChecks = [];
   for (const parsedCheck of parsedChecks) {
     const resolvedCheck = checkAliases.get(normalizeCheckToken(parsedCheck)) ?? null;
     if (resolvedCheck === null) {
-      unknownChecks.push(parsedCheck);
+      invalidChecks.push(parsedCheck);
       continue;
     }
 
     resolvedChecks.push(resolvedCheck);
   }
 
-  if (unknownChecks.length > 0) {
-    const uniqueUnknownChecks = [];
-    const seenUnknownChecks = new Set();
-    for (const unknownCheck of unknownChecks) {
-      const normalizedUnknownCheck = normalizeCheckToken(unknownCheck);
-      if (seenUnknownChecks.has(normalizedUnknownCheck)) {
+  if (invalidChecks.length > 0) {
+    const uniqueInvalidChecks = [];
+    const seenInvalidChecks = new Set();
+    for (const invalidCheck of invalidChecks) {
+      const normalizedInvalidCheck = normalizeCheckToken(invalidCheck);
+      if (seenInvalidChecks.has(normalizedInvalidCheck)) {
         continue;
       }
-      seenUnknownChecks.add(normalizedUnknownCheck);
-      uniqueUnknownChecks.push(unknownCheck);
+      seenInvalidChecks.add(normalizedInvalidCheck);
+      uniqueInvalidChecks.push(invalidCheck);
     }
 
     return {
       selectedChecks: [],
-      error: `Invalid check name(s): ${uniqueUnknownChecks.join(", ")}.`,
+      error: `Invalid check name(s): ${uniqueInvalidChecks.join(", ")}. Available checks: ${availableCheckNames.join(", ")}.`,
     };
   }
 

@@ -321,7 +321,9 @@ describe("preflight aggregate report", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
-    expect(report.message).toBe("Invalid check name(s): invalidCheck.");
+    expect(report.message).toBe(
+      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, client."
+    );
     expect(report.selectedChecks).toEqual([]);
     expect(report.skippedChecks).toEqual([
       "devEnvironment",
@@ -540,7 +542,9 @@ describe("preflight aggregate report", () => {
     expect(report.passedCheckCount).toBe(0);
     expect(report.failedCheckCount).toBe(0);
     expect(report.firstFailedCheck).toBeNull();
-    expect(report.message).toBe("Invalid check name(s): invalidCheck.");
+    expect(report.message).toBe(
+      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, client."
+    );
     expect(report.availableChecks).toEqual([
       "devEnvironment",
       "wasmPack",
@@ -570,7 +574,7 @@ describe("preflight aggregate report", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.message).toBe(
-      "Invalid check name(s): invalidCheck, otherInvalid."
+      "Invalid check name(s): invalidCheck, otherInvalid. Available checks: devEnvironment, wasmPack, client."
     );
     expect(result.status).toBe(1);
   });
@@ -598,7 +602,9 @@ describe("preflight aggregate report", () => {
     expect(stdoutReport.passed).toBe(false);
     expect(stdoutReport.exitCode).toBe(1);
     expect(stdoutReport.outputPath).toBe(outputPath);
-    expect(stdoutReport.message).toBe("Invalid check name(s): invalidCheck.");
+    expect(stdoutReport.message).toBe(
+      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, client."
+    );
     expect(fileReport.outputPath).toBe(outputPath);
     expect(fileReport.message).toBe(stdoutReport.message);
     expect(result.status).toBe(1);
