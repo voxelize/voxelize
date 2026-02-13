@@ -542,6 +542,32 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-client json mode reports output write failures with details", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-client-output-write-failure-")
+    );
+
+    const result = runScript("check-client.mjs", [
+      "--json",
+      "--no-build",
+      "--output",
+      tempDirectory,
+    ]);
+    const report = JSON.parse(result.output) as ClientJsonReport;
+    const failurePrefix = `Failed to write report to ${tempDirectory}.`;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBe(tempDirectory);
+    expect(report.message).toContain(failurePrefix);
+    if (report.message !== undefined) {
+      expect(report.message.length).toBeGreaterThan(failurePrefix.length);
+    }
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("check-client json no-build mode reports skipped build intent", () => {
     const result = runScript("check-client.mjs", ["--json", "--no-build"]);
     const report = JSON.parse(result.output) as ClientJsonReport;
@@ -708,6 +734,32 @@ describe("root preflight scripts", () => {
     expect(report.firstFailedStep).toBeNull();
     expect(report.message).toBe("Missing value for --output option.");
     expect(result.status).toBe(1);
+  });
+
+  it("check-onboarding json mode reports output write failures with details", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-onboarding-output-write-failure-")
+    );
+
+    const result = runScript("check-onboarding.mjs", [
+      "--json",
+      "--no-build",
+      "--output",
+      tempDirectory,
+    ]);
+    const report = JSON.parse(result.output) as OnboardingJsonReport;
+    const failurePrefix = `Failed to write report to ${tempDirectory}.`;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBe(tempDirectory);
+    expect(report.message).toContain(failurePrefix);
+    if (report.message !== undefined) {
+      expect(report.message.length).toBeGreaterThan(failurePrefix.length);
+    }
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
   it("check-onboarding json no-build mode propagates option", () => {
