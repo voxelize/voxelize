@@ -2154,7 +2154,7 @@ fn process_face<S: VoxelAccess>(
         || (is_fluid
             && n_block_type.is_opaque
             && !n_block_type.is_fluid
-            && !has_fluid_above(vx, vy, vz, voxel_id, space)
+            && !cache.fluid_surface_above
             && (!n_block_type.is_full_cube() || dir == [0, 1, 0]));
 
     if !should_mesh {
