@@ -163,6 +163,10 @@ export class LightSourceRegistry {
     return dirtyRegions;
   }
 
+  hasDirtyRegions(): boolean {
+    return this.dirtyRegions.size > 0;
+  }
+
   clearDirtyRegions() {
     this.dirtyRegions.clear();
   }

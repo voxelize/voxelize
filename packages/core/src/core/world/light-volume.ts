@@ -88,8 +88,7 @@ export class LightVolume {
   }
 
   updateFromRegistry(registry: LightSourceRegistry): boolean {
-    const dirtyRegions = registry.getDirtyRegions();
-    const hasDirtyRegions = dirtyRegions.length > 0;
+    const hasDirtyRegions = registry.hasDirtyRegions();
 
     if (hasDirtyRegions) {
       this.registryVersion++;
