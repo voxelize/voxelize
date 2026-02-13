@@ -208,6 +208,8 @@ pub struct Registry {
     pub blocks_by_id: Vec<(u32, Block)>,
     #[serde(skip)]
     lookup_cache: Option<HashMap<u32, usize>>,
+    #[serde(skip)]
+    dense_lookup: Option<Vec<i32>>,
 }
 
 impl Registry {
@@ -215,20 +217,43 @@ impl Registry {
         Self {
             blocks_by_id,
             lookup_cache: None,
+            dense_lookup: None,
         }
     }
 
     pub fn build_cache(&mut self) {
         let mut cache = HashMap::with_capacity(self.blocks_by_id.len());
+        let mut max_id = 0u32;
         for (idx, (id, block)) in self.blocks_by_id.iter_mut().enumerate() {
             cache.insert(*id, idx);
+            if *id > max_id {
+                max_id = *id;
+            }
             block.compute_name_lower();
         }
         self.lookup_cache = Some(cache);
+
+        let dense_limit = self.blocks_by_id.len().saturating_mul(16);
+        if (max_id as usize) <= dense_limit {
+            let mut dense = vec![-1; max_id as usize + 1];
+            for (idx, (id, _)) in self.blocks_by_id.iter().enumerate() {
+                dense[*id as usize] = idx as i32;
+            }
+            self.dense_lookup = Some(dense);
+        } else {
+            self.dense_lookup = None;
+        }
     }
 
     pub fn get_block_by_id(&self, id: u32) -> Option<&Block> {
-        if let Some(cache) = &self.lookup_cache {
+        if let Some(dense) = &self.dense_lookup {
+            if let Some(&idx) = dense.get(id as usize) {
+                if idx >= 0 {
+                    return Some(&self.blocks_by_id[idx as usize].1);
+                }
+            }
+            None
+        } else if let Some(cache) = &self.lookup_cache {
             cache.get(&id).map(|&idx| &self.blocks_by_id[idx].1)
         } else {
             self.blocks_by_id
@@ -239,7 +264,9 @@ impl Registry {
     }
 
     pub fn has_type(&self, id: u32) -> bool {
-        if let Some(cache) = &self.lookup_cache {
+        if let Some(dense) = &self.dense_lookup {
+            dense.get(id as usize).map(|idx| *idx >= 0).unwrap_or(false)
+        } else if let Some(cache) = &self.lookup_cache {
             cache.contains_key(&id)
         } else {
             self.blocks_by_id
