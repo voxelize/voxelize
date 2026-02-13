@@ -4149,6 +4149,15 @@ describe("root preflight scripts", () => {
     ).toBe(true);
     const clientStep = report.steps.find((step) => step.name === "Client checks");
     expect(clientStep).toBeDefined();
+    const tsCoreStepIndex = report.steps.findIndex((step) => {
+      return step.name === "TypeScript core checks";
+    });
+    const clientStepIndex = report.steps.findIndex((step) => {
+      return step.name === "Client checks";
+    });
+    expect(tsCoreStepIndex).toBeGreaterThan(-1);
+    expect(clientStepIndex).toBeGreaterThan(-1);
+    expect(tsCoreStepIndex).toBeLessThan(clientStepIndex);
     expect(report.steps[0].report).not.toBeNull();
     if (report.steps[0].report !== null) {
       expect(report.steps[0].report.schemaVersion).toBe(1);
@@ -5708,6 +5717,15 @@ describe("root preflight scripts", () => {
     expect(tsCoreStep).toBeDefined();
     const clientStep = report.steps.find((step) => step.name === "Client checks");
     expect(clientStep).toBeDefined();
+    const tsCoreStepIndex = report.steps.findIndex((step) => {
+      return step.name === "TypeScript core checks";
+    });
+    const clientStepIndex = report.steps.findIndex((step) => {
+      return step.name === "Client checks";
+    });
+    expect(tsCoreStepIndex).toBeGreaterThan(-1);
+    expect(clientStepIndex).toBeGreaterThan(-1);
+    expect(tsCoreStepIndex).toBeLessThan(clientStepIndex);
     if (tsCoreStep !== undefined && report.steps[0].passed === false) {
       expect(tsCoreStep.skipped).toBe(true);
       expect(tsCoreStep.exitCode).toBeNull();
@@ -5783,6 +5801,15 @@ describe("root preflight scripts", () => {
     expect(tsCoreStep).toBeDefined();
     const clientStep = report.steps.find((step) => step.name === "Client checks");
     expect(clientStep).toBeDefined();
+    const tsCoreStepIndex = report.steps.findIndex((step) => {
+      return step.name === "TypeScript core checks";
+    });
+    const clientStepIndex = report.steps.findIndex((step) => {
+      return step.name === "Client checks";
+    });
+    expect(tsCoreStepIndex).toBeGreaterThan(-1);
+    expect(clientStepIndex).toBeGreaterThan(-1);
+    expect(tsCoreStepIndex).toBeLessThan(clientStepIndex);
     if (tsCoreStep !== undefined && report.steps[0].passed === false) {
       expect(tsCoreStep.skipped).toBe(true);
       expect(tsCoreStep.exitCode).toBeNull();
