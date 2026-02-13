@@ -4113,15 +4113,24 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private pruneBlockEntitiesInChunk(chunkCoords: Coords2) {
     const { chunkSize } = this.options;
+    const [targetCx, targetCz] = chunkCoords;
 
     for (const key of this.blockEntitiesMap.keys()) {
-      const parts = key.split("|");
-      const vx = parseInt(parts[0], 10);
-      const vz = parseInt(parts[2], 10);
+      const firstSeparator = key.indexOf("|");
+      if (firstSeparator < 0) {
+        continue;
+      }
+      const secondSeparator = key.indexOf("|", firstSeparator + 1);
+      if (secondSeparator < 0) {
+        continue;
+      }
+
+      const vx = parseInt(key.slice(0, firstSeparator), 10);
+      const vz = parseInt(key.slice(secondSeparator + 1), 10);
       const cx = Math.floor(vx / chunkSize);
       const cz = Math.floor(vz / chunkSize);
 
-      if (cx === chunkCoords[0] && cz === chunkCoords[1]) {
+      if (cx === targetCx && cz === targetCz) {
         this.blockEntitiesMap.delete(key);
       }
     }
