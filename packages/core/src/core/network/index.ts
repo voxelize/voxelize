@@ -14,7 +14,7 @@ export { WebRTCConnection } from "./webrtc";
 const { Message } = protocol;
 
 export type ProtocolWS = WebSocket & {
-  sendEvent: (event: any) => void;
+  sendEvent: (event: MessageProtocol) => void;
 };
 
 export type NetworkOptions = {
@@ -194,11 +194,22 @@ export class Network {
     return new Promise<Network>((resolve) => {
       const ws = new WebSocket(this.socket.toString()) as ProtocolWS;
       ws.binaryType = "arraybuffer";
-      ws.sendEvent = async (event: any) => {
+      const sendWhenConnected = async (event: MessageProtocol) => {
         while (!this.connected) {
           console.log(`waiting for websocket connection...`);
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
+        if (ws.readyState === WebSocket.OPEN) {
+          const encoded = Network.encodeSync(event);
+          ws.send(encoded);
+        }
+      };
+      ws.sendEvent = (event: MessageProtocol) => {
+        if (!this.connected) {
+          void sendWhenConnected(event);
+          return;
+        }
+
         if (ws.readyState === WebSocket.OPEN) {
           const encoded = Network.encodeSync(event);
           ws.send(encoded);
@@ -510,7 +521,7 @@ export class Network {
     }
   };
 
-  send = (event: any) => {
+  send = (event: MessageProtocol) => {
     this.ws.sendEvent(event);
   };
 
