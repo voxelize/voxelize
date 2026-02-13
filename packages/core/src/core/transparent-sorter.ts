@@ -1,4 +1,11 @@
-import { Camera, Mesh, Object3D, Vector3 } from "three";
+import {
+  Camera,
+  Mesh,
+  Object3D,
+  Scene,
+  Vector3,
+  WebGLRenderer,
+} from "three";
 
 const _worldPos = new Vector3();
 const _camPos = new Vector3();
@@ -60,29 +67,51 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
 }
 
 export function setupTransparentSorting(object: Object3D): void {
-  object.traverse((child) => {
-    if (!(child instanceof Mesh)) return;
-    if (!child.geometry?.index) return;
+  const traversalStack: Object3D[] = [object];
+
+  while (traversalStack.length > 0) {
+    const child = traversalStack.pop();
+    if (!child) {
+      continue;
+    }
+
+    const childChildren = child.children;
+    for (let childIndex = 0; childIndex < childChildren.length; childIndex++) {
+      traversalStack.push(childChildren[childIndex]);
+    }
+
+    if (!(child instanceof Mesh)) {
+      continue;
+    }
+    if (!child.geometry?.index) {
+      continue;
+    }
 
     const material = child.material;
-    const isTransparent = Array.isArray(material)
-      ? material.some((m) => m.transparent)
-      : material?.transparent;
+    let isTransparent = false;
+    if (Array.isArray(material)) {
+      for (let materialIndex = 0; materialIndex < material.length; materialIndex++) {
+        if (material[materialIndex].transparent) {
+          isTransparent = true;
+          break;
+        }
+      }
+    } else {
+      isTransparent = material?.transparent === true;
+    }
 
-    if (!isTransparent) return;
+    if (!isTransparent) {
+      continue;
+    }
 
     const sortData = prepareTransparentMesh(child);
-    if (!sortData) return;
+    if (!sortData) {
+      continue;
+    }
 
     child.userData.transparentSortData = sortData;
-    child.onBeforeRender = (_renderer, _scene, camera) => {
-      sortTransparentMesh(
-        child,
-        child.userData.transparentSortData as TransparentMeshData,
-        camera
-      );
-    };
-  });
+    child.onBeforeRender = sortTransparentMeshOnBeforeRender;
+  }
 }
 
 const _floatView = new Float32Array(1);
@@ -184,4 +213,24 @@ export function sortTransparentMesh(
   const targetArray = indexAttr.array;
   (targetArray as Uint32Array).set(sortedIndices);
   indexAttr.needsUpdate = true;
+}
+
+export function sortTransparentMeshOnBeforeRender(
+  this: Object3D,
+  _renderer: WebGLRenderer,
+  _scene: Scene,
+  camera: Camera
+): void {
+  if (!(this instanceof Mesh)) {
+    return;
+  }
+
+  const sortData = this.userData.transparentSortData as
+    | TransparentMeshData
+    | undefined;
+  if (!sortData) {
+    return;
+  }
+
+  sortTransparentMesh(this, sortData, camera);
 }

@@ -47,9 +47,8 @@ import {
 } from "../../common";
 import { NetIntercept } from "../../core/network";
 import {
-  TransparentMeshData,
   prepareTransparentMesh,
-  sortTransparentMesh,
+  sortTransparentMeshOnBeforeRender,
 } from "../../core/transparent-sorter";
 import { WorkerPool } from "../../libs";
 import { setWorkerInterval } from "../../libs/setWorkerInterval";
@@ -5141,13 +5140,7 @@ export class World<T = any> extends Scene implements NetIntercept {
             const sortData = prepareTransparentMesh(mesh);
             if (sortData) {
               mesh.userData.transparentSortData = sortData;
-              mesh.onBeforeRender = (_renderer, _scene, camera) => {
-                sortTransparentMesh(
-                  mesh,
-                  mesh.userData.transparentSortData as TransparentMeshData,
-                  camera
-                );
-              };
+              mesh.onBeforeRender = sortTransparentMeshOnBeforeRender;
             }
           }
           this.csmRenderer?.addSkipShadowObject(mesh);
@@ -5220,13 +5213,7 @@ export class World<T = any> extends Scene implements NetIntercept {
             const sortData = prepareTransparentMesh(mesh);
             if (sortData) {
               mesh.userData.transparentSortData = sortData;
-              mesh.onBeforeRender = (_renderer, _scene, camera) => {
-                sortTransparentMesh(
-                  mesh,
-                  mesh.userData.transparentSortData as TransparentMeshData,
-                  camera
-                );
-              };
+              mesh.onBeforeRender = sortTransparentMeshOnBeforeRender;
             }
           }
           this.csmRenderer?.addSkipShadowObject(mesh);
