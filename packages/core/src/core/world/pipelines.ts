@@ -215,12 +215,17 @@ export class ChunkPipeline {
   }
 
   forEach(stage: StageType, callback: (name: string) => void): void {
-    this.indices[stage].forEach(callback);
+    for (const name of this.indices[stage]) {
+      callback(name);
+    }
   }
 
   forEachLoaded(callback: (chunk: Chunk, name: string) => void): void {
-    for (const [name, chunk] of this.loadedEntries()) {
-      callback(chunk, name);
+    for (const name of this.indices.loaded) {
+      const state = this.states.get(name);
+      if (state?.stage === "loaded") {
+        callback(state.chunk, name);
+      }
     }
   }
 
