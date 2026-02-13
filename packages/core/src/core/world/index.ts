@@ -854,19 +854,33 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private startDeltaCleanup() {
     this.cleanupDeltasInterval = setInterval(() => {
-      const now = performance.now();
-      const cutoff = now - this.options.deltaRetentionTime;
+      const cutoff = performance.now() - this.options.deltaRetentionTime;
 
       this.voxelDeltas.forEach((deltas, chunkName) => {
-        const filtered = deltas.filter((d) => d.timestamp > cutoff);
-
-        if (filtered.length === 0) {
+        if (this.pruneDeltasByCutoff(deltas, cutoff) === 0) {
           this.voxelDeltas.delete(chunkName);
-        } else if (filtered.length < deltas.length) {
-          this.voxelDeltas.set(chunkName, filtered);
         }
       });
     }, 1000) as unknown as number;
+  }
+
+  private pruneDeltasByCutoff(deltas: VoxelDelta[], cutoff: number): number {
+    let write = 0;
+
+    for (let read = 0; read < deltas.length; read++) {
+      const delta = deltas[read];
+      if (delta.timestamp <= cutoff) {
+        continue;
+      }
+
+      if (write !== read) {
+        deltas[write] = delta;
+      }
+      write++;
+    }
+
+    deltas.length = write;
+    return write;
   }
 
   private async dispatchMeshWorker(
@@ -6120,9 +6134,12 @@ export class World<T = any> extends Scene implements NetIntercept {
       sequenceId: this.deltaSequenceCounter++,
     };
 
-    const deltas = this.voxelDeltas.get(chunkName) || [];
-    deltas.push(delta);
-    this.voxelDeltas.set(chunkName, deltas);
+    const deltas = this.voxelDeltas.get(chunkName);
+    if (deltas) {
+      deltas.push(delta);
+    } else {
+      this.voxelDeltas.set(chunkName, [delta]);
+    }
   }
 
   private markChunkForRemesh(coords: Coords2) {
