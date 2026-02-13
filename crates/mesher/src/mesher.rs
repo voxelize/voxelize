@@ -3309,30 +3309,34 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         continue;
                     }
 
-                    if face_index >= 0 {
-                        if let Some(face) = block.faces.get(face_index as usize) {
-                            if !face.independent && !face.isolated {
-                                let neighbors = NeighborCache::populate(vx, vy, vz, space);
-                                let (aos, lights) =
-                                    compute_face_ao_and_light_fast(dir, block, &neighbors, registry);
-                                let uv_range = face.range;
-                                greedy_mask[current_mask_index] = Some(FaceData {
-                                    key: FaceKey {
-                                        block_id: block.id,
-                                        face_name: None,
-                                        independent: false,
-                                        ao: aos,
-                                        light: lights,
-                                        uv_start_u: (uv_range.start_u * 1000000.0) as u32,
-                                        uv_end_u: (uv_range.end_u * 1000000.0) as u32,
-                                        uv_start_v: (uv_range.start_v * 1000000.0) as u32,
-                                        uv_end_v: (uv_range.end_v * 1000000.0) as u32,
-                                    },
-                                    uv_range,
-                                    is_fluid,
-                                });
-                                continue;
-                            }
+                    let matched_face = if face_index >= 0 {
+                        block.faces.get(face_index as usize)
+                    } else {
+                        None
+                    };
+
+                    if let Some(face) = matched_face {
+                        if !face.independent && !face.isolated {
+                            let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                            let (aos, lights) =
+                                compute_face_ao_and_light_fast(dir, block, &neighbors, registry);
+                            let uv_range = face.range;
+                            greedy_mask[current_mask_index] = Some(FaceData {
+                                key: FaceKey {
+                                    block_id: block.id,
+                                    face_name: None,
+                                    independent: false,
+                                    ao: aos,
+                                    light: lights,
+                                    uv_start_u: (uv_range.start_u * 1000000.0) as u32,
+                                    uv_end_u: (uv_range.end_u * 1000000.0) as u32,
+                                    uv_start_v: (uv_range.start_v * 1000000.0) as u32,
+                                    uv_end_v: (uv_range.end_v * 1000000.0) as u32,
+                                },
+                                uv_range,
+                                is_fluid,
+                            });
+                            continue;
                         }
                     }
 
@@ -3428,10 +3432,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         });
                     };
 
-                    if face_index >= 0 {
-                        if let Some(face) = block.faces.get(face_index as usize) {
-                            push_greedy_face(face);
-                        }
+                    if let Some(face) = matched_face {
+                        push_greedy_face(face);
                     } else if face_index == -2 {
                         for face in &block.faces {
                             if face.dir == dir {
