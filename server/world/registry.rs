@@ -394,21 +394,10 @@ impl Registry {
     }
 
     fn prepare_block_for_registration(&self, block: &Block) -> Block {
-        let mut block = block.to_owned();
-
-        if block.id == 0 {
-            let mut next_available = 1;
-            while self.blocks_by_id.contains_key(&next_available) {
-                next_available += 1;
-            }
-            block.id = next_available;
-        }
-
-        if self.blocks_by_id.contains_key(&block.id) {
-            panic!("Duplicated key: {}-{}", block.name, block.id);
-        }
-
-        block
+        self.prepare_blocks_for_registration(std::slice::from_ref(block))
+            .into_iter()
+            .next()
+            .expect("single-block preparation should always return one block")
     }
 
     fn prepare_blocks_for_registration(&self, blocks: &[Block]) -> Vec<Block> {
