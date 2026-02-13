@@ -4581,8 +4581,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       return;
     }
 
-    for (const key of keys) {
-      this.blockEntitiesMap.delete(key);
+    let keyEntries = keys.values();
+    let keyEntry = keyEntries.next();
+    while (!keyEntry.done) {
+      this.blockEntitiesMap.delete(keyEntry.value);
+      keyEntry = keyEntries.next();
     }
     this.blockEntityKeysByChunk.delete(chunkName);
   }
@@ -4593,9 +4596,13 @@ export class World<T = any> extends Scene implements NetIntercept {
     const deleteRadiusSquared = deleteRadius * deleteRadius;
     const deleted: Coords2[] = [];
 
-    for (const name of this.chunkPipeline.getInStage("loaded")) {
+    let loadedChunks = this.chunkPipeline.getInStage("loaded").values();
+    let loadedChunkName = loadedChunks.next();
+    while (!loadedChunkName.done) {
+      const name = loadedChunkName.value;
       const chunk = this.chunkPipeline.getLoadedChunk(name);
       if (!chunk) {
+        loadedChunkName = loadedChunks.next();
         continue;
       }
 
@@ -4636,11 +4643,16 @@ export class World<T = any> extends Scene implements NetIntercept {
         this.chunkInitializeListeners.delete(name);
         deleted.push(chunk.coords);
       }
+      loadedChunkName = loadedChunks.next();
     }
 
-    for (const name of this.chunkPipeline.getInStage("requested")) {
+    let requestedChunks = this.chunkPipeline.getInStage("requested").values();
+    let requestedChunkName = requestedChunks.next();
+    while (!requestedChunkName.done) {
+      const name = requestedChunkName.value;
       const requested = this.chunkPipeline.getRequestedCoords(name);
       if (!requested) {
+        requestedChunkName = requestedChunks.next();
         continue;
       }
 
@@ -4653,11 +4665,16 @@ export class World<T = any> extends Scene implements NetIntercept {
         this.chunkInitializeListeners.delete(name);
         deleted.push([x, z]);
       }
+      requestedChunkName = requestedChunks.next();
     }
 
-    for (const name of this.chunkPipeline.getInStage("processing")) {
+    let processingChunks = this.chunkPipeline.getInStage("processing").values();
+    let processingChunkName = processingChunks.next();
+    while (!processingChunkName.done) {
+      const name = processingChunkName.value;
       const procData = this.chunkPipeline.getProcessingChunkData(name);
       if (!procData) {
+        processingChunkName = processingChunks.next();
         continue;
       }
 
@@ -4668,6 +4685,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         this.chunkPipeline.remove(name);
         this.chunkInitializeListeners.delete(name);
       }
+      processingChunkName = processingChunks.next();
     }
 
     if (deleted.length) {
@@ -4706,9 +4724,13 @@ export class World<T = any> extends Scene implements NetIntercept {
     const { subChunks } = this.options;
     const radiusSq = this.plantRadiusSq;
 
-    for (const name of this.chunkPipeline.getInStage("loaded")) {
+    let loadedChunks = this.chunkPipeline.getInStage("loaded").values();
+    let loadedChunkName = loadedChunks.next();
+    while (!loadedChunkName.done) {
+      const name = loadedChunkName.value;
       const chunk = this.chunkPipeline.getLoadedChunk(name);
       if (!chunk) {
+        loadedChunkName = loadedChunks.next();
         continue;
       }
 
@@ -4724,6 +4746,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
         this.setPlantMeshVisibility(levelMeshes, showPlants);
       }
+      loadedChunkName = loadedChunks.next();
     }
   }
 
