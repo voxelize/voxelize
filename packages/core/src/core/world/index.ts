@@ -3745,7 +3745,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     // Loading the block registry
-    Object.keys(blocks).forEach((name) => {
+    const blockNames = Object.keys(blocks);
+    for (let blockIndex = 0; blockIndex < blockNames.length; blockIndex++) {
+      const name = blockNames[blockIndex];
       const block = blocks[name];
       const { id, aabbs, isDynamic } = block;
 
@@ -3754,19 +3756,23 @@ export class World<T = any> extends Scene implements NetIntercept {
       block.independentFaces = new Set();
       block.isolatedFaces = new Set();
 
-      block.faces.forEach((face) => {
+      const faces = block.faces;
+      for (let faceIndex = 0; faceIndex < faces.length; faceIndex++) {
+        const face = faces[faceIndex];
         if (face.independent) {
           block.independentFaces.add(face.name);
         }
         if (face.isolated) {
           block.isolatedFaces.add(face.name);
         }
-      });
+      }
 
-      block.aabbs = aabbs.map(
-        ({ minX, minY, minZ, maxX, maxY, maxZ }) =>
-          new AABB(minX, minY, minZ, maxX, maxY, maxZ)
-      );
+      const blockAabbs = new Array<AABB>(aabbs.length);
+      for (let aabbIndex = 0; aabbIndex < aabbs.length; aabbIndex++) {
+        const { minX, minY, minZ, maxX, maxY, maxZ } = aabbs[aabbIndex];
+        blockAabbs[aabbIndex] = new AABB(minX, minY, minZ, maxX, maxY, maxZ);
+      }
+      block.aabbs = blockAabbs;
 
       if (isDynamic) {
         block.dynamicFn = () => {
@@ -3789,14 +3795,20 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.registry.blocksById.set(id, block);
       this.registry.nameMap.set(lowerName, id);
       this.registry.idMap.set(id, lowerName);
-    });
+    }
 
     this._plantBlockIds.clear();
     for (const [id, block] of this.registry.blocksById) {
       if (block.faces.length === 0) continue;
-      const allDiagonal = block.faces.every(
-        (f) => f.dir[0] === 0 && f.dir[1] === 0 && f.dir[2] === 0
-      );
+      const blockFaces = block.faces;
+      let allDiagonal = true;
+      for (let faceIndex = 0; faceIndex < blockFaces.length; faceIndex++) {
+        const dir = blockFaces[faceIndex].dir;
+        if (dir[0] !== 0 || dir[1] !== 0 || dir[2] !== 0) {
+          allDiagonal = false;
+          break;
+        }
+      }
       if (allDiagonal) {
         this._plantBlockIds.add(id);
       }
