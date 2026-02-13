@@ -255,6 +255,7 @@ Aggregate preflight validation errors include `validationErrorCode` for machine-
 Aggregate preflight reports include `supportedCliOptions` to enumerate accepted CLI flags for this command.
 Aggregate preflight reports include `activeCliOptions` with canonical option names detected from the current invocation.
 Aggregate preflight reports include `activeCliOptionCount` for quick cardinality checks on active canonical options.
+Aggregate preflight reports include `activeCliOptionTokens` to preserve the original recognized option forms from the current invocation.
 Aggregate preflight reports include `availableCliOptionAliases` to map canonical options (such as `--list-checks`) to accepted aliases (`--list`, `-l`).
 Aggregate preflight reports include `availableCheckAliases` so automation can map user-facing aliases to canonical check names.
 Aggregate preflight reports include `availableCheckMetadata` with script mapping and no-build support per canonical check.

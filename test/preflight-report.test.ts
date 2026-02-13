@@ -106,6 +106,7 @@ type PreflightReport = {
   supportedCliOptions: string[];
   activeCliOptions: string[];
   activeCliOptionCount: number;
+  activeCliOptionTokens: string[];
   availableCliOptionAliases: {
     "--list-checks": string[];
   };
@@ -215,6 +216,7 @@ describe("preflight aggregate report", () => {
     expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
     expect(report.activeCliOptions).toEqual(["--no-build"]);
     expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--no-build"]);
     expect(report.availableCliOptionAliases).toEqual(
       expectedAvailableCliOptionAliases
     );
@@ -308,6 +310,7 @@ describe("preflight aggregate report", () => {
     expect(report.selectionMode).toBe("only");
     expect(report.specialSelectorsUsed).toEqual([]);
     expect(report.activeCliOptions).toEqual(["--no-build", "--only"]);
+    expect(report.activeCliOptionTokens).toEqual(["--no-build", "--only"]);
     expect(report.selectedChecks).toEqual(["devEnvironment", "client"]);
     expect(report.selectedCheckCount).toBe(2);
     expect(report.requestedChecks).toEqual(["devEnvironment", "client"]);
@@ -852,6 +855,8 @@ describe("preflight aggregate report", () => {
     expect(report.validationErrorCode).toBeNull();
     expect(report.passed).toBe(true);
     expect(report.exitCode).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--list-checks"]);
+    expect(report.activeCliOptionTokens).toEqual(["--list-checks"]);
     expect(report.selectionMode).toBe("default");
     expect(report.selectedCheckCount).toBe(3);
     expect(report.requestedCheckCount).toBe(0);
@@ -895,6 +900,7 @@ describe("preflight aggregate report", () => {
     expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
     expect(report.activeCliOptions).toEqual(["--list-checks"]);
     expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--list"]);
     expect(report.checks).toEqual([]);
     expect(result.status).toBe(0);
   });
@@ -918,6 +924,7 @@ describe("preflight aggregate report", () => {
     expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
     expect(report.activeCliOptions).toEqual(["--list-checks"]);
     expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["-l"]);
     expect(report.checks).toEqual([]);
     expect(result.status).toBe(0);
   });
@@ -942,6 +949,8 @@ describe("preflight aggregate report", () => {
     expect(report.invalidCheckCount).toBe(0);
     expect(report.unknownOptionCount).toBe(0);
     expect(report.selectionMode).toBe("only");
+    expect(report.activeCliOptions).toEqual(["--list-checks", "--only"]);
+    expect(report.activeCliOptionTokens).toEqual(["--list-checks", "--only"]);
     expect(report.selectedCheckCount).toBe(3);
     expect(report.requestedCheckCount).toBe(2);
     expect(report.skippedCheckCount).toBe(0);
@@ -1036,6 +1045,7 @@ describe("preflight aggregate report", () => {
     );
     expect(report.activeCliOptions).toEqual([]);
     expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual([]);
     expect(report.selectionMode).toBe("default");
     expect(report.invalidCheckCount).toBe(0);
     expect(report.unknownOptionCount).toBe(1);
@@ -1076,6 +1086,7 @@ describe("preflight aggregate report", () => {
     );
     expect(report.activeCliOptions).toEqual([]);
     expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual([]);
     expect(report.unknownOptions).toEqual(["--mystery", "--another-mystery"]);
     expect(report.message).toBe(
       expectedUnsupportedOptionsMessage(["--mystery", "--another-mystery"])
@@ -1183,6 +1194,7 @@ describe("preflight aggregate report", () => {
     expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
     expect(report.activeCliOptions).toEqual(["--output"]);
     expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--output"]);
     expect(result.status).toBe(1);
   });
 
@@ -1210,6 +1222,7 @@ describe("preflight aggregate report", () => {
     expect(report.unknownOptionCount).toBe(1);
     expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
     expect(report.activeCliOptions).toEqual(["--output"]);
+    expect(report.activeCliOptionTokens).toEqual(["--output"]);
     expect(result.status).toBe(1);
   });
 
@@ -1240,6 +1253,7 @@ describe("preflight aggregate report", () => {
     expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
     expect(report.activeCliOptions).toEqual(["--only"]);
     expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--only"]);
     expect(result.status).toBe(1);
   });
 
@@ -1267,6 +1281,7 @@ describe("preflight aggregate report", () => {
     expect(report.unknownOptionCount).toBe(1);
     expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
     expect(report.activeCliOptions).toEqual(["--only"]);
+    expect(report.activeCliOptionTokens).toEqual(["--only"]);
     expect(result.status).toBe(1);
   });
 
