@@ -923,8 +923,10 @@ fn calculate_fluid_corner_height<S: VoxelAccess>(
             count += 1.0;
         } else {
             let neighbor_id = extract_id(space.get_raw_voxel(nx, vy, nz));
-            if let Some(neighbor_block) = registry.get_block_by_id(neighbor_id) {
-                if neighbor_block.is_empty {
+            let (neighbor_has_type, _, neighbor_is_empty) =
+                registry.has_type_and_opaque_and_empty(neighbor_id);
+            if neighbor_has_type {
+                if neighbor_is_empty {
                     has_air_neighbor = true;
                 } else {
                     has_solid_neighbor = true;
