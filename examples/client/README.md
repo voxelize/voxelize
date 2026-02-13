@@ -90,7 +90,7 @@ All JSON report commands include `schemaVersion: 1` for compatibility checks.
 JSON preflight reports include `startedAt`, `endedAt`, and `durationMs`.
 Client aggregate JSON reports include `totalSteps`, `passedStepCount`, `failedStepCount`, `skippedStepCount`, and `firstFailedStep`.
 Skipped JSON steps are represented with `skipped: true` and `exitCode: null`.
-If `--output` is provided without a value, JSON commands return a structured error report.
+If `--output` is provided without a value, commands fail fast. JSON commands return a structured error report; non-JSON commands print a plain error message.
 If `--output` is passed multiple times, the last value is used.
 Empty or whitespace-only split/inline output values (for example `--output ""`, `--output "   "`, `--output=`, or `--output=   `) are treated as missing values.
 Unsupported CLI flags return structured errors and include `unknownOptions`, `unknownOptionCount`, `supportedCliOptions`, `supportedCliOptionCount`, and `validationErrorCode`.

@@ -758,6 +758,13 @@ describe("root preflight scripts", () => {
     );
   });
 
+  it("check-wasm-pack non-json mode fails on missing output value", () => {
+    const result = runScript("check-wasm-pack.mjs", ["--output"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("Missing value for --output option.");
+  });
+
   it("check-wasm-pack json mode reports output write failures with details", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-wasm-pack-output-write-failure-")
@@ -1221,6 +1228,13 @@ describe("root preflight scripts", () => {
     expect(result.output).toContain(
       "Unsupported option(s): --mystery. Supported options: --compact, --json, --output, --quiet."
     );
+  });
+
+  it("check-dev-env non-json mode fails on missing output value", () => {
+    const result = runScript("check-dev-env.mjs", ["--output"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("Missing value for --output option.");
   });
 
   it("check-dev-env json mode fails when last output flag value is missing", () => {
@@ -1844,6 +1858,13 @@ describe("root preflight scripts", () => {
     expect(result.output).toContain(
       "Unsupported option(s): --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
     );
+  });
+
+  it("check-client non-json mode fails on missing output value", () => {
+    const result = runScript("check-client.mjs", ["--output"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("Missing value for --output option.");
   });
 
   it("check-client json no-build mode reports skipped build intent", () => {
@@ -2509,6 +2530,13 @@ describe("root preflight scripts", () => {
     expect(result.output).toContain(
       "Unsupported option(s): --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
     );
+  });
+
+  it("check-onboarding non-json mode fails on missing output value", () => {
+    const result = runScript("check-onboarding.mjs", ["--output"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("Missing value for --output option.");
   });
 
   it("check-onboarding json no-build mode propagates option", () => {

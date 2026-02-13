@@ -105,6 +105,11 @@ if (isJson && (outputPathError !== null || unsupportedOptionsError !== null)) {
   process.exit(1);
 }
 
+if (!isJson && outputPathError !== null) {
+  console.error(outputPathError);
+  process.exit(1);
+}
+
 if (!isJson && unsupportedOptionsError !== null) {
   console.error(unsupportedOptionsError);
   process.exit(1);

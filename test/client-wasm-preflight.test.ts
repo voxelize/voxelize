@@ -902,4 +902,16 @@ describe("client wasm preflight script", () => {
       "Unsupported option(s): --mystery. Supported options: --compact, --json, --no-build, --output, --verify."
     );
   });
+
+  it("fails in non-json mode for missing output values", () => {
+    const result = spawnSync(process.execPath, [wasmMesherScript, "--output"], {
+      cwd: rootDir,
+      encoding: "utf8",
+      shell: false,
+    });
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output).toContain("Missing value for --output option.");
+  });
 });
