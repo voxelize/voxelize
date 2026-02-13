@@ -6267,7 +6267,12 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
 
         chunk.isDirty = true;
-        this.markChunkForRemeshLevels(coords, minLevel, maxLevel);
+        this.markChunkForRemeshLevelsAt(
+          coords[0],
+          coords[1],
+          minLevel,
+          maxLevel
+        );
       }
     }
   }
@@ -6364,7 +6369,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     for (const [cx, zSet] of affectedChunks) {
       for (const cz of zSet) {
-        this.markChunkForRemesh([cx, cz]);
+        this.markChunkForRemeshAt(cx, cz);
       }
     }
   }
@@ -6797,8 +6802,12 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private markChunkForRemesh(coords: Coords2) {
+    this.markChunkForRemeshAt(coords[0], coords[1]);
+  }
+
+  private markChunkForRemeshAt(cx: number, cz: number) {
     const { subChunks } = this.options;
-    this.markChunkForRemeshLevels(coords, 0, subChunks - 1);
+    this.markChunkForRemeshLevelsAt(cx, cz, 0, subChunks - 1);
   }
 
   private markChunkForRemeshLevels(
@@ -6806,8 +6815,22 @@ export class World<T = any> extends Scene implements NetIntercept {
     minLevel: number,
     maxLevel: number
   ) {
+    this.markChunkForRemeshLevelsAt(
+      coords[0],
+      coords[1],
+      minLevel,
+      maxLevel
+    );
+  }
+
+  private markChunkForRemeshLevelsAt(
+    cx: number,
+    cz: number,
+    minLevel: number,
+    maxLevel: number
+  ) {
     for (let level = minLevel; level <= maxLevel; level++) {
-      this.meshPipeline.onVoxelChange(coords[0], coords[1], level);
+      this.meshPipeline.onVoxelChange(cx, cz, level);
     }
   }
 
