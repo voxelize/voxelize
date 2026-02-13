@@ -338,11 +338,23 @@ export class MeshPipeline {
     this.dirty.delete(key);
   }
 
-  getDirtyKeys(): string[] {
-    const dirtyKeys = new Array<string>(this.dirty.size);
+  getDirtyKeys(maxCount = Number.POSITIVE_INFINITY): string[] {
+    if (maxCount <= 0) {
+      return [];
+    }
+
+    const dirtyKeys = new Array<string>(
+      Number.isFinite(maxCount)
+        ? Math.min(this.dirty.size, maxCount)
+        : this.dirty.size
+    );
     let dirtyCount = 0;
 
     for (const key of this.dirty) {
+      if (dirtyCount >= maxCount) {
+        break;
+      }
+
       const state = this.states.get(key);
       if (!state) {
         continue;

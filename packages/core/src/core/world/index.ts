@@ -5725,11 +5725,11 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private processDirtyChunks = async () => {
-    const dirtyKeys = this.meshPipeline.getDirtyKeys();
+    const maxConcurrentMeshJobs = this.options.maxMeshesPerUpdate || 8;
+    const dirtyKeys = this.meshPipeline.getDirtyKeys(maxConcurrentMeshJobs);
     if (dirtyKeys.length === 0) return;
 
-    const maxConcurrentMeshJobs = this.options.maxMeshesPerUpdate || 8;
-    const processCount = Math.min(dirtyKeys.length, maxConcurrentMeshJobs);
+    const processCount = dirtyKeys.length;
     const workerPromises = new Array<
       Promise<{
         cx: number;
