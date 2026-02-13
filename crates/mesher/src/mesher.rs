@@ -992,62 +992,61 @@ fn create_fluid_faces<S: VoxelAccess>(
     registry: &Registry,
 ) -> [BlockFace; 6] {
     let self_height = get_fluid_effective_height(extract_stage(space.get_raw_voxel(vx, vy, vz)));
-    let h_nxnz =
-        calculate_fluid_corner_height(
-            vx,
-            vy,
-            vz,
-            self_height,
-            0,
-            0,
-            &FLUID_CORNER_NXNZ,
-            fluid_id,
-            space,
-            registry,
+    let (h_nxnz, h_pxnz, h_nxpz, h_pxpz) = if has_fluid_above(vx, vy, vz, fluid_id, space) {
+        let h_top = 1.0 - FLUID_SURFACE_OFFSET;
+        (h_top, h_top, h_top, h_top)
+    } else {
+        (
+            calculate_fluid_corner_height(
+                vx,
+                vy,
+                vz,
+                self_height,
+                0,
+                0,
+                &FLUID_CORNER_NXNZ,
+                fluid_id,
+                space,
+                registry,
+            ) - FLUID_SURFACE_OFFSET,
+            calculate_fluid_corner_height(
+                vx,
+                vy,
+                vz,
+                self_height,
+                1,
+                0,
+                &FLUID_CORNER_PXNZ,
+                fluid_id,
+                space,
+                registry,
+            ) - FLUID_SURFACE_OFFSET,
+            calculate_fluid_corner_height(
+                vx,
+                vy,
+                vz,
+                self_height,
+                0,
+                1,
+                &FLUID_CORNER_NXPZ,
+                fluid_id,
+                space,
+                registry,
+            ) - FLUID_SURFACE_OFFSET,
+            calculate_fluid_corner_height(
+                vx,
+                vy,
+                vz,
+                self_height,
+                1,
+                1,
+                &FLUID_CORNER_PXPZ,
+                fluid_id,
+                space,
+                registry,
+            ) - FLUID_SURFACE_OFFSET,
         )
-            - FLUID_SURFACE_OFFSET;
-    let h_pxnz =
-        calculate_fluid_corner_height(
-            vx,
-            vy,
-            vz,
-            self_height,
-            1,
-            0,
-            &FLUID_CORNER_PXNZ,
-            fluid_id,
-            space,
-            registry,
-        )
-            - FLUID_SURFACE_OFFSET;
-    let h_nxpz =
-        calculate_fluid_corner_height(
-            vx,
-            vy,
-            vz,
-            self_height,
-            0,
-            1,
-            &FLUID_CORNER_NXPZ,
-            fluid_id,
-            space,
-            registry,
-        )
-            - FLUID_SURFACE_OFFSET;
-    let h_pxpz =
-        calculate_fluid_corner_height(
-            vx,
-            vy,
-            vz,
-            self_height,
-            1,
-            1,
-            &FLUID_CORNER_PXPZ,
-            fluid_id,
-            space,
-            registry,
-        )
-            - FLUID_SURFACE_OFFSET;
+    };
 
     let fallback_uvs;
     let standard_uvs = if let Some(uvs) = block.fluid_face_uvs.as_ref() {
