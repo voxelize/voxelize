@@ -53,6 +53,7 @@ const availableCheckAliases = {
   wasmPack: ["wasmPack", "wasm", "wasm-pack", "wasm_pack", "wasmpack"],
   client: ["client"],
 };
+const ALL_CHECKS_ALIAS = "all";
 const normalizeCheckToken = (value) => {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
 };
@@ -102,7 +103,13 @@ const parseSelectedChecks = () => {
 
   const invalidChecks = [];
   const resolvedChecks = [];
+  const normalizedAllChecksAlias = normalizeCheckToken(ALL_CHECKS_ALIAS);
   for (const parsedCheck of parsedChecks) {
+    if (normalizeCheckToken(parsedCheck) === normalizedAllChecksAlias) {
+      resolvedChecks.push(...availableCheckNames);
+      continue;
+    }
+
     const resolvedCheck = checkAliases.get(normalizeCheckToken(parsedCheck)) ?? null;
     if (resolvedCheck === null) {
       invalidChecks.push(parsedCheck);
