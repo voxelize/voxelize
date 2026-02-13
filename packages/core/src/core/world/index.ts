@@ -2757,6 +2757,20 @@ export class World<T = any> extends Scene implements NetIntercept {
   private applyServerUpdatesImmediately(updates: UpdateProtocol[]) {
     const blockUpdates = new Array<BlockUpdateWithSource>(updates.length);
     let blockUpdateCount = 0;
+    let blockCache: Map<number, Block> | null = null;
+    const getCachedBlock = (id: number) => {
+      if (!blockCache) {
+        blockCache = new Map();
+      }
+
+      let block = blockCache.get(id);
+      if (!block) {
+        block = this.getBlockById(id);
+        blockCache.set(id, block);
+      }
+
+      return block;
+    };
 
     for (const update of updates) {
       const { vx, vy, vz, voxel } = update;
@@ -2774,8 +2788,13 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       const type = BlockUtils.extractID(voxel);
-      const rotation = BlockUtils.extractRotation(voxel);
-      const [rotationValue, yRotationValue] = BlockRotation.decode(rotation);
+      const block = getCachedBlock(type);
+      let rotationValue = PY_ROTATION;
+      let yRotationValue = 0;
+      if (block.rotatable || block.yRotatable) {
+        const rotation = BlockUtils.extractRotation(voxel);
+        [rotationValue, yRotationValue] = BlockRotation.decode(rotation);
+      }
       const stage = BlockUtils.extractStage(voxel);
 
       blockUpdates[blockUpdateCount] = {
