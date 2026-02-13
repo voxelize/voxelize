@@ -22,7 +22,7 @@ custom_edit_url: null
 
 | Name | Type |
 | :------ | :------ |
-| `options` | `Partial`\<[`HudOptions`](../modules.md#hudoptions)\> |
+| `options` | `Partial`\<`HudOptions`\> |
 
 #### Returns
 
@@ -36,7 +36,7 @@ THREE.Group.constructor
 
 ### options
 
-• **options**: [`HudOptions`](../modules.md#hudoptions)
+• **options**: `HudOptions`
 
 ## Methods
 
@@ -52,7 +52,7 @@ unbinds the HUD's keyboard inputs.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `inputs` | [`Inputs`](Inputs.md)\<`any`\> | `undefined` | The [Inputs](Inputs.md) instance to bind the HUD's keyboard inputs to. |
+| `inputs` | [`Inputs`](Inputs.md) | `undefined` | The [Inputs](Inputs.md) instance to bind the HUD's keyboard inputs to. |
 | `namespace` | `string` | `"*"` | The namespace to bind the HUD's keyboard inputs to. |
 
 #### Returns
