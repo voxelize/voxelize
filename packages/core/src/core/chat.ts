@@ -330,10 +330,15 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
     if (error instanceof ZodError) {
       const errorLines: string[] = [];
+      const argMetadataByName = new Map<string, ArgMetadata>();
+      for (let argIndex = 0; argIndex < argMetadata.length; argIndex++) {
+        const arg = argMetadata[argIndex];
+        argMetadataByName.set(arg.name, arg);
+      }
 
       for (const issue of error.issues) {
         const fieldName = String(issue.path[0] ?? "argument");
-        const argMeta = argMetadata.find((a) => a.name === fieldName);
+        const argMeta = argMetadataByName.get(fieldName);
 
         if (argMeta?.type === "enum" && argMeta.options) {
           const options = argMeta.options;
@@ -344,10 +349,20 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
               )}`
             );
           } else {
+            let preview = "";
+            const previewCount = 5;
+            for (
+              let optionIndex = 0;
+              optionIndex < previewCount && optionIndex < options.length;
+              optionIndex++
+            ) {
+              if (optionIndex > 0) {
+                preview += ", ";
+              }
+              preview += options[optionIndex];
+            }
             errorLines.push(
-              `$#FF6B6B$Invalid ${fieldName}. Valid: $white$${options
-                .slice(0, 5)
-                .join(", ")}$#FF6B6B$ (+${options.length - 5} more)`
+              `$#FF6B6B$Invalid ${fieldName}. Valid: $white$${preview}$#FF6B6B$ (+${options.length - 5} more)`
             );
           }
         } else if (argMeta?.required && issue.message.includes("Required")) {
