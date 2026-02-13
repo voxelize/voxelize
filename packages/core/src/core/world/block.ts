@@ -512,29 +512,83 @@ export class BlockRotation {
     this.rotateNode(positive as Coords3, true, false);
     this.rotateNode(negative as Coords3, true, false);
 
-    const p = positive.map((n) => {
-      if (n === 1.0) return px;
-      if (n === 2.0) return py;
-      if (n === 3.0) return pz;
-      if (n === 4.0) return nx;
-      if (n === 5.0) return ny;
-      return nz;
-    });
-
-    const n = negative.map((n) => {
-      if (n === 1.0) return px;
-      if (n === 2.0) return py;
-      if (n === 3.0) return pz;
-      if (n === 4.0) return nx;
-      if (n === 5.0) return ny;
-      return nz;
-    });
-
-    return [p[0], p[1], p[2], n[0], n[1], n[2]];
+    return [
+      BlockRotation.resolveTransparencyFlag(
+        positive[0],
+        px,
+        py,
+        pz,
+        nx,
+        ny,
+        nz
+      ),
+      BlockRotation.resolveTransparencyFlag(
+        positive[1],
+        px,
+        py,
+        pz,
+        nx,
+        ny,
+        nz
+      ),
+      BlockRotation.resolveTransparencyFlag(
+        positive[2],
+        px,
+        py,
+        pz,
+        nx,
+        ny,
+        nz
+      ),
+      BlockRotation.resolveTransparencyFlag(
+        negative[0],
+        px,
+        py,
+        pz,
+        nx,
+        ny,
+        nz
+      ),
+      BlockRotation.resolveTransparencyFlag(
+        negative[1],
+        px,
+        py,
+        pz,
+        nx,
+        ny,
+        nz
+      ),
+      BlockRotation.resolveTransparencyFlag(
+        negative[2],
+        px,
+        py,
+        pz,
+        nx,
+        ny,
+        nz
+      ),
+    ];
   }
 
   // Reference:
   // https://www.khanacademy.org/computer-programming/cube-rotated-around-x-y-and-z/4930679668473856
+
+  private static resolveTransparencyFlag(
+    value: number,
+    px: boolean,
+    py: boolean,
+    pz: boolean,
+    nx: boolean,
+    ny: boolean,
+    nz: boolean
+  ) {
+    if (value === 1.0) return px;
+    if (value === 2.0) return py;
+    if (value === 3.0) return pz;
+    if (value === 4.0) return nx;
+    if (value === 5.0) return ny;
+    return nz;
+  }
 
   /**
    * Rotate a 3D coordinate around the X axis.
