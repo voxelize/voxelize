@@ -1529,6 +1529,13 @@ describe("preflight aggregate report", () => {
     expect(report.supportedCliOptionCount).toBe(
       report.supportedCliOptions.length
     );
+    expect(report.activeCliOptions).toEqual([]);
+    expect(report.activeCliOptionCount).toBe(0);
+    expect(report.activeCliOptionTokens).toEqual([]);
+    expect(report.activeCliOptionResolutions).toEqual([]);
+    expect(report.activeCliOptionResolutionCount).toBe(0);
+    expect(report.activeCliOptionOccurrences).toEqual([]);
+    expect(report.activeCliOptionOccurrenceCount).toBe(0);
     expect(report.unknownOptionCount).toBe(2);
     expect(report.unknownOptions).toEqual(["--json=<value>", "--mystery"]);
     expect(report.message).toBe(
@@ -1555,6 +1562,13 @@ describe("preflight aggregate report", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.activeCliOptions).toEqual([]);
+    expect(report.activeCliOptionCount).toBe(0);
+    expect(report.activeCliOptionTokens).toEqual([]);
+    expect(report.activeCliOptionResolutions).toEqual([]);
+    expect(report.activeCliOptionResolutionCount).toBe(0);
+    expect(report.activeCliOptionOccurrences).toEqual([]);
+    expect(report.activeCliOptionOccurrenceCount).toBe(0);
     expect(report.unknownOptionCount).toBe(2);
     expect(report.unknownOptions).toEqual(["--json=<value>", "--mystery"]);
     expect(report.message).toBe(
@@ -1590,6 +1604,13 @@ describe("preflight aggregate report", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.activeCliOptions).toEqual([]);
+    expect(report.activeCliOptionCount).toBe(0);
+    expect(report.activeCliOptionTokens).toEqual([]);
+    expect(report.activeCliOptionResolutions).toEqual([]);
+    expect(report.activeCliOptionResolutionCount).toBe(0);
+    expect(report.activeCliOptionOccurrences).toEqual([]);
+    expect(report.activeCliOptionOccurrenceCount).toBe(0);
     expect(report.unknownOptionCount).toBe(3);
     expect(report.unknownOptions).toEqual([
       "--no-build=<value>",
@@ -1634,6 +1655,13 @@ describe("preflight aggregate report", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.activeCliOptions).toEqual([]);
+    expect(report.activeCliOptionCount).toBe(0);
+    expect(report.activeCliOptionTokens).toEqual([]);
+    expect(report.activeCliOptionResolutions).toEqual([]);
+    expect(report.activeCliOptionResolutionCount).toBe(0);
+    expect(report.activeCliOptionOccurrences).toEqual([]);
+    expect(report.activeCliOptionOccurrenceCount).toBe(0);
     expect(report.unknownOptionCount).toBe(3);
     expect(report.unknownOptions).toEqual([
       "--no-build=<value>",
@@ -1674,6 +1702,13 @@ describe("preflight aggregate report", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.activeCliOptions).toEqual([]);
+    expect(report.activeCliOptionCount).toBe(0);
+    expect(report.activeCliOptionTokens).toEqual([]);
+    expect(report.activeCliOptionResolutions).toEqual([]);
+    expect(report.activeCliOptionResolutionCount).toBe(0);
+    expect(report.activeCliOptionOccurrences).toEqual([]);
+    expect(report.activeCliOptionOccurrenceCount).toBe(0);
     expect(report.unknownOptionCount).toBe(2);
     expect(report.unknownOptions).toEqual(["--=<value>", "-=<value>"]);
     expect(report.message).toBe(

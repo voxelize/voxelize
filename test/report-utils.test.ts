@@ -1402,6 +1402,38 @@ describe("report-utils", () => {
     expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(1);
   });
 
+  it("excludes inline misuse tokens from active option metadata", () => {
+    const activeMetadata = parseActiveCliOptionMetadata(
+      ["--json=1", "--verify=2", "--output=./report.json"],
+      {
+        canonicalOptions: ["--json", "--no-build", "--output"],
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+        optionsWithValues: ["--output"],
+      }
+    );
+
+    expect(activeMetadata.activeCliOptions).toEqual(["--output"]);
+    expect(activeMetadata.activeCliOptionCount).toBe(1);
+    expect(activeMetadata.activeCliOptionTokens).toEqual(["--output=./report.json"]);
+    expect(activeMetadata.activeCliOptionResolutions).toEqual([
+      {
+        token: "--output=./report.json",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionResolutionCount).toBe(1);
+    expect(activeMetadata.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--output=./report.json",
+        canonicalOption: "--output",
+        index: 2,
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(1);
+  });
+
   it("skips alias-shaped value tokens for canonical options that consume values", () => {
     const activeMetadata = parseActiveCliOptionMetadata(["--report-path", "-j"], {
       canonicalOptions: ["--json"],
