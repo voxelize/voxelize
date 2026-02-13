@@ -130,6 +130,7 @@ export class Arm extends THREE.Group {
   private currentArmObject: THREE.Object3D | null = null;
 
   private heldObjectShadowUniforms: EntityShadowUniforms[] = [];
+  private shadowTraversalStack: THREE.Object3D[] = [];
 
   emitSwingEvent: () => void;
 
@@ -159,17 +160,22 @@ export class Arm extends THREE.Group {
     );
 
     this.customSwingClips = {};
-    for (const [type, options] of Object.entries(
-      this.options.customObjectOptions || {}
-    )) {
-      this.customSwingClips[type] = AnimationUtils.generateClip(
-        `customSwing-${type}`,
-        options.swingTimes ?? SWING_TIMES,
-        options.position,
-        options.quaternion,
-        options.swingPositions ?? generateSwingPositions(options.position),
-        options.swingQuaternions ?? SWING_QUATERNIONS
-      );
+    const customObjectOptions = this.options.customObjectOptions;
+    if (customObjectOptions) {
+      for (const type in customObjectOptions) {
+        if (!Object.prototype.hasOwnProperty.call(customObjectOptions, type)) {
+          continue;
+        }
+        const options = customObjectOptions[type];
+        this.customSwingClips[type] = AnimationUtils.generateClip(
+          `customSwing-${type}`,
+          options.swingTimes ?? SWING_TIMES,
+          options.position,
+          options.quaternion,
+          options.swingPositions ?? generateSwingPositions(options.position),
+          options.swingQuaternions ?? SWING_QUATERNIONS
+        );
+      }
     }
 
     if (this.options.receiveShadows) {
@@ -186,8 +192,16 @@ export class Arm extends THREE.Group {
     if (!this.options.receiveShadows) return;
 
     const minDepth = this.options.minOccluderDepth ?? 0.0;
+    const shadowTraversalStack = this.shadowTraversalStack;
+    shadowTraversalStack.length = 0;
+    shadowTraversalStack.push(this);
 
-    this.traverse((child) => {
+    while (shadowTraversalStack.length > 0) {
+      const child = shadowTraversalStack.pop();
+      if (!child) {
+        continue;
+      }
+
       if (child instanceof CanvasBox && child.shadowUniforms) {
         updateEntityShadowUniforms(child.shadowUniforms, lightingUniforms);
         child.shadowUniforms.uMinOccluderDepth.value = minDepth;
@@ -195,9 +209,19 @@ export class Arm extends THREE.Group {
           child.shadowUniforms.uWorldOffset.value.copy(playerWorldPosition);
         }
       }
-    });
 
-    for (const uniforms of this.heldObjectShadowUniforms) {
+      const children = child.children;
+      for (let childIndex = 0; childIndex < children.length; childIndex++) {
+        shadowTraversalStack.push(children[childIndex]);
+      }
+    }
+
+    for (
+      let uniformsIndex = 0;
+      uniformsIndex < this.heldObjectShadowUniforms.length;
+      uniformsIndex++
+    ) {
+      const uniforms = this.heldObjectShadowUniforms[uniformsIndex];
       updateEntityShadowUniforms(uniforms, lightingUniforms);
       uniforms.uMinOccluderDepth.value = minDepth;
       if (playerWorldPosition) {
