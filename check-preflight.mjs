@@ -49,8 +49,10 @@ const checkAliases = new Map([
     normalizeCheckToken(checkName),
     checkName,
   ]),
+  ["dev", "devEnvironment"],
   ["devenv", "devEnvironment"],
   ["devenvironment", "devEnvironment"],
+  ["wasm", "wasmPack"],
   ["wasmpack", "wasmPack"],
 ]);
 
