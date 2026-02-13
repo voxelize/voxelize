@@ -421,6 +421,7 @@ impl Registry {
             .map(|block| block.id)
             .collect::<HashSet<u32>>();
         let mut prepared_blocks = Vec::with_capacity(blocks.len());
+        let mut next_available = 1;
 
         for block in blocks {
             let mut block = block.to_owned();
@@ -432,7 +433,6 @@ impl Registry {
             }
 
             if block.id == 0 {
-                let mut next_available = 1;
                 while occupied_ids.contains(&next_available)
                     || reserved_explicit_ids.contains(&next_available)
                 {
@@ -446,6 +446,9 @@ impl Registry {
             if let Some(existing_id) = existing_id_for_name {
                 occupied_ids.remove(&existing_id);
                 id_to_name.remove(&existing_id);
+                if existing_id < next_available {
+                    next_available = existing_id;
+                }
             }
 
             if let Some(existing_name) = id_to_name.get(&block.id).cloned() {
@@ -455,6 +458,13 @@ impl Registry {
             occupied_ids.insert(block.id);
             id_to_name.insert(block.id, lower_name.clone());
             name_to_id.insert(lower_name, block.id);
+            if block.id == next_available {
+                while occupied_ids.contains(&next_available)
+                    || reserved_explicit_ids.contains(&next_available)
+                {
+                    next_available += 1;
+                }
+            }
             prepared_blocks.push(block);
         }
 

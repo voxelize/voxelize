@@ -480,6 +480,26 @@ fn test_register_blocks_auto_id_reflects_ids_freed_by_earlier_updates() {
 }
 
 #[test]
+fn test_register_blocks_auto_id_reuses_lower_id_freed_after_auto_assignment() {
+    let mut registry = create_test_registry();
+
+    registry.register_blocks(&[
+        Block::new("auto-a").is_passable(true).build(),
+        Block::new("auto-b").is_passable(true).build(),
+        Block::new("auto-b").id(6).build(),
+        Block::new("auto-c").is_passable(true).build(),
+    ]);
+
+    assert_eq!(registry.get_block_by_name("auto-a").id, 3);
+    assert_eq!(registry.get_block_by_name("auto-b").id, 6);
+    assert_eq!(
+        registry.get_block_by_name("auto-c").id,
+        4,
+        "auto-id assignment should track lower ids freed by prior same-name remaps"
+    );
+}
+
+#[test]
 fn test_register_blocks_same_name_overwrite_keeps_latest_id_only() {
     let mut registry = create_test_registry();
 
