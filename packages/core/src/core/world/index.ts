@@ -990,17 +990,22 @@ export class World<T = any> extends Scene implements NetIntercept {
       return null;
     }
 
+    const centerChunk = this.getLoadedChunkByCoords(cx, cz);
+    if (!centerChunk) {
+      return null;
+    }
+
     const chunks: (Chunk | undefined)[] = new Array(
       CHUNK_NEIGHBOR_OFFSETS.length
     );
+    chunks[4] = centerChunk;
     for (let i = 0; i < CHUNK_NEIGHBOR_OFFSETS.length; i++) {
+      if (i === 4) {
+        continue;
+      }
+
       const offset = CHUNK_NEIGHBOR_OFFSETS[i];
       chunks[i] = this.getLoadedChunkByCoords(cx + offset[0], cz + offset[1]);
-    }
-
-    const centerChunk = chunks[4];
-    if (!centerChunk) {
-      return null;
     }
 
     const { min, max } = centerChunk;
