@@ -2931,8 +2931,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         const nvx = vx + ox;
         const nvz = vz + oz;
-
-        const [ncx, ncz] = ChunkUtils.mapVoxelToChunkAt(nvx, nvz, chunkSize);
+        const ncx = Math.floor(nvx / chunkSize);
+        const ncz = Math.floor(nvz / chunkSize);
 
         if (
           ncx < startCX ||
@@ -3043,7 +3043,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         const nvx = vx + ox;
         const nvz = vz + oz;
-        const [ncx, ncz] = ChunkUtils.mapVoxelToChunkAt(nvx, nvz, chunkSize);
+        const ncx = Math.floor(nvx / chunkSize);
+        const ncz = Math.floor(nvz / chunkSize);
 
         if (
           ncx < minChunk[0] ||
@@ -6605,7 +6606,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     const ivx = vx | 0;
     const ivy = vy | 0;
     const ivz = vz | 0;
-    const [cx, cz] = ChunkUtils.mapVoxelToChunkAt(ivx, ivz, chunkSize);
+    const cx = Math.floor(ivx / chunkSize);
+    const cz = Math.floor(ivz / chunkSize);
     const lcx = ivx - cx * chunkSize;
     const lcz = ivz - cz * chunkSize;
 
