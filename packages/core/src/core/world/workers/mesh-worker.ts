@@ -247,6 +247,7 @@ const processMeshMessage = (message: MeshBatchMessage) => {
   const { chunkSize, greedyMeshing = true } = message.options;
 
   const chunks: (ChunkData | null)[] = new Array(chunksData.length);
+  let hasAnyChunk = false;
   for (let i = 0; i < chunksData.length; i++) {
     const chunkData = chunksData[i];
     if (!chunkData) {
@@ -254,6 +255,7 @@ const processMeshMessage = (message: MeshBatchMessage) => {
       continue;
     }
 
+    hasAnyChunk = true;
     const { x, z, voxels, lights, options } = chunkData;
     const { size, maxHeight } = options;
 
@@ -263,6 +265,11 @@ const processMeshMessage = (message: MeshBatchMessage) => {
       shape: [size, maxHeight, size],
       min: [x * size, 0, z * size],
     };
+  }
+
+  if (!hasAnyChunk) {
+    postEmptyMeshResult();
+    return;
   }
 
   minArray[0] = min[0];
