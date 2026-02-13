@@ -3475,7 +3475,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     >();
 
-    faces.forEach((face, index) => {
+    for (let index = 0; index < faces.length; index++) {
+      const face = faces[index];
       const faceScale = crumbs && separateFaces ? Math.random() + 0.5 : 1;
 
       const { corners, name, range } = face;
@@ -3516,6 +3517,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       const { positions, uvs, indices } = geometry;
+      const positionOffset = centered ? 0.5 : 0;
 
       const ndx = Math.floor(positions.length / 3);
       let { startU, endU, startV, endV } = range;
@@ -3530,23 +3532,30 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
       }
 
-      corners.forEach(({ uv, pos }) => {
-        const offset = centered ? 0.5 : 0;
-        positions.push(...pos.map((p) => p * faceScale - offset));
+      for (let cornerIndex = 0; cornerIndex < corners.length; cornerIndex++) {
+        const corner = corners[cornerIndex];
+        const uv = corner.uv;
+        const pos = corner.pos;
+        positions.push(
+          pos[0] * faceScale - positionOffset,
+          pos[1] * faceScale - positionOffset,
+          pos[2] * faceScale - positionOffset
+        );
         uvs.push(
           uv[0] * (endU - startU) + startU,
           uv[1] * (endV - startV) + startV
         );
-      });
+      }
 
       indices.push(ndx, ndx + 1, ndx + 2, ndx + 2, ndx + 1, ndx + 3);
 
       geometries.set(identifier, geometry);
-    });
+    }
 
     const group = new Group();
 
-    geometries.forEach(({ identifier, positions, uvs, indices, material }) => {
+    for (const geometryData of geometries.values()) {
+      const { identifier, positions, uvs, indices, material } = geometryData;
       const geometry = new BufferGeometry();
       geometry.setAttribute(
         "position",
@@ -3559,7 +3568,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       const mesh = new Mesh(geometry, material);
       mesh.name = identifier;
       group.add(mesh);
-    });
+    }
 
     group.name = block.name;
 
