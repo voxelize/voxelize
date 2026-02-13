@@ -327,6 +327,8 @@ const VOXEL_NEIGHBORS = [
   [0, -1, 0],
 ];
 
+const LIGHT_COLORS: LightColor[] = ["SUNLIGHT", "RED", "GREEN", "BLUE"];
+
 /**
  * Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture. Keep in mind that
  * if you want to change its map, you also have to change its `uniforms.map`.
@@ -5845,8 +5847,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private executeLightOperationsSyncAll(lightOps: LightOperations) {
-    const colors: LightColor[] = ["SUNLIGHT", "RED", "GREEN", "BLUE"];
-    colors.forEach((color) => {
+    for (const color of LIGHT_COLORS) {
       const key = color.toLowerCase() as "sunlight" | "red" | "green" | "blue";
       const removals = lightOps.removals[key];
       const floods = lightOps.floods[key];
@@ -5854,7 +5855,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       if (removals.length > 0 || floods.length > 0) {
         this.executeLightOperationsSync({ removals, floods }, color);
       }
-    });
+    }
   }
 
   /**
