@@ -100,11 +100,15 @@ const { selectedChecks, error: selectedChecksError } = parseSelectedChecks();
 const runCheck = (name, scriptName, extraArgs = []) => {
   const checkStartMs = Date.now();
   const scriptPath = path.resolve(__dirname, scriptName);
-  const result = spawnSync(process.execPath, [scriptPath, "--json", ...extraArgs], {
-    cwd: __dirname,
-    encoding: "utf8",
-    shell: false,
-  });
+  const result = spawnSync(
+    process.execPath,
+    [scriptPath, "--json", "--compact", ...extraArgs],
+    {
+      cwd: __dirname,
+      encoding: "utf8",
+      shell: false,
+    }
+  );
 
   const exitCode = result.status ?? 1;
   const output = `${result.stdout}${result.stderr}`.trim();

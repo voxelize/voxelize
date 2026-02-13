@@ -68,7 +68,7 @@ const runStep = (name, scriptPath, extraArgs = []) => {
   }
 
   const scriptArgs = isJson
-    ? [scriptPath, "--json", ...extraArgs]
+    ? [scriptPath, "--json", "--compact", ...extraArgs]
     : isQuiet
       ? [scriptPath, "--quiet", ...extraArgs]
       : [scriptPath, ...extraArgs];

@@ -118,7 +118,7 @@ if (isNoBuild) {
 }
 
 const wasmPackCheck = isJson
-  ? spawnSync(process.execPath, [rootWasmCheckScript, "--json"], {
+  ? spawnSync(process.execPath, [rootWasmCheckScript, "--json", "--compact"], {
       encoding: "utf8",
       shell: false,
     })

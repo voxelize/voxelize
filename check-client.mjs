@@ -115,7 +115,7 @@ const wasmPreflightPassed = runStep(
   process.execPath,
   [
     path.resolve(__dirname, "./examples/client/scripts/check-wasm-mesher.mjs"),
-    ...(isJson ? ["--json"] : []),
+    ...(isJson ? ["--json", "--compact"] : []),
     ...(isNoBuild ? ["--no-build"] : []),
   ]
 );
