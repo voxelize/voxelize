@@ -3978,12 +3978,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       const voxelCoords: Coords3 = [vx, vy, vz];
 
       const data: T | null = metadata.json ?? null;
-
-      const originalData = this.blockEntitiesMap.get(voxelId) ?? null;
       const cx = Math.floor(vx / chunkSize);
       const cz = Math.floor(vz / chunkSize);
       const chunkName = ChunkUtils.getChunkNameAt(cx, cz);
       if (this.blockEntityUpdateListeners.size > 0) {
+        const originalData = this.blockEntitiesMap.get(voxelId) ?? null;
         const chunk = this.chunkPipeline.getLoadedChunk(chunkName);
         let chunkCoords: Coords2 | null = null;
         const shouldDeferUpdate =
