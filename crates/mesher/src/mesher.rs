@@ -3250,12 +3250,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         }
                         continue;
                     }
-                    let has_independent_or_isolated_faces = if cache_ready {
-                        block.has_independent_or_isolated_faces
-                    } else {
-                        block.has_independent_or_isolated_faces_cached()
-                    };
-
                     let face_index = block.greedy_face_indices[dir_index];
                     if face_index == -1 {
                         continue;
@@ -3276,6 +3270,12 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     if !should_render {
                         continue;
                     }
+
+                    let has_independent_or_isolated_faces = if cache_ready {
+                        block.has_independent_or_isolated_faces
+                    } else {
+                        block.has_independent_or_isolated_faces_cached()
+                    };
 
                     if face_index >= 0 && !has_independent_or_isolated_faces {
                         if let Some(face) = block.faces.get(face_index as usize) {
