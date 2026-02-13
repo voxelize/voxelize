@@ -5402,6 +5402,16 @@ export class World<T = any> extends Scene implements NetIntercept {
     lightOps: LightOperations,
     startSequenceId: number
   ) {
+    const { maxLightLevel, chunkSize, minChunk, maxChunk, maxHeight } =
+      this.options;
+    const boundsConfig = {
+      maxLightLevel,
+      minVoxelX: minChunk[0] * chunkSize,
+      minVoxelZ: minChunk[1] * chunkSize,
+      maxVoxelX: (maxChunk[0] + 1) * chunkSize - 1,
+      maxVoxelZ: (maxChunk[1] + 1) * chunkSize - 1,
+      maxHeight,
+    };
     const batchId = this.lightBatchIdCounter++;
     const jobsForBatch: LightJob[] = [];
 
@@ -5410,7 +5420,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       lightOps.removals.sunlight,
       lightOps.floods.sunlight,
       startSequenceId,
-      batchId
+      batchId,
+      boundsConfig
     );
     if (sunlightJob) {
       jobsForBatch.push(sunlightJob);
@@ -5421,7 +5432,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       lightOps.removals.red,
       lightOps.floods.red,
       startSequenceId,
-      batchId
+      batchId,
+      boundsConfig
     );
     if (redJob) {
       jobsForBatch.push(redJob);
@@ -5432,7 +5444,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       lightOps.removals.green,
       lightOps.floods.green,
       startSequenceId,
-      batchId
+      batchId,
+      boundsConfig
     );
     if (greenJob) {
       jobsForBatch.push(greenJob);
@@ -5443,7 +5456,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       lightOps.removals.blue,
       lightOps.floods.blue,
       startSequenceId,
-      batchId
+      batchId,
+      boundsConfig
     );
     if (blueJob) {
       jobsForBatch.push(blueJob);
@@ -5460,7 +5474,15 @@ export class World<T = any> extends Scene implements NetIntercept {
     removals: Coords3[],
     floods: LightNode[],
     startSequenceId: number,
-    batchId: number
+    batchId: number,
+    boundsConfig: {
+      maxLightLevel: number;
+      minVoxelX: number;
+      minVoxelZ: number;
+      maxVoxelX: number;
+      maxVoxelZ: number;
+      maxHeight: number;
+    }
   ): LightJob | null {
     if (removals.length === 0 && floods.length === 0) {
       return null;
@@ -5493,18 +5515,24 @@ export class World<T = any> extends Scene implements NetIntercept {
       maxZ = Math.max(maxZ, z);
     }
 
-    const { maxLightLevel, chunkSize, minChunk, maxChunk, maxHeight } =
-      this.options;
+    const {
+      maxLightLevel,
+      minVoxelX,
+      minVoxelZ,
+      maxVoxelX,
+      maxVoxelZ,
+      maxHeight,
+    } = boundsConfig;
 
     minX -= maxLightLevel;
     minZ -= maxLightLevel;
     maxX += maxLightLevel;
     maxZ += maxLightLevel;
 
-    minX = Math.max(minX, minChunk[0] * chunkSize);
-    minZ = Math.max(minZ, minChunk[1] * chunkSize);
-    maxX = Math.min(maxX, (maxChunk[0] + 1) * chunkSize - 1);
-    maxZ = Math.min(maxZ, (maxChunk[1] + 1) * chunkSize - 1);
+    minX = Math.max(minX, minVoxelX);
+    minZ = Math.max(minZ, minVoxelZ);
+    maxX = Math.min(maxX, maxVoxelX);
+    maxZ = Math.min(maxZ, maxVoxelZ);
     minY = Math.max(minY, 0);
     maxY = Math.min(maxY, maxHeight - 1);
 
