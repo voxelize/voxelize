@@ -1556,6 +1556,19 @@ fn face_corner_positions(dir: [i32; 3]) -> Option<&'static [[f32; 3]; 4]> {
 }
 
 #[inline(always)]
+fn face_corner_positions_by_dir_index(dir_index: usize) -> &'static [[f32; 3]; 4] {
+    match dir_index {
+        0 => &FACE_CORNERS_PX,
+        1 => &FACE_CORNERS_NX,
+        2 => &FACE_CORNERS_PY,
+        3 => &FACE_CORNERS_NY,
+        4 => &FACE_CORNERS_PZ,
+        5 => &FACE_CORNERS_NZ,
+        _ => unreachable!("greedy direction index must be in 0..6"),
+    }
+}
+
+#[inline(always)]
 fn compute_face_ao_and_light(
     dir: [i32; 3],
     block: &Block,
@@ -1719,7 +1732,7 @@ fn compute_face_ao_and_light(
 
 #[inline(always)]
 fn compute_face_ao_and_light_fast(
-    dir: [i32; 3],
+    dir_index: usize,
     block: &Block,
     neighbors: &NeighborCache,
     registry: &Registry,
@@ -1744,15 +1757,12 @@ fn compute_face_ao_and_light_fast(
         (block_aabb.min_x, block_aabb.min_y, block_aabb.min_z)
     };
     let opaque_mask = build_neighbor_opaque_mask(neighbors, registry);
-    let dir_is_x = dir[0] != 0;
-    let dir_is_y = dir[1] != 0;
+    let dir_is_x = dir_index <= 1;
+    let dir_is_y = (2..=3).contains(&dir_index);
     let block_min_x_eps = block_min_x + 0.01;
     let block_min_y_eps = block_min_y + 0.01;
     let block_min_z_eps = block_min_z + 0.01;
-    let corner_positions = match face_corner_positions(dir) {
-        Some(corners) => corners,
-        None => return ([3, 3, 3, 3], [0, 0, 0, 0]),
-    };
+    let corner_positions = face_corner_positions_by_dir_index(dir_index);
 
     let mut aos = [0i32; 4];
     let mut lights = [0i32; 4];
@@ -3775,7 +3785,12 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 ([3, 3, 3, 3], [light; 4])
                             } else {
                                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
-                                compute_face_ao_and_light_fast(dir, block, &neighbors, registry)
+                                compute_face_ao_and_light_fast(
+                                    dir_index,
+                                    block,
+                                    &neighbors,
+                                    registry,
+                                )
                             };
                             let uv_range = face.range;
                             let [uv_start_u, uv_end_u, uv_start_v, uv_end_v] = if cache_ready {
@@ -3877,7 +3892,12 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                             } else {
                                 let neighbors_ref = neighbors
                                     .get_or_insert_with(|| NeighborCache::populate(vx, vy, vz, space));
-                                compute_face_ao_and_light_fast(dir, block, neighbors_ref, registry)
+                                compute_face_ao_and_light_fast(
+                                    dir_index,
+                                    block,
+                                    neighbors_ref,
+                                    registry,
+                                )
                             }
                         });
                         let uv_range = face.range;
