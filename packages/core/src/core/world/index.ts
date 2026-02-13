@@ -1078,8 +1078,12 @@ export class World<T = any> extends Scene implements NetIntercept {
       const [chunkData, chunkArrayBuffers] = chunk.serialize();
 
       chunksData[index] = chunkData;
-      for (const buffer of chunkArrayBuffers) {
-        arrayBuffers.push(buffer);
+      for (
+        let bufferIndex = 0;
+        bufferIndex < chunkArrayBuffers.length;
+        bufferIndex++
+      ) {
+        arrayBuffers.push(chunkArrayBuffers[bufferIndex]);
       }
     }
 
@@ -6302,8 +6306,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
           const [data, buffers] = chunk.serialize();
           chunksData[dataIndex] = data;
-          for (const buffer of buffers) {
-            arrayBuffers.push(buffer);
+          for (let bufferIndex = 0; bufferIndex < buffers.length; bufferIndex++) {
+            arrayBuffers.push(buffers[bufferIndex]);
           }
         } else {
           chunksData[dataIndex] = null;
