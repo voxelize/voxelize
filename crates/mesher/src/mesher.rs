@@ -2439,6 +2439,7 @@ fn process_face<S: VoxelAccess>(
         four_green_lights = [center_green_light; 4];
         four_blue_lights = [center_blue_light; 4];
         let center_light_i32 = center_light_packed as i32;
+        let base_light_i32 = center_light_i32 | 3 << 16 | fluid_bit;
         for corner in &face.corners {
             let mut pos = corner.pos;
 
@@ -2458,7 +2459,7 @@ fn process_face<S: VoxelAccess>(
             } else {
                 0
             };
-            lights.push(center_light_i32 | 3 << 16 | fluid_bit | wave_bit);
+            lights.push(base_light_i32 | wave_bit);
         }
     } else {
         let mask = opaque_mask.expect("opaque mask exists when opaque checks are needed");
