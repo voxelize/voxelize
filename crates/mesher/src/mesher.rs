@@ -1931,6 +1931,8 @@ fn process_greedy_quad(
         _ => return,
     };
 
+    let face_aos = quad.data.key.ao;
+    let face_lights = quad.data.key.light;
     let ndx = (geometry.positions.len() / 3) as i32;
 
     for i in 0..4 {
@@ -1944,13 +1946,10 @@ fn process_greedy_quad(
         geometry.uvs.push(u);
         geometry.uvs.push(v);
 
-        let ao = quad.data.key.ao[i];
-        let light = quad.data.key.light[i];
+        let ao = face_aos[i];
+        let light = face_lights[i];
         geometry.lights.push(light | (ao << 16) | light_flags);
     }
-
-    let face_aos = quad.data.key.ao;
-    let face_lights = quad.data.key.light;
 
     let light0 = face_lights[0] as u32;
     let light1 = face_lights[1] as u32;
