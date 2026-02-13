@@ -1,14 +1,10 @@
 import {
+  BlockRuleEvaluator as TSCoreBlockRuleEvaluator,
   BlockRotation as TSCoreBlockRotation,
   BlockUtils as TSCoreBlockUtils,
 } from "@voxelize/ts-core";
 
-import {
-  Block,
-  BlockRotation,
-  BlockRule,
-  BlockRuleLogic,
-} from "../core/world/block";
+import { Block, BlockRotation, BlockRule } from "../core/world/block";
 import { Coords3 } from "../types";
 
 import { LightColor } from "./light-utils";
@@ -137,76 +133,16 @@ export class BlockUtils {
       worldSpace?: boolean;
     } = {}
   ): boolean => {
-    const { yRotatable = false, worldSpace = false } = options;
-
-    if (rule.type === "none") {
-      return true;
-    }
-
-    if (rule.type === "simple") {
-      const { offset, id, rotation: ruleRotation, stage } = rule;
-      const [vx, vy, vz] = voxel;
-      let [offsetX, offsetY, offsetZ] = offset;
-
-      if (yRotatable && !worldSpace && options.rotation) {
-        const rot = options.rotation.yRotation;
-        if (Math.abs(rot) > Number.EPSILON) {
-          const cosRot = Math.cos(rot);
-          const sinRot = Math.sin(rot);
-          const x = offsetX;
-          const z = offsetZ;
-          offsetX = x * cosRot - z * sinRot;
-          offsetZ = x * sinRot + z * cosRot;
-        }
-      }
-
-      const ox = Math.round(offsetX) + vx;
-      const oy = Math.round(offsetY) + vy;
-      const oz = Math.round(offsetZ) + vz;
-
-      if (id != null) {
-        const voxelId = functions.getVoxelAt(ox, oy, oz);
-        if (voxelId !== id) return false;
-      }
-
-      if (ruleRotation != null) {
-        const voxelRotation = functions.getVoxelRotationAt(ox, oy, oz);
-        if (!voxelRotation.equals(ruleRotation))
-          return false;
-      }
-
-      if (stage != null) {
-        const voxelStage = functions.getVoxelStageAt(ox, oy, oz);
-        if (voxelStage !== stage) return false;
-      }
-
-      return true;
-    }
-
-    if (rule.type === "combination") {
-      const { logic, rules } = rule;
-
-      switch (logic) {
-        case BlockRuleLogic.And:
-          return rules.every((subRule) =>
-            BlockUtils.evaluateBlockRule(subRule, voxel, functions, options)
-          );
-        case BlockRuleLogic.Or:
-          return rules.some((subRule) =>
-            BlockUtils.evaluateBlockRule(subRule, voxel, functions, options)
-          );
-        case BlockRuleLogic.Not: {
-          const [firstRule] = rules;
-          return firstRule
-            ? !BlockUtils.evaluateBlockRule(firstRule, voxel, functions, options)
-            : true;
-        }
-        default:
-          return false;
-      }
-    }
-
-    return false;
+    return TSCoreBlockRuleEvaluator.evaluate(
+      rule,
+      voxel,
+      {
+        getVoxel: functions.getVoxelAt,
+        getVoxelRotation: functions.getVoxelRotationAt,
+        getVoxelStage: functions.getVoxelStageAt,
+      },
+      options
+    );
   };
 
   static getBlockEntityId(id: string, voxel: Coords3) {
