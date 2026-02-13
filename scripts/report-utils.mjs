@@ -2,14 +2,18 @@ import fs from "node:fs";
 import path from "node:path";
 
 export const REPORT_SCHEMA_VERSION = 1;
-const ANSI_CSI_ESCAPE_SEQUENCE_REGEX = /\u001b\[[0-?]*[ -/]*[@-~]/g;
-const ANSI_OSC_ESCAPE_SEQUENCE_REGEX = /\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)/g;
+const ANSI_CSI_ESCAPE_SEQUENCE_REGEX =
+  /(?:\u001b\[|\u009b)[0-?]*[ -/]*[@-~]/g;
+const ANSI_OSC_ESCAPE_SEQUENCE_REGEX =
+  /(?:\u001b\]|\u009d)[^\u0007\u001b\u009c]*(?:\u0007|\u001b\\|\u009c)/g;
+const NON_JSON_CONTROL_CHAR_REGEX = /[\u0000-\u0008\u000B\u000C\u000E-\u001A\u001C-\u001F\u007F-\u009F]/g;
 
 const sanitizeOutputForJsonParsing = (value) => {
   return value
     .replace(ANSI_OSC_ESCAPE_SEQUENCE_REGEX, "")
     .replace(ANSI_CSI_ESCAPE_SEQUENCE_REGEX, "")
-    .replaceAll("\r", "\n");
+    .replace(/\r/g, "\n")
+    .replace(NON_JSON_CONTROL_CHAR_REGEX, "");
 };
 
 const isObjectLikeJsonValue = (value) => {
@@ -46,6 +50,49 @@ export const parseJsonOutput = (value) => {
         }
 
         const candidate = rawLines.slice(start, end + 1).join("\n").trim();
+        if (candidate.length === 0) {
+          continue;
+        }
+
+        try {
+          const parsedCandidate = JSON.parse(candidate);
+          if (!isObjectLikeJsonValue(parsedCandidate)) {
+            continue;
+          }
+          if (
+            bestMatch === null ||
+            end > bestMatch.end ||
+            (end === bestMatch.end && start < bestMatch.start)
+          ) {
+            bestMatch = {
+              parsedCandidate,
+              start,
+              end,
+            };
+          }
+        } catch {
+          continue;
+        }
+      }
+    }
+
+    if (bestMatch !== null) {
+      return bestMatch.parsedCandidate;
+    }
+
+    for (let start = 0; start < sanitizedValue.length; start += 1) {
+      const startToken = sanitizedValue[start];
+      if (startToken !== "{" && startToken !== "[") {
+        continue;
+      }
+      const endToken = startToken === "{" ? "}" : "]";
+
+      for (let end = sanitizedValue.length - 1; end >= start; end -= 1) {
+        if (sanitizedValue[end] !== endToken) {
+          continue;
+        }
+
+        const candidate = sanitizedValue.slice(start, end + 1).trim();
         if (candidate.length === 0) {
           continue;
         }

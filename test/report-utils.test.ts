@@ -118,6 +118,22 @@ describe("report-utils", () => {
     ).toEqual({ ok: true, exitCode: 0 });
   });
 
+  it("parses json output containing c1 ansi escape sequences", () => {
+    expect(
+      parseJsonOutput(`\u009b31m{"ok":true,"exitCode":0}\u009b0m`)
+    ).toEqual({ ok: true, exitCode: 0 });
+    expect(
+      parseJsonOutput(
+        `\u009d8;;https://example.com\u0007{"ok":true,"exitCode":0}\u009d8;;\u0007`
+      )
+    ).toEqual({ ok: true, exitCode: 0 });
+    expect(
+      parseJsonOutput(
+        `\u009d8;;https://example.com\u009c{\n  "ok": true,\n  "exitCode": 0\n}\u009d8;;\u009c`
+      )
+    ).toEqual({ ok: true, exitCode: 0 });
+  });
+
   it("parses json output containing carriage-return progress updates", () => {
     expect(parseJsonOutput(`progress: checking\r{"ok":true}`)).toEqual({
       ok: true,
@@ -127,6 +143,15 @@ describe("report-utils", () => {
         `progress: checking\r\u001b]8;;https://example.com\u0007{"ok":true}\u001b]8;;\u0007`
       )
     ).toEqual({ ok: true });
+  });
+
+  it("parses json output containing raw control characters", () => {
+    expect(parseJsonOutput(`progress:\u0008\u0008\u0008{"ok":true}`)).toEqual({
+      ok: true,
+    });
+    expect(
+      parseJsonOutput(`progress:\u007f\u0000\u001f{"ok":true,"exitCode":0}`)
+    ).toEqual({ ok: true, exitCode: 0 });
   });
 
   it("injects schema version in report payloads", () => {
