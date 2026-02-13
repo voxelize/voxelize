@@ -27,44 +27,61 @@ const isNoBuild = cliArgs.includes("--no-build");
 const isCompact = cliArgs.includes("--compact");
 const jsonFormat = { compact: isCompact };
 const { outputPath, error: outputPathError } = resolveOutputPath(cliArgs);
+const startedAt = new Date().toISOString();
+const startedAtMs = Date.now();
+
+const buildTimedReport = (report) => {
+  return {
+    ...report,
+    startedAt,
+    endedAt: new Date().toISOString(),
+    durationMs: Date.now() - startedAtMs,
+  };
+};
 
 if (isJson && outputPathError !== null) {
   console.log(
-    toReportJson({
-      passed: false,
-      exitCode: 1,
-      artifactPath: "crates/wasm-mesher/pkg/voxelize_wasm_mesher.js",
-      artifactFound: false,
-      attemptedBuild: false,
-      buildSkipped: isNoBuild,
-      wasmPackAvailable: null,
-      wasmPackCheckReport: null,
-      buildOutput: null,
-      outputPath: null,
-      message: outputPathError,
-    }, jsonFormat)
+    toReportJson(
+      buildTimedReport({
+        passed: false,
+        exitCode: 1,
+        artifactPath: "crates/wasm-mesher/pkg/voxelize_wasm_mesher.js",
+        artifactFound: false,
+        attemptedBuild: false,
+        buildSkipped: isNoBuild,
+        wasmPackAvailable: null,
+        wasmPackCheckReport: null,
+        buildOutput: null,
+        outputPath: null,
+        message: outputPathError,
+      }),
+      jsonFormat
+    )
   );
   process.exit(1);
 }
 
 const finish = (report) => {
   if (isJson) {
-    const finalizedReport = {
+    const finalizedReport = buildTimedReport({
       ...report,
       outputPath,
-    };
+    });
     const reportJson = toReportJson(finalizedReport, jsonFormat);
 
     if (outputPath !== null) {
       const writeError = writeReportToPath(reportJson, outputPath);
       if (writeError !== null) {
         console.log(
-          toReportJson({
-            ...finalizedReport,
-            passed: false,
-            exitCode: 1,
-            message: writeError,
-          }, jsonFormat)
+          toReportJson(
+            buildTimedReport({
+              ...finalizedReport,
+              passed: false,
+              exitCode: 1,
+              message: writeError,
+            }),
+            jsonFormat
+          )
         );
         process.exit(1);
       }

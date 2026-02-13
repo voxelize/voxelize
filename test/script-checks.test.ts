@@ -21,6 +21,9 @@ type WasmPackJsonReport = {
   command: string;
   version: string | null;
   outputPath: string | null;
+  startedAt: string;
+  endedAt: string;
+  durationMs: number;
   message?: string;
 };
 
@@ -41,6 +44,9 @@ type DevEnvJsonReport = {
   requiredFailures: number;
   checks: DevEnvJsonCheck[];
   outputPath: string | null;
+  startedAt: string;
+  endedAt: string;
+  durationMs: number;
   message?: string;
 };
 
@@ -56,6 +62,9 @@ type WasmMesherJsonReport = {
   wasmPackCheckReport: WasmPackJsonReport | null;
   buildOutput: string | null;
   message: string;
+  startedAt: string;
+  endedAt: string;
+  durationMs: number;
 };
 
 type ClientJsonStep = {
@@ -75,6 +84,9 @@ type ClientJsonReport = {
   noBuild: boolean;
   outputPath: string | null;
   steps: ClientJsonStep[];
+  startedAt: string;
+  endedAt: string;
+  durationMs: number;
   message?: string;
 };
 
@@ -95,6 +107,9 @@ type OnboardingJsonReport = {
   noBuild: boolean;
   outputPath: string | null;
   steps: OnboardingJsonStep[];
+  startedAt: string;
+  endedAt: string;
+  durationMs: number;
   message?: string;
 };
 
@@ -114,6 +129,16 @@ const runScript = (scriptName: string, args: string[] = []): ScriptResult => {
 
 const expectCompactJsonOutput = (output: string) => {
   expect(output).not.toContain("\n  \"");
+};
+
+const expectTimingMetadata = (report: {
+  startedAt: string;
+  endedAt: string;
+  durationMs: number;
+}) => {
+  expect(typeof report.startedAt).toBe("string");
+  expect(typeof report.endedAt).toBe("string");
+  expect(report.durationMs).toBeGreaterThanOrEqual(0);
 };
 
 describe("root preflight scripts", () => {
@@ -146,6 +171,7 @@ describe("root preflight scripts", () => {
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
     expect(report.command).toContain("wasm-pack");
     expect(report.outputPath).toBeNull();
+    expectTimingMetadata(report);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
 
     if (report.passed) {
@@ -162,6 +188,7 @@ describe("root preflight scripts", () => {
 
     expectCompactJsonOutput(result.output.trim());
     expect(report.schemaVersion).toBe(1);
+    expectTimingMetadata(report);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
@@ -182,6 +209,7 @@ describe("root preflight scripts", () => {
     ) as WasmPackJsonReport;
 
     expect(stdoutReport.outputPath).toBe(outputPath);
+    expectTimingMetadata(stdoutReport);
     expect(fileReport.outputPath).toBe(outputPath);
     expect(fileReport.exitCode).toBe(stdoutReport.exitCode);
     expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
@@ -195,6 +223,7 @@ describe("root preflight scripts", () => {
 
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
+    expectTimingMetadata(report);
     expect(report.message).toBe("Missing value for --output option.");
     expect(result.status).toBe(1);
   });
@@ -226,6 +255,7 @@ describe("root preflight scripts", () => {
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
     expect(report.requiredFailures).toBeGreaterThanOrEqual(0);
     expect(report.outputPath).toBeNull();
+    expectTimingMetadata(report);
     expect(typeof report.passed).toBe("boolean");
     expect(Array.isArray(report.checks)).toBe(true);
     expect(report.checks.length).toBeGreaterThan(0);
@@ -241,6 +271,7 @@ describe("root preflight scripts", () => {
 
     expectCompactJsonOutput(result.output.trim());
     expect(report.schemaVersion).toBe(1);
+    expectTimingMetadata(report);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
@@ -261,6 +292,7 @@ describe("root preflight scripts", () => {
     ) as DevEnvJsonReport;
 
     expect(stdoutReport.outputPath).toBe(outputPath);
+    expectTimingMetadata(stdoutReport);
     expect(fileReport.outputPath).toBe(outputPath);
     expect(fileReport.exitCode).toBe(stdoutReport.exitCode);
     expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
@@ -274,6 +306,7 @@ describe("root preflight scripts", () => {
 
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
+    expectTimingMetadata(report);
     expect(report.message).toBe("Missing value for --output option.");
     expect(result.status).toBe(1);
   });
@@ -307,6 +340,7 @@ describe("root preflight scripts", () => {
     expect(report.noBuild).toBe(false);
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
     expect(report.outputPath).toBeNull();
+    expectTimingMetadata(report);
     expect(Array.isArray(report.steps)).toBe(true);
     expect(report.steps.length).toBeGreaterThan(0);
     expect(report.steps[0].name).toBe("WASM artifact preflight");
@@ -322,6 +356,7 @@ describe("root preflight scripts", () => {
       );
       expect(typeof report.steps[0].report.passed).toBe("boolean");
       expect(report.steps[0].report.buildSkipped).toBe(false);
+      expectTimingMetadata(report.steps[0].report);
     }
     expect(result.status).toBe(report.passed ? 0 : 1);
     expect(result.output).not.toContain("Running client check step:");
@@ -334,6 +369,7 @@ describe("root preflight scripts", () => {
 
     expectCompactJsonOutput(result.output.trim());
     expect(report.schemaVersion).toBe(1);
+    expectTimingMetadata(report);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
@@ -354,6 +390,7 @@ describe("root preflight scripts", () => {
     ) as ClientJsonReport;
 
     expect(stdoutReport.outputPath).toBe(outputPath);
+    expectTimingMetadata(stdoutReport);
     expect(fileReport.outputPath).toBe(outputPath);
     expect(fileReport.exitCode).toBe(stdoutReport.exitCode);
     expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
@@ -367,6 +404,7 @@ describe("root preflight scripts", () => {
 
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
+    expectTimingMetadata(report);
     expect(report.message).toBe("Missing value for --output option.");
     expect(result.status).toBe(1);
   });
@@ -378,6 +416,7 @@ describe("root preflight scripts", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.noBuild).toBe(true);
     expect(report.outputPath).toBeNull();
+    expectTimingMetadata(report);
     expect(report.steps.length).toBeGreaterThan(0);
     expect(report.steps[0].name).toBe("WASM artifact preflight");
     const typecheckStep = report.steps.find(
@@ -387,6 +426,7 @@ describe("root preflight scripts", () => {
     if (report.steps[0].report !== null) {
       expect(report.steps[0].report.buildSkipped).toBe(true);
       expect(report.steps[0].report.attemptedBuild).toBe(false);
+      expectTimingMetadata(report.steps[0].report);
     }
     if (typecheckStep !== undefined && report.steps[0].passed === false) {
       expect(typecheckStep.skipped).toBe(true);
@@ -425,6 +465,7 @@ describe("root preflight scripts", () => {
     expect(report.noBuild).toBe(false);
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
     expect(report.outputPath).toBeNull();
+    expectTimingMetadata(report);
     expect(Array.isArray(report.steps)).toBe(true);
     expect(report.steps.length).toBeGreaterThan(0);
     expect(report.steps[0].name).toBe("Developer environment preflight");
@@ -435,6 +476,7 @@ describe("root preflight scripts", () => {
     if (report.steps[0].report !== null) {
       expect(report.steps[0].report.schemaVersion).toBe(1);
       expect(typeof report.steps[0].report.passed).toBe("boolean");
+      expectTimingMetadata(report.steps[0].report);
     }
     expect(result.status).toBe(report.passed ? 0 : 1);
     expect(result.output).not.toContain("Running onboarding step:");
@@ -447,6 +489,7 @@ describe("root preflight scripts", () => {
 
     expectCompactJsonOutput(result.output.trim());
     expect(report.schemaVersion).toBe(1);
+    expectTimingMetadata(report);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
@@ -467,6 +510,7 @@ describe("root preflight scripts", () => {
     ) as OnboardingJsonReport;
 
     expect(stdoutReport.outputPath).toBe(outputPath);
+    expectTimingMetadata(stdoutReport);
     expect(fileReport.outputPath).toBe(outputPath);
     expect(fileReport.exitCode).toBe(stdoutReport.exitCode);
     expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
@@ -480,6 +524,7 @@ describe("root preflight scripts", () => {
 
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
+    expectTimingMetadata(report);
     expect(report.message).toBe("Missing value for --output option.");
     expect(result.status).toBe(1);
   });
@@ -491,6 +536,7 @@ describe("root preflight scripts", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.noBuild).toBe(true);
     expect(report.outputPath).toBeNull();
+    expectTimingMetadata(report);
     expect(report.steps.length).toBeGreaterThan(0);
     expect(report.steps[0].name).toBe("Developer environment preflight");
     const clientStep = report.steps.find((step) => step.name === "Client checks");

@@ -21,19 +21,33 @@ const isNoBuild = cliArgs.includes("--no-build");
 const isCompact = cliArgs.includes("--compact");
 const jsonFormat = { compact: isCompact };
 const { outputPath, error: outputPathError } = resolveOutputPath(cliArgs);
+const startedAt = new Date().toISOString();
+const startedAtMs = Date.now();
 const stepResults = [];
 let exitCode = 0;
 
+const buildTimedReport = (report) => {
+  return {
+    ...report,
+    startedAt,
+    endedAt: new Date().toISOString(),
+    durationMs: Date.now() - startedAtMs,
+  };
+};
+
 if (isJson && outputPathError !== null) {
   console.log(
-    toReportJson({
-      passed: false,
-      exitCode: 1,
-      noBuild: isNoBuild,
-      outputPath: null,
-      steps: [],
-      message: outputPathError,
-    }, jsonFormat)
+    toReportJson(
+      buildTimedReport({
+        passed: false,
+        exitCode: 1,
+        noBuild: isNoBuild,
+        outputPath: null,
+        steps: [],
+        message: outputPathError,
+      }),
+      jsonFormat
+    )
   );
   process.exit(1);
 }
@@ -121,25 +135,28 @@ if (wasmPreflightPassed) {
 }
 
 if (isJson) {
-  const report = {
+  const report = buildTimedReport({
     passed: exitCode === 0,
     exitCode,
     noBuild: isNoBuild,
     outputPath,
     steps: stepResults,
-  };
+  });
   const reportJson = toReportJson(report, jsonFormat);
 
   if (outputPath !== null) {
     const writeError = writeReportToPath(reportJson, outputPath);
     if (writeError !== null) {
       console.log(
-        toReportJson({
-          ...report,
-          passed: false,
-          exitCode: 1,
-          message: writeError,
-        }, jsonFormat)
+        toReportJson(
+          buildTimedReport({
+            ...report,
+            passed: false,
+            exitCode: 1,
+            message: writeError,
+          }),
+          jsonFormat
+        )
       );
       process.exit(1);
     }

@@ -14,17 +14,31 @@ const isJson = cliArgs.includes("--json");
 const isCompact = cliArgs.includes("--compact");
 const jsonFormat = { compact: isCompact };
 const { outputPath, error: outputPathError } = resolveOutputPath(cliArgs);
+const startedAt = new Date().toISOString();
+const startedAtMs = Date.now();
+
+const buildTimedReport = (report) => {
+  return {
+    ...report,
+    startedAt,
+    endedAt: new Date().toISOString(),
+    durationMs: Date.now() - startedAtMs,
+  };
+};
 
 if (isJson && outputPathError !== null) {
   console.log(
-    toReportJson({
-      passed: false,
-      exitCode: 1,
-      command: wasmPackCommand,
-      version: null,
-      outputPath: null,
-      message: outputPathError,
-    }, jsonFormat)
+    toReportJson(
+      buildTimedReport({
+        passed: false,
+        exitCode: 1,
+        command: wasmPackCommand,
+        version: null,
+        outputPath: null,
+        message: outputPathError,
+      }),
+      jsonFormat
+    )
   );
   process.exit(1);
 }
@@ -48,26 +62,29 @@ const firstLine =
 
 if (checkStatus === 0) {
   if (isJson) {
-    const report = {
+    const report = buildTimedReport({
       passed: true,
       exitCode: 0,
       command: wasmPackCommand,
       version: firstLine,
       outputPath,
-    };
+    });
     const reportJson = toReportJson(report, jsonFormat);
 
     if (outputPath !== null) {
       const writeError = writeReportToPath(reportJson, outputPath);
       if (writeError !== null) {
         console.log(
-          toReportJson({
-            ...report,
-            passed: false,
-            exitCode: 1,
-            version: null,
-            message: writeError,
-          }, jsonFormat)
+          toReportJson(
+            buildTimedReport({
+              ...report,
+              passed: false,
+              exitCode: 1,
+              version: null,
+              message: writeError,
+            }),
+            jsonFormat
+          )
         );
         process.exit(1);
       }
@@ -81,25 +98,28 @@ if (checkStatus === 0) {
 const failureMessage = `wasm-pack is required for wasm build commands (expected command: ${wasmPackCommand}). Install it from https://rustwasm.github.io/wasm-pack/installer/.`;
 
 if (isJson) {
-  const report = {
+  const report = buildTimedReport({
     passed: false,
     exitCode: checkStatus,
     command: wasmPackCommand,
     version: null,
     outputPath,
     message: failureMessage,
-  };
+  });
   const reportJson = toReportJson(report, jsonFormat);
 
   if (outputPath !== null) {
     const writeError = writeReportToPath(reportJson, outputPath);
     if (writeError !== null) {
       console.log(
-        toReportJson({
-          ...report,
-          exitCode: 1,
-          message: writeError,
-        }, jsonFormat)
+        toReportJson(
+          buildTimedReport({
+            ...report,
+            exitCode: 1,
+            message: writeError,
+          }),
+          jsonFormat
+        )
       );
       process.exit(1);
     }

@@ -23,7 +23,18 @@ const isJson = cliArgs.includes("--json");
 const isCompact = cliArgs.includes("--compact");
 const jsonFormat = { compact: isCompact };
 const { outputPath, error: outputPathError } = resolveOutputPath(cliArgs);
+const startedAt = new Date().toISOString();
+const startedAtMs = Date.now();
 const minimumVersions = loadWorkspaceMinimumVersions(__dirname);
+
+const buildTimedReport = (report) => {
+  return {
+    ...report,
+    startedAt,
+    endedAt: new Date().toISOString(),
+    durationMs: Date.now() - startedAtMs,
+  };
+};
 
 const checks = [
   {
@@ -77,14 +88,17 @@ const checkResults = [];
 
 if (isJson && outputPathError !== null) {
   console.log(
-    toReportJson({
-      passed: false,
-      exitCode: 1,
-      requiredFailures: 0,
-      checks: [],
-      outputPath: null,
-      message: outputPathError,
-    }, jsonFormat)
+    toReportJson(
+      buildTimedReport({
+        passed: false,
+        exitCode: 1,
+        requiredFailures: 0,
+        checks: [],
+        outputPath: null,
+        message: outputPathError,
+      }),
+      jsonFormat
+    )
   );
   process.exit(1);
 }
@@ -165,25 +179,28 @@ for (const check of checks) {
 }
 
 if (isJson) {
-  const report = {
+  const report = buildTimedReport({
     passed: requiredFailures === 0,
     exitCode: requiredFailures > 0 ? 1 : 0,
     requiredFailures,
     checks: checkResults,
     outputPath,
-  };
+  });
   const reportJson = toReportJson(report, jsonFormat);
 
   if (outputPath !== null) {
     const writeError = writeReportToPath(reportJson, outputPath);
     if (writeError !== null) {
       console.log(
-        toReportJson({
-          ...report,
-          passed: false,
-          exitCode: 1,
-          message: writeError,
-        }, jsonFormat)
+        toReportJson(
+          buildTimedReport({
+            ...report,
+            passed: false,
+            exitCode: 1,
+            message: writeError,
+          }),
+          jsonFormat
+        )
       );
       process.exit(1);
     }
