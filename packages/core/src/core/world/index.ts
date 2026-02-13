@@ -4536,19 +4536,14 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     }
 
-    const processingToRemove: string[] = [];
     for (const [name, procData] of this.chunkPipeline.processingEntries()) {
       const { x, z } = procData;
       const dx = x - centerX;
       const dz = z - centerZ;
       if (dx * dx + dz * dz > deleteRadiusSquared) {
-        processingToRemove.push(name);
+        this.chunkPipeline.remove(name);
+        this.chunkInitializeListeners.delete(name);
       }
-    }
-    for (let index = 0; index < processingToRemove.length; index++) {
-      const name = processingToRemove[index];
-      this.chunkPipeline.remove(name);
-      this.chunkInitializeListeners.delete(name);
     }
 
     if (deleted.length) {
