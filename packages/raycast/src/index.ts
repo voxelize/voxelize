@@ -30,7 +30,7 @@ function raycastAABBAt(
     Math.max(t5, t6)
   );
   const tMaxAxis =
-    tMin === t1 || tMin === t2 ? 0 : tMin === t3 || tMin === t4 ? 1 : 2;
+    tMax === t1 || tMax === t2 ? 0 : tMax === t3 || tMax === t4 ? 1 : 2;
 
   // if tMax < 0, ray (line) is intersecting AABB, but whole AABB is behind us
   if (tMax < 0) {
