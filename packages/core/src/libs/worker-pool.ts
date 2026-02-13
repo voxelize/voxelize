@@ -53,6 +53,7 @@ export class WorkerPool {
    */
   public queue: WorkerPoolJob[] = [];
   private queueHead = 0;
+  private processScheduled = false;
 
   /**
    * A static count of working web workers across all worker pools.
@@ -127,6 +128,18 @@ export class WorkerPool {
     }
   };
 
+  private scheduleProcess = () => {
+    if (this.processScheduled) {
+      return;
+    }
+
+    this.processScheduled = true;
+    queueMicrotask(() => {
+      this.processScheduled = false;
+      this.process();
+    });
+  };
+
   /**
    * Process the queue of jobs. This is called when a worker becomes available or
    * when a new job is added to the queue.
@@ -150,7 +163,7 @@ export class WorkerPool {
           resolve(data);
         } finally {
           if (this.hasQueuedJobs()) {
-            queueMicrotask(this.process);
+            this.scheduleProcess();
           }
         }
       };
