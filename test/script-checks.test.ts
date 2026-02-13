@@ -55,7 +55,7 @@ type WasmMesherJsonReport = {
 type ClientJsonStep = {
   name: string;
   passed: boolean;
-  exitCode: number;
+  exitCode: number | null;
   skipped: boolean;
   reason: string | null;
   report: WasmMesherJsonReport | null;
@@ -73,7 +73,7 @@ type ClientJsonReport = {
 type OnboardingJsonStep = {
   name: string;
   passed: boolean;
-  exitCode: number;
+  exitCode: number | null;
   skipped: boolean;
   reason: string | null;
   report: DevEnvJsonReport | ClientJsonReport | null;
@@ -242,6 +242,7 @@ describe("root preflight scripts", () => {
     }
     if (typecheckStep !== undefined && report.steps[0].passed === false) {
       expect(typecheckStep.skipped).toBe(true);
+      expect(typecheckStep.exitCode).toBeNull();
       expect(typecheckStep.reason).toBe("WASM artifact preflight failed");
     }
   });
@@ -303,6 +304,7 @@ describe("root preflight scripts", () => {
     expect(clientStep).toBeDefined();
     if (clientStep !== undefined && report.steps[0].passed === false) {
       expect(clientStep.skipped).toBe(true);
+      expect(clientStep.exitCode).toBeNull();
       expect(clientStep.reason).toBe(
         "Developer environment preflight failed"
       );

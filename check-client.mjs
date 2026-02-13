@@ -34,7 +34,7 @@ const addSkippedStep = (name, reason) => {
   stepResults.push({
     name,
     passed: false,
-    exitCode: 0,
+    exitCode: null,
     skipped: true,
     reason,
     report: null,
