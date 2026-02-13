@@ -2290,7 +2290,8 @@ where
     S: VoxelAccess,
     F: FnMut(&BlockFace, bool),
 {
-    let mut local_rotation_trig = None;
+    let mut local_rotation_trig: Option<(f32, f32)> = None;
+    let mut local_rotation_trig_ready = false;
 
     if let Some(dynamic_patterns) = &block.dynamic_patterns {
         for pattern in dynamic_patterns {
@@ -2300,19 +2301,17 @@ where
                 let rotation_trig = if part.world_space {
                     None
                 } else {
-                    *local_rotation_trig.get_or_insert_with(|| {
+                    if !local_rotation_trig_ready {
+                        local_rotation_trig_ready = true;
                         if block.y_rotatable {
                             let rotation_rad = rotation_radians(rotation);
                             if rotation_rad.abs() > f32::EPSILON {
                                 let (sin_rot, cos_rot) = rotation_rad.sin_cos();
-                                Some((sin_rot, cos_rot))
-                            } else {
-                                None
+                                local_rotation_trig = Some((sin_rot, cos_rot));
                             }
-                        } else {
-                            None
                         }
-                    })
+                    }
+                    local_rotation_trig
                 };
                 let rule_result = evaluate_block_rule_with_trig(
                     &part.rule,
