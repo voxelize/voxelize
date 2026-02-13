@@ -3410,13 +3410,14 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
                     let is_fluid = block.is_fluid;
                     let is_opaque = block.is_opaque;
+                    let faces_empty = block.faces.is_empty();
                     if block.is_empty {
                         continue;
                     }
                     let cache_ready = block.cache_ready;
                     let mut has_dynamic_patterns_cached_value = false;
                     let mut has_dynamic_patterns_cached_known = false;
-                    if !is_fluid && block.faces.is_empty() {
+                    if !is_fluid && faces_empty {
                         has_dynamic_patterns_cached_value = if cache_ready {
                             block.has_dynamic_patterns
                         } else {
@@ -3604,7 +3605,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                     },
                                 );
                             } else {
-                                if block.faces.is_empty() {
+                                if faces_empty {
                                     continue;
                                 }
                                 let uses_main_geometry_only = if cache_ready {
