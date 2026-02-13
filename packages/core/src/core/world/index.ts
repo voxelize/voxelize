@@ -2065,8 +2065,12 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   getPreviousValueAt(px: number, py: number, pz: number, count = 1) {
     const name = ChunkUtils.getVoxelNameAt(px, py, pz);
-    const arr = this.oldBlocks.get(name) || [];
-    return arr[arr.length - count] || 0;
+    const arr = this.oldBlocks.get(name);
+    if (!arr) {
+      return 0;
+    }
+
+    return arr[arr.length - count] ?? 0;
   }
 
   getBlockOf(idOrName: number | string) {
