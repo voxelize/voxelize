@@ -4404,6 +4404,63 @@ describe("preflight aggregate report", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("uses the last output flag for inline no-build misuse validation errors", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "voxelize-preflight-unsupported-last-output-inline-no-build-misuse-"
+      )
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+    const secondOutputPath = path.resolve(tempDirectory, "second-report.json");
+
+    const result = spawnSync(
+      process.execPath,
+      [
+        preflightScript,
+        "--list-checks",
+        "--output",
+        firstOutputPath,
+        "--verify=1",
+        "--output",
+        secondOutputPath,
+      ],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const stdoutReport = JSON.parse(output) as PreflightReport;
+    const secondFileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as PreflightReport;
+
+    expect(stdoutReport.schemaVersion).toBe(1);
+    expect(stdoutReport.passed).toBe(false);
+    expect(stdoutReport.exitCode).toBe(1);
+    expect(stdoutReport.listChecksOnly).toBe(true);
+    expect(stdoutReport.noBuild).toBe(false);
+    expect(stdoutReport.validationErrorCode).toBe("unsupported_options");
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(stdoutReport.unknownOptions).toEqual(["--no-build=<value>"]);
+    expect(stdoutReport.unknownOptionCount).toBe(1);
+    expect(stdoutReport.message).toBe(
+      expectedUnsupportedOptionsMessage(["--no-build=<value>"])
+    );
+    expect(stdoutReport.activeCliOptions).toEqual(["--list-checks", "--output"]);
+    expect(stdoutReport.activeCliOptionTokens).toEqual([
+      "--list-checks",
+      "--output",
+    ]);
+    expect(secondFileReport).toEqual(stdoutReport);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("writes only-selection validation errors with unsupported options to output path", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-preflight-only-unsupported-output-")

@@ -1066,6 +1066,39 @@ describe("root preflight scripts", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("check-wasm-pack json validation keeps trailing output after inline known-flag misuse", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-wasm-pack-validation-last-output-inline-misuse-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+    const secondOutputPath = path.resolve(tempDirectory, "second-report.json");
+
+    const result = runScript("check-wasm-pack.mjs", [
+      "--json",
+      "--output",
+      firstOutputPath,
+      "--json=1",
+      "--output",
+      secondOutputPath,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as WasmPackJsonReport;
+    const secondFileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as WasmPackJsonReport;
+
+    expect(stdoutReport.passed).toBe(false);
+    expect(stdoutReport.validationErrorCode).toBe("unsupported_options");
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(stdoutReport.unknownOptions).toEqual(["--json=<value>"]);
+    expect(stdoutReport.activeCliOptions).toEqual(["--json", "--output"]);
+    expect(stdoutReport.activeCliOptionTokens).toEqual(["--json", "--output"]);
+    expect(secondFileReport).toEqual(stdoutReport);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("check-wasm-pack json mode reports validation output write failures with details", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-wasm-pack-validation-write-failure-")
@@ -2064,6 +2097,39 @@ describe("root preflight scripts", () => {
     expect(stdoutReport.validationErrorCode).toBe("unsupported_options");
     expect(stdoutReport.outputPath).toBe(secondOutputPath);
     expect(stdoutReport.unknownOptions).toEqual(["--mystery"]);
+    expect(secondFileReport).toEqual(stdoutReport);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("check-dev-env json validation keeps trailing output after inline known-flag misuse", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-dev-env-validation-last-output-inline-misuse-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+    const secondOutputPath = path.resolve(tempDirectory, "second-report.json");
+
+    const result = runScript("check-dev-env.mjs", [
+      "--json",
+      "--output",
+      firstOutputPath,
+      "--json=1",
+      "--output",
+      secondOutputPath,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as DevEnvJsonReport;
+    const secondFileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as DevEnvJsonReport;
+
+    expect(stdoutReport.passed).toBe(false);
+    expect(stdoutReport.validationErrorCode).toBe("unsupported_options");
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(stdoutReport.unknownOptions).toEqual(["--json=<value>"]);
+    expect(stdoutReport.activeCliOptions).toEqual(["--json", "--output"]);
+    expect(stdoutReport.activeCliOptionTokens).toEqual(["--json", "--output"]);
     expect(secondFileReport).toEqual(stdoutReport);
     expect(fs.existsSync(firstOutputPath)).toBe(false);
     expect(result.status).toBe(1);
@@ -3511,6 +3577,41 @@ describe("root preflight scripts", () => {
     expect(stdoutReport.outputPath).toBe(secondOutputPath);
     expect(stdoutReport.unknownOptions).toEqual(["--mystery"]);
     expect(stdoutReport.totalSteps).toBe(0);
+    expect(secondFileReport).toEqual(stdoutReport);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("check-client json validation keeps trailing output after inline no-build misuse", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-client-validation-last-output-inline-misuse-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+    const secondOutputPath = path.resolve(tempDirectory, "second-report.json");
+
+    const result = runScript("check-client.mjs", [
+      "--json",
+      "--output",
+      firstOutputPath,
+      "--verify=1",
+      "--output",
+      secondOutputPath,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as ClientJsonReport;
+    const secondFileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as ClientJsonReport;
+
+    expect(stdoutReport.passed).toBe(false);
+    expect(stdoutReport.noBuild).toBe(false);
+    expect(stdoutReport.validationErrorCode).toBe("unsupported_options");
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(stdoutReport.unknownOptions).toEqual(["--no-build=<value>"]);
+    expect(stdoutReport.totalSteps).toBe(0);
+    expect(stdoutReport.activeCliOptions).toEqual(["--json", "--output"]);
+    expect(stdoutReport.activeCliOptionTokens).toEqual(["--json", "--output"]);
     expect(secondFileReport).toEqual(stdoutReport);
     expect(fs.existsSync(firstOutputPath)).toBe(false);
     expect(result.status).toBe(1);
@@ -5078,6 +5179,44 @@ describe("root preflight scripts", () => {
     expect(stdoutReport.outputPath).toBe(secondOutputPath);
     expect(stdoutReport.unknownOptions).toEqual(["--mystery"]);
     expect(stdoutReport.totalSteps).toBe(0);
+    expect(secondFileReport).toEqual(stdoutReport);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("check-onboarding json validation keeps trailing output after inline no-build misuse", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "voxelize-onboarding-validation-last-output-inline-misuse-"
+      )
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+    const secondOutputPath = path.resolve(tempDirectory, "second-report.json");
+
+    const result = runScript("check-onboarding.mjs", [
+      "--json",
+      "--output",
+      firstOutputPath,
+      "--verify=1",
+      "--output",
+      secondOutputPath,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as OnboardingJsonReport;
+    const secondFileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as OnboardingJsonReport;
+
+    expect(stdoutReport.passed).toBe(false);
+    expect(stdoutReport.noBuild).toBe(false);
+    expect(stdoutReport.validationErrorCode).toBe("unsupported_options");
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(stdoutReport.unknownOptions).toEqual(["--no-build=<value>"]);
+    expect(stdoutReport.totalSteps).toBe(0);
+    expect(stdoutReport.activeCliOptions).toEqual(["--json", "--output"]);
+    expect(stdoutReport.activeCliOptionTokens).toEqual(["--json", "--output"]);
     expect(secondFileReport).toEqual(stdoutReport);
     expect(fs.existsSync(firstOutputPath)).toBe(false);
     expect(result.status).toBe(1);
