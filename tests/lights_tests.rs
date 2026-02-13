@@ -358,6 +358,28 @@ fn test_register_blocks_assigns_unique_auto_ids_and_refreshes_caches() {
 }
 
 #[test]
+fn test_register_blocks_auto_id_avoids_explicit_ids_in_same_batch() {
+    let mut registry = create_test_registry();
+
+    registry.register_blocks(&[
+        Block::new("bulk-auto-before-explicit")
+            .is_passable(true)
+            .build(),
+        Block::new("bulk-explicit").id(3).build(),
+    ]);
+
+    let auto_id = registry.get_block_by_name("bulk-auto-before-explicit").id;
+    let explicit_id = registry.get_block_by_name("bulk-explicit").id;
+
+    assert_eq!(explicit_id, 3);
+    assert_ne!(auto_id, 0);
+    assert_ne!(
+        auto_id, explicit_id,
+        "auto-id assignment should not consume explicit ids from same batch"
+    );
+}
+
+#[test]
 fn test_register_blocks_panics_on_duplicate_ids_in_batch() {
     let mut registry = create_test_registry();
 

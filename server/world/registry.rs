@@ -398,8 +398,21 @@ impl Registry {
             .keys()
             .copied()
             .collect::<HashSet<u32>>();
+        let mut explicit_ids = HashSet::new();
         let mut prepared_blocks = Vec::with_capacity(blocks.len());
         let mut next_available = 1;
+
+        for block in blocks {
+            if block.id == 0 {
+                continue;
+            }
+
+            if occupied_ids.contains(&block.id) || !explicit_ids.insert(block.id) {
+                panic!("Duplicated key: {}-{}", block.name, block.id);
+            }
+        }
+
+        occupied_ids.extend(explicit_ids);
 
         for block in blocks {
             let mut block = block.to_owned();
@@ -409,13 +422,8 @@ impl Registry {
                     next_available += 1;
                 }
                 block.id = next_available;
+                occupied_ids.insert(block.id);
             }
-
-            if occupied_ids.contains(&block.id) {
-                panic!("Duplicated key: {}-{}", block.name, block.id);
-            }
-
-            occupied_ids.insert(block.id);
             prepared_blocks.push(block);
         }
 
