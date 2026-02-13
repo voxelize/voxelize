@@ -255,6 +255,7 @@ Invalid `--only` errors include available canonical check names and special sele
 Invalid `--only` errors also include `invalidChecks` for machine-readable diagnostics.
 Unsupported CLI flags return structured errors and include `unknownOptions` for machine-readable diagnostics.
 Inline unsupported-option forms are normalized in diagnostics (for example `--mystery=alpha` is reported as `--mystery`) and deduplicated by option token.
+Inline misuse of supported non-value flags is redacted without exposing raw values (for example `--json=secret` is reported as `--json=<value>`).
 Root/client/onboarding/wasm JSON preflight reports include `supportedCliOptions`, `supportedCliOptionCount`, `unknownOptionCount`, and `validationErrorCode` for structured option-validation diagnostics.
 Root/client/onboarding/wasm JSON preflight reports include `activeCliOptions`, `activeCliOptionTokens`, `activeCliOptionResolutions`, and `activeCliOptionOccurrences` to describe recognized option usage.
 Root/client/onboarding/wasm JSON preflight reports include `availableCliOptionAliases` and `availableCliOptionCanonicalMap` so automation can resolve option aliases to canonical names.

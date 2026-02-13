@@ -1530,9 +1530,9 @@ describe("preflight aggregate report", () => {
       report.supportedCliOptions.length
     );
     expect(report.unknownOptionCount).toBe(2);
-    expect(report.unknownOptions).toEqual(["--json=1", "--mystery"]);
+    expect(report.unknownOptions).toEqual(["--json=<value>", "--mystery"]);
     expect(report.message).toBe(
-      expectedUnsupportedOptionsMessage(["--json=1", "--mystery"])
+      expectedUnsupportedOptionsMessage(["--json=<value>", "--mystery"])
     );
     expect(result.status).toBe(1);
   });

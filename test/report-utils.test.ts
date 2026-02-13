@@ -499,7 +499,10 @@ describe("report-utils", () => {
         canonicalOptions: ["--json"],
       }
     );
-    expect(unknownWithInlineValueOnKnownFlag).toEqual(["--json=1", "--json=2", "--mystery"]);
+    expect(unknownWithInlineValueOnKnownFlag).toEqual([
+      "--json=<value>",
+      "--mystery",
+    ]);
 
     const unknownWithMixedInlineAndBareTokens = parseUnknownCliOptions(
       ["--mystery=alpha", "--mystery"],
@@ -570,13 +573,12 @@ describe("report-utils", () => {
       }
     );
     expect(unsupportedInlineKnownFlagValue.unknownOptions).toEqual([
-      "--json=1",
-      "--json=2",
+      "--json=<value>",
       "--mystery",
     ]);
-    expect(unsupportedInlineKnownFlagValue.unknownOptionCount).toBe(3);
+    expect(unsupportedInlineKnownFlagValue.unknownOptionCount).toBe(2);
     expect(unsupportedInlineKnownFlagValue.unsupportedOptionsError).toBe(
-      "Unsupported option(s): --json=1, --json=2, --mystery. Supported options: --json, --output."
+      "Unsupported option(s): --json=<value>, --mystery. Supported options: --json, --output."
     );
     expect(unsupportedInlineKnownFlagValue.validationErrorCode).toBe(
       "unsupported_options"
@@ -949,7 +951,7 @@ describe("report-utils", () => {
     );
   });
 
-  it("keeps inline known-flag misuse tokens in diagnostics", () => {
+  it("redacts inline known-flag misuse tokens in diagnostics", () => {
     const diagnostics = createCliDiagnostics(
       ["--json=1", "--json=2", "--mystery=alpha"],
       {
@@ -958,13 +960,12 @@ describe("report-utils", () => {
     );
 
     expect(diagnostics.unknownOptions).toEqual([
-      "--json=1",
-      "--json=2",
+      "--json=<value>",
       "--mystery",
     ]);
-    expect(diagnostics.unknownOptionCount).toBe(3);
+    expect(diagnostics.unknownOptionCount).toBe(2);
     expect(diagnostics.unsupportedOptionsError).toBe(
-      "Unsupported option(s): --json=1, --json=2, --mystery. Supported options: --json."
+      "Unsupported option(s): --json=<value>, --mystery. Supported options: --json."
     );
   });
 

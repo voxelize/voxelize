@@ -760,11 +760,11 @@ describe("root preflight scripts", () => {
     expect(report.outputPath).toBeNull();
     expect(report.supportedCliOptions).toEqual(expectedStandardCliOptions);
     expectCliOptionCatalogMetadata(report, {}, expectedStandardCliOptions);
-    expect(report.unknownOptions).toEqual(["--json=1", "--mystery"]);
+    expect(report.unknownOptions).toEqual(["--json=<value>", "--mystery"]);
     expect(report.unknownOptionCount).toBe(2);
     expect(report.validationErrorCode).toBe("unsupported_options");
     expect(report.message).toBe(
-      "Unsupported option(s): --json=1, --mystery. Supported options: --compact, --json, --output, --quiet."
+      "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --output, --quiet."
     );
     expectActiveCliOptionMetadata(
       report,

@@ -354,7 +354,7 @@ const normalizeUnknownOptionToken = (optionToken, canonicalOptionMap) => {
   }
 
   if (canonicalOptionMap.has(optionName)) {
-    return optionToken;
+    return `${optionName}=<value>`;
   }
 
   return optionName;
