@@ -107,7 +107,7 @@ export class ChunkUtils {
   static parseChunkNameAt = (name: string, concat = "|"): Coords2 => {
     const separatorIndex = name.indexOf(concat);
     if (separatorIndex < 0) {
-      return [0, 0];
+      return [parseInt(name, 10), Number.NaN];
     }
 
     const cx = parseInt(name.slice(0, separatorIndex), 10);
