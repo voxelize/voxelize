@@ -161,6 +161,15 @@ export class ChunkPipeline {
     }
   }
 
+  *processingEntries(): IterableIterator<[string, ChunkProtocol]> {
+    for (const name of this.indices.processing) {
+      const state = this.states.get(name);
+      if (state?.stage === "processing") {
+        yield [name, state.data];
+      }
+    }
+  }
+
   forEach(stage: StageType, callback: (name: string) => void): void {
     this.indices[stage].forEach(callback);
   }

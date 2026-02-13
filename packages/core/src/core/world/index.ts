@@ -4016,8 +4016,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private processChunks(center: Coords2) {
-    const processingSet = this.chunkPipeline.getInStage("processing");
-    if (processingSet.size === 0) return;
+    if (this.chunkPipeline.processingCount === 0) return;
     const [centerX, centerZ] = center;
     const {
       maxProcessesPerUpdate,
@@ -4062,11 +4061,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       toProcessArray[farthestIndex] = { data, distance };
     };
 
-    for (const name of processingSet) {
-      const procData = this.chunkPipeline.getProcessingChunkData(name);
-      if (procData) {
-        maybeQueueProcess(procData);
-      }
+    for (const [, procData] of this.chunkPipeline.processingEntries()) {
+      maybeQueueProcess(procData);
     }
 
     if (toProcessArray.length === 0) {
@@ -4242,13 +4238,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     const processingToRemove: string[] = [];
-    for (const name of this.chunkPipeline.getInStage("processing")) {
-      const procData = this.chunkPipeline.getProcessingChunkData(name);
-      if (procData) {
-        const { x, z } = procData;
-        if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
-          processingToRemove.push(name);
-        }
+    for (const [name, procData] of this.chunkPipeline.processingEntries()) {
+      const { x, z } = procData;
+      if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
+        processingToRemove.push(name);
       }
     }
     for (let index = 0; index < processingToRemove.length; index++) {
