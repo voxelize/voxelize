@@ -2415,45 +2415,37 @@ fn process_face<S: VoxelAccess>(
         } else {
             1
         };
-        let dz = if pos[2] <= block_min_z_eps {
-            -1
-        } else {
-            1
-        };
 
-        let (b011, b101, b110, b111) = if let Some(mask) = &opaque_mask {
-            (
-                !neighbor_is_opaque(mask, 0, dy, dz),
-                !neighbor_is_opaque(mask, dx, 0, dz),
-                !neighbor_is_opaque(mask, dx, dy, 0),
-                !neighbor_is_opaque(mask, dx, dy, dz),
-            )
-        } else {
-            (false, false, false, false)
-        };
-
-        let ao = if skip_opaque_checks {
-            3
-        } else if dir_is_x {
-            vertex_ao(b110, b101, b111)
-        } else if dir_is_y {
-            vertex_ao(b110, b011, b111)
-        } else {
-            vertex_ao(b011, b101, b111)
-        };
-
+        let ao;
         let sunlight;
         let red_light;
         let green_light;
         let blue_light;
 
         if skip_opaque_checks {
+            ao = 3;
             sunlight = center_sunlight;
             red_light = center_red_light;
             green_light = center_green_light;
             blue_light = center_blue_light;
         } else {
             let mask = opaque_mask.expect("opaque mask exists when opaque checks are needed");
+            let dz = if pos[2] <= block_min_z_eps {
+                -1
+            } else {
+                1
+            };
+            let b011 = !neighbor_is_opaque(mask, 0, dy, dz);
+            let b101 = !neighbor_is_opaque(mask, dx, 0, dz);
+            let b110 = !neighbor_is_opaque(mask, dx, dy, 0);
+            let b111 = !neighbor_is_opaque(mask, dx, dy, dz);
+            ao = if dir_is_x {
+                vertex_ao(b110, b101, b111)
+            } else if dir_is_y {
+                vertex_ao(b110, b011, b111)
+            } else {
+                vertex_ao(b011, b101, b111)
+            };
             let mut sum_sunlights = 0u32;
             let mut sum_red_lights = 0u32;
             let mut sum_green_lights = 0u32;
