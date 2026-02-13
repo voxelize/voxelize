@@ -4003,11 +4003,17 @@ export class World<T = any> extends Scene implements NetIntercept {
         case "DELETE": {
           this.blockEntitiesMap.delete(voxelId);
           this.untrackBlockEntityKey(chunkName, voxelId);
-          const block = this.getBlockByName(type.split("::")[1]);
+          const blockNameStart = type.indexOf("::") + 2;
+          const blockNameEnd = type.indexOf("::", blockNameStart);
+          const blockName =
+            blockNameEnd >= 0
+              ? type.slice(blockNameStart, blockNameEnd)
+              : type.slice(blockNameStart);
+          const block = this.getBlockByName(blockName);
           if (block) {
+            const voxel: Coords3 = [vx, vy, vz];
             for (const face of block.faces) {
               if (face.isolated) {
-                const voxel = [vx, vy, vz] as Coords3;
                 const material = this.getBlockFaceMaterial(
                   block.id,
                   face.name,
