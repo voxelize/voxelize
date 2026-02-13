@@ -885,6 +885,22 @@ export class World<T = any> extends Scene implements NetIntercept {
     return write;
   }
 
+  private findFirstDeltaAfter(deltas: VoxelDelta[], sequenceId: number): number {
+    let low = 0;
+    let high = deltas.length;
+
+    while (low < high) {
+      const mid = (low + high) >>> 1;
+      if (deltas[mid].sequenceId <= sequenceId) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+
+    return low;
+  }
+
   private async dispatchMeshWorker(
     cx: number,
     cz: number,
@@ -5609,23 +5625,15 @@ export class World<T = any> extends Scene implements NetIntercept {
         const chunkName = ChunkUtils.getChunkNameAt(cx, cz);
         const allDeltas = this.voxelDeltas.get(chunkName);
         if (allDeltas) {
-          let recentDeltas: VoxelDelta[] | undefined;
-          for (const delta of allDeltas) {
-            if (delta.sequenceId <= startSequenceId) {
-              continue;
-            }
-
-            if (!recentDeltas) {
-              recentDeltas = [];
-            }
-
-            recentDeltas.push(delta);
-          }
-          if (recentDeltas) {
+          const firstRelevantIndex = this.findFirstDeltaAfter(
+            allDeltas,
+            startSequenceId
+          );
+          if (firstRelevantIndex < allDeltas.length) {
             relevantDeltas.push({
               cx,
               cz,
-              deltas: recentDeltas,
+              deltas: allDeltas.slice(firstRelevantIndex),
             });
           }
         }
