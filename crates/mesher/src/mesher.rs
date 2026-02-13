@@ -3067,8 +3067,9 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 + (vz - min_z) as usize;
                         }
                         let cache_ready = block.cache_ready;
+                        let block_needs_rotation = block.rotatable || block.y_rotatable;
                         let mut rotation = BlockRotation::PY(0.0);
-                        if block.rotatable || block.y_rotatable {
+                        if block_needs_rotation {
                             rotation = space.get_voxel_rotation(vx, vy, vz);
                         }
                         processed_non_greedy[current_voxel_index] = true;
@@ -3169,7 +3170,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                             entry
                                         });
                                         let needs_rotation =
-                                            (block.rotatable || block.y_rotatable) && !world_space;
+                                            block_needs_rotation && !world_space;
                                         let face_rotation = if needs_rotation {
                                             &rotation
                                         } else {
