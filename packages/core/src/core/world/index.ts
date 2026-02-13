@@ -856,6 +856,10 @@ export class World<T = any> extends Scene implements NetIntercept {
   private processCandidateData: import("@voxelize/protocol").ChunkProtocol[] =
     [];
   private processCandidateDistances = new Float64Array(0);
+  private meshJobCxs = new Int32Array(0);
+  private meshJobCzs = new Int32Array(0);
+  private meshJobLevels = new Int32Array(0);
+  private meshJobGenerations = new Uint32Array(0);
 
   private static readonly warmColor = new Color(1.0, 0.95, 0.9);
   private static readonly coolColor = new Color(0.9, 0.95, 1.0);
@@ -934,6 +938,17 @@ export class World<T = any> extends Scene implements NetIntercept {
       import("@voxelize/protocol").ChunkProtocol
     >(capacity);
     this.processCandidateDistances = new Float64Array(capacity);
+  }
+
+  private ensureMeshJobMetadataCapacity(capacity: number) {
+    if (this.meshJobCxs.length >= capacity) {
+      return;
+    }
+
+    this.meshJobCxs = new Int32Array(capacity);
+    this.meshJobCzs = new Int32Array(capacity);
+    this.meshJobLevels = new Int32Array(capacity);
+    this.meshJobGenerations = new Uint32Array(capacity);
   }
 
   private pruneDeltasByCutoff(deltas: VoxelDelta[], cutoff: number): number {
@@ -5900,10 +5915,11 @@ export class World<T = any> extends Scene implements NetIntercept {
         processCount
       );
       const jobKeys = new Array<string>(processCount);
-      const jobCxs = new Int32Array(processCount);
-      const jobCzs = new Int32Array(processCount);
-      const jobLevels = new Int32Array(processCount);
-      const jobGenerations = new Uint32Array(processCount);
+      this.ensureMeshJobMetadataCapacity(processCount);
+      const jobCxs = this.meshJobCxs;
+      const jobCzs = this.meshJobCzs;
+      const jobLevels = this.meshJobLevels;
+      const jobGenerations = this.meshJobGenerations;
       let workerCount = 0;
 
       for (let index = 0; index < processCount; index++) {
