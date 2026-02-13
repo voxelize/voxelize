@@ -1769,8 +1769,18 @@ fn process_greedy_quad(
     let end_u = quad.data.uv_range.end_u;
     let start_v = quad.data.uv_range.start_v;
     let end_v = quad.data.uv_range.end_v;
+    let uv_span_u = end_u - start_u;
+    let uv_span_v = end_v - start_v;
 
     let scale = if is_opaque { 0.0 } else { 0.0001 };
+    let min_x_f = min_x as f32;
+    let min_y_f = min_y as f32;
+    let min_z_f = min_z as f32;
+    let dir_scale_x = dir[0] as f32 * scale;
+    let dir_scale_y = dir[1] as f32 * scale;
+    let dir_scale_z = dir[2] as f32 * scale;
+    let fluid_bit = if is_fluid { 1 << 18 } else { 0 };
+    let light_flags = fluid_bit | (1 << 19);
 
     let u_min = quad.x as f32;
     let u_max = (quad.x + quad.w) as f32;
@@ -1841,28 +1851,18 @@ fn process_greedy_quad(
 
     for i in 0..4 {
         let pos = corners[i];
-        geometry
-            .positions
-            .push(pos[0] - min_x as f32 - dir[0] as f32 * scale);
-        geometry
-            .positions
-            .push(pos[1] - min_y as f32 - dir[1] as f32 * scale);
-        geometry
-            .positions
-            .push(pos[2] - min_z as f32 - dir[2] as f32 * scale);
+        geometry.positions.push(pos[0] - min_x_f - dir_scale_x);
+        geometry.positions.push(pos[1] - min_y_f - dir_scale_y);
+        geometry.positions.push(pos[2] - min_z_f - dir_scale_z);
 
-        let u = uv_corners[i][0] * (end_u - start_u) + start_u;
-        let v = uv_corners[i][1] * (end_v - start_v) + start_v;
+        let u = uv_corners[i][0] * uv_span_u + start_u;
+        let v = uv_corners[i][1] * uv_span_v + start_v;
         geometry.uvs.push(u);
         geometry.uvs.push(v);
 
         let ao = quad.data.key.ao[i];
         let light = quad.data.key.light[i];
-        let fluid_bit = if is_fluid { 1 << 18 } else { 0 };
-        let greedy_bit = 1 << 19;
-        geometry
-            .lights
-            .push(light | (ao << 16) | fluid_bit | greedy_bit);
+        geometry.lights.push(light | (ao << 16) | light_flags);
     }
 
     let face_aos = quad.data.key.ao;
