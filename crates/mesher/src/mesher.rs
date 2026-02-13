@@ -2548,10 +2548,19 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
     registry: &Registry,
 ) -> Vec<GeometryProtocol> {
     let mut map: HashMap<String, GeometryProtocol> = HashMap::new();
-    let mut processed_non_greedy: HashSet<(i32, i32, i32)> = HashSet::new();
 
     let [min_x, min_y, min_z] = *min;
     let [max_x, max_y, max_z] = *max;
+    let x_span = (max_x - min_x).max(0) as usize;
+    let y_span = (max_y - min_y).max(0) as usize;
+    let z_span = (max_z - min_z).max(0) as usize;
+    let mut processed_non_greedy = vec![false; x_span * y_span * z_span];
+    let non_greedy_index = |vx: i32, vy: i32, vz: i32| -> usize {
+        let local_x = (vx - min_x) as usize;
+        let local_y = (vy - min_y) as usize;
+        let local_z = (vz - min_z) as usize;
+        local_x * y_span * z_span + local_y * z_span + local_z
+    };
 
     let directions: [(i32, i32, i32); 6] = [
         (1, 0, 0),
@@ -2642,7 +2651,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     }
 
                     let is_non_greedy_block = !can_greedy_mesh_block(block, &rotation);
-                    if is_non_greedy_block && processed_non_greedy.contains(&(vx, vy, vz)) {
+                    if is_non_greedy_block && processed_non_greedy[non_greedy_index(vx, vy, vz)] {
                         continue;
                     }
 
@@ -2662,7 +2671,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         };
 
                     if is_non_greedy_block {
-                        processed_non_greedy.insert((vx, vy, vz));
+                        processed_non_greedy[non_greedy_index(vx, vy, vz)] = true;
                         for (face, world_space) in faces {
                             non_greedy_faces.push((
                                 vx,
