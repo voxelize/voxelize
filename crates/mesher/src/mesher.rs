@@ -3012,8 +3012,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     if block.is_empty {
                         continue;
                     }
-                    let has_independent_or_isolated_faces =
-                        block.has_independent_or_isolated_faces_cached();
 
                     if block.is_opaque {
                         let cached = fully_occluded_opaque[current_voxel_index];
@@ -3031,6 +3029,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
                     let greedy_without_rotation = block.can_greedy_mesh_without_rotation();
                     let is_non_greedy_block = !greedy_without_rotation;
+                    let has_independent_or_isolated_faces =
+                        block.has_independent_or_isolated_faces_cached();
                     if is_non_greedy_block && processed_non_greedy[current_voxel_index] {
                         continue;
                     }
