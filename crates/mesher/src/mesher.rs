@@ -1489,7 +1489,8 @@ fn extract_greedy_quads(
     min_v: i32,
     max_v: i32,
 ) -> Vec<GreedyQuad> {
-    let mut quads = Vec::new();
+    let estimated_cells = ((max_u - min_u) * (max_v - min_v)).max(0) as usize;
+    let mut quads = Vec::with_capacity((estimated_cells / 2).max(16));
 
     for v in min_v..max_v {
         for u in min_u..max_u {
@@ -1546,7 +1547,8 @@ fn extract_greedy_quads_dense(
     min_v: i32,
     max_v: i32,
 ) -> Vec<GreedyQuad> {
-    let mut quads = Vec::new();
+    let estimated_cells = ((max_u - min_u) * (max_v - min_v)).max(0) as usize;
+    let mut quads = Vec::with_capacity((estimated_cells / 2).max(16));
     let width = (max_u - min_u) as usize;
 
     let index = |u: i32, v: i32| -> usize { (v - min_v) as usize * width + (u - min_u) as usize };
