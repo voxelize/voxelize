@@ -117,6 +117,7 @@ const platform = process.platform;
 const nodeVersion = process.version;
 
 if (outputPathError !== null || selectedChecksError !== null) {
+  const endedAt = new Date().toISOString();
   console.log(
     toReportJson({
       passed: false,
@@ -125,6 +126,7 @@ if (outputPathError !== null || selectedChecksError !== null) {
       platform,
       nodeVersion,
       startedAt,
+      endedAt,
       durationMs: 0,
       selectedChecks: [],
       skippedChecks: availableCheckNames,
@@ -234,6 +236,7 @@ const report = {
   platform,
   nodeVersion,
   startedAt,
+  endedAt: new Date().toISOString(),
   durationMs: Date.now() - aggregateStartMs,
   selectedChecks,
   skippedChecks,

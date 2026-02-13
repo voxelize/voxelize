@@ -29,6 +29,7 @@ type PreflightReport = {
   platform: string;
   nodeVersion: string;
   startedAt: string;
+  endedAt: string;
   durationMs: number;
   selectedChecks: string[];
   skippedChecks: string[];
@@ -66,6 +67,7 @@ describe("preflight aggregate report", () => {
     expect(report.nodeVersion).toBe(process.version);
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
     expect(typeof report.startedAt).toBe("string");
+    expect(typeof report.endedAt).toBe("string");
     expect(report.durationMs).toBeGreaterThanOrEqual(0);
     expect(report.availableChecks).toEqual([
       "devEnvironment",
@@ -269,6 +271,7 @@ describe("preflight aggregate report", () => {
     expect(report.exitCode).toBe(1);
     expect(report.platform).toBe(process.platform);
     expect(report.nodeVersion).toBe(process.version);
+    expect(typeof report.endedAt).toBe("string");
     expect(report.totalChecks).toBe(0);
     expect(report.passedCheckCount).toBe(0);
     expect(report.failedCheckCount).toBe(0);
@@ -289,6 +292,7 @@ describe("preflight aggregate report", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
+    expect(typeof report.endedAt).toBe("string");
     expect(report.totalChecks).toBe(0);
     expect(report.passedCheckCount).toBe(0);
     expect(report.failedCheckCount).toBe(0);
@@ -318,6 +322,7 @@ describe("preflight aggregate report", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
+    expect(typeof report.endedAt).toBe("string");
     expect(report.totalChecks).toBe(0);
     expect(report.passedCheckCount).toBe(0);
     expect(report.failedCheckCount).toBe(0);
