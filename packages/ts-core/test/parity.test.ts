@@ -10,6 +10,9 @@ import {
   Light,
   LightUtils,
   PY_ROTATION,
+  Y_ROT_MAP,
+  Y_ROT_MAP_EIGHT,
+  Y_ROT_MAP_FOUR,
   Voxel,
 } from "../src";
 
@@ -126,6 +129,23 @@ describe("BlockRotation", () => {
       false,
     ];
     expect(rotation.rotateTransparency(input)).not.toEqual(input);
+  });
+
+  it("supports value and axis aliases", () => {
+    const rotation = new BlockRotation();
+    expect(rotation.value).toBe(rotation.axis);
+    rotation.axis = 4;
+    expect(rotation.value).toBe(4);
+    rotation.value = 2;
+    expect(rotation.axis).toBe(2);
+  });
+});
+
+describe("Rotation maps", () => {
+  it("exposes expected map sizes", () => {
+    expect(Y_ROT_MAP.length).toBe(32);
+    expect(Y_ROT_MAP_EIGHT.length).toBe(16);
+    expect(Y_ROT_MAP_FOUR.length).toBe(8);
   });
 });
 

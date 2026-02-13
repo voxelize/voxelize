@@ -7,11 +7,32 @@ export const NZ_ROTATION = 5;
 
 export const Y_ROT_SEGMENTS = 16;
 
+export const Y_ROT_MAP: [number, number][] = [];
+export const Y_ROT_MAP_EIGHT: [number, number][] = [];
+export const Y_ROT_MAP_FOUR: [number, number][] = [];
+
 export const ROTATION_MASK = 0xfff0ffff;
 export const Y_ROTATION_MASK = 0xff0fffff;
 export const STAGE_MASK = 0xf0ffffff;
 
 export const PI_2 = Math.PI / 2.0;
+
+for (let i = 0; i < Y_ROT_SEGMENTS; i += 1) {
+  const mapping: [number, number][] = [
+    [(i / Y_ROT_SEGMENTS) * Math.PI * 2, i],
+    [(i / Y_ROT_SEGMENTS) * Math.PI * 2 - Math.PI * 2, i],
+  ];
+
+  Y_ROT_MAP.push(...mapping);
+
+  if (i % 2 === 0) {
+    Y_ROT_MAP_EIGHT.push(...mapping);
+  }
+
+  if (i % 4 === 0) {
+    Y_ROT_MAP_FOUR.push(...mapping);
+  }
+}
 
 const UINT32_MAX = 0xffffffff;
 
