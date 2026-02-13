@@ -2360,31 +2360,35 @@ fn process_face<S: VoxelAccess>(
                 registry.is_empty_id(neighbor_id)
             }
         } else {
-            let n_block_type = match registry.get_block_by_id(neighbor_id) {
-                Some(b) => b,
-                None => return,
-            };
+            if registry.is_empty_id(neighbor_id) {
+                true
+            } else {
+                let n_block_type = match registry.get_block_by_id(neighbor_id) {
+                    Some(b) => b,
+                    None => return,
+                };
 
-            if !block.is_waterlogged && n_block_type.is_waterlogged {
-                return;
+                if !block.is_waterlogged && n_block_type.is_waterlogged {
+                    return;
+                }
+
+                if n_block_type.occludes_fluid {
+                    return;
+                }
+
+                let n_is_empty = n_block_type.is_empty;
+
+                n_is_empty
+                    || (see_through
+                        && !is_opaque
+                        && !n_block_type.is_opaque
+                        && (neighbor_id != voxel_id || n_block_type.transparent_standalone))
+                    || (!see_through && (!is_opaque || !n_block_type.is_opaque))
+                    || (n_block_type.is_opaque
+                        && !n_block_type.is_fluid
+                        && !cache.fluid_surface_above
+                        && (!n_block_type.is_full_cube() || dir == [0, 1, 0]))
             }
-
-            if n_block_type.occludes_fluid {
-                return;
-            }
-
-            let n_is_empty = n_block_type.is_empty;
-
-            n_is_empty
-                || (see_through
-                    && !is_opaque
-                    && !n_block_type.is_opaque
-                    && (neighbor_id != voxel_id || n_block_type.transparent_standalone))
-                || (!see_through && (!is_opaque || !n_block_type.is_opaque))
-                || (n_block_type.is_opaque
-                    && !n_block_type.is_fluid
-                    && !cache.fluid_surface_above
-                    && (!n_block_type.is_full_cube() || dir == [0, 1, 0]))
         }
     };
 
