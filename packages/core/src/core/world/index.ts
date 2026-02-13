@@ -5334,17 +5334,17 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         const remainingUpdates = this.processLightUpdates(updates);
 
-        this.blockUpdatesQueue.push(...remainingUpdates);
+        for (const remainingUpdate of remainingUpdates) {
+          this.blockUpdatesQueue.push(remainingUpdate);
+        }
 
-        this.blockUpdatesToEmit.push(
-          ...updates
-            .slice(
-              0,
-              this.options.maxUpdatesPerUpdate - remainingUpdates.length
-            )
-            .filter(({ source }) => source === "client")
-            .map(({ update }) => update)
-        );
+        const processedLimit = updates.length - remainingUpdates.length;
+        for (let i = 0; i < processedLimit; i++) {
+          const processedUpdate = updates[i];
+          if (processedUpdate.source === "client") {
+            this.blockUpdatesToEmit.push(processedUpdate.update);
+          }
+        }
 
         if (this.blockUpdatesQueue.length > 0) {
           requestAnimationFrame(processUpdatesInIdleTime);
