@@ -935,6 +935,27 @@ fn should_render_face<S: VoxelAccess>(
             && (!n_block_type.is_full_cube() || dir == [0, 1, 0]))
 }
 
+#[inline]
+fn is_surrounded_by_opaque_neighbors<S: VoxelAccess>(
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    space: &S,
+    registry: &Registry,
+) -> bool {
+    for [nx, ny, nz] in VOXEL_NEIGHBORS {
+        let id = space.get_voxel(vx + nx, vy + ny, vz + nz);
+        if !registry
+            .get_block_by_id(id)
+            .map(|block| block.is_opaque)
+            .unwrap_or(false)
+        {
+            return false;
+        }
+    }
+    true
+}
+
 fn compute_face_ao_and_light(
     dir: [i32; 3],
     block: &Block,
@@ -2363,14 +2384,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     }
 
                     if block.is_opaque {
-                        let all_neighbors_opaque = VOXEL_NEIGHBORS.iter().all(|&[nx, ny, nz]| {
-                            let id = space.get_voxel(vx + nx, vy + ny, vz + nz);
-                            registry
-                                .get_block_by_id(id)
-                                .map(|b| b.is_opaque)
-                                .unwrap_or(false)
-                        });
-                        if all_neighbors_opaque {
+                        if is_surrounded_by_opaque_neighbors(vx, vy, vz, space, registry) {
                             continue;
                         }
                     }
@@ -2705,14 +2719,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     }
 
                     if block.is_opaque {
-                        let all_neighbors_opaque = VOXEL_NEIGHBORS.iter().all(|&[nx, ny, nz]| {
-                            let id = space.get_voxel(vx + nx, vy + ny, vz + nz);
-                            registry
-                                .get_block_by_id(id)
-                                .map(|candidate| candidate.is_opaque)
-                                .unwrap_or(false)
-                        });
-                        if all_neighbors_opaque {
+                        if is_surrounded_by_opaque_neighbors(vx, vy, vz, space, registry) {
                             continue;
                         }
                     }
@@ -3001,14 +3008,7 @@ pub fn mesh_space<S: VoxelAccess>(
                 }
 
                 if is_opaque {
-                    let all_neighbors_opaque = VOXEL_NEIGHBORS.iter().all(|&[nx, ny, nz]| {
-                        let id = space.get_voxel(vx + nx, vy + ny, vz + nz);
-                        registry
-                            .get_block_by_id(id)
-                            .map(|b| b.is_opaque)
-                            .unwrap_or(false)
-                    });
-                    if all_neighbors_opaque {
+                    if is_surrounded_by_opaque_neighbors(vx, vy, vz, space, registry) {
                         continue;
                     }
                 }
