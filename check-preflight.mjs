@@ -52,6 +52,8 @@ const runCheck = (name, scriptName, extraArgs = []) => {
 
 const startedAt = new Date().toISOString();
 const aggregateStartMs = Date.now();
+const platform = process.platform;
+const nodeVersion = process.version;
 
 if (outputArgIndex !== -1 && requestedOutputPath === null) {
   console.log(
@@ -61,6 +63,8 @@ if (outputArgIndex !== -1 && requestedOutputPath === null) {
         passed: false,
         exitCode: 1,
         noBuild: isNoBuild,
+        platform,
+        nodeVersion,
         startedAt,
         durationMs: 0,
         checks: [],
@@ -89,6 +93,8 @@ const report = {
   passed,
   exitCode,
   noBuild: isNoBuild,
+  platform,
+  nodeVersion,
   startedAt,
   durationMs: Date.now() - aggregateStartMs,
   passedChecks,

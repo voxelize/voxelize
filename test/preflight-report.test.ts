@@ -20,6 +20,8 @@ type PreflightReport = {
   passed: boolean;
   exitCode: number;
   noBuild: boolean;
+  platform: string;
+  nodeVersion: string;
   startedAt: string;
   durationMs: number;
   passedChecks: string[];
@@ -46,6 +48,8 @@ describe("preflight aggregate report", () => {
     expect(report.schemaVersion).toBe(1);
     expect(typeof report.passed).toBe("boolean");
     expect(report.noBuild).toBe(true);
+    expect(report.platform).toBe(process.platform);
+    expect(report.nodeVersion).toBe(process.version);
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
     expect(typeof report.startedAt).toBe("string");
     expect(report.durationMs).toBeGreaterThanOrEqual(0);
@@ -143,6 +147,8 @@ describe("preflight aggregate report", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
+    expect(report.platform).toBe(process.platform);
+    expect(report.nodeVersion).toBe(process.version);
     expect(report.message).toBe("Missing value for --output option.");
     expect(result.status).toBe(1);
   });
