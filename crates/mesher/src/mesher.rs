@@ -1975,6 +1975,28 @@ fn evaluate_block_rule<S: VoxelAccess>(
     y_rotatable: bool,
     world_space: bool,
 ) -> bool {
+    let rotation_trig = if y_rotatable && !world_space {
+        let rotation_rad = rotation_radians(rotation);
+        if rotation_rad.abs() > f32::EPSILON {
+            let (sin_rot, cos_rot) = rotation_rad.sin_cos();
+            Some((sin_rot, cos_rot))
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    evaluate_block_rule_with_trig(rule, pos, space, rotation, rotation_trig)
+}
+
+fn evaluate_block_rule_with_trig<S: VoxelAccess>(
+    rule: &BlockRule,
+    pos: [i32; 3],
+    space: &S,
+    rotation: &BlockRotation,
+    rotation_trig: Option<(f32, f32)>,
+) -> bool {
     match rule {
         BlockRule::None => true,
         BlockRule::Simple(simple) => {
@@ -1983,17 +2005,8 @@ fn evaluate_block_rule<S: VoxelAccess>(
             }
 
             let [offset_x, offset_y, offset_z] = simple.offset;
-            let needs_y_offset_rotation =
-                y_rotatable && !world_space && (offset_x != 0 || offset_z != 0);
-            let rotation_rad = if needs_y_offset_rotation {
-                rotation_radians(rotation)
-            } else {
-                0.0
-            };
-            let (check_x, check_y, check_z) =
-                if needs_y_offset_rotation && rotation_rad.abs() > f32::EPSILON {
-                    let cos_rot = rotation_rad.cos();
-                    let sin_rot = rotation_rad.sin();
+            let (check_x, check_y, check_z) = if let Some((sin_rot, cos_rot)) = rotation_trig {
+                if offset_x != 0 || offset_z != 0 {
                     let x = offset_x as f32;
                     let z = offset_z as f32;
                     (
@@ -2002,12 +2015,11 @@ fn evaluate_block_rule<S: VoxelAccess>(
                         pos[2] + (x * sin_rot + z * cos_rot).round() as i32,
                     )
                 } else {
-                    (
-                        pos[0] + offset_x,
-                        pos[1] + offset_y,
-                        pos[2] + offset_z,
-                    )
-                };
+                    (pos[0] + offset_x, pos[1] + offset_y, pos[2] + offset_z)
+                }
+            } else {
+                (pos[0] + offset_x, pos[1] + offset_y, pos[2] + offset_z)
+            };
 
             let has_rotation_expectation = simple.rotation.is_some();
             let has_stage_expectation = simple.stage.is_some();
@@ -2041,13 +2053,12 @@ fn evaluate_block_rule<S: VoxelAccess>(
         BlockRule::Combination { logic, rules } => match logic {
             BlockRuleLogic::And => {
                 for nested_rule in rules {
-                    if !evaluate_block_rule(
+                    if !evaluate_block_rule_with_trig(
                         nested_rule,
                         pos,
                         space,
                         rotation,
-                        y_rotatable,
-                        world_space,
+                        rotation_trig,
                     ) {
                         return false;
                     }
@@ -2056,13 +2067,12 @@ fn evaluate_block_rule<S: VoxelAccess>(
             }
             BlockRuleLogic::Or => {
                 for nested_rule in rules {
-                    if evaluate_block_rule(
+                    if evaluate_block_rule_with_trig(
                         nested_rule,
                         pos,
                         space,
                         rotation,
-                        y_rotatable,
-                        world_space,
+                        rotation_trig,
                     ) {
                         return true;
                     }
@@ -2071,7 +2081,7 @@ fn evaluate_block_rule<S: VoxelAccess>(
             }
             BlockRuleLogic::Not => {
                 if let Some(first) = rules.first() {
-                    !evaluate_block_rule(first, pos, space, rotation, y_rotatable, world_space)
+                    !evaluate_block_rule_with_trig(first, pos, space, rotation, rotation_trig)
                 } else {
                     true
                 }
