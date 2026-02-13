@@ -109,6 +109,7 @@ const availableCheckAliases = {
   wasmPack: ["wasmPack", "wasm", "wasm-pack", "wasm_pack", "wasmpack"],
   tsCore: [
     "tsCore",
+    "ts",
     "ts-core",
     "ts_core",
     "tscore",
