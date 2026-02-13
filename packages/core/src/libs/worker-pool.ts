@@ -169,7 +169,7 @@ export class WorkerPool {
       const index = this.available.pop() as number;
       const worker = this.workers[index];
 
-      const job = this.queue[this.queueHead] as WorkerPoolJob;
+      const job = this.queue[this.queueHead];
       const { message, buffers, resolve } = job;
 
       const workerCallback = (event: MessageEvent<object>) => {
