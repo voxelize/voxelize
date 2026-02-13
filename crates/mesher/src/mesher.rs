@@ -1195,6 +1195,7 @@ fn is_surrounded_by_opaque_neighbors<S: VoxelAccess>(
     true
 }
 
+#[inline(always)]
 fn compute_face_ao_and_light(
     dir: [i32; 3],
     block: &Block,
