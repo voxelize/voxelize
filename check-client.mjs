@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { resolvePnpmCommand } from "./scripts/command-utils.mjs";
+import { parseJsonOutput, toReportJson } from "./scripts/report-utils.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,18 +14,6 @@ const isJson = process.argv.includes("--json");
 const isNoBuild = process.argv.includes("--no-build");
 const stepResults = [];
 let exitCode = 0;
-
-const parseJsonOutput = (value) => {
-  if (value.length === 0) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-};
 
 const addSkippedStep = (name, reason) => {
   if (!isJson) {
@@ -110,17 +99,12 @@ if (wasmPreflightPassed) {
 
 if (isJson) {
   console.log(
-    JSON.stringify(
-      {
-        schemaVersion: 1,
-        passed: exitCode === 0,
-        exitCode,
-        noBuild: isNoBuild,
-        steps: stepResults,
-      },
-      null,
-      2
-    )
+    toReportJson({
+      passed: exitCode === 0,
+      exitCode,
+      noBuild: isNoBuild,
+      steps: stepResults,
+    })
   );
   process.exit(exitCode);
 }

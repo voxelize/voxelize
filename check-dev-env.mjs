@@ -9,6 +9,7 @@ import {
   loadWorkspaceMinimumVersions,
   parseSemver,
 } from "./scripts/dev-env-utils.mjs";
+import { toReportJson } from "./scripts/report-utils.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -143,16 +144,11 @@ for (const check of checks) {
 
 if (isJson) {
   console.log(
-    JSON.stringify(
-      {
-        schemaVersion: 1,
-        passed: requiredFailures === 0,
-        requiredFailures,
-        checks: checkResults,
-      },
-      null,
-      2
-    )
+    toReportJson({
+      passed: requiredFailures === 0,
+      requiredFailures,
+      checks: checkResults,
+    })
   );
 }
 

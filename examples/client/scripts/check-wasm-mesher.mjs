@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { resolvePnpmCommand } from "../../../scripts/command-utils.mjs";
+import { parseJsonOutput, toReportJson } from "../../../scripts/report-utils.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,31 +19,14 @@ const pnpmCommand = resolvePnpmCommand();
 const isJson = process.argv.includes("--json");
 const isNoBuild = process.argv.includes("--no-build");
 
-const parseJsonOutput = (value) => {
-  if (value.length === 0) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-};
-
 const finish = (report) => {
-  const finalizedReport = {
-    schemaVersion: 1,
-    ...report,
-  };
-
   if (isJson) {
-    console.log(JSON.stringify(finalizedReport, null, 2));
-  } else if (!finalizedReport.passed) {
-    console.error(finalizedReport.message);
+    console.log(toReportJson(report));
+  } else if (!report.passed) {
+    console.error(report.message);
   }
 
-  process.exit(finalizedReport.exitCode);
+  process.exit(report.exitCode);
 };
 
 if (fs.existsSync(wasmMesherEntry)) {

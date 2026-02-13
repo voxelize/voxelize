@@ -3,6 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { parseJsonOutput, toReportJson } from "./scripts/report-utils.mjs";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const cliArgs = process.argv.slice(2);
@@ -14,18 +16,6 @@ const resolvedOutputPath =
   requestedOutputPath === null
     ? null
     : path.resolve(process.cwd(), requestedOutputPath);
-
-const parseJsonOutput = (value) => {
-  if (value.length === 0) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-};
 
 const runCheck = (name, scriptName, extraArgs = []) => {
   const checkStartMs = Date.now();
@@ -57,23 +47,18 @@ const nodeVersion = process.version;
 
 if (outputArgIndex !== -1 && requestedOutputPath === null) {
   console.log(
-    JSON.stringify(
-      {
-        schemaVersion: 1,
-        passed: false,
-        exitCode: 1,
-        noBuild: isNoBuild,
-        platform,
-        nodeVersion,
-        startedAt,
-        durationMs: 0,
-        checks: [],
-        outputPath: null,
-        message: "Missing value for --output option.",
-      },
-      null,
-      2
-    )
+    toReportJson({
+      passed: false,
+      exitCode: 1,
+      noBuild: isNoBuild,
+      platform,
+      nodeVersion,
+      startedAt,
+      durationMs: 0,
+      checks: [],
+      outputPath: null,
+      message: "Missing value for --output option.",
+    })
   );
   process.exit(1);
 }
@@ -89,7 +74,6 @@ const exitCode = passed ? 0 : 1;
 const passedChecks = checks.filter((check) => check.passed).map((check) => check.name);
 const failedChecks = checks.filter((check) => !check.passed).map((check) => check.name);
 const report = {
-  schemaVersion: 1,
   passed,
   exitCode,
   noBuild: isNoBuild,
@@ -102,7 +86,7 @@ const report = {
   checks,
   outputPath: resolvedOutputPath,
 };
-const reportJson = JSON.stringify(report, null, 2);
+const reportJson = toReportJson(report);
 
 if (resolvedOutputPath !== null) {
   try {
@@ -110,16 +94,12 @@ if (resolvedOutputPath !== null) {
     fs.writeFileSync(resolvedOutputPath, reportJson);
   } catch {
     console.log(
-      JSON.stringify(
-        {
-          ...report,
-          passed: false,
-          exitCode: 1,
-          message: `Failed to write preflight report to ${resolvedOutputPath}.`,
-        },
-        null,
-        2
-      )
+      toReportJson({
+        ...report,
+        passed: false,
+        exitCode: 1,
+        message: `Failed to write preflight report to ${resolvedOutputPath}.`,
+      })
     );
     process.exit(1);
   }

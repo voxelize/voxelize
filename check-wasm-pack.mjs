@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 
 import { resolveCommand } from "./scripts/command-utils.mjs";
+import { toReportJson } from "./scripts/report-utils.mjs";
 
 const wasmPackCommand = resolveCommand("wasm-pack");
 const isQuiet = process.argv.includes("--quiet");
@@ -26,17 +27,12 @@ const firstLine =
 if (checkStatus === 0) {
   if (isJson) {
     console.log(
-      JSON.stringify(
-        {
-          schemaVersion: 1,
-          passed: true,
-          exitCode: 0,
-          command: wasmPackCommand,
-          version: firstLine,
-        },
-        null,
-        2
-      )
+      toReportJson({
+        passed: true,
+        exitCode: 0,
+        command: wasmPackCommand,
+        version: firstLine,
+      })
     );
   }
   process.exit(0);
@@ -46,18 +42,13 @@ const failureMessage = `wasm-pack is required for wasm build commands (expected 
 
 if (isJson) {
   console.log(
-    JSON.stringify(
-      {
-        schemaVersion: 1,
-        passed: false,
-        exitCode: checkStatus,
-        command: wasmPackCommand,
-        version: null,
-        message: failureMessage,
-      },
-      null,
-      2
-    )
+    toReportJson({
+      passed: false,
+      exitCode: checkStatus,
+      command: wasmPackCommand,
+      version: null,
+      message: failureMessage,
+    })
   );
 } else if (!isQuiet) {
   console.error(failureMessage);
