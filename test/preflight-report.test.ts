@@ -201,6 +201,34 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
+  it("supports canonical aliases and case-insensitive check names", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--no-build", "--only", "DEV-ENV,wasm-pack,CLIENT"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.selectedChecks).toEqual([
+      "devEnvironment",
+      "wasmPack",
+      "client",
+    ]);
+    expect(report.skippedChecks).toEqual([]);
+    expect(report.checks.map((check) => check.name)).toEqual([
+      "devEnvironment",
+      "wasmPack",
+      "client",
+    ]);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
   it("uses the last only flag when multiple are provided", () => {
     const result = spawnSync(
       process.execPath,

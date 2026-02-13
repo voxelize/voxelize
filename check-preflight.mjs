@@ -41,6 +41,12 @@ const availableChecks = [
   },
 ];
 const availableCheckNames = availableChecks.map((check) => check.name);
+const checkAliases = new Map([
+  ...availableCheckNames.map((checkName) => [checkName.toLowerCase(), checkName]),
+  ["dev-env", "devEnvironment"],
+  ["dev-environment", "devEnvironment"],
+  ["wasm-pack", "wasmPack"],
+]);
 
 const parseSelectedChecks = () => {
   if (onlyArgIndex === -1) {
@@ -58,14 +64,10 @@ const parseSelectedChecks = () => {
     };
   }
 
-  const parsedChecks = Array.from(
-    new Set(
-      onlyValue
-        .split(",")
-        .map((value) => value.trim())
-        .filter((value) => value.length > 0)
-    )
-  );
+  const parsedChecks = onlyValue
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
 
   if (parsedChecks.length === 0) {
     return {
@@ -74,9 +76,17 @@ const parseSelectedChecks = () => {
     };
   }
 
-  const unknownChecks = parsedChecks.filter((value) => {
-    return !availableCheckNames.includes(value);
-  });
+  const unknownChecks = [];
+  const resolvedChecks = [];
+  for (const parsedCheck of parsedChecks) {
+    const resolvedCheck = checkAliases.get(parsedCheck.toLowerCase()) ?? null;
+    if (resolvedCheck === null) {
+      unknownChecks.push(parsedCheck);
+      continue;
+    }
+
+    resolvedChecks.push(resolvedCheck);
+  }
 
   if (unknownChecks.length > 0) {
     return {
@@ -85,7 +95,7 @@ const parseSelectedChecks = () => {
     };
   }
 
-  const parsedCheckSet = new Set(parsedChecks);
+  const parsedCheckSet = new Set(resolvedChecks);
   const normalizedChecks = availableCheckNames.filter((value) => {
     return parsedCheckSet.has(value);
   });

@@ -164,6 +164,7 @@ pnpm run check:preflight:verify:json
 pnpm run check:preflight:verify:json:compact
 # run only specific checks (available: devEnvironment, wasmPack, client)
 pnpm run check:preflight:json -- --only devEnvironment,client
+# aliases and case-insensitive names are supported (for example: dev-env, wasm-pack, CLIENT)
 # selected checks are normalized to the standard aggregate order
 # run pre-defined single-check aggregate reports
 pnpm run check:preflight:dev-env:json
