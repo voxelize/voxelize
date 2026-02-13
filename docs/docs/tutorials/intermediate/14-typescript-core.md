@@ -68,6 +68,16 @@ const up = BlockRotation.PY(0);
 const side = BlockRotation.PX(Math.PI / 2);
 ```
 
+You can also pass plain rotation-like objects when packing voxels:
+
+```ts title="Rotation-like input"
+const voxel = Voxel.pack({
+  id: 7,
+  rotation: { value: 0, yRotation: Math.PI / 2 },
+  stage: 1,
+});
+```
+
 ## Evaluating rules with your own data source
 
 ```ts title="Rule evaluation"

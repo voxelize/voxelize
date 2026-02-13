@@ -45,6 +45,16 @@ const facingUp = BlockRotation.PY(0);
 const facingPositiveX = BlockRotation.PX(Math.PI / 2);
 ```
 
+`Voxel.pack` and `BlockUtils.insertRotation` also accept rotation-like objects:
+
+```ts
+const voxel = Voxel.pack({
+  id: 7,
+  rotation: { value: 0, yRotation: Math.PI / 2 },
+  stage: 1,
+});
+```
+
 ## Core API
 
 - `Voxel` and `BlockUtils`
