@@ -3719,10 +3719,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
       case "LOAD": {
         const { chunks } = message;
-        chunks.forEach((chunk) => {
+        for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+          const chunk = chunks[chunkIndex];
           const { x, z } = chunk;
           this.chunkPipeline.markProcessingAt(x, z, "load", chunk);
-        });
+        }
 
         break;
       }
@@ -4004,13 +4005,14 @@ export class World<T = any> extends Scene implements NetIntercept {
         toProcessArray.push({ name, ...procData });
       }
     }
+    const [centerX, centerZ] = center;
 
     toProcessArray.sort((a, b) => {
       const { x: ax, z: az } = a.data;
       const { x: bx, z: bz } = b.data;
 
-      const ad = (ax - center[0]) ** 2 + (az - center[1]) ** 2;
-      const bd = (bx - center[0]) ** 2 + (bz - center[1]) ** 2;
+      const ad = (ax - centerX) ** 2 + (az - centerZ) ** 2;
+      const bd = (bx - centerX) ** 2 + (bz - centerZ) ** 2;
 
       return ad - bd;
     });
@@ -4028,14 +4030,16 @@ export class World<T = any> extends Scene implements NetIntercept {
       const listeners = this.chunkInitializeListeners.get(chunk.name);
 
       if (Array.isArray(listeners)) {
-        listeners.forEach((listener) => listener(chunk));
+        for (let index = 0; index < listeners.length; index++) {
+          listeners[index](chunk);
+        }
         this.chunkInitializeListeners.delete(chunk.name);
       }
     };
 
-    const toProcess = toProcessArray.slice(0, maxProcessesPerUpdate);
-
-    toProcess.forEach((item) => {
+    const processCount = Math.min(toProcessArray.length, maxProcessesPerUpdate);
+    for (let itemIndex = 0; itemIndex < processCount; itemIndex++) {
+      const item = toProcessArray[itemIndex];
       const { x, z, id } = item.data;
 
       let chunk = this.getLoadedChunkByCoords(x, z);
@@ -4079,7 +4083,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           disposer();
         });
       }
-    });
+    }
   }
 
   private isChunkReadyForEntityUpdates(
@@ -4281,7 +4285,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         this.options.gravity[2] ** 2 <
       0.01;
 
-    this.physics.bodies.forEach((body) => {
+    for (const body of this.physics.bodies) {
       const [vx, vy, vz] = body.getPosition() as Coords3;
       const coords = ChunkUtils.mapVoxelToChunkAt(
         vx,
@@ -4291,11 +4295,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       const chunk = this.getLoadedChunkAtVoxel(vx, vz);
 
       if ((!chunk || !chunk.isReady) && this.isWithinWorld(...coords)) {
-        return;
+        continue;
       }
 
       this.physics.iterateBody(body, delta, noGravity);
-    });
+    }
   };
 
   public updateSkyAndClouds(position: Vector3) {
