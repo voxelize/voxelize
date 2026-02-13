@@ -2074,7 +2074,10 @@ fn get_dynamic_faces<S: VoxelAccess>(
                 if rule_result {
                     let faces = matched_faces
                         .get_or_insert_with(|| Vec::with_capacity(part.faces.len()));
-                    faces.extend(part.faces.iter().cloned().map(|f| (f, part.world_space)));
+                    faces.reserve(part.faces.len());
+                    for face in &part.faces {
+                        faces.push((face.clone(), part.world_space));
+                    }
                 }
             }
 
