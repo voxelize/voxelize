@@ -1,4 +1,6 @@
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -18,6 +20,7 @@ type WasmPackJsonReport = {
   exitCode: number;
   command: string;
   version: string | null;
+  outputPath: string | null;
   message?: string;
 };
 
@@ -34,8 +37,11 @@ type DevEnvJsonCheck = {
 type DevEnvJsonReport = {
   schemaVersion: number;
   passed: boolean;
+  exitCode: number;
   requiredFailures: number;
   checks: DevEnvJsonCheck[];
+  outputPath: string | null;
+  message?: string;
 };
 
 type WasmMesherJsonReport = {
@@ -67,7 +73,9 @@ type ClientJsonReport = {
   passed: boolean;
   exitCode: number;
   noBuild: boolean;
+  outputPath: string | null;
   steps: ClientJsonStep[];
+  message?: string;
 };
 
 type OnboardingJsonStep = {
@@ -85,7 +93,9 @@ type OnboardingJsonReport = {
   passed: boolean;
   exitCode: number;
   noBuild: boolean;
+  outputPath: string | null;
   steps: OnboardingJsonStep[];
+  message?: string;
 };
 
 const runScript = (scriptName: string, args: string[] = []): ScriptResult => {
@@ -131,6 +141,7 @@ describe("root preflight scripts", () => {
     expect(typeof report.passed).toBe("boolean");
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
     expect(report.command).toContain("wasm-pack");
+    expect(report.outputPath).toBeNull();
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
 
     if (report.passed) {
@@ -139,6 +150,30 @@ describe("root preflight scripts", () => {
     }
 
     expect(report.message).toContain("wasm-pack is required for wasm build commands");
+  });
+
+  it("check-wasm-pack json mode writes report to output path", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-wasm-pack-json-")
+    );
+    const outputPath = path.resolve(tempDirectory, "wasm-pack-report.json");
+
+    const result = runScript("check-wasm-pack.mjs", [
+      "--json",
+      "--output",
+      outputPath,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as WasmPackJsonReport;
+    const fileReport = JSON.parse(
+      fs.readFileSync(outputPath, "utf8")
+    ) as WasmPackJsonReport;
+
+    expect(stdoutReport.outputPath).toBe(outputPath);
+    expect(fileReport.outputPath).toBe(outputPath);
+    expect(fileReport.exitCode).toBe(stdoutReport.exitCode);
+    expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
   it("check-dev-env returns pass or fail summary", () => {
@@ -165,7 +200,9 @@ describe("root preflight scripts", () => {
     const report = JSON.parse(result.output) as DevEnvJsonReport;
 
     expect(report.schemaVersion).toBe(1);
+    expect(report.exitCode).toBeGreaterThanOrEqual(0);
     expect(report.requiredFailures).toBeGreaterThanOrEqual(0);
+    expect(report.outputPath).toBeNull();
     expect(typeof report.passed).toBe("boolean");
     expect(Array.isArray(report.checks)).toBe(true);
     expect(report.checks.length).toBeGreaterThan(0);
@@ -173,6 +210,30 @@ describe("root preflight scripts", () => {
     expect(report.checks.map((check) => check.label)).toContain("pnpm");
     expect(result.status).toBe(report.passed ? 0 : 1);
     expect(result.output).not.toContain("Environment check failed:");
+  });
+
+  it("check-dev-env json mode writes report to output path", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-dev-env-json-")
+    );
+    const outputPath = path.resolve(tempDirectory, "dev-env-report.json");
+
+    const result = runScript("check-dev-env.mjs", [
+      "--json",
+      "--output",
+      outputPath,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as DevEnvJsonReport;
+    const fileReport = JSON.parse(
+      fs.readFileSync(outputPath, "utf8")
+    ) as DevEnvJsonReport;
+
+    expect(stdoutReport.outputPath).toBe(outputPath);
+    expect(fileReport.outputPath).toBe(outputPath);
+    expect(fileReport.exitCode).toBe(stdoutReport.exitCode);
+    expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
   it("check-client returns pass or fail summary", () => {
@@ -203,6 +264,7 @@ describe("root preflight scripts", () => {
     expect(typeof report.passed).toBe("boolean");
     expect(report.noBuild).toBe(false);
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
+    expect(report.outputPath).toBeNull();
     expect(Array.isArray(report.steps)).toBe(true);
     expect(report.steps.length).toBeGreaterThan(0);
     expect(report.steps[0].name).toBe("WASM artifact preflight");
@@ -224,12 +286,37 @@ describe("root preflight scripts", () => {
     expect(result.output).not.toContain("Client check failed:");
   });
 
+  it("check-client json mode writes report to output path", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-client-json-")
+    );
+    const outputPath = path.resolve(tempDirectory, "client-report.json");
+
+    const result = runScript("check-client.mjs", [
+      "--json",
+      "--output",
+      outputPath,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as ClientJsonReport;
+    const fileReport = JSON.parse(
+      fs.readFileSync(outputPath, "utf8")
+    ) as ClientJsonReport;
+
+    expect(stdoutReport.outputPath).toBe(outputPath);
+    expect(fileReport.outputPath).toBe(outputPath);
+    expect(fileReport.exitCode).toBe(stdoutReport.exitCode);
+    expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("check-client json no-build mode reports skipped build intent", () => {
     const result = runScript("check-client.mjs", ["--json", "--no-build"]);
     const report = JSON.parse(result.output) as ClientJsonReport;
 
     expect(report.schemaVersion).toBe(1);
     expect(report.noBuild).toBe(true);
+    expect(report.outputPath).toBeNull();
     expect(report.steps.length).toBeGreaterThan(0);
     expect(report.steps[0].name).toBe("WASM artifact preflight");
     const typecheckStep = report.steps.find(
@@ -276,6 +363,7 @@ describe("root preflight scripts", () => {
     expect(typeof report.passed).toBe("boolean");
     expect(report.noBuild).toBe(false);
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
+    expect(report.outputPath).toBeNull();
     expect(Array.isArray(report.steps)).toBe(true);
     expect(report.steps.length).toBeGreaterThan(0);
     expect(report.steps[0].name).toBe("Developer environment preflight");
@@ -292,12 +380,37 @@ describe("root preflight scripts", () => {
     expect(result.output).not.toContain("Onboarding check failed:");
   });
 
+  it("check-onboarding json mode writes report to output path", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-onboarding-json-")
+    );
+    const outputPath = path.resolve(tempDirectory, "onboarding-report.json");
+
+    const result = runScript("check-onboarding.mjs", [
+      "--json",
+      "--output",
+      outputPath,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as OnboardingJsonReport;
+    const fileReport = JSON.parse(
+      fs.readFileSync(outputPath, "utf8")
+    ) as OnboardingJsonReport;
+
+    expect(stdoutReport.outputPath).toBe(outputPath);
+    expect(fileReport.outputPath).toBe(outputPath);
+    expect(fileReport.exitCode).toBe(stdoutReport.exitCode);
+    expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("check-onboarding json no-build mode propagates option", () => {
     const result = runScript("check-onboarding.mjs", ["--json", "--no-build"]);
     const report = JSON.parse(result.output) as OnboardingJsonReport;
 
     expect(report.schemaVersion).toBe(1);
     expect(report.noBuild).toBe(true);
+    expect(report.outputPath).toBeNull();
     expect(report.steps.length).toBeGreaterThan(0);
     expect(report.steps[0].name).toBe("Developer environment preflight");
     const clientStep = report.steps.find((step) => step.name === "Client checks");

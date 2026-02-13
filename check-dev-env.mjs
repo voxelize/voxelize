@@ -9,12 +9,18 @@ import {
   loadWorkspaceMinimumVersions,
   parseSemver,
 } from "./scripts/dev-env-utils.mjs";
-import { toReportJson } from "./scripts/report-utils.mjs";
+import {
+  resolveOutputPath,
+  toReportJson,
+  writeReportToPath,
+} from "./scripts/report-utils.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const isQuiet = process.argv.includes("--quiet");
-const isJson = process.argv.includes("--json");
+const cliArgs = process.argv.slice(2);
+const isQuiet = cliArgs.includes("--quiet");
+const isJson = cliArgs.includes("--json");
+const { outputPath, error: outputPathError } = resolveOutputPath(cliArgs);
 const minimumVersions = loadWorkspaceMinimumVersions(__dirname);
 
 const checks = [
@@ -66,6 +72,20 @@ const checks = [
 
 let requiredFailures = 0;
 const checkResults = [];
+
+if (isJson && outputPathError !== null) {
+  console.log(
+    toReportJson({
+      passed: false,
+      exitCode: 1,
+      requiredFailures: 0,
+      checks: [],
+      outputPath: null,
+      message: outputPathError,
+    })
+  );
+  process.exit(1);
+}
 
 for (const check of checks) {
   const result = spawnSync(check.command, check.args, {
@@ -143,13 +163,31 @@ for (const check of checks) {
 }
 
 if (isJson) {
-  console.log(
-    toReportJson({
-      passed: requiredFailures === 0,
-      requiredFailures,
-      checks: checkResults,
-    })
-  );
+  const report = {
+    passed: requiredFailures === 0,
+    exitCode: requiredFailures > 0 ? 1 : 0,
+    requiredFailures,
+    checks: checkResults,
+    outputPath,
+  };
+  const reportJson = toReportJson(report);
+
+  if (outputPath !== null) {
+    const writeError = writeReportToPath(reportJson, outputPath);
+    if (writeError !== null) {
+      console.log(
+        toReportJson({
+          ...report,
+          passed: false,
+          exitCode: 1,
+          message: writeError,
+        })
+      );
+      process.exit(1);
+    }
+  }
+
+  console.log(reportJson);
 }
 
 if (requiredFailures > 0) {

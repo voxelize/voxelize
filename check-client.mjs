@@ -3,17 +3,38 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { resolvePnpmCommand } from "./scripts/command-utils.mjs";
-import { parseJsonOutput, toReportJson } from "./scripts/report-utils.mjs";
+import {
+  parseJsonOutput,
+  resolveOutputPath,
+  toReportJson,
+  writeReportToPath,
+} from "./scripts/report-utils.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const pnpmCommand = resolvePnpmCommand();
-const isQuiet = process.argv.includes("--quiet");
-const isJson = process.argv.includes("--json");
-const isNoBuild = process.argv.includes("--no-build");
+const cliArgs = process.argv.slice(2);
+const isQuiet = cliArgs.includes("--quiet");
+const isJson = cliArgs.includes("--json");
+const isNoBuild = cliArgs.includes("--no-build");
+const { outputPath, error: outputPathError } = resolveOutputPath(cliArgs);
 const stepResults = [];
 let exitCode = 0;
+
+if (isJson && outputPathError !== null) {
+  console.log(
+    toReportJson({
+      passed: false,
+      exitCode: 1,
+      noBuild: isNoBuild,
+      outputPath: null,
+      steps: [],
+      message: outputPathError,
+    })
+  );
+  process.exit(1);
+}
 
 const addSkippedStep = (name, reason) => {
   if (!isJson) {
@@ -98,14 +119,31 @@ if (wasmPreflightPassed) {
 }
 
 if (isJson) {
-  console.log(
-    toReportJson({
-      passed: exitCode === 0,
-      exitCode,
-      noBuild: isNoBuild,
-      steps: stepResults,
-    })
-  );
+  const report = {
+    passed: exitCode === 0,
+    exitCode,
+    noBuild: isNoBuild,
+    outputPath,
+    steps: stepResults,
+  };
+  const reportJson = toReportJson(report);
+
+  if (outputPath !== null) {
+    const writeError = writeReportToPath(reportJson, outputPath);
+    if (writeError !== null) {
+      console.log(
+        toReportJson({
+          ...report,
+          passed: false,
+          exitCode: 1,
+          message: writeError,
+        })
+      );
+      process.exit(1);
+    }
+  }
+
+  console.log(reportJson);
   process.exit(exitCode);
 }
 

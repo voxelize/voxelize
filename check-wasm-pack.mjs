@@ -1,11 +1,31 @@
 import { spawnSync } from "node:child_process";
 
 import { resolveCommand } from "./scripts/command-utils.mjs";
-import { toReportJson } from "./scripts/report-utils.mjs";
+import {
+  resolveOutputPath,
+  toReportJson,
+  writeReportToPath,
+} from "./scripts/report-utils.mjs";
 
 const wasmPackCommand = resolveCommand("wasm-pack");
-const isQuiet = process.argv.includes("--quiet");
-const isJson = process.argv.includes("--json");
+const cliArgs = process.argv.slice(2);
+const isQuiet = cliArgs.includes("--quiet");
+const isJson = cliArgs.includes("--json");
+const { outputPath, error: outputPathError } = resolveOutputPath(cliArgs);
+
+if (isJson && outputPathError !== null) {
+  console.log(
+    toReportJson({
+      passed: false,
+      exitCode: 1,
+      command: wasmPackCommand,
+      version: null,
+      outputPath: null,
+      message: outputPathError,
+    })
+  );
+  process.exit(1);
+}
 
 const versionCheck = isJson
   ? spawnSync(wasmPackCommand, ["--version"], {
@@ -26,14 +46,32 @@ const firstLine =
 
 if (checkStatus === 0) {
   if (isJson) {
-    console.log(
-      toReportJson({
-        passed: true,
-        exitCode: 0,
-        command: wasmPackCommand,
-        version: firstLine,
-      })
-    );
+    const report = {
+      passed: true,
+      exitCode: 0,
+      command: wasmPackCommand,
+      version: firstLine,
+      outputPath,
+    };
+    const reportJson = toReportJson(report);
+
+    if (outputPath !== null) {
+      const writeError = writeReportToPath(reportJson, outputPath);
+      if (writeError !== null) {
+        console.log(
+          toReportJson({
+            ...report,
+            passed: false,
+            exitCode: 1,
+            version: null,
+            message: writeError,
+          })
+        );
+        process.exit(1);
+      }
+    }
+
+    console.log(reportJson);
   }
   process.exit(0);
 }
@@ -41,15 +79,31 @@ if (checkStatus === 0) {
 const failureMessage = `wasm-pack is required for wasm build commands (expected command: ${wasmPackCommand}). Install it from https://rustwasm.github.io/wasm-pack/installer/.`;
 
 if (isJson) {
-  console.log(
-    toReportJson({
-      passed: false,
-      exitCode: checkStatus,
-      command: wasmPackCommand,
-      version: null,
-      message: failureMessage,
-    })
-  );
+  const report = {
+    passed: false,
+    exitCode: checkStatus,
+    command: wasmPackCommand,
+    version: null,
+    outputPath,
+    message: failureMessage,
+  };
+  const reportJson = toReportJson(report);
+
+  if (outputPath !== null) {
+    const writeError = writeReportToPath(reportJson, outputPath);
+    if (writeError !== null) {
+      console.log(
+        toReportJson({
+          ...report,
+          exitCode: 1,
+          message: writeError,
+        })
+      );
+      process.exit(1);
+    }
+  }
+
+  console.log(reportJson);
 } else if (!isQuiet) {
   console.error(failureMessage);
 }

@@ -1,21 +1,20 @@
 import { spawnSync } from "node:child_process";
-import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { parseJsonOutput, toReportJson } from "./scripts/report-utils.mjs";
+import {
+  parseJsonOutput,
+  resolveOutputPath,
+  toReportJson,
+  writeReportToPath,
+} from "./scripts/report-utils.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const cliArgs = process.argv.slice(2);
 const isNoBuild = cliArgs.includes("--no-build");
-const outputArgIndex = cliArgs.indexOf("--output");
-const requestedOutputPath =
-  outputArgIndex === -1 ? null : cliArgs[outputArgIndex + 1] ?? null;
-const resolvedOutputPath =
-  requestedOutputPath === null
-    ? null
-    : path.resolve(process.cwd(), requestedOutputPath);
+const { outputPath: resolvedOutputPath, error: outputPathError } =
+  resolveOutputPath(cliArgs);
 
 const runCheck = (name, scriptName, extraArgs = []) => {
   const checkStartMs = Date.now();
@@ -45,7 +44,7 @@ const aggregateStartMs = Date.now();
 const platform = process.platform;
 const nodeVersion = process.version;
 
-if (outputArgIndex !== -1 && requestedOutputPath === null) {
+if (outputPathError !== null) {
   console.log(
     toReportJson({
       passed: false,
@@ -57,7 +56,7 @@ if (outputArgIndex !== -1 && requestedOutputPath === null) {
       durationMs: 0,
       checks: [],
       outputPath: null,
-      message: "Missing value for --output option.",
+      message: outputPathError,
     })
   );
   process.exit(1);
@@ -158,16 +157,14 @@ const report = {
 const reportJson = toReportJson(report);
 
 if (resolvedOutputPath !== null) {
-  try {
-    fs.mkdirSync(path.dirname(resolvedOutputPath), { recursive: true });
-    fs.writeFileSync(resolvedOutputPath, reportJson);
-  } catch {
+  const writeError = writeReportToPath(reportJson, resolvedOutputPath);
+  if (writeError !== null) {
     console.log(
       toReportJson({
         ...report,
         passed: false,
         exitCode: 1,
-        message: `Failed to write preflight report to ${resolvedOutputPath}.`,
+        message: writeError,
       })
     );
     process.exit(1);

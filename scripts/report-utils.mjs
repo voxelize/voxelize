@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+
 export const REPORT_SCHEMA_VERSION = 1;
 
 export const parseJsonOutput = (value) => {
@@ -21,4 +24,41 @@ export const toReport = (report) => {
 
 export const toReportJson = (report) => {
   return JSON.stringify(toReport(report), null, 2);
+};
+
+export const resolveOutputPath = (args, cwd = process.cwd()) => {
+  const outputArgIndex = args.indexOf("--output");
+  if (outputArgIndex === -1) {
+    return {
+      outputPath: null,
+      error: null,
+    };
+  }
+
+  const outputArgValue = args[outputArgIndex + 1] ?? null;
+  if (outputArgValue === null || outputArgValue.startsWith("--")) {
+    return {
+      outputPath: null,
+      error: "Missing value for --output option.",
+    };
+  }
+
+  return {
+    outputPath: path.resolve(cwd, outputArgValue),
+    error: null,
+  };
+};
+
+export const writeReportToPath = (reportJson, outputPath) => {
+  if (outputPath === null) {
+    return null;
+  }
+
+  try {
+    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    fs.writeFileSync(outputPath, reportJson);
+    return null;
+  } catch {
+    return `Failed to write report to ${outputPath}.`;
+  }
 };
