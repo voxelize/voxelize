@@ -41,6 +41,12 @@ describe("root preflight scripts", () => {
     );
   });
 
+  it("check-wasm-pack quiet mode suppresses messages", () => {
+    const result = runScript("check-wasm-pack.mjs", ["--quiet"]);
+
+    expect(result.output).toBe("");
+  });
+
   it("check-dev-env returns pass or fail summary", () => {
     const result = runScript("check-dev-env.mjs");
 
