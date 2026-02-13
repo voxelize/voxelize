@@ -2062,6 +2062,9 @@ fn process_greedy_quad(
     let dir_scale_x = dir[0] as f32 * scale;
     let dir_scale_y = dir[1] as f32 * scale;
     let dir_scale_z = dir[2] as f32 * scale;
+    let pos_offset_x = min_x_f + dir_scale_x;
+    let pos_offset_y = min_y_f + dir_scale_y;
+    let pos_offset_z = min_z_f + dir_scale_z;
     let fluid_bit = if is_fluid { 1 << 18 } else { 0 };
     let light_flags = fluid_bit | (1 << 19);
 
@@ -2136,9 +2139,9 @@ fn process_greedy_quad(
 
     for i in 0..4 {
         let pos = corners[i];
-        geometry.positions.push(pos[0] - min_x_f - dir_scale_x);
-        geometry.positions.push(pos[1] - min_y_f - dir_scale_y);
-        geometry.positions.push(pos[2] - min_z_f - dir_scale_z);
+        geometry.positions.push(pos[0] - pos_offset_x);
+        geometry.positions.push(pos[1] - pos_offset_y);
+        geometry.positions.push(pos[2] - pos_offset_z);
 
         let u = uv_corners[i][0] * uv_span_u + start_u;
         let v = uv_corners[i][1] * uv_span_v + start_v;
