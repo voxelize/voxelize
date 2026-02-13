@@ -4325,7 +4325,12 @@ export class World<T = any> extends Scene implements NetIntercept {
       recomputeFarthestProcess();
     };
 
-    for (const [, procData] of this.chunkPipeline.processingEntries()) {
+    for (const name of this.chunkPipeline.getInStage("processing")) {
+      const procData = this.chunkPipeline.getProcessingChunkData(name);
+      if (!procData) {
+        continue;
+      }
+
       maybeQueueProcess(procData);
     }
 
