@@ -2643,7 +2643,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
         (0, 0, -1),
     ];
 
-    let mut non_greedy_faces: Vec<(i32, i32, i32, u32, BlockRotation, BlockFace, bool, bool, bool)> =
+    let mut non_greedy_faces: Vec<(i32, i32, i32, u32, BlockRotation, BlockFace, bool)> =
         Vec::new();
 
     for (dx, dy, dz) in directions {
@@ -2758,8 +2758,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 voxel_id,
                                 rotation.clone(),
                                 face,
-                                is_see_through,
-                                is_fluid,
                                 world_space,
                             ));
                         }
@@ -2794,8 +2792,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 voxel_id,
                                 rotation.clone(),
                                 face.clone(),
-                                is_see_through,
-                                is_fluid,
                                 false,
                             ));
                             return;
@@ -2885,16 +2881,16 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                 voxel_id,
                 rotation,
                 face,
-                is_see_through,
-                is_fluid,
                 world_space,
             ) in non_greedy_faces.drain(..)
             {
-                let cache_key = (vx, vy, vz, voxel_id, is_see_through, is_fluid);
                 let block = match registry.get_block_by_id(voxel_id) {
                     Some(candidate) => candidate,
                     None => continue,
                 };
+                let is_see_through = block.is_see_through;
+                let is_fluid = block.is_fluid;
+                let cache_key = (vx, vy, vz, voxel_id, is_see_through, is_fluid);
 
                 let geo_key = geometry_key_for_face(block, &face, vx, vy, vz);
 
