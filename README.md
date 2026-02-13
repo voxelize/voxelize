@@ -108,7 +108,7 @@ pnpm run check:client
 # run full onboarding checks (tooling + client)
 pnpm run check:onboarding
 
-# run only root preflight script integration tests
+# run root script checks and command utility tests
 pnpm run test:scripts
 ```
 
