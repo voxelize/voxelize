@@ -69,7 +69,7 @@ function get(
   stride: number[]
 ) {
   const index = x * stride[0] + y * stride[1] + z * stride[2];
-  return index > arr.length || index < 0 ? 0 : arr[index];
+  return index >= arr.length || index < 0 ? 0 : arr[index];
 }
 
 function contains(vx, vy, vz, min, max) {
