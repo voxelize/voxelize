@@ -65,6 +65,7 @@ export class LightShined {
 
   private positionOverrides = new Map<Object3D, Vector3>();
   private torchLightColor = new Color();
+  private traversalStack: Object3D[] = [];
 
   /**
    * Construct a light shined effect manager.
@@ -276,10 +277,28 @@ export class LightShined {
       if (!color) return;
     }
 
-    obj.traverse((child) => {
-      this.updateObject(child, color);
-    });
+    this.updateObjectSubtree(obj, color);
   };
+
+  private updateObjectSubtree(root: Object3D, color: Color) {
+    const stack = this.traversalStack;
+    stack.length = 0;
+    stack.push(root);
+
+    while (stack.length > 0) {
+      const current = stack.pop();
+      if (!current) {
+        continue;
+      }
+
+      this.updateObject(current, color);
+
+      const children = current.children;
+      for (let childIndex = 0; childIndex < children.length; childIndex++) {
+        stack.push(children[childIndex]);
+      }
+    }
+  }
 
   private computeCPUBasedLight(pos: Vector3): Color | null {
     const vx = Math.floor(pos.x);
