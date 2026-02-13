@@ -4344,7 +4344,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   private updatePhysics = (delta: number) => {
     if (!this.physics || !this.options.gravity) return;
-    const { chunkSize } = this.options;
+    const { chunkSize, minChunk, maxChunk } = this.options;
 
     const noGravity =
       this.options.gravity[0] ** 2 +
@@ -4358,7 +4358,13 @@ export class World<T = any> extends Scene implements NetIntercept {
       const cz = Math.floor(vz / chunkSize);
       const chunk = this.getLoadedChunkAtVoxel(vx, vz);
 
-      if ((!chunk || !chunk.isReady) && this.isWithinWorld(cx, cz)) {
+      if (
+        (!chunk || !chunk.isReady) &&
+        cx >= minChunk[0] &&
+        cz >= minChunk[1] &&
+        cx <= maxChunk[0] &&
+        cz <= maxChunk[1]
+      ) {
         continue;
       }
 
