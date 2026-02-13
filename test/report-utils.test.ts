@@ -531,6 +531,44 @@ describe("report-utils", () => {
     expect(diagnostics.activeCliOptionOccurrenceCount).toBe(2);
   });
 
+  it("resolves aliases canonically when canonical token list includes aliases", () => {
+    const diagnostics = createCliDiagnostics(["-l", "--verify"], {
+      canonicalOptions: [
+        "-l",
+        "--list",
+        "--list-checks",
+        "--no-build",
+        "--verify",
+      ],
+      optionAliases: {
+        "--list-checks": ["--list", "-l"],
+        "--no-build": ["--verify"],
+      },
+    });
+
+    expect(diagnostics.availableCliOptionCanonicalMap).toEqual({
+      "-l": "--list-checks",
+      "--list": "--list-checks",
+      "--list-checks": "--list-checks",
+      "--no-build": "--no-build",
+      "--verify": "--no-build",
+    });
+    expect(diagnostics.activeCliOptions).toEqual(["--list-checks", "--no-build"]);
+    expect(diagnostics.activeCliOptionTokens).toEqual(["-l", "--verify"]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "-l",
+        canonicalOption: "--list-checks",
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+    ]);
+    expect(diagnostics.unknownOptions).toEqual([]);
+    expect(diagnostics.unknownOptionCount).toBe(0);
+  });
+
   it("parses active cli option metadata with aliases and option values", () => {
     const activeMetadata = parseActiveCliOptionMetadata(
       [
