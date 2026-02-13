@@ -133,6 +133,7 @@ export const BOX_SIDES: BoxSides[] = [
   "left",
   "right",
 ];
+const BOX_SIDE_FACES: BoxSides[] = ["front", "back", "left", "right"];
 
 const tempSRGBColor = new Color();
 
@@ -265,12 +266,13 @@ export class BoxLayer extends Mesh {
       side === "all"
         ? BOX_SIDES
         : side === "sides"
-        ? (["front", "back", "left", "right"] as BoxSides[])
+        ? BOX_SIDE_FACES
         : Array.isArray(side)
         ? side
         : [side];
 
-    for (const face of actualSides) {
+    for (let sideIndex = 0; sideIndex < actualSides.length; sideIndex++) {
+      const face = actualSides[sideIndex];
       const material = this.materials.get(face);
       if (!material) continue;
 
