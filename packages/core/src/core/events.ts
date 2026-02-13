@@ -65,11 +65,15 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
   onMessage = (message: MessageProtocol) => {
     switch (message.type) {
       case "EVENT": {
-        const { events } = message;
+        const events = message.events;
+        if (!events || events.length === 0) {
+          return;
+        }
 
-        events.forEach((e: any) => {
-          this.handle(e.name, e.payload);
-        });
+        for (let eventIndex = 0; eventIndex < events.length; eventIndex++) {
+          const event = events[eventIndex];
+          this.handle(event.name, event.payload);
+        }
 
         return;
       }
