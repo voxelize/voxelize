@@ -2786,9 +2786,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         continue;
       }
 
-      const currId = this.getVoxelAt(vx, vy, vz);
-      const currRot = this.getVoxelRotationAt(vx, vy, vz);
-      const currStage = this.getVoxelStageAt(vx, vy, vz);
+      const currId = this.getVoxelAtUnchecked(vx, vy, vz);
+      const currRot = this.getVoxelRotationAtUnchecked(vx, vy, vz);
+      const currStage = this.getVoxelStageAtUnchecked(vx, vy, vz);
       const currYRotation = BlockRotation.decode(currRot)[1];
       const isSameBlockType = currId === type;
 
