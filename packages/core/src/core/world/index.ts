@@ -5952,22 +5952,22 @@ export class World<T = any> extends Scene implements NetIntercept {
     let maxZ = minZ;
 
     for (const [x, y, z] of removals) {
-      minX = Math.min(minX, x);
-      minY = Math.min(minY, y);
-      minZ = Math.min(minZ, z);
-      maxX = Math.max(maxX, x);
-      maxY = Math.max(maxY, y);
-      maxZ = Math.max(maxZ, z);
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (z < minZ) minZ = z;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+      if (z > maxZ) maxZ = z;
     }
 
     for (const { voxel } of floods) {
       const [x, y, z] = voxel;
-      minX = Math.min(minX, x);
-      minY = Math.min(minY, y);
-      minZ = Math.min(minZ, z);
-      maxX = Math.max(maxX, x);
-      maxY = Math.max(maxY, y);
-      maxZ = Math.max(maxZ, z);
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (z < minZ) minZ = z;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+      if (z > maxZ) maxZ = z;
     }
 
     const {
@@ -6099,6 +6099,9 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     for (let cx = minChunkX; cx <= maxChunkX; cx++) {
       for (let cz = minChunkZ; cz <= maxChunkZ; cz++) {
+        const dataIndex = chunkDataIndex;
+        chunkDataIndex++;
+
         const chunkName = ChunkUtils.getChunkNameAt(cx, cz);
         const allDeltas = this.voxelDeltas.get(chunkName);
         if (allDeltas) {
@@ -6107,19 +6110,18 @@ export class World<T = any> extends Scene implements NetIntercept {
             startSequenceId
           );
           if (firstRelevantIndex < allDeltas.length) {
-            const deltasForJob =
-              firstRelevantIndex === 0
-                ? allDeltas
-                : allDeltas.slice(firstRelevantIndex);
             const chunkLastSequenceId =
-              deltasForJob[deltasForJob.length - 1].sequenceId;
+              allDeltas[allDeltas.length - 1].sequenceId;
             if (chunkLastSequenceId > lastRelevantSequenceId) {
               lastRelevantSequenceId = chunkLastSequenceId;
             }
             relevantDeltas.push({
               cx,
               cz,
-              deltas: deltasForJob,
+              deltas:
+                firstRelevantIndex === 0
+                  ? allDeltas
+                  : allDeltas.slice(firstRelevantIndex),
             });
           }
         }
@@ -6128,14 +6130,12 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         if (chunk && chunk.isReady) {
           const [data, buffers] = chunk.serialize();
-          chunksData[chunkDataIndex] = data;
-          chunkDataIndex++;
+          chunksData[dataIndex] = data;
           for (const buffer of buffers) {
             arrayBuffers.push(buffer);
           }
         } else {
-          chunksData[chunkDataIndex] = null;
-          chunkDataIndex++;
+          chunksData[dataIndex] = null;
         }
       }
     }
