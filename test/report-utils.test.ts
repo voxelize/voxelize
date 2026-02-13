@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   REPORT_SCHEMA_VERSION,
   createCliOptionCatalog,
+  createCliDiagnostics,
   createTimedReportBuilder,
   createCliOptionValidation,
   deriveFailureMessageFromReport,
@@ -409,6 +410,82 @@ describe("report-utils", () => {
       "--output": "--output",
       "--verify": "--no-build",
     });
+  });
+
+  it("creates unified cli diagnostics metadata", () => {
+    const diagnostics = createCliDiagnostics(
+      ["--json", "--verify", "--output", "./report.json", "--mystery"],
+      {
+        canonicalOptions: ["--json", "--no-build", "--output"],
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+        optionsWithValues: ["--output"],
+        outputPathError: null,
+      }
+    );
+
+    expect(diagnostics.supportedCliOptions).toEqual([
+      "--json",
+      "--no-build",
+      "--output",
+      "--verify",
+    ]);
+    expect(diagnostics.availableCliOptionAliases).toEqual({
+      "--no-build": ["--verify"],
+    });
+    expect(diagnostics.availableCliOptionCanonicalMap).toEqual({
+      "--json": "--json",
+      "--no-build": "--no-build",
+      "--output": "--output",
+      "--verify": "--no-build",
+    });
+    expect(diagnostics.unknownOptions).toEqual(["--mystery"]);
+    expect(diagnostics.unknownOptionCount).toBe(1);
+    expect(diagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --no-build, --output, --verify."
+    );
+    expect(diagnostics.validationErrorCode).toBe("unsupported_options");
+    expect(diagnostics.activeCliOptions).toEqual(["--json", "--no-build", "--output"]);
+    expect(diagnostics.activeCliOptionCount).toBe(3);
+    expect(diagnostics.activeCliOptionTokens).toEqual([
+      "--json",
+      "--verify",
+      "--output",
+    ]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(diagnostics.activeCliOptionResolutionCount).toBe(3);
+    expect(diagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+        index: 1,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 2,
+      },
+    ]);
+    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(3);
   });
 
   it("parses active cli option metadata with aliases and option values", () => {

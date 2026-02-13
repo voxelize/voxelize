@@ -10,10 +10,8 @@ import {
   parseSemver,
 } from "./scripts/dev-env-utils.mjs";
 import {
-  createCliOptionCatalog,
-  createCliOptionValidation,
+  createCliDiagnostics,
   createTimedReportBuilder,
-  parseActiveCliOptionMetadata,
   resolveOutputPath,
   serializeReportWithOptionalWrite,
   splitCliArgs,
@@ -35,25 +33,14 @@ const isCompact = cliOptionArgs.includes("--compact");
 const jsonFormat = { compact: isCompact };
 const { outputPath, error: outputPathError } = resolveOutputPath(cliOptionArgs);
 const canonicalCliOptions = ["--compact", "--json", "--output", "--quiet"];
-const optionAliases = {};
-const { availableCliOptionAliases, availableCliOptionCanonicalMap } =
-  createCliOptionCatalog({
-    canonicalOptions: canonicalCliOptions,
-    optionAliases,
-  });
 const {
+  availableCliOptionAliases,
+  availableCliOptionCanonicalMap,
   supportedCliOptions,
   unknownOptions,
   unknownOptionCount,
   unsupportedOptionsError,
   validationErrorCode,
-} = createCliOptionValidation(cliOptionArgs, {
-  canonicalOptions: canonicalCliOptions,
-  optionAliases,
-  optionsWithValues: ["--output"],
-  outputPathError,
-});
-const {
   activeCliOptions,
   activeCliOptionCount,
   activeCliOptionTokens,
@@ -61,10 +48,10 @@ const {
   activeCliOptionResolutionCount,
   activeCliOptionOccurrences,
   activeCliOptionOccurrenceCount,
-} = parseActiveCliOptionMetadata(cliOptionArgs, {
+} = createCliDiagnostics(cliOptionArgs, {
   canonicalOptions: canonicalCliOptions,
-  optionAliases,
   optionsWithValues: ["--output"],
+  outputPathError,
 });
 const buildTimedReport = createTimedReportBuilder();
 const minimumVersions = loadWorkspaceMinimumVersions(__dirname);

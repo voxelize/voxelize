@@ -487,6 +487,38 @@ export const parseActiveCliOptionMetadata = (
   };
 };
 
+export const createCliDiagnostics = (
+  args,
+  {
+    canonicalOptions = [],
+    optionAliases = {},
+    optionsWithValues = [],
+    outputPathError = null,
+  } = {}
+) => {
+  const optionCatalog = createCliOptionCatalog({
+    canonicalOptions,
+    optionAliases,
+  });
+  const optionValidation = createCliOptionValidation(args, {
+    canonicalOptions,
+    optionAliases,
+    optionsWithValues,
+    outputPathError,
+  });
+  const activeOptionMetadata = parseActiveCliOptionMetadata(args, {
+    canonicalOptions,
+    optionAliases,
+    optionsWithValues,
+  });
+
+  return {
+    ...optionCatalog,
+    ...optionValidation,
+    ...activeOptionMetadata,
+  };
+};
+
 export const resolveLastOptionValue = (args, optionName) => {
   const { optionArgs } = splitCliArgs(args);
   const inlineOptionPrefix = `${optionName}=`;

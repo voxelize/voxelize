@@ -5,11 +5,9 @@ import { fileURLToPath } from "node:url";
 
 import { resolvePnpmCommand } from "../../../scripts/command-utils.mjs";
 import {
-  createCliOptionCatalog,
-  createCliOptionValidation,
+  createCliDiagnostics,
   createTimedReportBuilder,
   hasCliOption,
-  parseActiveCliOptionMetadata,
   parseJsonOutput,
   resolveOutputPath,
   serializeReportWithOptionalWrite,
@@ -44,24 +42,14 @@ const isNoBuild = hasCliOption(cliOptionArgs, "--no-build", noBuildOptionAliases
 const isCompact = cliOptionArgs.includes("--compact");
 const jsonFormat = { compact: isCompact };
 const { outputPath, error: outputPathError } = resolveOutputPath(cliOptionArgs);
-const { availableCliOptionAliases, availableCliOptionCanonicalMap } =
-  createCliOptionCatalog({
-    canonicalOptions: canonicalCliOptions,
-    optionAliases,
-  });
 const {
+  availableCliOptionAliases,
+  availableCliOptionCanonicalMap,
   supportedCliOptions,
   unknownOptions,
   unknownOptionCount,
   unsupportedOptionsError,
   validationErrorCode,
-} = createCliOptionValidation(cliOptionArgs, {
-  canonicalOptions: canonicalCliOptions,
-  optionAliases,
-  optionsWithValues: ["--output"],
-  outputPathError,
-});
-const {
   activeCliOptions,
   activeCliOptionCount,
   activeCliOptionTokens,
@@ -69,10 +57,11 @@ const {
   activeCliOptionResolutionCount,
   activeCliOptionOccurrences,
   activeCliOptionOccurrenceCount,
-} = parseActiveCliOptionMetadata(cliOptionArgs, {
+} = createCliDiagnostics(cliOptionArgs, {
   canonicalOptions: canonicalCliOptions,
   optionAliases,
   optionsWithValues: ["--output"],
+  outputPathError,
 });
 const normalizedValidationErrorCode =
   outputPathError !== null ? "output_option_missing_value" : validationErrorCode;
