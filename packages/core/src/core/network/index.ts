@@ -349,13 +349,8 @@ export class Network {
     const availableWorkers = Math.max(1, this.pool.availableCount);
     const perWorker = Math.ceil(packets.length / availableWorkers);
 
-    const batches: ArrayBuffer[][] = [];
-    for (let i = 0; i < packets.length; i += perWorker) {
-      batches.push(packets.slice(i, i + perWorker));
-    }
-
-    if (batches.length === 1) {
-      this.decode(batches[0]).then((messages) => {
+    if (packets.length <= perWorker) {
+      this.decode(packets).then((messages) => {
         for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
           this.onMessage(messages[messageIndex]);
         }
@@ -363,9 +358,14 @@ export class Network {
       return;
     }
 
-    const decodePromises = new Array<Promise<MessageProtocol[]>>(batches.length);
-    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-      decodePromises[batchIndex] = this.decode(batches[batchIndex]);
+    const batchCount = Math.ceil(packets.length / perWorker);
+    const decodePromises = new Array<Promise<MessageProtocol[]>>(batchCount);
+    let batchIndex = 0;
+    for (let offset = 0; offset < packets.length; offset += perWorker) {
+      decodePromises[batchIndex] = this.decode(
+        packets.slice(offset, offset + perWorker)
+      );
+      batchIndex++;
     }
 
     Promise.all(decodePromises).then((results) => {
