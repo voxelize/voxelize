@@ -123,7 +123,10 @@ export class BlockUtils {
   };
 
   static getBlockRotatedTransparency(block: Block, rotation: BlockRotation) {
-    return rotation.rotateTransparency(block.isTransparent);
+    return new TSCoreBlockRotation(
+      rotation.value,
+      rotation.yRotation
+    ).rotateTransparency(block.isTransparent);
   }
 
   static evaluateBlockRule = (
@@ -153,10 +156,16 @@ export class BlockUtils {
 
       if (rotation != null) {
         const voxelRotation = functions.getVoxelRotationAt(ox, oy, oz);
-        if (
-          voxelRotation.value !== rotation.value ||
-          voxelRotation.yRotation !== rotation.yRotation
-        )
+        const actualRotation = new TSCoreBlockRotation(
+          voxelRotation.value,
+          voxelRotation.yRotation
+        );
+        const expectedRotation = new TSCoreBlockRotation(
+          rotation.value,
+          rotation.yRotation
+        );
+
+        if (!actualRotation.equals(expectedRotation))
           return false;
       }
 

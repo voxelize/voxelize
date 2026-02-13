@@ -492,9 +492,7 @@ export class BlockRotation {
     boolean,
     boolean
   ]) {
-    const rot = this.value;
-
-    if (Math.abs(rot) < Number.EPSILON) {
+    if (this.value === PY_ROTATION && Math.abs(this.yRotation) < Number.EPSILON) {
       return [px, py, pz, nx, ny, nz];
     }
 
