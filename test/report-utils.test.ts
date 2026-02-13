@@ -28,6 +28,12 @@ describe("report-utils", () => {
     expect(parseJsonOutput("not-json")).toBeNull();
   });
 
+  it("ignores primitive json values in output parsing", () => {
+    expect(parseJsonOutput("true")).toBeNull();
+    expect(parseJsonOutput("123")).toBeNull();
+    expect(parseJsonOutput("\"text\"")).toBeNull();
+  });
+
   it("returns null for whitespace-only output", () => {
     expect(parseJsonOutput("   \n\t  \n")).toBeNull();
   });
@@ -57,6 +63,9 @@ describe("report-utils", () => {
         `warning: before\n[\n  {\n    "name": "devEnvironment"\n  },\n  {\n    "name": "client"\n  }\n]\nwarning: after`
       )
     ).toEqual([{ name: "devEnvironment" }, { name: "client" }]);
+    expect(
+      parseJsonOutput(`warning: before\n42\n{"ok":true}`)
+    ).toEqual({ ok: true });
   });
 
   it("prefers the latest complete json block in mixed output", () => {

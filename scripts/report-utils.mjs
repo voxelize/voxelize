@@ -3,13 +3,18 @@ import path from "node:path";
 
 export const REPORT_SCHEMA_VERSION = 1;
 
+const isObjectLikeJsonValue = (value) => {
+  return value !== null && typeof value === "object";
+};
+
 export const parseJsonOutput = (value) => {
   if (value.length === 0) {
     return null;
   }
 
   try {
-    return JSON.parse(value);
+    const parsedValue = JSON.parse(value);
+    return isObjectLikeJsonValue(parsedValue) ? parsedValue : null;
   } catch {
     const rawLines = value.split("\n");
     let bestMatch = null;
@@ -31,6 +36,9 @@ export const parseJsonOutput = (value) => {
 
         try {
           const parsedCandidate = JSON.parse(candidate);
+          if (!isObjectLikeJsonValue(parsedCandidate)) {
+            continue;
+          }
           if (
             bestMatch === null ||
             end > bestMatch.end ||
@@ -58,7 +66,10 @@ export const parseJsonOutput = (value) => {
 
     for (let index = lines.length - 1; index >= 0; index -= 1) {
       try {
-        return JSON.parse(lines[index]);
+        const parsedLine = JSON.parse(lines[index]);
+        if (isObjectLikeJsonValue(parsedLine)) {
+          return parsedLine;
+        }
       } catch {
         continue;
       }
