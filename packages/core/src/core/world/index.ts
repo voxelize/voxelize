@@ -5763,6 +5763,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     const results = await Promise.all(workerPromises);
+    let shouldScheduleDirtyChunks = false;
 
     for (const result of results) {
       if (result.geometries) {
@@ -5776,11 +5777,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       if (this.meshPipeline.needsRemesh(result.key)) {
-        this.scheduleDirtyChunkProcessing();
+        shouldScheduleDirtyChunks = true;
       }
     }
 
-    if (this.meshPipeline.hasDirtyChunks()) {
+    if (shouldScheduleDirtyChunks || this.meshPipeline.hasDirtyChunks()) {
       this.scheduleDirtyChunkProcessing();
     }
   };
