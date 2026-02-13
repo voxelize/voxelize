@@ -5697,12 +5697,17 @@ export class World<T = any> extends Scene implements NetIntercept {
       return;
     }
 
+    const maxUpdatesPerUpdate = this.options.maxUpdatesPerUpdate;
+    if (maxUpdatesPerUpdate <= 0) {
+      return;
+    }
+
     this.isTrackingChunks = true;
 
     const processUpdatesInIdleTime = () => {
       if (this.hasPendingBlockUpdates()) {
         const batchEnd = Math.min(
-          this.blockUpdatesQueueHead + this.options.maxUpdatesPerUpdate,
+          this.blockUpdatesQueueHead + maxUpdatesPerUpdate,
           this.blockUpdatesQueue.length
         );
 
