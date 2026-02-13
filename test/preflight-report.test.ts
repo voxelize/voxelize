@@ -1097,6 +1097,61 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(1);
   });
 
+  it("does not treat hyphen-prefixed output values as unsupported options", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-preflight-hyphen-output-value-")
+    );
+    const outputPath = path.resolve(tempDirectory, "-report.json");
+
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--list-checks", "--output", outputPath],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(true);
+    expect(report.exitCode).toBe(0);
+    expect(report.listChecksOnly).toBe(true);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.outputPath).toBe(outputPath);
+    expect(fs.existsSync(outputPath)).toBe(true);
+    expect(result.status).toBe(0);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("does not treat hyphen-prefixed only values as unsupported options", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--only", "-invalidCheck"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("only_option_invalid_value");
+    expect(report.invalidChecks).toEqual(["-invalidCheck"]);
+    expect(report.invalidCheckCount).toBe(1);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(result.status).toBe(1);
+  });
+
   it("prioritizes output validation while still reporting unsupported options", () => {
     const result = spawnSync(
       process.execPath,

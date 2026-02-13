@@ -34,6 +34,7 @@ const supportedCliOptions = [
   "--quiet",
 ];
 const supportedCliOptionsSet = new Set(supportedCliOptions);
+const cliOptionsWithValues = new Set(["--only", "--output"]);
 const canonicalCliOptions = [
   "--compact",
   "--json",
@@ -309,11 +310,17 @@ const parseUnknownOptions = (args) => {
   const unknownOptions = [];
   const seenUnknownOptions = new Set();
 
-  for (const arg of args) {
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
     if (!arg.startsWith("-") || arg === "-" || arg === "--") {
       continue;
     }
-    if (supportedCliOptionsSet.has(arg)) {
+    const canonicalOption = cliOptionCanonicalMap.get(arg) ?? null;
+    if (canonicalOption !== null || supportedCliOptionsSet.has(arg)) {
+      const optionName = canonicalOption ?? arg;
+      if (cliOptionsWithValues.has(optionName)) {
+        index += 1;
+      }
       continue;
     }
     if (seenUnknownOptions.has(arg)) {

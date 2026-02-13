@@ -248,6 +248,7 @@ If `--output` or `--only` is passed multiple times, the last value is used.
 Invalid `--only` errors include available canonical check names and special selector aliases (for example `all`, `all-checks`, `all_checks`, `allchecks`) for quick correction.
 Invalid `--only` errors also include `invalidChecks` for machine-readable diagnostics.
 Unsupported CLI flags return structured errors and include `unknownOptions` for machine-readable diagnostics.
+Argument values passed to `--output` and `--only` are excluded from unrecognized-option detection, even when they start with `-`.
 Aggregate preflight reports include `invalidCheckCount` and `unknownOptionCount` for quick numeric filtering in CI/log pipelines.
 Aggregate preflight validation errors include `validationErrorCode` for machine-readable error classification.
 Aggregate preflight reports include `supportedCliOptions` to enumerate accepted CLI flags for this command.
