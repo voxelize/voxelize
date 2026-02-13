@@ -49,6 +49,10 @@ describe("script aliases", () => {
     expect(manifest.scripts["check:onboarding:verify:json:compact"]).toBe(
       "node ./check-onboarding.mjs --json --verify --compact"
     );
+    expect(manifest.scripts["check:ts-core"]).toBe("node ./check-ts-core.mjs");
+    expect(manifest.scripts["check:ts-core:json"]).toBe(
+      "node ./check-ts-core.mjs --json"
+    );
     expect(manifest.scripts["check:ts-core:json:compact"]).toBe(
       "node ./check-ts-core.mjs --json --compact"
     );

@@ -780,6 +780,75 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(0);
   });
 
+  it("supports long-form ts-core aliases in list selection", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--list-checks", "--only", "typescript_core"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(true);
+    expect(report.passed).toBe(true);
+    expect(report.exitCode).toBe(0);
+    expect(report.noBuild).toBe(false);
+    expect(report.selectionMode).toBe("only");
+    expect(report.specialSelectorsUsed).toEqual([]);
+    expect(report.selectedChecks).toEqual(["tsCore"]);
+    expect(report.selectedCheckCount).toBe(1);
+    expect(report.requestedChecks).toEqual(["typescript_core"]);
+    expect(report.requestedCheckCount).toBe(1);
+    expect(report.requestedCheckResolutions).toEqual([
+      {
+        token: "typescript_core",
+        normalizedToken: "typescriptcore",
+        kind: "check",
+        resolvedTo: ["tsCore"],
+      },
+    ]);
+    expect(report.requestedCheckResolutionCounts).toEqual({
+      check: 1,
+      specialSelector: 0,
+      invalid: 0,
+    });
+    expect(report.skippedChecks).toEqual([
+      "devEnvironment",
+      "wasmPack",
+      "client",
+    ]);
+    expect(report.skippedCheckCount).toBe(report.skippedChecks.length);
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--list-checks", "--only"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--list-checks", "--only"]);
+    expect(report.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions(["--list-checks", "--only"])
+    );
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences([
+        "--list-checks",
+        "--only",
+        "typescript_core",
+      ])
+    );
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(result.status).toBe(0);
+  });
+
   it("supports ts shorthand aliases in only selection", () => {
     const result = spawnSync(
       process.execPath,
