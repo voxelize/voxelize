@@ -234,7 +234,8 @@ export class Peers<
       case "EVENT": {
         const { events } = message;
 
-        for (const event of events) {
+        for (let eventIndex = 0; eventIndex < events.length; eventIndex++) {
+          const event = events[eventIndex];
           const { name, payload: id } = event;
 
           switch (name.toLowerCase()) {
