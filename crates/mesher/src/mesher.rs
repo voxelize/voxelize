@@ -3395,11 +3395,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     let is_see_through = block.is_see_through;
                     let is_fluid = block.is_fluid;
                     let neighbors = NeighborCache::populate(vx, vy, vz, space);
-                    let rotation = if block.rotatable || block.y_rotatable {
-                        Some(space.get_voxel_rotation(vx, vy, vz))
-                    } else {
-                        None
-                    };
                     let face_cache = build_face_process_cache(
                         block,
                         is_see_through,
@@ -3414,7 +3409,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     );
                     cached_neighbors = Some(neighbors);
                     cached_face_cache = Some(face_cache);
-                    cached_rotation = rotation;
+                    cached_rotation = None;
                     cached_block = Some(block);
                     cached_voxel = Some(voxel_key);
                 }
@@ -3441,7 +3436,12 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                 let face_cache = cached_face_cache
                     .as_ref()
                     .expect("cached face data must exist for non-greedy face");
-                let rotation = cached_rotation.as_ref().unwrap_or(&identity_rotation);
+                let needs_rotation = (block.rotatable || block.y_rotatable) && !world_space;
+                let rotation = if needs_rotation {
+                    cached_rotation.get_or_insert_with(|| space.get_voxel_rotation(vx, vy, vz))
+                } else {
+                    &identity_rotation
+                };
                 process_face(
                     vx,
                     vy,
