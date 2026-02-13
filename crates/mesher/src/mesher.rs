@@ -2011,12 +2011,36 @@ fn evaluate_block_rule<S: VoxelAccess>(
             true
         }
         BlockRule::Combination { logic, rules } => match logic {
-            BlockRuleLogic::And => rules
-                .iter()
-                .all(|r| evaluate_block_rule(r, pos, space, rotation, y_rotatable, world_space)),
-            BlockRuleLogic::Or => rules
-                .iter()
-                .any(|r| evaluate_block_rule(r, pos, space, rotation, y_rotatable, world_space)),
+            BlockRuleLogic::And => {
+                for nested_rule in rules {
+                    if !evaluate_block_rule(
+                        nested_rule,
+                        pos,
+                        space,
+                        rotation,
+                        y_rotatable,
+                        world_space,
+                    ) {
+                        return false;
+                    }
+                }
+                true
+            }
+            BlockRuleLogic::Or => {
+                for nested_rule in rules {
+                    if evaluate_block_rule(
+                        nested_rule,
+                        pos,
+                        space,
+                        rotation,
+                        y_rotatable,
+                        world_space,
+                    ) {
+                        return true;
+                    }
+                }
+                false
+            }
             BlockRuleLogic::Not => {
                 if let Some(first) = rules.first() {
                     !evaluate_block_rule(first, pos, space, rotation, y_rotatable, world_space)
