@@ -272,12 +272,16 @@ const applyRelevantDeltas = (
 
     for (const delta of deltas) {
       const { coords, newVoxel, newRotation, newStage } = delta;
-      chunk.setVoxel(coords[0], coords[1], coords[2], newVoxel);
+      const vx = coords[0];
+      const vy = coords[1];
+      const vz = coords[2];
+
+      chunk.setVoxel(vx, vy, vz, newVoxel);
       if (newRotation) {
-        chunk.setVoxelRotation(coords[0], coords[1], coords[2], newRotation);
+        chunk.setVoxelRotation(vx, vy, vz, newRotation);
       }
       if (newStage !== undefined) {
-        chunk.setVoxelStage(coords[0], coords[1], coords[2], newStage);
+        chunk.setVoxelStage(vx, vy, vz, newStage);
       }
     }
   }
@@ -290,6 +294,7 @@ const serializeChunkGrid = (
   gridWidth: number,
   gridDepth: number
 ) => {
+  const cellCount = gridWidth * gridDepth;
   const serialized: (
     | {
         voxels: Uint32Array;
@@ -297,14 +302,12 @@ const serializeChunkGrid = (
         shape: [number, number, number];
       }
     | null
-  )[] = new Array(gridWidth * gridDepth);
-  let index = 0;
+  )[] = new Array(cellCount);
 
-  for (let offset = 0; offset < gridWidth * gridDepth; offset++) {
-    const chunk = chunkGrid[offset];
+  for (let index = 0; index < cellCount; index++) {
+    const chunk = chunkGrid[index];
     if (!chunk) {
       serialized[index] = null;
-      index++;
       continue;
     }
 
@@ -314,7 +317,6 @@ const serializeChunkGrid = (
       lights: chunk.lights.data,
       shape: [size, maxHeight, size],
     };
-    index++;
   }
 
   return serialized;
