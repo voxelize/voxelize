@@ -10,6 +10,40 @@ type ChunkData = {
   min: [number, number, number];
 };
 
+type JsonPrimitive = string | number | boolean | null;
+type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
+type JsonObject = { [key: string]: JsonValue };
+
+type RegistryData = {
+  blocksById: [number, object][];
+  blocksByName: [string, object][];
+};
+
+type InitMessage = {
+  type: "init";
+  registryData: RegistryData;
+};
+
+type MeshBatchMessage = {
+  type?: string;
+  chunksData: (
+    | {
+        id: string;
+        x: number;
+        z: number;
+        voxels: ArrayBuffer;
+        lights: ArrayBuffer;
+        options: { size: number; maxHeight: number };
+      }
+    | null
+  )[];
+  min: Coords3;
+  max: Coords3;
+  options: WorldOptions;
+};
+
+type MeshWorkerMessage = InitMessage | MeshBatchMessage;
+
 type WasmBlock = {
   id: number;
   name: string;
@@ -153,65 +187,42 @@ function workerComputeBoundingSphere(positions: Float32Array): {
 }
 
 let wasmInitialized = false;
+let registryInitialized = false;
+const pendingMeshMessages: MeshBatchMessage[] = [];
 
 const minArray = new Int32Array(3);
 const maxArray = new Int32Array(3);
 const emptyUint32Array = new Uint32Array(0);
 
-onmessage = async function (e) {
-  const { type } = e.data;
-
-  if (type && type.toLowerCase() === "init") {
-    if (!wasmInitialized) {
-      await init();
-      wasmInitialized = true;
-    }
-
-    const rawRegistry = e.data.registryData;
-    const wasmRegistry = convertRegistryToWasm(rawRegistry);
-    set_registry(wasmRegistry);
-    return;
-  }
-
+const ensureWasmInitialized = async () => {
   if (!wasmInitialized) {
-    // @ts-expect-error postMessage typing
-    postMessage({ geometries: [] }, []);
-    return;
+    await init();
+    wasmInitialized = true;
   }
+};
 
-  const { chunksData, min, max } = e.data;
-  const { chunkSize, greedyMeshing = true } = e.data.options as WorldOptions;
+const isInitMessage = (message: MeshWorkerMessage): message is InitMessage =>
+  typeof message.type === "string" && message.type.toLowerCase() === "init";
 
-  const chunks = chunksData.map(
-    (
-      chunkData: {
-        id: string;
-        x: number;
-        z: number;
-        voxels: ArrayBuffer;
-        lights: ArrayBuffer;
-        options: { size: number; maxHeight: number };
-      } | null
-    ): ChunkData | null => {
-      if (!chunkData) return null;
+const processMeshMessage = (message: MeshBatchMessage) => {
+  const { chunksData, min, max } = message;
+  const { chunkSize, greedyMeshing = true } = message.options;
 
-      const { x, z, voxels, lights, options } = chunkData;
-      const { size, maxHeight } = options;
+  const chunks = chunksData.map((chunkData): ChunkData | null => {
+    if (!chunkData) return null;
 
-      return {
-        voxels:
-          voxels && voxels.byteLength
-            ? new Uint32Array(voxels)
-            : emptyUint32Array,
-        lights:
-          lights && lights.byteLength
-            ? new Uint32Array(lights)
-            : emptyUint32Array,
-        shape: [size, maxHeight, size] as [number, number, number],
-        min: [x * size, 0, z * size] as [number, number, number],
-      };
-    }
-  );
+    const { x, z, voxels, lights, options } = chunkData;
+    const { size, maxHeight } = options;
+
+    return {
+      voxels:
+        voxels && voxels.byteLength ? new Uint32Array(voxels) : emptyUint32Array,
+      lights:
+        lights && lights.byteLength ? new Uint32Array(lights) : emptyUint32Array,
+      shape: [size, maxHeight, size] as [number, number, number],
+      min: [x * size, 0, z * size] as [number, number, number],
+    };
+  });
 
   minArray[0] = min[0];
   minArray[1] = min[1];
@@ -268,12 +279,41 @@ onmessage = async function (e) {
   postMessage({ geometries: geometriesPacked }, arrayBuffers);
 };
 
+onmessage = async function (e: MessageEvent<MeshWorkerMessage>) {
+  const message = e.data;
+
+  if (isInitMessage(message)) {
+    await ensureWasmInitialized();
+
+    const rawRegistry = message.registryData;
+    const wasmRegistry = convertRegistryToWasm(rawRegistry);
+    set_registry(wasmRegistry);
+    registryInitialized = true;
+
+    if (pendingMeshMessages.length > 0) {
+      const toProcess = pendingMeshMessages.splice(0, pendingMeshMessages.length);
+      for (const pendingMessage of toProcess) {
+        processMeshMessage(pendingMessage);
+      }
+    }
+
+    return;
+  }
+
+  await ensureWasmInitialized();
+  if (!registryInitialized) {
+    pendingMeshMessages.push(message);
+    return;
+  }
+  processMeshMessage(message);
+};
+
 function convertRegistryToWasm(rawRegistry: {
   blocksById: [number, object][];
   blocksByName: [string, object][];
 }): WasmRegistry {
   const blocksById: [number, WasmBlock][] = rawRegistry.blocksById.map(
-    ([id, block]: [number, Record<string, unknown>]) => {
+    ([id, block]: [number, JsonObject]) => {
       const wasmBlock: WasmBlock = {
         id: block.id as number,
         name: block.name as string,
@@ -294,12 +334,10 @@ function convertRegistryToWasm(rawRegistry: {
         ],
         transparentStandalone: block.transparentStandalone as boolean,
         occludesFluid: (block.occludesFluid as boolean) ?? false,
-        faces: convertFaces(block.faces as Record<string, unknown>[]),
-        aabbs: convertAabbs(block.aabbs as Record<string, unknown>[]),
+        faces: convertFaces(block.faces as JsonObject[]),
+        aabbs: convertAabbs(block.aabbs as JsonObject[]),
         dynamicPatterns: block.dynamicPatterns
-          ? convertDynamicPatterns(
-              block.dynamicPatterns as Record<string, unknown>[]
-            )
+          ? convertDynamicPatterns(block.dynamicPatterns as JsonObject[])
           : null,
       };
       return [id, wasmBlock];
@@ -309,7 +347,7 @@ function convertRegistryToWasm(rawRegistry: {
   return { blocksById };
 }
 
-function convertFaces(faces: Record<string, unknown>[]): WasmBlock["faces"] {
+function convertFaces(faces: JsonObject[]): WasmBlock["faces"] {
   if (!faces) return [];
   return faces.map((face) => ({
     name: face.name as string,
@@ -317,7 +355,7 @@ function convertFaces(faces: Record<string, unknown>[]): WasmBlock["faces"] {
     isolated: face.isolated as boolean,
     textureGroup: (face.textureGroup as string) ?? null,
     dir: face.dir as [number, number, number],
-    corners: (face.corners as Record<string, unknown>[]).map((corner) => ({
+    corners: (face.corners as JsonObject[]).map((corner) => ({
       pos: corner.pos as [number, number, number],
       uv: corner.uv as [number, number],
     })),
@@ -330,7 +368,7 @@ function convertFaces(faces: Record<string, unknown>[]): WasmBlock["faces"] {
   }));
 }
 
-function convertAabbs(aabbs: Record<string, unknown>[]): WasmBlock["aabbs"] {
+function convertAabbs(aabbs: JsonObject[]): WasmBlock["aabbs"] {
   if (!aabbs) return [];
   return aabbs.map((aabb) => ({
     minX: aabb.minX as number,
@@ -343,14 +381,14 @@ function convertAabbs(aabbs: Record<string, unknown>[]): WasmBlock["aabbs"] {
 }
 
 function convertDynamicPatterns(
-  patterns: Record<string, unknown>[]
+  patterns: JsonObject[]
 ): WasmBlock["dynamicPatterns"] {
   if (!patterns) return null;
   return patterns.map((pattern) => ({
-    parts: (pattern.parts as Record<string, unknown>[]).map((part) => ({
+    parts: (pattern.parts as JsonObject[]).map((part) => ({
       rule: part.rule as object,
-      faces: convertFaces(part.faces as Record<string, unknown>[]),
-      aabbs: convertAabbs(part.aabbs as Record<string, unknown>[]),
+      faces: convertFaces(part.faces as JsonObject[]),
+      aabbs: convertAabbs(part.aabbs as JsonObject[]),
       isTransparent: (part.isTransparent as [
         boolean,
         boolean,
