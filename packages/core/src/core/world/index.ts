@@ -2644,8 +2644,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     const ignorePassables = options.ignorePassables ?? false;
     const ignoreSeeThrough = options.ignoreSeeThrough ?? false;
     const ignoreListSource = options.ignoreList;
+    const ignoreListCount = ignoreListSource?.length ?? 0;
     const ignoreList =
-      ignoreListSource && ignoreListSource.length > 0
+      ignoreListSource && ignoreListCount > 4
         ? new Set(ignoreListSource)
         : null;
 
@@ -2669,8 +2670,21 @@ export class World<T = any> extends Scene implements NetIntercept {
           dynamicPatterns,
         } = block;
 
-        if (ignoreList?.has(id)) {
-          return EMPTY_AABBS;
+        if (ignoreList) {
+          if (ignoreList.has(id)) {
+            return EMPTY_AABBS;
+          }
+        } else if (ignoreListCount > 0 && ignoreListSource) {
+          let isIgnored = false;
+          for (let ignoreIndex = 0; ignoreIndex < ignoreListCount; ignoreIndex++) {
+            if (ignoreListSource[ignoreIndex] === id) {
+              isIgnored = true;
+              break;
+            }
+          }
+          if (isIgnored) {
+            return EMPTY_AABBS;
+          }
         }
 
         if (
