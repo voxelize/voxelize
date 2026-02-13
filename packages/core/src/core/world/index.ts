@@ -5559,13 +5559,14 @@ export class World<T = any> extends Scene implements NetIntercept {
     const firstJob = this.lightJobQueue[0];
     const batchId = firstJob.batchId;
 
-    const batchJobs: LightJob[] = [];
+    let batchLength = 1;
     while (
-      this.lightJobQueue.length > 0 &&
-      this.lightJobQueue[0].batchId === batchId
+      batchLength < this.lightJobQueue.length &&
+      this.lightJobQueue[batchLength].batchId === batchId
     ) {
-      batchJobs.push(this.lightJobQueue.shift()!);
+      batchLength++;
     }
+    const batchJobs = this.lightJobQueue.splice(0, batchLength);
 
     this.activeLightBatch = {
       batchId,
