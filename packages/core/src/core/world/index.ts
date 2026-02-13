@@ -4174,17 +4174,17 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.chunkPipeline.remove(toRemove[index]);
     }
 
-    this.chunkPipeline.forEach("requested", (name) => {
+    for (const name of this.chunkPipeline.getInStage("requested")) {
       const [x, z] = ChunkUtils.parseChunkNameAt(name);
 
       if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
         this.chunkPipeline.remove(name);
         deleted.push([x, z]);
       }
-    });
+    }
 
     const processingToRemove: string[] = [];
-    this.chunkPipeline.forEach("processing", (name) => {
+    for (const name of this.chunkPipeline.getInStage("processing")) {
       const procData = this.chunkPipeline.getProcessingData(name);
       if (procData) {
         const { x, z } = procData.data;
@@ -4192,7 +4192,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           processingToRemove.push(name);
         }
       }
-    });
+    }
     for (let index = 0; index < processingToRemove.length; index++) {
       this.chunkPipeline.remove(processingToRemove[index]);
     }
