@@ -5769,7 +5769,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
     workerPromises.length = workerCount;
 
-    const geometriesResults = await Promise.all(workerPromises);
+    const geometriesResults =
+      workerCount === 1
+        ? [await workerPromises[0]]
+        : await Promise.all(workerPromises);
     let shouldScheduleDirtyChunks = false;
 
     for (let index = 0; index < geometriesResults.length; index++) {
