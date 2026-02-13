@@ -196,4 +196,27 @@ describe("BlockRuleEvaluator", () => {
 
     expect(BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access)).toBe(true);
   });
+
+  it("rotates offsets for y-rotatable rules", () => {
+    const rule = {
+      type: "simple" as const,
+      offset: [1, 0, 0] as [number, number, number],
+      id: 9,
+    };
+
+    const access = {
+      getVoxel: (x: number, y: number, z: number) =>
+        x === 0 && y === 0 && z === 1 ? 9 : 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    const matched = BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access, {
+      rotation: BlockRotation.py(Math.PI / 2),
+      yRotatable: true,
+      worldSpace: false,
+    });
+
+    expect(matched).toBe(true);
+  });
 });

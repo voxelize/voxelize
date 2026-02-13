@@ -33,6 +33,32 @@ describe("BlockUtils.evaluateBlockRule", () => {
 
     expect(matched).toBe(true);
   });
+
+  it("rotates simple rule offsets when y-rotatable", () => {
+    const rule = {
+      type: "simple" as const,
+      offset: [1, 0, 0] as [number, number, number],
+      id: 7,
+    };
+
+    const matched = BlockUtils.evaluateBlockRule(
+      rule,
+      [0, 0, 0],
+      {
+        getVoxelAt: (x: number, y: number, z: number) =>
+          x === 0 && y === 0 && z === 1 ? 7 : 0,
+        getVoxelRotationAt: () => new BlockRotation(),
+        getVoxelStageAt: () => 0,
+      },
+      {
+        rotation: new BlockRotation(PY_ROTATION, Math.PI / 2),
+        yRotatable: true,
+        worldSpace: false,
+      }
+    );
+
+    expect(matched).toBe(true);
+  });
 });
 
 describe("BlockUtils encoding parity", () => {

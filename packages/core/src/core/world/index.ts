@@ -2297,7 +2297,11 @@ export class World<T = any> extends Scene implements NetIntercept {
             wx,
             wy,
             wz,
-            dynamicPatterns
+            dynamicPatterns,
+            {
+              rotation,
+              yRotatable: block.yRotatable,
+            }
           );
           return aabbsWithFlags.map(({ aabb, worldSpace }) =>
             worldSpace
@@ -2327,11 +2331,16 @@ export class World<T = any> extends Scene implements NetIntercept {
       return [];
     }
     if (block.dynamicPatterns && block.dynamicPatterns.length > 0) {
+      const rotation = this.getVoxelRotationAt(vx, vy, vz);
       return this.getBlockAABBsForDynamicPatterns(
         vx,
         vy,
         vz,
-        block.dynamicPatterns
+        block.dynamicPatterns,
+        {
+          rotation,
+          yRotatable: block.yRotatable,
+        }
       ).map(({ aabb }) => aabb);
     }
 
@@ -2347,12 +2356,18 @@ export class World<T = any> extends Scene implements NetIntercept {
     vx: number,
     vy: number,
     vz: number,
-    dynamicPatterns: BlockDynamicPattern[]
+    dynamicPatterns: BlockDynamicPattern[],
+    options: {
+      rotation?: BlockRotation;
+      yRotatable?: boolean;
+    } = {}
   ): { aabb: AABB; worldSpace: boolean }[] => {
     for (const dynamicPattern of dynamicPatterns) {
       const aabbsWithFlags: { aabb: AABB; worldSpace: boolean }[] = [];
 
       for (const part of dynamicPattern.parts) {
+        const worldSpace =
+          (part as { worldSpace?: boolean }).worldSpace ?? false;
         const patternsMatched = BlockUtils.evaluateBlockRule(
           part.rule,
           [vx, vy, vz],
@@ -2363,12 +2378,15 @@ export class World<T = any> extends Scene implements NetIntercept {
               this.getVoxelRotationAt(vx, vy, vz),
             getVoxelStageAt: (vx: number, vy: number, vz: number) =>
               this.getVoxelStageAt(vx, vy, vz),
+          },
+          {
+            rotation: options.rotation,
+            yRotatable: options.yRotatable,
+            worldSpace,
           }
         );
 
         if (patternsMatched) {
-          const worldSpace =
-            (part as { worldSpace?: boolean }).worldSpace ?? false;
           for (const aabb of part.aabbs) {
             const resolvedAabb =
               aabb instanceof AABB
@@ -2399,10 +2417,16 @@ export class World<T = any> extends Scene implements NetIntercept {
     vy: number,
     vz: number,
     dynamicPatterns: BlockDynamicPattern[],
-    defaultPassable: boolean
+    defaultPassable: boolean,
+    options: {
+      rotation?: BlockRotation;
+      yRotatable?: boolean;
+    } = {}
   ): boolean => {
     for (const dynamicPattern of dynamicPatterns) {
       for (const part of dynamicPattern.parts) {
+        const worldSpace =
+          (part as { worldSpace?: boolean }).worldSpace ?? false;
         const patternsMatched = BlockUtils.evaluateBlockRule(
           part.rule,
           [vx, vy, vz],
@@ -2413,6 +2437,11 @@ export class World<T = any> extends Scene implements NetIntercept {
               this.getVoxelRotationAt(vx, vy, vz),
             getVoxelStageAt: (vx: number, vy: number, vz: number) =>
               this.getVoxelStageAt(vx, vy, vz),
+          },
+          {
+            rotation: options.rotation,
+            yRotatable: options.yRotatable,
+            worldSpace,
           }
         );
 
@@ -4646,7 +4675,11 @@ export class World<T = any> extends Scene implements NetIntercept {
             vy,
             vz,
             dynamicPatterns,
-            isPassable
+            isPassable,
+            {
+              rotation: chunk.getVoxelRotation(vx, vy, vz),
+              yRotatable: block.yRotatable,
+            }
           );
           if (passable || isFluid) return [];
 
@@ -4655,7 +4688,11 @@ export class World<T = any> extends Scene implements NetIntercept {
             vx,
             vy,
             vz,
-            dynamicPatterns
+            dynamicPatterns,
+            {
+              rotation,
+              yRotatable: block.yRotatable,
+            }
           );
           return aabbsWithFlags.map(({ aabb, worldSpace }) =>
             worldSpace

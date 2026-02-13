@@ -136,8 +136,15 @@ export class BlockUtils {
       getVoxelAt: (x: number, y: number, z: number) => number;
       getVoxelRotationAt: (x: number, y: number, z: number) => BlockRotation;
       getVoxelStageAt: (x: number, y: number, z: number) => number;
-    }
+    },
+    options: {
+      rotation?: BlockRotation;
+      yRotatable?: boolean;
+      worldSpace?: boolean;
+    } = {}
   ): boolean => {
+    const { yRotatable = false, worldSpace = false } = options;
+
     if (rule.type === "none") {
       return true;
     }
@@ -145,9 +152,23 @@ export class BlockUtils {
     if (rule.type === "simple") {
       const { offset, id, rotation, stage } = rule;
       const [vx, vy, vz] = voxel;
-      const ox = offset[0] + vx;
-      const oy = offset[1] + vy;
-      const oz = offset[2] + vz;
+      let [offsetX, offsetY, offsetZ] = offset;
+
+      if (yRotatable && !worldSpace && options.rotation) {
+        const rot = options.rotation.yRotation;
+        if (Math.abs(rot) > Number.EPSILON) {
+          const cosRot = Math.cos(rot);
+          const sinRot = Math.sin(rot);
+          const x = offsetX;
+          const z = offsetZ;
+          offsetX = x * cosRot - z * sinRot;
+          offsetZ = x * sinRot + z * cosRot;
+        }
+      }
+
+      const ox = Math.round(offsetX) + vx;
+      const oy = Math.round(offsetY) + vy;
+      const oz = Math.round(offsetZ) + vz;
 
       if (id != null) {
         const voxelId = functions.getVoxelAt(ox, oy, oz);
@@ -184,16 +205,16 @@ export class BlockUtils {
       switch (logic) {
         case BlockRuleLogic.And:
           return rules.every((subRule) =>
-            BlockUtils.evaluateBlockRule(subRule, voxel, functions)
+            BlockUtils.evaluateBlockRule(subRule, voxel, functions, options)
           );
         case BlockRuleLogic.Or:
           return rules.some((subRule) =>
-            BlockUtils.evaluateBlockRule(subRule, voxel, functions)
+            BlockUtils.evaluateBlockRule(subRule, voxel, functions, options)
           );
         case BlockRuleLogic.Not: {
           const [firstRule] = rules;
           return firstRule
-            ? !BlockUtils.evaluateBlockRule(firstRule, voxel, functions)
+            ? !BlockUtils.evaluateBlockRule(firstRule, voxel, functions, options)
             : true;
         }
         default:
