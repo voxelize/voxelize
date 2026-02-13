@@ -3011,6 +3011,12 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const [startCX, startCZ] = minChunk;
     const [endCX, endCZ] = maxChunk;
+    const hasMinBounds = min !== undefined;
+    const minBoundX = hasMinBounds ? min[0] : 0;
+    const minBoundZ = hasMinBounds ? min[2] : 0;
+    const hasMaxBounds = max !== undefined;
+    const maxBoundX = hasMaxBounds ? max[0] : 0;
+    const maxBoundZ = hasMaxBounds ? max[2] : 0;
 
     const isSunlight = color === "SUNLIGHT";
 
@@ -3074,8 +3080,8 @@ export class World<T = any> extends Scene implements NetIntercept {
           ncx > endCX ||
           ncz < startCZ ||
           ncz > endCZ ||
-          (min && (nvx < min[0] || nvz < min[2])) ||
-          (max && (nvx >= max[0] || nvz >= max[2]))
+          (hasMinBounds && (nvx < minBoundX || nvz < minBoundZ)) ||
+          (hasMaxBounds && (nvx >= maxBoundX || nvz >= maxBoundZ))
         ) {
           continue;
         }
@@ -3126,6 +3132,10 @@ export class World<T = any> extends Scene implements NetIntercept {
   public removeLight(voxel: Coords3, color: LightColor) {
     const { maxHeight, maxLightLevel, chunkSize, minChunk, maxChunk } =
       this.options;
+    const minChunkX = minChunk[0];
+    const minChunkZ = minChunk[1];
+    const maxChunkX = maxChunk[0];
+    const maxChunkZ = maxChunk[1];
 
     const fill: LightNode[] = [];
     const queue: LightNode[] = [];
@@ -3190,10 +3200,10 @@ export class World<T = any> extends Scene implements NetIntercept {
         const ncz = Math.floor(nvz / chunkSize);
 
         if (
-          ncx < minChunk[0] ||
-          ncz < minChunk[1] ||
-          ncx > maxChunk[0] ||
-          ncz > maxChunk[1]
+          ncx < minChunkX ||
+          ncz < minChunkZ ||
+          ncx > maxChunkX ||
+          ncz > maxChunkZ
         ) {
           continue;
         }
