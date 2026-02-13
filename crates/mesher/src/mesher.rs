@@ -1987,6 +1987,8 @@ fn extract_greedy_quads_dense(
                     h: quad_height as i32,
                     data,
                 });
+                u_off += quad_width;
+                continue;
             }
             u_off += 1;
         }
