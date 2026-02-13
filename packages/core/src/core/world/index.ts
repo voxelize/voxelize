@@ -6357,6 +6357,21 @@ export class World<T = any> extends Scene implements NetIntercept {
       : `${id}`;
   }
 
+  private markTrackedChunkLevels(
+    chunkX: number,
+    chunkZ: number,
+    level: number,
+    touchesLowerBoundary: boolean,
+    touchesUpperBoundary: boolean
+  ) {
+    if (touchesLowerBoundary) {
+      this.meshPipeline.onVoxelChange(chunkX, chunkZ, level - 1);
+    } else if (touchesUpperBoundary) {
+      this.meshPipeline.onVoxelChange(chunkX, chunkZ, level + 1);
+    }
+    this.meshPipeline.onVoxelChange(chunkX, chunkZ, level);
+  }
+
   private trackChunkAt(vx: number, vy: number, vz: number) {
     if (!this.isTrackingChunks) return;
     const { chunkSize, maxHeight, subChunks } = this.options;
@@ -6375,24 +6390,62 @@ export class World<T = any> extends Scene implements NetIntercept {
     const touchesUpperBoundary =
       ivy % subChunkHeight === subChunkHeight - 1 && level < subChunks - 1;
 
-    const markChunkLevels = (chunkX: number, chunkZ: number) => {
-      if (touchesLowerBoundary) {
-        this.meshPipeline.onVoxelChange(chunkX, chunkZ, level - 1);
-      } else if (touchesUpperBoundary) {
-        this.meshPipeline.onVoxelChange(chunkX, chunkZ, level + 1);
-      }
-      this.meshPipeline.onVoxelChange(chunkX, chunkZ, level);
-    };
+    this.markTrackedChunkLevels(
+      cx,
+      cz,
+      level,
+      touchesLowerBoundary,
+      touchesUpperBoundary
+    );
 
-    markChunkLevels(cx, cz);
-
-    if (lcx === 0) markChunkLevels(cx - 1, cz);
-    if (lcz === 0) markChunkLevels(cx, cz - 1);
-    if (lcx === 0 && lcz === 0) markChunkLevels(cx - 1, cz - 1);
-    if (lcx === chunkSize - 1) markChunkLevels(cx + 1, cz);
-    if (lcz === chunkSize - 1) markChunkLevels(cx, cz + 1);
+    if (lcx === 0)
+      this.markTrackedChunkLevels(
+        cx - 1,
+        cz,
+        level,
+        touchesLowerBoundary,
+        touchesUpperBoundary
+      );
+    if (lcz === 0)
+      this.markTrackedChunkLevels(
+        cx,
+        cz - 1,
+        level,
+        touchesLowerBoundary,
+        touchesUpperBoundary
+      );
+    if (lcx === 0 && lcz === 0)
+      this.markTrackedChunkLevels(
+        cx - 1,
+        cz - 1,
+        level,
+        touchesLowerBoundary,
+        touchesUpperBoundary
+      );
+    if (lcx === chunkSize - 1)
+      this.markTrackedChunkLevels(
+        cx + 1,
+        cz,
+        level,
+        touchesLowerBoundary,
+        touchesUpperBoundary
+      );
+    if (lcz === chunkSize - 1)
+      this.markTrackedChunkLevels(
+        cx,
+        cz + 1,
+        level,
+        touchesLowerBoundary,
+        touchesUpperBoundary
+      );
     if (lcx === chunkSize - 1 && lcz === chunkSize - 1) {
-      markChunkLevels(cx + 1, cz + 1);
+      this.markTrackedChunkLevels(
+        cx + 1,
+        cz + 1,
+        level,
+        touchesLowerBoundary,
+        touchesUpperBoundary
+      );
     }
   }
 
