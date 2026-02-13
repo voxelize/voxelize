@@ -2916,10 +2916,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         const nvx = vx + ox;
         const nvz = vz + oz;
 
-        const [ncx, ncz] = ChunkUtils.mapVoxelToChunk(
-          [nvx, nvy, nvz],
-          chunkSize
-        );
+        const [ncx, ncz] = ChunkUtils.mapVoxelToChunkAt(nvx, nvz, chunkSize);
 
         if (
           ncx < startCX ||
@@ -3011,10 +3008,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         const nvx = vx + ox;
         const nvz = vz + oz;
-        const [ncx, ncz] = ChunkUtils.mapVoxelToChunk(
-          [nvx, nvy, nvz],
-          chunkSize
-        );
+        const [ncx, ncz] = ChunkUtils.mapVoxelToChunkAt(nvx, nvz, chunkSize);
 
         if (
           ncx < minChunk[0] ||
@@ -3599,8 +3593,9 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const delta = this.clock.getDelta();
 
-    const center = ChunkUtils.mapVoxelToChunk(
-      position.toArray() as Coords3,
+    const center = ChunkUtils.mapVoxelToChunkAt(
+      position.x,
+      position.z,
       this.options.chunkSize
     );
     if (this.options.doesTickTime) {
@@ -3763,11 +3758,15 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       const originalData = this.blockEntitiesMap.get(voxelId) ?? null;
       this.blockEntityUpdateListeners.forEach((listener) => {
-        const chunkCoords = ChunkUtils.mapVoxelToChunk(
-          [vx, vy, vz],
+        const chunkCoords = ChunkUtils.mapVoxelToChunkAt(
+          vx,
+          vz,
           this.options.chunkSize
         );
-        const chunkName = ChunkUtils.getChunkName(chunkCoords);
+        const chunkName = ChunkUtils.getChunkNameAt(
+          chunkCoords[0],
+          chunkCoords[1]
+        );
         const chunk = this.chunkPipeline.getLoadedChunk(chunkName);
         const updateData: BlockEntityUpdateData<T> = {
           id,
@@ -4269,11 +4268,13 @@ export class World<T = any> extends Scene implements NetIntercept {
       0.01;
 
     this.physics.bodies.forEach((body) => {
-      const coords = ChunkUtils.mapVoxelToChunk(
-        body.getPosition() as Coords3,
+      const [vx, vy, vz] = body.getPosition() as Coords3;
+      const coords = ChunkUtils.mapVoxelToChunkAt(
+        vx,
+        vz,
         this.options.chunkSize
       );
-      const chunk = this.getChunkByPosition(...(body.getPosition() as Coords3));
+      const chunk = this.getLoadedChunkAtVoxel(vx, vz);
 
       if ((!chunk || !chunk.isReady) && this.isWithinWorld(...coords)) {
         return;
