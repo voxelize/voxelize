@@ -563,12 +563,18 @@ export class Inputs<T extends string = any> extends EventEmitter {
         return;
       }
 
-      for (const bound of callbacks.values()) {
+      let callbackEntries = callbacks.values();
+      let callbackEntry = callbackEntries.next();
+      while (!callbackEntry.done) {
+        const bound = callbackEntry.value;
         const { namespace, callback } = bound;
         if (this.namespace === namespace || namespace === "*") {
           const result = callback(event);
-          if (result) break;
+          if (result) {
+            break;
+          }
         }
+        callbackEntry = callbackEntries.next();
       }
     };
 
@@ -583,15 +589,21 @@ export class Inputs<T extends string = any> extends EventEmitter {
    */
   private initializeScrollListeners = () => {
     const listener = (event: WheelEvent) => {
-      for (const bound of this.scrollCallbacks.values()) {
+      let scrollEntries = this.scrollCallbacks.values();
+      let scrollEntry = scrollEntries.next();
+      while (!scrollEntry.done) {
+        const bound = scrollEntry.value;
         const { up, down, namespace } = bound;
         if (this.namespace === namespace || namespace === "*") {
           const result =
             event.deltaY > 0
               ? up(event.deltaY, event)
               : down(event.deltaY, event);
-          if (result) break;
+          if (result) {
+            break;
+          }
         }
+        scrollEntry = scrollEntries.next();
       }
     };
 
