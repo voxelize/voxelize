@@ -2209,44 +2209,48 @@ fn process_face<S: VoxelAccess>(
         face.dir
     };
 
-    let neighbor_id = if !needs_rotation {
-        neighbors.get_voxel(dir[0], dir[1], dir[2])
+    let should_mesh = if !is_fluid && !see_through && !is_opaque {
+        true
     } else {
-        let rotated_dir_in_cache =
-            dir[0] >= -1 && dir[0] <= 1 && dir[1] >= -1 && dir[1] <= 1 && dir[2] >= -1 && dir[2] <= 1;
-        if rotated_dir_in_cache {
+        let neighbor_id = if !needs_rotation {
             neighbors.get_voxel(dir[0], dir[1], dir[2])
         } else {
-            space.get_voxel(vx + dir[0], vy + dir[1], vz + dir[2])
+            let rotated_dir_in_cache =
+                dir[0] >= -1 && dir[0] <= 1 && dir[1] >= -1 && dir[1] <= 1 && dir[2] >= -1 && dir[2] <= 1;
+            if rotated_dir_in_cache {
+                neighbors.get_voxel(dir[0], dir[1], dir[2])
+            } else {
+                space.get_voxel(vx + dir[0], vy + dir[1], vz + dir[2])
+            }
+        };
+
+        let n_block_type = match registry.get_block_by_id(neighbor_id) {
+            Some(b) => b,
+            None => return,
+        };
+
+        if is_fluid && !block.is_waterlogged && n_block_type.is_waterlogged {
+            return;
         }
+
+        if is_fluid && n_block_type.occludes_fluid {
+            return;
+        }
+
+        let n_is_empty = n_block_type.is_empty;
+
+        n_is_empty
+            || (see_through
+                && !is_opaque
+                && !n_block_type.is_opaque
+                && (neighbor_id != voxel_id || n_block_type.transparent_standalone))
+            || (!see_through && (!is_opaque || !n_block_type.is_opaque))
+            || (is_fluid
+                && n_block_type.is_opaque
+                && !n_block_type.is_fluid
+                && !cache.fluid_surface_above
+                && (!n_block_type.is_full_cube() || dir == [0, 1, 0]))
     };
-
-    let n_block_type = match registry.get_block_by_id(neighbor_id) {
-        Some(b) => b,
-        None => return,
-    };
-
-    if is_fluid && !block.is_waterlogged && n_block_type.is_waterlogged {
-        return;
-    }
-
-    if is_fluid && n_block_type.occludes_fluid {
-        return;
-    }
-
-    let n_is_empty = n_block_type.is_empty;
-
-    let should_mesh = n_is_empty
-        || (see_through
-            && !is_opaque
-            && !n_block_type.is_opaque
-            && (neighbor_id != voxel_id || n_block_type.transparent_standalone))
-        || (!see_through && (!is_opaque || !n_block_type.is_opaque))
-        || (is_fluid
-            && n_block_type.is_opaque
-            && !n_block_type.is_fluid
-            && !cache.fluid_surface_above
-            && (!n_block_type.is_full_cube() || dir == [0, 1, 0]));
 
     if !should_mesh {
         return;
