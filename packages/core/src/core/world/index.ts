@@ -278,6 +278,17 @@ export type LightBatch = {
   results: LightBatchResult[];
 };
 
+type ChunkLightColorResults = {
+  coords: Coords2;
+  sunlight?: Uint32Array;
+  red?: Uint32Array;
+  green?: Uint32Array;
+  blue?: Uint32Array;
+  colorCount: number;
+  firstColor: LightColor;
+  firstLights: Uint32Array;
+};
+
 export type LightOperations = {
   removals: {
     sunlight: Coords3[];
@@ -5871,7 +5882,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const chunkResultsByX = new Map<
       number,
-      Map<number, { coords: Coords2; colorMap: Map<LightColor, Uint32Array> }>
+      Map<number, ChunkLightColorResults>
     >();
 
     let globalMinY = maxHeight;
@@ -5902,11 +5913,47 @@ export class World<T = any> extends Scene implements NetIntercept {
         if (!chunkResult) {
           chunkResult = {
             coords,
-            colorMap: new Map(),
+            colorCount: 1,
+            firstColor: result.color,
+            firstLights: lights,
           };
           chunkResultsByZ.set(cz, chunkResult);
+        } else {
+          let hasExistingColor = false;
+          switch (result.color) {
+            case "SUNLIGHT":
+              hasExistingColor = chunkResult.sunlight !== undefined;
+              break;
+            case "RED":
+              hasExistingColor = chunkResult.red !== undefined;
+              break;
+            case "GREEN":
+              hasExistingColor = chunkResult.green !== undefined;
+              break;
+            case "BLUE":
+              hasExistingColor = chunkResult.blue !== undefined;
+              break;
+          }
+
+          if (!hasExistingColor) {
+            chunkResult.colorCount++;
+          }
         }
-        chunkResult.colorMap.set(result.color, lights);
+
+        switch (result.color) {
+          case "SUNLIGHT":
+            chunkResult.sunlight = lights;
+            break;
+          case "RED":
+            chunkResult.red = lights;
+            break;
+          case "GREEN":
+            chunkResult.green = lights;
+            break;
+          case "BLUE":
+            chunkResult.blue = lights;
+            break;
+        }
       }
     }
 
@@ -5917,15 +5964,15 @@ export class World<T = any> extends Scene implements NetIntercept {
     );
 
     for (const chunkResultsByZ of chunkResultsByX.values()) {
-      for (const { coords, colorMap } of chunkResultsByZ.values()) {
+      for (const chunkResult of chunkResultsByZ.values()) {
+        const { coords, colorCount, firstColor, firstLights } = chunkResult;
         const chunk = this.getChunkByCoords(coords[0], coords[1]);
         if (!chunk) continue;
 
-        if (colorMap.size === 1) {
-          const [color, lights] = colorMap.entries().next().value;
-          this.mergeSingleColorResult(chunk, lights, color);
+        if (colorCount === 1) {
+          this.mergeSingleColorResult(chunk, firstLights, firstColor);
         } else {
-          this.mergeMultiColorResults(chunk, colorMap);
+          this.mergeMultiColorResults(chunk, chunkResult);
         }
 
         chunk.isDirty = true;
@@ -5950,14 +5997,14 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private mergeMultiColorResults(
     chunk: Chunk,
-    colorMap: Map<LightColor, Uint32Array>
+    colorResults: ChunkLightColorResults
   ) {
     const currentLights = chunk.lights.data;
-    const anyResult = colorMap.values().next().value;
-    const sunlightSource = colorMap.get("SUNLIGHT") ?? anyResult;
-    const redSource = colorMap.get("RED") ?? anyResult;
-    const greenSource = colorMap.get("GREEN") ?? anyResult;
-    const blueSource = colorMap.get("BLUE") ?? anyResult;
+    const fallbackSource = colorResults.firstLights;
+    const sunlightSource = colorResults.sunlight ?? fallbackSource;
+    const redSource = colorResults.red ?? fallbackSource;
+    const greenSource = colorResults.green ?? fallbackSource;
+    const blueSource = colorResults.blue ?? fallbackSource;
 
     for (let i = 0; i < currentLights.length; i++) {
       currentLights[i] =
