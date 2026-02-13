@@ -650,4 +650,53 @@ mod tests {
         remove_light(&mut space, [8, 32, 8], &LightColor::Red, &config, &registry);
         assert_eq!(space.get_red_light(8, 32, 8), 0);
     }
+
+    #[test]
+    fn remove_lights_batch_clears_multiple_sources() {
+        let registry = test_registry();
+        let config = test_config();
+        let mut space = TestSpace::new([0, 0, 0], [16, 64, 16]);
+
+        let source_a = [6, 32, 8];
+        let source_b = [10, 32, 8];
+        space.voxels[source_a[0] as usize * 64 * 16 + source_a[1] as usize * 16 + source_a[2] as usize] =
+            2;
+        space.voxels[source_b[0] as usize * 64 * 16 + source_b[1] as usize * 16 + source_b[2] as usize] =
+            2;
+
+        space.set_red_light(source_a[0], source_a[1], source_a[2], 15);
+        space.set_red_light(source_b[0], source_b[1], source_b[2], 15);
+
+        flood_light(
+            &mut space,
+            VecDeque::from(vec![
+                LightNode {
+                    voxel: source_a,
+                    level: 15,
+                },
+                LightNode {
+                    voxel: source_b,
+                    level: 15,
+                },
+            ]),
+            &LightColor::Red,
+            &config,
+            None,
+            &registry,
+        );
+
+        assert!(space.get_red_light(8, 32, 8) > 0);
+
+        remove_lights(
+            &mut space,
+            &[source_a, source_b],
+            &LightColor::Red,
+            &config,
+            &registry,
+        );
+
+        assert_eq!(space.get_red_light(source_a[0], source_a[1], source_a[2]), 0);
+        assert_eq!(space.get_red_light(source_b[0], source_b[1], source_b[2]), 0);
+        assert_eq!(space.get_red_light(8, 32, 8), 0);
+    }
 }
