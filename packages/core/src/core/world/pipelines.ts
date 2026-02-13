@@ -393,9 +393,8 @@ export class MeshPipeline {
   }
 
   remove(cx: number, cz: number): void {
-    const prefix = `${cx},${cz}:`;
-    for (const key of this.states.keys()) {
-      if (key.startsWith(prefix)) {
+    for (const [key, state] of this.states) {
+      if (state.cx === cx && state.cz === cz) {
         this.states.delete(key);
         this.dirty.delete(key);
       }
