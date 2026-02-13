@@ -111,6 +111,13 @@ type WasmRegistry = {
   blocksById: [number, WasmBlock][];
 };
 
+type WasmFace = WasmBlock["faces"][number];
+type WasmFaceCorner = WasmFace["corners"][number];
+type WasmAabb = WasmBlock["aabbs"][number];
+type WasmDynamicPatterns = NonNullable<WasmBlock["dynamicPatterns"]>;
+type WasmDynamicPattern = WasmDynamicPatterns[number];
+type WasmDynamicPatternPart = WasmDynamicPattern["parts"][number];
+
 type GeometryProtocol = {
   voxel: number;
   at: Coords3 | null;
@@ -398,92 +405,122 @@ function convertRegistryToWasm(rawRegistry: {
   blocksById: [number, object][];
   blocksByName: [string, object][];
 }): WasmRegistry {
-  const blocksById: [number, WasmBlock][] = rawRegistry.blocksById.map(
-    ([id, block]: [number, JsonObject]) => {
-      const wasmBlock: WasmBlock = {
-        id: block.id as number,
-        name: block.name as string,
-        rotatable: block.rotatable as boolean,
-        yRotatable: block.yRotatable as boolean,
-        isEmpty: block.isEmpty as boolean,
-        isFluid: block.isFluid as boolean,
-        isWaterlogged: block.isWaterlogged as boolean,
-        isOpaque: block.isOpaque as boolean,
-        isSeeThrough: block.isSeeThrough as boolean,
-        isTransparent: block.isTransparent as [
-          boolean,
-          boolean,
-          boolean,
-          boolean,
-          boolean,
-          boolean
-        ],
-        transparentStandalone: block.transparentStandalone as boolean,
-        occludesFluid: (block.occludesFluid as boolean) ?? false,
-        faces: convertFaces(block.faces as JsonObject[]),
-        aabbs: convertAabbs(block.aabbs as JsonObject[]),
-        dynamicPatterns: block.dynamicPatterns
-          ? convertDynamicPatterns(block.dynamicPatterns as JsonObject[])
-          : null,
-      };
-      return [id, wasmBlock];
-    }
-  );
-
-  return { blocksById };
-}
-
-function convertFaces(faces: JsonObject[]): WasmBlock["faces"] {
-  if (!faces) return [];
-  return faces.map((face) => ({
-    name: face.name as string,
-    independent: face.independent as boolean,
-    isolated: face.isolated as boolean,
-    textureGroup: (face.textureGroup as string) ?? null,
-    dir: face.dir as [number, number, number],
-    corners: (face.corners as JsonObject[]).map((corner) => ({
-      pos: corner.pos as [number, number, number],
-      uv: corner.uv as [number, number],
-    })),
-    range: {
-      startU: (face.range as Record<string, number>)?.startU ?? 0,
-      endU: (face.range as Record<string, number>)?.endU ?? 1,
-      startV: (face.range as Record<string, number>)?.startV ?? 0,
-      endV: (face.range as Record<string, number>)?.endV ?? 1,
-    },
-  }));
-}
-
-function convertAabbs(aabbs: JsonObject[]): WasmBlock["aabbs"] {
-  if (!aabbs) return [];
-  return aabbs.map((aabb) => ({
-    minX: aabb.minX as number,
-    minY: aabb.minY as number,
-    minZ: aabb.minZ as number,
-    maxX: aabb.maxX as number,
-    maxY: aabb.maxY as number,
-    maxZ: aabb.maxZ as number,
-  }));
-}
-
-function convertDynamicPatterns(
-  patterns: JsonObject[]
-): WasmBlock["dynamicPatterns"] {
-  if (!patterns) return null;
-  return patterns.map((pattern) => ({
-    parts: (pattern.parts as JsonObject[]).map((part) => ({
-      rule: part.rule as object,
-      faces: convertFaces(part.faces as JsonObject[]),
-      aabbs: convertAabbs(part.aabbs as JsonObject[]),
-      isTransparent: (part.isTransparent as [
+  const sourceBlocksById = rawRegistry.blocksById;
+  const blocksById = new Array<[number, WasmBlock]>(sourceBlocksById.length);
+  for (let blockIndex = 0; blockIndex < sourceBlocksById.length; blockIndex++) {
+    const [id, rawBlock] = sourceBlocksById[blockIndex];
+    const block = rawBlock as JsonObject;
+    const wasmBlock: WasmBlock = {
+      id: block.id as number,
+      name: block.name as string,
+      rotatable: block.rotatable as boolean,
+      yRotatable: block.yRotatable as boolean,
+      isEmpty: block.isEmpty as boolean,
+      isFluid: block.isFluid as boolean,
+      isWaterlogged: block.isWaterlogged as boolean,
+      isOpaque: block.isOpaque as boolean,
+      isSeeThrough: block.isSeeThrough as boolean,
+      isTransparent: block.isTransparent as [
         boolean,
         boolean,
         boolean,
         boolean,
         boolean,
         boolean
-      ]) ?? [false, false, false, false, false, false],
-      worldSpace: (part.worldSpace as boolean) ?? false,
-    })),
-  }));
+      ],
+      transparentStandalone: block.transparentStandalone as boolean,
+      occludesFluid: (block.occludesFluid as boolean) ?? false,
+      faces: convertFaces(block.faces as JsonObject[]),
+      aabbs: convertAabbs(block.aabbs as JsonObject[]),
+      dynamicPatterns: block.dynamicPatterns
+        ? convertDynamicPatterns(block.dynamicPatterns as JsonObject[])
+        : null,
+    };
+    blocksById[blockIndex] = [id, wasmBlock];
+  }
+
+  return { blocksById };
+}
+
+function convertFaces(faces: JsonObject[]): WasmBlock["faces"] {
+  if (!faces) return [];
+  const convertedFaces = new Array<WasmFace>(faces.length);
+  for (let faceIndex = 0; faceIndex < faces.length; faceIndex++) {
+    const face = faces[faceIndex];
+    const sourceCorners = face.corners as JsonObject[];
+    const corners = new Array<WasmFaceCorner>(sourceCorners.length);
+    for (let cornerIndex = 0; cornerIndex < sourceCorners.length; cornerIndex++) {
+      const corner = sourceCorners[cornerIndex];
+      corners[cornerIndex] = {
+        pos: corner.pos as [number, number, number],
+        uv: corner.uv as [number, number],
+      };
+    }
+    const faceRange = face.range as Record<string, number> | undefined;
+    convertedFaces[faceIndex] = {
+      name: face.name as string,
+      independent: face.independent as boolean,
+      isolated: face.isolated as boolean,
+      textureGroup: (face.textureGroup as string) ?? null,
+      dir: face.dir as [number, number, number],
+      corners,
+      range: {
+        startU: faceRange?.startU ?? 0,
+        endU: faceRange?.endU ?? 1,
+        startV: faceRange?.startV ?? 0,
+        endV: faceRange?.endV ?? 1,
+      },
+    };
+  }
+
+  return convertedFaces;
+}
+
+function convertAabbs(aabbs: JsonObject[]): WasmBlock["aabbs"] {
+  if (!aabbs) return [];
+  const convertedAabbs = new Array<WasmAabb>(aabbs.length);
+  for (let index = 0; index < aabbs.length; index++) {
+    const aabb = aabbs[index];
+    convertedAabbs[index] = {
+      minX: aabb.minX as number,
+      minY: aabb.minY as number,
+      minZ: aabb.minZ as number,
+      maxX: aabb.maxX as number,
+      maxY: aabb.maxY as number,
+      maxZ: aabb.maxZ as number,
+    };
+  }
+
+  return convertedAabbs;
+}
+
+function convertDynamicPatterns(
+  patterns: JsonObject[]
+): WasmBlock["dynamicPatterns"] {
+  if (!patterns) return null;
+  const convertedPatterns = new Array<WasmDynamicPattern>(patterns.length);
+  for (let patternIndex = 0; patternIndex < patterns.length; patternIndex++) {
+    const pattern = patterns[patternIndex];
+    const sourceParts = pattern.parts as JsonObject[];
+    const parts = new Array<WasmDynamicPatternPart>(sourceParts.length);
+    for (let partIndex = 0; partIndex < sourceParts.length; partIndex++) {
+      const part = sourceParts[partIndex];
+      parts[partIndex] = {
+        rule: part.rule as object,
+        faces: convertFaces(part.faces as JsonObject[]),
+        aabbs: convertAabbs(part.aabbs as JsonObject[]),
+        isTransparent: (part.isTransparent as [
+          boolean,
+          boolean,
+          boolean,
+          boolean,
+          boolean,
+          boolean
+        ]) ?? [false, false, false, false, false, false],
+        worldSpace: (part.worldSpace as boolean) ?? false,
+      };
+    }
+    convertedPatterns[patternIndex] = { parts };
+  }
+  return convertedPatterns;
 }
