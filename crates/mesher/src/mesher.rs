@@ -2348,10 +2348,8 @@ fn process_face<S: VoxelAccess>(
     let mut four_green_lights = [0u32; 4];
     let mut four_blue_lights = [0u32; 4];
 
-    let [block_min_x, block_min_y, block_min_z] = cache.block_min;
-    let block_min_x_eps = block_min_x + 0.01;
-    let block_min_y_eps = block_min_y + 0.01;
-    let block_min_z_eps = block_min_z + 0.01;
+    let block_min = cache.block_min;
+    let block_min_y_eps = block_min[1] + 0.01;
     let skip_opaque_checks = see_through || is_all_transparent;
     let needs_opaque_checks = !skip_opaque_checks;
     let opaque_mask = if needs_opaque_checks {
@@ -2442,6 +2440,8 @@ fn process_face<S: VoxelAccess>(
         }
     } else {
         let mask = opaque_mask.expect("opaque mask exists when opaque checks are needed");
+        let block_min_x_eps = block_min[0] + 0.01;
+        let block_min_z_eps = block_min[2] + 0.01;
         for (corner_index, corner) in face.corners.iter().enumerate() {
             let mut pos = corner.pos;
 
