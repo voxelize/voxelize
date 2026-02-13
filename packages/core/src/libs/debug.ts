@@ -317,15 +317,17 @@ export class Debug extends Group {
    *
    * @param force Whether or not to force the debug panel to be shown/hidden.
    */
-  toggle = (force = null) => {
-    this.visible = force !== null ? force : !this.visible;
-
+  toggle = (force: boolean | null = null) => {
     const visibility = this.entriesWrapper.style.visibility;
-    const newVisibility = force
-      ? "visible"
-      : visibility === "visible"
-      ? "hidden"
-      : "visible";
+    const newVisibility =
+      force === null
+        ? visibility === "visible"
+          ? "hidden"
+          : "visible"
+        : force
+        ? "visible"
+        : "hidden";
+    this.visible = newVisibility === "visible";
 
     this.entriesWrapper.style.visibility = newVisibility;
     this.dataWrapper.style.visibility = newVisibility;
