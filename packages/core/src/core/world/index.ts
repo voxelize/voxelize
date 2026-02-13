@@ -2622,8 +2622,12 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       const normalizedRotation =
         rotation === undefined || isNaN(rotation) ? 0 : rotation;
-      const normalizedYRotation = block.yRotatable ? (yRotation ?? 0) : 0;
-      const normalizedStage = stage ?? 0;
+      const normalizedYRotation =
+        block.yRotatable && yRotation !== undefined && !isNaN(yRotation)
+          ? yRotation
+          : 0;
+      const normalizedStage =
+        stage === undefined || isNaN(stage) ? 0 : stage;
 
       const currId = this.getVoxelAt(vx, vy, vz);
       const currRot = this.getVoxelRotationAt(vx, vy, vz);
