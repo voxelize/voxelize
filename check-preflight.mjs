@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  createTimedReportBuilder,
   parseJsonOutput,
   resolveOutputPath,
   summarizeCheckResults,
@@ -19,6 +20,7 @@ const jsonFormat = { compact: isCompact };
 const { outputPath: resolvedOutputPath, error: outputPathError } =
   resolveOutputPath(cliArgs);
 const onlyArgIndex = cliArgs.indexOf("--only");
+const buildTimedReport = createTimedReportBuilder();
 
 const availableChecks = [
   {
@@ -117,34 +119,31 @@ const runCheck = (name, scriptName, extraArgs = []) => {
   };
 };
 
-const startedAt = new Date().toISOString();
-const aggregateStartMs = Date.now();
 const platform = process.platform;
 const nodeVersion = process.version;
 
 if (outputPathError !== null || selectedChecksError !== null) {
-  const endedAt = new Date().toISOString();
   console.log(
-    toReportJson({
-      passed: false,
-      exitCode: 1,
-      noBuild: isNoBuild,
-      platform,
-      nodeVersion,
-      startedAt,
-      endedAt,
-      durationMs: 0,
-      selectedChecks: [],
-      skippedChecks: availableCheckNames,
-      totalChecks: 0,
-      passedCheckCount: 0,
-      failedCheckCount: 0,
-      firstFailedCheck: null,
-      checks: [],
-      outputPath: null,
-      message: outputPathError ?? selectedChecksError,
-      availableChecks: availableCheckNames,
-    }, jsonFormat)
+    toReportJson(
+      buildTimedReport({
+        passed: false,
+        exitCode: 1,
+        noBuild: isNoBuild,
+        platform,
+        nodeVersion,
+        selectedChecks: [],
+        skippedChecks: availableCheckNames,
+        totalChecks: 0,
+        passedCheckCount: 0,
+        failedCheckCount: 0,
+        firstFailedCheck: null,
+        checks: [],
+        outputPath: null,
+        message: outputPathError ?? selectedChecksError,
+        availableChecks: availableCheckNames,
+      }),
+      jsonFormat
+    )
   );
   process.exit(1);
 }
@@ -230,15 +229,12 @@ const failureSummaries = checks
         `Preflight check failed with exit code ${check.exitCode}.`,
     };
   });
-const report = {
+const report = buildTimedReport({
   passed,
   exitCode,
   noBuild: isNoBuild,
   platform,
   nodeVersion,
-  startedAt,
-  endedAt: new Date().toISOString(),
-  durationMs: Date.now() - aggregateStartMs,
   selectedChecks,
   skippedChecks,
   ...checkSummary,
@@ -246,7 +242,7 @@ const report = {
   checks,
   outputPath: resolvedOutputPath,
   availableChecks: availableCheckNames,
-};
+});
 const reportJson = toReportJson(report, jsonFormat);
 
 if (resolvedOutputPath !== null) {
