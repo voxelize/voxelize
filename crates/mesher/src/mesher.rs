@@ -2061,6 +2061,7 @@ struct FaceProcessCache {
     block_min: [f32; 3],
 }
 
+#[inline(always)]
 fn build_face_process_cache<S: VoxelAccess>(
     block: &Block,
     is_see_through: bool,
