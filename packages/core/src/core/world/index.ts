@@ -869,6 +869,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   private meshJobKeys: string[] = [];
   private meshWorkerPromises: Array<Promise<GeometryProtocol[] | null>> = [];
   private meshJobArrayCapacity = 0;
+  private emitServerUpdateBlockCache = new Map<number, Block>();
   private readonly dynamicRuleQuery = {
     getVoxelAt: (x: number, y: number, z: number) =>
       this.getVoxelAtUnchecked(x, y, z),
@@ -6857,12 +6858,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     const vzValues = new Array<number>(updateCount);
     const voxelValues = new Array<number>(updateCount);
     const lightValues = new Array<number>(updateCount);
-    let blockCache: Map<number, Block> | null = null;
+    const blockCache = this.emitServerUpdateBlockCache;
+    blockCache.clear();
     const getCachedBlock = (id: number) => {
-      if (!blockCache) {
-        blockCache = new Map();
-      }
-
       let block = blockCache.get(id);
       if (!block) {
         block = this.getBlockById(id);
