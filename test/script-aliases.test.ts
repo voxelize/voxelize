@@ -40,6 +40,9 @@ describe("script aliases", () => {
     expect(manifest.scripts["check:preflight:json:compact"]).toBe(
       "node ./check-preflight.mjs --compact"
     );
+    expect(manifest.scripts["check:preflight:verify:json"]).toBe(
+      "node ./check-preflight.mjs --verify"
+    );
     expect(manifest.scripts["check:preflight:verify:json:compact"]).toBe(
       "node ./check-preflight.mjs --verify --compact"
     );
@@ -143,6 +146,9 @@ describe("script aliases", () => {
     );
     expect(manifest.scripts["check:preflight:client:json:compact"]).toBe(
       "node ./check-preflight.mjs --only client --compact"
+    );
+    expect(manifest.scripts["check:preflight:client:verify:json"]).toBe(
+      "node ./check-preflight.mjs --verify --only client"
     );
     expect(manifest.scripts["check:preflight:client:verify:json:compact"]).toBe(
       "node ./check-preflight.mjs --verify --only client --compact"
