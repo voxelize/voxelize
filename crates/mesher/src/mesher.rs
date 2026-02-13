@@ -2267,14 +2267,12 @@ fn process_face<S: VoxelAccess>(
             if !see_through {
                 !registry.is_opaque_id(neighbor_id)
             } else if !is_opaque {
-                let (neighbor_has_type, neighbor_is_opaque) =
-                    registry.has_type_and_is_opaque(neighbor_id);
-                if neighbor_is_opaque {
-                    false
-                } else if neighbor_id == voxel_id {
+                if neighbor_id == voxel_id {
                     block.transparent_standalone
                 } else {
-                    neighbor_has_type
+                    let (neighbor_has_type, neighbor_is_opaque) =
+                        registry.has_type_and_is_opaque(neighbor_id);
+                    !neighbor_is_opaque && neighbor_has_type
                 }
             } else {
                 let n_block_type = match registry.get_block_by_id(neighbor_id) {
