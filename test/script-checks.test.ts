@@ -41,6 +41,19 @@ type ClientJsonReport = {
   steps: ClientJsonStep[];
 };
 
+type OnboardingJsonStep = {
+  name: string;
+  passed: boolean;
+  exitCode: number;
+  output: string;
+};
+
+type OnboardingJsonReport = {
+  passed: boolean;
+  exitCode: number;
+  steps: OnboardingJsonStep[];
+};
+
 const runScript = (scriptName: string, args: string[] = []): ScriptResult => {
   const scriptPath = path.resolve(rootDir, scriptName);
   const result = spawnSync(process.execPath, [scriptPath, ...args], {
@@ -162,5 +175,19 @@ describe("root preflight scripts", () => {
 
     expect(result.output).not.toContain("Running onboarding step:");
     expect(result.output).not.toContain("✓ node:");
+  });
+
+  it("check-onboarding json mode emits machine-readable report", () => {
+    const result = runScript("check-onboarding.mjs", ["--json"]);
+    const report = JSON.parse(result.output) as OnboardingJsonReport;
+
+    expect(typeof report.passed).toBe("boolean");
+    expect(report.exitCode).toBeGreaterThanOrEqual(0);
+    expect(Array.isArray(report.steps)).toBe(true);
+    expect(report.steps.length).toBeGreaterThan(0);
+    expect(report.steps[0].name).toBe("Developer environment preflight");
+    expect(result.status).toBe(report.passed ? 0 : 1);
+    expect(result.output).not.toContain("Running onboarding step:");
+    expect(result.output).not.toContain("Onboarding check failed:");
   });
 });

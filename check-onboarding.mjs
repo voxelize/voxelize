@@ -5,29 +5,79 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const isQuiet = process.argv.includes("--quiet");
+const isJson = process.argv.includes("--json");
+const stepResults = [];
+let exitCode = 0;
 
 const runStep = (name, scriptPath) => {
-  if (!isQuiet) {
+  if (!isQuiet && !isJson) {
     console.log(`Running onboarding step: ${name}`);
   }
 
-  const scriptArgs = isQuiet ? [scriptPath, "--quiet"] : [scriptPath];
-  const result = spawnSync(process.execPath, scriptArgs, {
-    stdio: "inherit",
-    shell: false,
-    cwd: __dirname,
-  });
+  const scriptArgs = isJson
+    ? [scriptPath, "--json"]
+    : isQuiet
+      ? [scriptPath, "--quiet"]
+      : [scriptPath];
+  const result = isJson
+    ? spawnSync(process.execPath, scriptArgs, {
+        encoding: "utf8",
+        shell: false,
+        cwd: __dirname,
+      })
+    : spawnSync(process.execPath, scriptArgs, {
+        stdio: "inherit",
+        shell: false,
+        cwd: __dirname,
+      });
 
-  if (result.status === 0) {
-    return;
+  const resolvedStatus = result.status ?? 1;
+  if (isJson) {
+    const output = `${result.stdout ?? ""}${result.stderr ?? ""}`.trim();
+    stepResults.push({
+      name,
+      passed: resolvedStatus === 0,
+      exitCode: resolvedStatus,
+      output,
+    });
+  }
+
+  if (resolvedStatus === 0) {
+    return true;
+  }
+
+  exitCode = resolvedStatus;
+  if (isJson) {
+    return false;
   }
 
   console.error(`Onboarding check failed: ${name}`);
-  process.exit(result.status ?? 1);
+  process.exit(exitCode);
 };
 
-runStep("Developer environment preflight", path.resolve(__dirname, "check-dev-env.mjs"));
-runStep("Client checks", path.resolve(__dirname, "check-client.mjs"));
+const devEnvPassed = runStep(
+  "Developer environment preflight",
+  path.resolve(__dirname, "check-dev-env.mjs")
+);
+
+if (devEnvPassed) {
+  runStep("Client checks", path.resolve(__dirname, "check-client.mjs"));
+}
+
+if (isJson) {
+  console.log(
+    JSON.stringify(
+      {
+        passed: exitCode === 0,
+        exitCode,
+        steps: stepResults,
+      },
+      null,
+      2
+    )
+  );
+  process.exit(exitCode);
+}
 
 if (!isQuiet) {
   console.log("Onboarding checks passed.");
