@@ -991,7 +991,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     const centerChunk = this.getLoadedChunkByCoords(cx, cz);
-    if (!centerChunk) {
+    if (!centerChunk || !centerChunk.isReady) {
       return null;
     }
 
