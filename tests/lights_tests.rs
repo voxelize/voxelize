@@ -375,6 +375,23 @@ fn test_register_blocks_panics_on_duplicate_ids_in_batch() {
 }
 
 #[test]
+fn test_register_blocks_panics_on_existing_id_conflict() {
+    let mut registry = create_test_registry();
+
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        registry.register_blocks(&[
+            Block::new("conflict-existing").id(2).build(),
+            Block::new("other").id(43).build(),
+        ]);
+    }));
+
+    assert!(
+        result.is_err(),
+        "register_blocks should panic when a new block conflicts with an existing id"
+    );
+}
+
+#[test]
 fn test_register_blocks_empty_keeps_conversion_caches() {
     let mut registry = create_test_registry();
 
