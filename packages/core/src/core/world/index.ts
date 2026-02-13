@@ -846,6 +846,8 @@ export class World<T = any> extends Scene implements NetIntercept {
   private lightJobQueueHead = 0;
   private lightJobIdCounter = 0;
   private lightBatchIdCounter = 0;
+  private isProcessingDirtyChunks = false;
+  private shouldRerunDirtyChunkProcessing = false;
 
   private static readonly warmColor = new Color(1.0, 0.95, 0.9);
   private static readonly coolColor = new Color(0.9, 0.95, 1.0);
@@ -5766,84 +5768,102 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private processDirtyChunks = async () => {
-    const maxConcurrentMeshJobs = this.options.maxMeshesPerUpdate ?? 8;
-    if (maxConcurrentMeshJobs <= 0) {
+    if (this.isProcessingDirtyChunks) {
+      this.shouldRerunDirtyChunkProcessing = true;
       return;
     }
 
-    const {
-      keys: dirtyKeys,
-      hasMore: hasMoreDirtyKeys,
-    } = this.meshPipeline.getDirtyKeysAndHasMore(maxConcurrentMeshJobs);
-    if (dirtyKeys.length === 0) return;
-
-    const processCount = dirtyKeys.length;
-    const workerPromises = new Array<Promise<GeometryProtocol[] | null>>(
-      processCount
-    );
-    const jobKeys = new Array<string>(processCount);
-    const jobCxs = new Int32Array(processCount);
-    const jobCzs = new Int32Array(processCount);
-    const jobLevels = new Int32Array(processCount);
-    const jobGenerations = new Uint32Array(processCount);
-    let workerCount = 0;
-
-    for (let index = 0; index < processCount; index++) {
-      const key = dirtyKeys[index];
-      const startedJob = this.meshPipeline.startJob(key);
-      if (!startedJob) {
-        continue;
+    this.isProcessingDirtyChunks = true;
+    try {
+      const maxConcurrentMeshJobs = this.options.maxMeshesPerUpdate ?? 8;
+      if (maxConcurrentMeshJobs <= 0) {
+        return;
       }
 
-      const { cx, cz, level, generation } = startedJob;
-      jobKeys[workerCount] = key;
-      jobCxs[workerCount] = cx;
-      jobCzs[workerCount] = cz;
-      jobLevels[workerCount] = level;
-      jobGenerations[workerCount] = generation;
-      workerPromises[workerCount] = this.dispatchMeshWorker(cx, cz, level).catch(
-        () => null
+      const {
+        keys: dirtyKeys,
+        hasMore: hasMoreDirtyKeys,
+      } = this.meshPipeline.getDirtyKeysAndHasMore(maxConcurrentMeshJobs);
+      if (dirtyKeys.length === 0) {
+        return;
+      }
+
+      const processCount = dirtyKeys.length;
+      const workerPromises = new Array<Promise<GeometryProtocol[] | null>>(
+        processCount
       );
-      workerCount++;
-    }
-    if (workerCount === 0) {
-      return;
-    }
-    workerPromises.length = workerCount;
+      const jobKeys = new Array<string>(processCount);
+      const jobCxs = new Int32Array(processCount);
+      const jobCzs = new Int32Array(processCount);
+      const jobLevels = new Int32Array(processCount);
+      const jobGenerations = new Uint32Array(processCount);
+      let workerCount = 0;
 
-    const geometriesResults =
-      workerCount === 1
-        ? [await workerPromises[0]]
-        : await Promise.all(workerPromises);
-    let shouldScheduleDirtyChunks = false;
-
-    for (let index = 0; index < geometriesResults.length; index++) {
-      const geometries = geometriesResults[index];
-      if (geometries) {
-        const completionStatus = this.applyMeshResult(
-          jobCxs[index],
-          jobCzs[index],
-          jobLevels[index],
-          geometries,
-          jobGenerations[index]
-        );
-        if ((completionStatus & MESH_JOB_NEEDS_REMESH) !== 0) {
-          shouldScheduleDirtyChunks = true;
+      for (let index = 0; index < processCount; index++) {
+        const key = dirtyKeys[index];
+        const startedJob = this.meshPipeline.startJob(key);
+        if (!startedJob) {
+          continue;
         }
-      } else {
-        const abortStatus = this.meshPipeline.abortJob(jobKeys[index]);
-        if ((abortStatus & MESH_JOB_NEEDS_REMESH) !== 0) {
-          shouldScheduleDirtyChunks = true;
+
+        const { cx, cz, level, generation } = startedJob;
+        jobKeys[workerCount] = key;
+        jobCxs[workerCount] = cx;
+        jobCzs[workerCount] = cz;
+        jobLevels[workerCount] = level;
+        jobGenerations[workerCount] = generation;
+        workerPromises[workerCount] = this.dispatchMeshWorker(
+          cx,
+          cz,
+          level
+        ).catch(() => null);
+        workerCount++;
+      }
+      if (workerCount === 0) {
+        return;
+      }
+      workerPromises.length = workerCount;
+
+      const geometriesResults =
+        workerCount === 1
+          ? [await workerPromises[0]]
+          : await Promise.all(workerPromises);
+      let shouldScheduleDirtyChunks = false;
+
+      for (let index = 0; index < geometriesResults.length; index++) {
+        const geometries = geometriesResults[index];
+        if (geometries) {
+          const completionStatus = this.applyMeshResult(
+            jobCxs[index],
+            jobCzs[index],
+            jobLevels[index],
+            geometries,
+            jobGenerations[index]
+          );
+          if ((completionStatus & MESH_JOB_NEEDS_REMESH) !== 0) {
+            shouldScheduleDirtyChunks = true;
+          }
+        } else {
+          const abortStatus = this.meshPipeline.abortJob(jobKeys[index]);
+          if ((abortStatus & MESH_JOB_NEEDS_REMESH) !== 0) {
+            shouldScheduleDirtyChunks = true;
+          }
         }
       }
-    }
 
-    if (
-      shouldScheduleDirtyChunks ||
-      hasMoreDirtyKeys ||
-      this.meshPipeline.hasDirtyChunks()
-    ) {
-      this.scheduleDirtyChunkProcessing();
+      if (
+        shouldScheduleDirtyChunks ||
+        hasMoreDirtyKeys ||
+        this.meshPipeline.hasDirtyChunks()
+      ) {
+        this.scheduleDirtyChunkProcessing();
+      }
+    } finally {
+      this.isProcessingDirtyChunks = false;
+      if (this.shouldRerunDirtyChunkProcessing) {
+        this.shouldRerunDirtyChunkProcessing = false;
+        this.scheduleDirtyChunkProcessing();
+      }
     }
   };
 
