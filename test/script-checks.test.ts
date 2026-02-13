@@ -2459,11 +2459,11 @@ describe("root preflight scripts", () => {
       expectedNoBuildCliOptionAliases,
       expectedNoBuildCliOptions
     );
-    expect(report.unknownOptions).toEqual(["--verify=<value>", "--mystery"]);
+    expect(report.unknownOptions).toEqual(["--no-build=<value>", "--mystery"]);
     expect(report.unknownOptionCount).toBe(2);
     expect(report.validationErrorCode).toBe("unsupported_options");
     expect(report.message).toBe(
-      "Unsupported option(s): --verify=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+      "Unsupported option(s): --no-build=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
     );
     expectActiveCliOptionMetadata(
       report,
@@ -2719,7 +2719,7 @@ describe("root preflight scripts", () => {
 
     expect(result.status).toBe(1);
     expect(result.output).toContain(
-      "Unsupported option(s): --verify=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+      "Unsupported option(s): --no-build=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
     );
     expect(result.output).not.toContain("--verify=1");
     expect(result.output).not.toContain("--mystery=alpha");
@@ -3470,11 +3470,11 @@ describe("root preflight scripts", () => {
       expectedNoBuildCliOptionAliases,
       expectedNoBuildCliOptions
     );
-    expect(report.unknownOptions).toEqual(["--verify=<value>", "--mystery"]);
+    expect(report.unknownOptions).toEqual(["--no-build=<value>", "--mystery"]);
     expect(report.unknownOptionCount).toBe(2);
     expect(report.validationErrorCode).toBe("unsupported_options");
     expect(report.message).toBe(
-      "Unsupported option(s): --verify=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+      "Unsupported option(s): --no-build=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
     );
     expectActiveCliOptionMetadata(
       report,
@@ -3730,7 +3730,7 @@ describe("root preflight scripts", () => {
 
     expect(result.status).toBe(1);
     expect(result.output).toContain(
-      "Unsupported option(s): --verify=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+      "Unsupported option(s): --no-build=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
     );
     expect(result.output).not.toContain("--verify=1");
     expect(result.output).not.toContain("--mystery=alpha");

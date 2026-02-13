@@ -1557,14 +1557,14 @@ describe("preflight aggregate report", () => {
     expect(report.validationErrorCode).toBe("unsupported_options");
     expect(report.unknownOptionCount).toBe(3);
     expect(report.unknownOptions).toEqual([
-      "--verify=<value>",
-      "-l=<value>",
+      "--no-build=<value>",
+      "--list-checks=<value>",
       "--mystery",
     ]);
     expect(report.message).toBe(
       expectedUnsupportedOptionsMessage([
-        "--verify=<value>",
-        "-l=<value>",
+        "--no-build=<value>",
+        "--list-checks=<value>",
         "--mystery",
       ])
     );
