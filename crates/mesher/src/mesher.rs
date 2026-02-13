@@ -916,7 +916,12 @@ fn compute_face_ao_and_light(
     neighbors: &NeighborCache,
     registry: &Registry,
 ) -> ([i32; 4], [i32; 4]) {
-    let block_aabb = AABB::union_all(&block.aabbs);
+    let (block_min_x, block_min_y, block_min_z) = if block.is_full_cube() {
+        (0.0, 0.0, 0.0)
+    } else {
+        let block_aabb = AABB::union_all(&block.aabbs);
+        (block_aabb.min_x, block_aabb.min_y, block_aabb.min_z)
+    };
 
     let is_see_through = block.is_see_through;
     let is_all_transparent = block.is_transparent[0]
@@ -970,17 +975,17 @@ fn compute_face_ao_and_light(
     let mut lights = [0i32; 4];
 
     for (i, pos) in corner_positions.iter().enumerate() {
-        let dx = if pos[0] <= block_aabb.min_x + 0.01 {
+        let dx = if pos[0] <= block_min_x + 0.01 {
             -1
         } else {
             1
         };
-        let dy = if pos[1] <= block_aabb.min_y + 0.01 {
+        let dy = if pos[1] <= block_min_y + 0.01 {
             -1
         } else {
             1
         };
-        let dz = if pos[2] <= block_aabb.min_z + 0.01 {
+        let dz = if pos[2] <= block_min_z + 0.01 {
             -1
         } else {
             1
@@ -1915,13 +1920,24 @@ fn process_face<S: VoxelAccess>(
     let mut four_green_lights = [0u32; 4];
     let mut four_blue_lights = [0u32; 4];
 
-    let block_aabb = AABB::union_all(&block.aabbs);
+    let (block_min_x, block_min_y, block_min_z) = if block.is_full_cube() {
+        (0.0, 0.0, 0.0)
+    } else {
+        let block_aabb = AABB::union_all(&block.aabbs);
+        (block_aabb.min_x, block_aabb.min_y, block_aabb.min_z)
+    };
     let needs_opaque_checks = !(is_see_through || is_all_transparent);
     let opaque_mask = if needs_opaque_checks {
         Some(build_neighbor_opaque_mask(neighbors, registry))
     } else {
         None
     };
+    let center_lights = if is_see_through || is_all_transparent {
+        Some(neighbors.get_all_lights(0, 0, 0))
+    } else {
+        None
+    };
+    let fluid_surface_above = is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space);
 
     let is_diagonal = dir == [0, 0, 0];
     let has_diagonals = is_see_through && has_diagonal_faces(block);
@@ -1961,17 +1977,17 @@ fn process_face<S: VoxelAccess>(
         uvs.push(corner.uv[0] * (end_u - start_u) + start_u);
         uvs.push(corner.uv[1] * (end_v - start_v) + start_v);
 
-        let dx = if pos[0] <= block_aabb.min_x + 0.01 {
+        let dx = if pos[0] <= block_min_x + 0.01 {
             -1
         } else {
             1
         };
-        let dy = if pos[1] <= block_aabb.min_y + 0.01 {
+        let dy = if pos[1] <= block_min_y + 0.01 {
             -1
         } else {
             1
         };
-        let dz = if pos[2] <= block_aabb.min_z + 0.01 {
+        let dz = if pos[2] <= block_min_z + 0.01 {
             -1
         } else {
             1
@@ -2003,8 +2019,7 @@ fn process_face<S: VoxelAccess>(
         let green_light;
         let blue_light;
 
-        if is_see_through || is_all_transparent {
-            let (s, r, g, b) = neighbors.get_all_lights(0, 0, 0);
+        if let Some((s, r, g, b)) = center_lights {
             sunlight = s;
             red_light = r;
             green_light = g;
@@ -2118,7 +2133,6 @@ fn process_face<S: VoxelAccess>(
         light = LightUtils::insert_blue_light(light, blue_light);
         light = LightUtils::insert_sunlight(light, sunlight);
         let fluid_bit = if is_fluid { 1 << 18 } else { 0 };
-        let fluid_surface_above = is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space);
         let wave_bit = if is_fluid && dy == 1 && !fluid_surface_above {
             1 << 20
         } else {
