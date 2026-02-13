@@ -176,6 +176,16 @@ describe("root preflight scripts", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("check-wasm-pack json mode validates missing output value", () => {
+    const result = runScript("check-wasm-pack.mjs", ["--json", "--output"]);
+    const report = JSON.parse(result.output) as WasmPackJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(result.status).toBe(1);
+  });
+
   it("check-dev-env returns pass or fail summary", () => {
     const result = runScript("check-dev-env.mjs");
     expect(result.output).toContain("node:");
@@ -234,6 +244,16 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
 
     fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("check-dev-env json mode validates missing output value", () => {
+    const result = runScript("check-dev-env.mjs", ["--json", "--output"]);
+    const report = JSON.parse(result.output) as DevEnvJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(result.status).toBe(1);
   });
 
   it("check-client returns pass or fail summary", () => {
@@ -308,6 +328,16 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
 
     fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("check-client json mode validates missing output value", () => {
+    const result = runScript("check-client.mjs", ["--json", "--output"]);
+    const report = JSON.parse(result.output) as ClientJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(result.status).toBe(1);
   });
 
   it("check-client json no-build mode reports skipped build intent", () => {
@@ -402,6 +432,16 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
 
     fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("check-onboarding json mode validates missing output value", () => {
+    const result = runScript("check-onboarding.mjs", ["--json", "--output"]);
+    const report = JSON.parse(result.output) as OnboardingJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(result.status).toBe(1);
   });
 
   it("check-onboarding json no-build mode propagates option", () => {
