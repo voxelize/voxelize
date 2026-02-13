@@ -64,6 +64,9 @@
     "vite-plugin-glsl": "^1.3.3",
     "vitest": "^1.6.1"
   },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "packageManager": "pnpm@10.9.0",
   "lint-staged": {
     "**/*.{ts,tsx,js,jsx}": [
