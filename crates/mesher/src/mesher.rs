@@ -1339,16 +1339,6 @@ fn geometry_key_for_face(block: &Block, face: &BlockFace, vx: i32, vy: i32, vz: 
 }
 
 #[inline(always)]
-fn geometry_key_for_quad(block: &Block, face_name: Option<&str>, independent: bool) -> GeometryMapKey {
-    if independent {
-        let name = face_name.expect("independent greedy quad must include a face name");
-        GeometryMapKey::Face(block.id, name.to_string())
-    } else {
-        GeometryMapKey::Block(block.id)
-    }
-}
-
-#[inline(always)]
 fn block_min_corner(block: &Block) -> [f32; 3] {
     if block.cache_ready {
         block.block_min_cached
@@ -3164,11 +3154,17 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         }
                     }
                 };
-                let geo_key = geometry_key_for_quad(
-                    block,
-                    quad.data.key.face_name.as_deref(),
-                    quad.data.key.independent,
-                );
+                let geo_key = if quad.data.key.independent {
+                    let face_name = quad
+                        .data
+                        .key
+                        .face_name
+                        .as_ref()
+                        .expect("independent greedy quad must include a face name");
+                    GeometryMapKey::Face(block.id, face_name.clone())
+                } else {
+                    GeometryMapKey::Block(block.id)
+                };
 
                 let geometry = map.entry(geo_key).or_insert_with(|| {
                     let mut g = GeometryProtocol::default();
@@ -3838,11 +3834,17 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         }
                     }
                 };
-                let geo_key = geometry_key_for_quad(
-                    block,
-                    quad.data.key.face_name.as_deref(),
-                    quad.data.key.independent,
-                );
+                let geo_key = if quad.data.key.independent {
+                    let face_name = quad
+                        .data
+                        .key
+                        .face_name
+                        .as_ref()
+                        .expect("independent greedy quad must include a face name");
+                    GeometryMapKey::Face(block.id, face_name.clone())
+                } else {
+                    GeometryMapKey::Block(block.id)
+                };
 
                 let geometry = map.entry(geo_key).or_insert_with(|| {
                     let mut entry = GeometryProtocol::default();
