@@ -82,8 +82,13 @@ const parseSelectedChecks = () => {
     };
   }
 
+  const parsedCheckSet = new Set(parsedChecks);
+  const normalizedChecks = availableCheckNames.filter((value) => {
+    return parsedCheckSet.has(value);
+  });
+
   return {
-    selectedChecks: parsedChecks,
+    selectedChecks: normalizedChecks,
     error: null,
   };
 };
