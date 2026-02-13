@@ -2553,6 +2553,10 @@ export class World<T = any> extends Scene implements NetIntercept {
   ) => {
     this.checkIsInitialized("update voxels", false);
 
+    const normalizeNumeric = (value: number | undefined, fallback: number) => {
+      return Number.isFinite(value) ? value : fallback;
+    };
+
     const voxelUpdates = updates
       .filter((update) => {
         if (update.vy < 0 || update.vy >= this.options.maxHeight) {
@@ -2566,9 +2570,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         const [, currYRotation] = BlockRotation.decode(currRot);
         const currStage = this.getVoxelStageAt(vx, vy, vz);
 
-        const normalizedRotation = isNaN(rotation) ? 0 : rotation;
-        const normalizedYRotation = isNaN(yRotation) ? 0 : yRotation;
-        const normalizedStage = isNaN(stage) ? 0 : stage;
+        const normalizedRotation = normalizeNumeric(rotation, 0);
+        const normalizedYRotation = normalizeNumeric(yRotation, 0);
+        const normalizedStage = normalizeNumeric(stage, 0);
 
         if (!this.getBlockById(type)) {
           console.warn(`Block ID ${type} does not exist.`);
@@ -2587,20 +2591,12 @@ export class World<T = any> extends Scene implements NetIntercept {
         return true;
       })
       .map((update) => {
-        if (isNaN(update.rotation)) {
-          update.rotation = 0;
-        }
-
-        if (isNaN(update.yRotation)) {
-          update.yRotation = 0;
-        }
+        update.rotation = normalizeNumeric(update.rotation, 0);
+        update.yRotation = normalizeNumeric(update.yRotation, 0);
+        update.stage = normalizeNumeric(update.stage, 0);
 
         if (!this.getBlockById(update.type).yRotatable) {
           update.yRotation = 0;
-        }
-
-        if (isNaN(update.stage)) {
-          update.stage = 0;
         }
 
         return update;
