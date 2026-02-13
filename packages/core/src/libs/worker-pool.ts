@@ -1,11 +1,11 @@
 /**
  * A worker pool job is queued to a worker pool and is executed by a worker.
  */
-export type WorkerPoolJob = {
+export type WorkerPoolJob<TMessage extends object = object> = {
   /**
    * A JSON serializable object that is passed to the worker.
    */
-  message: any;
+  message: TMessage;
 
   /**
    * Any array buffers (transferable) that are passed to the worker.
@@ -17,8 +17,10 @@ export type WorkerPoolJob = {
    *
    * @param value The result of the job.
    */
-  resolve: (value: any) => void;
+  resolve: (value: MessageEvent["data"]) => void;
 };
+
+type QueuedWorkerPoolJob = WorkerPoolJob<object>;
 
 /**
  * Parameters to create a worker pool.
@@ -51,7 +53,7 @@ export class WorkerPool {
   /**
    * The queue of jobs that are waiting to be executed.
    */
-  public queue: WorkerPoolJob[] = [];
+  public queue: QueuedWorkerPoolJob[] = [];
   private queueHead = 0;
   private processScheduled = false;
 
@@ -97,12 +99,12 @@ export class WorkerPool {
    *
    * @param job The job to queue.
    */
-  addJob = (job: WorkerPoolJob) => {
-    this.queue.push(job);
+  addJob = <TMessage extends object>(job: WorkerPoolJob<TMessage>) => {
+    this.queue.push(job as QueuedWorkerPoolJob);
     this.process();
   };
 
-  postMessage = (message: any, buffers?: ArrayBufferLike[]) => {
+  postMessage = (message: object, buffers?: ArrayBufferLike[]) => {
     for (const worker of this.workers) {
       worker.postMessage(message, buffers);
     }
@@ -155,7 +157,8 @@ export class WorkerPool {
       this.queueHead++;
       this.normalizeQueue();
 
-      const workerCallback = ({ data }: any) => {
+      const workerCallback = (event: MessageEvent<object>) => {
+        const { data } = event;
         WorkerPool.WORKING_COUNT--;
         worker.removeEventListener("message", workerCallback);
         this.available.push(index);
