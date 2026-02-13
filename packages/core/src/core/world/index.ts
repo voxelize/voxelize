@@ -3949,6 +3949,8 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private handleEntities = (entities: EntityProtocol<any>[]) => {
+    const { chunkSize } = this.options;
+
     for (let entityIndex = 0; entityIndex < entities.length; entityIndex++) {
       const entity = entities[entityIndex];
       const { id, type, metadata, operation } = entity;
@@ -3964,23 +3966,22 @@ export class World<T = any> extends Scene implements NetIntercept {
       const [px, py, pz] = metadata.voxel;
       const [vx, vy, vz] = [Math.floor(px), Math.floor(py), Math.floor(pz)];
       const voxelId = ChunkUtils.getVoxelNameAt(vx, vy, vz);
+      const voxelCoords: Coords3 = [vx, vy, vz];
 
       const data: T | null = metadata.json ?? null;
 
       const originalData = this.blockEntitiesMap.get(voxelId) ?? null;
-      const chunkCoords = ChunkUtils.mapVoxelToChunkAt(
-        vx,
-        vz,
-        this.options.chunkSize
-      );
-      const chunkName = ChunkUtils.getChunkNameAt(chunkCoords[0], chunkCoords[1]);
+      const cx = Math.floor(vx / chunkSize);
+      const cz = Math.floor(vz / chunkSize);
+      const chunkName = ChunkUtils.getChunkNameAt(cx, cz);
       const chunk = this.chunkPipeline.getLoadedChunk(chunkName);
+      let chunkCoords: Coords2 | null = null;
       const shouldDeferUpdate =
         operation !== "DELETE" && !this.isChunkReadyForEntityUpdates(chunk);
       for (const listener of this.blockEntityUpdateListeners) {
         const updateData: BlockEntityUpdateData<T> = {
           id,
-          voxel: [vx, vy, vz],
+          voxel: voxelCoords,
           oldValue: originalData?.data ?? null,
           newValue: data as T | null,
           operation,
@@ -3990,7 +3991,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         if (shouldDeferUpdate) {
           this.deferBlockEntityUpdateUntilChunkReady(
             listener,
-            chunkCoords,
+            chunkCoords ?? (chunkCoords = [cx, cz]),
             updateData
           );
           continue;
@@ -4011,20 +4012,19 @@ export class World<T = any> extends Scene implements NetIntercept {
               : type.slice(blockNameStart);
           const block = this.getBlockByName(blockName);
           if (block) {
-            const voxel: Coords3 = [vx, vy, vz];
             for (const face of block.faces) {
               if (face.isolated) {
                 const material = this.getBlockFaceMaterial(
                   block.id,
                   face.name,
-                  voxel
+                  voxelCoords
                 );
                 if (material) {
                   material.dispose();
                   material.map?.dispose();
                 }
                 this.chunkRenderer.materials.delete(
-                  this.makeChunkMaterialKey(block.id, face.name, voxel)
+                  this.makeChunkMaterialKey(block.id, face.name, voxelCoords)
                 );
               }
             }
