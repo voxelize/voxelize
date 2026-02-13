@@ -1194,6 +1194,9 @@ fn should_render_face<S: VoxelAccess>(
     if registry.is_opaque_id(neighbor_id) {
         return false;
     }
+    if neighbor_id == voxel_id {
+        return !is_opaque && block.transparent_standalone;
+    }
     if !is_opaque && neighbor_id != voxel_id && registry.has_type(neighbor_id) {
         return true;
     }
