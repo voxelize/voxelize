@@ -368,16 +368,21 @@ const processBatchMessage = (message: LightBatchMessage) => {
     options.maxLightLevel
   ) as WasmLightBatchResult;
 
-  const modifiedChunks: { coords: Coords2; lights: Uint32Array }[] = [];
-  const transferBuffers: ArrayBuffer[] = [];
+  const modifiedChunkCount = wasmResult.modifiedChunks.length;
+  const modifiedChunks = new Array<{
+    coords: Coords2;
+    lights: Uint32Array;
+  }>(modifiedChunkCount);
+  const transferBuffers = new Array<ArrayBuffer>(modifiedChunkCount);
 
-  for (const chunk of wasmResult.modifiedChunks) {
+  for (let index = 0; index < modifiedChunkCount; index++) {
+    const chunk = wasmResult.modifiedChunks[index];
     const lights = new Uint32Array(chunk.lights);
-    modifiedChunks.push({
+    modifiedChunks[index] = {
       coords: chunk.coords,
       lights,
-    });
-    transferBuffers.push(lights.buffer);
+    };
+    transferBuffers[index] = lights.buffer;
   }
 
   postMessage(
