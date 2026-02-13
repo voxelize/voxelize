@@ -90,6 +90,7 @@ const parseSelectedChecks = () => {
       selectedChecks: availableCheckNames,
       requestedChecks: [],
       selectionMode: "default",
+      specialSelectorsUsed: [],
       error: null,
       invalidChecks: [],
     };
@@ -101,6 +102,7 @@ const parseSelectedChecks = () => {
       selectedChecks: [],
       requestedChecks: [],
       selectionMode: "only",
+      specialSelectorsUsed: [],
       error: "Missing value for --only option.",
       invalidChecks: [],
     };
@@ -116,6 +118,7 @@ const parseSelectedChecks = () => {
       selectedChecks: [],
       requestedChecks: [],
       selectionMode: "only",
+      specialSelectorsUsed: [],
       error: "Missing value for --only option.",
       invalidChecks: [],
     };
@@ -123,6 +126,7 @@ const parseSelectedChecks = () => {
 
   const invalidChecks = [];
   const resolvedChecks = [];
+  const usedSpecialSelectors = new Set();
   for (const parsedCheck of tokenizedChecks) {
     const normalizedParsedCheck = normalizeCheckToken(parsedCheck);
     const resolvedSpecialSelector = specialCheckAliases.get(normalizedParsedCheck);
@@ -130,6 +134,7 @@ const parseSelectedChecks = () => {
       const resolvedSpecialChecks = specialSelectorChecks[resolvedSpecialSelector];
       if (resolvedSpecialChecks !== undefined) {
         resolvedChecks.push(...resolvedSpecialChecks);
+        usedSpecialSelectors.add(resolvedSpecialSelector);
       }
       continue;
     }
@@ -165,6 +170,7 @@ const parseSelectedChecks = () => {
       selectedChecks: [],
       requestedChecks: tokenizedChecks,
       selectionMode: "only",
+      specialSelectorsUsed: Array.from(usedSpecialSelectors),
       error: `Invalid check name(s): ${uniqueInvalidChecks.join(", ")}. ${availableChecksHint}${availableSpecialSelectorsHint}`,
       invalidChecks: uniqueInvalidChecks,
     };
@@ -179,6 +185,7 @@ const parseSelectedChecks = () => {
     selectedChecks: normalizedChecks,
     requestedChecks: tokenizedChecks,
     selectionMode: "only",
+    specialSelectorsUsed: Array.from(usedSpecialSelectors),
     error: null,
     invalidChecks: [],
   };
@@ -187,6 +194,7 @@ const {
   selectedChecks,
   requestedChecks,
   selectionMode,
+  specialSelectorsUsed,
   error: selectedChecksError,
   invalidChecks,
 } = parseSelectedChecks();
@@ -232,6 +240,7 @@ if (outputPathError !== null || selectedChecksError !== null) {
     selectedChecks: [],
     requestedChecks,
     selectionMode,
+    specialSelectorsUsed,
     skippedChecks: availableCheckNames,
     ...summarizeCheckResults([]),
     checks: [],
@@ -289,6 +298,7 @@ const report = buildTimedReport({
   selectedChecks,
   requestedChecks,
   selectionMode,
+  specialSelectorsUsed,
   skippedChecks,
   ...checkSummary,
   failureSummaries,

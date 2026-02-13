@@ -32,6 +32,7 @@ type PreflightReport = {
   endedAt: string;
   durationMs: number;
   selectionMode: "default" | "only";
+  specialSelectorsUsed: string[];
   selectedChecks: string[];
   requestedChecks: string[];
   skippedChecks: string[];
@@ -78,6 +79,7 @@ const expectedAvailableSpecialCheckAliases = {
   all: ["all", "all-checks", "all_checks", "allchecks"],
 };
 const expectedAvailableSpecialCheckSelectors = ["all"];
+const expectedUsedAllSpecialSelector = ["all"];
 
 describe("preflight aggregate report", () => {
   it("emits machine-readable aggregate JSON", () => {
@@ -111,6 +113,7 @@ describe("preflight aggregate report", () => {
       expectedAvailableSpecialCheckAliases
     );
     expect(report.selectionMode).toBe("default");
+    expect(report.specialSelectorsUsed).toEqual([]);
     expect(report.selectedChecks).toEqual(report.availableChecks);
     expect(report.requestedChecks).toEqual([]);
     expect(report.skippedChecks).toEqual([]);
@@ -182,6 +185,7 @@ describe("preflight aggregate report", () => {
 
     expect(report.schemaVersion).toBe(1);
     expect(report.selectionMode).toBe("only");
+    expect(report.specialSelectorsUsed).toEqual([]);
     expect(report.selectedChecks).toEqual(["devEnvironment", "client"]);
     expect(report.requestedChecks).toEqual(["devEnvironment", "client"]);
     expect(report.skippedChecks).toEqual(["wasmPack"]);
@@ -349,6 +353,7 @@ describe("preflight aggregate report", () => {
       "wasmPack",
       "client",
     ]);
+    expect(report.specialSelectorsUsed).toEqual(expectedUsedAllSpecialSelector);
     expect(report.requestedChecks).toEqual(["all"]);
     expect(report.skippedChecks).toEqual([]);
     expect(report.invalidChecks).toEqual([]);
@@ -379,6 +384,7 @@ describe("preflight aggregate report", () => {
       "wasmPack",
       "client",
     ]);
+    expect(report.specialSelectorsUsed).toEqual(expectedUsedAllSpecialSelector);
     expect(report.requestedChecks).toEqual(["ALL"]);
     expect(report.skippedChecks).toEqual([]);
     expect(report.invalidChecks).toEqual([]);
@@ -409,6 +415,7 @@ describe("preflight aggregate report", () => {
       "wasmPack",
       "client",
     ]);
+    expect(report.specialSelectorsUsed).toEqual(expectedUsedAllSpecialSelector);
     expect(report.requestedChecks).toEqual(["all_checks"]);
     expect(report.skippedChecks).toEqual([]);
     expect(report.invalidChecks).toEqual([]);
@@ -439,6 +446,7 @@ describe("preflight aggregate report", () => {
       "wasmPack",
       "client",
     ]);
+    expect(report.specialSelectorsUsed).toEqual(expectedUsedAllSpecialSelector);
     expect(report.requestedChecks).toEqual(["allchecks"]);
     expect(report.skippedChecks).toEqual([]);
     expect(report.invalidChecks).toEqual([]);
@@ -469,6 +477,7 @@ describe("preflight aggregate report", () => {
       "wasmPack",
       "client",
     ]);
+    expect(report.specialSelectorsUsed).toEqual(expectedUsedAllSpecialSelector);
     expect(report.requestedChecks).toEqual(["all", "client"]);
     expect(report.skippedChecks).toEqual([]);
     expect(report.invalidChecks).toEqual([]);
@@ -557,6 +566,7 @@ describe("preflight aggregate report", () => {
 
     expect(report.schemaVersion).toBe(1);
     expect(report.selectedChecks).toEqual(["client"]);
+    expect(report.specialSelectorsUsed).toEqual([]);
     expect(report.requestedChecks).toEqual(["client"]);
     expect(report.skippedChecks).toEqual(["devEnvironment", "wasmPack"]);
     expect(report.invalidChecks).toEqual([]);
@@ -581,6 +591,7 @@ describe("preflight aggregate report", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.selectionMode).toBe("only");
+    expect(report.specialSelectorsUsed).toEqual([]);
     expect(report.message).toBe("Missing value for --only option.");
     expect(report.invalidChecks).toEqual([]);
     expect(report.selectedChecks).toEqual([]);
@@ -612,6 +623,7 @@ describe("preflight aggregate report", () => {
       "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, client. Special selectors: all (all-checks, all_checks, allchecks)."
     );
     expect(report.invalidChecks).toEqual(["invalidCheck"]);
+    expect(report.specialSelectorsUsed).toEqual([]);
     expect(report.selectedChecks).toEqual([]);
     expect(report.skippedChecks).toEqual([
       "devEnvironment",
@@ -760,6 +772,7 @@ describe("preflight aggregate report", () => {
     expect(report.failedCheckCount).toBe(0);
     expect(report.firstFailedCheck).toBeNull();
     expect(report.selectionMode).toBe("default");
+    expect(report.specialSelectorsUsed).toEqual([]);
     expect(report.message).toBe("Missing value for --output option.");
     expect(report.invalidChecks).toEqual([]);
     expect(report.requestedChecks).toEqual([]);
@@ -787,6 +800,7 @@ describe("preflight aggregate report", () => {
     expect(report.exitCode).toBe(1);
     expect(report.outputPath).toBeNull();
     expect(report.selectionMode).toBe("default");
+    expect(report.specialSelectorsUsed).toEqual([]);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(report.availableSpecialCheckSelectors).toEqual(
       expectedAvailableSpecialCheckSelectors
@@ -821,6 +835,7 @@ describe("preflight aggregate report", () => {
     expect(report.invalidChecks).toEqual([]);
     expect(report.requestedChecks).toEqual(["invalidCheck"]);
     expect(report.selectionMode).toBe("only");
+    expect(report.specialSelectorsUsed).toEqual([]);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(report.availableSpecialCheckSelectors).toEqual(
       expectedAvailableSpecialCheckSelectors
@@ -852,6 +867,7 @@ describe("preflight aggregate report", () => {
     expect(report.invalidChecks).toEqual([]);
     expect(report.requestedChecks).toEqual(["client"]);
     expect(report.selectionMode).toBe("only");
+    expect(report.specialSelectorsUsed).toEqual([]);
     expect(report.availableSpecialCheckAliases).toEqual(
       expectedAvailableSpecialCheckAliases
     );
@@ -879,6 +895,7 @@ describe("preflight aggregate report", () => {
     expect(report.failedCheckCount).toBe(0);
     expect(report.firstFailedCheck).toBeNull();
     expect(report.selectionMode).toBe("only");
+    expect(report.specialSelectorsUsed).toEqual([]);
     expect(report.message).toBe("Missing value for --only option.");
     expect(report.requestedChecks).toEqual([]);
     expect(report.availableChecks).toEqual([
@@ -915,6 +932,7 @@ describe("preflight aggregate report", () => {
     expect(report.message).toBe("Missing value for --only option.");
     expect(report.invalidChecks).toEqual([]);
     expect(report.requestedChecks).toEqual([]);
+    expect(report.specialSelectorsUsed).toEqual([]);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(result.status).toBe(1);
   });
@@ -945,6 +963,7 @@ describe("preflight aggregate report", () => {
     );
     expect(report.invalidChecks).toEqual(["invalidCheck"]);
     expect(report.requestedChecks).toEqual(["devEnvironment", "invalidCheck"]);
+    expect(report.specialSelectorsUsed).toEqual([]);
     expect(report.availableChecks).toEqual([
       "devEnvironment",
       "wasmPack",
@@ -956,6 +975,31 @@ describe("preflight aggregate report", () => {
     );
     expect(report.availableSpecialCheckSelectors).toEqual(
       expectedAvailableSpecialCheckSelectors
+    );
+    expect(result.status).toBe(1);
+  });
+
+  it("tracks used special selectors when invalid checks are present", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--only", "all,invalidCheck"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.invalidChecks).toEqual(["invalidCheck"]);
+    expect(report.specialSelectorsUsed).toEqual(expectedUsedAllSpecialSelector);
+    expect(report.requestedChecks).toEqual(["all", "invalidCheck"]);
+    expect(report.message).toBe(
+      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, client. Special selectors: all (all-checks, all_checks, allchecks)."
     );
     expect(result.status).toBe(1);
   });
@@ -984,6 +1028,7 @@ describe("preflight aggregate report", () => {
       "Invalid check name(s): invalidCheck, otherInvalid. Available checks: devEnvironment, wasmPack, client. Special selectors: all (all-checks, all_checks, allchecks)."
     );
     expect(report.invalidChecks).toEqual(["invalidCheck", "otherInvalid"]);
+    expect(report.specialSelectorsUsed).toEqual([]);
     expect(report.requestedChecks).toEqual([
       "devEnvironment",
       "invalidCheck",
@@ -1021,6 +1066,7 @@ describe("preflight aggregate report", () => {
       "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, client. Special selectors: all (all-checks, all_checks, allchecks)."
     );
     expect(stdoutReport.invalidChecks).toEqual(["invalidCheck"]);
+    expect(stdoutReport.specialSelectorsUsed).toEqual([]);
     expect(stdoutReport.requestedChecks).toEqual(["invalidCheck"]);
     expect(fileReport.outputPath).toBe(outputPath);
     expect(fileReport.message).toBe(stdoutReport.message);
@@ -1054,6 +1100,7 @@ describe("preflight aggregate report", () => {
     expect(stdoutReport.outputPath).toBe(outputPath);
     expect(stdoutReport.message).toBe("Missing value for --only option.");
     expect(stdoutReport.invalidChecks).toEqual([]);
+    expect(stdoutReport.specialSelectorsUsed).toEqual([]);
     expect(stdoutReport.requestedChecks).toEqual([]);
     expect(fileReport.outputPath).toBe(outputPath);
     expect(fileReport.message).toBe(stdoutReport.message);
@@ -1086,6 +1133,7 @@ describe("preflight aggregate report", () => {
     expect(report.writeError).toContain(`Failed to write report to ${tempDirectory}.`);
     expect(report.message).toContain(`Failed to write report to ${tempDirectory}.`);
     expect(report.invalidChecks).toEqual(["invalidCheck"]);
+    expect(report.specialSelectorsUsed).toEqual([]);
     expect(report.requestedChecks).toEqual(["invalidCheck"]);
     expect(result.status).toBe(1);
 
