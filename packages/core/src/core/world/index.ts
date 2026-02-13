@@ -6851,9 +6851,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       ) {
         const encodedRotation = hasRotation ? rotation : PY_ROTATION;
         const encodedYRotation = hasYRotation ? yRotation : 0;
-        raw = BlockUtils.insertRotation(
+        raw = BlockUtils.insertRotationValues(
           raw,
-          BlockRotation.encode(encodedRotation, encodedYRotation)
+          encodedRotation,
+          encodedYRotation
         );
       }
 

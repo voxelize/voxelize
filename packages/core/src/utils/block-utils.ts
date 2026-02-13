@@ -79,6 +79,15 @@ export class BlockUtils {
     return (value & Y_ROTATION_MASK) | ((yRot & 0xf) << 20);
   };
 
+  static insertRotationValues = (
+    voxel: number,
+    rotation: number,
+    yRotation: number
+  ) => {
+    const value = (voxel & ROTATION_MASK) | ((rotation & 0xf) << 16);
+    return (value & Y_ROTATION_MASK) | ((yRotation & 0xf) << 20);
+  };
+
   /**
    * Extract the voxel stage from a number.
    *
