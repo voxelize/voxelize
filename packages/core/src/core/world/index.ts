@@ -4901,14 +4901,11 @@ export class World<T = any> extends Scene implements NetIntercept {
     const sunFlood: LightNode[] = [];
     const removedLightSourceKeys = new Set<string>();
     const processedUpdateCount = processedUpdates.length;
-    const voxelKeys = new Array<string>(processedUpdateCount);
 
     for (let index = 0; index < processedUpdateCount; index++) {
       const update = processedUpdates[index];
       const { voxel, oldBlock, newBlock, newRotation, oldStage } = update;
       const [vx, vy, vz] = voxel;
-      const voxelKey = ChunkUtils.getVoxelNameAt(vx, vy, vz);
-      voxelKeys[index] = voxelKey;
 
       let currentEmitsLight = oldBlock.isLight;
       let currentRedLevel = oldBlock.redLightLevel;
@@ -5012,15 +5009,18 @@ export class World<T = any> extends Scene implements NetIntercept {
         if (currentBlueLevel > 0) {
           blueRemoval.push(voxel);
         }
-        removedLightSourceKeys.add(voxelKey);
+        removedLightSourceKeys.add(ChunkUtils.getVoxelNameAt(vx, vy, vz));
       }
     }
 
+    const hasRemovedLightSources = removedLightSourceKeys.size > 0;
     for (let index = 0; index < processedUpdateCount; index++) {
       const update = processedUpdates[index];
       const { voxel, oldBlock, newBlock, oldRotation, newRotation } = update;
       const [vx, vy, vz] = voxel;
-      const isRemovedLightSource = removedLightSourceKeys.has(voxelKeys[index]);
+      const isRemovedLightSource =
+        hasRemovedLightSources &&
+        removedLightSourceKeys.has(ChunkUtils.getVoxelNameAt(vx, vy, vz));
 
       if (isRemovedLightSource && !oldBlock.isOpaque) {
         continue;
