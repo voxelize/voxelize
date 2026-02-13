@@ -15,6 +15,8 @@ From the repository root:
 pnpm run demo
 ```
 
+`pnpm run demo` runs the wasm precheck and dev wasm build first, then starts both server and client demos.
+
 Or run only the client:
 
 ```bash
