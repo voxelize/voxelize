@@ -71,8 +71,8 @@ export class RawChunk {
   }
 
   serialize(): [object, ArrayBuffer[]] {
-    const voxelsBuffer = this.voxels.data.buffer.slice(0) as ArrayBuffer;
-    const lightsBuffer = this.lights.data.buffer.slice(0) as ArrayBuffer;
+    const voxelsBuffer = RawChunk.cloneDataBuffer(this.voxels.data);
+    const lightsBuffer = RawChunk.cloneDataBuffer(this.lights.data);
     return [
       {
         id: this.id,
@@ -84,6 +84,13 @@ export class RawChunk {
       },
       [voxelsBuffer, lightsBuffer],
     ];
+  }
+
+  private static cloneDataBuffer(data: Uint32Array): ArrayBuffer {
+    const buffer = data.buffer as ArrayBuffer;
+    const start = data.byteOffset;
+    const end = start + data.byteLength;
+    return buffer.slice(start, end);
   }
 
   static deserialize(data: SerializedRawChunk): RawChunk {
