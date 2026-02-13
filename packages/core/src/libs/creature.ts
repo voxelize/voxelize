@@ -128,6 +128,7 @@ export class Creature extends Group {
     pos: Vector3;
     dir: Quaternion;
   }> = [];
+  private positionBufferHead = 0;
   private interpolationDelay = 50;
 
   constructor(options: Partial<CreatureOptions> = {}) {
@@ -166,26 +167,40 @@ export class Creature extends Group {
   }
 
   private interpolateFromBuffer() {
-    if (this.positionBuffer.length === 0) return;
+    const positionBuffer = this.positionBuffer;
+    let head = this.positionBufferHead;
+    const available = positionBuffer.length - head;
+    if (available <= 0) return;
+
     const renderTime = performance.now() - this.interpolationDelay;
     while (
-      this.positionBuffer.length > 2 &&
-      this.positionBuffer[1].time <= renderTime
+      positionBuffer.length - head > 2 &&
+      positionBuffer[head + 1].time <= renderTime
     ) {
-      this.positionBuffer.shift();
+      head++;
     }
-    if (this.positionBuffer.length >= 2) {
-      const p0 = this.positionBuffer[0];
-      const p1 = this.positionBuffer[1];
+
+    if (head !== this.positionBufferHead) {
+      this.positionBufferHead = head;
+      if (head >= 8) {
+        this.normalizePositionBuffer();
+        head = this.positionBufferHead;
+      }
+    }
+
+    const bufferedCount = positionBuffer.length - head;
+    if (bufferedCount >= 2) {
+      const p0 = positionBuffer[head];
+      const p1 = positionBuffer[head + 1];
       const t = Math.max(
         0,
         Math.min(1, (renderTime - p0.time) / (p1.time - p0.time))
       );
       this.newPosition.lerpVectors(p0.pos, p1.pos, t);
       this.newDirection.slerpQuaternions(p0.dir, p1.dir, t);
-    } else if (this.positionBuffer.length === 1) {
-      this.newPosition.copy(this.positionBuffer[0].pos);
-      this.newDirection.copy(this.positionBuffer[0].dir);
+    } else if (bufferedCount === 1) {
+      this.newPosition.copy(positionBuffer[head].pos);
+      this.newDirection.copy(positionBuffer[head].dir);
     }
   }
 
@@ -203,10 +218,30 @@ export class Creature extends Group {
       direction[2]
     );
     const now = performance.now();
-    this.positionBuffer.push({ time: now, pos, dir });
-    while (this.positionBuffer.length > 10) {
-      this.positionBuffer.shift();
+    const positionBuffer = this.positionBuffer;
+    positionBuffer.push({ time: now, pos, dir });
+    const bufferedCount = positionBuffer.length - this.positionBufferHead;
+    if (bufferedCount > 10) {
+      this.positionBufferHead += bufferedCount - 10;
     }
+    if (this.positionBufferHead >= 10) {
+      this.normalizePositionBuffer();
+    }
+  }
+
+  private normalizePositionBuffer() {
+    const head = this.positionBufferHead;
+    if (head <= 0) {
+      return;
+    }
+
+    const positionBuffer = this.positionBuffer;
+    const bufferedCount = positionBuffer.length - head;
+    if (bufferedCount > 0) {
+      positionBuffer.copyWithin(0, head, positionBuffer.length);
+    }
+    positionBuffer.length = Math.max(bufferedCount, 0);
+    this.positionBufferHead = 0;
   }
 
   set username(username: string) {
