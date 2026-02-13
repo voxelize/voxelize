@@ -1428,7 +1428,7 @@ fn compute_face_ao_and_light(
                             continue;
                         }
 
-                        if ddx.abs() + ddy.abs() + ddz.abs() == 3 {
+                        if x + y + z == 3 {
                             let diagonal_yz_opaque = neighbor_is_opaque(&opaque_mask, 0, ddy, ddz);
                             let diagonal_xz_opaque = neighbor_is_opaque(&opaque_mask, ddx, 0, ddz);
                             let diagonal_xy_opaque = neighbor_is_opaque(&opaque_mask, ddx, ddy, 0);
@@ -1637,7 +1637,7 @@ fn compute_face_ao_and_light_fast(
                         continue;
                     }
 
-                    if ddx.abs() + ddy.abs() + ddz.abs() == 3 {
+                    if x + y + z == 3 {
                         let diagonal_yz_opaque = neighbor_is_opaque(mask, 0, ddy, ddz);
                         let diagonal_xz_opaque = neighbor_is_opaque(mask, ddx, 0, ddz);
                         let diagonal_xy_opaque = neighbor_is_opaque(mask, ddx, ddy, 0);
@@ -2507,7 +2507,7 @@ fn process_face<S: VoxelAccess>(
                             }
                         }
 
-                        if ddx.abs() + ddy.abs() + ddz.abs() == 3 {
+                        if x + y + z == 3 {
                             let diagonal_yz_opaque = neighbor_is_opaque(mask, 0, ddy, ddz);
                             let diagonal_xz_opaque = neighbor_is_opaque(mask, ddx, 0, ddz);
                             let diagonal_xy_opaque = neighbor_is_opaque(mask, ddx, ddy, 0);
