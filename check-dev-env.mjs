@@ -12,6 +12,7 @@ import {
 import {
   createCliOptionValidation,
   createTimedReportBuilder,
+  parseActiveCliOptionMetadata,
   resolveOutputPath,
   serializeReportWithOptionalWrite,
   splitCliArgs,
@@ -32,6 +33,7 @@ const isJson = cliOptionArgs.includes("--json");
 const isCompact = cliOptionArgs.includes("--compact");
 const jsonFormat = { compact: isCompact };
 const { outputPath, error: outputPathError } = resolveOutputPath(cliOptionArgs);
+const canonicalCliOptions = ["--compact", "--json", "--output", "--quiet"];
 const {
   supportedCliOptions,
   unknownOptions,
@@ -39,9 +41,21 @@ const {
   unsupportedOptionsError,
   validationErrorCode,
 } = createCliOptionValidation(cliOptionArgs, {
-  canonicalOptions: ["--compact", "--json", "--output", "--quiet"],
+  canonicalOptions: canonicalCliOptions,
   optionsWithValues: ["--output"],
   outputPathError,
+});
+const {
+  activeCliOptions,
+  activeCliOptionCount,
+  activeCliOptionTokens,
+  activeCliOptionResolutions,
+  activeCliOptionResolutionCount,
+  activeCliOptionOccurrences,
+  activeCliOptionOccurrenceCount,
+} = parseActiveCliOptionMetadata(cliOptionArgs, {
+  canonicalOptions: canonicalCliOptions,
+  optionsWithValues: ["--output"],
 });
 const buildTimedReport = createTimedReportBuilder();
 const minimumVersions = loadWorkspaceMinimumVersions(__dirname);
@@ -108,6 +122,13 @@ if (isJson && (outputPathError !== null || unsupportedOptionsError !== null)) {
         requiredFailures: 0,
         checks: [],
         outputPath: outputPathError === null ? outputPath : null,
+        activeCliOptions,
+        activeCliOptionCount,
+        activeCliOptionTokens,
+        activeCliOptionResolutions,
+        activeCliOptionResolutionCount,
+        activeCliOptionOccurrences,
+        activeCliOptionOccurrenceCount,
         unknownOptions,
         unknownOptionCount,
         supportedCliOptions,
@@ -210,6 +231,13 @@ if (isJson) {
     requiredFailures,
     checks: checkResults,
     outputPath,
+    activeCliOptions,
+    activeCliOptionCount,
+    activeCliOptionTokens,
+    activeCliOptionResolutions,
+    activeCliOptionResolutionCount,
+    activeCliOptionOccurrences,
+    activeCliOptionOccurrenceCount,
     unknownOptions,
     unknownOptionCount,
     supportedCliOptions,

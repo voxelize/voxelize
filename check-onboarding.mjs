@@ -6,6 +6,7 @@ import {
   createCliOptionValidation,
   createTimedReportBuilder,
   hasCliOption,
+  parseActiveCliOptionMetadata,
   parseJsonOutput,
   resolveOutputPath,
   serializeReportWithOptionalWrite,
@@ -24,6 +25,16 @@ const {
 } = splitCliArgs(cliArgs);
 const positionalArgCount = positionalArgs.length;
 const noBuildOptionAliases = ["--verify"];
+const optionAliases = {
+  "--no-build": noBuildOptionAliases,
+};
+const canonicalCliOptions = [
+  "--compact",
+  "--json",
+  "--no-build",
+  "--output",
+  "--quiet",
+];
 const isQuiet = cliOptionArgs.includes("--quiet");
 const isJson = cliOptionArgs.includes("--json");
 const isNoBuild = hasCliOption(cliOptionArgs, "--no-build", noBuildOptionAliases);
@@ -37,19 +48,26 @@ const {
   unsupportedOptionsError,
   validationErrorCode,
 } = createCliOptionValidation(cliOptionArgs, {
-  canonicalOptions: [
-    "--compact",
-    "--json",
-    "--no-build",
-    "--output",
-    "--quiet",
-  ],
-  optionAliases: {
-    "--no-build": noBuildOptionAliases,
-  },
+  canonicalOptions: canonicalCliOptions,
+  optionAliases,
   optionsWithValues: ["--output"],
   outputPathError,
 });
+const {
+  activeCliOptions,
+  activeCliOptionCount,
+  activeCliOptionTokens,
+  activeCliOptionResolutions,
+  activeCliOptionResolutionCount,
+  activeCliOptionOccurrences,
+  activeCliOptionOccurrenceCount,
+} = parseActiveCliOptionMetadata(cliOptionArgs, {
+  canonicalOptions: canonicalCliOptions,
+  optionAliases,
+  optionsWithValues: ["--output"],
+});
+const normalizedValidationErrorCode =
+  outputPathError !== null ? "output_option_missing_value" : validationErrorCode;
 const buildTimedReport = createTimedReportBuilder();
 const stepResults = [];
 let exitCode = 0;
@@ -65,10 +83,17 @@ if (isJson && (outputPathError !== null || unsupportedOptionsError !== null)) {
         positionalArgCount,
         noBuild: isNoBuild,
         outputPath: outputPathError === null ? outputPath : null,
+        activeCliOptions,
+        activeCliOptionCount,
+        activeCliOptionTokens,
+        activeCliOptionResolutions,
+        activeCliOptionResolutionCount,
+        activeCliOptionOccurrences,
+        activeCliOptionOccurrenceCount,
         unknownOptions,
         unknownOptionCount,
         supportedCliOptions,
-        validationErrorCode,
+        validationErrorCode: normalizedValidationErrorCode,
         steps: [],
         ...summarizeStepResults([]),
         message: outputPathError ?? unsupportedOptionsError,
@@ -173,6 +198,13 @@ if (isJson) {
     positionalArgCount,
     noBuild: isNoBuild,
     outputPath,
+    activeCliOptions,
+    activeCliOptionCount,
+    activeCliOptionTokens,
+    activeCliOptionResolutions,
+    activeCliOptionResolutionCount,
+    activeCliOptionOccurrences,
+    activeCliOptionOccurrenceCount,
     unknownOptions,
     unknownOptionCount,
     supportedCliOptions,

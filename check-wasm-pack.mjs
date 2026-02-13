@@ -4,6 +4,7 @@ import { resolveCommand } from "./scripts/command-utils.mjs";
 import {
   createCliOptionValidation,
   createTimedReportBuilder,
+  parseActiveCliOptionMetadata,
   resolveOutputPath,
   serializeReportWithOptionalWrite,
   splitCliArgs,
@@ -23,6 +24,7 @@ const isJson = cliOptionArgs.includes("--json");
 const isCompact = cliOptionArgs.includes("--compact");
 const jsonFormat = { compact: isCompact };
 const { outputPath, error: outputPathError } = resolveOutputPath(cliOptionArgs);
+const canonicalCliOptions = ["--compact", "--json", "--output", "--quiet"];
 const {
   supportedCliOptions,
   unknownOptions,
@@ -30,9 +32,21 @@ const {
   unsupportedOptionsError,
   validationErrorCode,
 } = createCliOptionValidation(cliOptionArgs, {
-  canonicalOptions: ["--compact", "--json", "--output", "--quiet"],
+  canonicalOptions: canonicalCliOptions,
   optionsWithValues: ["--output"],
   outputPathError,
+});
+const {
+  activeCliOptions,
+  activeCliOptionCount,
+  activeCliOptionTokens,
+  activeCliOptionResolutions,
+  activeCliOptionResolutionCount,
+  activeCliOptionOccurrences,
+  activeCliOptionOccurrenceCount,
+} = parseActiveCliOptionMetadata(cliOptionArgs, {
+  canonicalOptions: canonicalCliOptions,
+  optionsWithValues: ["--output"],
 });
 const buildTimedReport = createTimedReportBuilder();
 
@@ -48,6 +62,13 @@ if (isJson && (outputPathError !== null || unsupportedOptionsError !== null)) {
         command: wasmPackCommand,
         version: null,
         outputPath: outputPathError === null ? outputPath : null,
+        activeCliOptions,
+        activeCliOptionCount,
+        activeCliOptionTokens,
+        activeCliOptionResolutions,
+        activeCliOptionResolutionCount,
+        activeCliOptionOccurrences,
+        activeCliOptionOccurrenceCount,
         unknownOptions,
         unknownOptionCount,
         supportedCliOptions,
@@ -93,6 +114,13 @@ if (checkStatus === 0) {
       command: wasmPackCommand,
       version: firstLine,
       outputPath,
+      activeCliOptions,
+      activeCliOptionCount,
+      activeCliOptionTokens,
+      activeCliOptionResolutions,
+      activeCliOptionResolutionCount,
+      activeCliOptionOccurrences,
+      activeCliOptionOccurrenceCount,
       unknownOptions,
       unknownOptionCount,
       supportedCliOptions,
@@ -124,6 +152,13 @@ if (isJson) {
     command: wasmPackCommand,
     version: null,
     outputPath,
+    activeCliOptions,
+    activeCliOptionCount,
+    activeCliOptionTokens,
+    activeCliOptionResolutions,
+    activeCliOptionResolutionCount,
+    activeCliOptionOccurrences,
+    activeCliOptionOccurrenceCount,
     unknownOptions,
     unknownOptionCount,
     supportedCliOptions,

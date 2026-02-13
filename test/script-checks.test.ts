@@ -20,7 +20,25 @@ type OptionTerminatorMetadata = {
   positionalArgCount: number;
 };
 
-type WasmPackJsonReport = OptionTerminatorMetadata & {
+type ActiveCliOptionMetadata = {
+  activeCliOptions: string[];
+  activeCliOptionCount: number;
+  activeCliOptionTokens: string[];
+  activeCliOptionResolutions: Array<{
+    token: string;
+    canonicalOption: string;
+  }>;
+  activeCliOptionResolutionCount: number;
+  activeCliOptionOccurrences: Array<{
+    token: string;
+    canonicalOption: string;
+    index: number;
+  }>;
+  activeCliOptionOccurrenceCount: number;
+};
+
+type WasmPackJsonReport = OptionTerminatorMetadata &
+  ActiveCliOptionMetadata & {
   schemaVersion: number;
   passed: boolean;
   exitCode: number;
@@ -51,7 +69,8 @@ type DevEnvJsonCheck = {
   minimumVersion: string | null;
 };
 
-type DevEnvJsonReport = OptionTerminatorMetadata & {
+type DevEnvJsonReport = OptionTerminatorMetadata &
+  ActiveCliOptionMetadata & {
   schemaVersion: number;
   passed: boolean;
   exitCode: number;
@@ -72,7 +91,8 @@ type DevEnvJsonReport = OptionTerminatorMetadata & {
   message?: string;
 };
 
-type WasmMesherJsonReport = OptionTerminatorMetadata & {
+type WasmMesherJsonReport = OptionTerminatorMetadata &
+  ActiveCliOptionMetadata & {
   schemaVersion: number;
   passed: boolean;
   exitCode: number;
@@ -106,7 +126,8 @@ type ClientJsonStep = {
   output: string | null;
 };
 
-type ClientJsonReport = OptionTerminatorMetadata & {
+type ClientJsonReport = OptionTerminatorMetadata &
+  ActiveCliOptionMetadata & {
   schemaVersion: number;
   passed: boolean;
   exitCode: number;
@@ -142,7 +163,8 @@ type OnboardingJsonStep = {
   output: string | null;
 };
 
-type OnboardingJsonReport = OptionTerminatorMetadata & {
+type OnboardingJsonReport = OptionTerminatorMetadata &
+  ActiveCliOptionMetadata & {
   schemaVersion: number;
   passed: boolean;
   exitCode: number;
@@ -206,6 +228,48 @@ const expectOptionTerminatorMetadata = (
   expect(report.positionalArgCount).toBe(report.positionalArgs.length);
 };
 
+const expectedCanonicalOptionForToken = (token: string) => {
+  if (token === "--verify") {
+    return "--no-build";
+  }
+
+  if (token.startsWith("--output=")) {
+    return "--output";
+  }
+
+  return token;
+};
+
+const expectActiveCliOptionMetadata = (
+  report: ActiveCliOptionMetadata,
+  expectedCanonicalOptions: string[],
+  expectedTokens: string[],
+  expectedOccurrences: Array<{
+    token: string;
+    canonicalOption: string;
+    index: number;
+  }>
+) => {
+  expect(report.activeCliOptions).toEqual(expectedCanonicalOptions);
+  expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+  expect(report.activeCliOptionTokens).toEqual(expectedTokens);
+  expect(report.activeCliOptionResolutions).toEqual(
+    expectedTokens.map((token) => {
+      return {
+        token,
+        canonicalOption: expectedCanonicalOptionForToken(token),
+      };
+    })
+  );
+  expect(report.activeCliOptionResolutionCount).toBe(
+    report.activeCliOptionResolutions.length
+  );
+  expect(report.activeCliOptionOccurrences).toEqual(expectedOccurrences);
+  expect(report.activeCliOptionOccurrenceCount).toBe(
+    report.activeCliOptionOccurrences.length
+  );
+};
+
 describe("root preflight scripts", () => {
   it("check-wasm-pack returns clear status output", () => {
     const result = runScript("check-wasm-pack.mjs");
@@ -247,6 +311,18 @@ describe("root preflight scripts", () => {
     expect(report.validationErrorCode).toBeNull();
     expectTimingMetadata(report);
     expectOptionTerminatorMetadata(report);
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
 
     if (report.passed) {
@@ -353,6 +429,23 @@ describe("root preflight scripts", () => {
     expect(report.unknownOptionCount).toBe(0);
     expect(report.validationErrorCode).toBe("output_option_missing_value");
     expect(report.message).toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--output"],
+      ["--json", "--output"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--output",
+          canonicalOption: "--output",
+          index: 1,
+        },
+      ]
+    );
     expect(result.status).toBe(1);
   });
 
@@ -368,6 +461,23 @@ describe("root preflight scripts", () => {
     expect(report.unknownOptionCount).toBe(0);
     expect(report.validationErrorCode).toBe("output_option_missing_value");
     expect(report.message).toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--output"],
+      ["--json", "--output="],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--output=",
+          canonicalOption: "--output",
+          index: 1,
+        },
+      ]
+    );
     expect(result.status).toBe(1);
   });
 
@@ -390,6 +500,18 @@ describe("root preflight scripts", () => {
     expect(report.message).toBe(
       "Unsupported option(s): --mystery. Supported options: --compact, --json, --output, --quiet."
     );
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
     expect(result.status).toBe(1);
   });
 
@@ -404,6 +526,18 @@ describe("root preflight scripts", () => {
     expect(report.unknownOptionCount).toBe(0);
     expectTimingMetadata(report);
     expectOptionTerminatorMetadata(report, true, ["--output"]);
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
@@ -480,6 +614,18 @@ describe("root preflight scripts", () => {
     expect(report.validationErrorCode).toBeNull();
     expectTimingMetadata(report);
     expectOptionTerminatorMetadata(report);
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
     expect(typeof report.passed).toBe("boolean");
     expect(Array.isArray(report.checks)).toBe(true);
     expect(report.checks.length).toBeGreaterThan(0);
@@ -585,6 +731,23 @@ describe("root preflight scripts", () => {
     expect(report.unknownOptionCount).toBe(0);
     expect(report.validationErrorCode).toBe("output_option_missing_value");
     expect(report.message).toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--output"],
+      ["--json", "--output"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--output",
+          canonicalOption: "--output",
+          index: 1,
+        },
+      ]
+    );
     expect(result.status).toBe(1);
   });
 
@@ -600,6 +763,23 @@ describe("root preflight scripts", () => {
     expect(report.unknownOptionCount).toBe(0);
     expect(report.validationErrorCode).toBe("output_option_missing_value");
     expect(report.message).toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--output"],
+      ["--json", "--output="],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--output=",
+          canonicalOption: "--output",
+          index: 1,
+        },
+      ]
+    );
     expect(result.status).toBe(1);
   });
 
@@ -622,6 +802,18 @@ describe("root preflight scripts", () => {
     expect(report.message).toBe(
       "Unsupported option(s): --mystery. Supported options: --compact, --json, --output, --quiet."
     );
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
     expect(result.status).toBe(1);
   });
 
@@ -635,6 +827,18 @@ describe("root preflight scripts", () => {
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
     expect(report.message).not.toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
@@ -732,6 +936,18 @@ describe("root preflight scripts", () => {
     expect(report.validationErrorCode).toBeNull();
     expectTimingMetadata(report);
     expectOptionTerminatorMetadata(report);
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
     expect(Array.isArray(report.steps)).toBe(true);
     expect(report.steps.length).toBeGreaterThan(0);
     expect(report.totalSteps).toBe(report.steps.length);
@@ -869,6 +1085,23 @@ describe("root preflight scripts", () => {
     expect(report.skippedStepCount).toBe(0);
     expect(report.firstFailedStep).toBeNull();
     expect(report.message).toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--output"],
+      ["--json", "--output"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--output",
+          canonicalOption: "--output",
+          index: 1,
+        },
+      ]
+    );
     expect(result.status).toBe(1);
   });
 
@@ -889,6 +1122,23 @@ describe("root preflight scripts", () => {
     expect(report.skippedStepCount).toBe(0);
     expect(report.firstFailedStep).toBeNull();
     expect(report.message).toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--output"],
+      ["--json", "--output="],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--output=",
+          canonicalOption: "--output",
+          index: 1,
+        },
+      ]
+    );
     expect(result.status).toBe(1);
   });
 
@@ -908,6 +1158,23 @@ describe("root preflight scripts", () => {
     expect(report.unknownOptionCount).toBe(0);
     expect(report.totalSteps).toBeGreaterThan(0);
     expect(report.message).not.toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--no-build"],
+      ["--json", "--no-build"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--no-build",
+          canonicalOption: "--no-build",
+          index: 1,
+        },
+      ]
+    );
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
@@ -931,6 +1198,18 @@ describe("root preflight scripts", () => {
     expect(report.validationErrorCode).toBe("unsupported_options");
     expect(report.message).toBe(
       "Unsupported option(s): --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
     );
     expect(result.status).toBe(1);
   });
@@ -1022,6 +1301,23 @@ describe("root preflight scripts", () => {
       expect(typecheckStep.exitCode).toBeNull();
       expect(typecheckStep.reason).toBe("WASM artifact preflight failed");
     }
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--no-build"],
+      ["--json", "--no-build"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--no-build",
+          canonicalOption: "--no-build",
+          index: 1,
+        },
+      ]
+    );
   });
 
   it("check-client json verify mode aliases no-build behavior", () => {
@@ -1043,6 +1339,23 @@ describe("root preflight scripts", () => {
       expect(report.steps[0].report.attemptedBuild).toBe(false);
       expectTimingMetadata(report.steps[0].report);
     }
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--no-build"],
+      ["--json", "--verify"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--verify",
+          canonicalOption: "--no-build",
+          index: 1,
+        },
+      ]
+    );
   });
 
   it("check-onboarding returns pass or fail summary", () => {
@@ -1088,6 +1401,18 @@ describe("root preflight scripts", () => {
     expect(report.validationErrorCode).toBeNull();
     expectTimingMetadata(report);
     expectOptionTerminatorMetadata(report);
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
     expect(Array.isArray(report.steps)).toBe(true);
     expect(report.steps.length).toBeGreaterThan(0);
     expect(report.totalSteps).toBe(report.steps.length);
@@ -1220,6 +1545,23 @@ describe("root preflight scripts", () => {
     expect(report.skippedStepCount).toBe(0);
     expect(report.firstFailedStep).toBeNull();
     expect(report.message).toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--output"],
+      ["--json", "--output"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--output",
+          canonicalOption: "--output",
+          index: 1,
+        },
+      ]
+    );
     expect(result.status).toBe(1);
   });
 
@@ -1240,6 +1582,23 @@ describe("root preflight scripts", () => {
     expect(report.skippedStepCount).toBe(0);
     expect(report.firstFailedStep).toBeNull();
     expect(report.message).toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--output"],
+      ["--json", "--output="],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--output=",
+          canonicalOption: "--output",
+          index: 1,
+        },
+      ]
+    );
     expect(result.status).toBe(1);
   });
 
@@ -1259,6 +1618,23 @@ describe("root preflight scripts", () => {
     expect(report.unknownOptionCount).toBe(0);
     expect(report.totalSteps).toBeGreaterThan(0);
     expect(report.message).not.toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--no-build"],
+      ["--json", "--no-build"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--no-build",
+          canonicalOption: "--no-build",
+          index: 1,
+        },
+      ]
+    );
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
@@ -1282,6 +1658,18 @@ describe("root preflight scripts", () => {
     expect(report.validationErrorCode).toBe("unsupported_options");
     expect(report.message).toBe(
       "Unsupported option(s): --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
     );
     expect(result.status).toBe(1);
   });
@@ -1368,6 +1756,23 @@ describe("root preflight scripts", () => {
         "Developer environment preflight failed"
       );
     }
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--no-build"],
+      ["--json", "--no-build"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--no-build",
+          canonicalOption: "--no-build",
+          index: 1,
+        },
+      ]
+    );
   });
 
   it("check-onboarding json verify mode aliases no-build behavior", () => {
@@ -1386,5 +1791,22 @@ describe("root preflight scripts", () => {
     expect(report.steps[0].name).toBe("Developer environment preflight");
     const clientStep = report.steps.find((step) => step.name === "Client checks");
     expect(clientStep).toBeDefined();
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--no-build"],
+      ["--json", "--verify"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--verify",
+          canonicalOption: "--no-build",
+          index: 1,
+        },
+      ]
+    );
   });
 });

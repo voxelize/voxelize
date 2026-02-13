@@ -12,7 +12,25 @@ type OptionTerminatorMetadata = {
   positionalArgCount: number;
 };
 
-type WasmPackJsonReport = OptionTerminatorMetadata & {
+type ActiveCliOptionMetadata = {
+  activeCliOptions: string[];
+  activeCliOptionCount: number;
+  activeCliOptionTokens: string[];
+  activeCliOptionResolutions: Array<{
+    token: string;
+    canonicalOption: string;
+  }>;
+  activeCliOptionResolutionCount: number;
+  activeCliOptionOccurrences: Array<{
+    token: string;
+    canonicalOption: string;
+    index: number;
+  }>;
+  activeCliOptionOccurrenceCount: number;
+};
+
+type WasmPackJsonReport = OptionTerminatorMetadata &
+  ActiveCliOptionMetadata & {
   passed: boolean;
   exitCode: number;
   command: string;
@@ -31,7 +49,8 @@ type WasmPackJsonReport = OptionTerminatorMetadata & {
   message?: string;
 };
 
-type WasmMesherJsonReport = OptionTerminatorMetadata & {
+type WasmMesherJsonReport = OptionTerminatorMetadata &
+  ActiveCliOptionMetadata & {
   schemaVersion: number;
   passed: boolean;
   exitCode: number;
@@ -85,6 +104,48 @@ describe("client wasm preflight script", () => {
     expect(report.positionalArgCount).toBe(report.positionalArgs.length);
   };
 
+  const expectedCanonicalOptionForToken = (token: string) => {
+    if (token === "--verify") {
+      return "--no-build";
+    }
+
+    if (token.startsWith("--output=")) {
+      return "--output";
+    }
+
+    return token;
+  };
+
+  const expectActiveCliOptionMetadata = (
+    report: ActiveCliOptionMetadata,
+    expectedCanonicalOptions: string[],
+    expectedTokens: string[],
+    expectedOccurrences: Array<{
+      token: string;
+      canonicalOption: string;
+      index: number;
+    }>
+  ) => {
+    expect(report.activeCliOptions).toEqual(expectedCanonicalOptions);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(expectedTokens);
+    expect(report.activeCliOptionResolutions).toEqual(
+      expectedTokens.map((token) => {
+        return {
+          token,
+          canonicalOption: expectedCanonicalOptionForToken(token),
+        };
+      })
+    );
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual(expectedOccurrences);
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+  };
+
   it("emits machine-readable JSON report", () => {
     const result = spawnSync(process.execPath, [wasmMesherScript, "--json"], {
       cwd: rootDir,
@@ -117,6 +178,18 @@ describe("client wasm preflight script", () => {
     expect(typeof report.message).toBe("string");
     expectTimingMetadata(report);
     expectOptionTerminatorMetadata(report);
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
 
     if (report.wasmPackCheckReport !== null) {
@@ -132,6 +205,23 @@ describe("client wasm preflight script", () => {
       expect(report.wasmPackCheckReport.validationErrorCode).toBeNull();
       expectTimingMetadata(report.wasmPackCheckReport);
       expectOptionTerminatorMetadata(report.wasmPackCheckReport);
+      expectActiveCliOptionMetadata(
+        report.wasmPackCheckReport,
+        ["--compact", "--json"],
+        ["--json", "--compact"],
+        [
+          {
+            token: "--json",
+            canonicalOption: "--json",
+            index: 0,
+          },
+          {
+            token: "--compact",
+            canonicalOption: "--compact",
+            index: 1,
+          },
+        ]
+      );
     }
   });
 
@@ -154,6 +244,23 @@ describe("client wasm preflight script", () => {
     expect(report.outputPath).toBeNull();
     expectTimingMetadata(report);
     expectOptionTerminatorMetadata(report);
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--no-build"],
+      ["--json", "--no-build"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--no-build",
+          canonicalOption: "--no-build",
+          index: 1,
+        },
+      ]
+    );
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
@@ -176,6 +283,23 @@ describe("client wasm preflight script", () => {
     expect(report.outputPath).toBeNull();
     expectTimingMetadata(report);
     expectOptionTerminatorMetadata(report);
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--no-build"],
+      ["--json", "--verify"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--verify",
+          canonicalOption: "--no-build",
+          index: 1,
+        },
+      ]
+    );
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
@@ -318,6 +442,23 @@ describe("client wasm preflight script", () => {
     expect(report.unknownOptionCount).toBe(0);
     expect(report.validationErrorCode).toBe("output_option_missing_value");
     expect(report.message).toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--output"],
+      ["--json", "--output"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--output",
+          canonicalOption: "--output",
+          index: 1,
+        },
+      ]
+    );
     expect(result.status).toBe(1);
   });
 
@@ -342,6 +483,23 @@ describe("client wasm preflight script", () => {
     expect(report.unknownOptionCount).toBe(0);
     expect(report.validationErrorCode).toBe("output_option_missing_value");
     expect(report.message).toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--output"],
+      ["--json", "--output="],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--output=",
+          canonicalOption: "--output",
+          index: 1,
+        },
+      ]
+    );
     expect(result.status).toBe(1);
   });
 
@@ -373,6 +531,18 @@ describe("client wasm preflight script", () => {
     expect(report.message).toBe(
       "Unsupported option(s): --mystery. Supported options: --compact, --json, --no-build, --output, --verify."
     );
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
     expect(result.status).toBe(1);
   });
 
@@ -394,6 +564,23 @@ describe("client wasm preflight script", () => {
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
     expect(report.message).not.toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--no-build"],
+      ["--json", "--no-build"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--no-build",
+          canonicalOption: "--no-build",
+          index: 1,
+        },
+      ]
+    );
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
