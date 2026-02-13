@@ -3675,15 +3675,32 @@ pub fn mesh_space<S: VoxelAccess>(
 
     let [min_x, min_y, min_z] = *min;
     let [max_x, max_y, max_z] = *max;
+    let mut cached_voxel_block_id = u32::MAX;
+    let mut cached_voxel_block: Option<&Block> = None;
 
     for vx in min_x..max_x {
         for vz in min_z..max_z {
             for vy in min_y..max_y {
                 let raw_voxel = space.get_raw_voxel(vx, vy, vz);
                 let voxel_id = extract_id(raw_voxel);
-                let block = match registry.get_block_by_id(voxel_id) {
-                    Some(b) => b,
-                    None => continue,
+                let block = if cached_voxel_block_id == voxel_id {
+                    match cached_voxel_block {
+                        Some(block) => block,
+                        None => continue,
+                    }
+                } else {
+                    match registry.get_block_by_id(voxel_id) {
+                        Some(b) => {
+                            cached_voxel_block_id = voxel_id;
+                            cached_voxel_block = Some(b);
+                            b
+                        }
+                        None => {
+                            cached_voxel_block_id = voxel_id;
+                            cached_voxel_block = None;
+                            continue;
+                        }
+                    }
                 };
 
                 let is_empty = block.is_empty;
