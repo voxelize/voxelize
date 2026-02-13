@@ -517,12 +517,14 @@ describe("preflight aggregate report", () => {
     expect(report.exitCode).toBe(1);
     expect(report.platform).toBe(process.platform);
     expect(report.nodeVersion).toBe(process.version);
+    expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(typeof report.endedAt).toBe("string");
     expect(report.totalChecks).toBe(0);
     expect(report.passedCheckCount).toBe(0);
     expect(report.failedCheckCount).toBe(0);
     expect(report.firstFailedCheck).toBeNull();
     expect(report.message).toBe("Missing value for --output option.");
+    expect(report.invalidChecks).toEqual([]);
     expect(result.status).toBe(1);
   });
 
@@ -543,7 +545,9 @@ describe("preflight aggregate report", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.outputPath).toBeNull();
+    expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(report.message).toBe("Missing value for --output option.");
+    expect(report.invalidChecks).toEqual([]);
     expect(result.status).toBe(1);
   });
 
