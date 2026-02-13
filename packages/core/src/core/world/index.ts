@@ -328,6 +328,17 @@ const VOXEL_NEIGHBORS = [
 ];
 
 const LIGHT_COLORS: LightColor[] = ["SUNLIGHT", "RED", "GREEN", "BLUE"];
+const CHUNK_NEIGHBOR_OFFSETS: Coords2[] = [
+  [-1, -1],
+  [0, -1],
+  [1, -1],
+  [-1, 0],
+  [0, 0],
+  [1, 0],
+  [-1, 1],
+  [0, 1],
+  [1, 1],
+];
 
 /**
  * Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture. Keep in mind that
@@ -953,21 +964,13 @@ export class World<T = any> extends Scene implements NetIntercept {
       await this.waitForLightJobsComplete();
     }
 
-    const neighbors = [
-      [-1, -1],
-      [0, -1],
-      [1, -1],
-      [-1, 0],
-      [0, 0],
-      [1, 0],
-      [-1, 1],
-      [0, 1],
-      [1, 1],
-    ];
-
-    const chunks = neighbors.map(([dx, dz]) =>
-      this.getChunkByCoords(cx + dx, cz + dz)
+    const chunks: (Chunk | undefined)[] = new Array(
+      CHUNK_NEIGHBOR_OFFSETS.length
     );
+    for (let i = 0; i < CHUNK_NEIGHBOR_OFFSETS.length; i++) {
+      const [dx, dz] = CHUNK_NEIGHBOR_OFFSETS[i];
+      chunks[i] = this.getChunkByCoords(cx + dx, cz + dz);
+    }
 
     const centerChunk = chunks[4];
     if (!centerChunk) {
