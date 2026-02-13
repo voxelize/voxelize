@@ -366,6 +366,7 @@ const CHUNK_NEIGHBOR_OFFSETS: Coords2[] = [
 
 const ZERO_DIRECTION: [number, number] = [0, 0];
 const ZERO_VECTOR3 = new Vector3(0, 0, 0);
+const EMPTY_BLOCK_UPDATES: BlockUpdate[] = [];
 
 /**
  * Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture. Keep in mind that
@@ -5592,7 +5593,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     let consumedCount = 0;
     const processedClientUpdates = collectClientUpdates
       ? new Array<BlockUpdate>(maxUpdates)
-      : [];
+      : EMPTY_BLOCK_UPDATES;
     let processedClientUpdateCount = 0;
     const processedUpdates = new Array<ProcessedUpdate>(maxUpdates);
     let processedUpdateCount = 0;
