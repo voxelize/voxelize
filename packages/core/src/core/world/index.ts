@@ -3688,28 +3688,26 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     const delta = this.clock.getDelta();
-
-    const center = ChunkUtils.mapVoxelToChunkAt(
-      position.x,
-      position.z,
-      this.options.chunkSize
-    );
+    const chunkSize = this.options.chunkSize;
+    const centerX = Math.floor(position.x / chunkSize);
+    const centerZ = Math.floor(position.z / chunkSize);
     if (this.options.doesTickTime) {
       this._time = (this.time + delta) % this.options.timePerDay;
     }
 
-    this.maintainChunks(center);
+    this.maintainChunks(centerX, centerZ);
 
     if (
-      center[0] !== this._lastCenterChunk[0] ||
-      center[1] !== this._lastCenterChunk[1]
+      centerX !== this._lastCenterChunk[0] ||
+      centerZ !== this._lastCenterChunk[1]
     ) {
-      this._lastCenterChunk = center;
-      this.updatePlantVisibility(center);
+      this._lastCenterChunk[0] = centerX;
+      this._lastCenterChunk[1] = centerZ;
+      this.updatePlantVisibility(centerX, centerZ);
     }
 
-    this.requestChunks(center, direction);
-    this.processChunks(center);
+    this.requestChunks(centerX, centerZ, direction);
+    this.processChunks(centerX, centerZ);
     this.updatePhysics(delta);
     this.updateUniforms();
     this.updateSkyAndClouds(position);
@@ -3926,7 +3924,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     return this._deleteRadius;
   }
 
-  private requestChunks(center: Coords2, direction: Vector3) {
+  private requestChunks(centerX: number, centerZ: number, direction: Vector3) {
     const {
       renderRadius,
       options: {
@@ -3961,7 +3959,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       : 0;
     const tanAngleThreshold = hasDirection ? Math.tan(angleThreshold) : 0;
 
-    const [centerX, centerZ] = center;
     const safeRadius = Math.max(renderRadius - 2, 1);
     const safeRadiusSquared = safeRadius * safeRadius;
     const toRequestClosest: Array<{ coords: Coords2; distance: number }> = [];
@@ -4062,16 +4059,15 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.packets.push({
       type: "LOAD",
       json: {
-        center,
+        center: [centerX, centerZ],
         direction: directionPayload,
         chunks: requestChunks,
       },
     });
   }
 
-  private processChunks(center: Coords2) {
+  private processChunks(centerX: number, centerZ: number) {
     if (this.chunkPipeline.processingCount === 0) return;
-    const [centerX, centerZ] = center;
     const {
       maxProcessesPerUpdate,
       chunkSize,
@@ -4254,11 +4250,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
   }
 
-  private maintainChunks(center: Coords2) {
+  private maintainChunks(centerX: number, centerZ: number) {
     const { deleteRadius } = this;
     const deleteRadiusSquared = deleteRadius * deleteRadius;
-
-    const [centerX, centerZ] = center;
     const deleted: Coords2[] = [];
     const toRemove: string[] = [];
 
@@ -4349,9 +4343,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
   }
 
-  private updatePlantVisibility(center: Coords2) {
+  private updatePlantVisibility(cx: number, cz: number) {
     const radiusSq = this.plantRadiusSq;
-    const [cx, cz] = center;
 
     for (const [, chunk] of this.chunkPipeline.loadedEntries()) {
       const [x, z] = chunk.coords;
