@@ -2324,22 +2324,27 @@ fn build_face_process_cache<S: VoxelAccess>(
     space: &S,
 ) -> FaceProcessCache {
     let is_all_transparent = block.is_all_transparent;
+    let skip_opaque_checks = is_see_through || is_all_transparent;
 
-    let center_light = if is_see_through || is_all_transparent {
+    let center_light = if skip_opaque_checks {
         Some(neighbors.get_raw_light(0, 0, 0) & 0xFFFF)
     } else {
         None
     };
 
     FaceProcessCache {
-        opaque_mask: if !(is_see_through || is_all_transparent) {
+        opaque_mask: if !skip_opaque_checks {
             Some(build_neighbor_opaque_mask(neighbors, registry))
         } else {
             None
         },
         center_light,
         fluid_surface_above: is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space),
-        block_min: block_min_corner(block),
+        block_min: if skip_opaque_checks && !is_fluid {
+            [0.0, 0.0, 0.0]
+        } else {
+            block_min_corner(block)
+        },
     }
 }
 
@@ -3798,20 +3803,25 @@ pub fn mesh_space<S: VoxelAccess>(
                 }
                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
                 let is_all_transparent = block.is_all_transparent;
-                let center_light = if is_see_through || is_all_transparent {
+                let skip_opaque_checks = is_see_through || is_all_transparent;
+                let center_light = if skip_opaque_checks {
                     Some(neighbors.get_raw_light(0, 0, 0) & 0xFFFF)
                 } else {
                     None
                 };
                 let face_cache = FaceProcessCache {
-                    opaque_mask: if !(is_see_through || is_all_transparent) {
+                    opaque_mask: if !skip_opaque_checks {
                         Some(build_neighbor_opaque_mask(&neighbors, registry))
                     } else {
                         None
                     },
                     center_light,
                     fluid_surface_above: is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space),
-                    block_min: block_min_corner(block),
+                    block_min: if skip_opaque_checks && !is_fluid {
+                        [0.0, 0.0, 0.0]
+                    } else {
+                        block_min_corner(block)
+                    },
                 };
 
                 let uses_main_geometry_only = if is_fluid || has_dynamic_patterns {
