@@ -2227,6 +2227,8 @@ fn process_face<S: VoxelAccess>(
         None
     };
     let fluid_surface_above = cache.fluid_surface_above;
+    let fluid_bit = if is_fluid { 1 << 18 } else { 0 };
+    let apply_wave_bit = is_fluid && !fluid_surface_above;
 
     let is_diagonal = dir == [0, 0, 0];
     let has_diagonals = is_see_through && block.has_diagonal_faces_cached();
@@ -2420,8 +2422,7 @@ fn process_face<S: VoxelAccess>(
         light = LightUtils::insert_green_light(light, green_light);
         light = LightUtils::insert_blue_light(light, blue_light);
         light = LightUtils::insert_sunlight(light, sunlight);
-        let fluid_bit = if is_fluid { 1 << 18 } else { 0 };
-        let wave_bit = if is_fluid && dy == 1 && !fluid_surface_above {
+        let wave_bit = if apply_wave_bit && dy == 1 {
             1 << 20
         } else {
             0
