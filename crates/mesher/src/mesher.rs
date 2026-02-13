@@ -438,7 +438,7 @@ fn build_neighbor_opaque_mask(neighbors: &NeighborCache, registry: &Registry) ->
     mask
 }
 
-#[inline]
+#[inline(always)]
 fn neighbor_is_opaque(mask: &[bool; 27], ox: i32, oy: i32, oz: i32) -> bool {
     mask[NeighborCache::offset_to_index(ox, oy, oz)]
 }
