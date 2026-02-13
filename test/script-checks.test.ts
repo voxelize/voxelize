@@ -227,6 +227,33 @@ describe("root preflight scripts", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("check-wasm-pack json mode uses the last output flag", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-wasm-pack-json-last-output-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+    const secondOutputPath = path.resolve(tempDirectory, "second-report.json");
+
+    const result = runScript("check-wasm-pack.mjs", [
+      "--json",
+      "--output",
+      firstOutputPath,
+      "--output",
+      secondOutputPath,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as WasmPackJsonReport;
+    const secondFileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as WasmPackJsonReport;
+
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(secondFileReport.outputPath).toBe(secondOutputPath);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("check-wasm-pack json mode validates missing output value", () => {
     const result = runScript("check-wasm-pack.mjs", ["--json", "--output"]);
     const report = JSON.parse(result.output) as WasmPackJsonReport;
@@ -446,6 +473,34 @@ describe("root preflight scripts", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("check-client json mode uses the last output flag", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-client-json-last-output-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+    const secondOutputPath = path.resolve(tempDirectory, "second-report.json");
+
+    const result = runScript("check-client.mjs", [
+      "--json",
+      "--no-build",
+      "--output",
+      firstOutputPath,
+      "--output",
+      secondOutputPath,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as ClientJsonReport;
+    const secondFileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as ClientJsonReport;
+
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(secondFileReport.outputPath).toBe(secondOutputPath);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("check-client json mode validates missing output value", () => {
     const result = runScript("check-client.mjs", ["--json", "--output"]);
     const report = JSON.parse(result.output) as ClientJsonReport;
@@ -581,6 +636,34 @@ describe("root preflight scripts", () => {
     expectTimingMetadata(stdoutReport);
     expect(fileReport.outputPath).toBe(outputPath);
     expect(fileReport.exitCode).toBe(stdoutReport.exitCode);
+    expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("check-onboarding json mode uses the last output flag", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-onboarding-json-last-output-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+    const secondOutputPath = path.resolve(tempDirectory, "second-report.json");
+
+    const result = runScript("check-onboarding.mjs", [
+      "--json",
+      "--no-build",
+      "--output",
+      firstOutputPath,
+      "--output",
+      secondOutputPath,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as OnboardingJsonReport;
+    const secondFileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as OnboardingJsonReport;
+
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(secondFileReport.outputPath).toBe(secondOutputPath);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
     expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
 
     fs.rmSync(tempDirectory, { recursive: true, force: true });
