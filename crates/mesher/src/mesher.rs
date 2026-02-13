@@ -915,18 +915,7 @@ fn should_render_face<S: VoxelAccess>(
             && !is_opaque
             && !n_block_type.is_opaque
             && ((is_see_through && neighbor_id == voxel_id && n_block_type.transparent_standalone)
-                || (neighbor_id != voxel_id && (is_see_through || n_block_type.is_see_through))
-                || ({
-                    if is_see_through && !is_opaque && n_block_type.is_opaque {
-                        let self_bounding = AABB::union_all(&block.aabbs);
-                        let mut n_bounding = AABB::union_all(&n_block_type.aabbs);
-                        n_bounding.translate(dir[0] as f32, dir[1] as f32, dir[2] as f32);
-                        !(self_bounding.intersects(&n_bounding)
-                            || self_bounding.touches(&n_bounding))
-                    } else {
-                        false
-                    }
-                })))
+                || (neighbor_id != voxel_id && (is_see_through || n_block_type.is_see_through))))
         || (!see_through && (!is_opaque || !n_block_type.is_opaque))
         || (is_fluid
             && n_block_type.is_opaque
@@ -1964,18 +1953,7 @@ fn process_face<S: VoxelAccess>(
             && ((is_see_through
                 && neighbor_id == voxel_id
                 && n_block_type.transparent_standalone)
-                || (neighbor_id != voxel_id && (is_see_through || n_block_type.is_see_through))
-                || ({
-                    if is_see_through && !is_opaque && n_block_type.is_opaque {
-                        let self_bounding = AABB::union_all(&block.aabbs);
-                        let mut n_bounding = AABB::union_all(&n_block_type.aabbs);
-                        n_bounding.translate(dir[0] as f32, dir[1] as f32, dir[2] as f32);
-                        !(self_bounding.intersects(&n_bounding)
-                            || self_bounding.touches(&n_bounding))
-                    } else {
-                        false
-                    }
-                })))
+                || (neighbor_id != voxel_id && (is_see_through || n_block_type.is_see_through))))
         || (!see_through && (!is_opaque || !n_block_type.is_opaque))
         || (is_fluid
             && n_block_type.is_opaque
