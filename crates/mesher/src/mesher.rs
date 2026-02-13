@@ -1886,12 +1886,10 @@ fn process_face<S: VoxelAccess>(
     } = uv_map.get(&face.name).cloned().unwrap_or_default();
 
     let ndx = (positions.len() / 3) as i32;
-    let mut face_aos = Vec::with_capacity(4);
-
-    let mut four_sunlights = Vec::with_capacity(4);
-    let mut four_red_lights = Vec::with_capacity(4);
-    let mut four_green_lights = Vec::with_capacity(4);
-    let mut four_blue_lights = Vec::with_capacity(4);
+    let mut face_aos = [0i32; 4];
+    let mut four_red_lights = [0u32; 4];
+    let mut four_green_lights = [0u32; 4];
+    let mut four_blue_lights = [0u32; 4];
 
     let block_aabb = AABB::union_all(&block.aabbs);
 
@@ -1915,7 +1913,7 @@ fn process_face<S: VoxelAccess>(
         0.0001
     };
 
-    for corner in face.corners.iter() {
+    for (corner_index, corner) in face.corners.iter().enumerate() {
         let mut pos = corner.pos;
 
         if (rotatable || y_rotatable) && !world_space {
@@ -1984,10 +1982,11 @@ fn process_face<S: VoxelAccess>(
             green_light = g;
             blue_light = b;
         } else {
-            let mut sum_sunlights = Vec::with_capacity(8);
-            let mut sum_red_lights = Vec::with_capacity(8);
-            let mut sum_green_lights = Vec::with_capacity(8);
-            let mut sum_blue_lights = Vec::with_capacity(8);
+            let mut sum_sunlights = 0u32;
+            let mut sum_red_lights = 0u32;
+            let mut sum_green_lights = 0u32;
+            let mut sum_blue_lights = 0u32;
+            let mut light_count = 0u32;
 
             for x in 0..=1 {
                 for y in 0..=1 {
@@ -2091,21 +2090,20 @@ fn process_face<S: VoxelAccess>(
                             }
                         }
 
-                        sum_sunlights.push(local_sunlight);
-                        sum_red_lights.push(local_red_light);
-                        sum_green_lights.push(local_green_light);
-                        sum_blue_lights.push(local_blue_light);
+                        sum_sunlights += local_sunlight;
+                        sum_red_lights += local_red_light;
+                        sum_green_lights += local_green_light;
+                        sum_blue_lights += local_blue_light;
+                        light_count += 1;
                     }
                 }
             }
 
-            let len = sum_sunlights.len();
-            if len > 0 {
-                let len_f32 = len as f32;
-                sunlight = (sum_sunlights.iter().sum::<u32>() as f32 / len_f32) as u32;
-                red_light = (sum_red_lights.iter().sum::<u32>() as f32 / len_f32) as u32;
-                green_light = (sum_green_lights.iter().sum::<u32>() as f32 / len_f32) as u32;
-                blue_light = (sum_blue_lights.iter().sum::<u32>() as f32 / len_f32) as u32;
+            if light_count > 0 {
+                sunlight = sum_sunlights / light_count;
+                red_light = sum_red_lights / light_count;
+                green_light = sum_green_lights / light_count;
+                blue_light = sum_blue_lights / light_count;
             } else {
                 sunlight = 0;
                 red_light = 0;
@@ -2128,11 +2126,10 @@ fn process_face<S: VoxelAccess>(
         };
         lights.push(light as i32 | ao << 16 | fluid_bit | wave_bit);
 
-        four_sunlights.push(sunlight);
-        four_red_lights.push(red_light);
-        four_green_lights.push(green_light);
-        four_blue_lights.push(blue_light);
-        face_aos.push(ao);
+        four_red_lights[corner_index] = red_light;
+        four_green_lights[corner_index] = green_light;
+        four_blue_lights[corner_index] = blue_light;
+        face_aos[corner_index] = ao;
     }
 
     let a_rt = four_red_lights[0];
