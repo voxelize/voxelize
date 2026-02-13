@@ -2408,13 +2408,6 @@ fn process_face<S: VoxelAccess>(
     } else {
         None
     };
-    let center_light_packed = if skip_opaque_checks {
-        cache
-            .center_light
-            .expect("center light exists when opaque checks are skipped")
-    } else {
-        0
-    };
     let fluid_surface_above = cache.fluid_surface_above;
     let fluid_bit = if is_fluid { 1 << 18 } else { 0 };
     let apply_wave_bit = is_fluid && !fluid_surface_above;
@@ -2457,13 +2450,11 @@ fn process_face<S: VoxelAccess>(
     let base_y = vy as f32 - min_y as f32 - dir[1] as f32 * face_inset;
     let base_z = vz as f32 - min_z as f32 - dir[2] as f32 * face_inset + diag_z_offset;
 
-    let mut face_aos = [0i32; 4];
-    let mut four_red_lights = [0u32; 4];
-    let mut four_green_lights = [0u32; 4];
-    let mut four_blue_lights = [0u32; 4];
-
     if skip_opaque_checks {
-        let center_light_i32 = center_light_packed as i32;
+        let center_light_i32 = cache
+            .center_light
+            .expect("center light exists when opaque checks are skipped")
+            as i32;
         let base_light_i32 = center_light_i32 | 3 << 16 | fluid_bit;
         for corner in &face.corners {
             let mut pos = corner.pos;
@@ -2487,6 +2478,10 @@ fn process_face<S: VoxelAccess>(
             lights.push(base_light_i32 | wave_bit);
         }
     } else {
+        let mut face_aos = [0i32; 4];
+        let mut four_red_lights = [0u32; 4];
+        let mut four_green_lights = [0u32; 4];
+        let mut four_blue_lights = [0u32; 4];
         let mask = opaque_mask.expect("opaque mask exists when opaque checks are needed");
         let block_min_x_eps = block_min[0] + 0.01;
         let block_min_z_eps = block_min[2] + 0.01;
@@ -2630,68 +2625,65 @@ fn process_face<S: VoxelAccess>(
             four_blue_lights[corner_index] = blue_light;
             face_aos[corner_index] = ao;
         }
-    }
+        let a_rt = four_red_lights[0];
+        let b_rt = four_red_lights[1];
+        let c_rt = four_red_lights[2];
+        let d_rt = four_red_lights[3];
 
-    if skip_opaque_checks {
+        let a_gt = four_green_lights[0];
+        let b_gt = four_green_lights[1];
+        let c_gt = four_green_lights[2];
+        let d_gt = four_green_lights[3];
+
+        let a_bt = four_blue_lights[0];
+        let b_bt = four_blue_lights[1];
+        let c_bt = four_blue_lights[2];
+        let d_bt = four_blue_lights[3];
+
+        let ao_diag_sum = face_aos[0] + face_aos[3];
+        let ao_off_sum = face_aos[1] + face_aos[2];
+        let should_flip = if ao_diag_sum > ao_off_sum {
+            true
+        } else {
+            let one_tr0 = a_rt == 0 || b_rt == 0 || c_rt == 0 || d_rt == 0;
+            let one_tg0 = a_gt == 0 || b_gt == 0 || c_gt == 0 || d_gt == 0;
+            let one_tb0 = a_bt == 0 || b_bt == 0 || c_bt == 0 || d_bt == 0;
+
+            let fequals = ao_diag_sum == ao_off_sum;
+            let ozao_r = fequals && a_rt + d_rt < b_rt + c_rt;
+            let ozao_g = fequals && a_gt + d_gt < b_gt + c_gt;
+            let ozao_b = fequals && a_bt + d_bt < b_bt + c_bt;
+
+            let anz_r = one_tr0 && has_channel_midpoint_anomaly(a_rt, b_rt, c_rt, d_rt);
+            let anz_g = one_tg0 && has_channel_midpoint_anomaly(a_gt, b_gt, c_gt, d_gt);
+            let anz_b = one_tb0 && has_channel_midpoint_anomaly(a_bt, b_bt, c_bt, d_bt);
+
+            (ozao_r || ozao_g || ozao_b) || (anz_r || anz_g || anz_b)
+        };
+
         indices.push(ndx);
         indices.push(ndx + 1);
-        indices.push(ndx + 2);
-        indices.push(ndx + 2);
-        indices.push(ndx + 1);
-        indices.push(ndx + 3);
+
+        if should_flip {
+            indices.push(ndx + 3);
+            indices.push(ndx + 3);
+            indices.push(ndx + 2);
+            indices.push(ndx);
+        } else {
+            indices.push(ndx + 2);
+            indices.push(ndx + 2);
+            indices.push(ndx + 1);
+            indices.push(ndx + 3);
+        }
         return;
     }
 
-    let a_rt = four_red_lights[0];
-    let b_rt = four_red_lights[1];
-    let c_rt = four_red_lights[2];
-    let d_rt = four_red_lights[3];
-
-    let a_gt = four_green_lights[0];
-    let b_gt = four_green_lights[1];
-    let c_gt = four_green_lights[2];
-    let d_gt = four_green_lights[3];
-
-    let a_bt = four_blue_lights[0];
-    let b_bt = four_blue_lights[1];
-    let c_bt = four_blue_lights[2];
-    let d_bt = four_blue_lights[3];
-
-    let ao_diag_sum = face_aos[0] + face_aos[3];
-    let ao_off_sum = face_aos[1] + face_aos[2];
-    let should_flip = if ao_diag_sum > ao_off_sum {
-        true
-    } else {
-        let one_tr0 = a_rt == 0 || b_rt == 0 || c_rt == 0 || d_rt == 0;
-        let one_tg0 = a_gt == 0 || b_gt == 0 || c_gt == 0 || d_gt == 0;
-        let one_tb0 = a_bt == 0 || b_bt == 0 || c_bt == 0 || d_bt == 0;
-
-        let fequals = ao_diag_sum == ao_off_sum;
-        let ozao_r = fequals && a_rt + d_rt < b_rt + c_rt;
-        let ozao_g = fequals && a_gt + d_gt < b_gt + c_gt;
-        let ozao_b = fequals && a_bt + d_bt < b_bt + c_bt;
-
-        let anz_r = one_tr0 && has_channel_midpoint_anomaly(a_rt, b_rt, c_rt, d_rt);
-        let anz_g = one_tg0 && has_channel_midpoint_anomaly(a_gt, b_gt, c_gt, d_gt);
-        let anz_b = one_tb0 && has_channel_midpoint_anomaly(a_bt, b_bt, c_bt, d_bt);
-
-        (ozao_r || ozao_g || ozao_b) || (anz_r || anz_g || anz_b)
-    };
-
     indices.push(ndx);
     indices.push(ndx + 1);
-
-    if should_flip {
-        indices.push(ndx + 3);
-        indices.push(ndx + 3);
-        indices.push(ndx + 2);
-        indices.push(ndx);
-    } else {
-        indices.push(ndx + 2);
-        indices.push(ndx + 2);
-        indices.push(ndx + 1);
-        indices.push(ndx + 3);
-    }
+    indices.push(ndx + 2);
+    indices.push(ndx + 2);
+    indices.push(ndx + 1);
+    indices.push(ndx + 3);
 }
 
 fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
