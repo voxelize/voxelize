@@ -93,6 +93,11 @@ export class Perspective {
    * A cache to save the first person camera position.
    */
   private firstPersonPosition = new Vector3();
+  private raycastDirection = new Vector3();
+  private raycastOrigin = new Vector3();
+  private raycastOriginCoords: [number, number, number] = [0, 0, 0];
+  private raycastDirectionCoords: [number, number, number] = [0, 0, 0];
+  private targetCameraPosition = new Vector3();
 
   /**
    * This is the identifier that is used to bind the perspective's keyboard inputs
@@ -238,19 +243,28 @@ export class Perspective {
     }
 
     const getDistance = () => {
-      const dir = new Vector3();
+      const dir = this.raycastDirection;
       (this.state === "second" ? object : camera).getWorldDirection(dir);
       dir.normalize();
       dir.multiplyScalar(-1);
 
-      const pos = new Vector3();
+      const pos = this.raycastOrigin;
       object.getWorldPosition(pos);
+      pos.addScaledVector(dir, this.options.blockMargin);
 
-      pos.add(dir.clone().multiplyScalar(this.options.blockMargin));
+      const raycastOrigin = this.raycastOriginCoords;
+      raycastOrigin[0] = pos.x;
+      raycastOrigin[1] = pos.y;
+      raycastOrigin[2] = pos.z;
+
+      const raycastDirection = this.raycastDirectionCoords;
+      raycastDirection[0] = dir.x;
+      raycastDirection[1] = dir.y;
+      raycastDirection[2] = dir.z;
 
       const result = this.world.raycastVoxels(
-        pos.toArray(),
-        dir.toArray(),
+        raycastOrigin,
+        raycastDirection,
         this.options.maxDistance,
         {
           ignoreFluids: this.options.ignoreFluids,
@@ -262,7 +276,10 @@ export class Perspective {
         return this.options.maxDistance;
       }
 
-      return pos.distanceTo(new Vector3(...result.point));
+      const dx = pos.x - result.point[0];
+      const dy = pos.y - result.point[1];
+      const dz = pos.z - result.point[2];
+      return Math.sqrt(dx * dx + dy * dy + dz * dz);
     };
 
     switch (this.state) {
@@ -270,14 +287,16 @@ export class Perspective {
         break;
       }
       case "second": {
-        const newPos = camera.position.clone();
+        const newPos = this.targetCameraPosition;
+        newPos.copy(camera.position);
         newPos.z = -getDistance();
         camera.position.lerp(newPos, this.options.lerpFactor);
         camera.lookAt(object.position);
         break;
       }
       case "third": {
-        const newPos = camera.position.clone();
+        const newPos = this.targetCameraPosition;
+        newPos.copy(camera.position);
         newPos.z = getDistance();
         camera.position.lerp(newPos, this.options.lerpFactor);
         break;
