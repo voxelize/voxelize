@@ -1682,10 +1682,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const oldRotation = chunk.getVoxelRotation(px, py, pz);
     chunk.setVoxelRotation(px, py, pz, rotation);
 
-    if (
-      oldRotation.value !== rotation.value ||
-      oldRotation.yRotation !== rotation.yRotation
-    ) {
+    if (!oldRotation.equals(rotation)) {
       this.recordVoxelDelta(px, py, pz, { oldRotation, newRotation: rotation });
     }
 
@@ -2622,8 +2619,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       const needsUpdate =
         currentType !== type ||
-        currentRotation.value !== rotation.value ||
-        currentRotation.yRotation !== rotation.yRotation ||
+        !currentRotation.equals(rotation) ||
         currentStage !== stage;
 
       if (needsUpdate) {
