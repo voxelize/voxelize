@@ -1233,35 +1233,37 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     const now = new Date();
-    blockFaces.forEach((face) => {
+    for (let faceIndex = 0; faceIndex < blockFaces.length; faceIndex++) {
+      const face = blockFaces[faceIndex];
       const id = `${face.name}::${block.id}`;
       this.textureLoaderLastMap[id] = now;
-    });
+    }
 
     // If it is a string, load the image.
     if (typeof source === "string") {
       this.loader.loadImage(source).then((data) => {
-        const filteredFaces = blockFaces.filter((face) => {
+        const filteredFaceNames: string[] = [];
+        for (let faceIndex = 0; faceIndex < blockFaces.length; faceIndex++) {
+          const face = blockFaces[faceIndex];
           const id = `${face.name}::${block.id}`;
-          return this.textureLoaderLastMap[id] === now;
-        });
-        this.applyBlockTexture(
-          idOrName,
-          filteredFaces.map((f) => f.name),
-          data
-        );
+          if (this.textureLoaderLastMap[id] === now) {
+            filteredFaceNames.push(face.name);
+          }
+        }
+        this.applyBlockTexture(idOrName, filteredFaceNames, data);
       });
       return;
     }
 
     const data = source;
 
-    blockFaces.forEach((face) => {
+    for (let faceIndex = 0; faceIndex < blockFaces.length; faceIndex++) {
+      const face = blockFaces[faceIndex];
       if (face.isolated) {
         // console.warn(
         //   `Attempting to apply texture onto an isolated face: ${block.name}, ${face.name}. Use 'applyBlockTextureAt' instead.`
         // );
-        return;
+        continue;
       }
 
       const mat = this.getBlockFaceMaterial(block.id, face.name);
@@ -1293,7 +1295,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           );
         }
 
-        return;
+        continue;
       }
 
       // Otherwise, we need to draw the image onto the texture atlas.
@@ -1302,7 +1304,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       // Update the texture with the new image
       mat.map.needsUpdate = true;
-    });
+    }
   }
 
   getIsolatedBlockMaterialAt(
@@ -1553,7 +1555,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       );
     }
 
-    blockFaces.forEach((face) => {
+    for (let faceIndex = 0; faceIndex < blockFaces.length; faceIndex++) {
+      const face = blockFaces[faceIndex];
       const mat = this.getBlockFaceMaterial(block.id, face.name);
 
       // If the block's material is not set up to an atlas texture, we need to set it up.
@@ -1581,7 +1584,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         realKeyframes,
         fadeFrames
       );
-    });
+    }
   }
 
   /**
