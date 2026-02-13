@@ -254,7 +254,9 @@ const applyRelevantDeltas = (
 ): number => {
   let lastSequenceId = 0;
 
-  for (const { cx, cz, deltas } of relevantDeltas) {
+  for (let batchIndex = 0; batchIndex < relevantDeltas.length; batchIndex++) {
+    const deltaBatch = relevantDeltas[batchIndex];
+    const { cx, cz, deltas } = deltaBatch;
     const localX = cx - gridOffsetX;
     const localZ = cz - gridOffsetZ;
 
@@ -279,7 +281,8 @@ const applyRelevantDeltas = (
       }
     }
 
-    for (const delta of deltas) {
+    for (let deltaIndex = 0; deltaIndex < deltas.length; deltaIndex++) {
+      const delta = deltas[deltaIndex];
       const { coords, newVoxel, newRotation, newStage } = delta;
       const vx = coords[0];
       const vy = coords[1];
