@@ -89,7 +89,14 @@ for (const check of checks) {
   };
 
   if (commandFailed) {
-    printFailure("missing");
+    if (result.error !== undefined) {
+      printFailure("missing");
+      continue;
+    }
+
+    const failureDetail =
+      firstLine === "ok" ? "command returned non-zero status" : firstLine;
+    printFailure(`unavailable (${failureDetail})`);
     continue;
   }
 
