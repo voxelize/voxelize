@@ -3066,19 +3066,15 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     let is_see_through = block.is_see_through;
 
                     if is_non_greedy_block {
+                        let non_greedy_voxel_index = current_voxel_index;
                         let is_fluid = block.is_fluid;
-                        if current_voxel_index == usize::MAX {
-                            current_voxel_index = ((vx - min_x) as usize) * yz_span
-                                + ((vy - min_y) as usize) * z_span
-                                + (vz - min_z) as usize;
-                        }
                         let cache_ready = block.cache_ready;
                         let block_needs_rotation = block.rotatable || block.y_rotatable;
                         let mut rotation = BlockRotation::PY(0.0);
                         if block_needs_rotation {
                             rotation = space.get_voxel_rotation(vx, vy, vz);
                         }
-                        processed_non_greedy[current_voxel_index] = true;
+                        processed_non_greedy[non_greedy_voxel_index] = true;
                         let has_standard_six_faces = is_fluid
                             && if cache_ready {
                                 block.has_standard_six_faces
