@@ -8,6 +8,8 @@ import { NetIntercept } from "./network";
 const emptyQ = new Quaternion();
 const emptyP = new Vector3();
 const forwardDirection = new Vector3(0, 0, -1);
+type NetInterceptMessage = NonNullable<NetIntercept["onMessage"]>;
+type NetInterceptClientInfo = Parameters<NetInterceptMessage>[1];
 
 /**
  * Parameters to customize the peers manager.
@@ -78,7 +80,7 @@ const defaultOptions: PeersOptions = {
  */
 export class Peers<
     C extends Object3D = Object3D,
-    T = { direction: number[]; position: number[] }
+    T extends object = { direction: number[]; position: number[] }
   >
   extends Group
   implements NetIntercept
@@ -101,7 +103,7 @@ export class Peers<
   /**
    * The client's own metadata (device info, etc.). This is set when the client first connects to the server.
    */
-  public ownMetadata?: Record<string, any>;
+  public ownMetadata?: T;
 
   public ownPeer?: C;
 
@@ -110,7 +112,7 @@ export class Peers<
    *
    * @hidden
    */
-  public packets: MessageProtocol<any, any, any, any>[] = [];
+  public packets: MessageProtocol[] = [];
 
   private infoJsonCache: string | null = null;
 
@@ -182,10 +184,10 @@ export class Peers<
    */
   onMessage = (
     message: MessageProtocol<{ id: string }, T>,
-    { username, metadata }: { username: string; metadata?: Record<string, any> }
+    { username, metadata }: NetInterceptClientInfo
   ) => {
     this.ownUsername = username;
-    this.ownMetadata = metadata;
+    this.ownMetadata = metadata as T | undefined;
 
     const internalOnJoin = (id: string) => {
       const peer = this.createPeer(id);
