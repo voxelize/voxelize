@@ -3994,22 +3994,18 @@ export class World<T = any> extends Scene implements NetIntercept {
     const processingSet = this.chunkPipeline.getInStage("processing");
     if (processingSet.size === 0) return;
 
-    const toProcessArray: Array<{
-      name: string;
-      source: "update" | "load";
-      data: import("@voxelize/protocol").ChunkProtocol;
-    }> = [];
+    const toProcessArray: import("@voxelize/protocol").ChunkProtocol[] = [];
     for (const name of processingSet) {
-      const procData = this.chunkPipeline.getProcessingData(name);
+      const procData = this.chunkPipeline.getProcessingChunkData(name);
       if (procData) {
-        toProcessArray.push({ name, ...procData });
+        toProcessArray.push(procData);
       }
     }
     const [centerX, centerZ] = center;
 
     toProcessArray.sort((a, b) => {
-      const { x: ax, z: az } = a.data;
-      const { x: bx, z: bz } = b.data;
+      const { x: ax, z: az } = a;
+      const { x: bx, z: bz } = b;
 
       const ad = (ax - centerX) ** 2 + (az - centerZ) ** 2;
       const bd = (bx - centerX) ** 2 + (bz - centerZ) ** 2;
@@ -4040,7 +4036,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const processCount = Math.min(toProcessArray.length, maxProcessesPerUpdate);
     for (let itemIndex = 0; itemIndex < processCount; itemIndex++) {
       const item = toProcessArray[itemIndex];
-      const { x, z, id } = item.data;
+      const { x, z, id } = item;
 
       let chunk = this.getLoadedChunkByCoords(x, z);
 
@@ -4053,7 +4049,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         });
       }
 
-      chunk.setData(item.data);
+      chunk.setData(item);
       chunk.isDirty = false;
 
       this.chunkPipeline.markLoadedAt(x, z, chunk);
@@ -4067,7 +4063,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         if (clientOnlyMeshing) {
           this.markChunkAndNeighborsForMeshing(x, z);
         } else {
-          for (const mesh of item.data.meshes) {
+          for (const mesh of item.meshes) {
             this.buildChunkMesh(x, z, mesh);
             this.meshPipeline.markFreshFromServer(x, z, mesh.level);
           }
@@ -4185,9 +4181,9 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const processingToRemove: string[] = [];
     for (const name of this.chunkPipeline.getInStage("processing")) {
-      const procData = this.chunkPipeline.getProcessingData(name);
+      const procData = this.chunkPipeline.getProcessingChunkData(name);
       if (procData) {
-        const { x, z } = procData.data;
+        const { x, z } = procData;
         if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
           processingToRemove.push(name);
         }

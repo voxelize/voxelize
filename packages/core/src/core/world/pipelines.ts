@@ -138,9 +138,12 @@ export class ChunkPipeline {
     name: string
   ): { source: "update" | "load"; data: ChunkProtocol } | undefined {
     const state = this.states.get(name);
-    return state?.stage === "processing"
-      ? { source: state.source, data: state.data }
-      : undefined;
+    return state?.stage === "processing" ? state : undefined;
+  }
+
+  getProcessingChunkData(name: string): ChunkProtocol | undefined {
+    const state = this.states.get(name);
+    return state?.stage === "processing" ? state.data : undefined;
   }
 
   remove(name: string): Chunk | undefined {
