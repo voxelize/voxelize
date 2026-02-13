@@ -1268,8 +1268,6 @@ fn compute_face_ao_and_light(
     neighbors: &NeighborCache,
     registry: &Registry,
 ) -> ([i32; 4], [i32; 4]) {
-    let [block_min_x, block_min_y, block_min_z] = block_min_corner(block);
-
     let is_see_through = block.is_see_through;
     let is_all_transparent = block.is_all_transparent;
     if is_see_through || is_all_transparent {
@@ -1281,6 +1279,7 @@ fn compute_face_ao_and_light(
         light = LightUtils::insert_sunlight(light, sunlight);
         return ([3, 3, 3, 3], [light as i32; 4]);
     }
+    let [block_min_x, block_min_y, block_min_z] = block_min_corner(block);
     let opaque_mask = build_neighbor_opaque_mask(neighbors, registry);
 
     let corner_positions: [[f32; 3]; 4] = match dir {
@@ -1475,19 +1474,6 @@ fn compute_face_ao_and_light_fast(
     neighbors: &NeighborCache,
     registry: &Registry,
 ) -> ([i32; 4], [i32; 4]) {
-    let (block_min_x, block_min_y, block_min_z) = if block.cache_ready {
-        (
-            block.block_min_cached[0],
-            block.block_min_cached[1],
-            block.block_min_cached[2],
-        )
-    } else if block.is_full_cube() {
-        (0.0, 0.0, 0.0)
-    } else {
-        let block_aabb = AABB::union_all(&block.aabbs);
-        (block_aabb.min_x, block_aabb.min_y, block_aabb.min_z)
-    };
-
     let is_see_through = block.is_see_through;
     let is_all_transparent = block.is_all_transparent;
     let skip_opaque_checks = is_see_through || is_all_transparent;
@@ -1500,6 +1486,18 @@ fn compute_face_ao_and_light_fast(
         light = LightUtils::insert_sunlight(light, sunlight);
         return ([3, 3, 3, 3], [light as i32; 4]);
     }
+    let (block_min_x, block_min_y, block_min_z) = if block.cache_ready {
+        (
+            block.block_min_cached[0],
+            block.block_min_cached[1],
+            block.block_min_cached[2],
+        )
+    } else if block.is_full_cube() {
+        (0.0, 0.0, 0.0)
+    } else {
+        let block_aabb = AABB::union_all(&block.aabbs);
+        (block_aabb.min_x, block_aabb.min_y, block_aabb.min_z)
+    };
     let opaque_mask = build_neighbor_opaque_mask(neighbors, registry);
     let dir_is_x = dir[0].abs() == 1;
     let dir_is_y = dir[1].abs() == 1;
