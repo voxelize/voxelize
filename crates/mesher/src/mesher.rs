@@ -1057,11 +1057,20 @@ fn can_greedy_mesh_block(block: &Block) -> bool {
     block.can_greedy_mesh_without_rotation()
 }
 
+#[inline]
+fn face_name_owned(face: &BlockFace) -> String {
+    if face.name_lower.is_empty() {
+        face.name.clone()
+    } else {
+        face.name_lower.clone()
+    }
+}
+
 fn geometry_key_for_face(block: &Block, face: &BlockFace, vx: i32, vy: i32, vz: i32) -> GeometryMapKey {
     if face.isolated {
-        GeometryMapKey::Isolated(block.id, face.get_name_lower().to_string(), vx, vy, vz)
+        GeometryMapKey::Isolated(block.id, face_name_owned(face), vx, vy, vz)
     } else if face.independent {
-        GeometryMapKey::Face(block.id, face.get_name_lower().to_string())
+        GeometryMapKey::Face(block.id, face_name_owned(face))
     } else {
         GeometryMapKey::Block(block.id)
     }
@@ -2644,7 +2653,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         let key = FaceKey {
                             block_id: block.id,
                             face_name: if face.independent {
-                                Some(face.get_name_lower().to_string())
+                                Some(face_name_owned(face))
                             } else {
                                 None
                             },
@@ -3112,7 +3121,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         let key = FaceKey {
                             block_id: block.id,
                             face_name: if face.independent {
-                                Some(face.get_name_lower().to_string())
+                                Some(face_name_owned(face))
                             } else {
                                 None
                             },
