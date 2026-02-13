@@ -2663,7 +2663,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
 
                     let is_fluid = block.is_fluid;
                     let is_see_through = block.is_see_through;
-                    let has_dynamic_patterns = block.has_dynamic_patterns_cached();
                     let mut rotation = BlockRotation::PY(0.0);
                     if block.rotatable || block.y_rotatable {
                         rotation = space.get_voxel_rotation(vx, vy, vz);
@@ -2675,20 +2674,23 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                 .into_iter()
                                 .map(|f| (f, false))
                                 .collect()
-                        } else if has_dynamic_patterns {
-                            let mut faces = Vec::with_capacity(8);
-                            visit_dynamic_faces(
-                                block,
-                                [vx, vy, vz],
-                                space,
-                                &rotation,
-                                |face, world_space| {
-                                faces.push((face.clone(), world_space));
-                                },
-                            );
-                            faces
                         } else {
-                            block.faces.iter().cloned().map(|f| (f, false)).collect()
+                            let has_dynamic_patterns = block.has_dynamic_patterns_cached();
+                            if has_dynamic_patterns {
+                                let mut faces = Vec::with_capacity(8);
+                                visit_dynamic_faces(
+                                    block,
+                                    [vx, vy, vz],
+                                    space,
+                                    &rotation,
+                                    |face, world_space| {
+                                    faces.push((face.clone(), world_space));
+                                    },
+                                );
+                                faces
+                            } else {
+                                block.faces.iter().cloned().map(|f| (f, false)).collect()
+                            }
                         };
 
                     if is_non_greedy_block {
