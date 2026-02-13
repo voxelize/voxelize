@@ -7,6 +7,12 @@ This example runs the browser client against the demo server.
 - `pnpm install` at the repository root
 - `wasm-pack` installed
 
+Before running client commands, you can verify toolchain availability from the repository root:
+
+```bash
+pnpm run check:dev-env
+```
+
 ## Run
 
 From the repository root:
@@ -36,3 +42,11 @@ The client scripts run a wasm preflight check before `demo` and `build`:
 - if `crates/wasm-mesher/pkg/voxelize_wasm_mesher.js` already exists, they continue immediately
 - if it is missing and `wasm-pack` is available, they attempt `pnpm --dir ../.. build:wasm:dev`
 - if it is missing and `wasm-pack` is unavailable, they fail with a clear setup message
+
+From the repository root you can also run:
+
+```bash
+pnpm run check:client
+```
+
+This runs client typechecking and wasm-artifact preflight in sequence.
