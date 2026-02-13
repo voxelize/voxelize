@@ -92,7 +92,7 @@ Client aggregate JSON reports include `totalSteps`, `passedStepCount`, `failedSt
 Skipped JSON steps are represented with `skipped: true` and `exitCode: null`.
 If `--output` is provided without a value, JSON commands return a structured error report.
 If `--output` is passed multiple times, the last value is used.
-Unsupported CLI flags return structured errors and include `unknownOptions`, `unknownOptionCount`, `supportedCliOptions`, and `validationErrorCode`.
+Unsupported CLI flags return structured errors and include `unknownOptions`, `unknownOptionCount`, `supportedCliOptions`, `supportedCliOptionCount`, and `validationErrorCode`.
 JSON preflight reports also include `activeCliOptions`, `activeCliOptionTokens`, `activeCliOptionResolutions`, and `activeCliOptionOccurrences` for option-usage diagnostics.
 JSON preflight reports include `availableCliOptionAliases` and `availableCliOptionCanonicalMap` to expose alias-to-canonical option mappings.
 If report writing fails, JSON error reports include both `message` and `writeError`.

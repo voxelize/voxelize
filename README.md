@@ -252,7 +252,7 @@ If `--output` or `--only` is passed multiple times, the last value is used.
 Invalid `--only` errors include available canonical check names and special selector aliases (for example `all`, `all-checks`, `all_checks`, `allchecks`) for quick correction.
 Invalid `--only` errors also include `invalidChecks` for machine-readable diagnostics.
 Unsupported CLI flags return structured errors and include `unknownOptions` for machine-readable diagnostics.
-Root/client/onboarding/wasm JSON preflight reports include `supportedCliOptions`, `unknownOptionCount`, and `validationErrorCode` for structured option-validation diagnostics.
+Root/client/onboarding/wasm JSON preflight reports include `supportedCliOptions`, `supportedCliOptionCount`, `unknownOptionCount`, and `validationErrorCode` for structured option-validation diagnostics.
 Root/client/onboarding/wasm JSON preflight reports include `activeCliOptions`, `activeCliOptionTokens`, `activeCliOptionResolutions`, and `activeCliOptionOccurrences` to describe recognized option usage.
 Root/client/onboarding/wasm JSON preflight reports include `availableCliOptionAliases` and `availableCliOptionCanonicalMap` so automation can resolve option aliases to canonical names.
 Argument values passed to `--output` and `--only` are excluded from unrecognized-option detection, even when they start with `-`.
@@ -261,7 +261,7 @@ JSON preflight reports include `optionTerminatorUsed`, `positionalArgs`, and `po
 Unrecognized flags are still listed in `unknownOptions` even when a higher-priority validation error is reported.
 Aggregate preflight reports include `invalidCheckCount` and `unknownOptionCount` for quick numeric filtering in CI/log pipelines.
 Aggregate preflight validation errors include `validationErrorCode` for machine-readable error classification.
-Aggregate preflight reports include `supportedCliOptions` to enumerate accepted CLI flags for this command.
+Aggregate preflight reports include `supportedCliOptions` and `supportedCliOptionCount` to enumerate accepted CLI flags for this command.
 Aggregate preflight reports include `activeCliOptions` with canonical option names detected from the current invocation.
 Aggregate preflight reports include `activeCliOptionCount` for quick cardinality checks on active canonical options.
 Aggregate preflight reports include `activeCliOptionTokens` to preserve the original recognized option forms from the current invocation.

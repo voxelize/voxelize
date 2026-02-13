@@ -358,6 +358,7 @@ describe("report-utils", () => {
       "--output",
       "--verify",
     ]);
+    expect(noValidationErrors.supportedCliOptionCount).toBe(4);
     expect(noValidationErrors.unknownOptions).toEqual([]);
     expect(noValidationErrors.unknownOptionCount).toBe(0);
     expect(noValidationErrors.unsupportedOptionsError).toBeNull();
@@ -369,6 +370,7 @@ describe("report-utils", () => {
     });
     expect(unsupportedOnly.unknownOptions).toEqual(["--mystery"]);
     expect(unsupportedOnly.unknownOptionCount).toBe(1);
+    expect(unsupportedOnly.supportedCliOptionCount).toBe(2);
     expect(unsupportedOnly.unsupportedOptionsError).toBe(
       "Unsupported option(s): --mystery. Supported options: --json, --output."
     );
@@ -413,6 +415,7 @@ describe("report-utils", () => {
       "--output",
       "--verify",
     ]);
+    expect(catalog.supportedCliOptionCount).toBe(4);
     expect(catalog.availableCliOptionAliases).toEqual({
       "--no-build": ["--verify"],
     });
@@ -443,6 +446,7 @@ describe("report-utils", () => {
       "--output",
       "--verify",
     ]);
+    expect(diagnostics.supportedCliOptionCount).toBe(4);
     expect(diagnostics.availableCliOptionAliases).toEqual({
       "--no-build": ["--verify"],
     });
@@ -514,6 +518,7 @@ describe("report-utils", () => {
     expect(diagnostics.unknownOptions).toEqual(["--mystery"]);
     expect(diagnostics.unknownOptionCount).toBe(1);
     expect(diagnostics.supportedCliOptions).toEqual(["--json", "--output"]);
+    expect(diagnostics.supportedCliOptionCount).toBe(2);
     expect(diagnostics.activeCliOptions).toEqual(["--json", "--output"]);
     expect(diagnostics.activeCliOptionTokens).toEqual(["--json", "--output"]);
     expect(diagnostics.activeCliOptionOccurrences).toEqual([
@@ -553,6 +558,7 @@ describe("report-utils", () => {
       "--no-build": "--no-build",
       "--verify": "--no-build",
     });
+    expect(diagnostics.supportedCliOptionCount).toBe(5);
     expect(diagnostics.activeCliOptions).toEqual(["--list-checks", "--no-build"]);
     expect(diagnostics.activeCliOptionTokens).toEqual(["-l", "--verify"]);
     expect(diagnostics.activeCliOptionResolutions).toEqual([

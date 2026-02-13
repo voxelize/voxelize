@@ -32,6 +32,7 @@ type ActiveCliOptionMetadata = {
 type CliOptionCatalogMetadata = {
   availableCliOptionAliases: Record<string, string[]>;
   availableCliOptionCanonicalMap: Record<string, string>;
+  supportedCliOptionCount: number;
 };
 
 type WasmPackJsonReport = OptionTerminatorMetadata &
@@ -164,6 +165,7 @@ describe("client wasm preflight script", () => {
     expectedAliases: Record<string, string[]>,
     expectedSupportedCliOptions: string[]
   ) => {
+    expect(report.supportedCliOptionCount).toBe(expectedSupportedCliOptions.length);
     expect(report.availableCliOptionAliases).toEqual(expectedAliases);
     expect(report.availableCliOptionCanonicalMap).toEqual(
       createExpectedCliOptionCanonicalMap(expectedSupportedCliOptions)

@@ -281,6 +281,7 @@ export const createCliOptionCatalog = ({
 
   return {
     supportedCliOptions,
+    supportedCliOptionCount: supportedCliOptions.length,
     availableCliOptionAliases: optionAliases,
     availableCliOptionCanonicalMap,
   };
@@ -401,6 +402,7 @@ export const createCliOptionValidation = (
 
   return {
     supportedCliOptions,
+    supportedCliOptionCount: supportedCliOptions.length,
     unknownOptions,
     unknownOptionCount,
     unsupportedOptionsError,

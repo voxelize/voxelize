@@ -23,6 +23,7 @@ type OptionTerminatorMetadata = {
 type CliOptionCatalogMetadata = {
   availableCliOptionAliases: Record<string, string[]>;
   availableCliOptionCanonicalMap: Record<string, string>;
+  supportedCliOptionCount: number;
 };
 
 type ActiveCliOptionMetadata = {
@@ -288,6 +289,7 @@ const expectCliOptionCatalogMetadata = (
   expectedAliases: Record<string, string[]>,
   expectedSupportedCliOptions: string[]
 ) => {
+  expect(report.supportedCliOptionCount).toBe(expectedSupportedCliOptions.length);
   expect(report.availableCliOptionAliases).toEqual(expectedAliases);
   expect(report.availableCliOptionCanonicalMap).toEqual(
     createExpectedCliOptionCanonicalMap(expectedSupportedCliOptions)
