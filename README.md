@@ -169,6 +169,7 @@ pnpm run check:preflight:list:json -- --output ./preflight-check-list.json
 pnpm run check:preflight:verify:json
 # compact aggregated verify report
 pnpm run check:preflight:verify:json:compact
+# direct cli alias also works: node ./check-preflight.mjs --verify
 # list available checks in verify-mode context
 pnpm run check:preflight:list:verify:json
 # compact verify-mode check-list report

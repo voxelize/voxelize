@@ -14,13 +14,20 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const cliArgs = process.argv.slice(2);
-const isNoBuild = cliArgs.includes("--no-build");
 const availableCliOptionAliases = {
   "--list-checks": ["--list", "-l"],
+  "--no-build": ["--verify"],
 };
-const isListChecks =
-  cliArgs.includes("--list-checks") ||
-  availableCliOptionAliases["--list-checks"].some((alias) => cliArgs.includes(alias));
+const hasCliOption = (canonicalOption) => {
+  if (cliArgs.includes(canonicalOption)) {
+    return true;
+  }
+
+  const optionAliases = availableCliOptionAliases[canonicalOption] ?? [];
+  return optionAliases.some((alias) => cliArgs.includes(alias));
+};
+const isNoBuild = hasCliOption("--no-build");
+const isListChecks = hasCliOption("--list-checks");
 const isCompact = cliArgs.includes("--compact");
 const supportedCliOptions = [
   "-l",
@@ -29,6 +36,7 @@ const supportedCliOptions = [
   "--list",
   "--list-checks",
   "--no-build",
+  "--verify",
   "--only",
   "--output",
   "--quiet",

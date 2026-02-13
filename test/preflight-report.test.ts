@@ -109,6 +109,7 @@ type PreflightReport = {
   activeCliOptionTokens: string[];
   availableCliOptionAliases: {
     "--list-checks": string[];
+    "--no-build": string[];
   };
   writeError?: string;
   message?: string;
@@ -160,12 +161,14 @@ const expectedSupportedCliOptions = [
   "--list",
   "--list-checks",
   "--no-build",
+  "--verify",
   "--only",
   "--output",
   "--quiet",
 ];
 const expectedAvailableCliOptionAliases = {
   "--list-checks": ["--list", "-l"],
+  "--no-build": ["--verify"],
 };
 const expectedUnsupportedOptionsMessage = (options: string[]) => {
   return `Unsupported option(s): ${options.join(", ")}. Supported options: ${expectedSupportedCliOptions.join(", ")}.`;
@@ -344,6 +347,34 @@ describe("preflight aggregate report", () => {
       "devEnvironment",
       "client",
     ]);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
+  it("supports verify alias for no-build mode", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--verify", "--only", "client"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(false);
+    expect(report.noBuild).toBe(true);
+    expect(report.selectionMode).toBe("only");
+    expect(report.activeCliOptions).toEqual(["--no-build", "--only"]);
+    expect(report.activeCliOptionTokens).toEqual(["--verify", "--only"]);
+    expect(report.selectedChecks).toEqual(["client"]);
+    expect(report.selectedCheckCount).toBe(1);
+    expect(report.requestedChecks).toEqual(["client"]);
+    expect(report.requestedCheckCount).toBe(1);
+    expect(report.skippedChecks).toEqual(["devEnvironment", "wasmPack"]);
+    expect(report.skippedCheckCount).toBe(2);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
