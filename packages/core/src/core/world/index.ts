@@ -2394,13 +2394,16 @@ export class World<T = any> extends Scene implements NetIntercept {
     direction: Vector3,
     threshold: number
   ) {
+    const safeRadius = Math.max(this.renderRadius - 2, 1);
+    const safeRadiusSquared = safeRadius * safeRadius;
     return this.isChunkInViewByTanAt(
       cx,
       cz,
       tx,
       tz,
       direction,
-      Math.tan(threshold)
+      Math.tan(threshold),
+      safeRadiusSquared
     );
   }
 
@@ -2410,13 +2413,13 @@ export class World<T = any> extends Scene implements NetIntercept {
     tx: number,
     tz: number,
     direction: Vector3,
-    tanThreshold: number
+    tanThreshold: number,
+    safeRadiusSquared: number
   ) {
     const dx = cx - tx;
     const dz = cz - tz;
 
-    const safeRadius = Math.max(this.renderRadius - 2, 1);
-    if (dx * dx + dz * dz < safeRadius * safeRadius) {
+    if (dx * dx + dz * dz < safeRadiusSquared) {
       return true;
     }
 
@@ -3931,6 +3934,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     const tanAngleThreshold = hasDirection ? Math.tan(angleThreshold) : 0;
 
     const [centerX, centerZ] = center;
+    const safeRadius = Math.max(renderRadius - 2, 1);
+    const safeRadiusSquared = safeRadius * safeRadius;
     const toRequestClosest: Array<{ coords: Coords2; distance: number }> = [];
     let farthestRequestIndex = -1;
     let farthestRequestDistance = -1;
@@ -3996,7 +4001,8 @@ export class World<T = any> extends Scene implements NetIntercept {
             cx,
             cz,
             direction,
-            tanAngleThreshold
+            tanAngleThreshold,
+            safeRadiusSquared
           )
         ) {
           continue;
