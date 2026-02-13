@@ -6477,8 +6477,13 @@ export class World<T = any> extends Scene implements NetIntercept {
       return;
     }
 
+    const maxUpdatesPerUpdate = this.options.maxUpdatesPerUpdate;
+    if (maxUpdatesPerUpdate <= 0) {
+      return;
+    }
+
     const batchEnd = Math.min(
-      this.blockUpdatesToEmitHead + this.options.maxUpdatesPerUpdate,
+      this.blockUpdatesToEmitHead + maxUpdatesPerUpdate,
       this.blockUpdatesToEmit.length
     );
     const updateCount = batchEnd - this.blockUpdatesToEmitHead;
