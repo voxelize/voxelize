@@ -4164,23 +4164,13 @@ export class World<T = any> extends Scene implements NetIntercept {
         coords: chunk.coords,
       });
 
-      const buildMeshes = () => {
-        if (clientOnlyMeshing) {
-          this.markChunkAndNeighborsForMeshing(x, z);
-        } else {
-          for (const mesh of item.meshes) {
-            this.buildChunkMesh(x, z, mesh);
-            this.meshPipeline.markFreshFromServer(x, z, mesh.level);
-          }
-        }
-      };
       if (chunk.isReady) {
-        buildMeshes();
+        this.buildChunkMeshesForChunkData(x, z, item, clientOnlyMeshing);
         this.triggerChunkInitListeners(chunk);
       } else {
         let disposer = () => {};
         disposer = this.addChunkInitListenerAt(x, z, () => {
-          buildMeshes();
+          this.buildChunkMeshesForChunkData(x, z, item, clientOnlyMeshing);
           disposer();
         });
       }
@@ -4203,6 +4193,23 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.chunkInitializeListeners.delete(chunk.name);
     for (const listener of listeners) {
       listener(chunk);
+    }
+  }
+
+  private buildChunkMeshesForChunkData(
+    x: number,
+    z: number,
+    data: import("@voxelize/protocol").ChunkProtocol,
+    clientOnlyMeshing: boolean
+  ) {
+    if (clientOnlyMeshing) {
+      this.markChunkAndNeighborsForMeshing(x, z);
+      return;
+    }
+
+    for (const mesh of data.meshes) {
+      this.buildChunkMesh(x, z, mesh);
+      this.meshPipeline.markFreshFromServer(x, z, mesh.level);
     }
   }
 
