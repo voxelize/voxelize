@@ -1942,44 +1942,47 @@ fn process_greedy_quad(
         geometry.lights.push(light | (ao << 16) | light_flags);
     }
 
-    let light0 = face_lights[0] as u32;
-    let light1 = face_lights[1] as u32;
-    let light2 = face_lights[2] as u32;
-    let light3 = face_lights[3] as u32;
-    let a_rt = (light0 >> 8) & 0xF;
-    let b_rt = (light1 >> 8) & 0xF;
-    let c_rt = (light2 >> 8) & 0xF;
-    let d_rt = (light3 >> 8) & 0xF;
-
-    let a_gt = (light0 >> 4) & 0xF;
-    let b_gt = (light1 >> 4) & 0xF;
-    let c_gt = (light2 >> 4) & 0xF;
-    let d_gt = (light3 >> 4) & 0xF;
-
-    let a_bt = light0 & 0xF;
-    let b_bt = light1 & 0xF;
-    let c_bt = light2 & 0xF;
-    let d_bt = light3 & 0xF;
-
-    let one_tr0 = a_rt == 0 || b_rt == 0 || c_rt == 0 || d_rt == 0;
-    let one_tg0 = a_gt == 0 || b_gt == 0 || c_gt == 0 || d_gt == 0;
-    let one_tb0 = a_bt == 0 || b_bt == 0 || c_bt == 0 || d_bt == 0;
-
     let ao_diag_sum = face_aos[0] + face_aos[3];
     let ao_off_sum = face_aos[1] + face_aos[2];
-    let fequals = ao_diag_sum == ao_off_sum;
-    let ozao_r = fequals && a_rt + d_rt < b_rt + c_rt;
-    let ozao_g = fequals && a_gt + d_gt < b_gt + c_gt;
-    let ozao_b = fequals && a_bt + d_bt < b_bt + c_bt;
+    let should_flip = if ao_diag_sum > ao_off_sum {
+        true
+    } else {
+        let light0 = face_lights[0] as u32;
+        let light1 = face_lights[1] as u32;
+        let light2 = face_lights[2] as u32;
+        let light3 = face_lights[3] as u32;
+        let a_rt = (light0 >> 8) & 0xF;
+        let b_rt = (light1 >> 8) & 0xF;
+        let c_rt = (light2 >> 8) & 0xF;
+        let d_rt = (light3 >> 8) & 0xF;
 
-    let anz_r = one_tr0 && has_channel_midpoint_anomaly(a_rt, b_rt, c_rt, d_rt);
-    let anz_g = one_tg0 && has_channel_midpoint_anomaly(a_gt, b_gt, c_gt, d_gt);
-    let anz_b = one_tb0 && has_channel_midpoint_anomaly(a_bt, b_bt, c_bt, d_bt);
+        let a_gt = (light0 >> 4) & 0xF;
+        let b_gt = (light1 >> 4) & 0xF;
+        let c_gt = (light2 >> 4) & 0xF;
+        let d_gt = (light3 >> 4) & 0xF;
 
-    if ao_diag_sum > ao_off_sum
-        || (ozao_r || ozao_g || ozao_b)
-        || (anz_r || anz_g || anz_b)
-    {
+        let a_bt = light0 & 0xF;
+        let b_bt = light1 & 0xF;
+        let c_bt = light2 & 0xF;
+        let d_bt = light3 & 0xF;
+
+        let one_tr0 = a_rt == 0 || b_rt == 0 || c_rt == 0 || d_rt == 0;
+        let one_tg0 = a_gt == 0 || b_gt == 0 || c_gt == 0 || d_gt == 0;
+        let one_tb0 = a_bt == 0 || b_bt == 0 || c_bt == 0 || d_bt == 0;
+
+        let fequals = ao_diag_sum == ao_off_sum;
+        let ozao_r = fequals && a_rt + d_rt < b_rt + c_rt;
+        let ozao_g = fequals && a_gt + d_gt < b_gt + c_gt;
+        let ozao_b = fequals && a_bt + d_bt < b_bt + c_bt;
+
+        let anz_r = one_tr0 && has_channel_midpoint_anomaly(a_rt, b_rt, c_rt, d_rt);
+        let anz_g = one_tg0 && has_channel_midpoint_anomaly(a_gt, b_gt, c_gt, d_gt);
+        let anz_b = one_tb0 && has_channel_midpoint_anomaly(a_bt, b_bt, c_bt, d_bt);
+
+        (ozao_r || ozao_g || ozao_b) || (anz_r || anz_g || anz_b)
+    };
+
+    if should_flip {
         geometry.indices.push(ndx);
         geometry.indices.push(ndx + 1);
         geometry.indices.push(ndx + 3);
@@ -2588,28 +2591,31 @@ fn process_face<S: VoxelAccess>(
     let c_bt = four_blue_lights[2];
     let d_bt = four_blue_lights[3];
 
-    let one_tr0 = a_rt == 0 || b_rt == 0 || c_rt == 0 || d_rt == 0;
-    let one_tg0 = a_gt == 0 || b_gt == 0 || c_gt == 0 || d_gt == 0;
-    let one_tb0 = a_bt == 0 || b_bt == 0 || c_bt == 0 || d_bt == 0;
-
     let ao_diag_sum = face_aos[0] + face_aos[3];
     let ao_off_sum = face_aos[1] + face_aos[2];
-    let fequals = ao_diag_sum == ao_off_sum;
-    let ozao_r = fequals && a_rt + d_rt < b_rt + c_rt;
-    let ozao_g = fequals && a_gt + d_gt < b_gt + c_gt;
-    let ozao_b = fequals && a_bt + d_bt < b_bt + c_bt;
+    let should_flip = if ao_diag_sum > ao_off_sum {
+        true
+    } else {
+        let one_tr0 = a_rt == 0 || b_rt == 0 || c_rt == 0 || d_rt == 0;
+        let one_tg0 = a_gt == 0 || b_gt == 0 || c_gt == 0 || d_gt == 0;
+        let one_tb0 = a_bt == 0 || b_bt == 0 || c_bt == 0 || d_bt == 0;
 
-    let anz_r = one_tr0 && has_channel_midpoint_anomaly(a_rt, b_rt, c_rt, d_rt);
-    let anz_g = one_tg0 && has_channel_midpoint_anomaly(a_gt, b_gt, c_gt, d_gt);
-    let anz_b = one_tb0 && has_channel_midpoint_anomaly(a_bt, b_bt, c_bt, d_bt);
+        let fequals = ao_diag_sum == ao_off_sum;
+        let ozao_r = fequals && a_rt + d_rt < b_rt + c_rt;
+        let ozao_g = fequals && a_gt + d_gt < b_gt + c_gt;
+        let ozao_b = fequals && a_bt + d_bt < b_bt + c_bt;
+
+        let anz_r = one_tr0 && has_channel_midpoint_anomaly(a_rt, b_rt, c_rt, d_rt);
+        let anz_g = one_tg0 && has_channel_midpoint_anomaly(a_gt, b_gt, c_gt, d_gt);
+        let anz_b = one_tb0 && has_channel_midpoint_anomaly(a_bt, b_bt, c_bt, d_bt);
+
+        (ozao_r || ozao_g || ozao_b) || (anz_r || anz_g || anz_b)
+    };
 
     indices.push(ndx);
     indices.push(ndx + 1);
 
-    if ao_diag_sum > ao_off_sum
-        || (ozao_r || ozao_g || ozao_b)
-        || (anz_r || anz_g || anz_b)
-    {
+    if should_flip {
         indices.push(ndx + 3);
         indices.push(ndx + 3);
         indices.push(ndx + 2);
