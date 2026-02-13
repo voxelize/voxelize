@@ -1929,7 +1929,7 @@ fn extract_greedy_quads_dense(
     let estimated_cells = width * height;
     let mut quads = Vec::with_capacity((estimated_cells / 2).max(16));
     let mut v_off = 0usize;
-    while v_off < height {
+    'rows: while v_off < height {
         let row_start = v_off * width;
         let mut u_off = 0usize;
         while u_off < width {
@@ -1954,10 +1954,11 @@ fn extract_greedy_quads_dense(
 
                 let mut quad_height = 1usize;
                 let mut next_row_start = start_index + width;
+                let mut next_row_end = next_row_start + quad_width;
                 let mut next_v_off = v_off + 1;
                 'height: while next_v_off < height {
                     let row_start = next_row_start;
-                    let row_end = row_start + quad_width;
+                    let row_end = next_row_end;
                     let mut neighbor_index = row_start;
                     while neighbor_index < row_end {
                         if let Some(neighbor) = mask[neighbor_index].as_ref() {
@@ -1978,6 +1979,7 @@ fn extract_greedy_quads_dense(
                     quad_height += 1;
                     next_v_off += 1;
                     next_row_start += width;
+                    next_row_end += width;
                 }
 
                 quads.push(GreedyQuad {
@@ -1987,6 +1989,10 @@ fn extract_greedy_quads_dense(
                     h: quad_height as i32,
                     data,
                 });
+                if u_off == 0 && quad_width == width {
+                    v_off += quad_height;
+                    continue 'rows;
+                }
                 u_off += quad_width;
                 continue;
             }
