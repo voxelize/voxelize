@@ -367,6 +367,10 @@ pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
 const FLUID_BASE_HEIGHT: f32 = 0.875;
 const FLUID_STAGE_DROPOFF: f32 = 0.1;
 const FLUID_SURFACE_OFFSET: f32 = 0.005;
+const FLUID_CORNER_NXNZ: [[i32; 2]; 3] = [[-1, 0], [0, -1], [-1, -1]];
+const FLUID_CORNER_PXNZ: [[i32; 2]; 3] = [[1, 0], [0, -1], [1, -1]];
+const FLUID_CORNER_NXPZ: [[i32; 2]; 3] = [[-1, 0], [0, 1], [-1, 1]];
+const FLUID_CORNER_PXPZ: [[i32; 2]; 3] = [[1, 0], [0, 1], [1, 1]];
 
 struct NeighborCache {
     data: [[u32; 2]; 27],
@@ -829,22 +833,17 @@ fn create_fluid_faces<S: VoxelAccess>(
     block: &Block,
     registry: &Registry,
 ) -> [BlockFace; 6] {
-    let corner_nxnz: [[i32; 2]; 3] = [[-1, 0], [0, -1], [-1, -1]];
-    let corner_pxnz: [[i32; 2]; 3] = [[1, 0], [0, -1], [1, -1]];
-    let corner_nxpz: [[i32; 2]; 3] = [[-1, 0], [0, 1], [-1, 1]];
-    let corner_pxpz: [[i32; 2]; 3] = [[1, 0], [0, 1], [1, 1]];
-
     let h_nxnz =
-        calculate_fluid_corner_height(vx, vy, vz, 0, 0, &corner_nxnz, fluid_id, space, registry)
+        calculate_fluid_corner_height(vx, vy, vz, 0, 0, &FLUID_CORNER_NXNZ, fluid_id, space, registry)
             - FLUID_SURFACE_OFFSET;
     let h_pxnz =
-        calculate_fluid_corner_height(vx, vy, vz, 1, 0, &corner_pxnz, fluid_id, space, registry)
+        calculate_fluid_corner_height(vx, vy, vz, 1, 0, &FLUID_CORNER_PXNZ, fluid_id, space, registry)
             - FLUID_SURFACE_OFFSET;
     let h_nxpz =
-        calculate_fluid_corner_height(vx, vy, vz, 0, 1, &corner_nxpz, fluid_id, space, registry)
+        calculate_fluid_corner_height(vx, vy, vz, 0, 1, &FLUID_CORNER_NXPZ, fluid_id, space, registry)
             - FLUID_SURFACE_OFFSET;
     let h_pxpz =
-        calculate_fluid_corner_height(vx, vy, vz, 1, 1, &corner_pxpz, fluid_id, space, registry)
+        calculate_fluid_corner_height(vx, vy, vz, 1, 1, &FLUID_CORNER_PXPZ, fluid_id, space, registry)
             - FLUID_SURFACE_OFFSET;
 
     let fallback_uvs;
