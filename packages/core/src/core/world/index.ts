@@ -3892,6 +3892,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         maxChunkRequestsPerUpdate,
       },
     } = this;
+    const { minChunk, maxChunk } = this.options;
     if (maxChunkRequestsPerUpdate <= 0) {
       return;
     }
@@ -3956,7 +3957,12 @@ export class World<T = any> extends Scene implements NetIntercept {
         const cx = centerX + ox;
         const cz = centerZ + oz;
 
-        if (!this.isWithinWorld(cx, cz)) {
+        if (
+          cx < minChunk[0] ||
+          cz < minChunk[1] ||
+          cx > maxChunk[0] ||
+          cz > maxChunk[1]
+        ) {
           continue;
         }
 
