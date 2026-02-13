@@ -3936,6 +3936,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       },
     } = this;
     const { minChunk, maxChunk } = this.options;
+    const minChunkX = minChunk[0];
+    const minChunkZ = minChunk[1];
+    const maxChunkX = maxChunk[0];
+    const maxChunkZ = maxChunk[1];
     if (maxChunkRequestsPerUpdate <= 0) {
       return;
     }
@@ -4010,12 +4014,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         const cx = centerX + ox;
         const cz = centerZ + oz;
 
-        if (
-          cx < minChunk[0] ||
-          cz < minChunk[1] ||
-          cx > maxChunk[0] ||
-          cz > maxChunk[1]
-        ) {
+        if (cx < minChunkX || cz < minChunkZ || cx > maxChunkX || cz > maxChunkZ) {
           continue;
         }
 
@@ -4409,6 +4408,10 @@ export class World<T = any> extends Scene implements NetIntercept {
   private updatePhysics = (delta: number) => {
     if (!this.physics || !this.options.gravity) return;
     const { chunkSize, minChunk, maxChunk } = this.options;
+    const minChunkX = minChunk[0];
+    const minChunkZ = minChunk[1];
+    const maxChunkX = maxChunk[0];
+    const maxChunkZ = maxChunk[1];
     const gravity = this.options.gravity;
     const gravityX = gravity[0];
     const gravityY = gravity[1];
@@ -4426,10 +4429,10 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       if (
         (!chunk || !chunk.isReady) &&
-        cx >= minChunk[0] &&
-        cz >= minChunk[1] &&
-        cx <= maxChunk[0] &&
-        cz <= maxChunk[1]
+        cx >= minChunkX &&
+        cz >= minChunkZ &&
+        cx <= maxChunkX &&
+        cz <= maxChunkZ
       ) {
         continue;
       }
