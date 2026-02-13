@@ -87,7 +87,7 @@ type KeyBoundItem<T extends string> = {
  * @param T The list of input namespaces. For instance, `T` could be "menu" and "game".
  * @category Core
  */
-export class Inputs<T extends string = any> extends EventEmitter {
+export class Inputs<T extends string = string> extends EventEmitter {
   /**
    * The namespace that the Voxelize inputs is in. Use `setNamespace` to
    * set the namespace to something else.
@@ -468,10 +468,14 @@ export class Inputs<T extends string = any> extends EventEmitter {
    * Reset all keyboard keys by unbinding all keys.
    */
   reset = () => {
-    for (const bounds of this.keyBounds.values()) {
+    let keyBoundLists = this.keyBounds.values();
+    let keyBoundList = keyBoundLists.next();
+    while (!keyBoundList.done) {
+      const bounds = keyBoundList.value;
       for (let index = 0; index < bounds.length; index++) {
         bounds[index].unbind();
       }
+      keyBoundList = keyBoundLists.next();
     }
     for (let index = 0; index < this.unbinds.length; index++) {
       this.unbinds[index]();
