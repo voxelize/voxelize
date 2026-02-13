@@ -35,6 +35,8 @@ export class RawChunk {
   private minX = 0;
   private minY = 0;
   private minZ = 0;
+  private size = 0;
+  private maxHeight = 0;
 
   constructor(id: string, coords: Coords2, options: RawChunkOptions) {
     this.id = id;
@@ -44,6 +46,8 @@ export class RawChunk {
     this.options = options;
 
     const { size, maxHeight } = options;
+    this.size = size;
+    this.maxHeight = maxHeight;
 
     this.voxels = ndarray(new Uint32Array(0), [size, maxHeight, size]);
     this.lights = ndarray(new Uint32Array(0), [size, maxHeight, size]);
@@ -594,7 +598,6 @@ export class RawChunk {
   }
 
   private contains(vx: number, vy: number, vz: number) {
-    const { size, maxHeight } = this.options;
     const lx = Math.floor(vx) - this.minX;
     const ly = Math.floor(vy) - this.minY;
     const lz = Math.floor(vz) - this.minZ;
@@ -603,7 +606,12 @@ export class RawChunk {
     this.localBuffer[2] = lz;
 
     return (
-      lx >= 0 && lx < size && ly >= 0 && ly < maxHeight && lz >= 0 && lz < size
+      lx >= 0 &&
+      lx < this.size &&
+      ly >= 0 &&
+      ly < this.maxHeight &&
+      lz >= 0 &&
+      lz < this.size
     );
   }
 }
