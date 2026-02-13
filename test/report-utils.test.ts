@@ -38,6 +38,10 @@ describe("report-utils", () => {
     expect(parseJsonOutput("   \n\t  \n")).toBeNull();
   });
 
+  it("returns null for ansi-only output", () => {
+    expect(parseJsonOutput("\u001b[31m\u001b[0m\u001b[2K")).toBeNull();
+  });
+
   it("parses compact json lines when logs are present", () => {
     expect(
       parseJsonOutput(`warning: preflight noise\n{"ok":true,"exitCode":0}`)
