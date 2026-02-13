@@ -1109,7 +1109,11 @@ fn has_cardinal_faces(block: &Block) -> bool {
 }
 
 fn can_greedy_mesh_block(block: &Block) -> bool {
-    block.can_greedy_mesh_without_rotation()
+    if block.cache_ready {
+        block.greedy_mesh_eligible_no_rotation
+    } else {
+        block.can_greedy_mesh_without_rotation()
+    }
 }
 
 #[inline(always)]
@@ -3035,7 +3039,11 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         }
                     }
 
-                    let greedy_without_rotation = block.can_greedy_mesh_without_rotation();
+                    let greedy_without_rotation = if block.cache_ready {
+                        block.greedy_mesh_eligible_no_rotation
+                    } else {
+                        block.can_greedy_mesh_without_rotation()
+                    };
                     let is_non_greedy_block = !greedy_without_rotation;
                     if is_non_greedy_block && processed_non_greedy[current_voxel_index] {
                         continue;
