@@ -42,6 +42,27 @@ describe("report-utils", () => {
     ).toEqual({ ok: true, exitCode: 0 });
   });
 
+  it("parses pretty-printed json blocks when logs are present", () => {
+    expect(
+      parseJsonOutput(
+        `warning: before\n{\n  "ok": true,\n  "exitCode": 0\n}\nwarning: after`
+      )
+    ).toEqual({ ok: true, exitCode: 0 });
+    expect(
+      parseJsonOutput(
+        `warning: before\n[\n  {\n    "name": "devEnvironment"\n  },\n  {\n    "name": "client"\n  }\n]\nwarning: after`
+      )
+    ).toEqual([{ name: "devEnvironment" }, { name: "client" }]);
+  });
+
+  it("prefers the latest complete json block in mixed output", () => {
+    expect(
+      parseJsonOutput(
+        `{"check":"first","passed":true}\nwarning: separator\n{\n  "check": "second",\n  "passed": false\n}`
+      )
+    ).toEqual({ check: "second", passed: false });
+  });
+
   it("injects schema version in report payloads", () => {
     const report = toReport({ passed: true, schemaVersion: 999 });
 

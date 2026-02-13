@@ -11,8 +11,48 @@ export const parseJsonOutput = (value) => {
   try {
     return JSON.parse(value);
   } catch {
-    const lines = value
-      .split("\n")
+    const rawLines = value.split("\n");
+    let bestMatch = null;
+
+    for (let start = 0; start < rawLines.length; start += 1) {
+      const trimmedStart = rawLines[start].trim();
+      if (
+        !trimmedStart.startsWith("{") &&
+        !trimmedStart.startsWith("[")
+      ) {
+        continue;
+      }
+
+      for (let end = start; end < rawLines.length; end += 1) {
+        const candidate = rawLines.slice(start, end + 1).join("\n").trim();
+        if (candidate.length === 0) {
+          continue;
+        }
+
+        try {
+          const parsedCandidate = JSON.parse(candidate);
+          if (
+            bestMatch === null ||
+            end > bestMatch.end ||
+            (end === bestMatch.end && start < bestMatch.start)
+          ) {
+            bestMatch = {
+              parsedCandidate,
+              start,
+              end,
+            };
+          }
+        } catch {
+          continue;
+        }
+      }
+    }
+
+    if (bestMatch !== null) {
+      return bestMatch.parsedCandidate;
+    }
+
+    const lines = rawLines
       .map((line) => line.trim())
       .filter((line) => line.length > 0);
 
