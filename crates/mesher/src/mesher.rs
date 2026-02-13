@@ -337,7 +337,7 @@ fn neighbor_is_opaque(mask: &[bool; 27], ox: i32, oy: i32, oz: i32) -> bool {
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 struct FaceKey {
     block_id: u32,
-    face_name: String,
+    face_name: Option<String>,
     independent: bool,
     ao: [i32; 4],
     light: [i32; 4],
@@ -963,9 +963,9 @@ fn geometry_key_for_face(block: &Block, face: &BlockFace, vx: i32, vy: i32, vz: 
     }
 }
 
-fn geometry_key_for_quad(block: &Block, face_name: &str, independent: bool) -> GeometryMapKey {
+fn geometry_key_for_quad(block: &Block, face_name: Option<&str>, independent: bool) -> GeometryMapKey {
     if independent {
-        GeometryMapKey::Face(block.id, face_name.to_string())
+        GeometryMapKey::Face(block.id, face_name.unwrap_or_default().to_string())
     } else {
         GeometryMapKey::Block(block.id)
     }
@@ -2555,7 +2555,11 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
 
                         let key = FaceKey {
                             block_id: block.id,
-                            face_name: face.get_name_lower().to_string(),
+                            face_name: if face.independent {
+                                Some(face.get_name_lower().to_string())
+                            } else {
+                                None
+                            },
                             independent: face.independent,
                             ao: aos,
                             light: lights,
@@ -2586,7 +2590,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                 };
                 let geo_key = geometry_key_for_quad(
                     block,
-                    &quad.data.key.face_name,
+                    quad.data.key.face_name.as_deref(),
                     quad.data.key.independent,
                 );
 
@@ -2594,7 +2598,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     let mut g = GeometryProtocol::default();
                     g.voxel = quad.data.key.block_id;
                     if quad.data.key.independent {
-                        g.face_name = Some(quad.data.key.face_name.clone());
+                        g.face_name = quad.data.key.face_name.clone();
                     }
                     g
                 });
@@ -2875,7 +2879,11 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
                         let key = FaceKey {
                             block_id: block.id,
-                            face_name: face.get_name_lower().to_string(),
+                            face_name: if face.independent {
+                                Some(face.get_name_lower().to_string())
+                            } else {
+                                None
+                            },
                             independent: face.independent,
                             ao: aos,
                             light: lights,
@@ -2922,7 +2930,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                 };
                 let geo_key = geometry_key_for_quad(
                     block,
-                    &quad.data.key.face_name,
+                    quad.data.key.face_name.as_deref(),
                     quad.data.key.independent,
                 );
 
@@ -2930,7 +2938,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     let mut entry = GeometryProtocol::default();
                     entry.voxel = quad.data.key.block_id;
                     if quad.data.key.independent {
-                        entry.face_name = Some(quad.data.key.face_name.clone());
+                        entry.face_name = quad.data.key.face_name.clone();
                     }
                     entry
                 });
