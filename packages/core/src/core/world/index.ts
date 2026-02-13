@@ -5847,8 +5847,11 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.processNextLightBatch();
 
     if (!this.hasPendingLightJobs() && this.activeLightBatch === null) {
-      const resolvers = this.lightJobsCompleteResolvers.splice(0);
-      resolvers.forEach((resolve) => resolve());
+      const resolvers = this.lightJobsCompleteResolvers;
+      this.lightJobsCompleteResolvers = [];
+      for (let i = 0; i < resolvers.length; i++) {
+        resolvers[i]();
+      }
       this.processDirtyChunks();
     }
   }
