@@ -285,7 +285,7 @@ describe("preflight aggregate report", () => {
   it("fails when the last only flag contains invalid checks", () => {
     const result = spawnSync(
       process.execPath,
-      [preflightScript, "--only", "devEnvironment", "--only", "unknownCheck"],
+      [preflightScript, "--only", "devEnvironment", "--only", "invalidCheck"],
       {
         cwd: rootDir,
         encoding: "utf8",
@@ -298,7 +298,7 @@ describe("preflight aggregate report", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
-    expect(report.message).toBe("Invalid check name(s): unknownCheck.");
+    expect(report.message).toBe("Invalid check name(s): invalidCheck.");
     expect(report.selectedChecks).toEqual([]);
     expect(report.skippedChecks).toEqual([
       "devEnvironment",
@@ -499,7 +499,7 @@ describe("preflight aggregate report", () => {
   it("fails with structured output for invalid check names", () => {
     const result = spawnSync(
       process.execPath,
-      [preflightScript, "--only", "devEnvironment,unknownCheck"],
+      [preflightScript, "--only", "devEnvironment,invalidCheck"],
       {
         cwd: rootDir,
         encoding: "utf8",
@@ -517,7 +517,7 @@ describe("preflight aggregate report", () => {
     expect(report.passedCheckCount).toBe(0);
     expect(report.failedCheckCount).toBe(0);
     expect(report.firstFailedCheck).toBeNull();
-    expect(report.message).toBe("Invalid check name(s): unknownCheck.");
+    expect(report.message).toBe("Invalid check name(s): invalidCheck.");
     expect(report.availableChecks).toEqual([
       "devEnvironment",
       "wasmPack",
@@ -532,7 +532,7 @@ describe("preflight aggregate report", () => {
       [
         preflightScript,
         "--only",
-        "devEnvironment,unknownCheck,unknownCheck,otherUnknown",
+        "devEnvironment,invalidCheck,INVALID_CHECK,invalid-check,otherInvalid",
       ],
       {
         cwd: rootDir,
@@ -547,7 +547,7 @@ describe("preflight aggregate report", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.message).toBe(
-      "Invalid check name(s): unknownCheck, otherUnknown."
+      "Invalid check name(s): invalidCheck, otherInvalid."
     );
     expect(result.status).toBe(1);
   });

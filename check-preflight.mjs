@@ -95,7 +95,17 @@ const parseSelectedChecks = () => {
   }
 
   if (unknownChecks.length > 0) {
-    const uniqueUnknownChecks = Array.from(new Set(unknownChecks));
+    const uniqueUnknownChecks = [];
+    const seenUnknownChecks = new Set();
+    for (const unknownCheck of unknownChecks) {
+      const normalizedUnknownCheck = normalizeCheckToken(unknownCheck);
+      if (seenUnknownChecks.has(normalizedUnknownCheck)) {
+        continue;
+      }
+      seenUnknownChecks.add(normalizedUnknownCheck);
+      uniqueUnknownChecks.push(unknownCheck);
+    }
+
     return {
       selectedChecks: [],
       error: `Invalid check name(s): ${uniqueUnknownChecks.join(", ")}.`,
