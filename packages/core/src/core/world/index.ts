@@ -3983,8 +3983,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
       const voxelId = ChunkUtils.getVoxelNameAt(vx, vy, vz);
       const voxelCoords: Coords3 = [vx, vy, vz];
-
-      const data: T | null = metadata.json ?? null;
+      const data: T | null =
+        operation === "DELETE" && !hasBlockEntityListeners
+          ? null
+          : metadata.json ?? null;
       const cx = Math.floor(vx / chunkSize);
       const cz = Math.floor(vz / chunkSize);
       const chunkName = ChunkUtils.getChunkNameAt(cx, cz);
