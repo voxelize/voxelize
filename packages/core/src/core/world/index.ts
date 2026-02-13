@@ -2605,48 +2605,40 @@ export class World<T = any> extends Scene implements NetIntercept {
   ) => {
     this.checkIsInitialized("update voxels", false);
 
-    const voxelUpdates = updates
-      .filter((update) => {
-        if (update.vy < 0 || update.vy >= this.options.maxHeight) {
-          return false;
-        }
+    for (const update of updates) {
+      if (update.vy < 0 || update.vy >= this.options.maxHeight) {
+        continue;
+      }
 
-        const { vx, vy, vz, type, rotation, yRotation, stage } = update;
+      const { vx, vy, vz, type, rotation, yRotation, stage } = update;
+      const block = this.getBlockByIdSafe(type);
+      if (!block) {
+        console.warn(`Block ID ${type} does not exist.`);
+        continue;
+      }
 
-        const currId = this.getVoxelAt(vx, vy, vz);
-        const currRot = this.getVoxelRotationAt(vx, vy, vz);
-        const currStage = this.getVoxelStageAt(vx, vy, vz);
+      const currId = this.getVoxelAt(vx, vy, vz);
+      const currRot = this.getVoxelRotationAt(vx, vy, vz);
+      const currStage = this.getVoxelStageAt(vx, vy, vz);
 
-        if (!this.getBlockById(type)) {
-          console.warn(`Block ID ${type} does not exist.`);
-          return false;
-        }
+      if (
+        currId === type &&
+        (rotation !== undefined ? currRot.value === rotation : false) &&
+        (yRotation !== undefined ? currRot.yRotation === yRotation : false) &&
+        (stage !== undefined ? currStage === stage : false)
+      ) {
+        continue;
+      }
 
-        if (
-          currId === type &&
-          (rotation !== undefined ? currRot.value === rotation : false) &&
-          (yRotation !== undefined ? currRot.yRotation === yRotation : false) &&
-          (stage !== undefined ? currStage === stage : false)
-        ) {
-          return false;
-        }
-
-        return true;
-      })
-      .map((update) => {
-        if (isNaN(update.rotation)) {
-          update.rotation = 0;
-        }
-
-        if (!this.getBlockById(update.type).yRotatable) {
-          update.yRotation = 0;
-        }
-
-        return update;
-      });
-
-    for (const update of voxelUpdates) {
-      this.blockUpdatesQueue.push({ source, update });
+      const normalizedUpdate: BlockUpdate = {
+        ...update,
+        rotation:
+          update.rotation === undefined || isNaN(update.rotation)
+            ? 0
+            : update.rotation,
+        yRotation: block.yRotatable ? update.yRotation : 0,
+      };
+      this.blockUpdatesQueue.push({ source, update: normalizedUpdate });
     }
 
     this.processClientUpdates();
