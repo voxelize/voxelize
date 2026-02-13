@@ -5216,6 +5216,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     for (let index = 0; index < processedUpdateCount; index++) {
       const update = processedUpdates[index];
       const { vx, vy, vz, oldBlock, newBlock, newRotation, oldStage } = update;
+      let voxelCoords: Coords3 | null = null;
 
       let currentEmitsLight = oldBlock.isLight;
       let currentRedLevel = oldBlock.redLightLevel;
@@ -5228,11 +5229,18 @@ export class World<T = any> extends Scene implements NetIntercept {
         currentGreenLevel = 0;
         currentBlueLevel = 0;
 
-        for (const pattern of oldBlock.dynamicPatterns) {
-          for (const part of pattern.parts) {
+        const dynamicPatterns = oldBlock.dynamicPatterns;
+        for (
+          let patternIndex = 0;
+          patternIndex < dynamicPatterns.length;
+          patternIndex++
+        ) {
+          const parts = dynamicPatterns[patternIndex].parts;
+          for (let partIndex = 0; partIndex < parts.length; partIndex++) {
+            const part = parts[partIndex];
             const ruleMatched = BlockUtils.evaluateBlockRule(
               part.rule,
-              [vx, vy, vz],
+              voxelCoords ?? (voxelCoords = [vx, vy, vz]),
               {
                 getVoxelAt: (x: number, y: number, z: number) => {
                   if (x === vx && y === vy && z === vz) return update.oldId;
@@ -5270,11 +5278,18 @@ export class World<T = any> extends Scene implements NetIntercept {
       let newEmitsLight = newBlock.isLight;
       if (newBlock.dynamicPatterns) {
         newEmitsLight = false;
-        for (const pattern of newBlock.dynamicPatterns) {
-          for (const part of pattern.parts) {
+        const dynamicPatterns = newBlock.dynamicPatterns;
+        for (
+          let patternIndex = 0;
+          patternIndex < dynamicPatterns.length;
+          patternIndex++
+        ) {
+          const parts = dynamicPatterns[patternIndex].parts;
+          for (let partIndex = 0; partIndex < parts.length; partIndex++) {
+            const part = parts[partIndex];
             const ruleMatched = BlockUtils.evaluateBlockRule(
               part.rule,
-              [vx, vy, vz],
+              voxelCoords ?? (voxelCoords = [vx, vy, vz]),
               {
                 getVoxelAt: (x: number, y: number, z: number) => {
                   if (x === vx && y === vy && z === vz) return update.newId;
@@ -5301,6 +5316,9 @@ export class World<T = any> extends Scene implements NetIntercept {
                 break;
               }
             }
+          }
+          if (newEmitsLight) {
+            break;
           }
         }
       }
@@ -5330,6 +5348,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       const { vx, vy, vz, oldBlock, newBlock, oldRotation, newRotation } =
         update;
       let sourceVoxel: Coords3 | null = null;
+      let voxelCoords: Coords3 | null = null;
       const isRemovedLightSource =
         hasRemovedLightSources &&
         removedLightSourceKeys.has(ChunkUtils.getVoxelNameAt(vx, vy, vz));
@@ -5518,11 +5537,18 @@ export class World<T = any> extends Scene implements NetIntercept {
         let blueLevel = newBlock.blueLightLevel;
 
         if (newBlock.dynamicPatterns) {
-          for (const pattern of newBlock.dynamicPatterns) {
-            for (const part of pattern.parts) {
+          const dynamicPatterns = newBlock.dynamicPatterns;
+          for (
+            let patternIndex = 0;
+            patternIndex < dynamicPatterns.length;
+            patternIndex++
+          ) {
+            const parts = dynamicPatterns[patternIndex].parts;
+            for (let partIndex = 0; partIndex < parts.length; partIndex++) {
+              const part = parts[partIndex];
               const ruleMatched = BlockUtils.evaluateBlockRule(
                 part.rule,
-                [vx, vy, vz],
+                voxelCoords ?? (voxelCoords = [vx, vy, vz]),
                 {
                   getVoxelAt: (x: number, y: number, z: number) =>
                     this.getVoxelAtUnchecked(x, y, z),
