@@ -85,6 +85,28 @@ describe("BlockUtils.evaluateBlockRule", () => {
 
     expect(matched).toBe(true);
   });
+
+  it("matches rotation rules by decoded segment equality", () => {
+    const ruleRotation = BlockRotation.encode(PY_ROTATION, 5);
+    const rule = {
+      type: "simple" as const,
+      offset: [0, 0, 0] as [number, number, number],
+      rotation: ruleRotation,
+    };
+
+    const matched = BlockUtils.evaluateBlockRule(
+      rule,
+      [0, 0, 0],
+      {
+        getVoxelAt: () => 1,
+        getVoxelRotationAt: () =>
+          new BlockRotation(PY_ROTATION, ruleRotation.yRotation + 1e-10),
+        getVoxelStageAt: () => 0,
+      }
+    );
+
+    expect(matched).toBe(true);
+  });
 });
 
 describe("BlockUtils encoding parity", () => {

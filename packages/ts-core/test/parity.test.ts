@@ -251,4 +251,24 @@ describe("BlockRuleEvaluator", () => {
 
     expect(matched).toBe(true);
   });
+
+  it("matches rotation rules by decoded segment equality", () => {
+    const ruleRotation = BlockRotation.encode(PY_ROTATION, 5);
+    const rule = {
+      type: "simple" as const,
+      offset: [0, 0, 0] as [number, number, number],
+      rotation: ruleRotation,
+    };
+
+    const access = {
+      getVoxel: () => 1,
+      getVoxelRotation: () =>
+        BlockRotation.py(ruleRotation.yRotation + 1e-10),
+      getVoxelStage: () => 0,
+    };
+
+    const matched = BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access);
+
+    expect(matched).toBe(true);
+  });
 });
