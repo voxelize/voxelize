@@ -22,6 +22,8 @@ pub struct Block {
     pub is_transparent: [bool; 6],
     #[serde(skip, default)]
     pub is_all_transparent: bool,
+    #[serde(skip, default = "default_greedy_face_indices")]
+    pub greedy_face_indices: [i16; 6],
     pub transparent_standalone: bool,
     #[serde(default)]
     pub occludes_fluid: bool,
@@ -34,8 +36,18 @@ impl Block {
     pub fn compute_name_lower(&mut self) {
         self.name_lower = self.name.to_lowercase();
         self.is_all_transparent = self.is_transparent.iter().all(|transparent| *transparent);
+        self.greedy_face_indices = default_greedy_face_indices();
         for face in &mut self.faces {
             face.compute_name_lower();
+        }
+        for (face_index, face) in self.faces.iter().enumerate() {
+            if let Some(dir_index) = cardinal_dir_index(face.dir) {
+                if self.greedy_face_indices[dir_index] == -1 {
+                    self.greedy_face_indices[dir_index] = face_index as i16;
+                } else {
+                    self.greedy_face_indices[dir_index] = -2;
+                }
+            }
         }
         if let Some(patterns) = &mut self.dynamic_patterns {
             for pattern in patterns {
@@ -64,6 +76,24 @@ impl Block {
         } else {
             &self.name_lower
         }
+    }
+}
+
+#[inline]
+const fn default_greedy_face_indices() -> [i16; 6] {
+    [-1; 6]
+}
+
+#[inline]
+const fn cardinal_dir_index(dir: [i32; 3]) -> Option<usize> {
+    match dir {
+        [1, 0, 0] => Some(0),
+        [-1, 0, 0] => Some(1),
+        [0, 1, 0] => Some(2),
+        [0, -1, 0] => Some(3),
+        [0, 0, 1] => Some(4),
+        [0, 0, -1] => Some(5),
+        _ => None,
     }
 }
 
@@ -2752,12 +2782,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     }
 
                     let mut neighbors = None;
-
-                    for face in &block.faces {
-                        if face.dir != dir {
-                            continue;
-                        }
-
+                    let mut cached_ao_light: Option<([i32; 4], [i32; 4])> = None;
+                    let mut push_greedy_face = |face: &BlockFace| {
                         if face.isolated {
                             non_greedy_faces.push((
                                 vx,
@@ -2770,13 +2796,14 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 is_fluid,
                                 false,
                             ));
-                            continue;
+                            return;
                         }
 
-                        let neighbors_ref =
-                            neighbors.get_or_insert_with(|| NeighborCache::populate(vx, vy, vz, space));
-                        let (aos, lights) =
-                            compute_face_ao_and_light_fast(dir, block, neighbors_ref, registry);
+                        let (aos, lights) = *cached_ao_light.get_or_insert_with(|| {
+                            let neighbors_ref =
+                                neighbors.get_or_insert_with(|| NeighborCache::populate(vx, vy, vz, space));
+                            compute_face_ao_and_light_fast(dir, block, neighbors_ref, registry)
+                        });
                         let uv_range = face.range.clone();
 
                         let key = FaceKey {
@@ -2797,6 +2824,22 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                             is_see_through,
                             is_fluid,
                         });
+                    };
+
+                    let Some(dir_index) = cardinal_dir_index(dir) else {
+                        continue;
+                    };
+                    let face_index = block.greedy_face_indices[dir_index];
+                    if face_index >= 0 {
+                        if let Some(face) = block.faces.get(face_index as usize) {
+                            push_greedy_face(face);
+                        }
+                    } else if face_index == -2 {
+                        for face in &block.faces {
+                            if face.dir == dir {
+                                push_greedy_face(face);
+                            }
+                        }
                     }
                 }
             }

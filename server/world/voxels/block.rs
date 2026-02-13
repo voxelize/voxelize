@@ -1639,6 +1639,7 @@ impl Block {
             is_see_through: self.is_see_through,
             is_transparent: self.is_transparent,
             is_all_transparent: self.is_transparent.iter().all(|transparent| *transparent),
+            greedy_face_indices: [-1; 6],
             transparent_standalone: self.transparent_standalone,
             occludes_fluid: self.occludes_fluid,
             faces: self.faces.iter().map(|f| f.to_mesher_face()).collect(),
