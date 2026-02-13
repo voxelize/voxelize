@@ -5402,104 +5402,126 @@ export class World<T = any> extends Scene implements NetIntercept {
     lightOps: LightOperations,
     startSequenceId: number
   ) {
-    const { maxLightLevel, chunkSize, minChunk, maxChunk, maxHeight } =
-      this.options;
-
-    const colorData: {
-      color: LightColor;
-      removals: Coords3[];
-      floods: LightNode[];
-    }[] = [
-      {
-        color: "SUNLIGHT",
-        removals: lightOps.removals.sunlight,
-        floods: lightOps.floods.sunlight,
-      },
-      {
-        color: "RED",
-        removals: lightOps.removals.red,
-        floods: lightOps.floods.red,
-      },
-      {
-        color: "GREEN",
-        removals: lightOps.removals.green,
-        floods: lightOps.floods.green,
-      },
-      {
-        color: "BLUE",
-        removals: lightOps.removals.blue,
-        floods: lightOps.floods.blue,
-      },
-    ];
-
     const batchId = this.lightBatchIdCounter++;
     const jobsForBatch: LightJob[] = [];
 
-    for (const { color, removals, floods } of colorData) {
-      if (removals.length === 0 && floods.length === 0) {
-        continue;
-      }
+    const sunlightJob = this.createLightJob(
+      "SUNLIGHT",
+      lightOps.removals.sunlight,
+      lightOps.floods.sunlight,
+      startSequenceId,
+      batchId
+    );
+    if (sunlightJob) {
+      jobsForBatch.push(sunlightJob);
+    }
 
-      const firstVoxel = removals.length > 0 ? removals[0] : floods[0].voxel;
-      let minX = firstVoxel[0];
-      let minY = firstVoxel[1];
-      let minZ = firstVoxel[2];
-      let maxX = minX;
-      let maxY = minY;
-      let maxZ = minZ;
+    const redJob = this.createLightJob(
+      "RED",
+      lightOps.removals.red,
+      lightOps.floods.red,
+      startSequenceId,
+      batchId
+    );
+    if (redJob) {
+      jobsForBatch.push(redJob);
+    }
 
-      for (const [x, y, z] of removals) {
-        minX = Math.min(minX, x);
-        minY = Math.min(minY, y);
-        minZ = Math.min(minZ, z);
-        maxX = Math.max(maxX, x);
-        maxY = Math.max(maxY, y);
-        maxZ = Math.max(maxZ, z);
-      }
+    const greenJob = this.createLightJob(
+      "GREEN",
+      lightOps.removals.green,
+      lightOps.floods.green,
+      startSequenceId,
+      batchId
+    );
+    if (greenJob) {
+      jobsForBatch.push(greenJob);
+    }
 
-      for (const { voxel } of floods) {
-        const [x, y, z] = voxel;
-        minX = Math.min(minX, x);
-        minY = Math.min(minY, y);
-        minZ = Math.min(minZ, z);
-        maxX = Math.max(maxX, x);
-        maxY = Math.max(maxY, y);
-        maxZ = Math.max(maxZ, z);
-      }
-
-      minX -= maxLightLevel;
-      minZ -= maxLightLevel;
-      maxX += maxLightLevel;
-      maxZ += maxLightLevel;
-
-      minX = Math.max(minX, minChunk[0] * chunkSize);
-      minZ = Math.max(minZ, minChunk[1] * chunkSize);
-      maxX = Math.min(maxX, (maxChunk[0] + 1) * chunkSize - 1);
-      maxZ = Math.min(maxZ, (maxChunk[1] + 1) * chunkSize - 1);
-      minY = Math.max(minY, 0);
-      maxY = Math.min(maxY, maxHeight - 1);
-
-      const boundingBox: BoundingBox = {
-        min: [minX, minY, minZ],
-        shape: [maxX - minX + 1, maxY - minY + 1, maxZ - minZ + 1],
-      };
-
-      const jobId = `light-${color}-${this.lightJobIdCounter++}`;
-      jobsForBatch.push({
-        jobId,
-        color,
-        lightOps: { removals, floods },
-        boundingBox,
-        startSequenceId,
-        retryCount: 0,
-        batchId,
-      });
+    const blueJob = this.createLightJob(
+      "BLUE",
+      lightOps.removals.blue,
+      lightOps.floods.blue,
+      startSequenceId,
+      batchId
+    );
+    if (blueJob) {
+      jobsForBatch.push(blueJob);
     }
 
     if (jobsForBatch.length === 0) return;
 
     this.lightJobQueue.push(...jobsForBatch);
     this.processNextLightBatch();
+  }
+
+  private createLightJob(
+    color: LightColor,
+    removals: Coords3[],
+    floods: LightNode[],
+    startSequenceId: number,
+    batchId: number
+  ): LightJob | null {
+    if (removals.length === 0 && floods.length === 0) {
+      return null;
+    }
+
+    const firstVoxel = removals.length > 0 ? removals[0] : floods[0].voxel;
+    let minX = firstVoxel[0];
+    let minY = firstVoxel[1];
+    let minZ = firstVoxel[2];
+    let maxX = minX;
+    let maxY = minY;
+    let maxZ = minZ;
+
+    for (const [x, y, z] of removals) {
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      minZ = Math.min(minZ, z);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+      maxZ = Math.max(maxZ, z);
+    }
+
+    for (const { voxel } of floods) {
+      const [x, y, z] = voxel;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      minZ = Math.min(minZ, z);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+      maxZ = Math.max(maxZ, z);
+    }
+
+    const { maxLightLevel, chunkSize, minChunk, maxChunk, maxHeight } =
+      this.options;
+
+    minX -= maxLightLevel;
+    minZ -= maxLightLevel;
+    maxX += maxLightLevel;
+    maxZ += maxLightLevel;
+
+    minX = Math.max(minX, minChunk[0] * chunkSize);
+    minZ = Math.max(minZ, minChunk[1] * chunkSize);
+    maxX = Math.min(maxX, (maxChunk[0] + 1) * chunkSize - 1);
+    maxZ = Math.min(maxZ, (maxChunk[1] + 1) * chunkSize - 1);
+    minY = Math.max(minY, 0);
+    maxY = Math.min(maxY, maxHeight - 1);
+
+    const boundingBox: BoundingBox = {
+      min: [minX, minY, minZ],
+      shape: [maxX - minX + 1, maxY - minY + 1, maxZ - minZ + 1],
+    };
+
+    return {
+      jobId: `light-${color}-${this.lightJobIdCounter++}`,
+      color,
+      lightOps: { removals, floods },
+      boundingBox,
+      startSequenceId,
+      retryCount: 0,
+      batchId,
+    };
   }
 
   private processNextLightBatch() {
