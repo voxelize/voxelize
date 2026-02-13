@@ -5730,16 +5730,14 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (dirtyKeys.length === 0) return;
 
     const processCount = dirtyKeys.length;
-    const workerPromises = new Array<
-      Promise<{
-        cx: number;
-        cz: number;
-        level: number;
-        generation: number;
-        key: string;
-        geometries: GeometryProtocol[];
-      }>
-    >(processCount);
+    const workerPromises = new Array<Promise<GeometryProtocol[] | null>>(
+      processCount
+    );
+    const jobKeys = new Array<string>(processCount);
+    const jobCxs = new Array<number>(processCount);
+    const jobCzs = new Array<number>(processCount);
+    const jobLevels = new Array<number>(processCount);
+    const jobGenerations = new Array<number>(processCount);
     let workerCount = 0;
 
     for (let index = 0; index < processCount; index++) {
@@ -5750,17 +5748,12 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       const { cx, cz, level, generation } = startedJob;
-      workerPromises[workerCount] = this.dispatchMeshWorker(cx, cz, level).then(
-        (geometries) =>
-          ({
-            cx,
-            cz,
-            level,
-            generation,
-            key,
-            geometries,
-          })
-      );
+      jobKeys[workerCount] = key;
+      jobCxs[workerCount] = cx;
+      jobCzs[workerCount] = cz;
+      jobLevels[workerCount] = level;
+      jobGenerations[workerCount] = generation;
+      workerPromises[workerCount] = this.dispatchMeshWorker(cx, cz, level);
       workerCount++;
     }
     if (workerCount === 0) {
@@ -5768,22 +5761,22 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
     workerPromises.length = workerCount;
 
-    const results = await Promise.all(workerPromises);
+    const geometriesResults = await Promise.all(workerPromises);
     let shouldScheduleDirtyChunks = false;
 
-    for (let index = 0; index < results.length; index++) {
-      const result = results[index];
-      if (result.geometries) {
+    for (let index = 0; index < geometriesResults.length; index++) {
+      const geometries = geometriesResults[index];
+      if (geometries) {
         this.applyMeshResult(
-          result.cx,
-          result.cz,
-          result.level,
-          result.geometries,
-          result.generation
+          jobCxs[index],
+          jobCzs[index],
+          jobLevels[index],
+          geometries,
+          jobGenerations[index]
         );
       }
 
-      if (this.meshPipeline.needsRemesh(result.key)) {
+      if (this.meshPipeline.needsRemesh(jobKeys[index])) {
         shouldScheduleDirtyChunks = true;
       }
     }
