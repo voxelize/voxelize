@@ -4257,13 +4257,13 @@ export class World<T = any> extends Scene implements NetIntercept {
     oldValue: number,
     newValue: number
   ) {
-    this.blockUpdateListeners.forEach((listener) =>
+    for (const listener of this.blockUpdateListeners) {
       listener({
         voxel: [vx, vy, vz],
         oldValue,
         newValue,
-      })
-    );
+      });
+    }
   }
 
   private attemptBlockCache(
@@ -4278,9 +4278,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     const name = ChunkUtils.getVoxelNameAt(vx, vy, vz);
-    const arr = this.oldBlocks.get(name) || [];
-    arr.push(oldVal);
-    this.oldBlocks.set(name, arr);
+    const arr = this.oldBlocks.get(name);
+    if (arr) {
+      arr.push(oldVal);
+    } else {
+      this.oldBlocks.set(name, [oldVal]);
+    }
     this.triggerBlockUpdateListeners(vx, vy, vz, oldVal, newVal);
   }
 
