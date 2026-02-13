@@ -3959,6 +3959,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private handleEntities = (entities: EntityProtocol<any>[]) => {
     const { chunkSize } = this.options;
+    const hasBlockEntityListeners = this.blockEntityUpdateListeners.size > 0;
 
     for (let entityIndex = 0; entityIndex < entities.length; entityIndex++) {
       const entity = entities[entityIndex];
@@ -3981,7 +3982,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       const cx = Math.floor(vx / chunkSize);
       const cz = Math.floor(vz / chunkSize);
       const chunkName = ChunkUtils.getChunkNameAt(cx, cz);
-      if (this.blockEntityUpdateListeners.size > 0) {
+      if (hasBlockEntityListeners) {
         const originalData = this.blockEntitiesMap.get(voxelId) ?? null;
         const chunk = this.chunkPipeline.getLoadedChunk(chunkName);
         let chunkCoords: Coords2 | null = null;
