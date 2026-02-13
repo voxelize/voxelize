@@ -5658,6 +5658,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const relevantDeltas: { cx: number; cz: number; deltas: VoxelDelta[] }[] =
       [];
+    let lastRelevantSequenceId = 0;
     const chunksData: (object | null)[] = [];
     const arrayBuffers: ArrayBuffer[] = [];
 
@@ -5675,6 +5676,11 @@ export class World<T = any> extends Scene implements NetIntercept {
               firstRelevantIndex === 0
                 ? allDeltas
                 : allDeltas.slice(firstRelevantIndex);
+            const chunkLastSequenceId =
+              deltasForJob[deltasForJob.length - 1].sequenceId;
+            if (chunkLastSequenceId > lastRelevantSequenceId) {
+              lastRelevantSequenceId = chunkLastSequenceId;
+            }
             relevantDeltas.push({
               cx,
               cz,
@@ -5709,6 +5715,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           maxChunkZ - minChunkZ + 1,
         ],
         chunkGridOffset: [minChunkX, minChunkZ],
+        lastRelevantSequenceId,
         relevantDeltas,
         lightOps,
         options: this.options,

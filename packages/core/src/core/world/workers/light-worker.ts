@@ -94,6 +94,7 @@ interface LightBatchMessage {
   chunksData: (SerializedChunkData | null)[];
   chunkGridDimensions: [number, number];
   chunkGridOffset: [number, number];
+  lastRelevantSequenceId: number;
   relevantDeltas: DeltaBatch[];
   lightOps: {
     removals: Coords3[];
@@ -124,23 +125,6 @@ const pendingBatchMessages: LightBatchMessage[] = [];
 const MAX_PENDING_BATCH_MESSAGES = 512;
 const reusableBoundsMin = new Int32Array(3);
 const reusableBoundsShape = new Uint32Array(3);
-
-const getLastSequenceIdFromDeltas = (relevantDeltas: DeltaBatch[]): number => {
-  let lastSequenceId = 0;
-
-  for (const { deltas } of relevantDeltas) {
-    if (deltas.length === 0) {
-      continue;
-    }
-
-    const chunkLastSequenceId = deltas[deltas.length - 1].sequenceId;
-    if (chunkLastSequenceId > lastSequenceId) {
-      lastSequenceId = chunkLastSequenceId;
-    }
-  }
-
-  return lastSequenceId;
-};
 
 const postEmptyBatchResult = (jobId: string, lastSequenceId = 0) => {
   postMessage({
@@ -406,10 +390,7 @@ onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
     if (pendingBatchMessages.length >= MAX_PENDING_BATCH_MESSAGES) {
       const dropped = pendingBatchMessages.shift();
       if (dropped) {
-        postEmptyBatchResult(
-          dropped.jobId,
-          getLastSequenceIdFromDeltas(dropped.relevantDeltas)
-        );
+        postEmptyBatchResult(dropped.jobId, dropped.lastRelevantSequenceId);
       }
     }
     pendingBatchMessages.push(message);
