@@ -2105,6 +2105,7 @@ fn process_greedy_quad(
     slice: i32,
     slice_offset: f32,
     dir: [i32; 3],
+    dir_index: usize,
     min: &[i32; 3],
     block: &Block,
     geometry: &mut GeometryProtocol,
@@ -2140,8 +2141,8 @@ fn process_greedy_quad(
 
     let slice_pos = slice as f32 + slice_offset;
 
-    let (corners, uv_corners): ([[f32; 3]; 4], [[f32; 2]; 4]) = match (dir[0], dir[1], dir[2]) {
-        (1, 0, 0) => (
+    let (corners, uv_corners): ([[f32; 3]; 4], [[f32; 2]; 4]) = match dir_index {
+        0 => (
             [
                 [slice_pos, v_max, u_max],
                 [slice_pos, v_min, u_max],
@@ -2150,7 +2151,7 @@ fn process_greedy_quad(
             ],
             [[0.0, 1.0], [0.0, 0.0], [1.0, 1.0], [1.0, 0.0]],
         ),
-        (-1, 0, 0) => (
+        1 => (
             [
                 [slice_pos, v_max, u_min],
                 [slice_pos, v_min, u_min],
@@ -2159,7 +2160,7 @@ fn process_greedy_quad(
             ],
             [[0.0, 1.0], [0.0, 0.0], [1.0, 1.0], [1.0, 0.0]],
         ),
-        (0, 1, 0) => (
+        2 => (
             [
                 [u_min, slice_pos, v_max],
                 [u_max, slice_pos, v_max],
@@ -2168,7 +2169,7 @@ fn process_greedy_quad(
             ],
             [[1.0, 1.0], [0.0, 1.0], [1.0, 0.0], [0.0, 0.0]],
         ),
-        (0, -1, 0) => (
+        3 => (
             [
                 [u_max, slice_pos, v_max],
                 [u_min, slice_pos, v_max],
@@ -2177,7 +2178,7 @@ fn process_greedy_quad(
             ],
             [[1.0, 0.0], [0.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
         ),
-        (0, 0, 1) => (
+        4 => (
             [
                 [u_min, v_min, slice_pos],
                 [u_max, v_min, slice_pos],
@@ -2186,7 +2187,7 @@ fn process_greedy_quad(
             ],
             [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
         ),
-        (0, 0, -1) => (
+        5 => (
             [
                 [u_max, v_min, slice_pos],
                 [u_min, v_min, slice_pos],
@@ -3024,6 +3025,8 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
 
     for (dx, dy, dz) in directions {
         let dir = [dx, dy, dz];
+        let dir_index =
+            cardinal_dir_index(dir).expect("greedy directions are always cardinal unit vectors");
         let slice_offset = if dx > 0 || dy > 0 || dz > 0 { 1.0 } else { 0.0 };
 
         let (axis, u_axis, v_axis) = if dx != 0 {
@@ -3330,7 +3333,16 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     g
                 });
 
-                process_greedy_quad(&quad, slice, slice_offset, dir, min, block, geometry);
+                process_greedy_quad(
+                    &quad,
+                    slice,
+                    slice_offset,
+                    dir,
+                    dir_index,
+                    min,
+                    block,
+                    geometry,
+                );
             }
 
             for (
@@ -4126,7 +4138,16 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     entry
                 });
 
-                process_greedy_quad(&quad, slice, slice_offset, dir, min, block, geometry);
+                process_greedy_quad(
+                    &quad,
+                    slice,
+                    slice_offset,
+                    dir,
+                    dir_index,
+                    min,
+                    block,
+                    geometry,
+                );
             }
         }
     }
