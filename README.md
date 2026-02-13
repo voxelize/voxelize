@@ -83,6 +83,8 @@ pnpm run check:dev-env
 pnpm run check:dev-env -- --quiet
 # json output (for CI integrations)
 pnpm run check:dev-env:json
+# compact json output (single line)
+pnpm run check:dev-env:json:compact
 # json output written to file
 pnpm run check:dev-env:json -- --output ./dev-env-report.json
 
@@ -90,6 +92,8 @@ pnpm run check:dev-env:json -- --output ./dev-env-report.json
 pnpm run check:wasm-pack
 # json output (for CI integrations)
 pnpm run check:wasm-pack:json
+# compact json output (single line)
+pnpm run check:wasm-pack:json:compact
 # json output written to file
 pnpm run check:wasm-pack:json -- --output ./wasm-pack-report.json
 
@@ -118,12 +122,16 @@ pnpm run check:client
 pnpm run check:client -- --quiet
 # json output (for CI integrations)
 pnpm run check:client:json
+# compact json output (single line)
+pnpm run check:client:json:compact
 # json output written to file
 pnpm run check:client:json -- --output ./client-report.json
 # verify client checks without auto-building wasm artifacts
 pnpm run check:client:verify
 # verify + json output (for CI integrations)
 pnpm run check:client:verify:json
+# verify + compact json output (single line)
+pnpm run check:client:verify:json:compact
 # verify + json output written to file
 pnpm run check:client:verify:json -- --output ./client-verify-report.json
 
@@ -133,19 +141,27 @@ pnpm run check:onboarding
 pnpm run check:onboarding -- --quiet
 # json output (for CI integrations)
 pnpm run check:onboarding:json
+# compact json output (single line)
+pnpm run check:onboarding:json:compact
 # json output written to file
 pnpm run check:onboarding:json -- --output ./onboarding-report.json
 # verify onboarding checks without auto-building wasm artifacts
 pnpm run check:onboarding:verify
 # verify + json output (for CI integrations)
 pnpm run check:onboarding:verify:json
+# verify + compact json output (single line)
+pnpm run check:onboarding:verify:json:compact
 # verify + json output written to file
 pnpm run check:onboarding:verify:json -- --output ./onboarding-verify-report.json
 
 # run an aggregated preflight report in json mode
 pnpm run check:preflight:json
+# compact aggregate preflight report
+pnpm run check:preflight:json:compact
 # aggregated preflight report without auto-building wasm artifacts
 pnpm run check:preflight:verify:json
+# compact aggregated verify report
+pnpm run check:preflight:verify:json:compact
 # run only specific checks (available: devEnvironment, wasmPack, client)
 pnpm run check:preflight:json -- --only devEnvironment,client
 # run pre-defined single-check aggregate reports
