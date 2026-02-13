@@ -4278,43 +4278,6 @@ export class World<T = any> extends Scene implements NetIntercept {
     let toProcessCount = 0;
     let farthestProcessIndex = -1;
     let farthestProcessDistance = -1;
-    const recomputeFarthestProcess = () => {
-      farthestProcessIndex = -1;
-      farthestProcessDistance = -1;
-      for (let index = 0; index < toProcessCount; index++) {
-        const distance = toProcessDistances[index];
-        if (distance > farthestProcessDistance) {
-          farthestProcessDistance = distance;
-          farthestProcessIndex = index;
-        }
-      }
-    };
-    const maybeQueueProcess = (
-      data: import("@voxelize/protocol").ChunkProtocol
-    ) => {
-      const dx = data.x - centerX;
-      const dz = data.z - centerZ;
-      const distance = dx * dx + dz * dz;
-      if (toProcessCount < maxProcessesPerUpdate) {
-        const writeIndex = toProcessCount;
-        toProcessData[writeIndex] = data;
-        toProcessDistances[writeIndex] = distance;
-        toProcessCount++;
-        if (distance > farthestProcessDistance) {
-          farthestProcessDistance = distance;
-          farthestProcessIndex = writeIndex;
-        }
-        return;
-      }
-
-      if (distance >= farthestProcessDistance) {
-        return;
-      }
-
-      toProcessData[farthestProcessIndex] = data;
-      toProcessDistances[farthestProcessIndex] = distance;
-      recomputeFarthestProcess();
-    };
 
     for (const name of this.chunkPipeline.getInStage("processing")) {
       const procData = this.chunkPipeline.getProcessingChunkData(name);
@@ -4322,7 +4285,32 @@ export class World<T = any> extends Scene implements NetIntercept {
         continue;
       }
 
-      maybeQueueProcess(procData);
+      const dx = procData.x - centerX;
+      const dz = procData.z - centerZ;
+      const distance = dx * dx + dz * dz;
+      if (toProcessCount < maxProcessesPerUpdate) {
+        const writeIndex = toProcessCount;
+        toProcessData[writeIndex] = procData;
+        toProcessDistances[writeIndex] = distance;
+        toProcessCount++;
+        if (distance > farthestProcessDistance) {
+          farthestProcessDistance = distance;
+          farthestProcessIndex = writeIndex;
+        }
+      } else if (distance < farthestProcessDistance) {
+        toProcessData[farthestProcessIndex] = procData;
+        toProcessDistances[farthestProcessIndex] = distance;
+
+        farthestProcessIndex = -1;
+        farthestProcessDistance = -1;
+        for (let index = 0; index < toProcessCount; index++) {
+          const queuedDistance = toProcessDistances[index];
+          if (queuedDistance > farthestProcessDistance) {
+            farthestProcessDistance = queuedDistance;
+            farthestProcessIndex = index;
+          }
+        }
+      }
     }
 
     if (toProcessCount === 0) {
