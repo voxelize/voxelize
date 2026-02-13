@@ -110,9 +110,21 @@ describe("BlockUtils.evaluateBlockRule", () => {
 });
 
 describe("BlockUtils encoding parity", () => {
+  it("masks overflowing voxel ids", () => {
+    const voxel = BlockUtils.insertID(0, 65537);
+    expect(BlockUtils.extractID(voxel)).toBe(1);
+  });
+
   it("rejects invalid stage values", () => {
     expect(() => BlockUtils.insertStage(0, 16)).toThrowError(RangeError);
     expect(() => BlockUtils.insertStage(0, -1)).toThrowError(RangeError);
+  });
+
+  it("supports rotation roundtrip", () => {
+    const rotation = BlockRotation.PZ(Math.PI / 2);
+    const voxel = BlockUtils.insertRotation(0, rotation);
+    const extracted = BlockUtils.extractRotation(voxel);
+    expect(extracted.equals(rotation)).toBe(true);
   });
 });
 

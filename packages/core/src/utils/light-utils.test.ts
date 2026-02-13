@@ -56,4 +56,25 @@ describe("LightUtils parity", () => {
       )
     ).toThrowError(Error);
   });
+
+  it("accepts valid single-axis directions", () => {
+    expect(
+      LightUtils.canEnterInto(
+        [true, true, true, true, true, true],
+        1,
+        0,
+        0
+      )
+    ).toBe(true);
+
+    expect(
+      LightUtils.canEnter(
+        [true, true, true, true, true, true],
+        [true, true, true, true, true, true],
+        0,
+        0,
+        -1
+      )
+    ).toBe(true);
+  });
 });
