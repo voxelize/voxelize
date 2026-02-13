@@ -10,7 +10,7 @@ export type WorkerPoolJob<TMessage extends object = object> = {
   /**
    * Any array buffers (transferable) that are passed to the worker.
    */
-  buffers?: ArrayBufferLike[];
+  buffers?: ArrayBuffer[];
 
   /**
    * A callback that is called when the worker has finished executing the job.
@@ -111,7 +111,7 @@ export class WorkerPool {
     this.process();
   };
 
-  postMessage = (message: object, buffers?: ArrayBufferLike[]) => {
+  postMessage = (message: object, buffers?: ArrayBuffer[]) => {
     if (!buffers || buffers.length === 0) {
       const workerCount = this.workers.length;
       for (let workerIndex = 0; workerIndex < workerCount; workerIndex++) {
@@ -128,11 +128,9 @@ export class WorkerPool {
     const workerCount = this.workers.length;
     const bufferCount = buffers.length;
     for (let workerIndex = 0; workerIndex < workerCount; workerIndex++) {
-      const transferBuffers = new Array<ArrayBufferLike>(bufferCount);
+      const transferBuffers = new Array<ArrayBuffer>(bufferCount);
       for (let index = 0; index < bufferCount; index++) {
-        const buffer = buffers[index];
-        transferBuffers[index] =
-          buffer instanceof ArrayBuffer ? buffer.slice(0) : buffer;
+        transferBuffers[index] = buffers[index].slice(0);
       }
       this.workers[workerIndex].postMessage(message, transferBuffers);
     }
