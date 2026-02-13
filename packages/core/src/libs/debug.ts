@@ -227,7 +227,16 @@ export class Debug extends Group {
    * @param title The title of the debug entry.
    */
   removeDisplay = (title: string) => {
-    const index = this.dataEntries.findIndex((entry) => entry.title === title);
+    let index = -1;
+    for (let entryIndex = 0; entryIndex < this.dataEntries.length; entryIndex++) {
+      if (this.dataEntries[entryIndex].title === title) {
+        index = entryIndex;
+        break;
+      }
+    }
+    if (index === -1) {
+      return;
+    }
     const entry = this.dataEntries.splice(index, 1)[0];
 
     if (entry) {

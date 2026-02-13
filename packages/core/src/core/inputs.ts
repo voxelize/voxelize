@@ -433,7 +433,13 @@ export class Inputs<T extends string = any> extends EventEmitter {
     const name = oldKey + occasion;
     const bounds = this.keyBounds.get(name) || [];
 
-    const index = bounds.findIndex((item) => item.identifier === identifier);
+    let index = -1;
+    for (let boundIndex = 0; boundIndex < bounds.length; boundIndex++) {
+      if (bounds[boundIndex].identifier === identifier) {
+        index = boundIndex;
+        break;
+      }
+    }
     if (index === -1) {
       throw new Error(`Key ${name} is not bound.`);
     }
