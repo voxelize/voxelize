@@ -13,6 +13,7 @@ type ScriptResult = {
 };
 
 type WasmPackJsonReport = {
+  schemaVersion: number;
   passed: boolean;
   exitCode: number;
   command: string;
@@ -31,12 +32,14 @@ type DevEnvJsonCheck = {
 };
 
 type DevEnvJsonReport = {
+  schemaVersion: number;
   passed: boolean;
   requiredFailures: number;
   checks: DevEnvJsonCheck[];
 };
 
 type WasmMesherJsonReport = {
+  schemaVersion: number;
   passed: boolean;
   exitCode: number;
   artifactPath: string;
@@ -60,6 +63,7 @@ type ClientJsonStep = {
 };
 
 type ClientJsonReport = {
+  schemaVersion: number;
   passed: boolean;
   exitCode: number;
   noBuild: boolean;
@@ -77,6 +81,7 @@ type OnboardingJsonStep = {
 };
 
 type OnboardingJsonReport = {
+  schemaVersion: number;
   passed: boolean;
   exitCode: number;
   noBuild: boolean;
@@ -122,6 +127,7 @@ describe("root preflight scripts", () => {
     const result = runScript("check-wasm-pack.mjs", ["--json"]);
     const report = JSON.parse(result.output) as WasmPackJsonReport;
 
+    expect(report.schemaVersion).toBe(1);
     expect(typeof report.passed).toBe("boolean");
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
     expect(report.command).toContain("wasm-pack");
@@ -158,6 +164,7 @@ describe("root preflight scripts", () => {
     const result = runScript("check-dev-env.mjs", ["--json"]);
     const report = JSON.parse(result.output) as DevEnvJsonReport;
 
+    expect(report.schemaVersion).toBe(1);
     expect(report.requiredFailures).toBeGreaterThanOrEqual(0);
     expect(typeof report.passed).toBe("boolean");
     expect(Array.isArray(report.checks)).toBe(true);
@@ -192,6 +199,7 @@ describe("root preflight scripts", () => {
     const result = runScript("check-client.mjs", ["--json"]);
     const report = JSON.parse(result.output) as ClientJsonReport;
 
+    expect(report.schemaVersion).toBe(1);
     expect(typeof report.passed).toBe("boolean");
     expect(report.noBuild).toBe(false);
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
@@ -204,6 +212,7 @@ describe("root preflight scripts", () => {
     );
     expect(report.steps[0].report).not.toBeNull();
     if (report.steps[0].report !== null) {
+      expect(report.steps[0].report.schemaVersion).toBe(1);
       expect(report.steps[0].report.artifactPath).toBe(
         "crates/wasm-mesher/pkg/voxelize_wasm_mesher.js"
       );
@@ -219,6 +228,7 @@ describe("root preflight scripts", () => {
     const result = runScript("check-client.mjs", ["--json", "--no-build"]);
     const report = JSON.parse(result.output) as ClientJsonReport;
 
+    expect(report.schemaVersion).toBe(1);
     expect(report.noBuild).toBe(true);
     expect(report.steps.length).toBeGreaterThan(0);
     expect(report.steps[0].name).toBe("WASM artifact preflight");
@@ -261,6 +271,7 @@ describe("root preflight scripts", () => {
     const result = runScript("check-onboarding.mjs", ["--json"]);
     const report = JSON.parse(result.output) as OnboardingJsonReport;
 
+    expect(report.schemaVersion).toBe(1);
     expect(typeof report.passed).toBe("boolean");
     expect(report.noBuild).toBe(false);
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
@@ -272,6 +283,7 @@ describe("root preflight scripts", () => {
     ).toBe(true);
     expect(report.steps[0].report).not.toBeNull();
     if (report.steps[0].report !== null) {
+      expect(report.steps[0].report.schemaVersion).toBe(1);
       expect(typeof report.steps[0].report.passed).toBe("boolean");
     }
     expect(result.status).toBe(report.passed ? 0 : 1);
@@ -283,6 +295,7 @@ describe("root preflight scripts", () => {
     const result = runScript("check-onboarding.mjs", ["--json", "--no-build"]);
     const report = JSON.parse(result.output) as OnboardingJsonReport;
 
+    expect(report.schemaVersion).toBe(1);
     expect(report.noBuild).toBe(true);
     expect(report.steps.length).toBeGreaterThan(0);
     expect(report.steps[0].name).toBe("Developer environment preflight");

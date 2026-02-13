@@ -31,13 +31,18 @@ const parseJsonOutput = (value) => {
 };
 
 const finish = (report) => {
+  const finalizedReport = {
+    schemaVersion: 1,
+    ...report,
+  };
+
   if (isJson) {
-    console.log(JSON.stringify(report, null, 2));
-  } else if (!report.passed) {
-    console.error(report.message);
+    console.log(JSON.stringify(finalizedReport, null, 2));
+  } else if (!finalizedReport.passed) {
+    console.error(finalizedReport.message);
   }
 
-  process.exit(report.exitCode);
+  process.exit(finalizedReport.exitCode);
 };
 
 if (fs.existsSync(wasmMesherEntry)) {

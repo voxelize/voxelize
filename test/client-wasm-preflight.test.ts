@@ -13,6 +13,7 @@ type WasmPackJsonReport = {
 };
 
 type WasmMesherJsonReport = {
+  schemaVersion: number;
   passed: boolean;
   exitCode: number;
   artifactPath: string;
@@ -42,6 +43,7 @@ describe("client wasm preflight script", () => {
     const output = `${result.stdout}${result.stderr}`;
     const report = JSON.parse(output) as WasmMesherJsonReport;
 
+    expect(report.schemaVersion).toBe(1);
     expect(typeof report.passed).toBe("boolean");
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
     expect(report.artifactPath).toBe(
@@ -71,6 +73,7 @@ describe("client wasm preflight script", () => {
     const output = `${result.stdout}${result.stderr}`;
     const report = JSON.parse(output) as WasmMesherJsonReport;
 
+    expect(report.schemaVersion).toBe(1);
     expect(report.buildSkipped).toBe(true);
     expect(report.attemptedBuild).toBe(false);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);

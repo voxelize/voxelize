@@ -105,6 +105,7 @@ if (isJson) {
   console.log(
     JSON.stringify(
       {
+        schemaVersion: 1,
         passed: exitCode === 0,
         exitCode,
         noBuild: isNoBuild,

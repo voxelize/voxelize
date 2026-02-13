@@ -145,6 +145,7 @@ if (isJson) {
   console.log(
     JSON.stringify(
       {
+        schemaVersion: 1,
         passed: requiredFailures === 0,
         requiredFailures,
         checks: checkResults,

@@ -16,6 +16,7 @@ type PreflightCheckResult = {
 };
 
 type PreflightReport = {
+  schemaVersion: number;
   passed: boolean;
   exitCode: number;
   noBuild: boolean;
@@ -42,6 +43,7 @@ describe("preflight aggregate report", () => {
     const output = `${result.stdout}${result.stderr}`;
     const report = JSON.parse(output) as PreflightReport;
 
+    expect(report.schemaVersion).toBe(1);
     expect(typeof report.passed).toBe("boolean");
     expect(report.noBuild).toBe(true);
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
@@ -86,6 +88,8 @@ describe("preflight aggregate report", () => {
     const stdoutReport = JSON.parse(output) as PreflightReport;
     const fileReport = JSON.parse(fs.readFileSync(outputPath, "utf8")) as PreflightReport;
 
+    expect(stdoutReport.schemaVersion).toBe(1);
+    expect(fileReport.schemaVersion).toBe(1);
     expect(stdoutReport.outputPath).toBe(outputPath);
     expect(fileReport.outputPath).toBe(outputPath);
     expect(fileReport.exitCode).toBe(stdoutReport.exitCode);
@@ -118,6 +122,8 @@ describe("preflight aggregate report", () => {
     const stdoutReport = JSON.parse(output) as PreflightReport;
     const fileReport = JSON.parse(fs.readFileSync(outputPath, "utf8")) as PreflightReport;
 
+    expect(stdoutReport.schemaVersion).toBe(1);
+    expect(fileReport.schemaVersion).toBe(1);
     expect(stdoutReport.outputPath).toBe(outputPath);
     expect(fileReport.outputPath).toBe(outputPath);
     expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
@@ -134,6 +140,7 @@ describe("preflight aggregate report", () => {
     const output = `${result.stdout}${result.stderr}`;
     const report = JSON.parse(output) as PreflightReport;
 
+    expect(report.schemaVersion).toBe(1);
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.message).toBe("Missing value for --output option.");

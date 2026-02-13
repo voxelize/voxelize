@@ -57,6 +57,7 @@ if (outputArgIndex !== -1 && requestedOutputPath === null) {
   console.log(
     JSON.stringify(
       {
+        schemaVersion: 1,
         passed: false,
         exitCode: 1,
         noBuild: isNoBuild,
@@ -84,6 +85,7 @@ const exitCode = passed ? 0 : 1;
 const passedChecks = checks.filter((check) => check.passed).map((check) => check.name);
 const failedChecks = checks.filter((check) => !check.passed).map((check) => check.name);
 const report = {
+  schemaVersion: 1,
   passed,
   exitCode,
   noBuild: isNoBuild,

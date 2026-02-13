@@ -28,6 +28,7 @@ if (checkStatus === 0) {
     console.log(
       JSON.stringify(
         {
+          schemaVersion: 1,
           passed: true,
           exitCode: 0,
           command: wasmPackCommand,
@@ -47,6 +48,7 @@ if (isJson) {
   console.log(
     JSON.stringify(
       {
+        schemaVersion: 1,
         passed: false,
         exitCode: checkStatus,
         command: wasmPackCommand,
