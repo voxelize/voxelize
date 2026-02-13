@@ -131,8 +131,11 @@ export class Sky extends CanvasBox {
     };
 
     const boxMaterials = this.boxMaterials;
-    for (const material of boxMaterials.values()) {
-      material.depthWrite = false;
+    let boxMaterialEntries = boxMaterials.values();
+    let boxMaterialEntry = boxMaterialEntries.next();
+    while (!boxMaterialEntry.done) {
+      boxMaterialEntry.value.depthWrite = false;
+      boxMaterialEntry = boxMaterialEntries.next();
     }
     this.frustumCulled = false;
     this.renderOrder = -1;
