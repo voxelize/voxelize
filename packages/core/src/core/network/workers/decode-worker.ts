@@ -14,7 +14,5 @@ onmessage = (e: MessageEvent) => {
     messages[index] = decodeMessage(view, transferables);
   }
 
-  queueMicrotask(() => {
-    postMessage(messages, { transfer: transferables });
-  });
+  postMessage(messages, { transfer: transferables });
 };
