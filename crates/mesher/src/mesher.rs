@@ -732,6 +732,7 @@ fn has_fluid_above<S: VoxelAccess>(vx: i32, vy: i32, vz: i32, fluid_id: u32, spa
     space.get_voxel(vx, vy + 1, vz) == fluid_id
 }
 
+#[inline(always)]
 fn get_fluid_height_at<S: VoxelAccess>(
     vx: i32,
     vy: i32,
