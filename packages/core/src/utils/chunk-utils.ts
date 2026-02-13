@@ -38,6 +38,41 @@ export class ChunkUtils {
   };
 
   /**
+   * Convert voxel x/z coordinates to chunk coordinates.
+   *
+   * @param vx The voxel x-coordinate.
+   * @param vz The voxel z-coordinate.
+   * @param chunkSize The horizontal dimension of a chunk.
+   * @returns The mapped chunk coordinates.
+   */
+  static mapVoxelToChunkAt = (
+    vx: number,
+    vz: number,
+    chunkSize: number
+  ): Coords2 => {
+    return [Math.floor(vx / chunkSize), Math.floor(vz / chunkSize)];
+  };
+
+  /**
+   * Convert voxel x/z coordinates directly to a chunk name string.
+   *
+   * @param vx The voxel x-coordinate.
+   * @param vz The voxel z-coordinate.
+   * @param chunkSize The horizontal dimension of a chunk.
+   * @param concat The concatenation string to use.
+   * @returns The chunk name representation.
+   */
+  static getChunkNameByVoxel = (
+    vx: number,
+    vz: number,
+    chunkSize: number,
+    concat = "|"
+  ) => {
+    const [cx, cz] = ChunkUtils.mapVoxelToChunkAt(vx, vz, chunkSize);
+    return ChunkUtils.getChunkNameAt(cx, cz, concat);
+  };
+
+  /**
    * Convert a 3D voxel coordinate to a string representation.
    *
    * @param coords The coordinates to convert.
@@ -99,8 +134,7 @@ export class ChunkUtils {
    * @returns The mapped coordinate.
    */
   static mapVoxelToChunk = (voxelPos: Coords3, chunkSize: number): Coords2 => {
-    const coords3 = ChunkUtils.scaleCoordsF(voxelPos, 1 / chunkSize);
-    return [coords3[0], coords3[2]];
+    return ChunkUtils.mapVoxelToChunkAt(voxelPos[0], voxelPos[2], chunkSize);
   };
 
   /**

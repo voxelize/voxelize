@@ -1609,11 +1609,12 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   getChunkByPosition(px: number, py: number, pz: number) {
     this.checkIsInitialized("get chunk by position", false);
-    const coords = ChunkUtils.mapVoxelToChunk(
-      [px | 0, py | 0, pz | 0],
+    const [cx, cz] = ChunkUtils.mapVoxelToChunkAt(
+      px | 0,
+      pz | 0,
       this.options.chunkSize
     );
-    return this.getChunkByCoords(...coords);
+    return this.getChunkByCoords(cx, cz);
   }
 
   /**
@@ -6101,11 +6102,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     pz: number,
     deltaData: Partial<Omit<VoxelDelta, "coords" | "timestamp" | "sequenceId">>
   ) {
-    const chunkName = ChunkUtils.getChunkName(
-      ChunkUtils.mapVoxelToChunk(
-        [px | 0, py | 0, pz | 0],
-        this.options.chunkSize
-      )
+    const chunkName = ChunkUtils.getChunkNameByVoxel(
+      px | 0,
+      pz | 0,
+      this.options.chunkSize
     );
 
     const delta: VoxelDelta = {
