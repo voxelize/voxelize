@@ -1993,7 +1993,7 @@ fn extract_greedy_quads_dense(
                     v_off += quad_height;
                     continue 'rows;
                 }
-                u_off += quad_width;
+                u_off = next_u_off;
                 continue;
             }
             u_off += 1;
