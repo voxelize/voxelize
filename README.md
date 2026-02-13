@@ -197,6 +197,7 @@ Client and onboarding JSON reports also include `totalSteps`, `passedStepCount`,
 If `--output` is provided without a value, JSON commands return a structured error report.
 If `--output` or `--only` is passed multiple times, the last value is used.
 Invalid `--only` errors include available canonical check names for quick correction.
+Invalid `--only` errors also include `invalidChecks` for machine-readable diagnostics.
 If report writing fails, JSON error reports include both `message` and `writeError`.
 Add `--compact` to each JSON preflight command for single-line JSON output.
 
