@@ -32,6 +32,9 @@ export class RawChunk {
 
   public lights: NdArray<Uint32Array>;
   private localBuffer: Coords3 = [0, 0, 0];
+  private minX = 0;
+  private minY = 0;
+  private minZ = 0;
 
   constructor(id: string, coords: Coords2, options: RawChunkOptions) {
     this.id = id;
@@ -49,6 +52,9 @@ export class RawChunk {
 
     this.min = [x * size, 0, z * size];
     this.max = [(x + 1) * size, maxHeight, (z + 1) * size];
+    this.minX = this.min[0];
+    this.minY = this.min[1];
+    this.minZ = this.min[2];
   }
 
   serialize(): [object, ArrayBuffer[]] {
@@ -538,10 +544,9 @@ export class RawChunk {
 
   private contains(vx: number, vy: number, vz: number) {
     const { size, maxHeight } = this.options;
-    const [mx, my, mz] = this.min;
-    const lx = Math.floor(vx) - mx;
-    const ly = Math.floor(vy) - my;
-    const lz = Math.floor(vz) - mz;
+    const lx = Math.floor(vx) - this.minX;
+    const ly = Math.floor(vy) - this.minY;
+    const lz = Math.floor(vz) - this.minZ;
     this.localBuffer[0] = lx;
     this.localBuffer[1] = ly;
     this.localBuffer[2] = lz;
