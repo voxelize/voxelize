@@ -1920,12 +1920,10 @@ fn extract_greedy_quads(
 fn extract_greedy_quads_dense(
     mask: &mut [Option<FaceData>],
     min_u: i32,
-    max_u: i32,
     min_v: i32,
-    max_v: i32,
+    width: usize,
+    height: usize,
 ) -> Vec<GreedyQuad> {
-    let width = (max_u - min_u).max(0) as usize;
-    let height = (max_v - min_v).max(0) as usize;
     let estimated_cells = width * height;
     let mut quads = Vec::with_capacity((estimated_cells / 2).max(16));
     for v_off in 0..height {
@@ -3806,9 +3804,9 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
             let quads = extract_greedy_quads_dense(
                 &mut greedy_mask[..mask_len],
                 u_range.0,
-                u_range.1,
                 v_range.0,
-                v_range.1,
+                mask_width,
+                mask_height,
             );
 
             let mut cached_quad_block_id = u32::MAX;
