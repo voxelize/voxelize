@@ -985,6 +985,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       await this.waitForLightJobsComplete();
     }
 
+    const name = ChunkUtils.getChunkNameAt(cx, cz);
+    if (this.chunkPipeline.isInStage(name, "processing")) {
+      return null;
+    }
+
     const chunks: (Chunk | undefined)[] = new Array(
       CHUNK_NEIGHBOR_OFFSETS.length
     );
@@ -1029,7 +1034,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       max: subChunkMax,
     };
 
-    const name = ChunkUtils.getChunkNameAt(cx, cz);
     if (this.chunkPipeline.isInStage(name, "processing")) {
       return null;
     }
