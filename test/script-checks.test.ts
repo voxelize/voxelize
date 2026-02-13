@@ -505,6 +505,17 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-dev-env ignores option-like tokens after option terminator", () => {
+    const result = runScript("check-dev-env.mjs", ["--json", "--", "--output"]);
+    const report = JSON.parse(result.output) as DevEnvJsonReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expectOptionTerminatorMetadata(report, true, ["--output"]);
+    expect(report.message).not.toBe("Missing value for --output option.");
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
   it("check-dev-env json mode fails when last output flag value is missing", () => {
     const result = runScript("check-dev-env.mjs", [
       "--json",
@@ -731,6 +742,23 @@ describe("root preflight scripts", () => {
     expect(report.firstFailedStep).toBeNull();
     expect(report.message).toBe("Missing value for --output option.");
     expect(result.status).toBe(1);
+  });
+
+  it("check-client ignores option-like tokens after option terminator", () => {
+    const result = runScript("check-client.mjs", [
+      "--json",
+      "--no-build",
+      "--",
+      "--output",
+    ]);
+    const report = JSON.parse(result.output) as ClientJsonReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expectOptionTerminatorMetadata(report, true, ["--output"]);
+    expect(report.totalSteps).toBeGreaterThan(0);
+    expect(report.message).not.toBe("Missing value for --output option.");
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
   it("check-client json mode fails when last output flag value is missing", () => {
@@ -992,6 +1020,23 @@ describe("root preflight scripts", () => {
     expect(report.firstFailedStep).toBeNull();
     expect(report.message).toBe("Missing value for --output option.");
     expect(result.status).toBe(1);
+  });
+
+  it("check-onboarding ignores option-like tokens after option terminator", () => {
+    const result = runScript("check-onboarding.mjs", [
+      "--json",
+      "--no-build",
+      "--",
+      "--output",
+    ]);
+    const report = JSON.parse(result.output) as OnboardingJsonReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expectOptionTerminatorMetadata(report, true, ["--output"]);
+    expect(report.totalSteps).toBeGreaterThan(0);
+    expect(report.message).not.toBe("Missing value for --output option.");
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
   it("check-onboarding json mode fails when last output flag value is missing", () => {

@@ -284,6 +284,25 @@ describe("client wasm preflight script", () => {
     expect(result.status).toBe(1);
   });
 
+  it("ignores option-like tokens after option terminator", () => {
+    const result = spawnSync(
+      process.execPath,
+      [wasmMesherScript, "--json", "--no-build", "--", "--output"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const report = JSON.parse(`${result.stdout}${result.stderr}`) as WasmMesherJsonReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expectOptionTerminatorMetadata(report, true, ["--output"]);
+    expect(report.message).not.toBe("Missing value for --output option.");
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
   it("fails when last output flag value is missing", () => {
     const result = spawnSync(
       process.execPath,
