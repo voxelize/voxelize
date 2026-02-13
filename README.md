@@ -122,7 +122,7 @@ pnpm run check:onboarding -- --quiet
 # json output (for CI integrations)
 pnpm run check:onboarding:json
 
-# run root script checks and command utility tests
+# run script-focused integration tests
 pnpm run test:scripts
 ```
 
