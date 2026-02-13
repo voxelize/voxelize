@@ -2473,6 +2473,50 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(1);
   });
 
+  it("reports inline alias misuse after --output as unsupported while value is missing", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--list-checks", "--output", "-l=1"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.unknownOptions).toEqual(["--list-checks=<value>"]);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(report.activeCliOptions).toEqual(["--list-checks", "--output"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--list-checks", "--output"]);
+    expect(report.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions(["--list-checks", "--output"])
+    );
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences([
+        "--list-checks",
+        "--output",
+        "-l=1",
+      ])
+    );
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("prioritizes only-selection validation while still reporting unsupported options", () => {
     const result = spawnSync(
       process.execPath,

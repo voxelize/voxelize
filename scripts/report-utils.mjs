@@ -372,6 +372,19 @@ const resolveCanonicalOptionToken = (
   return null;
 };
 
+const isKnownOptionTokenLike = (optionToken, canonicalOptionMap) => {
+  if (canonicalOptionMap.has(optionToken)) {
+    return true;
+  }
+
+  const equalsIndex = optionToken.indexOf("=");
+  if (equalsIndex <= 0) {
+    return false;
+  }
+
+  return canonicalOptionMap.has(optionToken.slice(0, equalsIndex));
+};
+
 const createValueOptionMetadata = (
   optionsWithValues,
   optionsWithStrictValues,
@@ -478,7 +491,7 @@ export const parseUnknownCliOptions = (
       ) {
         const nextArg = optionArgs[index + 1] ?? null;
         const nextArgResolvesToKnownOption =
-          nextArg !== null && canonicalOptionMap.has(nextArg);
+          nextArg !== null && isKnownOptionTokenLike(nextArg, canonicalOptionMap);
         const strictValueOptionWithRecognizedToken =
           canonicalStrictValueOptions.has(resolvedOption.canonicalOption) &&
           nextArgResolvesToKnownOption;
@@ -626,7 +639,7 @@ export const parseActiveCliOptionMetadata = (
     ) {
       const nextArg = optionArgs[index + 1] ?? null;
       const nextArgResolvesToKnownOption =
-        nextArg !== null && canonicalOptionMap.has(nextArg);
+        nextArg !== null && isKnownOptionTokenLike(nextArg, canonicalOptionMap);
       const strictValueOptionWithRecognizedToken =
         canonicalStrictValueOptions.has(resolvedOption.canonicalOption) &&
         nextArgResolvesToKnownOption;
@@ -723,6 +736,18 @@ export const resolveLastOptionValue = (
 ) => {
   const { optionArgs } = splitCliArgs(args);
   const recognizedOptionTokenSet = new Set(recognizedOptionTokens);
+  const isRecognizedOptionTokenLike = (optionToken) => {
+    if (recognizedOptionTokenSet.has(optionToken)) {
+      return true;
+    }
+
+    const equalsIndex = optionToken.indexOf("=");
+    if (equalsIndex <= 0) {
+      return false;
+    }
+
+    return recognizedOptionTokenSet.has(optionToken.slice(0, equalsIndex));
+  };
   const inlineOptionPrefix = `${optionName}=`;
   let hasOption = false;
   let resolvedValue = null;
@@ -737,7 +762,7 @@ export const resolveLastOptionValue = (
       if (
         nextArg === null ||
         nextArg.startsWith("--") ||
-        recognizedOptionTokenSet.has(nextArg) ||
+        isRecognizedOptionTokenLike(nextArg) ||
         nextArg.trim().length === 0
       ) {
         resolvedValue = null;

@@ -295,6 +295,16 @@ describe("report-utils", () => {
     expect(unknownDashPrefixedValueAfterOutput.outputPath).toBe(
       "/workspace/-artifact-report.json"
     );
+
+    const recognizedInlineAliasMisuseAfterOutput = resolveOutputPath(
+      ["--output", "-l=1"],
+      "/workspace",
+      ["--output", "--list-checks", "-l"]
+    );
+    expect(recognizedInlineAliasMisuseAfterOutput.error).toBe(
+      "Missing value for --output option."
+    );
+    expect(recognizedInlineAliasMisuseAfterOutput.outputPath).toBeNull();
   });
 
   it("resolves last option values for both split and inline forms", () => {
@@ -431,6 +441,17 @@ describe("report-utils", () => {
     expect(recognizedOnlyAliasAsSplitValue.hasOption).toBe(true);
     expect(recognizedOnlyAliasAsSplitValue.value).toBeNull();
     expect(recognizedOnlyAliasAsSplitValue.error).toBe(
+      "Missing value for --only option."
+    );
+
+    const recognizedOnlyAliasInlineMisuseAsSplitValue = resolveLastOptionValue(
+      ["--only", "-l=1"],
+      "--only",
+      ["--list-checks", "-l"]
+    );
+    expect(recognizedOnlyAliasInlineMisuseAsSplitValue.hasOption).toBe(true);
+    expect(recognizedOnlyAliasInlineMisuseAsSplitValue.value).toBeNull();
+    expect(recognizedOnlyAliasInlineMisuseAsSplitValue.error).toBe(
       "Missing value for --only option."
     );
   });
@@ -1594,6 +1615,41 @@ describe("report-utils", () => {
     expect(diagnostics.unknownOptions).toEqual([]);
     expect(diagnostics.unknownOptionCount).toBe(0);
     expect(diagnostics.unsupportedOptionsError).toBeNull();
+  });
+
+  it("reports recognized inline option misuse for strict value options", () => {
+    const diagnostics = createCliDiagnostics(["--output", "-l=1"], {
+      canonicalOptions: ["--list-checks", "--output"],
+      optionAliases: {
+        "--list-checks": ["-l"],
+      },
+      optionsWithValues: ["--output"],
+      optionsWithStrictValues: ["--output"],
+    });
+
+    expect(diagnostics.activeCliOptions).toEqual(["--output"]);
+    expect(diagnostics.activeCliOptionCount).toBe(1);
+    expect(diagnostics.activeCliOptionTokens).toEqual(["--output"]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(diagnostics.activeCliOptionResolutionCount).toBe(1);
+    expect(diagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+    ]);
+    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(1);
+    expect(diagnostics.unknownOptions).toEqual(["--list-checks=<value>"]);
+    expect(diagnostics.unknownOptionCount).toBe(1);
+    expect(diagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --list-checks=<value>. Supported options: --list-checks, --output, -l."
+    );
   });
 
   it("parses active cli option metadata with aliases and option values", () => {
