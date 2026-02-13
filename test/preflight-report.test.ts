@@ -142,6 +142,7 @@ const expectedRequestedCheckResolutionKinds: Array<
   RequestedCheckResolution["kind"]
 > = ["check", "specialSelector", "invalid"];
 const expectedSupportedCliOptions = [
+  "-l",
   "--compact",
   "--json",
   "--list",
@@ -152,7 +153,7 @@ const expectedSupportedCliOptions = [
   "--quiet",
 ];
 const expectedAvailableCliOptionAliases = {
-  "--list-checks": ["--list"],
+  "--list-checks": ["--list", "-l"],
 };
 const expectedUnsupportedOptionsMessage = (options: string[]) => {
   return `Unsupported option(s): ${options.join(", ")}. Supported options: ${expectedSupportedCliOptions.join(", ")}.`;
@@ -870,6 +871,27 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(0);
   });
 
+  it("supports short list alias for listing checks", () => {
+    const result = spawnSync(process.execPath, [preflightScript, "-l"], {
+      cwd: rootDir,
+      encoding: "utf8",
+      shell: false,
+    });
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(true);
+    expect(report.passed).toBe(true);
+    expect(report.exitCode).toBe(0);
+    expect(report.availableCliOptionAliases).toEqual(
+      expectedAvailableCliOptionAliases
+    );
+    expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
+    expect(report.checks).toEqual([]);
+    expect(result.status).toBe(0);
+  });
+
   it("supports listing resolved filters for explicit only values", () => {
     const result = spawnSync(
       process.execPath,
@@ -1018,6 +1040,25 @@ describe("preflight aggregate report", () => {
     expect(report.message).toBe(
       expectedUnsupportedOptionsMessage(["--mystery", "--another-mystery"])
     );
+    expect(result.status).toBe(1);
+  });
+
+  it("reports unsupported short options", () => {
+    const result = spawnSync(process.execPath, [preflightScript, "-x"], {
+      cwd: rootDir,
+      encoding: "utf8",
+      shell: false,
+    });
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(report.unknownOptions).toEqual(["-x"]);
+    expect(report.message).toBe(expectedUnsupportedOptionsMessage(["-x"]));
     expect(result.status).toBe(1);
   });
 

@@ -16,13 +16,14 @@ const __dirname = path.dirname(__filename);
 const cliArgs = process.argv.slice(2);
 const isNoBuild = cliArgs.includes("--no-build");
 const availableCliOptionAliases = {
-  "--list-checks": ["--list"],
+  "--list-checks": ["--list", "-l"],
 };
 const isListChecks =
   cliArgs.includes("--list-checks") ||
   availableCliOptionAliases["--list-checks"].some((alias) => cliArgs.includes(alias));
 const isCompact = cliArgs.includes("--compact");
 const supportedCliOptions = [
+  "-l",
   "--compact",
   "--json",
   "--list",
@@ -292,7 +293,7 @@ const parseUnknownOptions = (args) => {
   const seenUnknownOptions = new Set();
 
   for (const arg of args) {
-    if (!arg.startsWith("--") || arg === "--") {
+    if (!arg.startsWith("-") || arg === "-" || arg === "--") {
       continue;
     }
     if (supportedCliOptionsSet.has(arg)) {
