@@ -1835,15 +1835,16 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (chunk === undefined) return;
 
     const oldRotation = chunk.getVoxelRotation(px, py, pz);
-    chunk.setVoxelRotation(px, py, pz, rotation);
-
     if (
-      oldRotation.value !== rotation.value ||
-      oldRotation.yRotation !== rotation.yRotation
+      oldRotation.value === rotation.value &&
+      oldRotation.yRotation === rotation.yRotation
     ) {
-      this.recordVoxelDelta(px, py, pz, { oldRotation, newRotation: rotation });
-      this.trackChunkAt(px, py, pz);
+      return;
     }
+
+    chunk.setVoxelRotation(px, py, pz, rotation);
+    this.recordVoxelDelta(px, py, pz, { oldRotation, newRotation: rotation });
+    this.trackChunkAt(px, py, pz);
   }
 
   /**
