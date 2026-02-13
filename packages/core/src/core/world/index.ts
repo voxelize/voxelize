@@ -848,7 +848,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private voxelDeltas = new Map<string, VoxelDelta[]>();
   private deltaSequenceCounter = 0;
-  private cleanupDeltasInterval: number | null = null;
+  private cleanupDeltasInterval: ReturnType<typeof setInterval> | null = null;
 
   private lightJobQueue: LightJob[] = [];
   private lightJobQueueHead = 0;
@@ -957,7 +957,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
         deltaEntry = deltaEntries.next();
       }
-    }, 1000) as unknown as number;
+    }, 1000);
   }
 
   private ensureRequestCandidateCapacity(capacity: number) {
