@@ -832,6 +832,7 @@ fn extract_stage(voxel: u32) -> u32 {
     (voxel >> 24) & 0xF
 }
 
+#[inline(always)]
 fn vertex_ao(side1: bool, side2: bool, corner: bool) -> i32 {
     let num_s1 = !side1 as i32;
     let num_s2 = !side2 as i32;
