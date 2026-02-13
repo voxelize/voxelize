@@ -3149,17 +3149,17 @@ pub fn mesh_space<S: VoxelAccess>(
                 let mut process_single_face = |face: &BlockFace, world_space: bool| {
                     let key = geometry_key_for_face(block, face, vx, vy, vz);
 
-                    let geometry = map.entry(key).or_default();
-
-                    geometry.voxel = block.id;
-
-                    if face.independent || face.isolated {
-                        geometry.face_name = Some(face.name.clone());
-                    }
-
-                    if face.isolated {
-                        geometry.at = Some([vx, vy, vz]);
-                    }
+                    let geometry = map.entry(key).or_insert_with(|| {
+                        let mut entry = GeometryProtocol::default();
+                        entry.voxel = block.id;
+                        if face.independent || face.isolated {
+                            entry.face_name = Some(face.name.clone());
+                        }
+                        if face.isolated {
+                            entry.at = Some([vx, vy, vz]);
+                        }
+                        entry
+                    });
 
                     process_face(
                         vx,
