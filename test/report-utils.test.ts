@@ -266,6 +266,14 @@ describe("report-utils", () => {
     expect(whitespaceSplitValue.value).toBeNull();
     expect(whitespaceSplitValue.error).toBe("Missing value for --output option.");
 
+    const emptyOnlySplitValue = resolveLastOptionValue(
+      ["--json", "--only", ""],
+      "--only"
+    );
+    expect(emptyOnlySplitValue.hasOption).toBe(true);
+    expect(emptyOnlySplitValue.value).toBeNull();
+    expect(emptyOnlySplitValue.error).toBe("Missing value for --only option.");
+
     const missingInlineValue = resolveLastOptionValue(
       ["--json", "--output="],
       "--output"
