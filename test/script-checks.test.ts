@@ -71,6 +71,7 @@ describe("root preflight scripts", () => {
 
   it("check-onboarding returns pass or fail summary", () => {
     const result = runScript("check-onboarding.mjs");
+    expect(result.output).toContain("Running onboarding step:");
 
     if (result.status === 0) {
       expect(result.output).toContain("Onboarding checks passed.");
