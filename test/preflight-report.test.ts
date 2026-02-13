@@ -961,6 +961,111 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
+  it("uses the last only flag when inline output tokens appear between only flags", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-preflight-last-only-inline-output-between-")
+    );
+    const outputPath = path.resolve(tempDirectory, "report.json");
+
+    const result = spawnSync(
+      process.execPath,
+      [
+        preflightScript,
+        "--list-checks",
+        "--only",
+        "devEnvironment",
+        `--output=${outputPath}`,
+        "--only",
+        "client",
+      ],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const stdoutReport = JSON.parse(output) as PreflightReport;
+    const fileReport = JSON.parse(fs.readFileSync(outputPath, "utf8")) as PreflightReport;
+
+    expect(stdoutReport.schemaVersion).toBe(1);
+    expect(stdoutReport.passed).toBe(true);
+    expect(stdoutReport.exitCode).toBe(0);
+    expect(stdoutReport.listChecksOnly).toBe(true);
+    expect(stdoutReport.selectedChecks).toEqual(["client"]);
+    expect(stdoutReport.selectedCheckCount).toBe(1);
+    expect(stdoutReport.requestedChecks).toEqual(["client"]);
+    expect(stdoutReport.requestedCheckCount).toBe(1);
+    expect(stdoutReport.requestedCheckResolutions).toEqual([
+      {
+        token: "client",
+        normalizedToken: "client",
+        kind: "check",
+        resolvedTo: ["client"],
+      },
+    ]);
+    expect(stdoutReport.requestedCheckResolutionCounts).toEqual({
+      check: 1,
+      specialSelector: 0,
+      invalid: 0,
+    });
+    expect(stdoutReport.outputPath).toBe(outputPath);
+    expect(stdoutReport.unknownOptions).toEqual([]);
+    expect(stdoutReport.unknownOptionCount).toBe(0);
+    expect(stdoutReport.activeCliOptions).toEqual([
+      "--list-checks",
+      "--only",
+      "--output",
+    ]);
+    expect(stdoutReport.activeCliOptionCount).toBe(
+      stdoutReport.activeCliOptions.length
+    );
+    expect(stdoutReport.activeCliOptionTokens).toEqual([
+      "--list-checks",
+      "--only",
+      `--output=${outputPath}`,
+    ]);
+    expect(stdoutReport.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions([
+        "--list-checks",
+        "--only",
+        `--output=${outputPath}`,
+      ])
+    );
+    expect(stdoutReport.activeCliOptionResolutionCount).toBe(
+      stdoutReport.activeCliOptionResolutions.length
+    );
+    expect(stdoutReport.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--list-checks",
+        canonicalOption: "--list-checks",
+        index: 0,
+      },
+      {
+        token: "--only",
+        canonicalOption: "--only",
+        index: 1,
+      },
+      {
+        token: `--output=${outputPath}`,
+        canonicalOption: "--output",
+        index: 3,
+      },
+      {
+        token: "--only",
+        canonicalOption: "--only",
+        index: 4,
+      },
+    ]);
+    expect(stdoutReport.activeCliOptionOccurrenceCount).toBe(
+      stdoutReport.activeCliOptionOccurrences.length
+    );
+    expect(fileReport).toEqual(stdoutReport);
+    expect(result.status).toBe(0);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("uses the last only flag when no-build aliases appear between only flags", () => {
     const result = spawnSync(
       process.execPath,

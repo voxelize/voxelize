@@ -345,6 +345,16 @@ describe("report-utils", () => {
     expect(recognizedNoBuildAliasBeforeValidTrailingOutput.outputPath).toBe(
       "/workspace/final-report.json"
     );
+
+    const recognizedOnlyInlineTokenBeforeTrailingOutput = resolveOutputPath(
+      ["--output", "--only=client", "--output=./final-report.json"],
+      "/workspace",
+      ["--output", "--only"]
+    );
+    expect(recognizedOnlyInlineTokenBeforeTrailingOutput.error).toBeNull();
+    expect(recognizedOnlyInlineTokenBeforeTrailingOutput.outputPath).toBe(
+      "/workspace/final-report.json"
+    );
   });
 
   it("resolves last option values for both split and inline forms", () => {
@@ -581,6 +591,20 @@ describe("report-utils", () => {
     expect(recognizedNoBuildAliasBeforeTrailingOnlyValue.hasOption).toBe(true);
     expect(recognizedNoBuildAliasBeforeTrailingOnlyValue.value).toBe("client");
     expect(recognizedNoBuildAliasBeforeTrailingOnlyValue.error).toBeNull();
+
+    const recognizedOutputInlineTokenBeforeTrailingOnlyValue =
+      resolveLastOptionValue(
+        ["--only", "--output=./report.json", "--only=client"],
+        "--only",
+        ["--only", "--output"]
+      );
+    expect(recognizedOutputInlineTokenBeforeTrailingOnlyValue.hasOption).toBe(
+      true
+    );
+    expect(recognizedOutputInlineTokenBeforeTrailingOnlyValue.value).toBe(
+      "client"
+    );
+    expect(recognizedOutputInlineTokenBeforeTrailingOnlyValue.error).toBeNull();
   });
 
   it("splits option and positional args using option terminator", () => {
@@ -1923,6 +1947,61 @@ describe("report-utils", () => {
       {
         token: "--verify",
         canonicalOption: "--no-build",
+        index: 1,
+      },
+      {
+        token: "--only=client",
+        canonicalOption: "--only",
+        index: 2,
+      },
+    ]);
+    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(3);
+    expect(diagnostics.unknownOptions).toEqual([]);
+    expect(diagnostics.unknownOptionCount).toBe(0);
+    expect(diagnostics.unsupportedOptionsError).toBeNull();
+  });
+
+  it("keeps strict only parsing active with inline output tokens before trailing only values", () => {
+    const diagnostics = createCliDiagnostics(
+      ["--only", "--output=./report.json", "--only=client"],
+      {
+        canonicalOptions: ["--only", "--output"],
+        optionsWithValues: ["--only", "--output"],
+        optionsWithStrictValues: ["--only"],
+      }
+    );
+
+    expect(diagnostics.activeCliOptions).toEqual(["--only", "--output"]);
+    expect(diagnostics.activeCliOptionCount).toBe(2);
+    expect(diagnostics.activeCliOptionTokens).toEqual([
+      "--only",
+      "--output=./report.json",
+      "--only=client",
+    ]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+      },
+      {
+        token: "--output=./report.json",
+        canonicalOption: "--output",
+      },
+      {
+        token: "--only=client",
+        canonicalOption: "--only",
+      },
+    ]);
+    expect(diagnostics.activeCliOptionResolutionCount).toBe(3);
+    expect(diagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+        index: 0,
+      },
+      {
+        token: "--output=./report.json",
+        canonicalOption: "--output",
         index: 1,
       },
       {
