@@ -2412,8 +2412,12 @@ fn process_face<S: VoxelAccess>(
     let base_z = vz as f32 - min_z as f32 - dir[2] as f32 * face_inset + diag_z_offset;
 
     if skip_opaque_checks {
+        face_aos = [3; 4];
+        four_red_lights = [center_red_light; 4];
+        four_green_lights = [center_green_light; 4];
+        four_blue_lights = [center_blue_light; 4];
         let center_light_i32 = center_light_packed as i32;
-        for (corner_index, corner) in face.corners.iter().enumerate() {
+        for corner in &face.corners {
             let mut pos = corner.pos;
 
             if needs_rotation {
@@ -2430,11 +2434,6 @@ fn process_face<S: VoxelAccess>(
             let dy = if pos[1] <= block_min_y_eps { -1 } else { 1 };
             let wave_bit = if apply_wave_bit && dy == 1 { 1 << 20 } else { 0 };
             lights.push(center_light_i32 | 3 << 16 | fluid_bit | wave_bit);
-
-            four_red_lights[corner_index] = center_red_light;
-            four_green_lights[corner_index] = center_green_light;
-            four_blue_lights[corner_index] = center_blue_light;
-            face_aos[corner_index] = 3;
         }
     } else {
         let mask = opaque_mask.expect("opaque mask exists when opaque checks are needed");
