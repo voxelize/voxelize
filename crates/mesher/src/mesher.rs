@@ -1955,8 +1955,8 @@ fn extract_greedy_quads_dense(
                 let mut next_v_off = v_off + 1;
                 'height: while next_v_off < height {
                     let row_start = next_row_start;
-                    for du in 0..quad_width {
-                        let neighbor_index = row_start + du;
+                    let mut neighbor_index = row_start;
+                    for _ in 0..quad_width {
                         if let Some(neighbor) = mask[neighbor_index].as_ref() {
                             if neighbor.key != data.key {
                                 break 'height;
@@ -1964,11 +1964,13 @@ fn extract_greedy_quads_dense(
                         } else {
                             break 'height;
                         }
+                        neighbor_index += 1;
                     }
 
-                    for du in 0..quad_width {
-                        let neighbor_index = row_start + du;
+                    let mut neighbor_index = row_start;
+                    for _ in 0..quad_width {
                         mask[neighbor_index] = None;
+                        neighbor_index += 1;
                     }
                     quad_height += 1;
                     next_v_off += 1;
