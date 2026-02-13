@@ -1250,6 +1250,15 @@ fn compute_face_ao_and_light(
     let mut lights = [0i32; 4];
     let dir_is_x = dir[0].abs() == 1;
     let dir_is_y = dir[1].abs() == 1;
+    let center_opaque = if !(is_see_through || is_all_transparent) {
+        let center_id = neighbors.get_voxel(0, 0, 0);
+        registry
+            .get_block_by_id(center_id)
+            .map(|b| b.is_opaque)
+            .unwrap_or(false)
+    } else {
+        false
+    };
 
     for (i, pos) in corner_positions.iter().enumerate() {
         let dx = if pos[0] <= block_min_x + 0.01 {
@@ -1299,7 +1308,6 @@ fn compute_face_ao_and_light(
             let mut sum_red_lights = Vec::with_capacity(8);
             let mut sum_green_lights = Vec::with_capacity(8);
             let mut sum_blue_lights = Vec::with_capacity(8);
-            let center_opaque = get_block_opaque(0, 0, 0);
 
             for x in 0..=1 {
                 for y in 0..=1 {
