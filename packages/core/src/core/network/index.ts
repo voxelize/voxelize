@@ -409,19 +409,22 @@ export class Network {
     const batchCount = Math.ceil(packetCount / perWorker);
     const decodePromises = this.decodePromises;
     decodePromises.length = batchCount;
+    const sourceQueue = this.packetQueue;
+    const batchStart = this.packetQueueHead;
     let batchIndex = 0;
-    for (
-      let offset = this.packetQueueHead;
-      offset < batchEnd;
-      offset += perWorker
-    ) {
+    for (let offset = batchStart; offset < batchEnd; offset += perWorker) {
       decodePromises[batchIndex] = this.decode(
-        this.packetQueue.slice(offset, Math.min(offset + perWorker, batchEnd))
+        sourceQueue.slice(offset, Math.min(offset + perWorker, batchEnd))
       );
       batchIndex++;
     }
-    this.packetQueueHead = batchEnd;
-    this.normalizePacketQueue();
+    if (batchStart === 0 && batchEnd === sourceQueue.length) {
+      this.packetQueue = [];
+      this.packetQueueHead = 0;
+    } else {
+      this.packetQueueHead = batchEnd;
+      this.normalizePacketQueue();
+    }
 
     Promise.all(decodePromises)
       .then((results) => {
