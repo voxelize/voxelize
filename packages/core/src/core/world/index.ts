@@ -6212,7 +6212,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     let globalMinY = maxHeight;
     let globalMaxY = 0;
 
-    for (const result of batch.results) {
+    for (let resultIndex = 0; resultIndex < batch.results.length; resultIndex++) {
+      const result = batch.results[resultIndex];
       const minY = Math.max(0, result.boundingBox.min[1] - maxLightLevel);
       const maxY = Math.min(
         maxHeight - 1,
@@ -6224,7 +6225,12 @@ export class World<T = any> extends Scene implements NetIntercept {
       globalMinY = Math.min(globalMinY, minY);
       globalMaxY = Math.max(globalMaxY, maxY);
 
-      for (const { coords, lights } of result.modifiedChunks) {
+      for (
+        let chunkIndex = 0;
+        chunkIndex < result.modifiedChunks.length;
+        chunkIndex++
+      ) {
+        const { coords, lights } = result.modifiedChunks[chunkIndex];
         const cx = coords[0];
         const cz = coords[1];
         let chunkResultsByZ = chunkResultsByX.get(cx);
