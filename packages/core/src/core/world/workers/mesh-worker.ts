@@ -240,7 +240,7 @@ const postEmptyMeshResult = () => {
 };
 
 const isInitMessage = (message: MeshWorkerMessage): message is InitMessage =>
-  typeof message.type === "string" && message.type.toLowerCase() === "init";
+  message.type === "init";
 
 const processMeshMessage = (message: MeshBatchMessage) => {
   const { chunksData, min, max } = message;
