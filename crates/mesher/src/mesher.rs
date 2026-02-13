@@ -3197,6 +3197,9 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                     },
                                 );
                             } else {
+                                if block.faces.is_empty() {
+                                    continue;
+                                }
                                 let has_independent_or_isolated_faces = if cache_ready {
                                     block.has_independent_or_isolated_faces
                                 } else {
