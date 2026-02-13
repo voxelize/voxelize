@@ -55,4 +55,11 @@ pnpm run check:client -- --quiet
 pnpm run check:client:json
 ```
 
+Or from the client directory, run only the wasm preflight JSON report:
+
+```bash
+cd examples/client
+pnpm run check:wasm:json
+```
+
 This runs client typechecking and wasm-artifact preflight in sequence.

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "check:wasm": "node ./scripts/check-wasm-mesher.mjs",
+    "check:wasm:json": "node ./scripts/check-wasm-mesher.mjs --json",
     "typecheck": "tsc --noEmit",
     "demo": "pnpm run check:wasm && vite --clearScreen false --port 3000",
     "build": "pnpm run check:wasm && pnpm run typecheck && vite build",
