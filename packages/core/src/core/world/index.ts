@@ -811,6 +811,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   private blockUpdatesQueue: BlockUpdateWithSource[] = [];
   private blockUpdatesQueueHead = 0;
   private blockUpdatesToEmit: BlockUpdate[] = [];
+  private blockUpdatesToEmitHead = 0;
 
   private voxelDeltas = new Map<string, VoxelDelta[]>();
   private deltaSequenceCounter = 0;
@@ -6020,15 +6021,15 @@ export class World<T = any> extends Scene implements NetIntercept {
    * Scaffold the server updates onto the network, including chunk requests and block updates.
    */
   private emitServerUpdates = () => {
-    if (this.blockUpdatesToEmit.length === 0) {
+    if (!this.hasPendingBlockUpdatesToEmit()) {
       return;
     }
 
-    const updates = this.blockUpdatesToEmit.splice(
-      0,
-      this.options.maxUpdatesPerUpdate
+    const batchEnd = Math.min(
+      this.blockUpdatesToEmitHead + this.options.maxUpdatesPerUpdate,
+      this.blockUpdatesToEmit.length
     );
-    const updateCount = updates.length;
+    const updateCount = batchEnd - this.blockUpdatesToEmitHead;
     const vxValues = new Array<number>(updateCount);
     const vyValues = new Array<number>(updateCount);
     const vzValues = new Array<number>(updateCount);
@@ -6036,7 +6037,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const lightValues = new Array<number>(updateCount);
 
     for (let index = 0; index < updateCount; index++) {
-      const update = updates[index];
+      const update = this.blockUpdatesToEmit[this.blockUpdatesToEmitHead + index];
       const { type, rotation, yRotation, stage } = update;
 
       const block = this.getBlockById(type);
@@ -6046,7 +6047,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       if (
         (block.rotatable || block.yRotatable) &&
-        (!Number.isNaN(rotation) || !Number.isNaN(yRotation))
+        ((rotation !== undefined && !Number.isNaN(rotation)) ||
+          (yRotation !== undefined && !Number.isNaN(yRotation)))
       ) {
         raw = BlockUtils.insertRotation(
           raw,
@@ -6075,7 +6077,35 @@ export class World<T = any> extends Scene implements NetIntercept {
         lights: lightValues,
       },
     });
+
+    this.blockUpdatesToEmitHead = batchEnd;
+    this.normalizeBlockUpdatesToEmit();
   };
+
+  private hasPendingBlockUpdatesToEmit(): boolean {
+    return this.blockUpdatesToEmitHead < this.blockUpdatesToEmit.length;
+  }
+
+  private normalizeBlockUpdatesToEmit() {
+    if (this.blockUpdatesToEmitHead === 0) {
+      return;
+    }
+
+    if (this.blockUpdatesToEmitHead >= this.blockUpdatesToEmit.length) {
+      this.blockUpdatesToEmit = [];
+      this.blockUpdatesToEmitHead = 0;
+      return;
+    }
+
+    if (
+      this.blockUpdatesToEmitHead >= 1024 &&
+      this.blockUpdatesToEmitHead * 2 >= this.blockUpdatesToEmit.length
+    ) {
+      this.blockUpdatesToEmit.copyWithin(0, this.blockUpdatesToEmitHead);
+      this.blockUpdatesToEmit.length -= this.blockUpdatesToEmitHead;
+      this.blockUpdatesToEmitHead = 0;
+    }
+  }
 
   /**
    * Make a chunk shader material with the current atlas.
