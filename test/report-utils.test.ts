@@ -105,6 +105,30 @@ describe("report-utils", () => {
     ).toEqual({ ok: true, exitCode: 0 });
   });
 
+  it("parses json output containing ansi osc hyperlink sequences", () => {
+    expect(
+      parseJsonOutput(
+        `\u001b]8;;https://example.com\u0007{"ok":true,"exitCode":0}\u001b]8;;\u0007`
+      )
+    ).toEqual({ ok: true, exitCode: 0 });
+    expect(
+      parseJsonOutput(
+        `\u001b]8;;https://example.com\u001b\\{\n  "ok": true,\n  "exitCode": 0\n}\u001b]8;;\u001b\\`
+      )
+    ).toEqual({ ok: true, exitCode: 0 });
+  });
+
+  it("parses json output containing carriage-return progress updates", () => {
+    expect(parseJsonOutput(`progress: checking\r{"ok":true}`)).toEqual({
+      ok: true,
+    });
+    expect(
+      parseJsonOutput(
+        `progress: checking\r\u001b]8;;https://example.com\u0007{"ok":true}\u001b]8;;\u0007`
+      )
+    ).toEqual({ ok: true });
+  });
+
   it("injects schema version in report payloads", () => {
     const report = toReport({ passed: true, schemaVersion: 999 });
 

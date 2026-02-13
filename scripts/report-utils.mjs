@@ -2,7 +2,15 @@ import fs from "node:fs";
 import path from "node:path";
 
 export const REPORT_SCHEMA_VERSION = 1;
-const ANSI_ESCAPE_SEQUENCE_REGEX = /\u001b\[[0-?]*[ -/]*[@-~]/g;
+const ANSI_CSI_ESCAPE_SEQUENCE_REGEX = /\u001b\[[0-?]*[ -/]*[@-~]/g;
+const ANSI_OSC_ESCAPE_SEQUENCE_REGEX = /\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)/g;
+
+const sanitizeOutputForJsonParsing = (value) => {
+  return value
+    .replace(ANSI_OSC_ESCAPE_SEQUENCE_REGEX, "")
+    .replace(ANSI_CSI_ESCAPE_SEQUENCE_REGEX, "")
+    .replaceAll("\r", "\n");
+};
 
 const isObjectLikeJsonValue = (value) => {
   return value !== null && typeof value === "object";
@@ -12,7 +20,7 @@ export const parseJsonOutput = (value) => {
   if (value.length === 0) {
     return null;
   }
-  const sanitizedValue = value.replace(ANSI_ESCAPE_SEQUENCE_REGEX, "");
+  const sanitizedValue = sanitizeOutputForJsonParsing(value);
 
   try {
     const parsedValue = JSON.parse(sanitizedValue);
