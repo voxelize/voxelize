@@ -1199,9 +1199,7 @@ fn should_render_face<S: VoxelAccess>(
         return false;
     }
 
-    let is_see_through = block.is_see_through;
-    (is_see_through && neighbor_id == voxel_id && n_block_type.transparent_standalone)
-        || (neighbor_id != voxel_id && (is_see_through || n_block_type.is_see_through))
+    neighbor_id != voxel_id || n_block_type.transparent_standalone
 }
 
 #[inline(always)]
