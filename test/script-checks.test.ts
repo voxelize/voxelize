@@ -375,6 +375,31 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-dev-env json mode reports output write failures with details", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-dev-env-output-write-failure-")
+    );
+
+    const result = runScript("check-dev-env.mjs", [
+      "--json",
+      "--output",
+      tempDirectory,
+    ]);
+    const report = JSON.parse(result.output) as DevEnvJsonReport;
+    const failurePrefix = `Failed to write report to ${tempDirectory}.`;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBe(tempDirectory);
+    expect(report.message).toContain(failurePrefix);
+    if (report.message !== undefined) {
+      expect(report.message.length).toBeGreaterThan(failurePrefix.length);
+    }
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("check-client returns pass or fail summary", () => {
     const result = runScript("check-client.mjs");
     expect(result.output).toContain(
