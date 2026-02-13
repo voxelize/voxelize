@@ -1303,6 +1303,50 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(0);
   });
 
+  it("does not treat no-build aliases after option terminator as active", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--list-checks", "--", "--verify"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(true);
+    expect(report.passed).toBe(true);
+    expect(report.exitCode).toBe(0);
+    expect(report.noBuild).toBe(false);
+    expect(report.optionTerminatorUsed).toBe(true);
+    expect(report.positionalArgs).toEqual(["--verify"]);
+    expect(report.positionalArgCount).toBe(report.positionalArgs.length);
+    expect(report.selectionMode).toBe("default");
+    expect(report.selectedChecks).toEqual(report.availableChecks);
+    expect(report.requestedChecks).toEqual([]);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--list-checks"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--list-checks"]);
+    expect(report.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions(["--list-checks"])
+    );
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences(["--list-checks"])
+    );
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(result.status).toBe(0);
+  });
+
   it("supports list alias for listing checks", () => {
     const result = spawnSync(process.execPath, [preflightScript, "--list"], {
       cwd: rootDir,

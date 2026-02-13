@@ -1271,6 +1271,40 @@ describe("client wasm preflight script", () => {
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
+  it("does not treat no-build aliases after option terminator as active", () => {
+    const result = spawnSync(
+      process.execPath,
+      [wasmMesherScript, "--json", "--", "--verify"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const report = JSON.parse(`${result.stdout}${result.stderr}`) as WasmMesherJsonReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.buildSkipped).toBe(false);
+    expect(report.outputPath).toBeNull();
+    expectOptionTerminatorMetadata(report, true, ["--verify"]);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.message).not.toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
   it("fails when last output flag value is missing", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-wasm-mesher-last-output-missing-")
