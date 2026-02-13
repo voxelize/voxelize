@@ -39,6 +39,7 @@ export class BlockOverlayEffect extends Effect {
    * The old voxel ID that the camera was in.
    */
   private oldId: number;
+  private cameraPosition = new Vector3();
 
   /**
    * Create a new block overlay effect.
@@ -48,9 +49,9 @@ export class BlockOverlayEffect extends Effect {
    */
   constructor(public world: World, public camera: PerspectiveCamera) {
     super("BlockOverlayEffect", OverlayFragmentShader, {
-      uniforms: new Map([
+      uniforms: new Map<string, Uniform<number | Vector3>>([
         ["overlay", new Uniform(new Vector3(0, 0, 1))],
-        ["opacity", new Uniform(0.0 as any)],
+        ["opacity", new Uniform(0.0)],
       ]),
     });
   }
@@ -79,7 +80,7 @@ export class BlockOverlayEffect extends Effect {
       return;
     }
 
-    const position = new Vector3();
+    const position = this.cameraPosition;
     this.camera.getWorldPosition(position);
 
     const id = this.world.getVoxelAt(position.x, position.y, position.z);
