@@ -1091,7 +1091,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       const meshes = chunk.meshes.get(level) || [];
       this.emitChunkEvent("chunk-mesh-updated", {
         chunk,
-        coords: [cx, cz],
+        coords: chunk.coords,
         level,
         meshes,
         reason: "voxel",
@@ -1099,7 +1099,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       this.emitChunkEvent("chunk-updated", {
         chunk,
-        coords: [cx, cz],
+        coords: chunk.coords,
         allMeshes: chunk.meshes,
         reason: "voxel",
       });
@@ -4170,7 +4170,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       this.emitChunkEvent("chunk-data-loaded", {
         chunk,
-        coords: [x, z],
+        coords: chunk.coords,
       });
 
       const buildMeshes = () => {
@@ -4925,7 +4925,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.emitChunkEvent("chunk-mesh-loaded", {
       chunk,
-      coords: [cx, cz],
+      coords: chunk.coords,
       level,
       meshes,
     });
@@ -4933,7 +4933,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (chunk.meshes.size === this.options.subChunks) {
       this.emitChunkEvent("chunk-loaded", {
         chunk,
-        coords: [cx, cz],
+        coords: chunk.coords,
         allMeshes: chunk.meshes,
       });
     }
