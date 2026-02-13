@@ -2403,7 +2403,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       cz,
       tx,
       tz,
-      direction,
+      direction.x,
+      direction.z,
       Math.tan(threshold),
       safeRadiusSquared
     );
@@ -2414,7 +2415,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     cz: number,
     tx: number,
     tz: number,
-    direction: Vector3,
+    directionX: number,
+    directionZ: number,
     tanThreshold: number,
     safeRadiusSquared: number
   ) {
@@ -2425,11 +2427,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       return true;
     }
 
-    const dot = dz * direction.z + dx * direction.x;
+    const dot = dz * directionZ + dx * directionX;
     if (dot <= 0) {
       return false;
     }
-    const det = dz * direction.x - dx * direction.z;
+    const det = dz * directionX - dx * directionZ;
 
     return Math.abs(det) < dot * tanThreshold;
   }
@@ -3926,7 +3928,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     const loadedCount = this.chunkPipeline.loadedCount;
 
     const ratio = total === 0 ? 1 : loadedCount / total;
-    const hasDirection = direction.lengthSq() > 0;
+    const directionX = direction.x;
+    const directionZ = direction.z;
+    const directionLengthSquared = directionX * directionX + directionZ * directionZ;
+    const hasDirection = directionLengthSquared > 0;
 
     const angleThreshold = hasDirection
       ? ratio === 1
@@ -4004,7 +4009,8 @@ export class World<T = any> extends Scene implements NetIntercept {
             centerZ,
             cx,
             cz,
-            direction,
+            directionX,
+            directionZ,
             tanAngleThreshold,
             safeRadiusSquared
           )
@@ -4034,10 +4040,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     let directionPayload: [number, number] = ZERO_DIRECTION;
     if (hasDirection) {
-      const dx = direction.x;
-      const dz = direction.z;
-      const invLength = 1 / Math.hypot(dx, dz);
-      directionPayload = [dx * invLength, dz * invLength];
+      const invLength = 1 / Math.sqrt(directionLengthSquared);
+      directionPayload = [directionX * invLength, directionZ * invLength];
     }
     this.packets.push({
       type: "LOAD",
