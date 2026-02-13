@@ -6698,25 +6698,28 @@ export class World<T = any> extends Scene implements NetIntercept {
     const { chunkSize } = this.options;
     const affectedChunks = new Map<number, Set<number>>();
 
-    const addAffectedChunk = (vx: number, vz: number) => {
-      const cx = Math.floor(vx / chunkSize);
-      const cz = Math.floor(vz / chunkSize);
+    for (let removalIndex = 0; removalIndex < lightOps.removals.length; removalIndex++) {
+      const voxel = lightOps.removals[removalIndex];
+      const cx = Math.floor(voxel[0] / chunkSize);
+      const cz = Math.floor(voxel[2] / chunkSize);
       let zSet = affectedChunks.get(cx);
       if (!zSet) {
         zSet = new Set<number>();
         affectedChunks.set(cx, zSet);
       }
       zSet.add(cz);
-    };
-
-    for (let removalIndex = 0; removalIndex < lightOps.removals.length; removalIndex++) {
-      const voxel = lightOps.removals[removalIndex];
-      addAffectedChunk(voxel[0], voxel[2]);
     }
 
     for (let floodIndex = 0; floodIndex < lightOps.floods.length; floodIndex++) {
       const voxel = lightOps.floods[floodIndex].voxel;
-      addAffectedChunk(voxel[0], voxel[2]);
+      const cx = Math.floor(voxel[0] / chunkSize);
+      const cz = Math.floor(voxel[2] / chunkSize);
+      let zSet = affectedChunks.get(cx);
+      if (!zSet) {
+        zSet = new Set<number>();
+        affectedChunks.set(cx, zSet);
+      }
+      zSet.add(cz);
     }
 
     for (const [cx, zSet] of affectedChunks) {
