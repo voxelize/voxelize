@@ -2446,6 +2446,7 @@ describe("root preflight scripts", () => {
     const result = runScript("check-client.mjs", [
       "--json",
       "--verify=1",
+      "--no-build=2",
       "--mystery=alpha",
     ]);
     const report = JSON.parse(result.output) as ClientJsonReport;
@@ -2715,13 +2716,18 @@ describe("root preflight scripts", () => {
   });
 
   it("check-client non-json mode redacts inline alias misuse tokens", () => {
-    const result = runScript("check-client.mjs", ["--verify=1", "--mystery=alpha"]);
+    const result = runScript("check-client.mjs", [
+      "--verify=1",
+      "--no-build=2",
+      "--mystery=alpha",
+    ]);
 
     expect(result.status).toBe(1);
     expect(result.output).toContain(
       "Unsupported option(s): --no-build=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
     );
     expect(result.output).not.toContain("--verify=1");
+    expect(result.output).not.toContain("--no-build=2");
     expect(result.output).not.toContain("--mystery=alpha");
   });
 
@@ -3457,6 +3463,7 @@ describe("root preflight scripts", () => {
     const result = runScript("check-onboarding.mjs", [
       "--json",
       "--verify=1",
+      "--no-build=2",
       "--mystery=alpha",
     ]);
     const report = JSON.parse(result.output) as OnboardingJsonReport;
@@ -3726,13 +3733,18 @@ describe("root preflight scripts", () => {
   });
 
   it("check-onboarding non-json mode redacts inline alias misuse tokens", () => {
-    const result = runScript("check-onboarding.mjs", ["--verify=1", "--mystery=alpha"]);
+    const result = runScript("check-onboarding.mjs", [
+      "--verify=1",
+      "--no-build=2",
+      "--mystery=alpha",
+    ]);
 
     expect(result.status).toBe(1);
     expect(result.output).toContain(
       "Unsupported option(s): --no-build=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
     );
     expect(result.output).not.toContain("--verify=1");
+    expect(result.output).not.toContain("--no-build=2");
     expect(result.output).not.toContain("--mystery=alpha");
   });
 

@@ -1001,7 +1001,7 @@ describe("report-utils", () => {
 
   it("redacts inline alias misuse tokens in diagnostics", () => {
     const diagnostics = createCliDiagnostics(
-      ["--verify=1", "--verify=2", "-j=1", "--mystery=alpha"],
+      ["--verify=1", "--no-build=2", "-j=1", "--json=2", "--mystery=alpha"],
       {
         canonicalOptions: ["--json"],
         optionAliases: {

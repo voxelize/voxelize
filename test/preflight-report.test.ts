@@ -1540,7 +1540,15 @@ describe("preflight aggregate report", () => {
   it("redacts inline alias misuse tokens in unsupported-option output", () => {
     const result = spawnSync(
       process.execPath,
-      [preflightScript, "--verify=1", "-l=1", "--mystery=alpha"],
+      [
+        preflightScript,
+        "--verify=1",
+        "--no-build=2",
+        "-l=1",
+        "--list=2",
+        "--list-checks=3",
+        "--mystery=alpha",
+      ],
       {
         cwd: rootDir,
         encoding: "utf8",

@@ -847,7 +847,7 @@ describe("client wasm preflight script", () => {
   it("redacts inline alias misuse tokens in structured output", () => {
     const result = spawnSync(
       process.execPath,
-      [wasmMesherScript, "--json", "--verify=1", "--mystery=alpha"],
+      [wasmMesherScript, "--json", "--verify=1", "--no-build=2", "--mystery=alpha"],
       {
         cwd: rootDir,
         encoding: "utf8",
@@ -1219,7 +1219,7 @@ describe("client wasm preflight script", () => {
   it("fails in non-json mode with redacted inline alias misuse tokens", () => {
     const result = spawnSync(
       process.execPath,
-      [wasmMesherScript, "--verify=1", "--mystery=alpha"],
+      [wasmMesherScript, "--verify=1", "--no-build=2", "--mystery=alpha"],
       {
         cwd: rootDir,
         encoding: "utf8",
@@ -1233,6 +1233,7 @@ describe("client wasm preflight script", () => {
       "Unsupported option(s): --no-build=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --verify."
     );
     expect(output).not.toContain("--verify=1");
+    expect(output).not.toContain("--no-build=2");
     expect(output).not.toContain("--mystery=alpha");
   });
 
