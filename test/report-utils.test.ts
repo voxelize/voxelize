@@ -376,6 +376,13 @@ describe("report-utils", () => {
     expect(
       hasCliOption(["--json", "--verify=1"], "--no-build", ["--verify"])
     ).toBe(false);
+    expect(
+      hasCliOption(
+        ["--json", "--verify", "--", "--verify=1"],
+        "--no-build",
+        ["--verify"]
+      )
+    ).toBe(true);
   });
 
   it("parses unknown cli options with alias and value support", () => {
@@ -418,6 +425,17 @@ describe("report-utils", () => {
       }
     );
     expect(unknownWithInlineMisuseAfterTerminator).toEqual([]);
+
+    const unknownWithRecognizedAliasAndTerminatedInlineMisuse = parseUnknownCliOptions(
+      ["--verify", "--", "--verify=1", "--mystery=alpha"],
+      {
+        canonicalOptions: ["--json"],
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+      }
+    );
+    expect(unknownWithRecognizedAliasAndTerminatedInlineMisuse).toEqual([]);
 
     const unknownWithMissingValueFollowedByUnknown = parseUnknownCliOptions(
       ["--output", "--mystery"],

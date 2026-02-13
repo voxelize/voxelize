@@ -1307,6 +1307,46 @@ describe("client wasm preflight script", () => {
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
+  it("keeps no-build alias before option terminator active", () => {
+    const result = spawnSync(
+      process.execPath,
+      [wasmMesherScript, "--json", "--verify", "--", "--verify=1", "--mystery=alpha"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const report = JSON.parse(`${result.stdout}${result.stderr}`) as WasmMesherJsonReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.buildSkipped).toBe(true);
+    expect(report.attemptedBuild).toBe(false);
+    expect(report.outputPath).toBeNull();
+    expectOptionTerminatorMetadata(report, true, ["--verify=1", "--mystery=alpha"]);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.message).not.toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--no-build"],
+      ["--json", "--verify"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--verify",
+          canonicalOption: "--no-build",
+          index: 1,
+        },
+      ]
+    );
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
   it("fails when last output flag value is missing", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-wasm-mesher-last-output-missing-")

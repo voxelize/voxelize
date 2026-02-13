@@ -2660,6 +2660,44 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
+  it("check-client keeps no-build alias before option terminator active", () => {
+    const result = runScript("check-client.mjs", [
+      "--json",
+      "--verify",
+      "--",
+      "--verify=1",
+      "--mystery=alpha",
+    ]);
+    const report = JSON.parse(result.output) as ClientJsonReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.noBuild).toBe(true);
+    expect(report.outputPath).toBeNull();
+    expectOptionTerminatorMetadata(report, true, ["--verify=1", "--mystery=alpha"]);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.totalSteps).toBeGreaterThan(0);
+    expect(report.message).not.toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--no-build"],
+      ["--json", "--verify"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--verify",
+          canonicalOption: "--no-build",
+          index: 1,
+        },
+      ]
+    );
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
   it("check-client json mode reports unsupported options", () => {
     const result = runScript("check-client.mjs", ["--json", "--mystery"]);
     const report = JSON.parse(result.output) as ClientJsonReport;
@@ -3903,6 +3941,44 @@ describe("root preflight scripts", () => {
           token: "--json",
           canonicalOption: "--json",
           index: 0,
+        },
+      ]
+    );
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
+  it("check-onboarding keeps no-build alias before option terminator active", () => {
+    const result = runScript("check-onboarding.mjs", [
+      "--json",
+      "--verify",
+      "--",
+      "--verify=1",
+      "--mystery=alpha",
+    ]);
+    const report = JSON.parse(result.output) as OnboardingJsonReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.noBuild).toBe(true);
+    expect(report.outputPath).toBeNull();
+    expectOptionTerminatorMetadata(report, true, ["--verify=1", "--mystery=alpha"]);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.totalSteps).toBeGreaterThan(0);
+    expect(report.message).not.toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--no-build"],
+      ["--json", "--verify"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--verify",
+          canonicalOption: "--no-build",
+          index: 1,
         },
       ]
     );
