@@ -27,6 +27,8 @@ pub struct Block {
     #[serde(skip, default)]
     pub has_standard_six_faces: bool,
     #[serde(skip, default)]
+    pub fluid_face_uvs: Option<[UV; 6]>,
+    #[serde(skip, default)]
     pub is_full_cube_cached: bool,
     #[serde(skip, default)]
     pub has_mixed_diagonal_and_cardinal: bool,
@@ -50,6 +52,11 @@ impl Block {
             face.compute_name_lower();
         }
         self.has_standard_six_faces = has_standard_six_faces(&self.faces);
+        self.fluid_face_uvs = if self.has_standard_six_faces {
+            Some(standard_face_uvs(&self.faces))
+        } else {
+            None
+        };
         let mut has_diagonal = false;
         let mut has_cardinal = false;
         for (face_index, face) in self.faces.iter().enumerate() {
@@ -681,13 +688,29 @@ fn has_standard_six_faces(faces: &[BlockFace]) -> bool {
     })
 }
 
+fn standard_face_uvs(faces: &[BlockFace]) -> [UV; 6] {
+    let mut uvs = std::array::from_fn(|_| UV::default());
+    for face in faces {
+        match face.get_name_lower() {
+            "py" => uvs[0] = face.range.clone(),
+            "ny" => uvs[1] = face.range.clone(),
+            "px" => uvs[2] = face.range.clone(),
+            "nx" => uvs[3] = face.range.clone(),
+            "pz" => uvs[4] = face.range.clone(),
+            "nz" => uvs[5] = face.range.clone(),
+            _ => {}
+        }
+    }
+    uvs
+}
+
 fn create_fluid_faces<S: VoxelAccess>(
     vx: i32,
     vy: i32,
     vz: i32,
     fluid_id: u32,
     space: &S,
-    original_faces: &[BlockFace],
+    block: &Block,
     registry: &Registry,
 ) -> Vec<BlockFace> {
     let corner_nxnz: [[i32; 2]; 3] = [[-1, 0], [0, -1], [-1, -1]];
@@ -708,24 +731,13 @@ fn create_fluid_faces<S: VoxelAccess>(
         calculate_fluid_corner_height(vx, vy, vz, 1, 1, &corner_pxpz, fluid_id, space, registry)
             - FLUID_SURFACE_OFFSET;
 
-    let mut uv_py = UV::default();
-    let mut uv_ny = UV::default();
-    let mut uv_px = UV::default();
-    let mut uv_nx = UV::default();
-    let mut uv_pz = UV::default();
-    let mut uv_nz = UV::default();
-
-    for face in original_faces {
-        match face.get_name_lower() {
-            "py" => uv_py = face.range.clone(),
-            "ny" => uv_ny = face.range.clone(),
-            "px" => uv_px = face.range.clone(),
-            "nx" => uv_nx = face.range.clone(),
-            "pz" => uv_pz = face.range.clone(),
-            "nz" => uv_nz = face.range.clone(),
-            _ => {}
-        }
-    }
+    let fallback_uvs;
+    let standard_uvs = if let Some(uvs) = block.fluid_face_uvs.as_ref() {
+        uvs
+    } else {
+        fallback_uvs = standard_face_uvs(&block.faces);
+        &fallback_uvs
+    };
 
     vec![
         BlockFace {
@@ -735,7 +747,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: true,
             isolated: false,
             texture_group: None,
-            range: uv_py,
+            range: standard_uvs[0].clone(),
             corners: [
                 CornerData {
                     pos: [0.0, h_nxpz, 1.0],
@@ -762,7 +774,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: false,
             isolated: false,
             texture_group: None,
-            range: uv_ny,
+            range: standard_uvs[1].clone(),
             corners: [
                 CornerData {
                     pos: [1.0, 0.0, 1.0],
@@ -789,7 +801,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: true,
             isolated: false,
             texture_group: None,
-            range: uv_px,
+            range: standard_uvs[2].clone(),
             corners: [
                 CornerData {
                     pos: [1.0, h_pxpz, 1.0],
@@ -816,7 +828,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: true,
             isolated: false,
             texture_group: None,
-            range: uv_nx,
+            range: standard_uvs[3].clone(),
             corners: [
                 CornerData {
                     pos: [0.0, h_nxnz, 0.0],
@@ -843,7 +855,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: true,
             isolated: false,
             texture_group: None,
-            range: uv_pz,
+            range: standard_uvs[4].clone(),
             corners: [
                 CornerData {
                     pos: [0.0, 0.0, 1.0],
@@ -870,7 +882,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: true,
             isolated: false,
             texture_group: None,
-            range: uv_nz,
+            range: standard_uvs[5].clone(),
             corners: [
                 CornerData {
                     pos: [1.0, 0.0, 0.0],
@@ -2432,7 +2444,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
 
                     let faces: Vec<(BlockFace, bool)> =
                         if is_fluid && block.has_standard_six_faces_cached() {
-                            create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
+                            create_fluid_faces(vx, vy, vz, block.id, space, block, registry)
                                 .into_iter()
                                 .map(|f| (f, false))
                                 .collect()
@@ -2788,7 +2800,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     if is_non_greedy_block {
                         let faces: Vec<(BlockFace, bool)> =
                             if is_fluid && block.has_standard_six_faces_cached() {
-                                create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
+                                create_fluid_faces(vx, vy, vz, block.id, space, block, registry)
                                     .into_iter()
                                     .map(|face| (face, false))
                                     .collect()
@@ -3128,7 +3140,7 @@ pub fn mesh_space<S: VoxelAccess>(
 
                 if is_fluid && block.has_standard_six_faces_cached() {
                     let fluid_faces =
-                        create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry);
+                        create_fluid_faces(vx, vy, vz, block.id, space, block, registry);
                     for face in &fluid_faces {
                         process_single_face(face, false);
                     }

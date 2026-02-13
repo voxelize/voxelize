@@ -1641,6 +1641,7 @@ impl Block {
             is_all_transparent: self.is_transparent.iter().all(|transparent| *transparent),
             greedy_face_indices: [-1; 6],
             has_standard_six_faces: false,
+            fluid_face_uvs: None,
             is_full_cube_cached: false,
             has_mixed_diagonal_and_cardinal: false,
             greedy_mesh_eligible_no_rotation: false,
