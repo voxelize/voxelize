@@ -399,24 +399,24 @@ impl NeighborCache {
         Self { data }
     }
 
-    #[inline]
+    #[inline(always)]
     fn get_raw_voxel(&self, dx: i32, dy: i32, dz: i32) -> u32 {
         let idx = Self::offset_to_index(dx, dy, dz);
         self.data[idx][0]
     }
 
-    #[inline]
+    #[inline(always)]
     fn get_voxel(&self, dx: i32, dy: i32, dz: i32) -> u32 {
         extract_id(self.get_raw_voxel(dx, dy, dz))
     }
 
-    #[inline]
+    #[inline(always)]
     fn get_raw_light(&self, dx: i32, dy: i32, dz: i32) -> u32 {
         let idx = Self::offset_to_index(dx, dy, dz);
         self.data[idx][1]
     }
 
-    #[inline]
+    #[inline(always)]
     fn get_all_lights(&self, dx: i32, dy: i32, dz: i32) -> (u32, u32, u32, u32) {
         let light = self.get_raw_light(dx, dy, dz);
         LightUtils::extract_all(light)
