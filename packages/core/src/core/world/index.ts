@@ -2836,7 +2836,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       return block;
     };
 
-    for (const update of updates) {
+    for (let updateIndex = 0; updateIndex < updates.length; updateIndex++) {
+      const update = updates[updateIndex];
       if (update.vy < 0 || update.vy >= this.options.maxHeight) {
         continue;
       }
@@ -2921,7 +2922,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       return block;
     };
 
-    for (const update of updates) {
+    for (let updateIndex = 0; updateIndex < updates.length; updateIndex++) {
+      const update = updates[updateIndex];
       const { vx, vy, vz, voxel } = update;
 
       if (vy < 0 || vy >= this.options.maxHeight) continue;
