@@ -6280,6 +6280,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     }
 
+    if (chunkResultsByX.size === 0) {
+      return;
+    }
+
     const minLevel = Math.floor(globalMinY / subChunkHeight);
     const maxLevel = Math.min(
       subChunks - 1,
