@@ -2620,8 +2620,11 @@ export class World<T = any> extends Scene implements NetIntercept {
         continue;
       }
 
-      const normalizedRotation =
-        rotation === undefined || isNaN(rotation) ? 0 : rotation;
+      const normalizedRotationCandidate =
+        rotation === undefined || isNaN(rotation) ? PY_ROTATION : rotation;
+      const normalizedRotation = block.rotatable
+        ? normalizedRotationCandidate
+        : PY_ROTATION;
       const normalizedYRotation =
         block.yRotatable && yRotation !== undefined && !isNaN(yRotation)
           ? yRotation
