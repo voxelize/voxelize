@@ -1951,23 +1951,27 @@ export class World<T = any> extends Scene implements NetIntercept {
    * @returns The voxel's light color at the given coordinate.
    */
   getLightColorAt(vx: number, vy: number, vz: number) {
-    const lightValues = this.getLightValuesAtUnchecked(vx, vy, vz);
-    if (!lightValues) return new Color(1, 1, 1);
+    const chunk = this.getLoadedChunkAtVoxel(vx, vz);
+    if (!chunk) return new Color(1, 1, 1);
 
-    const { sunlight, red, green, blue } = lightValues;
+    const sunlight = chunk.getSunlight(vx, vy, vz);
+    const red = chunk.getTorchLight(vx, vy, vz, "RED");
+    const green = chunk.getTorchLight(vx, vy, vz, "GREEN");
+    const blue = chunk.getTorchLight(vx, vy, vz, "BLUE");
     const { sunlightIntensity, minLightLevel, baseAmbient } =
       this.chunkRenderer.uniforms;
+    const invMaxLightLevel = 1 / this.options.maxLightLevel;
 
-    const sunlightNorm = sunlight / this.options.maxLightLevel;
+    const sunlightNorm = sunlight * invMaxLightLevel;
     const sunlightFactor = sunlightNorm ** 2 * sunlightIntensity.value;
     const s = Math.min(
       sunlightFactor + minLightLevel.value * sunlightNorm + baseAmbient.value,
       1
     );
 
-    const torchR = Math.pow(red / this.options.maxLightLevel, 2);
-    const torchG = Math.pow(green / this.options.maxLightLevel, 2);
-    const torchB = Math.pow(blue / this.options.maxLightLevel, 2);
+    const torchR = Math.pow(red * invMaxLightLevel, 2);
+    const torchG = Math.pow(green * invMaxLightLevel, 2);
+    const torchB = Math.pow(blue * invMaxLightLevel, 2);
     const torchAttenuation = 1.0 - s * 0.8;
 
     return new Color(
