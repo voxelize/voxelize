@@ -218,21 +218,24 @@ const processMeshMessage = (message: MeshBatchMessage) => {
   const { chunksData, min, max } = message;
   const { chunkSize, greedyMeshing = true } = message.options;
 
-  const chunks = chunksData.map((chunkData): ChunkData | null => {
-    if (!chunkData) return null;
+  const chunks: (ChunkData | null)[] = new Array(chunksData.length);
+  for (let i = 0; i < chunksData.length; i++) {
+    const chunkData = chunksData[i];
+    if (!chunkData) {
+      chunks[i] = null;
+      continue;
+    }
 
     const { x, z, voxels, lights, options } = chunkData;
     const { size, maxHeight } = options;
 
-    return {
-      voxels:
-        voxels && voxels.byteLength ? new Uint32Array(voxels) : emptyUint32Array,
-      lights:
-        lights && lights.byteLength ? new Uint32Array(lights) : emptyUint32Array,
-      shape: [size, maxHeight, size] as [number, number, number],
-      min: [x * size, 0, z * size] as [number, number, number],
+    chunks[i] = {
+      voxels: voxels.byteLength ? new Uint32Array(voxels) : emptyUint32Array,
+      lights: lights.byteLength ? new Uint32Array(lights) : emptyUint32Array,
+      shape: [size, maxHeight, size],
+      min: [x * size, 0, z * size],
     };
-  });
+  }
 
   minArray[0] = min[0];
   minArray[1] = min[1];
