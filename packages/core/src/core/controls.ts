@@ -444,7 +444,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    *
    * @hidden
    */
-  public packets: MessageProtocol<any, any, any, any>[] = [];
+  public packets: MessageProtocol[] = [];
 
   /**
    * The client's own peer ID. This is set when the client first connects to the server.
@@ -528,7 +528,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   }
 
   onMessage = (
-    message: MessageProtocol<any, any, any, [number, number, number]>
+    message: MessageProtocol<{ id: string }, object, object, [number, number, number]>
   ) => {
     switch (message.type) {
       case "INIT": {
