@@ -1544,12 +1544,10 @@ fn process_greedy_quad(
     let is_opaque = block.is_opaque;
     let is_fluid = quad.data.is_fluid;
 
-    let UV {
-        start_u,
-        end_u,
-        start_v,
-        end_v,
-    } = quad.data.uv_range.clone();
+    let start_u = quad.data.uv_range.start_u;
+    let end_u = quad.data.uv_range.end_u;
+    let start_v = quad.data.uv_range.start_v;
+    let end_v = quad.data.uv_range.end_v;
 
     let scale = if is_opaque { 0.0 } else { 0.0001 };
 
@@ -1965,12 +1963,10 @@ fn process_face<S: VoxelAccess>(
         return;
     }
 
-    let UV {
-        start_u,
-        end_u,
-        start_v,
-        end_v,
-    } = uv_range.clone();
+    let start_u = uv_range.start_u;
+    let end_u = uv_range.end_u;
+    let start_v = uv_range.start_v;
+    let end_v = uv_range.end_v;
 
     let ndx = (positions.len() / 3) as i32;
     let mut face_aos = [0i32; 4];
