@@ -38,7 +38,6 @@ export class PointLightShadowRenderer {
   private frameCount = 0;
   private updateInterval = 2;
   private hiddenObjectsBuffer: Object3D[] = [];
-  private hiddenVisibilityBuffer: boolean[] = [];
 
   constructor(config: Partial<PointLightShadowConfig> = {}) {
     this.config = { ...defaultConfig, ...config };
@@ -117,12 +116,12 @@ export class PointLightShadowRenderer {
 
     const hiddenObjects = this.hiddenObjectsBuffer;
     hiddenObjects.length = 0;
-    const hiddenVisibility = this.hiddenVisibilityBuffer;
-    hiddenVisibility.length = 0;
     for (let objectIndex = 0; objectIndex < skipObjects.length; objectIndex++) {
       const obj = skipObjects[objectIndex];
+      if (!obj.visible) {
+        continue;
+      }
       hiddenObjects.push(obj);
-      hiddenVisibility.push(obj.visible);
       obj.visible = false;
     }
 
@@ -134,7 +133,7 @@ export class PointLightShadowRenderer {
     scene.overrideMaterial = originalOverrideMaterial;
 
     for (let objectIndex = 0; objectIndex < hiddenObjects.length; objectIndex++) {
-      hiddenObjects[objectIndex].visible = hiddenVisibility[objectIndex];
+      hiddenObjects[objectIndex].visible = true;
     }
 
     return true;
