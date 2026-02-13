@@ -862,6 +862,9 @@ export class World<T = any> extends Scene implements NetIntercept {
   private meshJobCzs = new Int32Array(0);
   private meshJobLevels = new Int32Array(0);
   private meshJobGenerations = new Uint32Array(0);
+  private meshJobKeys: string[] = [];
+  private meshWorkerPromises: Array<Promise<GeometryProtocol[] | null>> = [];
+  private meshJobArrayCapacity = 0;
 
   private static readonly warmColor = new Color(1.0, 0.95, 0.9);
   private static readonly coolColor = new Color(0.9, 0.95, 1.0);
@@ -951,6 +954,18 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.meshJobCzs = new Int32Array(capacity);
     this.meshJobLevels = new Int32Array(capacity);
     this.meshJobGenerations = new Uint32Array(capacity);
+  }
+
+  private ensureMeshJobArrayCapacity(capacity: number) {
+    if (this.meshJobArrayCapacity >= capacity) {
+      return;
+    }
+
+    this.meshJobKeys = new Array<string>(capacity);
+    this.meshWorkerPromises = new Array<Promise<GeometryProtocol[] | null>>(
+      capacity
+    );
+    this.meshJobArrayCapacity = capacity;
   }
 
   private pruneDeltasByCutoff(deltas: VoxelDelta[], cutoff: number): number {
@@ -6048,10 +6063,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       const processCount = dirtyKeys.length;
-      const workerPromises = new Array<Promise<GeometryProtocol[] | null>>(
-        processCount
-      );
-      const jobKeys = new Array<string>(processCount);
+      this.ensureMeshJobArrayCapacity(processCount);
+      const workerPromises = this.meshWorkerPromises;
+      const jobKeys = this.meshJobKeys;
       this.ensureMeshJobMetadataCapacity(processCount);
       const jobCxs = this.meshJobCxs;
       const jobCzs = this.meshJobCzs;
