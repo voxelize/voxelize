@@ -1266,7 +1266,7 @@ fn should_render_face<S: VoxelAccess>(
     let nvy = vy + dir[1];
     let nvz = vz + dir[2];
 
-    let neighbor_id = space.get_voxel(nvx, nvy, nvz);
+    let neighbor_id = extract_id(space.get_raw_voxel(nvx, nvy, nvz));
 
     if !see_through {
         let (neighbor_has_type, neighbor_is_opaque) = registry.has_type_and_is_opaque(neighbor_id);
@@ -1306,7 +1306,7 @@ fn is_surrounded_by_opaque_neighbors<S: VoxelAccess>(
     registry: &Registry,
 ) -> bool {
     for [nx, ny, nz] in VOXEL_NEIGHBORS {
-        let id = space.get_voxel(vx + nx, vy + ny, vz + nz);
+        let id = extract_id(space.get_raw_voxel(vx + nx, vy + ny, vz + nz));
         if !registry.is_opaque_id(id) {
             return false;
         }
@@ -2308,7 +2308,7 @@ fn process_face<S: VoxelAccess>(
             if rotated_dir_in_cache {
                 neighbors.get_voxel(dir[0], dir[1], dir[2])
             } else {
-                space.get_voxel(vx + dir[0], vy + dir[1], vz + dir[2])
+                extract_id(space.get_raw_voxel(vx + dir[0], vy + dir[1], vz + dir[2]))
             }
         };
 
