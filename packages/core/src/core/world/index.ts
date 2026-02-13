@@ -4877,7 +4877,8 @@ export class World<T = any> extends Scene implements NetIntercept {
         }[]
       >();
 
-      for (const geo of geometries) {
+      for (let geometryIndex = 0; geometryIndex < geometries.length; geometryIndex++) {
+        const geo = geometries[geometryIndex];
         const { voxel, at, faceName, indices, lights, positions, uvs } = geo;
         const geometry = new BufferGeometry();
 
@@ -4915,14 +4916,16 @@ export class World<T = any> extends Scene implements NetIntercept {
           faceName,
           at && at.length ? at : undefined
         );
-        if (!materialToGeometries.has(matKey)) {
-          materialToGeometries.set(matKey, []);
+        let geometriesByMaterial = materialToGeometries.get(matKey);
+        if (!geometriesByMaterial) {
+          geometriesByMaterial = [];
+          materialToGeometries.set(matKey, geometriesByMaterial);
         }
-        materialToGeometries.get(matKey)!.push({ geometry, material, voxel });
+        geometriesByMaterial.push({ geometry, material, voxel });
       }
 
       meshes = [];
-      for (const [, geoMats] of materialToGeometries) {
+      for (const geoMats of materialToGeometries.values()) {
         if (geoMats.length === 0) continue;
 
         const material = geoMats[0].material;
@@ -4932,18 +4935,19 @@ export class World<T = any> extends Scene implements NetIntercept {
         if (geoMats.length === 1) {
           finalGeometry = geoMats[0].geometry;
         } else {
-          const geos: BufferGeometry[] = [];
-          for (let i = 0; i < geoMats.length; i++) {
-            geos.push(geoMats[i].geometry);
+          const geoCount = geoMats.length;
+          const geos = new Array<BufferGeometry>(geoCount);
+          for (let i = 0; i < geoCount; i++) {
+            geos[i] = geoMats[i].geometry;
           }
           const merged = mergeGeometries(geos, false);
           if (!merged) {
-            for (let i = 0; i < geos.length; i++) {
+            for (let i = 0; i < geoCount; i++) {
               geos[i].dispose();
             }
             continue;
           }
-          for (let i = 0; i < geos.length; i++) {
+          for (let i = 0; i < geoCount; i++) {
             geos[i].dispose();
           }
           finalGeometry = merged;
@@ -5069,15 +5073,24 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     }
 
-    if (!this.children.includes(chunk.group)) {
+    if (chunk.group.parent !== this) {
       this.add(chunk.group);
     }
 
-    if (!chunk.meshes.has(level)) {
-      chunk.meshes.set(level, []);
+    let levelMeshes = chunk.meshes.get(level);
+    if (!levelMeshes) {
+      levelMeshes = [];
+      chunk.meshes.set(level, levelMeshes);
     }
 
-    chunk.meshes.get(level)?.push(...meshes);
+    const meshCount = meshes.length;
+    if (meshCount > 0) {
+      const start = levelMeshes.length;
+      levelMeshes.length = start + meshCount;
+      for (let index = 0; index < meshCount; index++) {
+        levelMeshes[start + index] = meshes[index];
+      }
+    }
 
     const [pcx, pcz] = this._lastCenterChunk;
     const dx = cx - pcx;
