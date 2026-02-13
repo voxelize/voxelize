@@ -7,6 +7,11 @@ import {
 } from "./constants";
 import { BlockRotation } from "./rotation";
 
+export interface RotationLike {
+  value: number;
+  yRotation: number;
+}
+
 export interface VoxelFields {
   id: number;
   rotation: BlockRotation;
@@ -28,8 +33,10 @@ export class BlockUtils {
     return BlockRotation.encode(rotation, yRotation);
   }
 
-  static insertRotation(voxel: number, rotation: BlockRotation): number {
-    const [rotationValue, yRotation] = BlockRotation.decode(rotation);
+  static insertRotation(voxel: number, rotation: RotationLike): number {
+    const [rotationValue, yRotation] = BlockRotation.decode(
+      new BlockRotation(rotation.value, rotation.yRotation)
+    );
     const value = (voxel & ROTATION_MASK) | ((rotationValue & 0xf) << 16);
     return toUint32((value & Y_ROTATION_MASK) | ((yRotation & 0xf) << 20));
   }
@@ -45,7 +52,7 @@ export class BlockUtils {
 
   static insertAll(
     id: number,
-    rotation?: BlockRotation,
+    rotation?: RotationLike,
     stage?: number
   ): number {
     let value = 0;
@@ -88,7 +95,7 @@ export class Voxel {
     return BlockUtils.insertId(voxel, id);
   }
 
-  static withRotation(voxel: number, rotation: BlockRotation): number {
+  static withRotation(voxel: number, rotation: RotationLike): number {
     return BlockUtils.insertRotation(voxel, rotation);
   }
 
@@ -98,7 +105,7 @@ export class Voxel {
 
   static pack(fields: {
     id: number;
-    rotation?: BlockRotation;
+    rotation?: RotationLike;
     stage?: number;
   }): number {
     return BlockUtils.insertAll(fields.id, fields.rotation, fields.stage);

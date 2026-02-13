@@ -1,6 +1,5 @@
 import {
   BlockRuleEvaluator as TSCoreBlockRuleEvaluator,
-  BlockRotation as TSCoreBlockRotation,
   BlockUtils as TSCoreBlockUtils,
 } from "@voxelize/ts-core";
 
@@ -67,10 +66,7 @@ export class BlockUtils {
    * @returns The inserted voxel value.
    */
   static insertRotation = (voxel: number, rotation: BlockRotation) => {
-    return TSCoreBlockUtils.insertRotation(
-      voxel,
-      new TSCoreBlockRotation(rotation.value, rotation.yRotation)
-    );
+    return TSCoreBlockUtils.insertRotation(voxel, rotation);
   };
 
   /**
