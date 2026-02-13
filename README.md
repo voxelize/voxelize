@@ -266,6 +266,7 @@ Recognized options in the same invocation are still preserved in `activeCliOptio
 Root/client/onboarding/wasm JSON preflight reports include `availableCliOptionAliases` and `availableCliOptionCanonicalMap` so automation can resolve option aliases to canonical names.
 Argument values passed to `--output` and `--only` are excluded from unrecognized-option detection, even when they start with `-`.
 If a split `--output` or `--only` value position is followed by a recognized option token (for example `--output -l` or `--only -l`) or recognized inline option misuse (for example `--output -l=1` or `--only -l=1`), that token is treated as an option and the value is considered missing.
+For commands that support no-build aliases, `--output --verify` and `--output --no-build` both fail output validation and still mark no-build as active.
 Arguments after `--` are treated as positional arguments and are excluded from preflight script option parsing and unsupported-option detection.
 JSON preflight reports include `optionTerminatorUsed`, `positionalArgs`, and `positionalArgCount` to describe positional tokens provided after `--`.
 Unrecognized flags are still listed in `unknownOptions` even when a higher-priority validation error is reported.
