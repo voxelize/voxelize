@@ -33,6 +33,8 @@ pub struct Block {
     #[serde(skip, default)]
     pub has_diagonal_faces: bool,
     #[serde(skip, default)]
+    pub has_independent_or_isolated_faces: bool,
+    #[serde(skip, default)]
     pub is_full_cube_cached: bool,
     #[serde(skip, default)]
     pub has_mixed_diagonal_and_cardinal: bool,
@@ -57,8 +59,12 @@ impl Block {
         let mut fluid_face_uvs = std::array::from_fn(|_| UV::default());
         let mut has_diagonal = false;
         let mut has_cardinal = false;
+        let mut has_independent_or_isolated_faces = false;
         for (face_index, face) in self.faces.iter_mut().enumerate() {
             face.compute_name_lower();
+            if face.independent || face.isolated {
+                has_independent_or_isolated_faces = true;
+            }
             match face.get_name_lower() {
                 "py" => {
                     has_standard_six_faces = true;
@@ -109,6 +115,7 @@ impl Block {
             None
         };
         self.has_diagonal_faces = has_diagonal;
+        self.has_independent_or_isolated_faces = has_independent_or_isolated_faces;
         self.has_mixed_diagonal_and_cardinal = has_diagonal && has_cardinal;
         self.greedy_mesh_eligible_no_rotation = !self.is_fluid
             && !self.rotatable
@@ -169,6 +176,16 @@ impl Block {
             has_diagonal_faces(self)
         } else {
             self.has_diagonal_faces
+        }
+    }
+
+    pub fn has_independent_or_isolated_faces_cached(&self) -> bool {
+        if !self.cache_ready {
+            self.faces
+                .iter()
+                .any(|face| face.independent || face.isolated)
+        } else {
+            self.has_independent_or_isolated_faces
         }
     }
 }
@@ -2921,41 +2938,74 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 voxel_id,
                                 space,
                             );
-                            for face in &block.faces {
-                                let geo_key = geometry_key_for_face(block, face, vx, vy, vz);
-                                let geometry = map.entry(geo_key).or_insert_with(|| {
-                                    let mut entry = GeometryProtocol::default();
-                                    entry.voxel = voxel_id;
-                                    if face.independent || face.isolated {
-                                        entry.face_name = Some(face.name.clone());
-                                    }
-                                    if face.isolated {
-                                        entry.at = Some([vx, vy, vz]);
-                                    }
-                                    entry
-                                });
-                                process_face(
-                                    vx,
-                                    vy,
-                                    vz,
-                                    voxel_id,
-                                    &rotation,
-                                    face,
-                                    &face.range,
-                                    block,
-                                    registry,
-                                    space,
-                                    &neighbors,
-                                    &face_cache,
-                                    is_see_through,
-                                    is_fluid,
-                                    &mut geometry.positions,
-                                    &mut geometry.indices,
-                                    &mut geometry.uvs,
-                                    &mut geometry.lights,
-                                    min,
-                                    false,
-                                );
+                            if !block.has_independent_or_isolated_faces_cached() {
+                                let geometry =
+                                    map.entry(GeometryMapKey::Block(block.id)).or_insert_with(|| {
+                                        let mut entry = GeometryProtocol::default();
+                                        entry.voxel = block.id;
+                                        entry
+                                    });
+                                for face in &block.faces {
+                                    process_face(
+                                        vx,
+                                        vy,
+                                        vz,
+                                        voxel_id,
+                                        &rotation,
+                                        face,
+                                        &face.range,
+                                        block,
+                                        registry,
+                                        space,
+                                        &neighbors,
+                                        &face_cache,
+                                        is_see_through,
+                                        is_fluid,
+                                        &mut geometry.positions,
+                                        &mut geometry.indices,
+                                        &mut geometry.uvs,
+                                        &mut geometry.lights,
+                                        min,
+                                        false,
+                                    );
+                                }
+                            } else {
+                                for face in &block.faces {
+                                    let geo_key = geometry_key_for_face(block, face, vx, vy, vz);
+                                    let geometry = map.entry(geo_key).or_insert_with(|| {
+                                        let mut entry = GeometryProtocol::default();
+                                        entry.voxel = voxel_id;
+                                        if face.independent || face.isolated {
+                                            entry.face_name = Some(face.name.clone());
+                                        }
+                                        if face.isolated {
+                                            entry.at = Some([vx, vy, vz]);
+                                        }
+                                        entry
+                                    });
+                                    process_face(
+                                        vx,
+                                        vy,
+                                        vz,
+                                        voxel_id,
+                                        &rotation,
+                                        face,
+                                        &face.range,
+                                        block,
+                                        registry,
+                                        space,
+                                        &neighbors,
+                                        &face_cache,
+                                        is_see_through,
+                                        is_fluid,
+                                        &mut geometry.positions,
+                                        &mut geometry.indices,
+                                        &mut geometry.uvs,
+                                        &mut geometry.lights,
+                                        min,
+                                        false,
+                                    );
+                                }
                             }
                         }
                         continue;
@@ -3288,10 +3338,7 @@ pub fn mesh_space<S: VoxelAccess>(
 
                 let uses_main_geometry_only = !is_fluid
                     && block.dynamic_patterns.is_none()
-                    && block
-                        .faces
-                        .iter()
-                        .all(|face| !face.independent && !face.isolated);
+                    && !block.has_independent_or_isolated_faces_cached();
                 if uses_main_geometry_only {
                     let geometry = map.entry(GeometryMapKey::Block(block.id)).or_insert_with(|| {
                         let mut entry = GeometryProtocol::default();
