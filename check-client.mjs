@@ -23,17 +23,17 @@ const runStep = (name, command, args) => {
   process.exit(result.status ?? 1);
 };
 
+runStep(
+  "WASM artifact preflight",
+  process.execPath,
+  [path.resolve(__dirname, "./examples/client/scripts/check-wasm-mesher.mjs")]
+);
+
 runStep("TypeScript typecheck", pnpmCommand, [
   "--dir",
   "./examples/client",
   "run",
   "typecheck",
 ]);
-
-runStep(
-  "WASM artifact preflight",
-  process.execPath,
-  [path.resolve(__dirname, "./examples/client/scripts/check-wasm-mesher.mjs")]
-);
 
 console.log("Client checks passed.");
