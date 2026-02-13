@@ -9,6 +9,18 @@ const isJson = process.argv.includes("--json");
 const stepResults = [];
 let exitCode = 0;
 
+const parseJsonOutput = (value) => {
+  if (value.length === 0) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+};
+
 const runStep = (name, scriptPath) => {
   if (!isQuiet && !isJson) {
     console.log(`Running onboarding step: ${name}`);
@@ -34,11 +46,13 @@ const runStep = (name, scriptPath) => {
   const resolvedStatus = result.status ?? 1;
   if (isJson) {
     const output = `${result.stdout ?? ""}${result.stderr ?? ""}`.trim();
+    const parsedReport = parseJsonOutput(output);
     stepResults.push({
       name,
       passed: resolvedStatus === 0,
       exitCode: resolvedStatus,
-      output,
+      report: parsedReport,
+      output: parsedReport === null ? output : null,
     });
   }
 

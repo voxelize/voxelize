@@ -45,7 +45,8 @@ type OnboardingJsonStep = {
   name: string;
   passed: boolean;
   exitCode: number;
-  output: string;
+  report: DevEnvJsonReport | ClientJsonReport | null;
+  output: string | null;
 };
 
 type OnboardingJsonReport = {
@@ -186,6 +187,10 @@ describe("root preflight scripts", () => {
     expect(Array.isArray(report.steps)).toBe(true);
     expect(report.steps.length).toBeGreaterThan(0);
     expect(report.steps[0].name).toBe("Developer environment preflight");
+    expect(report.steps[0].report).not.toBeNull();
+    if (report.steps[0].report !== null) {
+      expect(typeof report.steps[0].report.passed).toBe("boolean");
+    }
     expect(result.status).toBe(report.passed ? 0 : 1);
     expect(result.output).not.toContain("Running onboarding step:");
     expect(result.output).not.toContain("Onboarding check failed:");
