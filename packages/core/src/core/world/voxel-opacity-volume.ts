@@ -24,6 +24,9 @@ export class VoxelOpacityVolume {
   private config: VoxelOpacityVolumeConfig;
   private texture: Data3DTexture;
   private data: Uint8Array;
+  private texWidth = 0;
+  private texHeight = 0;
+  private texDepth = 0;
   private volumeMin = new Vector3();
   private volumeSize = new Vector3();
   private gridRes = new Vector3();
@@ -39,9 +42,12 @@ export class VoxelOpacityVolume {
 
     const [width, height, depth] = this.config.size;
     const res = this.config.resolution;
-    const texWidth = Math.ceil(width / res);
-    const texHeight = Math.ceil(height / res);
-    const texDepth = Math.ceil(depth / res);
+    this.texWidth = Math.ceil(width / res);
+    this.texHeight = Math.ceil(height / res);
+    this.texDepth = Math.ceil(depth / res);
+    const texWidth = this.texWidth;
+    const texHeight = this.texHeight;
+    const texDepth = this.texDepth;
 
     this.data = new Uint8Array(texWidth * texHeight * texDepth);
     this.data.fill(0);
@@ -96,9 +102,9 @@ export class VoxelOpacityVolume {
     this.data.fill(0);
 
     const res = this.config.resolution;
-    const texWidth = Math.round(this.gridRes.x);
-    const texHeight = Math.round(this.gridRes.y);
-    const texDepth = Math.round(this.gridRes.z);
+    const texWidth = this.texWidth;
+    const texHeight = this.texHeight;
+    const texDepth = this.texDepth;
 
     let chunkEntries = chunks.values();
     let chunkEntry = chunkEntries.next();
@@ -194,9 +200,9 @@ export class VoxelOpacityVolume {
 
   setVoxelOpacity(wx: number, wy: number, wz: number, opaque: boolean) {
     const res = this.config.resolution;
-    const texWidth = Math.round(this.gridRes.x);
-    const texHeight = Math.round(this.gridRes.y);
-    const texDepth = Math.round(this.gridRes.z);
+    const texWidth = this.texWidth;
+    const texHeight = this.texHeight;
+    const texDepth = this.texDepth;
 
     const tx = Math.floor((wx - this.volumeMin.x) / res);
     const ty = Math.floor((wy - this.volumeMin.y) / res);
