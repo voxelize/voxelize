@@ -1973,17 +1973,13 @@ fn process_greedy_quad(
     let ao_diag_sum = face_aos[0] + face_aos[3];
     let ao_off_sum = face_aos[1] + face_aos[2];
     let fequals = ao_diag_sum == ao_off_sum;
-    let ozao_r = a_rt + d_rt < b_rt + c_rt && fequals;
-    let ozao_g = a_gt + d_gt < b_gt + c_gt && fequals;
-    let ozao_b = a_bt + d_bt < b_bt + c_bt && fequals;
+    let ozao_r = fequals && a_rt + d_rt < b_rt + c_rt;
+    let ozao_g = fequals && a_gt + d_gt < b_gt + c_gt;
+    let ozao_b = fequals && a_bt + d_bt < b_bt + c_bt;
 
-    let anzp1_r = has_channel_midpoint_anomaly(a_rt, b_rt, c_rt, d_rt);
-    let anzp1_g = has_channel_midpoint_anomaly(a_gt, b_gt, c_gt, d_gt);
-    let anzp1_b = has_channel_midpoint_anomaly(a_bt, b_bt, c_bt, d_bt);
-
-    let anz_r = one_tr0 && anzp1_r;
-    let anz_g = one_tg0 && anzp1_g;
-    let anz_b = one_tb0 && anzp1_b;
+    let anz_r = one_tr0 && has_channel_midpoint_anomaly(a_rt, b_rt, c_rt, d_rt);
+    let anz_g = one_tg0 && has_channel_midpoint_anomaly(a_gt, b_gt, c_gt, d_gt);
+    let anz_b = one_tb0 && has_channel_midpoint_anomaly(a_bt, b_bt, c_bt, d_bt);
 
     if ao_diag_sum > ao_off_sum
         || (ozao_r || ozao_g || ozao_b)
@@ -2604,17 +2600,16 @@ fn process_face<S: VoxelAccess>(
     let ao_diag_sum = face_aos[0] + face_aos[3];
     let ao_off_sum = face_aos[1] + face_aos[2];
     let fequals = ao_diag_sum == ao_off_sum;
-    let ozao_r = a_rt + d_rt < b_rt + c_rt && fequals;
-    let ozao_g = a_gt + d_gt < b_gt + c_gt && fequals;
-    let ozao_b = a_bt + d_bt < b_bt + c_bt && fequals;
+    let ozao_r = fequals && a_rt + d_rt < b_rt + c_rt;
+    let ozao_g = fequals && a_gt + d_gt < b_gt + c_gt;
+    let ozao_b = fequals && a_bt + d_bt < b_bt + c_bt;
 
-    let anzp1_r = has_channel_midpoint_anomaly(a_rt as i32, b_rt as i32, c_rt as i32, d_rt as i32);
-    let anzp1_g = has_channel_midpoint_anomaly(a_gt as i32, b_gt as i32, c_gt as i32, d_gt as i32);
-    let anzp1_b = has_channel_midpoint_anomaly(a_bt as i32, b_bt as i32, c_bt as i32, d_bt as i32);
-
-    let anz_r = one_tr0 && anzp1_r;
-    let anz_g = one_tg0 && anzp1_g;
-    let anz_b = one_tb0 && anzp1_b;
+    let anz_r = one_tr0
+        && has_channel_midpoint_anomaly(a_rt as i32, b_rt as i32, c_rt as i32, d_rt as i32);
+    let anz_g = one_tg0
+        && has_channel_midpoint_anomaly(a_gt as i32, b_gt as i32, c_gt as i32, d_gt as i32);
+    let anz_b = one_tb0
+        && has_channel_midpoint_anomaly(a_bt as i32, b_bt as i32, c_bt as i32, d_bt as i32);
 
     indices.push(ndx);
     indices.push(ndx + 1);
