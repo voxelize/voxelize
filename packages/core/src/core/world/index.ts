@@ -5732,13 +5732,24 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (dirtyKeys.length === 0) return;
 
     const maxConcurrentMeshJobs = this.options.maxMeshesPerUpdate || 8;
-    const keysToProcess = dirtyKeys.slice(0, maxConcurrentMeshJobs);
+    const processCount = Math.min(dirtyKeys.length, maxConcurrentMeshJobs);
+    const workerPromises = new Array<
+      Promise<{
+        cx: number;
+        cz: number;
+        level: number;
+        generation: number;
+        key: string;
+        geometries: GeometryProtocol[];
+      }>
+    >(processCount);
 
-    const workerPromises = keysToProcess.map((key) => {
+    for (let index = 0; index < processCount; index++) {
+      const key = dirtyKeys[index];
       const { cx, cz, level } = MeshPipeline.parseKey(key);
       const generation = this.meshPipeline.startJob(key);
 
-      return this.dispatchMeshWorker(cx, cz, level).then(
+      workerPromises[index] = this.dispatchMeshWorker(cx, cz, level).then(
         (geometries) =>
           ({
             cx,
@@ -5747,9 +5758,9 @@ export class World<T = any> extends Scene implements NetIntercept {
             generation,
             key,
             geometries,
-          } as const)
+          })
       );
-    });
+    }
 
     const results = await Promise.all(workerPromises);
 
