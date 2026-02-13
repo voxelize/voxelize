@@ -5393,25 +5393,26 @@ export class World<T = any> extends Scene implements NetIntercept {
     };
   })();
 
+  private appendItems<T>(target: T[], source: T[]) {
+    for (const item of source) {
+      target.push(item);
+    }
+  }
+
   private mergeLightOperations(
     existing: LightOperations,
     newOps: LightOperations
   ): LightOperations {
-    return {
-      removals: {
-        sunlight: [...existing.removals.sunlight, ...newOps.removals.sunlight],
-        red: [...existing.removals.red, ...newOps.removals.red],
-        green: [...existing.removals.green, ...newOps.removals.green],
-        blue: [...existing.removals.blue, ...newOps.removals.blue],
-      },
-      floods: {
-        sunlight: [...existing.floods.sunlight, ...newOps.floods.sunlight],
-        red: [...existing.floods.red, ...newOps.floods.red],
-        green: [...existing.floods.green, ...newOps.floods.green],
-        blue: [...existing.floods.blue, ...newOps.floods.blue],
-      },
-      hasOperations: true,
-    };
+    this.appendItems(existing.removals.sunlight, newOps.removals.sunlight);
+    this.appendItems(existing.removals.red, newOps.removals.red);
+    this.appendItems(existing.removals.green, newOps.removals.green);
+    this.appendItems(existing.removals.blue, newOps.removals.blue);
+    this.appendItems(existing.floods.sunlight, newOps.floods.sunlight);
+    this.appendItems(existing.floods.red, newOps.floods.red);
+    this.appendItems(existing.floods.green, newOps.floods.green);
+    this.appendItems(existing.floods.blue, newOps.floods.blue);
+    existing.hasOperations = existing.hasOperations || newOps.hasOperations;
+    return existing;
   }
 
   private flushAccumulatedLightOps() {
