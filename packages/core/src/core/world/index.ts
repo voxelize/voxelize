@@ -4050,7 +4050,11 @@ export class World<T = any> extends Scene implements NetIntercept {
           if (!this.isInitialized) {
             const existingEntities = this.initialEntities;
             if (!existingEntities || existingEntities.length === 0) {
-              this.initialEntities = entities.slice();
+              const initialEntities = new Array(entities.length);
+              for (let index = 0; index < entities.length; index++) {
+                initialEntities[index] = entities[index];
+              }
+              this.initialEntities = initialEntities;
             } else {
               const start = existingEntities.length;
               existingEntities.length = start + entities.length;
