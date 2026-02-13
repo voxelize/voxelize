@@ -122,8 +122,8 @@ importers:
         specifier: ^3.1.0
         version: 3.1.1(@types/react@19.0.11)(react@18.3.1)
       '@voxelize/core':
-        specifier: ^0.1.224
-        version: 0.1.224(@swc/core@1.15.11)(bufferutil@4.0.9)(postcss@8.5.6)(postprocessing@6.38.2(three@0.165.0))(three@0.165.0)(utf-8-validate@5.0.10)
+        specifier: workspace:*
+        version: link:../packages/core
       clsx:
         specifier: ^1.2.1
         version: 1.2.1
@@ -3168,21 +3168,6 @@ packages:
   '@voxelize/aabb@1.0.0':
     resolution: {integrity: sha512-V1d2KtXrK62rHQj2pH9K8ZAc0Jxg/HsuBqt2CHGMDKVQ1uYKpGx77+3O8Qc6OeK7zQSiTt45MXoKgFo0qoqjoA==}
 
-  '@voxelize/core@0.1.224':
-    resolution: {integrity: sha512-LaYe1Dra9TK5+Z5C6UUqR8dUZrpxOSap18PBBqxlPwEr8HXUXTelrxpYMqTjTtXMmybxKZ+iBgs3LxE6zT2/Ww==}
-    peerDependencies:
-      postprocessing: ^6.35.0
-      three: ^0.162.0
-
-  '@voxelize/physics-engine@1.1.30':
-    resolution: {integrity: sha512-+0rcNnVSnQ+beiNYWLWzlJxyDltWnp9KtUs/J7tNXEd05eFxb0i+e/e5NTT8ggqIwzY2/4zkSAg5vqngq7lLyA==}
-
-  '@voxelize/protocol@1.0.33':
-    resolution: {integrity: sha512-5OJCpgbl9kedDUICHRmnxfHfTtMhmR+FjCR8zl6EltjcaccGIuNUc8yDuj1JeNq1Jvcvw0T2FOj3WFUSjdxayQ==}
-
-  '@voxelize/raycast@1.0.9':
-    resolution: {integrity: sha512-0DyepT3Bx2PCGPOxO1eM00xTG2LdRoqLJYDbHru+dY8Gsjgq8iDMgYW9f9AcKwNr4ZBMC85GrkgqPUOjsuHiZA==}
-
   '@webassemblyjs/ast@1.14.1':
     resolution: {integrity: sha512-nuBEDgQfm1ccRp/8bCQrx1frohyufl4JlbMMZ4P1wpeOfDhF6FQkxZJ1b/e+PLwr6X1Nhw6OLme5usuBWYBvuQ==}
 
@@ -5530,9 +5515,6 @@ packages:
 
   github-slugger@1.5.0:
     resolution: {integrity: sha512-wIh+gKBI9Nshz2o46B0B3f5k/W+WI9ZAv6y5Dn5WJ5SK1t0TnDimB4WE5rmTD05ZAIn8HALCZVmCsvj0w0v0lw==}
-
-  gl-vec3@1.1.3:
-    resolution: {integrity: sha512-jduKUqT0SGH02l8Yl+mV1yVsDfYgQAJyXGxkJQGyxPLHRiW25DwVIRPt6uvhrEMHftJfqhqKthRcyZqNEl9Xdw==}
 
   gl-vec3@1.2.0:
     resolution: {integrity: sha512-ynW7j5ZshRTHXG5UPC5u6G52cBCNx53LbNlq2HQ1bAosZbO4wOCEBufXS7KGiKL1slMgy4j/77Ikt+vMznouLg==}
@@ -8904,10 +8886,6 @@ packages:
 
   snake-case@3.0.4:
     resolution: {integrity: sha512-LAOh4z89bGQvl9pFfNF8V146i7o7/CqFPbqzYgP+yYzDIDeS9HaNFtXABamRW+AQzEVODcvE79ljJ+8a9YSdMg==}
-
-  socket.io-client@4.8.1:
-    resolution: {integrity: sha512-hJVXfu3E28NmzGk8o1sHhN3om52tRvwYeidbj7xKy2eIIse5IoKX3USlS6Tqt3BHAtflLIkCQBkzVrEEfWUyYQ==}
-    engines: {node: '>=10.0.0'}
 
   socket.io-client@4.8.3:
     resolution: {integrity: sha512-uP0bpjWrjQmUt5DTHq9RuoCBdFJF10cdX9X+a368j/Ft0wmaVgxlrjvK3kjvgCODOMMOz9lcaRzxmso0bTWZ/g==}
@@ -13879,84 +13857,6 @@ snapshots:
       - supports-color
       - ts-node
 
-  '@voxelize/core@0.1.224(@swc/core@1.15.11)(bufferutil@4.0.9)(postcss@8.5.6)(postprocessing@6.38.2(three@0.165.0))(three@0.165.0)(utf-8-validate@5.0.10)':
-    dependencies:
-      '@tweenjs/tween.js': 18.6.4
-      '@voxelize/aabb': 1.0.0(@swc/core@1.15.11)(postcss@8.5.6)
-      '@voxelize/physics-engine': 1.1.30(@swc/core@1.15.11)(postcss@8.5.6)
-      '@voxelize/protocol': 1.0.33
-      '@voxelize/raycast': 1.0.9(@swc/core@1.15.11)(postcss@8.5.6)
-      deepmerge: 4.3.1
-      domurl: 2.3.4
-      events: 3.3.0
-      fflate: 0.7.4
-      gl-vec3: 1.1.3
-      jsonfn: 0.31.0
-      ndarray: 1.0.19
-      noisejs: 2.1.0
-      omggif: 1.0.10
-      postprocessing: 6.38.2(three@0.165.0)
-      regenerator-runtime: 0.13.11
-      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      three: 0.165.0
-      uuid: 8.3.2
-    transitivePeerDependencies:
-      - '@swc/core'
-      - '@vitest/ui'
-      - bufferutil
-      - c8
-      - happy-dom
-      - jsdom
-      - less
-      - postcss
-      - sass
-      - stylus
-      - supports-color
-      - ts-node
-      - utf-8-validate
-
-  '@voxelize/physics-engine@1.1.30(@swc/core@1.15.11)(postcss@8.5.6)':
-    dependencies:
-      '@voxelize/aabb': 1.0.0(@swc/core@1.15.11)(postcss@8.5.6)
-      tsup: 5.12.9(@swc/core@1.15.11)(postcss@8.5.6)(typescript@4.9.5)
-      typescript: 4.9.5
-      vitest: 0.10.5
-    transitivePeerDependencies:
-      - '@swc/core'
-      - '@vitest/ui'
-      - c8
-      - happy-dom
-      - jsdom
-      - less
-      - postcss
-      - sass
-      - stylus
-      - supports-color
-      - ts-node
-
-  '@voxelize/protocol@1.0.33':
-    dependencies:
-      protobufjs: 7.5.4
-
-  '@voxelize/raycast@1.0.9(@swc/core@1.15.11)(postcss@8.5.6)':
-    dependencies:
-      '@voxelize/aabb': 1.0.0(@swc/core@1.15.11)(postcss@8.5.6)
-      tsup: 5.12.9(@swc/core@1.15.11)(postcss@8.5.6)(typescript@4.9.5)
-      typescript: 4.9.5
-      vitest: 0.10.5
-    transitivePeerDependencies:
-      - '@swc/core'
-      - '@vitest/ui'
-      - c8
-      - happy-dom
-      - jsdom
-      - less
-      - postcss
-      - sass
-      - stylus
-      - supports-color
-      - ts-node
-
   '@webassemblyjs/ast@1.14.1':
     dependencies:
       '@webassemblyjs/helper-numbers': 1.13.2
@@ -16718,8 +16618,6 @@ snapshots:
       ini: 1.3.8
 
   github-slugger@1.5.0: {}
-
-  gl-vec3@1.1.3: {}
 
   gl-vec3@1.2.0: {}
 
@@ -20957,17 +20855,6 @@ snapshots:
     dependencies:
       dot-case: 3.0.4
       tslib: 2.8.1
-
-  socket.io-client@4.8.1(bufferutil@4.0.9)(utf-8-validate@5.0.10):
-    dependencies:
-      '@socket.io/component-emitter': 3.1.2
-      debug: 4.3.7
-      engine.io-client: 6.6.3(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      socket.io-parser: 4.2.4
-    transitivePeerDependencies:
-      - bufferutil
-      - supports-color
-      - utf-8-validate
 
   socket.io-client@4.8.3(bufferutil@4.0.9)(utf-8-validate@5.0.10):
     dependencies:

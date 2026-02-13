@@ -24,7 +24,7 @@
     "@docusaurus/tsconfig": "3.7.0",
     "@docusaurus/types": "3.7.0",
     "@mdx-js/react": "^3.1.0",
-    "@voxelize/core": "^0.1.224",
+    "@voxelize/core": "workspace:*",
     "clsx": "^1.2.1",
     "docusaurus-plugin-typedoc": "^0.21.0",
     "postprocessing": "^6.37.1",
