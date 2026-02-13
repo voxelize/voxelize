@@ -1718,6 +1718,59 @@ export class World<T = any> extends Scene implements NetIntercept {
     );
   }
 
+  private getVoxelAtUnchecked(px: number, py: number, pz: number) {
+    const chunk = this.getLoadedChunkAtVoxel(px, pz);
+    if (chunk === undefined) return 0;
+    return chunk.getVoxel(px, py, pz);
+  }
+
+  private getVoxelRotationAtUnchecked(px: number, py: number, pz: number) {
+    const chunk = this.getLoadedChunkAtVoxel(px, pz);
+    if (chunk === undefined) return new BlockRotation();
+    return chunk.getVoxelRotation(px, py, pz);
+  }
+
+  private getVoxelStageAtUnchecked(px: number, py: number, pz: number) {
+    const chunk = this.getLoadedChunkAtVoxel(px, pz);
+    if (chunk === undefined) return 0;
+    return chunk.getVoxelStage(px, py, pz);
+  }
+
+  private getSunlightAtUnchecked(px: number, py: number, pz: number) {
+    const chunk = this.getLoadedChunkAtVoxel(px, pz);
+    if (chunk === undefined) return 0;
+    return chunk.getSunlight(px, py, pz);
+  }
+
+  private getTorchLightAtUnchecked(
+    px: number,
+    py: number,
+    pz: number,
+    color: LightColor
+  ) {
+    const chunk = this.getLoadedChunkAtVoxel(px, pz);
+    if (chunk === undefined) return 0;
+    return chunk.getTorchLight(px, py, pz, color);
+  }
+
+  private getLightValuesAtUnchecked(vx: number, vy: number, vz: number) {
+    const chunk = this.getLoadedChunkAtVoxel(vx, vz);
+    if (chunk === undefined) return null;
+    return {
+      sunlight: chunk.getSunlight(vx, vy, vz),
+      red: chunk.getTorchLight(vx, vy, vz, "RED"),
+      green: chunk.getTorchLight(vx, vy, vz, "GREEN"),
+      blue: chunk.getTorchLight(vx, vy, vz, "BLUE"),
+    };
+  }
+
+  private getBlockAtUnchecked(px: number, py: number, pz: number) {
+    const chunk = this.getLoadedChunkAtVoxel(px, pz);
+    if (chunk === undefined) return null;
+    const id = chunk.getVoxel(px, py, pz);
+    return this.getBlockById(id);
+  }
+
   /**
    * Get a voxel by a 3D world position.
    *
@@ -1728,9 +1781,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   getVoxelAt(px: number, py: number, pz: number) {
     this.checkIsInitialized("get voxel", false);
-    const chunk = this.getLoadedChunkAtVoxel(px, pz);
-    if (chunk === undefined) return 0;
-    return chunk.getVoxel(px, py, pz);
+    return this.getVoxelAtUnchecked(px, py, pz);
   }
 
   setVoxelAt(px: number, py: number, pz: number, voxel: number) {
@@ -1758,9 +1809,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   getVoxelRotationAt(px: number, py: number, pz: number) {
     this.checkIsInitialized("get voxel rotation", false);
-    const chunk = this.getLoadedChunkAtVoxel(px, pz);
-    if (chunk === undefined) return new BlockRotation();
-    return chunk.getVoxelRotation(px, py, pz);
+    return this.getVoxelRotationAtUnchecked(px, py, pz);
   }
 
   /**
@@ -1803,9 +1852,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   getVoxelStageAt(px: number, py: number, pz: number) {
     this.checkIsInitialized("get voxel stage", false);
-    const chunk = this.getLoadedChunkAtVoxel(px, pz);
-    if (chunk === undefined) return 0;
-    return chunk.getVoxelStage(px, py, pz);
+    return this.getVoxelStageAtUnchecked(px, py, pz);
   }
 
   setVoxelStageAt(px: number, py: number, pz: number, stage: number) {
@@ -1833,9 +1880,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   getSunlightAt(px: number, py: number, pz: number) {
     this.checkIsInitialized("get sunlight", false);
-    const chunk = this.getLoadedChunkAtVoxel(px, pz);
-    if (chunk === undefined) return 0;
-    return chunk.getSunlight(px, py, pz);
+    return this.getSunlightAtUnchecked(px, py, pz);
   }
 
   setSunlightAt(px: number, py: number, pz: number, level: number) {
@@ -1862,9 +1907,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   getTorchLightAt(px: number, py: number, pz: number, color: LightColor) {
     this.checkIsInitialized("get torch light", false);
-    const chunk = this.getLoadedChunkAtVoxel(px, pz);
-    if (chunk === undefined) return 0;
-    return chunk.getTorchLight(px, py, pz, color);
+    return this.getTorchLightAtUnchecked(px, py, pz, color);
   }
 
   setTorchLightAt(
@@ -1888,14 +1931,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   getLightValuesAt(vx: number, vy: number, vz: number) {
     this.checkIsInitialized("get light values", false);
-    const chunk = this.getLoadedChunkAtVoxel(vx, vz);
-    if (chunk === undefined) return null;
-    return {
-      sunlight: chunk.getSunlight(vx, vy, vz),
-      red: chunk.getTorchLight(vx, vy, vz, "RED"),
-      green: chunk.getTorchLight(vx, vy, vz, "GREEN"),
-      blue: chunk.getTorchLight(vx, vy, vz, "BLUE"),
-    };
+    return this.getLightValuesAtUnchecked(vx, vy, vz);
   }
 
   /**
@@ -1910,7 +1946,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    * @returns The voxel's light color at the given coordinate.
    */
   getLightColorAt(vx: number, vy: number, vz: number) {
-    const lightValues = this.getLightValuesAt(vx, vy, vz);
+    const lightValues = this.getLightValuesAtUnchecked(vx, vy, vz);
     if (!lightValues) return new Color(1, 1, 1);
 
     const { sunlight, red, green, blue } = lightValues;
@@ -1946,10 +1982,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   getBlockAt(px: number, py: number, pz: number) {
     this.checkIsInitialized("get block", false);
-    const chunk = this.getChunkByPosition(px, py, pz);
-    if (chunk === undefined) return null;
-    const id = chunk.getVoxel(px, py, pz);
-    return this.getBlockById(id);
+    return this.getBlockAtUnchecked(px, py, pz);
   }
 
   /**
@@ -1967,9 +2000,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     const vz = pz | 0;
 
     for (let vy = this.options.maxHeight - 1; vy >= 0; vy--) {
-      const block = this.getBlockAt(vx, vy, vz);
+      const block = this.getBlockAtUnchecked(vx, vy, vz);
 
-      if (!block.isEmpty) {
+      if (block && !block.isEmpty) {
         return vy;
       }
     }
@@ -2794,7 +2827,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       const key = `${vx},${vy},${vz}`;
       let block = blockCache.get(key);
       if (!block) {
-        block = this.getBlockAt(vx, vy, vz);
+        block = this.getBlockAtUnchecked(vx, vy, vz);
         blockCache.set(key, block);
       }
       return block;
@@ -2808,7 +2841,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       const key = `${vx},${vy},${vz}`;
       let rotation = rotationCache.get(key);
       if (!rotation) {
-        rotation = this.getVoxelRotationAt(vx, vy, vz);
+        rotation = this.getVoxelRotationAtUnchecked(vx, vy, vz);
         rotationCache.set(key, rotation);
       }
       return rotation;
@@ -2882,8 +2915,8 @@ export class World<T = any> extends Scene implements NetIntercept {
         if (
           !LightUtils.canEnter(sourceTransparency, nTransparency, ox, oy, oz) ||
           (isSunlight
-            ? this.getSunlightAt(nvx, nvy, nvz)
-            : this.getTorchLightAt(nvx, nvy, nvz, color)) >= nextLevel
+            ? this.getSunlightAtUnchecked(nvx, nvy, nvz)
+            : this.getTorchLightAtUnchecked(nvx, nvy, nvz, color)) >= nextLevel
         ) {
           continue;
         }
@@ -2911,8 +2944,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     queue.push({
       voxel,
       level: isSunlight
-        ? this.getSunlightAt(vx, vy, vz)
-        : this.getTorchLightAt(vx, vy, vz, color),
+        ? this.getSunlightAtUnchecked(vx, vy, vz)
+        : this.getTorchLightAtUnchecked(vx, vy, vz, color),
     });
 
     if (isSunlight) {
@@ -2956,7 +2989,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
 
         const nBlock = this.getBlockAt(nvx, nvy, nvz);
-        const rotation = this.getVoxelRotationAt(nvx, nvy, nvz);
+        const rotation = this.getVoxelRotationAtUnchecked(nvx, nvy, nvz);
         const nTransparency = BlockUtils.getBlockRotatedTransparency(
           nBlock,
           rotation
@@ -2973,8 +3006,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         const nVoxel = [nvx, nvy, nvz] as Coords3;
         const nl = isSunlight
-          ? this.getSunlightAt(nvx, nvy, nvz)
-          : this.getTorchLightAt(nvx, nvy, nvz, color);
+          ? this.getSunlightAtUnchecked(nvx, nvy, nvz)
+          : this.getTorchLightAtUnchecked(nvx, nvy, nvz, color);
 
         if (nl === 0) {
           continue;
@@ -3026,8 +3059,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     // Initialise the queue with all voxels to be cleared.
     voxels.forEach(([vx, vy, vz]) => {
       const level = isSunlight
-        ? this.getSunlightAt(vx, vy, vz)
-        : this.getTorchLightAt(vx, vy, vz, color);
+        ? this.getSunlightAtUnchecked(vx, vy, vz)
+        : this.getTorchLightAtUnchecked(vx, vy, vz, color);
       if (level === 0) return;
 
       // Push into queue and immediately clear the light so we don't visit twice.
@@ -3052,7 +3085,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         const nvz = vz + oz;
 
         const nBlock = this.getBlockAt(nvx, nvy, nvz);
-        const rotation = this.getVoxelRotationAt(nvx, nvy, nvz);
+        const rotation = this.getVoxelRotationAtUnchecked(nvx, nvy, nvz);
         const nTransparency = BlockUtils.getBlockRotatedTransparency(
           nBlock,
           rotation
@@ -3067,8 +3100,8 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
 
         const nl = isSunlight
-          ? this.getSunlightAt(nvx, nvy, nvz)
-          : this.getTorchLightAt(nvx, nvy, nvz, color);
+          ? this.getSunlightAtUnchecked(nvx, nvy, nvz)
+          : this.getTorchLightAtUnchecked(nvx, nvy, nvz, color);
         if (nl === 0) continue;
 
         if (
@@ -4896,16 +4929,16 @@ export class World<T = any> extends Scene implements NetIntercept {
               {
                 getVoxelAt: (x: number, y: number, z: number) => {
                   if (x === vx && y === vy && z === vz) return update.oldId;
-                  return this.getVoxelAt(x, y, z);
+                  return this.getVoxelAtUnchecked(x, y, z);
                 },
                 getVoxelRotationAt: (x: number, y: number, z: number) => {
                   if (x === vx && y === vy && z === vz)
                     return update.oldRotation;
-                  return this.getVoxelRotationAt(x, y, z);
+                  return this.getVoxelRotationAtUnchecked(x, y, z);
                 },
                 getVoxelStageAt: (x: number, y: number, z: number) => {
                   if (x === vx && y === vy && z === vz) return oldStage;
-                  return this.getVoxelStageAt(x, y, z);
+                  return this.getVoxelStageAtUnchecked(x, y, z);
                 },
               }
             );
@@ -4938,15 +4971,15 @@ export class World<T = any> extends Scene implements NetIntercept {
               {
                 getVoxelAt: (x: number, y: number, z: number) => {
                   if (x === vx && y === vy && z === vz) return update.newId;
-                  return this.getVoxelAt(x, y, z);
+                  return this.getVoxelAtUnchecked(x, y, z);
                 },
                 getVoxelRotationAt: (x: number, y: number, z: number) => {
                   if (x === vx && y === vy && z === vz) return newRotation;
-                  return this.getVoxelRotationAt(x, y, z);
+                  return this.getVoxelRotationAtUnchecked(x, y, z);
                 },
                 getVoxelStageAt: (x: number, y: number, z: number) => {
                   if (x === vx && y === vy && z === vz) return update.stage;
-                  return this.getVoxelStageAt(x, y, z);
+                  return this.getVoxelStageAtUnchecked(x, y, z);
                 },
               }
             );
@@ -4966,7 +4999,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       if (currentEmitsLight && !newEmitsLight) {
-        if (this.getSunlightAt(vx, vy, vz) > 0) {
+        if (this.getSunlightAtUnchecked(vx, vy, vz) > 0) {
           sunlightRemoval.push(voxel);
         }
 
@@ -5001,10 +5034,10 @@ export class World<T = any> extends Scene implements NetIntercept {
         newBlock,
         newRotation
       );
-      const sourceSunlightLevel = this.getSunlightAt(vx, vy, vz);
-      const sourceRedLevel = this.getTorchLightAt(vx, vy, vz, "RED");
-      const sourceGreenLevel = this.getTorchLightAt(vx, vy, vz, "GREEN");
-      const sourceBlueLevel = this.getTorchLightAt(vx, vy, vz, "BLUE");
+      const sourceSunlightLevel = this.getSunlightAtUnchecked(vx, vy, vz);
+      const sourceRedLevel = this.getTorchLightAtUnchecked(vx, vy, vz, "RED");
+      const sourceGreenLevel = this.getTorchLightAtUnchecked(vx, vy, vz, "GREEN");
+      const sourceBlueLevel = this.getTorchLightAtUnchecked(vx, vy, vz, "BLUE");
 
       if (newBlock.isOpaque || newBlock.lightReduce) {
         if (sourceSunlightLevel > 0) {
@@ -5036,7 +5069,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           const nvz = vz + oz;
 
           const nBlock = this.getBlockAt(nvx, nvy, nvz);
-          const nRotation = this.getVoxelRotationAt(nvx, nvy, nvz);
+          const nRotation = this.getVoxelRotationAtUnchecked(nvx, nvy, nvz);
           const nTransparency = BlockUtils.getBlockRotatedTransparency(
             nBlock,
             nRotation
@@ -5064,7 +5097,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           }
 
           if (hasSunlightSource) {
-            const nSunlightLevel = this.getSunlightAt(nvx, nvy, nvz);
+            const nSunlightLevel = this.getSunlightAtUnchecked(nvx, nvy, nvz);
             if (
               nSunlightLevel < sourceSunlightLevel ||
               (oy === -1 &&
@@ -5077,7 +5110,12 @@ export class World<T = any> extends Scene implements NetIntercept {
           }
 
           if (hasRedSource) {
-            const nRedLevel = this.getTorchLightAt(nvx, nvy, nvz, RED_LIGHT);
+            const nRedLevel = this.getTorchLightAtUnchecked(
+              nvx,
+              nvy,
+              nvz,
+              RED_LIGHT
+            );
             if (nRedLevel < sourceRedLevel) {
               removeCount++;
               redRemoval.push([nvx, nvy, nvz]);
@@ -5085,7 +5123,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           }
 
           if (hasGreenSource) {
-            const nGreenLevel = this.getTorchLightAt(
+            const nGreenLevel = this.getTorchLightAtUnchecked(
               nvx,
               nvy,
               nvz,
@@ -5098,7 +5136,12 @@ export class World<T = any> extends Scene implements NetIntercept {
           }
 
           if (hasBlueSource) {
-            const nBlueLevel = this.getTorchLightAt(nvx, nvy, nvz, BLUE_LIGHT);
+            const nBlueLevel = this.getTorchLightAtUnchecked(
+              nvx,
+              nvy,
+              nvz,
+              BLUE_LIGHT
+            );
             if (nBlueLevel < sourceBlueLevel) {
               removeCount++;
               blueRemoval.push([nvx, nvy, nvz]);
@@ -5138,11 +5181,11 @@ export class World<T = any> extends Scene implements NetIntercept {
                 [vx, vy, vz],
                 {
                   getVoxelAt: (x: number, y: number, z: number) =>
-                    this.getVoxelAt(x, y, z),
+                    this.getVoxelAtUnchecked(x, y, z),
                   getVoxelRotationAt: (x: number, y: number, z: number) =>
-                    this.getVoxelRotationAt(x, y, z),
+                    this.getVoxelRotationAtUnchecked(x, y, z),
                   getVoxelStageAt: (x: number, y: number, z: number) =>
-                    this.getVoxelStageAt(x, y, z),
+                    this.getVoxelStageAtUnchecked(x, y, z),
                 }
               );
 
@@ -5209,7 +5252,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           const nvz = vz + oz;
 
           const nBlock = this.getBlockAt(nvx, nvy, nvz);
-          const nRotation = this.getVoxelRotationAt(nvx, nvy, nvz);
+          const nRotation = this.getVoxelRotationAtUnchecked(nvx, nvy, nvz);
           const nTransparency = BlockUtils.getBlockRotatedTransparency(
             nBlock,
             nRotation
@@ -5226,7 +5269,7 @@ export class World<T = any> extends Scene implements NetIntercept {
             LightUtils.canEnter(updatedTransparency, nTransparency, ox, oy, oz)
           ) {
             const level =
-              this.getSunlightAt(nvx, nvy, nvz) -
+              this.getSunlightAtUnchecked(nvx, nvy, nvz) -
               (newBlock.lightReduce ? 1 : 0);
             if (level > 0) {
               sunFlood.push({
@@ -5237,7 +5280,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
             if (!isRemovedLightSource) {
               const redLevel =
-                this.getTorchLightAt(nvx, nvy, nvz, "RED") -
+                this.getTorchLightAtUnchecked(nvx, nvy, nvz, "RED") -
                 (newBlock.lightReduce ? 1 : 0);
               if (redLevel > 0) {
                 redFlood.push({
@@ -5247,7 +5290,7 @@ export class World<T = any> extends Scene implements NetIntercept {
               }
 
               const greenLevel =
-                this.getTorchLightAt(nvx, nvy, nvz, "GREEN") -
+                this.getTorchLightAtUnchecked(nvx, nvy, nvz, "GREEN") -
                 (newBlock.lightReduce ? 1 : 0);
               if (greenLevel > 0) {
                 greenFlood.push({
@@ -5257,7 +5300,7 @@ export class World<T = any> extends Scene implements NetIntercept {
               }
 
               const blueLevel =
-                this.getTorchLightAt(nvx, nvy, nvz, "BLUE") -
+                this.getTorchLightAtUnchecked(nvx, nvy, nvz, "BLUE") -
                 (newBlock.lightReduce ? 1 : 0);
               if (blueLevel > 0) {
                 blueFlood.push({
