@@ -177,19 +177,34 @@ const convertDynamicPatterns = (
     return null;
   }
 
-  return patterns.map((pattern) => ({
-    parts: pattern.parts.map((part) => ({
-      rule: part.rule,
-      redLightLevel: part.redLightLevel,
-      greenLightLevel: part.greenLightLevel,
-      blueLightLevel: part.blueLightLevel,
-    })),
-  }));
+  const convertedPatterns = new Array<WasmLightDynamicPattern>(patterns.length);
+  for (let patternIndex = 0; patternIndex < patterns.length; patternIndex++) {
+    const pattern = patterns[patternIndex];
+    const convertedParts = new Array<WasmLightConditionalPart>(
+      pattern.parts.length
+    );
+    for (let partIndex = 0; partIndex < pattern.parts.length; partIndex++) {
+      const part = pattern.parts[partIndex];
+      convertedParts[partIndex] = {
+        rule: part.rule,
+        redLightLevel: part.redLightLevel,
+        greenLightLevel: part.greenLightLevel,
+        blueLightLevel: part.blueLightLevel,
+      };
+    }
+    convertedPatterns[patternIndex] = { parts: convertedParts };
+  }
+
+  return convertedPatterns;
 };
 
 const convertRegistryToWasm = (registry: SerializedRegistry): WasmLightRegistry => {
-  const blocksById: [number, WasmLightBlock][] = registry.blocksById.map(
-    ([id, block]) => [
+  const blocksById = new Array<[number, WasmLightBlock]>(
+    registry.blocksById.length
+  );
+  for (let blockIndex = 0; blockIndex < registry.blocksById.length; blockIndex++) {
+    const [id, block] = registry.blocksById[blockIndex];
+    blocksById[blockIndex] = [
       id,
       {
         id: block.id,
@@ -202,8 +217,8 @@ const convertRegistryToWasm = (registry: SerializedRegistry): WasmLightRegistry 
         blueLightLevel: block.blueLightLevel,
         dynamicPatterns: convertDynamicPatterns(block.dynamicPatterns),
       },
-    ]
-  );
+    ];
+  }
 
   return { blocksById };
 };
