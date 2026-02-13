@@ -275,8 +275,12 @@ const processMeshMessage = (message: MeshBatchMessage) => {
     })
     .filter((geometry) => geometry.positions.length > 0);
 
-  // @ts-expect-error postMessage typing
-  postMessage({ geometries: geometriesPacked }, arrayBuffers);
+  postMessage(
+    { geometries: geometriesPacked },
+    {
+      transfer: arrayBuffers,
+    }
+  );
 };
 
 onmessage = async function (e: MessageEvent<MeshWorkerMessage>) {
