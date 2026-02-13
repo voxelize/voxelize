@@ -58,24 +58,48 @@ export class BlockRotation {
     return new BlockRotation(PX_ROTATION, yRotation);
   }
 
+  static PX(yRotation = 0): BlockRotation {
+    return BlockRotation.px(yRotation);
+  }
+
   static nx(yRotation = 0): BlockRotation {
     return new BlockRotation(NX_ROTATION, yRotation);
+  }
+
+  static NX(yRotation = 0): BlockRotation {
+    return BlockRotation.nx(yRotation);
   }
 
   static py(yRotation = 0): BlockRotation {
     return new BlockRotation(PY_ROTATION, yRotation);
   }
 
+  static PY(yRotation = 0): BlockRotation {
+    return BlockRotation.py(yRotation);
+  }
+
   static ny(yRotation = 0): BlockRotation {
     return new BlockRotation(NY_ROTATION, yRotation);
+  }
+
+  static NY(yRotation = 0): BlockRotation {
+    return BlockRotation.ny(yRotation);
   }
 
   static pz(yRotation = 0): BlockRotation {
     return new BlockRotation(PZ_ROTATION, yRotation);
   }
 
+  static PZ(yRotation = 0): BlockRotation {
+    return BlockRotation.pz(yRotation);
+  }
+
   static nz(yRotation = 0): BlockRotation {
     return new BlockRotation(NZ_ROTATION, yRotation);
+  }
+
+  static NZ(yRotation = 0): BlockRotation {
+    return BlockRotation.nz(yRotation);
   }
 
   static encode(value: number, yRotation = 0): BlockRotation {

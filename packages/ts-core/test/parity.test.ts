@@ -145,6 +145,15 @@ describe("BlockRotation", () => {
     rotation.value = 2;
     expect(rotation.axis).toBe(2);
   });
+
+  it("supports uppercase constructor aliases", () => {
+    expect(BlockRotation.PX(0).axis).toBe(2);
+    expect(BlockRotation.NX(0).axis).toBe(3);
+    expect(BlockRotation.PY(0).axis).toBe(0);
+    expect(BlockRotation.NY(0).axis).toBe(1);
+    expect(BlockRotation.PZ(0).axis).toBe(4);
+    expect(BlockRotation.NZ(0).axis).toBe(5);
+  });
 });
 
 describe("Rotation maps", () => {
