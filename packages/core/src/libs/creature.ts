@@ -8,6 +8,7 @@ import {
   Vector3,
 } from "three";
 
+import { JsonValue } from "../types";
 import { MathUtils as VoxMathUtils } from "../utils";
 
 import { CanvasBox, CanvasBoxOptions } from "./canvas-box";
@@ -117,7 +118,7 @@ export class Creature extends Group {
   public positionLerpOverride: number | null = null;
   public newPosition = new Vector3();
   public newDirection = new Quaternion();
-  public extraData: unknown = null;
+  public extraData: JsonValue = null;
 
   onMove: () => void;
   onIdle: () => void;
