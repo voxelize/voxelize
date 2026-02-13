@@ -4378,7 +4378,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       return;
     }
 
-    for (const mesh of data.meshes) {
+    for (let meshIndex = 0; meshIndex < data.meshes.length; meshIndex++) {
+      const mesh = data.meshes[meshIndex];
       this.buildChunkMesh(x, z, mesh);
       this.meshPipeline.markFreshFromServer(x, z, mesh.level);
     }
@@ -4445,7 +4446,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       if (dx * dx + dz * dz > deleteRadiusSquared) {
         for (const [level, meshes] of chunk.meshes) {
-          for (const mesh of meshes) {
+          for (let meshIndex = 0; meshIndex < meshes.length; meshIndex++) {
+            const mesh = meshes[meshIndex];
             if (mesh) {
               this.csmRenderer?.removeSkipShadowObject(mesh);
             }
@@ -4518,7 +4520,8 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private setPlantMeshVisibility(meshes: Mesh[], showPlants: boolean) {
-    for (const mesh of meshes) {
+    for (let meshIndex = 0; meshIndex < meshes.length; meshIndex++) {
+      const mesh = meshes[meshIndex];
       if (mesh && this._plantBlockIds.has(mesh.userData.voxel)) {
         mesh.visible = showPlants;
       }
