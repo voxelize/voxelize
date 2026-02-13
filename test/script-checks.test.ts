@@ -747,6 +747,41 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-wasm-pack json mode normalizes inline unsupported options", () => {
+    const result = runScript("check-wasm-pack.mjs", [
+      "--json",
+      "--mystery=alpha",
+      "--mystery=beta",
+      "-x=1",
+    ]);
+    const report = JSON.parse(result.output) as WasmPackJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedStandardCliOptions);
+    expectCliOptionCatalogMetadata(report, {}, expectedStandardCliOptions);
+    expect(report.unknownOptions).toEqual(["--mystery", "-x"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --mystery, -x. Supported options: --compact, --json, --output, --quiet."
+    );
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("check-wasm-pack json mode writes unsupported-option validation reports to output files", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-wasm-pack-validation-report-")
@@ -886,6 +921,22 @@ describe("root preflight scripts", () => {
     expect(result.output).toContain(
       "Unsupported option(s): --mystery. Supported options: --compact, --json, --output, --quiet."
     );
+  });
+
+  it("check-wasm-pack non-json mode normalizes inline unsupported options", () => {
+    const result = runScript("check-wasm-pack.mjs", [
+      "--mystery=alpha",
+      "--mystery=beta",
+      "-x=1",
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(
+      "Unsupported option(s): --mystery, -x. Supported options: --compact, --json, --output, --quiet."
+    );
+    expect(result.output).not.toContain("--mystery=alpha");
+    expect(result.output).not.toContain("--mystery=beta");
+    expect(result.output).not.toContain("-x=1");
   });
 
   it("check-wasm-pack non-json mode fails on missing output value", () => {

@@ -1548,6 +1548,54 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(1);
   });
 
+  it("normalizes inline unsupported options", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--mystery=alpha", "--mystery=beta", "-x=1", "-x=2"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.unknownOptions).toEqual(["--mystery", "-x"]);
+    expect(report.message).toBe(expectedUnsupportedOptionsMessage(["--mystery", "-x"]));
+    expect(result.status).toBe(1);
+  });
+
+  it("deduplicates mixed bare and inline unsupported options", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--mystery=alpha", "--mystery"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(report.unknownOptions).toEqual(["--mystery"]);
+    expect(report.message).toBe(expectedUnsupportedOptionsMessage(["--mystery"]));
+    expect(result.status).toBe(1);
+  });
+
   it("reports unsupported short options", () => {
     const result = spawnSync(process.execPath, [preflightScript, "-x"], {
       cwd: rootDir,
