@@ -2715,19 +2715,19 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     let is_fluid = block.is_fluid;
                     let is_see_through = block.is_see_through;
 
-                    let faces: Vec<(BlockFace, bool)> =
-                        if is_fluid && has_standard_six_faces(&block.faces) {
-                            create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
-                                .into_iter()
-                                .map(|face| (face, false))
-                                .collect()
-                        } else if block.dynamic_patterns.is_some() {
-                            get_dynamic_faces(block, [vx, vy, vz], space, &rotation)
-                        } else {
-                            block.faces.iter().cloned().map(|face| (face, false)).collect()
-                        };
-
                     if is_non_greedy_block {
+                        let faces: Vec<(BlockFace, bool)> =
+                            if is_fluid && has_standard_six_faces(&block.faces) {
+                                create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
+                                    .into_iter()
+                                    .map(|face| (face, false))
+                                    .collect()
+                            } else if block.dynamic_patterns.is_some() {
+                                get_dynamic_faces(block, [vx, vy, vz], space, &rotation)
+                            } else {
+                                block.faces.iter().cloned().map(|face| (face, false)).collect()
+                            };
+
                         processed_non_greedy[non_greedy_index(vx, vy, vz)] = true;
                         for (face, world_space) in faces {
                             non_greedy_faces.push((
@@ -2745,42 +2745,28 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         continue;
                     }
 
-                    let mut should_render_checked = false;
-                    let mut should_render = false;
+                    let should_render = should_render_face(
+                        vx,
+                        vy,
+                        vz,
+                        voxel_id,
+                        dir,
+                        block,
+                        space,
+                        registry,
+                        is_see_through,
+                        is_fluid,
+                    );
+
+                    if !should_render {
+                        continue;
+                    }
+
                     let mut neighbors = None;
 
-                    for (face, world_space) in faces.iter() {
-                        let mut face_dir = [face.dir[0] as f32, face.dir[1] as f32, face.dir[2] as f32];
-                        if (block.rotatable || block.y_rotatable) && !*world_space {
-                            rotation.rotate_node(&mut face_dir, block.y_rotatable, false);
-                        }
-                        let effective_dir = [
-                            face_dir[0].round() as i32,
-                            face_dir[1].round() as i32,
-                            face_dir[2].round() as i32,
-                        ];
-                        if effective_dir != dir {
+                    for face in &block.faces {
+                        if face.dir != dir {
                             continue;
-                        }
-
-                        if !should_render_checked {
-                            should_render = should_render_face(
-                                vx,
-                                vy,
-                                vz,
-                                voxel_id,
-                                dir,
-                                block,
-                                space,
-                                registry,
-                                is_see_through,
-                                is_fluid,
-                            );
-                            should_render_checked = true;
-                        }
-
-                        if !should_render {
-                            break;
                         }
 
                         if face.isolated {
@@ -2793,7 +2779,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 face.clone(),
                                 is_see_through,
                                 is_fluid,
-                                *world_space,
+                                false,
                             ));
                             continue;
                         }
