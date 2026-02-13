@@ -3140,7 +3140,8 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
             let mut cached_quad_block_id = u32::MAX;
             let mut cached_quad_block: Option<&Block> = None;
             for quad in quads {
-                let block_id = quad.data.key.block_id;
+                let quad_key = &quad.data.key;
+                let block_id = quad_key.block_id;
                 let block = if cached_quad_block_id == block_id {
                     match cached_quad_block {
                         Some(block) => block,
@@ -3160,7 +3161,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         }
                     }
                 };
-                let geo_key = if quad.data.key.independent {
+                let geo_key = if quad_key.independent {
                     let face_name = quad
                         .data
                         .key
@@ -3174,9 +3175,9 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
 
                 let geometry = map.entry(geo_key).or_insert_with(|| {
                     let mut g = GeometryProtocol::default();
-                    g.voxel = quad.data.key.block_id;
-                    if quad.data.key.independent {
-                        g.face_name = quad.data.key.face_name.clone();
+                    g.voxel = block_id;
+                    if quad_key.independent {
+                        g.face_name = quad_key.face_name.clone();
                     }
                     g
                 });
@@ -3820,7 +3821,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
             let mut cached_quad_block_id = u32::MAX;
             let mut cached_quad_block: Option<&Block> = None;
             for quad in quads {
-                let block_id = quad.data.key.block_id;
+                let quad_key = &quad.data.key;
+                let block_id = quad_key.block_id;
                 let block = if cached_quad_block_id == block_id {
                     match cached_quad_block {
                         Some(block) => block,
@@ -3840,7 +3842,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         }
                     }
                 };
-                let geo_key = if quad.data.key.independent {
+                let geo_key = if quad_key.independent {
                     let face_name = quad
                         .data
                         .key
@@ -3854,9 +3856,9 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
                 let geometry = map.entry(geo_key).or_insert_with(|| {
                     let mut entry = GeometryProtocol::default();
-                    entry.voxel = quad.data.key.block_id;
-                    if quad.data.key.independent {
-                        entry.face_name = quad.data.key.face_name.clone();
+                    entry.voxel = block_id;
+                    if quad_key.independent {
+                        entry.face_name = quad_key.face_name.clone();
                     }
                     entry
                 });
