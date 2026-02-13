@@ -114,6 +114,15 @@ interface WasmLightBatchResult {
 }
 
 let wasmInitialized = false;
+let registryInitialized = false;
+const pendingBatchMessages: LightBatchMessage[] = [];
+
+const ensureWasmInitialized = async () => {
+  if (!wasmInitialized) {
+    await init();
+    wasmInitialized = true;
+  }
+};
 
 const convertDynamicPatterns = (
   patterns: SerializedDynamicPattern[] | null | undefined
@@ -264,25 +273,7 @@ const serializeChunkGrid = (
   return serialized;
 };
 
-onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
-  const message = event.data;
-
-  if (message.type === "init") {
-    if (!wasmInitialized) {
-      await init();
-      wasmInitialized = true;
-    }
-
-    const wasmRegistry = convertRegistryToWasm(message.registryData);
-    set_registry(wasmRegistry);
-    return;
-  }
-
-  if (!wasmInitialized) {
-    await init();
-    wasmInitialized = true;
-  }
-
+const processBatchMessage = (message: LightBatchMessage) => {
   const {
     jobId,
     color,
@@ -345,4 +336,34 @@ onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
       transfer: modifiedChunks.map((chunk) => chunk.lights.buffer),
     }
   );
+};
+
+onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
+  const message = event.data;
+
+  if (message.type === "init") {
+    await ensureWasmInitialized();
+
+    const wasmRegistry = convertRegistryToWasm(message.registryData);
+    set_registry(wasmRegistry);
+    registryInitialized = true;
+
+    if (pendingBatchMessages.length > 0) {
+      const toProcess = pendingBatchMessages.splice(0, pendingBatchMessages.length);
+      for (const pendingBatchMessage of toProcess) {
+        processBatchMessage(pendingBatchMessage);
+      }
+    }
+
+    return;
+  }
+
+  await ensureWasmInitialized();
+
+  if (!registryInitialized) {
+    pendingBatchMessages.push(message);
+    return;
+  }
+
+  processBatchMessage(message);
 };
