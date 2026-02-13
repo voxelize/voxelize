@@ -3013,18 +3013,6 @@ pub fn mesh_space<S: VoxelAccess>(
                     }
                 }
 
-                let faces: Vec<(BlockFace, bool)> =
-                    if is_fluid && has_standard_six_faces(&block.faces) {
-                        create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
-                            .into_iter()
-                            .map(|f| (f, false))
-                            .collect()
-                    } else if block.dynamic_patterns.is_some() {
-                        get_dynamic_faces(block, [vx, vy, vz], space, &rotation)
-                    } else {
-                        block.faces.iter().cloned().map(|f| (f, false)).collect()
-                    };
-
                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
                 let is_all_transparent = block.is_transparent[0]
                     && block.is_transparent[1]
@@ -3047,7 +3035,7 @@ pub fn mesh_space<S: VoxelAccess>(
                     block_min: block_min_corner(block),
                 };
 
-                for (face, world_space) in faces.iter() {
+                let mut process_single_face = |face: &BlockFace, world_space: bool| {
                     let key = geometry_key_for_face(block, face, vx, vy, vz);
 
                     let geometry = map.entry(key).or_default();
@@ -3082,8 +3070,25 @@ pub fn mesh_space<S: VoxelAccess>(
                         &mut geometry.uvs,
                         &mut geometry.lights,
                         min,
-                        *world_space,
+                        world_space,
                     );
+                };
+
+                if is_fluid && has_standard_six_faces(&block.faces) {
+                    let fluid_faces =
+                        create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry);
+                    for face in &fluid_faces {
+                        process_single_face(face, false);
+                    }
+                } else if block.dynamic_patterns.is_some() {
+                    let dynamic_faces = get_dynamic_faces(block, [vx, vy, vz], space, &rotation);
+                    for (face, world_space) in &dynamic_faces {
+                        process_single_face(face, *world_space);
+                    }
+                } else {
+                    for face in &block.faces {
+                        process_single_face(face, false);
+                    }
                 }
             }
         }
