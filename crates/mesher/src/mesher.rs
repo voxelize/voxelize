@@ -1191,6 +1191,10 @@ fn should_render_face<S: VoxelAccess>(
         return !space.contains(nvx, nvy, nvz);
     }
 
+    if registry.is_opaque_id(neighbor_id) {
+        return false;
+    }
+
     let n_block_type = match registry.get_block_by_id(neighbor_id) {
         Some(b) => b,
         None => return !space.contains(nvx, nvy, nvz),
