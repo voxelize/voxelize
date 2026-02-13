@@ -60,6 +60,12 @@ for (const [canonicalOption, aliases] of Object.entries(availableCliOptionAliase
     cliOptionCanonicalMap.set(alias, canonicalOption);
   }
 }
+const availableCliOptionCanonicalMap = Object.fromEntries(
+  supportedCliOptions.map((optionToken) => {
+    const canonicalOption = cliOptionCanonicalMap.get(optionToken);
+    return [optionToken, canonicalOption === undefined ? optionToken : canonicalOption];
+  })
+);
 const jsonFormat = { compact: isCompact };
 const { outputPath: resolvedOutputPath, error: outputPathError } =
   resolveOutputPath(cliArgs);
@@ -513,6 +519,7 @@ if (
     activeCliOptionOccurrences,
     activeCliOptionOccurrenceCount,
     availableCliOptionAliases,
+    availableCliOptionCanonicalMap,
     availableChecks: availableCheckNames,
     availableCheckMetadata,
     availableCheckAliases,
@@ -574,6 +581,7 @@ if (isListChecks) {
     activeCliOptionOccurrences,
     activeCliOptionOccurrenceCount,
     availableCliOptionAliases,
+    availableCliOptionCanonicalMap,
     availableChecks: availableCheckNames,
     availableCheckMetadata,
     availableCheckAliases,
@@ -652,6 +660,7 @@ const report = buildTimedReport({
   activeCliOptionOccurrences,
   activeCliOptionOccurrenceCount,
   availableCliOptionAliases,
+  availableCliOptionCanonicalMap,
   availableChecks: availableCheckNames,
   availableCheckMetadata,
   availableCheckAliases,

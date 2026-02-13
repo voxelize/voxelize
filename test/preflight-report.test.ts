@@ -118,6 +118,7 @@ type PreflightReport = {
     index: number;
   }>;
   activeCliOptionOccurrenceCount: number;
+  availableCliOptionCanonicalMap: Record<string, string>;
   availableCliOptionAliases: {
     "--list-checks": string[];
     "--no-build": string[];
@@ -226,6 +227,11 @@ const expectedActiveCliOptionOccurrences = (tokens: string[]) => {
 
   return occurrences;
 };
+const expectedAvailableCliOptionCanonicalMap = Object.fromEntries(
+  expectedSupportedCliOptions.map((optionToken) => {
+    return [optionToken, expectedCanonicalOptionForToken(optionToken)];
+  })
+);
 const expectedUnsupportedOptionsMessage = (options: string[]) => {
   return `Unsupported option(s): ${options.join(", ")}. Supported options: ${expectedSupportedCliOptions.join(", ")}.`;
 };
@@ -290,6 +296,9 @@ describe("preflight aggregate report", () => {
     );
     expect(report.availableCliOptionAliases).toEqual(
       expectedAvailableCliOptionAliases
+    );
+    expect(report.availableCliOptionCanonicalMap).toEqual(
+      expectedAvailableCliOptionCanonicalMap
     );
     expect(report.requestedCheckResolutionKinds).toEqual(
       expectedRequestedCheckResolutionKinds
@@ -1032,6 +1041,9 @@ describe("preflight aggregate report", () => {
     expect(report.availableCliOptionAliases).toEqual(
       expectedAvailableCliOptionAliases
     );
+    expect(report.availableCliOptionCanonicalMap).toEqual(
+      expectedAvailableCliOptionCanonicalMap
+    );
     expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
     expect(report.activeCliOptions).toEqual(["--list-checks"]);
     expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
@@ -1061,6 +1073,9 @@ describe("preflight aggregate report", () => {
     expect(report.exitCode).toBe(0);
     expect(report.availableCliOptionAliases).toEqual(
       expectedAvailableCliOptionAliases
+    );
+    expect(report.availableCliOptionCanonicalMap).toEqual(
+      expectedAvailableCliOptionCanonicalMap
     );
     expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
     expect(report.activeCliOptions).toEqual(["--list-checks"]);
@@ -1196,6 +1211,9 @@ describe("preflight aggregate report", () => {
     expect(report.availableCliOptionAliases).toEqual(
       expectedAvailableCliOptionAliases
     );
+    expect(report.availableCliOptionCanonicalMap).toEqual(
+      expectedAvailableCliOptionCanonicalMap
+    );
     expect(report.activeCliOptions).toEqual([]);
     expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
     expect(report.activeCliOptionTokens).toEqual([]);
@@ -1240,6 +1258,9 @@ describe("preflight aggregate report", () => {
     expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
     expect(report.availableCliOptionAliases).toEqual(
       expectedAvailableCliOptionAliases
+    );
+    expect(report.availableCliOptionCanonicalMap).toEqual(
+      expectedAvailableCliOptionCanonicalMap
     );
     expect(report.activeCliOptions).toEqual([]);
     expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
