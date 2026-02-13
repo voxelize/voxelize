@@ -16,7 +16,6 @@ import {
   resolveOutputPath,
   serializeReportWithOptionalWrite,
   splitCliArgs,
-  toReportJson,
 } from "./scripts/report-utils.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -113,36 +112,38 @@ let requiredFailures = 0;
 const checkResults = [];
 
 if (isJson && validationFailureMessage !== null) {
-  console.log(
-    toReportJson(
-      buildTimedReport({
-        passed: false,
-        exitCode: 1,
-        optionTerminatorUsed,
-        positionalArgs,
-        positionalArgCount,
-        requiredFailures: 0,
-        checks: [],
-        outputPath: outputPathError === null ? outputPath : null,
-        activeCliOptions,
-        activeCliOptionCount,
-        activeCliOptionTokens,
-        activeCliOptionResolutions,
-        activeCliOptionResolutionCount,
-        activeCliOptionOccurrences,
-        activeCliOptionOccurrenceCount,
-        unknownOptions,
-        unknownOptionCount,
-        supportedCliOptions,
-        supportedCliOptionCount,
-        availableCliOptionAliases,
-        availableCliOptionCanonicalMap,
-        validationErrorCode,
-        message: validationFailureMessage,
-      }),
-      jsonFormat
-    )
-  );
+  const report = buildTimedReport({
+    passed: false,
+    exitCode: 1,
+    optionTerminatorUsed,
+    positionalArgs,
+    positionalArgCount,
+    requiredFailures: 0,
+    checks: [],
+    outputPath: outputPathError === null ? outputPath : null,
+    activeCliOptions,
+    activeCliOptionCount,
+    activeCliOptionTokens,
+    activeCliOptionResolutions,
+    activeCliOptionResolutionCount,
+    activeCliOptionOccurrences,
+    activeCliOptionOccurrenceCount,
+    unknownOptions,
+    unknownOptionCount,
+    supportedCliOptions,
+    supportedCliOptionCount,
+    availableCliOptionAliases,
+    availableCliOptionCanonicalMap,
+    validationErrorCode,
+    message: validationFailureMessage,
+  });
+  const { reportJson } = serializeReportWithOptionalWrite(report, {
+    jsonFormat,
+    outputPath: outputPathError === null ? outputPath : null,
+    buildTimedReport,
+  });
+
+  console.log(reportJson);
   process.exit(1);
 }
 

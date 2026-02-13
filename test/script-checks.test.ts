@@ -723,6 +723,31 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-wasm-pack json mode writes unsupported-option validation reports to output files", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-wasm-pack-validation-report-")
+    );
+    const outputPath = path.resolve(tempDirectory, "validation-report.json");
+
+    const result = runScript("check-wasm-pack.mjs", [
+      "--json",
+      "--mystery",
+      "--output",
+      outputPath,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as WasmPackJsonReport;
+    const fileReport = JSON.parse(fs.readFileSync(outputPath, "utf8")) as WasmPackJsonReport;
+
+    expect(stdoutReport.passed).toBe(false);
+    expect(stdoutReport.validationErrorCode).toBe("unsupported_options");
+    expect(stdoutReport.outputPath).toBe(outputPath);
+    expect(stdoutReport.unknownOptions).toEqual(["--mystery"]);
+    expect(fileReport).toEqual(stdoutReport);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("check-wasm-pack ignores option-like tokens after option terminator", () => {
     const result = runScript("check-wasm-pack.mjs", ["--json", "--", "--output"]);
     const report = JSON.parse(result.output) as WasmPackJsonReport;
@@ -1220,6 +1245,31 @@ describe("root preflight scripts", () => {
       ]
     );
     expect(result.status).toBe(1);
+  });
+
+  it("check-dev-env json mode writes unsupported-option validation reports to output files", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-dev-env-validation-report-")
+    );
+    const outputPath = path.resolve(tempDirectory, "validation-report.json");
+
+    const result = runScript("check-dev-env.mjs", [
+      "--json",
+      "--mystery",
+      "--output",
+      outputPath,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as DevEnvJsonReport;
+    const fileReport = JSON.parse(fs.readFileSync(outputPath, "utf8")) as DevEnvJsonReport;
+
+    expect(stdoutReport.passed).toBe(false);
+    expect(stdoutReport.validationErrorCode).toBe("unsupported_options");
+    expect(stdoutReport.outputPath).toBe(outputPath);
+    expect(stdoutReport.unknownOptions).toEqual(["--mystery"]);
+    expect(fileReport).toEqual(stdoutReport);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
   it("check-dev-env ignores option-like tokens after option terminator", () => {
@@ -1848,6 +1898,32 @@ describe("root preflight scripts", () => {
       ]
     );
     expect(result.status).toBe(1);
+  });
+
+  it("check-client json mode writes unsupported-option validation reports to output files", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-client-validation-report-")
+    );
+    const outputPath = path.resolve(tempDirectory, "validation-report.json");
+
+    const result = runScript("check-client.mjs", [
+      "--json",
+      "--mystery",
+      "--output",
+      outputPath,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as ClientJsonReport;
+    const fileReport = JSON.parse(fs.readFileSync(outputPath, "utf8")) as ClientJsonReport;
+
+    expect(stdoutReport.passed).toBe(false);
+    expect(stdoutReport.validationErrorCode).toBe("unsupported_options");
+    expect(stdoutReport.outputPath).toBe(outputPath);
+    expect(stdoutReport.unknownOptions).toEqual(["--mystery"]);
+    expect(stdoutReport.totalSteps).toBe(0);
+    expect(fileReport).toEqual(stdoutReport);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
   it("check-client json mode fails when last output flag value is missing", () => {
@@ -2543,6 +2619,32 @@ describe("root preflight scripts", () => {
       ]
     );
     expect(result.status).toBe(1);
+  });
+
+  it("check-onboarding json mode writes unsupported-option validation reports to output files", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-onboarding-validation-report-")
+    );
+    const outputPath = path.resolve(tempDirectory, "validation-report.json");
+
+    const result = runScript("check-onboarding.mjs", [
+      "--json",
+      "--mystery",
+      "--output",
+      outputPath,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as OnboardingJsonReport;
+    const fileReport = JSON.parse(fs.readFileSync(outputPath, "utf8")) as OnboardingJsonReport;
+
+    expect(stdoutReport.passed).toBe(false);
+    expect(stdoutReport.validationErrorCode).toBe("unsupported_options");
+    expect(stdoutReport.outputPath).toBe(outputPath);
+    expect(stdoutReport.unknownOptions).toEqual(["--mystery"]);
+    expect(stdoutReport.totalSteps).toBe(0);
+    expect(fileReport).toEqual(stdoutReport);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
   it("check-onboarding json mode fails when last output flag value is missing", () => {

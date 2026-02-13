@@ -8,7 +8,6 @@ import {
   resolveOutputPath,
   serializeReportWithOptionalWrite,
   splitCliArgs,
-  toReportJson,
 } from "./scripts/report-utils.mjs";
 
 const wasmPackCommand = resolveCommand("wasm-pack");
@@ -53,36 +52,38 @@ const validationFailureMessage = deriveCliValidationFailureMessage({
 });
 
 if (isJson && validationFailureMessage !== null) {
-  console.log(
-    toReportJson(
-      buildTimedReport({
-        passed: false,
-        exitCode: 1,
-        optionTerminatorUsed,
-        positionalArgs,
-        positionalArgCount,
-        command: wasmPackCommand,
-        version: null,
-        outputPath: outputPathError === null ? outputPath : null,
-        activeCliOptions,
-        activeCliOptionCount,
-        activeCliOptionTokens,
-        activeCliOptionResolutions,
-        activeCliOptionResolutionCount,
-        activeCliOptionOccurrences,
-        activeCliOptionOccurrenceCount,
-        unknownOptions,
-        unknownOptionCount,
-        supportedCliOptions,
-        supportedCliOptionCount,
-        availableCliOptionAliases,
-        availableCliOptionCanonicalMap,
-        validationErrorCode,
-        message: validationFailureMessage,
-      }),
-      jsonFormat
-    )
-  );
+  const report = buildTimedReport({
+    passed: false,
+    exitCode: 1,
+    optionTerminatorUsed,
+    positionalArgs,
+    positionalArgCount,
+    command: wasmPackCommand,
+    version: null,
+    outputPath: outputPathError === null ? outputPath : null,
+    activeCliOptions,
+    activeCliOptionCount,
+    activeCliOptionTokens,
+    activeCliOptionResolutions,
+    activeCliOptionResolutionCount,
+    activeCliOptionOccurrences,
+    activeCliOptionOccurrenceCount,
+    unknownOptions,
+    unknownOptionCount,
+    supportedCliOptions,
+    supportedCliOptionCount,
+    availableCliOptionAliases,
+    availableCliOptionCanonicalMap,
+    validationErrorCode,
+    message: validationFailureMessage,
+  });
+  const { reportJson } = serializeReportWithOptionalWrite(report, {
+    jsonFormat,
+    outputPath: outputPathError === null ? outputPath : null,
+    buildTimedReport,
+  });
+
+  console.log(reportJson);
   process.exit(1);
 }
 

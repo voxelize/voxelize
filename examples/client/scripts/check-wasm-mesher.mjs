@@ -13,7 +13,6 @@ import {
   resolveOutputPath,
   serializeReportWithOptionalWrite,
   splitCliArgs,
-  toReportJson,
 } from "../../../scripts/report-utils.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -72,41 +71,43 @@ const validationFailureMessage = deriveCliValidationFailureMessage({
 });
 
 if (isJson && validationFailureMessage !== null) {
-  console.log(
-    toReportJson(
-      buildTimedReport({
-        passed: false,
-        exitCode: 1,
-        optionTerminatorUsed,
-        positionalArgs,
-        positionalArgCount,
-        artifactPath: "crates/wasm-mesher/pkg/voxelize_wasm_mesher.js",
-        artifactFound: false,
-        attemptedBuild: false,
-        buildSkipped: isNoBuild,
-        wasmPackAvailable: null,
-        wasmPackCheckReport: null,
-        buildOutput: null,
-        outputPath: outputPathError === null ? outputPath : null,
-        activeCliOptions,
-        activeCliOptionCount,
-        activeCliOptionTokens,
-        activeCliOptionResolutions,
-        activeCliOptionResolutionCount,
-        activeCliOptionOccurrences,
-        activeCliOptionOccurrenceCount,
-        unknownOptions,
-        unknownOptionCount,
-        supportedCliOptions,
-        supportedCliOptionCount,
-        availableCliOptionAliases,
-        availableCliOptionCanonicalMap,
-        validationErrorCode,
-        message: validationFailureMessage,
-      }),
-      jsonFormat
-    )
-  );
+  const report = buildTimedReport({
+    passed: false,
+    exitCode: 1,
+    optionTerminatorUsed,
+    positionalArgs,
+    positionalArgCount,
+    artifactPath: "crates/wasm-mesher/pkg/voxelize_wasm_mesher.js",
+    artifactFound: false,
+    attemptedBuild: false,
+    buildSkipped: isNoBuild,
+    wasmPackAvailable: null,
+    wasmPackCheckReport: null,
+    buildOutput: null,
+    outputPath: outputPathError === null ? outputPath : null,
+    activeCliOptions,
+    activeCliOptionCount,
+    activeCliOptionTokens,
+    activeCliOptionResolutions,
+    activeCliOptionResolutionCount,
+    activeCliOptionOccurrences,
+    activeCliOptionOccurrenceCount,
+    unknownOptions,
+    unknownOptionCount,
+    supportedCliOptions,
+    supportedCliOptionCount,
+    availableCliOptionAliases,
+    availableCliOptionCanonicalMap,
+    validationErrorCode,
+    message: validationFailureMessage,
+  });
+  const { reportJson } = serializeReportWithOptionalWrite(report, {
+    jsonFormat,
+    outputPath: outputPathError === null ? outputPath : null,
+    buildTimedReport,
+  });
+
+  console.log(reportJson);
   process.exit(1);
 }
 
