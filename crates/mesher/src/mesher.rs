@@ -26,6 +26,12 @@ pub struct Block {
     pub greedy_face_indices: [i16; 6],
     #[serde(skip, default)]
     pub has_standard_six_faces: bool,
+    #[serde(skip, default)]
+    pub is_full_cube_cached: bool,
+    #[serde(skip, default)]
+    pub has_mixed_diagonal_and_cardinal: bool,
+    #[serde(skip, default)]
+    pub greedy_mesh_eligible_no_rotation: bool,
     pub transparent_standalone: bool,
     #[serde(default)]
     pub occludes_fluid: bool,
@@ -39,11 +45,22 @@ impl Block {
         self.name_lower = self.name.to_lowercase();
         self.is_all_transparent = self.is_transparent.iter().all(|transparent| *transparent);
         self.greedy_face_indices = default_greedy_face_indices();
+        self.is_full_cube_cached = is_full_cube_from_aabbs(&self.aabbs);
         for face in &mut self.faces {
             face.compute_name_lower();
         }
         self.has_standard_six_faces = has_standard_six_faces(&self.faces);
+        let mut has_diagonal = false;
+        let mut has_cardinal = false;
         for (face_index, face) in self.faces.iter().enumerate() {
+            if face.dir == [0, 0, 0] {
+                has_diagonal = true;
+            } else {
+                let manhattan = face.dir[0].abs() + face.dir[1].abs() + face.dir[2].abs();
+                if manhattan == 1 {
+                    has_cardinal = true;
+                }
+            }
             if let Some(dir_index) = cardinal_dir_index(face.dir) {
                 if self.greedy_face_indices[dir_index] == -1 {
                     self.greedy_face_indices[dir_index] = face_index as i16;
@@ -52,6 +69,13 @@ impl Block {
                 }
             }
         }
+        self.has_mixed_diagonal_and_cardinal = has_diagonal && has_cardinal;
+        self.greedy_mesh_eligible_no_rotation = !self.is_fluid
+            && !self.rotatable
+            && !self.y_rotatable
+            && self.dynamic_patterns.is_none()
+            && self.is_full_cube_cached
+            && !self.has_mixed_diagonal_and_cardinal;
         if let Some(patterns) = &mut self.dynamic_patterns {
             for pattern in patterns {
                 for part in &mut pattern.parts {
@@ -64,13 +88,11 @@ impl Block {
     }
 
     pub fn is_full_cube(&self) -> bool {
-        self.aabbs.len() == 1
-            && (self.aabbs[0].min_x - 0.0).abs() < f32::EPSILON
-            && (self.aabbs[0].min_y - 0.0).abs() < f32::EPSILON
-            && (self.aabbs[0].min_z - 0.0).abs() < f32::EPSILON
-            && (self.aabbs[0].max_x - 1.0).abs() < f32::EPSILON
-            && (self.aabbs[0].max_y - 1.0).abs() < f32::EPSILON
-            && (self.aabbs[0].max_z - 1.0).abs() < f32::EPSILON
+        if self.name_lower.is_empty() {
+            is_full_cube_from_aabbs(&self.aabbs)
+        } else {
+            self.is_full_cube_cached
+        }
     }
 
     pub fn get_name_lower(&self) -> &str {
@@ -88,11 +110,35 @@ impl Block {
             self.has_standard_six_faces
         }
     }
+
+    pub fn can_greedy_mesh_without_rotation(&self) -> bool {
+        if self.name_lower.is_empty() {
+            !self.is_fluid
+                && !self.rotatable
+                && !self.y_rotatable
+                && self.dynamic_patterns.is_none()
+                && self.is_full_cube()
+                && !(has_diagonal_faces(self) && has_cardinal_faces(self))
+        } else {
+            self.greedy_mesh_eligible_no_rotation
+        }
+    }
 }
 
 #[inline]
 const fn default_greedy_face_indices() -> [i16; 6] {
     [-1; 6]
+}
+
+#[inline]
+fn is_full_cube_from_aabbs(aabbs: &[AABB]) -> bool {
+    aabbs.len() == 1
+        && (aabbs[0].min_x - 0.0).abs() < f32::EPSILON
+        && (aabbs[0].min_y - 0.0).abs() < f32::EPSILON
+        && (aabbs[0].min_z - 0.0).abs() < f32::EPSILON
+        && (aabbs[0].max_x - 1.0).abs() < f32::EPSILON
+        && (aabbs[0].max_y - 1.0).abs() < f32::EPSILON
+        && (aabbs[0].max_z - 1.0).abs() < f32::EPSILON
 }
 
 #[inline]
@@ -882,13 +928,7 @@ fn has_cardinal_faces(block: &Block) -> bool {
 }
 
 fn can_greedy_mesh_block(block: &Block, rotation: &BlockRotation) -> bool {
-    !block.is_fluid
-        && !block.rotatable
-        && !block.y_rotatable
-        && block.dynamic_patterns.is_none()
-        && matches!(rotation, BlockRotation::PY(r) if *r == 0.0)
-        && block.is_full_cube()
-        && !(has_diagonal_faces(block) && has_cardinal_faces(block))
+    block.can_greedy_mesh_without_rotation() && matches!(rotation, BlockRotation::PY(r) if *r == 0.0)
 }
 
 fn geometry_key_for_face(block: &Block, face: &BlockFace, vx: i32, vy: i32, vz: i32) -> GeometryMapKey {
