@@ -80,6 +80,12 @@ describe("root preflight scripts", () => {
     expect(result.output).toContain("Client check failed:");
   });
 
+  it("check-client quiet mode suppresses step logs", () => {
+    const result = runScript("check-client.mjs", ["--quiet"]);
+
+    expect(result.output).not.toContain("Running client check step:");
+  });
+
   it("check-onboarding returns pass or fail summary", () => {
     const result = runScript("check-onboarding.mjs");
     expect(result.output).toContain(
@@ -92,5 +98,12 @@ describe("root preflight scripts", () => {
     }
 
     expect(result.output).toContain("Onboarding check failed:");
+  });
+
+  it("check-onboarding quiet mode suppresses step logs", () => {
+    const result = runScript("check-onboarding.mjs", ["--quiet"]);
+
+    expect(result.output).not.toContain("Running onboarding step:");
+    expect(result.output).not.toContain("✓ node:");
   });
 });

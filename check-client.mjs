@@ -8,9 +8,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const pnpmCommand = resolvePnpmCommand();
+const isQuiet = process.argv.includes("--quiet");
 
 const runStep = (name, command, args) => {
-  console.log(`Running client check step: ${name}`);
+  if (!isQuiet) {
+    console.log(`Running client check step: ${name}`);
+  }
 
   const result = spawnSync(command, args, {
     stdio: "inherit",
@@ -39,4 +42,6 @@ runStep("TypeScript typecheck", pnpmCommand, [
   "typecheck",
 ]);
 
-console.log("Client checks passed.");
+if (!isQuiet) {
+  console.log("Client checks passed.");
+}

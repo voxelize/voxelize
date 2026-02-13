@@ -4,11 +4,15 @@ import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const isQuiet = process.argv.includes("--quiet");
 
 const runStep = (name, scriptPath) => {
-  console.log(`Running onboarding step: ${name}`);
+  if (!isQuiet) {
+    console.log(`Running onboarding step: ${name}`);
+  }
 
-  const result = spawnSync(process.execPath, [scriptPath], {
+  const scriptArgs = isQuiet ? [scriptPath, "--quiet"] : [scriptPath];
+  const result = spawnSync(process.execPath, scriptArgs, {
     stdio: "inherit",
     shell: false,
     cwd: __dirname,
@@ -25,4 +29,6 @@ const runStep = (name, scriptPath) => {
 runStep("Developer environment preflight", path.resolve(__dirname, "check-dev-env.mjs"));
 runStep("Client checks", path.resolve(__dirname, "check-client.mjs"));
 
-console.log("Onboarding checks passed.");
+if (!isQuiet) {
+  console.log("Onboarding checks passed.");
+}
