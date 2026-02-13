@@ -5630,10 +5630,14 @@ export class World<T = any> extends Scene implements NetIntercept {
             startSequenceId
           );
           if (firstRelevantIndex < allDeltas.length) {
+            const deltasForJob =
+              firstRelevantIndex === 0
+                ? allDeltas
+                : allDeltas.slice(firstRelevantIndex);
             relevantDeltas.push({
               cx,
               cz,
-              deltas: allDeltas.slice(firstRelevantIndex),
+              deltas: deltasForJob,
             });
           }
         }
