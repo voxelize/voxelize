@@ -2079,7 +2079,7 @@ fn process_face<S: VoxelAccess>(
     let center_lights = if is_see_through || is_all_transparent {
         cache
             .and_then(|entry| entry.center_lights)
-            .or(Some(neighbors.get_all_lights(0, 0, 0)))
+            .or_else(|| Some(neighbors.get_all_lights(0, 0, 0)))
     } else {
         None
     };
