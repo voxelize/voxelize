@@ -11,6 +11,7 @@ const wasmMesherEntry = path.resolve(
   "../../../crates/wasm-mesher/pkg/voxelize_wasm_mesher.js"
 );
 const repositoryRoot = path.resolve(__dirname, "../../..");
+const rootWasmCheckScript = path.resolve(repositoryRoot, "check-wasm-pack.mjs");
 const isWindows = process.platform === "win32";
 const pnpmCommand = isWindows ? "pnpm.cmd" : "pnpm";
 
@@ -19,8 +20,8 @@ if (fs.existsSync(wasmMesherEntry)) {
 }
 
 const wasmPackCheck = spawnSync(
-  pnpmCommand,
-  ["--dir", repositoryRoot, "run", "check:wasm-pack"],
+  process.execPath,
+  [rootWasmCheckScript],
   {
     stdio: "inherit",
     shell: false,
