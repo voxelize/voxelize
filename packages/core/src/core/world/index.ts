@@ -3912,38 +3912,42 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const [centerX, centerZ] = center;
     const toRequestClosest: Array<{ coords: Coords2; distance: number }> = [];
-    const maybeQueueRequest = (cx: number, cz: number) => {
-      if (maxChunkRequestsPerUpdate <= 0) {
-        return;
+    let farthestRequestIndex = -1;
+    let farthestRequestDistance = -1;
+    const recomputeFarthestRequest = () => {
+      farthestRequestIndex = -1;
+      farthestRequestDistance = -1;
+      for (let index = 0; index < toRequestClosest.length; index++) {
+        const distance = toRequestClosest[index].distance;
+        if (distance > farthestRequestDistance) {
+          farthestRequestDistance = distance;
+          farthestRequestIndex = index;
+        }
       }
-
+    };
+    const maybeQueueRequest = (cx: number, cz: number) => {
       const distance = (cx - centerX) ** 2 + (cz - centerZ) ** 2;
       if (toRequestClosest.length < maxChunkRequestsPerUpdate) {
         toRequestClosest.push({
           coords: [cx, cz],
           distance,
         });
-        return;
-      }
-
-      let farthestIndex = 0;
-      let farthestDistance = toRequestClosest[0].distance;
-      for (let index = 1; index < toRequestClosest.length; index++) {
-        const candidateDistance = toRequestClosest[index].distance;
-        if (candidateDistance > farthestDistance) {
-          farthestDistance = candidateDistance;
-          farthestIndex = index;
+        if (distance > farthestRequestDistance) {
+          farthestRequestDistance = distance;
+          farthestRequestIndex = toRequestClosest.length - 1;
         }
-      }
-
-      if (distance >= farthestDistance) {
         return;
       }
 
-      toRequestClosest[farthestIndex] = {
+      if (distance >= farthestRequestDistance) {
+        return;
+      }
+
+      toRequestClosest[farthestRequestIndex] = {
         coords: [cx, cz],
         distance,
       };
+      recomputeFarthestRequest();
     };
 
     const renderRadiusSquared = renderRadius * renderRadius;
@@ -4043,30 +4047,38 @@ export class World<T = any> extends Scene implements NetIntercept {
       data: import("@voxelize/protocol").ChunkProtocol;
       distance: number;
     }> = [];
+    let farthestProcessIndex = -1;
+    let farthestProcessDistance = -1;
+    const recomputeFarthestProcess = () => {
+      farthestProcessIndex = -1;
+      farthestProcessDistance = -1;
+      for (let index = 0; index < toProcessArray.length; index++) {
+        const distance = toProcessArray[index].distance;
+        if (distance > farthestProcessDistance) {
+          farthestProcessDistance = distance;
+          farthestProcessIndex = index;
+        }
+      }
+    };
     const maybeQueueProcess = (
       data: import("@voxelize/protocol").ChunkProtocol
     ) => {
       const distance = (data.x - centerX) ** 2 + (data.z - centerZ) ** 2;
       if (toProcessArray.length < maxProcessesPerUpdate) {
         toProcessArray.push({ data, distance });
-        return;
-      }
-
-      let farthestIndex = 0;
-      let farthestDistance = toProcessArray[0].distance;
-      for (let index = 1; index < toProcessArray.length; index++) {
-        const candidateDistance = toProcessArray[index].distance;
-        if (candidateDistance > farthestDistance) {
-          farthestDistance = candidateDistance;
-          farthestIndex = index;
+        if (distance > farthestProcessDistance) {
+          farthestProcessDistance = distance;
+          farthestProcessIndex = toProcessArray.length - 1;
         }
-      }
-
-      if (distance >= farthestDistance) {
         return;
       }
 
-      toProcessArray[farthestIndex] = { data, distance };
+      if (distance >= farthestProcessDistance) {
+        return;
+      }
+
+      toProcessArray[farthestProcessIndex] = { data, distance };
+      recomputeFarthestProcess();
     };
 
     for (const [, procData] of this.chunkPipeline.processingEntries()) {
