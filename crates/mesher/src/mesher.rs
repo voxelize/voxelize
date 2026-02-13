@@ -2394,7 +2394,12 @@ fn process_face<S: VoxelAccess>(
     let apply_wave_bit = is_fluid && !fluid_surface_above;
 
     let is_diagonal = dir == [0, 0, 0];
-    let has_diagonals = see_through && block.has_diagonal_faces_cached();
+    let has_diagonals = see_through
+        && if block.cache_ready {
+            block.has_diagonal_faces
+        } else {
+            block.has_diagonal_faces_cached()
+        };
     let (hash_ox, _hash_oz) = if has_diagonals {
         diagonal_face_offsets(vx, vy, vz)
     } else {
