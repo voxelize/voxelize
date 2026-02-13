@@ -5762,7 +5762,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     const results = await Promise.all(workerPromises);
     let shouldScheduleDirtyChunks = false;
 
-    for (const result of results) {
+    for (let index = 0; index < results.length; index++) {
+      const result = results[index];
       if (result.geometries) {
         this.applyMeshResult(
           result.cx,
