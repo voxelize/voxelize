@@ -743,4 +743,17 @@ mod tests {
         assert_eq!(space.get_sunlight(8, 47, 8), 13);
         assert_eq!(space.get_sunlight(9, 50, 8), 14);
     }
+
+    #[test]
+    fn light_bounds_contains_xz_handles_large_shapes_safely() {
+        let bounds = LightBounds {
+            min: [10, 0, 20],
+            shape: [usize::MAX, 1, usize::MAX],
+        };
+
+        assert!(bounds.contains_xz(10, 20));
+        assert!(bounds.contains_xz(10_000, 20_000));
+        assert!(!bounds.contains_xz(9, 20));
+        assert!(!bounds.contains_xz(10, 19));
+    }
 }
