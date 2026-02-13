@@ -20,7 +20,7 @@ const isCompact = cliArgs.includes("--compact");
 const jsonFormat = { compact: isCompact };
 const { outputPath: resolvedOutputPath, error: outputPathError } =
   resolveOutputPath(cliArgs);
-const onlyArgIndex = cliArgs.indexOf("--only");
+const onlyArgIndex = cliArgs.lastIndexOf("--only");
 const buildTimedReport = createTimedReportBuilder();
 
 const availableChecks = [

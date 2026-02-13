@@ -200,6 +200,33 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
+  it("uses the last only flag when multiple are provided", () => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        preflightScript,
+        "--no-build",
+        "--only",
+        "devEnvironment",
+        "--only",
+        "client",
+      ],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.selectedChecks).toEqual(["client"]);
+    expect(report.skippedChecks).toEqual(["devEnvironment", "wasmPack"]);
+    expect(report.checks.map((check) => check.name)).toEqual(["client"]);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
   it("supports compact json output formatting", () => {
     const result = spawnSync(
       process.execPath,
