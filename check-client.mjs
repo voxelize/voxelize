@@ -44,6 +44,11 @@ if (isJson && outputPathError !== null) {
         noBuild: isNoBuild,
         outputPath: null,
         steps: [],
+        totalSteps: 0,
+        passedStepCount: 0,
+        failedStepCount: 0,
+        skippedStepCount: 0,
+        firstFailedStep: null,
         message: outputPathError,
       }),
       jsonFormat
@@ -135,12 +140,27 @@ if (wasmPreflightPassed) {
 }
 
 if (isJson) {
+  const passedStepCount = stepResults.filter(
+    (step) => step.passed && step.skipped === false
+  ).length;
+  const failedStepCount = stepResults.filter(
+    (step) => !step.passed && step.skipped === false
+  ).length;
+  const skippedStepCount = stepResults.filter((step) => step.skipped).length;
+  const firstFailedStep =
+    stepResults.find((step) => !step.passed && step.skipped === false)?.name ??
+    null;
   const report = buildTimedReport({
     passed: exitCode === 0,
     exitCode,
     noBuild: isNoBuild,
     outputPath,
     steps: stepResults,
+    totalSteps: stepResults.length,
+    passedStepCount,
+    failedStepCount,
+    skippedStepCount,
+    firstFailedStep,
   });
   const reportJson = toReportJson(report, jsonFormat);
 

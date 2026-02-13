@@ -86,8 +86,9 @@ pnpm run check:wasm:verify:json -- --output ./wasm-verify-report.json
 
 All JSON report commands include `schemaVersion: 1` for compatibility checks.
 JSON preflight reports include `startedAt`, `endedAt`, and `durationMs`.
+Client aggregate JSON reports include `totalSteps`, `passedStepCount`, `failedStepCount`, `skippedStepCount`, and `firstFailedStep`.
 Skipped JSON steps are represented with `skipped: true` and `exitCode: null`.
 If `--output` is provided without a value, JSON commands return a structured error report.
-Add `--compact` to any JSON preflight command for single-line JSON output.
+Add `--compact` to each JSON preflight command for single-line JSON output.
 
 This runs client typechecking and wasm-artifact preflight in sequence.

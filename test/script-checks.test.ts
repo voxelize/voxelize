@@ -84,6 +84,11 @@ type ClientJsonReport = {
   noBuild: boolean;
   outputPath: string | null;
   steps: ClientJsonStep[];
+  totalSteps: number;
+  passedStepCount: number;
+  failedStepCount: number;
+  skippedStepCount: number;
+  firstFailedStep: string | null;
   startedAt: string;
   endedAt: string;
   durationMs: number;
@@ -107,6 +112,11 @@ type OnboardingJsonReport = {
   noBuild: boolean;
   outputPath: string | null;
   steps: OnboardingJsonStep[];
+  totalSteps: number;
+  passedStepCount: number;
+  failedStepCount: number;
+  skippedStepCount: number;
+  firstFailedStep: string | null;
   startedAt: string;
   endedAt: string;
   durationMs: number;
@@ -343,6 +353,10 @@ describe("root preflight scripts", () => {
     expectTimingMetadata(report);
     expect(Array.isArray(report.steps)).toBe(true);
     expect(report.steps.length).toBeGreaterThan(0);
+    expect(report.totalSteps).toBe(report.steps.length);
+    expect(report.passedStepCount + report.failedStepCount + report.skippedStepCount).toBe(
+      report.totalSteps
+    );
     expect(report.steps[0].name).toBe("WASM artifact preflight");
     expect(typeof report.steps[0].skipped).toBe("boolean");
     expect(report.steps.some((step) => step.name === "TypeScript typecheck")).toBe(
@@ -357,6 +371,13 @@ describe("root preflight scripts", () => {
       expect(typeof report.steps[0].report.passed).toBe("boolean");
       expect(report.steps[0].report.buildSkipped).toBe(false);
       expectTimingMetadata(report.steps[0].report);
+    }
+    if (report.failedStepCount > 0) {
+      expect(report.firstFailedStep).toBe(
+        report.steps.find((step) => !step.passed && step.skipped === false)?.name
+      );
+    } else {
+      expect(report.firstFailedStep).toBeNull();
     }
     expect(result.status).toBe(report.passed ? 0 : 1);
     expect(result.output).not.toContain("Running client check step:");
@@ -405,6 +426,11 @@ describe("root preflight scripts", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expectTimingMetadata(report);
+    expect(report.totalSteps).toBe(0);
+    expect(report.passedStepCount).toBe(0);
+    expect(report.failedStepCount).toBe(0);
+    expect(report.skippedStepCount).toBe(0);
+    expect(report.firstFailedStep).toBeNull();
     expect(report.message).toBe("Missing value for --output option.");
     expect(result.status).toBe(1);
   });
@@ -417,6 +443,10 @@ describe("root preflight scripts", () => {
     expect(report.noBuild).toBe(true);
     expect(report.outputPath).toBeNull();
     expectTimingMetadata(report);
+    expect(report.totalSteps).toBe(report.steps.length);
+    expect(report.passedStepCount + report.failedStepCount + report.skippedStepCount).toBe(
+      report.totalSteps
+    );
     expect(report.steps.length).toBeGreaterThan(0);
     expect(report.steps[0].name).toBe("WASM artifact preflight");
     const typecheckStep = report.steps.find(
@@ -468,6 +498,10 @@ describe("root preflight scripts", () => {
     expectTimingMetadata(report);
     expect(Array.isArray(report.steps)).toBe(true);
     expect(report.steps.length).toBeGreaterThan(0);
+    expect(report.totalSteps).toBe(report.steps.length);
+    expect(report.passedStepCount + report.failedStepCount + report.skippedStepCount).toBe(
+      report.totalSteps
+    );
     expect(report.steps[0].name).toBe("Developer environment preflight");
     expect(
       report.steps.some((step) => step.name === "Client checks")
@@ -477,6 +511,13 @@ describe("root preflight scripts", () => {
       expect(report.steps[0].report.schemaVersion).toBe(1);
       expect(typeof report.steps[0].report.passed).toBe("boolean");
       expectTimingMetadata(report.steps[0].report);
+    }
+    if (report.failedStepCount > 0) {
+      expect(report.firstFailedStep).toBe(
+        report.steps.find((step) => !step.passed && step.skipped === false)?.name
+      );
+    } else {
+      expect(report.firstFailedStep).toBeNull();
     }
     expect(result.status).toBe(report.passed ? 0 : 1);
     expect(result.output).not.toContain("Running onboarding step:");
@@ -525,6 +566,11 @@ describe("root preflight scripts", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expectTimingMetadata(report);
+    expect(report.totalSteps).toBe(0);
+    expect(report.passedStepCount).toBe(0);
+    expect(report.failedStepCount).toBe(0);
+    expect(report.skippedStepCount).toBe(0);
+    expect(report.firstFailedStep).toBeNull();
     expect(report.message).toBe("Missing value for --output option.");
     expect(result.status).toBe(1);
   });
@@ -537,6 +583,10 @@ describe("root preflight scripts", () => {
     expect(report.noBuild).toBe(true);
     expect(report.outputPath).toBeNull();
     expectTimingMetadata(report);
+    expect(report.totalSteps).toBe(report.steps.length);
+    expect(report.passedStepCount + report.failedStepCount + report.skippedStepCount).toBe(
+      report.totalSteps
+    );
     expect(report.steps.length).toBeGreaterThan(0);
     expect(report.steps[0].name).toBe("Developer environment preflight");
     const clientStep = report.steps.find((step) => step.name === "Client checks");
