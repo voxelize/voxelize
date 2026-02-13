@@ -1967,7 +1967,9 @@ fn evaluate_block_rule<S: VoxelAccess>(
                 return true;
             }
 
-            let (check_x, check_y, check_z) = if y_rotatable && !world_space {
+            let needs_y_offset_rotation =
+                y_rotatable && !world_space && (simple.offset[0] != 0 || simple.offset[2] != 0);
+            let (check_x, check_y, check_z) = if needs_y_offset_rotation {
                 let mut offset = [
                     simple.offset[0] as f32,
                     simple.offset[1] as f32,
