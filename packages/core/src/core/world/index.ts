@@ -5343,6 +5343,8 @@ export class World<T = any> extends Scene implements NetIntercept {
         yRotation === undefined || Number.isNaN(yRotation) ? 0 : yRotation;
       const finalRotation = hasRotation
         ? BlockRotation.encode(normalizedRotation, normalizedYRotation)
+        : currentRotation.value === PY_ROTATION && currentRotation.yRotation === 0
+        ? currentRotation
         : new BlockRotation();
 
       const newValue = BlockUtils.insertAll(
