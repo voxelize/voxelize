@@ -781,6 +781,30 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-wasm-pack json mode deduplicates literal redaction placeholders", () => {
+    const result = runScript("check-wasm-pack.mjs", [
+      "--json",
+      "--json=<value>",
+      "--json=secret",
+      "--mystery=alpha",
+    ]);
+    const report = JSON.parse(result.output) as WasmPackJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedStandardCliOptions);
+    expectCliOptionCatalogMetadata(report, {}, expectedStandardCliOptions);
+    expect(report.unknownOptions).toEqual(["--json=<value>", "--mystery"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --output, --quiet."
+    );
+    expect(result.output).not.toContain("--json=secret");
+    expect(result.status).toBe(1);
+  });
+
   it("check-wasm-pack json mode redacts malformed inline option names", () => {
     const result = runScript("check-wasm-pack.mjs", [
       "--json",
@@ -1018,6 +1042,21 @@ describe("root preflight scripts", () => {
       "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --output, --quiet."
     );
     expect(result.output).not.toContain("--json=1");
+    expect(result.output).not.toContain("--mystery=alpha");
+  });
+
+  it("check-wasm-pack non-json mode deduplicates literal redaction placeholders", () => {
+    const result = runScript("check-wasm-pack.mjs", [
+      "--json=<value>",
+      "--json=secret",
+      "--mystery=alpha",
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(
+      "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --output, --quiet."
+    );
+    expect(result.output).not.toContain("--json=secret");
     expect(result.output).not.toContain("--mystery=alpha");
   });
 
@@ -2591,6 +2630,34 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-client json mode deduplicates literal redaction placeholders", () => {
+    const result = runScript("check-client.mjs", [
+      "--json",
+      "--json=<value>",
+      "--json=secret",
+      "--mystery=alpha",
+    ]);
+    const report = JSON.parse(result.output) as ClientJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedNoBuildCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedNoBuildCliOptions
+    );
+    expect(report.unknownOptions).toEqual(["--json=<value>", "--mystery"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expect(result.output).not.toContain("--json=secret");
+    expect(result.status).toBe(1);
+  });
+
   it("check-client json mode redacts inline alias misuse tokens", () => {
     const result = runScript("check-client.mjs", [
       "--json",
@@ -2902,6 +2969,21 @@ describe("root preflight scripts", () => {
       "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
     );
     expect(result.output).not.toContain("--json=1");
+    expect(result.output).not.toContain("--mystery=alpha");
+  });
+
+  it("check-client non-json mode deduplicates literal redaction placeholders", () => {
+    const result = runScript("check-client.mjs", [
+      "--json=<value>",
+      "--json=secret",
+      "--mystery=alpha",
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(
+      "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expect(result.output).not.toContain("--json=secret");
     expect(result.output).not.toContain("--mystery=alpha");
   });
 
@@ -3667,6 +3749,34 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-onboarding json mode deduplicates literal redaction placeholders", () => {
+    const result = runScript("check-onboarding.mjs", [
+      "--json",
+      "--json=<value>",
+      "--json=secret",
+      "--mystery=alpha",
+    ]);
+    const report = JSON.parse(result.output) as OnboardingJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedNoBuildCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedNoBuildCliOptions
+    );
+    expect(report.unknownOptions).toEqual(["--json=<value>", "--mystery"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expect(result.output).not.toContain("--json=secret");
+    expect(result.status).toBe(1);
+  });
+
   it("check-onboarding json mode redacts inline alias misuse tokens", () => {
     const result = runScript("check-onboarding.mjs", [
       "--json",
@@ -3978,6 +4088,21 @@ describe("root preflight scripts", () => {
       "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
     );
     expect(result.output).not.toContain("--json=1");
+    expect(result.output).not.toContain("--mystery=alpha");
+  });
+
+  it("check-onboarding non-json mode deduplicates literal redaction placeholders", () => {
+    const result = runScript("check-onboarding.mjs", [
+      "--json=<value>",
+      "--json=secret",
+      "--mystery=alpha",
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(
+      "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expect(result.output).not.toContain("--json=secret");
     expect(result.output).not.toContain("--mystery=alpha");
   });
 
