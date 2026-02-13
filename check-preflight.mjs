@@ -356,10 +356,20 @@ const unknownOptions = parseUnknownCliOptions(cliOptionArgs, {
 });
 const parseActiveCliOptions = (args) => {
   const activeCliOptions = new Set();
-  for (const arg of args) {
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
     const optionResolution = parseCanonicalCliOption(arg);
     if (optionResolution !== null) {
       activeCliOptions.add(optionResolution.canonicalOption);
+      if (
+        cliOptionsWithValues.has(optionResolution.canonicalOption) &&
+        !optionResolution.hasInlineValue
+      ) {
+        const nextArg = args[index + 1] ?? null;
+        if (nextArg !== null && !nextArg.startsWith("--")) {
+          index += 1;
+        }
+      }
     }
   }
 
@@ -371,7 +381,8 @@ const parseActiveCliOptionTokens = (args) => {
   const activeTokens = [];
   const seenActiveTokens = new Set();
 
-  for (const arg of args) {
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
     const optionResolution = parseCanonicalCliOption(arg);
     if (optionResolution === null) {
       continue;
@@ -382,6 +393,15 @@ const parseActiveCliOptionTokens = (args) => {
 
     seenActiveTokens.add(arg);
     activeTokens.push(arg);
+    if (
+      cliOptionsWithValues.has(optionResolution.canonicalOption) &&
+      !optionResolution.hasInlineValue
+    ) {
+      const nextArg = args[index + 1] ?? null;
+      if (nextArg !== null && !nextArg.startsWith("--")) {
+        index += 1;
+      }
+    }
   }
 
   return activeTokens;
@@ -411,6 +431,15 @@ const parseActiveCliOptionOccurrences = (args) => {
       canonicalOption: optionResolution.canonicalOption,
       index,
     });
+    if (
+      cliOptionsWithValues.has(optionResolution.canonicalOption) &&
+      !optionResolution.hasInlineValue
+    ) {
+      const nextArg = args[index + 1] ?? null;
+      if (nextArg !== null && !nextArg.startsWith("--")) {
+        index += 1;
+      }
+    }
   }
 
   return occurrences;
