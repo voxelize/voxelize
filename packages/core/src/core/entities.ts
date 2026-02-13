@@ -137,22 +137,33 @@ export class Entities extends Group implements NetIntercept {
   update = (cameraPos?: Vector3, renderDistance?: number) => {
     const renderDistSq =
       cameraPos && renderDistance ? renderDistance * renderDistance : 0;
+    const shouldCullByDistance = renderDistSq > 0 && !!cameraPos;
 
-    for (const entity of this.map.values()) {
-      if (renderDistSq > 0 && cameraPos && entity.setHidden) {
-        const tooFar =
-          entity.position.distanceToSquared(cameraPos) > renderDistSq;
+    let entities = this.map.values();
+    let entityEntry = entities.next();
+    while (!entityEntry.done) {
+      const entity = entityEntry.value;
+      if (shouldCullByDistance && cameraPos && entity.setHidden) {
+        const tooFar = entity.position.distanceToSquared(cameraPos) > renderDistSq;
         entity.setHidden(tooFar);
-        if (tooFar) continue;
+        if (tooFar) {
+          entityEntry = entities.next();
+          continue;
+        }
       }
 
       entity.update?.();
+      entityEntry = entities.next();
     }
   };
 
   snapAllToTarget = () => {
-    for (const entity of this.map.values()) {
+    let entities = this.map.values();
+    let entityEntry = entities.next();
+    while (!entityEntry.done) {
+      const entity = entityEntry.value;
       (entity as Entity & { snapToTarget?: () => void }).snapToTarget?.();
+      entityEntry = entities.next();
     }
   };
 
