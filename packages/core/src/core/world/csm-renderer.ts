@@ -79,6 +79,7 @@ export class CSMRenderer {
   private lightViewMatrixInverse = new Matrix4();
   private lightSpaceCenter = new Vector3();
   private tempLookAtTarget = new Vector3();
+  private objectTraversalStack: Object3D[] = [];
   private cornerPool: Vector3[] = (() => {
     const corners = new Array<Vector3>(8);
     for (let index = 0; index < corners.length; index++) {
@@ -180,7 +181,15 @@ export class CSMRenderer {
 
   rebuildSkipShadowCache(scene: Scene) {
     this.skipShadowObjectsCache = [];
-    scene.traverse((object) => {
+    const objectTraversalStack = this.objectTraversalStack;
+    objectTraversalStack.length = 0;
+    objectTraversalStack.push(scene);
+
+    while (objectTraversalStack.length > 0) {
+      const object = objectTraversalStack.pop();
+      if (!object) {
+        continue;
+      }
       if (
         "material" in object &&
         (object as { material: { userData?: { skipShadow?: boolean } } })
@@ -188,7 +197,71 @@ export class CSMRenderer {
       ) {
         this.skipShadowObjectsCache.push(object);
       }
-    });
+      const children = object.children;
+      for (let childIndex = 0; childIndex < children.length; childIndex++) {
+        objectTraversalStack.push(children[childIndex]);
+      }
+    }
+  }
+
+  private hideEntitySkipShadowChildren(
+    entity: Object3D,
+    hiddenObjects: { object: Object3D; visible: boolean }[]
+  ) {
+    const objectTraversalStack = this.objectTraversalStack;
+    objectTraversalStack.length = 0;
+    const entityChildren = entity.children;
+    for (let childIndex = 0; childIndex < entityChildren.length; childIndex++) {
+      objectTraversalStack.push(entityChildren[childIndex]);
+    }
+
+    while (objectTraversalStack.length > 0) {
+      const child = objectTraversalStack.pop();
+      if (!child) {
+        continue;
+      }
+
+      if (
+        child.visible &&
+        "material" in child &&
+        (child as { material: { userData?: { skipShadow?: boolean } } }).material
+          ?.userData?.skipShadow === true
+      ) {
+        hiddenObjects.push({ object: child, visible: true });
+        child.visible = false;
+      }
+
+      const children = child.children;
+      for (let childIndex = 0; childIndex < children.length; childIndex++) {
+        objectTraversalStack.push(children[childIndex]);
+      }
+    }
+  }
+
+  private applyPoolDepthMaterials(
+    pool: Group,
+    poolOriginalMaterials: Map<Object3D, THREE.Material | THREE.Material[]>
+  ) {
+    const objectTraversalStack = this.objectTraversalStack;
+    objectTraversalStack.length = 0;
+    objectTraversalStack.push(pool);
+
+    while (objectTraversalStack.length > 0) {
+      const child = objectTraversalStack.pop();
+      if (!child) {
+        continue;
+      }
+
+      if (child instanceof THREE.Mesh && child.customDepthMaterial) {
+        poolOriginalMaterials.set(child, child.material);
+        child.material = child.customDepthMaterial;
+      }
+
+      const children = child.children;
+      for (let childIndex = 0; childIndex < children.length; childIndex++) {
+        objectTraversalStack.push(children[childIndex]);
+      }
+    }
   }
 
   update(mainCamera: Camera, sunDirection: Vector3, playerPosition?: Vector3) {
@@ -370,19 +443,8 @@ export class CSMRenderer {
     }
 
     if (entities) {
-      for (const entity of entities) {
-        entity.traverse((child) => {
-          if (
-            child !== entity &&
-            child.visible &&
-            "material" in child &&
-            (child as { material: { userData?: { skipShadow?: boolean } } })
-              .material?.userData?.skipShadow === true
-          ) {
-            hiddenObjects.push({ object: child, visible: true });
-            child.visible = false;
-          }
-        });
+      for (let entityIndex = 0; entityIndex < entities.length; entityIndex++) {
+        this.hideEntitySkipShadowChildren(entities[entityIndex], hiddenObjects);
       }
     }
 
@@ -391,13 +453,11 @@ export class CSMRenderer {
       THREE.Material | THREE.Material[]
     > = new Map();
     if (this.shouldRenderEntityShadows && instancePools) {
-      for (const pool of instancePools) {
-        pool.traverse((child) => {
-          if (child instanceof THREE.Mesh && child.customDepthMaterial) {
-            poolOriginalMaterials.set(child, child.material);
-            child.material = child.customDepthMaterial;
-          }
-        });
+      for (let poolIndex = 0; poolIndex < instancePools.length; poolIndex++) {
+        this.applyPoolDepthMaterials(
+          instancePools[poolIndex],
+          poolOriginalMaterials
+        );
       }
     }
 
