@@ -3709,8 +3709,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         }
                         continue;
                     }
-                    let face_index = greedy_face_index;
-
                     let should_render = should_render_face(
                         vx,
                         vy,
@@ -3729,8 +3727,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     let current_mask_index =
                         (v - v_range.0) as usize * mask_width + u_mask_offset;
 
-                    let matched_face = if face_index >= 0 {
-                        block.faces.get(face_index as usize)
+                    let matched_face = if greedy_face_index >= 0 {
+                        block.faces.get(greedy_face_index as usize)
                     } else {
                         None
                     };
@@ -3864,7 +3862,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
                     if let Some(face) = matched_face {
                         push_greedy_face(face);
-                    } else if face_index == -2 {
+                    } else {
                         for face in &block.faces {
                             if face.dir == dir {
                                 push_greedy_face(face);
