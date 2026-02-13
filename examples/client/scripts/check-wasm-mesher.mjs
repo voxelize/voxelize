@@ -4,7 +4,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { resolvePnpmCommand } from "../../../scripts/command-utils.mjs";
-import { parseJsonOutput, toReportJson } from "../../../scripts/report-utils.mjs";
+import {
+  parseJsonOutput,
+  resolveOutputPath,
+  toReportJson,
+  writeReportToPath,
+} from "../../../scripts/report-utils.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,12 +21,54 @@ const wasmMesherEntry = path.resolve(
 const repositoryRoot = path.resolve(__dirname, "../../..");
 const rootWasmCheckScript = path.resolve(repositoryRoot, "check-wasm-pack.mjs");
 const pnpmCommand = resolvePnpmCommand();
-const isJson = process.argv.includes("--json");
-const isNoBuild = process.argv.includes("--no-build");
+const cliArgs = process.argv.slice(2);
+const isJson = cliArgs.includes("--json");
+const isNoBuild = cliArgs.includes("--no-build");
+const { outputPath, error: outputPathError } = resolveOutputPath(cliArgs);
+
+if (isJson && outputPathError !== null) {
+  console.log(
+    toReportJson({
+      passed: false,
+      exitCode: 1,
+      artifactPath: "crates/wasm-mesher/pkg/voxelize_wasm_mesher.js",
+      artifactFound: false,
+      attemptedBuild: false,
+      buildSkipped: isNoBuild,
+      wasmPackAvailable: null,
+      wasmPackCheckReport: null,
+      buildOutput: null,
+      outputPath: null,
+      message: outputPathError,
+    })
+  );
+  process.exit(1);
+}
 
 const finish = (report) => {
   if (isJson) {
-    console.log(toReportJson(report));
+    const finalizedReport = {
+      ...report,
+      outputPath,
+    };
+    const reportJson = toReportJson(finalizedReport);
+
+    if (outputPath !== null) {
+      const writeError = writeReportToPath(reportJson, outputPath);
+      if (writeError !== null) {
+        console.log(
+          toReportJson({
+            ...finalizedReport,
+            passed: false,
+            exitCode: 1,
+            message: writeError,
+          })
+        );
+        process.exit(1);
+      }
+    }
+
+    console.log(reportJson);
   } else if (!report.passed) {
     console.error(report.message);
   }
