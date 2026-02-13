@@ -791,7 +791,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     if (chunk?.isReady) {
       teleport();
     } else {
-      this.world.addChunkInitListener([cx, cz], teleport);
+      this.world.addChunkInitListenerAt(cx, cz, teleport);
     }
   };
 
