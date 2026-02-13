@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use voxelize::{
     Block, Chunk, ChunkOptions, Chunks, LightColor, Lights, Registry, Vec2, Vec3, VoxelAccess,
     WorldConfig,
@@ -60,5 +62,58 @@ fn test_can_enter_into() {
     assert!(
         !Lights::can_enter_into(&opaque, 1, 0, 0),
         "Should not enter opaque from +X"
+    );
+}
+
+#[test]
+fn test_flood_light_respects_min_without_shape() {
+    let registry = create_test_registry();
+    let config = WorldConfig {
+        chunk_size: 16,
+        max_height: 16,
+        max_light_level: 15,
+        min_chunk: [0, 0],
+        max_chunk: [0, 0],
+        saving: false,
+        ..Default::default()
+    };
+
+    let mut chunks = Chunks::new(&config);
+    chunks.add(Chunk::new(
+        "chunk-0-0",
+        0,
+        0,
+        &ChunkOptions {
+            size: 16,
+            max_height: 16,
+            sub_chunks: 1,
+        },
+    ));
+
+    let source = Vec3(9, 8, 8);
+    chunks.set_voxel(source.0, source.1, source.2, 2);
+    chunks.set_red_light(source.0, source.1, source.2, 14);
+
+    Lights::flood_light(
+        &mut chunks,
+        VecDeque::from(vec![voxelize::LightNode {
+            voxel: [source.0, source.1, source.2],
+            level: 14,
+        }]),
+        &LightColor::Red,
+        &registry,
+        &config,
+        Some(&Vec3(9, 0, 0)),
+        None,
+    );
+
+    assert_eq!(
+        chunks.get_red_light(8, 8, 8),
+        0,
+        "red light should not propagate below min-x when shape is absent"
+    );
+    assert!(
+        chunks.get_red_light(10, 8, 8) > 0,
+        "red light should propagate toward +X from source"
     );
 }
