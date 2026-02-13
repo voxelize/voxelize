@@ -867,22 +867,20 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private pruneDeltasByCutoff(deltas: VoxelDelta[], cutoff: number): number {
-    let write = 0;
+    const firstRetainedIndex = this.findFirstDeltaAfterTimestamp(deltas, cutoff);
 
-    for (let read = 0; read < deltas.length; read++) {
-      const delta = deltas[read];
-      if (delta.timestamp <= cutoff) {
-        continue;
-      }
-
-      if (write !== read) {
-        deltas[write] = delta;
-      }
-      write++;
+    if (firstRetainedIndex === 0) {
+      return deltas.length;
     }
 
-    deltas.length = write;
-    return write;
+    if (firstRetainedIndex >= deltas.length) {
+      deltas.length = 0;
+      return 0;
+    }
+
+    deltas.copyWithin(0, firstRetainedIndex);
+    deltas.length = deltas.length - firstRetainedIndex;
+    return deltas.length;
   }
 
   private findFirstDeltaAfter(deltas: VoxelDelta[], sequenceId: number): number {
@@ -904,6 +902,34 @@ export class World<T = any> extends Scene implements NetIntercept {
     while (low < high) {
       const mid = (low + high) >>> 1;
       if (deltas[mid].sequenceId <= sequenceId) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+
+    return low;
+  }
+
+  private findFirstDeltaAfterTimestamp(deltas: VoxelDelta[], timestamp: number): number {
+    if (deltas.length === 0) {
+      return 0;
+    }
+
+    if (deltas[deltas.length - 1].timestamp <= timestamp) {
+      return deltas.length;
+    }
+
+    if (deltas[0].timestamp > timestamp) {
+      return 0;
+    }
+
+    let low = 0;
+    let high = deltas.length;
+
+    while (low < high) {
+      const mid = (low + high) >>> 1;
+      if (deltas[mid].timestamp <= timestamp) {
         low = mid + 1;
       } else {
         high = mid;
