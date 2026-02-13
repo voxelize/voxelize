@@ -97,24 +97,52 @@ export class Registry {
       };
     };
 
-    const blocksByName: [string, ReturnType<typeof serializeBlock>][] = [];
-    for (const [name, block] of this.blocksByName) {
-      blocksByName.push([name, serializeBlock(block)]);
+    const blocksByName = new Array<
+      [string, ReturnType<typeof serializeBlock>]
+    >(this.blocksByName.size);
+    let blocksByNameIndex = 0;
+    let blocksByNameEntries = this.blocksByName.entries();
+    let blocksByNameEntry = blocksByNameEntries.next();
+    while (!blocksByNameEntry.done) {
+      const [name, block] = blocksByNameEntry.value;
+      blocksByName[blocksByNameIndex] = [name, serializeBlock(block)];
+      blocksByNameIndex++;
+      blocksByNameEntry = blocksByNameEntries.next();
     }
 
-    const blocksById: [number, ReturnType<typeof serializeBlock>][] = [];
-    for (const [id, block] of this.blocksById) {
-      blocksById.push([id, serializeBlock(block)]);
+    const blocksById = new Array<
+      [number, ReturnType<typeof serializeBlock>]
+    >(this.blocksById.size);
+    let blocksByIdIndex = 0;
+    let blocksByIdEntries = this.blocksById.entries();
+    let blocksByIdEntry = blocksByIdEntries.next();
+    while (!blocksByIdEntry.done) {
+      const [id, block] = blocksByIdEntry.value;
+      blocksById[blocksByIdIndex] = [id, serializeBlock(block)];
+      blocksByIdIndex++;
+      blocksByIdEntry = blocksByIdEntries.next();
     }
 
-    const nameMap: [string, number][] = [];
-    for (const [name, id] of this.nameMap) {
-      nameMap.push([name, id]);
+    const nameMap = new Array<[string, number]>(this.nameMap.size);
+    let nameMapIndex = 0;
+    let nameMapEntries = this.nameMap.entries();
+    let nameMapEntry = nameMapEntries.next();
+    while (!nameMapEntry.done) {
+      const [name, id] = nameMapEntry.value;
+      nameMap[nameMapIndex] = [name, id];
+      nameMapIndex++;
+      nameMapEntry = nameMapEntries.next();
     }
 
-    const idMap: [number, string][] = [];
-    for (const [id, name] of this.idMap) {
-      idMap.push([id, name]);
+    const idMap = new Array<[number, string]>(this.idMap.size);
+    let idMapIndex = 0;
+    let idMapEntries = this.idMap.entries();
+    let idMapEntry = idMapEntries.next();
+    while (!idMapEntry.done) {
+      const [id, name] = idMapEntry.value;
+      idMap[idMapIndex] = [id, name];
+      idMapIndex++;
+      idMapEntry = idMapEntries.next();
     }
 
     return {
