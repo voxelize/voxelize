@@ -5398,9 +5398,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     if (this.blockUpdatesQueueHead >= 1024) {
-      this.blockUpdatesQueue = this.blockUpdatesQueue.slice(
-        this.blockUpdatesQueueHead
-      );
+      this.blockUpdatesQueue.copyWithin(0, this.blockUpdatesQueueHead);
+      this.blockUpdatesQueue.length -= this.blockUpdatesQueueHead;
       this.blockUpdatesQueueHead = 0;
     }
   }
@@ -5674,7 +5673,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     if (this.lightJobQueueHead >= 1024) {
-      this.lightJobQueue = this.lightJobQueue.slice(this.lightJobQueueHead);
+      this.lightJobQueue.copyWithin(0, this.lightJobQueueHead);
+      this.lightJobQueue.length -= this.lightJobQueueHead;
       this.lightJobQueueHead = 0;
     }
   }

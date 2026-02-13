@@ -145,7 +145,8 @@ const normalizePendingBatchMessages = () => {
   }
 
   if (pendingBatchMessagesHead >= 1024) {
-    pendingBatchMessages.splice(0, pendingBatchMessagesHead);
+    pendingBatchMessages.copyWithin(0, pendingBatchMessagesHead);
+    pendingBatchMessages.length -= pendingBatchMessagesHead;
     pendingBatchMessagesHead = 0;
   }
 };

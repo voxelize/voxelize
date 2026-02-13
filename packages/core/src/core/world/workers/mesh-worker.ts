@@ -214,7 +214,8 @@ const normalizePendingMeshMessages = () => {
   }
 
   if (pendingMeshMessagesHead >= 1024) {
-    pendingMeshMessages.splice(0, pendingMeshMessagesHead);
+    pendingMeshMessages.copyWithin(0, pendingMeshMessagesHead);
+    pendingMeshMessages.length -= pendingMeshMessagesHead;
     pendingMeshMessagesHead = 0;
   }
 };
