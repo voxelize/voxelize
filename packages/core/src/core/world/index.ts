@@ -1540,16 +1540,22 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const block = this.getBlockOf(idOrName);
 
-    const realKeyframes = [];
+    const realKeyframes = new Array<[number, Color | HTMLImageElement]>(
+      keyframes.length
+    );
 
     // Convert string sources to images.
-    for (const [duration, source] of keyframes) {
+    for (let keyframeIndex = 0; keyframeIndex < keyframes.length; keyframeIndex++) {
+      const [duration, source] = keyframes[keyframeIndex];
       if (typeof source === "string") {
-        realKeyframes.push([duration, await this.loader.loadImage(source)]);
+        realKeyframes[keyframeIndex] = [
+          duration,
+          await this.loader.loadImage(source),
+        ];
         continue;
       }
 
-      realKeyframes.push([duration, source]);
+      realKeyframes[keyframeIndex] = [duration, source];
     }
 
     const blockFaces = this.getBlockFacesByFaceNames(block.id, faceNames);
@@ -1657,7 +1663,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       );
     }
 
-    for (const face of blockFaces) {
+    for (let faceIndex = 0; faceIndex < blockFaces.length; faceIndex++) {
+      const face = blockFaces[faceIndex];
       if (!face.independent) {
         throw new Error(
           `Cannot apply resolution to face "${face.name}" on block "${block.name}" because it is not independent.`
