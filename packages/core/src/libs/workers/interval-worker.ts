@@ -5,12 +5,12 @@ type WorkerMessage = {
   signal: "start" | "stop";
 };
 
-let intervalId: any | null = null;
+let intervalId: ReturnType<typeof setInterval> | null = null;
 
 function clearExistingInterval() {
   if (intervalId !== null) {
     clearInterval(intervalId);
-    intervalId = null; // Reset interval ID after clearing
+    intervalId = null;
   }
 }
 
@@ -18,7 +18,6 @@ onmessage = (e: MessageEvent<WorkerMessage>) => {
   const { interval, signal } = e.data;
 
   if (signal === "start") {
-    // Ensure no interval is running before starting a new one
     clearExistingInterval();
     if (interval !== undefined) {
       intervalId = setInterval(() => {
