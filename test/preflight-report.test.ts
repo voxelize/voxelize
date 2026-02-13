@@ -1719,6 +1719,84 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(1);
   });
 
+  it("prioritizes output validation over invalid only-selection values", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--only", "invalidCheck", "--output"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.requestedChecks).toEqual(["invalidCheck"]);
+    expect(report.requestedCheckResolutions).toEqual([
+      {
+        token: "invalidCheck",
+        normalizedToken: "invalidcheck",
+        kind: "invalid",
+        resolvedTo: [],
+      },
+    ]);
+    expect(report.requestedCheckResolutionCounts).toEqual({
+      check: 0,
+      specialSelector: 0,
+      invalid: 1,
+    });
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(result.status).toBe(1);
+  });
+
+  it("prioritizes output validation over invalid only-selection and unsupported options", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--mystery", "--only", "invalidCheck", "--output"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.requestedChecks).toEqual(["invalidCheck"]);
+    expect(report.requestedCheckResolutions).toEqual([
+      {
+        token: "invalidCheck",
+        normalizedToken: "invalidcheck",
+        kind: "invalid",
+        resolvedTo: [],
+      },
+    ]);
+    expect(report.requestedCheckResolutionCounts).toEqual({
+      check: 0,
+      specialSelector: 0,
+      invalid: 1,
+    });
+    expect(report.unknownOptions).toEqual(["--mystery"]);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(result.status).toBe(1);
+  });
+
   it("captures unsupported options following missing output values", () => {
     const result = spawnSync(
       process.execPath,
