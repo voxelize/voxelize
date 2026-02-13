@@ -61,7 +61,8 @@ export class LightShined {
   /**
    * A list of types that are ignored by this effect.
    */
-  public ignored: Set<any> = new Set();
+  public ignored: Set<Function> = new Set();
+  private ignoredTypes: Function[] = [];
 
   private positionOverrides = new Map<Object3D, Vector3>();
   private torchLightColor = new Color();
@@ -121,9 +122,14 @@ export class LightShined {
     this.positionOverrides.delete(obj);
   };
 
-  ignore = (...types: any[]) => {
+  ignore = (...types: Function[]) => {
     for (let index = 0; index < types.length; index++) {
-      this.ignored.add(types[index]);
+      const type = types[index];
+      if (this.ignored.has(type)) {
+        continue;
+      }
+      this.ignored.add(type);
+      this.ignoredTypes.push(type);
     }
   };
 
@@ -231,8 +237,9 @@ export class LightShined {
   };
 
   private updateObject = (obj: Object3D, color: Color) => {
-    for (const type of this.ignored) {
-      if (obj instanceof type) return;
+    const ignoredTypes = this.ignoredTypes;
+    for (let typeIndex = 0; typeIndex < ignoredTypes.length; typeIndex++) {
+      if (obj instanceof ignoredTypes[typeIndex]) return;
     }
 
     if (obj.userData.lightUniforms) {
@@ -258,8 +265,9 @@ export class LightShined {
   private recursiveUpdate = (obj: Object3D, color: Color | null = null) => {
     if (!obj.parent) return;
 
-    for (const type of this.ignored) {
-      if (obj instanceof type) return;
+    const ignoredTypes = this.ignoredTypes;
+    for (let typeIndex = 0; typeIndex < ignoredTypes.length; typeIndex++) {
+      if (obj instanceof ignoredTypes[typeIndex]) return;
     }
 
     if (color === null) {
