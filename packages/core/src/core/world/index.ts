@@ -6188,7 +6188,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     const batchId = this.lightBatchIdCounter++;
     let queuedJobs = 0;
 
-    for (const { color, channel } of LIGHT_COLOR_CHANNELS) {
+    for (
+      let channelIndex = 0;
+      channelIndex < LIGHT_COLOR_CHANNELS.length;
+      channelIndex++
+    ) {
+      const { color, channel } = LIGHT_COLOR_CHANNELS[channelIndex];
       const removals = lightOps.removals[channel];
       const floods = lightOps.floods[channel];
       if (removals.length === 0 && floods.length === 0) {
@@ -6242,7 +6247,11 @@ export class World<T = any> extends Scene implements NetIntercept {
     let maxY = minY;
     let maxZ = minZ;
 
-    for (const [x, y, z] of removals) {
+    for (let removalIndex = 0; removalIndex < removals.length; removalIndex++) {
+      const removal = removals[removalIndex];
+      const x = removal[0];
+      const y = removal[1];
+      const z = removal[2];
       if (x < minX) minX = x;
       if (y < minY) minY = y;
       if (z < minZ) minZ = z;
@@ -6251,8 +6260,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       if (z > maxZ) maxZ = z;
     }
 
-    for (const { voxel } of floods) {
-      const [x, y, z] = voxel;
+    for (let floodIndex = 0; floodIndex < floods.length; floodIndex++) {
+      const voxel = floods[floodIndex].voxel;
+      const x = voxel[0];
+      const y = voxel[1];
+      const z = voxel[2];
       if (x < minX) minX = x;
       if (y < minY) minY = y;
       if (z < minZ) minZ = z;
