@@ -65,6 +65,7 @@ pnpm run check:client:verify:json
 pnpm run check:client:verify:json:compact
 # verify + json output written to file
 pnpm run check:client:verify:json -- --output ./client-verify-report.json
+# direct cli alias also works: node ../../check-client.mjs --verify
 ```
 
 Or from the client directory, run only wasm preflight checks:
@@ -82,6 +83,7 @@ pnpm run check:wasm:verify:json
 pnpm run check:wasm:verify:json:compact
 # verify + json output written to file
 pnpm run check:wasm:verify:json -- --output ./wasm-verify-report.json
+# direct cli alias also works: node ./scripts/check-wasm-mesher.mjs --verify
 ```
 
 All JSON report commands include `schemaVersion: 1` for compatibility checks.

@@ -134,6 +134,7 @@ pnpm run check:client:verify:json
 pnpm run check:client:verify:json:compact
 # verify + json output written to file
 pnpm run check:client:verify:json -- --output ./client-verify-report.json
+# direct cli alias also works: node ./check-client.mjs --verify
 
 # run full onboarding checks (tooling + client)
 pnpm run check:onboarding
@@ -153,6 +154,7 @@ pnpm run check:onboarding:verify:json
 pnpm run check:onboarding:verify:json:compact
 # verify + json output written to file
 pnpm run check:onboarding:verify:json -- --output ./onboarding-verify-report.json
+# direct cli alias also works: node ./check-onboarding.mjs --verify
 
 # run an aggregated preflight report in json mode
 pnpm run check:preflight:json

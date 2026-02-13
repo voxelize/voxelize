@@ -28,14 +28,26 @@ describe("script aliases", () => {
     expect(manifest.scripts["check:client:json:compact"]).toBe(
       "node ./check-client.mjs --json --compact"
     );
+    expect(manifest.scripts["check:client:verify"]).toBe(
+      "node ./check-client.mjs --verify"
+    );
+    expect(manifest.scripts["check:client:verify:json"]).toBe(
+      "node ./check-client.mjs --json --verify"
+    );
     expect(manifest.scripts["check:client:verify:json:compact"]).toBe(
-      "node ./check-client.mjs --json --no-build --compact"
+      "node ./check-client.mjs --json --verify --compact"
     );
     expect(manifest.scripts["check:onboarding:json:compact"]).toBe(
       "node ./check-onboarding.mjs --json --compact"
     );
+    expect(manifest.scripts["check:onboarding:verify"]).toBe(
+      "node ./check-onboarding.mjs --verify"
+    );
+    expect(manifest.scripts["check:onboarding:verify:json"]).toBe(
+      "node ./check-onboarding.mjs --json --verify"
+    );
     expect(manifest.scripts["check:onboarding:verify:json:compact"]).toBe(
-      "node ./check-onboarding.mjs --json --no-build --compact"
+      "node ./check-onboarding.mjs --json --verify --compact"
     );
     expect(manifest.scripts["check:preflight:json:compact"]).toBe(
       "node ./check-preflight.mjs --compact"
@@ -161,8 +173,14 @@ describe("script aliases", () => {
     expect(manifest.scripts["check:wasm:json:compact"]).toBe(
       "node ./scripts/check-wasm-mesher.mjs --json --compact"
     );
+    expect(manifest.scripts["check:wasm:verify"]).toBe(
+      "node ./scripts/check-wasm-mesher.mjs --verify"
+    );
+    expect(manifest.scripts["check:wasm:verify:json"]).toBe(
+      "node ./scripts/check-wasm-mesher.mjs --json --verify"
+    );
     expect(manifest.scripts["check:wasm:verify:json:compact"]).toBe(
-      "node ./scripts/check-wasm-mesher.mjs --json --no-build --compact"
+      "node ./scripts/check-wasm-mesher.mjs --json --verify --compact"
     );
   });
 });
