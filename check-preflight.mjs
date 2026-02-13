@@ -15,6 +15,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const cliArgs = process.argv.slice(2);
 const isNoBuild = cliArgs.includes("--no-build");
+const isListChecks = cliArgs.includes("--list-checks");
 const isCompact = cliArgs.includes("--compact");
 const jsonFormat = { compact: isCompact };
 const { outputPath: resolvedOutputPath, error: outputPathError } =
@@ -275,6 +276,7 @@ if (outputPathError !== null || selectedChecksError !== null) {
   const report = buildTimedReport({
     passed: false,
     exitCode: 1,
+    listChecksOnly: isListChecks,
     noBuild: isNoBuild,
     platform,
     nodeVersion,
@@ -309,6 +311,42 @@ const selectedCheckSet = new Set(selectedChecks);
 const skippedChecks = availableCheckNames.filter((checkName) => {
   return !selectedCheckSet.has(checkName);
 });
+
+if (isListChecks) {
+  const report = buildTimedReport({
+    passed: true,
+    exitCode: 0,
+    listChecksOnly: true,
+    noBuild: isNoBuild,
+    platform,
+    nodeVersion,
+    selectedChecks,
+    requestedChecks,
+    requestedCheckResolutions,
+    selectionMode,
+    specialSelectorsUsed,
+    skippedChecks,
+    ...summarizeCheckResults([]),
+    failureSummaries: [],
+    checks: [],
+    outputPath: resolvedOutputPath,
+    invalidChecks: [],
+    availableChecks: availableCheckNames,
+    availableCheckAliases,
+    availableSpecialCheckSelectors,
+    availableSpecialCheckAliases,
+    availableSpecialSelectorResolvedChecks,
+  });
+  const { reportJson, writeError } = serializeReportWithOptionalWrite(report, {
+    jsonFormat,
+    outputPath: resolvedOutputPath,
+    buildTimedReport,
+  });
+
+  console.log(reportJson);
+  process.exit(writeError === null ? 0 : 1);
+}
+
 const checks = availableChecks
   .filter((check) => selectedCheckSet.has(check.name))
   .map((check) => {
@@ -335,6 +373,7 @@ const failureSummaries = checks
 const report = buildTimedReport({
   passed,
   exitCode,
+  listChecksOnly: false,
   noBuild: isNoBuild,
   platform,
   nodeVersion,

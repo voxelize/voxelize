@@ -158,10 +158,18 @@ pnpm run check:onboarding:verify:json -- --output ./onboarding-verify-report.jso
 pnpm run check:preflight:json
 # compact aggregate preflight report
 pnpm run check:preflight:json:compact
+# list available aggregate checks without executing them
+pnpm run check:preflight:list:json
+# compact check-list report
+pnpm run check:preflight:list:json:compact
 # aggregated preflight report without auto-building wasm artifacts
 pnpm run check:preflight:verify:json
 # compact aggregated verify report
 pnpm run check:preflight:verify:json:compact
+# list available checks in verify-mode context
+pnpm run check:preflight:list:verify:json
+# compact verify-mode check-list report
+pnpm run check:preflight:list:verify:json:compact
 # explicit all-check aliases (equivalent to default aggregate selection)
 pnpm run check:preflight:all:json
 pnpm run check:preflight:all:verify:json
@@ -223,6 +231,7 @@ Aggregate preflight reports include `requestedChecks` so CI logs can capture the
 Aggregate preflight reports include `selectionMode` (`default` or `only`) to show whether selection came from defaults or an explicit `--only` filter.
 Aggregate preflight reports include `specialSelectorsUsed` to show which special selector names (for example `all`) were used in `--only`.
 Aggregate preflight reports include `requestedCheckResolutions` to map each `--only` token to its resolved check, special selector, or invalid status.
+Aggregate preflight reports include `listChecksOnly` to indicate metadata-only check listing mode (`--list-checks`) where no checks are executed.
 When `--only` is omitted, `requestedChecks` is an empty array and `selectedChecks` contains the default aggregate checks.
 When `--output` validation fails, `requestedChecks` still reflects parsed `--only` tokens for easier debugging.
 If report writing fails, JSON error reports include both `message` and `writeError`.

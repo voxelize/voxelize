@@ -33,6 +33,7 @@ type PreflightReport = {
   schemaVersion: number;
   passed: boolean;
   exitCode: number;
+  listChecksOnly: boolean;
   noBuild: boolean;
   platform: string;
   nodeVersion: string;
@@ -107,6 +108,7 @@ describe("preflight aggregate report", () => {
     const report = JSON.parse(output) as PreflightReport;
 
     expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(false);
     expect(typeof report.passed).toBe("boolean");
     expect(report.noBuild).toBe(true);
     expect(report.platform).toBe(process.platform);
@@ -203,6 +205,7 @@ describe("preflight aggregate report", () => {
     const report = JSON.parse(output) as PreflightReport;
 
     expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(false);
     expect(report.selectionMode).toBe("only");
     expect(report.specialSelectorsUsed).toEqual([]);
     expect(report.selectedChecks).toEqual(["devEnvironment", "client"]);
@@ -713,7 +716,112 @@ describe("preflight aggregate report", () => {
 
     expect(output).not.toContain("\n  \"");
     expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(false);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
+  it("supports listing checks without executing them", () => {
+    const result = spawnSync(process.execPath, [preflightScript, "--list-checks"], {
+      cwd: rootDir,
+      encoding: "utf8",
+      shell: false,
+    });
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(true);
+    expect(report.passed).toBe(true);
+    expect(report.exitCode).toBe(0);
+    expect(report.selectionMode).toBe("default");
+    expect(report.selectedChecks).toEqual(report.availableChecks);
+    expect(report.skippedChecks).toEqual([]);
+    expect(report.requestedChecks).toEqual([]);
+    expect(report.requestedCheckResolutions).toEqual([]);
+    expect(report.specialSelectorsUsed).toEqual([]);
+    expect(report.totalChecks).toBe(0);
+    expect(report.passedCheckCount).toBe(0);
+    expect(report.failedCheckCount).toBe(0);
+    expect(report.firstFailedCheck).toBeNull();
+    expect(report.checks).toEqual([]);
+    expect(report.failureSummaries).toEqual([]);
+    expect(result.status).toBe(0);
+  });
+
+  it("supports listing resolved filters for explicit only values", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--list-checks", "--only", "all,client"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(true);
+    expect(report.passed).toBe(true);
+    expect(report.exitCode).toBe(0);
+    expect(report.selectionMode).toBe("only");
+    expect(report.selectedChecks).toEqual([
+      "devEnvironment",
+      "wasmPack",
+      "client",
+    ]);
+    expect(report.requestedChecks).toEqual(["all", "client"]);
+    expect(report.specialSelectorsUsed).toEqual(expectedUsedAllSpecialSelector);
+    expect(report.requestedCheckResolutions).toEqual([
+      {
+        token: "all",
+        normalizedToken: "all",
+        kind: "specialSelector",
+        selector: "all",
+        resolvedTo: ["devEnvironment", "wasmPack", "client"],
+      },
+      {
+        token: "client",
+        normalizedToken: "client",
+        kind: "check",
+        resolvedTo: ["client"],
+      },
+    ]);
+    expect(report.totalChecks).toBe(0);
+    expect(report.checks).toEqual([]);
+    expect(result.status).toBe(0);
+  });
+
+  it("reports invalid only filters in list mode", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--list-checks", "--only", "invalidCheck"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(true);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.invalidChecks).toEqual(["invalidCheck"]);
+    expect(report.requestedChecks).toEqual(["invalidCheck"]);
+    expect(report.requestedCheckResolutions).toEqual([
+      {
+        token: "invalidCheck",
+        normalizedToken: "invalidcheck",
+        kind: "invalid",
+        resolvedTo: [],
+      },
+    ]);
+    expect(report.checks).toEqual([]);
+    expect(result.status).toBe(1);
   });
 
   it("writes aggregate report to output path when requested", () => {
