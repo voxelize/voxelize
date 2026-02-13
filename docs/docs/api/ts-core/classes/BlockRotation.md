@@ -59,6 +59,102 @@ ___
 
 ## Methods
 
+### NX
+
+▸ **NX**(`yRotation?`): [`BlockRotation`](BlockRotation.md)
+
+#### Parameters
+
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `yRotation` | `number` | `0` |
+
+#### Returns
+
+[`BlockRotation`](BlockRotation.md)
+
+___
+
+### NY
+
+▸ **NY**(`yRotation?`): [`BlockRotation`](BlockRotation.md)
+
+#### Parameters
+
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `yRotation` | `number` | `0` |
+
+#### Returns
+
+[`BlockRotation`](BlockRotation.md)
+
+___
+
+### NZ
+
+▸ **NZ**(`yRotation?`): [`BlockRotation`](BlockRotation.md)
+
+#### Parameters
+
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `yRotation` | `number` | `0` |
+
+#### Returns
+
+[`BlockRotation`](BlockRotation.md)
+
+___
+
+### PX
+
+▸ **PX**(`yRotation?`): [`BlockRotation`](BlockRotation.md)
+
+#### Parameters
+
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `yRotation` | `number` | `0` |
+
+#### Returns
+
+[`BlockRotation`](BlockRotation.md)
+
+___
+
+### PY
+
+▸ **PY**(`yRotation?`): [`BlockRotation`](BlockRotation.md)
+
+#### Parameters
+
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `yRotation` | `number` | `0` |
+
+#### Returns
+
+[`BlockRotation`](BlockRotation.md)
+
+___
+
+### PZ
+
+▸ **PZ**(`yRotation?`): [`BlockRotation`](BlockRotation.md)
+
+#### Parameters
+
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `yRotation` | `number` | `0` |
+
+#### Returns
+
+[`BlockRotation`](BlockRotation.md)
+
+___
+
 ### decode
 
 ▸ **decode**(`rotation`): [`number`, `number`]
