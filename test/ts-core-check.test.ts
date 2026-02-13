@@ -249,6 +249,79 @@ describe("check-ts-core script", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("writes json reports to output paths", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "ts-core-check-json-output-")
+    );
+    const outputPath = path.join(tempDirectory, "report.json");
+    const result = runScript(["--json", "--output", outputPath]);
+    const report = parseReport(result);
+    const fileReport = JSON.parse(
+      fs.readFileSync(outputPath, "utf8")
+    ) as TsCoreCheckReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.outputPath).toBe(outputPath);
+    expect(report.validationErrorCode).toBeNull();
+    expect(typeof report.startedAt).toBe("string");
+    expect(typeof report.endedAt).toBe("string");
+    expect(report.durationMs).toBeGreaterThanOrEqual(0);
+    expect(fileReport).toEqual(report);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("reports validation output write failures with details", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "ts-core-check-validation-write-failure-")
+    );
+    const result = runScript([
+      "--json",
+      "--verify=1",
+      "--output",
+      tempDirectory,
+    ]);
+    const report = parseReport(result);
+    const failurePrefix = `Failed to write report to ${tempDirectory}.`;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.outputPath).toBe(tempDirectory);
+    expect(report.unknownOptions).toEqual(["--no-build=<value>"]);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(report.writeError).toContain(failurePrefix);
+    expect(report.message).toContain(failurePrefix);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("reports output write failures with details", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "ts-core-check-output-write-failure-")
+    );
+    const result = runScript(["--json", "--output", tempDirectory]);
+    const report = parseReport(result);
+    const failurePrefix = `Failed to write report to ${tempDirectory}.`;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBeNull();
+    expect(report.outputPath).toBe(tempDirectory);
+    expect(report.writeError).toContain(failurePrefix);
+    expect(report.message).toContain(failurePrefix);
+    if (report.message !== undefined) {
+      expect(report.message.length).toBeGreaterThan(failurePrefix.length);
+    }
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("treats no-build aliases after output as missing output value while keeping no-build active", () => {
     const result = runScript(["--json", "--output", "--verify"]);
     const report = parseReport(result);
