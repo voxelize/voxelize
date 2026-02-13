@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { resolvePnpmCommand } from "../../../scripts/command-utils.mjs";
 import {
+  createTimedReportBuilder,
   parseJsonOutput,
   resolveOutputPath,
   toReportJson,
@@ -27,17 +28,7 @@ const isNoBuild = cliArgs.includes("--no-build");
 const isCompact = cliArgs.includes("--compact");
 const jsonFormat = { compact: isCompact };
 const { outputPath, error: outputPathError } = resolveOutputPath(cliArgs);
-const startedAt = new Date().toISOString();
-const startedAtMs = Date.now();
-
-const buildTimedReport = (report) => {
-  return {
-    ...report,
-    startedAt,
-    endedAt: new Date().toISOString(),
-    durationMs: Date.now() - startedAtMs,
-  };
-};
+const buildTimedReport = createTimedReportBuilder();
 
 if (isJson && outputPathError !== null) {
   console.log(

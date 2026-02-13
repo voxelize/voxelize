@@ -27,6 +27,49 @@ export const toReportJson = (report, options = {}) => {
   return JSON.stringify(toReport(report), null, compact ? 0 : 2);
 };
 
+export const createTimedReportBuilder = (
+  now = () => Date.now(),
+  toIsoString = (value) => new Date(value).toISOString()
+) => {
+  const startedAtMs = now();
+  const startedAt = toIsoString(startedAtMs);
+
+  return (report) => {
+    const endedAtMs = now();
+
+    return {
+      ...report,
+      startedAt,
+      endedAt: toIsoString(endedAtMs),
+      durationMs: endedAtMs - startedAtMs,
+    };
+  };
+};
+
+export const summarizeStepResults = (steps) => {
+  const passedStepCount = steps.filter((step) => {
+    return step.passed && step.skipped === false;
+  }).length;
+  const failedStepCount = steps.filter((step) => {
+    return !step.passed && step.skipped === false;
+  }).length;
+  const skippedStepCount = steps.filter((step) => {
+    return step.skipped === true;
+  }).length;
+  const firstFailedStep =
+    steps.find((step) => {
+      return !step.passed && step.skipped === false;
+    })?.name ?? null;
+
+  return {
+    totalSteps: steps.length,
+    passedStepCount,
+    failedStepCount,
+    skippedStepCount,
+    firstFailedStep,
+  };
+};
+
 export const resolveOutputPath = (args, cwd = process.cwd()) => {
   const outputArgIndex = args.indexOf("--output");
   if (outputArgIndex === -1) {

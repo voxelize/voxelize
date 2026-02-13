@@ -3,8 +3,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  createTimedReportBuilder,
   parseJsonOutput,
   resolveOutputPath,
+  summarizeStepResults,
   toReportJson,
   writeReportToPath,
 } from "./scripts/report-utils.mjs";
@@ -18,19 +20,9 @@ const isNoBuild = cliArgs.includes("--no-build");
 const isCompact = cliArgs.includes("--compact");
 const jsonFormat = { compact: isCompact };
 const { outputPath, error: outputPathError } = resolveOutputPath(cliArgs);
-const startedAt = new Date().toISOString();
-const startedAtMs = Date.now();
+const buildTimedReport = createTimedReportBuilder();
 const stepResults = [];
 let exitCode = 0;
-
-const buildTimedReport = (report) => {
-  return {
-    ...report,
-    startedAt,
-    endedAt: new Date().toISOString(),
-    durationMs: Date.now() - startedAtMs,
-  };
-};
 
 if (isJson && outputPathError !== null) {
   console.log(
@@ -134,27 +126,14 @@ if (devEnvPassed) {
 }
 
 if (isJson) {
-  const passedStepCount = stepResults.filter(
-    (step) => step.passed && step.skipped === false
-  ).length;
-  const failedStepCount = stepResults.filter(
-    (step) => !step.passed && step.skipped === false
-  ).length;
-  const skippedStepCount = stepResults.filter((step) => step.skipped).length;
-  const firstFailedStep =
-    stepResults.find((step) => !step.passed && step.skipped === false)?.name ??
-    null;
+  const stepSummary = summarizeStepResults(stepResults);
   const report = buildTimedReport({
     passed: exitCode === 0,
     exitCode,
     noBuild: isNoBuild,
     outputPath,
     steps: stepResults,
-    totalSteps: stepResults.length,
-    passedStepCount,
-    failedStepCount,
-    skippedStepCount,
-    firstFailedStep,
+    ...stepSummary,
   });
   const reportJson = toReportJson(report, jsonFormat);
 

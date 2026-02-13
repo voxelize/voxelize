@@ -6,8 +6,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   REPORT_SCHEMA_VERSION,
+  createTimedReportBuilder,
   parseJsonOutput,
   resolveOutputPath,
+  summarizeStepResults,
   toReport,
   toReportJson,
   writeReportToPath,
@@ -84,5 +86,40 @@ describe("report-utils", () => {
     expect(writeReportToPath(reportJson, null)).toBeNull();
 
     fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("builds timed reports with stable startedAt and duration", () => {
+    let tick = 0;
+    const now = () => {
+      tick += 1;
+      return tick * 1000;
+    };
+    const toIsoString = (value) => `iso-${value}`;
+    const withTiming = createTimedReportBuilder(now, toIsoString);
+    const initialReport = withTiming({ passed: true, exitCode: 0 });
+    const followUpReport = withTiming({ passed: false, exitCode: 1 });
+
+    expect(initialReport.startedAt).toBe("iso-1000");
+    expect(initialReport.endedAt).toBe("iso-2000");
+    expect(initialReport.durationMs).toBe(1000);
+    expect(followUpReport.startedAt).toBe("iso-1000");
+    expect(followUpReport.endedAt).toBe("iso-3000");
+    expect(followUpReport.durationMs).toBe(2000);
+  });
+
+  it("summarizes step outcomes for json preflight reports", () => {
+    const summary = summarizeStepResults([
+      { name: "step-a", passed: true, skipped: false },
+      { name: "step-b", passed: false, skipped: false },
+      { name: "step-c", passed: false, skipped: true },
+    ]);
+
+    expect(summary).toEqual({
+      totalSteps: 3,
+      passedStepCount: 1,
+      failedStepCount: 1,
+      skippedStepCount: 1,
+      firstFailedStep: "step-b",
+    });
   });
 });

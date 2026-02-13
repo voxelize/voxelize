@@ -10,6 +10,7 @@ import {
   parseSemver,
 } from "./scripts/dev-env-utils.mjs";
 import {
+  createTimedReportBuilder,
   resolveOutputPath,
   toReportJson,
   writeReportToPath,
@@ -23,18 +24,8 @@ const isJson = cliArgs.includes("--json");
 const isCompact = cliArgs.includes("--compact");
 const jsonFormat = { compact: isCompact };
 const { outputPath, error: outputPathError } = resolveOutputPath(cliArgs);
-const startedAt = new Date().toISOString();
-const startedAtMs = Date.now();
+const buildTimedReport = createTimedReportBuilder();
 const minimumVersions = loadWorkspaceMinimumVersions(__dirname);
-
-const buildTimedReport = (report) => {
-  return {
-    ...report,
-    startedAt,
-    endedAt: new Date().toISOString(),
-    durationMs: Date.now() - startedAtMs,
-  };
-};
 
 const checks = [
   {
