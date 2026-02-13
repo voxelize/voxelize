@@ -52,7 +52,7 @@
     "peer": "^0.6.1",
     "prettier": "^2.8.8",
     "rimraf": "^3.0.2",
-    "typedoc": "^0.25.13",
+    "typedoc": "0.25.13",
     "typescript": "^5.4.5",
     "vite": "^5.4.14",
     "vite-plugin-externalize-deps": "^0.8.0",
