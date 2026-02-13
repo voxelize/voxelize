@@ -1939,8 +1939,9 @@ fn extract_greedy_quads_dense(
     let estimated_cells = width * height;
     let mut quads = Vec::with_capacity((estimated_cells / 2).max(16));
     for v_off in 0..height {
+        let row_start = v_off * width;
         for u_off in 0..width {
-            let start_index = v_off * width + u_off;
+            let start_index = row_start + u_off;
             if let Some(data) = mask[start_index].take() {
                 let mut quad_width = 1usize;
                 while u_off + quad_width < width {
