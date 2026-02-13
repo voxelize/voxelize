@@ -1212,6 +1212,15 @@ fn compute_face_ao_and_light(
 
     let is_see_through = block.is_see_through;
     let is_all_transparent = block.is_all_transparent;
+    if is_see_through || is_all_transparent {
+        let (sunlight, red_light, green_light, blue_light) = neighbors.get_all_lights(0, 0, 0);
+        let mut light = 0u32;
+        light = LightUtils::insert_red_light(light, red_light);
+        light = LightUtils::insert_green_light(light, green_light);
+        light = LightUtils::insert_blue_light(light, blue_light);
+        light = LightUtils::insert_sunlight(light, sunlight);
+        return ([3, 3, 3, 3], [light as i32; 4]);
+    }
     let opaque_mask = build_neighbor_opaque_mask(neighbors, registry);
 
     let corner_positions: [[f32; 3]; 4] = match dir {
@@ -1258,11 +1267,7 @@ fn compute_face_ao_and_light(
     let mut lights = [0i32; 4];
     let dir_is_x = dir[0].abs() == 1;
     let dir_is_y = dir[1].abs() == 1;
-    let center_opaque = if !(is_see_through || is_all_transparent) {
-        neighbor_is_opaque(&opaque_mask, 0, 0, 0)
-    } else {
-        false
-    };
+    let center_opaque = neighbor_is_opaque(&opaque_mask, 0, 0, 0);
 
     for (i, pos) in corner_positions.iter().enumerate() {
         let dx = if pos[0] <= block_min_x + 0.01 {
@@ -1286,9 +1291,7 @@ fn compute_face_ao_and_light(
         let b110 = !neighbor_is_opaque(&opaque_mask, dx, dy, 0);
         let b111 = !neighbor_is_opaque(&opaque_mask, dx, dy, dz);
 
-        let ao = if is_see_through || is_all_transparent {
-            3
-        } else if dir_is_x {
+        let ao = if dir_is_x {
             vertex_ao(b110, b101, b111)
         } else if dir_is_y {
             vertex_ao(b110, b011, b111)
@@ -1296,10 +1299,7 @@ fn compute_face_ao_and_light(
             vertex_ao(b011, b101, b111)
         };
 
-        let (sunlight, red_light, green_light, blue_light) = if is_see_through || is_all_transparent
-        {
-            neighbors.get_all_lights(0, 0, 0)
-        } else {
+        let (sunlight, red_light, green_light, blue_light) = {
             let mut sum_sunlights = 0u32;
             let mut sum_red_lights = 0u32;
             let mut sum_green_lights = 0u32;
