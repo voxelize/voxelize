@@ -865,23 +865,6 @@ fn has_fluid_above<S: VoxelAccess>(vx: i32, vy: i32, vz: i32, fluid_id: u32, spa
     extract_id(space.get_raw_voxel(vx, vy + 1, vz)) == fluid_id
 }
 
-#[inline(always)]
-fn get_fluid_height_at<S: VoxelAccess>(
-    vx: i32,
-    vy: i32,
-    vz: i32,
-    fluid_id: u32,
-    space: &S,
-) -> Option<f32> {
-    let raw_voxel = space.get_raw_voxel(vx, vy, vz);
-    if extract_id(raw_voxel) == fluid_id {
-        let stage = extract_stage(raw_voxel);
-        Some(get_fluid_effective_height(stage))
-    } else {
-        None
-    }
-}
-
 fn calculate_fluid_corner_height<S: VoxelAccess>(
     vx: i32,
     vy: i32,
@@ -919,18 +902,21 @@ fn calculate_fluid_corner_height<S: VoxelAccess>(
         if has_fluid_above(nx, vy, nz, fluid_id, space) {
             total_height += 1.0;
             count += 1.0;
-        } else if let Some(h) = get_fluid_height_at(nx, vy, nz, fluid_id, space) {
-            total_height += h;
-            count += 1.0;
         } else {
-            let neighbor_id = extract_id(space.get_raw_voxel(nx, vy, nz));
-            let (neighbor_has_type, _, neighbor_is_empty) =
-                registry.has_type_and_opaque_and_empty(neighbor_id);
-            if neighbor_has_type {
-                if neighbor_is_empty {
-                    has_air_neighbor = true;
-                } else {
-                    has_solid_neighbor = true;
+            let raw_neighbor_voxel = space.get_raw_voxel(nx, vy, nz);
+            let neighbor_id = extract_id(raw_neighbor_voxel);
+            if neighbor_id == fluid_id {
+                total_height += get_fluid_effective_height(extract_stage(raw_neighbor_voxel));
+                count += 1.0;
+            } else {
+                let (neighbor_has_type, _, neighbor_is_empty) =
+                    registry.has_type_and_opaque_and_empty(neighbor_id);
+                if neighbor_has_type {
+                    if neighbor_is_empty {
+                        has_air_neighbor = true;
+                    } else {
+                        has_solid_neighbor = true;
+                    }
                 }
             }
         }
