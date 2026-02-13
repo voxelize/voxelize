@@ -435,6 +435,30 @@ describe("report-utils", () => {
       }
     );
     expect(unknownWithAliasCanonicalValueOption).toEqual(["--mystery"]);
+
+    const unknownWithAliasValueTokenSplit = parseUnknownCliOptions(
+      ["--report-path", "./report.json", "--mystery"],
+      {
+        canonicalOptions: ["--json"],
+        optionAliases: {
+          "--output": ["--report-path"],
+        },
+        optionsWithValues: ["--output"],
+      }
+    );
+    expect(unknownWithAliasValueTokenSplit).toEqual(["--mystery"]);
+
+    const unknownWithAliasValueTokenInline = parseUnknownCliOptions(
+      ["--report-path=./report.json", "--mystery"],
+      {
+        canonicalOptions: ["--json"],
+        optionAliases: {
+          "--output": ["--report-path"],
+        },
+        optionsWithValues: ["--output"],
+      }
+    );
+    expect(unknownWithAliasValueTokenInline).toEqual(["--mystery"]);
   });
 
   it("creates structured cli option validation metadata", () => {
@@ -786,6 +810,45 @@ describe("report-utils", () => {
     expect(diagnostics.unknownOptionCount).toBe(1);
   });
 
+  it("builds diagnostics for alias-defined canonical value options", () => {
+    const diagnostics = createCliDiagnostics(
+      ["--report-path=./report.json", "--mystery"],
+      {
+        canonicalOptions: ["--json"],
+        optionAliases: {
+          "--output": ["--report-path"],
+        },
+        optionsWithValues: ["--output"],
+      }
+    );
+
+    expect(diagnostics.supportedCliOptions).toEqual([
+      "--json",
+      "--output",
+      "--report-path",
+    ]);
+    expect(diagnostics.supportedCliOptionCount).toBe(3);
+    expect(diagnostics.availableCliOptionCanonicalMap).toEqual({
+      "--json": "--json",
+      "--output": "--output",
+      "--report-path": "--output",
+    });
+    expect(diagnostics.activeCliOptions).toEqual(["--output"]);
+    expect(diagnostics.activeCliOptionCount).toBe(1);
+    expect(diagnostics.activeCliOptionTokens).toEqual(["--report-path=./report.json"]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--report-path=./report.json",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(diagnostics.unknownOptions).toEqual(["--mystery"]);
+    expect(diagnostics.unknownOptionCount).toBe(1);
+    expect(diagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output, --report-path."
+    );
+  });
+
   it("parses active cli option metadata with aliases and option values", () => {
     const activeMetadata = parseActiveCliOptionMetadata(
       [
@@ -921,6 +984,38 @@ describe("report-utils", () => {
     expect(activeMetadata.activeCliOptionOccurrences).toEqual([
       {
         token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(1);
+  });
+
+  it("tracks alias tokens for canonical options that consume values", () => {
+    const activeMetadata = parseActiveCliOptionMetadata(
+      ["--report-path=./report.json"],
+      {
+        canonicalOptions: ["--json"],
+        optionAliases: {
+          "--output": ["--report-path"],
+        },
+        optionsWithValues: ["--output"],
+      }
+    );
+
+    expect(activeMetadata.activeCliOptions).toEqual(["--output"]);
+    expect(activeMetadata.activeCliOptionCount).toBe(1);
+    expect(activeMetadata.activeCliOptionTokens).toEqual(["--report-path=./report.json"]);
+    expect(activeMetadata.activeCliOptionResolutions).toEqual([
+      {
+        token: "--report-path=./report.json",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionResolutionCount).toBe(1);
+    expect(activeMetadata.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--report-path=./report.json",
         canonicalOption: "--output",
         index: 0,
       },

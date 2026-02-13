@@ -295,7 +295,7 @@ export const createCliOptionCatalog = ({
 const resolveCanonicalOptionToken = (
   optionToken,
   canonicalOptionMap,
-  optionsWithValues
+  inlineValueTokenCanonicalMap
 ) => {
   const canonicalOption = canonicalOptionMap.get(optionToken);
   if (canonicalOption !== undefined) {
@@ -305,16 +305,41 @@ const resolveCanonicalOptionToken = (
     };
   }
 
-  for (const optionWithValue of optionsWithValues) {
-    if (optionToken.startsWith(`${optionWithValue}=`)) {
+  for (const [valueOptionToken, valueOptionCanonical] of inlineValueTokenCanonicalMap) {
+    if (optionToken.startsWith(`${valueOptionToken}=`)) {
       return {
-        canonicalOption: optionWithValue,
+        canonicalOption: valueOptionCanonical,
         hasInlineValue: true,
       };
     }
   }
 
   return null;
+};
+
+const createValueOptionMetadata = (optionsWithValues, canonicalOptionMap) => {
+  const canonicalValueOptions = new Set(
+    optionsWithValues.map((optionWithValue) => {
+      return canonicalOptionMap.get(optionWithValue) ?? optionWithValue;
+    })
+  );
+  const inlineValueTokenCanonicalMap = new Map(
+    Array.from(canonicalValueOptions).map((canonicalOption) => {
+      return [canonicalOption, canonicalOption];
+    })
+  );
+
+  for (const [optionToken, canonicalOption] of canonicalOptionMap.entries()) {
+    if (!canonicalValueOptions.has(canonicalOption)) {
+      continue;
+    }
+    inlineValueTokenCanonicalMap.set(optionToken, canonicalOption);
+  }
+
+  return {
+    canonicalValueOptions,
+    inlineValueTokenCanonicalMap,
+  };
 };
 
 export const parseUnknownCliOptions = (
@@ -330,7 +355,8 @@ export const parseUnknownCliOptions = (
     canonicalOptions,
     optionAliases
   );
-  const valueOptions = new Set(optionsWithValues);
+  const { canonicalValueOptions, inlineValueTokenCanonicalMap } =
+    createValueOptionMetadata(optionsWithValues, canonicalOptionMap);
   const unknownOptions = [];
   const seenUnknownOptions = new Set();
 
@@ -347,11 +373,11 @@ export const parseUnknownCliOptions = (
     const resolvedOption = resolveCanonicalOptionToken(
       optionToken,
       canonicalOptionMap,
-      valueOptions
+      inlineValueTokenCanonicalMap
     );
     if (resolvedOption !== null) {
       if (
-        valueOptions.has(resolvedOption.canonicalOption) &&
+        canonicalValueOptions.has(resolvedOption.canonicalOption) &&
         !resolvedOption.hasInlineValue
       ) {
         const nextArg = optionArgs[index + 1] ?? null;
@@ -443,7 +469,8 @@ export const parseActiveCliOptionMetadata = (
     canonicalOptions,
     optionAliases
   );
-  const valueOptions = new Set(optionsWithValues);
+  const { canonicalValueOptions, inlineValueTokenCanonicalMap } =
+    createValueOptionMetadata(optionsWithValues, canonicalOptionMap);
   const activeCliOptionsSet = new Set();
   const activeCliOptionTokens = [];
   const seenActiveTokens = new Set();
@@ -454,7 +481,7 @@ export const parseActiveCliOptionMetadata = (
     const resolvedOption = resolveCanonicalOptionToken(
       token,
       canonicalOptionMap,
-      valueOptions
+      inlineValueTokenCanonicalMap
     );
     if (resolvedOption === null) {
       continue;
@@ -472,7 +499,7 @@ export const parseActiveCliOptionMetadata = (
     });
 
     if (
-      valueOptions.has(resolvedOption.canonicalOption) &&
+      canonicalValueOptions.has(resolvedOption.canonicalOption) &&
       !resolvedOption.hasInlineValue
     ) {
       const nextArg = optionArgs[index + 1] ?? null;
@@ -502,7 +529,7 @@ export const parseActiveCliOptionMetadata = (
     const resolvedOption = resolveCanonicalOptionToken(
       token,
       canonicalOptionMap,
-      valueOptions
+      inlineValueTokenCanonicalMap
     );
     return {
       token,
