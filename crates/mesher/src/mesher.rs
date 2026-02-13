@@ -637,6 +637,7 @@ fn neighbor_is_opaque(mask: &[bool; 27], ox: i32, oy: i32, oz: i32) -> bool {
 struct FaceKey {
     block_id: u32,
     face_name: Option<String>,
+    face_index: i16,
     independent: bool,
     ao: [i32; 4],
     light: [i32; 4],
@@ -3185,6 +3186,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                             } else {
                                 None
                             },
+                            face_index: -1,
                             independent: face.independent,
                             ao: aos,
                             light: lights,
@@ -3239,13 +3241,14 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     }
                 };
                 let geo_key = if quad_key.independent {
-                    let face_name = quad
-                        .data
-                        .key
-                        .face_name
-                        .as_ref()
-                        .expect("independent greedy quad must include a face name");
-                    GeometryMapKey::Face(block.id, face_name.clone())
+                    let face_name = if let Some(face_name) = quad.data.key.face_name.as_ref() {
+                        face_name.clone()
+                    } else if quad_key.face_index >= 0 {
+                        face_name_owned(&block.faces[quad_key.face_index as usize])
+                    } else {
+                        unreachable!("independent greedy quad must include a face identifier")
+                    };
+                    GeometryMapKey::Face(block.id, face_name)
                 } else {
                     GeometryMapKey::Block(block.id)
                 };
@@ -3254,7 +3257,13 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     let mut g = GeometryProtocol::default();
                     g.voxel = block_id;
                     if quad_key.independent {
-                        g.face_name = quad_key.face_name.clone();
+                        g.face_name = if let Some(face_name) = quad_key.face_name.as_ref() {
+                            Some(face_name.clone())
+                        } else if quad_key.face_index >= 0 {
+                            Some(block.faces[quad_key.face_index as usize].name.clone())
+                        } else {
+                            None
+                        };
                     }
                     g
                 });
@@ -3807,6 +3816,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 key: FaceKey {
                                     block_id: block.id,
                                     face_name: None,
+                                    face_index: -1,
                                     independent: false,
                                     ao: aos,
                                     light: lights,
@@ -3932,11 +3942,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
                         let key = FaceKey {
                             block_id: block.id,
-                            face_name: if face.independent {
-                                Some(face_name_owned(face))
-                            } else {
-                                None
-                            },
+                            face_name: None,
+                            face_index: if face.independent { face_index as i16 } else { -1 },
                             independent: face.independent,
                             ao: aos,
                             light: lights,
@@ -3999,13 +4006,14 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     }
                 };
                 let geo_key = if quad_key.independent {
-                    let face_name = quad
-                        .data
-                        .key
-                        .face_name
-                        .as_ref()
-                        .expect("independent greedy quad must include a face name");
-                    GeometryMapKey::Face(block.id, face_name.clone())
+                    let face_name = if let Some(face_name) = quad.data.key.face_name.as_ref() {
+                        face_name.clone()
+                    } else if quad_key.face_index >= 0 {
+                        face_name_owned(&block.faces[quad_key.face_index as usize])
+                    } else {
+                        unreachable!("independent greedy quad must include a face identifier")
+                    };
+                    GeometryMapKey::Face(block.id, face_name)
                 } else {
                     GeometryMapKey::Block(block.id)
                 };
@@ -4014,7 +4022,13 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     let mut entry = GeometryProtocol::default();
                     entry.voxel = block_id;
                     if quad_key.independent {
-                        entry.face_name = quad_key.face_name.clone();
+                        entry.face_name = if let Some(face_name) = quad_key.face_name.as_ref() {
+                            Some(face_name.clone())
+                        } else if quad_key.face_index >= 0 {
+                            Some(block.faces[quad_key.face_index as usize].name.clone())
+                        } else {
+                            None
+                        };
                     }
                     entry
                 });
