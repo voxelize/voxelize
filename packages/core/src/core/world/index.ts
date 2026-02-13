@@ -5294,8 +5294,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     let processedClientUpdateCount = 0;
     const processedUpdates = new Array<ProcessedUpdate>(maxUpdates);
     let processedUpdateCount = 0;
-    const blockCache = new Map<number, Block>();
+    let blockCache: Map<number, Block> | null = null;
     const getCachedBlock = (id: number) => {
+      if (!blockCache) {
+        blockCache = new Map();
+      }
+
       let block = blockCache.get(id);
       if (!block) {
         block = this.getBlockById(id);
