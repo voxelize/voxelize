@@ -293,43 +293,45 @@ export class Debug extends Group {
    * Utilizes requestAnimationFrame to reduce lag spikes by not overloading the main thread.
    */
   update = () => {
-    requestAnimationFrame(() => {
-      this.dataEntries.forEach(
-        ({ element, title, attribute, object, formatter }) => {
-          if (object?.constructor?.name === "AsyncFunction") return;
-
-          let newValue = "";
-          if (object) {
-            newValue =
-              typeof object === "function" ? object() : object[attribute] ?? "";
-          }
-          const formattedValue = formatter(newValue);
-
-          if (title) {
-            const labelSpan = element.querySelector(".debug-label");
-            const valueSpan = element.querySelector(".debug-value");
-
-            if (labelSpan && valueSpan) {
-              const newValueText = formattedValue;
-              if (valueSpan.textContent !== newValueText) {
-                valueSpan.textContent = newValueText;
-              }
-            } else {
-              const wholeString = `${title}: ${formattedValue}`;
-              if (element.textContent !== wholeString) {
-                element.textContent = wholeString;
-              }
-            }
-          } else {
-            if (element.textContent !== formattedValue) {
-              element.textContent = formattedValue;
-            }
-          }
-        }
-      );
-    });
+    requestAnimationFrame(this.processDataEntriesInFrame);
 
     this.stats?.update();
+  };
+
+  private processDataEntriesInFrame = () => {
+    const entries = this.dataEntries;
+    for (let entryIndex = 0; entryIndex < entries.length; entryIndex++) {
+      const { element, title, attribute, object, formatter } = entries[entryIndex];
+      if (object?.constructor?.name === "AsyncFunction") {
+        continue;
+      }
+
+      let newValue = "";
+      if (object) {
+        newValue =
+          typeof object === "function" ? object() : object[attribute] ?? "";
+      }
+      const formattedValue = formatter(newValue);
+
+      if (title) {
+        const labelSpan = element.querySelector(".debug-label");
+        const valueSpan = element.querySelector(".debug-value");
+
+        if (labelSpan && valueSpan) {
+          const newValueText = formattedValue;
+          if (valueSpan.textContent !== newValueText) {
+            valueSpan.textContent = newValueText;
+          }
+        } else {
+          const wholeString = `${title}: ${formattedValue}`;
+          if (element.textContent !== wholeString) {
+            element.textContent = wholeString;
+          }
+        }
+      } else if (element.textContent !== formattedValue) {
+        element.textContent = formattedValue;
+      }
+    }
   };
   /**
    * Make a new data entry element.
