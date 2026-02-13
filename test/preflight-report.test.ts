@@ -1186,6 +1186,33 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(1);
   });
 
+  it("captures unsupported options following missing output values", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--output", "--mystery"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.unknownOptions).toEqual(["--mystery"]);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
+    expect(report.activeCliOptions).toEqual(["--output"]);
+    expect(result.status).toBe(1);
+  });
+
   it("prioritizes only-selection validation while still reporting unsupported options", () => {
     const result = spawnSync(
       process.execPath,
@@ -1213,6 +1240,33 @@ describe("preflight aggregate report", () => {
     expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
     expect(report.activeCliOptions).toEqual(["--only"]);
     expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(result.status).toBe(1);
+  });
+
+  it("captures unsupported options following missing only values", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--only", "--mystery"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("only_option_missing_value");
+    expect(report.message).toBe("Missing value for --only option.");
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.unknownOptions).toEqual(["--mystery"]);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
+    expect(report.activeCliOptions).toEqual(["--only"]);
     expect(result.status).toBe(1);
   });
 

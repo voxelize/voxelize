@@ -319,7 +319,10 @@ const parseUnknownOptions = (args) => {
     if (canonicalOption !== null || supportedCliOptionsSet.has(arg)) {
       const optionName = canonicalOption ?? arg;
       if (cliOptionsWithValues.has(optionName)) {
-        index += 1;
+        const nextArg = args[index + 1] ?? null;
+        if (nextArg !== null && !nextArg.startsWith("--")) {
+          index += 1;
+        }
       }
       continue;
     }
