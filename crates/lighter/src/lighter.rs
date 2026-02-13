@@ -699,4 +699,48 @@ mod tests {
         assert_eq!(space.get_red_light(source_b[0], source_b[1], source_b[2]), 0);
         assert_eq!(space.get_red_light(8, 32, 8), 0);
     }
+
+    #[test]
+    fn sunlight_downward_max_level_and_light_reduce_behavior() {
+        let mut air = LightBlock::default_air();
+        air.id = 0;
+
+        let mut reducer = LightBlock {
+            id: 3,
+            is_transparent: [true, true, true, true, true, true],
+            is_opaque: false,
+            is_light: false,
+            light_reduce: true,
+            red_light_level: 0,
+            green_light_level: 0,
+            blue_light_level: 0,
+            dynamic_patterns: None,
+        };
+        reducer.recompute_flags();
+
+        let registry = LightRegistry::new(vec![(0, air), (3, reducer)]);
+        let config = test_config();
+        let mut space = TestSpace::new([0, 0, 0], [16, 64, 16]);
+
+        let reducer_index = 8 * 64 * 16 + 48 * 16 + 8;
+        space.voxels[reducer_index] = 3;
+
+        space.set_sunlight(8, 50, 8, 15);
+        flood_light(
+            &mut space,
+            VecDeque::from(vec![LightNode {
+                voxel: [8, 50, 8],
+                level: 15,
+            }]),
+            &LightColor::Sunlight,
+            &config,
+            None,
+            &registry,
+        );
+
+        assert_eq!(space.get_sunlight(8, 49, 8), 15);
+        assert_eq!(space.get_sunlight(8, 48, 8), 14);
+        assert_eq!(space.get_sunlight(8, 47, 8), 13);
+        assert_eq!(space.get_sunlight(9, 50, 8), 14);
+    }
 }
