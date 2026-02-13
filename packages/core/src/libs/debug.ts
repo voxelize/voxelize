@@ -87,6 +87,7 @@ type DebugDataEntry = {
   element: HTMLParagraphElement;
   labelElement: HTMLSpanElement | null;
   valueElement: HTMLSpanElement | null;
+  asyncTimer: ReturnType<typeof setInterval> | null;
   object?: DebugSource;
   attribute?: PropertyKey;
   title: string;
@@ -219,6 +220,7 @@ export class Debug extends Group {
       element: wrapper,
       labelElement,
       valueElement,
+      asyncTimer: null,
       object: object,
       formatter,
       attribute,
@@ -228,10 +230,10 @@ export class Debug extends Group {
     this.entriesWrapper.insertBefore(wrapper, this.entriesWrapper.firstChild);
 
     if (isAsyncDebugGetter(object)) {
-      setInterval(() => {
+      newEntry.asyncTimer = setInterval(() => {
         object().then((newValue) => {
           const formattedValue = formatter(newValue);
-          const valueSpan = wrapper.querySelector(".debug-value");
+          const valueSpan = newEntry.valueElement;
           if (valueSpan) {
             valueSpan.textContent = formattedValue;
           } else {
@@ -265,11 +267,22 @@ export class Debug extends Group {
     const entry = this.dataEntries.splice(index, 1)[0];
 
     if (entry) {
+      if (entry.asyncTimer !== null) {
+        clearInterval(entry.asyncTimer);
+      }
       this.entriesWrapper.removeChild(entry.element);
     }
   };
 
   dispose = () => {
+    const entries = this.dataEntries;
+    for (let entryIndex = 0; entryIndex < entries.length; entryIndex++) {
+      const entry = entries[entryIndex];
+      if (entry.asyncTimer !== null) {
+        clearInterval(entry.asyncTimer);
+      }
+    }
+    this.dataEntries.length = 0;
     this.dataWrapper.remove();
   };
 
