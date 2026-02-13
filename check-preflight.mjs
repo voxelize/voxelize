@@ -34,6 +34,23 @@ const supportedCliOptions = [
   "--quiet",
 ];
 const supportedCliOptionsSet = new Set(supportedCliOptions);
+const canonicalCliOptions = [
+  "--compact",
+  "--json",
+  "--list-checks",
+  "--no-build",
+  "--only",
+  "--output",
+  "--quiet",
+];
+const cliOptionCanonicalMap = new Map(
+  canonicalCliOptions.map((option) => [option, option])
+);
+for (const [canonicalOption, aliases] of Object.entries(availableCliOptionAliases)) {
+  for (const alias of aliases) {
+    cliOptionCanonicalMap.set(alias, canonicalOption);
+  }
+}
 const jsonFormat = { compact: isCompact };
 const { outputPath: resolvedOutputPath, error: outputPathError } =
   resolveOutputPath(cliArgs);
@@ -310,6 +327,18 @@ const parseUnknownOptions = (args) => {
   return unknownOptions;
 };
 const unknownOptions = parseUnknownOptions(cliArgs);
+const parseActiveCliOptions = (args) => {
+  const activeCliOptions = new Set();
+  for (const arg of args) {
+    const canonicalOption = cliOptionCanonicalMap.get(arg);
+    if (canonicalOption !== undefined) {
+      activeCliOptions.add(canonicalOption);
+    }
+  }
+
+  return canonicalCliOptions.filter((option) => activeCliOptions.has(option));
+};
+const activeCliOptions = parseActiveCliOptions(cliArgs);
 const unsupportedOptionsError =
   unknownOptions.length === 0
     ? null
@@ -379,6 +408,7 @@ if (
     unknownOptions,
     unknownOptionCount,
     supportedCliOptions,
+    activeCliOptions,
     availableCliOptionAliases,
     availableChecks: availableCheckNames,
     availableCheckMetadata,
@@ -432,6 +462,7 @@ if (isListChecks) {
     unknownOptions,
     unknownOptionCount,
     supportedCliOptions,
+    activeCliOptions,
     availableCliOptionAliases,
     availableChecks: availableCheckNames,
     availableCheckMetadata,
@@ -502,6 +533,7 @@ const report = buildTimedReport({
   unknownOptions,
   unknownOptionCount,
   supportedCliOptions,
+  activeCliOptions,
   availableCliOptionAliases,
   availableChecks: availableCheckNames,
   availableCheckMetadata,
