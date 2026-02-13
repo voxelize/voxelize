@@ -27,6 +27,9 @@ export class VoxelOpacityVolume {
   private texWidth = 0;
   private texHeight = 0;
   private texDepth = 0;
+  private halfSizeX = 0;
+  private halfSizeY = 0;
+  private halfSizeZ = 0;
   private volumeMin = new Vector3();
   private volumeSize = new Vector3();
   private gridRes = new Vector3();
@@ -34,8 +37,6 @@ export class VoxelOpacityVolume {
   private lastCenterY = NaN;
   private lastCenterZ = NaN;
   private isDirty = true;
-
-  private tempHalfSize = new Vector3();
 
   constructor(config: Partial<VoxelOpacityVolumeConfig> = {}) {
     this.config = { ...defaultConfig, ...config };
@@ -63,6 +64,9 @@ export class VoxelOpacityVolume {
     this.texture.needsUpdate = true;
 
     this.volumeSize.set(width, height, depth);
+    this.halfSizeX = width * 0.5;
+    this.halfSizeY = height * 0.5;
+    this.halfSizeZ = depth * 0.5;
     this.gridRes.set(texWidth, texHeight, texDepth);
   }
 
@@ -71,11 +75,9 @@ export class VoxelOpacityVolume {
   }
 
   updateCenter(center: Vector3): boolean {
-    this.tempHalfSize.copy(this.volumeSize).multiplyScalar(0.5);
-
-    const newMinX = Math.floor(center.x - this.tempHalfSize.x);
-    const newMinY = Math.floor(center.y - this.tempHalfSize.y);
-    const newMinZ = Math.floor(center.z - this.tempHalfSize.z);
+    const newMinX = Math.floor(center.x - this.halfSizeX);
+    const newMinY = Math.floor(center.y - this.halfSizeY);
+    const newMinZ = Math.floor(center.z - this.halfSizeZ);
 
     const moved =
       newMinX !== this.lastCenterX ||

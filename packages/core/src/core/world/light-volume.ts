@@ -26,6 +26,9 @@ export class LightVolume {
   private texWidth = 0;
   private texHeight = 0;
   private texDepth = 0;
+  private halfSizeX = 0;
+  private halfSizeY = 0;
+  private halfSizeZ = 0;
   private volumeMin = new Vector3();
   private volumeSize = new Vector3();
   private lastCenterX = NaN;
@@ -34,7 +37,6 @@ export class LightVolume {
   private lastRegistryVersion = -1;
   private registryVersion = 0;
 
-  private tempHalfSize = new Vector3();
   private tempVolumeMax = new Vector3();
   private tempLocalPos = new Vector3();
   private lightsInRegionBuffer: DynamicLight[] = [];
@@ -65,6 +67,9 @@ export class LightVolume {
     this.texture.needsUpdate = true;
 
     this.volumeSize.set(width, height, depth);
+    this.halfSizeX = width * 0.5;
+    this.halfSizeY = height * 0.5;
+    this.halfSizeZ = depth * 0.5;
   }
 
   markDirty() {
@@ -72,11 +77,9 @@ export class LightVolume {
   }
 
   updateCenter(center: Vector3): boolean {
-    this.tempHalfSize.copy(this.volumeSize).multiplyScalar(0.5);
-
-    const newMinX = Math.floor(center.x - this.tempHalfSize.x);
-    const newMinY = Math.floor(center.y - this.tempHalfSize.y);
-    const newMinZ = Math.floor(center.z - this.tempHalfSize.z);
+    const newMinX = Math.floor(center.x - this.halfSizeX);
+    const newMinY = Math.floor(center.y - this.halfSizeY);
+    const newMinZ = Math.floor(center.z - this.halfSizeZ);
 
     const moved =
       newMinX !== this.lastCenterX ||
