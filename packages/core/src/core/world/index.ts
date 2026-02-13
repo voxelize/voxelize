@@ -5743,7 +5743,16 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     for (let index = 0; index < processCount; index++) {
       const key = dirtyKeys[index];
-      const { cx, cz, level } = MeshPipeline.parseKey(key);
+      const commaIndex = key.indexOf(",");
+      const colonIndex = key.indexOf(":", commaIndex + 1);
+      const cx =
+        commaIndex >= 0 ? parseInt(key.slice(0, commaIndex), 10) : Number.NaN;
+      const cz =
+        commaIndex >= 0 && colonIndex >= 0
+          ? parseInt(key.slice(commaIndex + 1, colonIndex), 10)
+          : Number.NaN;
+      const level =
+        colonIndex >= 0 ? parseInt(key.slice(colonIndex + 1), 10) : Number.NaN;
       const generation = this.meshPipeline.startJob(key);
 
       workerPromises[index] = this.dispatchMeshWorker(cx, cz, level).then(
