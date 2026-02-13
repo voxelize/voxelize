@@ -338,6 +338,27 @@ impl Registry {
     }
 
     #[inline(always)]
+    pub fn is_empty_id(&self, id: u32) -> bool {
+        if let Some(dense) = &self.dense_lookup {
+            if let Some(&idx) = dense.get(id as usize) {
+                return idx != usize::MAX && self.blocks_by_id[idx].1.is_empty;
+            }
+            false
+        } else if let Some(cache) = &self.lookup_cache {
+            cache
+                .get(&id)
+                .map(|&idx| self.blocks_by_id[idx].1.is_empty)
+                .unwrap_or(false)
+        } else {
+            self.blocks_by_id
+                .iter()
+                .find(|(block_id, _)| *block_id == id)
+                .map(|(_, block)| block.is_empty)
+                .unwrap_or(false)
+        }
+    }
+
+    #[inline(always)]
     pub fn has_type_and_is_opaque(&self, id: u32) -> (bool, bool) {
         if let Some(dense) = &self.dense_lookup {
             if let Some(&idx) = dense.get(id as usize) {
@@ -1230,21 +1251,11 @@ fn should_render_face<S: VoxelAccess>(
     if !neighbor_has_type {
         return !space.contains(nvx, nvy, nvz);
     }
-
-    let n_block_type = match registry.get_block_by_id(neighbor_id) {
-        Some(b) => b,
-        None => return !space.contains(nvx, nvy, nvz),
-    };
-
-    if n_block_type.is_empty {
-        return true;
+    if is_opaque {
+        return registry.is_empty_id(neighbor_id);
     }
 
-    if is_opaque || n_block_type.is_opaque {
-        return false;
-    }
-
-    neighbor_id != voxel_id || n_block_type.transparent_standalone
+    true
 }
 
 #[inline(always)]
