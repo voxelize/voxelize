@@ -51,19 +51,18 @@ export class RawChunk {
   }
 
   serialize(): [object, ArrayBuffer[]] {
+    const voxelsBuffer = this.voxels.data.buffer.slice(0) as ArrayBuffer;
+    const lightsBuffer = this.lights.data.buffer.slice(0) as ArrayBuffer;
     return [
       {
         id: this.id,
         x: this.coords[0],
         z: this.coords[1],
-        voxels: this.voxels.data.buffer,
-        lights: this.lights.data.buffer,
+        voxels: voxelsBuffer,
+        lights: lightsBuffer,
         options: this.options,
       },
-      [
-        this.voxels.data.buffer.slice(0) as ArrayBuffer,
-        this.lights.data.buffer.slice(0) as ArrayBuffer,
-      ],
+      [voxelsBuffer, lightsBuffer],
     ];
   }
 
