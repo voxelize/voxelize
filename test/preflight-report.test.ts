@@ -51,6 +51,20 @@ type PreflightReport = {
   failedCheckCount: number;
   firstFailedCheck: string | null;
   availableChecks: string[];
+  availableCheckMetadata: {
+    devEnvironment: {
+      scriptName: string;
+      supportsNoBuild: boolean;
+    };
+    wasmPack: {
+      scriptName: string;
+      supportsNoBuild: boolean;
+    };
+    client: {
+      scriptName: string;
+      supportsNoBuild: boolean;
+    };
+  };
   availableCheckAliases: {
     devEnvironment: string[];
     wasmPack: string[];
@@ -91,6 +105,20 @@ const expectedAvailableCheckAliases = {
   wasmPack: ["wasmPack", "wasm", "wasm-pack", "wasm_pack", "wasmpack"],
   client: ["client"],
 };
+const expectedAvailableCheckMetadata = {
+  devEnvironment: {
+    scriptName: "check-dev-env.mjs",
+    supportsNoBuild: false,
+  },
+  wasmPack: {
+    scriptName: "check-wasm-pack.mjs",
+    supportsNoBuild: false,
+  },
+  client: {
+    scriptName: "check-client.mjs",
+    supportsNoBuild: true,
+  },
+};
 const expectedAvailableSpecialCheckAliases = {
   all: ["all", "all-checks", "all_checks", "allchecks"],
 };
@@ -128,6 +156,7 @@ describe("preflight aggregate report", () => {
       "wasmPack",
       "client",
     ]);
+    expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(report.availableSpecialCheckSelectors).toEqual(
       expectedAvailableSpecialCheckSelectors
@@ -947,6 +976,7 @@ describe("preflight aggregate report", () => {
     expect(report.exitCode).toBe(1);
     expect(report.platform).toBe(process.platform);
     expect(report.nodeVersion).toBe(process.version);
+    expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(typeof report.endedAt).toBe("string");
     expect(report.totalChecks).toBe(0);
@@ -990,6 +1020,7 @@ describe("preflight aggregate report", () => {
     expect(report.outputPath).toBeNull();
     expect(report.selectionMode).toBe("default");
     expect(report.specialSelectorsUsed).toEqual([]);
+    expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(report.availableSpecialCheckSelectors).toEqual(
       expectedAvailableSpecialCheckSelectors
@@ -1034,6 +1065,7 @@ describe("preflight aggregate report", () => {
         resolvedTo: [],
       },
     ]);
+    expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(report.availableSpecialCheckSelectors).toEqual(
       expectedAvailableSpecialCheckSelectors
@@ -1080,6 +1112,7 @@ describe("preflight aggregate report", () => {
         resolvedTo: ["client"],
       },
     ]);
+    expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
     expect(report.availableSpecialCheckAliases).toEqual(
       expectedAvailableSpecialCheckAliases
     );
@@ -1122,6 +1155,7 @@ describe("preflight aggregate report", () => {
       "wasmPack",
       "client",
     ]);
+    expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(report.availableSpecialCheckAliases).toEqual(
       expectedAvailableSpecialCheckAliases
@@ -1159,6 +1193,7 @@ describe("preflight aggregate report", () => {
     expect(report.requestedChecks).toEqual([]);
     expect(report.specialSelectorsUsed).toEqual([]);
     expect(report.requestedCheckResolutions).toEqual([]);
+    expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(result.status).toBe(1);
   });
@@ -1195,6 +1230,7 @@ describe("preflight aggregate report", () => {
       "wasmPack",
       "client",
     ]);
+    expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(report.availableSpecialCheckAliases).toEqual(
       expectedAvailableSpecialCheckAliases

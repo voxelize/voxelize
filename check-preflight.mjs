@@ -27,20 +27,34 @@ const availableChecks = [
   {
     name: "devEnvironment",
     scriptName: "check-dev-env.mjs",
+    supportsNoBuild: false,
     extraArgs: [],
   },
   {
     name: "wasmPack",
     scriptName: "check-wasm-pack.mjs",
+    supportsNoBuild: false,
     extraArgs: [],
   },
   {
     name: "client",
     scriptName: "check-client.mjs",
+    supportsNoBuild: true,
     extraArgs: isNoBuild ? ["--no-build"] : [],
   },
 ];
 const availableCheckNames = availableChecks.map((check) => check.name);
+const availableCheckMetadata = Object.fromEntries(
+  availableChecks.map((check) => {
+    return [
+      check.name,
+      {
+        scriptName: check.scriptName,
+        supportsNoBuild: check.supportsNoBuild,
+      },
+    ];
+  })
+);
 const availableCheckAliases = {
   devEnvironment: [
     "devEnvironment",
@@ -293,6 +307,7 @@ if (outputPathError !== null || selectedChecksError !== null) {
     message: outputPathError ?? selectedChecksError,
     invalidChecks: effectiveInvalidChecks,
     availableChecks: availableCheckNames,
+    availableCheckMetadata,
     availableCheckAliases,
     availableSpecialCheckSelectors,
     availableSpecialCheckAliases,
@@ -334,6 +349,7 @@ if (isListChecks) {
     outputPath: resolvedOutputPath,
     invalidChecks: [],
     availableChecks: availableCheckNames,
+    availableCheckMetadata,
     availableCheckAliases,
     availableSpecialCheckSelectors,
     availableSpecialCheckAliases,
@@ -392,6 +408,7 @@ const report = buildTimedReport({
   outputPath: resolvedOutputPath,
   invalidChecks: [],
   availableChecks: availableCheckNames,
+  availableCheckMetadata,
   availableCheckAliases,
   availableSpecialCheckSelectors,
   availableSpecialCheckAliases,
