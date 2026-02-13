@@ -1739,12 +1739,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (chunk === undefined) return;
 
     const oldVoxel = chunk.getVoxel(px, py, pz);
-    chunk.setVoxel(px, py, pz, voxel);
-
-    if (oldVoxel !== voxel) {
-      this.recordVoxelDelta(px, py, pz, { oldVoxel, newVoxel: voxel });
+    if (oldVoxel === voxel) {
+      return;
     }
 
+    chunk.setVoxel(px, py, pz, voxel);
+    this.recordVoxelDelta(px, py, pz, { oldVoxel, newVoxel: voxel });
     this.trackChunkAt(px, py, pz);
   }
 
@@ -1789,9 +1789,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       oldRotation.yRotation !== rotation.yRotation
     ) {
       this.recordVoxelDelta(px, py, pz, { oldRotation, newRotation: rotation });
+      this.trackChunkAt(px, py, pz);
     }
-
-    this.trackChunkAt(px, py, pz);
   }
 
   /**
@@ -1815,12 +1814,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (chunk === undefined) return;
 
     const oldStage = chunk.getVoxelStage(px, py, pz);
-    chunk.setVoxelStage(px, py, pz, stage);
-
-    if (oldStage !== stage) {
-      this.recordVoxelDelta(px, py, pz, { oldStage, newStage: stage });
+    if (oldStage === stage) {
+      return;
     }
 
+    chunk.setVoxelStage(px, py, pz, stage);
+    this.recordVoxelDelta(px, py, pz, { oldStage, newStage: stage });
     this.trackChunkAt(px, py, pz);
   }
 
@@ -1843,6 +1842,11 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.checkIsInitialized("set sunlight", false);
     const chunk = this.getLoadedChunkAtVoxel(px, pz);
     if (chunk === undefined) return;
+
+    if (chunk.getSunlight(px, py, pz) === level) {
+      return;
+    }
+
     chunk.setSunlight(px, py, pz, level);
     this.trackChunkAt(px, py, pz);
   }
@@ -1873,6 +1877,11 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.checkIsInitialized("set torch light", false);
     const chunk = this.getLoadedChunkAtVoxel(px, pz);
     if (chunk === undefined) return;
+
+    if (chunk.getTorchLight(px, py, pz, color) === level) {
+      return;
+    }
+
     chunk.setTorchLight(px, py, pz, level, color);
     this.trackChunkAt(px, py, pz);
   }
