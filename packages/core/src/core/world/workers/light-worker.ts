@@ -118,11 +118,27 @@ let registryInitialized = false;
 const pendingBatchMessages: LightBatchMessage[] = [];
 const MAX_PENDING_BATCH_MESSAGES = 512;
 
-const postEmptyBatchResult = (jobId: string) => {
+const getLastSequenceIdFromDeltas = (
+  relevantDeltas: Record<string, VoxelDelta[]>
+): number => {
+  let lastSequenceId = 0;
+
+  for (const deltas of Object.values(relevantDeltas)) {
+    for (const delta of deltas) {
+      if (delta.sequenceId > lastSequenceId) {
+        lastSequenceId = delta.sequenceId;
+      }
+    }
+  }
+
+  return lastSequenceId;
+};
+
+const postEmptyBatchResult = (jobId: string, lastSequenceId = 0) => {
   postMessage({
     jobId,
     modifiedChunks: [],
-    appliedDeltas: { lastSequenceId: 0 },
+    appliedDeltas: { lastSequenceId },
   });
 };
 
@@ -373,7 +389,10 @@ onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
     if (pendingBatchMessages.length >= MAX_PENDING_BATCH_MESSAGES) {
       const dropped = pendingBatchMessages.shift();
       if (dropped) {
-        postEmptyBatchResult(dropped.jobId);
+        postEmptyBatchResult(
+          dropped.jobId,
+          getLastSequenceIdFromDeltas(dropped.relevantDeltas)
+        );
       }
     }
     pendingBatchMessages.push(message);
