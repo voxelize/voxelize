@@ -112,6 +112,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
   private fallbackCommand: ((rest: string) => void) | null = null;
   private commandWordsBuffer: string[] = [];
+  private quotedTokensBuffer: string[] = [];
   private parseSchemaInfoBySchema = new WeakMap<
     ZodObject<Record<string, ZodTypeAny>>,
     { keys: string[]; booleanKeys: Set<string> }
@@ -124,9 +125,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
    */
   public send(chat: T) {
     if (chat.body.startsWith(this._commandSymbol)) {
-      const words = this.splitCommandWords(
-        chat.body.substring(this._commandSymbol.length)
-      );
+      const commandBody = chat.body.substring(this._commandSymbol.length);
+      const words = this.splitCommandWords(commandBody);
       const trigger = words.length > 0 ? words[0] : undefined;
       let rest = "";
       for (let wordIndex = 1; wordIndex < words.length; wordIndex++) {
@@ -173,9 +173,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       }
 
       if (this.fallbackCommand) {
-        this.fallbackCommand(
-          chat.body.substring(this._commandSymbol.length).trim()
-        );
+        this.fallbackCommand(commandBody.trim());
       }
     }
 
@@ -213,7 +211,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   }
 
   private splitQuotedTokens(raw: string): string[] {
-    const tokens: string[] = [];
+    const tokens = this.quotedTokensBuffer;
+    tokens.length = 0;
     let current = "";
     let quoteChar: string | null = null;
 
