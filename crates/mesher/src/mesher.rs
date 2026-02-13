@@ -2742,24 +2742,24 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         continue;
                     }
 
-                    let matching_faces: Vec<_> = faces
-                        .iter()
-                        .filter(|(f, world_space)| {
-                            if !block_needs_face_rotation || *world_space {
-                                return f.dir == dir;
-                            }
-                            let mut face_dir = [f.dir[0] as f32, f.dir[1] as f32, f.dir[2] as f32];
-                            rotation.rotate_node(&mut face_dir, block.y_rotatable, false);
-                            let effective_dir = [
-                                face_dir[0].round() as i32,
-                                face_dir[1].round() as i32,
-                                face_dir[2].round() as i32,
-                            ];
-                            effective_dir == dir
-                        })
-                        .collect();
+                    let face_matches_direction = |face: &BlockFace, world_space: bool| {
+                        if !block_needs_face_rotation || world_space {
+                            return face.dir == dir;
+                        }
+                        let mut face_dir = [face.dir[0] as f32, face.dir[1] as f32, face.dir[2] as f32];
+                        rotation.rotate_node(&mut face_dir, block.y_rotatable, false);
+                        let effective_dir = [
+                            face_dir[0].round() as i32,
+                            face_dir[1].round() as i32,
+                            face_dir[2].round() as i32,
+                        ];
+                        effective_dir == dir
+                    };
 
-                    if matching_faces.is_empty() {
+                    if !faces
+                        .iter()
+                        .any(|(face, world_space)| face_matches_direction(face, *world_space))
+                    {
                         continue;
                     }
 
@@ -2779,7 +2779,10 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         continue;
                     }
 
-                    for (face, world_space) in matching_faces {
+                    for (face, world_space) in faces.iter() {
+                        if !face_matches_direction(face, *world_space) {
+                            continue;
+                        }
                         let uv_range = face.range;
 
                         if face.isolated {
