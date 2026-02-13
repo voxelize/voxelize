@@ -4848,12 +4848,6 @@ export class World<T = any> extends Scene implements NetIntercept {
   ): LightOperations {
     const { maxHeight, maxLightLevel } = this.options;
 
-    interface RemovedLightSource {
-      voxel: Coords3;
-      block: Block;
-    }
-
-    const removedLightSources: RemovedLightSource[] = [];
     const redRemoval: Coords3[] = [];
     const greenRemoval: Coords3[] = [];
     const blueRemoval: Coords3[] = [];
@@ -4959,29 +4953,21 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       if (currentEmitsLight && !newEmitsLight) {
-        const blockWithLevels = { ...oldBlock };
-        blockWithLevels.redLightLevel = currentRedLevel;
-        blockWithLevels.greenLightLevel = currentGreenLevel;
-        blockWithLevels.blueLightLevel = currentBlueLevel;
+        if (this.getSunlightAt(vx, vy, vz) > 0) {
+          sunlightRemoval.push(voxel);
+        }
 
-        removedLightSources.push({
-          voxel: [vx, vy, vz],
-          block: blockWithLevels,
-        });
+        if (currentRedLevel > 0) {
+          redRemoval.push(voxel);
+        }
+        if (currentGreenLevel > 0) {
+          greenRemoval.push(voxel);
+        }
+        if (currentBlueLevel > 0) {
+          blueRemoval.push(voxel);
+        }
         removedLightSourceKeys.add(ChunkUtils.getVoxelNameAt(vx, vy, vz));
       }
-    }
-
-    for (const { voxel, block } of removedLightSources) {
-      const [vx, vy, vz] = voxel;
-
-      if (this.getSunlightAt(vx, vy, vz) > 0) {
-        sunlightRemoval.push(voxel);
-      }
-
-      if (block.redLightLevel > 0) redRemoval.push(voxel);
-      if (block.greenLightLevel > 0) greenRemoval.push(voxel);
-      if (block.blueLightLevel > 0) blueRemoval.push(voxel);
     }
 
     for (const update of processedUpdates) {
