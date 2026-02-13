@@ -747,6 +747,46 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-wasm-pack json mode keeps active metadata when inline misuse is present", () => {
+    const result = runScript("check-wasm-pack.mjs", [
+      "--json",
+      "--quiet",
+      "--json=1",
+      "--mystery=alpha",
+    ]);
+    const report = JSON.parse(result.output) as WasmPackJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedStandardCliOptions);
+    expectCliOptionCatalogMetadata(report, {}, expectedStandardCliOptions);
+    expect(report.unknownOptions).toEqual(["--json=<value>", "--mystery"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --output, --quiet."
+    );
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--quiet"],
+      ["--json", "--quiet"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--quiet",
+          canonicalOption: "--quiet",
+          index: 1,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("check-wasm-pack json mode redacts inline known-flag misuse tokens", () => {
     const result = runScript("check-wasm-pack.mjs", [
       "--json",
@@ -1576,6 +1616,46 @@ describe("root preflight scripts", () => {
           token: "--json",
           canonicalOption: "--json",
           index: 0,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
+  it("check-dev-env json mode keeps active metadata when inline misuse is present", () => {
+    const result = runScript("check-dev-env.mjs", [
+      "--json",
+      "--quiet",
+      "--json=1",
+      "--mystery=alpha",
+    ]);
+    const report = JSON.parse(result.output) as DevEnvJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedStandardCliOptions);
+    expectCliOptionCatalogMetadata(report, {}, expectedStandardCliOptions);
+    expect(report.unknownOptions).toEqual(["--json=<value>", "--mystery"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --output, --quiet."
+    );
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--quiet"],
+      ["--json", "--quiet"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--quiet",
+          canonicalOption: "--quiet",
+          index: 1,
         },
       ]
     );
@@ -2547,6 +2627,51 @@ describe("root preflight scripts", () => {
           token: "--json",
           canonicalOption: "--json",
           index: 0,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
+  it("check-client json mode keeps alias-active metadata when inline misuse is present", () => {
+    const result = runScript("check-client.mjs", [
+      "--json",
+      "--verify",
+      "--no-build=2",
+      "--mystery=alpha",
+    ]);
+    const report = JSON.parse(result.output) as ClientJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.noBuild).toBe(true);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedNoBuildCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedNoBuildCliOptions
+    );
+    expect(report.unknownOptions).toEqual(["--no-build=<value>", "--mystery"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --no-build=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--no-build"],
+      ["--json", "--verify"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--verify",
+          canonicalOption: "--no-build",
+          index: 1,
         },
       ]
     );
@@ -3714,6 +3839,51 @@ describe("root preflight scripts", () => {
           token: "--json",
           canonicalOption: "--json",
           index: 0,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
+  it("check-onboarding json mode keeps alias-active metadata when inline misuse is present", () => {
+    const result = runScript("check-onboarding.mjs", [
+      "--json",
+      "--verify",
+      "--no-build=2",
+      "--mystery=alpha",
+    ]);
+    const report = JSON.parse(result.output) as OnboardingJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.noBuild).toBe(true);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedNoBuildCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedNoBuildCliOptions
+    );
+    expect(report.unknownOptions).toEqual(["--no-build=<value>", "--mystery"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --no-build=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--no-build"],
+      ["--json", "--verify"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--verify",
+          canonicalOption: "--no-build",
+          index: 1,
         },
       ]
     );
