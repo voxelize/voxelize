@@ -56,6 +56,7 @@ const availableCheckAliases = {
 const availableSpecialCheckAliases = {
   all: ["all", "all-checks", "all_checks", "allchecks"],
 };
+const availableSpecialCheckSelectors = Object.keys(availableSpecialCheckAliases);
 const normalizeCheckToken = (value) => {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
 };
@@ -134,11 +135,17 @@ const parseSelectedChecks = () => {
       uniqueInvalidChecks.push(invalidCheck);
     }
 
+    const availableChecksHint = `Available checks: ${availableCheckNames.join(", ")}.`;
+    const availableSpecialSelectorsHint =
+      availableSpecialCheckSelectors.length === 0
+        ? ""
+        : ` Special selectors: ${availableSpecialCheckSelectors.join(", ")}.`;
+
     return {
       selectedChecks: [],
       requestedChecks: tokenizedChecks,
       selectionMode: "only",
-      error: `Invalid check name(s): ${uniqueInvalidChecks.join(", ")}. Available checks: ${availableCheckNames.join(", ")}.`,
+      error: `Invalid check name(s): ${uniqueInvalidChecks.join(", ")}. ${availableChecksHint}${availableSpecialSelectorsHint}`,
       invalidChecks: uniqueInvalidChecks,
     };
   }
