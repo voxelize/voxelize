@@ -389,10 +389,11 @@ export class Debug extends Group {
     const dataEntry = document.createElement("p");
     dataEntry.classList.add(this.options.lineClass);
 
-    DOMUtils.applyStyles(dataEntry, {
-      ...(newline ? { height: "10px", ...this.options.newLineStyles } : {}),
-      ...(this.options.lineStyles || {}),
-    });
+    if (newline) {
+      dataEntry.style.height = "10px";
+      DOMUtils.applyStyles(dataEntry, this.options.newLineStyles);
+    }
+    DOMUtils.applyStyles(dataEntry, this.options.lineStyles);
 
     return dataEntry;
   };
