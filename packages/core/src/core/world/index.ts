@@ -5770,39 +5770,17 @@ export class World<T = any> extends Scene implements NetIntercept {
   ) {
     const currentLights = chunk.lights.data;
     const anyResult = colorMap.values().next().value;
+    const sunlightSource = colorMap.get("SUNLIGHT") ?? anyResult;
+    const redSource = colorMap.get("RED") ?? anyResult;
+    const greenSource = colorMap.get("GREEN") ?? anyResult;
+    const blueSource = colorMap.get("BLUE") ?? anyResult;
 
     for (let i = 0; i < currentLights.length; i++) {
-      let value = 0;
-
-      const sunlightSource = colorMap.get("SUNLIGHT");
-      if (sunlightSource) {
-        value |= sunlightSource[i] & 0xf000;
-      } else {
-        value |= anyResult[i] & 0xf000;
-      }
-
-      const redSource = colorMap.get("RED");
-      if (redSource) {
-        value |= redSource[i] & 0x0f00;
-      } else {
-        value |= anyResult[i] & 0x0f00;
-      }
-
-      const greenSource = colorMap.get("GREEN");
-      if (greenSource) {
-        value |= greenSource[i] & 0x00f0;
-      } else {
-        value |= anyResult[i] & 0x00f0;
-      }
-
-      const blueSource = colorMap.get("BLUE");
-      if (blueSource) {
-        value |= blueSource[i] & 0x000f;
-      } else {
-        value |= anyResult[i] & 0x000f;
-      }
-
-      currentLights[i] = value;
+      currentLights[i] =
+        (sunlightSource[i] & 0xf000) |
+        (redSource[i] & 0x0f00) |
+        (greenSource[i] & 0x00f0) |
+        (blueSource[i] & 0x000f);
     }
   }
 
