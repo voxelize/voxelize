@@ -2250,7 +2250,6 @@ where
 struct FaceProcessCache {
     opaque_mask: Option<[bool; 27]>,
     center_light: Option<u32>,
-    center_rgb: Option<[u32; 3]>,
     fluid_surface_above: bool,
     block_min: [f32; 3],
 }
@@ -2283,7 +2282,6 @@ fn build_face_process_cache<S: VoxelAccess>(
             None
         },
         center_light,
-        center_rgb: center_light.map(|light| [(light >> 8) & 0xF, (light >> 4) & 0xF, light & 0xF]),
         fluid_surface_above: is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space),
         block_min: block_min_corner(block),
     }
@@ -2400,10 +2398,6 @@ fn process_face<S: VoxelAccess>(
     let uv_span_v = end_v - start_v;
 
     let ndx = (positions.len() / 3) as i32;
-    let mut face_aos = [0i32; 4];
-    let mut four_red_lights = [0u32; 4];
-    let mut four_green_lights = [0u32; 4];
-    let mut four_blue_lights = [0u32; 4];
 
     let block_min = cache.block_min;
     let block_min_y_eps = block_min[1] + 0.01;
@@ -2413,13 +2407,6 @@ fn process_face<S: VoxelAccess>(
         cache.opaque_mask.as_ref()
     } else {
         None
-    };
-    let [center_red_light, center_green_light, center_blue_light] = if skip_opaque_checks {
-        cache
-            .center_rgb
-            .expect("center rgb exists when opaque checks are skipped")
-    } else {
-        [0, 0, 0]
     };
     let center_light_packed = if skip_opaque_checks {
         cache
@@ -2470,11 +2457,12 @@ fn process_face<S: VoxelAccess>(
     let base_y = vy as f32 - min_y as f32 - dir[1] as f32 * face_inset;
     let base_z = vz as f32 - min_z as f32 - dir[2] as f32 * face_inset + diag_z_offset;
 
+    let mut face_aos = [0i32; 4];
+    let mut four_red_lights = [0u32; 4];
+    let mut four_green_lights = [0u32; 4];
+    let mut four_blue_lights = [0u32; 4];
+
     if skip_opaque_checks {
-        face_aos = [3; 4];
-        four_red_lights = [center_red_light; 4];
-        four_green_lights = [center_green_light; 4];
-        four_blue_lights = [center_blue_light; 4];
         let center_light_i32 = center_light_packed as i32;
         let base_light_i32 = center_light_i32 | 3 << 16 | fluid_bit;
         for corner in &face.corners {
@@ -3762,13 +3750,6 @@ pub fn mesh_space<S: VoxelAccess>(
                         None
                     },
                     center_light,
-                    center_rgb: center_light.map(|center_light| {
-                        [
-                            (center_light >> 8) & 0xF,
-                            (center_light >> 4) & 0xF,
-                            center_light & 0xF,
-                        ]
-                    }),
                     fluid_surface_above: is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space),
                     block_min: block_min_corner(block),
                 };
