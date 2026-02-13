@@ -820,7 +820,7 @@ fn create_fluid_faces<S: VoxelAccess>(
     space: &S,
     block: &Block,
     registry: &Registry,
-) -> Vec<BlockFace> {
+) -> [BlockFace; 6] {
     let corner_nxnz: [[i32; 2]; 3] = [[-1, 0], [0, -1], [-1, -1]];
     let corner_pxnz: [[i32; 2]; 3] = [[1, 0], [0, -1], [1, -1]];
     let corner_nxpz: [[i32; 2]; 3] = [[-1, 0], [0, 1], [-1, 1]];
@@ -847,7 +847,7 @@ fn create_fluid_faces<S: VoxelAccess>(
         &fallback_uvs
     };
 
-    vec![
+    [
         BlockFace {
             name: "py".to_string(),
             name_lower: String::new(),
