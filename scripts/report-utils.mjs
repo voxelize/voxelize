@@ -538,7 +538,11 @@ export const resolveLastOptionValue = (args, optionName) => {
     if (token === optionName) {
       hasOption = true;
       const nextArg = optionArgs[index + 1] ?? null;
-      if (nextArg === null || nextArg.startsWith("--")) {
+      if (
+        nextArg === null ||
+        nextArg.startsWith("--") ||
+        nextArg.trim().length === 0
+      ) {
         resolvedValue = null;
         missingValue = true;
       } else {

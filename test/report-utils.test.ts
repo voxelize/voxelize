@@ -147,6 +147,20 @@ describe("report-utils", () => {
     expect(missingValue.error).toBe("Missing value for --output option.");
     expect(missingValue.outputPath).toBeNull();
 
+    const emptySplitValue = resolveOutputPath(
+      ["--json", "--output", ""],
+      "/workspace"
+    );
+    expect(emptySplitValue.error).toBe("Missing value for --output option.");
+    expect(emptySplitValue.outputPath).toBeNull();
+
+    const whitespaceSplitValue = resolveOutputPath(
+      ["--json", "--output", "   "],
+      "/workspace"
+    );
+    expect(whitespaceSplitValue.error).toBe("Missing value for --output option.");
+    expect(whitespaceSplitValue.outputPath).toBeNull();
+
     const invalidValue = resolveOutputPath(
       ["--json", "--output", "--quiet"],
       "/workspace"
@@ -235,6 +249,22 @@ describe("report-utils", () => {
     expect(missingSplitValue.hasOption).toBe(true);
     expect(missingSplitValue.value).toBeNull();
     expect(missingSplitValue.error).toBe("Missing value for --output option.");
+
+    const emptySplitValue = resolveLastOptionValue(
+      ["--json", "--output", ""],
+      "--output"
+    );
+    expect(emptySplitValue.hasOption).toBe(true);
+    expect(emptySplitValue.value).toBeNull();
+    expect(emptySplitValue.error).toBe("Missing value for --output option.");
+
+    const whitespaceSplitValue = resolveLastOptionValue(
+      ["--json", "--output", "   "],
+      "--output"
+    );
+    expect(whitespaceSplitValue.hasOption).toBe(true);
+    expect(whitespaceSplitValue.value).toBeNull();
+    expect(whitespaceSplitValue.error).toBe("Missing value for --output option.");
 
     const missingInlineValue = resolveLastOptionValue(
       ["--json", "--output="],
