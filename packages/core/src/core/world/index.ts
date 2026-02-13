@@ -5294,10 +5294,13 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const { maxHeight, maxLightsUpdateTime } = this.options;
     const updateDeadline = startTime + maxLightsUpdateTime;
+    const maxUpdates = endIndex - startIndex;
 
     let consumedCount = 0;
-    const processedClientUpdates: BlockUpdate[] = [];
-    const processedUpdates: ProcessedUpdate[] = [];
+    const processedClientUpdates = new Array<BlockUpdate>(maxUpdates);
+    let processedClientUpdateCount = 0;
+    const processedUpdates = new Array<ProcessedUpdate>(maxUpdates);
+    let processedUpdateCount = 0;
 
     for (let index = startIndex; index < endIndex; index++) {
       if (consumedCount > 0 && performance.now() > updateDeadline) {
@@ -5376,7 +5379,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.recordVoxelDelta(vx, vy, vz, deltaData, chunk.name);
       this.trackChunkAt(vx, vy, vz);
 
-      processedUpdates.push({
+      processedUpdates[processedUpdateCount] = {
         voxel: [vx, vy, vz],
         oldId: currentId,
         newId: type,
@@ -5386,11 +5389,14 @@ export class World<T = any> extends Scene implements NetIntercept {
         newRotation: finalRotation,
         oldStage: currentStage,
         stage: normalizedStage,
-      });
+      };
+      processedUpdateCount++;
       if (update.source === "client") {
-        processedClientUpdates.push(update.update);
+        processedClientUpdates[processedClientUpdateCount] = update.update;
+        processedClientUpdateCount++;
       }
     }
+    processedUpdates.length = processedUpdateCount;
     const lightOps = this.analyzeLightOperations(processedUpdates);
 
     if (this.options.useLightWorkers && lightOps.hasOperations) {
@@ -5411,6 +5417,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.executeLightOperationsSyncAll(lightOps);
     }
 
+    processedClientUpdates.length = processedClientUpdateCount;
     return {
       consumedCount,
       processedClientUpdates,
