@@ -43,6 +43,7 @@ type PreflightReport = {
   failureSummaries: PreflightFailureSummary[];
   checks: PreflightCheckResult[];
   outputPath: string | null;
+  invalidChecks: string[];
   writeError?: string;
   message?: string;
 };
@@ -77,6 +78,7 @@ describe("preflight aggregate report", () => {
     ]);
     expect(report.selectedChecks).toEqual(report.availableChecks);
     expect(report.skippedChecks).toEqual([]);
+    expect(report.invalidChecks).toEqual([]);
     expect(report.totalChecks).toBe(report.checks.length);
     expect(report.passedCheckCount).toBe(report.passedChecks.length);
     expect(report.failedCheckCount).toBe(report.failedChecks.length);
@@ -145,6 +147,7 @@ describe("preflight aggregate report", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.selectedChecks).toEqual(["devEnvironment", "client"]);
     expect(report.skippedChecks).toEqual(["wasmPack"]);
+    expect(report.invalidChecks).toEqual([]);
     expect(report.totalChecks).toBe(2);
     expect(report.passedCheckCount + report.failedCheckCount).toBe(2);
     expect(report.checks.length).toBe(2);
@@ -171,6 +174,7 @@ describe("preflight aggregate report", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.selectedChecks).toEqual(["devEnvironment", "client"]);
     expect(report.skippedChecks).toEqual(["wasmPack"]);
+    expect(report.invalidChecks).toEqual([]);
     expect(report.checks.map((check) => check.name)).toEqual([
       "devEnvironment",
       "client",
@@ -194,6 +198,7 @@ describe("preflight aggregate report", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.selectedChecks).toEqual(["devEnvironment", "client"]);
     expect(report.skippedChecks).toEqual(["wasmPack"]);
+    expect(report.invalidChecks).toEqual([]);
     expect(report.checks.map((check) => check.name)).toEqual([
       "devEnvironment",
       "client",
@@ -221,6 +226,7 @@ describe("preflight aggregate report", () => {
       "client",
     ]);
     expect(report.skippedChecks).toEqual([]);
+    expect(report.invalidChecks).toEqual([]);
     expect(report.checks.map((check) => check.name)).toEqual([
       "devEnvironment",
       "wasmPack",
@@ -245,6 +251,7 @@ describe("preflight aggregate report", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.selectedChecks).toEqual(["devEnvironment", "wasmPack"]);
     expect(report.skippedChecks).toEqual(["client"]);
+    expect(report.invalidChecks).toEqual([]);
     expect(report.checks.map((check) => check.name)).toEqual([
       "devEnvironment",
       "wasmPack",
@@ -268,6 +275,7 @@ describe("preflight aggregate report", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.selectedChecks).toEqual(["devEnvironment", "wasmPack"]);
     expect(report.skippedChecks).toEqual(["client"]);
+    expect(report.invalidChecks).toEqual([]);
     expect(report.checks.map((check) => check.name)).toEqual([
       "devEnvironment",
       "wasmPack",
@@ -298,6 +306,7 @@ describe("preflight aggregate report", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.selectedChecks).toEqual(["client"]);
     expect(report.skippedChecks).toEqual(["devEnvironment", "wasmPack"]);
+    expect(report.invalidChecks).toEqual([]);
     expect(report.checks.map((check) => check.name)).toEqual(["client"]);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
@@ -319,6 +328,7 @@ describe("preflight aggregate report", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.message).toBe("Missing value for --only option.");
+    expect(report.invalidChecks).toEqual([]);
     expect(report.selectedChecks).toEqual([]);
     expect(report.skippedChecks).toEqual([
       "devEnvironment",
@@ -347,6 +357,7 @@ describe("preflight aggregate report", () => {
     expect(report.message).toBe(
       "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, client."
     );
+    expect(report.invalidChecks).toEqual(["invalidCheck"]);
     expect(report.selectedChecks).toEqual([]);
     expect(report.skippedChecks).toEqual([
       "devEnvironment",
@@ -568,6 +579,7 @@ describe("preflight aggregate report", () => {
     expect(report.message).toBe(
       "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, client."
     );
+    expect(report.invalidChecks).toEqual(["invalidCheck"]);
     expect(report.availableChecks).toEqual([
       "devEnvironment",
       "wasmPack",
@@ -599,6 +611,7 @@ describe("preflight aggregate report", () => {
     expect(report.message).toBe(
       "Invalid check name(s): invalidCheck, otherInvalid. Available checks: devEnvironment, wasmPack, client."
     );
+    expect(report.invalidChecks).toEqual(["invalidCheck", "otherInvalid"]);
     expect(result.status).toBe(1);
   });
 
@@ -628,6 +641,7 @@ describe("preflight aggregate report", () => {
     expect(stdoutReport.message).toBe(
       "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, client."
     );
+    expect(stdoutReport.invalidChecks).toEqual(["invalidCheck"]);
     expect(fileReport.outputPath).toBe(outputPath);
     expect(fileReport.message).toBe(stdoutReport.message);
     expect(result.status).toBe(1);
@@ -659,6 +673,7 @@ describe("preflight aggregate report", () => {
     expect(stdoutReport.exitCode).toBe(1);
     expect(stdoutReport.outputPath).toBe(outputPath);
     expect(stdoutReport.message).toBe("Missing value for --only option.");
+    expect(stdoutReport.invalidChecks).toEqual([]);
     expect(fileReport.outputPath).toBe(outputPath);
     expect(fileReport.message).toBe(stdoutReport.message);
     expect(result.status).toBe(1);
@@ -689,6 +704,7 @@ describe("preflight aggregate report", () => {
     expect(report.outputPath).toBe(tempDirectory);
     expect(report.writeError).toContain(`Failed to write report to ${tempDirectory}.`);
     expect(report.message).toContain(`Failed to write report to ${tempDirectory}.`);
+    expect(report.invalidChecks).toEqual(["invalidCheck"]);
     expect(result.status).toBe(1);
 
     fs.rmSync(tempDirectory, { recursive: true, force: true });

@@ -61,6 +61,7 @@ const parseSelectedChecks = () => {
     return {
       selectedChecks: availableCheckNames,
       error: null,
+      invalidChecks: [],
     };
   }
 
@@ -69,6 +70,7 @@ const parseSelectedChecks = () => {
     return {
       selectedChecks: [],
       error: "Missing value for --only option.",
+      invalidChecks: [],
     };
   }
 
@@ -81,6 +83,7 @@ const parseSelectedChecks = () => {
     return {
       selectedChecks: [],
       error: "Missing value for --only option.",
+      invalidChecks: [],
     };
   }
 
@@ -111,6 +114,7 @@ const parseSelectedChecks = () => {
     return {
       selectedChecks: [],
       error: `Invalid check name(s): ${uniqueInvalidChecks.join(", ")}. Available checks: ${availableCheckNames.join(", ")}.`,
+      invalidChecks: uniqueInvalidChecks,
     };
   }
 
@@ -122,9 +126,14 @@ const parseSelectedChecks = () => {
   return {
     selectedChecks: normalizedChecks,
     error: null,
+    invalidChecks: [],
   };
 };
-const { selectedChecks, error: selectedChecksError } = parseSelectedChecks();
+const {
+  selectedChecks,
+  error: selectedChecksError,
+  invalidChecks,
+} = parseSelectedChecks();
 
 const runCheck = (name, scriptName, extraArgs = []) => {
   const checkStartMs = Date.now();
@@ -169,6 +178,7 @@ if (outputPathError !== null || selectedChecksError !== null) {
     checks: [],
     outputPath: outputPathError === null ? resolvedOutputPath : null,
     message: outputPathError ?? selectedChecksError,
+    invalidChecks,
     availableChecks: availableCheckNames,
   });
   const { reportJson } = serializeReportWithOptionalWrite(report, {
@@ -220,6 +230,7 @@ const report = buildTimedReport({
   failureSummaries,
   checks,
   outputPath: resolvedOutputPath,
+  invalidChecks: [],
   availableChecks: availableCheckNames,
 });
 const { reportJson, writeError } = serializeReportWithOptionalWrite(report, {
