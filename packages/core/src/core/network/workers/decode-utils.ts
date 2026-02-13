@@ -7,6 +7,10 @@ const { Message, Entity } = protocol;
 const LZ4_FRAME_MAGIC = [0x04, 0x22, 0x4d, 0x18];
 const ZLIB_MAGIC_0 = 0x78;
 const ZLIB_MAGIC_1 = 0x9c;
+const EMPTY_U8 = new Uint8Array(0);
+const EMPTY_U32 = new Uint32Array(0);
+const EMPTY_I32 = new Int32Array(0);
+const EMPTY_F32 = new Float32Array(0);
 
 function isLz4Frame(buffer: Uint8Array): boolean {
   return (
@@ -19,10 +23,10 @@ function isLz4Frame(buffer: Uint8Array): boolean {
 }
 
 function decompressLz4Block(data: Uint8Array): Uint8Array {
-  if (data.length < 4) return new Uint8Array(0);
+  if (data.length < 4) return EMPTY_U8;
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
   const uncompressedSize = view.getUint32(0, true);
-  if (uncompressedSize === 0) return new Uint8Array(0);
+  if (uncompressedSize === 0) return EMPTY_U8;
   const compressedData = data.subarray(4);
   const result = new Uint8Array(uncompressedSize);
   lz4.decompressBlock(compressedData, result, 0, compressedData.length, 0);
@@ -33,7 +37,7 @@ function decompressToUint32Array(
   data: Uint8Array,
   transferables: ArrayBuffer[]
 ): Uint32Array {
-  if (!data || data.length === 0) return new Uint32Array(0);
+  if (!data || data.length === 0) return EMPTY_U32;
   const bytes = decompressLz4Block(data);
   const result = new Uint32Array(
     bytes.buffer,
@@ -48,7 +52,7 @@ function decompressToInt32Array(
   data: Uint8Array,
   transferables?: ArrayBuffer[]
 ): Int32Array {
-  if (!data || data.length === 0) return new Int32Array(0);
+  if (!data || data.length === 0) return EMPTY_I32;
   const bytes = decompressLz4Block(data);
   const result = new Int32Array(
     bytes.buffer,
@@ -65,7 +69,7 @@ function decompressToFloat32Array(
   data: Uint8Array,
   transferables: ArrayBuffer[]
 ): Float32Array {
-  if (!data || data.length === 0) return new Float32Array(0);
+  if (!data || data.length === 0) return EMPTY_F32;
   const bytes = decompressLz4Block(data);
   const result = new Float32Array(
     bytes.buffer,
