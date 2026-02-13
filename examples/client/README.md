@@ -92,7 +92,7 @@ Client aggregate JSON reports include `totalSteps`, `passedStepCount`, `failedSt
 Skipped JSON steps are represented with `skipped: true` and `exitCode: null`.
 If `--output` is provided without a value, commands fail fast. JSON commands return a structured error report; non-JSON commands print a plain error message.
 When `--output` is valid, JSON validation-error reports are also written to that output path.
-If `--output` is passed multiple times, the last value is used.
+If `--output` is passed multiple times, the last value is used, even when recognized strict tokens appear between repeated output flags.
 Empty or whitespace-only split/inline output values (for example `--output ""`, `--output "   "`, `--output=`, or `--output=   `) are treated as missing values.
 If a split output value position is followed by a recognized option token (for example `--output --json`), that token is treated as an option and the output value is considered missing.
 For client/onboarding/wasm preflight commands, `--output --verify` and `--output --no-build` both fail output validation and still activate no-build behavior.

@@ -248,7 +248,7 @@ JSON preflight commands include `startedAt`, `endedAt`, and `durationMs`.
 Client and onboarding JSON reports also include `totalSteps`, `passedStepCount`, `failedStepCount`, `skippedStepCount`, and `firstFailedStep`.
 If `--output` is provided without a value, commands fail fast. JSON commands return a structured error report; non-JSON commands print a plain error message.
 When `--output` is valid, JSON validation-error reports are also written to that output path.
-If `--output` or `--only` is passed multiple times, the last value is used.
+If `--output` or `--only` is passed multiple times, the last value is used, even when recognized strict tokens appear between repeated flags.
 `--output` and `--only` also support inline assignment forms such as `--output=./report.json` and `--only=client`.
 Empty or whitespace-only split/inline output and selection values (for example `--output ""`, `--output "   "`, `--output=`, `--output=   `, `--only ""`, `--only "   "`, `--only=`, or `--only=   `) are treated as missing values.
 Invalid `--only` errors include available canonical check names and special selector aliases (for example `all`, `all-checks`, `all_checks`, `allchecks`) for quick correction.
