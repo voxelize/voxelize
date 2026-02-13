@@ -6798,12 +6798,25 @@ export class World<T = any> extends Scene implements NetIntercept {
     const vzValues = new Array<number>(updateCount);
     const voxelValues = new Array<number>(updateCount);
     const lightValues = new Array<number>(updateCount);
+    let blockCache: Map<number, Block> | null = null;
+    const getCachedBlock = (id: number) => {
+      if (!blockCache) {
+        blockCache = new Map();
+      }
+
+      let block = blockCache.get(id);
+      if (!block) {
+        block = this.getBlockById(id);
+        blockCache.set(id, block);
+      }
+      return block;
+    };
 
     for (let index = 0; index < updateCount; index++) {
       const update = this.blockUpdatesToEmit[this.blockUpdatesToEmitHead + index];
       const { type, rotation, yRotation, stage } = update;
 
-      const block = this.getBlockById(type);
+      const block = getCachedBlock(type);
 
       let raw = 0;
       raw = BlockUtils.insertID(raw, type);
