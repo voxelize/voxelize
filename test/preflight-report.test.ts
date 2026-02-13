@@ -63,6 +63,9 @@ type PreflightReport = {
   availableSpecialSelectorResolvedChecks: {
     all: string[];
   };
+  requestedCheckResolutionKinds: Array<
+    RequestedCheckResolution["kind"]
+  >;
   passedChecks: string[];
   failedChecks: string[];
   failureSummaries: PreflightFailureSummary[];
@@ -95,6 +98,9 @@ const expectedAvailableSpecialCheckSelectors = ["all"];
 const expectedAvailableSpecialSelectorResolvedChecks = {
   all: ["devEnvironment", "wasmPack", "client"],
 };
+const expectedRequestedCheckResolutionKinds: Array<
+  RequestedCheckResolution["kind"]
+> = ["check", "specialSelector", "invalid"];
 const expectedUsedAllSpecialSelector = ["all"];
 
 describe("preflight aggregate report", () => {
@@ -131,6 +137,9 @@ describe("preflight aggregate report", () => {
     );
     expect(report.availableSpecialSelectorResolvedChecks).toEqual(
       expectedAvailableSpecialSelectorResolvedChecks
+    );
+    expect(report.requestedCheckResolutionKinds).toEqual(
+      expectedRequestedCheckResolutionKinds
     );
     expect(report.selectionMode).toBe("default");
     expect(report.specialSelectorsUsed).toEqual([]);
@@ -956,6 +965,9 @@ describe("preflight aggregate report", () => {
     expect(report.availableSpecialSelectorResolvedChecks).toEqual(
       expectedAvailableSpecialSelectorResolvedChecks
     );
+    expect(report.requestedCheckResolutionKinds).toEqual(
+      expectedRequestedCheckResolutionKinds
+    );
     expect(result.status).toBe(1);
   });
 
@@ -1032,6 +1044,9 @@ describe("preflight aggregate report", () => {
     expect(report.availableSpecialSelectorResolvedChecks).toEqual(
       expectedAvailableSpecialSelectorResolvedChecks
     );
+    expect(report.requestedCheckResolutionKinds).toEqual(
+      expectedRequestedCheckResolutionKinds
+    );
     expect(result.status).toBe(1);
   });
 
@@ -1070,6 +1085,9 @@ describe("preflight aggregate report", () => {
     );
     expect(report.availableSpecialSelectorResolvedChecks).toEqual(
       expectedAvailableSpecialSelectorResolvedChecks
+    );
+    expect(report.requestedCheckResolutionKinds).toEqual(
+      expectedRequestedCheckResolutionKinds
     );
     expect(report.availableSpecialCheckSelectors).toEqual(
       expectedAvailableSpecialCheckSelectors
@@ -1110,6 +1128,9 @@ describe("preflight aggregate report", () => {
     );
     expect(report.availableSpecialSelectorResolvedChecks).toEqual(
       expectedAvailableSpecialSelectorResolvedChecks
+    );
+    expect(report.requestedCheckResolutionKinds).toEqual(
+      expectedRequestedCheckResolutionKinds
     );
     expect(report.availableSpecialCheckSelectors).toEqual(
       expectedAvailableSpecialCheckSelectors
@@ -1180,6 +1201,9 @@ describe("preflight aggregate report", () => {
     );
     expect(report.availableSpecialSelectorResolvedChecks).toEqual(
       expectedAvailableSpecialSelectorResolvedChecks
+    );
+    expect(report.requestedCheckResolutionKinds).toEqual(
+      expectedRequestedCheckResolutionKinds
     );
     expect(report.availableSpecialCheckSelectors).toEqual(
       expectedAvailableSpecialCheckSelectors

@@ -57,6 +57,7 @@ const availableSpecialCheckAliases = {
   all: ["all", "all-checks", "all_checks", "allchecks"],
 };
 const availableSpecialCheckSelectors = Object.keys(availableSpecialCheckAliases);
+const requestedCheckResolutionKinds = ["check", "specialSelector", "invalid"];
 const specialSelectorChecks = {
   all: availableCheckNames,
 };
@@ -296,6 +297,7 @@ if (outputPathError !== null || selectedChecksError !== null) {
     availableSpecialCheckSelectors,
     availableSpecialCheckAliases,
     availableSpecialSelectorResolvedChecks,
+    requestedCheckResolutionKinds,
   });
   const { reportJson } = serializeReportWithOptionalWrite(report, {
     jsonFormat,
@@ -336,6 +338,7 @@ if (isListChecks) {
     availableSpecialCheckSelectors,
     availableSpecialCheckAliases,
     availableSpecialSelectorResolvedChecks,
+    requestedCheckResolutionKinds,
   });
   const { reportJson, writeError } = serializeReportWithOptionalWrite(report, {
     jsonFormat,
@@ -393,6 +396,7 @@ const report = buildTimedReport({
   availableSpecialCheckSelectors,
   availableSpecialCheckAliases,
   availableSpecialSelectorResolvedChecks,
+  requestedCheckResolutionKinds,
 });
 const { reportJson, writeError } = serializeReportWithOptionalWrite(report, {
   jsonFormat,
