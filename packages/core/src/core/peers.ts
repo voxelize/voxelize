@@ -334,7 +334,7 @@ export class Peers<
         ...this.ownMetadata,
         position: [px, py, pz],
         direction: [direction.x, direction.y, direction.z],
-      } as any as T,
+      } as T,
     } as PeerProtocol<T>;
   }
 
