@@ -3887,7 +3887,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const loadedCount = this.chunkPipeline.loadedCount;
 
     const ratio = total === 0 ? 1 : loadedCount / total;
-    const hasDirection = direction.length() > 0;
+    const hasDirection = direction.lengthSq() > 0;
 
     const angleThreshold =
       ratio === 1
@@ -3970,13 +3970,14 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const toRequest = toRequestCandidates.slice(0, maxChunkRequestsPerUpdate);
     if (toRequest.length) {
+      const directionPayload = hasDirection
+        ? new Vector2(direction.x, direction.z).normalize().toArray()
+        : [0, 0];
       this.packets.push({
         type: "LOAD",
         json: {
           center,
-          direction: new Vector2(direction.x, direction.z)
-            .normalize()
-            .toArray(),
+          direction: directionPayload,
           chunks: toRequest,
         },
       });
