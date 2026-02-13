@@ -117,9 +117,11 @@ export class LightSourceRegistry {
     const maxZ = Math.floor((center.z + radius) / regionSize);
 
     for (let x = minX; x <= maxX; x++) {
+      const xPrefix = `${x}|`;
       for (let y = minY; y <= maxY; y++) {
+        const xyPrefix = `${xPrefix}${y}|`;
         for (let z = minZ; z <= maxZ; z++) {
-          this.dirtyRegions.add(`${x}|${y}|${z}`);
+          this.dirtyRegions.add(`${xyPrefix}${z}`);
         }
       }
     }
