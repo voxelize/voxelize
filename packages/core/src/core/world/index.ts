@@ -4993,28 +4993,32 @@ export class World<T = any> extends Scene implements NetIntercept {
         newBlock,
         newRotation
       );
+      const sourceSunlightLevel = this.getSunlightAt(vx, vy, vz);
+      const sourceRedLevel = this.getTorchLightAt(vx, vy, vz, "RED");
+      const sourceGreenLevel = this.getTorchLightAt(vx, vy, vz, "GREEN");
+      const sourceBlueLevel = this.getTorchLightAt(vx, vy, vz, "BLUE");
 
       if (newBlock.isOpaque || newBlock.lightReduce) {
-        if (this.getSunlightAt(vx, vy, vz) > 0) {
+        if (sourceSunlightLevel > 0) {
           sunlightRemoval.push(voxel);
         }
-        if (this.getTorchLightAt(vx, vy, vz, "RED") > 0) {
+        if (sourceRedLevel > 0) {
           redRemoval.push(voxel);
         }
-        if (this.getTorchLightAt(vx, vy, vz, "GREEN") > 0) {
+        if (sourceGreenLevel > 0) {
           greenRemoval.push(voxel);
         }
-        if (this.getTorchLightAt(vx, vy, vz, "BLUE") > 0) {
+        if (sourceBlueLevel > 0) {
           blueRemoval.push(voxel);
         }
       } else {
         let removeCount = 0;
 
         const lightData = [
-          [SUNLIGHT, this.getSunlightAt(vx, vy, vz)],
-          [RED_LIGHT, this.getTorchLightAt(vx, vy, vz, "RED")],
-          [GREEN_LIGHT, this.getTorchLightAt(vx, vy, vz, "GREEN")],
-          [BLUE_LIGHT, this.getTorchLightAt(vx, vy, vz, "BLUE")],
+          [SUNLIGHT, sourceSunlightLevel],
+          [RED_LIGHT, sourceRedLevel],
+          [GREEN_LIGHT, sourceGreenLevel],
+          [BLUE_LIGHT, sourceBlueLevel],
         ] as const;
 
         for (const [ox, oy, oz] of VOXEL_NEIGHBORS) {
@@ -5083,16 +5087,16 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
 
         if (removeCount === 0) {
-          if (this.getSunlightAt(vx, vy, vz) !== 0) {
+          if (sourceSunlightLevel !== 0) {
             sunlightRemoval.push(voxel);
           }
-          if (this.getTorchLightAt(vx, vy, vz, "RED") !== 0) {
+          if (sourceRedLevel !== 0) {
             redRemoval.push(voxel);
           }
-          if (this.getTorchLightAt(vx, vy, vz, "GREEN") !== 0) {
+          if (sourceGreenLevel !== 0) {
             greenRemoval.push(voxel);
           }
-          if (this.getTorchLightAt(vx, vy, vz, "BLUE") !== 0) {
+          if (sourceBlueLevel !== 0) {
             blueRemoval.push(voxel);
           }
         }
