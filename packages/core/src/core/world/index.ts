@@ -6875,8 +6875,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       const block = getCachedBlock(type);
 
-      let raw = 0;
-      raw = BlockUtils.insertID(raw, type);
+      let raw = type & 0xffff;
       const hasRotation = rotation !== undefined && !Number.isNaN(rotation);
       const hasYRotation =
         yRotation !== undefined && !Number.isNaN(yRotation);
