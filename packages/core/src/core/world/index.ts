@@ -6204,14 +6204,10 @@ export class World<T = any> extends Scene implements NetIntercept {
   ) {
     const { maxLightLevel, chunkSize, minChunk, maxChunk, maxHeight } =
       this.options;
-    const boundsConfig = {
-      maxLightLevel,
-      minVoxelX: minChunk[0] * chunkSize,
-      minVoxelZ: minChunk[1] * chunkSize,
-      maxVoxelX: (maxChunk[0] + 1) * chunkSize - 1,
-      maxVoxelZ: (maxChunk[1] + 1) * chunkSize - 1,
-      maxHeight,
-    };
+    const minVoxelX = minChunk[0] * chunkSize;
+    const minVoxelZ = minChunk[1] * chunkSize;
+    const maxVoxelX = (maxChunk[0] + 1) * chunkSize - 1;
+    const maxVoxelZ = (maxChunk[1] + 1) * chunkSize - 1;
     const batchId = this.lightBatchIdCounter++;
     let queuedJobs = 0;
 
@@ -6233,7 +6229,12 @@ export class World<T = any> extends Scene implements NetIntercept {
         floods,
         startSequenceId,
         batchId,
-        boundsConfig
+        maxLightLevel,
+        minVoxelX,
+        minVoxelZ,
+        maxVoxelX,
+        maxVoxelZ,
+        maxHeight
       );
       if (job) {
         this.lightJobQueue.push(job);
@@ -6253,14 +6254,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     floods: LightNode[],
     startSequenceId: number,
     batchId: number,
-    boundsConfig: {
-      maxLightLevel: number;
-      minVoxelX: number;
-      minVoxelZ: number;
-      maxVoxelX: number;
-      maxVoxelZ: number;
-      maxHeight: number;
-    }
+    maxLightLevel: number,
+    minVoxelX: number,
+    minVoxelZ: number,
+    maxVoxelX: number,
+    maxVoxelZ: number,
+    maxHeight: number
   ): LightJob | null {
     if (removals.length === 0 && floods.length === 0) {
       return null;
@@ -6299,15 +6298,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       if (y > maxY) maxY = y;
       if (z > maxZ) maxZ = z;
     }
-
-    const {
-      maxLightLevel,
-      minVoxelX,
-      minVoxelZ,
-      maxVoxelX,
-      maxVoxelZ,
-      maxHeight,
-    } = boundsConfig;
 
     minX -= maxLightLevel;
     minZ -= maxLightLevel;
