@@ -81,6 +81,8 @@ pnpm install
 pnpm run check:dev-env
 # quiet mode (errors only)
 pnpm run check:dev-env -- --quiet
+# json output (for CI integrations)
+pnpm run check:dev-env:json
 
 # verify wasm-pack setup
 pnpm run check:wasm-pack

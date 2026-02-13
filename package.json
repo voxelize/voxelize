@@ -8,6 +8,7 @@
     "watch:wasm": "cargo watch -w crates/wasm-mesher/src -w crates/mesher/src -w crates/core/src -s 'pnpm build:wasm:release'",
     "demo": "pnpm run build:wasm:dev && npm-run-all --parallel \"demo:ts\" \"demo:rs\"",
     "check:dev-env": "node ./check-dev-env.mjs",
+    "check:dev-env:json": "node ./check-dev-env.mjs --json",
     "check:wasm-pack": "node ./check-wasm-pack.mjs",
     "build:wasm": "node ./check-wasm-pack.mjs && cd crates/wasm-mesher && wasm-pack build --target web",
     "build:wasm:dev": "node ./check-wasm-pack.mjs && cd crates/wasm-mesher && wasm-pack build --target web --dev",
