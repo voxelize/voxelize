@@ -1934,12 +1934,14 @@ fn extract_greedy_quads_dense(
             let start_index = row_start + u_off;
             if let Some(data) = mask[start_index].take() {
                 let mut quad_width = 1usize;
-                while u_off + quad_width < width {
-                    let neighbor_index = start_index + quad_width;
+                let mut next_u_off = u_off + 1;
+                while next_u_off < width {
+                    let neighbor_index = row_start + next_u_off;
                     if let Some(neighbor) = mask[neighbor_index].as_ref() {
                         if neighbor.key == data.key {
                             mask[neighbor_index] = None;
                             quad_width += 1;
+                            next_u_off += 1;
                         } else {
                             break;
                         }
