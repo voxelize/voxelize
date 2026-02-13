@@ -383,10 +383,11 @@ export class Network {
       const intercept = this.intercepts[i];
       const packets = intercept.packets;
       if (packets && packets.length) {
-        const toSend = packets.splice(0, packets.length);
-        for (let j = 0; j < toSend.length; j++) {
-          this.send(toSend[j]);
+        const packetCount = packets.length;
+        for (let j = 0; j < packetCount; j++) {
+          this.send(packets[j]);
         }
+        packets.length = 0;
       }
     }
   };
