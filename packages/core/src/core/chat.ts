@@ -651,10 +651,14 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       string
     >();
 
-    for (const [trigger, commandInfo] of this.commands) {
+    let commandEntries = this.commands.entries();
+    let commandEntry = commandEntries.next();
+    while (!commandEntry.done) {
+      const [trigger, commandInfo] = commandEntry.value;
       if (!uniqueCommands.has(commandInfo)) {
         uniqueCommands.set(commandInfo, trigger);
       }
+      commandEntry = commandEntries.next();
     }
 
     const result: Array<{
@@ -665,7 +669,10 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       flags: string[];
       args: ArgMetadata[];
     }> = [];
-    for (const [commandInfo, primaryTrigger] of uniqueCommands) {
+    let uniqueEntries = uniqueCommands.entries();
+    let uniqueEntry = uniqueEntries.next();
+    while (!uniqueEntry.done) {
+      const [commandInfo, primaryTrigger] = uniqueEntry.value;
       result.push({
         trigger: primaryTrigger,
         description: commandInfo.description,
@@ -676,6 +683,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
           ? this.extractArgMetadata(commandInfo.args, commandInfo.tabComplete)
           : [],
       });
+      uniqueEntry = uniqueEntries.next();
     }
 
     return result.sort((a, b) => a.trigger.localeCompare(b.trigger));
