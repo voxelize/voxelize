@@ -1092,6 +1092,18 @@ describe("client wasm preflight script", () => {
     expect(output).toContain("Missing value for --output option.");
   });
 
+  it("fails in non-json mode for inline empty output values", () => {
+    const result = spawnSync(process.execPath, [wasmMesherScript, "--output="], {
+      cwd: rootDir,
+      encoding: "utf8",
+      shell: false,
+    });
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output).toContain("Missing value for --output option.");
+  });
+
   it("prioritizes missing output values over unsupported options in non-json mode", () => {
     const result = spawnSync(
       process.execPath,
@@ -1113,6 +1125,23 @@ describe("client wasm preflight script", () => {
     const result = spawnSync(
       process.execPath,
       [wasmMesherScript, "--mystery", "--output=   "],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output).toContain("Missing value for --output option.");
+    expect(output).not.toContain("Unsupported option(s):");
+  });
+
+  it("prioritizes inline empty output values over unsupported options in non-json mode", () => {
+    const result = spawnSync(
+      process.execPath,
+      [wasmMesherScript, "--mystery", "--output="],
       {
         cwd: rootDir,
         encoding: "utf8",
