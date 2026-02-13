@@ -1170,17 +1170,18 @@ fn should_render_face<S: VoxelAccess>(
     registry: &Registry,
     see_through: bool,
 ) -> bool {
+    let is_opaque = block.is_opaque;
+    if !see_through && !is_opaque {
+        return true;
+    }
+
     let nvx = vx + dir[0];
     let nvy = vy + dir[1];
     let nvz = vz + dir[2];
 
     let neighbor_id = space.get_voxel(nvx, nvy, nvz);
-    let is_opaque = block.is_opaque;
 
     if !see_through {
-        if !is_opaque {
-            return true;
-        }
         if registry.is_opaque_id(neighbor_id) {
             return false;
         }
