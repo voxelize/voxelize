@@ -1380,6 +1380,7 @@ fn should_render_face<S: VoxelAccess>(
     space: &S,
     registry: &Registry,
     see_through: bool,
+    zero_is_empty: bool,
 ) -> bool {
     let is_opaque = block.is_opaque;
     if !see_through && !is_opaque {
@@ -1391,6 +1392,9 @@ fn should_render_face<S: VoxelAccess>(
     let nvz = vz + dir[2];
 
     let neighbor_id = extract_id(space.get_raw_voxel(nvx, nvy, nvz));
+    if neighbor_id == 0 && zero_is_empty {
+        return true;
+    }
 
     if !see_through {
         let (neighbor_has_type, neighbor_is_opaque) = registry.has_type_and_is_opaque(neighbor_id);
@@ -2911,6 +2915,10 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
 ) -> Vec<GeometryProtocol> {
     let mut map: HashMap<GeometryMapKey, GeometryProtocol> =
         HashMap::with_capacity(estimate_geometry_capacity(min, max));
+    let zero_is_empty = registry
+        .get_block_by_id(0)
+        .map(|block| block.is_empty)
+        .unwrap_or(true);
     let mut processed_non_greedy: HashSet<(i32, i32, i32)> = HashSet::new();
 
     let [min_x, min_y, min_z] = *min;
@@ -3115,6 +3123,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         space,
                         registry,
                         is_see_through,
+                        zero_is_empty,
                     );
 
                     if !should_render {
@@ -3741,6 +3750,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         space,
                         registry,
                         is_see_through,
+                        zero_is_empty,
                     );
 
                     if !should_render {
