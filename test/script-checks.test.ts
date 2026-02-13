@@ -748,6 +748,32 @@ describe("root preflight scripts", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("check-wasm-pack json mode reports validation output write failures with details", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-wasm-pack-validation-write-failure-")
+    );
+
+    const result = runScript("check-wasm-pack.mjs", [
+      "--json",
+      "--mystery",
+      "--output",
+      tempDirectory,
+    ]);
+    const report = JSON.parse(result.output) as WasmPackJsonReport;
+    const failurePrefix = `Failed to write report to ${tempDirectory}.`;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.outputPath).toBe(tempDirectory);
+    expect(report.unknownOptions).toEqual(["--mystery"]);
+    expect(report.writeError).toContain(failurePrefix);
+    expect(report.message).toContain(failurePrefix);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("check-wasm-pack ignores option-like tokens after option terminator", () => {
     const result = runScript("check-wasm-pack.mjs", ["--json", "--", "--output"]);
     const report = JSON.parse(result.output) as WasmPackJsonReport;
@@ -1267,6 +1293,32 @@ describe("root preflight scripts", () => {
     expect(stdoutReport.outputPath).toBe(outputPath);
     expect(stdoutReport.unknownOptions).toEqual(["--mystery"]);
     expect(fileReport).toEqual(stdoutReport);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("check-dev-env json mode reports validation output write failures with details", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-dev-env-validation-write-failure-")
+    );
+
+    const result = runScript("check-dev-env.mjs", [
+      "--json",
+      "--mystery",
+      "--output",
+      tempDirectory,
+    ]);
+    const report = JSON.parse(result.output) as DevEnvJsonReport;
+    const failurePrefix = `Failed to write report to ${tempDirectory}.`;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.outputPath).toBe(tempDirectory);
+    expect(report.unknownOptions).toEqual(["--mystery"]);
+    expect(report.writeError).toContain(failurePrefix);
+    expect(report.message).toContain(failurePrefix);
     expect(result.status).toBe(1);
 
     fs.rmSync(tempDirectory, { recursive: true, force: true });
@@ -1921,6 +1973,33 @@ describe("root preflight scripts", () => {
     expect(stdoutReport.unknownOptions).toEqual(["--mystery"]);
     expect(stdoutReport.totalSteps).toBe(0);
     expect(fileReport).toEqual(stdoutReport);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("check-client json mode reports validation output write failures with details", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-client-validation-write-failure-")
+    );
+
+    const result = runScript("check-client.mjs", [
+      "--json",
+      "--mystery",
+      "--output",
+      tempDirectory,
+    ]);
+    const report = JSON.parse(result.output) as ClientJsonReport;
+    const failurePrefix = `Failed to write report to ${tempDirectory}.`;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.outputPath).toBe(tempDirectory);
+    expect(report.unknownOptions).toEqual(["--mystery"]);
+    expect(report.totalSteps).toBe(0);
+    expect(report.writeError).toContain(failurePrefix);
+    expect(report.message).toContain(failurePrefix);
     expect(result.status).toBe(1);
 
     fs.rmSync(tempDirectory, { recursive: true, force: true });
@@ -2642,6 +2721,33 @@ describe("root preflight scripts", () => {
     expect(stdoutReport.unknownOptions).toEqual(["--mystery"]);
     expect(stdoutReport.totalSteps).toBe(0);
     expect(fileReport).toEqual(stdoutReport);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("check-onboarding json mode reports validation output write failures with details", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-onboarding-validation-write-failure-")
+    );
+
+    const result = runScript("check-onboarding.mjs", [
+      "--json",
+      "--mystery",
+      "--output",
+      tempDirectory,
+    ]);
+    const report = JSON.parse(result.output) as OnboardingJsonReport;
+    const failurePrefix = `Failed to write report to ${tempDirectory}.`;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.outputPath).toBe(tempDirectory);
+    expect(report.unknownOptions).toEqual(["--mystery"]);
+    expect(report.totalSteps).toBe(0);
+    expect(report.writeError).toContain(failurePrefix);
+    expect(report.message).toContain(failurePrefix);
     expect(result.status).toBe(1);
 
     fs.rmSync(tempDirectory, { recursive: true, force: true });

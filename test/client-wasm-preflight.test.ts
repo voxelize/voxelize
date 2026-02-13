@@ -830,6 +830,35 @@ describe("client wasm preflight script", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("reports validation output write failures with details", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-wasm-mesher-validation-write-failure-")
+    );
+
+    const result = spawnSync(
+      process.execPath,
+      [wasmMesherScript, "--json", "--mystery", "--output", tempDirectory],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const report = JSON.parse(`${result.stdout}${result.stderr}`) as WasmMesherJsonReport;
+    const failurePrefix = `Failed to write report to ${tempDirectory}.`;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.outputPath).toBe(tempDirectory);
+    expect(report.unknownOptions).toEqual(["--mystery"]);
+    expect(report.writeError).toContain(failurePrefix);
+    expect(report.message).toContain(failurePrefix);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("ignores option-like tokens after option terminator", () => {
     const result = spawnSync(
       process.execPath,
