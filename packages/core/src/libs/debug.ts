@@ -85,6 +85,8 @@ type DebugSource = DebugTrackedObject | DebugSyncGetter | DebugAsyncGetter;
 type DebugFormatter = (value: DebugValue) => string;
 type DebugDataEntry = {
   element: HTMLParagraphElement;
+  labelElement: HTMLSpanElement | null;
+  valueElement: HTMLSpanElement | null;
   object?: DebugSource;
   attribute?: PropertyKey;
   title: string;
@@ -195,6 +197,8 @@ export class Debug extends Group {
     formatter: DebugFormatter = (value) => `${value ?? ""}`
   ) => {
     const wrapper = this.makeDataEntry();
+    let labelElement: HTMLSpanElement | null = null;
+    let valueElement: HTMLSpanElement | null = null;
 
     if (title) {
       const labelSpan = document.createElement("span");
@@ -206,11 +210,15 @@ export class Debug extends Group {
 
       wrapper.appendChild(labelSpan);
       wrapper.appendChild(valueSpan);
+      labelElement = labelSpan;
+      valueElement = valueSpan;
     }
 
     const newEntry = {
       title,
       element: wrapper,
+      labelElement,
+      valueElement,
       object: object,
       formatter,
       attribute,
@@ -343,13 +351,12 @@ export class Debug extends Group {
       const formattedValue = formatter(newValue);
 
       if (title) {
-        const labelSpan = element.querySelector(".debug-label");
-        const valueSpan = element.querySelector(".debug-value");
+        const { labelElement, valueElement } = entries[entryIndex];
 
-        if (labelSpan && valueSpan) {
+        if (labelElement && valueElement) {
           const newValueText = formattedValue;
-          if (valueSpan.textContent !== newValueText) {
-            valueSpan.textContent = newValueText;
+          if (valueElement.textContent !== newValueText) {
+            valueElement.textContent = newValueText;
           }
         } else {
           const wholeString = `${title}: ${formattedValue}`;
