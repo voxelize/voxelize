@@ -9,8 +9,11 @@ export function findSimilar(
 ): string[] {
   const { maxSuggestions = 3 } = options;
   const targetLower = target.toLowerCase();
+  const targetParts = targetLower.split(/[-_]/);
+  const scored: Array<{ name: string; score: number }> = [];
 
-  const scored = available.map((name) => {
+  for (let nameIndex = 0; nameIndex < available.length; nameIndex++) {
+    const name = available[nameIndex];
     const nameLower = name.toLowerCase();
     let score = 0;
 
@@ -18,10 +21,11 @@ export function findSimilar(
       score += 10;
     }
 
-    const targetParts = targetLower.split(/[-_]/);
     const nameParts = nameLower.split(/[-_]/);
-    for (const tp of targetParts) {
-      for (const np of nameParts) {
+    for (let targetPartIndex = 0; targetPartIndex < targetParts.length; targetPartIndex++) {
+      const tp = targetParts[targetPartIndex];
+      for (let namePartIndex = 0; namePartIndex < nameParts.length; namePartIndex++) {
+        const np = nameParts[namePartIndex];
         if (tp === np) score += 5;
         else if (tp.includes(np) || np.includes(tp)) score += 2;
       }
@@ -29,14 +33,22 @@ export function findSimilar(
 
     if (targetLower[0] === nameLower[0]) score += 1;
 
-    return { name, score };
-  });
+    if (score > 0) {
+      scored.push({ name, score });
+    }
+  }
 
-  return scored
-    .filter((s) => s.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, maxSuggestions)
-    .map((s) => s.name);
+  scored.sort((a, b) => b.score - a.score);
+  if (scored.length > maxSuggestions) {
+    scored.length = maxSuggestions;
+  }
+
+  const suggestions = new Array<string>(scored.length);
+  for (let index = 0; index < scored.length; index++) {
+    suggestions[index] = scored[index].name;
+  }
+
+  return suggestions;
 }
 
 export type FormatSuggestionOptions = {
@@ -51,10 +63,24 @@ export function formatSuggestion(
   const { maxFallbackItems = 10 } = options;
 
   if (suggestions.length > 0) {
-    return ` Maybe you meant: ${suggestions.map((s) => `"${s}"`).join(", ")}?`;
+    let output = " Maybe you meant: ";
+    for (let index = 0; index < suggestions.length; index++) {
+      if (index > 0) {
+        output += ", ";
+      }
+      output += `"${suggestions[index]}"`;
+    }
+    return `${output}?`;
   }
 
   const truncated = allAvailable.slice(0, maxFallbackItems);
   const suffix = allAvailable.length > maxFallbackItems ? "..." : "";
-  return ` Available: ${truncated.map((s) => `"${s}"`).join(", ")}${suffix}`;
+  let availableText = " Available: ";
+  for (let index = 0; index < truncated.length; index++) {
+    if (index > 0) {
+      availableText += ", ";
+    }
+    availableText += `"${truncated[index]}"`;
+  }
+  return `${availableText}${suffix}`;
 }
