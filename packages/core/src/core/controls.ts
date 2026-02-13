@@ -619,7 +619,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    * @options namespace The namespace to bind the controls to.
    */
   connect = (inputs: Inputs, namespace = "*") => {
-    const unbinds = [];
+    const unbinds: Array<() => void> = [];
     const mouseMoveHandler = (event: MouseEvent) => this.onMouseMove(event);
     const pointerLockChangeHandler = (e: Event) => {
       e.preventDefault();
@@ -652,17 +652,18 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       this.domElement.removeEventListener("click", documentClickHandler);
     });
 
-    const keyMappings = {
-      KeyW: "front",
-      KeyA: "left",
-      KeyS: "back",
-      KeyD: "right",
-      Space: "up",
-      ShiftLeft: "down",
-      KeyR: "sprint",
-    };
+    const keyMappings: Array<[string, keyof typeof this.movements]> = [
+      ["KeyW", "front"],
+      ["KeyA", "left"],
+      ["KeyS", "back"],
+      ["KeyD", "right"],
+      ["Space", "up"],
+      ["ShiftLeft", "down"],
+      ["KeyR", "sprint"],
+    ];
 
-    Object.entries(keyMappings).forEach(([code, movement]) => {
+    for (let mappingIndex = 0; mappingIndex < keyMappings.length; mappingIndex++) {
+      const [code, movement] = keyMappings[mappingIndex];
       unbinds.push(
         inputs.bind(
           code,
@@ -694,18 +695,19 @@ export class RigidControls extends EventEmitter implements NetIntercept {
           }
         )
       );
-    });
+    }
 
     this.inputs = inputs;
 
     return () => {
-      unbinds.forEach((unbind) => {
+      for (let unbindIndex = 0; unbindIndex < unbinds.length; unbindIndex++) {
+        const unbind = unbinds[unbindIndex];
         try {
           unbind();
         } catch (e) {
           /// Ignore
         }
-      });
+      }
     };
   };
 
