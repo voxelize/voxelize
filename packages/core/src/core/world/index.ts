@@ -5480,10 +5480,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         );
         this.blockUpdatesQueueHead += consumedCount;
         this.normalizeBlockUpdatesQueue();
-
-        for (const processedUpdate of processedClientUpdates) {
-          this.blockUpdatesToEmit.push(processedUpdate);
-        }
+        this.appendBlockUpdatesToEmit(processedClientUpdates);
 
         if (this.hasPendingBlockUpdates()) {
           requestAnimationFrame(processUpdatesInIdleTime);
@@ -5498,6 +5495,19 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     processUpdatesInIdleTime();
   };
+
+  private appendBlockUpdatesToEmit(updates: BlockUpdate[]) {
+    const updateCount = updates.length;
+    if (updateCount === 0) {
+      return;
+    }
+
+    const start = this.blockUpdatesToEmit.length;
+    this.blockUpdatesToEmit.length = start + updateCount;
+    for (let index = 0; index < updateCount; index++) {
+      this.blockUpdatesToEmit[start + index] = updates[index];
+    }
+  }
 
   private hasPendingBlockUpdates() {
     return this.blockUpdatesQueueHead < this.blockUpdatesQueue.length;
