@@ -129,13 +129,66 @@ export class ChunkUtils {
   static parseChunkNameAt = (name: string, concat = "|"): Coords2 => {
     const separatorIndex = name.indexOf(concat);
     if (separatorIndex < 0) {
-      return [parseInt(name, 10), Number.NaN];
+      return [ChunkUtils.parseSignedIntegerSegment(name, 0, name.length), Number.NaN];
     }
 
-    const cx = parseInt(name.slice(0, separatorIndex), 10);
-    const cz = parseInt(name.slice(separatorIndex + concat.length), 10);
+    const cx = ChunkUtils.parseSignedIntegerSegment(name, 0, separatorIndex);
+    const cz = ChunkUtils.parseSignedIntegerSegment(
+      name,
+      separatorIndex + concat.length,
+      name.length
+    );
 
     return [cx, cz];
+  };
+
+  private static parseSignedIntegerSegment = (
+    value: string,
+    start: number,
+    end: number
+  ) => {
+    let index = start;
+
+    while (index < end) {
+      const code = value.charCodeAt(index);
+      if (
+        code === 32 ||
+        code === 9 ||
+        code === 10 ||
+        code === 11 ||
+        code === 12 ||
+        code === 13
+      ) {
+        index++;
+      } else {
+        break;
+      }
+    }
+
+    let sign = 1;
+    if (index < end) {
+      const code = value.charCodeAt(index);
+      if (code === 45) {
+        sign = -1;
+        index++;
+      } else if (code === 43) {
+        index++;
+      }
+    }
+
+    let parsed = 0;
+    let hasDigit = false;
+    while (index < end) {
+      const digit = value.charCodeAt(index) - 48;
+      if (digit < 0 || digit > 9) {
+        break;
+      }
+      hasDigit = true;
+      parsed = parsed * 10 + digit;
+      index++;
+    }
+
+    return hasDigit ? parsed * sign : Number.NaN;
   };
 
   /**
