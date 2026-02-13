@@ -796,25 +796,26 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    * @param z Z-coordinate to look at.
    */
   lookAt = (x: number, y: number, z: number) => {
-    const vec = this.object.position
-      .clone()
-      .add(this.object.position.clone().sub(new Vector3(x, y, z)));
-    this.object.lookAt(vec);
+    const position = this.object.position;
+    this.vector.set(
+      position.x * 2 - x,
+      position.y * 2 - y,
+      position.z * 2 - z
+    );
+    this.object.lookAt(this.vector);
   };
 
   /**
    * Reset all of the control's movements.
    */
   resetMovements = () => {
-    this.movements = {
-      sprint: false,
-      front: false,
-      back: false,
-      left: false,
-      right: false,
-      down: false,
-      up: false,
-    };
+    this.movements.sprint = false;
+    this.movements.front = false;
+    this.movements.back = false;
+    this.movements.left = false;
+    this.movements.right = false;
+    this.movements.down = false;
+    this.movements.up = false;
   };
 
   /**
