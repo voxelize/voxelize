@@ -76,12 +76,13 @@ export class Entities extends Group implements NetIntercept {
     const { entities } = message;
 
     if (entities && entities.length) {
-      entities.forEach((entity) => {
+      for (let entityIndex = 0; entityIndex < entities.length; entityIndex++) {
+        const entity = entities[entityIndex];
         const { id, type, metadata, operation } = entity;
 
         // ignore all block entities as they are handled by world
         if (type.startsWith("block::")) {
-          return;
+          continue;
         }
 
         let object = this.map.get(id);
@@ -89,7 +90,7 @@ export class Entities extends Group implements NetIntercept {
         switch (operation) {
           case "CREATE": {
             if (object) {
-              return;
+              continue;
             }
 
             object = this.createEntityOfType(type, id);
@@ -110,7 +111,7 @@ export class Entities extends Group implements NetIntercept {
           case "DELETE": {
             if (!object) {
               console.warn(`Entity ${id} does not exist.`);
-              return;
+              continue;
             }
 
             this.map.delete(id);
@@ -121,7 +122,7 @@ export class Entities extends Group implements NetIntercept {
             break;
           }
         }
-      });
+      }
     }
   };
 
@@ -137,40 +138,41 @@ export class Entities extends Group implements NetIntercept {
     const renderDistSq =
       cameraPos && renderDistance ? renderDistance * renderDistance : 0;
 
-    this.map.forEach((entity) => {
+    for (const entity of this.map.values()) {
       if (renderDistSq > 0 && cameraPos && entity.setHidden) {
         const tooFar =
           entity.position.distanceToSquared(cameraPos) > renderDistSq;
         entity.setHidden(tooFar);
-        if (tooFar) return;
+        if (tooFar) continue;
       }
 
       entity.update?.();
-    });
+    }
   };
 
   snapAllToTarget = () => {
-    this.map.forEach((entity) => {
+    for (const entity of this.map.values()) {
       (entity as Entity & { snapToTarget?: () => void }).snapToTarget?.();
-    });
+    }
   };
 
   private createEntityOfType = (type: string, id: string) => {
-    if (!this.types.has(type)) {
+    const normalizedType = type.toLowerCase();
+    const EntityType = this.types.get(normalizedType);
+    if (!EntityType) {
       console.warn(`Entity type ${type} is not registered.`);
       return;
     }
 
-    const Entity = this.types.get(type.toLowerCase());
     let object;
     if (
-      typeof Entity === "function" &&
-      Entity.prototype &&
-      Entity.prototype.constructor
+      typeof EntityType === "function" &&
+      EntityType.prototype &&
+      EntityType.prototype.constructor
     ) {
-      object = new (Entity as new (id: string) => Entity)(id);
+      object = new (EntityType as new (id: string) => Entity)(id);
     } else {
-      object = (Entity as (id: string) => Entity)(id);
+      object = (EntityType as (id: string) => Entity)(id);
     }
     this.map.set(id, object);
     this.add(object);
