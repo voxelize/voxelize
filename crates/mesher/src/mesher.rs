@@ -1238,13 +1238,14 @@ fn should_render_face<S: VoxelAccess>(
         return !space.contains(nvx, nvy, nvz);
     }
 
+    if neighbor_id == voxel_id {
+        return !is_opaque && block.transparent_standalone;
+    }
+
     let (neighbor_has_type, neighbor_is_opaque) = registry.has_type_and_is_opaque(neighbor_id);
 
     if neighbor_is_opaque {
         return false;
-    }
-    if neighbor_id == voxel_id {
-        return !is_opaque && block.transparent_standalone;
     }
     if !is_opaque && neighbor_has_type {
         return true;
