@@ -127,6 +127,10 @@ const MAX_PENDING_BATCH_MESSAGES = 512;
 const reusableBoundsMin = new Int32Array(3);
 const reusableBoundsShape = new Uint32Array(3);
 const emptyUint32Array = new Uint32Array(0);
+const emptyTransferList: Transferable[] = [];
+const reusablePostMessageOptions: StructuredSerializeOptions = {
+  transfer: emptyTransferList,
+};
 
 const hasPendingBatchMessages = () =>
   pendingBatchMessagesHead < pendingBatchMessages.length;
@@ -511,16 +515,16 @@ const processBatchMessage = (message: LightBatchMessage) => {
     transferBuffers[index] = lights.buffer;
   }
 
+  reusablePostMessageOptions.transfer = transferBuffers;
   postMessage(
     {
       jobId,
       modifiedChunks,
       appliedDeltas: { lastSequenceId },
     },
-    {
-      transfer: transferBuffers,
-    }
+    reusablePostMessageOptions
   );
+  reusablePostMessageOptions.transfer = emptyTransferList;
 };
 
 onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
