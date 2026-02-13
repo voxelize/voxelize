@@ -778,8 +778,9 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       return;
     }
 
-    const [cx, cz] = ChunkUtils.mapVoxelToChunk(
-      [vx, 0, vz],
+    const [cx, cz] = ChunkUtils.mapVoxelToChunkAt(
+      vx,
+      vz,
       this.world.options.chunkSize
     );
     const chunk = this.world.getChunkByCoords(cx, cz);
@@ -787,7 +788,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       const maxHeight = this.world.getMaxHeightAt(vx, vz);
       this.teleport(Math.floor(vx), maxHeight + yOffset, Math.floor(vz));
     };
-    if (chunk.isReady) {
+    if (chunk?.isReady) {
       teleport();
     } else {
       this.world.addChunkInitListener([cx, cz], teleport);
@@ -1011,7 +1012,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    * The chunk that the client is situated in.
    */
   get chunk() {
-    return ChunkUtils.mapVoxelToChunk(this.voxel, this.world.options.chunkSize);
+    const [x, , z] = this.body.getPosition();
+    return ChunkUtils.mapVoxelToChunkAt(x, z, this.world.options.chunkSize);
   }
 
   /**
