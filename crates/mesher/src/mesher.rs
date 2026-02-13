@@ -1817,8 +1817,8 @@ fn process_face<S: VoxelAccess>(
     voxel_id: u32,
     rotation: &BlockRotation,
     face: &BlockFace,
+    uv_range: &UV,
     block: &Block,
-    uv_map: &HashMap<String, UV>,
     registry: &Registry,
     space: &S,
     neighbors: &NeighborCache,
@@ -1919,7 +1919,7 @@ fn process_face<S: VoxelAccess>(
         end_u,
         start_v,
         end_v,
-    } = uv_map.get(&face.name).cloned().unwrap_or_default();
+    } = uv_range.clone();
 
     let ndx = (positions.len() / 3) as i32;
     let mut face_aos = [0i32; 4];
@@ -2506,9 +2506,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     g
                 });
 
-                let mut uv_map = HashMap::new();
-                uv_map.insert(face.name.clone(), uv_range);
-
                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
                 let is_all_transparent = block.is_transparent[0]
                     && block.is_transparent[1]
@@ -2536,8 +2533,8 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     voxel_id,
                     &rotation,
                     &face,
+                    &uv_range,
                     &block,
-                    &uv_map,
                     registry,
                     space,
                     &neighbors,
@@ -2857,9 +2854,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     entry
                 });
 
-                let mut uv_map = HashMap::new();
-                uv_map.insert(face.name.clone(), face.range.clone());
-
                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
                 process_face(
                     vx,
@@ -2868,8 +2862,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     voxel_id,
                     &rotation,
                     &face,
+                    &face.range,
                     block,
-                    &uv_map,
                     registry,
                     space,
                     &neighbors,
@@ -2958,11 +2952,6 @@ pub fn mesh_space<S: VoxelAccess>(
                         block.faces.iter().cloned().map(|f| (f, false)).collect()
                     };
 
-                let mut uv_map = HashMap::new();
-                for (face, _) in &faces {
-                    uv_map.insert(face.name.clone(), face.range.clone());
-                }
-
                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
                 let is_all_transparent = block.is_transparent[0]
                     && block.is_transparent[1]
@@ -3006,8 +2995,8 @@ pub fn mesh_space<S: VoxelAccess>(
                         voxel_id,
                         &rotation,
                         face,
+                        &face.range,
                         block,
-                        &uv_map,
                         registry,
                         space,
                         &neighbors,
