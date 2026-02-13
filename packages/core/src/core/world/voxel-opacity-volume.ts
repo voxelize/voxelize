@@ -100,8 +100,14 @@ export class VoxelOpacityVolume {
     const texHeight = Math.round(this.gridRes.y);
     const texDepth = Math.round(this.gridRes.z);
 
-    for (const chunk of chunks.values()) {
-      if (!chunk.isReady) continue;
+    let chunkEntries = chunks.values();
+    let chunkEntry = chunkEntries.next();
+    while (!chunkEntry.done) {
+      const chunk = chunkEntry.value;
+      if (!chunk.isReady) {
+        chunkEntry = chunkEntries.next();
+        continue;
+      }
       this.writeChunkOpacity(
         chunk,
         registry,
@@ -110,6 +116,7 @@ export class VoxelOpacityVolume {
         texDepth,
         res
       );
+      chunkEntry = chunkEntries.next();
     }
 
     this.texture.needsUpdate = true;
