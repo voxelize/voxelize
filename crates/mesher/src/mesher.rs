@@ -2612,6 +2612,13 @@ fn process_face<S: VoxelAccess>(
         let dir_is_x = dir[0].abs() == 1;
         let dir_is_y = dir[1].abs() == 1;
         let is_cardinal_dir = dir != [0, 0, 0];
+        let cardinal_axis = if dir_is_x {
+            0
+        } else if dir_is_y {
+            1
+        } else {
+            2
+        };
         let center_opaque = neighbor_is_opaque(mask, 0, 0, 0);
         let block_min_x_eps = block_min[0] + 0.01;
         let block_min_y_eps = block_min[1] + 0.01;
@@ -2672,12 +2679,10 @@ fn process_face<S: VoxelAccess>(
                         }
 
                         if is_cardinal_dir {
-                            let is_face_plane_sample = if dir_is_x {
-                                ddx == 0
-                            } else if dir_is_y {
-                                ddy == 0
-                            } else {
-                                ddz == 0
+                            let is_face_plane_sample = match cardinal_axis {
+                                0 => ddx == 0,
+                                1 => ddy == 0,
+                                _ => ddz == 0,
                             };
                             if is_face_plane_sample && center_opaque {
                                 continue;
