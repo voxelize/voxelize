@@ -371,10 +371,15 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         if (argMeta?.type === "enum" && argMeta.options) {
           const options = argMeta.options;
           if (options.length <= 6) {
+            let allOptions = "";
+            for (let optionIndex = 0; optionIndex < options.length; optionIndex++) {
+              if (optionIndex > 0) {
+                allOptions += ", ";
+              }
+              allOptions += options[optionIndex];
+            }
             errorLines.push(
-              `$#FF6B6B$Invalid ${fieldName}. Valid options: $white$${options.join(
-                ", "
-              )}`
+              `$#FF6B6B$Invalid ${fieldName}. Valid options: $white$${allOptions}`
             );
           } else {
             let preview = "";
