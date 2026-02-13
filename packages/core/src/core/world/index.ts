@@ -1696,8 +1696,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   getChunkByCoords(cx: number, cz: number) {
     this.checkIsInitialized("get chunk by coords", false);
-    const name = ChunkUtils.getChunkNameAt(cx, cz);
-    return this.getChunkByName(name);
+    return this.chunkPipeline.getLoadedChunk(ChunkUtils.getChunkNameAt(cx, cz));
   }
 
   /**
@@ -1710,12 +1709,12 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   getChunkByPosition(px: number, py: number, pz: number) {
     this.checkIsInitialized("get chunk by position", false);
-    const [cx, cz] = ChunkUtils.mapVoxelToChunkAt(
+    const chunkName = ChunkUtils.getChunkNameByVoxel(
       px | 0,
       pz | 0,
       this.options.chunkSize
     );
-    return this.getChunkByCoords(cx, cz);
+    return this.chunkPipeline.getLoadedChunk(chunkName);
   }
 
   /**
