@@ -229,6 +229,29 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
+  it("supports separator-free alias forms", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--no-build", "--only", "wasmpack,devenvironment"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.selectedChecks).toEqual(["devEnvironment", "wasmPack"]);
+    expect(report.skippedChecks).toEqual(["client"]);
+    expect(report.checks.map((check) => check.name)).toEqual([
+      "devEnvironment",
+      "wasmPack",
+    ]);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
   it("uses the last only flag when multiple are provided", () => {
     const result = spawnSync(
       process.execPath,
