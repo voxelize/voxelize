@@ -21,6 +21,12 @@ fn create_test_registry() -> Registry {
     registry
 }
 
+fn create_test_mesher_registry(registry: &Registry) -> voxelize_mesher::Registry {
+    let mut mesher_registry = registry.to_mesher_registry();
+    mesher_registry.build_cache();
+    mesher_registry
+}
+
 #[test]
 fn test_mesh_empty_space() {
     let config = WorldConfig {
@@ -39,8 +45,11 @@ fn test_mesh_empty_space() {
 
     let min = Vec3(0, 0, 0);
     let max = Vec3(16, 16, 16);
+    let min_arr = [min.0, min.1, min.2];
+    let max_arr = [max.0, max.1, max.2];
+    let mesher_registry = create_test_mesher_registry(&registry);
 
-    let geometries = Mesher::mesh_space(&min, &max, &space, &registry);
+    let geometries = voxelize_mesher::mesh_space(&min_arr, &max_arr, &space, &mesher_registry);
 
     assert!(
         geometries.is_empty(),
@@ -75,8 +84,11 @@ fn test_mesh_single_block() {
 
     let min = Vec3(0, 0, 0);
     let max = Vec3(16, 16, 16);
+    let min_arr = [min.0, min.1, min.2];
+    let max_arr = [max.0, max.1, max.2];
+    let mesher_registry = create_test_mesher_registry(&registry);
 
-    let geometries = Mesher::mesh_space(&min, &max, &space, &registry);
+    let geometries = voxelize_mesher::mesh_space(&min_arr, &max_arr, &space, &mesher_registry);
 
     assert!(
         !geometries.is_empty(),
@@ -129,8 +141,11 @@ fn test_mesh_surrounded_block() {
 
     let min = Vec3(0, 0, 0);
     let max = Vec3(16, 16, 16);
+    let min_arr = [min.0, min.1, min.2];
+    let max_arr = [max.0, max.1, max.2];
+    let mesher_registry = create_test_mesher_registry(&registry);
 
-    let geometries = Mesher::mesh_space(&min, &max, &space, &registry);
+    let geometries = voxelize_mesher::mesh_space(&min_arr, &max_arr, &space, &mesher_registry);
 
     if geometries.is_empty() {
         return;
@@ -180,8 +195,11 @@ fn test_mesh_layer() {
 
     let min = Vec3(0, 0, 0);
     let max = Vec3(16, 16, 16);
+    let min_arr = [min.0, min.1, min.2];
+    let max_arr = [max.0, max.1, max.2];
+    let mesher_registry = create_test_mesher_registry(&registry);
 
-    let geometries = Mesher::mesh_space(&min, &max, &space, &registry);
+    let geometries = voxelize_mesher::mesh_space(&min_arr, &max_arr, &space, &mesher_registry);
 
     assert!(!geometries.is_empty(), "Layer should produce geometry");
 
@@ -256,8 +274,11 @@ fn test_mesh_produces_valid_geometry() {
 
     let min = Vec3(0, 0, 0);
     let max = Vec3(16, 16, 16);
+    let min_arr = [min.0, min.1, min.2];
+    let max_arr = [max.0, max.1, max.2];
+    let mesher_registry = create_test_mesher_registry(&registry);
 
-    let geometries = Mesher::mesh_space(&min, &max, &space, &registry);
+    let geometries = voxelize_mesher::mesh_space(&min_arr, &max_arr, &space, &mesher_registry);
 
     for geometry in geometries {
         assert_eq!(
@@ -311,9 +332,13 @@ fn test_greedy_meshing_layer() {
 
     let min = Vec3(0, 0, 0);
     let max = Vec3(16, 16, 16);
+    let min_arr = [min.0, min.1, min.2];
+    let max_arr = [max.0, max.1, max.2];
+    let mesher_registry = create_test_mesher_registry(&registry);
 
-    let greedy_geometries = Mesher::mesh_space_greedy(&min, &max, &space, &registry);
-    let naive_geometries = Mesher::mesh_space(&min, &max, &space, &registry);
+    let greedy_geometries =
+        voxelize_mesher::mesh_space_greedy(&min_arr, &max_arr, &space, &mesher_registry);
+    let naive_geometries = voxelize_mesher::mesh_space(&min_arr, &max_arr, &space, &mesher_registry);
 
     assert!(
         !greedy_geometries.is_empty(),
@@ -362,8 +387,12 @@ fn test_greedy_meshing_valid_geometry() {
 
     let min = Vec3(0, 0, 0);
     let max = Vec3(16, 16, 16);
+    let min_arr = [min.0, min.1, min.2];
+    let max_arr = [max.0, max.1, max.2];
+    let mesher_registry = create_test_mesher_registry(&registry);
 
-    let geometries = Mesher::mesh_space_greedy(&min, &max, &space, &registry);
+    let geometries =
+        voxelize_mesher::mesh_space_greedy(&min_arr, &max_arr, &space, &mesher_registry);
 
     for geometry in geometries {
         assert_eq!(
@@ -417,8 +446,11 @@ fn test_greedy_meshing_disabled() {
 
     let min = Vec3(0, 0, 0);
     let max = Vec3(16, 16, 16);
+    let min_arr = [min.0, min.1, min.2];
+    let max_arr = [max.0, max.1, max.2];
+    let mesher_registry = create_test_mesher_registry(&registry);
 
-    let geometries = Mesher::mesh_space(&min, &max, &space, &registry);
+    let geometries = voxelize_mesher::mesh_space(&min_arr, &max_arr, &space, &mesher_registry);
 
     assert!(
         !geometries.is_empty(),
