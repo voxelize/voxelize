@@ -6113,34 +6113,32 @@ export class World<T = any> extends Scene implements NetIntercept {
         const dataIndex = chunkDataIndex;
         chunkDataIndex++;
 
-        const chunkName = ChunkUtils.getChunkNameAt(cx, cz);
-        const allDeltas = this.voxelDeltas.get(chunkName);
-        if (allDeltas) {
-          const firstRelevantIndex = this.findFirstDeltaAfter(
-            allDeltas,
-            startSequenceId
-          );
-          if (firstRelevantIndex < allDeltas.length) {
-            const chunkLastSequenceId =
-              allDeltas[allDeltas.length - 1].sequenceId;
-            if (chunkLastSequenceId > lastRelevantSequenceId) {
-              lastRelevantSequenceId = chunkLastSequenceId;
-            }
-            relevantDeltas[relevantDeltaCount] = {
-              cx,
-              cz,
-              deltas:
-                firstRelevantIndex === 0
-                  ? allDeltas
-                  : allDeltas.slice(firstRelevantIndex),
-            };
-            relevantDeltaCount++;
-          }
-        }
-
         const chunk = this.getLoadedChunkByCoords(cx, cz);
-
         if (chunk && chunk.isReady) {
+          const allDeltas = this.voxelDeltas.get(chunk.name);
+          if (allDeltas) {
+            const firstRelevantIndex = this.findFirstDeltaAfter(
+              allDeltas,
+              startSequenceId
+            );
+            if (firstRelevantIndex < allDeltas.length) {
+              const chunkLastSequenceId =
+                allDeltas[allDeltas.length - 1].sequenceId;
+              if (chunkLastSequenceId > lastRelevantSequenceId) {
+                lastRelevantSequenceId = chunkLastSequenceId;
+              }
+              relevantDeltas[relevantDeltaCount] = {
+                cx,
+                cz,
+                deltas:
+                  firstRelevantIndex === 0
+                    ? allDeltas
+                    : allDeltas.slice(firstRelevantIndex),
+              };
+              relevantDeltaCount++;
+            }
+          }
+
           const [data, buffers] = chunk.serialize();
           chunksData[dataIndex] = data;
           for (const buffer of buffers) {
