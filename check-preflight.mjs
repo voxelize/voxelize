@@ -94,6 +94,7 @@ const reportJson = JSON.stringify(report, null, 2);
 
 if (resolvedOutputPath !== null) {
   try {
+    fs.mkdirSync(path.dirname(resolvedOutputPath), { recursive: true });
     fs.writeFileSync(resolvedOutputPath, reportJson);
   } catch {
     console.log(

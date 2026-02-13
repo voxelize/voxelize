@@ -86,6 +86,37 @@ describe("preflight aggregate report", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("creates output directory when writing aggregate report", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-preflight-output-dir-")
+    );
+    const outputPath = path.resolve(
+      tempDirectory,
+      "nested",
+      "preflight",
+      "report.json"
+    );
+
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--no-build", "--output", outputPath],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const stdoutReport = JSON.parse(output) as PreflightReport;
+    const fileReport = JSON.parse(fs.readFileSync(outputPath, "utf8")) as PreflightReport;
+
+    expect(stdoutReport.outputPath).toBe(outputPath);
+    expect(fileReport.outputPath).toBe(outputPath);
+    expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("fails with structured output when output value is missing", () => {
     const result = spawnSync(process.execPath, [preflightScript, "--output"], {
       cwd: rootDir,
