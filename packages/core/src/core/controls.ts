@@ -407,6 +407,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   private newPosition = new Vector3();
   private movementVector: Coords3 = [0, 0, 0];
   private pushVector: Coords3 = [0, 0, 0];
+  private characterPosition: Coords3 = [0, 0, 0];
+  private characterDirection: Coords3 = [0, 0, 0];
 
   /**
    * Whether or not is the first movement back on lock. This is because Chrome has a bug where
@@ -565,17 +567,24 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     this.object.position.lerp(this.newPosition, this.options.positionLerp);
 
     if (this.character) {
-      const {
-        x: dx,
-        y: dy,
-        z: dz,
-      } = new Vector3(0, 0, -1)
+      const direction = this.vector;
+      direction
+        .set(0, 0, -1)
         .applyQuaternion(this.object.getWorldQuaternion(emptyQ))
         .normalize();
 
-      const cameraPosition = this.object.position.toArray();
+      const characterDirection = this.characterDirection;
+      characterDirection[0] = direction.x;
+      characterDirection[1] = direction.y;
+      characterDirection[2] = direction.z;
 
-      this.character.set(cameraPosition, [dx, dy, dz]);
+      const objectPosition = this.object.position;
+      const characterPosition = this.characterPosition;
+      characterPosition[0] = objectPosition.x;
+      characterPosition[1] = objectPosition.y;
+      characterPosition[2] = objectPosition.z;
+
+      this.character.set(characterPosition, characterDirection);
       this.character.update();
     }
 
