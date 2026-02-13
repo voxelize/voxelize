@@ -479,9 +479,9 @@ export class Network {
       }
     }
 
-    this.intercepts.forEach((intercept) => {
-      intercept.onMessage?.(message, this.clientInfo);
-    });
+    for (let index = 0; index < this.intercepts.length; index++) {
+      this.intercepts[index].onMessage?.(message, this.clientInfo);
+    }
 
     if (type === "INIT") {
       if (!this.joinResolve) {
@@ -505,15 +505,23 @@ export class Network {
       message.json = JSON.stringify(message.json);
     }
     message.type = Message.Type[message.type as string];
-    if (message.entities) {
-      (message.entities as Array<Record<string, unknown>>).forEach(
-        (entity) => (entity.metadata = JSON.stringify(entity.metadata))
-      );
+    const entities = message.entities as Array<{
+      metadata: string | object | null;
+    }>;
+    if (entities) {
+      for (let index = 0; index < entities.length; index++) {
+        const entity = entities[index];
+        entity.metadata = JSON.stringify(entity.metadata);
+      }
     }
-    if (message.peers) {
-      (message.peers as Array<Record<string, unknown>>).forEach(
-        (peer) => (peer.metadata = JSON.stringify(peer.metadata))
-      );
+    const peers = message.peers as Array<{
+      metadata: string | object | null;
+    }>;
+    if (peers) {
+      for (let index = 0; index < peers.length; index++) {
+        const peer = peers[index];
+        peer.metadata = JSON.stringify(peer.metadata);
+      }
     }
     return protocol.Message.encode(protocol.Message.create(message)).finish();
   }
