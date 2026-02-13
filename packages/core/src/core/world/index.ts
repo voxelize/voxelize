@@ -798,6 +798,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   private isTrackingChunks = false;
 
   private blockUpdatesQueue: BlockUpdateWithSource[] = [];
+  private blockUpdatesQueueHead = 0;
   private blockUpdatesToEmit: BlockUpdate[] = [];
 
   private voxelDeltas = new Map<string, VoxelDelta[]>();
@@ -2644,9 +2645,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         return update;
       });
 
-    this.blockUpdatesQueue.push(
-      ...voxelUpdates.map((update) => ({ source, update }))
-    );
+    for (const update of voxelUpdates) {
+      this.blockUpdatesQueue.push({ source, update });
+    }
 
     this.processClientUpdates();
   };
@@ -5320,26 +5321,29 @@ export class World<T = any> extends Scene implements NetIntercept {
   };
 
   private processClientUpdates = () => {
-    if (this.blockUpdatesQueue.length === 0 || this.isTrackingChunks) {
+    if (!this.hasPendingBlockUpdates() || this.isTrackingChunks) {
       return;
     }
 
     this.isTrackingChunks = true;
 
     const processUpdatesInIdleTime = () => {
-      if (this.blockUpdatesQueue.length > 0) {
-        const updates = this.blockUpdatesQueue.splice(
-          0,
-          this.options.maxUpdatesPerUpdate
+      if (this.hasPendingBlockUpdates()) {
+        const batchEnd = Math.min(
+          this.blockUpdatesQueueHead + this.options.maxUpdatesPerUpdate,
+          this.blockUpdatesQueue.length
+        );
+        const updates = this.blockUpdatesQueue.slice(
+          this.blockUpdatesQueueHead,
+          batchEnd
         );
 
         const remainingUpdates = this.processLightUpdates(updates);
+        const processedCount = updates.length - remainingUpdates.length;
+        this.blockUpdatesQueueHead += processedCount;
+        this.normalizeBlockUpdatesQueue();
 
-        for (const remainingUpdate of remainingUpdates) {
-          this.blockUpdatesQueue.push(remainingUpdate);
-        }
-
-        const processedLimit = updates.length - remainingUpdates.length;
+        const processedLimit = processedCount;
         for (let i = 0; i < processedLimit; i++) {
           const processedUpdate = updates[i];
           if (processedUpdate.source === "client") {
@@ -5347,7 +5351,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           }
         }
 
-        if (this.blockUpdatesQueue.length > 0) {
+        if (this.hasPendingBlockUpdates()) {
           requestAnimationFrame(processUpdatesInIdleTime);
           return;
         }
@@ -5360,6 +5364,29 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     processUpdatesInIdleTime();
   };
+
+  private hasPendingBlockUpdates() {
+    return this.blockUpdatesQueueHead < this.blockUpdatesQueue.length;
+  }
+
+  private normalizeBlockUpdatesQueue() {
+    if (this.blockUpdatesQueueHead === 0) {
+      return;
+    }
+
+    if (this.blockUpdatesQueueHead >= this.blockUpdatesQueue.length) {
+      this.blockUpdatesQueue = [];
+      this.blockUpdatesQueueHead = 0;
+      return;
+    }
+
+    if (this.blockUpdatesQueueHead >= 1024) {
+      this.blockUpdatesQueue = this.blockUpdatesQueue.slice(
+        this.blockUpdatesQueueHead
+      );
+      this.blockUpdatesQueueHead = 0;
+    }
+  }
 
   private processDirtyChunks = async () => {
     const dirtyKeys = this.meshPipeline.getDirtyKeys();
