@@ -2968,6 +2968,22 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const fill: LightNode[] = [];
     const queue: LightNode[] = [];
+    const voxelStateCache = new Map<
+      string,
+      { block: Block; rotation: BlockRotation }
+    >();
+    const getCachedVoxelState = (vx: number, vy: number, vz: number) => {
+      const key = ChunkUtils.getVoxelNameAt(vx, vy, vz);
+      let state = voxelStateCache.get(key);
+      if (!state) {
+        state = {
+          block: this.getBlockAtUnchecked(vx, vy, vz),
+          rotation: this.getVoxelRotationAtUnchecked(vx, vy, vz),
+        };
+        voxelStateCache.set(key, state);
+      }
+      return state;
+    };
 
     const isSunlight = color === "SUNLIGHT";
     const [vx, vy, vz] = voxel;
@@ -3012,8 +3028,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           continue;
         }
 
-        const nBlock = this.getBlockAt(nvx, nvy, nvz);
-        const rotation = this.getVoxelRotationAtUnchecked(nvx, nvy, nvz);
+        const { block: nBlock, rotation } = getCachedVoxelState(nvx, nvy, nvz);
         const nTransparency = BlockUtils.getBlockRotatedTransparency(
           nBlock,
           rotation
@@ -3072,13 +3087,29 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const queue: LightNode[] = [];
     const fill: LightNode[] = [];
+    const voxelStateCache = new Map<
+      string,
+      { block: Block; rotation: BlockRotation }
+    >();
+    const getCachedVoxelState = (vx: number, vy: number, vz: number) => {
+      const key = ChunkUtils.getVoxelNameAt(vx, vy, vz);
+      let state = voxelStateCache.get(key);
+      if (!state) {
+        state = {
+          block: this.getBlockAtUnchecked(vx, vy, vz),
+          rotation: this.getVoxelRotationAtUnchecked(vx, vy, vz),
+        };
+        voxelStateCache.set(key, state);
+      }
+      return state;
+    };
 
     // Initialise the queue with all voxels to be cleared.
-    voxels.forEach(([vx, vy, vz]) => {
+    for (const [vx, vy, vz] of voxels) {
       const level = isSunlight
         ? this.getSunlightAtUnchecked(vx, vy, vz)
         : this.getTorchLightAtUnchecked(vx, vy, vz, color);
-      if (level === 0) return;
+      if (level === 0) continue;
 
       // Push into queue and immediately clear the light so we don't visit twice.
       queue.push({ voxel: [vx, vy, vz], level });
@@ -3087,7 +3118,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       } else {
         this.setTorchLightAt(vx, vy, vz, 0, color);
       }
-    });
+    }
 
     let head = 0;
     while (head < queue.length) {
@@ -3101,8 +3132,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         const nvx = vx + ox;
         const nvz = vz + oz;
 
-        const nBlock = this.getBlockAt(nvx, nvy, nvz);
-        const rotation = this.getVoxelRotationAtUnchecked(nvx, nvy, nvz);
+        const { block: nBlock, rotation } = getCachedVoxelState(nvx, nvy, nvz);
         const nTransparency = BlockUtils.getBlockRotatedTransparency(
           nBlock,
           rotation
