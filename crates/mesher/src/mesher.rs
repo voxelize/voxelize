@@ -3373,6 +3373,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
         for slice in slice_range {
             for u in u_range.0..u_range.1 {
+                let u_mask_offset = (u - u_range.0) as usize;
                 for v in v_range.0..v_range.1 {
                     let (vx, vy, vz) = if axis == 0 {
                         (slice, v, u)
@@ -3717,7 +3718,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     }
                     let is_fluid = block.is_fluid;
                     let current_mask_index =
-                        (v - v_range.0) as usize * mask_width + (u - u_range.0) as usize;
+                        (v - v_range.0) as usize * mask_width + u_mask_offset;
 
                     let matched_face = if face_index >= 0 {
                         block.faces.get(face_index as usize)
