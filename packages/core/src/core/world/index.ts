@@ -4341,7 +4341,8 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private get plantRadiusSq() {
-    return (this.options.plantRenderRatio * this.renderRadius) ** 2;
+    const plantRadius = this.options.plantRenderRatio * this.renderRadius;
+    return plantRadius * plantRadius;
   }
 
   private setPlantMeshVisibility(meshes: Mesh[], showPlants: boolean) {
@@ -4411,11 +4412,13 @@ export class World<T = any> extends Scene implements NetIntercept {
   private updatePhysics = (delta: number) => {
     if (!this.physics || !this.options.gravity) return;
     const { chunkSize, minChunk, maxChunk } = this.options;
+    const gravity = this.options.gravity;
+    const gravityX = gravity[0];
+    const gravityY = gravity[1];
+    const gravityZ = gravity[2];
 
     const noGravity =
-      this.options.gravity[0] ** 2 +
-        this.options.gravity[1] ** 2 +
-        this.options.gravity[2] ** 2 <
+      gravityX * gravityX + gravityY * gravityY + gravityZ * gravityZ <
       0.01;
 
     for (const body of this.physics.bodies) {
