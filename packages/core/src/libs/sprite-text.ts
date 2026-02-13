@@ -331,37 +331,39 @@ export class SpriteText extends Sprite {
         const hb = cornerWidth / 2;
         ctx.lineWidth = cornerWidth;
         ctx.beginPath();
-        [
-          !!relBorderRadius[0] && [
-            relBorderRadius[0],
-            hb,
-            hb,
-            relBorderRadius[0],
-          ],
-          !!relBorderRadius[1] && [
+        const cornerCurves: [number, number, number, number][] = [];
+        if (relBorderRadius[0]) {
+          cornerCurves.push([relBorderRadius[0], hb, hb, relBorderRadius[0]]);
+        }
+        if (relBorderRadius[1]) {
+          cornerCurves.push([
             canvas.width - relBorderRadius[1],
             canvas.width - hb,
             hb,
             relBorderRadius[1],
-          ],
-          !!relBorderRadius[2] && [
+          ]);
+        }
+        if (relBorderRadius[2]) {
+          cornerCurves.push([
             canvas.width - relBorderRadius[2],
             canvas.width - hb,
             canvas.height - hb,
             canvas.height - relBorderRadius[2],
-          ],
-          !!relBorderRadius[3] && [
+          ]);
+        }
+        if (relBorderRadius[3]) {
+          cornerCurves.push([
             relBorderRadius[3],
             hb,
             canvas.height - hb,
             canvas.height - relBorderRadius[3],
-          ],
-        ]
-          .filter((d) => d)
-          .forEach(([x0, x1, y0, y1]) => {
-            ctx.moveTo(x0, y0);
-            ctx.quadraticCurveTo(x1, y0, x1, y1);
-          });
+          ]);
+        }
+        for (let curveIndex = 0; curveIndex < cornerCurves.length; curveIndex++) {
+          const [x0, x1, y0, y1] = cornerCurves[curveIndex];
+          ctx.moveTo(x0, y0);
+          ctx.quadraticCurveTo(x1, y0, x1, y1);
+        }
         ctx.stroke();
       }
     }
@@ -380,7 +382,7 @@ export class SpriteText extends Sprite {
         // fill with rounded corners
         ctx.beginPath();
         ctx.moveTo(relBorder[0], relBorderRadius[0]);
-        [
+        const fillCurves: [number, number, number, number, number, number][] = [
           [
             relBorder[0],
             relBorderRadius[0],
@@ -388,7 +390,7 @@ export class SpriteText extends Sprite {
             relBorder[1],
             relBorder[1],
             relBorder[1],
-          ], // t
+          ],
           [
             canvas.width - relBorder[0],
             canvas.width - relBorder[0],
@@ -396,7 +398,7 @@ export class SpriteText extends Sprite {
             relBorder[1],
             relBorderRadius[1],
             canvas.height - relBorderRadius[2],
-          ], // r
+          ],
           [
             canvas.width - relBorder[0],
             canvas.width - relBorderRadius[2],
@@ -404,7 +406,7 @@ export class SpriteText extends Sprite {
             canvas.height - relBorder[1],
             canvas.height - relBorder[1],
             canvas.height - relBorder[1],
-          ], // b
+          ],
           [
             relBorder[0],
             relBorder[0],
@@ -412,11 +414,13 @@ export class SpriteText extends Sprite {
             canvas.height - relBorder[1],
             canvas.height - relBorderRadius[3],
             relBorderRadius[0],
-          ], // t
-        ].forEach(([x0, x1, x2, y0, y1, y2]) => {
+          ],
+        ];
+        for (let curveIndex = 0; curveIndex < fillCurves.length; curveIndex++) {
+          const [x0, x1, x2, y0, y1, y2] = fillCurves[curveIndex];
           ctx.quadraticCurveTo(x0, y0, x1, y1);
           ctx.lineTo(x2, y2);
-        });
+        }
         ctx.closePath();
         ctx.fill();
       }
