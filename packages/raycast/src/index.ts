@@ -65,6 +65,7 @@ function raycast(
   direction: number[],
   maxDistance: number
 ): { point: number[]; normal: number[]; voxel: number[] } | null {
+  const EMPTY_AABBS: AABB[] = [];
   let dx = +direction[0];
   let dy = +direction[1];
   let dz = +direction[2];
@@ -77,6 +78,7 @@ function raycast(
   dx /= ds;
   dy /= ds;
   dz /= ds;
+  const normalizedDirection = [dx, dy, dz] as [number, number, number];
 
   const [ox, oy, oz] = origin;
 
@@ -103,20 +105,21 @@ function raycast(
 
   while (t <= maxDistance) {
     // exit check
-    const aabbs = getVoxel(ix, iy, iz) || [];
+    const aabbs = getVoxel(ix, iy, iz) || EMPTY_AABBS;
 
-    let hit: any;
-    aabbs.forEach((aabb) => {
+    let hit: { axis: number; distance: number } | null = null;
+    for (let aabbIndex = 0; aabbIndex < aabbs.length; aabbIndex++) {
+      const aabb = aabbs[aabbIndex];
       const result = raycastAABB(
         origin,
-        [dx, dy, dz],
-        aabb.clone(),
+        normalizedDirection,
+        aabb,
         maxDistance
       );
       if (result) {
         hit = result;
       }
-    });
+    }
 
     if (hit) {
       return {
