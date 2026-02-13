@@ -29,7 +29,7 @@
     "demo:rs": "cross-env RUST_BACKTRACE=1 cargo watch -w examples/server -w server -x \"run --release --example demo\"",
     "test-dev": "cross-env VITE_CJS_IGNORE_WARNING=true vitest",
     "test": "cross-env VITE_CJS_IGNORE_WARNING=true vitest --run",
-    "test:scripts": "cross-env VITE_CJS_IGNORE_WARNING=true vitest --run test/script-checks.test.ts test/command-utils.test.ts test/dev-env-utils.test.ts test/report-utils.test.ts test/client-wasm-preflight.test.ts test/preflight-report.test.ts",
+    "test:scripts": "cross-env VITE_CJS_IGNORE_WARNING=true vitest --run test/script-checks.test.ts test/script-aliases.test.ts test/command-utils.test.ts test/dev-env-utils.test.ts test/report-utils.test.ts test/client-wasm-preflight.test.ts test/preflight-report.test.ts",
     "typecheck:client": "pnpm --filter client run typecheck",
     "check:client:wasm": "pnpm --filter client run check:wasm",
     "check:client": "node ./check-client.mjs",
