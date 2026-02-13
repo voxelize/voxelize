@@ -122,6 +122,8 @@ let wasmInitialized = false;
 let registryInitialized = false;
 const pendingBatchMessages: LightBatchMessage[] = [];
 const MAX_PENDING_BATCH_MESSAGES = 512;
+const reusableBoundsMin = new Int32Array(3);
+const reusableBoundsShape = new Uint32Array(3);
 
 const getLastSequenceIdFromDeltas = (relevantDeltas: DeltaBatch[]): number => {
   let lastSequenceId = 0;
@@ -287,22 +289,25 @@ const serializeChunkGrid = (
         shape: [number, number, number];
       }
     | null
-  )[] = [];
+  )[] = new Array(gridWidth * gridDepth);
+  let index = 0;
 
   for (let x = 0; x < gridWidth; x++) {
     for (let z = 0; z < gridDepth; z++) {
       const chunk = chunkGrid[x][z];
       if (!chunk) {
-        serialized.push(null);
+        serialized[index] = null;
+        index++;
         continue;
       }
 
       const { size, maxHeight } = chunk.options;
-      serialized.push({
+      serialized[index] = {
         voxels: chunk.voxels.data,
         lights: chunk.lights.data,
         shape: [size, maxHeight, size],
-      });
+      };
+      index++;
     }
   }
 
@@ -335,12 +340,12 @@ const processBatchMessage = (message: LightBatchMessage) => {
   );
 
   const serializedChunks = serializeChunkGrid(chunkGrid, gridWidth, gridDepth);
-  const boundsMin = Int32Array.from(boundingBox.min);
-  const boundsShape = Uint32Array.from([
-    boundingBox.shape[0],
-    boundingBox.shape[1],
-    boundingBox.shape[2],
-  ]);
+  reusableBoundsMin[0] = boundingBox.min[0];
+  reusableBoundsMin[1] = boundingBox.min[1];
+  reusableBoundsMin[2] = boundingBox.min[2];
+  reusableBoundsShape[0] = boundingBox.shape[0];
+  reusableBoundsShape[1] = boundingBox.shape[1];
+  reusableBoundsShape[2] = boundingBox.shape[2];
   const wasmResult = process_light_batch_fast(
     serializedChunks,
     gridWidth,
@@ -350,8 +355,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
     colorToIndex(color),
     lightOps.removals,
     lightOps.floods,
-    boundsMin,
-    boundsShape,
+    reusableBoundsMin,
+    reusableBoundsShape,
     options.chunkSize,
     options.maxHeight,
     options.maxLightLevel
