@@ -2800,6 +2800,21 @@ export class World<T = any> extends Scene implements NetIntercept {
     source: "client" | "server" = "client"
   ) => {
     this.checkIsInitialized("update voxels", false);
+    let blockCache: Map<number, Block | null> | null = null;
+    let missingBlockIds: Set<number> | null = null;
+    const getCachedBlock = (id: number) => {
+      if (!blockCache) {
+        blockCache = new Map();
+      }
+
+      if (blockCache.has(id)) {
+        return blockCache.get(id) ?? null;
+      }
+
+      const block = this.getBlockByIdSafe(id);
+      blockCache.set(id, block);
+      return block;
+    };
 
     for (const update of updates) {
       if (update.vy < 0 || update.vy >= this.options.maxHeight) {
@@ -2807,9 +2822,15 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       const { vx, vy, vz, type, rotation, yRotation, stage } = update;
-      const block = this.getBlockByIdSafe(type);
+      const block = getCachedBlock(type);
       if (!block) {
-        console.warn(`Block ID ${type} does not exist.`);
+        if (!missingBlockIds) {
+          missingBlockIds = new Set();
+        }
+        if (!missingBlockIds.has(type)) {
+          missingBlockIds.add(type);
+          console.warn(`Block ID ${type} does not exist.`);
+        }
         continue;
       }
 
