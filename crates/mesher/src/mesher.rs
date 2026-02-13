@@ -894,10 +894,6 @@ fn should_render_face<S: VoxelAccess>(
     let neighbor_id = space.get_voxel(nvx, nvy, nvz);
     let n_is_void = !space.contains(nvx, nvy, nvz);
 
-    if !n_is_void && !registry.has_type(neighbor_id) {
-        return false;
-    }
-
     let n_block_type = match registry.get_block_by_id(neighbor_id) {
         Some(b) => b,
         None => return n_is_void,
@@ -1924,10 +1920,6 @@ fn process_face<S: VoxelAccess>(
 
     let neighbor_id = space.get_voxel(nvx, nvy, nvz);
     let n_is_void = !space.contains(nvx, nvy, nvz);
-
-    if !n_is_void && !registry.has_type(neighbor_id) {
-        return;
-    }
 
     let n_block_type = match registry.get_block_by_id(neighbor_id) {
         Some(b) => b,
