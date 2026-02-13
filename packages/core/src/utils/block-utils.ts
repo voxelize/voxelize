@@ -172,18 +172,30 @@ export class BlockUtils {
       const { logic, rules } = rule;
 
       switch (logic) {
-        case BlockRuleLogic.And:
-          return rules.every((subRule) =>
-            BlockUtils.evaluateBlockRule(subRule, voxel, functions)
-          );
-        case BlockRuleLogic.Or:
-          return rules.some((subRule) =>
-            BlockUtils.evaluateBlockRule(subRule, voxel, functions)
-          );
-        case BlockRuleLogic.Not:
-          return !rules.some((subRule) =>
-            BlockUtils.evaluateBlockRule(subRule, voxel, functions)
-          );
+        case BlockRuleLogic.And: {
+          for (let index = 0; index < rules.length; index++) {
+            if (!BlockUtils.evaluateBlockRule(rules[index], voxel, functions)) {
+              return false;
+            }
+          }
+          return true;
+        }
+        case BlockRuleLogic.Or: {
+          for (let index = 0; index < rules.length; index++) {
+            if (BlockUtils.evaluateBlockRule(rules[index], voxel, functions)) {
+              return true;
+            }
+          }
+          return false;
+        }
+        case BlockRuleLogic.Not: {
+          for (let index = 0; index < rules.length; index++) {
+            if (BlockUtils.evaluateBlockRule(rules[index], voxel, functions)) {
+              return false;
+            }
+          }
+          return true;
+        }
         default:
           return false; // Unsupported logic
       }
