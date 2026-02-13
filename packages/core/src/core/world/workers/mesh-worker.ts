@@ -279,8 +279,9 @@ const processMeshMessage = (message: MeshBatchMessage) => {
     chunkSize,
     greedyMeshing
   ) as { geometries: GeometryProtocol[] };
-  const arrayBuffers: ArrayBuffer[] = [];
-  const geometriesPacked: {
+  const maxGeometryCount = result.geometries.length;
+  const arrayBuffers = new Array<ArrayBuffer>(maxGeometryCount * 5);
+  const geometriesPacked = new Array<{
     indices: Uint16Array;
     lights: Int32Array;
     positions: Float32Array;
@@ -291,7 +292,9 @@ const processMeshMessage = (message: MeshBatchMessage) => {
     voxel: number;
     faceName: string | null;
     at: Coords3 | null;
-  }[] = [];
+  }>(maxGeometryCount);
+  let geometryCount = 0;
+  let bufferCount = 0;
 
   for (const geometry of result.geometries) {
     if (geometry.positions.length === 0) {
@@ -305,7 +308,7 @@ const processMeshMessage = (message: MeshBatchMessage) => {
     const lights = new Int32Array(geometry.lights);
     const uvs = new Float32Array(geometry.uvs);
 
-    geometriesPacked.push({
+    geometriesPacked[geometryCount] = {
       indices,
       lights,
       positions,
@@ -316,14 +319,18 @@ const processMeshMessage = (message: MeshBatchMessage) => {
       voxel: geometry.voxel,
       faceName: geometry.faceName,
       at: geometry.at,
-    });
+    };
+    geometryCount++;
 
-    arrayBuffers.push(indices.buffer);
-    arrayBuffers.push(lights.buffer);
-    arrayBuffers.push(positions.buffer);
-    arrayBuffers.push(uvs.buffer);
-    arrayBuffers.push(normals.buffer as ArrayBuffer);
+    arrayBuffers[bufferCount++] = indices.buffer;
+    arrayBuffers[bufferCount++] = lights.buffer;
+    arrayBuffers[bufferCount++] = positions.buffer;
+    arrayBuffers[bufferCount++] = uvs.buffer;
+    arrayBuffers[bufferCount++] = normals.buffer as ArrayBuffer;
   }
+
+  geometriesPacked.length = geometryCount;
+  arrayBuffers.length = bufferCount;
 
   postMessage(
     { geometries: geometriesPacked },
