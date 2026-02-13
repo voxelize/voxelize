@@ -2359,18 +2359,17 @@ fn process_face<S: VoxelAccess>(
     } else {
         None
     };
-    let (center_sunlight, center_red_light, center_green_light, center_blue_light) = if skip_opaque_checks {
+    let (center_red_light, center_green_light, center_blue_light) = if skip_opaque_checks {
         let center_light = cache
             .center_light
             .expect("center light exists when opaque checks are skipped");
         (
-            (center_light >> 12) & 0xF,
             (center_light >> 8) & 0xF,
             (center_light >> 4) & 0xF,
             center_light & 0xF,
         )
     } else {
-        (0, 0, 0, 0)
+        (0, 0, 0)
     };
     let center_light_packed = if skip_opaque_checks {
         cache
@@ -2416,55 +2415,56 @@ fn process_face<S: VoxelAccess>(
     let base_y = vy as f32 - min_y as f32 - dir[1] as f32 * face_inset;
     let base_z = vz as f32 - min_z as f32 - dir[2] as f32 * face_inset + diag_z_offset;
 
-    for (corner_index, corner) in face.corners.iter().enumerate() {
-        let mut pos = corner.pos;
+    if skip_opaque_checks {
+        let center_light_i32 = center_light_packed as i32;
+        for (corner_index, corner) in face.corners.iter().enumerate() {
+            let mut pos = corner.pos;
 
-        if needs_rotation {
-            rotation.rotate_node(&mut pos, y_rotatable, true);
+            if needs_rotation {
+                rotation.rotate_node(&mut pos, y_rotatable, true);
+            }
+
+            positions.push(pos[0] + base_x);
+            positions.push(pos[1] + base_y);
+            positions.push(pos[2] + base_z);
+
+            uvs.push(corner.uv[0] * (end_u - start_u) + start_u);
+            uvs.push(corner.uv[1] * (end_v - start_v) + start_v);
+
+            let dy = if pos[1] <= block_min_y_eps { -1 } else { 1 };
+            let wave_bit = if apply_wave_bit && dy == 1 { 1 << 20 } else { 0 };
+            lights.push(center_light_i32 | 3 << 16 | fluid_bit | wave_bit);
+
+            four_red_lights[corner_index] = center_red_light;
+            four_green_lights[corner_index] = center_green_light;
+            four_blue_lights[corner_index] = center_blue_light;
+            face_aos[corner_index] = 3;
         }
+    } else {
+        let mask = opaque_mask.expect("opaque mask exists when opaque checks are needed");
+        for (corner_index, corner) in face.corners.iter().enumerate() {
+            let mut pos = corner.pos;
 
-        positions.push(pos[0] + base_x);
-        positions.push(pos[1] + base_y);
-        positions.push(pos[2] + base_z);
+            if needs_rotation {
+                rotation.rotate_node(&mut pos, y_rotatable, true);
+            }
 
-        uvs.push(corner.uv[0] * (end_u - start_u) + start_u);
-        uvs.push(corner.uv[1] * (end_v - start_v) + start_v);
+            positions.push(pos[0] + base_x);
+            positions.push(pos[1] + base_y);
+            positions.push(pos[2] + base_z);
 
-        let dx = if pos[0] <= block_min_x_eps {
-            -1
-        } else {
-            1
-        };
-        let dy = if pos[1] <= block_min_y_eps {
-            -1
-        } else {
-            1
-        };
+            uvs.push(corner.uv[0] * (end_u - start_u) + start_u);
+            uvs.push(corner.uv[1] * (end_v - start_v) + start_v);
 
-        let ao;
-        let sunlight;
-        let red_light;
-        let green_light;
-        let blue_light;
+            let dx = if pos[0] <= block_min_x_eps { -1 } else { 1 };
+            let dy = if pos[1] <= block_min_y_eps { -1 } else { 1 };
+            let dz = if pos[2] <= block_min_z_eps { -1 } else { 1 };
 
-        if skip_opaque_checks {
-            ao = 3;
-            sunlight = center_sunlight;
-            red_light = center_red_light;
-            green_light = center_green_light;
-            blue_light = center_blue_light;
-        } else {
-            let mask = opaque_mask.expect("opaque mask exists when opaque checks are needed");
-            let dz = if pos[2] <= block_min_z_eps {
-                -1
-            } else {
-                1
-            };
             let b011 = !neighbor_is_opaque(mask, 0, dy, dz);
             let b101 = !neighbor_is_opaque(mask, dx, 0, dz);
             let b110 = !neighbor_is_opaque(mask, dx, dy, 0);
             let b111 = !neighbor_is_opaque(mask, dx, dy, dz);
-            ao = if dir_is_x {
+            let ao = if dir_is_x {
                 vertex_ao(b110, b101, b111)
             } else if dir_is_y {
                 vertex_ao(b110, b011, b111)
@@ -2502,12 +2502,8 @@ fn process_face<S: VoxelAccess>(
                                 continue;
                             }
                         } else if dir[0] * ddx + dir[1] * ddy + dir[2] * ddz == 0 {
-                            let facing_opaque = neighbor_is_opaque(
-                                mask,
-                                ddx * dir[0],
-                                ddy * dir[1],
-                                ddz * dir[2],
-                            );
+                            let facing_opaque =
+                                neighbor_is_opaque(mask, ddx * dir[0], ddy * dir[1], ddz * dir[2]);
 
                             if facing_opaque {
                                 continue;
@@ -2566,39 +2562,30 @@ fn process_face<S: VoxelAccess>(
                 }
             }
 
-            if light_count > 0 {
-                sunlight = sum_sunlights / light_count;
-                red_light = sum_red_lights / light_count;
-                green_light = sum_green_lights / light_count;
-                blue_light = sum_blue_lights / light_count;
+            let (sunlight, red_light, green_light, blue_light) = if light_count > 0 {
+                (
+                    sum_sunlights / light_count,
+                    sum_red_lights / light_count,
+                    sum_green_lights / light_count,
+                    sum_blue_lights / light_count,
+                )
             } else {
-                sunlight = 0;
-                red_light = 0;
-                green_light = 0;
-                blue_light = 0;
-            }
-        }
+                (0, 0, 0, 0)
+            };
 
-        let light = if skip_opaque_checks {
-            center_light_packed
-        } else {
             let mut light = 0u32;
             light = LightUtils::insert_red_light(light, red_light);
             light = LightUtils::insert_green_light(light, green_light);
             light = LightUtils::insert_blue_light(light, blue_light);
-            LightUtils::insert_sunlight(light, sunlight)
-        };
-        let wave_bit = if apply_wave_bit && dy == 1 {
-            1 << 20
-        } else {
-            0
-        };
-        lights.push(light as i32 | ao << 16 | fluid_bit | wave_bit);
+            light = LightUtils::insert_sunlight(light, sunlight);
+            let wave_bit = if apply_wave_bit && dy == 1 { 1 << 20 } else { 0 };
+            lights.push(light as i32 | ao << 16 | fluid_bit | wave_bit);
 
-        four_red_lights[corner_index] = red_light;
-        four_green_lights[corner_index] = green_light;
-        four_blue_lights[corner_index] = blue_light;
-        face_aos[corner_index] = ao;
+            four_red_lights[corner_index] = red_light;
+            four_green_lights[corner_index] = green_light;
+            four_blue_lights[corner_index] = blue_light;
+            face_aos[corner_index] = ao;
+        }
     }
 
     let a_rt = four_red_lights[0];
