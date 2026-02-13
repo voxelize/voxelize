@@ -2980,7 +2980,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
         }
 
         for slice in slice_range {
-            greedy_mask[..mask_len].fill(None);
             non_greedy_faces.clear();
 
             for u in u_range.0..u_range.1 {
