@@ -1,8 +1,9 @@
 pub mod mesher;
 
 pub use mesher::{
-    mesh_chunk, mesh_chunk_with_registry, mesh_space, mesh_space_greedy, Block, ChunkData,
-    GeometryProtocol, MeshConfig, MeshInput, MeshInputNoRegistry, MeshOutput, Registry,
+    mesh_chunk, mesh_chunk_with_registry, mesh_space, mesh_space_greedy, mesh_space_greedy_legacy,
+    Block, ChunkData, GeometryProtocol, MeshConfig, MeshInput, MeshInputNoRegistry, MeshOutput,
+    Registry,
 };
 
 pub use voxelize_core::{

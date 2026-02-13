@@ -1885,7 +1885,7 @@ fn process_face<S: VoxelAccess>(
     }
 }
 
-pub fn mesh_space_greedy<S: VoxelAccess>(
+fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
     min: &[i32; 3],
     max: &[i32; 3],
     space: &S,
@@ -2224,6 +2224,24 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
         .map(|(_, geometry)| geometry)
         .filter(|geometry| !geometry.indices.is_empty())
         .collect()
+}
+
+pub fn mesh_space_greedy_legacy<S: VoxelAccess>(
+    min: &[i32; 3],
+    max: &[i32; 3],
+    space: &S,
+    registry: &Registry,
+) -> Vec<GeometryProtocol> {
+    mesh_space_greedy_legacy_impl(min, max, space, registry)
+}
+
+pub fn mesh_space_greedy<S: VoxelAccess>(
+    min: &[i32; 3],
+    max: &[i32; 3],
+    space: &S,
+    registry: &Registry,
+) -> Vec<GeometryProtocol> {
+    mesh_space_greedy_legacy_impl(min, max, space, registry)
 }
 
 pub fn mesh_space<S: VoxelAccess>(
