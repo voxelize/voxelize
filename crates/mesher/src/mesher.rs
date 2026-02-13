@@ -1932,23 +1932,15 @@ fn process_greedy_quad(
     }
 }
 
-fn rotate_offset_y(offset: &mut [f32; 3], rotation: &BlockRotation) {
-    let rot = match rotation {
+#[inline]
+fn rotation_radians(rotation: &BlockRotation) -> f32 {
+    match rotation {
         BlockRotation::PX(rot) => *rot,
         BlockRotation::NX(rot) => *rot,
         BlockRotation::PY(rot) => *rot,
         BlockRotation::NY(rot) => *rot,
         BlockRotation::PZ(rot) => *rot,
         BlockRotation::NZ(rot) => *rot,
-    };
-
-    if rot.abs() > f32::EPSILON {
-        let cos_rot = rot.cos();
-        let sin_rot = rot.sin();
-        let x = offset[0];
-        let z = offset[2];
-        offset[0] = x * cos_rot - z * sin_rot;
-        offset[2] = x * sin_rot + z * cos_rot;
     }
 }
 
@@ -1970,25 +1962,29 @@ fn evaluate_block_rule<S: VoxelAccess>(
             let [offset_x, offset_y, offset_z] = simple.offset;
             let needs_y_offset_rotation =
                 y_rotatable && !world_space && (offset_x != 0 || offset_z != 0);
-            let (check_x, check_y, check_z) = if needs_y_offset_rotation {
-                let mut offset = [
-                    offset_x as f32,
-                    offset_y as f32,
-                    offset_z as f32,
-                ];
-                rotate_offset_y(&mut offset, rotation);
-                (
-                    pos[0] + offset[0].round() as i32,
-                    pos[1] + offset[1].round() as i32,
-                    pos[2] + offset[2].round() as i32,
-                )
+            let rotation_rad = if needs_y_offset_rotation {
+                rotation_radians(rotation)
             } else {
-                (
-                    pos[0] + offset_x,
-                    pos[1] + offset_y,
-                    pos[2] + offset_z,
-                )
+                0.0
             };
+            let (check_x, check_y, check_z) =
+                if needs_y_offset_rotation && rotation_rad.abs() > f32::EPSILON {
+                    let cos_rot = rotation_rad.cos();
+                    let sin_rot = rotation_rad.sin();
+                    let x = offset_x as f32;
+                    let z = offset_z as f32;
+                    (
+                        pos[0] + (x * cos_rot - z * sin_rot).round() as i32,
+                        pos[1] + offset_y,
+                        pos[2] + (x * sin_rot + z * cos_rot).round() as i32,
+                    )
+                } else {
+                    (
+                        pos[0] + offset_x,
+                        pos[1] + offset_y,
+                        pos[2] + offset_z,
+                    )
+                };
 
             let actual_id = space.get_voxel(check_x, check_y, check_z);
             if let Some(expected_id) = simple.id {
