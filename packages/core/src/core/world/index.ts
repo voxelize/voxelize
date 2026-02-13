@@ -3981,14 +3981,13 @@ export class World<T = any> extends Scene implements NetIntercept {
       toRequest[index] = toRequestClosest[index].coords;
     }
     if (toRequest.length) {
-      const directionPayload: [number, number] = hasDirection
-        ? (() => {
-            const dx = direction.x;
-            const dz = direction.z;
-            const invLength = 1 / Math.hypot(dx, dz);
-            return [dx * invLength, dz * invLength];
-          })()
-        : ZERO_DIRECTION;
+      let directionPayload: [number, number] = ZERO_DIRECTION;
+      if (hasDirection) {
+        const dx = direction.x;
+        const dz = direction.z;
+        const invLength = 1 / Math.hypot(dx, dz);
+        directionPayload = [dx * invLength, dz * invLength];
+      }
       this.packets.push({
         type: "LOAD",
         json: {
