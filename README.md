@@ -265,7 +265,7 @@ Misused inline option forms (for example `--json=secret` or `--verify=secret`) a
 Recognized options in the same invocation are still preserved in `activeCliOption*` metadata even when misused inline options are also present.
 Root/client/onboarding/wasm JSON preflight reports include `availableCliOptionAliases` and `availableCliOptionCanonicalMap` so automation can resolve option aliases to canonical names.
 Argument values passed to `--output` and `--only` are excluded from unrecognized-option detection, even when they start with `-`.
-If a split `--output` value position is followed by a recognized option token (for example `--output -l`), that token is treated as an option and the output value is considered missing.
+If a split `--output` or `--only` value position is followed by a recognized option token (for example `--output -l` or `--only -l`), that token is treated as an option and the value is considered missing.
 Arguments after `--` are treated as positional arguments and are excluded from preflight script option parsing and unsupported-option detection.
 JSON preflight reports include `optionTerminatorUsed`, `positionalArgs`, and `positionalArgCount` to describe positional tokens provided after `--`.
 Unrecognized flags are still listed in `unknownOptions` even when a higher-priority validation error is reported.

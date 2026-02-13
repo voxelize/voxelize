@@ -56,7 +56,7 @@ const {
   hasOption: hasOnlyOption,
   value: onlyOptionValue,
   error: onlyOptionError,
-} = resolveLastOptionValue(cliOptionArgs, "--only");
+} = resolveLastOptionValue(cliOptionArgs, "--only", supportedCliOptions);
 const buildTimedReport = createTimedReportBuilder();
 
 const availableChecks = [
@@ -323,7 +323,7 @@ const {
   canonicalOptions: supportedCliOptions,
   optionAliases: availableCliOptionAliases,
   optionsWithValues: Array.from(cliOptionsWithValues),
-  optionsWithStrictValues: ["--output"],
+  optionsWithStrictValues: ["--only", "--output"],
   outputPathError: null,
 });
 const deriveValidationErrorCode = ({

@@ -422,6 +422,17 @@ describe("report-utils", () => {
     expect(unknownDashValueRemainsValid.hasOption).toBe(true);
     expect(unknownDashValueRemainsValid.value).toBe("-artifact-report.json");
     expect(unknownDashValueRemainsValid.error).toBeNull();
+
+    const recognizedOnlyAliasAsSplitValue = resolveLastOptionValue(
+      ["--only", "-l"],
+      "--only",
+      ["--list-checks", "-l"]
+    );
+    expect(recognizedOnlyAliasAsSplitValue.hasOption).toBe(true);
+    expect(recognizedOnlyAliasAsSplitValue.value).toBeNull();
+    expect(recognizedOnlyAliasAsSplitValue.error).toBe(
+      "Missing value for --only option."
+    );
   });
 
   it("splits option and positional args using option terminator", () => {
