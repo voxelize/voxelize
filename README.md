@@ -106,6 +106,9 @@ pnpm run check:client
 
 # run full onboarding checks (tooling + client)
 pnpm run check:onboarding
+
+# run only root preflight script integration tests
+pnpm run test:scripts
 ```
 
 visit http://localhost:3000
