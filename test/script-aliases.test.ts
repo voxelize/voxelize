@@ -43,6 +43,18 @@ describe("script aliases", () => {
     expect(manifest.scripts["check:preflight:verify:json:compact"]).toBe(
       "node ./check-preflight.mjs --no-build --compact"
     );
+    expect(manifest.scripts["check:preflight:dev-env:json:compact"]).toBe(
+      "node ./check-preflight.mjs --only devEnvironment --compact"
+    );
+    expect(manifest.scripts["check:preflight:wasm-pack:json:compact"]).toBe(
+      "node ./check-preflight.mjs --only wasmPack --compact"
+    );
+    expect(manifest.scripts["check:preflight:client:json:compact"]).toBe(
+      "node ./check-preflight.mjs --only client --compact"
+    );
+    expect(manifest.scripts["check:preflight:client:verify:json:compact"]).toBe(
+      "node ./check-preflight.mjs --no-build --only client --compact"
+    );
   });
 
   it("defines compact json aliases for client wasm preflight scripts", () => {
