@@ -315,6 +315,16 @@ describe("report-utils", () => {
       "Missing value for --output option."
     );
     expect(recognizedLongAliasAfterOutput.outputPath).toBeNull();
+
+    const recognizedCanonicalNoBuildAfterOutput = resolveOutputPath(
+      ["--output", "--no-build"],
+      "/workspace",
+      ["--output", "--no-build", "--verify"]
+    );
+    expect(recognizedCanonicalNoBuildAfterOutput.error).toBe(
+      "Missing value for --output option."
+    );
+    expect(recognizedCanonicalNoBuildAfterOutput.outputPath).toBeNull();
   });
 
   it("resolves last option values for both split and inline forms", () => {
@@ -473,6 +483,17 @@ describe("report-utils", () => {
     expect(recognizedOutputLongAliasAsSplitValue.hasOption).toBe(true);
     expect(recognizedOutputLongAliasAsSplitValue.value).toBeNull();
     expect(recognizedOutputLongAliasAsSplitValue.error).toBe(
+      "Missing value for --output option."
+    );
+
+    const recognizedOutputCanonicalAsSplitValue = resolveLastOptionValue(
+      ["--output", "--no-build"],
+      "--output",
+      ["--no-build", "--verify"]
+    );
+    expect(recognizedOutputCanonicalAsSplitValue.hasOption).toBe(true);
+    expect(recognizedOutputCanonicalAsSplitValue.value).toBeNull();
+    expect(recognizedOutputCanonicalAsSplitValue.error).toBe(
       "Missing value for --output option."
     );
   });
@@ -1705,6 +1726,48 @@ describe("report-utils", () => {
       },
       {
         token: "--verify",
+        canonicalOption: "--no-build",
+        index: 1,
+      },
+    ]);
+    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(2);
+    expect(diagnostics.unknownOptions).toEqual([]);
+    expect(diagnostics.unknownOptionCount).toBe(0);
+    expect(diagnostics.unsupportedOptionsError).toBeNull();
+  });
+
+  it("tracks recognized canonical options after strict value options as active", () => {
+    const diagnostics = createCliDiagnostics(["--output", "--no-build"], {
+      canonicalOptions: ["--no-build", "--output"],
+      optionAliases: {
+        "--no-build": ["--verify"],
+      },
+      optionsWithValues: ["--output"],
+      optionsWithStrictValues: ["--output"],
+    });
+
+    expect(diagnostics.activeCliOptions).toEqual(["--no-build", "--output"]);
+    expect(diagnostics.activeCliOptionCount).toBe(2);
+    expect(diagnostics.activeCliOptionTokens).toEqual(["--output", "--no-build"]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+      {
+        token: "--no-build",
+        canonicalOption: "--no-build",
+      },
+    ]);
+    expect(diagnostics.activeCliOptionResolutionCount).toBe(2);
+    expect(diagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+      {
+        token: "--no-build",
         canonicalOption: "--no-build",
         index: 1,
       },
