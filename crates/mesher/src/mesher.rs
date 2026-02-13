@@ -1505,6 +1505,56 @@ fn is_surrounded_by_opaque_neighbors<S: VoxelAccess>(
         && registry.is_opaque_id(id_nz)
 }
 
+const FACE_CORNERS_PX: [[f32; 3]; 4] = [
+    [1.0, 1.0, 1.0],
+    [1.0, 0.0, 1.0],
+    [1.0, 1.0, 0.0],
+    [1.0, 0.0, 0.0],
+];
+const FACE_CORNERS_NX: [[f32; 3]; 4] = [
+    [0.0, 1.0, 0.0],
+    [0.0, 0.0, 0.0],
+    [0.0, 1.0, 1.0],
+    [0.0, 0.0, 1.0],
+];
+const FACE_CORNERS_PY: [[f32; 3]; 4] = [
+    [0.0, 1.0, 1.0],
+    [1.0, 1.0, 1.0],
+    [0.0, 1.0, 0.0],
+    [1.0, 1.0, 0.0],
+];
+const FACE_CORNERS_NY: [[f32; 3]; 4] = [
+    [1.0, 0.0, 1.0],
+    [0.0, 0.0, 1.0],
+    [1.0, 0.0, 0.0],
+    [0.0, 0.0, 0.0],
+];
+const FACE_CORNERS_PZ: [[f32; 3]; 4] = [
+    [0.0, 0.0, 1.0],
+    [1.0, 0.0, 1.0],
+    [0.0, 1.0, 1.0],
+    [1.0, 1.0, 1.0],
+];
+const FACE_CORNERS_NZ: [[f32; 3]; 4] = [
+    [1.0, 0.0, 0.0],
+    [0.0, 0.0, 0.0],
+    [1.0, 1.0, 0.0],
+    [0.0, 1.0, 0.0],
+];
+
+#[inline(always)]
+fn face_corner_positions(dir: [i32; 3]) -> Option<&'static [[f32; 3]; 4]> {
+    match dir {
+        [1, 0, 0] => Some(&FACE_CORNERS_PX),
+        [-1, 0, 0] => Some(&FACE_CORNERS_NX),
+        [0, 1, 0] => Some(&FACE_CORNERS_PY),
+        [0, -1, 0] => Some(&FACE_CORNERS_NY),
+        [0, 0, 1] => Some(&FACE_CORNERS_PZ),
+        [0, 0, -1] => Some(&FACE_CORNERS_NZ),
+        _ => None,
+    }
+}
+
 #[inline(always)]
 fn compute_face_ao_and_light(
     dir: [i32; 3],
@@ -1520,45 +1570,9 @@ fn compute_face_ao_and_light(
     }
     let [block_min_x, block_min_y, block_min_z] = block_min_corner(block);
     let opaque_mask = build_neighbor_opaque_mask(neighbors, registry);
-
-    let corner_positions: [[f32; 3]; 4] = match dir {
-        [1, 0, 0] => [
-            [1.0, 1.0, 1.0],
-            [1.0, 0.0, 1.0],
-            [1.0, 1.0, 0.0],
-            [1.0, 0.0, 0.0],
-        ],
-        [-1, 0, 0] => [
-            [0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0],
-            [0.0, 1.0, 1.0],
-            [0.0, 0.0, 1.0],
-        ],
-        [0, 1, 0] => [
-            [0.0, 1.0, 1.0],
-            [1.0, 1.0, 1.0],
-            [0.0, 1.0, 0.0],
-            [1.0, 1.0, 0.0],
-        ],
-        [0, -1, 0] => [
-            [1.0, 0.0, 1.0],
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0],
-        ],
-        [0, 0, 1] => [
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 1.0],
-            [0.0, 1.0, 1.0],
-            [1.0, 1.0, 1.0],
-        ],
-        [0, 0, -1] => [
-            [1.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0],
-            [1.0, 1.0, 0.0],
-            [0.0, 1.0, 0.0],
-        ],
-        _ => return ([3, 3, 3, 3], [0, 0, 0, 0]),
+    let corner_positions = match face_corner_positions(dir) {
+        Some(corners) => corners,
+        None => return ([3, 3, 3, 3], [0, 0, 0, 0]),
     };
 
     let mut aos = [0i32; 4];
@@ -1731,45 +1745,9 @@ fn compute_face_ao_and_light_fast(
     let block_min_x_eps = block_min_x + 0.01;
     let block_min_y_eps = block_min_y + 0.01;
     let block_min_z_eps = block_min_z + 0.01;
-
-    let corner_positions: [[f32; 3]; 4] = match dir {
-        [1, 0, 0] => [
-            [1.0, 1.0, 1.0],
-            [1.0, 0.0, 1.0],
-            [1.0, 1.0, 0.0],
-            [1.0, 0.0, 0.0],
-        ],
-        [-1, 0, 0] => [
-            [0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0],
-            [0.0, 1.0, 1.0],
-            [0.0, 0.0, 1.0],
-        ],
-        [0, 1, 0] => [
-            [0.0, 1.0, 1.0],
-            [1.0, 1.0, 1.0],
-            [0.0, 1.0, 0.0],
-            [1.0, 1.0, 0.0],
-        ],
-        [0, -1, 0] => [
-            [1.0, 0.0, 1.0],
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0],
-        ],
-        [0, 0, 1] => [
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 1.0],
-            [0.0, 1.0, 1.0],
-            [1.0, 1.0, 1.0],
-        ],
-        [0, 0, -1] => [
-            [1.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0],
-            [1.0, 1.0, 0.0],
-            [0.0, 1.0, 0.0],
-        ],
-        _ => return ([3, 3, 3, 3], [0, 0, 0, 0]),
+    let corner_positions = match face_corner_positions(dir) {
+        Some(corners) => corners,
+        None => return ([3, 3, 3, 3], [0, 0, 0, 0]),
     };
 
     let mut aos = [0i32; 4];
