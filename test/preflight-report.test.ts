@@ -862,6 +862,60 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(1);
   });
 
+  it("writes list-mode report to output path", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-preflight-list-report-")
+    );
+    const outputPath = path.resolve(tempDirectory, "list-report.json");
+
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--list-checks", "--only", "client", "--output", outputPath],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const stdoutReport = JSON.parse(output) as PreflightReport;
+    const fileReport = JSON.parse(fs.readFileSync(outputPath, "utf8")) as PreflightReport;
+
+    expect(stdoutReport.listChecksOnly).toBe(true);
+    expect(fileReport.listChecksOnly).toBe(true);
+    expect(stdoutReport.outputPath).toBe(outputPath);
+    expect(fileReport.outputPath).toBe(outputPath);
+    expect(stdoutReport.selectedChecks).toEqual(["client"]);
+    expect(fileReport.selectedChecks).toEqual(["client"]);
+    expect(stdoutReport.checks).toEqual([]);
+    expect(fileReport.checks).toEqual([]);
+    expect(result.status).toBe(0);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("marks output validation errors as list mode when listing checks", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--list-checks", "--output"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(true);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.checks).toEqual([]);
+    expect(result.status).toBe(1);
+  });
+
   it("writes aggregate report to output path when requested", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-preflight-report-")

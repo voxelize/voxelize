@@ -162,6 +162,8 @@ pnpm run check:preflight:json:compact
 pnpm run check:preflight:list:json
 # compact check-list report
 pnpm run check:preflight:list:json:compact
+# write list report to disk
+pnpm run check:preflight:list:json -- --output ./preflight-check-list.json
 # aggregated preflight report without auto-building wasm artifacts
 pnpm run check:preflight:verify:json
 # compact aggregated verify report
