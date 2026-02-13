@@ -586,8 +586,9 @@ export class Network {
   };
 
   private static encodeSync(message: Record<string, unknown>) {
-    if (message.json) {
-      message.json = JSON.stringify(message.json);
+    const messageJson = message.json;
+    if (messageJson && typeof messageJson !== "string") {
+      message.json = JSON.stringify(messageJson);
     }
     message.type = Message.Type[message.type as string];
     const entities = message.entities as Array<{
