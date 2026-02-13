@@ -242,9 +242,10 @@ export class SpriteText extends Sprite {
     const border = Array.isArray(this.borderWidth)
       ? this.borderWidth
       : [this.borderWidth, this.borderWidth]; // x,y border
-    const relBorder = border.map((b) => b * this.fontSize * 0.1) as [
-      number,
-      number
+    const borderScale = this.fontSize * 0.1;
+    const relBorder: [number, number] = [
+      border[0] * borderScale,
+      border[1] * borderScale,
     ]; // border in canvas units
 
     const borderRadius = Array.isArray(this.borderRadius)
@@ -255,32 +256,34 @@ export class SpriteText extends Sprite {
           this.borderRadius,
           this.borderRadius,
         ]; // tl tr br bl corners
-    const relBorderRadius = borderRadius.map((b) => b * this.fontSize * 0.1); // border radius in canvas units
+    const relBorderRadius = new Array<number>(borderRadius.length); // border radius in canvas units
+    for (let radiusIndex = 0; radiusIndex < borderRadius.length; radiusIndex++) {
+      relBorderRadius[radiusIndex] = borderRadius[radiusIndex] * borderScale;
+    }
 
     const padding = Array.isArray(this.padding)
       ? this.padding
       : [this.padding, this.padding]; // x,y padding
-    const relPadding = padding.map((p) => p * this.fontSize * 0.1) as [
-      number,
-      number
+    const relPadding: [number, number] = [
+      padding[0] * borderScale,
+      padding[1] * borderScale,
     ]; // padding in canvas units
 
     const lines = this.text.split("\n");
     const font = `${this.fontWeight} ${this.fontSize}px ${this.fontFace}`;
 
     ctx.font = font; // measure canvas with appropriate font
-    const innerWidth = Math.max(
-      ...lines.map((line) => {
-        const splitted = ColorText.split(line);
-
-        let sumLength = 0;
-        splitted.forEach(
-          ({ text }) => (sumLength += ctx.measureText(text).width)
-        );
-
-        return sumLength;
-      })
-    );
+    let innerWidth = 0;
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+      const splitted = ColorText.split(lines[lineIndex]);
+      let sumLength = 0;
+      for (let tokenIndex = 0; tokenIndex < splitted.length; tokenIndex++) {
+        sumLength += ctx.measureText(splitted[tokenIndex].text).width;
+      }
+      if (sumLength > innerWidth) {
+        innerWidth = sumLength;
+      }
+    }
     const innerHeight = this.fontSize * lines.length;
     canvas.width = innerWidth + relBorder[0] * 2 + relPadding[0] * 2;
     canvas.height = innerHeight + relBorder[1] * 2 + relPadding[1] * 2;
@@ -437,25 +440,28 @@ export class SpriteText extends Sprite {
     ctx.shadowOffsetY = this.fontSize * 0.02;
     ctx.shadowBlur = this.fontSize * 0.04;
 
-    lines.forEach((line, index) => {
-      const splitted = ColorText.split(line, this.strokeColor);
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+      const splitted = ColorText.split(lines[lineIndex], this.strokeColor);
 
       let sumLength = 0;
-      splitted.forEach(
-        ({ text }) => (sumLength += ctx.measureText(text).width)
-      );
+      for (let tokenIndex = 0; tokenIndex < splitted.length; tokenIndex++) {
+        sumLength += ctx.measureText(splitted[tokenIndex].text).width;
+      }
 
       let lineX = (innerWidth - sumLength) / 2;
-      const lineY = (index + 1) * this.fontSize;
+      const lineY = (lineIndex + 1) * this.fontSize;
 
-      splitted.forEach(({ color, text }) => {
+      for (let tokenIndex = 0; tokenIndex < splitted.length; tokenIndex++) {
+        const { color, text } = splitted[tokenIndex];
         ctx.fillStyle = color;
         ctx.fillText(text, lineX, lineY);
-        drawTextStroke && ctx.strokeText(text, lineX, lineY);
+        if (drawTextStroke) {
+          ctx.strokeText(text, lineX, lineY);
+        }
         ctx.fillText(text, lineX, lineY);
         lineX += ctx.measureText(text).width;
-      });
-    });
+      }
+    }
 
     // Inject canvas into sprite
     if (this.material.map) this.material.map.dispose(); // gc previous texture
