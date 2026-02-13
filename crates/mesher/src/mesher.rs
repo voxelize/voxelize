@@ -2909,12 +2909,13 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
     let x_span = (max_x - min_x).max(0) as usize;
     let y_span = (max_y - min_y).max(0) as usize;
     let z_span = (max_z - min_z).max(0) as usize;
+    let yz_span = y_span * z_span;
     let mut processed_non_greedy = vec![false; x_span * y_span * z_span];
     let voxel_index = |vx: i32, vy: i32, vz: i32| -> usize {
         let local_x = (vx - min_x) as usize;
         let local_y = (vy - min_y) as usize;
         let local_z = (vz - min_z) as usize;
-        local_x * y_span * z_span + local_y * z_span + local_z
+        local_x * yz_span + local_y * z_span + local_z
     };
     const OCCLUSION_UNKNOWN: u8 = 2;
     let mut fully_occluded_opaque = vec![OCCLUSION_UNKNOWN; x_span * y_span * z_span];
