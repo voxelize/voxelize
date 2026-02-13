@@ -671,7 +671,7 @@ export type WorldOptions = WorldClientOptions & WorldServerOptions;
  * @category Core
  * @noInheritDoc
  */
-export class World<T = any> extends Scene implements NetIntercept {
+export class World<T = MessageProtocol["json"]> extends Scene implements NetIntercept {
   /**
    * The options to create the world.
    */
@@ -806,8 +806,8 @@ export class World<T = any> extends Scene implements NetIntercept {
   /**
    * The JSON data received from the world. Call `initialize` to initialize.
    */
-  private initialData: any = null;
-  private initialEntities: any = null;
+  private initialData: MessageProtocol["json"] | null = null;
+  private initialEntities: MessageProtocol["entities"] | null = null;
 
   public extraInitData: Record<string, unknown> = {};
 
@@ -4006,16 +4006,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    *
    * @hidden
    */
-  onMessage(
-    message: MessageProtocol<
-      any,
-      unknown,
-      {
-        voxel: Coords3;
-        json: string;
-      }
-    >
-  ) {
+  onMessage(message: MessageProtocol) {
     const { type } = message;
 
     switch (type) {
@@ -4087,7 +4078,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
   }
 
-  private handleEntities = (entities: EntityProtocol<any>[]) => {
+  private handleEntities = (
+    entities: EntityProtocol<{
+      voxel: Coords3;
+      json: string;
+    }>[]
+  ) => {
     const { chunkSize } = this.options;
     const hasBlockEntityListeners = this.blockEntityUpdateListeners.size > 0;
 
@@ -4115,7 +4111,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       const data: T | null =
         operation === "DELETE" && !hasBlockEntityListeners
           ? null
-          : metadata.json ?? null;
+          : (metadata.json as T | null) ?? null;
       const cx = Math.floor(vx / chunkSize);
       const cz = Math.floor(vz / chunkSize);
       const chunkName = ChunkUtils.getChunkNameAt(cx, cz);
