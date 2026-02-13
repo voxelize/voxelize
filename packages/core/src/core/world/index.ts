@@ -2367,8 +2367,24 @@ export class World<T = any> extends Scene implements NetIntercept {
     direction: Vector3,
     threshold: number
   ) {
-    const [cx, cz] = center;
-    const [tx, tz] = target;
+    return this.isChunkInViewAt(
+      center[0],
+      center[1],
+      target[0],
+      target[1],
+      direction,
+      threshold
+    );
+  }
+
+  private isChunkInViewAt(
+    cx: number,
+    cz: number,
+    tx: number,
+    tz: number,
+    direction: Vector3,
+    threshold: number
+  ) {
     const dx = cx - tx;
     const dz = cz - tz;
 
@@ -3935,7 +3951,14 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         if (
           hasDirection &&
-          !this.isChunkInView(center, [cx, cz], direction, angleThreshold)
+          !this.isChunkInViewAt(
+            centerX,
+            centerZ,
+            cx,
+            cz,
+            direction,
+            angleThreshold
+          )
         ) {
           continue;
         }
@@ -3974,8 +3997,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     // Sort the chunks by distance from the center, closest first.
     toRequestCandidates.sort((a, b) => {
-      const ad = (a[0] - center[0]) ** 2 + (a[1] - center[1]) ** 2;
-      const bd = (b[0] - center[0]) ** 2 + (b[1] - center[1]) ** 2;
+      const ad = (a[0] - centerX) ** 2 + (a[1] - centerZ) ** 2;
+      const bd = (b[0] - centerX) ** 2 + (b[1] - centerZ) ** 2;
       return ad - bd;
     });
 
@@ -3997,9 +4020,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         },
       });
 
-      toRequest.forEach((coords) => {
-        this.chunkPipeline.markRequested(coords as Coords2);
-      });
+      for (let index = 0; index < toRequest.length; index++) {
+        this.chunkPipeline.markRequested(toRequest[index] as Coords2);
+      }
     }
   }
 
