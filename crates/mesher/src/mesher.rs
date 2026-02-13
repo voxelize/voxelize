@@ -264,6 +264,15 @@ enum GeometryMapKey {
     Isolated(u32, String, i32, i32, i32),
 }
 
+#[inline]
+fn estimate_geometry_capacity(min: &[i32; 3], max: &[i32; 3]) -> usize {
+    let dx = (max[0] - min[0]).max(0) as usize;
+    let dy = (max[1] - min[1]).max(0) as usize;
+    let dz = (max[2] - min[2]).max(0) as usize;
+    let volume = dx.saturating_mul(dy).saturating_mul(dz);
+    (volume / 4).max(64)
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChunkData {
@@ -2239,7 +2248,8 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
     space: &S,
     registry: &Registry,
 ) -> Vec<GeometryProtocol> {
-    let mut map: HashMap<GeometryMapKey, GeometryProtocol> = HashMap::new();
+    let mut map: HashMap<GeometryMapKey, GeometryProtocol> =
+        HashMap::with_capacity(estimate_geometry_capacity(min, max));
     let mut processed_non_greedy: HashSet<(i32, i32, i32)> = HashSet::new();
 
     let [min_x, min_y, min_z] = *min;
@@ -2586,7 +2596,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
     space: &S,
     registry: &Registry,
 ) -> Vec<GeometryProtocol> {
-    let mut map: HashMap<GeometryMapKey, GeometryProtocol> = HashMap::new();
+    let mut map: HashMap<GeometryMapKey, GeometryProtocol> =
+        HashMap::with_capacity(estimate_geometry_capacity(min, max));
 
     let [min_x, min_y, min_z] = *min;
     let [max_x, max_y, max_z] = *max;
@@ -2915,7 +2926,8 @@ pub fn mesh_space<S: VoxelAccess>(
     space: &S,
     registry: &Registry,
 ) -> Vec<GeometryProtocol> {
-    let mut map: HashMap<GeometryMapKey, GeometryProtocol> = HashMap::new();
+    let mut map: HashMap<GeometryMapKey, GeometryProtocol> =
+        HashMap::with_capacity(estimate_geometry_capacity(min, max));
 
     let [min_x, min_y, min_z] = *min;
     let [max_x, max_y, max_z] = *max;
