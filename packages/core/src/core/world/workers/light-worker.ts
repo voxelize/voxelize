@@ -4,7 +4,6 @@ import init, {
 } from "@voxelize/wasm-lighter";
 
 import { Coords2, Coords3 } from "../../../types";
-import { ChunkUtils } from "../../../utils/chunk-utils";
 import { LightColor } from "../../../utils/light-utils";
 import { BlockRule } from "../block";
 import type { LightNode, VoxelDelta, WorldOptions } from "../index";
@@ -78,6 +77,12 @@ interface SerializedChunkData {
   };
 }
 
+interface DeltaBatch {
+  cx: number;
+  cz: number;
+  deltas: VoxelDelta[];
+}
+
 interface LightBatchMessage {
   type: "batchOperations";
   jobId: string;
@@ -89,7 +94,7 @@ interface LightBatchMessage {
   chunksData: (SerializedChunkData | null)[];
   chunkGridDimensions: [number, number];
   chunkGridOffset: [number, number];
-  relevantDeltas: Record<string, VoxelDelta[]>;
+  relevantDeltas: DeltaBatch[];
   lightOps: {
     removals: Coords3[];
     floods: LightNode[];
@@ -118,17 +123,10 @@ let registryInitialized = false;
 const pendingBatchMessages: LightBatchMessage[] = [];
 const MAX_PENDING_BATCH_MESSAGES = 512;
 
-const getLastSequenceIdFromDeltas = (
-  relevantDeltas: Record<string, VoxelDelta[]>
-): number => {
+const getLastSequenceIdFromDeltas = (relevantDeltas: DeltaBatch[]): number => {
   let lastSequenceId = 0;
 
-  for (const chunkName in relevantDeltas) {
-    if (!Object.prototype.hasOwnProperty.call(relevantDeltas, chunkName)) {
-      continue;
-    }
-
-    const deltas = relevantDeltas[chunkName];
+  for (const { deltas } of relevantDeltas) {
     for (const delta of deltas) {
       if (delta.sequenceId > lastSequenceId) {
         lastSequenceId = delta.sequenceId;
@@ -230,17 +228,11 @@ const applyRelevantDeltas = (
   gridDepth: number,
   gridOffsetX: number,
   gridOffsetZ: number,
-  relevantDeltas: Record<string, VoxelDelta[]>
+  relevantDeltas: DeltaBatch[]
 ): number => {
   let lastSequenceId = 0;
 
-  for (const chunkName in relevantDeltas) {
-    if (!Object.prototype.hasOwnProperty.call(relevantDeltas, chunkName)) {
-      continue;
-    }
-
-    const deltas = relevantDeltas[chunkName];
-    const [cx, cz] = ChunkUtils.parseChunkNameAt(chunkName);
+  for (const { cx, cz, deltas } of relevantDeltas) {
     const localX = cx - gridOffsetX;
     const localZ = cz - gridOffsetZ;
 

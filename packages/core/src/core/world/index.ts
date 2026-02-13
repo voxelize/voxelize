@@ -5596,7 +5596,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     const maxChunkX = Math.floor(maxX / chunkSize);
     const maxChunkZ = Math.floor(maxZ / chunkSize);
 
-    const relevantDeltas: Record<string, VoxelDelta[]> = {};
+    const relevantDeltas: { cx: number; cz: number; deltas: VoxelDelta[] }[] =
+      [];
     const chunksData: (object | null)[] = [];
     const arrayBuffers: ArrayBuffer[] = [];
 
@@ -5618,7 +5619,11 @@ export class World<T = any> extends Scene implements NetIntercept {
             recentDeltas.push(delta);
           }
           if (recentDeltas) {
-            relevantDeltas[chunkName] = recentDeltas;
+            relevantDeltas.push({
+              cx,
+              cz,
+              deltas: recentDeltas,
+            });
           }
         }
 
