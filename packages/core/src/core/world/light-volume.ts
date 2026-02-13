@@ -115,8 +115,8 @@ export class LightVolume {
     const texHeight = Math.ceil(height / res);
     const texDepth = Math.ceil(depth / res);
 
-    for (const light of lights) {
-      this.accumulateLight(light, texWidth, texHeight, texDepth);
+    for (let lightIndex = 0; lightIndex < lights.length; lightIndex++) {
+      this.accumulateLight(lights[lightIndex], texWidth, texHeight, texDepth);
     }
 
     this.texture.needsUpdate = true;
