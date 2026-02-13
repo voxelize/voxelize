@@ -32,6 +32,7 @@ type PreflightReport = {
   endedAt: string;
   durationMs: number;
   selectedChecks: string[];
+  requestedChecks: string[];
   skippedChecks: string[];
   totalChecks: number;
   passedCheckCount: number;
@@ -95,6 +96,7 @@ describe("preflight aggregate report", () => {
     ]);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(report.selectedChecks).toEqual(report.availableChecks);
+    expect(report.requestedChecks).toEqual(report.availableChecks);
     expect(report.skippedChecks).toEqual([]);
     expect(report.invalidChecks).toEqual([]);
     expect(report.totalChecks).toBe(report.checks.length);
@@ -164,6 +166,7 @@ describe("preflight aggregate report", () => {
 
     expect(report.schemaVersion).toBe(1);
     expect(report.selectedChecks).toEqual(["devEnvironment", "client"]);
+    expect(report.requestedChecks).toEqual(["devEnvironment", "client"]);
     expect(report.skippedChecks).toEqual(["wasmPack"]);
     expect(report.invalidChecks).toEqual([]);
     expect(report.totalChecks).toBe(2);
@@ -191,6 +194,10 @@ describe("preflight aggregate report", () => {
 
     expect(report.schemaVersion).toBe(1);
     expect(report.selectedChecks).toEqual(["devEnvironment", "client"]);
+    expect(report.requestedChecks).toEqual([
+      "devEnvironment",
+      "client",
+    ]);
     expect(report.skippedChecks).toEqual(["wasmPack"]);
     expect(report.invalidChecks).toEqual([]);
     expect(report.checks.map((check) => check.name)).toEqual([
@@ -215,6 +222,7 @@ describe("preflight aggregate report", () => {
 
     expect(report.schemaVersion).toBe(1);
     expect(report.selectedChecks).toEqual(["devEnvironment", "client"]);
+    expect(report.requestedChecks).toEqual(["client", "devEnvironment"]);
     expect(report.skippedChecks).toEqual(["wasmPack"]);
     expect(report.invalidChecks).toEqual([]);
     expect(report.checks.map((check) => check.name)).toEqual([
@@ -243,6 +251,7 @@ describe("preflight aggregate report", () => {
       "wasmPack",
       "client",
     ]);
+    expect(report.requestedChecks).toEqual(["DEV_ENV", "wasm_pack", "CLIENT"]);
     expect(report.skippedChecks).toEqual([]);
     expect(report.invalidChecks).toEqual([]);
     expect(report.checks.map((check) => check.name)).toEqual([
@@ -268,6 +277,7 @@ describe("preflight aggregate report", () => {
 
     expect(report.schemaVersion).toBe(1);
     expect(report.selectedChecks).toEqual(["devEnvironment", "wasmPack"]);
+    expect(report.requestedChecks).toEqual(["wasmpack", "devenvironment"]);
     expect(report.skippedChecks).toEqual(["client"]);
     expect(report.invalidChecks).toEqual([]);
     expect(report.checks.map((check) => check.name)).toEqual([
@@ -292,6 +302,7 @@ describe("preflight aggregate report", () => {
 
     expect(report.schemaVersion).toBe(1);
     expect(report.selectedChecks).toEqual(["devEnvironment", "wasmPack"]);
+    expect(report.requestedChecks).toEqual(["dev", "wasm"]);
     expect(report.skippedChecks).toEqual(["client"]);
     expect(report.invalidChecks).toEqual([]);
     expect(report.checks.map((check) => check.name)).toEqual([
@@ -316,6 +327,11 @@ describe("preflight aggregate report", () => {
 
     expect(report.schemaVersion).toBe(1);
     expect(report.selectedChecks).toEqual(["devEnvironment"]);
+    expect(report.requestedChecks).toEqual([
+      "devEnvironment",
+      "DEV_ENV",
+      "dev",
+    ]);
     expect(report.skippedChecks).toEqual(["wasmPack", "client"]);
     expect(report.checks.map((check) => check.name)).toEqual(["devEnvironment"]);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
@@ -343,6 +359,7 @@ describe("preflight aggregate report", () => {
 
     expect(report.schemaVersion).toBe(1);
     expect(report.selectedChecks).toEqual(["client"]);
+    expect(report.requestedChecks).toEqual(["client"]);
     expect(report.skippedChecks).toEqual(["devEnvironment", "wasmPack"]);
     expect(report.invalidChecks).toEqual([]);
     expect(report.checks.map((check) => check.name)).toEqual(["client"]);
@@ -545,6 +562,7 @@ describe("preflight aggregate report", () => {
     expect(report.firstFailedCheck).toBeNull();
     expect(report.message).toBe("Missing value for --output option.");
     expect(report.invalidChecks).toEqual([]);
+    expect(report.requestedChecks).toEqual([]);
     expect(result.status).toBe(1);
   });
 
@@ -568,6 +586,7 @@ describe("preflight aggregate report", () => {
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(report.message).toBe("Missing value for --output option.");
     expect(report.invalidChecks).toEqual([]);
+    expect(report.requestedChecks).toEqual([]);
     expect(result.status).toBe(1);
   });
 
@@ -590,6 +609,7 @@ describe("preflight aggregate report", () => {
     expect(report.outputPath).toBeNull();
     expect(report.message).toBe("Missing value for --output option.");
     expect(report.invalidChecks).toEqual([]);
+    expect(report.requestedChecks).toEqual([]);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(result.status).toBe(1);
   });
@@ -612,6 +632,7 @@ describe("preflight aggregate report", () => {
     expect(report.failedCheckCount).toBe(0);
     expect(report.firstFailedCheck).toBeNull();
     expect(report.message).toBe("Missing value for --only option.");
+    expect(report.requestedChecks).toEqual([]);
     expect(report.availableChecks).toEqual([
       "devEnvironment",
       "wasmPack",
@@ -639,6 +660,7 @@ describe("preflight aggregate report", () => {
     expect(report.exitCode).toBe(1);
     expect(report.message).toBe("Missing value for --only option.");
     expect(report.invalidChecks).toEqual([]);
+    expect(report.requestedChecks).toEqual([]);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(result.status).toBe(1);
   });
@@ -668,6 +690,7 @@ describe("preflight aggregate report", () => {
       "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, client."
     );
     expect(report.invalidChecks).toEqual(["invalidCheck"]);
+    expect(report.requestedChecks).toEqual(["devEnvironment", "invalidCheck"]);
     expect(report.availableChecks).toEqual([
       "devEnvironment",
       "wasmPack",
@@ -701,6 +724,13 @@ describe("preflight aggregate report", () => {
       "Invalid check name(s): invalidCheck, otherInvalid. Available checks: devEnvironment, wasmPack, client."
     );
     expect(report.invalidChecks).toEqual(["invalidCheck", "otherInvalid"]);
+    expect(report.requestedChecks).toEqual([
+      "devEnvironment",
+      "invalidCheck",
+      "INVALID_CHECK",
+      "invalid-check",
+      "otherInvalid",
+    ]);
     expect(result.status).toBe(1);
   });
 
@@ -731,6 +761,7 @@ describe("preflight aggregate report", () => {
       "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, client."
     );
     expect(stdoutReport.invalidChecks).toEqual(["invalidCheck"]);
+    expect(stdoutReport.requestedChecks).toEqual(["invalidCheck"]);
     expect(fileReport.outputPath).toBe(outputPath);
     expect(fileReport.message).toBe(stdoutReport.message);
     expect(result.status).toBe(1);
@@ -763,6 +794,7 @@ describe("preflight aggregate report", () => {
     expect(stdoutReport.outputPath).toBe(outputPath);
     expect(stdoutReport.message).toBe("Missing value for --only option.");
     expect(stdoutReport.invalidChecks).toEqual([]);
+    expect(stdoutReport.requestedChecks).toEqual([]);
     expect(fileReport.outputPath).toBe(outputPath);
     expect(fileReport.message).toBe(stdoutReport.message);
     expect(result.status).toBe(1);
@@ -794,6 +826,7 @@ describe("preflight aggregate report", () => {
     expect(report.writeError).toContain(`Failed to write report to ${tempDirectory}.`);
     expect(report.message).toContain(`Failed to write report to ${tempDirectory}.`);
     expect(report.invalidChecks).toEqual(["invalidCheck"]);
+    expect(report.requestedChecks).toEqual(["invalidCheck"]);
     expect(result.status).toBe(1);
 
     fs.rmSync(tempDirectory, { recursive: true, force: true });

@@ -66,6 +66,7 @@ const parseSelectedChecks = () => {
   if (onlyArgIndex === -1) {
     return {
       selectedChecks: availableCheckNames,
+      requestedChecks: availableCheckNames,
       error: null,
       invalidChecks: [],
     };
@@ -75,19 +76,25 @@ const parseSelectedChecks = () => {
   if (onlyValue === null || onlyValue.startsWith("--")) {
     return {
       selectedChecks: [],
+      requestedChecks: [],
       error: "Missing value for --only option.",
       invalidChecks: [],
     };
   }
 
-  const parsedChecks = onlyValue
-    .split(",")
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0);
+  const parsedChecks = Array.from(
+    new Set(
+      onlyValue
+        .split(",")
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0)
+    )
+  );
 
   if (parsedChecks.length === 0) {
     return {
       selectedChecks: [],
+      requestedChecks: [],
       error: "Missing value for --only option.",
       invalidChecks: [],
     };
@@ -119,6 +126,7 @@ const parseSelectedChecks = () => {
 
     return {
       selectedChecks: [],
+      requestedChecks: parsedChecks,
       error: `Invalid check name(s): ${uniqueInvalidChecks.join(", ")}. Available checks: ${availableCheckNames.join(", ")}.`,
       invalidChecks: uniqueInvalidChecks,
     };
@@ -131,12 +139,14 @@ const parseSelectedChecks = () => {
 
   return {
     selectedChecks: normalizedChecks,
+    requestedChecks: parsedChecks,
     error: null,
     invalidChecks: [],
   };
 };
 const {
   selectedChecks,
+  requestedChecks,
   error: selectedChecksError,
   invalidChecks,
 } = parseSelectedChecks();
@@ -173,6 +183,7 @@ const nodeVersion = process.version;
 
 if (outputPathError !== null || selectedChecksError !== null) {
   const effectiveInvalidChecks = outputPathError === null ? invalidChecks : [];
+  const effectiveRequestedChecks = outputPathError === null ? requestedChecks : [];
   const report = buildTimedReport({
     passed: false,
     exitCode: 1,
@@ -180,6 +191,7 @@ if (outputPathError !== null || selectedChecksError !== null) {
     platform,
     nodeVersion,
     selectedChecks: [],
+    requestedChecks: effectiveRequestedChecks,
     skippedChecks: availableCheckNames,
     ...summarizeCheckResults([]),
     checks: [],
@@ -233,6 +245,7 @@ const report = buildTimedReport({
   platform,
   nodeVersion,
   selectedChecks,
+  requestedChecks,
   skippedChecks,
   ...checkSummary,
   failureSummaries,
