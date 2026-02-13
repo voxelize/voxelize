@@ -1642,6 +1642,7 @@ impl Block {
             greedy_face_indices: [-1; 6],
             has_standard_six_faces: false,
             fluid_face_uvs: None,
+            has_diagonal_faces: false,
             is_full_cube_cached: false,
             has_mixed_diagonal_and_cardinal: false,
             greedy_mesh_eligible_no_rotation: false,

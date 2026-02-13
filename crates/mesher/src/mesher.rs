@@ -29,6 +29,8 @@ pub struct Block {
     #[serde(skip, default)]
     pub fluid_face_uvs: Option<[UV; 6]>,
     #[serde(skip, default)]
+    pub has_diagonal_faces: bool,
+    #[serde(skip, default)]
     pub is_full_cube_cached: bool,
     #[serde(skip, default)]
     pub has_mixed_diagonal_and_cardinal: bool,
@@ -76,6 +78,7 @@ impl Block {
                 }
             }
         }
+        self.has_diagonal_faces = has_diagonal;
         self.has_mixed_diagonal_and_cardinal = has_diagonal && has_cardinal;
         self.greedy_mesh_eligible_no_rotation = !self.is_fluid
             && !self.rotatable
@@ -128,6 +131,14 @@ impl Block {
                 && !(has_diagonal_faces(self) && has_cardinal_faces(self))
         } else {
             self.greedy_mesh_eligible_no_rotation
+        }
+    }
+
+    pub fn has_diagonal_faces_cached(&self) -> bool {
+        if self.name_lower.is_empty() {
+            has_diagonal_faces(self)
+        } else {
+            self.has_diagonal_faces
         }
     }
 }
@@ -2077,7 +2088,7 @@ fn process_face<S: VoxelAccess>(
         .unwrap_or_else(|| is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space));
 
     let is_diagonal = dir == [0, 0, 0];
-    let has_diagonals = is_see_through && has_diagonal_faces(block);
+    let has_diagonals = is_see_through && block.has_diagonal_faces_cached();
     let (hash_ox, _hash_oz) = if has_diagonals {
         diagonal_face_offsets(vx, vy, vz)
     } else {
