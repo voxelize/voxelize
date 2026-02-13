@@ -102,9 +102,9 @@ export class LightShined {
    * This should be called in the render loop.
    */
   update = () => {
-    this.list.forEach((obj) => {
+    for (const obj of this.list) {
       this.recursiveUpdate(obj);
-    });
+    }
   };
 
   setPositionOverride = (obj: Object3D, position: Vector3) => {
@@ -116,9 +116,9 @@ export class LightShined {
   };
 
   ignore = (...types: any[]) => {
-    types.forEach((type) => {
-      this.ignored.add(type);
-    });
+    for (let index = 0; index < types.length; index++) {
+      this.ignored.add(types[index]);
+    }
   };
 
   private setupLightMaterials = (obj: Object3D) => {
@@ -174,12 +174,17 @@ export class LightShined {
     const setupObjectAndChildren = (object: Object3D) => {
       if (isMesh(object)) {
         if (Array.isArray(object.material)) {
-          object.material.forEach(setupMaterial);
+          const materials = object.material;
+          for (let materialIndex = 0; materialIndex < materials.length; materialIndex++) {
+            setupMaterial(materials[materialIndex]);
+          }
         } else {
           setupMaterial(object.material);
         }
       }
-      object.children.forEach(setupObjectAndChildren);
+      for (let childIndex = 0; childIndex < object.children.length; childIndex++) {
+        setupObjectAndChildren(object.children[childIndex]);
+      }
     };
 
     // Setup initial materials
@@ -211,7 +216,9 @@ export class LightShined {
         },
       });
 
-      object.children.forEach(setupProxies);
+      for (let childIndex = 0; childIndex < object.children.length; childIndex++) {
+        setupProxies(object.children[childIndex]);
+      }
     };
 
     setupProxies(obj);
@@ -223,7 +230,11 @@ export class LightShined {
     }
 
     if (obj.userData.lightUniforms) {
-      obj.userData.lightUniforms.forEach((uniform: { value: Color }) => {
+      const lightUniforms = obj.userData.lightUniforms as Array<{
+        value: Color;
+      }>;
+      for (let uniformIndex = 0; uniformIndex < lightUniforms.length; uniformIndex++) {
+        const uniform = lightUniforms[uniformIndex];
         if (obj.userData.justChanged) {
           uniform.value.copy(color);
         } else {
@@ -233,7 +244,7 @@ export class LightShined {
         uniform.value.r = Math.min(uniform.value.r, this.options.maxBrightness);
         uniform.value.g = Math.min(uniform.value.g, this.options.maxBrightness);
         uniform.value.b = Math.min(uniform.value.b, this.options.maxBrightness);
-      });
+      }
     }
     obj.userData.justChanged = false;
   };
