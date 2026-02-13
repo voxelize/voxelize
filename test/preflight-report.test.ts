@@ -2364,6 +2364,42 @@ describe("preflight aggregate report", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("fails when trailing inline output value is missing", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-preflight-trailing-inline-missing-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, `--output=${firstOutputPath}`, "--output="],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.requestedChecks).toEqual([]);
+    expect(report.requestedCheckResolutions).toEqual([]);
+    expect(report.requestedCheckResolutionCounts).toEqual(
+      expectedEmptyRequestedCheckResolutionCounts
+    );
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("prioritizes output validation errors over only-selection errors", () => {
     const result = spawnSync(
       process.execPath,

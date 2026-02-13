@@ -619,6 +619,30 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-wasm-pack json mode fails when trailing inline output value is missing", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-wasm-pack-trailing-inline-missing-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+
+    const result = runScript("check-wasm-pack.mjs", [
+      "--json",
+      `--output=${firstOutputPath}`,
+      "--output=",
+    ]);
+    const report = JSON.parse(result.output) as WasmPackJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("check-wasm-pack prioritizes output validation while reporting unsupported options", () => {
     const result = runScript("check-wasm-pack.mjs", [
       "--json",
@@ -1548,6 +1572,30 @@ describe("root preflight scripts", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("check-dev-env json mode fails when trailing inline output value is missing", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-dev-env-trailing-inline-missing-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+
+    const result = runScript("check-dev-env.mjs", [
+      "--json",
+      `--output=${firstOutputPath}`,
+      "--output=",
+    ]);
+    const report = JSON.parse(result.output) as DevEnvJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("check-dev-env json mode reports output write failures with details", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-dev-env-output-write-failure-")
@@ -2224,6 +2272,36 @@ describe("root preflight scripts", () => {
     expect(report.exitCode).toBe(1);
     expect(report.outputPath).toBeNull();
     expectTimingMetadata(report);
+    expect(report.totalSteps).toBe(0);
+    expect(report.passedStepCount).toBe(0);
+    expect(report.failedStepCount).toBe(0);
+    expect(report.skippedStepCount).toBe(0);
+    expect(report.firstFailedStep).toBeNull();
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("check-client json mode fails when trailing inline output value is missing", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-client-trailing-inline-missing-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+
+    const result = runScript("check-client.mjs", [
+      "--json",
+      "--no-build",
+      `--output=${firstOutputPath}`,
+      "--output=",
+    ]);
+    const report = JSON.parse(result.output) as ClientJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
     expect(report.totalSteps).toBe(0);
     expect(report.passedStepCount).toBe(0);
     expect(report.failedStepCount).toBe(0);
@@ -3037,6 +3115,36 @@ describe("root preflight scripts", () => {
     expect(report.exitCode).toBe(1);
     expect(report.outputPath).toBeNull();
     expectTimingMetadata(report);
+    expect(report.totalSteps).toBe(0);
+    expect(report.passedStepCount).toBe(0);
+    expect(report.failedStepCount).toBe(0);
+    expect(report.skippedStepCount).toBe(0);
+    expect(report.firstFailedStep).toBeNull();
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("check-onboarding json mode fails when trailing inline output value is missing", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-onboarding-trailing-inline-missing-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+
+    const result = runScript("check-onboarding.mjs", [
+      "--json",
+      "--no-build",
+      `--output=${firstOutputPath}`,
+      "--output=",
+    ]);
+    const report = JSON.parse(result.output) as OnboardingJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
     expect(report.totalSteps).toBe(0);
     expect(report.passedStepCount).toBe(0);
     expect(report.failedStepCount).toBe(0);

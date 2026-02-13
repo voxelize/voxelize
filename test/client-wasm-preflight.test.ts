@@ -993,6 +993,34 @@ describe("client wasm preflight script", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("fails when trailing inline output value is missing", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-wasm-mesher-trailing-inline-missing-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+
+    const result = spawnSync(
+      process.execPath,
+      [wasmMesherScript, "--json", `--output=${firstOutputPath}`, "--output="],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const report = JSON.parse(`${result.stdout}${result.stderr}`) as WasmMesherJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("reports output write failures with details", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-wasm-preflight-output-write-failure-")
