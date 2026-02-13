@@ -1061,6 +1061,44 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
+  it("check-wasm-pack reports only pre-terminator unknown options", () => {
+    const result = runScript("check-wasm-pack.mjs", [
+      "--json",
+      "--mystery",
+      "--",
+      "--another-mystery",
+      "--json=1",
+    ]);
+    const report = JSON.parse(result.output) as WasmPackJsonReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expectOptionTerminatorMetadata(report, true, ["--another-mystery", "--json=1"]);
+    expect(report.supportedCliOptions).toEqual(expectedStandardCliOptions);
+    expectCliOptionCatalogMetadata(report, {}, expectedStandardCliOptions);
+    expect(report.unknownOptions).toEqual(["--mystery"]);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --mystery. Supported options: --compact, --json, --output, --quiet."
+    );
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("check-wasm-pack non-json mode fails on unsupported options", () => {
     const result = runScript("check-wasm-pack.mjs", ["--mystery"]);
 

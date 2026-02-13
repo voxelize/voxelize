@@ -966,6 +966,40 @@ describe("report-utils", () => {
     expect(diagnostics.activeCliOptionOccurrenceCount).toBe(2);
   });
 
+  it("ignores post-terminator unknown options while preserving pre-terminator diagnostics", () => {
+    const diagnostics = createCliDiagnostics(
+      ["--mystery", "--json", "--", "--another-mystery", "--json=1"],
+      {
+        canonicalOptions: ["--json"],
+      }
+    );
+
+    expect(diagnostics.unknownOptions).toEqual(["--mystery"]);
+    expect(diagnostics.unknownOptionCount).toBe(1);
+    expect(diagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json."
+    );
+    expect(diagnostics.validationErrorCode).toBe("unsupported_options");
+    expect(diagnostics.activeCliOptions).toEqual(["--json"]);
+    expect(diagnostics.activeCliOptionCount).toBe(1);
+    expect(diagnostics.activeCliOptionTokens).toEqual(["--json"]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(diagnostics.activeCliOptionResolutionCount).toBe(1);
+    expect(diagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 1,
+      },
+    ]);
+    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(1);
+  });
+
   it("prioritizes output validation in unified diagnostics", () => {
     const diagnostics = createCliDiagnostics(
       ["--json", "--mystery", "--output"],

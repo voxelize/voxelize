@@ -1396,6 +1396,52 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(0);
   });
 
+  it("reports only pre-terminator unknown options when terminator is used", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--list-checks", "--mystery", "--", "--another-mystery", "--json=1"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(true);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.noBuild).toBe(false);
+    expect(report.optionTerminatorUsed).toBe(true);
+    expect(report.positionalArgs).toEqual(["--another-mystery", "--json=1"]);
+    expect(report.positionalArgCount).toBe(report.positionalArgs.length);
+    expect(report.selectionMode).toBe("default");
+    expect(report.selectedChecks).toEqual([]);
+    expect(report.requestedChecks).toEqual([]);
+    expect(report.unknownOptions).toEqual(["--mystery"]);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(report.activeCliOptions).toEqual(["--list-checks"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--list-checks"]);
+    expect(report.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions(["--list-checks"])
+    );
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences(["--list-checks", "--mystery"])
+    );
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(expectedUnsupportedOptionsMessage(["--mystery"]));
+    expect(result.status).toBe(1);
+  });
+
   it("supports list alias for listing checks", () => {
     const result = spawnSync(process.execPath, [preflightScript, "--list"], {
       cwd: rootDir,
