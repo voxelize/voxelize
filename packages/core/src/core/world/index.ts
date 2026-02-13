@@ -4928,7 +4928,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       let newEmitsLight = newBlock.isLight;
-      if (newBlock.dynamicPatterns && update.stage !== undefined) {
+      if (newBlock.dynamicPatterns) {
         newEmitsLight = false;
         for (const pattern of newBlock.dynamicPatterns) {
           for (const part of pattern.parts) {
@@ -4945,8 +4945,7 @@ export class World<T = any> extends Scene implements NetIntercept {
                   return this.getVoxelRotationAt(x, y, z);
                 },
                 getVoxelStageAt: (x: number, y: number, z: number) => {
-                  if (x === vx && y === vy && z === vz)
-                    return update.stage || 0;
+                  if (x === vx && y === vy && z === vz) return update.stage;
                   return this.getVoxelStageAt(x, y, z);
                 },
               }
@@ -5125,13 +5124,13 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       if (
         newBlock.isLight ||
-        (newBlock.dynamicPatterns && update.stage !== undefined)
+        newBlock.dynamicPatterns
       ) {
         let redLevel = newBlock.redLightLevel;
         let greenLevel = newBlock.greenLightLevel;
         let blueLevel = newBlock.blueLightLevel;
 
-        if (newBlock.dynamicPatterns && update.stage !== undefined) {
+        if (newBlock.dynamicPatterns) {
           for (const pattern of newBlock.dynamicPatterns) {
             for (const part of pattern.parts) {
               const ruleMatched = BlockUtils.evaluateBlockRule(
