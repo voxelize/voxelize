@@ -392,6 +392,63 @@ fn test_register_blocks_panics_on_existing_id_conflict() {
 }
 
 #[test]
+fn test_register_blocks_panic_keeps_registry_and_caches_unchanged() {
+    let mut registry = create_test_registry();
+    let mesher_before = registry.mesher_registry();
+    let lighter_before = registry.lighter_registry();
+
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        registry.register_blocks(&[
+            Block::new("would-be-added").id(41).build(),
+            Block::new("conflict-existing").id(2).build(),
+        ]);
+    }));
+
+    assert!(result.is_err());
+    assert!(
+        !registry.has_type(41),
+        "failed bulk registration should not partially register earlier blocks"
+    );
+
+    let mesher_after = registry.mesher_registry();
+    let lighter_after = registry.lighter_registry();
+
+    assert!(
+        Arc::ptr_eq(&mesher_before, &mesher_after),
+        "mesher cache should remain intact when bulk registration panics"
+    );
+    assert!(
+        Arc::ptr_eq(&lighter_before, &lighter_after),
+        "lighter cache should remain intact when bulk registration panics"
+    );
+}
+
+#[test]
+fn test_register_block_panic_keeps_conversion_caches() {
+    let mut registry = create_test_registry();
+    let mesher_before = registry.mesher_registry();
+    let lighter_before = registry.lighter_registry();
+
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        registry.register_block(&Block::new("single-conflict").id(2).build());
+    }));
+
+    assert!(result.is_err());
+
+    let mesher_after = registry.mesher_registry();
+    let lighter_after = registry.lighter_registry();
+
+    assert!(
+        Arc::ptr_eq(&mesher_before, &mesher_after),
+        "mesher cache should remain intact when single registration panics"
+    );
+    assert!(
+        Arc::ptr_eq(&lighter_before, &lighter_after),
+        "lighter cache should remain intact when single registration panics"
+    );
+}
+
+#[test]
 fn test_register_blocks_empty_keeps_conversion_caches() {
     let mut registry = create_test_registry();
 

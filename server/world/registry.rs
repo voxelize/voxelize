@@ -226,18 +226,19 @@ impl Registry {
             return;
         }
 
+        let blocks = self.prepare_blocks_for_registration(blocks);
+
         self.invalidate_cached_registries();
-        for block in blocks {
-            let block = self.prepare_block_for_registration(block);
-            self.record_block(&block);
+        for block in &blocks {
+            self.record_block(block);
         }
     }
 
     /// Register a block into this world. The block ID is assigned to the length of the blocks registered.
     pub fn register_block(&mut self, block: &Block) {
-        self.invalidate_cached_registries();
-
         let block = self.prepare_block_for_registration(block);
+
+        self.invalidate_cached_registries();
         self.record_block(&block);
     }
 
@@ -389,6 +390,36 @@ impl Registry {
         }
 
         block
+    }
+
+    fn prepare_blocks_for_registration(&self, blocks: &[Block]) -> Vec<Block> {
+        let mut occupied_ids = self
+            .blocks_by_id
+            .keys()
+            .copied()
+            .collect::<HashSet<u32>>();
+        let mut prepared_blocks = Vec::with_capacity(blocks.len());
+        let mut next_available = 1;
+
+        for block in blocks {
+            let mut block = block.to_owned();
+
+            if block.id == 0 {
+                while occupied_ids.contains(&next_available) {
+                    next_available += 1;
+                }
+                block.id = next_available;
+            }
+
+            if occupied_ids.contains(&block.id) {
+                panic!("Duplicated key: {}-{}", block.name, block.id);
+            }
+
+            occupied_ids.insert(block.id);
+            prepared_blocks.push(block);
+        }
+
+        prepared_blocks
     }
 
     pub fn mesher_registry(&self) -> Arc<voxelize_mesher::Registry> {
