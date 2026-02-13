@@ -329,6 +329,18 @@ fn test_register_air_active_fn_invalidates_conversion_caches() {
 }
 
 #[test]
+fn test_register_air_active_fn_preserves_air_registry_entry() {
+    let mut registry = create_test_registry();
+
+    registry.register_air_active_fn(|_, _, _| 0, |_, _, _| vec![]);
+
+    assert!(registry.is_air(0));
+    assert!(registry.get_block_by_id(0).is_active);
+    assert!(registry.get_block_by_name("Air").is_active);
+    assert_registry_internal_consistency(&registry);
+}
+
+#[test]
 fn test_register_blocks_invalidates_conversion_caches() {
     let mut registry = create_test_registry();
 

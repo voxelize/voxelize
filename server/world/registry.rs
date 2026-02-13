@@ -99,14 +99,17 @@ impl Registry {
         active_ticker: F1,
         active_updater: F2,
     ) {
-        self.invalidate_cached_registries();
-
-        let mut air = self.blocks_by_id.remove(&0).unwrap();
+        let mut air = self
+            .blocks_by_id
+            .get(&0)
+            .cloned()
+            .expect("Air block must exist");
 
         air.active_ticker = Some(Arc::new(active_ticker));
         air.active_updater = Some(Arc::new(active_updater));
         air.is_active = true;
 
+        self.invalidate_cached_registries();
         self.record_block(&air);
     }
 
