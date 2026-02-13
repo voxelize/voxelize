@@ -1436,17 +1436,16 @@ fn compute_face_ao_and_light_fast(
     let is_see_through = block.is_see_through;
     let is_all_transparent = block.is_all_transparent;
     let skip_opaque_checks = is_see_through || is_all_transparent;
-    let needs_opaque_checks = !skip_opaque_checks;
-    let opaque_mask = if needs_opaque_checks {
-        Some(build_neighbor_opaque_mask(neighbors, registry))
-    } else {
-        None
-    };
-    let center_lights = if skip_opaque_checks {
-        Some(neighbors.get_all_lights(0, 0, 0))
-    } else {
-        None
-    };
+    if skip_opaque_checks {
+        let (sunlight, red_light, green_light, blue_light) = neighbors.get_all_lights(0, 0, 0);
+        let mut light = 0u32;
+        light = LightUtils::insert_red_light(light, red_light);
+        light = LightUtils::insert_green_light(light, green_light);
+        light = LightUtils::insert_blue_light(light, blue_light);
+        light = LightUtils::insert_sunlight(light, sunlight);
+        return ([3, 3, 3, 3], [light as i32; 4]);
+    }
+    let opaque_mask = build_neighbor_opaque_mask(neighbors, registry);
     let dir_is_x = dir[0].abs() == 1;
     let dir_is_y = dir[1].abs() == 1;
     let block_min_x_eps = block_min_x + 0.01;
@@ -1513,20 +1512,12 @@ fn compute_face_ao_and_light_fast(
             1
         };
 
-        let (b011, b101, b110, b111) = if let Some(mask) = &opaque_mask {
-            (
-                !neighbor_is_opaque(mask, 0, dy, dz),
-                !neighbor_is_opaque(mask, dx, 0, dz),
-                !neighbor_is_opaque(mask, dx, dy, 0),
-                !neighbor_is_opaque(mask, dx, dy, dz),
-            )
-        } else {
-            (false, false, false, false)
-        };
+        let b011 = !neighbor_is_opaque(&opaque_mask, 0, dy, dz);
+        let b101 = !neighbor_is_opaque(&opaque_mask, dx, 0, dz);
+        let b110 = !neighbor_is_opaque(&opaque_mask, dx, dy, 0);
+        let b111 = !neighbor_is_opaque(&opaque_mask, dx, dy, dz);
 
-        let ao = if skip_opaque_checks {
-            3
-        } else if dir_is_x {
+        let ao = if dir_is_x {
             vertex_ao(b110, b101, b111)
         } else if dir_is_y {
             vertex_ao(b110, b011, b111)
@@ -1534,108 +1525,98 @@ fn compute_face_ao_and_light_fast(
             vertex_ao(b011, b101, b111)
         };
 
-        let (sunlight, red_light, green_light, blue_light) = if let Some(lights) = center_lights {
-            lights
-        } else {
-            let mask = opaque_mask
-                .as_ref()
-                .expect("opaque mask exists when opaque checks are needed");
-            let mut sum_sunlights = 0u32;
-            let mut sum_red_lights = 0u32;
-            let mut sum_green_lights = 0u32;
-            let mut sum_blue_lights = 0u32;
-            let mut count = 0u32;
+        let mask = &opaque_mask;
+        let mut sum_sunlights = 0u32;
+        let mut sum_red_lights = 0u32;
+        let mut sum_green_lights = 0u32;
+        let mut sum_blue_lights = 0u32;
+        let mut count = 0u32;
 
-            for x in 0..=1 {
-                for y in 0..=1 {
-                    for z in 0..=1 {
-                        let ddx = x * dx;
-                        let ddy = y * dy;
-                        let ddz = z * dz;
+        for x in 0..=1 {
+            for y in 0..=1 {
+                for z in 0..=1 {
+                    let ddx = x * dx;
+                    let ddy = y * dy;
+                    let ddz = z * dz;
 
-                        let (local_sunlight, local_red_light, local_green_light, local_blue_light) =
-                            neighbors.get_all_lights(ddx, ddy, ddz);
+                    let (local_sunlight, local_red_light, local_green_light, local_blue_light) =
+                        neighbors.get_all_lights(ddx, ddy, ddz);
 
-                        if local_sunlight == 0
-                            && local_red_light == 0
-                            && local_green_light == 0
-                            && local_blue_light == 0
-                        {
-                            continue;
-                        }
-
-                        let diagonal4_opaque = neighbor_is_opaque(mask, ddx, ddy, ddz);
-
-                        if diagonal4_opaque {
-                            continue;
-                        }
-
-                        if dir[0] * ddx + dir[1] * ddy + dir[2] * ddz == 0 {
-                            let facing_opaque = neighbor_is_opaque(
-                                mask,
-                                ddx * dir[0],
-                                ddy * dir[1],
-                                ddz * dir[2],
-                            );
-
-                            if facing_opaque {
-                                continue;
-                            }
-                        }
-
-                        if ddx.abs() + ddy.abs() + ddz.abs() == 3 {
-                            let diagonal_yz_opaque = neighbor_is_opaque(mask, 0, ddy, ddz);
-                            let diagonal_xz_opaque = neighbor_is_opaque(mask, ddx, 0, ddz);
-                            let diagonal_xy_opaque = neighbor_is_opaque(mask, ddx, ddy, 0);
-
-                            if diagonal_yz_opaque && diagonal_xz_opaque && diagonal_xy_opaque {
-                                continue;
-                            }
-
-                            if diagonal_xy_opaque && diagonal_xz_opaque {
-                                let neighbor_y_opaque = neighbor_is_opaque(mask, 0, ddy, 0);
-                                let neighbor_z_opaque = neighbor_is_opaque(mask, 0, 0, ddz);
-                                if neighbor_y_opaque && neighbor_z_opaque {
-                                    continue;
-                                }
-                            }
-
-                            if diagonal_xy_opaque && diagonal_yz_opaque {
-                                let neighbor_x_opaque = neighbor_is_opaque(mask, ddx, 0, 0);
-                                let neighbor_z_opaque = neighbor_is_opaque(mask, 0, 0, ddz);
-                                if neighbor_x_opaque && neighbor_z_opaque {
-                                    continue;
-                                }
-                            }
-
-                            if diagonal_xz_opaque && diagonal_yz_opaque {
-                                let neighbor_x_opaque = neighbor_is_opaque(mask, ddx, 0, 0);
-                                let neighbor_y_opaque = neighbor_is_opaque(mask, 0, ddy, 0);
-                                if neighbor_x_opaque && neighbor_y_opaque {
-                                    continue;
-                                }
-                            }
-                        }
-
-                        sum_sunlights += local_sunlight;
-                        sum_red_lights += local_red_light;
-                        sum_green_lights += local_green_light;
-                        sum_blue_lights += local_blue_light;
-                        count += 1;
+                    if local_sunlight == 0
+                        && local_red_light == 0
+                        && local_green_light == 0
+                        && local_blue_light == 0
+                    {
+                        continue;
                     }
+
+                    let diagonal4_opaque = neighbor_is_opaque(mask, ddx, ddy, ddz);
+
+                    if diagonal4_opaque {
+                        continue;
+                    }
+
+                    if dir[0] * ddx + dir[1] * ddy + dir[2] * ddz == 0 {
+                        let facing_opaque =
+                            neighbor_is_opaque(mask, ddx * dir[0], ddy * dir[1], ddz * dir[2]);
+
+                        if facing_opaque {
+                            continue;
+                        }
+                    }
+
+                    if ddx.abs() + ddy.abs() + ddz.abs() == 3 {
+                        let diagonal_yz_opaque = neighbor_is_opaque(mask, 0, ddy, ddz);
+                        let diagonal_xz_opaque = neighbor_is_opaque(mask, ddx, 0, ddz);
+                        let diagonal_xy_opaque = neighbor_is_opaque(mask, ddx, ddy, 0);
+
+                        if diagonal_yz_opaque && diagonal_xz_opaque && diagonal_xy_opaque {
+                            continue;
+                        }
+
+                        if diagonal_xy_opaque && diagonal_xz_opaque {
+                            let neighbor_y_opaque = neighbor_is_opaque(mask, 0, ddy, 0);
+                            let neighbor_z_opaque = neighbor_is_opaque(mask, 0, 0, ddz);
+                            if neighbor_y_opaque && neighbor_z_opaque {
+                                continue;
+                            }
+                        }
+
+                        if diagonal_xy_opaque && diagonal_yz_opaque {
+                            let neighbor_x_opaque = neighbor_is_opaque(mask, ddx, 0, 0);
+                            let neighbor_z_opaque = neighbor_is_opaque(mask, 0, 0, ddz);
+                            if neighbor_x_opaque && neighbor_z_opaque {
+                                continue;
+                            }
+                        }
+
+                        if diagonal_xz_opaque && diagonal_yz_opaque {
+                            let neighbor_x_opaque = neighbor_is_opaque(mask, ddx, 0, 0);
+                            let neighbor_y_opaque = neighbor_is_opaque(mask, 0, ddy, 0);
+                            if neighbor_x_opaque && neighbor_y_opaque {
+                                continue;
+                            }
+                        }
+                    }
+
+                    sum_sunlights += local_sunlight;
+                    sum_red_lights += local_red_light;
+                    sum_green_lights += local_green_light;
+                    sum_blue_lights += local_blue_light;
+                    count += 1;
                 }
             }
+        }
 
-            if count > 0 {
-                (
-                    sum_sunlights / count,
-                    sum_red_lights / count,
-                    sum_green_lights / count,
-                    sum_blue_lights / count,
-                )
-            } else {
-                (0, 0, 0, 0)
-            }
+        let (sunlight, red_light, green_light, blue_light) = if count > 0 {
+            (
+                sum_sunlights / count,
+                sum_red_lights / count,
+                sum_green_lights / count,
+                sum_blue_lights / count,
+            )
+        } else {
+            (0, 0, 0, 0)
         };
 
         aos[i] = ao;
