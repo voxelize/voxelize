@@ -1194,6 +1194,9 @@ fn should_render_face<S: VoxelAccess>(
     if registry.is_opaque_id(neighbor_id) {
         return false;
     }
+    if !is_opaque && neighbor_id != voxel_id && registry.has_type(neighbor_id) {
+        return true;
+    }
 
     let n_block_type = match registry.get_block_by_id(neighbor_id) {
         Some(b) => b,
