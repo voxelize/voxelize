@@ -2897,21 +2897,16 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     }
 
                     let greedy_without_rotation = block.can_greedy_mesh_without_rotation();
-                    if !greedy_without_rotation && processed_non_greedy[current_voxel_index] {
+                    let is_non_greedy_block = !greedy_without_rotation;
+                    if is_non_greedy_block && processed_non_greedy[current_voxel_index] {
                         continue;
                     }
 
-                    let rotation = space.get_voxel_rotation(vx, vy, vz);
-                    let is_non_greedy_block = if greedy_without_rotation {
-                        !matches!(rotation, BlockRotation::PY(r) if r == 0.0)
-                    } else {
-                        true
-                    };
-                    if greedy_without_rotation
-                        && is_non_greedy_block
-                        && processed_non_greedy[current_voxel_index]
+                    let mut rotation = BlockRotation::PY(0.0);
+                    if is_non_greedy_block
+                        && (block.rotatable || block.y_rotatable || block.dynamic_patterns.is_some())
                     {
-                        continue;
+                        rotation = space.get_voxel_rotation(vx, vy, vz);
                     }
 
                     let is_fluid = block.is_fluid;
