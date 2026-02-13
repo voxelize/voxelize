@@ -89,6 +89,7 @@ export class Network {
 
   private packetQueue: ArrayBuffer[] = [];
   private packetQueueHead = 0;
+  private decodePromises: Array<Promise<MessageProtocol[]>> = [];
 
   private joinStartTime = 0;
 
@@ -399,7 +400,8 @@ export class Network {
     }
 
     const batchCount = Math.ceil(packetCount / perWorker);
-    const decodePromises = new Array<Promise<MessageProtocol[]>>(batchCount);
+    const decodePromises = this.decodePromises;
+    decodePromises.length = batchCount;
     let batchIndex = 0;
     for (
       let offset = this.packetQueueHead;
@@ -416,6 +418,7 @@ export class Network {
 
     Promise.all(decodePromises)
       .then((results) => {
+        this.decodePromises.length = 0;
         for (let batchIndex = 0; batchIndex < results.length; batchIndex++) {
           const messages = results[batchIndex];
           for (
@@ -428,6 +431,7 @@ export class Network {
         }
       })
       .catch((error) => {
+        this.decodePromises.length = 0;
         console.error("[NETWORK] Failed to decode packet batches.", error);
       });
   };
