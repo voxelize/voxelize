@@ -5315,6 +5315,20 @@ export class World<T = any> extends Scene implements NetIntercept {
         currentRedLevel = 0;
         currentGreenLevel = 0;
         currentBlueLevel = 0;
+        const oldRuleFunctions = {
+          getVoxelAt: (x: number, y: number, z: number) => {
+            if (x === vx && y === vy && z === vz) return update.oldId;
+            return this.getVoxelAtUnchecked(x, y, z);
+          },
+          getVoxelRotationAt: (x: number, y: number, z: number) => {
+            if (x === vx && y === vy && z === vz) return update.oldRotation;
+            return this.getVoxelRotationAtUnchecked(x, y, z);
+          },
+          getVoxelStageAt: (x: number, y: number, z: number) => {
+            if (x === vx && y === vy && z === vz) return oldStage;
+            return this.getVoxelStageAtUnchecked(x, y, z);
+          },
+        };
 
         const dynamicPatterns = oldBlock.dynamicPatterns;
         for (
@@ -5328,21 +5342,7 @@ export class World<T = any> extends Scene implements NetIntercept {
             const ruleMatched = BlockUtils.evaluateBlockRule(
               part.rule,
               voxelCoords ?? (voxelCoords = [vx, vy, vz]),
-              {
-                getVoxelAt: (x: number, y: number, z: number) => {
-                  if (x === vx && y === vy && z === vz) return update.oldId;
-                  return this.getVoxelAtUnchecked(x, y, z);
-                },
-                getVoxelRotationAt: (x: number, y: number, z: number) => {
-                  if (x === vx && y === vy && z === vz)
-                    return update.oldRotation;
-                  return this.getVoxelRotationAtUnchecked(x, y, z);
-                },
-                getVoxelStageAt: (x: number, y: number, z: number) => {
-                  if (x === vx && y === vy && z === vz) return oldStage;
-                  return this.getVoxelStageAtUnchecked(x, y, z);
-                },
-              }
+              oldRuleFunctions
             );
 
             if (ruleMatched) {
@@ -5365,6 +5365,20 @@ export class World<T = any> extends Scene implements NetIntercept {
       let newEmitsLight = newBlock.isLight;
       if (newBlock.dynamicPatterns) {
         newEmitsLight = false;
+        const newRuleFunctions = {
+          getVoxelAt: (x: number, y: number, z: number) => {
+            if (x === vx && y === vy && z === vz) return update.newId;
+            return this.getVoxelAtUnchecked(x, y, z);
+          },
+          getVoxelRotationAt: (x: number, y: number, z: number) => {
+            if (x === vx && y === vy && z === vz) return newRotation;
+            return this.getVoxelRotationAtUnchecked(x, y, z);
+          },
+          getVoxelStageAt: (x: number, y: number, z: number) => {
+            if (x === vx && y === vy && z === vz) return update.stage;
+            return this.getVoxelStageAtUnchecked(x, y, z);
+          },
+        };
         const dynamicPatterns = newBlock.dynamicPatterns;
         for (
           let patternIndex = 0;
@@ -5377,20 +5391,7 @@ export class World<T = any> extends Scene implements NetIntercept {
             const ruleMatched = BlockUtils.evaluateBlockRule(
               part.rule,
               voxelCoords ?? (voxelCoords = [vx, vy, vz]),
-              {
-                getVoxelAt: (x: number, y: number, z: number) => {
-                  if (x === vx && y === vy && z === vz) return update.newId;
-                  return this.getVoxelAtUnchecked(x, y, z);
-                },
-                getVoxelRotationAt: (x: number, y: number, z: number) => {
-                  if (x === vx && y === vy && z === vz) return newRotation;
-                  return this.getVoxelRotationAtUnchecked(x, y, z);
-                },
-                getVoxelStageAt: (x: number, y: number, z: number) => {
-                  if (x === vx && y === vy && z === vz) return update.stage;
-                  return this.getVoxelStageAtUnchecked(x, y, z);
-                },
-              }
+              newRuleFunctions
             );
 
             if (ruleMatched) {
@@ -5624,6 +5625,14 @@ export class World<T = any> extends Scene implements NetIntercept {
         let blueLevel = newBlock.blueLightLevel;
 
         if (newBlock.dynamicPatterns) {
+          const ruleFunctions = {
+            getVoxelAt: (x: number, y: number, z: number) =>
+              this.getVoxelAtUnchecked(x, y, z),
+            getVoxelRotationAt: (x: number, y: number, z: number) =>
+              this.getVoxelRotationAtUnchecked(x, y, z),
+            getVoxelStageAt: (x: number, y: number, z: number) =>
+              this.getVoxelStageAtUnchecked(x, y, z),
+          };
           const dynamicPatterns = newBlock.dynamicPatterns;
           for (
             let patternIndex = 0;
@@ -5636,14 +5645,7 @@ export class World<T = any> extends Scene implements NetIntercept {
               const ruleMatched = BlockUtils.evaluateBlockRule(
                 part.rule,
                 voxelCoords ?? (voxelCoords = [vx, vy, vz]),
-                {
-                  getVoxelAt: (x: number, y: number, z: number) =>
-                    this.getVoxelAtUnchecked(x, y, z),
-                  getVoxelRotationAt: (x: number, y: number, z: number) =>
-                    this.getVoxelRotationAtUnchecked(x, y, z),
-                  getVoxelStageAt: (x: number, y: number, z: number) =>
-                    this.getVoxelStageAtUnchecked(x, y, z),
-                }
+                ruleFunctions
               );
 
               if (ruleMatched) {
