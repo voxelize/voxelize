@@ -1271,13 +1271,8 @@ fn compute_face_ao_and_light(
     let is_see_through = block.is_see_through;
     let is_all_transparent = block.is_all_transparent;
     if is_see_through || is_all_transparent {
-        let (sunlight, red_light, green_light, blue_light) = neighbors.get_all_lights(0, 0, 0);
-        let mut light = 0u32;
-        light = LightUtils::insert_red_light(light, red_light);
-        light = LightUtils::insert_green_light(light, green_light);
-        light = LightUtils::insert_blue_light(light, blue_light);
-        light = LightUtils::insert_sunlight(light, sunlight);
-        return ([3, 3, 3, 3], [light as i32; 4]);
+        let light = (neighbors.get_raw_light(0, 0, 0) & 0xFFFF) as i32;
+        return ([3, 3, 3, 3], [light; 4]);
     }
     let [block_min_x, block_min_y, block_min_z] = block_min_corner(block);
     let opaque_mask = build_neighbor_opaque_mask(neighbors, registry);
@@ -1478,13 +1473,8 @@ fn compute_face_ao_and_light_fast(
     let is_all_transparent = block.is_all_transparent;
     let skip_opaque_checks = is_see_through || is_all_transparent;
     if skip_opaque_checks {
-        let (sunlight, red_light, green_light, blue_light) = neighbors.get_all_lights(0, 0, 0);
-        let mut light = 0u32;
-        light = LightUtils::insert_red_light(light, red_light);
-        light = LightUtils::insert_green_light(light, green_light);
-        light = LightUtils::insert_blue_light(light, blue_light);
-        light = LightUtils::insert_sunlight(light, sunlight);
-        return ([3, 3, 3, 3], [light as i32; 4]);
+        let light = (neighbors.get_raw_light(0, 0, 0) & 0xFFFF) as i32;
+        return ([3, 3, 3, 3], [light; 4]);
     }
     let (block_min_x, block_min_y, block_min_z) = if block.cache_ready {
         (
