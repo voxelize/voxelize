@@ -621,6 +621,28 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(1);
   });
 
+  it("fails with structured output when only value is blank", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--only", " ,  , "],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.message).toBe("Missing value for --only option.");
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
+    expect(result.status).toBe(1);
+  });
+
   it("fails with structured output for invalid check names", () => {
     const result = spawnSync(
       process.execPath,
