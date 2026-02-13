@@ -1809,7 +1809,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     chunk.setVoxel(px, py, pz, voxel);
-    this.recordVoxelDelta(px, py, pz, { oldVoxel, newVoxel: voxel });
+    this.recordVoxelDelta(px, py, pz, { oldVoxel, newVoxel: voxel }, chunk.name);
     this.trackChunkAt(px, py, pz);
   }
 
@@ -1853,7 +1853,13 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     chunk.setVoxelRotation(px, py, pz, rotation);
-    this.recordVoxelDelta(px, py, pz, { oldRotation, newRotation: rotation });
+    this.recordVoxelDelta(
+      px,
+      py,
+      pz,
+      { oldRotation, newRotation: rotation },
+      chunk.name
+    );
     this.trackChunkAt(px, py, pz);
   }
 
@@ -1881,7 +1887,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     chunk.setVoxelStage(px, py, pz, stage);
-    this.recordVoxelDelta(px, py, pz, { oldStage, newStage: stage });
+    this.recordVoxelDelta(px, py, pz, { oldStage, newStage: stage }, chunk.name);
     this.trackChunkAt(px, py, pz);
   }
 
