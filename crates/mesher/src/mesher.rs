@@ -1077,7 +1077,12 @@ fn create_fluid_faces<S: VoxelAccess>(
     };
 
     let fallback_uvs;
-    let standard_uvs = if let Some(uvs) = block.fluid_face_uvs.as_ref() {
+    let standard_uvs = if block.cache_ready {
+        block
+            .fluid_face_uvs
+            .as_ref()
+            .expect("cached fluid blocks with standard faces must have cached face uvs")
+    } else if let Some(uvs) = block.fluid_face_uvs.as_ref() {
         uvs
     } else {
         fallback_uvs = standard_face_uvs(&block.faces);
