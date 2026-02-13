@@ -1835,6 +1835,41 @@ struct FaceProcessCache {
     block_min: [f32; 3],
 }
 
+fn build_face_process_cache<S: VoxelAccess>(
+    block: &Block,
+    is_see_through: bool,
+    is_fluid: bool,
+    neighbors: &NeighborCache,
+    registry: &Registry,
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    voxel_id: u32,
+    space: &S,
+) -> FaceProcessCache {
+    let is_all_transparent = block.is_transparent[0]
+        && block.is_transparent[1]
+        && block.is_transparent[2]
+        && block.is_transparent[3]
+        && block.is_transparent[4]
+        && block.is_transparent[5];
+
+    FaceProcessCache {
+        opaque_mask: if !(is_see_through || is_all_transparent) {
+            Some(build_neighbor_opaque_mask(neighbors, registry))
+        } else {
+            None
+        },
+        center_lights: if is_see_through || is_all_transparent {
+            Some(neighbors.get_all_lights(0, 0, 0))
+        } else {
+            None
+        },
+        fluid_surface_above: is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space),
+        block_min: block_min_corner(block),
+    }
+}
+
 fn process_face<S: VoxelAccess>(
     vx: i32,
     vy: i32,
@@ -2530,26 +2565,18 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                 });
 
                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
-                let is_all_transparent = block.is_transparent[0]
-                    && block.is_transparent[1]
-                    && block.is_transparent[2]
-                    && block.is_transparent[3]
-                    && block.is_transparent[4]
-                    && block.is_transparent[5];
-                let face_cache = FaceProcessCache {
-                    opaque_mask: if !(is_see_through || is_all_transparent) {
-                        Some(build_neighbor_opaque_mask(&neighbors, registry))
-                    } else {
-                        None
-                    },
-                    center_lights: if is_see_through || is_all_transparent {
-                        Some(neighbors.get_all_lights(0, 0, 0))
-                    } else {
-                        None
-                    },
-                    fluid_surface_above: is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space),
-                    block_min: block_min_corner(&block),
-                };
+                let face_cache = build_face_process_cache(
+                    &block,
+                    is_see_through,
+                    is_fluid,
+                    &neighbors,
+                    registry,
+                    vx,
+                    vy,
+                    vz,
+                    voxel_id,
+                    space,
+                );
                 process_face(
                     vx,
                     vy,
@@ -2848,6 +2875,10 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                 process_greedy_quad(&quad, axis, slice, dir, min, block, geometry);
             }
 
+            let mut cached_key: Option<(i32, i32, i32, u32, bool, bool)> = None;
+            let mut cached_neighbors: Option<NeighborCache> = None;
+            let mut cached_face_cache: Option<FaceProcessCache> = None;
+
             for (
                 vx,
                 vy,
@@ -2860,6 +2891,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                 world_space,
             ) in non_greedy_faces.drain(..)
             {
+                let cache_key = (vx, vy, vz, voxel_id, is_see_through, is_fluid);
                 let block = match registry.get_block_by_id(voxel_id) {
                     Some(candidate) => candidate,
                     None => continue,
@@ -2879,27 +2911,30 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     entry
                 });
 
-                let neighbors = NeighborCache::populate(vx, vy, vz, space);
-                let is_all_transparent = block.is_transparent[0]
-                    && block.is_transparent[1]
-                    && block.is_transparent[2]
-                    && block.is_transparent[3]
-                    && block.is_transparent[4]
-                    && block.is_transparent[5];
-                let face_cache = FaceProcessCache {
-                    opaque_mask: if !(is_see_through || is_all_transparent) {
-                        Some(build_neighbor_opaque_mask(&neighbors, registry))
-                    } else {
-                        None
-                    },
-                    center_lights: if is_see_through || is_all_transparent {
-                        Some(neighbors.get_all_lights(0, 0, 0))
-                    } else {
-                        None
-                    },
-                    fluid_surface_above: is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space),
-                    block_min: block_min_corner(block),
-                };
+                if cached_key != Some(cache_key) {
+                    let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                    let face_cache = build_face_process_cache(
+                        block,
+                        is_see_through,
+                        is_fluid,
+                        &neighbors,
+                        registry,
+                        vx,
+                        vy,
+                        vz,
+                        voxel_id,
+                        space,
+                    );
+                    cached_neighbors = Some(neighbors);
+                    cached_face_cache = Some(face_cache);
+                    cached_key = Some(cache_key);
+                }
+                let neighbors = cached_neighbors
+                    .as_ref()
+                    .expect("cached neighbors must exist for non-greedy face");
+                let face_cache = cached_face_cache
+                    .as_ref()
+                    .expect("cached face data must exist for non-greedy face");
                 process_face(
                     vx,
                     vy,
@@ -2911,8 +2946,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     block,
                     registry,
                     space,
-                    &neighbors,
-                    Some(&face_cache),
+                    neighbors,
+                    Some(face_cache),
                     is_see_through,
                     is_fluid,
                     &mut geometry.positions,
