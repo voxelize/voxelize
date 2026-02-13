@@ -325,6 +325,16 @@ describe("report-utils", () => {
       "Missing value for --output option."
     );
     expect(recognizedCanonicalNoBuildAfterOutput.outputPath).toBeNull();
+
+    const recognizedAliasBeforeValidTrailingOutput = resolveOutputPath(
+      ["--output", "-l", "--output=./final-report.json"],
+      "/workspace",
+      ["--output", "--list-checks", "-l"]
+    );
+    expect(recognizedAliasBeforeValidTrailingOutput.error).toBeNull();
+    expect(recognizedAliasBeforeValidTrailingOutput.outputPath).toBe(
+      "/workspace/final-report.json"
+    );
   });
 
   it("resolves last option values for both split and inline forms", () => {
@@ -521,6 +531,26 @@ describe("report-utils", () => {
     expect(recognizedOutputCanonicalAsSplitValue.error).toBe(
       "Missing value for --output option."
     );
+
+    const recognizedAliasBeforeTrailingOutputValue = resolveLastOptionValue(
+      ["--output", "-l", "--output=./final-report.json"],
+      "--output",
+      ["--output", "--list-checks", "-l"]
+    );
+    expect(recognizedAliasBeforeTrailingOutputValue.hasOption).toBe(true);
+    expect(recognizedAliasBeforeTrailingOutputValue.value).toBe(
+      "./final-report.json"
+    );
+    expect(recognizedAliasBeforeTrailingOutputValue.error).toBeNull();
+
+    const recognizedAliasBeforeTrailingOnlyValue = resolveLastOptionValue(
+      ["--only", "-l", "--only=client"],
+      "--only",
+      ["--only", "--list-checks", "-l"]
+    );
+    expect(recognizedAliasBeforeTrailingOnlyValue.hasOption).toBe(true);
+    expect(recognizedAliasBeforeTrailingOnlyValue.value).toBe("client");
+    expect(recognizedAliasBeforeTrailingOnlyValue.error).toBeNull();
   });
 
   it("splits option and positional args using option terminator", () => {
@@ -1756,6 +1786,64 @@ describe("report-utils", () => {
       },
     ]);
     expect(diagnostics.activeCliOptionOccurrenceCount).toBe(2);
+    expect(diagnostics.unknownOptions).toEqual([]);
+    expect(diagnostics.unknownOptionCount).toBe(0);
+    expect(diagnostics.unsupportedOptionsError).toBeNull();
+  });
+
+  it("keeps strict aliases active when trailing value option resolves later", () => {
+    const diagnostics = createCliDiagnostics(
+      ["--output", "-l", "--output=./final-report.json"],
+      {
+        canonicalOptions: ["--list-checks", "--output"],
+        optionAliases: {
+          "--list-checks": ["-l"],
+        },
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+      }
+    );
+
+    expect(diagnostics.activeCliOptions).toEqual(["--list-checks", "--output"]);
+    expect(diagnostics.activeCliOptionCount).toBe(2);
+    expect(diagnostics.activeCliOptionTokens).toEqual([
+      "--output",
+      "-l",
+      "--output=./final-report.json",
+    ]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+      {
+        token: "-l",
+        canonicalOption: "--list-checks",
+      },
+      {
+        token: "--output=./final-report.json",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(diagnostics.activeCliOptionResolutionCount).toBe(3);
+    expect(diagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+      {
+        token: "-l",
+        canonicalOption: "--list-checks",
+        index: 1,
+      },
+      {
+        token: "--output=./final-report.json",
+        canonicalOption: "--output",
+        index: 2,
+      },
+    ]);
+    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(3);
     expect(diagnostics.unknownOptions).toEqual([]);
     expect(diagnostics.unknownOptionCount).toBe(0);
     expect(diagnostics.unsupportedOptionsError).toBeNull();
