@@ -128,6 +128,11 @@ export class Creature extends Group {
     pos: Vector3;
     dir: Quaternion;
   }> = [];
+  private reusablePositionBufferEntries: Array<{
+    time: number;
+    pos: Vector3;
+    dir: Quaternion;
+  }> = [];
   private positionBufferHead = 0;
   private interpolationDelay = 50;
 
@@ -177,6 +182,7 @@ export class Creature extends Group {
       positionBuffer.length - head > 2 &&
       positionBuffer[head + 1].time <= renderTime
     ) {
+      this.reusablePositionBufferEntries.push(positionBuffer[head]);
       head++;
     }
 
@@ -211,18 +217,31 @@ export class Creature extends Group {
 
   set(position: number[], direction: number[]) {
     if (!position || !direction) return;
-    const pos = new Vector3(position[0], position[1], position[2]);
-    const dir = VoxMathUtils.directionToQuaternion(
-      direction[0],
-      0,
-      direction[2]
-    );
+    let entry = this.reusablePositionBufferEntries.pop();
+    if (!entry) {
+      entry = {
+        time: 0,
+        pos: new Vector3(),
+        dir: new Quaternion(),
+      };
+    }
+
     const now = performance.now();
+    entry.time = now;
+    entry.pos.set(position[0], position[1], position[2]);
+    VoxMathUtils.directionToQuaternion(direction[0], 0, direction[2], entry.dir);
+
     const positionBuffer = this.positionBuffer;
-    positionBuffer.push({ time: now, pos, dir });
+    positionBuffer.push(entry);
     const bufferedCount = positionBuffer.length - this.positionBufferHead;
     if (bufferedCount > 10) {
-      this.positionBufferHead += bufferedCount - 10;
+      const toTrim = bufferedCount - 10;
+      const head = this.positionBufferHead;
+      const reusableEntries = this.reusablePositionBufferEntries;
+      for (let trimIndex = 0; trimIndex < toTrim; trimIndex++) {
+        reusableEntries.push(positionBuffer[head + trimIndex]);
+      }
+      this.positionBufferHead = head + toTrim;
     }
     if (this.positionBufferHead >= 10) {
       this.normalizePositionBuffer();
