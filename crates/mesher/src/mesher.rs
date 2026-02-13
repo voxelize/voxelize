@@ -2195,19 +2195,18 @@ fn process_face<S: VoxelAccess>(
     let rotatable = block.rotatable;
     let y_rotatable = block.y_rotatable;
     let needs_rotation = (rotatable || y_rotatable) && !world_space;
-
-    let mut dir = [face.dir[0] as f32, face.dir[1] as f32, face.dir[2] as f32];
     let is_all_transparent = block.is_all_transparent;
-
-    if needs_rotation {
-        rotation.rotate_node(&mut dir, y_rotatable, false);
-    }
-
-    let dir = [
-        dir[0].round() as i32,
-        dir[1].round() as i32,
-        dir[2].round() as i32,
-    ];
+    let dir = if needs_rotation {
+        let mut rotated_dir = [face.dir[0] as f32, face.dir[1] as f32, face.dir[2] as f32];
+        rotation.rotate_node(&mut rotated_dir, y_rotatable, false);
+        [
+            rotated_dir[0].round() as i32,
+            rotated_dir[1].round() as i32,
+            rotated_dir[2].round() as i32,
+        ]
+    } else {
+        face.dir
+    };
 
     let neighbor_id = if !needs_rotation {
         neighbors.get_voxel(dir[0], dir[1], dir[2])
