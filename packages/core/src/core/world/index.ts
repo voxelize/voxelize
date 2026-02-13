@@ -2739,7 +2739,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       const { consumedCount } = this.processLightUpdates(
         blockUpdates,
         processedOffset,
-        blockUpdates.length
+        blockUpdates.length,
+        false
       );
       if (consumedCount === 0) {
         break;
@@ -5287,7 +5288,8 @@ export class World<T = any> extends Scene implements NetIntercept {
   private processLightUpdates = (
     updates: BlockUpdateWithSource[],
     startIndex = 0,
-    endIndex = updates.length
+    endIndex = updates.length,
+    collectClientUpdates = true
   ) => {
     const startTime = performance.now();
     const startSequenceId = this.deltaSequenceCounter;
@@ -5297,7 +5299,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     const maxUpdates = endIndex - startIndex;
 
     let consumedCount = 0;
-    const processedClientUpdates = new Array<BlockUpdate>(maxUpdates);
+    const processedClientUpdates = collectClientUpdates
+      ? new Array<BlockUpdate>(maxUpdates)
+      : [];
     let processedClientUpdateCount = 0;
     const processedUpdates = new Array<ProcessedUpdate>(maxUpdates);
     let processedUpdateCount = 0;
@@ -5391,7 +5395,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         stage: normalizedStage,
       };
       processedUpdateCount++;
-      if (update.source === "client") {
+      if (collectClientUpdates && update.source === "client") {
         processedClientUpdates[processedClientUpdateCount] = update.update;
         processedClientUpdateCount++;
       }
@@ -5417,7 +5421,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.executeLightOperationsSyncAll(lightOps);
     }
 
-    processedClientUpdates.length = processedClientUpdateCount;
+    if (collectClientUpdates) {
+      processedClientUpdates.length = processedClientUpdateCount;
+    }
     return {
       consumedCount,
       processedClientUpdates,
