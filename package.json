@@ -10,6 +10,7 @@
     "check:dev-env": "node ./check-dev-env.mjs",
     "check:dev-env:json": "node ./check-dev-env.mjs --json",
     "check:wasm-pack": "node ./check-wasm-pack.mjs",
+    "check:wasm-pack:json": "node ./check-wasm-pack.mjs --json",
     "build:wasm": "node ./check-wasm-pack.mjs && cd crates/wasm-mesher && wasm-pack build --target web",
     "build:wasm:dev": "node ./check-wasm-pack.mjs && cd crates/wasm-mesher && wasm-pack build --target web --dev",
     "build:wasm:release": "node ./check-wasm-pack.mjs && cd crates/wasm-mesher && wasm-pack build --target web --release",

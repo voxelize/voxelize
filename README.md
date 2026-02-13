@@ -86,6 +86,8 @@ pnpm run check:dev-env:json
 
 # verify wasm-pack setup
 pnpm run check:wasm-pack
+# json output (for CI integrations)
+pnpm run check:wasm-pack:json
 
 # generate protocol buffers
 pnpm run proto
