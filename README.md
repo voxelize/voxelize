@@ -94,6 +94,9 @@ pnpm run demo
 
 # typecheck the client example only
 pnpm run typecheck:client
+
+# check whether client wasm artifacts are ready
+pnpm run check:client:wasm
 ```
 
 visit http://localhost:3000

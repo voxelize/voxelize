@@ -17,6 +17,7 @@
     "test-dev": "cross-env VITE_CJS_IGNORE_WARNING=true vitest",
     "test": "cross-env VITE_CJS_IGNORE_WARNING=true vitest --run",
     "typecheck:client": "pnpm --filter client run typecheck",
+    "check:client:wasm": "pnpm --filter client run check:wasm",
     "test:rust": "cargo test --test mesher_tests --test lights_tests",
     "test:rust:all": "cargo test --lib --tests",
     "bench": "cargo bench --bench mesher_bench --bench lights_bench",
