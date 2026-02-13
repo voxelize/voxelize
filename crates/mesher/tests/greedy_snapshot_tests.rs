@@ -688,3 +688,52 @@ fn snapshot_seeded_property_mix() {
         mesh_space::<TestSpace>,
     );
 }
+
+#[test]
+fn greedy_legacy_parity_across_randomized_seeds() {
+    let registry = build_registry();
+
+    for seed_base in 0..16u32 {
+        let mut space = TestSpace::new([8, 6, 8]);
+        let mut seed = 0x9E3779B9u32 ^ seed_base.wrapping_mul(2654435761);
+
+        for x in 0..8 {
+            for z in 0..8 {
+                for y in 0..5 {
+                    let value = seeded_next(&mut seed) % 11;
+                    if value == 0 {
+                        continue;
+                    }
+                    if value == 4 {
+                        let stage = seeded_next(&mut seed) % 8;
+                        space.set_voxel_stage(x, y, z, value, stage);
+                    } else if value == 8 {
+                        let rotation_value = seeded_next(&mut seed) % 4;
+                        let rotation = match rotation_value {
+                            0 => BlockRotation::PY(0.0),
+                            1 => BlockRotation::PY(std::f32::consts::FRAC_PI_2),
+                            2 => BlockRotation::PY(std::f32::consts::PI),
+                            _ => BlockRotation::PY(std::f32::consts::PI * 1.5),
+                        };
+                        space.set_voxel_rotation(x, y, z, value, rotation);
+                    } else {
+                        space.set_voxel_id(x, y, z, value);
+                    }
+                }
+            }
+        }
+
+        for x in 0..8 {
+            for z in 0..8 {
+                let wave = seeded_next(&mut seed) & 0xF;
+                let sunlight = wave;
+                let red = (wave + 3) & 0xF;
+                let green = (wave + 7) & 0xF;
+                let blue = (wave + 11) & 0xF;
+                space.set_light(x, 5, z, sunlight, red, green, blue);
+            }
+        }
+
+        assert_greedy_parity(&space, &registry);
+    }
+}
