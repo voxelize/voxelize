@@ -92,6 +92,7 @@ type PreflightReport = {
   outputPath: string | null;
   invalidChecks: string[];
   unknownOptions: string[];
+  supportedCliOptions: string[];
   writeError?: string;
   message?: string;
 };
@@ -190,6 +191,7 @@ describe("preflight aggregate report", () => {
     expect(report.availableSpecialSelectorResolvedChecks).toEqual(
       expectedAvailableSpecialSelectorResolvedChecks
     );
+    expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
     expect(report.requestedCheckResolutionKinds).toEqual(
       expectedRequestedCheckResolutionKinds
     );
@@ -930,6 +932,7 @@ describe("preflight aggregate report", () => {
     expect(report.listChecksOnly).toBe(false);
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
+    expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
     expect(report.selectionMode).toBe("default");
     expect(report.unknownOptions).toEqual(["--mystery"]);
     expect(report.message).toBe(expectedUnsupportedOptionsMessage(["--mystery"]));
@@ -946,7 +949,7 @@ describe("preflight aggregate report", () => {
   it("deduplicates repeated unsupported options", () => {
     const result = spawnSync(
       process.execPath,
-      [preflightScript, "--mystery", "--mystery", "--another-unknown"],
+      [preflightScript, "--mystery", "--mystery", "--another-mystery"],
       {
         cwd: rootDir,
         encoding: "utf8",
@@ -959,9 +962,10 @@ describe("preflight aggregate report", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
-    expect(report.unknownOptions).toEqual(["--mystery", "--another-unknown"]);
+    expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
+    expect(report.unknownOptions).toEqual(["--mystery", "--another-mystery"]);
     expect(report.message).toBe(
-      expectedUnsupportedOptionsMessage(["--mystery", "--another-unknown"])
+      expectedUnsupportedOptionsMessage(["--mystery", "--another-mystery"])
     );
     expect(result.status).toBe(1);
   });
@@ -1137,6 +1141,7 @@ describe("preflight aggregate report", () => {
     expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(typeof report.endedAt).toBe("string");
+    expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
     expect(report.totalChecks).toBe(0);
     expect(report.passedCheckCount).toBe(0);
     expect(report.failedCheckCount).toBe(0);
