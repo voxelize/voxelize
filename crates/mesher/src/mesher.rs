@@ -3866,6 +3866,10 @@ pub fn mesh_space<S: VoxelAccess>(
 ) -> Vec<GeometryProtocol> {
     let mut map: HashMap<GeometryMapKey, GeometryProtocol> =
         HashMap::with_capacity(estimate_geometry_capacity(min, max));
+    let zero_is_empty = registry
+        .get_block_by_id(0)
+        .map(|block| block.is_empty)
+        .unwrap_or(true);
 
     let [min_x, min_y, min_z] = *min;
     let [max_x, max_y, max_z] = *max;
@@ -3877,6 +3881,9 @@ pub fn mesh_space<S: VoxelAccess>(
             for vy in min_y..max_y {
                 let raw_voxel = space.get_raw_voxel(vx, vy, vz);
                 let voxel_id = extract_id(raw_voxel);
+                if voxel_id == 0 && zero_is_empty {
+                    continue;
+                }
                 let block = if cached_voxel_block_id == voxel_id {
                     match cached_voxel_block {
                         Some(block) => block,
