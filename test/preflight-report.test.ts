@@ -4509,6 +4509,67 @@ describe("preflight aggregate report", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("uses the last output flag for unsupported-option validation errors with no-build aliases between outputs", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "voxelize-preflight-unsupported-last-output-with-no-build-alias-"
+      )
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+    const secondOutputPath = path.resolve(tempDirectory, "second-report.json");
+
+    const result = spawnSync(
+      process.execPath,
+      [
+        preflightScript,
+        "--list-checks",
+        "--mystery",
+        "--output",
+        firstOutputPath,
+        "--verify",
+        "--output",
+        secondOutputPath,
+      ],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const stdoutReport = JSON.parse(output) as PreflightReport;
+    const secondFileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as PreflightReport;
+
+    expect(stdoutReport.schemaVersion).toBe(1);
+    expect(stdoutReport.passed).toBe(false);
+    expect(stdoutReport.exitCode).toBe(1);
+    expect(stdoutReport.listChecksOnly).toBe(true);
+    expect(stdoutReport.noBuild).toBe(true);
+    expect(stdoutReport.validationErrorCode).toBe("unsupported_options");
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(stdoutReport.unknownOptions).toEqual(["--mystery"]);
+    expect(stdoutReport.unknownOptionCount).toBe(1);
+    expect(stdoutReport.message).toBe(expectedUnsupportedOptionsMessage(["--mystery"]));
+    expect(stdoutReport.activeCliOptions).toEqual([
+      "--list-checks",
+      "--no-build",
+      "--output",
+    ]);
+    expect(stdoutReport.activeCliOptionTokens).toEqual([
+      "--list-checks",
+      "--output",
+      "--verify",
+    ]);
+    expect(secondFileReport).toEqual(stdoutReport);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("uses the last output flag for inline no-build misuse validation errors", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(

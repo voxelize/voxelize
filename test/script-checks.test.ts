@@ -3584,6 +3584,53 @@ describe("root preflight scripts", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("check-client json validation output keeps no-build aliases active between output flags", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "voxelize-client-validation-last-output-with-no-build-alias-"
+      )
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+    const secondOutputPath = path.resolve(tempDirectory, "second-report.json");
+
+    const result = runScript("check-client.mjs", [
+      "--json",
+      "--mystery",
+      "--output",
+      firstOutputPath,
+      "--verify",
+      "--output",
+      secondOutputPath,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as ClientJsonReport;
+    const secondFileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as ClientJsonReport;
+
+    expect(stdoutReport.passed).toBe(false);
+    expect(stdoutReport.noBuild).toBe(true);
+    expect(stdoutReport.validationErrorCode).toBe("unsupported_options");
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(stdoutReport.unknownOptions).toEqual(["--mystery"]);
+    expect(stdoutReport.totalSteps).toBe(0);
+    expect(stdoutReport.activeCliOptions).toEqual([
+      "--json",
+      "--no-build",
+      "--output",
+    ]);
+    expect(stdoutReport.activeCliOptionTokens).toEqual([
+      "--json",
+      "--output",
+      "--verify",
+    ]);
+    expect(secondFileReport).toEqual(stdoutReport);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("check-client json validation keeps trailing output after inline no-build misuse", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-client-validation-last-output-inline-misuse-")
@@ -5179,6 +5226,53 @@ describe("root preflight scripts", () => {
     expect(stdoutReport.outputPath).toBe(secondOutputPath);
     expect(stdoutReport.unknownOptions).toEqual(["--mystery"]);
     expect(stdoutReport.totalSteps).toBe(0);
+    expect(secondFileReport).toEqual(stdoutReport);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("check-onboarding json validation output keeps no-build aliases active between output flags", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "voxelize-onboarding-validation-last-output-with-no-build-alias-"
+      )
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+    const secondOutputPath = path.resolve(tempDirectory, "second-report.json");
+
+    const result = runScript("check-onboarding.mjs", [
+      "--json",
+      "--mystery",
+      "--output",
+      firstOutputPath,
+      "--verify",
+      "--output",
+      secondOutputPath,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as OnboardingJsonReport;
+    const secondFileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as OnboardingJsonReport;
+
+    expect(stdoutReport.passed).toBe(false);
+    expect(stdoutReport.noBuild).toBe(true);
+    expect(stdoutReport.validationErrorCode).toBe("unsupported_options");
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(stdoutReport.unknownOptions).toEqual(["--mystery"]);
+    expect(stdoutReport.totalSteps).toBe(0);
+    expect(stdoutReport.activeCliOptions).toEqual([
+      "--json",
+      "--no-build",
+      "--output",
+    ]);
+    expect(stdoutReport.activeCliOptionTokens).toEqual([
+      "--json",
+      "--output",
+      "--verify",
+    ]);
     expect(secondFileReport).toEqual(stdoutReport);
     expect(fs.existsSync(firstOutputPath)).toBe(false);
     expect(result.status).toBe(1);

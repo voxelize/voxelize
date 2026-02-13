@@ -1442,6 +1442,61 @@ describe("client wasm preflight script", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("uses the last output flag for unsupported-option validation reports with no-build aliases between outputs", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "voxelize-wasm-mesher-validation-last-output-with-no-build-alias-"
+      )
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+    const secondOutputPath = path.resolve(tempDirectory, "second-report.json");
+
+    const result = spawnSync(
+      process.execPath,
+      [
+        wasmMesherScript,
+        "--json",
+        "--mystery",
+        "--output",
+        firstOutputPath,
+        "--verify",
+        "--output",
+        secondOutputPath,
+      ],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const stdoutReport = JSON.parse(`${result.stdout}${result.stderr}`) as WasmMesherJsonReport;
+    const secondFileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as WasmMesherJsonReport;
+
+    expect(stdoutReport.passed).toBe(false);
+    expect(stdoutReport.buildSkipped).toBe(true);
+    expect(stdoutReport.validationErrorCode).toBe("unsupported_options");
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(stdoutReport.unknownOptions).toEqual(["--mystery"]);
+    expect(stdoutReport.activeCliOptions).toEqual([
+      "--json",
+      "--no-build",
+      "--output",
+    ]);
+    expect(stdoutReport.activeCliOptionTokens).toEqual([
+      "--json",
+      "--output",
+      "--verify",
+    ]);
+    expect(secondFileReport).toEqual(stdoutReport);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("uses the last output flag for inline no-build misuse validation reports", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(
