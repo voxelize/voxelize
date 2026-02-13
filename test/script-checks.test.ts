@@ -12,6 +12,14 @@ type ScriptResult = {
   output: string;
 };
 
+type WasmPackJsonReport = {
+  passed: boolean;
+  exitCode: number;
+  command: string;
+  version: string | null;
+  message?: string;
+};
+
 type DevEnvJsonCheck = {
   label: string;
   required: boolean;
@@ -88,6 +96,23 @@ describe("root preflight scripts", () => {
     const result = runScript("check-wasm-pack.mjs", ["--quiet"]);
 
     expect(result.output).toBe("");
+  });
+
+  it("check-wasm-pack json mode emits machine-readable report", () => {
+    const result = runScript("check-wasm-pack.mjs", ["--json"]);
+    const report = JSON.parse(result.output) as WasmPackJsonReport;
+
+    expect(typeof report.passed).toBe("boolean");
+    expect(report.exitCode).toBeGreaterThanOrEqual(0);
+    expect(report.command).toContain("wasm-pack");
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+
+    if (report.passed) {
+      expect(report.version).not.toBeNull();
+      return;
+    }
+
+    expect(report.message).toContain("wasm-pack is required for wasm build commands");
   });
 
   it("check-dev-env returns pass or fail summary", () => {
