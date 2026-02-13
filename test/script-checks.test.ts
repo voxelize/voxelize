@@ -28,6 +28,19 @@ type DevEnvJsonReport = {
   checks: DevEnvJsonCheck[];
 };
 
+type ClientJsonStep = {
+  name: string;
+  passed: boolean;
+  exitCode: number;
+  output: string;
+};
+
+type ClientJsonReport = {
+  passed: boolean;
+  exitCode: number;
+  steps: ClientJsonStep[];
+};
+
 const runScript = (scriptName: string, args: string[] = []): ScriptResult => {
   const scriptPath = path.resolve(rootDir, scriptName);
   const result = spawnSync(process.execPath, [scriptPath, ...args], {
@@ -114,6 +127,20 @@ describe("root preflight scripts", () => {
     const result = runScript("check-client.mjs", ["--quiet"]);
 
     expect(result.output).not.toContain("Running client check step:");
+  });
+
+  it("check-client json mode emits machine-readable report", () => {
+    const result = runScript("check-client.mjs", ["--json"]);
+    const report = JSON.parse(result.output) as ClientJsonReport;
+
+    expect(typeof report.passed).toBe("boolean");
+    expect(report.exitCode).toBeGreaterThanOrEqual(0);
+    expect(Array.isArray(report.steps)).toBe(true);
+    expect(report.steps.length).toBeGreaterThan(0);
+    expect(report.steps[0].name).toBe("WASM artifact preflight");
+    expect(result.status).toBe(report.passed ? 0 : 1);
+    expect(result.output).not.toContain("Running client check step:");
+    expect(result.output).not.toContain("Client check failed:");
   });
 
   it("check-onboarding returns pass or fail summary", () => {
