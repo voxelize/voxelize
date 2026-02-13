@@ -1,9 +1,7 @@
 import { MessageProtocol } from "@voxelize/protocol";
 
+import { JsonValue } from "../types";
 import { NetIntercept } from "./network";
-
-type JsonPrimitive = string | number | boolean | null;
-type JsonValue = JsonPrimitive | { [key: string]: JsonValue } | JsonValue[];
 
 /**
  * A caller for a method on the server.
