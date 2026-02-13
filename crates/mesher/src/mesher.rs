@@ -1424,12 +1424,20 @@ fn compute_face_ao_and_light_fast(
 
     let is_see_through = block.is_see_through;
     let is_all_transparent = block.is_all_transparent;
-    let needs_opaque_checks = !(is_see_through || is_all_transparent);
+    let skip_opaque_checks = is_see_through || is_all_transparent;
+    let needs_opaque_checks = !skip_opaque_checks;
     let opaque_mask = if needs_opaque_checks {
         Some(build_neighbor_opaque_mask(neighbors, registry))
     } else {
         None
     };
+    let center_lights = if skip_opaque_checks {
+        Some(neighbors.get_all_lights(0, 0, 0))
+    } else {
+        None
+    };
+    let dir_is_x = dir[0].abs() == 1;
+    let dir_is_y = dir[1].abs() == 1;
 
     let corner_positions: [[f32; 3]; 4] = match dir {
         [1, 0, 0] => [
@@ -1502,19 +1510,18 @@ fn compute_face_ao_and_light_fast(
             (false, false, false, false)
         };
 
-        let ao = if is_see_through || is_all_transparent {
+        let ao = if skip_opaque_checks {
             3
-        } else if dir[0].abs() == 1 {
+        } else if dir_is_x {
             vertex_ao(b110, b101, b111)
-        } else if dir[1].abs() == 1 {
+        } else if dir_is_y {
             vertex_ao(b110, b011, b111)
         } else {
             vertex_ao(b011, b101, b111)
         };
 
-        let (sunlight, red_light, green_light, blue_light) = if is_see_through || is_all_transparent
-        {
-            neighbors.get_all_lights(0, 0, 0)
+        let (sunlight, red_light, green_light, blue_light) = if let Some(lights) = center_lights {
+            lights
         } else {
             let mask = opaque_mask
                 .as_ref()
