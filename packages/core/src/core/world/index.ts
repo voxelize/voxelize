@@ -310,7 +310,9 @@ export type LightOperations = {
 };
 
 export type ProcessedUpdate = {
-  voxel: Coords3;
+  vx: number;
+  vy: number;
+  vz: number;
   oldId: number;
   newId: number;
   oldBlock: Block;
@@ -5213,8 +5215,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     for (let index = 0; index < processedUpdateCount; index++) {
       const update = processedUpdates[index];
-      const { voxel, oldBlock, newBlock, newRotation, oldStage } = update;
-      const [vx, vy, vz] = voxel;
+      const { vx, vy, vz, oldBlock, newBlock, newRotation, oldStage } = update;
 
       let currentEmitsLight = oldBlock.isLight;
       let currentRedLevel = oldBlock.redLightLevel;
@@ -5305,18 +5306,19 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       if (currentEmitsLight && !newEmitsLight) {
+        const sourceVoxel: Coords3 = [vx, vy, vz];
         if (this.getSunlightAtUnchecked(vx, vy, vz) > 0) {
-          sunlightRemoval.push(voxel);
+          sunlightRemoval.push(sourceVoxel);
         }
 
         if (currentRedLevel > 0) {
-          redRemoval.push(voxel);
+          redRemoval.push(sourceVoxel);
         }
         if (currentGreenLevel > 0) {
-          greenRemoval.push(voxel);
+          greenRemoval.push(sourceVoxel);
         }
         if (currentBlueLevel > 0) {
-          blueRemoval.push(voxel);
+          blueRemoval.push(sourceVoxel);
         }
         removedLightSourceKeys.add(ChunkUtils.getVoxelNameAt(vx, vy, vz));
       }
@@ -5325,8 +5327,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     const hasRemovedLightSources = removedLightSourceKeys.size > 0;
     for (let index = 0; index < processedUpdateCount; index++) {
       const update = processedUpdates[index];
-      const { voxel, oldBlock, newBlock, oldRotation, newRotation } = update;
-      const [vx, vy, vz] = voxel;
+      const { vx, vy, vz, oldBlock, newBlock, oldRotation, newRotation } =
+        update;
+      let sourceVoxel: Coords3 | null = null;
       const isRemovedLightSource =
         hasRemovedLightSources &&
         removedLightSourceKeys.has(ChunkUtils.getVoxelNameAt(vx, vy, vz));
@@ -5350,16 +5353,28 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       if (newBlock.isOpaque || newBlock.lightReduce) {
         if (sourceSunlightLevel > 0) {
-          sunlightRemoval.push(voxel);
+          if (!sourceVoxel) {
+            sourceVoxel = [vx, vy, vz];
+          }
+          sunlightRemoval.push(sourceVoxel);
         }
         if (sourceRedLevel > 0) {
-          redRemoval.push(voxel);
+          if (!sourceVoxel) {
+            sourceVoxel = [vx, vy, vz];
+          }
+          redRemoval.push(sourceVoxel);
         }
         if (sourceGreenLevel > 0) {
-          greenRemoval.push(voxel);
+          if (!sourceVoxel) {
+            sourceVoxel = [vx, vy, vz];
+          }
+          greenRemoval.push(sourceVoxel);
         }
         if (sourceBlueLevel > 0) {
-          blueRemoval.push(voxel);
+          if (!sourceVoxel) {
+            sourceVoxel = [vx, vy, vz];
+          }
+          blueRemoval.push(sourceVoxel);
         }
       } else {
         let removeCount = 0;
@@ -5368,7 +5383,15 @@ export class World<T = any> extends Scene implements NetIntercept {
         const hasGreenSource = sourceGreenLevel > 0;
         const hasBlueSource = sourceBlueLevel > 0;
 
-        for (const [ox, oy, oz] of VOXEL_NEIGHBORS) {
+        for (
+          let neighborIndex = 0;
+          neighborIndex < VOXEL_NEIGHBORS.length;
+          neighborIndex++
+        ) {
+          const neighborOffset = VOXEL_NEIGHBORS[neighborIndex];
+          const ox = neighborOffset[0];
+          const oy = neighborOffset[1];
+          const oz = neighborOffset[2];
           const nvy = vy + oy;
           if (nvy < 0 || nvy >= maxHeight) {
             continue;
@@ -5460,16 +5483,28 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         if (removeCount === 0) {
           if (sourceSunlightLevel !== 0) {
-            sunlightRemoval.push(voxel);
+            if (!sourceVoxel) {
+              sourceVoxel = [vx, vy, vz];
+            }
+            sunlightRemoval.push(sourceVoxel);
           }
           if (sourceRedLevel !== 0) {
-            redRemoval.push(voxel);
+            if (!sourceVoxel) {
+              sourceVoxel = [vx, vy, vz];
+            }
+            redRemoval.push(sourceVoxel);
           }
           if (sourceGreenLevel !== 0) {
-            greenRemoval.push(voxel);
+            if (!sourceVoxel) {
+              sourceVoxel = [vx, vy, vz];
+            }
+            greenRemoval.push(sourceVoxel);
           }
           if (sourceBlueLevel !== 0) {
-            blueRemoval.push(voxel);
+            if (!sourceVoxel) {
+              sourceVoxel = [vx, vy, vz];
+            }
+            blueRemoval.push(sourceVoxel);
           }
         }
       }
@@ -5512,27 +5547,44 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
 
         if (redLevel > 0) {
+          if (!sourceVoxel) {
+            sourceVoxel = [vx, vy, vz];
+          }
           redFlood.push({
-            voxel: voxel,
+            voxel: sourceVoxel,
             level: redLevel,
           });
         }
 
         if (greenLevel > 0) {
+          if (!sourceVoxel) {
+            sourceVoxel = [vx, vy, vz];
+          }
           greenFlood.push({
-            voxel: voxel,
+            voxel: sourceVoxel,
             level: greenLevel,
           });
         }
 
         if (blueLevel > 0) {
+          if (!sourceVoxel) {
+            sourceVoxel = [vx, vy, vz];
+          }
           blueFlood.push({
-            voxel: voxel,
+            voxel: sourceVoxel,
             level: blueLevel,
           });
         }
       } else if (oldBlock.isOpaque && !newBlock.isOpaque) {
-        for (const [ox, oy, oz] of VOXEL_NEIGHBORS) {
+        for (
+          let neighborIndex = 0;
+          neighborIndex < VOXEL_NEIGHBORS.length;
+          neighborIndex++
+        ) {
+          const neighborOffset = VOXEL_NEIGHBORS[neighborIndex];
+          const ox = neighborOffset[0];
+          const oy = neighborOffset[1];
+          const oz = neighborOffset[2];
           const nvy = vy + oy;
 
           if (nvy < 0) {
@@ -5769,7 +5821,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.trackChunkAt(vx, vy, vz);
 
       processedUpdates[processedUpdateCount] = {
-        voxel: [vx, vy, vz],
+        vx,
+        vy,
+        vz,
         oldId: currentId,
         newId: type,
         oldBlock: currentBlock,
