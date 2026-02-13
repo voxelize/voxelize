@@ -449,6 +449,27 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(1);
   });
 
+  it("fails when the last output flag value is missing", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--output", "./first.json", "--output"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(result.status).toBe(1);
+  });
+
   it("fails with structured output when only value is missing", () => {
     const result = spawnSync(process.execPath, [preflightScript, "--only"], {
       cwd: rootDir,
