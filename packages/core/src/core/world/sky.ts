@@ -105,8 +105,7 @@ export class Sky extends CanvasBox {
   /**
    * Create a new sky instance.
    *
-   * @param dimension The dimension of the dodecahedron sky. The inner canvas box is 0.8 times this dimension.
-   * @param lerpFactor The lerp factor for the sky gradient. The sky gradient is updated every frame by lerping the current color to the target color.
+   * @param options The sky options, including dimension and gradient lerp behavior.
    */
   constructor(options: Partial<SkyOptions> = {}) {
     super({

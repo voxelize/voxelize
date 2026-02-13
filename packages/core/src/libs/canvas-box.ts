@@ -554,8 +554,8 @@ export class CanvasBox extends Group {
 /**
  * Draw a sun to a canvas box. This can be used on sky, as sky is essentially a canvas box.
  *
- * @param context The canvas context to draw on.
- * @param canvas The canvas to draw on.
+ * @param sunRadius The sun radius in pixels.
+ * @param sunColor The color of the sun.
  */
 const drawSun =
   (sunRadius = 50, sunColor = "#f8ffb5") =>

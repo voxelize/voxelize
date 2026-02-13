@@ -3038,13 +3038,8 @@ export class World<T = any> extends Scene implements NetIntercept {
   /**
    * Get a mesh of the model of the given block.
    *
-   * @param id The ID of the block.
-   * @param options The options of creating this block mesh.
-   * @param options.material The type of material to use for this generated mesh.
-   * @param options.separateFaces: Whether or not to separate the faces of the block into different meshes.
-   * @param options.crumbs: Whether or not to mess up the block mesh's faces and UVs to make it look like crumbs.
-   * @param options.centered: Whether or not to center the geometry vertices around origin (default: false).
-   * @param options.cached: Whether to return a cached mesh if available (default: false). When true, the same mesh instance is returned for identical options. Callers should clone the mesh if they need to modify it.
+   * @param idOrName The ID or name of the block.
+   * @param options The options of creating this block mesh, including material, face separation, crumbs, centering, and mesh caching behavior.
    * @returns A 3D mesh (group) of the block model.
    */
   makeBlockMesh = (
