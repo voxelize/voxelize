@@ -4484,7 +4484,6 @@ export class World<T = any> extends Scene implements NetIntercept {
     const { deleteRadius } = this;
     const deleteRadiusSquared = deleteRadius * deleteRadius;
     const deleted: Coords2[] = [];
-    const toRemove: string[] = [];
 
     for (const [name, chunk] of this.chunkPipeline.loadedEntries()) {
       const [x, z] = chunk.coords;
@@ -4516,14 +4515,10 @@ export class World<T = any> extends Scene implements NetIntercept {
         this.pruneBlockEntitiesInChunk(chunk.coords);
         chunk.dispose();
         this.meshPipeline.remove(x, z);
-        toRemove.push(name);
+        this.chunkPipeline.remove(name);
         this.chunkInitializeListeners.delete(name);
         deleted.push(chunk.coords);
       }
-    }
-
-    for (let index = 0; index < toRemove.length; index++) {
-      this.chunkPipeline.remove(toRemove[index]);
     }
 
     for (const [name, x, z] of this.chunkPipeline.requestedEntries()) {
