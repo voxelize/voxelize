@@ -370,6 +370,7 @@ const ZERO_DIRECTION: [number, number] = [0, 0];
 const ZERO_VECTOR3 = new Vector3(0, 0, 0);
 const ZERO_BLOCK_ROTATION = new BlockRotation();
 const EMPTY_BLOCK_UPDATES: BlockUpdate[] = [];
+const EMPTY_AABBS: AABB[] = [];
 const NULL_GEOMETRY_RESULT = () => null;
 
 /**
@@ -877,6 +878,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   private reusableSyncLightAffectedZSets: Set<number>[] = [];
   private dynamicAABBRuleCoords: Coords3 = [0, 0, 0];
   private dynamicPassableRuleCoords: Coords3 = [0, 0, 0];
+  private raycastVoxelCoords: Coords3 = [0, 0, 0];
   private readonly dynamicRuleQuery = {
     getVoxelAt: (x: number, y: number, z: number) =>
       this.getVoxelAtUnchecked(x, y, z),
@@ -2639,12 +2641,9 @@ export class World<T = any> extends Scene implements NetIntercept {
   ) => {
     this.checkIsInitialized("raycast voxels", false);
 
-    const { ignoreFluids, ignorePassables, ignoreSeeThrough } = {
-      ignoreFluids: true,
-      ignorePassables: false,
-      ignoreSeeThrough: false,
-      ...options,
-    };
+    const ignoreFluids = options.ignoreFluids ?? true;
+    const ignorePassables = options.ignorePassables ?? false;
+    const ignoreSeeThrough = options.ignoreSeeThrough ?? false;
     const ignoreListSource = options.ignoreList;
     const ignoreList =
       ignoreListSource && ignoreListSource.length > 0
@@ -2656,7 +2655,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         const block = this.getBlockAt(wx, wy, wz);
 
         if (!block) {
-          return [];
+          return EMPTY_AABBS;
         }
 
         const {
@@ -2672,7 +2671,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         } = block;
 
         if (ignoreList?.has(id)) {
-          return [];
+          return EMPTY_AABBS;
         }
 
         if (
@@ -2680,13 +2679,17 @@ export class World<T = any> extends Scene implements NetIntercept {
           (isPassable && ignorePassables) ||
           (isSeeThrough && ignoreSeeThrough)
         ) {
-          return [];
+          return EMPTY_AABBS;
         }
 
         const rotation = this.getVoxelRotationAt(wx, wy, wz);
         const vx = Math.floor(wx);
         const vy = Math.floor(wy);
         const vz = Math.floor(wz);
+        const coords = this.raycastVoxelCoords;
+        coords[0] = vx;
+        coords[1] = vy;
+        coords[2] = vz;
 
         if (dynamicPatterns && dynamicPatterns.length > 0) {
           const aabbsWithFlags = this.getBlockAABBsForDynamicPatterns(
@@ -2695,7 +2698,6 @@ export class World<T = any> extends Scene implements NetIntercept {
             wz,
             dynamicPatterns
           );
-          const coords: Coords3 = [vx, vy, vz];
           const translatedAabbs = new Array<AABB>(aabbsWithFlags.length);
           for (let index = 0; index < aabbsWithFlags.length; index++) {
             const aabbWithFlag = aabbsWithFlags[index];
@@ -2708,7 +2710,6 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         const resolvedAabbs =
           isDynamic && dynamicFn ? dynamicFn([vx, vy, vz]).aabbs : aabbs;
-        const coords: Coords3 = [vx, vy, vz];
         const translatedAabbs = new Array<AABB>(resolvedAabbs.length);
         for (let index = 0; index < resolvedAabbs.length; index++) {
           translatedAabbs[index] = rotation
