@@ -2611,12 +2611,19 @@ fn process_face<S: VoxelAccess>(
         let block_min_x_eps = block_min[0] + 0.01;
         let block_min_y_eps = block_min[1] + 0.01;
         let block_min_z_eps = block_min[2] + 0.01;
-        for (corner_index, corner) in face.corners.iter().enumerate() {
-            let mut pos = corner.pos;
-
-            if needs_rotation {
-                rotation.rotate_node(&mut pos, y_rotatable, true);
+        let mut corner_positions = [
+            face.corners[0].pos,
+            face.corners[1].pos,
+            face.corners[2].pos,
+            face.corners[3].pos,
+        ];
+        if needs_rotation {
+            for pos in &mut corner_positions {
+                rotation.rotate_node(pos, y_rotatable, true);
             }
+        }
+        for (corner_index, corner) in face.corners.iter().enumerate() {
+            let pos = corner_positions[corner_index];
 
             positions.push(pos[0] + base_x);
             positions.push(pos[1] + base_y);
