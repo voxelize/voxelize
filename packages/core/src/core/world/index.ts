@@ -5061,6 +5061,13 @@ export class World<T = any> extends Scene implements NetIntercept {
           voxel: number;
         }[]
       >();
+      const materialGeometryGroups: Array<
+        {
+          geometry: BufferGeometry;
+          material: CustomChunkShaderMaterial;
+          voxel: number;
+        }[]
+      > = [];
 
       for (let geometryIndex = 0; geometryIndex < geometries.length; geometryIndex++) {
         const geo = geometries[geometryIndex];
@@ -5108,12 +5115,18 @@ export class World<T = any> extends Scene implements NetIntercept {
         if (!geometriesByMaterial) {
           geometriesByMaterial = [];
           materialToGeometries.set(matKey, geometriesByMaterial);
+          materialGeometryGroups.push(geometriesByMaterial);
         }
         geometriesByMaterial.push({ geometry, material, voxel });
       }
 
       meshes = [];
-      for (const geoMats of materialToGeometries.values()) {
+      for (
+        let groupIndex = 0;
+        groupIndex < materialGeometryGroups.length;
+        groupIndex++
+      ) {
+        const geoMats = materialGeometryGroups[groupIndex];
         if (geoMats.length === 0) continue;
 
         const material = geoMats[0].material;
