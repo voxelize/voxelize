@@ -231,4 +231,32 @@ describe("client wasm preflight script", () => {
     expect(report.message).toBe("Missing value for --output option.");
     expect(result.status).toBe(1);
   });
+
+  it("reports output write failures with details", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-wasm-preflight-output-write-failure-")
+    );
+
+    const result = spawnSync(
+      process.execPath,
+      [wasmMesherScript, "--json", "--no-build", "--output", tempDirectory],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const report = JSON.parse(`${result.stdout}${result.stderr}`) as WasmMesherJsonReport;
+    const failurePrefix = `Failed to write report to ${tempDirectory}.`;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBe(tempDirectory);
+    expectTimingMetadata(report);
+    expect(report.message).toContain(failurePrefix);
+    expect(report.message.length).toBeGreaterThan(failurePrefix.length);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
 });
