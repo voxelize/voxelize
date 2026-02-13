@@ -26,6 +26,18 @@ export class ChunkUtils {
   };
 
   /**
+   * Convert chunk coordinates to a string representation without array allocation.
+   *
+   * @param cx The x-coordinate of the chunk.
+   * @param cz The z-coordinate of the chunk.
+   * @param concat The concatenation string to use.
+   * @returns The string representation of the coordinates.
+   */
+  static getChunkNameAt = (cx: number, cz: number, concat = "|") => {
+    return cx + concat + cz;
+  };
+
+  /**
    * Convert a 3D voxel coordinate to a string representation.
    *
    * @param coords The coordinates to convert.

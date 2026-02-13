@@ -931,7 +931,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       max: subChunkMax,
     };
 
-    const name = ChunkUtils.getChunkName([cx, cz]);
+    const name = ChunkUtils.getChunkNameAt(cx, cz);
     if (this.chunkPipeline.isInStage(name, "processing")) {
       return null;
     }
@@ -1595,7 +1595,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   getChunkByCoords(cx: number, cz: number) {
     this.checkIsInitialized("get chunk by coords", false);
-    const name = ChunkUtils.getChunkName([cx, cz]);
+    const name = ChunkUtils.getChunkNameAt(cx, cz);
     return this.getChunkByName(name);
   }
 
@@ -1984,7 +1984,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     cx: number,
     cz: number
   ): "to request" | "requested" | "processing" | "loaded" | null {
-    const name = ChunkUtils.getChunkName([cx, cz]);
+    const name = ChunkUtils.getChunkNameAt(cx, cz);
     const stage = this.chunkPipeline.getStage(name);
 
     if (stage === "loaded") return "loaded";
@@ -3719,7 +3719,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           continue;
         }
 
-        const chunkName = ChunkUtils.getChunkName([cx, cz]);
+        const chunkName = ChunkUtils.getChunkNameAt(cx, cz);
 
         const stage = this.chunkPipeline.getStage(chunkName);
 
@@ -5526,7 +5526,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     for (let cx = minChunkX; cx <= maxChunkX; cx++) {
       for (let cz = minChunkZ; cz <= maxChunkZ; cz++) {
-        const chunkName = ChunkUtils.getChunkName([cx, cz]);
+        const chunkName = ChunkUtils.getChunkNameAt(cx, cz);
         const allDeltas = this.voxelDeltas.get(chunkName);
         if (allDeltas) {
           let recentDeltas: VoxelDelta[] | undefined;
