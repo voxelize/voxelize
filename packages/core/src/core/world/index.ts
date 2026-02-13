@@ -3739,11 +3739,12 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private handleEntities = (entities: EntityProtocol<any>[]) => {
-    entities.forEach((entity) => {
+    for (let entityIndex = 0; entityIndex < entities.length; entityIndex++) {
+      const entity = entities[entityIndex];
       const { id, type, metadata, operation } = entity;
 
       if (!type.startsWith("block::")) {
-        return;
+        continue;
       }
 
       if (!metadata || !metadata.voxel) {
@@ -3754,7 +3755,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           operation,
           metadata
         );
-        return;
+        continue;
       }
 
       const [px, py, pz] = metadata.voxel;
@@ -3764,17 +3765,16 @@ export class World<T = any> extends Scene implements NetIntercept {
       const data: T | null = metadata.json ?? null;
 
       const originalData = this.blockEntitiesMap.get(voxelId) ?? null;
-      this.blockEntityUpdateListeners.forEach((listener) => {
-        const chunkCoords = ChunkUtils.mapVoxelToChunkAt(
-          vx,
-          vz,
-          this.options.chunkSize
-        );
-        const chunkName = ChunkUtils.getChunkNameAt(
-          chunkCoords[0],
-          chunkCoords[1]
-        );
-        const chunk = this.chunkPipeline.getLoadedChunk(chunkName);
+      const chunkCoords = ChunkUtils.mapVoxelToChunkAt(
+        vx,
+        vz,
+        this.options.chunkSize
+      );
+      const chunkName = ChunkUtils.getChunkNameAt(chunkCoords[0], chunkCoords[1]);
+      const chunk = this.chunkPipeline.getLoadedChunk(chunkName);
+      const shouldDeferUpdate =
+        operation !== "DELETE" && !this.isChunkReadyForEntityUpdates(chunk);
+      for (const listener of this.blockEntityUpdateListeners) {
         const updateData: BlockEntityUpdateData<T> = {
           id,
           voxel: [vx, vy, vz],
@@ -3784,20 +3784,17 @@ export class World<T = any> extends Scene implements NetIntercept {
           etype: type,
         };
 
-        if (
-          operation !== "DELETE" &&
-          !this.isChunkReadyForEntityUpdates(chunk)
-        ) {
+        if (shouldDeferUpdate) {
           this.deferBlockEntityUpdateUntilChunkReady(
             listener,
             chunkCoords,
             updateData
           );
-          return;
+          continue;
         }
 
         listener(updateData);
-      });
+      }
 
       switch (operation) {
         case "DELETE": {
@@ -3831,7 +3828,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           break;
         }
       }
-    });
+    }
   };
 
   get time() {
