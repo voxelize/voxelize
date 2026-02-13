@@ -257,10 +257,19 @@ export class Peers<
     const { peers } = message;
 
     if (peers) {
-      peers.forEach((peer: any) => {
+      const peerUpdateHandler = this.onPeerUpdate;
+      const hasPeerUpdateHandler = !!peerUpdateHandler;
+      if (!hasPeerUpdateHandler && peers.length > 0) {
+        console.warn(
+          "Peers.onPeerUpdate is not defined, skipping peer update."
+        );
+      }
+
+      for (let peerIndex = 0; peerIndex < peers.length; peerIndex++) {
+        const peer = peers[peerIndex];
         const self = this.ownID && peer.id === this.ownID;
 
-        if (!this.options.countSelf && self) return;
+        if (!this.options.countSelf && self) continue;
 
         let object = self ? this.ownPeer : this.getPeerById(peer.id);
 
@@ -269,17 +278,13 @@ export class Peers<
           this.onPeerJoin?.(peer.id, object);
         }
 
-        if (!this.onPeerUpdate) {
-          console.warn(
-            "Peers.onPeerUpdate is not defined, skipping peer update."
-          );
-        } else {
-          this.onPeerUpdate(object, peer.metadata, {
+        if (peerUpdateHandler) {
+          peerUpdateHandler(object, peer.metadata, {
             id: peer.id,
             username: peer.username,
           });
         }
-      });
+      }
     }
   };
 
@@ -376,23 +381,25 @@ export class Peers<
     }
 
     if (this.options.updateChildren) {
-      this.children.forEach((child) => {
-        if (child === this.ownPeer) return;
+      for (let childIndex = 0; childIndex < this.children.length; childIndex++) {
+        const child = this.children[childIndex];
+        if (child === this.ownPeer) continue;
 
         if (child instanceof Character) {
           child.update();
         }
-      });
+      }
     }
   }
 
   snapAllToTarget() {
-    this.children.forEach((child) => {
-      if (child === this.ownPeer) return;
+    for (let childIndex = 0; childIndex < this.children.length; childIndex++) {
+      const child = this.children[childIndex];
+      if (child === this.ownPeer) continue;
 
       if (child instanceof Character) {
         child.snapToTarget();
       }
-    });
+    }
   }
 }
