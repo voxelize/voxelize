@@ -249,6 +249,65 @@ describe("check-ts-core script", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("treats no-build aliases after output as missing output value while keeping no-build active", () => {
+    const result = runScript(["--json", "--output", "--verify"]);
+    const report = parseReport(result);
+
+    expect(result.status).toBe(1);
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.optionTerminatorUsed).toBe(false);
+    expect(report.positionalArgs).toEqual([]);
+    expect(report.positionalArgCount).toBe(0);
+    expect(report.noBuild).toBe(true);
+    expect(report.outputPath).toBeNull();
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--json", "--no-build", "--output"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--json", "--output", "--verify"]);
+    expect(report.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+    ]);
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 1,
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+        index: 2,
+      },
+    ]);
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+  });
+
   it("treats option-terminator tokens as positional args in compact json mode", () => {
     const result = runScript(["--json", "--compact", "--no-build", "--", "--verify=1"]);
     const report = parseReport(result);
@@ -321,5 +380,21 @@ describe("check-ts-core script", () => {
     } else {
       expect(report.missingArtifacts.length).toBeGreaterThan(0);
     }
+  });
+
+  it("fails on missing output values in non-json mode", () => {
+    const result = runScript(["--output"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("Missing value for --output option.");
+  });
+
+  it("prioritizes missing output values over inline no-build alias misuse in non-json mode", () => {
+    const result = runScript(["--output", "--verify=1"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("Missing value for --output option.");
+    expect(result.output).not.toContain("Unsupported option(s):");
+    expect(result.output).not.toContain("--verify=1");
   });
 });
