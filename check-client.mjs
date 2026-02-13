@@ -36,11 +36,7 @@ if (isJson && outputPathError !== null) {
         noBuild: isNoBuild,
         outputPath: null,
         steps: [],
-        totalSteps: 0,
-        passedStepCount: 0,
-        failedStepCount: 0,
-        skippedStepCount: 0,
-        firstFailedStep: null,
+        ...summarizeStepResults([]),
         message: outputPathError,
       }),
       jsonFormat
