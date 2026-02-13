@@ -862,12 +862,7 @@ fn geometry_key_for_face(block: &Block, face: &BlockFace, vx: i32, vy: i32, vz: 
 
 fn geometry_key_for_quad(block: &Block, face_name: &str, independent: bool) -> GeometryMapKey {
     if independent {
-        let normalized = if face_name.chars().any(|character| character.is_uppercase()) {
-            face_name.to_lowercase()
-        } else {
-            face_name.to_string()
-        };
-        GeometryMapKey::Face(block.id, normalized)
+        GeometryMapKey::Face(block.id, face_name.to_string())
     } else {
         GeometryMapKey::Block(block.id)
     }
@@ -2455,7 +2450,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
 
                         let key = FaceKey {
                             block_id: block.id,
-                            face_name: face.name.clone(),
+                            face_name: face.get_name_lower().to_string(),
                             independent: face.independent,
                             ao: aos,
                             light: lights,
@@ -2786,7 +2781,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
                         let key = FaceKey {
                             block_id: block.id,
-                            face_name: face.name.clone(),
+                            face_name: face.get_name_lower().to_string(),
                             independent: face.independent,
                             ao: aos,
                             light: lights,
