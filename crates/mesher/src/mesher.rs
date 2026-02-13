@@ -1227,17 +1227,18 @@ fn should_render_face<S: VoxelAccess>(
     let nvz = vz + dir[2];
 
     let neighbor_id = space.get_voxel(nvx, nvy, nvz);
-    let (neighbor_has_type, neighbor_is_opaque) = registry.has_type_and_is_opaque(neighbor_id);
 
     if !see_through {
-        if neighbor_is_opaque {
+        if registry.is_opaque_id(neighbor_id) {
             return false;
         }
-        if neighbor_has_type {
+        if registry.has_type(neighbor_id) {
             return true;
         }
         return !space.contains(nvx, nvy, nvz);
     }
+
+    let (neighbor_has_type, neighbor_is_opaque) = registry.has_type_and_is_opaque(neighbor_id);
 
     if neighbor_is_opaque {
         return false;
