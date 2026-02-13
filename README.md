@@ -249,7 +249,7 @@ Client and onboarding JSON reports also include `totalSteps`, `passedStepCount`,
 If `--output` is provided without a value, JSON commands return a structured error report.
 If `--output` or `--only` is passed multiple times, the last value is used.
 `--output` and `--only` also support inline assignment forms such as `--output=./report.json` and `--only=client`.
-Empty split and inline output/selection values (for example `--output ""`, `--output=`, `--only ""`, or `--only=`) are treated as missing values.
+Empty or whitespace-only split values and empty inline output/selection values (for example `--output ""`, `--output "   "`, `--output=`, `--only ""`, `--only "   "`, or `--only=`) are treated as missing values.
 Invalid `--only` errors include available canonical check names and special selector aliases (for example `all`, `all-checks`, `all_checks`, `allchecks`) for quick correction.
 Invalid `--only` errors also include `invalidChecks` for machine-readable diagnostics.
 Unsupported CLI flags return structured errors and include `unknownOptions` for machine-readable diagnostics.

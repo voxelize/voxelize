@@ -547,6 +547,47 @@ describe("client wasm preflight script", () => {
     expect(result.status).toBe(1);
   });
 
+  it("fails with structured output when split output value is whitespace", () => {
+    const result = spawnSync(
+      process.execPath,
+      [wasmMesherScript, "--json", "--output", "   "],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const report = JSON.parse(`${result.stdout}${result.stderr}`) as WasmMesherJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expectTimingMetadata(report);
+    expectOptionTerminatorMetadata(report);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--output"],
+      ["--json", "--output"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--output",
+          canonicalOption: "--output",
+          index: 1,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("fails with structured output when inline output value is empty", () => {
     const result = spawnSync(
       process.execPath,
