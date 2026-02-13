@@ -608,3 +608,33 @@ impl VoxelAccess for Chunks {
         self.raw_chunk_by_voxel(vx, vy, vz).is_some()
     }
 }
+
+impl voxelize_lighter::LightVoxelAccess for Chunks {
+    fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        VoxelAccess::get_raw_voxel(self, vx, vy, vz)
+    }
+
+    fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> super::block::BlockRotation {
+        VoxelAccess::get_voxel_rotation(self, vx, vy, vz)
+    }
+
+    fn get_voxel_stage(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        VoxelAccess::get_voxel_stage(self, vx, vy, vz)
+    }
+
+    fn get_raw_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        VoxelAccess::get_raw_light(self, vx, vy, vz)
+    }
+
+    fn set_raw_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
+        VoxelAccess::set_raw_light(self, vx, vy, vz, level)
+    }
+
+    fn get_max_height(&self, vx: i32, vz: i32) -> u32 {
+        VoxelAccess::get_max_height(self, vx, vz)
+    }
+
+    fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        VoxelAccess::contains(self, vx, vy, vz)
+    }
+}
