@@ -1974,10 +1974,16 @@ fn evaluate_block_rule<S: VoxelAccess>(
                     )
                 };
 
-            let actual_id = space.get_voxel(check_x, check_y, check_z);
+            let has_rotation_expectation = simple.rotation.is_some();
+            let has_stage_expectation = simple.stage.is_some();
             if let Some(expected_id) = simple.id {
+                let actual_id = space.get_voxel(check_x, check_y, check_z);
                 if actual_id != expected_id {
                     return false;
+                }
+
+                if !has_rotation_expectation && !has_stage_expectation {
+                    return true;
                 }
             }
 
