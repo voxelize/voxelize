@@ -304,7 +304,8 @@ const applyRelevantDeltas = (
 const serializeChunkGrid = (
   chunkGrid: (RawChunk | null)[],
   gridWidth: number,
-  gridDepth: number
+  gridDepth: number,
+  chunkShape: [number, number, number]
 ) => {
   const cellCount = gridWidth * gridDepth;
   const serialized: (
@@ -323,11 +324,10 @@ const serializeChunkGrid = (
       continue;
     }
 
-    const { size, maxHeight } = chunk.options;
     serialized[index] = {
       voxels: chunk.voxels.data,
       lights: chunk.lights.data,
-      shape: [size, maxHeight, size],
+      shape: chunkShape,
     };
   }
 
@@ -337,7 +337,8 @@ const serializeChunkGrid = (
 const serializeChunksData = (
   chunksData: (SerializedChunkData | null)[],
   gridWidth: number,
-  gridDepth: number
+  gridDepth: number,
+  chunkShape: [number, number, number]
 ): {
   serialized: (
     | {
@@ -368,7 +369,6 @@ const serializeChunksData = (
     }
 
     hasAnyChunk = true;
-    const { size, maxHeight } = chunkData.options;
     serialized[index] = {
       voxels: chunkData.voxels.byteLength
         ? new Uint32Array(chunkData.voxels)
@@ -376,7 +376,7 @@ const serializeChunksData = (
       lights: chunkData.lights.byteLength
         ? new Uint32Array(chunkData.lights)
         : emptyUint32Array,
-      shape: [size, maxHeight, size],
+      shape: chunkShape,
     };
   }
 
@@ -399,6 +399,11 @@ const processBatchMessage = (message: LightBatchMessage) => {
 
   const [gridWidth, gridDepth] = chunkGridDimensions;
   const [gridOffsetX, gridOffsetZ] = chunkGridOffset;
+  const chunkShape: [number, number, number] = [
+    options.chunkSize,
+    options.maxHeight,
+    options.chunkSize,
+  ];
 
   if (lightOps.removals.length === 0 && lightOps.floods.length === 0) {
     postEmptyBatchResult(jobId, lastRelevantSequenceId);
@@ -418,7 +423,12 @@ const processBatchMessage = (message: LightBatchMessage) => {
   const hasPotentialRelevantDelta = relevantDeltas.length > 0;
 
   if (!hasPotentialRelevantDelta) {
-    const result = serializeChunksData(chunksData, gridWidth, gridDepth);
+    const result = serializeChunksData(
+      chunksData,
+      gridWidth,
+      gridDepth,
+      chunkShape
+    );
     if (!result.hasAnyChunk) {
       postEmptyBatchResult(jobId, 0);
       return;
@@ -439,7 +449,12 @@ const processBatchMessage = (message: LightBatchMessage) => {
       gridOffsetZ,
       relevantDeltas
     );
-    serializedChunks = serializeChunkGrid(chunkGrid, gridWidth, gridDepth);
+    serializedChunks = serializeChunkGrid(
+      chunkGrid,
+      gridWidth,
+      gridDepth,
+      chunkShape
+    );
   }
 
   reusableBoundsMin[0] = boundingBox.min[0];
