@@ -802,6 +802,54 @@ describe("client wasm preflight script", () => {
     expect(result.status).toBe(1);
   });
 
+  it("normalizes inline unsupported options in structured output", () => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        wasmMesherScript,
+        "--json",
+        "--mystery=alpha",
+        "--mystery=beta",
+        "-x=1",
+      ],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const report = JSON.parse(`${result.stdout}${result.stderr}`) as WasmMesherJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedWasmMesherCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedWasmMesherCliOptions
+    );
+    expect(report.unknownOptions).toEqual(["--mystery", "-x"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --mystery, -x. Supported options: --compact, --json, --no-build, --output, --verify."
+    );
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("writes unsupported-option validation reports to output files", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-wasm-mesher-validation-report-")
@@ -1062,6 +1110,27 @@ describe("client wasm preflight script", () => {
     expect(output).toContain(
       "Unsupported option(s): --mystery. Supported options: --compact, --json, --no-build, --output, --verify."
     );
+  });
+
+  it("fails in non-json mode with normalized inline unsupported options", () => {
+    const result = spawnSync(
+      process.execPath,
+      [wasmMesherScript, "--mystery=alpha", "--mystery=beta", "-x=1"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output).toContain(
+      "Unsupported option(s): --mystery, -x. Supported options: --compact, --json, --no-build, --output, --verify."
+    );
+    expect(output).not.toContain("--mystery=alpha");
+    expect(output).not.toContain("--mystery=beta");
+    expect(output).not.toContain("-x=1");
   });
 
   it("fails in non-json mode for missing output values", () => {

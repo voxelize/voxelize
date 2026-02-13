@@ -1443,6 +1443,41 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-dev-env json mode normalizes inline unsupported options", () => {
+    const result = runScript("check-dev-env.mjs", [
+      "--json",
+      "--mystery=alpha",
+      "--mystery=beta",
+      "-x=1",
+    ]);
+    const report = JSON.parse(result.output) as DevEnvJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedStandardCliOptions);
+    expectCliOptionCatalogMetadata(report, {}, expectedStandardCliOptions);
+    expect(report.unknownOptions).toEqual(["--mystery", "-x"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --mystery, -x. Supported options: --compact, --json, --output, --quiet."
+    );
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("check-dev-env json mode writes unsupported-option validation reports to output files", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-dev-env-validation-report-")
@@ -1581,6 +1616,22 @@ describe("root preflight scripts", () => {
     expect(result.output).toContain(
       "Unsupported option(s): --mystery. Supported options: --compact, --json, --output, --quiet."
     );
+  });
+
+  it("check-dev-env non-json mode normalizes inline unsupported options", () => {
+    const result = runScript("check-dev-env.mjs", [
+      "--mystery=alpha",
+      "--mystery=beta",
+      "-x=1",
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(
+      "Unsupported option(s): --mystery, -x. Supported options: --compact, --json, --output, --quiet."
+    );
+    expect(result.output).not.toContain("--mystery=alpha");
+    expect(result.output).not.toContain("--mystery=beta");
+    expect(result.output).not.toContain("-x=1");
   });
 
   it("check-dev-env non-json mode fails on missing output value", () => {
@@ -2224,6 +2275,45 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-client json mode normalizes inline unsupported options", () => {
+    const result = runScript("check-client.mjs", [
+      "--json",
+      "--mystery=alpha",
+      "--mystery=beta",
+      "-x=1",
+    ]);
+    const report = JSON.parse(result.output) as ClientJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedNoBuildCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedNoBuildCliOptions
+    );
+    expect(report.unknownOptions).toEqual(["--mystery", "-x"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --mystery, -x. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("check-client json mode writes unsupported-option validation reports to output files", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-client-validation-report-")
@@ -2429,6 +2519,22 @@ describe("root preflight scripts", () => {
     expect(result.output).toContain(
       "Unsupported option(s): --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
     );
+  });
+
+  it("check-client non-json mode normalizes inline unsupported options", () => {
+    const result = runScript("check-client.mjs", [
+      "--mystery=alpha",
+      "--mystery=beta",
+      "-x=1",
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(
+      "Unsupported option(s): --mystery, -x. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expect(result.output).not.toContain("--mystery=alpha");
+    expect(result.output).not.toContain("--mystery=beta");
+    expect(result.output).not.toContain("-x=1");
   });
 
   it("check-client non-json mode fails on missing output value", () => {
@@ -3082,6 +3188,45 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-onboarding json mode normalizes inline unsupported options", () => {
+    const result = runScript("check-onboarding.mjs", [
+      "--json",
+      "--mystery=alpha",
+      "--mystery=beta",
+      "-x=1",
+    ]);
+    const report = JSON.parse(result.output) as OnboardingJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedNoBuildCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedNoBuildCliOptions
+    );
+    expect(report.unknownOptions).toEqual(["--mystery", "-x"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --mystery, -x. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("check-onboarding json mode writes unsupported-option validation reports to output files", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-onboarding-validation-report-")
@@ -3287,6 +3432,22 @@ describe("root preflight scripts", () => {
     expect(result.output).toContain(
       "Unsupported option(s): --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
     );
+  });
+
+  it("check-onboarding non-json mode normalizes inline unsupported options", () => {
+    const result = runScript("check-onboarding.mjs", [
+      "--mystery=alpha",
+      "--mystery=beta",
+      "-x=1",
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(
+      "Unsupported option(s): --mystery, -x. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expect(result.output).not.toContain("--mystery=alpha");
+    expect(result.output).not.toContain("--mystery=beta");
+    expect(result.output).not.toContain("-x=1");
   });
 
   it("check-onboarding non-json mode fails on missing output value", () => {

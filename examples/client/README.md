@@ -95,6 +95,7 @@ When `--output` is valid, JSON validation-error reports are also written to that
 If `--output` is passed multiple times, the last value is used.
 Empty or whitespace-only split/inline output values (for example `--output ""`, `--output "   "`, `--output=`, or `--output=   `) are treated as missing values.
 Unsupported CLI flags return structured errors and include `unknownOptions`, `unknownOptionCount`, `supportedCliOptions`, `supportedCliOptionCount`, and `validationErrorCode`.
+Inline unsupported-option forms are normalized in diagnostics (for example `--mystery=alpha` is reported as `--mystery`) and deduplicated by option token.
 JSON preflight reports also include `activeCliOptions`, `activeCliOptionTokens`, `activeCliOptionResolutions`, and `activeCliOptionOccurrences` for option-usage diagnostics.
 JSON preflight reports include `availableCliOptionAliases` and `availableCliOptionCanonicalMap` to expose alias-to-canonical option mappings.
 If report writing fails, JSON error reports include both `message` and `writeError`.
