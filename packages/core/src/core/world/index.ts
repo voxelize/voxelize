@@ -36,7 +36,6 @@ import {
   MathUtils as ThreeMathUtils,
   Uniform,
   UniformsUtils,
-  Vector2,
   Vector3,
   WebGLRenderer,
 } from "three";
@@ -359,6 +358,8 @@ const CHUNK_NEIGHBOR_OFFSETS: Coords2[] = [
   [0, 1],
   [1, 1],
 ];
+
+const ZERO_DIRECTION: [number, number] = [0, 0];
 
 /**
  * Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture. Keep in mind that
@@ -3980,9 +3981,14 @@ export class World<T = any> extends Scene implements NetIntercept {
       toRequest[index] = toRequestClosest[index].coords;
     }
     if (toRequest.length) {
-      const directionPayload = hasDirection
-        ? new Vector2(direction.x, direction.z).normalize().toArray()
-        : [0, 0];
+      const directionPayload: [number, number] = hasDirection
+        ? (() => {
+            const dx = direction.x;
+            const dz = direction.z;
+            const invLength = 1 / Math.hypot(dx, dz);
+            return [dx * invLength, dz * invLength];
+          })()
+        : ZERO_DIRECTION;
       this.packets.push({
         type: "LOAD",
         json: {
