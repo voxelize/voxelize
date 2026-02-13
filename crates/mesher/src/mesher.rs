@@ -311,7 +311,11 @@ impl Registry {
             }
             None
         } else if let Some(cache) = &self.lookup_cache {
-            cache.get(&id).map(|&idx| &self.blocks_by_id[idx].1)
+            if let Some(&idx) = cache.get(&id) {
+                Some(&self.blocks_by_id[idx].1)
+            } else {
+                None
+            }
         } else {
             self.blocks_by_id
                 .iter()
@@ -348,10 +352,11 @@ impl Registry {
             }
             false
         } else if let Some(cache) = &self.lookup_cache {
-            cache
-                .get(&id)
-                .map(|&idx| self.blocks_by_id[idx].1.is_opaque)
-                .unwrap_or(false)
+            if let Some(&idx) = cache.get(&id) {
+                self.blocks_by_id[idx].1.is_opaque
+            } else {
+                false
+            }
         } else {
             self.blocks_by_id
                 .iter()
@@ -371,10 +376,11 @@ impl Registry {
             }
             false
         } else if let Some(cache) = &self.lookup_cache {
-            cache
-                .get(&id)
-                .map(|&idx| self.blocks_by_id[idx].1.is_empty)
-                .unwrap_or(false)
+            if let Some(&idx) = cache.get(&id) {
+                self.blocks_by_id[idx].1.is_empty
+            } else {
+                false
+            }
         } else {
             self.blocks_by_id
                 .iter()
