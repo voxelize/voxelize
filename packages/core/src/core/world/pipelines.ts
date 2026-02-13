@@ -292,9 +292,7 @@ export class MeshPipeline {
     return true;
   }
 
-  startJob(
-    key: string
-  ): { generation: number; cx: number; cz: number; level: number } | null {
+  startJob(key: string): MeshState | null {
     const state = this.states.get(key);
     if (!state) {
       return null;
@@ -302,12 +300,7 @@ export class MeshPipeline {
 
     state.inFlightGeneration = state.generation;
     this.dirty.delete(key);
-    return {
-      generation: state.generation,
-      cx: state.cx,
-      cz: state.cz,
-      level: state.level,
-    };
+    return state;
   }
 
   onJobComplete(key: string, jobGeneration: number): boolean {
