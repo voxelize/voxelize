@@ -7181,7 +7181,13 @@ export class World<T = any> extends Scene implements NetIntercept {
       return mat;
     };
 
-    const blocks = Array.from(this.registry.blocksById.values());
+    const blocksById = this.registry.blocksById;
+    const blocks = new Array<Block>(blocksById.size);
+    let blockWriteIndex = 0;
+    for (const block of blocksById.values()) {
+      blocks[blockWriteIndex] = block;
+      blockWriteIndex++;
+    }
 
     const textureGroups = new Set<string>();
     let ungroupedFaces = 0;
