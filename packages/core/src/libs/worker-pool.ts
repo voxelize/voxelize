@@ -52,6 +52,7 @@ export class WorkerPool {
    * The queue of jobs that are waiting to be executed.
    */
   public queue: WorkerPoolJob[] = [];
+  private queueHead = 0;
 
   /**
    * A static count of working web workers across all worker pools.
@@ -106,23 +107,47 @@ export class WorkerPool {
     }
   };
 
+  private hasQueuedJobs = () => this.queueHead < this.queue.length;
+
+  private normalizeQueue = () => {
+    if (this.queueHead === 0) {
+      return;
+    }
+
+    if (this.queueHead >= this.queue.length) {
+      this.queue.length = 0;
+      this.queueHead = 0;
+      return;
+    }
+
+    if (this.queueHead >= 1024 && this.queueHead * 2 >= this.queue.length) {
+      this.queue.copyWithin(0, this.queueHead);
+      this.queue.length -= this.queueHead;
+      this.queueHead = 0;
+    }
+  };
+
   /**
    * Process the queue of jobs. This is called when a worker becomes available or
    * when a new job is added to the queue.
    */
   private process = () => {
-    if (this.queue.length !== 0 && this.available.length > 0) {
+    if (this.hasQueuedJobs() && this.available.length > 0) {
       const index = this.available.pop() as number;
       const worker = this.workers[index];
 
-      const { message, buffers, resolve } = this.queue.shift() as WorkerPoolJob;
+      const { message, buffers, resolve } = this.queue[
+        this.queueHead
+      ] as WorkerPoolJob;
+      this.queueHead++;
+      this.normalizeQueue();
 
       const workerCallback = ({ data }: any) => {
         WorkerPool.WORKING_COUNT--;
         worker.removeEventListener("message", workerCallback);
         this.available.unshift(index);
         resolve(data);
-        if (this.queue.length > 0) {
+        if (this.hasQueuedJobs()) {
           queueMicrotask(this.process);
         }
       };
