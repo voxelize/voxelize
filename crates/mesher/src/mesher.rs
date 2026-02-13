@@ -2669,8 +2669,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
         }
     }
 
-    map.into_iter()
-        .map(|(_, geometry)| geometry)
+    map.into_values()
         .filter(|geometry| !geometry.indices.is_empty())
         .collect()
 }
@@ -3041,8 +3040,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
         }
     }
 
-    map.into_iter()
-        .map(|(_, geometry)| geometry)
+    map.into_values()
         .filter(|geometry| !geometry.indices.is_empty())
         .collect()
 }
@@ -3169,8 +3167,7 @@ pub fn mesh_space<S: VoxelAccess>(
         }
     }
 
-    map.into_iter()
-        .map(|(_, geometry)| geometry)
+    map.into_values()
         .filter(|geometry| !geometry.indices.is_empty())
         .collect()
 }
