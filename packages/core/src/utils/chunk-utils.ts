@@ -68,7 +68,8 @@ export class ChunkUtils {
     chunkSize: number,
     concat = "|"
   ) => {
-    const [cx, cz] = ChunkUtils.mapVoxelToChunkAt(vx, vz, chunkSize);
+    const cx = Math.floor(vx / chunkSize);
+    const cz = Math.floor(vz / chunkSize);
     return ChunkUtils.getChunkNameAt(cx, cz, concat);
   };
 
