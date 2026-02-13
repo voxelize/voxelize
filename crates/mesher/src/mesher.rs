@@ -2611,7 +2611,7 @@ fn process_face<S: VoxelAccess>(
         let mask = opaque_mask.expect("opaque mask exists when opaque checks are needed");
         let dir_is_x = dir[0].abs() == 1;
         let dir_is_y = dir[1].abs() == 1;
-        let is_cardinal_dir = dir_is_x || dir_is_y || dir[2].abs() == 1;
+        let is_cardinal_dir = dir != [0, 0, 0];
         let center_opaque = neighbor_is_opaque(mask, 0, 0, 0);
         let block_min_x_eps = block_min[0] + 0.01;
         let block_min_y_eps = block_min[1] + 0.01;
