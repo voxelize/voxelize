@@ -32,6 +32,10 @@ type PreflightReport = {
   durationMs: number;
   selectedChecks: string[];
   skippedChecks: string[];
+  totalChecks: number;
+  passedCheckCount: number;
+  failedCheckCount: number;
+  firstFailedCheck: string | null;
   availableChecks: string[];
   passedChecks: string[];
   failedChecks: string[];
@@ -70,6 +74,17 @@ describe("preflight aggregate report", () => {
     ]);
     expect(report.selectedChecks).toEqual(report.availableChecks);
     expect(report.skippedChecks).toEqual([]);
+    expect(report.totalChecks).toBe(report.checks.length);
+    expect(report.passedCheckCount).toBe(report.passedChecks.length);
+    expect(report.failedCheckCount).toBe(report.failedChecks.length);
+    expect(report.passedCheckCount + report.failedCheckCount).toBe(
+      report.totalChecks
+    );
+    if (report.failedChecks.length > 0) {
+      expect(report.firstFailedCheck).toBe(report.failedChecks[0]);
+    } else {
+      expect(report.firstFailedCheck).toBeNull();
+    }
     expect(Array.isArray(report.passedChecks)).toBe(true);
     expect(Array.isArray(report.failedChecks)).toBe(true);
     expect(Array.isArray(report.failureSummaries)).toBe(true);
@@ -127,6 +142,8 @@ describe("preflight aggregate report", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.selectedChecks).toEqual(["devEnvironment", "client"]);
     expect(report.skippedChecks).toEqual(["wasmPack"]);
+    expect(report.totalChecks).toBe(2);
+    expect(report.passedCheckCount + report.failedCheckCount).toBe(2);
     expect(report.checks.length).toBe(2);
     expect(report.checks.map((check) => check.name)).toEqual([
       "devEnvironment",
@@ -229,6 +246,10 @@ describe("preflight aggregate report", () => {
     expect(report.exitCode).toBe(1);
     expect(report.platform).toBe(process.platform);
     expect(report.nodeVersion).toBe(process.version);
+    expect(report.totalChecks).toBe(0);
+    expect(report.passedCheckCount).toBe(0);
+    expect(report.failedCheckCount).toBe(0);
+    expect(report.firstFailedCheck).toBeNull();
     expect(report.message).toBe("Missing value for --output option.");
     expect(result.status).toBe(1);
   });
@@ -245,6 +266,10 @@ describe("preflight aggregate report", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
+    expect(report.totalChecks).toBe(0);
+    expect(report.passedCheckCount).toBe(0);
+    expect(report.failedCheckCount).toBe(0);
+    expect(report.firstFailedCheck).toBeNull();
     expect(report.message).toBe("Missing value for --only option.");
     expect(report.availableChecks).toEqual([
       "devEnvironment",
@@ -254,7 +279,7 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(1);
   });
 
-  it("fails with structured output for unknown check names", () => {
+  it("fails with structured output for invalid check names", () => {
     const result = spawnSync(
       process.execPath,
       [preflightScript, "--only", "devEnvironment,unknownCheck"],
@@ -270,7 +295,11 @@ describe("preflight aggregate report", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
-    expect(report.message).toBe("Unknown check name(s): unknownCheck.");
+    expect(report.totalChecks).toBe(0);
+    expect(report.passedCheckCount).toBe(0);
+    expect(report.failedCheckCount).toBe(0);
+    expect(report.firstFailedCheck).toBeNull();
+    expect(report.message).toBe("Invalid check name(s): unknownCheck.");
     expect(report.availableChecks).toEqual([
       "devEnvironment",
       "wasmPack",

@@ -77,7 +77,7 @@ const parseSelectedChecks = () => {
   if (unknownChecks.length > 0) {
     return {
       selectedChecks: [],
-      error: `Unknown check name(s): ${unknownChecks.join(", ")}.`,
+      error: `Invalid check name(s): ${unknownChecks.join(", ")}.`,
     };
   }
 
@@ -128,6 +128,10 @@ if (outputPathError !== null || selectedChecksError !== null) {
       durationMs: 0,
       selectedChecks: [],
       skippedChecks: availableCheckNames,
+      totalChecks: 0,
+      passedCheckCount: 0,
+      failedCheckCount: 0,
+      firstFailedCheck: null,
       checks: [],
       outputPath: null,
       message: outputPathError ?? selectedChecksError,
@@ -151,6 +155,10 @@ const passed = checks.every((check) => check.passed);
 const exitCode = passed ? 0 : 1;
 const passedChecks = checks.filter((check) => check.passed).map((check) => check.name);
 const failedChecks = checks.filter((check) => !check.passed).map((check) => check.name);
+const totalChecks = checks.length;
+const passedCheckCount = passedChecks.length;
+const failedCheckCount = failedChecks.length;
+const firstFailedCheck = failedChecks[0] ?? null;
 const deriveFailureMessage = (report) => {
   if (report === null || typeof report !== "object") {
     return null;
@@ -229,6 +237,10 @@ const report = {
   durationMs: Date.now() - aggregateStartMs,
   selectedChecks,
   skippedChecks,
+  totalChecks,
+  passedCheckCount,
+  failedCheckCount,
+  firstFailedCheck,
   passedChecks,
   failedChecks,
   failureSummaries,
