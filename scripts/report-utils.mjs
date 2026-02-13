@@ -373,12 +373,15 @@ export const createCliOptionValidation = (
     optionAliases = {},
     optionsWithValues = [],
     outputPathError = null,
+    supportedCliOptions: precomputedSupportedCliOptions = null,
   } = {}
 ) => {
-  const { supportedCliOptions } = createCliOptionCatalog({
-    canonicalOptions,
-    optionAliases,
-  });
+  const supportedCliOptions =
+    precomputedSupportedCliOptions ??
+    createCliOptionCatalog({
+      canonicalOptions,
+      optionAliases,
+    }).supportedCliOptions;
   const unknownOptions = parseUnknownCliOptions(args, {
     canonicalOptions,
     optionAliases,
@@ -505,6 +508,7 @@ export const createCliDiagnostics = (
     optionAliases,
     optionsWithValues,
     outputPathError,
+    supportedCliOptions: optionCatalog.supportedCliOptions,
   });
   const activeOptionMetadata = parseActiveCliOptionMetadata(args, {
     canonicalOptions,

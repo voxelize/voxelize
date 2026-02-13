@@ -374,6 +374,18 @@ describe("report-utils", () => {
     );
     expect(unsupportedOnly.validationErrorCode).toBe("unsupported_options");
 
+    const precomputedSupportedTokens = createCliOptionValidation(
+      ["--mystery"],
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        supportedCliOptions: ["--output", "--json"],
+      }
+    );
+    expect(precomputedSupportedTokens.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --output, --json."
+    );
+
     const outputErrorPriority = createCliOptionValidation(
       ["--json", "--mystery"],
       {
