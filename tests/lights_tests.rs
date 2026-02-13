@@ -228,3 +228,66 @@ fn test_lighter_registry_cache_invalidates_on_registry_mutation() {
         "lighter registry cache should refresh after block registration"
     );
 }
+
+#[test]
+fn test_registry_conversion_caches_reuse_without_mutation() {
+    let registry = create_test_registry();
+
+    let mesher_first = registry.mesher_registry();
+    let mesher_second = registry.mesher_registry();
+    assert!(
+        Arc::ptr_eq(&mesher_first, &mesher_second),
+        "mesher registry conversion should reuse cache without mutation"
+    );
+
+    let lighter_first = registry.lighter_registry();
+    let lighter_second = registry.lighter_registry();
+    assert!(
+        Arc::ptr_eq(&lighter_first, &lighter_second),
+        "lighter registry conversion should reuse cache without mutation"
+    );
+}
+
+#[test]
+fn test_registry_generate_invalidates_conversion_caches() {
+    let mut registry = create_test_registry();
+
+    let mesher_before = registry.mesher_registry();
+    let lighter_before = registry.lighter_registry();
+
+    registry.generate();
+
+    let mesher_after = registry.mesher_registry();
+    let lighter_after = registry.lighter_registry();
+
+    assert!(
+        !Arc::ptr_eq(&mesher_before, &mesher_after),
+        "mesher registry cache should refresh after generate"
+    );
+    assert!(
+        !Arc::ptr_eq(&lighter_before, &lighter_after),
+        "lighter registry cache should refresh after generate"
+    );
+}
+
+#[test]
+fn test_register_air_active_fn_invalidates_conversion_caches() {
+    let mut registry = create_test_registry();
+
+    let mesher_before = registry.mesher_registry();
+    let lighter_before = registry.lighter_registry();
+
+    registry.register_air_active_fn(|_, _, _| 0, |_, _, _| vec![]);
+
+    let mesher_after = registry.mesher_registry();
+    let lighter_after = registry.lighter_registry();
+
+    assert!(
+        !Arc::ptr_eq(&mesher_before, &mesher_after),
+        "mesher registry cache should refresh after air active registration"
+    );
+    assert!(
+        !Arc::ptr_eq(&lighter_before, &lighter_after),
+        "lighter registry cache should refresh after air active registration"
+    );
+}
