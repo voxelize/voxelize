@@ -34,6 +34,14 @@ interface Cascade {
   split: number;
 }
 
+interface CSMUniforms {
+  uShadowMaps: Texture[];
+  uShadowMatrices: Matrix4[];
+  uCascadeSplits: number[];
+  uShadowBias: number;
+  uNumCascades: number;
+}
+
 const defaultConfig: CSMConfig = {
   cascades: 3,
   shadowMapSize: 2048,
@@ -71,12 +79,24 @@ export class CSMRenderer {
   private lightViewMatrixInverse = new Matrix4();
   private lightSpaceCenter = new Vector3();
   private tempLookAtTarget = new Vector3();
-  private cornerPool: Vector3[] = Array(8)
-    .fill(null)
-    .map(() => new Vector3());
+  private cornerPool: Vector3[] = (() => {
+    const corners = new Array<Vector3>(8);
+    for (let index = 0; index < corners.length; index++) {
+      corners[index] = new Vector3();
+    }
+    return corners;
+  })();
+  private uniforms: CSMUniforms = {
+    uShadowMaps: [],
+    uShadowMatrices: [],
+    uCascadeSplits: [],
+    uShadowBias: 0,
+    uNumCascades: 0,
+  };
 
   constructor(config: Partial<CSMConfig> = {}) {
     this.config = { ...defaultConfig, ...config };
+    this.uniforms.uShadowBias = this.config.shadowBias;
 
     this.depthMaterial = new MeshDepthMaterial({
       depthPacking: RGBADepthPacking,
@@ -112,10 +132,16 @@ export class CSMRenderer {
         matrix: new Matrix4(),
         split: splits[i + 1],
       });
+      const cascade = this.cascades[this.cascades.length - 1];
+      this.uniforms.uShadowMaps.push(cascade.renderTarget.depthTexture);
+      this.uniforms.uShadowMatrices.push(cascade.matrix);
+      this.uniforms.uCascadeSplits.push(cascade.split);
 
       this.cascadeDirty.push(true);
       this.cascadeNeedsRender.push(true);
     }
+
+    this.uniforms.uNumCascades = this.cascades.length;
   }
 
   setLightDirection(direction: Vector3) {
@@ -485,20 +511,8 @@ export class CSMRenderer {
     this.cascadeNeedsRender[0] = true;
   }
 
-  getUniforms(): {
-    uShadowMaps: Texture[];
-    uShadowMatrices: Matrix4[];
-    uCascadeSplits: number[];
-    uShadowBias: number;
-    uNumCascades: number;
-  } {
-    return {
-      uShadowMaps: this.cascades.map((c) => c.renderTarget.depthTexture),
-      uShadowMatrices: this.cascades.map((c) => c.matrix),
-      uCascadeSplits: this.cascades.map((c) => c.split),
-      uShadowBias: this.config.shadowBias,
-      uNumCascades: this.cascades.length,
-    };
+  getUniforms(): CSMUniforms {
+    return this.uniforms;
   }
 
   getShadowMap(index: number): Texture | null {
@@ -528,5 +542,9 @@ export class CSMRenderer {
     }
     this.depthMaterial.dispose();
     this.cascades = [];
+    this.uniforms.uShadowMaps.length = 0;
+    this.uniforms.uShadowMatrices.length = 0;
+    this.uniforms.uCascadeSplits.length = 0;
+    this.uniforms.uNumCascades = 0;
   }
 }
