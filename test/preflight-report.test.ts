@@ -2559,6 +2559,91 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(1);
   });
 
+  it("prioritizes output validation while preserving inline only selection parsing", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--list-checks", "--output", "--only=client"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.listChecksOnly).toBe(true);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.selectedChecks).toEqual([]);
+    expect(report.selectedCheckCount).toBe(0);
+    expect(report.requestedChecks).toEqual(["client"]);
+    expect(report.requestedCheckCount).toBe(1);
+    expect(report.requestedCheckResolutions).toEqual([
+      {
+        token: "client",
+        normalizedToken: "client",
+        kind: "check",
+        resolvedTo: ["client"],
+      },
+    ]);
+    expect(report.requestedCheckResolutionCounts).toEqual({
+      check: 1,
+      specialSelector: 0,
+      invalid: 0,
+    });
+    expect(report.specialSelectorsUsed).toEqual([]);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual([
+      "--list-checks",
+      "--only",
+      "--output",
+    ]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual([
+      "--list-checks",
+      "--output",
+      "--only=client",
+    ]);
+    expect(report.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions([
+        "--list-checks",
+        "--output",
+        "--only=client",
+      ])
+    );
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--list-checks",
+        canonicalOption: "--list-checks",
+        index: 0,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 1,
+      },
+      {
+        token: "--only=client",
+        canonicalOption: "--only",
+        index: 2,
+      },
+    ]);
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("prioritizes only-selection validation while still reporting unsupported options", () => {
     const result = spawnSync(
       process.execPath,

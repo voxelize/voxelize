@@ -680,6 +680,43 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-wasm-pack treats inline known-flag misuse after --output as missing output value", () => {
+    const result = runScript("check-wasm-pack.mjs", [
+      "--json",
+      "--output",
+      "--json=1",
+    ]);
+    const report = JSON.parse(result.output) as WasmPackJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedStandardCliOptions);
+    expectCliOptionCatalogMetadata(report, {}, expectedStandardCliOptions);
+    expect(report.unknownOptions).toEqual(["--json=<value>"]);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--output"],
+      ["--json", "--output"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--output",
+          canonicalOption: "--output",
+          index: 1,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("check-wasm-pack prioritizes inline whitespace output validation while reporting unsupported options", () => {
     const result = runScript("check-wasm-pack.mjs", [
       "--json",
@@ -1197,6 +1234,15 @@ describe("root preflight scripts", () => {
     expect(result.output).not.toContain("Unsupported option(s):");
   });
 
+  it("check-wasm-pack non-json mode prioritizes missing output value over inline known-flag misuse", () => {
+    const result = runScript("check-wasm-pack.mjs", ["--output", "--json=1"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("Missing value for --output option.");
+    expect(result.output).not.toContain("Unsupported option(s):");
+    expect(result.output).not.toContain("--json=1");
+  });
+
   it("check-wasm-pack non-json mode prioritizes inline whitespace output value over unsupported options", () => {
     const result = runScript("check-wasm-pack.mjs", [
       "--mystery",
@@ -1599,6 +1645,45 @@ describe("root preflight scripts", () => {
           token: "--output",
           canonicalOption: "--output",
           index: 2,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
+  it("check-dev-env treats inline known-flag misuse after --output as missing output value", () => {
+    const result = runScript("check-dev-env.mjs", [
+      "--json",
+      "--output",
+      "--json=1",
+    ]);
+    const report = JSON.parse(result.output) as DevEnvJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedStandardCliOptions);
+    expectCliOptionCatalogMetadata(report, {}, expectedStandardCliOptions);
+    expect(report.unknownOptions).toEqual(["--json=<value>"]);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.requiredFailures).toBe(0);
+    expect(report.checks).toEqual([]);
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--output"],
+      ["--json", "--output"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--output",
+          canonicalOption: "--output",
+          index: 1,
         },
       ]
     );
@@ -2081,6 +2166,15 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
     expect(result.output).toContain("Missing value for --output option.");
     expect(result.output).not.toContain("Unsupported option(s):");
+  });
+
+  it("check-dev-env non-json mode prioritizes missing output value over inline known-flag misuse", () => {
+    const result = runScript("check-dev-env.mjs", ["--output", "--json=1"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("Missing value for --output option.");
+    expect(result.output).not.toContain("Unsupported option(s):");
+    expect(result.output).not.toContain("--json=1");
   });
 
   it("check-dev-env non-json mode prioritizes inline whitespace output value over unsupported options", () => {
