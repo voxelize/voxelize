@@ -1990,6 +1990,7 @@ fn evaluate_block_rule<S: VoxelAccess>(
     evaluate_block_rule_with_trig(rule, pos, space, rotation, rotation_trig)
 }
 
+#[inline(always)]
 fn evaluate_block_rule_with_trig<S: VoxelAccess>(
     rule: &BlockRule,
     pos: [i32; 3],
