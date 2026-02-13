@@ -850,6 +850,12 @@ export class World<T = any> extends Scene implements NetIntercept {
   private lightBatchIdCounter = 0;
   private isProcessingDirtyChunks = false;
   private shouldRerunDirtyChunkProcessing = false;
+  private requestCandidateCxs = new Int32Array(0);
+  private requestCandidateCzs = new Int32Array(0);
+  private requestCandidateDistances = new Float64Array(0);
+  private processCandidateData: import("@voxelize/protocol").ChunkProtocol[] =
+    [];
+  private processCandidateDistances = new Float64Array(0);
 
   private static readonly warmColor = new Color(1.0, 0.95, 0.9);
   private static readonly coolColor = new Color(0.9, 0.95, 1.0);
@@ -907,6 +913,27 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
       }
     }, 1000) as unknown as number;
+  }
+
+  private ensureRequestCandidateCapacity(capacity: number) {
+    if (this.requestCandidateCxs.length >= capacity) {
+      return;
+    }
+
+    this.requestCandidateCxs = new Int32Array(capacity);
+    this.requestCandidateCzs = new Int32Array(capacity);
+    this.requestCandidateDistances = new Float64Array(capacity);
+  }
+
+  private ensureProcessCandidateCapacity(capacity: number) {
+    if (this.processCandidateData.length >= capacity) {
+      return;
+    }
+
+    this.processCandidateData = new Array<
+      import("@voxelize/protocol").ChunkProtocol
+    >(capacity);
+    this.processCandidateDistances = new Float64Array(capacity);
   }
 
   private pruneDeltasByCutoff(deltas: VoxelDelta[], cutoff: number): number {
@@ -3969,9 +3996,10 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const safeRadius = Math.max(renderRadius - 2, 1);
     const safeRadiusSquared = safeRadius * safeRadius;
-    const requestCxs = new Int32Array(maxChunkRequestsPerUpdate);
-    const requestCzs = new Int32Array(maxChunkRequestsPerUpdate);
-    const requestDistances = new Float64Array(maxChunkRequestsPerUpdate);
+    this.ensureRequestCandidateCapacity(maxChunkRequestsPerUpdate);
+    const requestCxs = this.requestCandidateCxs;
+    const requestCzs = this.requestCandidateCzs;
+    const requestDistances = this.requestCandidateDistances;
     let selectedRequestCount = 0;
     let farthestRequestIndex = -1;
     let farthestRequestDistance = -1;
@@ -4111,10 +4139,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       return;
     }
 
-    const toProcessData = new Array<import("@voxelize/protocol").ChunkProtocol>(
-      maxProcessesPerUpdate
-    );
-    const toProcessDistances = new Float64Array(maxProcessesPerUpdate);
+    this.ensureProcessCandidateCapacity(maxProcessesPerUpdate);
+    const toProcessData = this.processCandidateData;
+    const toProcessDistances = this.processCandidateDistances;
     let toProcessCount = 0;
     let farthestProcessIndex = -1;
     let farthestProcessDistance = -1;
