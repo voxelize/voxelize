@@ -2383,6 +2383,55 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-client treats inline no-build alias misuse after --output as missing output value", () => {
+    const result = runScript("check-client.mjs", [
+      "--json",
+      "--output",
+      "--verify=1",
+    ]);
+    const report = JSON.parse(result.output) as ClientJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.noBuild).toBe(false);
+    expect(report.outputPath).toBeNull();
+    expectTimingMetadata(report);
+    expectOptionTerminatorMetadata(report);
+    expect(report.supportedCliOptions).toEqual(expectedNoBuildCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedNoBuildCliOptions
+    );
+    expect(report.unknownOptions).toEqual(["--no-build=<value>"]);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.totalSteps).toBe(0);
+    expect(report.passedStepCount).toBe(0);
+    expect(report.failedStepCount).toBe(0);
+    expect(report.skippedStepCount).toBe(0);
+    expect(report.firstFailedStep).toBeNull();
+    expect(report.message).toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--output"],
+      ["--json", "--output"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--output",
+          canonicalOption: "--output",
+          index: 1,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("check-client json mode validates empty split output value", () => {
     const result = runScript("check-client.mjs", ["--json", "--output", ""]);
     const report = JSON.parse(result.output) as ClientJsonReport;
@@ -3639,6 +3688,55 @@ describe("root preflight scripts", () => {
     expectOptionTerminatorMetadata(report);
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.totalSteps).toBe(0);
+    expect(report.passedStepCount).toBe(0);
+    expect(report.failedStepCount).toBe(0);
+    expect(report.skippedStepCount).toBe(0);
+    expect(report.firstFailedStep).toBeNull();
+    expect(report.message).toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--output"],
+      ["--json", "--output"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--output",
+          canonicalOption: "--output",
+          index: 1,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
+  it("check-onboarding treats inline no-build alias misuse after --output as missing output value", () => {
+    const result = runScript("check-onboarding.mjs", [
+      "--json",
+      "--output",
+      "--verify=1",
+    ]);
+    const report = JSON.parse(result.output) as OnboardingJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.noBuild).toBe(false);
+    expect(report.outputPath).toBeNull();
+    expectTimingMetadata(report);
+    expectOptionTerminatorMetadata(report);
+    expect(report.supportedCliOptions).toEqual(expectedNoBuildCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedNoBuildCliOptions
+    );
+    expect(report.unknownOptions).toEqual(["--no-build=<value>"]);
+    expect(report.unknownOptionCount).toBe(1);
     expect(report.validationErrorCode).toBe("output_option_missing_value");
     expect(report.totalSteps).toBe(0);
     expect(report.passedStepCount).toBe(0);
