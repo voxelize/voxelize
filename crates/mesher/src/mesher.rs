@@ -726,6 +726,7 @@ fn get_fluid_effective_height(stage: u32) -> f32 {
     (FLUID_BASE_HEIGHT - (stage as f32 * FLUID_STAGE_DROPOFF)).max(0.1)
 }
 
+#[inline(always)]
 fn has_fluid_above<S: VoxelAccess>(vx: i32, vy: i32, vz: i32, fluid_id: u32, space: &S) -> bool {
     space.get_voxel(vx, vy + 1, vz) == fluid_id
 }
