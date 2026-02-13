@@ -1987,7 +1987,7 @@ fn evaluate_block_rule<S: VoxelAccess>(
         None
     };
 
-    evaluate_block_rule_with_trig(rule, pos, space, rotation, rotation_trig)
+    evaluate_block_rule_with_trig(rule, pos, space, rotation_trig)
 }
 
 #[inline(always)]
@@ -1995,7 +1995,6 @@ fn evaluate_block_rule_with_trig<S: VoxelAccess>(
     rule: &BlockRule,
     pos: [i32; 3],
     space: &S,
-    rotation: &BlockRotation,
     rotation_trig: Option<(f32, f32)>,
 ) -> bool {
     match rule {
@@ -2058,7 +2057,6 @@ fn evaluate_block_rule_with_trig<S: VoxelAccess>(
                         nested_rule,
                         pos,
                         space,
-                        rotation,
                         rotation_trig,
                     ) {
                         return false;
@@ -2072,7 +2070,6 @@ fn evaluate_block_rule_with_trig<S: VoxelAccess>(
                         nested_rule,
                         pos,
                         space,
-                        rotation,
                         rotation_trig,
                     ) {
                         return true;
@@ -2082,7 +2079,7 @@ fn evaluate_block_rule_with_trig<S: VoxelAccess>(
             }
             BlockRuleLogic::Not => {
                 if let Some(first) = rules.first() {
-                    !evaluate_block_rule_with_trig(first, pos, space, rotation, rotation_trig)
+                    !evaluate_block_rule_with_trig(first, pos, space, rotation_trig)
                 } else {
                     true
                 }
