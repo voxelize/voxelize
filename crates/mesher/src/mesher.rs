@@ -2377,15 +2377,15 @@ fn process_face<S: VoxelAccess>(
     } else {
         0.0001
     };
-    let dir_is_x = dir[0].abs() == 1;
-    let dir_is_y = dir[1].abs() == 1;
-    let dir_is_z = dir[2].abs() == 1;
-    let is_cardinal_dir = dir_is_x || dir_is_y || dir_is_z;
-    let center_opaque = if needs_opaque_checks {
+    let (dir_is_x, dir_is_y, is_cardinal_dir, center_opaque) = if needs_opaque_checks {
+        let dir_is_x = dir[0].abs() == 1;
+        let dir_is_y = dir[1].abs() == 1;
+        let is_cardinal_dir = dir_is_x || dir_is_y || dir[2].abs() == 1;
         let mask = opaque_mask.expect("opaque mask exists when opaque checks are needed");
-        neighbor_is_opaque(mask, 0, 0, 0)
+        let center_opaque = neighbor_is_opaque(mask, 0, 0, 0);
+        (dir_is_x, dir_is_y, is_cardinal_dir, center_opaque)
     } else {
-        false
+        (false, false, false, false)
     };
     let base_x = vx as f32 - min_x as f32 - dir[0] as f32 * face_inset + diag_x_offset;
     let base_y = vy as f32 - min_y as f32 - dir[1] as f32 * face_inset;
