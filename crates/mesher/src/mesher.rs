@@ -2940,11 +2940,12 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
 
             for u in u_range.0..u_range.1 {
                 for v in v_range.0..v_range.1 {
-                    let (vx, vy, vz) = match (axis, u_axis, v_axis) {
-                        (0, 2, 1) => (slice, v, u),
-                        (1, 0, 2) => (u, slice, v),
-                        (2, 0, 1) => (u, v, slice),
-                        _ => continue,
+                    let (vx, vy, vz) = if axis == 0 {
+                        (slice, v, u)
+                    } else if axis == 1 {
+                        (u, slice, v)
+                    } else {
+                        (u, v, slice)
                     };
 
                     let raw_voxel = space.get_raw_voxel(vx, vy, vz);
@@ -3342,11 +3343,12 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
         for slice in slice_range {
             for u in u_range.0..u_range.1 {
                 for v in v_range.0..v_range.1 {
-                    let (vx, vy, vz) = match (axis, u_axis, v_axis) {
-                        (0, 2, 1) => (slice, v, u),
-                        (1, 0, 2) => (u, slice, v),
-                        (2, 0, 1) => (u, v, slice),
-                        _ => continue,
+                    let (vx, vy, vz) = if axis == 0 {
+                        (slice, v, u)
+                    } else if axis == 1 {
+                        (u, slice, v)
+                    } else {
+                        (u, v, slice)
                     };
 
                     let raw_voxel = space.get_raw_voxel(vx, vy, vz);
