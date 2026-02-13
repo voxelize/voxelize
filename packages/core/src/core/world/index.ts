@@ -3902,7 +3902,40 @@ export class World<T = any> extends Scene implements NetIntercept {
         : Math.max(ratio ** chunkLoadExponent, 0.1);
 
     const [centerX, centerZ] = center;
-    const toRequestCandidates: Coords2[] = [];
+    const toRequestClosest: Array<{ coords: Coords2; distance: number }> = [];
+    const maybeQueueRequest = (cx: number, cz: number) => {
+      if (maxChunkRequestsPerUpdate <= 0) {
+        return;
+      }
+
+      const distance = (cx - centerX) ** 2 + (cz - centerZ) ** 2;
+      if (toRequestClosest.length < maxChunkRequestsPerUpdate) {
+        toRequestClosest.push({
+          coords: [cx, cz],
+          distance,
+        });
+        return;
+      }
+
+      let farthestIndex = 0;
+      let farthestDistance = toRequestClosest[0].distance;
+      for (let index = 1; index < toRequestClosest.length; index++) {
+        const candidateDistance = toRequestClosest[index].distance;
+        if (candidateDistance > farthestDistance) {
+          farthestDistance = candidateDistance;
+          farthestIndex = index;
+        }
+      }
+
+      if (distance >= farthestDistance) {
+        return;
+      }
+
+      toRequestClosest[farthestIndex] = {
+        coords: [cx, cz],
+        distance,
+      };
+    };
 
     const renderRadiusSquared = renderRadius * renderRadius;
 
@@ -3944,7 +3977,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
           if (retryCount > chunkRerequestInterval) {
             this.chunkPipeline.remove(chunkName);
-            toRequestCandidates.push([cx, cz]);
+            maybeQueueRequest(cx, cz);
           }
 
           continue;
@@ -3954,28 +3987,14 @@ export class World<T = any> extends Scene implements NetIntercept {
           continue;
         }
 
-        toRequestCandidates.push([cx, cz]);
+        maybeQueueRequest(cx, cz);
       }
     }
-
-    // i guess we still want to update the direction/center?
-    // if (toRequestSet.size === 0) {
-    //   return;
-    // }
-
-    // Sort the chunks by distance from the center, closest first.
-    toRequestCandidates.sort((a, b) => {
-      const ad = (a[0] - centerX) ** 2 + (a[1] - centerZ) ** 2;
-      const bd = (b[0] - centerX) ** 2 + (b[1] - centerZ) ** 2;
-      return ad - bd;
-    });
-
-    // LOD:
-    // < 4 chunks: 0
-    // > 4 < 6 chunks: 1
-    // > 6 chunks: 2
-
-    const toRequest = toRequestCandidates.slice(0, maxChunkRequestsPerUpdate);
+    toRequestClosest.sort((a, b) => a.distance - b.distance);
+    const toRequest = new Array<Coords2>(toRequestClosest.length);
+    for (let index = 0; index < toRequestClosest.length; index++) {
+      toRequest[index] = toRequestClosest[index].coords;
+    }
     if (toRequest.length) {
       const directionPayload = hasDirection
         ? new Vector2(direction.x, direction.z).normalize().toArray()
