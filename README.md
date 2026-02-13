@@ -77,7 +77,7 @@ cd voxelize
 # download dependencies
 pnpm install
 
-# verify local tooling
+# verify local tooling and minimum versions
 pnpm run check:dev-env
 
 # verify wasm-pack setup

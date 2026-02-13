@@ -9,7 +9,7 @@ This example runs the browser client against the demo server.
 - `wasm-pack` installed
 - `pnpm install` at the repository root
 
-Before running client commands, you can verify toolchain availability from the repository root:
+Before running client commands, you can verify toolchain availability and minimum versions from the repository root:
 
 ```bash
 pnpm run check:dev-env
