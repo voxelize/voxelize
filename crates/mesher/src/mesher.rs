@@ -2783,8 +2783,24 @@ fn process_face<S: VoxelAccess>(
         let should_flip = if ao_diag_sum > ao_off_sum {
             true
         } else {
-            let one_tr0 = a_rt == 0 || b_rt == 0 || c_rt == 0 || d_rt == 0;
             let fequals = ao_diag_sum == ao_off_sum;
+            if !fequals
+                && a_rt != 0
+                && b_rt != 0
+                && c_rt != 0
+                && d_rt != 0
+                && a_gt != 0
+                && b_gt != 0
+                && c_gt != 0
+                && d_gt != 0
+                && a_bt != 0
+                && b_bt != 0
+                && c_bt != 0
+                && d_bt != 0
+            {
+                false
+            } else {
+                let one_tr0 = a_rt == 0 || b_rt == 0 || c_rt == 0 || d_rt == 0;
             let ozao_r = fequals && a_rt + d_rt < b_rt + c_rt;
             let anz_r = one_tr0 && has_channel_midpoint_anomaly(a_rt, b_rt, c_rt, d_rt);
             if ozao_r || anz_r {
@@ -2801,6 +2817,7 @@ fn process_face<S: VoxelAccess>(
                     let anz_b = one_tb0 && has_channel_midpoint_anomaly(a_bt, b_bt, c_bt, d_bt);
                     ozao_b || anz_b
                 }
+            }
             }
         };
 
