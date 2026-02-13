@@ -434,8 +434,14 @@ export class Inputs<T extends string = any> extends EventEmitter {
    * Reset all keyboard keys by unbinding all keys.
    */
   reset = () => {
-    this.keyBounds.forEach((bounds) => bounds.forEach((item) => item.unbind()));
-    this.unbinds.forEach((fn) => fn());
+    for (const bounds of this.keyBounds.values()) {
+      for (let index = 0; index < bounds.length; index++) {
+        bounds[index].unbind();
+      }
+    }
+    for (let index = 0; index < this.unbinds.length; index++) {
+      this.unbinds[index]();
+    }
   };
 
   /**
@@ -453,15 +459,28 @@ export class Inputs<T extends string = any> extends EventEmitter {
    * Initialize the keyboard input listeners.
    */
   private initializeKeyListeners = () => {
+    const matchesNamespace = (namespaces: T | T[] | "*") => {
+      if (namespaces === "*") {
+        return true;
+      }
+
+      if (Array.isArray(namespaces)) {
+        for (let index = 0; index < namespaces.length; index++) {
+          if (namespaces[index] === this.namespace) {
+            return true;
+          }
+        }
+        return false;
+      }
+
+      return namespaces === this.namespace;
+    };
+
     const runBounds = (e: KeyboardEvent, bounds: KeyBoundItem<T>[]) => {
       for (const bound of bounds) {
         const { callback, namespaces } = bound;
 
-        if (
-          namespaces === "*" || Array.isArray(namespaces)
-            ? new Set(namespaces).has(this.namespace)
-            : namespaces === this.namespace
-        ) {
+        if (matchesNamespace(namespaces)) {
           const result = callback(e);
           if (result) break;
         }
@@ -492,19 +511,25 @@ export class Inputs<T extends string = any> extends EventEmitter {
    * Initialize the mouse input listeners.
    */
   private initializeClickListeners = () => {
-    (["left", "middle", "right"] as ClickType[]).forEach((type) =>
-      this.clickCallbacks.set(type, new Map())
-    );
+    const clickTypes: ClickType[] = ["left", "middle", "right"];
+    for (let index = 0; index < clickTypes.length; index++) {
+      this.clickCallbacks.set(clickTypes[index], new Map());
+    }
 
     const listener = (event: MouseEvent) => {
-      let callbacks: ClickCallbacks;
+      let callbacks: ClickCallbacks | undefined;
 
       if (event.button === 0)
-        callbacks = this.clickCallbacks.get("left") as any;
+        callbacks = this.clickCallbacks.get("left");
       else if (event.button === 1)
-        callbacks = this.clickCallbacks.get("middle") as any;
+        callbacks = this.clickCallbacks.get("middle");
       else if (event.button === 2)
-        callbacks = this.clickCallbacks.get("right") as any;
+        callbacks = this.clickCallbacks.get("right");
+      else return;
+
+      if (!callbacks) {
+        return;
+      }
 
       for (const bound of callbacks.values()) {
         const { namespace, callback } = bound;
