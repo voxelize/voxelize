@@ -500,6 +500,37 @@ describe("report-utils", () => {
     expect(diagnostics.activeCliOptionOccurrenceCount).toBe(3);
   });
 
+  it("prioritizes output validation in unified diagnostics", () => {
+    const diagnostics = createCliDiagnostics(
+      ["--json", "--mystery", "--output"],
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        outputPathError: "Missing value for --output option.",
+      }
+    );
+
+    expect(diagnostics.validationErrorCode).toBe("output_option_missing_value");
+    expect(diagnostics.unknownOptions).toEqual(["--mystery"]);
+    expect(diagnostics.unknownOptionCount).toBe(1);
+    expect(diagnostics.supportedCliOptions).toEqual(["--json", "--output"]);
+    expect(diagnostics.activeCliOptions).toEqual(["--json", "--output"]);
+    expect(diagnostics.activeCliOptionTokens).toEqual(["--json", "--output"]);
+    expect(diagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 2,
+      },
+    ]);
+    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(2);
+  });
+
   it("parses active cli option metadata with aliases and option values", () => {
     const activeMetadata = parseActiveCliOptionMetadata(
       [
