@@ -1096,7 +1096,7 @@ fn geometry_key_for_quad(block: &Block, face_name: Option<&str>, independent: bo
     }
 }
 
-#[inline]
+#[inline(always)]
 fn block_min_corner(block: &Block) -> [f32; 3] {
     if block.cache_ready {
         block.block_min_cached
