@@ -2620,25 +2620,33 @@ export class World<T = any> extends Scene implements NetIntercept {
         continue;
       }
 
-      const normalizedRotationCandidate =
-        rotation === undefined || isNaN(rotation) ? PY_ROTATION : rotation;
-      const normalizedRotation = block.rotatable
-        ? normalizedRotationCandidate
-        : PY_ROTATION;
-      const normalizedYRotation =
-        block.yRotatable && yRotation !== undefined && !isNaN(yRotation)
-          ? yRotation
-          : 0;
-      const normalizedStage =
-        stage === undefined || isNaN(stage) ? 0 : stage;
-
       const currId = this.getVoxelAt(vx, vy, vz);
       const currRot = this.getVoxelRotationAt(vx, vy, vz);
       const currStage = this.getVoxelStageAt(vx, vy, vz);
       const currYRotation = BlockRotation.decode(currRot)[1];
+      const isSameBlockType = currId === type;
+
+      const rotationFallback = isSameBlockType ? currRot.value : PY_ROTATION;
+      const normalizedRotationCandidate =
+        rotation === undefined || Number.isNaN(rotation)
+          ? rotationFallback
+          : rotation;
+      const normalizedRotation = block.rotatable
+        ? normalizedRotationCandidate
+        : PY_ROTATION;
+
+      const yRotationFallback = isSameBlockType ? currYRotation : 0;
+      const normalizedYRotation =
+        block.yRotatable && yRotation !== undefined && !Number.isNaN(yRotation)
+          ? yRotation
+          : yRotationFallback;
+
+      const stageFallback = isSameBlockType ? currStage : 0;
+      const normalizedStage =
+        stage === undefined || Number.isNaN(stage) ? stageFallback : stage;
 
       if (
-        currId === type &&
+        isSameBlockType &&
         currRot.value === normalizedRotation &&
         currYRotation === normalizedYRotation &&
         currStage === normalizedStage
