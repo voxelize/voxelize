@@ -1963,6 +1963,10 @@ fn evaluate_block_rule<S: VoxelAccess>(
     match rule {
         BlockRule::None => true,
         BlockRule::Simple(simple) => {
+            if simple.id.is_none() && simple.rotation.is_none() && simple.stage.is_none() {
+                return true;
+            }
+
             let (check_x, check_y, check_z) = if y_rotatable && !world_space {
                 let mut offset = [
                     simple.offset[0] as f32,
