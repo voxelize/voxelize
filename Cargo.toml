@@ -72,7 +72,6 @@ lazy_static = "1.4"
 log = "0.4.21"
 webrtc = "0.11"
 bytes = "1.5"
-kdtree = "0.8.0"
 
 [features]
 default = []
@@ -83,6 +82,7 @@ prost-build = "0.12.4"
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
+kdtree = "0.8.0"
 
 [[bench]]
 name = "mesher_bench"
