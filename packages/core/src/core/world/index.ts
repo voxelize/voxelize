@@ -5159,24 +5159,16 @@ export class World<T = any> extends Scene implements NetIntercept {
         finalGeometry.computeBoundingSphere();
 
         const mesh = new Mesh(finalGeometry, material);
-        mesh.position.set(chunkBaseX, chunkBaseY, chunkBaseZ);
-        mesh.updateMatrix();
-        mesh.matrixAutoUpdate = false;
-        mesh.userData = { isChunk: true, merged: true, voxel };
-        if (material.transparent) {
-          const block = this.getBlockByIdSafe(voxel);
-          mesh.renderOrder = block?.isFluid
-            ? TRANSPARENT_FLUID_RENDER_ORDER
-            : TRANSPARENT_RENDER_ORDER;
-          if (!material.depthWrite) {
-            const sortData = prepareTransparentMesh(mesh);
-            if (sortData) {
-              mesh.userData.transparentSortData = sortData;
-              mesh.onBeforeRender = sortTransparentMeshOnBeforeRender;
-            }
-          }
-          this.csmRenderer?.addSkipShadowObject(mesh);
-        }
+        this.finalizeChunkMesh(
+          mesh,
+          voxel,
+          chunkBaseX,
+          chunkBaseY,
+          chunkBaseZ,
+          true,
+          material.transparent,
+          material.depthWrite
+        );
 
         chunk.group.add(mesh);
         meshes.push(mesh);
@@ -5235,24 +5227,16 @@ export class World<T = any> extends Scene implements NetIntercept {
           }
         }
         const mesh = new Mesh(geometry, material);
-        mesh.position.set(chunkBaseX, chunkBaseY, chunkBaseZ);
-        mesh.updateMatrix();
-        mesh.matrixAutoUpdate = false;
-        mesh.userData = { isChunk: true, voxel };
-        if (material.transparent) {
-          const block = this.getBlockByIdSafe(voxel);
-          mesh.renderOrder = block?.isFluid
-            ? TRANSPARENT_FLUID_RENDER_ORDER
-            : TRANSPARENT_RENDER_ORDER;
-          if (!material.depthWrite) {
-            const sortData = prepareTransparentMesh(mesh);
-            if (sortData) {
-              mesh.userData.transparentSortData = sortData;
-              mesh.onBeforeRender = sortTransparentMeshOnBeforeRender;
-            }
-          }
-          this.csmRenderer?.addSkipShadowObject(mesh);
-        }
+        this.finalizeChunkMesh(
+          mesh,
+          voxel,
+          chunkBaseX,
+          chunkBaseY,
+          chunkBaseZ,
+          false,
+          material.transparent,
+          material.depthWrite
+        );
 
         chunk.group.add(mesh);
         meshes.push(mesh);
@@ -5302,6 +5286,41 @@ export class World<T = any> extends Scene implements NetIntercept {
         allMeshes: chunk.meshes,
       });
     }
+  }
+
+  private finalizeChunkMesh(
+    mesh: Mesh,
+    voxel: number,
+    chunkBaseX: number,
+    chunkBaseY: number,
+    chunkBaseZ: number,
+    merged: boolean,
+    transparent: boolean,
+    depthWrite: boolean
+  ) {
+    mesh.position.set(chunkBaseX, chunkBaseY, chunkBaseZ);
+    mesh.updateMatrix();
+    mesh.matrixAutoUpdate = false;
+    mesh.userData = merged
+      ? { isChunk: true, merged: true, voxel }
+      : { isChunk: true, voxel };
+
+    if (!transparent) {
+      return;
+    }
+
+    const block = this.getBlockByIdSafe(voxel);
+    mesh.renderOrder = block?.isFluid
+      ? TRANSPARENT_FLUID_RENDER_ORDER
+      : TRANSPARENT_RENDER_ORDER;
+    if (!depthWrite) {
+      const sortData = prepareTransparentMesh(mesh);
+      if (sortData) {
+        mesh.userData.transparentSortData = sortData;
+        mesh.onBeforeRender = sortTransparentMeshOnBeforeRender;
+      }
+    }
+    this.csmRenderer?.addSkipShadowObject(mesh);
   }
 
   private setupComponents() {
