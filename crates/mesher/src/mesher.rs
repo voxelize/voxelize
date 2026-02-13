@@ -391,9 +391,9 @@ impl NeighborCache {
                 let sample_y = vy + y;
                 for x in -1..=1 {
                     let sample_x = vx + x;
-                    data[idx][0] = space.get_raw_voxel(sample_x, sample_y, sample_z);
-                    let (sun, red, green, blue) =
-                        space.get_all_lights(sample_x, sample_y, sample_z);
+                    let (raw_voxel, (sun, red, green, blue)) =
+                        space.get_raw_voxel_and_lights(sample_x, sample_y, sample_z);
+                    data[idx][0] = raw_voxel;
                     data[idx][1] = (sun << 12) | (red << 8) | (green << 4) | blue;
                     idx += 1;
                 }
@@ -599,6 +599,18 @@ impl<'a> VoxelSpace<'a> {
     }
 
     #[inline(always)]
+    fn get_raw_voxel_and_lights(&self, vx: i32, vy: i32, vz: i32) -> (u32, (u32, u32, u32, u32)) {
+        let coords = self.map_voxel_to_chunk(vx, vz);
+        if let Some(chunk) = self.get_chunk(coords) {
+            if let Some(index) = self.get_index(chunk, vx, vy, vz) {
+                let raw_voxel = chunk.voxels[index];
+                return (raw_voxel, LightUtils::extract_all(chunk.lights[index]));
+            }
+        }
+        (0, (0, 0, 0, 0))
+    }
+
+    #[inline(always)]
     fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> BlockRotation {
         let raw = self.get_raw_voxel(vx, vy, vz);
         let rotation = (raw >> 16) & 0xF;
@@ -673,6 +685,10 @@ impl<'a> VoxelAccess for VoxelSpace<'a> {
 
     fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
         VoxelSpace::get_raw_voxel(self, vx, vy, vz)
+    }
+
+    fn get_raw_voxel_and_lights(&self, vx: i32, vy: i32, vz: i32) -> (u32, (u32, u32, u32, u32)) {
+        VoxelSpace::get_raw_voxel_and_lights(self, vx, vy, vz)
     }
 
     fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> BlockRotation {
