@@ -2691,6 +2691,41 @@ describe("preflight aggregate report", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("writes unsupported-option validation errors to output path", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-preflight-unsupported-output-")
+    );
+    const outputPath = path.resolve(tempDirectory, "report.json");
+
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--mystery", "--output", outputPath],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const stdoutReport = JSON.parse(output) as PreflightReport;
+    const fileReport = JSON.parse(fs.readFileSync(outputPath, "utf8")) as PreflightReport;
+
+    expect(stdoutReport.schemaVersion).toBe(1);
+    expect(stdoutReport.passed).toBe(false);
+    expect(stdoutReport.exitCode).toBe(1);
+    expect(stdoutReport.validationErrorCode).toBe("unsupported_options");
+    expect(stdoutReport.outputPath).toBe(outputPath);
+    expect(stdoutReport.unknownOptions).toEqual(["--mystery"]);
+    expect(stdoutReport.unknownOptionCount).toBe(1);
+    expect(stdoutReport.message).toBe(expectedUnsupportedOptionsMessage(["--mystery"]));
+    expect(stdoutReport.invalidChecks).toEqual([]);
+    expect(stdoutReport.requestedChecks).toEqual([]);
+    expect(fileReport).toEqual(stdoutReport);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("returns structured write failures for validation-error output paths", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-preflight-invalid-output-path-")
@@ -2722,6 +2757,37 @@ describe("preflight aggregate report", () => {
       specialSelector: 0,
       invalid: 1,
     });
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("returns structured write failures for unsupported-option output paths", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-preflight-unsupported-invalid-path-")
+    );
+
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--mystery", "--output", tempDirectory],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.outputPath).toBe(tempDirectory);
+    expect(report.unknownOptions).toEqual(["--mystery"]);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(report.writeError).toContain(`Failed to write report to ${tempDirectory}.`);
+    expect(report.message).toContain(`Failed to write report to ${tempDirectory}.`);
     expect(result.status).toBe(1);
 
     fs.rmSync(tempDirectory, { recursive: true, force: true });
