@@ -1050,6 +1050,40 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(1);
   });
 
+  it("prioritizes inline whitespace only validation while still reporting unsupported options", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--mystery", "--only=   "],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("only_option_missing_value");
+    expect(report.selectionMode).toBe("only");
+    expect(report.message).toBe("Missing value for --only option.");
+    expect(report.activeCliOptions).toEqual(["--only"]);
+    expect(report.activeCliOptionTokens).toEqual(["--only=   "]);
+    expect(report.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions(["--only=   "])
+    );
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.unknownOptions).toEqual(["--mystery"]);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(result.status).toBe(1);
+  });
+
   it("fails when split only flag value is empty", () => {
     const result = spawnSync(process.execPath, [preflightScript, "--only", ""], {
       cwd: rootDir,
@@ -2172,6 +2206,38 @@ describe("preflight aggregate report", () => {
     );
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
+    expect(result.status).toBe(1);
+  });
+
+  it("prioritizes inline whitespace output validation while reporting unsupported options", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--mystery", "--output=   "],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.outputPath).toBeNull();
+    expect(report.activeCliOptions).toEqual(["--output"]);
+    expect(report.activeCliOptionTokens).toEqual(["--output=   "]);
+    expect(report.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions(["--output=   "])
+    );
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.unknownOptions).toEqual(["--mystery"]);
+    expect(report.unknownOptionCount).toBe(1);
     expect(result.status).toBe(1);
   });
 

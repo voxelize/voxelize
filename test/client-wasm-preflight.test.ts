@@ -715,6 +715,51 @@ describe("client wasm preflight script", () => {
     expect(result.status).toBe(1);
   });
 
+  it("prioritizes inline whitespace output validation while reporting unsupported options", () => {
+    const result = spawnSync(
+      process.execPath,
+      [wasmMesherScript, "--json", "--mystery", "--output=   "],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const report = JSON.parse(`${result.stdout}${result.stderr}`) as WasmMesherJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedWasmMesherCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedWasmMesherCliOptions
+    );
+    expect(report.unknownOptions).toEqual(["--mystery"]);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--output"],
+      ["--json", "--output=   "],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--output=   ",
+          canonicalOption: "--output",
+          index: 2,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("reports unsupported options in structured output", () => {
     const result = spawnSync(
       process.execPath,
