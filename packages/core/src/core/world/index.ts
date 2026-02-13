@@ -3931,7 +3931,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     const directionX = direction.x;
     const directionZ = direction.z;
     const directionLengthSquared = directionX * directionX + directionZ * directionZ;
-    const hasDirection = directionLengthSquared > 0;
+    const hasDirection =
+      directionLengthSquared > 0 && Number.isFinite(directionLengthSquared);
 
     const angleThreshold = hasDirection
       ? ratio === 1
