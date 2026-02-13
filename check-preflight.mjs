@@ -19,6 +19,7 @@ const parseJsonOutput = (value) => {
 };
 
 const runCheck = (name, scriptName, extraArgs = []) => {
+  const checkStartMs = Date.now();
   const scriptPath = path.resolve(__dirname, scriptName);
   const result = spawnSync(process.execPath, [scriptPath, "--json", ...extraArgs], {
     cwd: __dirname,
@@ -34,11 +35,14 @@ const runCheck = (name, scriptName, extraArgs = []) => {
     name,
     passed: exitCode === 0,
     exitCode,
+    durationMs: Date.now() - checkStartMs,
     report,
     output: report === null ? output : null,
   };
 };
 
+const startedAt = new Date().toISOString();
+const aggregateStartMs = Date.now();
 const checks = [
   runCheck("devEnvironment", "check-dev-env.mjs"),
   runCheck("wasmPack", "check-wasm-pack.mjs"),
@@ -54,6 +58,8 @@ console.log(
       passed,
       exitCode,
       noBuild: isNoBuild,
+      startedAt,
+      durationMs: Date.now() - aggregateStartMs,
       checks,
     },
     null,

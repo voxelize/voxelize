@@ -8,6 +8,7 @@ type PreflightCheckResult = {
   name: string;
   passed: boolean;
   exitCode: number;
+  durationMs: number;
   report: object | null;
   output: string | null;
 };
@@ -16,6 +17,8 @@ type PreflightReport = {
   passed: boolean;
   exitCode: number;
   noBuild: boolean;
+  startedAt: string;
+  durationMs: number;
   checks: PreflightCheckResult[];
 };
 
@@ -36,6 +39,8 @@ describe("preflight aggregate report", () => {
     expect(typeof report.passed).toBe("boolean");
     expect(report.noBuild).toBe(true);
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
+    expect(typeof report.startedAt).toBe("string");
+    expect(report.durationMs).toBeGreaterThanOrEqual(0);
     expect(Array.isArray(report.checks)).toBe(true);
     expect(report.checks.length).toBe(3);
     expect(report.checks.map((check) => check.name)).toEqual([
@@ -43,6 +48,9 @@ describe("preflight aggregate report", () => {
       "wasmPack",
       "client",
     ]);
+    for (const check of report.checks) {
+      expect(check.durationMs).toBeGreaterThanOrEqual(0);
+    }
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 });
