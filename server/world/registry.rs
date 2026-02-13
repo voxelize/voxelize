@@ -418,7 +418,6 @@ impl Registry {
             .map(|block| block.id)
             .collect::<HashSet<u32>>();
         let mut prepared_blocks = Vec::with_capacity(blocks.len());
-        let mut next_available = 1;
 
         for block in blocks {
             let mut block = block.to_owned();
@@ -430,6 +429,7 @@ impl Registry {
             }
 
             if block.id == 0 {
+                let mut next_available = 1;
                 while occupied_ids.contains(&next_available)
                     || reserved_explicit_ids.contains(&next_available)
                 {

@@ -413,6 +413,25 @@ fn test_register_blocks_auto_id_can_reuse_processed_explicit_id() {
 }
 
 #[test]
+fn test_register_blocks_auto_id_reflects_ids_freed_by_earlier_updates() {
+    let mut registry = create_test_registry();
+    registry.register_block(&Block::new("solid-three").id(3).build());
+
+    registry.register_blocks(&[
+        Block::new("auto-one").is_passable(true).build(),
+        Block::new("solid-three").id(5).build(),
+        Block::new("auto-two").is_passable(true).build(),
+    ]);
+
+    assert_eq!(registry.get_block_by_name("auto-one").id, 4);
+    assert_eq!(
+        registry.get_block_by_name("auto-two").id,
+        3,
+        "later auto-id allocation should observe ids freed earlier in the same batch"
+    );
+}
+
+#[test]
 fn test_register_blocks_panics_on_duplicate_ids_in_batch() {
     let mut registry = create_test_registry();
 
