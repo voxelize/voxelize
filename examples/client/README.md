@@ -94,6 +94,7 @@ If `--output` is provided without a value, JSON commands return a structured err
 If `--output` is passed multiple times, the last value is used.
 Unsupported CLI flags return structured errors and include `unknownOptions`, `unknownOptionCount`, `supportedCliOptions`, and `validationErrorCode`.
 JSON preflight reports also include `activeCliOptions`, `activeCliOptionTokens`, `activeCliOptionResolutions`, and `activeCliOptionOccurrences` for option-usage diagnostics.
+JSON preflight reports include `availableCliOptionAliases` and `availableCliOptionCanonicalMap` to expose alias-to-canonical option mappings.
 If report writing fails, JSON error reports include both `message` and `writeError`.
 Add `--compact` to each JSON preflight command for single-line JSON output.
 

@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   REPORT_SCHEMA_VERSION,
+  createCliOptionCatalog,
   createTimedReportBuilder,
   createCliOptionValidation,
   deriveFailureMessageFromReport,
@@ -383,6 +384,31 @@ describe("report-utils", () => {
     expect(outputErrorPriority.validationErrorCode).toBe(
       "output_option_missing_value"
     );
+  });
+
+  it("creates cli option catalogs with canonical token mapping", () => {
+    const catalog = createCliOptionCatalog({
+      canonicalOptions: ["--json", "--no-build", "--output"],
+      optionAliases: {
+        "--no-build": ["--verify"],
+      },
+    });
+
+    expect(catalog.supportedCliOptions).toEqual([
+      "--json",
+      "--no-build",
+      "--output",
+      "--verify",
+    ]);
+    expect(catalog.availableCliOptionAliases).toEqual({
+      "--no-build": ["--verify"],
+    });
+    expect(catalog.availableCliOptionCanonicalMap).toEqual({
+      "--json": "--json",
+      "--no-build": "--no-build",
+      "--output": "--output",
+      "--verify": "--no-build",
+    });
   });
 
   it("parses active cli option metadata with aliases and option values", () => {

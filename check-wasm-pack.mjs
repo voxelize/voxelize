@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 
 import { resolveCommand } from "./scripts/command-utils.mjs";
 import {
+  createCliOptionCatalog,
   createCliOptionValidation,
   createTimedReportBuilder,
   parseActiveCliOptionMetadata,
@@ -25,6 +26,12 @@ const isCompact = cliOptionArgs.includes("--compact");
 const jsonFormat = { compact: isCompact };
 const { outputPath, error: outputPathError } = resolveOutputPath(cliOptionArgs);
 const canonicalCliOptions = ["--compact", "--json", "--output", "--quiet"];
+const optionAliases = {};
+const { availableCliOptionAliases, availableCliOptionCanonicalMap } =
+  createCliOptionCatalog({
+    canonicalOptions: canonicalCliOptions,
+    optionAliases,
+  });
 const {
   supportedCliOptions,
   unknownOptions,
@@ -33,6 +40,7 @@ const {
   validationErrorCode,
 } = createCliOptionValidation(cliOptionArgs, {
   canonicalOptions: canonicalCliOptions,
+  optionAliases,
   optionsWithValues: ["--output"],
   outputPathError,
 });
@@ -46,6 +54,7 @@ const {
   activeCliOptionOccurrenceCount,
 } = parseActiveCliOptionMetadata(cliOptionArgs, {
   canonicalOptions: canonicalCliOptions,
+  optionAliases,
   optionsWithValues: ["--output"],
 });
 const buildTimedReport = createTimedReportBuilder();
@@ -72,6 +81,8 @@ if (isJson && (outputPathError !== null || unsupportedOptionsError !== null)) {
         unknownOptions,
         unknownOptionCount,
         supportedCliOptions,
+        availableCliOptionAliases,
+        availableCliOptionCanonicalMap,
         validationErrorCode,
         message: outputPathError ?? unsupportedOptionsError,
       }),
@@ -124,6 +135,8 @@ if (checkStatus === 0) {
       unknownOptions,
       unknownOptionCount,
       supportedCliOptions,
+      availableCliOptionAliases,
+      availableCliOptionCanonicalMap,
       validationErrorCode: null,
     });
     const { reportJson, writeError } = serializeReportWithOptionalWrite(report, {
@@ -162,6 +175,8 @@ if (isJson) {
     unknownOptions,
     unknownOptionCount,
     supportedCliOptions,
+    availableCliOptionAliases,
+    availableCliOptionCanonicalMap,
     validationErrorCode: null,
     message: failureMessage,
   });

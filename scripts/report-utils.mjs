@@ -249,6 +249,43 @@ const createCanonicalOptionMap = (canonicalOptions, optionAliases = {}) => {
   return canonicalMap;
 };
 
+const createSupportedCliOptions = (canonicalOptions, optionAliases = {}) => {
+  return [...canonicalOptions, ...Object.values(optionAliases).flat()].filter(
+    (optionToken, index, allOptions) => {
+      return allOptions.indexOf(optionToken) === index;
+    }
+  );
+};
+
+export const createCliOptionCatalog = ({
+  canonicalOptions = [],
+  optionAliases = {},
+} = {}) => {
+  const supportedCliOptions = createSupportedCliOptions(
+    canonicalOptions,
+    optionAliases
+  );
+  const canonicalOptionMap = createCanonicalOptionMap(
+    canonicalOptions,
+    optionAliases
+  );
+  const availableCliOptionCanonicalMap = Object.fromEntries(
+    supportedCliOptions.map((optionToken) => {
+      const canonicalOption = canonicalOptionMap.get(optionToken);
+      return [
+        optionToken,
+        canonicalOption === undefined ? optionToken : canonicalOption,
+      ];
+    })
+  );
+
+  return {
+    supportedCliOptions,
+    availableCliOptionAliases: optionAliases,
+    availableCliOptionCanonicalMap,
+  };
+};
+
 const resolveCanonicalOptionToken = (
   optionToken,
   canonicalOptionMap,
@@ -338,11 +375,9 @@ export const createCliOptionValidation = (
     outputPathError = null,
   } = {}
 ) => {
-  const supportedCliOptions = [
-    ...canonicalOptions,
-    ...Object.values(optionAliases).flat(),
-  ].filter((optionToken, index, allOptions) => {
-    return allOptions.indexOf(optionToken) === index;
+  const { supportedCliOptions } = createCliOptionCatalog({
+    canonicalOptions,
+    optionAliases,
   });
   const unknownOptions = parseUnknownCliOptions(args, {
     canonicalOptions,

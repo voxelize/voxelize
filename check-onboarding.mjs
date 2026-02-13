@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  createCliOptionCatalog,
   createCliOptionValidation,
   createTimedReportBuilder,
   hasCliOption,
@@ -41,6 +42,11 @@ const isNoBuild = hasCliOption(cliOptionArgs, "--no-build", noBuildOptionAliases
 const isCompact = cliOptionArgs.includes("--compact");
 const jsonFormat = { compact: isCompact };
 const { outputPath, error: outputPathError } = resolveOutputPath(cliOptionArgs);
+const { availableCliOptionAliases, availableCliOptionCanonicalMap } =
+  createCliOptionCatalog({
+    canonicalOptions: canonicalCliOptions,
+    optionAliases,
+  });
 const {
   supportedCliOptions,
   unknownOptions,
@@ -93,6 +99,8 @@ if (isJson && (outputPathError !== null || unsupportedOptionsError !== null)) {
         unknownOptions,
         unknownOptionCount,
         supportedCliOptions,
+        availableCliOptionAliases,
+        availableCliOptionCanonicalMap,
         validationErrorCode: normalizedValidationErrorCode,
         steps: [],
         ...summarizeStepResults([]),
@@ -208,6 +216,8 @@ if (isJson) {
     unknownOptions,
     unknownOptionCount,
     supportedCliOptions,
+    availableCliOptionAliases,
+    availableCliOptionCanonicalMap,
     validationErrorCode: null,
     steps: stepResults,
     ...stepSummary,

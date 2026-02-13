@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { resolvePnpmCommand } from "../../../scripts/command-utils.mjs";
 import {
+  createCliOptionCatalog,
   createCliOptionValidation,
   createTimedReportBuilder,
   hasCliOption,
@@ -43,6 +44,11 @@ const isNoBuild = hasCliOption(cliOptionArgs, "--no-build", noBuildOptionAliases
 const isCompact = cliOptionArgs.includes("--compact");
 const jsonFormat = { compact: isCompact };
 const { outputPath, error: outputPathError } = resolveOutputPath(cliOptionArgs);
+const { availableCliOptionAliases, availableCliOptionCanonicalMap } =
+  createCliOptionCatalog({
+    canonicalOptions: canonicalCliOptions,
+    optionAliases,
+  });
 const {
   supportedCliOptions,
   unknownOptions,
@@ -99,6 +105,8 @@ if (isJson && (outputPathError !== null || unsupportedOptionsError !== null)) {
         unknownOptions,
         unknownOptionCount,
         supportedCliOptions,
+        availableCliOptionAliases,
+        availableCliOptionCanonicalMap,
         validationErrorCode: normalizedValidationErrorCode,
         message: outputPathError ?? unsupportedOptionsError,
       }),
@@ -130,6 +138,8 @@ const finish = (report) => {
       unknownOptions,
       unknownOptionCount,
       supportedCliOptions,
+      availableCliOptionAliases,
+      availableCliOptionCanonicalMap,
       validationErrorCode: null,
       outputPath,
     });

@@ -20,6 +20,11 @@ type OptionTerminatorMetadata = {
   positionalArgCount: number;
 };
 
+type CliOptionCatalogMetadata = {
+  availableCliOptionAliases: Record<string, string[]>;
+  availableCliOptionCanonicalMap: Record<string, string>;
+};
+
 type ActiveCliOptionMetadata = {
   activeCliOptions: string[];
   activeCliOptionCount: number;
@@ -57,7 +62,7 @@ type WasmPackJsonReport = OptionTerminatorMetadata &
   durationMs: number;
   writeError?: string;
   message?: string;
-};
+} & CliOptionCatalogMetadata;
 
 type DevEnvJsonCheck = {
   label: string;
@@ -89,7 +94,7 @@ type DevEnvJsonReport = OptionTerminatorMetadata &
   durationMs: number;
   writeError?: string;
   message?: string;
-};
+} & CliOptionCatalogMetadata;
 
 type WasmMesherJsonReport = OptionTerminatorMetadata &
   ActiveCliOptionMetadata & {
@@ -114,7 +119,7 @@ type WasmMesherJsonReport = OptionTerminatorMetadata &
   startedAt: string;
   endedAt: string;
   durationMs: number;
-};
+} & CliOptionCatalogMetadata;
 
 type ClientJsonStep = {
   name: string;
@@ -151,7 +156,7 @@ type ClientJsonReport = OptionTerminatorMetadata &
   durationMs: number;
   writeError?: string;
   message?: string;
-};
+} & CliOptionCatalogMetadata;
 
 type OnboardingJsonStep = {
   name: string;
@@ -188,7 +193,7 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
   durationMs: number;
   writeError?: string;
   message?: string;
-};
+} & CliOptionCatalogMetadata;
 
 const runScript = (scriptName: string, args: string[] = []): ScriptResult => {
   const scriptPath = path.resolve(rootDir, scriptName);
@@ -270,6 +275,43 @@ const expectActiveCliOptionMetadata = (
   );
 };
 
+const createExpectedCliOptionCanonicalMap = (supportedCliOptions: string[]) => {
+  return Object.fromEntries(
+    supportedCliOptions.map((token) => {
+      return [token, expectedCanonicalOptionForToken(token)];
+    })
+  );
+};
+
+const expectCliOptionCatalogMetadata = (
+  report: CliOptionCatalogMetadata,
+  expectedAliases: Record<string, string[]>,
+  expectedSupportedCliOptions: string[]
+) => {
+  expect(report.availableCliOptionAliases).toEqual(expectedAliases);
+  expect(report.availableCliOptionCanonicalMap).toEqual(
+    createExpectedCliOptionCanonicalMap(expectedSupportedCliOptions)
+  );
+};
+
+const expectedStandardCliOptions = [
+  "--compact",
+  "--json",
+  "--output",
+  "--quiet",
+];
+const expectedNoBuildCliOptions = [
+  "--compact",
+  "--json",
+  "--no-build",
+  "--output",
+  "--quiet",
+  "--verify",
+];
+const expectedNoBuildCliOptionAliases = {
+  "--no-build": ["--verify"],
+};
+
 describe("root preflight scripts", () => {
   it("check-wasm-pack returns clear status output", () => {
     const result = runScript("check-wasm-pack.mjs");
@@ -300,12 +342,8 @@ describe("root preflight scripts", () => {
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
     expect(report.command).toContain("wasm-pack");
     expect(report.outputPath).toBeNull();
-    expect(report.supportedCliOptions).toEqual([
-      "--compact",
-      "--json",
-      "--output",
-      "--quiet",
-    ]);
+    expect(report.supportedCliOptions).toEqual(expectedStandardCliOptions);
+    expectCliOptionCatalogMetadata(report, {}, expectedStandardCliOptions);
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
     expect(report.validationErrorCode).toBeNull();
@@ -488,12 +526,8 @@ describe("root preflight scripts", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.outputPath).toBeNull();
-    expect(report.supportedCliOptions).toEqual([
-      "--compact",
-      "--json",
-      "--output",
-      "--quiet",
-    ]);
+    expect(report.supportedCliOptions).toEqual(expectedStandardCliOptions);
+    expectCliOptionCatalogMetadata(report, {}, expectedStandardCliOptions);
     expect(report.unknownOptions).toEqual(["--mystery"]);
     expect(report.unknownOptionCount).toBe(1);
     expect(report.validationErrorCode).toBe("unsupported_options");
@@ -603,12 +637,8 @@ describe("root preflight scripts", () => {
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
     expect(report.requiredFailures).toBeGreaterThanOrEqual(0);
     expect(report.outputPath).toBeNull();
-    expect(report.supportedCliOptions).toEqual([
-      "--compact",
-      "--json",
-      "--output",
-      "--quiet",
-    ]);
+    expect(report.supportedCliOptions).toEqual(expectedStandardCliOptions);
+    expectCliOptionCatalogMetadata(report, {}, expectedStandardCliOptions);
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
     expect(report.validationErrorCode).toBeNull();
@@ -790,12 +820,8 @@ describe("root preflight scripts", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.outputPath).toBeNull();
-    expect(report.supportedCliOptions).toEqual([
-      "--compact",
-      "--json",
-      "--output",
-      "--quiet",
-    ]);
+    expect(report.supportedCliOptions).toEqual(expectedStandardCliOptions);
+    expectCliOptionCatalogMetadata(report, {}, expectedStandardCliOptions);
     expect(report.unknownOptions).toEqual(["--mystery"]);
     expect(report.unknownOptionCount).toBe(1);
     expect(report.validationErrorCode).toBe("unsupported_options");
@@ -923,14 +949,12 @@ describe("root preflight scripts", () => {
     expect(report.noBuild).toBe(false);
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
     expect(report.outputPath).toBeNull();
-    expect(report.supportedCliOptions).toEqual([
-      "--compact",
-      "--json",
-      "--no-build",
-      "--output",
-      "--quiet",
-      "--verify",
-    ]);
+    expect(report.supportedCliOptions).toEqual(expectedNoBuildCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedNoBuildCliOptions
+    );
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
     expect(report.validationErrorCode).toBeNull();
@@ -1185,14 +1209,12 @@ describe("root preflight scripts", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.outputPath).toBeNull();
-    expect(report.supportedCliOptions).toEqual([
-      "--compact",
-      "--json",
-      "--no-build",
-      "--output",
-      "--quiet",
-      "--verify",
-    ]);
+    expect(report.supportedCliOptions).toEqual(expectedNoBuildCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedNoBuildCliOptions
+    );
     expect(report.unknownOptions).toEqual(["--mystery"]);
     expect(report.unknownOptionCount).toBe(1);
     expect(report.validationErrorCode).toBe("unsupported_options");
@@ -1388,14 +1410,12 @@ describe("root preflight scripts", () => {
     expect(report.noBuild).toBe(false);
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
     expect(report.outputPath).toBeNull();
-    expect(report.supportedCliOptions).toEqual([
-      "--compact",
-      "--json",
-      "--no-build",
-      "--output",
-      "--quiet",
-      "--verify",
-    ]);
+    expect(report.supportedCliOptions).toEqual(expectedNoBuildCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedNoBuildCliOptions
+    );
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
     expect(report.validationErrorCode).toBeNull();
@@ -1645,14 +1665,12 @@ describe("root preflight scripts", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.outputPath).toBeNull();
-    expect(report.supportedCliOptions).toEqual([
-      "--compact",
-      "--json",
-      "--no-build",
-      "--output",
-      "--quiet",
-      "--verify",
-    ]);
+    expect(report.supportedCliOptions).toEqual(expectedNoBuildCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedNoBuildCliOptions
+    );
     expect(report.unknownOptions).toEqual(["--mystery"]);
     expect(report.unknownOptionCount).toBe(1);
     expect(report.validationErrorCode).toBe("unsupported_options");

@@ -29,6 +29,11 @@ type ActiveCliOptionMetadata = {
   activeCliOptionOccurrenceCount: number;
 };
 
+type CliOptionCatalogMetadata = {
+  availableCliOptionAliases: Record<string, string[]>;
+  availableCliOptionCanonicalMap: Record<string, string>;
+};
+
 type WasmPackJsonReport = OptionTerminatorMetadata &
   ActiveCliOptionMetadata & {
   passed: boolean;
@@ -47,7 +52,7 @@ type WasmPackJsonReport = OptionTerminatorMetadata &
   durationMs: number;
   writeError?: string;
   message?: string;
-};
+} & CliOptionCatalogMetadata;
 
 type WasmMesherJsonReport = OptionTerminatorMetadata &
   ActiveCliOptionMetadata & {
@@ -74,7 +79,7 @@ type WasmMesherJsonReport = OptionTerminatorMetadata &
   startedAt: string;
   endedAt: string;
   durationMs: number;
-};
+} & CliOptionCatalogMetadata;
 
 const testDir = fileURLToPath(new URL(".", import.meta.url));
 const rootDir = path.resolve(testDir, "..");
@@ -146,6 +151,42 @@ describe("client wasm preflight script", () => {
     );
   };
 
+  const createExpectedCliOptionCanonicalMap = (supportedCliOptions: string[]) => {
+    return Object.fromEntries(
+      supportedCliOptions.map((token) => {
+        return [token, expectedCanonicalOptionForToken(token)];
+      })
+    );
+  };
+
+  const expectCliOptionCatalogMetadata = (
+    report: CliOptionCatalogMetadata,
+    expectedAliases: Record<string, string[]>,
+    expectedSupportedCliOptions: string[]
+  ) => {
+    expect(report.availableCliOptionAliases).toEqual(expectedAliases);
+    expect(report.availableCliOptionCanonicalMap).toEqual(
+      createExpectedCliOptionCanonicalMap(expectedSupportedCliOptions)
+    );
+  };
+
+  const expectedWasmPackCliOptions = [
+    "--compact",
+    "--json",
+    "--output",
+    "--quiet",
+  ];
+  const expectedWasmMesherCliOptions = [
+    "--compact",
+    "--json",
+    "--no-build",
+    "--output",
+    "--verify",
+  ];
+  const expectedNoBuildCliOptionAliases = {
+    "--no-build": ["--verify"],
+  };
+
   it("emits machine-readable JSON report", () => {
     const result = spawnSync(process.execPath, [wasmMesherScript, "--json"], {
       cwd: rootDir,
@@ -165,13 +206,12 @@ describe("client wasm preflight script", () => {
     expect(typeof report.attemptedBuild).toBe("boolean");
     expect(typeof report.buildSkipped).toBe("boolean");
     expect(report.outputPath).toBeNull();
-    expect(report.supportedCliOptions).toEqual([
-      "--compact",
-      "--json",
-      "--no-build",
-      "--output",
-      "--verify",
-    ]);
+    expect(report.supportedCliOptions).toEqual(expectedWasmMesherCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedWasmMesherCliOptions
+    );
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
     expect(report.validationErrorCode).toBeNull();
@@ -194,12 +234,14 @@ describe("client wasm preflight script", () => {
 
     if (report.wasmPackCheckReport !== null) {
       expect(report.wasmPackCheckReport.command).toContain("wasm-pack");
-      expect(report.wasmPackCheckReport.supportedCliOptions).toEqual([
-        "--compact",
-        "--json",
-        "--output",
-        "--quiet",
-      ]);
+      expect(report.wasmPackCheckReport.supportedCliOptions).toEqual(
+        expectedWasmPackCliOptions
+      );
+      expectCliOptionCatalogMetadata(
+        report.wasmPackCheckReport,
+        {},
+        expectedWasmPackCliOptions
+      );
       expect(report.wasmPackCheckReport.unknownOptions).toEqual([]);
       expect(report.wasmPackCheckReport.unknownOptionCount).toBe(0);
       expect(report.wasmPackCheckReport.validationErrorCode).toBeNull();
@@ -518,13 +560,12 @@ describe("client wasm preflight script", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.outputPath).toBeNull();
-    expect(report.supportedCliOptions).toEqual([
-      "--compact",
-      "--json",
-      "--no-build",
-      "--output",
-      "--verify",
-    ]);
+    expect(report.supportedCliOptions).toEqual(expectedWasmMesherCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedWasmMesherCliOptions
+    );
     expect(report.unknownOptions).toEqual(["--mystery"]);
     expect(report.unknownOptionCount).toBe(1);
     expect(report.validationErrorCode).toBe("unsupported_options");
