@@ -1952,20 +1952,24 @@ fn process_greedy_quad(
     let face_aos = quad.data.key.ao;
     let face_lights = quad.data.key.light;
 
-    let a_rt = LightUtils::extract_red_light(face_lights[0] as u32) as i32;
-    let b_rt = LightUtils::extract_red_light(face_lights[1] as u32) as i32;
-    let c_rt = LightUtils::extract_red_light(face_lights[2] as u32) as i32;
-    let d_rt = LightUtils::extract_red_light(face_lights[3] as u32) as i32;
+    let light0 = face_lights[0] as u32;
+    let light1 = face_lights[1] as u32;
+    let light2 = face_lights[2] as u32;
+    let light3 = face_lights[3] as u32;
+    let a_rt = ((light0 >> 8) & 0xF) as i32;
+    let b_rt = ((light1 >> 8) & 0xF) as i32;
+    let c_rt = ((light2 >> 8) & 0xF) as i32;
+    let d_rt = ((light3 >> 8) & 0xF) as i32;
 
-    let a_gt = LightUtils::extract_green_light(face_lights[0] as u32) as i32;
-    let b_gt = LightUtils::extract_green_light(face_lights[1] as u32) as i32;
-    let c_gt = LightUtils::extract_green_light(face_lights[2] as u32) as i32;
-    let d_gt = LightUtils::extract_green_light(face_lights[3] as u32) as i32;
+    let a_gt = ((light0 >> 4) & 0xF) as i32;
+    let b_gt = ((light1 >> 4) & 0xF) as i32;
+    let c_gt = ((light2 >> 4) & 0xF) as i32;
+    let d_gt = ((light3 >> 4) & 0xF) as i32;
 
-    let a_bt = LightUtils::extract_blue_light(face_lights[0] as u32) as i32;
-    let b_bt = LightUtils::extract_blue_light(face_lights[1] as u32) as i32;
-    let c_bt = LightUtils::extract_blue_light(face_lights[2] as u32) as i32;
-    let d_bt = LightUtils::extract_blue_light(face_lights[3] as u32) as i32;
+    let a_bt = (light0 & 0xF) as i32;
+    let b_bt = (light1 & 0xF) as i32;
+    let c_bt = (light2 & 0xF) as i32;
+    let d_bt = (light3 & 0xF) as i32;
 
     let one_tr0 = a_rt == 0 || b_rt == 0 || c_rt == 0 || d_rt == 0;
     let one_tg0 = a_gt == 0 || b_gt == 0 || c_gt == 0 || d_gt == 0;
