@@ -832,7 +832,7 @@ fn vertex_ao(side1: bool, side2: bool, corner: bool) -> i32 {
 }
 
 #[inline(always)]
-fn has_channel_midpoint_anomaly(a: i32, b: i32, c: i32, d: i32) -> bool {
+fn has_channel_midpoint_anomaly(a: u32, b: u32, c: u32, d: u32) -> bool {
     let ad_sum = a + d;
     (2 * b > ad_sum && ad_sum > 2 * c) || (2 * c > ad_sum && ad_sum > 2 * b)
 }
@@ -1951,20 +1951,20 @@ fn process_greedy_quad(
     let light1 = face_lights[1] as u32;
     let light2 = face_lights[2] as u32;
     let light3 = face_lights[3] as u32;
-    let a_rt = ((light0 >> 8) & 0xF) as i32;
-    let b_rt = ((light1 >> 8) & 0xF) as i32;
-    let c_rt = ((light2 >> 8) & 0xF) as i32;
-    let d_rt = ((light3 >> 8) & 0xF) as i32;
+    let a_rt = (light0 >> 8) & 0xF;
+    let b_rt = (light1 >> 8) & 0xF;
+    let c_rt = (light2 >> 8) & 0xF;
+    let d_rt = (light3 >> 8) & 0xF;
 
-    let a_gt = ((light0 >> 4) & 0xF) as i32;
-    let b_gt = ((light1 >> 4) & 0xF) as i32;
-    let c_gt = ((light2 >> 4) & 0xF) as i32;
-    let d_gt = ((light3 >> 4) & 0xF) as i32;
+    let a_gt = (light0 >> 4) & 0xF;
+    let b_gt = (light1 >> 4) & 0xF;
+    let c_gt = (light2 >> 4) & 0xF;
+    let d_gt = (light3 >> 4) & 0xF;
 
-    let a_bt = (light0 & 0xF) as i32;
-    let b_bt = (light1 & 0xF) as i32;
-    let c_bt = (light2 & 0xF) as i32;
-    let d_bt = (light3 & 0xF) as i32;
+    let a_bt = light0 & 0xF;
+    let b_bt = light1 & 0xF;
+    let c_bt = light2 & 0xF;
+    let d_bt = light3 & 0xF;
 
     let one_tr0 = a_rt == 0 || b_rt == 0 || c_rt == 0 || d_rt == 0;
     let one_tg0 = a_gt == 0 || b_gt == 0 || c_gt == 0 || d_gt == 0;
@@ -2604,12 +2604,9 @@ fn process_face<S: VoxelAccess>(
     let ozao_g = fequals && a_gt + d_gt < b_gt + c_gt;
     let ozao_b = fequals && a_bt + d_bt < b_bt + c_bt;
 
-    let anz_r = one_tr0
-        && has_channel_midpoint_anomaly(a_rt as i32, b_rt as i32, c_rt as i32, d_rt as i32);
-    let anz_g = one_tg0
-        && has_channel_midpoint_anomaly(a_gt as i32, b_gt as i32, c_gt as i32, d_gt as i32);
-    let anz_b = one_tb0
-        && has_channel_midpoint_anomaly(a_bt as i32, b_bt as i32, c_bt as i32, d_bt as i32);
+    let anz_r = one_tr0 && has_channel_midpoint_anomaly(a_rt, b_rt, c_rt, d_rt);
+    let anz_g = one_tg0 && has_channel_midpoint_anomaly(a_gt, b_gt, c_gt, d_gt);
+    let anz_b = one_tb0 && has_channel_midpoint_anomaly(a_bt, b_bt, c_bt, d_bt);
 
     indices.push(ndx);
     indices.push(ndx + 1);
