@@ -113,8 +113,9 @@ export class WorkerPool {
 
   postMessage = (message: object, buffers?: ArrayBufferLike[]) => {
     if (!buffers || buffers.length === 0) {
-      for (const worker of this.workers) {
-        worker.postMessage(message);
+      const workerCount = this.workers.length;
+      for (let workerIndex = 0; workerIndex < workerCount; workerIndex++) {
+        this.workers[workerIndex].postMessage(message);
       }
       return;
     }
@@ -124,14 +125,16 @@ export class WorkerPool {
       return;
     }
 
-    for (const worker of this.workers) {
-      const transferBuffers = new Array<ArrayBufferLike>(buffers.length);
-      for (let index = 0; index < buffers.length; index++) {
+    const workerCount = this.workers.length;
+    const bufferCount = buffers.length;
+    for (let workerIndex = 0; workerIndex < workerCount; workerIndex++) {
+      const transferBuffers = new Array<ArrayBufferLike>(bufferCount);
+      for (let index = 0; index < bufferCount; index++) {
         const buffer = buffers[index];
         transferBuffers[index] =
           buffer instanceof ArrayBuffer ? buffer.slice(0) : buffer;
       }
-      worker.postMessage(message, transferBuffers);
+      this.workers[workerIndex].postMessage(message, transferBuffers);
     }
   };
 
