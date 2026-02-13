@@ -1024,7 +1024,14 @@ describe("root preflight scripts", () => {
   });
 
   it("check-wasm-pack ignores option-like tokens after option terminator", () => {
-    const result = runScript("check-wasm-pack.mjs", ["--json", "--", "--output"]);
+    const result = runScript("check-wasm-pack.mjs", [
+      "--json",
+      "--",
+      "--output",
+      "--json=1",
+      "--verify=2",
+      "--=secret",
+    ]);
     const report = JSON.parse(result.output) as WasmPackJsonReport;
 
     expect(report.schemaVersion).toBe(1);
@@ -1033,7 +1040,12 @@ describe("root preflight scripts", () => {
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
     expectTimingMetadata(report);
-    expectOptionTerminatorMetadata(report, true, ["--output"]);
+    expectOptionTerminatorMetadata(report, true, [
+      "--output",
+      "--json=1",
+      "--verify=2",
+      "--=secret",
+    ]);
     expectActiveCliOptionMetadata(
       report,
       ["--json"],
@@ -1899,12 +1911,24 @@ describe("root preflight scripts", () => {
   });
 
   it("check-dev-env ignores option-like tokens after option terminator", () => {
-    const result = runScript("check-dev-env.mjs", ["--json", "--", "--output"]);
+    const result = runScript("check-dev-env.mjs", [
+      "--json",
+      "--",
+      "--output",
+      "--json=1",
+      "--verify=2",
+      "--=secret",
+    ]);
     const report = JSON.parse(result.output) as DevEnvJsonReport;
 
     expect(report.schemaVersion).toBe(1);
     expect(report.outputPath).toBeNull();
-    expectOptionTerminatorMetadata(report, true, ["--output"]);
+    expectOptionTerminatorMetadata(report, true, [
+      "--output",
+      "--json=1",
+      "--verify=2",
+      "--=secret",
+    ]);
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
     expect(report.message).not.toBe("Missing value for --output option.");
@@ -2571,12 +2595,20 @@ describe("root preflight scripts", () => {
       "--no-build",
       "--",
       "--output",
+      "--json=1",
+      "--verify=2",
+      "--=secret",
     ]);
     const report = JSON.parse(result.output) as ClientJsonReport;
 
     expect(report.schemaVersion).toBe(1);
     expect(report.outputPath).toBeNull();
-    expectOptionTerminatorMetadata(report, true, ["--output"]);
+    expectOptionTerminatorMetadata(report, true, [
+      "--output",
+      "--json=1",
+      "--verify=2",
+      "--=secret",
+    ]);
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
     expect(report.totalSteps).toBeGreaterThan(0);
@@ -3785,12 +3817,20 @@ describe("root preflight scripts", () => {
       "--no-build",
       "--",
       "--output",
+      "--json=1",
+      "--verify=2",
+      "--=secret",
     ]);
     const report = JSON.parse(result.output) as OnboardingJsonReport;
 
     expect(report.schemaVersion).toBe(1);
     expect(report.outputPath).toBeNull();
-    expectOptionTerminatorMetadata(report, true, ["--output"]);
+    expectOptionTerminatorMetadata(report, true, [
+      "--output",
+      "--json=1",
+      "--verify=2",
+      "--=secret",
+    ]);
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
     expect(report.totalSteps).toBeGreaterThan(0);

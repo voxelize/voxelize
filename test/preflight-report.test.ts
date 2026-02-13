@@ -1253,7 +1253,17 @@ describe("preflight aggregate report", () => {
   it("ignores option-like tokens after the option terminator", () => {
     const result = spawnSync(
       process.execPath,
-      [preflightScript, "--list-checks", "--", "--mystery", "--only", "client"],
+      [
+        preflightScript,
+        "--list-checks",
+        "--",
+        "--mystery",
+        "--only",
+        "client",
+        "--json=1",
+        "--verify=2",
+        "--=secret",
+      ],
       {
         cwd: rootDir,
         encoding: "utf8",
@@ -1268,7 +1278,14 @@ describe("preflight aggregate report", () => {
     expect(report.passed).toBe(true);
     expect(report.exitCode).toBe(0);
     expect(report.optionTerminatorUsed).toBe(true);
-    expect(report.positionalArgs).toEqual(["--mystery", "--only", "client"]);
+    expect(report.positionalArgs).toEqual([
+      "--mystery",
+      "--only",
+      "client",
+      "--json=1",
+      "--verify=2",
+      "--=secret",
+    ]);
     expect(report.positionalArgCount).toBe(report.positionalArgs.length);
     expect(report.selectionMode).toBe("default");
     expect(report.selectedChecks).toEqual(report.availableChecks);

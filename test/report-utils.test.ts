@@ -408,6 +408,17 @@ describe("report-utils", () => {
     );
     expect(unknownWithTerminator).toEqual([]);
 
+    const unknownWithInlineMisuseAfterTerminator = parseUnknownCliOptions(
+      ["--json", "--", "--json=1", "--verify=2", "--=secret", "--mystery=alpha"],
+      {
+        canonicalOptions: ["--json", "--no-build"],
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+      }
+    );
+    expect(unknownWithInlineMisuseAfterTerminator).toEqual([]);
+
     const unknownWithMissingValueFollowedByUnknown = parseUnknownCliOptions(
       ["--output", "--mystery"],
       {
@@ -1481,6 +1492,47 @@ describe("report-utils", () => {
       },
     ]);
     expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(1);
+  });
+
+  it("ignores inline misuse tokens that appear after option terminator", () => {
+    const activeMetadata = parseActiveCliOptionMetadata(
+      ["--json", "--output=./report.json", "--", "--json=1", "--output=./ignored.json"],
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+      }
+    );
+
+    expect(activeMetadata.activeCliOptions).toEqual(["--json", "--output"]);
+    expect(activeMetadata.activeCliOptionCount).toBe(2);
+    expect(activeMetadata.activeCliOptionTokens).toEqual([
+      "--json",
+      "--output=./report.json",
+    ]);
+    expect(activeMetadata.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+      {
+        token: "--output=./report.json",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionResolutionCount).toBe(2);
+    expect(activeMetadata.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+      {
+        token: "--output=./report.json",
+        canonicalOption: "--output",
+        index: 1,
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(2);
   });
 
   it("excludes inline misuse tokens from active option metadata", () => {

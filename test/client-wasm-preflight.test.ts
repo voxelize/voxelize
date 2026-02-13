@@ -1222,7 +1222,16 @@ describe("client wasm preflight script", () => {
   it("ignores option-like tokens after option terminator", () => {
     const result = spawnSync(
       process.execPath,
-      [wasmMesherScript, "--json", "--no-build", "--", "--output"],
+      [
+        wasmMesherScript,
+        "--json",
+        "--no-build",
+        "--",
+        "--output",
+        "--json=1",
+        "--verify=2",
+        "--=secret",
+      ],
       {
         cwd: rootDir,
         encoding: "utf8",
@@ -1233,7 +1242,12 @@ describe("client wasm preflight script", () => {
 
     expect(report.schemaVersion).toBe(1);
     expect(report.outputPath).toBeNull();
-    expectOptionTerminatorMetadata(report, true, ["--output"]);
+    expectOptionTerminatorMetadata(report, true, [
+      "--output",
+      "--json=1",
+      "--verify=2",
+      "--=secret",
+    ]);
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
     expect(report.message).not.toBe("Missing value for --output option.");
