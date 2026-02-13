@@ -31,6 +31,7 @@ export class RawChunk {
   public voxels: NdArray<Uint32Array>;
 
   public lights: NdArray<Uint32Array>;
+  private localBuffer: Coords3 = [0, 0, 0];
 
   constructor(id: string, coords: Coords2, options: RawChunkOptions) {
     this.id = id;
@@ -528,11 +529,10 @@ export class RawChunk {
 
   private toLocal(vx: number, vy: number, vz: number) {
     const [mx, my, mz] = this.min;
-    return [
-      Math.floor(vx) - mx,
-      Math.floor(vy) - my,
-      Math.floor(vz) - mz,
-    ];
+    this.localBuffer[0] = Math.floor(vx) - mx;
+    this.localBuffer[1] = Math.floor(vy) - my;
+    this.localBuffer[2] = Math.floor(vz) - mz;
+    return this.localBuffer;
   }
 
   private contains(vx: number, vy: number, vz: number) {
