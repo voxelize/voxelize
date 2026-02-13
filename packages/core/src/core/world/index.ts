@@ -5910,10 +5910,16 @@ export class World<T = any> extends Scene implements NetIntercept {
     let queuedJobs = 0;
 
     for (const { color, channel } of LIGHT_COLOR_CHANNELS) {
+      const removals = lightOps.removals[channel];
+      const floods = lightOps.floods[channel];
+      if (removals.length === 0 && floods.length === 0) {
+        continue;
+      }
+
       const job = this.createLightJob(
         color,
-        lightOps.removals[channel],
-        lightOps.floods[channel],
+        removals,
+        floods,
         startSequenceId,
         batchId,
         boundsConfig
