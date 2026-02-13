@@ -3409,6 +3409,15 @@ describe("root preflight scripts", () => {
     expect(result.output).not.toContain("Unsupported option(s):");
   });
 
+  it("check-client non-json mode prioritizes missing output value over inline no-build alias misuse", () => {
+    const result = runScript("check-client.mjs", ["--output", "--verify=1"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("Missing value for --output option.");
+    expect(result.output).not.toContain("Unsupported option(s):");
+    expect(result.output).not.toContain("--verify=1");
+  });
+
   it("check-client non-json mode prioritizes inline whitespace output value over unsupported options", () => {
     const result = runScript("check-client.mjs", ["--mystery", "--output=   "]);
 
@@ -4743,6 +4752,15 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
     expect(result.output).toContain("Missing value for --output option.");
     expect(result.output).not.toContain("Unsupported option(s):");
+  });
+
+  it("check-onboarding non-json mode prioritizes missing output value over inline no-build alias misuse", () => {
+    const result = runScript("check-onboarding.mjs", ["--output", "--verify=1"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("Missing value for --output option.");
+    expect(result.output).not.toContain("Unsupported option(s):");
+    expect(result.output).not.toContain("--verify=1");
   });
 
   it("check-onboarding non-json mode prioritizes inline whitespace output value over unsupported options", () => {

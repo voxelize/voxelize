@@ -1681,6 +1681,24 @@ describe("client wasm preflight script", () => {
     expect(output).not.toContain("Unsupported option(s):");
   });
 
+  it("prioritizes missing output values over inline no-build alias misuse in non-json mode", () => {
+    const result = spawnSync(
+      process.execPath,
+      [wasmMesherScript, "--output", "--verify=1"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output).toContain("Missing value for --output option.");
+    expect(output).not.toContain("Unsupported option(s):");
+    expect(output).not.toContain("--verify=1");
+  });
+
   it("prioritizes inline whitespace output values over unsupported options in non-json mode", () => {
     const result = spawnSync(
       process.execPath,
