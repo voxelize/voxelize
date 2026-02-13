@@ -2907,12 +2907,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
     let z_span = (max_z - min_z).max(0) as usize;
     let yz_span = y_span * z_span;
     let mut processed_non_greedy = vec![false; x_span * y_span * z_span];
-    let voxel_index = |vx: i32, vy: i32, vz: i32| -> usize {
-        let local_x = (vx - min_x) as usize;
-        let local_y = (vy - min_y) as usize;
-        let local_z = (vz - min_z) as usize;
-        local_x * yz_span + local_y * z_span + local_z
-    };
     const OCCLUSION_UNKNOWN: u8 = 2;
     let mut fully_occluded_opaque = vec![OCCLUSION_UNKNOWN; x_span * y_span * z_span];
 
@@ -2981,10 +2975,31 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
             for u in u_range.0..u_range.1 {
                 for v in v_range.0..v_range.1 {
-                    let (vx, vy, vz) = match (axis, u_axis, v_axis) {
-                        (0, 2, 1) => (slice, v, u),
-                        (1, 0, 2) => (u, slice, v),
-                        (2, 0, 1) => (u, v, slice),
+                    let (vx, vy, vz, current_voxel_index) = match (axis, u_axis, v_axis) {
+                        (0, 2, 1) => (
+                            slice,
+                            v,
+                            u,
+                            ((slice - min_x) as usize) * yz_span
+                                + ((v - min_y) as usize) * z_span
+                                + (u - min_z) as usize,
+                        ),
+                        (1, 0, 2) => (
+                            u,
+                            slice,
+                            v,
+                            ((u - min_x) as usize) * yz_span
+                                + ((slice - min_y) as usize) * z_span
+                                + (v - min_z) as usize,
+                        ),
+                        (2, 0, 1) => (
+                            u,
+                            v,
+                            slice,
+                            ((u - min_x) as usize) * yz_span
+                                + ((v - min_y) as usize) * z_span
+                                + (slice - min_z) as usize,
+                        ),
                         _ => continue,
                     };
 
@@ -2993,7 +3008,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         Some(candidate) => candidate,
                         None => continue,
                     };
-                    let current_voxel_index = voxel_index(vx, vy, vz);
 
                     if block.is_empty {
                         continue;
