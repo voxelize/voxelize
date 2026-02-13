@@ -1195,6 +1195,7 @@ fn has_cardinal_faces(block: &Block) -> bool {
     })
 }
 
+#[inline(always)]
 fn can_greedy_mesh_block(block: &Block) -> bool {
     if block.cache_ready {
         block.greedy_mesh_eligible_no_rotation
