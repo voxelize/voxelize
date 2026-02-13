@@ -4863,6 +4863,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const greenFlood: LightNode[] = [];
     const blueFlood: LightNode[] = [];
     const sunFlood: LightNode[] = [];
+    const removedLightSourceKeys = new Set<string>();
 
     for (const update of processedUpdates) {
       const { voxel, oldBlock, newBlock, newRotation, oldStage } = update;
@@ -4967,10 +4968,11 @@ export class World<T = any> extends Scene implements NetIntercept {
           voxel: [vx, vy, vz],
           block: blockWithLevels,
         });
+        removedLightSourceKeys.add(`${vx},${vy},${vz}`);
       }
     }
 
-    removedLightSources.forEach(({ voxel, block }) => {
+    for (const { voxel, block } of removedLightSources) {
       const [vx, vy, vz] = voxel;
 
       if (this.getSunlightAt(vx, vy, vz) > 0) {
@@ -4980,14 +4982,14 @@ export class World<T = any> extends Scene implements NetIntercept {
       if (block.redLightLevel > 0) redRemoval.push(voxel);
       if (block.greenLightLevel > 0) greenRemoval.push(voxel);
       if (block.blueLightLevel > 0) blueRemoval.push(voxel);
-    });
+    }
 
     for (const update of processedUpdates) {
       const { voxel, oldBlock, newBlock, oldRotation, newRotation } = update;
       const [vx, vy, vz] = voxel;
 
-      const isRemovedLightSource = removedLightSources.some(
-        ({ voxel: v }) => v[0] === vx && v[1] === vy && v[2] === vz
+      const isRemovedLightSource = removedLightSourceKeys.has(
+        `${vx},${vy},${vz}`
       );
 
       if (isRemovedLightSource && !oldBlock.isOpaque) {
