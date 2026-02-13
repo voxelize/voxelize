@@ -6059,12 +6059,15 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (!this.isTrackingChunks) return;
     const { chunkSize, maxHeight, subChunks } = this.options;
 
-    const voxel = [vx | 0, vy | 0, vz | 0] as Coords3;
-    const [cx, cz] = ChunkUtils.mapVoxelToChunk(voxel, chunkSize);
-    const [lcx, , lcz] = ChunkUtils.mapVoxelToChunkLocal(voxel, chunkSize);
+    const ivx = vx | 0;
+    const ivy = vy | 0;
+    const ivz = vz | 0;
+    const [cx, cz] = ChunkUtils.mapVoxelToChunkAt(ivx, ivz, chunkSize);
+    const lcx = ivx - cx * chunkSize;
+    const lcz = ivz - cz * chunkSize;
 
     const subChunkHeight = maxHeight / subChunks;
-    const level = Math.floor(vy / subChunkHeight);
+    const level = Math.floor(ivy / subChunkHeight);
 
     const chunkCoordsList: Coords2[] = [];
     chunkCoordsList.push([cx, cz]);
@@ -6079,10 +6082,10 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const levels: number[] = [];
 
-    if (vy % subChunkHeight === 0 && level > 0) {
+    if (ivy % subChunkHeight === 0 && level > 0) {
       levels.push(level - 1);
     } else if (
-      vy % subChunkHeight === subChunkHeight - 1 &&
+      ivy % subChunkHeight === subChunkHeight - 1 &&
       level < subChunks
     ) {
       levels.push(level + 1);
