@@ -4,13 +4,10 @@ import { LightUtils as TSCoreLightUtils } from "@voxelize/ts-core";
  * A utility class for extracting and inserting light data from and into numbers.
  *
  * The light data is stored in the following format:
- * - Sunlight: `0xff000000`
- * - Red light: `0x00ff0000`
- * - Green light: `0x0000ff00`
- * - Blue light: `0x000000ff`
- *
- * TODO-DOCS
- * For more information about lighting data, see [here](/)
+ * - Sunlight: `0x0000f000`
+ * - Red light: `0x00000f00`
+ * - Green light: `0x000000f0`
+ * - Blue light: `0x0000000f`
  *
  * # Example
  * ```ts

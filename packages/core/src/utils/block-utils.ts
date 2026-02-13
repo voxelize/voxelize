@@ -20,10 +20,7 @@ import { LightColor } from "./light-utils";
  * - Voxel type: `0x0000ffff`
  * - Rotation: `0x000f0000`
  * - Y-rotation: `0x00f00000`
- * - Stage: `0xff000000`
- *
- * TODO-DOCS
- * For more information about voxel data, see [here](/)
+ * - Stage: `0x0f000000`
  *
  * # Example
  * ```ts
