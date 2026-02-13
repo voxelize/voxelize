@@ -3914,7 +3914,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         : Math.max(ratio ** chunkLoadExponent, 0.1);
 
     const [centerX, centerZ] = center;
-    const toRequestSet = new Set<string>();
+    const toRequestCandidates: Coords2[] = [];
 
     const renderRadiusSquared = renderRadius * renderRadius;
 
@@ -3949,7 +3949,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
           if (retryCount > chunkRerequestInterval) {
             this.chunkPipeline.remove(chunkName);
-            toRequestSet.add(`${cx},${cz}`);
+            toRequestCandidates.push([cx, cz]);
           }
 
           continue;
@@ -3959,7 +3959,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           continue;
         }
 
-        toRequestSet.add(`${cx},${cz}`);
+        toRequestCandidates.push([cx, cz]);
       }
     }
 
@@ -3968,12 +3968,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     //   return;
     // }
 
-    const toRequestArray = Array.from(toRequestSet).map((coords) =>
-      coords.split(",").map(Number)
-    );
-
     // Sort the chunks by distance from the center, closest first.
-    toRequestArray.sort((a, b) => {
+    toRequestCandidates.sort((a, b) => {
       const ad = (a[0] - center[0]) ** 2 + (a[1] - center[1]) ** 2;
       const bd = (b[0] - center[0]) ** 2 + (b[1] - center[1]) ** 2;
       return ad - bd;
@@ -3984,7 +3980,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     // > 4 < 6 chunks: 1
     // > 6 chunks: 2
 
-    const toRequest = toRequestArray.slice(0, maxChunkRequestsPerUpdate);
+    const toRequest = toRequestCandidates.slice(0, maxChunkRequestsPerUpdate);
     if (toRequest.length) {
       this.packets.push({
         type: "LOAD",
