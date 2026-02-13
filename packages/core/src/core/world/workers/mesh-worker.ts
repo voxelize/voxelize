@@ -189,6 +189,7 @@ function workerComputeBoundingSphere(positions: Float32Array): {
 let wasmInitialized = false;
 let registryInitialized = false;
 const pendingMeshMessages: MeshBatchMessage[] = [];
+const MAX_PENDING_MESH_MESSAGES = 512;
 
 const minArray = new Int32Array(3);
 const maxArray = new Int32Array(3);
@@ -199,6 +200,15 @@ const ensureWasmInitialized = async () => {
     await init();
     wasmInitialized = true;
   }
+};
+
+const postEmptyMeshResult = () => {
+  postMessage(
+    { geometries: [] },
+    {
+      transfer: [],
+    }
+  );
 };
 
 const isInitMessage = (message: MeshWorkerMessage): message is InitMessage =>
@@ -306,6 +316,10 @@ onmessage = async function (e: MessageEvent<MeshWorkerMessage>) {
 
   await ensureWasmInitialized();
   if (!registryInitialized) {
+    if (pendingMeshMessages.length >= MAX_PENDING_MESH_MESSAGES) {
+      pendingMeshMessages.shift();
+      postEmptyMeshResult();
+    }
     pendingMeshMessages.push(message);
     return;
   }

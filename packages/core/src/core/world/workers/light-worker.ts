@@ -116,6 +116,15 @@ interface WasmLightBatchResult {
 let wasmInitialized = false;
 let registryInitialized = false;
 const pendingBatchMessages: LightBatchMessage[] = [];
+const MAX_PENDING_BATCH_MESSAGES = 512;
+
+const postEmptyBatchResult = (jobId: string) => {
+  postMessage({
+    jobId,
+    modifiedChunks: [],
+    appliedDeltas: { lastSequenceId: 0 },
+  });
+};
 
 const ensureWasmInitialized = async () => {
   if (!wasmInitialized) {
@@ -361,6 +370,12 @@ onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
   await ensureWasmInitialized();
 
   if (!registryInitialized) {
+    if (pendingBatchMessages.length >= MAX_PENDING_BATCH_MESSAGES) {
+      const dropped = pendingBatchMessages.shift();
+      if (dropped) {
+        postEmptyBatchResult(dropped.jobId);
+      }
+    }
     pendingBatchMessages.push(message);
     return;
   }
