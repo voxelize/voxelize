@@ -258,7 +258,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     const positionalValues: string[] = [];
 
     const booleanKeys = new Set<string>();
-    for (const key of keys) {
+    for (let keyIndex = 0; keyIndex < keys.length; keyIndex++) {
+      const key = keys[keyIndex];
       let innerType = shape[key] as ZodTypeAny;
       if (this.isOptionalSchema(innerType)) {
         innerType = innerType.unwrap();
@@ -274,7 +275,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       }
     }
 
-    for (const word of words) {
+    for (let wordIndex = 0; wordIndex < words.length; wordIndex++) {
+      const word = words[wordIndex];
       const eqIndex = word.indexOf("=");
       if (eqIndex > 0) {
         const key = word.substring(0, eqIndex);
@@ -294,7 +296,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     }
 
     let posIndex = 0;
-    for (const key of keys) {
+    for (let keyIndex = 0; keyIndex < keys.length; keyIndex++) {
+      const key = keys[keyIndex];
       if (hasOwn.call(rawObj, key)) continue;
       if (booleanKeys.has(key)) continue;
       if (posIndex < positionalValues.length) {
@@ -336,7 +339,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         argMetadataByName.set(arg.name, arg);
       }
 
-      for (const issue of error.issues) {
+      for (let issueIndex = 0; issueIndex < error.issues.length; issueIndex++) {
+        const issue = error.issues[issueIndex];
         const fieldName = String(issue.path[0] ?? "argument");
         const argMeta = argMetadataByName.get(fieldName);
 
@@ -426,7 +430,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       commandInfo as CommandInfo<ZodObject<Record<string, ZodTypeAny>>>
     );
 
-    for (const alias of commandInfo.aliases) {
+    for (let aliasIndex = 0; aliasIndex < commandInfo.aliases.length; aliasIndex++) {
+      const alias = commandInfo.aliases[aliasIndex];
       if (this.commands.has(alias)) {
         console.warn(
           `Command alias for "${trigger}", "${alias}" ignored as already taken.`
