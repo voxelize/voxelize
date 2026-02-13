@@ -162,6 +162,9 @@ pnpm run check:preflight:json:compact
 pnpm run check:preflight:verify:json
 # compact aggregated verify report
 pnpm run check:preflight:verify:json:compact
+# explicit all-check aliases (equivalent to default aggregate selection)
+pnpm run check:preflight:all:json
+pnpm run check:preflight:all:verify:json
 # run only specific checks (available: devEnvironment, wasmPack, client)
 pnpm run check:preflight:json -- --only devEnvironment,client
 # aliases and case-insensitive names are supported (for example: dev/dev-env/dev_env, wasm/wasm-pack/wasm_pack, CLIENT, all)
@@ -183,6 +186,9 @@ pnpm run check:preflight:client:verify:json:compact
 # shorthand compact aliases
 pnpm run check:preflight:dev:json:compact
 pnpm run check:preflight:wasm:json:compact
+# compact all-check aliases
+pnpm run check:preflight:all:json:compact
+pnpm run check:preflight:all:verify:json:compact
 # includes per-check and total duration metadata
 # includes startedAt/endedAt plus totalChecks/passedCheckCount/failedCheckCount
 # all json report commands include schemaVersion: 1
