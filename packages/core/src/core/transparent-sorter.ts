@@ -29,6 +29,10 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
   if (faceCount === 0) return null;
 
   const centroids = new Float32Array(faceCount * 3);
+  const faceOrder = new Uint32Array(faceCount);
+  for (let faceIndex = 0; faceIndex < faceCount; faceIndex++) {
+    faceOrder[faceIndex] = faceIndex;
+  }
 
   for (let f = 0; f < faceCount; f++) {
     const i0 = indices[f * 6] * 3;
@@ -48,7 +52,7 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
     originalIndices: new Uint32Array(indices),
     sortedIndices: new Uint32Array(indices.length),
     distances: new Float32Array(faceCount),
-    faceOrder: new Uint32Array(faceCount),
+    faceOrder,
     lastCameraPos: new Vector3(Infinity, Infinity, Infinity),
     sortKeys: new Uint32Array(faceCount),
     sortTemp: new Uint32Array(faceCount),
@@ -158,7 +162,6 @@ export function sortTransparentMesh(
     const cy = centroids[f * 3 + 1] - _camPos.y;
     const cz = centroids[f * 3 + 2] - _camPos.z;
     distances[f] = cx * cx + cy * cy + cz * cz;
-    faceOrder[f] = f;
   }
 
   radixSortDescending(distances, faceOrder, faceCount, sortKeys, sortTemp);
