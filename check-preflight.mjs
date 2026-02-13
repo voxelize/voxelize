@@ -73,16 +73,64 @@ const passed = checks.every((check) => check.passed);
 const exitCode = passed ? 0 : 1;
 const passedChecks = checks.filter((check) => check.passed).map((check) => check.name);
 const failedChecks = checks.filter((check) => !check.passed).map((check) => check.name);
+const deriveFailureMessage = (report) => {
+  if (report === null || typeof report !== "object") {
+    return null;
+  }
+
+  if ("message" in report && typeof report.message === "string") {
+    return report.message;
+  }
+
+  if (
+    "requiredFailures" in report &&
+    typeof report.requiredFailures === "number"
+  ) {
+    return `${report.requiredFailures} required check(s) failed.`;
+  }
+
+  if ("steps" in report && Array.isArray(report.steps)) {
+    const firstFailedStep = report.steps.find((step) => {
+      return (
+        step !== null &&
+        typeof step === "object" &&
+        "passed" in step &&
+        step.passed === false &&
+        (!("skipped" in step) || step.skipped !== true)
+      );
+    });
+
+    if (
+      firstFailedStep !== undefined &&
+      firstFailedStep !== null &&
+      typeof firstFailedStep === "object" &&
+      "name" in firstFailedStep &&
+      typeof firstFailedStep.name === "string"
+    ) {
+      if (
+        "report" in firstFailedStep &&
+        firstFailedStep.report !== null &&
+        typeof firstFailedStep.report === "object" &&
+        "message" in firstFailedStep.report &&
+        typeof firstFailedStep.report.message === "string"
+      ) {
+        return `${firstFailedStep.name}: ${firstFailedStep.report.message}`;
+      }
+
+      if ("reason" in firstFailedStep && typeof firstFailedStep.reason === "string") {
+        return `${firstFailedStep.name}: ${firstFailedStep.reason}`;
+      }
+
+      return `${firstFailedStep.name} failed.`;
+    }
+  }
+
+  return null;
+};
 const failureSummaries = checks
   .filter((check) => !check.passed)
   .map((check) => {
-    const reportMessage =
-      check.report !== null &&
-      typeof check.report === "object" &&
-      "message" in check.report &&
-      typeof check.report.message === "string"
-        ? check.report.message
-        : null;
+    const reportMessage = deriveFailureMessage(check.report);
 
     return {
       name: check.name,

@@ -75,6 +75,18 @@ describe("preflight aggregate report", () => {
       expect(entry.exitCode).toBeGreaterThanOrEqual(1);
       expect(entry.message.length).toBeGreaterThan(0);
     }
+    const devEnvironmentFailure = report.failureSummaries.find(
+      (entry) => entry.name === "devEnvironment"
+    );
+    if (devEnvironmentFailure !== undefined) {
+      expect(devEnvironmentFailure.message).toContain("required check(s) failed");
+    }
+    const clientFailure = report.failureSummaries.find(
+      (entry) => entry.name === "client"
+    );
+    if (clientFailure !== undefined) {
+      expect(clientFailure.message).toContain("WASM artifact preflight");
+    }
     expect(report.outputPath).toBeNull();
     expect(Array.isArray(report.checks)).toBe(true);
     expect(report.checks.length).toBe(3);
