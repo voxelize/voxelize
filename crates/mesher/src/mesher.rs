@@ -2981,6 +2981,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     if block.is_empty {
                         continue;
                     }
+                    let has_independent_or_isolated_faces =
+                        block.has_independent_or_isolated_faces_cached();
 
                     if block.is_opaque {
                         let cached = fully_occluded_opaque[current_voxel_index];
@@ -3095,7 +3097,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 voxel_id,
                                 space,
                             );
-                            if !block.has_independent_or_isolated_faces_cached() {
+                            if !has_independent_or_isolated_faces {
                                 let geometry =
                                     map.entry(GeometryMapKey::Block(block.id)).or_insert_with(|| {
                                         let mut entry = GeometryProtocol::default();
@@ -3189,7 +3191,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         continue;
                     }
 
-                    if face_index >= 0 && !block.has_independent_or_isolated_faces_cached() {
+                    if face_index >= 0 && !has_independent_or_isolated_faces {
                         if let Some(face) = block.faces.get(face_index as usize) {
                             let neighbors = NeighborCache::populate(vx, vy, vz, space);
                             let (aos, lights) =
