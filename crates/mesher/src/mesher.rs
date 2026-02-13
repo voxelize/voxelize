@@ -2975,7 +2975,7 @@ pub fn mesh_space<S: VoxelAccess>(
                         block.get_name_lower().to_string()
                     };
 
-                    let mut geometry = map.remove(&key).unwrap_or_default();
+                    let geometry = map.entry(key).or_default();
 
                     geometry.voxel = block.id;
 
@@ -3008,8 +3008,6 @@ pub fn mesh_space<S: VoxelAccess>(
                         min,
                         *world_space,
                     );
-
-                    map.insert(key, geometry);
                 }
             }
         }
