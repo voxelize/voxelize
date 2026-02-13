@@ -870,6 +870,8 @@ export class World<T = any> extends Scene implements NetIntercept {
   private meshWorkerPromises: Array<Promise<GeometryProtocol[] | null>> = [];
   private meshJobArrayCapacity = 0;
   private emitServerUpdateBlockCache = new Map<number, Block>();
+  private dynamicAABBRuleCoords: Coords3 = [0, 0, 0];
+  private dynamicPassableRuleCoords: Coords3 = [0, 0, 0];
   private readonly dynamicRuleQuery = {
     getVoxelAt: (x: number, y: number, z: number) =>
       this.getVoxelAtUnchecked(x, y, z),
@@ -2682,7 +2684,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     vz: number,
     dynamicPatterns: BlockDynamicPattern[]
   ): { aabb: AABB; worldSpace: boolean }[] => {
-    const voxelCoords: Coords3 = [vx, vy, vz];
+    const voxelCoords = this.dynamicAABBRuleCoords;
+    voxelCoords[0] = vx;
+    voxelCoords[1] = vy;
+    voxelCoords[2] = vz;
 
     for (let patternIndex = 0; patternIndex < dynamicPatterns.length; patternIndex++) {
       const dynamicPattern = dynamicPatterns[patternIndex];
@@ -2735,7 +2740,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     dynamicPatterns: BlockDynamicPattern[],
     defaultPassable: boolean
   ): boolean => {
-    const voxelCoords: Coords3 = [vx, vy, vz];
+    const voxelCoords = this.dynamicPassableRuleCoords;
+    voxelCoords[0] = vx;
+    voxelCoords[1] = vy;
+    voxelCoords[2] = vz;
 
     for (let patternIndex = 0; patternIndex < dynamicPatterns.length; patternIndex++) {
       const parts = dynamicPatterns[patternIndex].parts;
