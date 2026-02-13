@@ -315,6 +315,18 @@ export class MeshPipeline {
     return state;
   }
 
+  abortJob(key: string): void {
+    const state = this.states.get(key);
+    if (!state) {
+      return;
+    }
+
+    state.inFlightGeneration = null;
+    if (state.generation > state.displayedGeneration) {
+      this.dirty.add(key);
+    }
+  }
+
   onJobComplete(key: string, jobGeneration: number): boolean {
     const state = this.states.get(key);
     if (!state) return false;

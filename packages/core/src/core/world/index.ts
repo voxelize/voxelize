@@ -5782,6 +5782,8 @@ export class World<T = any> extends Scene implements NetIntercept {
           geometries,
           jobGenerations[index]
         );
+      } else {
+        this.meshPipeline.abortJob(jobKeys[index]);
       }
 
       if (this.meshPipeline.needsRemesh(jobKeys[index])) {
