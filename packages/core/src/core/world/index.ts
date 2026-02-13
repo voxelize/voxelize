@@ -2126,7 +2126,6 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const old = this.blockEntitiesMap.get(voxelName);
     if (!old) {
-      console.log("No entity found at:", px, py, pz);
       return;
     }
 
@@ -3761,13 +3760,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       if (!metadata || !metadata.voxel) {
-        console.log(
-          "No metadata or voxel in block entity",
-          id,
-          type,
-          operation,
-          metadata
-        );
         continue;
       }
 
