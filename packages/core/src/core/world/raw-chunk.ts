@@ -203,7 +203,8 @@ export class RawChunk {
    */
   getVoxelRotation(vx: number, vy: number, vz: number) {
     if (!this.contains(vx, vy, vz)) return new BlockRotation();
-    return BlockUtils.extractRotation(this.getRawValue(vx, vy, vz));
+    const [lx, ly, lz] = this.localBuffer;
+    return BlockUtils.extractRotation(this.voxels.get(lx, ly, lz));
   }
 
   /**
@@ -222,11 +223,13 @@ export class RawChunk {
     vz: number,
     rotation: BlockRotation
   ) {
-    const value = BlockUtils.insertRotation(
-      this.getRawValue(vx, vy, vz),
-      rotation
-    );
-    this.setRawValue(vx, vy, vz, value);
+    if (!this.contains(vx, vy, vz)) {
+      return;
+    }
+
+    const [lx, ly, lz] = this.localBuffer;
+    const value = BlockUtils.insertRotation(this.voxels.get(lx, ly, lz), rotation);
+    this.voxels.set(lx, ly, lz, value);
   }
 
   /**
@@ -239,7 +242,8 @@ export class RawChunk {
    */
   getVoxelStage(vx: number, vy: number, vz: number) {
     if (!this.contains(vx, vy, vz)) return 0;
-    return BlockUtils.extractStage(this.getRawValue(vx, vy, vz));
+    const [lx, ly, lz] = this.localBuffer;
+    return BlockUtils.extractStage(this.voxels.get(lx, ly, lz));
   }
 
   /**
@@ -254,8 +258,13 @@ export class RawChunk {
    * @returns The voxel stage at the given voxel coordinate.
    */
   setVoxelStage(vx: number, vy: number, vz: number, stage: number) {
-    const value = BlockUtils.insertStage(this.getRawValue(vx, vy, vz), stage);
-    this.setRawValue(vx, vy, vz, value);
+    if (!this.contains(vx, vy, vz)) {
+      return stage;
+    }
+
+    const [lx, ly, lz] = this.localBuffer;
+    const value = BlockUtils.insertStage(this.voxels.get(lx, ly, lz), stage);
+    this.voxels.set(lx, ly, lz, value);
     return stage;
   }
 
