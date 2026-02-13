@@ -5013,13 +5013,10 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
       } else {
         let removeCount = 0;
-
-        const lightData = [
-          [SUNLIGHT, sourceSunlightLevel],
-          [RED_LIGHT, sourceRedLevel],
-          [GREEN_LIGHT, sourceGreenLevel],
-          [BLUE_LIGHT, sourceBlueLevel],
-        ] as const;
+        const hasSunlightSource = sourceSunlightLevel > 0;
+        const hasRedSource = sourceRedLevel > 0;
+        const hasGreenSource = sourceGreenLevel > 0;
+        const hasBlueSource = sourceBlueLevel > 0;
 
         for (const [ox, oy, oz] of VOXEL_NEIGHBORS) {
           const nvy = vy + oy;
@@ -5058,30 +5055,45 @@ export class World<T = any> extends Scene implements NetIntercept {
             continue;
           }
 
-          for (const [color, sourceLevel] of lightData) {
-            const isSunlight = color === SUNLIGHT;
-
-            const nLevel = isSunlight
-              ? this.getSunlightAt(nvx, nvy, nvz)
-              : this.getTorchLightAt(nvx, nvy, nvz, color);
-
+          if (hasSunlightSource) {
+            const nSunlightLevel = this.getSunlightAt(nvx, nvy, nvz);
             if (
-              nLevel < sourceLevel ||
+              nSunlightLevel < sourceSunlightLevel ||
               (oy === -1 &&
-                isSunlight &&
-                nLevel === maxLightLevel &&
-                sourceLevel === maxLightLevel)
+                nSunlightLevel === maxLightLevel &&
+                sourceSunlightLevel === maxLightLevel)
             ) {
               removeCount++;
-              if (isSunlight) {
-                sunlightRemoval.push([nvx, nvy, nvz]);
-              } else if (color === RED_LIGHT) {
-                redRemoval.push([nvx, nvy, nvz]);
-              } else if (color === GREEN_LIGHT) {
-                greenRemoval.push([nvx, nvy, nvz]);
-              } else if (color === BLUE_LIGHT) {
-                blueRemoval.push([nvx, nvy, nvz]);
-              }
+              sunlightRemoval.push([nvx, nvy, nvz]);
+            }
+          }
+
+          if (hasRedSource) {
+            const nRedLevel = this.getTorchLightAt(nvx, nvy, nvz, RED_LIGHT);
+            if (nRedLevel < sourceRedLevel) {
+              removeCount++;
+              redRemoval.push([nvx, nvy, nvz]);
+            }
+          }
+
+          if (hasGreenSource) {
+            const nGreenLevel = this.getTorchLightAt(
+              nvx,
+              nvy,
+              nvz,
+              GREEN_LIGHT
+            );
+            if (nGreenLevel < sourceGreenLevel) {
+              removeCount++;
+              greenRemoval.push([nvx, nvy, nvz]);
+            }
+          }
+
+          if (hasBlueSource) {
+            const nBlueLevel = this.getTorchLightAt(nvx, nvy, nvz, BLUE_LIGHT);
+            if (nBlueLevel < sourceBlueLevel) {
+              removeCount++;
+              blueRemoval.push([nvx, nvy, nvz]);
             }
           }
         }
