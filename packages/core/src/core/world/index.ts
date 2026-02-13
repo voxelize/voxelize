@@ -4103,7 +4103,10 @@ export class World<T = any> extends Scene implements NetIntercept {
         let chunkCoords: Coords2 | null = null;
         const shouldDeferUpdate =
           operation !== "DELETE" && !this.isChunkReadyForEntityUpdates(chunk);
-        for (const listener of this.blockEntityUpdateListeners) {
+        let listeners = this.blockEntityUpdateListeners.values();
+        let listenerEntry = listeners.next();
+        while (!listenerEntry.done) {
+          const listener = listenerEntry.value;
           const updateData: BlockEntityUpdateData<T> = {
             id,
             voxel: voxelCoords,
@@ -4119,10 +4122,12 @@ export class World<T = any> extends Scene implements NetIntercept {
               chunkCoords ?? (chunkCoords = [cx, cz]),
               updateData
             );
+            listenerEntry = listeners.next();
             continue;
           }
 
           listener(updateData);
+          listenerEntry = listeners.next();
         }
       }
 
@@ -4133,7 +4138,9 @@ export class World<T = any> extends Scene implements NetIntercept {
           const block = this.resolveBlockByEntityType(type);
           if (block) {
             voxelCoords = voxelCoords ?? [vx, vy, vz];
-            for (const face of block.faces) {
+            const faces = block.faces;
+            for (let faceIndex = 0; faceIndex < faces.length; faceIndex++) {
+              const face = faces[faceIndex];
               if (face.isolated) {
                 const materialKey = this.makeChunkMaterialKey(
                   block.id,
