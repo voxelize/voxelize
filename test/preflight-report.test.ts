@@ -1582,7 +1582,7 @@ describe("preflight aggregate report", () => {
   it("redacts malformed inline option names in unsupported-option output", () => {
     const result = spawnSync(
       process.execPath,
-      [preflightScript, "--=secret", "--=token", "-=secret"],
+      [preflightScript, "--=secret", "--=token", "--=", "-=secret", "-="],
       {
         cwd: rootDir,
         encoding: "utf8",

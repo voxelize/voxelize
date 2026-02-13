@@ -543,7 +543,7 @@ describe("report-utils", () => {
     ]);
 
     const unknownWithMalformedInlineOptionNames = parseUnknownCliOptions(
-      ["--=secret", "--=token", "-=secret", "-=token"],
+      ["--=secret", "--=token", "--=", "-=secret", "-=token", "-="],
       {
         canonicalOptions: ["--json"],
       }
@@ -626,7 +626,7 @@ describe("report-utils", () => {
     );
 
     const unsupportedMalformedInlineOptionNames = createCliOptionValidation(
-      ["--=secret", "--=token", "-=secret", "-=token"],
+      ["--=secret", "--=token", "--=", "-=secret", "-=token", "-="],
       {
         canonicalOptions: ["--json", "--output"],
         optionsWithValues: ["--output"],
@@ -1054,7 +1054,7 @@ describe("report-utils", () => {
 
   it("redacts malformed inline option names in diagnostics", () => {
     const diagnostics = createCliDiagnostics(
-      ["--=secret", "--=token", "-=secret", "-=token"],
+      ["--=secret", "--=token", "--=", "-=secret", "-=token", "-="],
       {
         canonicalOptions: ["--json"],
       }

@@ -786,7 +786,9 @@ describe("root preflight scripts", () => {
       "--json",
       "--=secret",
       "--=token",
+      "--=",
       "-=secret",
+      "-=",
     ]);
     const report = JSON.parse(result.output) as WasmPackJsonReport;
 
@@ -1020,7 +1022,13 @@ describe("root preflight scripts", () => {
   });
 
   it("check-wasm-pack non-json mode redacts malformed inline option names", () => {
-    const result = runScript("check-wasm-pack.mjs", ["--=secret", "--=token", "-=secret"]);
+    const result = runScript("check-wasm-pack.mjs", [
+      "--=secret",
+      "--=token",
+      "--=",
+      "-=secret",
+      "-=",
+    ]);
 
     expect(result.status).toBe(1);
     expect(result.output).toContain(
@@ -1609,7 +1617,9 @@ describe("root preflight scripts", () => {
       "--json",
       "--=secret",
       "--=token",
+      "--=",
       "-=secret",
+      "-=",
     ]);
     const report = JSON.parse(result.output) as DevEnvJsonReport;
 
@@ -1807,7 +1817,13 @@ describe("root preflight scripts", () => {
   });
 
   it("check-dev-env non-json mode redacts malformed inline option names", () => {
-    const result = runScript("check-dev-env.mjs", ["--=secret", "--=token", "-=secret"]);
+    const result = runScript("check-dev-env.mjs", [
+      "--=secret",
+      "--=token",
+      "--=",
+      "-=secret",
+      "-=",
+    ]);
 
     expect(result.status).toBe(1);
     expect(result.output).toContain(
@@ -2580,7 +2596,9 @@ describe("root preflight scripts", () => {
       "--json",
       "--=secret",
       "--=token",
+      "--=",
       "-=secret",
+      "-=",
     ]);
     const report = JSON.parse(result.output) as ClientJsonReport;
 
@@ -2865,7 +2883,13 @@ describe("root preflight scripts", () => {
   });
 
   it("check-client non-json mode redacts malformed inline option names", () => {
-    const result = runScript("check-client.mjs", ["--=secret", "--=token", "-=secret"]);
+    const result = runScript("check-client.mjs", [
+      "--=secret",
+      "--=token",
+      "--=",
+      "-=secret",
+      "-=",
+    ]);
 
     expect(result.status).toBe(1);
     expect(result.output).toContain(
@@ -3648,7 +3672,9 @@ describe("root preflight scripts", () => {
       "--json",
       "--=secret",
       "--=token",
+      "--=",
       "-=secret",
+      "-=",
     ]);
     const report = JSON.parse(result.output) as OnboardingJsonReport;
 
@@ -3936,7 +3962,9 @@ describe("root preflight scripts", () => {
     const result = runScript("check-onboarding.mjs", [
       "--=secret",
       "--=token",
+      "--=",
       "-=secret",
+      "-=",
     ]);
 
     expect(result.status).toBe(1);

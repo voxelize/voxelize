@@ -889,7 +889,7 @@ describe("client wasm preflight script", () => {
   it("redacts malformed inline option names in structured output", () => {
     const result = spawnSync(
       process.execPath,
-      [wasmMesherScript, "--json", "--=secret", "--=token", "-=secret"],
+      [wasmMesherScript, "--json", "--=secret", "--=token", "--=", "-=secret", "-="],
       {
         cwd: rootDir,
         encoding: "utf8",
@@ -1282,7 +1282,7 @@ describe("client wasm preflight script", () => {
   it("fails in non-json mode with redacted malformed inline option names", () => {
     const result = spawnSync(
       process.execPath,
-      [wasmMesherScript, "--=secret", "--=token", "-=secret"],
+      [wasmMesherScript, "--=secret", "--=token", "--=", "-=secret", "-="],
       {
         cwd: rootDir,
         encoding: "utf8",
