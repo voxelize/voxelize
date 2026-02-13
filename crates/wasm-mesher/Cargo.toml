@@ -4,6 +4,7 @@ version = "1.0.0"
 edition = "2021"
 description = "WebAssembly wrapper for voxelize-mesher"
 license = "MIT"
+repository = "https://github.com/voxelize/voxelize"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
