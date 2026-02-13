@@ -47,7 +47,19 @@ export default defineConfig({
         return format === 'es' ? 'index.mjs' : 'index.js';
       },
     },
-    rollupOptions: {},
+    rollupOptions: {
+      onwarn(warning, warn) {
+        if (
+          warning.code === "EVAL" &&
+          typeof warning.id === "string" &&
+          warning.id.includes("@protobufjs/inquire")
+        ) {
+          return;
+        }
+
+        warn(warning);
+      },
+    },
     emptyOutDir: process.env.NODE_ENV === "production",
   },
   worker: {
