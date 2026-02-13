@@ -164,11 +164,8 @@ export class WorkerPool {
       const index = this.available.pop() as number;
       const worker = this.workers[index];
 
-      const { message, buffers, resolve } = this.queue[
-        this.queueHead
-      ] as WorkerPoolJob;
-      this.queueHead++;
-      this.normalizeQueue();
+      const job = this.queue[this.queueHead] as WorkerPoolJob;
+      const { message, buffers, resolve } = job;
 
       const workerCallback = (event: MessageEvent<object>) => {
         const { data } = event;
@@ -191,6 +188,8 @@ export class WorkerPool {
         } else {
           worker.postMessage(message);
         }
+        this.queueHead++;
+        this.normalizeQueue();
         WorkerPool.WORKING_COUNT++;
       } catch (error) {
         worker.removeEventListener("message", workerCallback);
