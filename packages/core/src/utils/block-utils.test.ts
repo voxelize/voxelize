@@ -35,6 +35,13 @@ describe("BlockUtils.evaluateBlockRule", () => {
   });
 });
 
+describe("BlockUtils encoding parity", () => {
+  it("rejects invalid stage values", () => {
+    expect(() => BlockUtils.insertStage(0, 16)).toThrowError(RangeError);
+    expect(() => BlockUtils.insertStage(0, -1)).toThrowError(RangeError);
+  });
+});
+
 describe("BlockRotation.rotateTransparency", () => {
   it("does not short-circuit non-zero PY y-rotation", () => {
     const rotation = BlockRotation.encode(PY_ROTATION, 4);
