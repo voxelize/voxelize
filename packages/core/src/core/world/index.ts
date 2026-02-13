@@ -5726,7 +5726,10 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private processDirtyChunks = async () => {
     const maxConcurrentMeshJobs = this.options.maxMeshesPerUpdate || 8;
-    const dirtyKeys = this.meshPipeline.getDirtyKeys(maxConcurrentMeshJobs);
+    const {
+      keys: dirtyKeys,
+      hasMore: hasMoreDirtyKeys,
+    } = this.meshPipeline.getDirtyKeysAndHasMore(maxConcurrentMeshJobs);
     if (dirtyKeys.length === 0) return;
 
     const processCount = dirtyKeys.length;
@@ -5781,7 +5784,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     }
 
-    if (shouldScheduleDirtyChunks || this.meshPipeline.hasDirtyChunks()) {
+    if (
+      shouldScheduleDirtyChunks ||
+      hasMoreDirtyKeys ||
+      this.meshPipeline.hasDirtyChunks()
+    ) {
       this.scheduleDirtyChunkProcessing();
     }
   };

@@ -344,8 +344,15 @@ export class MeshPipeline {
   }
 
   getDirtyKeys(maxCount = Number.POSITIVE_INFINITY): string[] {
+    return this.getDirtyKeysAndHasMore(maxCount).keys;
+  }
+
+  getDirtyKeysAndHasMore(maxCount = Number.POSITIVE_INFINITY): {
+    keys: string[];
+    hasMore: boolean;
+  } {
     if (maxCount <= 0) {
-      return [];
+      return { keys: [], hasMore: false };
     }
 
     const dirtyKeys = new Array<string>(
@@ -354,12 +361,9 @@ export class MeshPipeline {
         : this.dirty.size
     );
     let dirtyCount = 0;
+    let hasMore = false;
 
     for (const key of this.dirty) {
-      if (dirtyCount >= maxCount) {
-        break;
-      }
-
       const state = this.states.get(key);
       if (!state) {
         this.dirty.delete(key);
@@ -372,12 +376,20 @@ export class MeshPipeline {
         continue;
       }
 
+      if (dirtyCount >= maxCount) {
+        hasMore = true;
+        break;
+      }
+
       dirtyKeys[dirtyCount] = key;
       dirtyCount++;
     }
 
     dirtyKeys.length = dirtyCount;
-    return dirtyKeys;
+    return {
+      keys: dirtyKeys,
+      hasMore,
+    };
   }
 
   hasDirtyChunks(): boolean {
