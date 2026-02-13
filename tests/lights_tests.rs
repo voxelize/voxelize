@@ -468,3 +468,56 @@ fn test_flood_light_respects_explicit_shape_bounds() {
         "light should not propagate outside max z bound"
     );
 }
+
+#[test]
+fn test_flood_light_min_only_handles_large_world_bounds_without_overflow() {
+    let registry = create_test_registry();
+    let config = WorldConfig {
+        chunk_size: 16,
+        max_height: 16,
+        max_light_level: 15,
+        min_chunk: [0, 0],
+        max_chunk: [i32::MAX, i32::MAX],
+        saving: false,
+        ..Default::default()
+    };
+
+    let mut chunks = Chunks::new(&config);
+    chunks.add(Chunk::new(
+        "chunk-0-0",
+        0,
+        0,
+        &ChunkOptions {
+            size: 16,
+            max_height: 16,
+            sub_chunks: 1,
+        },
+    ));
+
+    let source = Vec3(9, 8, 8);
+    chunks.set_voxel(source.0, source.1, source.2, 2);
+    chunks.set_red_light(source.0, source.1, source.2, 14);
+
+    Lights::flood_light(
+        &mut chunks,
+        VecDeque::from(vec![voxelize::LightNode {
+            voxel: [source.0, source.1, source.2],
+            level: 14,
+        }]),
+        &LightColor::Red,
+        &registry,
+        &config,
+        Some(&Vec3(9, 0, 0)),
+        None,
+    );
+
+    assert_eq!(
+        chunks.get_red_light(8, 8, 8),
+        0,
+        "lower x should stay unlit even with huge world bounds"
+    );
+    assert!(
+        chunks.get_red_light(10, 8, 8) > 0,
+        "higher x should still receive light with huge world bounds"
+    );
+}

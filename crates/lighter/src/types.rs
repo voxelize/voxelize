@@ -21,10 +21,18 @@ impl LightBounds {
     pub fn contains_xz(&self, vx: i32, vz: i32) -> bool {
         let [start_x, _, start_z] = self.min;
         let [shape_x, _, shape_z] = self.shape;
-        vx >= start_x
-            && vz >= start_z
-            && vx < start_x + shape_x as i32
-            && vz < start_z + shape_z as i32
+
+        let end_x = i64::from(start_x).saturating_add(
+            i64::try_from(shape_x).unwrap_or(i64::MAX),
+        );
+        let end_z = i64::from(start_z).saturating_add(
+            i64::try_from(shape_z).unwrap_or(i64::MAX),
+        );
+
+        let vx = i64::from(vx);
+        let vz = i64::from(vz);
+
+        vx >= i64::from(start_x) && vz >= i64::from(start_z) && vx < end_x && vz < end_z
     }
 }
 

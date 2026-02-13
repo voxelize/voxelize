@@ -11,10 +11,24 @@ use voxelize_lighter::{
 pub type LightNode = LighterNode;
 
 #[inline]
+fn clamp_usize_to_i32(value: usize) -> i32 {
+    value.min(i32::MAX as usize) as i32
+}
+
+#[inline]
+fn clamp_i64_to_usize(value: i64) -> usize {
+    if value <= 0 {
+        return 0;
+    }
+
+    usize::try_from(value).unwrap_or(usize::MAX)
+}
+
+#[inline]
 fn convert_config(config: &WorldConfig) -> LightConfig {
     LightConfig {
-        chunk_size: config.chunk_size as i32,
-        max_height: config.max_height as i32,
+        chunk_size: clamp_usize_to_i32(config.chunk_size),
+        max_height: clamp_usize_to_i32(config.max_height),
         max_light_level: config.max_light_level,
         min_chunk: config.min_chunk,
         max_chunk: config.max_chunk,
@@ -35,10 +49,15 @@ fn convert_bounds(
             })
         }
         (Some(&Vec3(start_x, start_y, start_z)), None) => {
-            let max_x_exclusive = (config.max_chunk[0] + 1) * config.chunk_size;
-            let max_z_exclusive = (config.max_chunk[1] + 1) * config.chunk_size;
-            let shape_x = (max_x_exclusive - start_x).max(0) as usize;
-            let shape_z = (max_z_exclusive - start_z).max(0) as usize;
+            let max_chunk_x_exclusive = i64::from(config.max_chunk[0]).saturating_add(1);
+            let max_chunk_z_exclusive = i64::from(config.max_chunk[1]).saturating_add(1);
+            let chunk_size = i64::from(config.chunk_size);
+
+            let max_x_exclusive = max_chunk_x_exclusive.saturating_mul(chunk_size);
+            let max_z_exclusive = max_chunk_z_exclusive.saturating_mul(chunk_size);
+
+            let shape_x = clamp_i64_to_usize(max_x_exclusive.saturating_sub(i64::from(start_x)));
+            let shape_z = clamp_i64_to_usize(max_z_exclusive.saturating_sub(i64::from(start_z)));
 
             Some(LightBounds {
                 min: [start_x, start_y, start_z],
