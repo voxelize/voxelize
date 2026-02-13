@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -14,6 +15,8 @@ import {
 } from "../scripts/dev-env-utils.mjs";
 
 const tempDirectories: string[] = [];
+const testDirectory = fileURLToPath(new URL(".", import.meta.url));
+const workspaceRoot = path.resolve(testDirectory, "..");
 
 afterEach(() => {
   for (const tempDirectory of tempDirectories) {
@@ -75,5 +78,12 @@ describe("dev-env-utils", () => {
     expect(loadWorkspaceMinimumVersions(tempDirectory)).toEqual(
       DEFAULT_MINIMUM_VERSIONS
     );
+  });
+
+  it("reads workspace metadata defaults from repository package.json", () => {
+    expect(loadWorkspaceMinimumVersions(workspaceRoot)).toEqual({
+      node: [18, 0, 0],
+      pnpm: [10, 0, 0],
+    });
   });
 });
