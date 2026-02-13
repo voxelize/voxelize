@@ -775,8 +775,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   private chunkInitializeListeners = new Map<
     string,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    ((chunk: Chunk) => void)[]
+    Set<(chunk: Chunk) => void>
   >();
 
   private blockEntitiesMap: Map<
@@ -2257,16 +2256,15 @@ export class World<T = any> extends Scene implements NetIntercept {
   ) => {
     const name = ChunkUtils.getChunkNameAt(coords[0], coords[1]);
 
-    const listeners = this.chunkInitializeListeners.get(name) || [];
-    listeners.push(listener);
+    const listeners = this.chunkInitializeListeners.get(name) ?? new Set();
+    listeners.add(listener);
     this.chunkInitializeListeners.set(name, listeners);
 
     return () => {
       const current = this.chunkInitializeListeners.get(name);
       if (!current) return;
-      const idx = current.indexOf(listener);
-      if (idx !== -1) current.splice(idx, 1);
-      if (current.length === 0) this.chunkInitializeListeners.delete(name);
+      current.delete(listener);
+      if (current.size === 0) this.chunkInitializeListeners.delete(name);
     };
   };
 
@@ -4025,9 +4023,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     const triggerInitListener = (chunk: Chunk) => {
       const listeners = this.chunkInitializeListeners.get(chunk.name);
 
-      if (Array.isArray(listeners)) {
-        for (let index = 0; index < listeners.length; index++) {
-          listeners[index](chunk);
+      if (listeners) {
+        for (const listener of listeners) {
+          listener(chunk);
         }
         this.chunkInitializeListeners.delete(chunk.name);
       }
