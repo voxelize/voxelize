@@ -2089,7 +2089,11 @@ fn get_dynamic_faces<S: VoxelAccess>(
         }
     }
 
-    block.faces.iter().cloned().map(|f| (f, false)).collect()
+    let mut faces = Vec::with_capacity(block.faces.len());
+    for face in &block.faces {
+        faces.push((face.clone(), false));
+    }
+    faces
 }
 
 struct FaceProcessCache {
