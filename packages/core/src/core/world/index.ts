@@ -2703,28 +2703,28 @@ export class World<T = any> extends Scene implements NetIntercept {
         continue;
       }
 
+      const currentRaw = chunk.getRawValue(vx, vy, vz);
+      if (currentRaw === voxel) {
+        continue;
+      }
+
       const type = BlockUtils.extractID(voxel);
       const rotation = BlockUtils.extractRotation(voxel);
       const [rotationValue, yRotationValue] = BlockRotation.decode(rotation);
       const stage = BlockUtils.extractStage(voxel);
 
-      const currentRaw = chunk.getRawValue(vx, vy, vz);
-      const needsUpdate = currentRaw !== voxel;
-
-      if (needsUpdate) {
-        blockUpdates.push({
-          source: "server",
-          update: {
-            vx,
-            vy,
-            vz,
-            type,
-            rotation: rotationValue,
-            yRotation: yRotationValue,
-            stage,
-          },
-        });
-      }
+      blockUpdates.push({
+        source: "server",
+        update: {
+          vx,
+          vy,
+          vz,
+          type,
+          rotation: rotationValue,
+          yRotation: yRotationValue,
+          stage,
+        },
+      });
     }
 
     if (blockUpdates.length === 0) return;
