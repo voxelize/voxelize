@@ -2691,7 +2691,8 @@ export class World<T = any> extends Scene implements NetIntercept {
   };
 
   private applyServerUpdatesImmediately(updates: UpdateProtocol[]) {
-    const blockUpdates: BlockUpdateWithSource[] = [];
+    const blockUpdates = new Array<BlockUpdateWithSource>(updates.length);
+    let blockUpdateCount = 0;
 
     for (const update of updates) {
       const { vx, vy, vz, voxel } = update;
@@ -2713,7 +2714,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       const [rotationValue, yRotationValue] = BlockRotation.decode(rotation);
       const stage = BlockUtils.extractStage(voxel);
 
-      blockUpdates.push({
+      blockUpdates[blockUpdateCount] = {
         source: "server",
         update: {
           vx,
@@ -2724,10 +2725,12 @@ export class World<T = any> extends Scene implements NetIntercept {
           yRotation: yRotationValue,
           stage,
         },
-      });
+      };
+      blockUpdateCount++;
     }
 
-    if (blockUpdates.length === 0) return;
+    if (blockUpdateCount === 0) return;
+    blockUpdates.length = blockUpdateCount;
 
     this.isTrackingChunks = true;
 
