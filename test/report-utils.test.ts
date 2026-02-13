@@ -493,6 +493,14 @@ describe("report-utils", () => {
     );
     expect(unknownWithInlineValues).toEqual(["--mystery", "-x"]);
 
+    const unknownWithInlineValueOnKnownFlag = parseUnknownCliOptions(
+      ["--json=1", "--json=2", "--mystery=alpha"],
+      {
+        canonicalOptions: ["--json"],
+      }
+    );
+    expect(unknownWithInlineValueOnKnownFlag).toEqual(["--json=1", "--json=2", "--mystery"]);
+
     const unknownWithMixedInlineAndBareTokens = parseUnknownCliOptions(
       ["--mystery=alpha", "--mystery"],
       {
@@ -551,6 +559,26 @@ describe("report-utils", () => {
       "Unsupported option(s): --mystery. Supported options: --json, --output."
     );
     expect(unsupportedInlineUnknownOption.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+
+    const unsupportedInlineKnownFlagValue = createCliOptionValidation(
+      ["--json=1", "--json=2", "--mystery=alpha"],
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+      }
+    );
+    expect(unsupportedInlineKnownFlagValue.unknownOptions).toEqual([
+      "--json=1",
+      "--json=2",
+      "--mystery",
+    ]);
+    expect(unsupportedInlineKnownFlagValue.unknownOptionCount).toBe(3);
+    expect(unsupportedInlineKnownFlagValue.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --json=1, --json=2, --mystery. Supported options: --json, --output."
+    );
+    expect(unsupportedInlineKnownFlagValue.validationErrorCode).toBe(
       "unsupported_options"
     );
 
@@ -918,6 +946,25 @@ describe("report-utils", () => {
     expect(diagnostics.unknownOptionCount).toBe(2);
     expect(diagnostics.unsupportedOptionsError).toBe(
       "Unsupported option(s): --mystery, -x. Supported options: --json."
+    );
+  });
+
+  it("keeps inline known-flag misuse tokens in diagnostics", () => {
+    const diagnostics = createCliDiagnostics(
+      ["--json=1", "--json=2", "--mystery=alpha"],
+      {
+        canonicalOptions: ["--json"],
+      }
+    );
+
+    expect(diagnostics.unknownOptions).toEqual([
+      "--json=1",
+      "--json=2",
+      "--mystery",
+    ]);
+    expect(diagnostics.unknownOptionCount).toBe(3);
+    expect(diagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --json=1, --json=2, --mystery. Supported options: --json."
     );
   });
 

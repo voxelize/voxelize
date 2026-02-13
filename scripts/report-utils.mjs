@@ -342,7 +342,7 @@ const createValueOptionMetadata = (optionsWithValues, canonicalOptionMap) => {
   };
 };
 
-const normalizeUnknownOptionToken = (optionToken) => {
+const normalizeUnknownOptionToken = (optionToken, canonicalOptionMap) => {
   const equalsIndex = optionToken.indexOf("=");
   if (equalsIndex <= 0) {
     return optionToken;
@@ -350,6 +350,10 @@ const normalizeUnknownOptionToken = (optionToken) => {
 
   const optionName = optionToken.slice(0, equalsIndex);
   if (optionName === "-" || optionName === "--") {
+    return optionToken;
+  }
+
+  if (canonicalOptionMap.has(optionName)) {
     return optionToken;
   }
 
@@ -405,7 +409,10 @@ export const parseUnknownCliOptions = (
     if (seenUnknownOptions.has(optionToken)) {
       continue;
     }
-    const normalizedUnknownOption = normalizeUnknownOptionToken(optionToken);
+    const normalizedUnknownOption = normalizeUnknownOptionToken(
+      optionToken,
+      canonicalOptionMap
+    );
     if (seenUnknownOptions.has(normalizedUnknownOption)) {
       continue;
     }

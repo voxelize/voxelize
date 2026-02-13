@@ -1507,6 +1507,36 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(1);
   });
 
+  it("preserves inline known-flag misuse tokens in unsupported-option output", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--json=1", "--mystery=alpha"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(false);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
+    expect(report.supportedCliOptionCount).toBe(
+      report.supportedCliOptions.length
+    );
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.unknownOptions).toEqual(["--json=1", "--mystery"]);
+    expect(report.message).toBe(
+      expectedUnsupportedOptionsMessage(["--json=1", "--mystery"])
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("deduplicates repeated unsupported options", () => {
     const result = spawnSync(
       process.execPath,
