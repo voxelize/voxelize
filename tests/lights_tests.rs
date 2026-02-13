@@ -449,6 +449,36 @@ fn test_register_block_panic_keeps_conversion_caches() {
 }
 
 #[test]
+fn test_register_block_assigns_auto_id_and_refreshes_caches() {
+    let mut registry = create_test_registry();
+    let mesher_before = registry.mesher_registry();
+    let lighter_before = registry.lighter_registry();
+
+    registry.register_block(&Block::new("single-auto").is_passable(true).build());
+
+    let auto_id = registry.get_block_by_name("single-auto").id;
+    assert_ne!(auto_id, 0);
+    assert!(
+        registry.has_type(auto_id),
+        "auto-assigned block id should be registered"
+    );
+
+    let mesher_after = registry.mesher_registry();
+    let lighter_after = registry.lighter_registry();
+
+    assert!(mesher_after.has_type(auto_id));
+    assert!(lighter_after.has_type(auto_id));
+    assert!(
+        !Arc::ptr_eq(&mesher_before, &mesher_after),
+        "mesher cache should refresh after successful single registration"
+    );
+    assert!(
+        !Arc::ptr_eq(&lighter_before, &lighter_after),
+        "lighter cache should refresh after successful single registration"
+    );
+}
+
+#[test]
 fn test_register_blocks_empty_keeps_conversion_caches() {
     let mut registry = create_test_registry();
 
