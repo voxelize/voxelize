@@ -3310,14 +3310,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     }
 
                     if face_index >= 0 {
-                        let has_independent_or_isolated_faces = if cache_ready {
-                            block.has_independent_or_isolated_faces
-                        } else {
-                            block.has_independent_or_isolated_faces_cached()
-                        };
-
-                        if !has_independent_or_isolated_faces {
-                            if let Some(face) = block.faces.get(face_index as usize) {
+                        if let Some(face) = block.faces.get(face_index as usize) {
+                            if !face.independent && !face.isolated {
                                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
                                 let (aos, lights) =
                                     compute_face_ao_and_light_fast(dir, block, &neighbors, registry);
@@ -3337,8 +3331,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                     uv_range,
                                     is_fluid,
                                 });
+                                continue;
                             }
-                            continue;
                         }
                     }
 
