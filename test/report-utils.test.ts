@@ -8,6 +8,7 @@ import {
   REPORT_SCHEMA_VERSION,
   createTimedReportBuilder,
   deriveFailureMessageFromReport,
+  hasCliOption,
   parseJsonOutput,
   resolveLastOptionValue,
   resolveOutputPath,
@@ -280,6 +281,18 @@ describe("report-utils", () => {
     ]);
     expect(withTerminator.positionalArgs).toEqual(["--output", "positional"]);
     expect(withTerminator.optionTerminatorUsed).toBe(true);
+  });
+
+  it("detects canonical options with optional aliases", () => {
+    expect(hasCliOption(["--json", "--no-build"], "--no-build")).toBe(true);
+    expect(hasCliOption(["--json", "--verify"], "--no-build", ["--verify"])).toBe(
+      true
+    );
+    expect(hasCliOption(["--json", "--verify"], "--no-build")).toBe(false);
+    expect(
+      hasCliOption(["--json", "--", "--verify"], "--no-build", ["--verify"])
+    ).toBe(false);
+    expect(hasCliOption(["--json"], "--no-build", ["--verify"])).toBe(false);
   });
 
   it("writes report json payloads to output paths", () => {

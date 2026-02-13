@@ -228,6 +228,15 @@ export const splitCliArgs = (args) => {
   };
 };
 
+export const hasCliOption = (args, canonicalOption, aliases = []) => {
+  const { optionArgs } = splitCliArgs(args);
+  if (optionArgs.includes(canonicalOption)) {
+    return true;
+  }
+
+  return aliases.some((alias) => optionArgs.includes(alias));
+};
+
 export const resolveLastOptionValue = (args, optionName) => {
   const { optionArgs } = splitCliArgs(args);
   const inlineOptionPrefix = `${optionName}=`;

@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { resolvePnpmCommand } from "../../../scripts/command-utils.mjs";
 import {
   createTimedReportBuilder,
+  hasCliOption,
   parseJsonOutput,
   resolveOutputPath,
   serializeReportWithOptionalWrite,
@@ -31,15 +32,8 @@ const {
 } = splitCliArgs(cliArgs);
 const positionalArgCount = positionalArgs.length;
 const noBuildOptionAliases = ["--verify"];
-const hasCliOption = (canonicalOption, aliases = []) => {
-  if (cliOptionArgs.includes(canonicalOption)) {
-    return true;
-  }
-
-  return aliases.some((alias) => cliOptionArgs.includes(alias));
-};
 const isJson = cliOptionArgs.includes("--json");
-const isNoBuild = hasCliOption("--no-build", noBuildOptionAliases);
+const isNoBuild = hasCliOption(cliOptionArgs, "--no-build", noBuildOptionAliases);
 const isCompact = cliOptionArgs.includes("--compact");
 const jsonFormat = { compact: isCompact };
 const { outputPath, error: outputPathError } = resolveOutputPath(cliOptionArgs);
