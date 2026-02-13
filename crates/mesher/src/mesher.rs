@@ -2917,8 +2917,54 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         if is_fluid && block.has_standard_six_faces_cached() {
                             let fluid_faces =
                                 create_fluid_faces(vx, vy, vz, block.id, space, block, registry);
+                            let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                            let face_cache = build_face_process_cache(
+                                block,
+                                is_see_through,
+                                is_fluid,
+                                &neighbors,
+                                registry,
+                                vx,
+                                vy,
+                                vz,
+                                voxel_id,
+                                space,
+                            );
                             for face in fluid_faces {
-                                non_greedy_faces.push((vx, vy, vz, voxel_id, face, false));
+                                let geo_key = geometry_key_for_face(block, &face, vx, vy, vz);
+                                let geometry = map.entry(geo_key).or_insert_with(|| {
+                                    let mut entry = GeometryProtocol::default();
+                                    entry.voxel = voxel_id;
+                                    if face.independent || face.isolated {
+                                        entry.face_name = Some(face.name.clone());
+                                    }
+                                    if face.isolated {
+                                        entry.at = Some([vx, vy, vz]);
+                                    }
+                                    entry
+                                });
+                                process_face(
+                                    vx,
+                                    vy,
+                                    vz,
+                                    voxel_id,
+                                    &rotation,
+                                    &face,
+                                    &face.range,
+                                    block,
+                                    registry,
+                                    space,
+                                    &neighbors,
+                                    &face_cache,
+                                    is_see_through,
+                                    is_fluid,
+                                    &mut geometry.positions,
+                                    &mut geometry.indices,
+                                    &mut geometry.uvs,
+                                    &mut geometry.lights,
+                                    min,
+                                    false,
+                                );
                             }
                         } else if block.dynamic_patterns.is_some() {
                             let faces = get_dynamic_faces(block, [vx, vy, vz], space, &rotation);
