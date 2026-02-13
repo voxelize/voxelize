@@ -2897,7 +2897,10 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     } else {
                         true
                     };
-                    if is_non_greedy_block && processed_non_greedy[current_voxel_index] {
+                    if greedy_without_rotation
+                        && is_non_greedy_block
+                        && processed_non_greedy[current_voxel_index]
+                    {
                         continue;
                     }
 
