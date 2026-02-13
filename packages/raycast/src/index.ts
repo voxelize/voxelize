@@ -1,19 +1,23 @@
 import { AABB } from "@voxelize/aabb";
 
-export function raycastAABB(
-  origin: number[],
-  normal: number[],
+const EMPTY_AABBS: AABB[] = [];
+
+function raycastAABBAt(
+  ox: number,
+  oy: number,
+  oz: number,
+  nx: number,
+  ny: number,
+  nz: number,
   aabb: AABB,
   maxDistance = Infinity
 ): { axis: number; distance: number } | null {
-  const [nx, ny, nz] = normal;
-
-  const t1 = (aabb.minX - origin[0]) / nx;
-  const t2 = (aabb.maxX - origin[0]) / nx;
-  const t3 = (aabb.minY - origin[1]) / ny;
-  const t4 = (aabb.maxY - origin[1]) / ny;
-  const t5 = (aabb.minZ - origin[2]) / nz;
-  const t6 = (aabb.maxZ - origin[2]) / nz;
+  const t1 = (aabb.minX - ox) / nx;
+  const t2 = (aabb.maxX - ox) / nx;
+  const t3 = (aabb.minY - oy) / ny;
+  const t4 = (aabb.maxY - oy) / ny;
+  const t5 = (aabb.minZ - oz) / nz;
+  const t6 = (aabb.maxZ - oz) / nz;
 
   const tMin = Math.max(
     Math.max(Math.min(t1, t2), Math.min(t3, t4)),
@@ -59,13 +63,30 @@ export function raycastAABB(
   };
 }
 
+export function raycastAABB(
+  origin: number[],
+  normal: number[],
+  aabb: AABB,
+  maxDistance = Infinity
+): { axis: number; distance: number } | null {
+  return raycastAABBAt(
+    origin[0],
+    origin[1],
+    origin[2],
+    normal[0],
+    normal[1],
+    normal[2],
+    aabb,
+    maxDistance
+  );
+}
+
 function raycast(
   getVoxel: (vx: number, vy: number, vz: number) => AABB[],
   origin: number[],
   direction: number[],
   maxDistance: number
 ): { point: number[]; normal: number[]; voxel: number[] } | null {
-  const EMPTY_AABBS: AABB[] = [];
   let dx = +direction[0];
   let dy = +direction[1];
   let dz = +direction[2];
@@ -78,7 +99,6 @@ function raycast(
   dx /= ds;
   dy /= ds;
   dz /= ds;
-  const normalizedDirection = [dx, dy, dz] as [number, number, number];
 
   const [ox, oy, oz] = origin;
 
@@ -110,12 +130,7 @@ function raycast(
     let hit: { axis: number; distance: number } | null = null;
     for (let aabbIndex = 0; aabbIndex < aabbs.length; aabbIndex++) {
       const aabb = aabbs[aabbIndex];
-      const result = raycastAABB(
-        origin,
-        normalizedDirection,
-        aabb,
-        maxDistance
-      );
+      const result = raycastAABBAt(ox, oy, oz, dx, dy, dz, aabb, maxDistance);
       if (result) {
         hit = result;
       }
