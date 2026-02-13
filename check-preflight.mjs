@@ -3,12 +3,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  createCliOptionCatalog,
+  createCliOptionValidation,
   createTimedReportBuilder,
   deriveFailureMessageFromReport,
   hasCliOption as hasCliOptionInArgs,
   parseActiveCliOptionMetadata,
   parseJsonOutput,
-  parseUnknownCliOptions,
   resolveLastOptionValue,
   resolveOutputPath,
   serializeReportWithOptionalWrite,
@@ -59,20 +60,10 @@ const canonicalCliOptions = [
   "--output",
   "--quiet",
 ];
-const cliOptionCanonicalMap = new Map(
-  canonicalCliOptions.map((option) => [option, option])
-);
-for (const [canonicalOption, aliases] of Object.entries(availableCliOptionAliases)) {
-  for (const alias of aliases) {
-    cliOptionCanonicalMap.set(alias, canonicalOption);
-  }
-}
-const availableCliOptionCanonicalMap = Object.fromEntries(
-  supportedCliOptions.map((optionToken) => {
-    const canonicalOption = cliOptionCanonicalMap.get(optionToken);
-    return [optionToken, canonicalOption === undefined ? optionToken : canonicalOption];
-  })
-);
+const { availableCliOptionCanonicalMap } = createCliOptionCatalog({
+  canonicalOptions: supportedCliOptions,
+  optionAliases: availableCliOptionAliases,
+});
 const jsonFormat = { compact: isCompact };
 const { outputPath: resolvedOutputPath, error: outputPathError } =
   resolveOutputPath(cliOptionArgs);
@@ -330,10 +321,15 @@ const createRequestedCheckResolutionCounts = (resolutions) => {
 const requestedCheckResolutionCounts = createRequestedCheckResolutionCounts(
   requestedCheckResolutions
 );
-const unknownOptions = parseUnknownCliOptions(cliOptionArgs, {
-  canonicalOptions: canonicalCliOptions,
+const {
+  unknownOptions,
+  unknownOptionCount,
+  unsupportedOptionsError,
+} = createCliOptionValidation(cliOptionArgs, {
+  canonicalOptions: supportedCliOptions,
   optionAliases: availableCliOptionAliases,
   optionsWithValues: Array.from(cliOptionsWithValues),
+  outputPathError: null,
 });
 const {
   activeCliOptions,
@@ -348,10 +344,6 @@ const {
   optionAliases: availableCliOptionAliases,
   optionsWithValues: Array.from(cliOptionsWithValues),
 });
-const unsupportedOptionsError =
-  unknownOptions.length === 0
-    ? null
-    : `Unsupported option(s): ${unknownOptions.join(", ")}. Supported options: ${supportedCliOptions.join(", ")}.`;
 const deriveValidationErrorCode = ({
   outputPathError,
   selectedChecksError,
@@ -418,7 +410,6 @@ if (
 ) {
   const effectiveInvalidChecks = outputPathError === null ? invalidChecks : [];
   const invalidCheckCount = effectiveInvalidChecks.length;
-  const unknownOptionCount = unknownOptions.length;
   const report = buildTimedReport({
     passed: false,
     exitCode: 1,
@@ -483,7 +474,6 @@ const skippedChecks = availableCheckNames.filter((checkName) => {
 
 if (isListChecks) {
   const invalidCheckCount = 0;
-  const unknownOptionCount = unknownOptions.length;
   const report = buildTimedReport({
     passed: true,
     exitCode: 0,
@@ -551,7 +541,6 @@ const passed = checks.every((check) => check.passed);
 const exitCode = passed ? 0 : 1;
 const checkSummary = summarizeCheckResults(checks);
 const invalidCheckCount = 0;
-const unknownOptionCount = unknownOptions.length;
 const failureSummaries = checks
   .filter((check) => !check.passed)
   .map((check) => {
