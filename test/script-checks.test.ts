@@ -49,6 +49,7 @@ describe("root preflight scripts", () => {
 
   it("check-dev-env returns pass or fail summary", () => {
     const result = runScript("check-dev-env.mjs");
+    expect(result.output).toContain("node:");
 
     if (result.status === 0) {
       expect(result.output).toContain("Environment check passed.");

@@ -14,12 +14,48 @@ const resolveCommand = (command) => {
   return `${command}.exe`;
 };
 
+const parseSemver = (value) => {
+  const match = value.match(/(\d+)\.(\d+)\.(\d+)/);
+  if (!match) {
+    return null;
+  }
+
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+};
+
+const isSemverAtLeast = (version, minimumVersion) => {
+  for (let index = 0; index < minimumVersion.length; index += 1) {
+    if (version[index] > minimumVersion[index]) {
+      return true;
+    }
+
+    if (version[index] < minimumVersion[index]) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+const formatSemver = (version) => {
+  return `${version[0]}.${version[1]}.${version[2]}`;
+};
+
 const checks = [
+  {
+    label: "node",
+    command: process.execPath,
+    args: ["--version"],
+    required: true,
+    minVersion: [18, 0, 0],
+    hint: "Install Node.js: https://nodejs.org/en/download/",
+  },
   {
     label: "pnpm",
     command: resolveCommand("pnpm"),
     args: ["--version"],
     required: true,
+    minVersion: [10, 0, 0],
     hint: "Install pnpm: https://pnpm.io/installation",
   },
   {
@@ -52,7 +88,7 @@ const checks = [
   },
 ];
 
-let missingRequired = 0;
+let requiredFailures = 0;
 
 for (const check of checks) {
   const result = spawnSync(check.command, check.args, {
@@ -61,30 +97,52 @@ for (const check of checks) {
   });
 
   const commandFailed = result.status !== 0 || result.error !== undefined;
-  if (!commandFailed) {
-    const output = `${result.stdout}${result.stderr}`;
-    const firstLine =
-      output
-        .split("\n")
-        .map((line) => line.trim())
-        .find((line) => line.length > 0) ?? "ok";
-    console.log(`✓ ${check.label}: ${firstLine}`);
+  const output = `${result.stdout}${result.stderr}`;
+  const firstLine =
+    output
+      .split("\n")
+      .map((line) => line.trim())
+      .find((line) => line.length > 0) ?? "ok";
+
+  const printFailure = (reason) => {
+    if (check.required) {
+      requiredFailures += 1;
+    }
+
+    const status = check.required ? "✗" : "!";
+    const requirement = check.required ? "required" : "optional";
+    console.error(`${status} ${check.label}: ${reason} (${requirement})`);
+    console.error(`  ${check.hint}`);
+  };
+
+  if (commandFailed) {
+    printFailure("missing");
     continue;
   }
 
-  if (check.required) {
-    missingRequired += 1;
+  if (check.minVersion !== undefined) {
+    const parsedVersion = parseSemver(firstLine);
+    if (parsedVersion === null) {
+      printFailure(`unable to parse version from "${firstLine}"`);
+      continue;
+    }
+
+    if (!isSemverAtLeast(parsedVersion, check.minVersion)) {
+      printFailure(
+        `version ${formatSemver(parsedVersion)} is below ${formatSemver(
+          check.minVersion
+        )}`
+      );
+      continue;
+    }
   }
 
-  const status = check.required ? "✗" : "!";
-  const requirement = check.required ? "required" : "optional";
-  console.error(`${status} ${check.label}: missing (${requirement})`);
-  console.error(`  ${check.hint}`);
+  console.log(`✓ ${check.label}: ${firstLine}`);
 }
 
-if (missingRequired > 0) {
+if (requiredFailures > 0) {
   console.error(
-    `Environment check failed: ${missingRequired} required tool(s) missing.`
+    `Environment check failed: ${requiredFailures} required check(s) failed.`
   );
   process.exit(1);
 }
