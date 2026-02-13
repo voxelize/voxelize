@@ -4075,12 +4075,14 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       const [px, py, pz] = metadata.voxel;
-      const [vx, vy, vz] = [Math.floor(px), Math.floor(py), Math.floor(pz)];
+      const vx = Math.floor(px);
+      const vy = Math.floor(py);
+      const vz = Math.floor(pz);
       if (!Number.isFinite(vx) || !Number.isFinite(vy) || !Number.isFinite(vz)) {
         continue;
       }
       const voxelId = ChunkUtils.getVoxelNameAt(vx, vy, vz);
-      const voxelCoords: Coords3 = [vx, vy, vz];
+      let voxelCoords: Coords3 | null = null;
       const data: T | null =
         operation === "DELETE" && !hasBlockEntityListeners
           ? null
@@ -4089,6 +4091,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       const cz = Math.floor(vz / chunkSize);
       const chunkName = ChunkUtils.getChunkNameAt(cx, cz);
       if (hasBlockEntityListeners) {
+        voxelCoords = [vx, vy, vz];
         const originalData = this.blockEntitiesMap.get(voxelId) ?? null;
         const chunk = this.chunkPipeline.getLoadedChunk(chunkName);
         let chunkCoords: Coords2 | null = null;
@@ -4123,6 +4126,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           this.untrackBlockEntityKey(chunkName, voxelId);
           const block = this.resolveBlockByEntityType(type);
           if (block) {
+            voxelCoords = voxelCoords ?? [vx, vy, vz];
             for (const face of block.faces) {
               if (face.isolated) {
                 const materialKey = this.makeChunkMaterialKey(
