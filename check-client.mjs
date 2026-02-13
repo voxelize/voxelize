@@ -8,6 +8,7 @@ import {
   parseJsonOutput,
   resolveOutputPath,
   serializeReportWithOptionalWrite,
+  splitCliArgs,
   summarizeStepResults,
   toReportJson,
 } from "./scripts/report-utils.mjs";
@@ -17,12 +18,13 @@ const __dirname = path.dirname(__filename);
 
 const pnpmCommand = resolvePnpmCommand();
 const cliArgs = process.argv.slice(2);
-const isQuiet = cliArgs.includes("--quiet");
-const isJson = cliArgs.includes("--json");
-const isNoBuild = cliArgs.includes("--no-build");
-const isCompact = cliArgs.includes("--compact");
+const { optionArgs: cliOptionArgs } = splitCliArgs(cliArgs);
+const isQuiet = cliOptionArgs.includes("--quiet");
+const isJson = cliOptionArgs.includes("--json");
+const isNoBuild = cliOptionArgs.includes("--no-build");
+const isCompact = cliOptionArgs.includes("--compact");
 const jsonFormat = { compact: isCompact };
-const { outputPath, error: outputPathError } = resolveOutputPath(cliArgs);
+const { outputPath, error: outputPathError } = resolveOutputPath(cliOptionArgs);
 const buildTimedReport = createTimedReportBuilder();
 const stepResults = [];
 let exitCode = 0;

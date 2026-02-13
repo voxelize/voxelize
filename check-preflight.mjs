@@ -8,23 +8,16 @@ import {
   parseJsonOutput,
   resolveOutputPath,
   serializeReportWithOptionalWrite,
+  splitCliArgs,
   summarizeCheckResults,
 } from "./scripts/report-utils.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const cliArgs = process.argv.slice(2);
-const optionTerminatorIndex = cliArgs.indexOf("--");
-const cliOptionArgs =
-  optionTerminatorIndex === -1
-    ? cliArgs
-    : cliArgs.slice(0, optionTerminatorIndex);
-const positionalArgs =
-  optionTerminatorIndex === -1
-    ? []
-    : cliArgs.slice(optionTerminatorIndex + 1);
+const { optionArgs: cliOptionArgs, positionalArgs, optionTerminatorUsed } =
+  splitCliArgs(cliArgs);
 const positionalArgCount = positionalArgs.length;
-const optionTerminatorUsed = optionTerminatorIndex !== -1;
 const availableCliOptionAliases = {
   "--list-checks": ["--list", "-l"],
   "--no-build": ["--verify"],

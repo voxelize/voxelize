@@ -269,6 +269,17 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-wasm-pack ignores option-like tokens after option terminator", () => {
+    const result = runScript("check-wasm-pack.mjs", ["--json", "--", "--output"]);
+    const report = JSON.parse(result.output) as WasmPackJsonReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.message).not.toBe("Missing value for --output option.");
+    expectTimingMetadata(report);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
   it("check-wasm-pack json mode reports output write failures with details", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-wasm-pack-output-write-failure-")

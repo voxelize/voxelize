@@ -13,17 +13,19 @@ import {
   createTimedReportBuilder,
   resolveOutputPath,
   serializeReportWithOptionalWrite,
+  splitCliArgs,
   toReportJson,
 } from "./scripts/report-utils.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const cliArgs = process.argv.slice(2);
-const isQuiet = cliArgs.includes("--quiet");
-const isJson = cliArgs.includes("--json");
-const isCompact = cliArgs.includes("--compact");
+const { optionArgs: cliOptionArgs } = splitCliArgs(cliArgs);
+const isQuiet = cliOptionArgs.includes("--quiet");
+const isJson = cliOptionArgs.includes("--json");
+const isCompact = cliOptionArgs.includes("--compact");
 const jsonFormat = { compact: isCompact };
-const { outputPath, error: outputPathError } = resolveOutputPath(cliArgs);
+const { outputPath, error: outputPathError } = resolveOutputPath(cliOptionArgs);
 const buildTimedReport = createTimedReportBuilder();
 const minimumVersions = loadWorkspaceMinimumVersions(__dirname);
 

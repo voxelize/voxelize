@@ -9,6 +9,7 @@ import {
   parseJsonOutput,
   resolveOutputPath,
   serializeReportWithOptionalWrite,
+  splitCliArgs,
   toReportJson,
 } from "../../../scripts/report-utils.mjs";
 
@@ -23,11 +24,12 @@ const repositoryRoot = path.resolve(__dirname, "../../..");
 const rootWasmCheckScript = path.resolve(repositoryRoot, "check-wasm-pack.mjs");
 const pnpmCommand = resolvePnpmCommand();
 const cliArgs = process.argv.slice(2);
-const isJson = cliArgs.includes("--json");
-const isNoBuild = cliArgs.includes("--no-build");
-const isCompact = cliArgs.includes("--compact");
+const { optionArgs: cliOptionArgs } = splitCliArgs(cliArgs);
+const isJson = cliOptionArgs.includes("--json");
+const isNoBuild = cliOptionArgs.includes("--no-build");
+const isCompact = cliOptionArgs.includes("--compact");
 const jsonFormat = { compact: isCompact };
-const { outputPath, error: outputPathError } = resolveOutputPath(cliArgs);
+const { outputPath, error: outputPathError } = resolveOutputPath(cliOptionArgs);
 const buildTimedReport = createTimedReportBuilder();
 
 if (isJson && outputPathError !== null) {
