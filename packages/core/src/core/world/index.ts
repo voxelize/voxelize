@@ -7402,7 +7402,13 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
       return this.blockEntityTypeBlockCache.get(type) ?? null;
     }
 
-    const blockNameStart = type.indexOf("::") + 2;
+    const blockNamePrefixIndex = type.indexOf("::");
+    if (blockNamePrefixIndex < 0) {
+      this.blockEntityTypeBlockCache.set(type, null);
+      return null;
+    }
+
+    const blockNameStart = blockNamePrefixIndex + 2;
     const blockNameEnd = type.indexOf("::", blockNameStart);
     const blockName =
       blockNameEnd >= 0
