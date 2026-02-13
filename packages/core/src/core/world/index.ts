@@ -4487,6 +4487,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private maintainChunks(centerX: number, centerZ: number) {
     const { deleteRadius } = this;
+    const { subChunks } = this.options;
     const deleteRadiusSquared = deleteRadius * deleteRadius;
     const deleted: Coords2[] = [];
 
@@ -4501,7 +4502,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       const dz = z - centerZ;
 
       if (dx * dx + dz * dz > deleteRadiusSquared) {
-        for (const [level, meshes] of chunk.meshes) {
+        for (let level = 0; level < subChunks; level++) {
+          const meshes = chunk.meshes.get(level);
+          if (!meshes) {
+            continue;
+          }
           for (let meshIndex = 0; meshIndex < meshes.length; meshIndex++) {
             const mesh = meshes[meshIndex];
             if (mesh) {
@@ -4596,6 +4601,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       return;
     }
 
+    const { subChunks } = this.options;
     const radiusSq = this.plantRadiusSq;
 
     for (const name of this.chunkPipeline.getInStage("loaded")) {
@@ -4609,7 +4615,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       const dz = z - cz;
       const showPlants = dx * dx + dz * dz <= radiusSq;
 
-      for (const levelMeshes of chunk.meshes.values()) {
+      for (let level = 0; level < subChunks; level++) {
+        const levelMeshes = chunk.meshes.get(level);
+        if (!levelMeshes) {
+          continue;
+        }
         this.setPlantMeshVisibility(levelMeshes, showPlants);
       }
     }
