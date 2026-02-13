@@ -29,9 +29,6 @@ importers:
       cross-env:
         specifier: ^7.0.3
         version: 7.0.3
-      docusaurus-plugin-typedoc:
-        specifier: ^0.17.5
-        version: 0.17.5(typedoc-plugin-markdown@3.17.1(typedoc@0.25.13(typescript@5.4.5)))(typedoc@0.25.13(typescript@5.4.5))
       eslint:
         specifier: ^8.57.1
         version: 8.57.1
@@ -74,9 +71,6 @@ importers:
       rimraf:
         specifier: ^3.0.2
         version: 3.0.2
-      typedoc:
-        specifier: 0.25.13
-        version: 0.25.13(typescript@5.4.5)
       typescript:
         specifier: ^5.4.5
         version: 5.4.5
@@ -4619,12 +4613,6 @@ packages:
   doctrine@3.0.0:
     resolution: {integrity: sha512-yS+Q5i3hBf7GBkd4KG8a7eBNNWNGLTaEwwYWUijIYM7zrlYDM0BFXHjjPWlWZ1Rg7UaddZeIDmi9jF3HmqiQ2w==}
     engines: {node: '>=6.0.0'}
-
-  docusaurus-plugin-typedoc@0.17.5:
-    resolution: {integrity: sha512-mMTk4lRy2+wQ7fmMOv6RLfKkoGnHkBLE8qUoPfWFoqUYDDDInwVQKxz12FNnQx86eJSLgBiZmuY/zB/bYsZQlQ==}
-    peerDependencies:
-      typedoc: '>=0.22.0'
-      typedoc-plugin-markdown: '>=3.11.10'
 
   docusaurus-plugin-typedoc@0.21.0:
     resolution: {integrity: sha512-7DLFrf0JP+L5vSRQHVKIbndjbksd2MlxPqNmmdxzLFiRINgrY23s9waduWM9t24PUsf5JZ0tlGKlE3sK4uZ72Q==}
@@ -15480,11 +15468,6 @@ snapshots:
   doctrine@3.0.0:
     dependencies:
       esutils: 2.0.3
-
-  docusaurus-plugin-typedoc@0.17.5(typedoc-plugin-markdown@3.17.1(typedoc@0.25.13(typescript@5.4.5)))(typedoc@0.25.13(typescript@5.4.5)):
-    dependencies:
-      typedoc: 0.25.13(typescript@5.4.5)
-      typedoc-plugin-markdown: 3.17.1(typedoc@0.25.13(typescript@5.4.5))
 
   docusaurus-plugin-typedoc@0.21.0(typedoc-plugin-markdown@3.17.1(typedoc@0.25.13(typescript@5.4.5)))(typedoc@0.25.13(typescript@5.4.5)):
     dependencies:
