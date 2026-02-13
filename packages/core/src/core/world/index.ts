@@ -3923,11 +3923,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     const ratio = total === 0 ? 1 : loadedCount / total;
     const hasDirection = direction.lengthSq() > 0;
 
-    const angleThreshold =
-      ratio === 1
+    const angleThreshold = hasDirection
+      ? ratio === 1
         ? (Math.PI * 3) / 8
-        : Math.max(ratio ** chunkLoadExponent, 0.1);
-    const tanAngleThreshold = Math.tan(angleThreshold);
+        : Math.max(ratio ** chunkLoadExponent, 0.1)
+      : 0;
+    const tanAngleThreshold = hasDirection ? Math.tan(angleThreshold) : 0;
 
     const [centerX, centerZ] = center;
     const toRequestClosest: Array<{ coords: Coords2; distance: number }> = [];
