@@ -174,20 +174,20 @@ export class Shadows extends Array<Shadow> {
    * is no longer in the scene.
    */
   update = () => {
+    const enabled = this.enabled;
     for (let i = this.length - 1; i >= 0; i--) {
       const shadow = this[i];
       if (!shadow.parent || !this.isInScene(shadow.parent)) {
         this.splice(i, 1);
+        continue;
       }
-    }
 
-    this.forEach((shadow) => {
-      if (this.enabled) {
+      if (enabled) {
         shadow.update();
       } else {
         shadow.visible = false;
       }
-    });
+    }
   };
 
   private isInScene(object: Object3D): boolean {
