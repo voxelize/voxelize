@@ -2379,6 +2379,9 @@ fn process_face<S: VoxelAccess>(
             let mut sum_green_lights = 0u32;
             let mut sum_blue_lights = 0u32;
             let mut light_count = 0u32;
+            let dir_is_z = dir[2].abs() == 1;
+            let is_cardinal_dir = dir_is_x || dir_is_y || dir_is_z;
+            let center_opaque = neighbor_is_opaque(mask, 0, 0, 0);
 
             for x in 0..=1 {
                 for y in 0..=1 {
@@ -2404,7 +2407,18 @@ fn process_face<S: VoxelAccess>(
                             continue;
                         }
 
-                        if dir[0] * ddx + dir[1] * ddy + dir[2] * ddz == 0 {
+                        if is_cardinal_dir {
+                            let is_face_plane_sample = if dir_is_x {
+                                ddx == 0
+                            } else if dir_is_y {
+                                ddy == 0
+                            } else {
+                                ddz == 0
+                            };
+                            if is_face_plane_sample && center_opaque {
+                                continue;
+                            }
+                        } else if dir[0] * ddx + dir[1] * ddy + dir[2] * ddz == 0 {
                             let facing_opaque = neighbor_is_opaque(
                                 mask,
                                 ddx * dir[0],
