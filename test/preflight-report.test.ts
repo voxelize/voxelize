@@ -1578,6 +1578,74 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(1);
   });
 
+  it("keeps active metadata focused on recognized options with inline misuse present", () => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        preflightScript,
+        "--json",
+        "--list-checks",
+        "--json=1",
+        "--verify=2",
+        "--list=3",
+        "--mystery=alpha",
+      ],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(true);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.activeCliOptions).toEqual(["--list-checks", "--json"]);
+    expect(report.activeCliOptionCount).toBe(2);
+    expect(report.activeCliOptionTokens).toEqual(["--json", "--list-checks"]);
+    expect(report.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions(["--json", "--list-checks"])
+    );
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+      {
+        token: "--list-checks",
+        canonicalOption: "--list-checks",
+        index: 1,
+      },
+    ]);
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(report.unknownOptionCount).toBe(4);
+    expect(report.unknownOptions).toEqual([
+      "--json=<value>",
+      "--no-build=<value>",
+      "--list-checks=<value>",
+      "--mystery",
+    ]);
+    expect(report.message).toBe(
+      expectedUnsupportedOptionsMessage([
+        "--json=<value>",
+        "--no-build=<value>",
+        "--list-checks=<value>",
+        "--mystery",
+      ])
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("redacts inline alias misuse tokens in unsupported-option output", () => {
     const result = spawnSync(
       process.execPath,

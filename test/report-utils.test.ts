@@ -1147,6 +1147,83 @@ describe("report-utils", () => {
     );
   });
 
+  it("separates active options from inline misuse diagnostics", () => {
+    const diagnostics = createCliDiagnostics(
+      [
+        "--json",
+        "--list-checks",
+        "--json=1",
+        "--verify=2",
+        "--list=3",
+        "--output=./report.json",
+        "--mystery=alpha",
+      ],
+      {
+        canonicalOptions: ["--json", "--list-checks", "--no-build", "--output"],
+        optionAliases: {
+          "--no-build": ["--verify"],
+          "--list-checks": ["--list", "-l"],
+        },
+        optionsWithValues: ["--output"],
+      }
+    );
+
+    expect(diagnostics.activeCliOptions).toEqual([
+      "--json",
+      "--list-checks",
+      "--output",
+    ]);
+    expect(diagnostics.activeCliOptionCount).toBe(3);
+    expect(diagnostics.activeCliOptionTokens).toEqual([
+      "--json",
+      "--list-checks",
+      "--output=./report.json",
+    ]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+      {
+        token: "--list-checks",
+        canonicalOption: "--list-checks",
+      },
+      {
+        token: "--output=./report.json",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(diagnostics.activeCliOptionResolutionCount).toBe(3);
+    expect(diagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+      {
+        token: "--list-checks",
+        canonicalOption: "--list-checks",
+        index: 1,
+      },
+      {
+        token: "--output=./report.json",
+        canonicalOption: "--output",
+        index: 5,
+      },
+    ]);
+    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(3);
+    expect(diagnostics.unknownOptions).toEqual([
+      "--json=<value>",
+      "--no-build=<value>",
+      "--list-checks=<value>",
+      "--mystery",
+    ]);
+    expect(diagnostics.unknownOptionCount).toBe(4);
+    expect(diagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --json=<value>, --no-build=<value>, --list-checks=<value>, --mystery. Supported options: --json, --list-checks, --no-build, --output, --verify, --list, -l."
+    );
+  });
+
   it("redacts malformed inline option names in diagnostics", () => {
     const diagnostics = createCliDiagnostics(
       ["--=secret", "--=token", "--=", "-=secret", "-=token", "-="],
