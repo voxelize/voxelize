@@ -213,7 +213,10 @@ const normalizePendingMeshMessages = () => {
     return;
   }
 
-  if (pendingMeshMessagesHead >= 1024) {
+  if (
+    pendingMeshMessagesHead >= 1024 &&
+    pendingMeshMessagesHead * 2 >= pendingMeshMessages.length
+  ) {
     pendingMeshMessages.copyWithin(0, pendingMeshMessagesHead);
     pendingMeshMessages.length -= pendingMeshMessagesHead;
     pendingMeshMessagesHead = 0;

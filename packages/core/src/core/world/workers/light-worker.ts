@@ -144,7 +144,10 @@ const normalizePendingBatchMessages = () => {
     return;
   }
 
-  if (pendingBatchMessagesHead >= 1024) {
+  if (
+    pendingBatchMessagesHead >= 1024 &&
+    pendingBatchMessagesHead * 2 >= pendingBatchMessages.length
+  ) {
     pendingBatchMessages.copyWithin(0, pendingBatchMessagesHead);
     pendingBatchMessages.length -= pendingBatchMessagesHead;
     pendingBatchMessagesHead = 0;
