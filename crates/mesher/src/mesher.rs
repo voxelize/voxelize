@@ -838,6 +838,11 @@ fn has_channel_midpoint_anomaly(a: i32, b: i32, c: i32, d: i32) -> bool {
 }
 
 #[inline(always)]
+fn pack_light_nibbles(sunlight: u32, red: u32, green: u32, blue: u32) -> u32 {
+    ((sunlight & 0xF) << 12) | ((red & 0xF) << 8) | ((green & 0xF) << 4) | (blue & 0xF)
+}
+
+#[inline(always)]
 fn get_fluid_effective_height(stage: u32) -> f32 {
     (FLUID_BASE_HEIGHT - (stage as f32 * FLUID_STAGE_DROPOFF)).max(0.1)
 }
@@ -1488,12 +1493,7 @@ fn compute_face_ao_and_light(
         };
 
         aos[i] = ao;
-        let mut light = 0u32;
-        light = LightUtils::insert_red_light(light, red_light);
-        light = LightUtils::insert_green_light(light, green_light);
-        light = LightUtils::insert_blue_light(light, blue_light);
-        light = LightUtils::insert_sunlight(light, sunlight);
-        lights[i] = light as i32;
+        lights[i] = pack_light_nibbles(sunlight, red_light, green_light, blue_light) as i32;
     }
 
     (aos, lights)
@@ -1701,12 +1701,7 @@ fn compute_face_ao_and_light_fast(
         };
 
         aos[i] = ao;
-        let mut light = 0u32;
-        light = LightUtils::insert_red_light(light, red_light);
-        light = LightUtils::insert_green_light(light, green_light);
-        light = LightUtils::insert_blue_light(light, blue_light);
-        light = LightUtils::insert_sunlight(light, sunlight);
-        lights[i] = light as i32;
+        lights[i] = pack_light_nibbles(sunlight, red_light, green_light, blue_light) as i32;
     }
 
     (aos, lights)
@@ -2573,11 +2568,7 @@ fn process_face<S: VoxelAccess>(
                 (0, 0, 0, 0)
             };
 
-            let mut light = 0u32;
-            light = LightUtils::insert_red_light(light, red_light);
-            light = LightUtils::insert_green_light(light, green_light);
-            light = LightUtils::insert_blue_light(light, blue_light);
-            light = LightUtils::insert_sunlight(light, sunlight);
+            let light = pack_light_nibbles(sunlight, red_light, green_light, blue_light);
             let wave_bit = if apply_wave_bit && dy == 1 { 1 << 20 } else { 0 };
             lights.push(light as i32 | ao << 16 | fluid_bit | wave_bit);
 
