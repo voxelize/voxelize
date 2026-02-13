@@ -83,11 +83,15 @@ pnpm run check:dev-env
 pnpm run check:dev-env -- --quiet
 # json output (for CI integrations)
 pnpm run check:dev-env:json
+# json output written to file
+pnpm run check:dev-env:json -- --output ./dev-env-report.json
 
 # verify wasm-pack setup
 pnpm run check:wasm-pack
 # json output (for CI integrations)
 pnpm run check:wasm-pack:json
+# json output written to file
+pnpm run check:wasm-pack:json -- --output ./wasm-pack-report.json
 
 # generate protocol buffers
 pnpm run proto
@@ -114,10 +118,14 @@ pnpm run check:client
 pnpm run check:client -- --quiet
 # json output (for CI integrations)
 pnpm run check:client:json
+# json output written to file
+pnpm run check:client:json -- --output ./client-report.json
 # verify client checks without auto-building wasm artifacts
 pnpm run check:client:verify
 # verify + json output (for CI integrations)
 pnpm run check:client:verify:json
+# verify + json output written to file
+pnpm run check:client:verify:json -- --output ./client-verify-report.json
 
 # run full onboarding checks (tooling + client)
 pnpm run check:onboarding
@@ -125,10 +133,14 @@ pnpm run check:onboarding
 pnpm run check:onboarding -- --quiet
 # json output (for CI integrations)
 pnpm run check:onboarding:json
+# json output written to file
+pnpm run check:onboarding:json -- --output ./onboarding-report.json
 # verify onboarding checks without auto-building wasm artifacts
 pnpm run check:onboarding:verify
 # verify + json output (for CI integrations)
 pnpm run check:onboarding:verify:json
+# verify + json output written to file
+pnpm run check:onboarding:verify:json -- --output ./onboarding-verify-report.json
 
 # run an aggregated preflight report in json mode
 pnpm run check:preflight:json

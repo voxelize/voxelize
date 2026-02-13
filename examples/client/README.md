@@ -53,10 +53,14 @@ pnpm run check:client
 pnpm run check:client -- --quiet
 # json output (for CI integrations)
 pnpm run check:client:json
+# json output written to file
+pnpm run check:client:json -- --output ./client-report.json
 # verify without auto-building wasm artifacts
 pnpm run check:client:verify
 # verify + json output (for CI integrations)
 pnpm run check:client:verify:json
+# verify + json output written to file
+pnpm run check:client:verify:json -- --output ./client-verify-report.json
 ```
 
 Or from the client directory, run only wasm preflight checks:
@@ -68,6 +72,8 @@ pnpm run check:wasm:json
 pnpm run check:wasm:verify
 # verify + json output (for CI integrations)
 pnpm run check:wasm:verify:json
+# verify + json output written to file
+pnpm run check:wasm:verify:json -- --output ./wasm-verify-report.json
 ```
 
 All JSON report commands include `schemaVersion: 1` for compatibility checks.
