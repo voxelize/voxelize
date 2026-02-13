@@ -4545,6 +4545,88 @@ describe("preflight aggregate report", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("uses the last output flag for only-selection validation errors with inline no-build misuse", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "voxelize-preflight-only-unsupported-inline-no-build-last-output-"
+      )
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+    const secondOutputPath = path.resolve(tempDirectory, "second-report.json");
+
+    const result = spawnSync(
+      process.execPath,
+      [
+        preflightScript,
+        "--only",
+        "invalidCheck",
+        "--output",
+        firstOutputPath,
+        "--verify=1",
+        "--output",
+        secondOutputPath,
+      ],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const stdoutReport = JSON.parse(output) as PreflightReport;
+    const secondFileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as PreflightReport;
+
+    expect(stdoutReport.schemaVersion).toBe(1);
+    expect(stdoutReport.passed).toBe(false);
+    expect(stdoutReport.exitCode).toBe(1);
+    expect(stdoutReport.noBuild).toBe(false);
+    expect(stdoutReport.validationErrorCode).toBe("only_option_invalid_value");
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(stdoutReport.unknownOptions).toEqual(["--no-build=<value>"]);
+    expect(stdoutReport.unknownOptionCount).toBe(1);
+    expect(stdoutReport.invalidChecks).toEqual(["invalidCheck"]);
+    expect(stdoutReport.invalidCheckCount).toBe(1);
+    expect(stdoutReport.requestedChecks).toEqual(["invalidCheck"]);
+    expect(stdoutReport.requestedCheckCount).toBe(1);
+    expect(stdoutReport.requestedCheckResolutions).toEqual([
+      {
+        token: "invalidCheck",
+        normalizedToken: "invalidcheck",
+        kind: "invalid",
+        resolvedTo: [],
+      },
+    ]);
+    expect(stdoutReport.requestedCheckResolutionCounts).toEqual({
+      check: 0,
+      specialSelector: 0,
+      invalid: 1,
+    });
+    expect(stdoutReport.activeCliOptions).toEqual(["--only", "--output"]);
+    expect(stdoutReport.activeCliOptionTokens).toEqual(["--only", "--output"]);
+    expect(stdoutReport.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences([
+        "--only",
+        "invalidCheck",
+        "--output",
+        firstOutputPath,
+        "--verify=1",
+        "--output",
+        secondOutputPath,
+      ])
+    );
+    expect(stdoutReport.message).toBe(
+      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, client. Special selectors: all (all-checks, all_checks, allchecks)."
+    );
+    expect(secondFileReport).toEqual(stdoutReport);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("returns structured write failures for validation-error output paths", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-preflight-invalid-output-path-")
