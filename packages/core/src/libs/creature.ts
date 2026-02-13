@@ -358,11 +358,10 @@ export class Creature extends Group {
   private calculateDelta = () => {
     if (this.manualSpeed) return;
 
-    const p1 = this.position.clone();
-    const p2 = this.newPosition.clone();
-    p1.y = p2.y = 0;
-    const dist = p1.distanceTo(p2);
-    if (dist > 0.00001) {
+    const dx = this.position.x - this.newPosition.x;
+    const dz = this.position.z - this.newPosition.z;
+    const distSq = dx * dx + dz * dz;
+    if (distSq > 0.0000000001) {
       if (this.speed === 0) this.onMove?.();
       this.speed = this.options.walkingSpeed ?? 0.8;
     } else {
