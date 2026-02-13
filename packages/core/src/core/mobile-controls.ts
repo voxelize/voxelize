@@ -82,7 +82,7 @@ export class MobileRigidControls extends RigidControls {
 
     this.mobileQuaternion.setFromEuler(this.mobileEuler);
 
-    (this as any).quaternion.copy(this.mobileQuaternion);
+    this.quaternion.copy(this.mobileQuaternion);
   };
 
   /**

@@ -407,7 +407,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   /**
    * An internal quaternion for sharing position calculations.
    */
-  private quaternion = new Quaternion();
+  protected quaternion = new Quaternion();
 
   /**
    * An internal vector for sharing position calculations.
