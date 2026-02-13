@@ -586,3 +586,69 @@ fn test_remove_light_wrapper_clears_sunlight_column() {
     assert_eq!(chunks.get_sunlight(8, 11, 8), 0);
     assert_eq!(chunks.get_sunlight(8, 10, 8), 0);
 }
+
+#[test]
+fn test_remove_lights_wrapper_clears_multiple_sunlight_columns() {
+    let registry = create_test_registry();
+    let config = WorldConfig {
+        chunk_size: 16,
+        max_height: 16,
+        max_light_level: 15,
+        min_chunk: [0, 0],
+        max_chunk: [0, 0],
+        saving: false,
+        ..Default::default()
+    };
+
+    let mut chunks = Chunks::new(&config);
+    chunks.add(Chunk::new(
+        "chunk-0-0",
+        0,
+        0,
+        &ChunkOptions {
+            size: 16,
+            max_height: 16,
+            sub_chunks: 1,
+        },
+    ));
+
+    let source_a = Vec3(6, 12, 8);
+    let source_b = Vec3(10, 12, 8);
+    chunks.set_sunlight(source_a.0, source_a.1, source_a.2, 15);
+    chunks.set_sunlight(source_b.0, source_b.1, source_b.2, 15);
+
+    Lights::flood_light(
+        &mut chunks,
+        VecDeque::from(vec![
+            voxelize::LightNode {
+                voxel: [source_a.0, source_a.1, source_a.2],
+                level: 15,
+            },
+            voxelize::LightNode {
+                voxel: [source_b.0, source_b.1, source_b.2],
+                level: 15,
+            },
+        ]),
+        &LightColor::Sunlight,
+        &registry,
+        &config,
+        None,
+        None,
+    );
+
+    assert_eq!(chunks.get_sunlight(6, 11, 8), 15);
+    assert_eq!(chunks.get_sunlight(10, 11, 8), 15);
+
+    Lights::remove_lights(
+        &mut chunks,
+        &[source_a.clone(), source_b.clone()],
+        &LightColor::Sunlight,
+        &config,
+        &registry,
+    );
+
+    assert_eq!(chunks.get_sunlight(source_a.0, source_a.1, source_a.2), 0);
+    assert_eq!(chunks.get_sunlight(source_b.0, source_b.1, source_b.2), 0);
+    assert_eq!(chunks.get_sunlight(6, 11, 8), 0);
+    assert_eq!(chunks.get_sunlight(10, 11, 8), 0);
+}
