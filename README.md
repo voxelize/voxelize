@@ -78,6 +78,9 @@ pnpm install
 # generate protocol buffers
 pnpm run proto
 
+# build wasm mesher package for client demo/build
+pnpm run build:wasm:dev
+
 # fresh build
 pnpm run build
 
