@@ -123,28 +123,45 @@ const platform = process.platform;
 const nodeVersion = process.version;
 
 if (outputPathError !== null || selectedChecksError !== null) {
-  console.log(
-    toReportJson(
-      buildTimedReport({
-        passed: false,
-        exitCode: 1,
-        noBuild: isNoBuild,
-        platform,
-        nodeVersion,
-        selectedChecks: [],
-        skippedChecks: availableCheckNames,
-        totalChecks: 0,
-        passedCheckCount: 0,
-        failedCheckCount: 0,
-        firstFailedCheck: null,
-        checks: [],
-        outputPath: null,
-        message: outputPathError ?? selectedChecksError,
-        availableChecks: availableCheckNames,
-      }),
-      jsonFormat
-    )
-  );
+  const report = buildTimedReport({
+    passed: false,
+    exitCode: 1,
+    noBuild: isNoBuild,
+    platform,
+    nodeVersion,
+    selectedChecks: [],
+    skippedChecks: availableCheckNames,
+    totalChecks: 0,
+    passedCheckCount: 0,
+    failedCheckCount: 0,
+    firstFailedCheck: null,
+    checks: [],
+    outputPath: outputPathError === null ? resolvedOutputPath : null,
+    message: outputPathError ?? selectedChecksError,
+    availableChecks: availableCheckNames,
+  });
+  const reportJson = toReportJson(report, jsonFormat);
+
+  if (outputPathError === null && resolvedOutputPath !== null) {
+    const writeError = writeReportToPath(reportJson, resolvedOutputPath);
+    if (writeError !== null) {
+      console.log(
+        toReportJson(
+          buildTimedReport({
+            ...report,
+            passed: false,
+            exitCode: 1,
+            outputPath: null,
+            message: writeError,
+          }),
+          jsonFormat
+        )
+      );
+      process.exit(1);
+    }
+  }
+
+  console.log(reportJson);
   process.exit(1);
 }
 

@@ -358,4 +358,35 @@ describe("preflight aggregate report", () => {
     ]);
     expect(result.status).toBe(1);
   });
+
+  it("writes structured validation errors to output path", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-preflight-invalid-only-output-")
+    );
+    const outputPath = path.resolve(tempDirectory, "report.json");
+
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--only", "invalidCheck", "--output", outputPath],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const stdoutReport = JSON.parse(output) as PreflightReport;
+    const fileReport = JSON.parse(fs.readFileSync(outputPath, "utf8")) as PreflightReport;
+
+    expect(stdoutReport.schemaVersion).toBe(1);
+    expect(stdoutReport.passed).toBe(false);
+    expect(stdoutReport.exitCode).toBe(1);
+    expect(stdoutReport.outputPath).toBe(outputPath);
+    expect(stdoutReport.message).toBe("Invalid check name(s): invalidCheck.");
+    expect(fileReport.outputPath).toBe(outputPath);
+    expect(fileReport.message).toBe(stdoutReport.message);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
 });
