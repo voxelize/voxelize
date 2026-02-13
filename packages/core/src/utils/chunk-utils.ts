@@ -87,6 +87,24 @@ export class ChunkUtils {
   };
 
   /**
+   * Convert voxel coordinates to a string representation without array allocation.
+   *
+   * @param vx The voxel x-coordinate.
+   * @param vy The voxel y-coordinate.
+   * @param vz The voxel z-coordinate.
+   * @param concat The concatenation string to use.
+   * @returns The string representation of voxel coordinates.
+   */
+  static getVoxelNameAt = (
+    vx: number,
+    vy: number,
+    vz: number,
+    concat = "|"
+  ) => {
+    return (vx | 0) + concat + (vy | 0) + concat + (vz | 0);
+  };
+
+  /**
    * Given a chunk representation, parse the chunk coordinates.
    *
    * @param name The string representation of the chunk.

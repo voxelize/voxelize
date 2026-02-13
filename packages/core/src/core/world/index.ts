@@ -1978,7 +1978,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    * @returns
    */
   getPreviousValueAt(px: number, py: number, pz: number, count = 1) {
-    const name = ChunkUtils.getVoxelName([px | 0, py | 0, pz | 0]);
+    const name = ChunkUtils.getVoxelNameAt(px, py, pz);
     const arr = this.oldBlocks.get(name) || [];
     return arr[arr.length - count] || 0;
   }
@@ -2033,7 +2033,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const vx = Math.floor(px);
     const vy = Math.floor(py);
     const vz = Math.floor(pz);
-    const voxelName = ChunkUtils.getVoxelName([vx, vy, vz]);
+    const voxelName = ChunkUtils.getVoxelNameAt(vx, vy, vz);
 
     return this.blockEntitiesMap.get(voxelName)?.data || null;
   }
@@ -2044,7 +2044,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const vx = Math.floor(px);
     const vy = Math.floor(py);
     const vz = Math.floor(pz);
-    const voxelName = ChunkUtils.getVoxelName([vx, vy, vz]);
+    const voxelName = ChunkUtils.getVoxelNameAt(vx, vy, vz);
 
     return this.blockEntitiesMap.get(voxelName)?.id || null;
   }
@@ -2055,7 +2055,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const vx = Math.floor(px);
     const vy = Math.floor(py);
     const vz = Math.floor(pz);
-    const voxelName = ChunkUtils.getVoxelName([vx, vy, vz]);
+    const voxelName = ChunkUtils.getVoxelNameAt(vx, vy, vz);
 
     const old = this.blockEntitiesMap.get(voxelName);
     if (!old) {
@@ -3681,7 +3681,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       const [px, py, pz] = metadata.voxel;
       const [vx, vy, vz] = [Math.floor(px), Math.floor(py), Math.floor(pz)];
-      const voxelId = ChunkUtils.getVoxelName([vx, vy, vz]);
+      const voxelId = ChunkUtils.getVoxelNameAt(vx, vy, vz);
 
       const data: T | null = metadata.json ?? null;
 
@@ -4174,7 +4174,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const oldVal = chunk.getRawValue(vx, vy, vz);
 
     if (oldVal !== newVal) {
-      const name = ChunkUtils.getVoxelName([vx, vy, vz]);
+      const name = ChunkUtils.getVoxelNameAt(vx, vy, vz);
       const arr = this.oldBlocks.get(name) || [];
       arr.push(oldVal);
       this.oldBlocks.set(name, arr);
