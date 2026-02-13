@@ -53,7 +53,9 @@ const availableCheckAliases = {
   wasmPack: ["wasmPack", "wasm", "wasm-pack", "wasm_pack", "wasmpack"],
   client: ["client"],
 };
-const ALL_CHECKS_ALIAS = "all";
+const availableSpecialCheckAliases = {
+  all: ["all"],
+};
 const normalizeCheckToken = (value) => {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
 };
@@ -102,9 +104,11 @@ const parseSelectedChecks = () => {
 
   const invalidChecks = [];
   const resolvedChecks = [];
-  const normalizedAllChecksAlias = normalizeCheckToken(ALL_CHECKS_ALIAS);
+  const normalizedAllChecksAliases = new Set(
+    availableSpecialCheckAliases.all.map((alias) => normalizeCheckToken(alias))
+  );
   for (const parsedCheck of tokenizedChecks) {
-    if (normalizeCheckToken(parsedCheck) === normalizedAllChecksAlias) {
+    if (normalizedAllChecksAliases.has(normalizeCheckToken(parsedCheck))) {
       resolvedChecks.push(...availableCheckNames);
       continue;
     }
@@ -210,6 +214,7 @@ if (outputPathError !== null || selectedChecksError !== null) {
     invalidChecks: effectiveInvalidChecks,
     availableChecks: availableCheckNames,
     availableCheckAliases,
+    availableSpecialCheckAliases,
   });
   const { reportJson } = serializeReportWithOptionalWrite(report, {
     jsonFormat,
@@ -265,6 +270,7 @@ const report = buildTimedReport({
   invalidChecks: [],
   availableChecks: availableCheckNames,
   availableCheckAliases,
+  availableSpecialCheckAliases,
 });
 const { reportJson, writeError } = serializeReportWithOptionalWrite(report, {
   jsonFormat,

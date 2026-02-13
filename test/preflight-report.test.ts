@@ -45,6 +45,9 @@ type PreflightReport = {
     wasmPack: string[];
     client: string[];
   };
+  availableSpecialCheckAliases: {
+    all: string[];
+  };
   passedChecks: string[];
   failedChecks: string[];
   failureSummaries: PreflightFailureSummary[];
@@ -69,6 +72,9 @@ const expectedAvailableCheckAliases = {
   ],
   wasmPack: ["wasmPack", "wasm", "wasm-pack", "wasm_pack", "wasmpack"],
   client: ["client"],
+};
+const expectedAvailableSpecialCheckAliases = {
+  all: ["all"],
 };
 
 describe("preflight aggregate report", () => {
@@ -96,6 +102,9 @@ describe("preflight aggregate report", () => {
       "client",
     ]);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
+    expect(report.availableSpecialCheckAliases).toEqual(
+      expectedAvailableSpecialCheckAliases
+    );
     expect(report.selectionMode).toBe("default");
     expect(report.selectedChecks).toEqual(report.availableChecks);
     expect(report.requestedChecks).toEqual([]);
@@ -336,6 +345,36 @@ describe("preflight aggregate report", () => {
       "client",
     ]);
     expect(report.requestedChecks).toEqual(["all"]);
+    expect(report.skippedChecks).toEqual([]);
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.checks.map((check) => check.name)).toEqual([
+      "devEnvironment",
+      "wasmPack",
+      "client",
+    ]);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
+  it("supports case-insensitive all alias selection", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--no-build", "--only", "ALL"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.selectedChecks).toEqual([
+      "devEnvironment",
+      "wasmPack",
+      "client",
+    ]);
+    expect(report.requestedChecks).toEqual(["ALL"]);
     expect(report.skippedChecks).toEqual([]);
     expect(report.invalidChecks).toEqual([]);
     expect(report.checks.map((check) => check.name)).toEqual([
@@ -734,6 +773,9 @@ describe("preflight aggregate report", () => {
       "client",
     ]);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
+    expect(report.availableSpecialCheckAliases).toEqual(
+      expectedAvailableSpecialCheckAliases
+    );
     expect(result.status).toBe(1);
   });
 
