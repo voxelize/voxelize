@@ -31,6 +31,8 @@ pub struct Block {
     #[serde(skip, default)]
     pub fluid_face_uvs: Option<[UV; 6]>,
     #[serde(skip, default)]
+    pub greedy_face_uv_quantized: [[u32; 4]; 6],
+    #[serde(skip, default)]
     pub has_diagonal_faces: bool,
     #[serde(skip, default)]
     pub has_independent_or_isolated_faces: bool,
@@ -69,6 +71,7 @@ impl Block {
         };
         let mut has_standard_six_faces = false;
         let mut fluid_face_uvs = std::array::from_fn(|_| UV::default());
+        let mut greedy_face_uv_quantized = [[0u32; 4]; 6];
         let mut has_diagonal = false;
         let mut has_cardinal = false;
         let mut has_independent_or_isolated_faces = false;
@@ -126,6 +129,21 @@ impl Block {
         } else {
             None
         };
+        let mut dir_index = 0usize;
+        while dir_index < self.greedy_face_indices.len() {
+            let face_index = self.greedy_face_indices[dir_index];
+            if face_index >= 0 {
+                let uv = self.faces[face_index as usize].range;
+                greedy_face_uv_quantized[dir_index] = [
+                    (uv.start_u * 1000000.0) as u32,
+                    (uv.end_u * 1000000.0) as u32,
+                    (uv.start_v * 1000000.0) as u32,
+                    (uv.end_v * 1000000.0) as u32,
+                ];
+            }
+            dir_index += 1;
+        }
+        self.greedy_face_uv_quantized = greedy_face_uv_quantized;
         self.has_diagonal_faces = has_diagonal;
         self.has_independent_or_isolated_faces = has_independent_or_isolated_faces;
         self.has_mixed_diagonal_and_cardinal = has_diagonal && has_cardinal;
@@ -3769,6 +3787,16 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 compute_face_ao_and_light_fast(dir, block, &neighbors, registry)
                             };
                             let uv_range = face.range;
+                            let [uv_start_u, uv_end_u, uv_start_v, uv_end_v] = if cache_ready {
+                                block.greedy_face_uv_quantized[dir_index]
+                            } else {
+                                [
+                                    (uv_range.start_u * 1000000.0) as u32,
+                                    (uv_range.end_u * 1000000.0) as u32,
+                                    (uv_range.start_v * 1000000.0) as u32,
+                                    (uv_range.end_v * 1000000.0) as u32,
+                                ]
+                            };
                             greedy_mask[current_mask_index] = Some(FaceData {
                                 key: FaceKey {
                                     block_id: block.id,
@@ -3776,10 +3804,10 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                     independent: false,
                                     ao: aos,
                                     light: lights,
-                                    uv_start_u: (uv_range.start_u * 1000000.0) as u32,
-                                    uv_end_u: (uv_range.end_u * 1000000.0) as u32,
-                                    uv_start_v: (uv_range.start_v * 1000000.0) as u32,
-                                    uv_end_v: (uv_range.end_v * 1000000.0) as u32,
+                                    uv_start_u,
+                                    uv_end_u,
+                                    uv_start_v,
+                                    uv_end_v,
                                 },
                                 uv_range,
                                 is_fluid,

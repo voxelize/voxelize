@@ -259,6 +259,7 @@ fn base_block(id: u32, name: &str) -> Block {
         greedy_face_indices: [-1; 6],
         has_standard_six_faces: false,
         fluid_face_uvs: None,
+        greedy_face_uv_quantized: [[0; 4]; 6],
         has_diagonal_faces: false,
         has_independent_or_isolated_faces: false,
         has_dynamic_patterns: false,
