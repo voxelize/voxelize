@@ -1171,6 +1171,20 @@ fn should_render_face<S: VoxelAccess>(
     let nvz = vz + dir[2];
 
     let neighbor_id = space.get_voxel(nvx, nvy, nvz);
+    let is_opaque = block.is_opaque;
+
+    if !see_through {
+        if !is_opaque {
+            return true;
+        }
+        if registry.is_opaque_id(neighbor_id) {
+            return false;
+        }
+        if registry.get_block_by_id(neighbor_id).is_some() {
+            return true;
+        }
+        return !space.contains(nvx, nvy, nvz);
+    }
 
     let n_block_type = match registry.get_block_by_id(neighbor_id) {
         Some(b) => b,
@@ -1179,11 +1193,6 @@ fn should_render_face<S: VoxelAccess>(
 
     if n_block_type.is_empty {
         return true;
-    }
-
-    let is_opaque = block.is_opaque;
-    if !see_through {
-        return !is_opaque || !n_block_type.is_opaque;
     }
 
     if is_opaque || n_block_type.is_opaque {
