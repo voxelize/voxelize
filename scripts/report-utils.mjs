@@ -372,17 +372,26 @@ const resolveCanonicalOptionToken = (
   return null;
 };
 
+const parseInlineOptionName = (optionToken) => {
+  const equalsIndex = optionToken.indexOf("=");
+  if (equalsIndex <= 0) {
+    return null;
+  }
+
+  return optionToken.slice(0, equalsIndex);
+};
+
 const isKnownOptionTokenLike = (optionToken, canonicalOptionMap) => {
   if (canonicalOptionMap.has(optionToken)) {
     return true;
   }
 
-  const equalsIndex = optionToken.indexOf("=");
-  if (equalsIndex <= 0) {
+  const inlineOptionName = parseInlineOptionName(optionToken);
+  if (inlineOptionName === null) {
     return false;
   }
 
-  return canonicalOptionMap.has(optionToken.slice(0, equalsIndex));
+  return canonicalOptionMap.has(inlineOptionName);
 };
 
 const createValueOptionMetadata = (
@@ -425,12 +434,11 @@ const createValueOptionMetadata = (
 };
 
 const normalizeUnknownOptionToken = (optionToken, canonicalOptionMap) => {
-  const equalsIndex = optionToken.indexOf("=");
-  if (equalsIndex <= 0) {
+  const optionName = parseInlineOptionName(optionToken);
+  if (optionName === null) {
     return optionToken;
   }
 
-  const optionName = optionToken.slice(0, equalsIndex);
   if (optionName === "-" || optionName === "--") {
     return `${optionName}=<value>`;
   }
@@ -741,12 +749,12 @@ export const resolveLastOptionValue = (
       return true;
     }
 
-    const equalsIndex = optionToken.indexOf("=");
-    if (equalsIndex <= 0) {
+    const inlineOptionName = parseInlineOptionName(optionToken);
+    if (inlineOptionName === null) {
       return false;
     }
 
-    return recognizedOptionTokenSet.has(optionToken.slice(0, equalsIndex));
+    return recognizedOptionTokenSet.has(inlineOptionName);
   };
   const inlineOptionPrefix = `${optionName}=`;
   let hasOption = false;
