@@ -378,6 +378,14 @@ const parseActiveCliOptionTokens = (args) => {
   return activeTokens;
 };
 const activeCliOptionTokens = parseActiveCliOptionTokens(cliArgs);
+const activeCliOptionResolutions = activeCliOptionTokens.map((token) => {
+  const canonicalOption = cliOptionCanonicalMap.get(token);
+  return {
+    token,
+    canonicalOption: canonicalOption ?? token,
+  };
+});
+const activeCliOptionResolutionCount = activeCliOptionResolutions.length;
 const unsupportedOptionsError =
   unknownOptions.length === 0
     ? null
@@ -479,6 +487,8 @@ if (
     activeCliOptions,
     activeCliOptionCount,
     activeCliOptionTokens,
+    activeCliOptionResolutions,
+    activeCliOptionResolutionCount,
     availableCliOptionAliases,
     availableChecks: availableCheckNames,
     availableCheckMetadata,
@@ -536,6 +546,8 @@ if (isListChecks) {
     activeCliOptions,
     activeCliOptionCount,
     activeCliOptionTokens,
+    activeCliOptionResolutions,
+    activeCliOptionResolutionCount,
     availableCliOptionAliases,
     availableChecks: availableCheckNames,
     availableCheckMetadata,
@@ -610,6 +622,8 @@ const report = buildTimedReport({
   activeCliOptions,
   activeCliOptionCount,
   activeCliOptionTokens,
+  activeCliOptionResolutions,
+  activeCliOptionResolutionCount,
   availableCliOptionAliases,
   availableChecks: availableCheckNames,
   availableCheckMetadata,
