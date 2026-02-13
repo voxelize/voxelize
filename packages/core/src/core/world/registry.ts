@@ -46,28 +46,82 @@ export class Registry {
         ...rest
       } = block;
       /* eslint-enable @typescript-eslint/no-unused-vars */
+      const serializedAabbs = new Array<PlainAABB>(aabbs.length);
+      for (let aabbIndex = 0; aabbIndex < aabbs.length; aabbIndex++) {
+        serializedAabbs[aabbIndex] = serializeAabb(aabbs[aabbIndex]);
+      }
+
+      let serializedDynamicPatterns:
+        | Array<{
+            parts: Array<{
+              aabbs: PlainAABB[];
+            } & Omit<(typeof dynamicPatterns)[number]["parts"][number], "aabbs">>;
+          }>
+        | undefined;
+      if (dynamicPatterns) {
+        serializedDynamicPatterns = new Array(dynamicPatterns.length);
+        for (
+          let patternIndex = 0;
+          patternIndex < dynamicPatterns.length;
+          patternIndex++
+        ) {
+          const pattern = dynamicPatterns[patternIndex];
+          const parts = pattern.parts;
+          const serializedParts = new Array<{
+            aabbs: PlainAABB[];
+          } & Omit<(typeof parts)[number], "aabbs">>(parts.length);
+
+          for (let partIndex = 0; partIndex < parts.length; partIndex++) {
+            const part = parts[partIndex];
+            const partAabbs = new Array<PlainAABB>(part.aabbs.length);
+            for (let aabbIndex = 0; aabbIndex < part.aabbs.length; aabbIndex++) {
+              partAabbs[aabbIndex] = serializeAabb(part.aabbs[aabbIndex]);
+            }
+
+            serializedParts[partIndex] = {
+              ...part,
+              aabbs: partAabbs,
+            };
+          }
+
+          serializedDynamicPatterns[patternIndex] = {
+            parts: serializedParts,
+          };
+        }
+      }
+
       return {
         ...rest,
-        aabbs: aabbs.map(serializeAabb),
-        dynamicPatterns: dynamicPatterns?.map((pattern) => ({
-          parts: pattern.parts.map((part) => ({
-            ...part,
-            aabbs: part.aabbs.map(serializeAabb),
-          })),
-        })),
+        aabbs: serializedAabbs,
+        dynamicPatterns: serializedDynamicPatterns,
       };
     };
 
+    const blocksByName: [string, ReturnType<typeof serializeBlock>][] = [];
+    for (const [name, block] of this.blocksByName) {
+      blocksByName.push([name, serializeBlock(block)]);
+    }
+
+    const blocksById: [number, ReturnType<typeof serializeBlock>][] = [];
+    for (const [id, block] of this.blocksById) {
+      blocksById.push([id, serializeBlock(block)]);
+    }
+
+    const nameMap: [string, number][] = [];
+    for (const [name, id] of this.nameMap) {
+      nameMap.push([name, id]);
+    }
+
+    const idMap: [number, string][] = [];
+    for (const [id, name] of this.idMap) {
+      idMap.push([id, name]);
+    }
+
     return {
-      blocksByName: Array.from(this.blocksByName.entries()).map(
-        ([name, block]) => [name, serializeBlock(block)]
-      ),
-      blocksById: Array.from(this.blocksById.entries()).map(([id, block]) => [
-        id,
-        serializeBlock(block),
-      ]),
-      nameMap: Array.from(this.nameMap.entries()),
-      idMap: Array.from(this.idMap.entries()),
+      blocksByName,
+      blocksById,
+      nameMap,
+      idMap,
     };
   }
 
