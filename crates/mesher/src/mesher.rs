@@ -2120,30 +2120,33 @@ fn process_greedy_quad(
         let c_rt = (light2 >> 8) & 0xF;
         let d_rt = (light3 >> 8) & 0xF;
 
-        let a_gt = (light0 >> 4) & 0xF;
-        let b_gt = (light1 >> 4) & 0xF;
-        let c_gt = (light2 >> 4) & 0xF;
-        let d_gt = (light3 >> 4) & 0xF;
-
-        let a_bt = light0 & 0xF;
-        let b_bt = light1 & 0xF;
-        let c_bt = light2 & 0xF;
-        let d_bt = light3 & 0xF;
-
         let one_tr0 = a_rt == 0 || b_rt == 0 || c_rt == 0 || d_rt == 0;
-        let one_tg0 = a_gt == 0 || b_gt == 0 || c_gt == 0 || d_gt == 0;
-        let one_tb0 = a_bt == 0 || b_bt == 0 || c_bt == 0 || d_bt == 0;
-
         let fequals = ao_diag_sum == ao_off_sum;
         let ozao_r = fequals && a_rt + d_rt < b_rt + c_rt;
-        let ozao_g = fequals && a_gt + d_gt < b_gt + c_gt;
-        let ozao_b = fequals && a_bt + d_bt < b_bt + c_bt;
-
         let anz_r = one_tr0 && has_channel_midpoint_anomaly(a_rt, b_rt, c_rt, d_rt);
-        let anz_g = one_tg0 && has_channel_midpoint_anomaly(a_gt, b_gt, c_gt, d_gt);
-        let anz_b = one_tb0 && has_channel_midpoint_anomaly(a_bt, b_bt, c_bt, d_bt);
-
-        (ozao_r || ozao_g || ozao_b) || (anz_r || anz_g || anz_b)
+        if ozao_r || anz_r {
+            true
+        } else {
+            let a_gt = (light0 >> 4) & 0xF;
+            let b_gt = (light1 >> 4) & 0xF;
+            let c_gt = (light2 >> 4) & 0xF;
+            let d_gt = (light3 >> 4) & 0xF;
+            let one_tg0 = a_gt == 0 || b_gt == 0 || c_gt == 0 || d_gt == 0;
+            let ozao_g = fequals && a_gt + d_gt < b_gt + c_gt;
+            let anz_g = one_tg0 && has_channel_midpoint_anomaly(a_gt, b_gt, c_gt, d_gt);
+            if ozao_g || anz_g {
+                true
+            } else {
+                let a_bt = light0 & 0xF;
+                let b_bt = light1 & 0xF;
+                let c_bt = light2 & 0xF;
+                let d_bt = light3 & 0xF;
+                let one_tb0 = a_bt == 0 || b_bt == 0 || c_bt == 0 || d_bt == 0;
+                let ozao_b = fequals && a_bt + d_bt < b_bt + c_bt;
+                let anz_b = one_tb0 && has_channel_midpoint_anomaly(a_bt, b_bt, c_bt, d_bt);
+                ozao_b || anz_b
+            }
+        }
     };
 
     if should_flip {
@@ -2781,19 +2784,24 @@ fn process_face<S: VoxelAccess>(
             true
         } else {
             let one_tr0 = a_rt == 0 || b_rt == 0 || c_rt == 0 || d_rt == 0;
-            let one_tg0 = a_gt == 0 || b_gt == 0 || c_gt == 0 || d_gt == 0;
-            let one_tb0 = a_bt == 0 || b_bt == 0 || c_bt == 0 || d_bt == 0;
-
             let fequals = ao_diag_sum == ao_off_sum;
             let ozao_r = fequals && a_rt + d_rt < b_rt + c_rt;
-            let ozao_g = fequals && a_gt + d_gt < b_gt + c_gt;
-            let ozao_b = fequals && a_bt + d_bt < b_bt + c_bt;
-
             let anz_r = one_tr0 && has_channel_midpoint_anomaly(a_rt, b_rt, c_rt, d_rt);
-            let anz_g = one_tg0 && has_channel_midpoint_anomaly(a_gt, b_gt, c_gt, d_gt);
-            let anz_b = one_tb0 && has_channel_midpoint_anomaly(a_bt, b_bt, c_bt, d_bt);
-
-            (ozao_r || ozao_g || ozao_b) || (anz_r || anz_g || anz_b)
+            if ozao_r || anz_r {
+                true
+            } else {
+                let one_tg0 = a_gt == 0 || b_gt == 0 || c_gt == 0 || d_gt == 0;
+                let ozao_g = fequals && a_gt + d_gt < b_gt + c_gt;
+                let anz_g = one_tg0 && has_channel_midpoint_anomaly(a_gt, b_gt, c_gt, d_gt);
+                if ozao_g || anz_g {
+                    true
+                } else {
+                    let one_tb0 = a_bt == 0 || b_bt == 0 || c_bt == 0 || d_bt == 0;
+                    let ozao_b = fequals && a_bt + d_bt < b_bt + c_bt;
+                    let anz_b = one_tb0 && has_channel_midpoint_anomaly(a_bt, b_bt, c_bt, d_bt);
+                    ozao_b || anz_b
+                }
+            }
         };
 
         indices.push(ndx);
