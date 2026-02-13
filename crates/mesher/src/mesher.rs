@@ -1457,38 +1457,44 @@ fn is_surrounded_by_opaque_neighbors<S: VoxelAccess>(
     let id_nz = extract_id(space.get_raw_voxel(vx, vy, vz - 1));
 
     if let Some(dense) = &registry.dense_lookup {
-        let is_opaque = |id: u32| {
-            let lookup_index = id as usize;
-            if lookup_index < dense.len() {
-                let dense_index = dense[lookup_index];
-                dense_index != usize::MAX && registry.blocks_by_id[dense_index].1.is_opaque
-            } else {
-                false
-            }
-        };
-        return is_opaque(id_px)
-            && is_opaque(id_nx)
-            && is_opaque(id_py)
-            && is_opaque(id_ny)
-            && is_opaque(id_pz)
-            && is_opaque(id_nz);
+        let blocks = &registry.blocks_by_id;
+        let dense_len = dense.len();
+        macro_rules! dense_opaque {
+            ($id:expr) => {{
+                let lookup_index = $id as usize;
+                if lookup_index < dense_len {
+                    let dense_index = dense[lookup_index];
+                    dense_index != usize::MAX && blocks[dense_index].1.is_opaque
+                } else {
+                    false
+                }
+            }};
+        }
+        return dense_opaque!(id_px)
+            && dense_opaque!(id_nx)
+            && dense_opaque!(id_py)
+            && dense_opaque!(id_ny)
+            && dense_opaque!(id_pz)
+            && dense_opaque!(id_nz);
     }
 
     if let Some(cache) = &registry.lookup_cache {
         let blocks = &registry.blocks_by_id;
-        let is_opaque = |id: u32| {
-            if let Some(&lookup_index) = cache.get(&id) {
-                blocks[lookup_index].1.is_opaque
-            } else {
-                false
-            }
-        };
-        return is_opaque(id_px)
-            && is_opaque(id_nx)
-            && is_opaque(id_py)
-            && is_opaque(id_ny)
-            && is_opaque(id_pz)
-            && is_opaque(id_nz);
+        macro_rules! cache_opaque {
+            ($id:expr) => {{
+                if let Some(&lookup_index) = cache.get(&$id) {
+                    blocks[lookup_index].1.is_opaque
+                } else {
+                    false
+                }
+            }};
+        }
+        return cache_opaque!(id_px)
+            && cache_opaque!(id_nx)
+            && cache_opaque!(id_py)
+            && cache_opaque!(id_ny)
+            && cache_opaque!(id_pz)
+            && cache_opaque!(id_nz);
     }
 
     registry.is_opaque_id(id_px)
