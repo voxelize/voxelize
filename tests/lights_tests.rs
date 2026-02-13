@@ -430,6 +430,38 @@ fn test_register_blocks_panics_on_duplicate_ids_in_batch() {
 }
 
 #[test]
+fn test_register_blocks_duplicate_ids_panic_keeps_registry_and_caches_unchanged() {
+    let mut registry = create_test_registry();
+    let mesher_before = registry.mesher_registry();
+    let lighter_before = registry.lighter_registry();
+
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        registry.register_blocks(&[
+            Block::new("dup-a").id(41).build(),
+            Block::new("dup-b").id(41).build(),
+        ]);
+    }));
+
+    assert!(result.is_err());
+    assert!(
+        !registry.has_type(41),
+        "failed duplicate-id bulk registration should not mutate registry"
+    );
+
+    let mesher_after = registry.mesher_registry();
+    let lighter_after = registry.lighter_registry();
+
+    assert!(
+        Arc::ptr_eq(&mesher_before, &mesher_after),
+        "mesher cache should remain intact when duplicate-id batch panics"
+    );
+    assert!(
+        Arc::ptr_eq(&lighter_before, &lighter_after),
+        "lighter cache should remain intact when duplicate-id batch panics"
+    );
+}
+
+#[test]
 fn test_register_blocks_panics_on_existing_id_conflict() {
     let mut registry = create_test_registry();
 
