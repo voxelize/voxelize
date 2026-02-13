@@ -5291,6 +5291,15 @@ export class World<T = any> extends Scene implements NetIntercept {
     let processedClientUpdateCount = 0;
     const processedUpdates = new Array<ProcessedUpdate>(maxUpdates);
     let processedUpdateCount = 0;
+    const blockCache = new Map<number, Block>();
+    const getCachedBlock = (id: number) => {
+      let block = blockCache.get(id);
+      if (!block) {
+        block = this.getBlockById(id);
+        blockCache.set(id, block);
+      }
+      return block;
+    };
 
     for (let index = startIndex; index < endIndex; index++) {
       if (consumedCount > 0 && performance.now() > updateDeadline) {
@@ -5318,8 +5327,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       const currentRaw = chunk.getRawValue(vx, vy, vz);
       const currentId = BlockUtils.extractID(currentRaw);
-      const currentBlock = this.getBlockById(currentId);
-      const newBlock = this.getBlockById(type);
+      const currentBlock = getCachedBlock(currentId);
+      const newBlock = getCachedBlock(type);
       const currentRotation = BlockUtils.extractRotation(currentRaw);
       const currentStage = BlockUtils.extractStage(currentRaw);
       const normalizedStage =
