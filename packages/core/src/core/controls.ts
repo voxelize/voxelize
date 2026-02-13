@@ -415,6 +415,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   private stepResetTimeout: ReturnType<typeof setTimeout> | null = null;
   private stepLerpActive = false;
   private positionLerpBeforeStep = 0;
+  private flyToggleTimeout: ReturnType<typeof setTimeout> | null = null;
 
   /**
    * Whether or not is the first movement back on lock. This is because Chrome has a bug where
@@ -884,8 +885,13 @@ export class RigidControls extends EventEmitter implements NetIntercept {
         this.body.applyImpulse([0, 8, 0]);
       }
 
-      setTimeout(() => {
-        this.body.gravityMultiplier = isFlying ? 1 : 0;
+      if (this.flyToggleTimeout) {
+        clearTimeout(this.flyToggleTimeout);
+      }
+      const nextGravityMultiplier = isFlying ? 1 : 0;
+      this.flyToggleTimeout = setTimeout(() => {
+        this.body.gravityMultiplier = nextGravityMultiplier;
+        this.flyToggleTimeout = null;
       }, 100);
     }
   };
