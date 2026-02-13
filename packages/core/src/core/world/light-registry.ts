@@ -62,9 +62,12 @@ export class LightSourceRegistry {
   getAllLights(): DynamicLight[] {
     const lights = new Array<DynamicLight>(this.lights.size);
     let index = 0;
-    for (const light of this.lights.values()) {
-      lights[index] = light;
+    let lightEntries = this.lights.values();
+    let lightEntry = lightEntries.next();
+    while (!lightEntry.done) {
+      lights[index] = lightEntry.value;
       index++;
+      lightEntry = lightEntries.next();
     }
     return lights;
   }
@@ -72,7 +75,10 @@ export class LightSourceRegistry {
   getLightsInRegion(min: Vector3, max: Vector3): DynamicLight[] {
     const result: DynamicLight[] = [];
 
-    for (const light of this.lights.values()) {
+    let lightEntries = this.lights.values();
+    let lightEntry = lightEntries.next();
+    while (!lightEntry.done) {
+      const light = lightEntry.value;
       const pos = light.position;
       const r = light.radius;
 
@@ -86,6 +92,7 @@ export class LightSourceRegistry {
       ) {
         result.push(light);
       }
+      lightEntry = lightEntries.next();
     }
 
     return result;
@@ -104,7 +111,10 @@ export class LightSourceRegistry {
   ): number {
     let count = 0;
 
-    for (const light of this.lights.values()) {
+    let lightEntries = this.lights.values();
+    let lightEntry = lightEntries.next();
+    while (!lightEntry.done) {
+      const light = lightEntry.value;
       const maxDist = maxDistance + light.radius;
       const dx = light.position.x - point.x;
       const dy = light.position.y - point.y;
@@ -113,6 +123,7 @@ export class LightSourceRegistry {
         out[count] = light;
         count++;
       }
+      lightEntry = lightEntries.next();
     }
 
     out.length = count;
@@ -142,9 +153,12 @@ export class LightSourceRegistry {
   getDirtyRegions(): string[] {
     const dirtyRegions = new Array<string>(this.dirtyRegions.size);
     let index = 0;
-    for (const region of this.dirtyRegions.values()) {
-      dirtyRegions[index] = region;
+    let regionEntries = this.dirtyRegions.values();
+    let regionEntry = regionEntries.next();
+    while (!regionEntry.done) {
+      dirtyRegions[index] = regionEntry.value;
       index++;
+      regionEntry = regionEntries.next();
     }
     return dirtyRegions;
   }
