@@ -1804,6 +1804,12 @@ fn get_dynamic_faces<S: VoxelAccess>(
     block.faces.iter().cloned().map(|f| (f, false)).collect()
 }
 
+struct FaceProcessCache {
+    opaque_mask: Option<[bool; 27]>,
+    center_lights: Option<(u32, u32, u32, u32)>,
+    fluid_surface_above: bool,
+}
+
 fn process_face<S: VoxelAccess>(
     vx: i32,
     vy: i32,
@@ -1816,6 +1822,7 @@ fn process_face<S: VoxelAccess>(
     registry: &Registry,
     space: &S,
     neighbors: &NeighborCache,
+    cache: Option<&FaceProcessCache>,
     see_through: bool,
     is_fluid: bool,
     positions: &mut Vec<f32>,
@@ -1927,17 +1934,27 @@ fn process_face<S: VoxelAccess>(
         (block_aabb.min_x, block_aabb.min_y, block_aabb.min_z)
     };
     let needs_opaque_checks = !(is_see_through || is_all_transparent);
-    let opaque_mask = if needs_opaque_checks {
+    let precomputed_opaque_mask = cache.and_then(|entry| entry.opaque_mask.as_ref());
+    let built_opaque_mask = if needs_opaque_checks && precomputed_opaque_mask.is_none() {
         Some(build_neighbor_opaque_mask(neighbors, registry))
     } else {
         None
     };
-    let center_lights = if is_see_through || is_all_transparent {
-        Some(neighbors.get_all_lights(0, 0, 0))
+    let opaque_mask = if needs_opaque_checks {
+        precomputed_opaque_mask.or(built_opaque_mask.as_ref())
     } else {
         None
     };
-    let fluid_surface_above = is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space);
+    let center_lights = if is_see_through || is_all_transparent {
+        cache
+            .and_then(|entry| entry.center_lights)
+            .or(Some(neighbors.get_all_lights(0, 0, 0)))
+    } else {
+        None
+    };
+    let fluid_surface_above = cache
+        .map(|entry| entry.fluid_surface_above)
+        .unwrap_or_else(|| is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space));
 
     let is_diagonal = dir == [0, 0, 0];
     let has_diagonals = is_see_through && has_diagonal_faces(block);
@@ -2025,9 +2042,7 @@ fn process_face<S: VoxelAccess>(
             green_light = g;
             blue_light = b;
         } else {
-            let mask = opaque_mask
-                .as_ref()
-                .expect("opaque mask exists when opaque checks are needed");
+            let mask = opaque_mask.expect("opaque mask exists when opaque checks are needed");
             let mut sum_sunlights = 0u32;
             let mut sum_red_lights = 0u32;
             let mut sum_green_lights = 0u32;
@@ -2495,6 +2510,25 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                 uv_map.insert(face.name.clone(), uv_range);
 
                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                let is_all_transparent = block.is_transparent[0]
+                    && block.is_transparent[1]
+                    && block.is_transparent[2]
+                    && block.is_transparent[3]
+                    && block.is_transparent[4]
+                    && block.is_transparent[5];
+                let face_cache = FaceProcessCache {
+                    opaque_mask: if !(is_see_through || is_all_transparent) {
+                        Some(build_neighbor_opaque_mask(&neighbors, registry))
+                    } else {
+                        None
+                    },
+                    center_lights: if is_see_through || is_all_transparent {
+                        Some(neighbors.get_all_lights(0, 0, 0))
+                    } else {
+                        None
+                    },
+                    fluid_surface_above: is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space),
+                };
                 process_face(
                     vx,
                     vy,
@@ -2507,6 +2541,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     registry,
                     space,
                     &neighbors,
+                    Some(&face_cache),
                     is_see_through,
                     is_fluid,
                     &mut geometry.positions,
@@ -2838,6 +2873,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     registry,
                     space,
                     &neighbors,
+                    None,
                     is_see_through,
                     is_fluid,
                     &mut geometry.positions,
@@ -2928,6 +2964,25 @@ pub fn mesh_space<S: VoxelAccess>(
                 }
 
                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                let is_all_transparent = block.is_transparent[0]
+                    && block.is_transparent[1]
+                    && block.is_transparent[2]
+                    && block.is_transparent[3]
+                    && block.is_transparent[4]
+                    && block.is_transparent[5];
+                let face_cache = FaceProcessCache {
+                    opaque_mask: if !(is_see_through || is_all_transparent) {
+                        Some(build_neighbor_opaque_mask(&neighbors, registry))
+                    } else {
+                        None
+                    },
+                    center_lights: if is_see_through || is_all_transparent {
+                        Some(neighbors.get_all_lights(0, 0, 0))
+                    } else {
+                        None
+                    },
+                    fluid_surface_above: is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space),
+                };
 
                 for (face, world_space) in faces.iter() {
                     let key = geometry_key_for_face(block, face, vx, vy, vz);
@@ -2956,6 +3011,7 @@ pub fn mesh_space<S: VoxelAccess>(
                         registry,
                         space,
                         &neighbors,
+                        Some(&face_cache),
                         is_see_through,
                         is_fluid,
                         &mut geometry.positions,
