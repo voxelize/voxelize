@@ -6979,12 +6979,21 @@ export class World<T = any> extends Scene implements NetIntercept {
       zSet.add(cz);
     }
 
-    for (const [cx, zSet] of affectedChunks) {
-      for (const cz of zSet) {
-        this.markChunkForRemeshAt(cx, cz);
+    let affectedChunkEntries = affectedChunks.entries();
+    let affectedChunkEntry = affectedChunkEntries.next();
+    while (!affectedChunkEntry.done) {
+      const entry = affectedChunkEntry.value;
+      const cx = entry[0];
+      const zSet = entry[1];
+      let zValues = zSet.values();
+      let zValue = zValues.next();
+      while (!zValue.done) {
+        this.markChunkForRemeshAt(cx, zValue.value);
+        zValue = zValues.next();
       }
       zSet.clear();
       reusableZSets.push(zSet);
+      affectedChunkEntry = affectedChunkEntries.next();
     }
     affectedChunks.clear();
   }
