@@ -198,6 +198,7 @@ If `--output` is provided without a value, JSON commands return a structured err
 If `--output` or `--only` is passed multiple times, the last value is used.
 Invalid `--only` errors include available canonical check names for quick correction.
 Invalid `--only` errors also include `invalidChecks` for machine-readable diagnostics.
+Aggregate preflight reports include `availableCheckAliases` so automation can map user-facing aliases to canonical check names.
 If report writing fails, JSON error reports include both `message` and `writeError`.
 Add `--compact` to each JSON preflight command for single-line JSON output.
 
