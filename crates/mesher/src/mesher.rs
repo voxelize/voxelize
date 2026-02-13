@@ -1366,12 +1366,51 @@ fn is_surrounded_by_opaque_neighbors<S: VoxelAccess>(
     space: &S,
     registry: &Registry,
 ) -> bool {
-    registry.is_opaque_id(extract_id(space.get_raw_voxel(vx + 1, vy, vz)))
-        && registry.is_opaque_id(extract_id(space.get_raw_voxel(vx - 1, vy, vz)))
-        && registry.is_opaque_id(extract_id(space.get_raw_voxel(vx, vy + 1, vz)))
-        && registry.is_opaque_id(extract_id(space.get_raw_voxel(vx, vy - 1, vz)))
-        && registry.is_opaque_id(extract_id(space.get_raw_voxel(vx, vy, vz + 1)))
-        && registry.is_opaque_id(extract_id(space.get_raw_voxel(vx, vy, vz - 1)))
+    let id_px = extract_id(space.get_raw_voxel(vx + 1, vy, vz));
+    let id_nx = extract_id(space.get_raw_voxel(vx - 1, vy, vz));
+    let id_py = extract_id(space.get_raw_voxel(vx, vy + 1, vz));
+    let id_ny = extract_id(space.get_raw_voxel(vx, vy - 1, vz));
+    let id_pz = extract_id(space.get_raw_voxel(vx, vy, vz + 1));
+    let id_nz = extract_id(space.get_raw_voxel(vx, vy, vz - 1));
+
+    if let Some(dense) = &registry.dense_lookup {
+        let is_opaque = |id: u32| {
+            if let Some(&dense_index) = dense.get(id as usize) {
+                dense_index != usize::MAX && registry.blocks_by_id[dense_index].1.is_opaque
+            } else {
+                false
+            }
+        };
+        return is_opaque(id_px)
+            && is_opaque(id_nx)
+            && is_opaque(id_py)
+            && is_opaque(id_ny)
+            && is_opaque(id_pz)
+            && is_opaque(id_nz);
+    }
+
+    if let Some(cache) = &registry.lookup_cache {
+        let is_opaque = |id: u32| {
+            if let Some(&lookup_index) = cache.get(&id) {
+                registry.blocks_by_id[lookup_index].1.is_opaque
+            } else {
+                false
+            }
+        };
+        return is_opaque(id_px)
+            && is_opaque(id_nx)
+            && is_opaque(id_py)
+            && is_opaque(id_ny)
+            && is_opaque(id_pz)
+            && is_opaque(id_nz);
+    }
+
+    registry.is_opaque_id(id_px)
+        && registry.is_opaque_id(id_nx)
+        && registry.is_opaque_id(id_py)
+        && registry.is_opaque_id(id_ny)
+        && registry.is_opaque_id(id_pz)
+        && registry.is_opaque_id(id_nz)
 }
 
 #[inline(always)]
