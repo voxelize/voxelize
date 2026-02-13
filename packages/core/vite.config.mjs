@@ -21,7 +21,11 @@ export default defineConfig({
     topLevelAwait(),
     glsl(),
     externalizeDeps({
-      except: [/three\/examples\//, /@voxelize\/wasm-mesher/],
+      except: [
+        /three\/examples\//,
+        /@voxelize\/wasm-mesher/,
+        /@voxelize\/wasm-lighter/,
+      ],
     }),
     stringReplace([
       {
