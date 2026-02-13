@@ -2687,6 +2687,11 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
             _ => (min_z, max_z),
         };
 
+        let slice_area = ((u_range.1 - u_range.0) * (v_range.1 - v_range.0)).max(0) as usize;
+        if non_greedy_faces.capacity() < slice_area {
+            non_greedy_faces.reserve(slice_area - non_greedy_faces.capacity());
+        }
+
         let mask_width = (u_range.1 - u_range.0) as usize;
         let mask_height = (v_range.1 - v_range.0) as usize;
         let mut greedy_mask: Vec<Option<FaceData>> = vec![None; mask_width * mask_height];
