@@ -1579,29 +1579,33 @@ fn compute_face_ao_and_light(
     let mut lights = [0i32; 4];
     let dir_is_x = dir[0] != 0;
     let dir_is_y = dir[1] != 0;
-    let center_opaque = neighbor_is_opaque(&opaque_mask, 0, 0, 0);
+    let block_min_x_eps = block_min_x + 0.01;
+    let block_min_y_eps = block_min_y + 0.01;
+    let block_min_z_eps = block_min_z + 0.01;
+    let mask = &opaque_mask;
+    let center_opaque = neighbor_is_opaque(mask, 0, 0, 0);
 
     for (i, pos) in corner_positions.iter().enumerate() {
-        let dx = if pos[0] <= block_min_x + 0.01 {
+        let dx = if pos[0] <= block_min_x_eps {
             -1
         } else {
             1
         };
-        let dy = if pos[1] <= block_min_y + 0.01 {
+        let dy = if pos[1] <= block_min_y_eps {
             -1
         } else {
             1
         };
-        let dz = if pos[2] <= block_min_z + 0.01 {
+        let dz = if pos[2] <= block_min_z_eps {
             -1
         } else {
             1
         };
 
-        let b011 = !neighbor_is_opaque(&opaque_mask, 0, dy, dz);
-        let b101 = !neighbor_is_opaque(&opaque_mask, dx, 0, dz);
-        let b110 = !neighbor_is_opaque(&opaque_mask, dx, dy, 0);
-        let b111 = !neighbor_is_opaque(&opaque_mask, dx, dy, dz);
+        let b011 = !neighbor_is_opaque(mask, 0, dy, dz);
+        let b101 = !neighbor_is_opaque(mask, dx, 0, dz);
+        let b110 = !neighbor_is_opaque(mask, dx, dy, 0);
+        let b111 = !neighbor_is_opaque(mask, dx, dy, dz);
 
         let ao = if dir_is_x {
             vertex_ao(b110, b101, b111)
@@ -1625,7 +1629,7 @@ fn compute_face_ao_and_light(
                         let ddy = y * dy;
                         let ddz = z * dz;
 
-                        let diagonal4_opaque = neighbor_is_opaque(&opaque_mask, ddx, ddy, ddz);
+                        let diagonal4_opaque = neighbor_is_opaque(mask, ddx, ddy, ddz);
 
                         if diagonal4_opaque {
                             continue;
@@ -1643,33 +1647,33 @@ fn compute_face_ao_and_light(
                         }
 
                         if x + y + z == 3 {
-                            let diagonal_yz_opaque = neighbor_is_opaque(&opaque_mask, 0, ddy, ddz);
-                            let diagonal_xz_opaque = neighbor_is_opaque(&opaque_mask, ddx, 0, ddz);
-                            let diagonal_xy_opaque = neighbor_is_opaque(&opaque_mask, ddx, ddy, 0);
+                            let diagonal_yz_opaque = neighbor_is_opaque(mask, 0, ddy, ddz);
+                            let diagonal_xz_opaque = neighbor_is_opaque(mask, ddx, 0, ddz);
+                            let diagonal_xy_opaque = neighbor_is_opaque(mask, ddx, ddy, 0);
 
                             if diagonal_yz_opaque && diagonal_xz_opaque && diagonal_xy_opaque {
                                 continue;
                             }
 
                             if diagonal_xy_opaque && diagonal_xz_opaque {
-                                let neighbor_y_opaque = neighbor_is_opaque(&opaque_mask, 0, ddy, 0);
-                                let neighbor_z_opaque = neighbor_is_opaque(&opaque_mask, 0, 0, ddz);
+                                let neighbor_y_opaque = neighbor_is_opaque(mask, 0, ddy, 0);
+                                let neighbor_z_opaque = neighbor_is_opaque(mask, 0, 0, ddz);
                                 if neighbor_y_opaque && neighbor_z_opaque {
                                     continue;
                                 }
                             }
 
                             if diagonal_xy_opaque && diagonal_yz_opaque {
-                                let neighbor_x_opaque = neighbor_is_opaque(&opaque_mask, ddx, 0, 0);
-                                let neighbor_z_opaque = neighbor_is_opaque(&opaque_mask, 0, 0, ddz);
+                                let neighbor_x_opaque = neighbor_is_opaque(mask, ddx, 0, 0);
+                                let neighbor_z_opaque = neighbor_is_opaque(mask, 0, 0, ddz);
                                 if neighbor_x_opaque && neighbor_z_opaque {
                                     continue;
                                 }
                             }
 
                             if diagonal_xz_opaque && diagonal_yz_opaque {
-                                let neighbor_x_opaque = neighbor_is_opaque(&opaque_mask, ddx, 0, 0);
-                                let neighbor_y_opaque = neighbor_is_opaque(&opaque_mask, 0, ddy, 0);
+                                let neighbor_x_opaque = neighbor_is_opaque(mask, ddx, 0, 0);
+                                let neighbor_y_opaque = neighbor_is_opaque(mask, 0, ddy, 0);
                                 if neighbor_x_opaque && neighbor_y_opaque {
                                     continue;
                                 }
