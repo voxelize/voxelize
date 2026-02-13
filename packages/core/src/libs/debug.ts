@@ -77,6 +77,29 @@ const defaultOptions: DebugOptions = {
   containerId: "voxelize-debug",
 };
 
+type DebugValue = string | number | boolean | null | undefined;
+type DebugTrackedObject = Record<PropertyKey, DebugValue>;
+type DebugSyncGetter = () => DebugValue;
+type DebugAsyncGetter = () => Promise<DebugValue>;
+type DebugSource = DebugTrackedObject | DebugSyncGetter | DebugAsyncGetter;
+type DebugFormatter = (value: DebugValue) => string;
+type DebugDataEntry = {
+  element: HTMLParagraphElement;
+  object?: DebugSource;
+  attribute?: PropertyKey;
+  title: string;
+  formatter: DebugFormatter;
+};
+
+const isAsyncDebugGetter = (
+  source: DebugSource | undefined
+): source is DebugAsyncGetter =>
+  typeof source === "function" && source.constructor.name === "AsyncFunction";
+
+const isSyncDebugGetter = (
+  source: DebugSource | undefined
+): source is DebugSyncGetter => typeof source === "function";
+
 /**
  * A class for general debugging purposes in Voxelize, including FPS, value tracking, and real-time value testing.
  *
@@ -130,13 +153,7 @@ export class Debug extends Group {
   /**
    * Data entries to track individual values.
    */
-  private dataEntries: {
-    element: HTMLParagraphElement;
-    object?: any;
-    attribute?: any;
-    title: string;
-    formatter: (value: any) => string;
-  }[] = [];
+  private dataEntries: DebugDataEntry[] = [];
 
   /**
    * Create a new {@link Debug} instance.
@@ -171,11 +188,11 @@ export class Debug extends Group {
    * @param formatter A function to format the value of the attribute.
    * @returns The debug instance for chaining.
    */
-  registerDisplay = <T = any>(
+  registerDisplay = <T extends DebugTrackedObject = DebugTrackedObject>(
     title: string,
-    object?: T,
+    object?: T | DebugSyncGetter | DebugAsyncGetter,
     attribute?: keyof T,
-    formatter = (str: string) => str
+    formatter: DebugFormatter = (value) => `${value ?? ""}`
   ) => {
     const wrapper = this.makeDataEntry();
 
@@ -202,9 +219,9 @@ export class Debug extends Group {
     this.dataEntries.push(newEntry);
     this.entriesWrapper.insertBefore(wrapper, this.entriesWrapper.firstChild);
 
-    if (object.constructor.name === "AsyncFunction") {
+    if (isAsyncDebugGetter(object)) {
       setInterval(() => {
-        (object as any)().then((newValue: string) => {
+        object().then((newValue) => {
           const formattedValue = formatter(newValue);
           const valueSpan = wrapper.querySelector(".debug-value");
           if (valueSpan) {
@@ -311,14 +328,17 @@ export class Debug extends Group {
     const entries = this.dataEntries;
     for (let entryIndex = 0; entryIndex < entries.length; entryIndex++) {
       const { element, title, attribute, object, formatter } = entries[entryIndex];
-      if (object?.constructor?.name === "AsyncFunction") {
+      if (isAsyncDebugGetter(object)) {
         continue;
       }
 
-      let newValue = "";
+      let newValue: DebugValue = "";
       if (object) {
-        newValue =
-          typeof object === "function" ? object() : object[attribute] ?? "";
+        newValue = isSyncDebugGetter(object)
+          ? object()
+          : attribute === undefined
+          ? ""
+          : object[attribute] ?? "";
       }
       const formattedValue = formatter(newValue);
 
