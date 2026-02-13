@@ -2,8 +2,11 @@ import { ChatProtocol, MessageProtocol } from "@voxelize/protocol";
 import { z, ZodError, ZodObject, ZodOptional, ZodTypeAny } from "zod";
 
 import { DOMUtils } from "../utils/dom-utils";
+import { JsonValue } from "../types";
 
 import { NetIntercept } from "./network";
+
+type CommandErrorValue = Error | JsonValue | object;
 
 /**
  * Options for adding a command.
@@ -159,7 +162,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         } catch (error) {
           if (this.onChat) {
             const errorMessage = this.formatCommandError(
-              error,
+              error as CommandErrorValue,
               trigger,
               commandInfo
             );
@@ -334,7 +337,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   }
 
   private formatCommandError(
-    error: unknown,
+    error: CommandErrorValue,
     trigger: string,
     commandInfo: CommandInfo<ZodObject<Record<string, ZodTypeAny>>>
   ): string {
@@ -565,13 +568,15 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   }
 
   private hasDefault(schema: ZodTypeAny): boolean {
-    const def = schema._def as unknown as Record<string, unknown> | undefined;
-    return def !== undefined && "defaultValue" in def;
+    const def = schema._def as {
+      defaultValue?: string | number | (() => string | number);
+    };
+    return def.defaultValue !== undefined;
   }
 
   private getDefaultValue(schema: ZodTypeAny): string | number | undefined {
     if (!this.hasDefault(schema)) return undefined;
-    const def = schema._def as unknown as {
+    const def = schema._def as {
       defaultValue?: string | number | (() => string | number);
     };
     if (typeof def.defaultValue === "function") {
@@ -604,7 +609,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       if (this.hasDefault(innerType)) {
         required = false;
         defaultValue = this.getDefaultValue(innerType);
-        const def = innerType._def as unknown as {
+        const def = innerType._def as {
           innerType?: ZodTypeAny;
           type?: ZodTypeAny;
         };
