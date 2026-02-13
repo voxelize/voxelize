@@ -1239,6 +1239,76 @@ describe("report-utils", () => {
     );
   });
 
+  it("keeps recognized alias options active while redacting inline alias misuse", () => {
+    const diagnostics = createCliDiagnostics(
+      [
+        "--json",
+        "--verify",
+        "--verify=2",
+        "--no-build=3",
+        "--output=./report.json",
+        "--mystery=alpha",
+      ],
+      {
+        canonicalOptions: ["--json", "--no-build", "--output"],
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+        optionsWithValues: ["--output"],
+      }
+    );
+
+    expect(diagnostics.activeCliOptions).toEqual([
+      "--json",
+      "--no-build",
+      "--output",
+    ]);
+    expect(diagnostics.activeCliOptionCount).toBe(3);
+    expect(diagnostics.activeCliOptionTokens).toEqual([
+      "--json",
+      "--verify",
+      "--output=./report.json",
+    ]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+      {
+        token: "--output=./report.json",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(diagnostics.activeCliOptionResolutionCount).toBe(3);
+    expect(diagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+        index: 1,
+      },
+      {
+        token: "--output=./report.json",
+        canonicalOption: "--output",
+        index: 4,
+      },
+    ]);
+    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(3);
+    expect(diagnostics.unknownOptions).toEqual(["--no-build=<value>", "--mystery"]);
+    expect(diagnostics.unknownOptionCount).toBe(2);
+    expect(diagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --no-build=<value>, --mystery. Supported options: --json, --no-build, --output, --verify."
+    );
+  });
+
   it("redacts malformed inline option names in diagnostics", () => {
     const diagnostics = createCliDiagnostics(
       ["--=secret", "--=token", "--=", "-=secret", "-=token", "-="],

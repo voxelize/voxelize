@@ -1708,6 +1708,64 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(1);
   });
 
+  it("keeps recognized no-build alias active while redacting inline alias misuse", () => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        preflightScript,
+        "--list-checks",
+        "--verify",
+        "--verify=1",
+        "--no-build=2",
+        "--mystery=alpha",
+      ],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(true);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.noBuild).toBe(true);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.activeCliOptions).toEqual(["--list-checks", "--no-build"]);
+    expect(report.activeCliOptionCount).toBe(2);
+    expect(report.activeCliOptionTokens).toEqual(["--list-checks", "--verify"]);
+    expect(report.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions(["--list-checks", "--verify"])
+    );
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences([
+        "--list-checks",
+        "--verify",
+        "--verify=1",
+        "--no-build=2",
+        "--mystery=alpha",
+      ])
+    );
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.unknownOptions).toEqual(["--no-build=<value>", "--mystery"]);
+    expect(report.message).toBe(
+      expectedUnsupportedOptionsMessage(["--no-build=<value>", "--mystery"])
+    );
+    expect(output).not.toContain("--verify=1");
+    expect(output).not.toContain("--no-build=2");
+    expect(output).not.toContain("--mystery=alpha");
+    expect(result.status).toBe(1);
+  });
+
   it("redacts inline alias misuse tokens in unsupported-option output", () => {
     const result = spawnSync(
       process.execPath,

@@ -816,6 +816,8 @@ describe("client wasm preflight script", () => {
 
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
+    expect(report.buildSkipped).toBe(true);
+    expect(report.attemptedBuild).toBe(false);
     expect(report.outputPath).toBeNull();
     expect(report.supportedCliOptions).toEqual(expectedWasmMesherCliOptions);
     expectCliOptionCatalogMetadata(

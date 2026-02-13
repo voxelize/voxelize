@@ -102,6 +102,7 @@ Malformed inline option names are redacted and deduplicated (for example `--=sec
 Literal placeholder tokens are deduplicated with redacted inline misuse forms (for example `--json=<value>` and `--json=secret` are reported once as `--json=<value>`).
 JSON preflight reports also include `activeCliOptions`, `activeCliOptionTokens`, `activeCliOptionResolutions`, and `activeCliOptionOccurrences` for option-usage diagnostics.
 Misused inline option forms (for example `--json=secret` or `--verify=secret`) are excluded from `activeCliOption*` metadata and are instead reported via redacted `unknownOptions`.
+Recognized options in the same invocation are still preserved in `activeCliOption*` metadata even when misused inline options are also present.
 JSON preflight reports include `availableCliOptionAliases` and `availableCliOptionCanonicalMap` to expose alias-to-canonical option mappings.
 If report writing fails, JSON error reports include both `message` and `writeError`.
 Add `--compact` to each JSON preflight command for single-line JSON output.
