@@ -384,14 +384,14 @@ impl NeighborCache {
 
     fn populate<S: VoxelAccess>(vx: i32, vy: i32, vz: i32, space: &S) -> Self {
         let mut data = [[0u32; 2]; 27];
-
-        for x in -1..=1 {
+        let mut idx = 0usize;
+        for z in -1..=1 {
             for y in -1..=1 {
-                for z in -1..=1 {
-                    let idx = Self::offset_to_index(x, y, z);
+                for x in -1..=1 {
                     data[idx][0] = space.get_raw_voxel(vx + x, vy + y, vz + z);
                     let (sun, red, green, blue) = space.get_all_lights(vx + x, vy + y, vz + z);
                     data[idx][1] = (sun << 12) | (red << 8) | (green << 4) | blue;
+                    idx += 1;
                 }
             }
         }
