@@ -5070,7 +5070,10 @@ export class World<T = any> extends Scene implements NetIntercept {
         );
         if (!material) {
           const block = this.getBlockById(voxel);
-          const face = block.faces.find((face) => face.name === faceName);
+          const face = this.findBlockFaceByName(block, faceName);
+          if (!face) {
+            continue;
+          }
           if (!face.isolated || !at) continue;
           try {
             material = this.getOrCreateIsolatedBlockMaterial(
@@ -5181,7 +5184,10 @@ export class World<T = any> extends Scene implements NetIntercept {
         );
         if (!material) {
           const block = this.getBlockById(voxel);
-          const face = block.faces.find((face) => face.name === faceName);
+          const face = this.findBlockFaceByName(block, faceName);
+          if (!face) {
+            continue;
+          }
 
           if (!face.isolated || !at) {
             console.warn("Unlikely situation happened...");
@@ -7246,6 +7252,17 @@ export class World<T = any> extends Scene implements NetIntercept {
       : faceName
       ? `${id}-${faceName}`
       : `${id}`;
+  }
+
+  private findBlockFaceByName(block: Block, faceName: string) {
+    const faces = block.faces;
+    for (let faceIndex = 0; faceIndex < faces.length; faceIndex++) {
+      const face = faces[faceIndex];
+      if (face.name === faceName) {
+        return face;
+      }
+    }
+    return null;
   }
 
   private markTrackedChunkLevels(
