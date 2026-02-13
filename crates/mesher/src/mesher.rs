@@ -76,27 +76,27 @@ impl Block {
             match face.get_name_lower() {
                 "py" => {
                     has_standard_six_faces = true;
-                    fluid_face_uvs[0] = face.range.clone();
+                    fluid_face_uvs[0] = face.range;
                 }
                 "ny" => {
                     has_standard_six_faces = true;
-                    fluid_face_uvs[1] = face.range.clone();
+                    fluid_face_uvs[1] = face.range;
                 }
                 "px" => {
                     has_standard_six_faces = true;
-                    fluid_face_uvs[2] = face.range.clone();
+                    fluid_face_uvs[2] = face.range;
                 }
                 "nx" => {
                     has_standard_six_faces = true;
-                    fluid_face_uvs[3] = face.range.clone();
+                    fluid_face_uvs[3] = face.range;
                 }
                 "pz" => {
                     has_standard_six_faces = true;
-                    fluid_face_uvs[4] = face.range.clone();
+                    fluid_face_uvs[4] = face.range;
                 }
                 "nz" => {
                     has_standard_six_faces = true;
-                    fluid_face_uvs[5] = face.range.clone();
+                    fluid_face_uvs[5] = face.range;
                 }
                 _ => {}
             }
@@ -812,12 +812,12 @@ fn standard_face_uvs(faces: &[BlockFace]) -> [UV; 6] {
     let mut uvs = std::array::from_fn(|_| UV::default());
     for face in faces {
         match face.get_name_lower() {
-            "py" => uvs[0] = face.range.clone(),
-            "ny" => uvs[1] = face.range.clone(),
-            "px" => uvs[2] = face.range.clone(),
-            "nx" => uvs[3] = face.range.clone(),
-            "pz" => uvs[4] = face.range.clone(),
-            "nz" => uvs[5] = face.range.clone(),
+            "py" => uvs[0] = face.range,
+            "ny" => uvs[1] = face.range,
+            "px" => uvs[2] = face.range,
+            "nx" => uvs[3] = face.range,
+            "pz" => uvs[4] = face.range,
+            "nz" => uvs[5] = face.range,
             _ => {}
         }
     }
@@ -2562,7 +2562,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         processed_non_greedy.insert((vx, vy, vz));
 
                         for (face, world_space) in faces.iter() {
-                            let uv_range = face.range.clone();
+                            let uv_range = face.range;
                             non_greedy_faces.push((
                                 vx,
                                 vy,
@@ -2618,7 +2618,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     }
 
                     for (face, world_space) in matching_faces {
-                        let uv_range = face.range.clone();
+                        let uv_range = face.range;
 
                         if face.isolated {
                             non_greedy_faces.push((
@@ -3107,7 +3107,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 neighbors.get_or_insert_with(|| NeighborCache::populate(vx, vy, vz, space));
                             compute_face_ao_and_light_fast(dir, block, neighbors_ref, registry)
                         });
-                        let uv_range = face.range.clone();
+                        let uv_range = face.range;
 
                         let key = FaceKey {
                             block_id: block.id,
