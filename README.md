@@ -80,6 +80,7 @@ pnpm run proto
 
 # build wasm mesher package for client demo/build
 pnpm run build:wasm:dev
+# client scripts also run a preflight check and attempt this automatically when wasm-pack is available
 
 # fresh build
 pnpm run build
