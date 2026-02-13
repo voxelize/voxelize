@@ -2418,18 +2418,18 @@ export class World<T = any> extends Scene implements NetIntercept {
     tanThreshold: number,
     safeRadiusSquared: number
   ) {
-    const dx = cx - tx;
-    const dz = cz - tz;
+    const dx = tx - cx;
+    const dz = tz - cz;
 
     if (dx * dx + dz * dz < safeRadiusSquared) {
       return true;
     }
 
-    const dot = (tz - cz) * direction.z + (tx - cx) * direction.x;
+    const dot = dz * direction.z + dx * direction.x;
     if (dot <= 0) {
       return false;
     }
-    const det = (tz - cz) * direction.x - (tx - cx) * direction.z;
+    const det = dz * direction.x - dx * direction.z;
 
     return Math.abs(det) < dot * tanThreshold;
   }
