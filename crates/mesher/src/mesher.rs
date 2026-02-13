@@ -1158,7 +1158,7 @@ fn should_render_face<S: VoxelAccess>(
             && (!n_block_type.is_full_cube() || dir == [0, 1, 0]))
 }
 
-#[inline]
+#[inline(always)]
 fn is_surrounded_by_opaque_neighbors<S: VoxelAccess>(
     vx: i32,
     vy: i32,
