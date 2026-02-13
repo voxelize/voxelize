@@ -898,9 +898,14 @@ describe("client wasm preflight script", () => {
   });
 
   it("fails when last output flag value is missing", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-wasm-mesher-last-output-missing-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+
     const result = spawnSync(
       process.execPath,
-      [wasmMesherScript, "--json", "--output", "./first.json", "--output"],
+      [wasmMesherScript, "--json", "--output", firstOutputPath, "--output"],
       {
         cwd: rootDir,
         encoding: "utf8",
@@ -914,7 +919,10 @@ describe("client wasm preflight script", () => {
     expect(report.outputPath).toBeNull();
     expectTimingMetadata(report);
     expect(report.message).toBe("Missing value for --output option.");
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
     expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
   it("reports output write failures with details", () => {

@@ -2320,9 +2320,14 @@ describe("preflight aggregate report", () => {
   });
 
   it("fails when the last output flag value is missing", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-preflight-last-output-missing-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+
     const result = spawnSync(
       process.execPath,
-      [preflightScript, "--output", "./first.json", "--output"],
+      [preflightScript, "--output", firstOutputPath, "--output"],
       {
         cwd: rootDir,
         encoding: "utf8",
@@ -2353,7 +2358,10 @@ describe("preflight aggregate report", () => {
     expect(report.requestedCheckResolutionCounts).toEqual(
       expectedEmptyRequestedCheckResolutionCounts
     );
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
     expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
   it("prioritizes output validation errors over only-selection errors", () => {

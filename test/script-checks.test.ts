@@ -842,6 +842,31 @@ describe("root preflight scripts", () => {
     expect(result.output).not.toContain("Unsupported option(s):");
   });
 
+  it("check-wasm-pack json mode fails when last output flag value is missing", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-wasm-pack-last-output-missing-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+
+    const result = runScript("check-wasm-pack.mjs", [
+      "--json",
+      "--output",
+      firstOutputPath,
+      "--output",
+    ]);
+    const report = JSON.parse(result.output) as WasmPackJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expectTimingMetadata(report);
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("check-wasm-pack json mode reports output write failures with details", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-wasm-pack-output-write-failure-")
@@ -1389,10 +1414,15 @@ describe("root preflight scripts", () => {
   });
 
   it("check-dev-env json mode fails when last output flag value is missing", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-dev-env-last-output-missing-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+
     const result = runScript("check-dev-env.mjs", [
       "--json",
       "--output",
-      "./first.json",
+      firstOutputPath,
       "--output",
     ]);
     const report = JSON.parse(result.output) as DevEnvJsonReport;
@@ -1402,7 +1432,10 @@ describe("root preflight scripts", () => {
     expect(report.outputPath).toBeNull();
     expectTimingMetadata(report);
     expect(report.message).toBe("Missing value for --output option.");
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
     expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
   it("check-dev-env json mode reports output write failures with details", () => {
@@ -2006,11 +2039,16 @@ describe("root preflight scripts", () => {
   });
 
   it("check-client json mode fails when last output flag value is missing", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-client-last-output-missing-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+
     const result = runScript("check-client.mjs", [
       "--json",
       "--no-build",
       "--output",
-      "./first.json",
+      firstOutputPath,
       "--output",
     ]);
     const report = JSON.parse(result.output) as ClientJsonReport;
@@ -2025,7 +2063,10 @@ describe("root preflight scripts", () => {
     expect(report.skippedStepCount).toBe(0);
     expect(report.firstFailedStep).toBeNull();
     expect(report.message).toBe("Missing value for --output option.");
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
     expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
   it("check-client json mode reports output write failures with details", () => {
@@ -2754,11 +2795,16 @@ describe("root preflight scripts", () => {
   });
 
   it("check-onboarding json mode fails when last output flag value is missing", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-onboarding-last-output-missing-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+
     const result = runScript("check-onboarding.mjs", [
       "--json",
       "--no-build",
       "--output",
-      "./first.json",
+      firstOutputPath,
       "--output",
     ]);
     const report = JSON.parse(result.output) as OnboardingJsonReport;
@@ -2773,7 +2819,10 @@ describe("root preflight scripts", () => {
     expect(report.skippedStepCount).toBe(0);
     expect(report.firstFailedStep).toBeNull();
     expect(report.message).toBe("Missing value for --output option.");
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
     expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
   it("check-onboarding json mode reports output write failures with details", () => {
