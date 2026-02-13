@@ -3968,18 +3968,17 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const safeRadius = Math.max(renderRadius - 2, 1);
     const safeRadiusSquared = safeRadius * safeRadius;
-    const toRequestClosest: Array<{
-      cx: number;
-      cz: number;
-      distance: number;
-    }> = [];
+    const requestCxs = new Int32Array(maxChunkRequestsPerUpdate);
+    const requestCzs = new Int32Array(maxChunkRequestsPerUpdate);
+    const requestDistances = new Float64Array(maxChunkRequestsPerUpdate);
+    let selectedRequestCount = 0;
     let farthestRequestIndex = -1;
     let farthestRequestDistance = -1;
     const recomputeFarthestRequest = () => {
       farthestRequestIndex = -1;
       farthestRequestDistance = -1;
-      for (let index = 0; index < toRequestClosest.length; index++) {
-        const distance = toRequestClosest[index].distance;
+      for (let index = 0; index < selectedRequestCount; index++) {
+        const distance = requestDistances[index];
         if (distance > farthestRequestDistance) {
           farthestRequestDistance = distance;
           farthestRequestIndex = index;
@@ -3990,15 +3989,15 @@ export class World<T = any> extends Scene implements NetIntercept {
       const dx = cx - centerX;
       const dz = cz - centerZ;
       const distance = dx * dx + dz * dz;
-      if (toRequestClosest.length < maxChunkRequestsPerUpdate) {
-        toRequestClosest.push({
-          cx,
-          cz,
-          distance,
-        });
+      if (selectedRequestCount < maxChunkRequestsPerUpdate) {
+        const writeIndex = selectedRequestCount;
+        requestCxs[writeIndex] = cx;
+        requestCzs[writeIndex] = cz;
+        requestDistances[writeIndex] = distance;
+        selectedRequestCount++;
         if (distance > farthestRequestDistance) {
           farthestRequestDistance = distance;
-          farthestRequestIndex = toRequestClosest.length - 1;
+          farthestRequestIndex = writeIndex;
         }
         return;
       }
@@ -4007,10 +4006,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         return;
       }
 
-      const farthestRequest = toRequestClosest[farthestRequestIndex];
-      farthestRequest.cx = cx;
-      farthestRequest.cz = cz;
-      farthestRequest.distance = distance;
+      requestCxs[farthestRequestIndex] = cx;
+      requestCzs[farthestRequestIndex] = cz;
+      requestDistances[farthestRequestIndex] = distance;
       recomputeFarthestRequest();
     };
 
@@ -4048,19 +4046,39 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
       }
     }
-    if (toRequestClosest.length > 1) {
-      toRequestClosest.sort((a, b) => a.distance - b.distance);
+    if (selectedRequestCount > 1) {
+      for (let index = 1; index < selectedRequestCount; index++) {
+        const cx = requestCxs[index];
+        const cz = requestCzs[index];
+        const distance = requestDistances[index];
+        let insertIndex = index - 1;
+
+        while (
+          insertIndex >= 0 &&
+          requestDistances[insertIndex] > distance
+        ) {
+          requestDistances[insertIndex + 1] = requestDistances[insertIndex];
+          requestCxs[insertIndex + 1] = requestCxs[insertIndex];
+          requestCzs[insertIndex + 1] = requestCzs[insertIndex];
+          insertIndex--;
+        }
+
+        requestDistances[insertIndex + 1] = distance;
+        requestCxs[insertIndex + 1] = cx;
+        requestCzs[insertIndex + 1] = cz;
+      }
     }
-    const requestCount = toRequestClosest.length;
+    const requestCount = selectedRequestCount;
     if (requestCount === 0) {
       return;
     }
 
     const requestChunks = new Array<Coords2>(requestCount);
     for (let index = 0; index < requestCount; index++) {
-      const request = toRequestClosest[index];
-      requestChunks[index] = [request.cx, request.cz];
-      this.chunkPipeline.markRequestedAt(request.cx, request.cz);
+      const cx = requestCxs[index];
+      const cz = requestCzs[index];
+      requestChunks[index] = [cx, cz];
+      this.chunkPipeline.markRequestedAt(cx, cz);
     }
 
     let directionPayload: [number, number] = ZERO_DIRECTION;
