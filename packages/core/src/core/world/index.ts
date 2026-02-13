@@ -1034,10 +1034,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       max: subChunkMax,
     };
 
-    if (this.chunkPipeline.isInStage(name, "processing")) {
-      return null;
-    }
-
     const { geometries } = await new Promise<{
       geometries: GeometryProtocol[];
     }>((resolve) => {
