@@ -241,6 +241,7 @@ if (outputPathError !== null || selectedChecksError !== null) {
     invalidChecks: effectiveInvalidChecks,
     availableChecks: availableCheckNames,
     availableCheckAliases,
+    availableSpecialCheckSelectors,
     availableSpecialCheckAliases,
   });
   const { reportJson } = serializeReportWithOptionalWrite(report, {
@@ -297,6 +298,7 @@ const report = buildTimedReport({
   invalidChecks: [],
   availableChecks: availableCheckNames,
   availableCheckAliases,
+  availableSpecialCheckSelectors,
   availableSpecialCheckAliases,
 });
 const { reportJson, writeError } = serializeReportWithOptionalWrite(report, {

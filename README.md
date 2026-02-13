@@ -217,6 +217,7 @@ If `--output` or `--only` is passed multiple times, the last value is used.
 Invalid `--only` errors include available canonical check names and special selector aliases (for example `all`, `all-checks`, `all_checks`, `allchecks`) for quick correction.
 Invalid `--only` errors also include `invalidChecks` for machine-readable diagnostics.
 Aggregate preflight reports include `availableCheckAliases` so automation can map user-facing aliases to canonical check names.
+Aggregate preflight reports include `availableSpecialCheckSelectors` for quick checks against supported special selector names.
 Aggregate preflight reports include `availableSpecialCheckAliases` for non-check selectors such as `all`.
 Aggregate preflight reports include `requestedChecks` so CI logs can capture the exact `--only` inputs after tokenization.
 Aggregate preflight reports include `selectionMode` (`default` or `only`) to show whether selection came from defaults or an explicit `--only` filter.
