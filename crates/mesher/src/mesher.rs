@@ -2982,22 +2982,19 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
                     let greedy_without_rotation = block.can_greedy_mesh_without_rotation();
                     let is_non_greedy_block = !greedy_without_rotation;
-                    let has_dynamic_patterns = block.dynamic_patterns.is_some();
                     if is_non_greedy_block && processed_non_greedy[current_voxel_index] {
                         continue;
-                    }
-
-                    let mut rotation = BlockRotation::PY(0.0);
-                    if is_non_greedy_block
-                        && (block.rotatable || block.y_rotatable || has_dynamic_patterns)
-                    {
-                        rotation = space.get_voxel_rotation(vx, vy, vz);
                     }
 
                     let is_fluid = block.is_fluid;
                     let is_see_through = block.is_see_through;
 
                     if is_non_greedy_block {
+                        let has_dynamic_patterns = block.dynamic_patterns.is_some();
+                        let mut rotation = BlockRotation::PY(0.0);
+                        if block.rotatable || block.y_rotatable || has_dynamic_patterns {
+                            rotation = space.get_voxel_rotation(vx, vy, vz);
+                        }
                         processed_non_greedy[current_voxel_index] = true;
                         if is_fluid && block.has_standard_six_faces_cached() {
                             let fluid_faces =
@@ -3219,7 +3216,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 vy,
                                 vz,
                                 voxel_id,
-                                &rotation,
+                                &identity_rotation,
                                 face,
                                 &face.range,
                                 block,
