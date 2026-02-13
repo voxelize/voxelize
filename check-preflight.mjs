@@ -386,6 +386,27 @@ const activeCliOptionResolutions = activeCliOptionTokens.map((token) => {
   };
 });
 const activeCliOptionResolutionCount = activeCliOptionResolutions.length;
+const parseActiveCliOptionOccurrences = (args) => {
+  const occurrences = [];
+
+  for (let index = 0; index < args.length; index += 1) {
+    const token = args[index];
+    const canonicalOption = cliOptionCanonicalMap.get(token);
+    if (canonicalOption === undefined) {
+      continue;
+    }
+
+    occurrences.push({
+      token,
+      canonicalOption,
+      index,
+    });
+  }
+
+  return occurrences;
+};
+const activeCliOptionOccurrences = parseActiveCliOptionOccurrences(cliArgs);
+const activeCliOptionOccurrenceCount = activeCliOptionOccurrences.length;
 const unsupportedOptionsError =
   unknownOptions.length === 0
     ? null
@@ -489,6 +510,8 @@ if (
     activeCliOptionTokens,
     activeCliOptionResolutions,
     activeCliOptionResolutionCount,
+    activeCliOptionOccurrences,
+    activeCliOptionOccurrenceCount,
     availableCliOptionAliases,
     availableChecks: availableCheckNames,
     availableCheckMetadata,
@@ -548,6 +571,8 @@ if (isListChecks) {
     activeCliOptionTokens,
     activeCliOptionResolutions,
     activeCliOptionResolutionCount,
+    activeCliOptionOccurrences,
+    activeCliOptionOccurrenceCount,
     availableCliOptionAliases,
     availableChecks: availableCheckNames,
     availableCheckMetadata,
@@ -624,6 +649,8 @@ const report = buildTimedReport({
   activeCliOptionTokens,
   activeCliOptionResolutions,
   activeCliOptionResolutionCount,
+  activeCliOptionOccurrences,
+  activeCliOptionOccurrenceCount,
   availableCliOptionAliases,
   availableChecks: availableCheckNames,
   availableCheckMetadata,

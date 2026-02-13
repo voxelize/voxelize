@@ -259,6 +259,8 @@ Aggregate preflight reports include `activeCliOptionCount` for quick cardinality
 Aggregate preflight reports include `activeCliOptionTokens` to preserve the original recognized option forms from the current invocation.
 Aggregate preflight reports include `activeCliOptionResolutions` to map each recognized option token to its canonical option.
 Aggregate preflight reports include `activeCliOptionResolutionCount` for quick cardinality checks on `activeCliOptionResolutions`.
+Aggregate preflight reports include `activeCliOptionOccurrences` to preserve each recognized CLI option occurrence in argument order (including duplicates and aliases).
+Aggregate preflight reports include `activeCliOptionOccurrenceCount` for quick cardinality checks on `activeCliOptionOccurrences`.
 Aggregate preflight reports include `availableCliOptionAliases` to map canonical options (such as `--list-checks`) to accepted aliases (`--list`, `-l`).
 Aggregate preflight reports include `availableCheckAliases` so automation can map user-facing aliases to canonical check names.
 Aggregate preflight reports include `availableCheckMetadata` with script mapping and no-build support per canonical check.

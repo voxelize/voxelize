@@ -112,6 +112,12 @@ type PreflightReport = {
     canonicalOption: string;
   }>;
   activeCliOptionResolutionCount: number;
+  activeCliOptionOccurrences: Array<{
+    token: string;
+    canonicalOption: string;
+    index: number;
+  }>;
+  activeCliOptionOccurrenceCount: number;
   availableCliOptionAliases: {
     "--list-checks": string[];
     "--no-build": string[];
@@ -175,6 +181,10 @@ const expectedAvailableCliOptionAliases = {
   "--list-checks": ["--list", "-l"],
   "--no-build": ["--verify"],
 };
+const recognizedCliOptionTokens = new Set([
+  ...expectedSupportedCliOptions,
+  ...Object.values(expectedAvailableCliOptionAliases).flat(),
+]);
 const expectedCanonicalOptionForToken = (token: string) => {
   if (token === "--list" || token === "-l") {
     return "--list-checks";
@@ -193,6 +203,28 @@ const expectedActiveCliOptionResolutions = (tokens: string[]) => {
       canonicalOption: expectedCanonicalOptionForToken(token),
     };
   });
+};
+const expectedActiveCliOptionOccurrences = (tokens: string[]) => {
+  const occurrences: Array<{
+    token: string;
+    canonicalOption: string;
+    index: number;
+  }> = [];
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (!recognizedCliOptionTokens.has(token)) {
+      continue;
+    }
+
+    occurrences.push({
+      token,
+      canonicalOption: expectedCanonicalOptionForToken(token),
+      index,
+    });
+  }
+
+  return occurrences;
 };
 const expectedUnsupportedOptionsMessage = (options: string[]) => {
   return `Unsupported option(s): ${options.join(", ")}. Supported options: ${expectedSupportedCliOptions.join(", ")}.`;
@@ -249,6 +281,12 @@ describe("preflight aggregate report", () => {
     );
     expect(report.activeCliOptionResolutionCount).toBe(
       report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences(["--no-build"])
+    );
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
     );
     expect(report.availableCliOptionAliases).toEqual(
       expectedAvailableCliOptionAliases
@@ -410,6 +448,12 @@ describe("preflight aggregate report", () => {
     );
     expect(report.activeCliOptionResolutionCount).toBe(
       report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences(["--verify", "--only", "client"])
+    );
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
     );
     expect(report.selectedChecks).toEqual(["client"]);
     expect(report.selectedCheckCount).toBe(1);
@@ -821,6 +865,18 @@ describe("preflight aggregate report", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.selectedChecks).toEqual(["client"]);
     expect(report.specialSelectorsUsed).toEqual([]);
+    expect(report.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences([
+        "--no-build",
+        "--only",
+        "devEnvironment",
+        "--only",
+        "client",
+      ])
+    );
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
     expect(report.requestedChecks).toEqual(["client"]);
     expect(report.skippedChecks).toEqual(["devEnvironment", "wasmPack"]);
     expect(report.invalidChecks).toEqual([]);
@@ -1145,6 +1201,8 @@ describe("preflight aggregate report", () => {
     expect(report.activeCliOptionTokens).toEqual([]);
     expect(report.activeCliOptionResolutions).toEqual([]);
     expect(report.activeCliOptionResolutionCount).toBe(0);
+    expect(report.activeCliOptionOccurrences).toEqual([]);
+    expect(report.activeCliOptionOccurrenceCount).toBe(0);
     expect(report.selectionMode).toBe("default");
     expect(report.invalidCheckCount).toBe(0);
     expect(report.unknownOptionCount).toBe(1);
@@ -1557,6 +1615,18 @@ describe("preflight aggregate report", () => {
 
     expect(stdoutReport.schemaVersion).toBe(1);
     expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(stdoutReport.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences([
+        "--no-build",
+        "--output",
+        firstOutputPath,
+        "--output",
+        secondOutputPath,
+      ])
+    );
+    expect(stdoutReport.activeCliOptionOccurrenceCount).toBe(
+      stdoutReport.activeCliOptionOccurrences.length
+    );
     expect(secondFileReport.outputPath).toBe(secondOutputPath);
     expect(fs.existsSync(firstOutputPath)).toBe(false);
     expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
