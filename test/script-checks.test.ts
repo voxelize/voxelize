@@ -2442,6 +2442,44 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-client json mode redacts inline alias misuse tokens", () => {
+    const result = runScript("check-client.mjs", [
+      "--json",
+      "--verify=1",
+      "--mystery=alpha",
+    ]);
+    const report = JSON.parse(result.output) as ClientJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedNoBuildCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedNoBuildCliOptions
+    );
+    expect(report.unknownOptions).toEqual(["--verify=<value>", "--mystery"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --verify=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("check-client json mode writes unsupported-option validation reports to output files", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-client-validation-report-")
@@ -2673,6 +2711,17 @@ describe("root preflight scripts", () => {
       "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
     );
     expect(result.output).not.toContain("--json=1");
+    expect(result.output).not.toContain("--mystery=alpha");
+  });
+
+  it("check-client non-json mode redacts inline alias misuse tokens", () => {
+    const result = runScript("check-client.mjs", ["--verify=1", "--mystery=alpha"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(
+      "Unsupported option(s): --verify=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expect(result.output).not.toContain("--verify=1");
     expect(result.output).not.toContain("--mystery=alpha");
   });
 
@@ -3404,6 +3453,44 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-onboarding json mode redacts inline alias misuse tokens", () => {
+    const result = runScript("check-onboarding.mjs", [
+      "--json",
+      "--verify=1",
+      "--mystery=alpha",
+    ]);
+    const report = JSON.parse(result.output) as OnboardingJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedNoBuildCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedNoBuildCliOptions
+    );
+    expect(report.unknownOptions).toEqual(["--verify=<value>", "--mystery"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --verify=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("check-onboarding json mode writes unsupported-option validation reports to output files", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-onboarding-validation-report-")
@@ -3635,6 +3722,17 @@ describe("root preflight scripts", () => {
       "Unsupported option(s): --json=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
     );
     expect(result.output).not.toContain("--json=1");
+    expect(result.output).not.toContain("--mystery=alpha");
+  });
+
+  it("check-onboarding non-json mode redacts inline alias misuse tokens", () => {
+    const result = runScript("check-onboarding.mjs", ["--verify=1", "--mystery=alpha"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(
+      "Unsupported option(s): --verify=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expect(result.output).not.toContain("--verify=1");
     expect(result.output).not.toContain("--mystery=alpha");
   });
 

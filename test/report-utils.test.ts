@@ -511,6 +511,22 @@ describe("report-utils", () => {
       }
     );
     expect(unknownWithMixedInlineAndBareTokens).toEqual(["--mystery"]);
+
+    const unknownWithInlineAliasMisuse = parseUnknownCliOptions(
+      ["--verify=1", "--verify=2", "-j=1", "--mystery=alpha"],
+      {
+        canonicalOptions: ["--json"],
+        optionAliases: {
+          "--no-build": ["--verify"],
+          "--json": ["-j"],
+        },
+      }
+    );
+    expect(unknownWithInlineAliasMisuse).toEqual([
+      "--verify=<value>",
+      "-j=<value>",
+      "--mystery",
+    ]);
   });
 
   it("creates structured cli option validation metadata", () => {
@@ -966,6 +982,29 @@ describe("report-utils", () => {
     expect(diagnostics.unknownOptionCount).toBe(2);
     expect(diagnostics.unsupportedOptionsError).toBe(
       "Unsupported option(s): --json=<value>, --mystery. Supported options: --json."
+    );
+  });
+
+  it("redacts inline alias misuse tokens in diagnostics", () => {
+    const diagnostics = createCliDiagnostics(
+      ["--verify=1", "--verify=2", "-j=1", "--mystery=alpha"],
+      {
+        canonicalOptions: ["--json"],
+        optionAliases: {
+          "--no-build": ["--verify"],
+          "--json": ["-j"],
+        },
+      }
+    );
+
+    expect(diagnostics.unknownOptions).toEqual([
+      "--verify=<value>",
+      "-j=<value>",
+      "--mystery",
+    ]);
+    expect(diagnostics.unknownOptionCount).toBe(3);
+    expect(diagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --verify=<value>, -j=<value>, --mystery. Supported options: --json, --no-build, --verify, -j."
     );
   });
 
