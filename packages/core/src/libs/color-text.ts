@@ -33,6 +33,24 @@ export class ColorText {
    * The symbol used to separate a text into a colored text object array.
    */
   public static SPLITTER = "∆";
+  private static splitterRegex: RegExp | null = null;
+  private static splitterRegexSymbol = "";
+
+  private static getSplitterRegex() {
+    const splitter = ColorText.SPLITTER;
+    if (
+      ColorText.splitterRegex &&
+      ColorText.splitterRegexSymbol === splitter
+    ) {
+      return ColorText.splitterRegex;
+    }
+
+    ColorText.splitterRegex = new RegExp(
+      `(\\${splitter}[^\\${splitter}]*\\${splitter})`
+    );
+    ColorText.splitterRegexSymbol = splitter;
+    return ColorText.splitterRegex;
+  }
 
   /**
    * Split a text into a colored text object array by {@link ColorText.SPLITTER}.
@@ -45,13 +63,15 @@ export class ColorText {
     text: string,
     defaultColor = "black"
   ): { color: string; text: string }[] {
-    const splitted = text
-      .split(
-        new RegExp(
-          `(\\${ColorText.SPLITTER}[^\\${ColorText.SPLITTER}]*\\${ColorText.SPLITTER})`
-        )
-      )
-      .filter(Boolean);
+    const rawSplitted = text.split(ColorText.getSplitterRegex());
+    const splitted: string[] = [];
+    for (let index = 0; index < rawSplitted.length; index++) {
+      const segment = rawSplitted[index];
+      if (!segment) {
+        continue;
+      }
+      splitted.push(segment);
+    }
 
     if (splitted.length) {
       if (!splitted[0].includes(ColorText.SPLITTER)) {
@@ -65,7 +85,7 @@ export class ColorText {
       }
     }
 
-    const result = [];
+    const result: { color: string; text: string }[] = [];
 
     for (let i = 0; i < splitted.length; i += 2) {
       const color = splitted[i].substring(1, splitted[i].length - 1);
