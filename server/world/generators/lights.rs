@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, VecDeque},
-    sync::{Arc, Mutex, OnceLock},
-};
+use std::collections::VecDeque;
 
 use crate::{LightColor, Registry, Vec3, WorldConfig};
 use voxelize_lighter::{
@@ -12,22 +9,6 @@ use voxelize_lighter::{
 };
 
 pub type LightNode = LighterNode;
-
-static LIGHT_REGISTRY_CACHE: OnceLock<Mutex<HashMap<usize, Arc<LightRegistry>>>> = OnceLock::new();
-
-fn get_cached_light_registry(registry: &Registry) -> Arc<LightRegistry> {
-    let key = registry as *const Registry as usize;
-    let cache = LIGHT_REGISTRY_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    let mut cache_guard = cache.lock().expect("light registry cache mutex poisoned");
-
-    if let Some(existing) = cache_guard.get(&key) {
-        return Arc::clone(existing);
-    }
-
-    let converted = Arc::new(registry.to_lighter_registry());
-    cache_guard.insert(key, Arc::clone(&converted));
-    converted
-}
 
 #[inline]
 fn convert_config(config: &WorldConfig) -> LightConfig {
@@ -80,7 +61,7 @@ impl Lights {
         min: Option<&Vec3<i32>>,
         shape: Option<&Vec3<usize>>,
     ) {
-        let light_registry = get_cached_light_registry(registry);
+        let light_registry = registry.lighter_registry();
         let light_config = convert_config(config);
         let bounds = convert_bounds(min, shape, &light_config);
         lighter_flood_light(
@@ -100,7 +81,7 @@ impl Lights {
         config: &WorldConfig,
         registry: &Registry,
     ) {
-        let light_registry = get_cached_light_registry(registry);
+        let light_registry = registry.lighter_registry();
         let light_config = convert_config(config);
         lighter_remove_light(
             space,
@@ -118,7 +99,7 @@ impl Lights {
         config: &WorldConfig,
         registry: &Registry,
     ) {
-        let light_registry = get_cached_light_registry(registry);
+        let light_registry = registry.lighter_registry();
         let light_config = convert_config(config);
         let converted_voxels: Vec<[i32; 3]> = voxels.iter().map(|v| [v.0, v.1, v.2]).collect();
         lighter_remove_lights(
@@ -137,7 +118,7 @@ impl Lights {
         registry: &Registry,
         config: &WorldConfig,
     ) -> [VecDeque<LightNode>; 4] {
-        let light_registry = get_cached_light_registry(registry);
+        let light_registry = registry.lighter_registry();
         let light_config = convert_config(config);
         lighter_propagate(
             space,

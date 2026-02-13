@@ -176,8 +176,7 @@ impl Mesher {
                             Arc::new(space.get_lights(coords.0, coords.1).unwrap().clone());
                     }
 
-                    let mut mesher_registry = registry.to_mesher_registry();
-                    mesher_registry.build_cache();
+                    let mesher_registry = registry.mesher_registry();
 
                     for level in sub_chunks {
                         let level = level as i32;
@@ -193,14 +192,14 @@ impl Mesher {
                                 &min_arr,
                                 &max_arr,
                                 &space,
-                                &mesher_registry,
+                                mesher_registry.as_ref(),
                             )
                         } else {
                             voxelize_mesher::mesh_space(
                                 &min_arr,
                                 &max_arr,
                                 &space,
-                                &mesher_registry,
+                                mesher_registry.as_ref(),
                             )
                         };
 

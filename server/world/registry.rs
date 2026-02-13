@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use hashbrown::{HashMap, HashSet};
 use log::info;
@@ -38,7 +38,7 @@ impl Default for UV {
 
 /// A collection of blocks to use in a Voxelize server. One server has one registry and one
 /// registry only. Once a registry is added to a server, it cannot be changed.
-#[derive(Default, Clone)]
+#[derive(Default)]
 pub struct Registry {
     /// Block records, name -> Block.
     pub blocks_by_name: HashMap<String, Block>,
@@ -54,6 +54,23 @@ pub struct Registry {
 
     /// Map of name -> ID.
     type_map: HashMap<String, u32>,
+
+    mesher_registry_cache: OnceLock<Arc<voxelize_mesher::Registry>>,
+    lighter_registry_cache: OnceLock<Arc<voxelize_lighter::LightRegistry>>,
+}
+
+impl Clone for Registry {
+    fn clone(&self) -> Self {
+        Self {
+            blocks_by_name: self.blocks_by_name.clone(),
+            blocks_by_id: self.blocks_by_id.clone(),
+            textures: self.textures.clone(),
+            name_map: self.name_map.clone(),
+            type_map: self.type_map.clone(),
+            mesher_registry_cache: OnceLock::new(),
+            lighter_registry_cache: OnceLock::new(),
+        }
+    }
 }
 
 impl Registry {
@@ -82,6 +99,8 @@ impl Registry {
         active_ticker: F1,
         active_updater: F2,
     ) {
+        self.invalidate_cached_registries();
+
         let mut air = self.blocks_by_id.remove(&0).unwrap();
 
         air.active_ticker = Some(Arc::new(active_ticker));
@@ -93,6 +112,8 @@ impl Registry {
 
     /// Generate the UV coordinates of the blocks. Call this before the server starts!
     pub fn generate(&mut self) {
+        self.invalidate_cached_registries();
+
         let all_blocks = self.blocks_by_id.values_mut().collect::<Vec<_>>();
 
         let mut texture_groups: HashSet<String> = HashSet::new();
@@ -343,6 +364,8 @@ impl Registry {
 
     /// Record a block into the registry, adding this block into appropriate maps.
     fn record_block(&mut self, block: &Block) {
+        self.invalidate_cached_registries();
+
         let Block {
             id, name, faces, ..
         } = block;
@@ -363,23 +386,42 @@ impl Registry {
         }
     }
 
-    pub fn to_mesher_registry(&self) -> voxelize_mesher::Registry {
-        let blocks_by_id: Vec<(u32, voxelize_mesher::Block)> = self
-            .blocks_by_id
-            .iter()
-            .map(|(id, block)| (*id, block.to_mesher_block()))
-            .collect();
+    pub fn mesher_registry(&self) -> Arc<voxelize_mesher::Registry> {
+        Arc::clone(self.mesher_registry_cache.get_or_init(|| {
+            let blocks_by_id: Vec<(u32, voxelize_mesher::Block)> = self
+                .blocks_by_id
+                .iter()
+                .map(|(id, block)| (*id, block.to_mesher_block()))
+                .collect();
 
-        voxelize_mesher::Registry::new(blocks_by_id)
+            let mut registry = voxelize_mesher::Registry::new(blocks_by_id);
+            registry.build_cache();
+            Arc::new(registry)
+        }))
+    }
+
+    pub fn to_mesher_registry(&self) -> voxelize_mesher::Registry {
+        self.mesher_registry().as_ref().clone()
+    }
+
+    pub fn lighter_registry(&self) -> Arc<voxelize_lighter::LightRegistry> {
+        Arc::clone(self.lighter_registry_cache.get_or_init(|| {
+            let blocks_by_id: Vec<(u32, voxelize_lighter::LightBlock)> = self
+                .blocks_by_id
+                .iter()
+                .map(|(id, block)| (*id, block.to_lighter_block()))
+                .collect();
+
+            Arc::new(voxelize_lighter::LightRegistry::new(blocks_by_id))
+        }))
     }
 
     pub fn to_lighter_registry(&self) -> voxelize_lighter::LightRegistry {
-        let blocks_by_id: Vec<(u32, voxelize_lighter::LightBlock)> = self
-            .blocks_by_id
-            .iter()
-            .map(|(id, block)| (*id, block.to_lighter_block()))
-            .collect();
+        self.lighter_registry().as_ref().clone()
+    }
 
-        voxelize_lighter::LightRegistry::new(blocks_by_id)
+    fn invalidate_cached_registries(&mut self) {
+        self.mesher_registry_cache = OnceLock::new();
+        self.lighter_registry_cache = OnceLock::new();
     }
 }
