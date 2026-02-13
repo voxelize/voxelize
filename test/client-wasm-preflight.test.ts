@@ -6,7 +6,13 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-type WasmPackJsonReport = {
+type OptionTerminatorMetadata = {
+  optionTerminatorUsed: boolean;
+  positionalArgs: string[];
+  positionalArgCount: number;
+};
+
+type WasmPackJsonReport = OptionTerminatorMetadata & {
   passed: boolean;
   exitCode: number;
   command: string;
@@ -18,7 +24,7 @@ type WasmPackJsonReport = {
   message?: string;
 };
 
-type WasmMesherJsonReport = {
+type WasmMesherJsonReport = OptionTerminatorMetadata & {
   schemaVersion: number;
   passed: boolean;
   exitCode: number;
@@ -55,6 +61,16 @@ describe("client wasm preflight script", () => {
     expect(report.durationMs).toBeGreaterThanOrEqual(0);
   };
 
+  const expectOptionTerminatorMetadata = (
+    report: OptionTerminatorMetadata,
+    expectedOptionTerminatorUsed = false,
+    expectedPositionalArgs: string[] = []
+  ) => {
+    expect(report.optionTerminatorUsed).toBe(expectedOptionTerminatorUsed);
+    expect(report.positionalArgs).toEqual(expectedPositionalArgs);
+    expect(report.positionalArgCount).toBe(report.positionalArgs.length);
+  };
+
   it("emits machine-readable JSON report", () => {
     const result = spawnSync(process.execPath, [wasmMesherScript, "--json"], {
       cwd: rootDir,
@@ -76,11 +92,13 @@ describe("client wasm preflight script", () => {
     expect(report.outputPath).toBeNull();
     expect(typeof report.message).toBe("string");
     expectTimingMetadata(report);
+    expectOptionTerminatorMetadata(report);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
 
     if (report.wasmPackCheckReport !== null) {
       expect(report.wasmPackCheckReport.command).toContain("wasm-pack");
       expectTimingMetadata(report.wasmPackCheckReport);
+      expectOptionTerminatorMetadata(report.wasmPackCheckReport);
     }
   });
 
@@ -102,6 +120,7 @@ describe("client wasm preflight script", () => {
     expect(report.attemptedBuild).toBe(false);
     expect(report.outputPath).toBeNull();
     expectTimingMetadata(report);
+    expectOptionTerminatorMetadata(report);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
@@ -239,6 +258,7 @@ describe("client wasm preflight script", () => {
     expect(report.exitCode).toBe(1);
     expect(report.outputPath).toBeNull();
     expectTimingMetadata(report);
+    expectOptionTerminatorMetadata(report);
     expect(report.message).toBe("Missing value for --output option.");
     expect(result.status).toBe(1);
   });
@@ -259,6 +279,7 @@ describe("client wasm preflight script", () => {
     expect(report.exitCode).toBe(1);
     expect(report.outputPath).toBeNull();
     expectTimingMetadata(report);
+    expectOptionTerminatorMetadata(report);
     expect(report.message).toBe("Missing value for --output option.");
     expect(result.status).toBe(1);
   });

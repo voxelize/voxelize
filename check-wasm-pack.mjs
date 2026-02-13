@@ -11,7 +11,12 @@ import {
 
 const wasmPackCommand = resolveCommand("wasm-pack");
 const cliArgs = process.argv.slice(2);
-const { optionArgs: cliOptionArgs } = splitCliArgs(cliArgs);
+const {
+  optionArgs: cliOptionArgs,
+  positionalArgs,
+  optionTerminatorUsed,
+} = splitCliArgs(cliArgs);
+const positionalArgCount = positionalArgs.length;
 const isQuiet = cliOptionArgs.includes("--quiet");
 const isJson = cliOptionArgs.includes("--json");
 const isCompact = cliOptionArgs.includes("--compact");
@@ -25,6 +30,9 @@ if (isJson && outputPathError !== null) {
       buildTimedReport({
         passed: false,
         exitCode: 1,
+        optionTerminatorUsed,
+        positionalArgs,
+        positionalArgCount,
         command: wasmPackCommand,
         version: null,
         outputPath: null,
@@ -58,6 +66,9 @@ if (checkStatus === 0) {
     const report = buildTimedReport({
       passed: true,
       exitCode: 0,
+      optionTerminatorUsed,
+      positionalArgs,
+      positionalArgCount,
       command: wasmPackCommand,
       version: firstLine,
       outputPath,
@@ -82,6 +93,9 @@ if (isJson) {
   const report = buildTimedReport({
     passed: false,
     exitCode: checkStatus,
+    optionTerminatorUsed,
+    positionalArgs,
+    positionalArgCount,
     command: wasmPackCommand,
     version: null,
     outputPath,

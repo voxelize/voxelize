@@ -20,7 +20,12 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const cliArgs = process.argv.slice(2);
-const { optionArgs: cliOptionArgs } = splitCliArgs(cliArgs);
+const {
+  optionArgs: cliOptionArgs,
+  positionalArgs,
+  optionTerminatorUsed,
+} = splitCliArgs(cliArgs);
+const positionalArgCount = positionalArgs.length;
 const isQuiet = cliOptionArgs.includes("--quiet");
 const isJson = cliOptionArgs.includes("--json");
 const isCompact = cliOptionArgs.includes("--compact");
@@ -85,6 +90,9 @@ if (isJson && outputPathError !== null) {
       buildTimedReport({
         passed: false,
         exitCode: 1,
+        optionTerminatorUsed,
+        positionalArgs,
+        positionalArgCount,
         requiredFailures: 0,
         checks: [],
         outputPath: null,
@@ -175,6 +183,9 @@ if (isJson) {
   const report = buildTimedReport({
     passed: requiredFailures === 0,
     exitCode: requiredFailures > 0 ? 1 : 0,
+    optionTerminatorUsed,
+    positionalArgs,
+    positionalArgCount,
     requiredFailures,
     checks: checkResults,
     outputPath,

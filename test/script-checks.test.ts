@@ -14,7 +14,13 @@ type ScriptResult = {
   output: string;
 };
 
-type WasmPackJsonReport = {
+type OptionTerminatorMetadata = {
+  optionTerminatorUsed: boolean;
+  positionalArgs: string[];
+  positionalArgCount: number;
+};
+
+type WasmPackJsonReport = OptionTerminatorMetadata & {
   schemaVersion: number;
   passed: boolean;
   exitCode: number;
@@ -38,7 +44,7 @@ type DevEnvJsonCheck = {
   minimumVersion: string | null;
 };
 
-type DevEnvJsonReport = {
+type DevEnvJsonReport = OptionTerminatorMetadata & {
   schemaVersion: number;
   passed: boolean;
   exitCode: number;
@@ -52,7 +58,7 @@ type DevEnvJsonReport = {
   message?: string;
 };
 
-type WasmMesherJsonReport = {
+type WasmMesherJsonReport = OptionTerminatorMetadata & {
   schemaVersion: number;
   passed: boolean;
   exitCode: number;
@@ -79,7 +85,7 @@ type ClientJsonStep = {
   output: string | null;
 };
 
-type ClientJsonReport = {
+type ClientJsonReport = OptionTerminatorMetadata & {
   schemaVersion: number;
   passed: boolean;
   exitCode: number;
@@ -108,7 +114,7 @@ type OnboardingJsonStep = {
   output: string | null;
 };
 
-type OnboardingJsonReport = {
+type OnboardingJsonReport = OptionTerminatorMetadata & {
   schemaVersion: number;
   passed: boolean;
   exitCode: number;
@@ -155,6 +161,16 @@ const expectTimingMetadata = (report: {
   expect(report.durationMs).toBeGreaterThanOrEqual(0);
 };
 
+const expectOptionTerminatorMetadata = (
+  report: OptionTerminatorMetadata,
+  expectedOptionTerminatorUsed = false,
+  expectedPositionalArgs: string[] = []
+) => {
+  expect(report.optionTerminatorUsed).toBe(expectedOptionTerminatorUsed);
+  expect(report.positionalArgs).toEqual(expectedPositionalArgs);
+  expect(report.positionalArgCount).toBe(report.positionalArgs.length);
+};
+
 describe("root preflight scripts", () => {
   it("check-wasm-pack returns clear status output", () => {
     const result = runScript("check-wasm-pack.mjs");
@@ -186,6 +202,7 @@ describe("root preflight scripts", () => {
     expect(report.command).toContain("wasm-pack");
     expect(report.outputPath).toBeNull();
     expectTimingMetadata(report);
+    expectOptionTerminatorMetadata(report);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
 
     if (report.passed) {
@@ -287,6 +304,7 @@ describe("root preflight scripts", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expectTimingMetadata(report);
+    expectOptionTerminatorMetadata(report);
     expect(report.message).toBe("Missing value for --output option.");
     expect(result.status).toBe(1);
   });
@@ -298,6 +316,7 @@ describe("root preflight scripts", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expectTimingMetadata(report);
+    expectOptionTerminatorMetadata(report);
     expect(report.message).toBe("Missing value for --output option.");
     expect(result.status).toBe(1);
   });
@@ -310,6 +329,7 @@ describe("root preflight scripts", () => {
     expect(report.outputPath).toBeNull();
     expect(report.message).not.toBe("Missing value for --output option.");
     expectTimingMetadata(report);
+    expectOptionTerminatorMetadata(report, true, ["--output"]);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
@@ -367,6 +387,7 @@ describe("root preflight scripts", () => {
     expect(report.requiredFailures).toBeGreaterThanOrEqual(0);
     expect(report.outputPath).toBeNull();
     expectTimingMetadata(report);
+    expectOptionTerminatorMetadata(report);
     expect(typeof report.passed).toBe("boolean");
     expect(Array.isArray(report.checks)).toBe(true);
     expect(report.checks.length).toBeGreaterThan(0);
@@ -467,6 +488,7 @@ describe("root preflight scripts", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expectTimingMetadata(report);
+    expectOptionTerminatorMetadata(report);
     expect(report.message).toBe("Missing value for --output option.");
     expect(result.status).toBe(1);
   });
@@ -478,6 +500,7 @@ describe("root preflight scripts", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expectTimingMetadata(report);
+    expectOptionTerminatorMetadata(report);
     expect(report.message).toBe("Missing value for --output option.");
     expect(result.status).toBe(1);
   });
@@ -555,6 +578,7 @@ describe("root preflight scripts", () => {
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
     expect(report.outputPath).toBeNull();
     expectTimingMetadata(report);
+    expectOptionTerminatorMetadata(report);
     expect(Array.isArray(report.steps)).toBe(true);
     expect(report.steps.length).toBeGreaterThan(0);
     expect(report.totalSteps).toBe(report.steps.length);
@@ -575,6 +599,7 @@ describe("root preflight scripts", () => {
       expect(typeof report.steps[0].report.passed).toBe("boolean");
       expect(report.steps[0].report.buildSkipped).toBe(false);
       expectTimingMetadata(report.steps[0].report);
+      expectOptionTerminatorMetadata(report.steps[0].report);
     }
     if (report.failedStepCount > 0) {
       expect(report.firstFailedStep).toBe(
@@ -681,6 +706,7 @@ describe("root preflight scripts", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expectTimingMetadata(report);
+    expectOptionTerminatorMetadata(report);
     expect(report.totalSteps).toBe(0);
     expect(report.passedStepCount).toBe(0);
     expect(report.failedStepCount).toBe(0);
@@ -697,6 +723,7 @@ describe("root preflight scripts", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expectTimingMetadata(report);
+    expectOptionTerminatorMetadata(report);
     expect(report.totalSteps).toBe(0);
     expect(report.passedStepCount).toBe(0);
     expect(report.failedStepCount).toBe(0);
@@ -817,6 +844,7 @@ describe("root preflight scripts", () => {
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
     expect(report.outputPath).toBeNull();
     expectTimingMetadata(report);
+    expectOptionTerminatorMetadata(report);
     expect(Array.isArray(report.steps)).toBe(true);
     expect(report.steps.length).toBeGreaterThan(0);
     expect(report.totalSteps).toBe(report.steps.length);
@@ -832,6 +860,7 @@ describe("root preflight scripts", () => {
       expect(report.steps[0].report.schemaVersion).toBe(1);
       expect(typeof report.steps[0].report.passed).toBe("boolean");
       expectTimingMetadata(report.steps[0].report);
+      expectOptionTerminatorMetadata(report.steps[0].report);
     }
     if (report.failedStepCount > 0) {
       expect(report.firstFailedStep).toBe(
@@ -938,6 +967,7 @@ describe("root preflight scripts", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expectTimingMetadata(report);
+    expectOptionTerminatorMetadata(report);
     expect(report.totalSteps).toBe(0);
     expect(report.passedStepCount).toBe(0);
     expect(report.failedStepCount).toBe(0);
@@ -954,6 +984,7 @@ describe("root preflight scripts", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expectTimingMetadata(report);
+    expectOptionTerminatorMetadata(report);
     expect(report.totalSteps).toBe(0);
     expect(report.passedStepCount).toBe(0);
     expect(report.failedStepCount).toBe(0);

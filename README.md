@@ -252,6 +252,7 @@ Invalid `--only` errors also include `invalidChecks` for machine-readable diagno
 Unsupported CLI flags return structured errors and include `unknownOptions` for machine-readable diagnostics.
 Argument values passed to `--output` and `--only` are excluded from unrecognized-option detection, even when they start with `-`.
 Arguments after `--` are treated as positional arguments and are excluded from preflight script option parsing and unsupported-option detection.
+JSON preflight reports include `optionTerminatorUsed`, `positionalArgs`, and `positionalArgCount` to describe positional tokens provided after `--`.
 Unrecognized flags are still listed in `unknownOptions` even when a higher-priority validation error is reported.
 Aggregate preflight reports include `invalidCheckCount` and `unknownOptionCount` for quick numeric filtering in CI/log pipelines.
 Aggregate preflight validation errors include `validationErrorCode` for machine-readable error classification.

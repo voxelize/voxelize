@@ -24,7 +24,12 @@ const repositoryRoot = path.resolve(__dirname, "../../..");
 const rootWasmCheckScript = path.resolve(repositoryRoot, "check-wasm-pack.mjs");
 const pnpmCommand = resolvePnpmCommand();
 const cliArgs = process.argv.slice(2);
-const { optionArgs: cliOptionArgs } = splitCliArgs(cliArgs);
+const {
+  optionArgs: cliOptionArgs,
+  positionalArgs,
+  optionTerminatorUsed,
+} = splitCliArgs(cliArgs);
+const positionalArgCount = positionalArgs.length;
 const isJson = cliOptionArgs.includes("--json");
 const isNoBuild = cliOptionArgs.includes("--no-build");
 const isCompact = cliOptionArgs.includes("--compact");
@@ -38,6 +43,9 @@ if (isJson && outputPathError !== null) {
       buildTimedReport({
         passed: false,
         exitCode: 1,
+        optionTerminatorUsed,
+        positionalArgs,
+        positionalArgCount,
         artifactPath: "crates/wasm-mesher/pkg/voxelize_wasm_mesher.js",
         artifactFound: false,
         attemptedBuild: false,
@@ -58,6 +66,9 @@ const finish = (report) => {
   if (isJson) {
     const finalizedReport = buildTimedReport({
       ...report,
+      optionTerminatorUsed,
+      positionalArgs,
+      positionalArgCount,
       outputPath,
     });
     const { reportJson, writeError } = serializeReportWithOptionalWrite(

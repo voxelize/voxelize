@@ -18,7 +18,12 @@ const __dirname = path.dirname(__filename);
 
 const pnpmCommand = resolvePnpmCommand();
 const cliArgs = process.argv.slice(2);
-const { optionArgs: cliOptionArgs } = splitCliArgs(cliArgs);
+const {
+  optionArgs: cliOptionArgs,
+  positionalArgs,
+  optionTerminatorUsed,
+} = splitCliArgs(cliArgs);
+const positionalArgCount = positionalArgs.length;
 const isQuiet = cliOptionArgs.includes("--quiet");
 const isJson = cliOptionArgs.includes("--json");
 const isNoBuild = cliOptionArgs.includes("--no-build");
@@ -35,6 +40,9 @@ if (isJson && outputPathError !== null) {
       buildTimedReport({
         passed: false,
         exitCode: 1,
+        optionTerminatorUsed,
+        positionalArgs,
+        positionalArgCount,
         noBuild: isNoBuild,
         outputPath: null,
         steps: [],
@@ -134,6 +142,9 @@ if (isJson) {
   const report = buildTimedReport({
     passed: exitCode === 0,
     exitCode,
+    optionTerminatorUsed,
+    positionalArgs,
+    positionalArgCount,
     noBuild: isNoBuild,
     outputPath,
     steps: stepResults,
