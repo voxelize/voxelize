@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
 
 use voxelize::{
-    Block, Chunk, ChunkOptions, Chunks, LightColor, Lights, Registry, Vec2, Vec3, VoxelAccess,
-    WorldConfig,
+    Block, BlockConditionalPart, BlockDynamicPattern, BlockRule, BlockSimpleRule, Chunk,
+    ChunkOptions, Chunks, LightColor, Lights, Registry, Vec3, VoxelAccess, WorldConfig,
 };
 
 fn create_test_registry() -> Registry {
@@ -115,5 +115,74 @@ fn test_flood_light_respects_min_without_shape() {
     assert!(
         chunks.get_red_light(10, 8, 8) > 0,
         "red light should propagate toward +X from source"
+    );
+}
+
+#[test]
+fn test_to_lighter_registry_keeps_dynamic_light_pattern_rules() {
+    let mut registry = Registry::new();
+
+    registry.register_block(&Block::new("trigger").id(3).build());
+
+    let dynamic_pattern = BlockDynamicPattern {
+        parts: vec![BlockConditionalPart {
+            rule: BlockRule::Simple(BlockSimpleRule {
+                offset: Vec3(1, 0, 0),
+                id: Some(3),
+                rotation: None,
+                stage: None,
+            }),
+            red_light_level: Some(12),
+            ..BlockConditionalPart::default()
+        }],
+    };
+
+    registry.register_block(
+        &Block::new("dynamic-light")
+            .id(4)
+            .is_passable(true)
+            .red_light_level(2)
+            .dynamic_patterns(&[dynamic_pattern])
+            .build(),
+    );
+
+    let lighter_registry = registry.to_lighter_registry();
+    let light_block = lighter_registry.get_block_by_id(4);
+
+    let config = WorldConfig {
+        chunk_size: 16,
+        max_height: 16,
+        max_light_level: 15,
+        min_chunk: [0, 0],
+        max_chunk: [0, 0],
+        saving: false,
+        ..Default::default()
+    };
+
+    let mut chunks = Chunks::new(&config);
+    chunks.add(Chunk::new(
+        "chunk-0-0",
+        0,
+        0,
+        &ChunkOptions {
+            size: 16,
+            max_height: 16,
+            sub_chunks: 1,
+        },
+    ));
+
+    chunks.set_voxel(4, 4, 4, 4);
+    chunks.set_voxel(5, 4, 4, 3);
+    assert_eq!(
+        light_block.get_torch_light_level_at(&[4, 4, 4], &chunks, &LightColor::Red),
+        12,
+        "dynamic pattern light level should apply when rule matches"
+    );
+
+    chunks.set_voxel(5, 4, 4, 0);
+    assert_eq!(
+        light_block.get_torch_light_level_at(&[4, 4, 4], &chunks, &LightColor::Red),
+        2,
+        "static block light level should be used when dynamic rule does not match"
     );
 }
