@@ -111,6 +111,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   private _commandSymbolCode: string;
 
   private fallbackCommand: ((rest: string) => void) | null = null;
+  private commandWordsBuffer: string[] = [];
 
   /**
    * Send a chat to the server.
@@ -119,12 +120,17 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
    */
   public send(chat: T) {
     if (chat.body.startsWith(this._commandSymbol)) {
-      const words = chat.body
-        .substring(this._commandSymbol.length)
-        .split(" ")
-        .filter(Boolean);
-      const trigger = words.shift();
-      const rest = words.join(" ");
+      const words = this.splitCommandWords(
+        chat.body.substring(this._commandSymbol.length)
+      );
+      const trigger = words.length > 0 ? words[0] : undefined;
+      let rest = "";
+      for (let wordIndex = 1; wordIndex < words.length; wordIndex++) {
+        if (wordIndex > 1) {
+          rest += " ";
+        }
+        rest += words[wordIndex];
+      }
 
       const commandInfo = this.commands.get(trigger);
 
@@ -173,6 +179,33 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       type: "CHAT",
       chat,
     });
+  }
+
+  private splitCommandWords(raw: string): string[] {
+    const words = this.commandWordsBuffer;
+    words.length = 0;
+
+    let tokenStart = -1;
+    for (let index = 0; index < raw.length; index++) {
+      const char = raw[index];
+      if (char === " ") {
+        if (tokenStart !== -1) {
+          words.push(raw.substring(tokenStart, index));
+          tokenStart = -1;
+        }
+        continue;
+      }
+
+      if (tokenStart === -1) {
+        tokenStart = index;
+      }
+    }
+
+    if (tokenStart !== -1) {
+      words.push(raw.substring(tokenStart));
+    }
+
+    return words;
   }
 
   private splitQuotedTokens(raw: string): string[] {
