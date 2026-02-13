@@ -2867,7 +2867,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                 process_greedy_quad(&quad, axis, slice, dir, min, block, geometry);
             }
 
-            let mut cached_key: Option<(i32, i32, i32, u32, bool, bool)> = None;
+            let mut cached_voxel: Option<(i32, i32, i32, u32)> = None;
+            let mut cached_block: Option<&Block> = None;
             let mut cached_neighbors: Option<NeighborCache> = None;
             let mut cached_face_cache: Option<FaceProcessCache> = None;
             let mut cached_rotation: Option<BlockRotation> = None;
@@ -2881,29 +2882,21 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                 world_space,
             ) in non_greedy_faces.drain(..)
             {
-                let block = match registry.get_block_by_id(voxel_id) {
-                    Some(candidate) => candidate,
-                    None => continue,
-                };
-                let is_see_through = block.is_see_through;
-                let is_fluid = block.is_fluid;
-                let cache_key = (vx, vy, vz, voxel_id, is_see_through, is_fluid);
-
-                let geo_key = geometry_key_for_face(block, &face, vx, vy, vz);
-
-                let geometry = map.entry(geo_key).or_insert_with(|| {
-                    let mut entry = GeometryProtocol::default();
-                    entry.voxel = voxel_id;
-                    if face.independent || face.isolated {
-                        entry.face_name = Some(face.name.clone());
-                    }
-                    if face.isolated {
-                        entry.at = Some([vx, vy, vz]);
-                    }
-                    entry
-                });
-
-                if cached_key != Some(cache_key) {
+                let voxel_key = (vx, vy, vz, voxel_id);
+                if cached_voxel != Some(voxel_key) {
+                    let block = match registry.get_block_by_id(voxel_id) {
+                        Some(candidate) => candidate,
+                        None => {
+                            cached_voxel = None;
+                            cached_block = None;
+                            cached_neighbors = None;
+                            cached_face_cache = None;
+                            cached_rotation = None;
+                            continue;
+                        }
+                    };
+                    let is_see_through = block.is_see_through;
+                    let is_fluid = block.is_fluid;
                     let neighbors = NeighborCache::populate(vx, vy, vz, space);
                     let rotation = space.get_voxel_rotation(vx, vy, vz);
                     let face_cache = build_face_process_cache(
@@ -2921,8 +2914,26 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     cached_neighbors = Some(neighbors);
                     cached_face_cache = Some(face_cache);
                     cached_rotation = Some(rotation);
-                    cached_key = Some(cache_key);
+                    cached_block = Some(block);
+                    cached_voxel = Some(voxel_key);
                 }
+                let block = cached_block
+                    .expect("cached block must exist for non-greedy face");
+                let is_see_through = block.is_see_through;
+                let is_fluid = block.is_fluid;
+                let geo_key = geometry_key_for_face(block, &face, vx, vy, vz);
+
+                let geometry = map.entry(geo_key).or_insert_with(|| {
+                    let mut entry = GeometryProtocol::default();
+                    entry.voxel = voxel_id;
+                    if face.independent || face.isolated {
+                        entry.face_name = Some(face.name.clone());
+                    }
+                    if face.isolated {
+                        entry.at = Some([vx, vy, vz]);
+                    }
+                    entry
+                });
                 let neighbors = cached_neighbors
                     .as_ref()
                     .expect("cached neighbors must exist for non-greedy face");
