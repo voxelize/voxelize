@@ -1,10 +1,19 @@
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const isNoBuild = process.argv.includes("--no-build");
+const cliArgs = process.argv.slice(2);
+const isNoBuild = cliArgs.includes("--no-build");
+const outputArgIndex = cliArgs.indexOf("--output");
+const requestedOutputPath =
+  outputArgIndex === -1 ? null : cliArgs[outputArgIndex + 1] ?? null;
+const resolvedOutputPath =
+  requestedOutputPath === null
+    ? null
+    : path.resolve(process.cwd(), requestedOutputPath);
 
 const parseJsonOutput = (value) => {
   if (value.length === 0) {
@@ -43,6 +52,27 @@ const runCheck = (name, scriptName, extraArgs = []) => {
 
 const startedAt = new Date().toISOString();
 const aggregateStartMs = Date.now();
+
+if (outputArgIndex !== -1 && requestedOutputPath === null) {
+  console.log(
+    JSON.stringify(
+      {
+        passed: false,
+        exitCode: 1,
+        noBuild: isNoBuild,
+        startedAt,
+        durationMs: 0,
+        checks: [],
+        outputPath: null,
+        message: "Missing value for --output option.",
+      },
+      null,
+      2
+    )
+  );
+  process.exit(1);
+}
+
 const checks = [
   runCheck("devEnvironment", "check-dev-env.mjs"),
   runCheck("wasmPack", "check-wasm-pack.mjs"),
@@ -51,20 +81,37 @@ const checks = [
 
 const passed = checks.every((check) => check.passed);
 const exitCode = passed ? 0 : 1;
+const report = {
+  passed,
+  exitCode,
+  noBuild: isNoBuild,
+  startedAt,
+  durationMs: Date.now() - aggregateStartMs,
+  checks,
+  outputPath: resolvedOutputPath,
+};
+const reportJson = JSON.stringify(report, null, 2);
 
-console.log(
-  JSON.stringify(
-    {
-      passed,
-      exitCode,
-      noBuild: isNoBuild,
-      startedAt,
-      durationMs: Date.now() - aggregateStartMs,
-      checks,
-    },
-    null,
-    2
-  )
-);
+if (resolvedOutputPath !== null) {
+  try {
+    fs.writeFileSync(resolvedOutputPath, reportJson);
+  } catch {
+    console.log(
+      JSON.stringify(
+        {
+          ...report,
+          passed: false,
+          exitCode: 1,
+          message: `Failed to write preflight report to ${resolvedOutputPath}.`,
+        },
+        null,
+        2
+      )
+    );
+    process.exit(1);
+  }
+}
+
+console.log(reportJson);
 
 process.exit(exitCode);
