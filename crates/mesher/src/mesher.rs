@@ -2817,8 +2817,9 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
         };
 
         let slice_area = ((u_range.1 - u_range.0) * (v_range.1 - v_range.0)).max(0) as usize;
-        if non_greedy_faces.capacity() < slice_area {
-            non_greedy_faces.reserve(slice_area - non_greedy_faces.capacity());
+        let non_greedy_target_capacity = slice_area.saturating_mul(6);
+        if non_greedy_faces.capacity() < non_greedy_target_capacity {
+            non_greedy_faces.reserve(non_greedy_target_capacity - non_greedy_faces.capacity());
         }
 
         let mask_width = (u_range.1 - u_range.0) as usize;
@@ -2907,8 +2908,54 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 ));
                             }
                         } else {
+                            let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                            let face_cache = build_face_process_cache(
+                                block,
+                                is_see_through,
+                                is_fluid,
+                                &neighbors,
+                                registry,
+                                vx,
+                                vy,
+                                vz,
+                                voxel_id,
+                                space,
+                            );
                             for face in &block.faces {
-                                non_greedy_faces.push((vx, vy, vz, voxel_id, face.clone(), false));
+                                let geo_key = geometry_key_for_face(block, face, vx, vy, vz);
+                                let geometry = map.entry(geo_key).or_insert_with(|| {
+                                    let mut entry = GeometryProtocol::default();
+                                    entry.voxel = voxel_id;
+                                    if face.independent || face.isolated {
+                                        entry.face_name = Some(face.name.clone());
+                                    }
+                                    if face.isolated {
+                                        entry.at = Some([vx, vy, vz]);
+                                    }
+                                    entry
+                                });
+                                process_face(
+                                    vx,
+                                    vy,
+                                    vz,
+                                    voxel_id,
+                                    &rotation,
+                                    face,
+                                    &face.range,
+                                    block,
+                                    registry,
+                                    space,
+                                    &neighbors,
+                                    &face_cache,
+                                    is_see_through,
+                                    is_fluid,
+                                    &mut geometry.positions,
+                                    &mut geometry.indices,
+                                    &mut geometry.uvs,
+                                    &mut geometry.lights,
+                                    min,
+                                    false,
+                                );
                             }
                         }
                         continue;
