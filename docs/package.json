@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
-    "prepare:typedoc": "pnpm --filter @voxelize/protocol proto:generate",
+    "prepare:typedoc": "pnpm --filter @voxelize/protocol proto:generate && pnpm --filter @voxelize/aabb build && pnpm --filter @voxelize/raycast build && pnpm --filter @voxelize/physics-engine build && pnpm --filter @voxelize/ts-core build",
     "start": "pnpm run prepare:typedoc && cross-env TYPEDOC_WATCH=true docusaurus start --port 3040",
     "build": "pnpm run prepare:typedoc && docusaurus build",
     "swizzle": "docusaurus swizzle",
