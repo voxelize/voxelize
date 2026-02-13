@@ -99,8 +99,6 @@ impl Registry {
         active_ticker: F1,
         active_updater: F2,
     ) {
-        self.invalidate_cached_registries();
-
         let mut air = self.blocks_by_id.remove(&0).unwrap();
 
         air.active_ticker = Some(Arc::new(active_ticker));

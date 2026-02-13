@@ -5,7 +5,7 @@ use voxelize_lighter::{
     can_enter as lighter_can_enter, can_enter_into as lighter_can_enter_into,
     flood_light as lighter_flood_light, propagate as lighter_propagate,
     remove_light as lighter_remove_light, remove_lights as lighter_remove_lights, LightBounds,
-    LightConfig, LightNode as LighterNode, LightRegistry, LightVoxelAccess,
+    LightConfig, LightNode as LighterNode, LightVoxelAccess,
 };
 
 pub type LightNode = LighterNode;

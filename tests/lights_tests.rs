@@ -291,3 +291,41 @@ fn test_register_air_active_fn_invalidates_conversion_caches() {
         "lighter registry cache should refresh after air active registration"
     );
 }
+
+#[test]
+fn test_registry_clone_keeps_conversion_caches_independent() {
+    let registry = create_test_registry();
+    let mesher_original = registry.mesher_registry();
+    let lighter_original = registry.lighter_registry();
+
+    let mut cloned = registry.clone();
+    let mesher_clone = cloned.mesher_registry();
+    let lighter_clone = cloned.lighter_registry();
+
+    assert!(
+        !Arc::ptr_eq(&mesher_original, &mesher_clone),
+        "cloned registry should build an independent mesher conversion cache"
+    );
+    assert!(
+        !Arc::ptr_eq(&lighter_original, &lighter_clone),
+        "cloned registry should build an independent lighter conversion cache"
+    );
+
+    cloned.register_block(&Block::new("clone-only").id(29).build());
+    assert!(
+        cloned.mesher_registry().has_type(29),
+        "newly registered block should exist in clone mesher cache"
+    );
+    assert!(
+        cloned.lighter_registry().has_type(29),
+        "newly registered block should exist in clone lighter cache"
+    );
+    assert!(
+        !registry.mesher_registry().has_type(29),
+        "original registry should not observe clone-only mutation"
+    );
+    assert!(
+        !registry.lighter_registry().has_type(29),
+        "original registry should not observe clone-only mutation"
+    );
+}
