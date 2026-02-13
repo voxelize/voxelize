@@ -1307,17 +1307,6 @@ fn compute_face_ao_and_light(
                         let ddy = y * dy;
                         let ddz = z * dz;
 
-                        let (local_sunlight, local_red_light, local_green_light, local_blue_light) =
-                            neighbors.get_all_lights(ddx, ddy, ddz);
-
-                        if local_sunlight == 0
-                            && local_red_light == 0
-                            && local_green_light == 0
-                            && local_blue_light == 0
-                        {
-                            continue;
-                        }
-
                         let diagonal4_opaque = neighbor_is_opaque(&opaque_mask, ddx, ddy, ddz);
 
                         if diagonal4_opaque {
@@ -1367,6 +1356,17 @@ fn compute_face_ao_and_light(
                                     continue;
                                 }
                             }
+                        }
+
+                        let (local_sunlight, local_red_light, local_green_light, local_blue_light) =
+                            neighbors.get_all_lights(ddx, ddy, ddz);
+
+                        if local_sunlight == 0
+                            && local_red_light == 0
+                            && local_green_light == 0
+                            && local_blue_light == 0
+                        {
+                            continue;
                         }
 
                         sum_sunlights += local_sunlight;
@@ -1529,17 +1529,6 @@ fn compute_face_ao_and_light_fast(
                     let ddy = y * dy;
                     let ddz = z * dz;
 
-                    let (local_sunlight, local_red_light, local_green_light, local_blue_light) =
-                        neighbors.get_all_lights(ddx, ddy, ddz);
-
-                    if local_sunlight == 0
-                        && local_red_light == 0
-                        && local_green_light == 0
-                        && local_blue_light == 0
-                    {
-                        continue;
-                    }
-
                     let diagonal4_opaque = neighbor_is_opaque(mask, ddx, ddy, ddz);
 
                     if diagonal4_opaque {
@@ -1589,6 +1578,17 @@ fn compute_face_ao_and_light_fast(
                                 continue;
                             }
                         }
+                    }
+
+                    let (local_sunlight, local_red_light, local_green_light, local_blue_light) =
+                        neighbors.get_all_lights(ddx, ddy, ddz);
+
+                    if local_sunlight == 0
+                        && local_red_light == 0
+                        && local_green_light == 0
+                        && local_blue_light == 0
+                    {
+                        continue;
                     }
 
                     sum_sunlights += local_sunlight;
@@ -2363,17 +2363,6 @@ fn process_face<S: VoxelAccess>(
                         let ddy = y * dy;
                         let ddz = z * dz;
 
-                        let (local_sunlight, local_red_light, local_green_light, local_blue_light) =
-                            neighbors.get_all_lights(ddx, ddy, ddz);
-
-                        if local_sunlight == 0
-                            && local_red_light == 0
-                            && local_green_light == 0
-                            && local_blue_light == 0
-                        {
-                            continue;
-                        }
-
                         let diagonal4_opaque = neighbor_is_opaque(mask, ddx, ddy, ddz);
 
                         if diagonal4_opaque {
@@ -2436,6 +2425,17 @@ fn process_face<S: VoxelAccess>(
                                     continue;
                                 }
                             }
+                        }
+
+                        let (local_sunlight, local_red_light, local_green_light, local_blue_light) =
+                            neighbors.get_all_lights(ddx, ddy, ddz);
+
+                        if local_sunlight == 0
+                            && local_red_light == 0
+                            && local_green_light == 0
+                            && local_blue_light == 0
+                        {
+                            continue;
                         }
 
                         sum_sunlights += local_sunlight;
