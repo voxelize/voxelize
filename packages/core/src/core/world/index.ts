@@ -2254,7 +2254,15 @@ export class World<T = any> extends Scene implements NetIntercept {
     coords: Coords2,
     listener: (chunk: Chunk) => void
   ) => {
-    const name = ChunkUtils.getChunkNameAt(coords[0], coords[1]);
+    return this.addChunkInitListenerAt(coords[0], coords[1], listener);
+  };
+
+  addChunkInitListenerAt = (
+    cx: number,
+    cz: number,
+    listener: (chunk: Chunk) => void
+  ) => {
+    const name = ChunkUtils.getChunkNameAt(cx, cz);
 
     const listeners = this.chunkInitializeListeners.get(name) ?? new Set();
     listeners.add(listener);
@@ -4072,7 +4080,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         triggerInitListener(chunk);
       } else {
         let disposer = () => {};
-        disposer = this.addChunkInitListener([x, z], () => {
+        disposer = this.addChunkInitListenerAt(x, z, () => {
           buildMeshes();
           disposer();
         });
