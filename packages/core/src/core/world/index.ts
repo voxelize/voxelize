@@ -2133,7 +2133,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const vz = Math.floor(pz);
     const voxelName = ChunkUtils.getVoxelNameAt(vx, vy, vz);
 
-    return this.blockEntitiesMap.get(voxelName)?.data || null;
+    return this.blockEntitiesMap.get(voxelName)?.data ?? null;
   }
 
   getBlockEntityIdAt(px: number, py: number, pz: number): string | null {
@@ -2144,7 +2144,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const vz = Math.floor(pz);
     const voxelName = ChunkUtils.getVoxelNameAt(vx, vy, vz);
 
-    return this.blockEntitiesMap.get(voxelName)?.id || null;
+    return this.blockEntitiesMap.get(voxelName)?.id ?? null;
   }
 
   setBlockEntityDataAt(px: number, py: number, pz: number, data: T) {
