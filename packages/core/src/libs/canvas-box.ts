@@ -277,7 +277,14 @@ export class BoxLayer extends Mesh {
       const canvas = <HTMLCanvasElement>material.map?.image;
       if (!canvas) continue;
 
-      const context = canvas.getContext("2d");
+      let context = material.userData.canvasContext as
+        | CanvasRenderingContext2D
+        | undefined;
+      if (!context) {
+        context = canvas.getContext("2d") ?? undefined;
+        if (!context) continue;
+        material.userData.canvasContext = context;
+      }
       if (!context) continue;
 
       context.imageSmoothingEnabled = false;
