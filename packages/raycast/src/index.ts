@@ -131,7 +131,7 @@ function raycast(
     for (let aabbIndex = 0; aabbIndex < aabbs.length; aabbIndex++) {
       const aabb = aabbs[aabbIndex];
       const result = raycastAABBAt(ox, oy, oz, dx, dy, dz, aabb, maxDistance);
-      if (result) {
+      if (result && (!hit || result.distance < hit.distance)) {
         hit = result;
       }
     }
