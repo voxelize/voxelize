@@ -3325,7 +3325,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       if (level === 0) continue;
 
       // Push into queue and immediately clear the light so we don't visit twice.
-      queue.push({ voxel: [vx, vy, vz], level });
+      queue.push({ voxel, level });
       if (isSunlight) {
         this.setSunlightAt(vx, vy, vz, 0);
       } else {
