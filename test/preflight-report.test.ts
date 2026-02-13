@@ -95,6 +95,9 @@ type PreflightReport = {
   unknownOptions: string[];
   unknownOptionCount: number;
   supportedCliOptions: string[];
+  availableCliOptionAliases: {
+    "--list-checks": string[];
+  };
   writeError?: string;
   message?: string;
 };
@@ -141,12 +144,16 @@ const expectedRequestedCheckResolutionKinds: Array<
 const expectedSupportedCliOptions = [
   "--compact",
   "--json",
+  "--list",
   "--list-checks",
   "--no-build",
   "--only",
   "--output",
   "--quiet",
 ];
+const expectedAvailableCliOptionAliases = {
+  "--list-checks": ["--list"],
+};
 const expectedUnsupportedOptionsMessage = (options: string[]) => {
   return `Unsupported option(s): ${options.join(", ")}. Supported options: ${expectedSupportedCliOptions.join(", ")}.`;
 };
@@ -194,6 +201,9 @@ describe("preflight aggregate report", () => {
       expectedAvailableSpecialSelectorResolvedChecks
     );
     expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
+    expect(report.availableCliOptionAliases).toEqual(
+      expectedAvailableCliOptionAliases
+    );
     expect(report.requestedCheckResolutionKinds).toEqual(
       expectedRequestedCheckResolutionKinds
     );
@@ -839,6 +849,27 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(0);
   });
 
+  it("supports list alias for listing checks", () => {
+    const result = spawnSync(process.execPath, [preflightScript, "--list"], {
+      cwd: rootDir,
+      encoding: "utf8",
+      shell: false,
+    });
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(true);
+    expect(report.passed).toBe(true);
+    expect(report.exitCode).toBe(0);
+    expect(report.availableCliOptionAliases).toEqual(
+      expectedAvailableCliOptionAliases
+    );
+    expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
+    expect(report.checks).toEqual([]);
+    expect(result.status).toBe(0);
+  });
+
   it("supports listing resolved filters for explicit only values", () => {
     const result = spawnSync(
       process.execPath,
@@ -943,6 +974,9 @@ describe("preflight aggregate report", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
+    expect(report.availableCliOptionAliases).toEqual(
+      expectedAvailableCliOptionAliases
+    );
     expect(report.selectionMode).toBe("default");
     expect(report.invalidCheckCount).toBe(0);
     expect(report.unknownOptionCount).toBe(1);
@@ -977,6 +1011,9 @@ describe("preflight aggregate report", () => {
     expect(report.invalidCheckCount).toBe(0);
     expect(report.unknownOptionCount).toBe(2);
     expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
+    expect(report.availableCliOptionAliases).toEqual(
+      expectedAvailableCliOptionAliases
+    );
     expect(report.unknownOptions).toEqual(["--mystery", "--another-mystery"]);
     expect(report.message).toBe(
       expectedUnsupportedOptionsMessage(["--mystery", "--another-mystery"])

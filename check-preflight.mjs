@@ -15,11 +15,17 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const cliArgs = process.argv.slice(2);
 const isNoBuild = cliArgs.includes("--no-build");
-const isListChecks = cliArgs.includes("--list-checks");
+const availableCliOptionAliases = {
+  "--list-checks": ["--list"],
+};
+const isListChecks =
+  cliArgs.includes("--list-checks") ||
+  availableCliOptionAliases["--list-checks"].some((alias) => cliArgs.includes(alias));
 const isCompact = cliArgs.includes("--compact");
 const supportedCliOptions = [
   "--compact",
   "--json",
+  "--list",
   "--list-checks",
   "--no-build",
   "--only",
@@ -369,6 +375,7 @@ if (
     unknownOptions,
     unknownOptionCount,
     supportedCliOptions,
+    availableCliOptionAliases,
     availableChecks: availableCheckNames,
     availableCheckMetadata,
     availableCheckAliases,
@@ -418,6 +425,7 @@ if (isListChecks) {
     unknownOptions,
     unknownOptionCount,
     supportedCliOptions,
+    availableCliOptionAliases,
     availableChecks: availableCheckNames,
     availableCheckMetadata,
     availableCheckAliases,
@@ -484,6 +492,7 @@ const report = buildTimedReport({
   unknownOptions,
   unknownOptionCount,
   supportedCliOptions,
+  availableCliOptionAliases,
   availableChecks: availableCheckNames,
   availableCheckMetadata,
   availableCheckAliases,
