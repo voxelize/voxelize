@@ -66,16 +66,12 @@ function get(
   x: number,
   y: number,
   z: number,
-  stride: number[]
+  strideX: number,
+  strideY: number,
+  strideZ: number
 ) {
-  const index = x * stride[0] + y * stride[1] + z * stride[2];
+  const index = x * strideX + y * strideY + z * strideZ;
   return index >= arr.length || index < 0 ? 0 : arr[index];
-}
-
-function contains(vx, vy, vz, min, max) {
-  const [sx, sy, sz] = min;
-  const [ex, ey, ez] = max;
-  return vx < ex && vx >= sx && vy < ey && vy >= sy && vz < ez && vz >= sz;
 }
 
 // @ts-ignore
@@ -91,13 +87,16 @@ onmessage = function (e) {
 
   const [startX, startY, startZ] = min;
   const [endX, endY, endZ] = max;
+  const [realStartX, realStartY, realStartZ] = realMin;
+  const [realEndX, realEndY, realEndZ] = realMax;
+  const [strideX, strideY, strideZ] = stride;
 
   const [dx, dy, dz] = dimensions;
 
   for (let vx = startX, x = 0; vx < endX; ++vx, ++x) {
     for (let vz = startZ, z = 0; vz < endZ; ++vz, ++z) {
       for (let vy = startY, y = 0; vy < endY; ++vy, ++y) {
-        const voxel = get(data, vx, vy, vz, stride);
+        const voxel = get(data, vx, vy, vz, strideX, strideY, strideZ);
 
         if (voxel) {
           // There is a voxel here but do we need faces for it?
@@ -107,10 +106,17 @@ onmessage = function (e) {
             const nvx = vx + dir[0];
             const nvy = vy + dir[1];
             const nvz = vz + dir[2];
+            const inRealBounds =
+              nvx < realEndX &&
+              nvx >= realStartX &&
+              nvy < realEndY &&
+              nvy >= realStartY &&
+              nvz < realEndZ &&
+              nvz >= realStartZ;
 
             if (
-              !get(data, nvx, nvy, nvz, stride) ||
-              !contains(nvx, nvy, nvz, realMin, realMax)
+              !get(data, nvx, nvy, nvz, strideX, strideY, strideZ) ||
+              !inRealBounds
             ) {
               // this voxel has no neighbor in this direction so we need a face.
               const ndx = positions.length / 3;
