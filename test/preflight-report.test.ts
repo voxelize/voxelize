@@ -43,6 +43,7 @@ type PreflightReport = {
   failureSummaries: PreflightFailureSummary[];
   checks: PreflightCheckResult[];
   outputPath: string | null;
+  writeError?: string;
   message?: string;
 };
 
@@ -533,6 +534,7 @@ describe("preflight aggregate report", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.outputPath).toBe(tempDirectory);
+    expect(report.writeError).toContain(`Failed to write report to ${tempDirectory}.`);
     expect(report.message).toContain(`Failed to write report to ${tempDirectory}.`);
     expect(result.status).toBe(1);
 

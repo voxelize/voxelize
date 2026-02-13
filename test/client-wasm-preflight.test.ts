@@ -14,6 +14,7 @@ type WasmPackJsonReport = {
   startedAt: string;
   endedAt: string;
   durationMs: number;
+  writeError?: string;
   message?: string;
 };
 
@@ -29,6 +30,7 @@ type WasmMesherJsonReport = {
   wasmPackCheckReport: WasmPackJsonReport | null;
   buildOutput: string | null;
   outputPath: string | null;
+  writeError?: string;
   message: string;
   startedAt: string;
   endedAt: string;
@@ -253,6 +255,7 @@ describe("client wasm preflight script", () => {
     expect(report.exitCode).toBe(1);
     expect(report.outputPath).toBe(tempDirectory);
     expectTimingMetadata(report);
+    expect(report.writeError).toContain(failurePrefix);
     expect(report.message).toContain(failurePrefix);
     expect(report.message.length).toBeGreaterThan(failurePrefix.length);
     expect(result.status).toBe(1);

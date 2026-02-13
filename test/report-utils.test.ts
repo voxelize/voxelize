@@ -222,6 +222,7 @@ describe("report-utils", () => {
       passed: boolean;
       exitCode: number;
       outputPath: string;
+      writeError: string;
       message: string;
       startedAt: string;
       endedAt: string;
@@ -235,6 +236,9 @@ describe("report-utils", () => {
     expect(parsedWriteFailureResult.passed).toBe(false);
     expect(parsedWriteFailureResult.exitCode).toBe(1);
     expect(parsedWriteFailureResult.outputPath).toBe(tempDirectory);
+    expect(parsedWriteFailureResult.writeError).toContain(
+      `Failed to write report to ${tempDirectory}.`
+    );
     expect(parsedWriteFailureResult.message).toContain(
       `Failed to write report to ${tempDirectory}.`
     );

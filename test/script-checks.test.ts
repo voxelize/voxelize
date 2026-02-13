@@ -24,6 +24,7 @@ type WasmPackJsonReport = {
   startedAt: string;
   endedAt: string;
   durationMs: number;
+  writeError?: string;
   message?: string;
 };
 
@@ -47,6 +48,7 @@ type DevEnvJsonReport = {
   startedAt: string;
   endedAt: string;
   durationMs: number;
+  writeError?: string;
   message?: string;
 };
 
@@ -92,6 +94,7 @@ type ClientJsonReport = {
   startedAt: string;
   endedAt: string;
   durationMs: number;
+  writeError?: string;
   message?: string;
 };
 
@@ -120,6 +123,7 @@ type OnboardingJsonReport = {
   startedAt: string;
   endedAt: string;
   durationMs: number;
+  writeError?: string;
   message?: string;
 };
 
@@ -281,6 +285,7 @@ describe("root preflight scripts", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.outputPath).toBe(tempDirectory);
+    expect(report.writeError).toContain(failurePrefix);
     expect(report.message).toContain(failurePrefix);
     if (report.message !== undefined) {
       expect(report.message.length).toBeGreaterThan(failurePrefix.length);
@@ -416,6 +421,7 @@ describe("root preflight scripts", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.outputPath).toBe(tempDirectory);
+    expect(report.writeError).toContain(failurePrefix);
     expect(report.message).toContain(failurePrefix);
     if (report.message !== undefined) {
       expect(report.message.length).toBeGreaterThan(failurePrefix.length);
@@ -584,6 +590,7 @@ describe("root preflight scripts", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.outputPath).toBe(tempDirectory);
+    expect(report.writeError).toContain(failurePrefix);
     expect(report.message).toContain(failurePrefix);
     if (report.message !== undefined) {
       expect(report.message.length).toBeGreaterThan(failurePrefix.length);
@@ -778,6 +785,7 @@ describe("root preflight scripts", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.outputPath).toBe(tempDirectory);
+    expect(report.writeError).toContain(failurePrefix);
     expect(report.message).toContain(failurePrefix);
     if (report.message !== undefined) {
       expect(report.message.length).toBeGreaterThan(failurePrefix.length);

@@ -220,6 +220,7 @@ export const serializeReportWithOptionalWrite = (
         ...report,
         passed: false,
         exitCode: 1,
+        writeError,
         message: writeError,
       }),
       jsonFormat
