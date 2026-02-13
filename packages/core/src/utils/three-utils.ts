@@ -15,60 +15,75 @@ import {
   Vector3,
 } from "three";
 
+type FlaggedThreeObject = Record<string, boolean | undefined>;
+
 export class ThreeUtils {
-  static isTexture(object: any): object is Texture {
-    return object && object.isTexture;
+  private static hasFlag(
+    object: object | null | undefined,
+    flag: string
+  ): boolean {
+    return !!(object && (object as FlaggedThreeObject)[flag]);
   }
 
-  static isVector3(object: any): object is Vector3 {
-    return object && object.isVector3;
+  static isTexture(object: object | null | undefined): object is Texture {
+    return this.hasFlag(object, "isTexture");
   }
 
-  static isColor(object: any): object is Color {
-    return object && object.isColor;
+  static isVector3(object: object | null | undefined): object is Vector3 {
+    return this.hasFlag(object, "isVector3");
   }
 
-  static isMatrix4(object: any): object is Matrix4 {
-    return object && object.isMatrix4;
+  static isColor(object: object | null | undefined): object is Color {
+    return this.hasFlag(object, "isColor");
   }
 
-  static isQuaternion(object: any): object is Quaternion {
-    return object && object.isQuaternion;
+  static isMatrix4(object: object | null | undefined): object is Matrix4 {
+    return this.hasFlag(object, "isMatrix4");
   }
 
-  static isEuler(object: any): object is Euler {
-    return object && object.isEuler;
+  static isQuaternion(object: object | null | undefined): object is Quaternion {
+    return this.hasFlag(object, "isQuaternion");
   }
 
-  static isBufferGeometry(object: any): object is BufferGeometry {
-    return object && object.isBufferGeometry;
+  static isEuler(object: object | null | undefined): object is Euler {
+    return this.hasFlag(object, "isEuler");
   }
 
-  static isMesh(object: any): object is Mesh {
-    return object && object.isMesh;
+  static isBufferGeometry(
+    object: object | null | undefined
+  ): object is BufferGeometry {
+    return this.hasFlag(object, "isBufferGeometry");
   }
 
-  static isGroup(object: any): object is Group {
-    return object && object.isGroup;
+  static isMesh(object: object | null | undefined): object is Mesh {
+    return this.hasFlag(object, "isMesh");
   }
 
-  static isScene(object: any): object is Scene {
-    return object && object.isScene;
+  static isGroup(object: object | null | undefined): object is Group {
+    return this.hasFlag(object, "isGroup");
   }
 
-  static isCamera(object: any): object is Camera {
-    return object && object.isCamera;
+  static isScene(object: object | null | undefined): object is Scene {
+    return this.hasFlag(object, "isScene");
   }
 
-  static isObject3D(object: any): object is Object3D {
-    return object && object.isObject3D;
+  static isCamera(object: object | null | undefined): object is Camera {
+    return this.hasFlag(object, "isCamera");
   }
 
-  static isCanvasTexture(object: any): object is CanvasTexture {
-    return object && object.isCanvasTexture;
+  static isObject3D(object: object | null | undefined): object is Object3D {
+    return this.hasFlag(object, "isObject3D");
   }
 
-  static isShaderMaterial(object: any): object is ShaderMaterial {
-    return object && object.isShaderMaterial;
+  static isCanvasTexture(
+    object: object | null | undefined
+  ): object is CanvasTexture {
+    return this.hasFlag(object, "isCanvasTexture");
+  }
+
+  static isShaderMaterial(
+    object: object | null | undefined
+  ): object is ShaderMaterial {
+    return this.hasFlag(object, "isShaderMaterial");
   }
 }
