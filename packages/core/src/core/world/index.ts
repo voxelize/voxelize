@@ -3967,7 +3967,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     toRemove.forEach((name) => this.chunkPipeline.remove(name));
 
     this.chunkPipeline.forEach("requested", (name) => {
-      const [x, z] = ChunkUtils.parseChunkName(name);
+      const [x, z] = ChunkUtils.parseChunkNameAt(name);
 
       if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
         this.chunkPipeline.remove(name);
@@ -5788,7 +5788,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     });
 
     affectedChunks.forEach((chunkName) => {
-      const coords = ChunkUtils.parseChunkName(chunkName);
+      const coords = ChunkUtils.parseChunkNameAt(chunkName);
       this.markChunkForRemesh(coords as Coords2);
     });
   }

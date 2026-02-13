@@ -232,7 +232,7 @@ const applyRelevantDeltas = (
 
   for (const chunkName in relevantDeltas) {
     const deltas = relevantDeltas[chunkName];
-    const [cx, cz] = ChunkUtils.parseChunkName(chunkName);
+    const [cx, cz] = ChunkUtils.parseChunkNameAt(chunkName);
     const localX = cx - gridOffsetX;
     const localZ = cz - gridOffsetZ;
 

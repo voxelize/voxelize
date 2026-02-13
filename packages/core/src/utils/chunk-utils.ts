@@ -98,6 +98,25 @@ export class ChunkUtils {
   };
 
   /**
+   * Parse a chunk name into x/z coordinates with minimal allocations.
+   *
+   * @param name The string representation of the chunk.
+   * @param concat The concatenation string used.
+   * @returns The parsed chunk coordinates as a tuple.
+   */
+  static parseChunkNameAt = (name: string, concat = "|"): Coords2 => {
+    const separatorIndex = name.indexOf(concat);
+    if (separatorIndex < 0) {
+      return [0, 0];
+    }
+
+    const cx = parseInt(name.slice(0, separatorIndex), 10);
+    const cz = parseInt(name.slice(separatorIndex + concat.length), 10);
+
+    return [cx, cz];
+  };
+
+  /**
    * Scale and floor a 3D coordinate.
    *
    * @param coords The coordinates to scale and floor.
