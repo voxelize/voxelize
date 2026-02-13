@@ -350,6 +350,7 @@ export class MeshPipeline {
 
       const state = this.states.get(key);
       if (!state) {
+        this.dirty.delete(key);
         continue;
       }
       if (state.inFlightGeneration !== null) {
@@ -371,6 +372,7 @@ export class MeshPipeline {
     for (const key of this.dirty) {
       const state = this.states.get(key);
       if (!state) {
+        this.dirty.delete(key);
         continue;
       }
       if (state.inFlightGeneration !== null) {
