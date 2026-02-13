@@ -35,6 +35,8 @@ pub struct Block {
     #[serde(skip, default)]
     pub has_independent_or_isolated_faces: bool,
     #[serde(skip, default)]
+    pub has_dynamic_patterns: bool,
+    #[serde(skip, default)]
     pub block_min_cached: [f32; 3],
     #[serde(skip, default)]
     pub is_full_cube_cached: bool,
@@ -125,10 +127,11 @@ impl Block {
         self.has_diagonal_faces = has_diagonal;
         self.has_independent_or_isolated_faces = has_independent_or_isolated_faces;
         self.has_mixed_diagonal_and_cardinal = has_diagonal && has_cardinal;
+        self.has_dynamic_patterns = self.dynamic_patterns.is_some();
         self.greedy_mesh_eligible_no_rotation = !self.is_fluid
             && !self.rotatable
             && !self.y_rotatable
-            && self.dynamic_patterns.is_none()
+            && !self.has_dynamic_patterns
             && self.is_full_cube_cached
             && !self.has_mixed_diagonal_and_cardinal;
         if let Some(patterns) = &mut self.dynamic_patterns {
@@ -194,6 +197,14 @@ impl Block {
                 .any(|face| face.independent || face.isolated)
         } else {
             self.has_independent_or_isolated_faces
+        }
+    }
+
+    pub fn has_dynamic_patterns_cached(&self) -> bool {
+        if !self.cache_ready {
+            self.dynamic_patterns.is_some()
+        } else {
+            self.has_dynamic_patterns
         }
     }
 }
@@ -2643,7 +2654,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                 .into_iter()
                                 .map(|f| (f, false))
                                 .collect()
-                        } else if block.dynamic_patterns.is_some() {
+                        } else if block.has_dynamic_patterns_cached() {
                             let mut faces = Vec::with_capacity(8);
                             visit_dynamic_faces(
                                 block,
@@ -3008,7 +3019,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     let is_see_through = block.is_see_through;
 
                     if is_non_greedy_block {
-                        let has_dynamic_patterns = block.dynamic_patterns.is_some();
+                        let has_dynamic_patterns = block.has_dynamic_patterns_cached();
                         let mut rotation = BlockRotation::PY(0.0);
                         if block.rotatable || block.y_rotatable || has_dynamic_patterns {
                             rotation = space.get_voxel_rotation(vx, vy, vz);
@@ -3496,7 +3507,7 @@ pub fn mesh_space<S: VoxelAccess>(
                 let is_empty = block.is_empty;
                 let is_opaque = block.is_opaque;
                 let is_fluid = block.is_fluid;
-                let has_dynamic_patterns = block.dynamic_patterns.is_some();
+                let has_dynamic_patterns = block.has_dynamic_patterns_cached();
 
                 if is_empty {
                     continue;
