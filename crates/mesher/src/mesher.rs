@@ -722,6 +722,7 @@ fn vertex_ao(side1: bool, side2: bool, corner: bool) -> i32 {
     }
 }
 
+#[inline(always)]
 fn get_fluid_effective_height(stage: u32) -> f32 {
     (FLUID_BASE_HEIGHT - (stage as f32 * FLUID_STAGE_DROPOFF)).max(0.1)
 }
