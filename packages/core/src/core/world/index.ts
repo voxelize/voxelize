@@ -5376,7 +5376,11 @@ export class World<T = any> extends Scene implements NetIntercept {
     };
 
     for (let index = startIndex; index < endIndex; index++) {
-      if (consumedCount > 0 && performance.now() > updateDeadline) {
+      if (
+        consumedCount > 0 &&
+        (consumedCount & 15) === 0 &&
+        performance.now() > updateDeadline
+      ) {
         if (Math.random() < 0.01) {
           console.warn(
             "Approaching maxLightsUpdateTime during light updates, continuing to ensure correctness"
