@@ -47,6 +47,7 @@ const {
 } = createCliDiagnostics(cliOptionArgs, {
   canonicalOptions: canonicalCliOptions,
   optionsWithValues: ["--output"],
+  optionsWithStrictValues: ["--output"],
   outputPathError,
 });
 const buildTimedReport = createTimedReportBuilder();

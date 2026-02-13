@@ -2448,15 +2448,16 @@ describe("preflight aggregate report", () => {
     expect(report.activeCliOptionTokens).toEqual([
       "--list-checks",
       "--output",
+      "-l",
     ]);
     expect(report.activeCliOptionResolutions).toEqual(
-      expectedActiveCliOptionResolutions(["--list-checks", "--output"])
+      expectedActiveCliOptionResolutions(["--list-checks", "--output", "-l"])
     );
     expect(report.activeCliOptionResolutionCount).toBe(
       report.activeCliOptionResolutions.length
     );
     expect(report.activeCliOptionOccurrences).toEqual(
-      expectedActiveCliOptionOccurrences(["--list-checks", "--output"])
+      expectedActiveCliOptionOccurrences(["--list-checks", "--output", "-l"])
     );
     expect(report.activeCliOptionOccurrenceCount).toBe(
       report.activeCliOptionOccurrences.length

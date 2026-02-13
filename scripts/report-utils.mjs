@@ -372,11 +372,24 @@ const resolveCanonicalOptionToken = (
   return null;
 };
 
-const createValueOptionMetadata = (optionsWithValues, canonicalOptionMap) => {
+const createValueOptionMetadata = (
+  optionsWithValues,
+  optionsWithStrictValues,
+  canonicalOptionMap
+) => {
   const canonicalValueOptions = new Set(
     optionsWithValues.map((optionWithValue) => {
       return canonicalOptionMap.get(optionWithValue) ?? optionWithValue;
     })
+  );
+  const canonicalStrictValueOptions = new Set(
+    optionsWithStrictValues
+      .map((strictValueOption) => {
+        return canonicalOptionMap.get(strictValueOption) ?? strictValueOption;
+      })
+      .filter((strictValueOption) => {
+        return canonicalValueOptions.has(strictValueOption);
+      })
   );
   const inlineValueTokenCanonicalMap = new Map(
     Array.from(canonicalValueOptions).map((canonicalOption) => {
@@ -393,6 +406,7 @@ const createValueOptionMetadata = (optionsWithValues, canonicalOptionMap) => {
 
   return {
     canonicalValueOptions,
+    canonicalStrictValueOptions,
     inlineValueTokenCanonicalMap,
   };
 };
@@ -422,6 +436,7 @@ export const parseUnknownCliOptions = (
     canonicalOptions = [],
     optionAliases = {},
     optionsWithValues = [],
+    optionsWithStrictValues = [],
   } = {}
 ) => {
   const { optionArgs } = splitCliArgs(args);
@@ -429,8 +444,15 @@ export const parseUnknownCliOptions = (
     canonicalOptions,
     optionAliases
   );
-  const { canonicalValueOptions, inlineValueTokenCanonicalMap } =
-    createValueOptionMetadata(optionsWithValues, canonicalOptionMap);
+  const {
+    canonicalValueOptions,
+    canonicalStrictValueOptions,
+    inlineValueTokenCanonicalMap,
+  } = createValueOptionMetadata(
+    optionsWithValues,
+    optionsWithStrictValues,
+    canonicalOptionMap
+  );
   const unknownOptions = [];
   const seenUnknownOptions = new Set();
 
@@ -455,7 +477,16 @@ export const parseUnknownCliOptions = (
         !resolvedOption.hasInlineValue
       ) {
         const nextArg = optionArgs[index + 1] ?? null;
-        if (nextArg !== null && !nextArg.startsWith("--")) {
+        const nextArgResolvesToKnownOption =
+          nextArg !== null && canonicalOptionMap.has(nextArg);
+        const strictValueOptionWithRecognizedToken =
+          canonicalStrictValueOptions.has(resolvedOption.canonicalOption) &&
+          nextArgResolvesToKnownOption;
+        if (
+          nextArg !== null &&
+          !nextArg.startsWith("--") &&
+          !strictValueOptionWithRecognizedToken
+        ) {
           index += 1;
         }
       }
@@ -485,6 +516,7 @@ export const createCliOptionValidation = (
     canonicalOptions = [],
     optionAliases = {},
     optionsWithValues = [],
+    optionsWithStrictValues = [],
     outputPathError = null,
     supportedCliOptions: precomputedSupportedCliOptions = null,
   } = {}
@@ -499,6 +531,7 @@ export const createCliOptionValidation = (
     canonicalOptions,
     optionAliases,
     optionsWithValues,
+    optionsWithStrictValues,
   });
   const unknownOptionCount = unknownOptions.length;
   const unsupportedOptionsError =
@@ -543,6 +576,7 @@ export const parseActiveCliOptionMetadata = (
     canonicalOptions = [],
     optionAliases = {},
     optionsWithValues = [],
+    optionsWithStrictValues = [],
   } = {}
 ) => {
   const { optionArgs } = splitCliArgs(args);
@@ -550,8 +584,15 @@ export const parseActiveCliOptionMetadata = (
     canonicalOptions,
     optionAliases
   );
-  const { canonicalValueOptions, inlineValueTokenCanonicalMap } =
-    createValueOptionMetadata(optionsWithValues, canonicalOptionMap);
+  const {
+    canonicalValueOptions,
+    canonicalStrictValueOptions,
+    inlineValueTokenCanonicalMap,
+  } = createValueOptionMetadata(
+    optionsWithValues,
+    optionsWithStrictValues,
+    canonicalOptionMap
+  );
   const activeCliOptionsSet = new Set();
   const activeCliOptionTokens = [];
   const seenActiveTokens = new Set();
@@ -584,7 +625,16 @@ export const parseActiveCliOptionMetadata = (
       !resolvedOption.hasInlineValue
     ) {
       const nextArg = optionArgs[index + 1] ?? null;
-      if (nextArg !== null && !nextArg.startsWith("--")) {
+      const nextArgResolvesToKnownOption =
+        nextArg !== null && canonicalOptionMap.has(nextArg);
+      const strictValueOptionWithRecognizedToken =
+        canonicalStrictValueOptions.has(resolvedOption.canonicalOption) &&
+        nextArgResolvesToKnownOption;
+      if (
+        nextArg !== null &&
+        !nextArg.startsWith("--") &&
+        !strictValueOptionWithRecognizedToken
+      ) {
         index += 1;
       }
     }
@@ -636,6 +686,7 @@ export const createCliDiagnostics = (
     canonicalOptions = [],
     optionAliases = {},
     optionsWithValues = [],
+    optionsWithStrictValues = [],
     outputPathError = null,
   } = {}
 ) => {
@@ -647,6 +698,7 @@ export const createCliDiagnostics = (
     canonicalOptions,
     optionAliases,
     optionsWithValues,
+    optionsWithStrictValues,
     outputPathError,
     supportedCliOptions: optionCatalog.supportedCliOptions,
   });
@@ -654,6 +706,7 @@ export const createCliDiagnostics = (
     canonicalOptions,
     optionAliases,
     optionsWithValues,
+    optionsWithStrictValues,
   });
 
   return {

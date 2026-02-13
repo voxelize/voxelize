@@ -323,6 +323,7 @@ const {
   canonicalOptions: supportedCliOptions,
   optionAliases: availableCliOptionAliases,
   optionsWithValues: Array.from(cliOptionsWithValues),
+  optionsWithStrictValues: ["--output"],
   outputPathError: null,
 });
 const deriveValidationErrorCode = ({

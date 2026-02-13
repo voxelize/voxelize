@@ -72,6 +72,7 @@ const {
   canonicalOptions: canonicalCliOptions,
   optionAliases,
   optionsWithValues: ["--output"],
+  optionsWithStrictValues: ["--output"],
   outputPathError,
 });
 const buildTimedReport = createTimedReportBuilder();
