@@ -2275,11 +2275,7 @@ fn process_face<S: VoxelAccess>(
                     !neighbor_is_opaque && neighbor_has_type
                 }
             } else {
-                let n_block_type = match registry.get_block_by_id(neighbor_id) {
-                    Some(b) => b,
-                    None => return,
-                };
-                n_block_type.is_empty
+                registry.is_empty_id(neighbor_id)
             }
         } else {
             let n_block_type = match registry.get_block_by_id(neighbor_id) {
