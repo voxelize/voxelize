@@ -6848,9 +6848,10 @@ export class World<T = any> extends Scene implements NetIntercept {
   private markChunkAndNeighborsForMeshing(cx: number, cz: number) {
     const { subChunks } = this.options;
 
-    for (const [dx, dz] of CHUNK_NEIGHBOR_OFFSETS) {
-      const nx = cx + dx;
-      const nz = cz + dz;
+    for (let outerIndex = 0; outerIndex < CHUNK_NEIGHBOR_OFFSETS.length; outerIndex++) {
+      const offset = CHUNK_NEIGHBOR_OFFSETS[outerIndex];
+      const nx = cx + offset[0];
+      const nz = cz + offset[1];
       const neighborChunk = this.getLoadedChunkByCoords(nx, nz);
 
       if (!neighborChunk || !neighborChunk.isReady) {
@@ -6858,9 +6859,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       let allNeighborsReady = true;
-      for (const [ddx, ddz] of CHUNK_NEIGHBOR_OFFSETS) {
-        const nnx = nx + ddx;
-        const nnz = nz + ddz;
+      for (let innerIndex = 0; innerIndex < CHUNK_NEIGHBOR_OFFSETS.length; innerIndex++) {
+        const neighborOffset = CHUNK_NEIGHBOR_OFFSETS[innerIndex];
+        const nnx = nx + neighborOffset[0];
+        const nnz = nz + neighborOffset[1];
         if (!this.isWithinWorld(nnx, nnz)) {
           continue;
         }
