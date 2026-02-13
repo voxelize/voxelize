@@ -1,9 +1,10 @@
 import { MessageProtocol } from "@voxelize/protocol";
 import { Group, Vector3 } from "three";
 
+import { JsonValue } from "../types";
 import { NetIntercept } from "./network";
 
-export class Entity<T = any> extends Group {
+export class Entity<T = JsonValue> extends Group {
   public entId: string;
 
   constructor(id: string) {
