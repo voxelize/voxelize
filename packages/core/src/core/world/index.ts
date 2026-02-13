@@ -5372,7 +5372,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         deltaData.oldStage = currentStage;
         deltaData.newStage = normalizedStage;
       }
-      this.recordVoxelDelta(vx, vy, vz, deltaData);
+      this.recordVoxelDelta(vx, vy, vz, deltaData, chunk.name);
       this.trackChunkAt(vx, vy, vz);
 
       processedUpdates.push({
@@ -6483,13 +6483,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     px: number,
     py: number,
     pz: number,
-    deltaData: Partial<Omit<VoxelDelta, "coords" | "timestamp" | "sequenceId">>
+    deltaData: Partial<Omit<VoxelDelta, "coords" | "timestamp" | "sequenceId">>,
+    chunkName?: string
   ) {
-    const chunkName = ChunkUtils.getChunkNameByVoxel(
-      px | 0,
-      pz | 0,
-      this.options.chunkSize
-    );
+    const voxelChunkName =
+      chunkName ??
+      ChunkUtils.getChunkNameByVoxel(px | 0, pz | 0, this.options.chunkSize);
 
     const delta: VoxelDelta = {
       coords: [px | 0, py | 0, pz | 0],
@@ -6503,11 +6502,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       sequenceId: this.deltaSequenceCounter++,
     };
 
-    const deltas = this.voxelDeltas.get(chunkName);
+    const deltas = this.voxelDeltas.get(voxelChunkName);
     if (deltas) {
       deltas.push(delta);
     } else {
-      this.voxelDeltas.set(chunkName, [delta]);
+      this.voxelDeltas.set(voxelChunkName, [delta]);
     }
   }
 
