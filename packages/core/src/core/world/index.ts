@@ -4019,23 +4019,6 @@ export class World<T = any> extends Scene implements NetIntercept {
     const processingSet = this.chunkPipeline.getInStage("processing");
     if (processingSet.size === 0) return;
     const [centerX, centerZ] = center;
-
-    const toProcessArray: Array<{
-      data: import("@voxelize/protocol").ChunkProtocol;
-      distance: number;
-    }> = [];
-    for (const name of processingSet) {
-      const procData = this.chunkPipeline.getProcessingChunkData(name);
-      if (procData) {
-        toProcessArray.push({
-          data: procData,
-          distance: (procData.x - centerX) ** 2 + (procData.z - centerZ) ** 2,
-        });
-      }
-    }
-
-    toProcessArray.sort((a, b) => a.distance - b.distance);
-
     const {
       maxProcessesPerUpdate,
       chunkSize,
@@ -4044,6 +4027,53 @@ export class World<T = any> extends Scene implements NetIntercept {
       maxLightLevel,
       clientOnlyMeshing,
     } = this.options;
+
+    const toProcessArray: Array<{
+      data: import("@voxelize/protocol").ChunkProtocol;
+      distance: number;
+    }> = [];
+    const maybeQueueProcess = (
+      data: import("@voxelize/protocol").ChunkProtocol
+    ) => {
+      if (maxProcessesPerUpdate <= 0) {
+        return;
+      }
+
+      const distance = (data.x - centerX) ** 2 + (data.z - centerZ) ** 2;
+      if (toProcessArray.length < maxProcessesPerUpdate) {
+        toProcessArray.push({ data, distance });
+        return;
+      }
+
+      let farthestIndex = 0;
+      let farthestDistance = toProcessArray[0].distance;
+      for (let index = 1; index < toProcessArray.length; index++) {
+        const candidateDistance = toProcessArray[index].distance;
+        if (candidateDistance > farthestDistance) {
+          farthestDistance = candidateDistance;
+          farthestIndex = index;
+        }
+      }
+
+      if (distance >= farthestDistance) {
+        return;
+      }
+
+      toProcessArray[farthestIndex] = { data, distance };
+    };
+
+    for (const name of processingSet) {
+      const procData = this.chunkPipeline.getProcessingChunkData(name);
+      if (procData) {
+        maybeQueueProcess(procData);
+      }
+    }
+
+    if (toProcessArray.length === 0) {
+      return;
+    }
+
+    toProcessArray.sort((a, b) => a.distance - b.distance);
 
     const triggerInitListener = (chunk: Chunk) => {
       const listeners = this.chunkInitializeListeners.get(chunk.name);
@@ -4056,7 +4086,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     };
 
-    const processCount = Math.min(toProcessArray.length, maxProcessesPerUpdate);
+    const processCount = toProcessArray.length;
     for (let itemIndex = 0; itemIndex < processCount; itemIndex++) {
       const item = toProcessArray[itemIndex].data;
       const { x, z, id } = item;
