@@ -3029,8 +3029,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
                     let greedy_without_rotation = block.can_greedy_mesh_without_rotation();
                     let is_non_greedy_block = !greedy_without_rotation;
-                    let has_independent_or_isolated_faces =
-                        block.has_independent_or_isolated_faces_cached();
                     if is_non_greedy_block && processed_non_greedy[current_voxel_index] {
                         continue;
                     }
@@ -3039,6 +3037,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     let is_see_through = block.is_see_through;
 
                     if is_non_greedy_block {
+                        let has_independent_or_isolated_faces =
+                            block.has_independent_or_isolated_faces_cached();
                         let has_dynamic_patterns = block.has_dynamic_patterns_cached();
                         let mut rotation = BlockRotation::PY(0.0);
                         if block.rotatable || block.y_rotatable || has_dynamic_patterns {
@@ -3200,6 +3200,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         }
                         continue;
                     }
+                    let has_independent_or_isolated_faces =
+                        block.has_independent_or_isolated_faces_cached();
 
                     let face_index = block.greedy_face_indices[dir_index];
                     if face_index == -1 {
