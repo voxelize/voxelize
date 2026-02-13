@@ -222,9 +222,7 @@ export class LightUtils {
     return snz && tpz;
   };
 
-  private constructor() {
-    // NOTHING
-  }
+  private constructor() {}
 }
 
 /**

@@ -146,7 +146,5 @@ export class BlockUtils {
     return `block::${id}::${vx}::${vy}::${vz}`;
   }
 
-  private constructor() {
-    // NOTHING
-  }
+  private constructor() {}
 }
