@@ -19,9 +19,11 @@ export class DOMUtils {
 
     const elements = Array.isArray(ele) ? ele : [ele];
     const styleMap = style as Record<string, string | number | null | undefined>;
-    const styleKeys = Object.keys(styleMap);
-    for (let keyIndex = 0; keyIndex < styleKeys.length; keyIndex++) {
-      const key = styleKeys[keyIndex];
+    const hasOwn = Object.prototype.hasOwnProperty;
+    for (const key in styleMap) {
+      if (!hasOwn.call(styleMap, key)) {
+        continue;
+      }
       const attribute = styleMap[key];
       if (attribute === undefined || attribute === null) {
         continue;
