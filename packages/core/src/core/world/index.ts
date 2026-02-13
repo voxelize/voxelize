@@ -4092,17 +4092,18 @@ export class World<T = any> extends Scene implements NetIntercept {
       return;
     }
 
-    const toProcessArray: Array<{
-      data: import("@voxelize/protocol").ChunkProtocol;
-      distance: number;
-    }> = [];
+    const toProcessData = new Array<import("@voxelize/protocol").ChunkProtocol>(
+      maxProcessesPerUpdate
+    );
+    const toProcessDistances = new Float64Array(maxProcessesPerUpdate);
+    let toProcessCount = 0;
     let farthestProcessIndex = -1;
     let farthestProcessDistance = -1;
     const recomputeFarthestProcess = () => {
       farthestProcessIndex = -1;
       farthestProcessDistance = -1;
-      for (let index = 0; index < toProcessArray.length; index++) {
-        const distance = toProcessArray[index].distance;
+      for (let index = 0; index < toProcessCount; index++) {
+        const distance = toProcessDistances[index];
         if (distance > farthestProcessDistance) {
           farthestProcessDistance = distance;
           farthestProcessIndex = index;
@@ -4115,11 +4116,14 @@ export class World<T = any> extends Scene implements NetIntercept {
       const dx = data.x - centerX;
       const dz = data.z - centerZ;
       const distance = dx * dx + dz * dz;
-      if (toProcessArray.length < maxProcessesPerUpdate) {
-        toProcessArray.push({ data, distance });
+      if (toProcessCount < maxProcessesPerUpdate) {
+        const writeIndex = toProcessCount;
+        toProcessData[writeIndex] = data;
+        toProcessDistances[writeIndex] = distance;
+        toProcessCount++;
         if (distance > farthestProcessDistance) {
           farthestProcessDistance = distance;
-          farthestProcessIndex = toProcessArray.length - 1;
+          farthestProcessIndex = writeIndex;
         }
         return;
       }
@@ -4128,9 +4132,8 @@ export class World<T = any> extends Scene implements NetIntercept {
         return;
       }
 
-      const farthestProcess = toProcessArray[farthestProcessIndex];
-      farthestProcess.data = data;
-      farthestProcess.distance = distance;
+      toProcessData[farthestProcessIndex] = data;
+      toProcessDistances[farthestProcessIndex] = distance;
       recomputeFarthestProcess();
     };
 
@@ -4138,17 +4141,32 @@ export class World<T = any> extends Scene implements NetIntercept {
       maybeQueueProcess(procData);
     }
 
-    if (toProcessArray.length === 0) {
+    if (toProcessCount === 0) {
       return;
     }
 
-    if (toProcessArray.length > 1) {
-      toProcessArray.sort((a, b) => a.distance - b.distance);
+    if (toProcessCount > 1) {
+      for (let index = 1; index < toProcessCount; index++) {
+        const distance = toProcessDistances[index];
+        const data = toProcessData[index];
+        let insertIndex = index - 1;
+
+        while (
+          insertIndex >= 0 &&
+          toProcessDistances[insertIndex] > distance
+        ) {
+          toProcessDistances[insertIndex + 1] = toProcessDistances[insertIndex];
+          toProcessData[insertIndex + 1] = toProcessData[insertIndex];
+          insertIndex--;
+        }
+
+        toProcessDistances[insertIndex + 1] = distance;
+        toProcessData[insertIndex + 1] = data;
+      }
     }
 
-    const processCount = toProcessArray.length;
-    for (let itemIndex = 0; itemIndex < processCount; itemIndex++) {
-      const item = toProcessArray[itemIndex].data;
+    for (let itemIndex = 0; itemIndex < toProcessCount; itemIndex++) {
+      const item = toProcessData[itemIndex];
       const { x, z, id } = item;
 
       let chunk = this.getLoadedChunkByCoords(x, z);
