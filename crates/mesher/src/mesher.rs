@@ -2036,8 +2036,7 @@ fn get_dynamic_faces<S: VoxelAccess>(
 ) -> Vec<(BlockFace, bool)> {
     if let Some(dynamic_patterns) = &block.dynamic_patterns {
         for pattern in dynamic_patterns {
-            let mut matched_faces: Vec<(BlockFace, bool)> = Vec::new();
-            let mut any_matched = false;
+            let mut matched_faces: Option<Vec<(BlockFace, bool)>> = None;
 
             for part in &pattern.parts {
                 let rule_result = evaluate_block_rule(
@@ -2049,12 +2048,13 @@ fn get_dynamic_faces<S: VoxelAccess>(
                     part.world_space,
                 );
                 if rule_result {
-                    any_matched = true;
-                    matched_faces.extend(part.faces.iter().cloned().map(|f| (f, part.world_space)));
+                    let faces = matched_faces
+                        .get_or_insert_with(|| Vec::with_capacity(part.faces.len()));
+                    faces.extend(part.faces.iter().cloned().map(|f| (f, part.world_space)));
                 }
             }
 
-            if any_matched {
+            if let Some(matched_faces) = matched_faces {
                 return matched_faces;
             }
         }
