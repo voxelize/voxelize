@@ -115,8 +115,8 @@ onmessage = function (e) {
               nvz >= realStartZ;
 
             if (
-              !get(data, nvx, nvy, nvz, strideX, strideY, strideZ) ||
-              !inRealBounds
+              !inRealBounds ||
+              !get(data, nvx, nvy, nvz, strideX, strideY, strideZ)
             ) {
               // this voxel has no neighbor in this direction so we need a face.
               const ndx = positions.length / 3;
