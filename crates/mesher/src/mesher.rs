@@ -2110,11 +2110,12 @@ fn process_face<S: VoxelAccess>(
     let is_see_through = block.is_see_through;
     let rotatable = block.rotatable;
     let y_rotatable = block.y_rotatable;
+    let needs_rotation = (rotatable || y_rotatable) && !world_space;
 
     let mut dir = [face.dir[0] as f32, face.dir[1] as f32, face.dir[2] as f32];
     let is_all_transparent = block.is_all_transparent;
 
-    if (rotatable || y_rotatable) && !world_space {
+    if needs_rotation {
         rotation.rotate_node(&mut dir, y_rotatable, false);
     }
 
@@ -2212,6 +2213,8 @@ fn process_face<S: VoxelAccess>(
     } else {
         0.0001
     };
+    let dir_is_x = dir[0].abs() == 1;
+    let dir_is_y = dir[1].abs() == 1;
     let base_x = vx as f32 - min_x as f32 - dir[0] as f32 * face_inset + diag_x_offset;
     let base_y = vy as f32 - min_y as f32 - dir[1] as f32 * face_inset;
     let base_z = vz as f32 - min_z as f32 - dir[2] as f32 * face_inset + diag_z_offset;
@@ -2219,7 +2222,7 @@ fn process_face<S: VoxelAccess>(
     for (corner_index, corner) in face.corners.iter().enumerate() {
         let mut pos = corner.pos;
 
-        if (rotatable || y_rotatable) && !world_space {
+        if needs_rotation {
             rotation.rotate_node(&mut pos, y_rotatable, true);
         }
 
@@ -2259,9 +2262,9 @@ fn process_face<S: VoxelAccess>(
 
         let ao = if is_see_through || is_all_transparent {
             3
-        } else if dir[0].abs() == 1 {
+        } else if dir_is_x {
             vertex_ao(b110, b101, b111)
-        } else if dir[1].abs() == 1 {
+        } else if dir_is_y {
             vertex_ao(b110, b011, b111)
         } else {
             vertex_ao(b011, b101, b111)
