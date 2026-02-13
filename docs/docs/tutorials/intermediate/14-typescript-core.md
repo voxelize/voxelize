@@ -59,6 +59,15 @@ const unpackedVoxel = Voxel.unpack(voxel);
 const unpackedLight = Light.unpack(light);
 ```
 
+`BlockRotation` supports both `encode` and axis constructors:
+
+```ts title="Axis constructors"
+import { BlockRotation } from "@voxelize/ts-core";
+
+const up = BlockRotation.PY(0);
+const side = BlockRotation.PX(Math.PI / 2);
+```
+
 ## Evaluating rules with your own data source
 
 ```ts title="Rule evaluation"

@@ -38,6 +38,13 @@ const unpackedVoxel = Voxel.unpack(voxel);
 const unpackedLight = Light.unpack(light);
 ```
 
+You can also use axis-friendly constructors:
+
+```ts
+const facingUp = BlockRotation.PY(0);
+const facingPositiveX = BlockRotation.PX(Math.PI / 2);
+```
+
 ## Core API
 
 - `Voxel` and `BlockUtils`
