@@ -300,6 +300,17 @@ const defaultOptions: RigidControlsOptions = {
  */
 export class RigidControls extends EventEmitter implements NetIntercept {
   private static readonly FORWARD_DIRECTION = new Vector3(0, 0, -1);
+  private static readonly KEY_MAPPINGS: Array<
+    [string, keyof RigidControls["movements"]]
+  > = [
+    ["KeyW", "front"],
+    ["KeyA", "left"],
+    ["KeyS", "back"],
+    ["KeyD", "right"],
+    ["Space", "up"],
+    ["ShiftLeft", "down"],
+    ["KeyR", "sprint"],
+  ];
 
   /**
    * Parameters to initialize the Voxelize controls.
@@ -660,17 +671,12 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       this.domElement.removeEventListener("click", documentClickHandler);
     });
 
-    const keyMappings: Array<[string, keyof typeof this.movements]> = [
-      ["KeyW", "front"],
-      ["KeyA", "left"],
-      ["KeyS", "back"],
-      ["KeyD", "right"],
-      ["Space", "up"],
-      ["ShiftLeft", "down"],
-      ["KeyR", "sprint"],
-    ];
-
-    for (let mappingIndex = 0; mappingIndex < keyMappings.length; mappingIndex++) {
+    const keyMappings = RigidControls.KEY_MAPPINGS;
+    for (
+      let mappingIndex = 0;
+      mappingIndex < keyMappings.length;
+      mappingIndex++
+    ) {
       const [code, movement] = keyMappings[mappingIndex];
       unbinds.push(
         inputs.bind(
