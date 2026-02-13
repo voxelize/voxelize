@@ -145,7 +145,7 @@ export class WorkerPool {
       const workerCallback = ({ data }: any) => {
         WorkerPool.WORKING_COUNT--;
         worker.removeEventListener("message", workerCallback);
-        this.available.unshift(index);
+        this.available.push(index);
         resolve(data);
         if (this.hasQueuedJobs()) {
           queueMicrotask(this.process);
