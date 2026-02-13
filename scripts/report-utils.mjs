@@ -11,6 +11,19 @@ export const parseJsonOutput = (value) => {
   try {
     return JSON.parse(value);
   } catch {
+    const lines = value
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+      try {
+        return JSON.parse(lines[index]);
+      } catch {
+        continue;
+      }
+    }
+
     return null;
   }
 };

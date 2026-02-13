@@ -27,6 +27,20 @@ describe("report-utils", () => {
     expect(parseJsonOutput("not-json")).toBeNull();
   });
 
+  it("parses compact json lines when logs are present", () => {
+    expect(
+      parseJsonOutput(`warning: preflight noise\n{"ok":true,"exitCode":0}`)
+    ).toEqual({ ok: true, exitCode: 0 });
+    expect(
+      parseJsonOutput(`{"ok":true,"exitCode":0}\nwarning: trailing message`)
+    ).toEqual({ ok: true, exitCode: 0 });
+    expect(
+      parseJsonOutput(
+        `warning: before\n{"ok":true,"exitCode":0}\nwarning: after`
+      )
+    ).toEqual({ ok: true, exitCode: 0 });
+  });
+
   it("injects schema version in report payloads", () => {
     const report = toReport({ passed: true, schemaVersion: 999 });
 
