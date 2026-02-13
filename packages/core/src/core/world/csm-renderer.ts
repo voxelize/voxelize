@@ -427,7 +427,17 @@ export class CSMRenderer {
     maxEntityShadowDistance = 32,
     instancePools?: Group[]
   ) {
-    const anyNeedsRender = this.cascadeNeedsRender.some((v) => v);
+    let anyNeedsRender = false;
+    for (
+      let cascadeIndex = 0;
+      cascadeIndex < this.cascadeNeedsRender.length;
+      cascadeIndex++
+    ) {
+      if (this.cascadeNeedsRender[cascadeIndex]) {
+        anyNeedsRender = true;
+        break;
+      }
+    }
     if (!anyNeedsRender) {
       return;
     }
@@ -435,7 +445,12 @@ export class CSMRenderer {
     const originalOverrideMaterial = scene.overrideMaterial;
 
     const hiddenObjects: { object: Object3D; visible: boolean }[] = [];
-    for (const object of this.skipShadowObjectsCache) {
+    for (
+      let objectIndex = 0;
+      objectIndex < this.skipShadowObjectsCache.length;
+      objectIndex++
+    ) {
+      const object = this.skipShadowObjectsCache[objectIndex];
       if (object.visible) {
         hiddenObjects.push({ object, visible: true });
         object.visible = false;
@@ -480,7 +495,8 @@ export class CSMRenderer {
 
       const hiddenEntities: { object: Object3D; visible: boolean }[] = [];
       if (i >= 2 && entities) {
-        for (const entity of entities) {
+        for (let entityIndex = 0; entityIndex < entities.length; entityIndex++) {
+          const entity = entities[entityIndex];
           if (entity.visible) {
             hiddenEntities.push({ object: entity, visible: true });
             entity.visible = false;
@@ -488,7 +504,8 @@ export class CSMRenderer {
         }
       }
       if (i >= 2 && instancePools) {
-        for (const pool of instancePools) {
+        for (let poolIndex = 0; poolIndex < instancePools.length; poolIndex++) {
+          const pool = instancePools[poolIndex];
           if (pool.visible) {
             hiddenEntities.push({ object: pool, visible: true });
             pool.visible = false;
@@ -498,8 +515,9 @@ export class CSMRenderer {
 
       renderer.render(scene, cascade.camera);
 
-      for (const { object, visible } of hiddenEntities) {
-        object.visible = visible;
+      for (let hiddenIndex = 0; hiddenIndex < hiddenEntities.length; hiddenIndex++) {
+        const hiddenEntity = hiddenEntities[hiddenIndex];
+        hiddenEntity.object.visible = hiddenEntity.visible;
       }
 
       if (
@@ -509,8 +527,8 @@ export class CSMRenderer {
         i < 2
       ) {
         scene.overrideMaterial = null;
-        for (const pool of instancePools) {
-          renderer.render(pool as unknown as Scene, cascade.camera);
+        for (let poolIndex = 0; poolIndex < instancePools.length; poolIndex++) {
+          renderer.render(instancePools[poolIndex], cascade.camera);
         }
         scene.overrideMaterial = this.depthMaterial;
       }
@@ -518,7 +536,8 @@ export class CSMRenderer {
       if (this.shouldRenderEntityShadows && entities && i < 2) {
         const maxDistSq = maxEntityShadowDistance * maxEntityShadowDistance;
         const originalParents: Map<Object3D, Object3D | null> = new Map();
-        for (const entity of entities) {
+        for (let entityIndex = 0; entityIndex < entities.length; entityIndex++) {
+          const entity = entities[entityIndex];
           if (entity.userData.castsShadow === false) continue;
           const distSq = entity.position.distanceToSquared(
             this.lastCameraPosition
@@ -551,8 +570,9 @@ export class CSMRenderer {
       (mesh as THREE.Mesh).material = originalMaterial;
     }
 
-    for (const { object, visible } of hiddenObjects) {
-      object.visible = visible;
+    for (let hiddenIndex = 0; hiddenIndex < hiddenObjects.length; hiddenIndex++) {
+      const hiddenObject = hiddenObjects[hiddenIndex];
+      hiddenObject.object.visible = hiddenObject.visible;
     }
 
     scene.overrideMaterial = originalOverrideMaterial;
