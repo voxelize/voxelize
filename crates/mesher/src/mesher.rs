@@ -334,7 +334,6 @@ struct FaceKey {
 struct FaceData {
     key: FaceKey,
     uv_range: UV,
-    is_see_through: bool,
     is_fluid: bool,
 }
 
@@ -2544,7 +2543,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         let data = FaceData {
                             key,
                             uv_range,
-                            is_see_through,
                             is_fluid,
                         };
 
@@ -2867,7 +2865,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         greedy_mask[mask_index(u, v)] = Some(FaceData {
                             key,
                             uv_range,
-                            is_see_through,
                             is_fluid,
                         });
                     };
