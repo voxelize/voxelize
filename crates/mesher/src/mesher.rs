@@ -2801,6 +2801,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
     let mut non_greedy_faces: Vec<(i32, i32, i32, u32, BlockFace, bool)> = Vec::new();
     let mut greedy_mask: Vec<Option<FaceData>> = Vec::new();
+    let identity_rotation = BlockRotation::PY(0.0);
 
     for (dx, dy, dz) in directions {
         let dir = [dx, dy, dz];
@@ -3157,7 +3158,11 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     let is_see_through = block.is_see_through;
                     let is_fluid = block.is_fluid;
                     let neighbors = NeighborCache::populate(vx, vy, vz, space);
-                    let rotation = space.get_voxel_rotation(vx, vy, vz);
+                    let rotation = if block.rotatable || block.y_rotatable {
+                        Some(space.get_voxel_rotation(vx, vy, vz))
+                    } else {
+                        None
+                    };
                     let face_cache = build_face_process_cache(
                         block,
                         is_see_through,
@@ -3172,7 +3177,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     );
                     cached_neighbors = Some(neighbors);
                     cached_face_cache = Some(face_cache);
-                    cached_rotation = Some(rotation);
+                    cached_rotation = rotation;
                     cached_block = Some(block);
                     cached_voxel = Some(voxel_key);
                 }
@@ -3199,9 +3204,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                 let face_cache = cached_face_cache
                     .as_ref()
                     .expect("cached face data must exist for non-greedy face");
-                let rotation = cached_rotation
-                    .as_ref()
-                    .expect("cached rotation must exist for non-greedy face");
+                let rotation = cached_rotation.as_ref().unwrap_or(&identity_rotation);
                 process_face(
                     vx,
                     vy,
