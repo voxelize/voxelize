@@ -11,6 +11,7 @@ import {
   parseJsonOutput,
   resolveOutputPath,
   serializeReportWithOptionalWrite,
+  splitCliArgs,
   summarizeCheckResults,
   summarizeStepResults,
   toReport,
@@ -159,6 +160,47 @@ describe("report-utils", () => {
     );
     expect(trailingMissingValue.error).toBe("Missing value for --output option.");
     expect(trailingMissingValue.outputPath).toBeNull();
+
+    const outputAfterTerminator = resolveOutputPath(
+      ["--json", "--", "--output", "./report.json"],
+      "/workspace"
+    );
+    expect(outputAfterTerminator.error).toBeNull();
+    expect(outputAfterTerminator.outputPath).toBeNull();
+
+    const outputBeforeTerminator = resolveOutputPath(
+      ["--json", "--output", "./report.json", "--", "--output"],
+      "/workspace"
+    );
+    expect(outputBeforeTerminator.error).toBeNull();
+    expect(outputBeforeTerminator.outputPath).toBe("/workspace/report.json");
+  });
+
+  it("splits option and positional args using option terminator", () => {
+    const withoutTerminator = splitCliArgs(["--json", "--output", "report.json"]);
+    expect(withoutTerminator.optionArgs).toEqual([
+      "--json",
+      "--output",
+      "report.json",
+    ]);
+    expect(withoutTerminator.positionalArgs).toEqual([]);
+    expect(withoutTerminator.optionTerminatorUsed).toBe(false);
+
+    const withTerminator = splitCliArgs([
+      "--json",
+      "--output",
+      "report.json",
+      "--",
+      "--output",
+      "positional",
+    ]);
+    expect(withTerminator.optionArgs).toEqual([
+      "--json",
+      "--output",
+      "report.json",
+    ]);
+    expect(withTerminator.positionalArgs).toEqual(["--output", "positional"]);
+    expect(withTerminator.optionTerminatorUsed).toBe(true);
   });
 
   it("writes report json payloads to output paths", () => {

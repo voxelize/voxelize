@@ -211,8 +211,26 @@ export const deriveFailureMessageFromReport = (report) => {
   return null;
 };
 
+export const splitCliArgs = (args) => {
+  const optionTerminatorIndex = args.indexOf("--");
+  if (optionTerminatorIndex === -1) {
+    return {
+      optionArgs: args,
+      positionalArgs: [],
+      optionTerminatorUsed: false,
+    };
+  }
+
+  return {
+    optionArgs: args.slice(0, optionTerminatorIndex),
+    positionalArgs: args.slice(optionTerminatorIndex + 1),
+    optionTerminatorUsed: true,
+  };
+};
+
 export const resolveOutputPath = (args, cwd = process.cwd()) => {
-  const outputArgIndex = args.lastIndexOf("--output");
+  const { optionArgs } = splitCliArgs(args);
+  const outputArgIndex = optionArgs.lastIndexOf("--output");
   if (outputArgIndex === -1) {
     return {
       outputPath: null,
@@ -220,7 +238,7 @@ export const resolveOutputPath = (args, cwd = process.cwd()) => {
     };
   }
 
-  const outputArgValue = args[outputArgIndex + 1] ?? null;
+  const outputArgValue = optionArgs[outputArgIndex + 1] ?? null;
   if (outputArgValue === null || outputArgValue.startsWith("--")) {
     return {
       outputPath: null,
