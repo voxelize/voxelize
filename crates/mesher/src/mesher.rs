@@ -2188,7 +2188,6 @@ fn process_face<S: VoxelAccess>(
     let [min_x, min_y, min_z] = *min;
 
     let is_opaque = block.is_opaque;
-    let is_see_through = block.is_see_through;
     let rotatable = block.rotatable;
     let y_rotatable = block.y_rotatable;
     let needs_rotation = (rotatable || y_rotatable) && !world_space;
@@ -2264,7 +2263,7 @@ fn process_face<S: VoxelAccess>(
     let block_min_x_eps = block_min_x + 0.01;
     let block_min_y_eps = block_min_y + 0.01;
     let block_min_z_eps = block_min_z + 0.01;
-    let skip_opaque_checks = is_see_through || is_all_transparent;
+    let skip_opaque_checks = see_through || is_all_transparent;
     let needs_opaque_checks = !skip_opaque_checks;
     let opaque_mask = if needs_opaque_checks {
         cache.opaque_mask.as_ref()
@@ -2283,7 +2282,7 @@ fn process_face<S: VoxelAccess>(
     let apply_wave_bit = is_fluid && !fluid_surface_above;
 
     let is_diagonal = dir == [0, 0, 0];
-    let has_diagonals = is_see_through && block.has_diagonal_faces_cached();
+    let has_diagonals = see_through && block.has_diagonal_faces_cached();
     let (hash_ox, _hash_oz) = if has_diagonals {
         diagonal_face_offsets(vx, vy, vz)
     } else {
