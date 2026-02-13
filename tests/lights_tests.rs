@@ -322,6 +322,42 @@ fn test_register_blocks_invalidates_conversion_caches() {
 }
 
 #[test]
+fn test_register_blocks_assigns_unique_auto_ids_and_refreshes_caches() {
+    let mut registry = create_test_registry();
+
+    let mesher_before = registry.mesher_registry();
+    let lighter_before = registry.lighter_registry();
+
+    registry.register_blocks(&[
+        Block::new("bulk-auto-a").is_passable(true).build(),
+        Block::new("bulk-auto-b").is_passable(true).build(),
+    ]);
+
+    let auto_a = registry.get_block_by_name("bulk-auto-a").id;
+    let auto_b = registry.get_block_by_name("bulk-auto-b").id;
+
+    assert_ne!(auto_a, 0);
+    assert_ne!(auto_b, 0);
+    assert_ne!(auto_a, auto_b, "auto-assigned IDs should be unique");
+
+    let mesher_after = registry.mesher_registry();
+    let lighter_after = registry.lighter_registry();
+
+    assert!(mesher_after.has_type(auto_a));
+    assert!(mesher_after.has_type(auto_b));
+    assert!(lighter_after.has_type(auto_a));
+    assert!(lighter_after.has_type(auto_b));
+    assert!(
+        !Arc::ptr_eq(&mesher_before, &mesher_after),
+        "mesher cache should refresh after auto-id bulk registration"
+    );
+    assert!(
+        !Arc::ptr_eq(&lighter_before, &lighter_after),
+        "lighter cache should refresh after auto-id bulk registration"
+    );
+}
+
+#[test]
 fn test_registry_clone_keeps_conversion_caches_independent() {
     let registry = create_test_registry();
     let mesher_original = registry.mesher_registry();
