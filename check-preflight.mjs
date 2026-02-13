@@ -17,6 +17,16 @@ const cliArgs = process.argv.slice(2);
 const isNoBuild = cliArgs.includes("--no-build");
 const isListChecks = cliArgs.includes("--list-checks");
 const isCompact = cliArgs.includes("--compact");
+const supportedCliOptions = [
+  "--compact",
+  "--json",
+  "--list-checks",
+  "--no-build",
+  "--only",
+  "--output",
+  "--quiet",
+];
+const supportedCliOptionsSet = new Set(supportedCliOptions);
 const jsonFormat = { compact: isCompact };
 const { outputPath: resolvedOutputPath, error: outputPathError } =
   resolveOutputPath(cliArgs);
@@ -271,6 +281,32 @@ const createRequestedCheckResolutionCounts = (resolutions) => {
 const requestedCheckResolutionCounts = createRequestedCheckResolutionCounts(
   requestedCheckResolutions
 );
+const parseUnknownOptions = (args) => {
+  const unknownOptions = [];
+  const seenUnknownOptions = new Set();
+
+  for (const arg of args) {
+    if (!arg.startsWith("--") || arg === "--") {
+      continue;
+    }
+    if (supportedCliOptionsSet.has(arg)) {
+      continue;
+    }
+    if (seenUnknownOptions.has(arg)) {
+      continue;
+    }
+
+    seenUnknownOptions.add(arg);
+    unknownOptions.push(arg);
+  }
+
+  return unknownOptions;
+};
+const unknownOptions = parseUnknownOptions(cliArgs);
+const unsupportedOptionsError =
+  unknownOptions.length === 0
+    ? null
+    : `Unsupported option(s): ${unknownOptions.join(", ")}. Supported options: ${supportedCliOptions.join(", ")}.`;
 
 const runCheck = (name, scriptName, extraArgs = []) => {
   const checkStartMs = Date.now();
@@ -302,7 +338,11 @@ const runCheck = (name, scriptName, extraArgs = []) => {
 const platform = process.platform;
 const nodeVersion = process.version;
 
-if (outputPathError !== null || selectedChecksError !== null) {
+if (
+  outputPathError !== null ||
+  selectedChecksError !== null ||
+  unsupportedOptionsError !== null
+) {
   const effectiveInvalidChecks = outputPathError === null ? invalidChecks : [];
   const report = buildTimedReport({
     passed: false,
@@ -321,8 +361,9 @@ if (outputPathError !== null || selectedChecksError !== null) {
     ...summarizeCheckResults([]),
     checks: [],
     outputPath: outputPathError === null ? resolvedOutputPath : null,
-    message: outputPathError ?? selectedChecksError,
+    message: outputPathError ?? selectedChecksError ?? unsupportedOptionsError,
     invalidChecks: effectiveInvalidChecks,
+    unknownOptions,
     availableChecks: availableCheckNames,
     availableCheckMetadata,
     availableCheckAliases,
@@ -366,6 +407,7 @@ if (isListChecks) {
     checks: [],
     outputPath: resolvedOutputPath,
     invalidChecks: [],
+    unknownOptions,
     availableChecks: availableCheckNames,
     availableCheckMetadata,
     availableCheckAliases,
@@ -426,6 +468,7 @@ const report = buildTimedReport({
   checks,
   outputPath: resolvedOutputPath,
   invalidChecks: [],
+  unknownOptions,
   availableChecks: availableCheckNames,
   availableCheckMetadata,
   availableCheckAliases,

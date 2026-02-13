@@ -234,6 +234,7 @@ If `--output` is provided without a value, JSON commands return a structured err
 If `--output` or `--only` is passed multiple times, the last value is used.
 Invalid `--only` errors include available canonical check names and special selector aliases (for example `all`, `all-checks`, `all_checks`, `allchecks`) for quick correction.
 Invalid `--only` errors also include `invalidChecks` for machine-readable diagnostics.
+Unsupported CLI flags return structured errors and include `unknownOptions` for machine-readable diagnostics.
 Aggregate preflight reports include `availableCheckAliases` so automation can map user-facing aliases to canonical check names.
 Aggregate preflight reports include `availableCheckMetadata` with script mapping and no-build support per canonical check.
 Aggregate preflight reports include `availableSpecialCheckSelectors` for quick checks against supported special selector names.

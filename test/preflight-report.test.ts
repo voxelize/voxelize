@@ -91,6 +91,7 @@ type PreflightReport = {
   checks: PreflightCheckResult[];
   outputPath: string | null;
   invalidChecks: string[];
+  unknownOptions: string[];
   writeError?: string;
   message?: string;
 };
@@ -134,6 +135,18 @@ const expectedAvailableSpecialSelectorResolvedChecks = {
 const expectedRequestedCheckResolutionKinds: Array<
   RequestedCheckResolution["kind"]
 > = ["check", "specialSelector", "invalid"];
+const expectedSupportedCliOptions = [
+  "--compact",
+  "--json",
+  "--list-checks",
+  "--no-build",
+  "--only",
+  "--output",
+  "--quiet",
+];
+const expectedUnsupportedOptionsMessage = (options: string[]) => {
+  return `Unsupported option(s): ${options.join(", ")}. Supported options: ${expectedSupportedCliOptions.join(", ")}.`;
+};
 const expectedEmptyRequestedCheckResolutionCounts = {
   check: 0,
   specialSelector: 0,
@@ -188,6 +201,7 @@ describe("preflight aggregate report", () => {
     expect(report.requestedCheckResolutionCounts).toEqual(
       expectedEmptyRequestedCheckResolutionCounts
     );
+    expect(report.unknownOptions).toEqual([]);
     expect(report.skippedChecks).toEqual([]);
     expect(report.invalidChecks).toEqual([]);
     expect(report.totalChecks).toBe(report.checks.length);
@@ -900,6 +914,55 @@ describe("preflight aggregate report", () => {
       invalid: 1,
     });
     expect(report.checks).toEqual([]);
+    expect(result.status).toBe(1);
+  });
+
+  it("fails with structured output for unsupported options", () => {
+    const result = spawnSync(process.execPath, [preflightScript, "--mystery"], {
+      cwd: rootDir,
+      encoding: "utf8",
+      shell: false,
+    });
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(false);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.selectionMode).toBe("default");
+    expect(report.unknownOptions).toEqual(["--mystery"]);
+    expect(report.message).toBe(expectedUnsupportedOptionsMessage(["--mystery"]));
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.requestedChecks).toEqual([]);
+    expect(report.requestedCheckResolutions).toEqual([]);
+    expect(report.requestedCheckResolutionCounts).toEqual(
+      expectedEmptyRequestedCheckResolutionCounts
+    );
+    expect(report.checks).toEqual([]);
+    expect(result.status).toBe(1);
+  });
+
+  it("deduplicates repeated unsupported options", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--mystery", "--mystery", "--another-unknown"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.unknownOptions).toEqual(["--mystery", "--another-unknown"]);
+    expect(report.message).toBe(
+      expectedUnsupportedOptionsMessage(["--mystery", "--another-unknown"])
+    );
     expect(result.status).toBe(1);
   });
 
