@@ -765,6 +765,13 @@ describe("root preflight scripts", () => {
     expect(result.output).toContain("Missing value for --output option.");
   });
 
+  it("check-wasm-pack non-json mode fails on inline whitespace output value", () => {
+    const result = runScript("check-wasm-pack.mjs", ["--output=   "]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("Missing value for --output option.");
+  });
+
   it("check-wasm-pack non-json mode prioritizes missing output value over unsupported options", () => {
     const result = runScript("check-wasm-pack.mjs", ["--mystery", "--output"]);
 
@@ -1240,6 +1247,13 @@ describe("root preflight scripts", () => {
 
   it("check-dev-env non-json mode fails on missing output value", () => {
     const result = runScript("check-dev-env.mjs", ["--output"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("Missing value for --output option.");
+  });
+
+  it("check-dev-env non-json mode fails on inline whitespace output value", () => {
+    const result = runScript("check-dev-env.mjs", ["--output=   "]);
 
     expect(result.status).toBe(1);
     expect(result.output).toContain("Missing value for --output option.");
@@ -1878,6 +1892,13 @@ describe("root preflight scripts", () => {
 
   it("check-client non-json mode fails on missing output value", () => {
     const result = runScript("check-client.mjs", ["--output"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("Missing value for --output option.");
+  });
+
+  it("check-client non-json mode fails on inline whitespace output value", () => {
+    const result = runScript("check-client.mjs", ["--output=   "]);
 
     expect(result.status).toBe(1);
     expect(result.output).toContain("Missing value for --output option.");
@@ -2558,6 +2579,13 @@ describe("root preflight scripts", () => {
 
   it("check-onboarding non-json mode fails on missing output value", () => {
     const result = runScript("check-onboarding.mjs", ["--output"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("Missing value for --output option.");
+  });
+
+  it("check-onboarding non-json mode fails on inline whitespace output value", () => {
+    const result = runScript("check-onboarding.mjs", ["--output=   "]);
 
     expect(result.status).toBe(1);
     expect(result.output).toContain("Missing value for --output option.");
