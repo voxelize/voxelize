@@ -4018,32 +4018,33 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (toRequestClosest.length > 1) {
       toRequestClosest.sort((a, b) => a.distance - b.distance);
     }
-    const toRequest = new Array<Coords2>(toRequestClosest.length);
-    for (let index = 0; index < toRequestClosest.length; index++) {
-      toRequest[index] = toRequestClosest[index].coords;
+    const requestCount = toRequestClosest.length;
+    if (requestCount === 0) {
+      return;
     }
-    if (toRequest.length) {
-      let directionPayload: [number, number] = ZERO_DIRECTION;
-      if (hasDirection) {
-        const dx = direction.x;
-        const dz = direction.z;
-        const invLength = 1 / Math.hypot(dx, dz);
-        directionPayload = [dx * invLength, dz * invLength];
-      }
-      this.packets.push({
-        type: "LOAD",
-        json: {
-          center,
-          direction: directionPayload,
-          chunks: toRequest,
-        },
-      });
 
-      for (let index = 0; index < toRequest.length; index++) {
-        const coords = toRequest[index];
-        this.chunkPipeline.markRequestedAt(coords[0], coords[1]);
-      }
+    const requestChunks = new Array<Coords2>(requestCount);
+    for (let index = 0; index < requestCount; index++) {
+      const coords = toRequestClosest[index].coords;
+      requestChunks[index] = coords;
+      this.chunkPipeline.markRequestedAt(coords[0], coords[1]);
     }
+
+    let directionPayload: [number, number] = ZERO_DIRECTION;
+    if (hasDirection) {
+      const dx = direction.x;
+      const dz = direction.z;
+      const invLength = 1 / Math.hypot(dx, dz);
+      directionPayload = [dx * invLength, dz * invLength];
+    }
+    this.packets.push({
+      type: "LOAD",
+      json: {
+        center,
+        direction: directionPayload,
+        chunks: requestChunks,
+      },
+    });
   }
 
   private processChunks(center: Coords2) {
