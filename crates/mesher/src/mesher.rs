@@ -826,6 +826,11 @@ fn extract_rotation(voxel: u32) -> BlockRotation {
     BlockRotation::encode(rotation, y_rotation)
 }
 
+#[inline(always)]
+fn extract_stage(voxel: u32) -> u32 {
+    (voxel >> 24) & 0xF
+}
+
 fn vertex_ao(side1: bool, side2: bool, corner: bool) -> i32 {
     let num_s1 = !side1 as i32;
     let num_s2 = !side2 as i32;
@@ -856,7 +861,7 @@ fn get_fluid_effective_height(stage: u32) -> f32 {
 
 #[inline(always)]
 fn has_fluid_above<S: VoxelAccess>(vx: i32, vy: i32, vz: i32, fluid_id: u32, space: &S) -> bool {
-    space.get_voxel(vx, vy + 1, vz) == fluid_id
+    extract_id(space.get_raw_voxel(vx, vy + 1, vz)) == fluid_id
 }
 
 #[inline(always)]
@@ -867,8 +872,9 @@ fn get_fluid_height_at<S: VoxelAccess>(
     fluid_id: u32,
     space: &S,
 ) -> Option<f32> {
-    if space.get_voxel(vx, vy, vz) == fluid_id {
-        let stage = space.get_voxel_stage(vx, vy, vz);
+    let raw_voxel = space.get_raw_voxel(vx, vy, vz);
+    if extract_id(raw_voxel) == fluid_id {
+        let stage = extract_stage(raw_voxel);
         Some(get_fluid_effective_height(stage))
     } else {
         None
@@ -894,12 +900,12 @@ fn calculate_fluid_corner_height<S: VoxelAccess>(
     ];
 
     for [dx, dz] in upper_check_offsets {
-        if space.get_voxel(vx + dx, vy + 1, vz + dz) == fluid_id {
+        if extract_id(space.get_raw_voxel(vx + dx, vy + 1, vz + dz)) == fluid_id {
             return 1.0;
         }
     }
 
-    let self_stage = space.get_voxel_stage(vx, vy, vz);
+    let self_stage = extract_stage(space.get_raw_voxel(vx, vy, vz));
     let self_height = get_fluid_effective_height(self_stage);
 
     let mut total_height = self_height;
@@ -918,7 +924,7 @@ fn calculate_fluid_corner_height<S: VoxelAccess>(
             total_height += h;
             count += 1.0;
         } else {
-            let neighbor_id = space.get_voxel(nx, vy, nz);
+            let neighbor_id = extract_id(space.get_raw_voxel(nx, vy, nz));
             if let Some(neighbor_block) = registry.get_block_by_id(neighbor_id) {
                 if neighbor_block.is_empty {
                     has_air_neighbor = true;
