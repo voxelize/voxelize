@@ -72,10 +72,9 @@ function get(
   return index > arr.length || index < 0 ? 0 : arr[index];
 }
 
-function contains(voxel, min, max) {
+function contains(vx, vy, vz, min, max) {
   const [sx, sy, sz] = min;
   const [ex, ey, ez] = max;
-  const [vx, vy, vz] = voxel;
   return vx < ex && vx >= sx && vy < ey && vy >= sy && vz < ez && vz >= sz;
 }
 
@@ -102,27 +101,28 @@ onmessage = function (e) {
 
         if (voxel) {
           // There is a voxel here but do we need faces for it?
-          for (const { dir, corners } of FACES) {
+          for (let faceIndex = 0; faceIndex < FACES.length; faceIndex++) {
+            const face = FACES[faceIndex];
+            const { dir, corners } = face;
             const nvx = vx + dir[0];
             const nvy = vy + dir[1];
             const nvz = vz + dir[2];
 
-            const nVoxel = [nvx, nvy, nvz];
-
             if (
               !get(data, nvx, nvy, nvz, stride) ||
-              !contains(nVoxel, realMin, realMax)
+              !contains(nvx, nvy, nvz, realMin, realMax)
             ) {
               // this voxel has no neighbor in this direction so we need a face.
               const ndx = positions.length / 3;
 
-              for (const pos of corners) {
-                const posX = pos[0] + x;
-                const posY = pos[1] + y;
-                const posZ = pos[2] + z;
+              for (let cornerIndex = 0; cornerIndex < corners.length; cornerIndex++) {
+                const corner = corners[cornerIndex];
+                const posX = corner[0] + x;
+                const posY = corner[1] + y;
+                const posZ = corner[2] + z;
 
                 positions.push(posX * dx, posY * dy, posZ * dz);
-                normals.push(...dir);
+                normals.push(dir[0], dir[1], dir[2]);
               }
 
               indices.push(ndx, ndx + 1, ndx + 2, ndx + 2, ndx + 1, ndx + 3);
