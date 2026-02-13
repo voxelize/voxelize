@@ -4537,6 +4537,10 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private setPlantMeshVisibility(meshes: Mesh[], showPlants: boolean) {
+    if (this._plantBlockIds.size === 0) {
+      return;
+    }
+
     for (let meshIndex = 0; meshIndex < meshes.length; meshIndex++) {
       const mesh = meshes[meshIndex];
       if (mesh && this._plantBlockIds.has(mesh.userData.voxel)) {
@@ -4546,6 +4550,10 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private updatePlantVisibility(cx: number, cz: number) {
+    if (this._plantBlockIds.size === 0) {
+      return;
+    }
+
     const radiusSq = this.plantRadiusSq;
 
     for (const [, chunk] of this.chunkPipeline.loadedEntries()) {
