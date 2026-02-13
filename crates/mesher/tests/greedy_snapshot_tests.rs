@@ -268,6 +268,7 @@ fn base_block(id: u32, name: &str) -> Block {
         has_diagonal_faces: false,
         has_independent_or_isolated_faces: false,
         has_dynamic_patterns: false,
+        uses_main_geometry_only: false,
         block_min_cached: [0.0, 0.0, 0.0],
         is_full_cube_cached: false,
         has_mixed_diagonal_and_cardinal: false,

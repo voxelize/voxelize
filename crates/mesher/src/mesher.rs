@@ -37,6 +37,8 @@ pub struct Block {
     #[serde(skip, default)]
     pub has_dynamic_patterns: bool,
     #[serde(skip, default)]
+    pub uses_main_geometry_only: bool,
+    #[serde(skip, default)]
     pub block_min_cached: [f32; 3],
     #[serde(skip, default)]
     pub is_full_cube_cached: bool,
@@ -128,6 +130,9 @@ impl Block {
         self.has_independent_or_isolated_faces = has_independent_or_isolated_faces;
         self.has_mixed_diagonal_and_cardinal = has_diagonal && has_cardinal;
         self.has_dynamic_patterns = self.dynamic_patterns.is_some();
+        self.uses_main_geometry_only = !self.is_fluid
+            && !self.has_dynamic_patterns
+            && !self.has_independent_or_isolated_faces;
         self.greedy_mesh_eligible_no_rotation = !self.is_fluid
             && !self.rotatable
             && !self.y_rotatable
@@ -205,6 +210,19 @@ impl Block {
             self.dynamic_patterns.is_some()
         } else {
             self.has_dynamic_patterns
+        }
+    }
+
+    pub fn uses_main_geometry_only_cached(&self) -> bool {
+        if !self.cache_ready {
+            !self.is_fluid
+                && self.dynamic_patterns.is_none()
+                && !self
+                    .faces
+                    .iter()
+                    .any(|face| face.independent || face.isolated)
+        } else {
+            self.uses_main_geometry_only
         }
     }
 }
@@ -3510,10 +3528,10 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 if block.faces.is_empty() {
                                     continue;
                                 }
-                                let has_independent_or_isolated_faces = if cache_ready {
-                                    block.has_independent_or_isolated_faces
+                                let uses_main_geometry_only = if cache_ready {
+                                    block.uses_main_geometry_only
                                 } else {
-                                    block.has_independent_or_isolated_faces_cached()
+                                    block.uses_main_geometry_only_cached()
                                 };
                                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
                                 let face_cache = build_face_process_cache(
@@ -3528,7 +3546,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                     voxel_id,
                                     space,
                                 );
-                                if !has_independent_or_isolated_faces {
+                                if uses_main_geometry_only {
                                     let geometry =
                                         map.entry(GeometryMapKey::Block(block.id)).or_insert_with(|| {
                                             let mut entry = GeometryProtocol::default();
@@ -3933,15 +3951,10 @@ pub fn mesh_space<S: VoxelAccess>(
                     },
                 };
 
-                let uses_main_geometry_only = if is_fluid || has_dynamic_patterns {
-                    false
+                let uses_main_geometry_only = if cache_ready {
+                    block.uses_main_geometry_only
                 } else {
-                    let has_independent_or_isolated_faces = if cache_ready {
-                        block.has_independent_or_isolated_faces
-                    } else {
-                        block.has_independent_or_isolated_faces_cached()
-                    };
-                    !has_independent_or_isolated_faces
+                    block.uses_main_geometry_only_cached()
                 };
                 if uses_main_geometry_only {
                     let geometry = map.entry(GeometryMapKey::Block(block.id)).or_insert_with(|| {
