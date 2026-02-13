@@ -127,10 +127,13 @@ const getLastSequenceIdFromDeltas = (relevantDeltas: DeltaBatch[]): number => {
   let lastSequenceId = 0;
 
   for (const { deltas } of relevantDeltas) {
-    for (const delta of deltas) {
-      if (delta.sequenceId > lastSequenceId) {
-        lastSequenceId = delta.sequenceId;
-      }
+    if (deltas.length === 0) {
+      continue;
+    }
+
+    const chunkLastSequenceId = deltas[deltas.length - 1].sequenceId;
+    if (chunkLastSequenceId > lastSequenceId) {
+      lastSequenceId = chunkLastSequenceId;
     }
   }
 
@@ -233,6 +236,13 @@ const applyRelevantDeltas = (
   let lastSequenceId = 0;
 
   for (const { cx, cz, deltas } of relevantDeltas) {
+    if (deltas.length > 0) {
+      const chunkLastSequenceId = deltas[deltas.length - 1].sequenceId;
+      if (chunkLastSequenceId > lastSequenceId) {
+        lastSequenceId = chunkLastSequenceId;
+      }
+    }
+
     const localX = cx - gridOffsetX;
     const localZ = cz - gridOffsetZ;
 
@@ -251,7 +261,7 @@ const applyRelevantDeltas = (
     }
 
     for (const delta of deltas) {
-      const { coords, newVoxel, newRotation, newStage, sequenceId } = delta;
+      const { coords, newVoxel, newRotation, newStage } = delta;
       chunk.setVoxel(coords[0], coords[1], coords[2], newVoxel);
       if (newRotation) {
         chunk.setVoxelRotation(coords[0], coords[1], coords[2], newRotation);
@@ -259,7 +269,6 @@ const applyRelevantDeltas = (
       if (newStage !== undefined) {
         chunk.setVoxelStage(coords[0], coords[1], coords[2], newStage);
       }
-      lastSequenceId = Math.max(lastSequenceId, sequenceId);
     }
   }
 
