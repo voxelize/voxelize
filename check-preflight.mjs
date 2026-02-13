@@ -73,6 +73,26 @@ const passed = checks.every((check) => check.passed);
 const exitCode = passed ? 0 : 1;
 const passedChecks = checks.filter((check) => check.passed).map((check) => check.name);
 const failedChecks = checks.filter((check) => !check.passed).map((check) => check.name);
+const failureSummaries = checks
+  .filter((check) => !check.passed)
+  .map((check) => {
+    const reportMessage =
+      check.report !== null &&
+      typeof check.report === "object" &&
+      "message" in check.report &&
+      typeof check.report.message === "string"
+        ? check.report.message
+        : null;
+
+    return {
+      name: check.name,
+      exitCode: check.exitCode,
+      message:
+        reportMessage ??
+        check.output ??
+        `Preflight check failed with exit code ${check.exitCode}.`,
+    };
+  });
 const report = {
   passed,
   exitCode,
@@ -83,6 +103,7 @@ const report = {
   durationMs: Date.now() - aggregateStartMs,
   passedChecks,
   failedChecks,
+  failureSummaries,
   checks,
   outputPath: resolvedOutputPath,
 };

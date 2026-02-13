@@ -15,6 +15,12 @@ type PreflightCheckResult = {
   output: string | null;
 };
 
+type PreflightFailureSummary = {
+  name: string;
+  exitCode: number;
+  message: string;
+};
+
 type PreflightReport = {
   schemaVersion: number;
   passed: boolean;
@@ -26,6 +32,7 @@ type PreflightReport = {
   durationMs: number;
   passedChecks: string[];
   failedChecks: string[];
+  failureSummaries: PreflightFailureSummary[];
   checks: PreflightCheckResult[];
   outputPath: string | null;
   message?: string;
@@ -55,10 +62,19 @@ describe("preflight aggregate report", () => {
     expect(report.durationMs).toBeGreaterThanOrEqual(0);
     expect(Array.isArray(report.passedChecks)).toBe(true);
     expect(Array.isArray(report.failedChecks)).toBe(true);
+    expect(Array.isArray(report.failureSummaries)).toBe(true);
     expect(report.passedChecks.length + report.failedChecks.length).toBe(3);
+    expect(report.failureSummaries.length).toBe(report.failedChecks.length);
     expect([...report.passedChecks, ...report.failedChecks].sort()).toEqual(
       ["client", "devEnvironment", "wasmPack"]
     );
+    expect(report.failureSummaries.map((entry) => entry.name).sort()).toEqual(
+      report.failedChecks.slice().sort()
+    );
+    for (const entry of report.failureSummaries) {
+      expect(entry.exitCode).toBeGreaterThanOrEqual(1);
+      expect(entry.message.length).toBeGreaterThan(0);
+    }
     expect(report.outputPath).toBeNull();
     expect(Array.isArray(report.checks)).toBe(true);
     expect(report.checks.length).toBe(3);
