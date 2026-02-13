@@ -377,7 +377,7 @@ struct NeighborCache {
 }
 
 impl NeighborCache {
-    #[inline]
+    #[inline(always)]
     fn offset_to_index(x: i32, y: i32, z: i32) -> usize {
         ((x + 1) + (y + 1) * 3 + (z + 1) * 9) as usize
     }
