@@ -42,12 +42,27 @@ fn convert_config(config: &WorldConfig) -> LightConfig {
 }
 
 #[inline]
-fn convert_bounds(min: Option<&Vec3<i32>>, shape: Option<&Vec3<usize>>) -> Option<LightBounds> {
+fn convert_bounds(
+    min: Option<&Vec3<i32>>,
+    shape: Option<&Vec3<usize>>,
+    config: &LightConfig,
+) -> Option<LightBounds> {
     match (min, shape) {
         (Some(&Vec3(start_x, start_y, start_z)), Some(&Vec3(shape_x, shape_y, shape_z))) => {
             Some(LightBounds {
                 min: [start_x, start_y, start_z],
                 shape: [shape_x, shape_y, shape_z],
+            })
+        }
+        (Some(&Vec3(start_x, start_y, start_z)), None) => {
+            let max_x_exclusive = (config.max_chunk[0] + 1) * config.chunk_size;
+            let max_z_exclusive = (config.max_chunk[1] + 1) * config.chunk_size;
+            let shape_x = (max_x_exclusive - start_x).max(0) as usize;
+            let shape_z = (max_z_exclusive - start_z).max(0) as usize;
+
+            Some(LightBounds {
+                min: [start_x, start_y, start_z],
+                shape: [shape_x, config.max_height as usize, shape_z],
             })
         }
         _ => None,
@@ -114,7 +129,7 @@ impl Lights {
     ) {
         let light_registry = get_cached_light_registry(registry);
         let light_config = convert_config(config);
-        let bounds = convert_bounds(min, shape);
+        let bounds = convert_bounds(min, shape, &light_config);
         lighter_flood_light(
             space,
             queue,
