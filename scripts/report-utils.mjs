@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 export const REPORT_SCHEMA_VERSION = 1;
-const ANSI_ESCAPE_SEQUENCE_REGEX = /\u001b\[[0-9;]*m/g;
+const ANSI_ESCAPE_SEQUENCE_REGEX = /\u001b\[[0-?]*[ -/]*[@-~]/g;
 
 const isObjectLikeJsonValue = (value) => {
   return value !== null && typeof value === "object";

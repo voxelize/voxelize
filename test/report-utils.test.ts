@@ -85,6 +85,11 @@ describe("report-utils", () => {
     expect(
       parseJsonOutput(`\u001b[33m{"ok":true,"exitCode":0}\u001b[0m`)
     ).toEqual({ ok: true, exitCode: 0 });
+    expect(
+      parseJsonOutput(
+        `\u001b[2K{\n  "ok": true,\n  "exitCode": 0\n}\u001b[2K`
+      )
+    ).toEqual({ ok: true, exitCode: 0 });
   });
 
   it("injects schema version in report payloads", () => {
