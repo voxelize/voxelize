@@ -112,6 +112,10 @@ const runScript = (scriptName: string, args: string[] = []): ScriptResult => {
   };
 };
 
+const expectCompactJsonOutput = (output: string) => {
+  expect(output).not.toContain("\n  \"");
+};
+
 describe("root preflight scripts", () => {
   it("check-wasm-pack returns clear status output", () => {
     const result = runScript("check-wasm-pack.mjs");
@@ -150,6 +154,15 @@ describe("root preflight scripts", () => {
     }
 
     expect(report.message).toContain("wasm-pack is required for wasm build commands");
+  });
+
+  it("check-wasm-pack supports compact json mode", () => {
+    const result = runScript("check-wasm-pack.mjs", ["--json", "--compact"]);
+    const report = JSON.parse(result.output) as WasmPackJsonReport;
+
+    expectCompactJsonOutput(result.output.trim());
+    expect(report.schemaVersion).toBe(1);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
   it("check-wasm-pack json mode writes report to output path", () => {
@@ -220,6 +233,15 @@ describe("root preflight scripts", () => {
     expect(report.checks.map((check) => check.label)).toContain("pnpm");
     expect(result.status).toBe(report.passed ? 0 : 1);
     expect(result.output).not.toContain("Environment check failed:");
+  });
+
+  it("check-dev-env supports compact json mode", () => {
+    const result = runScript("check-dev-env.mjs", ["--json", "--compact"]);
+    const report = JSON.parse(result.output) as DevEnvJsonReport;
+
+    expectCompactJsonOutput(result.output.trim());
+    expect(report.schemaVersion).toBe(1);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
   it("check-dev-env json mode writes report to output path", () => {
@@ -304,6 +326,15 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(report.passed ? 0 : 1);
     expect(result.output).not.toContain("Running client check step:");
     expect(result.output).not.toContain("Client check failed:");
+  });
+
+  it("check-client supports compact json mode", () => {
+    const result = runScript("check-client.mjs", ["--json", "--compact"]);
+    const report = JSON.parse(result.output) as ClientJsonReport;
+
+    expectCompactJsonOutput(result.output.trim());
+    expect(report.schemaVersion).toBe(1);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
   it("check-client json mode writes report to output path", () => {
@@ -408,6 +439,15 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(report.passed ? 0 : 1);
     expect(result.output).not.toContain("Running onboarding step:");
     expect(result.output).not.toContain("Onboarding check failed:");
+  });
+
+  it("check-onboarding supports compact json mode", () => {
+    const result = runScript("check-onboarding.mjs", ["--json", "--compact"]);
+    const report = JSON.parse(result.output) as OnboardingJsonReport;
+
+    expectCompactJsonOutput(result.output.trim());
+    expect(report.schemaVersion).toBe(1);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
   it("check-onboarding json mode writes report to output path", () => {

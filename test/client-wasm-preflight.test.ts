@@ -84,6 +84,24 @@ describe("client wasm preflight script", () => {
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
+  it("supports compact json mode", () => {
+    const result = spawnSync(
+      process.execPath,
+      [wasmMesherScript, "--json", "--no-build", "--compact"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`.trim();
+    const report = JSON.parse(output) as WasmMesherJsonReport;
+
+    expect(output).not.toContain("\n  \"");
+    expect(report.schemaVersion).toBe(1);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
   it("writes machine-readable JSON report to output path", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-wasm-preflight-")
