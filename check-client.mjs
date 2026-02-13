@@ -26,6 +26,22 @@ const parseJsonOutput = (value) => {
   }
 };
 
+const addSkippedStep = (name, reason) => {
+  if (!isJson) {
+    return;
+  }
+
+  stepResults.push({
+    name,
+    passed: false,
+    exitCode: 0,
+    skipped: true,
+    reason,
+    report: null,
+    output: null,
+  });
+};
+
 const runStep = (name, command, args) => {
   if (!isQuiet && !isJson) {
     console.log(`Running client check step: ${name}`);
@@ -51,6 +67,8 @@ const runStep = (name, command, args) => {
       name,
       passed: resolvedStatus === 0,
       exitCode: resolvedStatus,
+      skipped: false,
+      reason: null,
       report,
       output: report === null ? output : null,
     });
@@ -86,6 +104,8 @@ if (wasmPreflightPassed) {
     "run",
     "typecheck",
   ]);
+} else {
+  addSkippedStep("TypeScript typecheck", "WASM artifact preflight failed");
 }
 
 if (isJson) {

@@ -22,6 +22,22 @@ const parseJsonOutput = (value) => {
   }
 };
 
+const addSkippedStep = (name, reason) => {
+  if (!isJson) {
+    return;
+  }
+
+  stepResults.push({
+    name,
+    passed: false,
+    exitCode: 0,
+    skipped: true,
+    reason,
+    report: null,
+    output: null,
+  });
+};
+
 const runStep = (name, scriptPath, extraArgs = []) => {
   if (!isQuiet && !isJson) {
     console.log(`Running onboarding step: ${name}`);
@@ -52,6 +68,8 @@ const runStep = (name, scriptPath, extraArgs = []) => {
       name,
       passed: resolvedStatus === 0,
       exitCode: resolvedStatus,
+      skipped: false,
+      reason: null,
       report: parsedReport,
       output: parsedReport === null ? output : null,
     });
@@ -79,6 +97,8 @@ if (devEnvPassed) {
   runStep("Client checks", path.resolve(__dirname, "check-client.mjs"), [
     ...(isNoBuild ? ["--no-build"] : []),
   ]);
+} else {
+  addSkippedStep("Client checks", "Developer environment preflight failed");
 }
 
 if (isJson) {

@@ -53,6 +53,8 @@ type ClientJsonStep = {
   name: string;
   passed: boolean;
   exitCode: number;
+  skipped: boolean;
+  reason: string | null;
   report: WasmMesherJsonReport | null;
   output: string | null;
 };
@@ -68,6 +70,8 @@ type OnboardingJsonStep = {
   name: string;
   passed: boolean;
   exitCode: number;
+  skipped: boolean;
+  reason: string | null;
   report: DevEnvJsonReport | ClientJsonReport | null;
   output: string | null;
 };
@@ -194,6 +198,10 @@ describe("root preflight scripts", () => {
     expect(Array.isArray(report.steps)).toBe(true);
     expect(report.steps.length).toBeGreaterThan(0);
     expect(report.steps[0].name).toBe("WASM artifact preflight");
+    expect(typeof report.steps[0].skipped).toBe("boolean");
+    expect(report.steps.some((step) => step.name === "TypeScript typecheck")).toBe(
+      true
+    );
     expect(report.steps[0].report).not.toBeNull();
     if (report.steps[0].report !== null) {
       expect(report.steps[0].report.artifactPath).toBe(
@@ -214,9 +222,17 @@ describe("root preflight scripts", () => {
     expect(report.noBuild).toBe(true);
     expect(report.steps.length).toBeGreaterThan(0);
     expect(report.steps[0].name).toBe("WASM artifact preflight");
+    const typecheckStep = report.steps.find(
+      (step) => step.name === "TypeScript typecheck"
+    );
+    expect(typecheckStep).toBeDefined();
     if (report.steps[0].report !== null) {
       expect(report.steps[0].report.buildSkipped).toBe(true);
       expect(report.steps[0].report.attemptedBuild).toBe(false);
+    }
+    if (typecheckStep !== undefined && report.steps[0].passed === false) {
+      expect(typecheckStep.skipped).toBe(true);
+      expect(typecheckStep.reason).toBe("WASM artifact preflight failed");
     }
   });
 
@@ -251,6 +267,9 @@ describe("root preflight scripts", () => {
     expect(Array.isArray(report.steps)).toBe(true);
     expect(report.steps.length).toBeGreaterThan(0);
     expect(report.steps[0].name).toBe("Developer environment preflight");
+    expect(
+      report.steps.some((step) => step.name === "Client checks")
+    ).toBe(true);
     expect(report.steps[0].report).not.toBeNull();
     if (report.steps[0].report !== null) {
       expect(typeof report.steps[0].report.passed).toBe("boolean");
@@ -267,5 +286,13 @@ describe("root preflight scripts", () => {
     expect(report.noBuild).toBe(true);
     expect(report.steps.length).toBeGreaterThan(0);
     expect(report.steps[0].name).toBe("Developer environment preflight");
+    const clientStep = report.steps.find((step) => step.name === "Client checks");
+    expect(clientStep).toBeDefined();
+    if (clientStep !== undefined && report.steps[0].passed === false) {
+      expect(clientStep.skipped).toBe(true);
+      expect(clientStep.reason).toBe(
+        "Developer environment preflight failed"
+      );
+    }
   });
 });
