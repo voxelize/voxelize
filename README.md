@@ -98,6 +98,8 @@ pnpm run typecheck:client
 
 visit http://localhost:3000
 
+For client-only setup details, see [`examples/client/README.md`](examples/client/README.md).
+
 ## Supporting
 
 If you like our work, please consider supporting us on Patreon, BuyMeACoffee, or PayPal. Thanks a lot!
