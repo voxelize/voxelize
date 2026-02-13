@@ -1205,6 +1205,7 @@ fn compute_face_ao_and_light(
 
     let is_see_through = block.is_see_through;
     let is_all_transparent = block.is_all_transparent;
+    let opaque_mask = build_neighbor_opaque_mask(neighbors, registry);
 
     let corner_positions: [[f32; 3]; 4] = match dir {
         [1, 0, 0] => [
@@ -1251,11 +1252,7 @@ fn compute_face_ao_and_light(
     let dir_is_x = dir[0].abs() == 1;
     let dir_is_y = dir[1].abs() == 1;
     let center_opaque = if !(is_see_through || is_all_transparent) {
-        let center_id = neighbors.get_voxel(0, 0, 0);
-        registry
-            .get_block_by_id(center_id)
-            .map(|b| b.is_opaque)
-            .unwrap_or(false)
+        neighbor_is_opaque(&opaque_mask, 0, 0, 0)
     } else {
         false
     };
@@ -1277,18 +1274,10 @@ fn compute_face_ao_and_light(
             1
         };
 
-        let get_block_opaque = |ox: i32, oy: i32, oz: i32| -> bool {
-            let id = neighbors.get_voxel(ox, oy, oz);
-            registry
-                .get_block_by_id(id)
-                .map(|b| b.is_opaque)
-                .unwrap_or(false)
-        };
-
-        let b011 = !get_block_opaque(0, dy, dz);
-        let b101 = !get_block_opaque(dx, 0, dz);
-        let b110 = !get_block_opaque(dx, dy, 0);
-        let b111 = !get_block_opaque(dx, dy, dz);
+        let b011 = !neighbor_is_opaque(&opaque_mask, 0, dy, dz);
+        let b101 = !neighbor_is_opaque(&opaque_mask, dx, 0, dz);
+        let b110 = !neighbor_is_opaque(&opaque_mask, dx, dy, 0);
+        let b111 = !neighbor_is_opaque(&opaque_mask, dx, dy, dz);
 
         let ao = if is_see_through || is_all_transparent {
             3
@@ -1328,11 +1317,7 @@ fn compute_face_ao_and_light(
                             continue;
                         }
 
-                        let diagonal4_id = neighbors.get_voxel(ddx, ddy, ddz);
-                        let diagonal4_opaque = registry
-                            .get_block_by_id(diagonal4_id)
-                            .map(|b| b.is_opaque)
-                            .unwrap_or(false);
+                        let diagonal4_opaque = neighbor_is_opaque(&opaque_mask, ddx, ddy, ddz);
 
                         if diagonal4_opaque {
                             continue;
@@ -1350,60 +1335,33 @@ fn compute_face_ao_and_light(
                         }
 
                         if ddx.abs() + ddy.abs() + ddz.abs() == 3 {
-                            let diagonal_yz_opaque = registry
-                                .get_block_by_id(neighbors.get_voxel(0, ddy, ddz))
-                                .map(|b| b.is_opaque)
-                                .unwrap_or(false);
-                            let diagonal_xz_opaque = registry
-                                .get_block_by_id(neighbors.get_voxel(ddx, 0, ddz))
-                                .map(|b| b.is_opaque)
-                                .unwrap_or(false);
-                            let diagonal_xy_opaque = registry
-                                .get_block_by_id(neighbors.get_voxel(ddx, ddy, 0))
-                                .map(|b| b.is_opaque)
-                                .unwrap_or(false);
+                            let diagonal_yz_opaque = neighbor_is_opaque(&opaque_mask, 0, ddy, ddz);
+                            let diagonal_xz_opaque = neighbor_is_opaque(&opaque_mask, ddx, 0, ddz);
+                            let diagonal_xy_opaque = neighbor_is_opaque(&opaque_mask, ddx, ddy, 0);
 
                             if diagonal_yz_opaque && diagonal_xz_opaque && diagonal_xy_opaque {
                                 continue;
                             }
 
                             if diagonal_xy_opaque && diagonal_xz_opaque {
-                                let neighbor_y_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(0, ddy, 0))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
-                                let neighbor_z_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(0, 0, ddz))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
+                                let neighbor_y_opaque = neighbor_is_opaque(&opaque_mask, 0, ddy, 0);
+                                let neighbor_z_opaque = neighbor_is_opaque(&opaque_mask, 0, 0, ddz);
                                 if neighbor_y_opaque && neighbor_z_opaque {
                                     continue;
                                 }
                             }
 
                             if diagonal_xy_opaque && diagonal_yz_opaque {
-                                let neighbor_x_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(ddx, 0, 0))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
-                                let neighbor_z_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(0, 0, ddz))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
+                                let neighbor_x_opaque = neighbor_is_opaque(&opaque_mask, ddx, 0, 0);
+                                let neighbor_z_opaque = neighbor_is_opaque(&opaque_mask, 0, 0, ddz);
                                 if neighbor_x_opaque && neighbor_z_opaque {
                                     continue;
                                 }
                             }
 
                             if diagonal_xz_opaque && diagonal_yz_opaque {
-                                let neighbor_x_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(ddx, 0, 0))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
-                                let neighbor_y_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(0, ddy, 0))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
+                                let neighbor_x_opaque = neighbor_is_opaque(&opaque_mask, ddx, 0, 0);
+                                let neighbor_y_opaque = neighbor_is_opaque(&opaque_mask, 0, ddy, 0);
                                 if neighbor_x_opaque && neighbor_y_opaque {
                                     continue;
                                 }
