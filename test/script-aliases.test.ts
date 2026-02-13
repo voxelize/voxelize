@@ -55,6 +55,24 @@ describe("script aliases", () => {
     expect(manifest.scripts["check:preflight:list:verify:json:compact"]).toBe(
       "node ./check-preflight.mjs --list-checks --no-build --compact"
     );
+    expect(manifest.scripts["check:preflight:list:dev:json"]).toBe(
+      "node ./check-preflight.mjs --list-checks --only devEnvironment"
+    );
+    expect(manifest.scripts["check:preflight:list:dev:json:compact"]).toBe(
+      "node ./check-preflight.mjs --list-checks --only devEnvironment --compact"
+    );
+    expect(manifest.scripts["check:preflight:list:wasm:json"]).toBe(
+      "node ./check-preflight.mjs --list-checks --only wasmPack"
+    );
+    expect(manifest.scripts["check:preflight:list:wasm:json:compact"]).toBe(
+      "node ./check-preflight.mjs --list-checks --only wasmPack --compact"
+    );
+    expect(manifest.scripts["check:preflight:list:client:json"]).toBe(
+      "node ./check-preflight.mjs --list-checks --only client"
+    );
+    expect(manifest.scripts["check:preflight:list:client:json:compact"]).toBe(
+      "node ./check-preflight.mjs --list-checks --only client --compact"
+    );
     expect(manifest.scripts["check:preflight:all:json"]).toBe(
       "node ./check-preflight.mjs --only all"
     );
