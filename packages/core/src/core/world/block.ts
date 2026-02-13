@@ -345,9 +345,10 @@ export class BlockRotation {
    */
   static decode = (rotation: BlockRotation) => {
     const value = rotation.value;
-    const yDecoded =
-      Math.round((rotation.yRotation * Y_ROT_SEGMENTS) / (Math.PI * 2.0)) %
-      Y_ROT_SEGMENTS;
+    const converted = Math.round(
+      (rotation.yRotation * Y_ROT_SEGMENTS) / (Math.PI * 2.0)
+    );
+    const yDecoded = ((converted % Y_ROT_SEGMENTS) + Y_ROT_SEGMENTS) % Y_ROT_SEGMENTS;
 
     return [value, yDecoded];
   };

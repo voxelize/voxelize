@@ -118,6 +118,12 @@ describe("BlockRotation", () => {
     expect(decoded.equals(rotation)).toBe(true);
   });
 
+  it("normalizes negative y-rotation segments", () => {
+    const rotation = BlockRotation.py(-(Math.PI * 2.0) / 16.0);
+    const [, yRotation] = BlockRotation.decode(rotation);
+    expect(yRotation).toBe(15);
+  });
+
   it("rotates transparency for non-zero y rotation on PY axis", () => {
     const rotation = BlockRotation.encode(PY_ROTATION, 4);
     const input: [boolean, boolean, boolean, boolean, boolean, boolean] = [

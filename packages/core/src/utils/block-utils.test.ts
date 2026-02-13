@@ -56,4 +56,10 @@ describe("BlockRotation.rotateTransparency", () => {
 
     expect(rotation.rotateTransparency(input)).not.toEqual(input);
   });
+
+  it("normalizes negative y-rotation segments on decode", () => {
+    const rotation = new BlockRotation(PY_ROTATION, -(Math.PI * 2.0) / 16.0);
+    const [, yRotation] = BlockRotation.decode(rotation);
+    expect(yRotation).toBe(15);
+  });
 });
