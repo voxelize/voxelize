@@ -3003,8 +3003,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
         for slice in slice_range {
             for u in u_range.0..u_range.1 {
                 for v in v_range.0..v_range.1 {
-                    let current_mask_index =
-                        (v - v_range.0) as usize * mask_width + (u - u_range.0) as usize;
                     let (vx, vy, vz, current_voxel_index) = match (axis, u_axis, v_axis) {
                         (0, 2, 1) => (
                             slice,
@@ -3319,6 +3317,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     if !should_render {
                         continue;
                     }
+                    let current_mask_index =
+                        (v - v_range.0) as usize * mask_width + (u - u_range.0) as usize;
 
                     let matched_face = if face_index >= 0 {
                         block.faces.get(face_index as usize)
