@@ -426,14 +426,8 @@ impl NeighborCache {
 #[inline(always)]
 fn build_neighbor_opaque_mask(neighbors: &NeighborCache, registry: &Registry) -> [bool; 27] {
     let mut mask = [false; 27];
-    for x in -1..=1 {
-        for y in -1..=1 {
-            for z in -1..=1 {
-                let idx = NeighborCache::offset_to_index(x, y, z);
-                let id = neighbors.get_voxel(x, y, z);
-                mask[idx] = registry.is_opaque_id(id);
-            }
-        }
+    for (idx, entry) in neighbors.data.iter().enumerate() {
+        mask[idx] = registry.is_opaque_id(extract_id(entry[0]));
     }
     mask
 }
