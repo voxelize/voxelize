@@ -88,7 +88,16 @@ export class ChunkPipeline {
     source: "update" | "load",
     data: ChunkProtocol
   ): void {
-    const name = ChunkUtils.getChunkName(coords);
+    this.markProcessingAt(coords[0], coords[1], source, data);
+  }
+
+  markProcessingAt(
+    cx: number,
+    cz: number,
+    source: "update" | "load",
+    data: ChunkProtocol
+  ): void {
+    const name = ChunkUtils.getChunkNameAt(cx, cz);
     const existing = this.states.get(name);
 
     if (existing?.stage === "processing") {

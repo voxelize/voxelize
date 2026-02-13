@@ -3721,7 +3721,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         const { chunks } = message;
         chunks.forEach((chunk) => {
           const { x, z } = chunk;
-          this.chunkPipeline.markProcessing([x, z], "load", chunk);
+          this.chunkPipeline.markProcessingAt(x, z, "load", chunk);
         });
 
         break;
