@@ -1630,6 +1630,7 @@ impl Block {
             id: self.id,
             name: self.name.clone(),
             name_lower: self.name.to_lowercase(),
+            cache_ready: false,
             rotatable: self.rotatable,
             y_rotatable: self.y_rotatable,
             is_empty: self.is_empty,

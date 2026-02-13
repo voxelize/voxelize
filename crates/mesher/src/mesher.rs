@@ -12,6 +12,8 @@ pub struct Block {
     pub name: String,
     #[serde(skip)]
     pub name_lower: String,
+    #[serde(skip, default)]
+    pub cache_ready: bool,
     pub rotatable: bool,
     pub y_rotatable: bool,
     pub is_empty: bool,
@@ -47,6 +49,7 @@ pub struct Block {
 impl Block {
     pub fn compute_name_lower(&mut self) {
         self.name_lower = self.name.to_lowercase();
+        self.cache_ready = true;
         self.is_all_transparent = self.is_transparent.iter().all(|transparent| *transparent);
         self.greedy_face_indices = default_greedy_face_indices();
         self.is_full_cube_cached = is_full_cube_from_aabbs(&self.aabbs);
@@ -125,7 +128,7 @@ impl Block {
     }
 
     pub fn is_full_cube(&self) -> bool {
-        if self.name_lower.is_empty() {
+        if !self.cache_ready {
             is_full_cube_from_aabbs(&self.aabbs)
         } else {
             self.is_full_cube_cached
@@ -133,7 +136,7 @@ impl Block {
     }
 
     pub fn get_name_lower(&self) -> &str {
-        if self.name_lower.is_empty() {
+        if !self.cache_ready {
             &self.name
         } else {
             &self.name_lower
@@ -141,7 +144,7 @@ impl Block {
     }
 
     pub fn has_standard_six_faces_cached(&self) -> bool {
-        if self.name_lower.is_empty() {
+        if !self.cache_ready {
             has_standard_six_faces(&self.faces)
         } else {
             self.has_standard_six_faces
@@ -149,7 +152,7 @@ impl Block {
     }
 
     pub fn can_greedy_mesh_without_rotation(&self) -> bool {
-        if self.name_lower.is_empty() {
+        if !self.cache_ready {
             !self.is_fluid
                 && !self.rotatable
                 && !self.y_rotatable
@@ -162,7 +165,7 @@ impl Block {
     }
 
     pub fn has_diagonal_faces_cached(&self) -> bool {
-        if self.name_lower.is_empty() {
+        if !self.cache_ready {
             has_diagonal_faces(self)
         } else {
             self.has_diagonal_faces

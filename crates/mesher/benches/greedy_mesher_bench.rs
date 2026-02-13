@@ -246,6 +246,7 @@ fn base_block(id: u32, name: &str) -> Block {
         id,
         name: name.to_string(),
         name_lower: String::new(),
+        cache_ready: false,
         rotatable: false,
         y_rotatable: false,
         is_empty: false,
