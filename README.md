@@ -134,6 +134,7 @@ pnpm run check:onboarding:verify:json
 pnpm run check:preflight:json
 # aggregated preflight report without auto-building wasm artifacts
 pnpm run check:preflight:verify:json
+# includes per-check and total duration metadata
 
 # run script-focused integration tests
 pnpm run test:scripts
