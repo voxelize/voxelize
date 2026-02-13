@@ -90,7 +90,8 @@ export class ItemRegistry {
     this.itemsByName.clear();
     this.renderers.clear();
 
-    for (const item of items) {
+    for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
+      const item = items[itemIndex];
       this.itemsById.set(item.id, item);
       this.itemsByName.set(item.name.toLowerCase(), item);
     }
@@ -126,11 +127,14 @@ export class ItemRegistry {
 
   async waitForRenderers(): Promise<void> {
     const promises: Promise<void>[] = [];
-    for (const id of this.itemsById.keys()) {
-      const renderer = this.getRenderer(id);
+    let itemIds = this.itemsById.keys();
+    let itemId = itemIds.next();
+    while (!itemId.done) {
+      const renderer = this.getRenderer(itemId.value);
       if (renderer instanceof ImageItemRenderer) {
         promises.push(renderer.waitForLoad());
       }
+      itemId = itemIds.next();
     }
     await Promise.all(promises);
   }
@@ -146,9 +150,12 @@ export class ItemRegistry {
   getAll(): ItemDef[] {
     const items = new Array<ItemDef>(this.itemsById.size);
     let index = 0;
-    for (const item of this.itemsById.values()) {
-      items[index] = item;
+    let itemEntries = this.itemsById.values();
+    let itemEntry = itemEntries.next();
+    while (!itemEntry.done) {
+      items[index] = itemEntry.value;
       index++;
+      itemEntry = itemEntries.next();
     }
     return items;
   }
@@ -204,8 +211,11 @@ export class ItemRegistry {
   }
 
   disposeRenderers(): void {
-    for (const renderer of this.renderers.values()) {
-      renderer.dispose?.();
+    let rendererEntries = this.renderers.values();
+    let rendererEntry = rendererEntries.next();
+    while (!rendererEntry.done) {
+      rendererEntry.value.dispose?.();
+      rendererEntry = rendererEntries.next();
     }
     this.renderers.clear();
   }
