@@ -832,6 +832,7 @@ describe("preflight aggregate report", () => {
     expect(report.message).toBe("Missing value for --output option.");
     expect(report.invalidChecks).toEqual([]);
     expect(report.requestedChecks).toEqual([]);
+    expect(report.requestedCheckResolutions).toEqual([]);
     expect(report.availableSpecialCheckAliases).toEqual(
       expectedAvailableSpecialCheckAliases
     );
@@ -867,6 +868,7 @@ describe("preflight aggregate report", () => {
     expect(report.message).toBe("Missing value for --output option.");
     expect(report.invalidChecks).toEqual([]);
     expect(report.requestedChecks).toEqual([]);
+    expect(report.requestedCheckResolutions).toEqual([]);
     expect(result.status).toBe(1);
   });
 
@@ -970,6 +972,7 @@ describe("preflight aggregate report", () => {
     expect(report.specialSelectorsUsed).toEqual([]);
     expect(report.message).toBe("Missing value for --only option.");
     expect(report.requestedChecks).toEqual([]);
+    expect(report.requestedCheckResolutions).toEqual([]);
     expect(report.availableChecks).toEqual([
       "devEnvironment",
       "wasmPack",
@@ -1005,6 +1008,7 @@ describe("preflight aggregate report", () => {
     expect(report.invalidChecks).toEqual([]);
     expect(report.requestedChecks).toEqual([]);
     expect(report.specialSelectorsUsed).toEqual([]);
+    expect(report.requestedCheckResolutions).toEqual([]);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(result.status).toBe(1);
   });
@@ -1155,6 +1159,14 @@ describe("preflight aggregate report", () => {
     expect(stdoutReport.invalidChecks).toEqual(["invalidCheck"]);
     expect(stdoutReport.specialSelectorsUsed).toEqual([]);
     expect(stdoutReport.requestedChecks).toEqual(["invalidCheck"]);
+    expect(stdoutReport.requestedCheckResolutions).toEqual([
+      {
+        token: "invalidCheck",
+        normalizedToken: "invalidcheck",
+        kind: "invalid",
+        resolvedTo: [],
+      },
+    ]);
     expect(fileReport.outputPath).toBe(outputPath);
     expect(fileReport.message).toBe(stdoutReport.message);
     expect(result.status).toBe(1);
@@ -1189,6 +1201,7 @@ describe("preflight aggregate report", () => {
     expect(stdoutReport.invalidChecks).toEqual([]);
     expect(stdoutReport.specialSelectorsUsed).toEqual([]);
     expect(stdoutReport.requestedChecks).toEqual([]);
+    expect(stdoutReport.requestedCheckResolutions).toEqual([]);
     expect(fileReport.outputPath).toBe(outputPath);
     expect(fileReport.message).toBe(stdoutReport.message);
     expect(result.status).toBe(1);
