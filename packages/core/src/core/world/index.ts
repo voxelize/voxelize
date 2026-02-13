@@ -5552,7 +5552,9 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     if (jobsForBatch.length === 0) return;
 
-    this.lightJobQueue.push(...jobsForBatch);
+    for (const job of jobsForBatch) {
+      this.lightJobQueue.push(job);
+    }
     this.processNextLightBatch();
   }
 
@@ -5664,32 +5666,34 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (!this.hasPendingLightJobs()) return;
     if (this.activeLightBatch !== null) return;
 
-    const firstJob = this.lightJobQueue[this.lightJobQueueHead];
+    const batchStart = this.lightJobQueueHead;
+    const firstJob = this.lightJobQueue[batchStart];
     const batchId = firstJob.batchId;
 
-    let batchEnd = this.lightJobQueueHead + 1;
+    let batchEnd = batchStart + 1;
     while (
       batchEnd < this.lightJobQueue.length &&
       this.lightJobQueue[batchEnd].batchId === batchId
     ) {
       batchEnd++;
     }
-    const batchJobs = this.lightJobQueue.slice(this.lightJobQueueHead, batchEnd);
-    this.lightJobQueueHead = batchEnd;
-    this.normalizeLightJobQueue();
+    const totalJobs = batchEnd - batchStart;
 
     this.activeLightBatch = {
       batchId,
       startSequenceId: firstJob.startSequenceId,
-      totalJobs: batchJobs.length,
+      totalJobs,
       completedJobs: 0,
       results: [],
-      jobs: batchJobs,
+      jobs: [],
     };
 
-    for (const job of batchJobs) {
-      this.executeLightJob(job);
+    for (let index = batchStart; index < batchEnd; index++) {
+      this.executeLightJob(this.lightJobQueue[index]);
     }
+
+    this.lightJobQueueHead = batchEnd;
+    this.normalizeLightJobQueue();
   }
 
   private executeLightJob(job: LightJob) {
