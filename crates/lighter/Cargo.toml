@@ -4,6 +4,7 @@ version = "1.0.0"
 edition = "2021"
 description = "Lighting propagation logic for Voxelize"
 license = "MIT"
+repository = "https://github.com/voxelize/voxelize"
 
 [lib]
 crate-type = ["lib"]
