@@ -2739,6 +2739,50 @@ describe("preflight aggregate report", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("uses the last output flag for only-selection validation errors", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-preflight-invalid-only-last-output-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+    const secondOutputPath = path.resolve(tempDirectory, "second-report.json");
+
+    const result = spawnSync(
+      process.execPath,
+      [
+        preflightScript,
+        "--only",
+        "invalidCheck",
+        "--output",
+        firstOutputPath,
+        "--output",
+        secondOutputPath,
+      ],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const stdoutReport = JSON.parse(output) as PreflightReport;
+    const secondFileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as PreflightReport;
+
+    expect(stdoutReport.schemaVersion).toBe(1);
+    expect(stdoutReport.passed).toBe(false);
+    expect(stdoutReport.exitCode).toBe(1);
+    expect(stdoutReport.validationErrorCode).toBe("only_option_invalid_value");
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(stdoutReport.invalidChecks).toEqual(["invalidCheck"]);
+    expect(stdoutReport.requestedChecks).toEqual(["invalidCheck"]);
+    expect(secondFileReport).toEqual(stdoutReport);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("writes missing only-value errors to output path", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-preflight-missing-only-output-")
@@ -2807,6 +2851,50 @@ describe("preflight aggregate report", () => {
     expect(stdoutReport.invalidChecks).toEqual([]);
     expect(stdoutReport.requestedChecks).toEqual([]);
     expect(fileReport).toEqual(stdoutReport);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("uses the last output flag for unsupported-option validation errors", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-preflight-unsupported-last-output-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+    const secondOutputPath = path.resolve(tempDirectory, "second-report.json");
+
+    const result = spawnSync(
+      process.execPath,
+      [
+        preflightScript,
+        "--mystery",
+        "--output",
+        firstOutputPath,
+        "--output",
+        secondOutputPath,
+      ],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const stdoutReport = JSON.parse(output) as PreflightReport;
+    const secondFileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as PreflightReport;
+
+    expect(stdoutReport.schemaVersion).toBe(1);
+    expect(stdoutReport.passed).toBe(false);
+    expect(stdoutReport.exitCode).toBe(1);
+    expect(stdoutReport.validationErrorCode).toBe("unsupported_options");
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(stdoutReport.unknownOptions).toEqual(["--mystery"]);
+    expect(stdoutReport.unknownOptionCount).toBe(1);
+    expect(stdoutReport.message).toBe(expectedUnsupportedOptionsMessage(["--mystery"]));
+    expect(secondFileReport).toEqual(stdoutReport);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
     expect(result.status).toBe(1);
 
     fs.rmSync(tempDirectory, { recursive: true, force: true });
