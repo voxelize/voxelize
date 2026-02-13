@@ -167,7 +167,7 @@ pnpm run check:preflight:all:json
 pnpm run check:preflight:all:verify:json
 # run only specific checks (available: devEnvironment, wasmPack, client)
 pnpm run check:preflight:json -- --only devEnvironment,client
-# aliases and case-insensitive names are supported (for example: dev/dev-env/dev_env, wasm/wasm-pack/wasm_pack, CLIENT, all)
+# aliases and case-insensitive names are supported (for example: dev/dev-env/dev_env, wasm/wasm-pack/wasm_pack, CLIENT, all/all-checks)
 # selected checks are normalized to the standard aggregate order
 # run pre-defined single-check aggregate reports
 pnpm run check:preflight:dev-env:json

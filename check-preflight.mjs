@@ -54,7 +54,7 @@ const availableCheckAliases = {
   client: ["client"],
 };
 const availableSpecialCheckAliases = {
-  all: ["all"],
+  all: ["all", "all-checks", "all_checks", "allchecks"],
 };
 const normalizeCheckToken = (value) => {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
