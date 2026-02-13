@@ -220,7 +220,7 @@ impl Registry {
         });
     }
 
-    /// Register multiple blocks into this world. The block ID's are assigned to the length of the blocks at registration.
+    /// Register multiple blocks into this world. Blocks with ID 0 are auto-assigned to the next available non-zero ID.
     pub fn register_blocks(&mut self, blocks: &[Block]) {
         if blocks.is_empty() {
             return;
@@ -234,7 +234,7 @@ impl Registry {
         }
     }
 
-    /// Register a block into this world. The block ID is assigned to the length of the blocks registered.
+    /// Register a block into this world. If the block ID is 0, it is auto-assigned to the next available non-zero ID.
     pub fn register_block(&mut self, block: &Block) {
         let block = self.prepare_block_for_registration(block);
 
