@@ -324,6 +324,14 @@ export class BlockRotation {
     this.yRotation = yRotation;
   }
 
+  get axis() {
+    return this.value;
+  }
+
+  set axis(axis: number) {
+    this.value = axis;
+  }
+
   /**
    * Encode two rotations into a new block rotation instance.
    *

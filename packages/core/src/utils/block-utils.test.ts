@@ -59,6 +59,32 @@ describe("BlockUtils.evaluateBlockRule", () => {
 
     expect(matched).toBe(true);
   });
+
+  it("does not rotate offsets for world-space rules", () => {
+    const rule = {
+      type: "simple" as const,
+      offset: [1, 0, 0] as [number, number, number],
+      id: 5,
+    };
+
+    const matched = BlockUtils.evaluateBlockRule(
+      rule,
+      [0, 0, 0],
+      {
+        getVoxelAt: (x: number, y: number, z: number) =>
+          x === 1 && y === 0 && z === 0 ? 5 : 0,
+        getVoxelRotationAt: () => new BlockRotation(),
+        getVoxelStageAt: () => 0,
+      },
+      {
+        rotation: new BlockRotation(PY_ROTATION, Math.PI / 2),
+        yRotatable: true,
+        worldSpace: true,
+      }
+    );
+
+    expect(matched).toBe(true);
+  });
 });
 
 describe("BlockUtils encoding parity", () => {
@@ -87,5 +113,12 @@ describe("BlockRotation.rotateTransparency", () => {
     const rotation = new BlockRotation(PY_ROTATION, -(Math.PI * 2.0) / 16.0);
     const [, yRotation] = BlockRotation.decode(rotation);
     expect(yRotation).toBe(15);
+  });
+
+  it("supports axis alias for value", () => {
+    const rotation = new BlockRotation();
+    expect(rotation.axis).toBe(rotation.value);
+    rotation.axis = 4;
+    expect(rotation.value).toBe(4);
   });
 });

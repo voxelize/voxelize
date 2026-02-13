@@ -219,4 +219,27 @@ describe("BlockRuleEvaluator", () => {
 
     expect(matched).toBe(true);
   });
+
+  it("does not rotate offsets for world-space rules", () => {
+    const rule = {
+      type: "simple" as const,
+      offset: [1, 0, 0] as [number, number, number],
+      id: 11,
+    };
+
+    const access = {
+      getVoxel: (x: number, y: number, z: number) =>
+        x === 1 && y === 0 && z === 0 ? 11 : 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    const matched = BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access, {
+      rotation: BlockRotation.py(Math.PI / 2),
+      yRotatable: true,
+      worldSpace: true,
+    });
+
+    expect(matched).toBe(true);
+  });
 });
