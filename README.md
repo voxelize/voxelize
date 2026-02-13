@@ -130,6 +130,11 @@ pnpm run check:onboarding:verify
 # verify + json output (for CI integrations)
 pnpm run check:onboarding:verify:json
 
+# run an aggregated preflight report in json mode
+pnpm run check:preflight:json
+# aggregated preflight report without auto-building wasm artifacts
+pnpm run check:preflight:verify:json
+
 # run script-focused integration tests
 pnpm run test:scripts
 ```
