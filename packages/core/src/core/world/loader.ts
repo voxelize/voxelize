@@ -1,6 +1,8 @@
 import { GifReader } from "omggif";
 import { AudioLoader, LoadingManager, Texture, TextureLoader } from "three";
 
+type LoaderAsset = Texture | HTMLImageElement | HTMLImageElement[];
+
 /**
  * An asset loader that can load textures and audio files. This class is used internally by the world
  * and can be accessed via {@link World.loader}.
@@ -43,7 +45,7 @@ class Loader {
   /**
    * A map of promises to load assets.
    */
-  private assetPromises = new Map<string, Promise<any>>();
+  private assetPromises = new Map<string, Promise<LoaderAsset>>();
 
   /**
    * A map of callbacks to load audios.
@@ -72,6 +74,19 @@ class Loader {
     source: string,
     onLoaded?: (images: HTMLImageElement[]) => void
   ) => {
+    const existing = this.assetPromises.get(source);
+    if (existing) {
+      return existing.then((asset) => {
+        if (!Array.isArray(asset)) {
+          throw new Error(
+            `Asset "${source}" is not loading as GIF frames.`
+          );
+        }
+        onLoaded?.(asset);
+        return asset;
+      });
+    }
+
     const promise = new Promise<HTMLImageElement[]>((resolve) => {
       const run = async () => {
         const response = await fetch(source);
@@ -126,6 +141,17 @@ class Loader {
   };
 
   loadTexture = (source: string, onLoaded?: (texture: Texture) => void) => {
+    const existing = this.assetPromises.get(source);
+    if (existing) {
+      return existing.then((asset) => {
+        if (!(asset instanceof Texture)) {
+          throw new Error(`Asset "${source}" is not loading as a texture.`);
+        }
+        onLoaded?.(asset);
+        return asset;
+      });
+    }
+
     const promise = new Promise<Texture>((resolve) => {
       this.textureLoader.load(source, (texture) => {
         this.textures.set(source, texture);
@@ -154,9 +180,12 @@ class Loader {
 
     const existing = this.assetPromises.get(source);
     if (existing) {
-      return existing.then((img: HTMLImageElement) => {
-        onLoaded?.(img);
-        return img;
+      return existing.then((asset) => {
+        if (Array.isArray(asset) || asset instanceof Texture) {
+          throw new Error(`Asset "${source}" is not loading as an image.`);
+        }
+        onLoaded?.(asset);
+        return asset;
       });
     }
 
