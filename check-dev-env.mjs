@@ -1,4 +1,10 @@
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const isWindows = process.platform === "win32";
 
@@ -15,12 +21,16 @@ const resolveCommand = (command) => {
 };
 
 const parseSemver = (value) => {
-  const match = value.match(/(\d+)\.(\d+)\.(\d+)/);
+  const match = value.match(/(\d+)(?:\.(\d+))?(?:\.(\d+))?/);
   if (!match) {
     return null;
   }
 
-  return [Number(match[1]), Number(match[2]), Number(match[3])];
+  return [
+    Number(match[1]),
+    Number(match[2] ?? "0"),
+    Number(match[3] ?? "0"),
+  ];
 };
 
 const isSemverAtLeast = (version, minimumVersion) => {
@@ -41,13 +51,44 @@ const formatSemver = (version) => {
   return `${version[0]}.${version[1]}.${version[2]}`;
 };
 
+const loadWorkspaceMinimumVersions = () => {
+  const defaultMinimumVersions = {
+    node: [18, 0, 0],
+    pnpm: [10, 0, 0],
+  };
+
+  try {
+    const packageJsonPath = path.resolve(__dirname, "package.json");
+    const packageJsonRaw = fs.readFileSync(packageJsonPath, "utf8");
+    const packageJson = JSON.parse(packageJsonRaw);
+
+    const configuredNodeVersion =
+      typeof packageJson.engines?.node === "string"
+        ? parseSemver(packageJson.engines.node)
+        : null;
+    const configuredPnpmVersion =
+      typeof packageJson.packageManager === "string"
+        ? parseSemver(packageJson.packageManager)
+        : null;
+
+    return {
+      node: configuredNodeVersion ?? defaultMinimumVersions.node,
+      pnpm: configuredPnpmVersion ?? defaultMinimumVersions.pnpm,
+    };
+  } catch {
+    return defaultMinimumVersions;
+  }
+};
+
+const minimumVersions = loadWorkspaceMinimumVersions();
+
 const checks = [
   {
     label: "node",
     command: process.execPath,
     args: ["--version"],
     required: true,
-    minVersion: [18, 0, 0],
+    minVersion: minimumVersions.node,
     hint: "Install Node.js: https://nodejs.org/en/download/",
   },
   {
@@ -55,7 +96,7 @@ const checks = [
     command: resolveCommand("pnpm"),
     args: ["--version"],
     required: true,
-    minVersion: [10, 0, 0],
+    minVersion: minimumVersions.pnpm,
     hint: "Install pnpm: https://pnpm.io/installation",
   },
   {
