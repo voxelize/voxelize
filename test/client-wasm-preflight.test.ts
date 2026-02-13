@@ -554,6 +554,59 @@ describe("client wasm preflight script", () => {
     expect(result.status).toBe(1);
   });
 
+  it("treats no-build alias after --output as missing output value while keeping alias active", () => {
+    const result = spawnSync(
+      process.execPath,
+      [wasmMesherScript, "--json", "--output", "--verify"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const report = JSON.parse(`${result.stdout}${result.stderr}`) as WasmMesherJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.buildSkipped).toBe(true);
+    expect(report.outputPath).toBeNull();
+    expectTimingMetadata(report);
+    expectOptionTerminatorMetadata(report);
+    expect(report.supportedCliOptions).toEqual(expectedWasmMesherCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedWasmMesherCliOptions
+    );
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--no-build", "--output"],
+      ["--json", "--output", "--verify"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--output",
+          canonicalOption: "--output",
+          index: 1,
+        },
+        {
+          token: "--verify",
+          canonicalOption: "--no-build",
+          index: 2,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("treats inline json flag misuse after --output as missing output value", () => {
     const result = spawnSync(
       process.execPath,
@@ -1745,6 +1798,23 @@ describe("client wasm preflight script", () => {
     expect(output).toContain("Missing value for --output option.");
     expect(output).not.toContain("Unsupported option(s):");
     expect(output).not.toContain("--verify=1");
+  });
+
+  it("prioritizes missing output values over no-build alias tokens in non-json mode", () => {
+    const result = spawnSync(
+      process.execPath,
+      [wasmMesherScript, "--output", "--verify"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output).toContain("Missing value for --output option.");
+    expect(output).not.toContain("Unsupported option(s):");
   });
 
   it("prioritizes missing output values over inline json flag misuse in non-json mode", () => {

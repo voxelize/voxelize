@@ -305,6 +305,16 @@ describe("report-utils", () => {
       "Missing value for --output option."
     );
     expect(recognizedInlineAliasMisuseAfterOutput.outputPath).toBeNull();
+
+    const recognizedLongAliasAfterOutput = resolveOutputPath(
+      ["--output", "--verify"],
+      "/workspace",
+      ["--output", "--no-build", "--verify"]
+    );
+    expect(recognizedLongAliasAfterOutput.error).toBe(
+      "Missing value for --output option."
+    );
+    expect(recognizedLongAliasAfterOutput.outputPath).toBeNull();
   });
 
   it("resolves last option values for both split and inline forms", () => {
@@ -453,6 +463,17 @@ describe("report-utils", () => {
     expect(recognizedOnlyAliasInlineMisuseAsSplitValue.value).toBeNull();
     expect(recognizedOnlyAliasInlineMisuseAsSplitValue.error).toBe(
       "Missing value for --only option."
+    );
+
+    const recognizedOutputLongAliasAsSplitValue = resolveLastOptionValue(
+      ["--output", "--verify"],
+      "--output",
+      ["--no-build", "--verify"]
+    );
+    expect(recognizedOutputLongAliasAsSplitValue.hasOption).toBe(true);
+    expect(recognizedOutputLongAliasAsSplitValue.value).toBeNull();
+    expect(recognizedOutputLongAliasAsSplitValue.error).toBe(
+      "Missing value for --output option."
     );
   });
 
@@ -1650,6 +1671,48 @@ describe("report-utils", () => {
     expect(diagnostics.unsupportedOptionsError).toBe(
       "Unsupported option(s): --list-checks=<value>. Supported options: --list-checks, --output, -l."
     );
+  });
+
+  it("tracks recognized aliases after strict value options as active", () => {
+    const diagnostics = createCliDiagnostics(["--output", "--verify"], {
+      canonicalOptions: ["--no-build", "--output"],
+      optionAliases: {
+        "--no-build": ["--verify"],
+      },
+      optionsWithValues: ["--output"],
+      optionsWithStrictValues: ["--output"],
+    });
+
+    expect(diagnostics.activeCliOptions).toEqual(["--no-build", "--output"]);
+    expect(diagnostics.activeCliOptionCount).toBe(2);
+    expect(diagnostics.activeCliOptionTokens).toEqual(["--output", "--verify"]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+    ]);
+    expect(diagnostics.activeCliOptionResolutionCount).toBe(2);
+    expect(diagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+        index: 1,
+      },
+    ]);
+    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(2);
+    expect(diagnostics.unknownOptions).toEqual([]);
+    expect(diagnostics.unknownOptionCount).toBe(0);
+    expect(diagnostics.unsupportedOptionsError).toBeNull();
   });
 
   it("parses active cli option metadata with aliases and option values", () => {
