@@ -196,7 +196,6 @@ const nodeVersion = process.version;
 
 if (outputPathError !== null || selectedChecksError !== null) {
   const effectiveInvalidChecks = outputPathError === null ? invalidChecks : [];
-  const effectiveRequestedChecks = outputPathError === null ? requestedChecks : [];
   const report = buildTimedReport({
     passed: false,
     exitCode: 1,
@@ -204,7 +203,7 @@ if (outputPathError !== null || selectedChecksError !== null) {
     platform,
     nodeVersion,
     selectedChecks: [],
-    requestedChecks: effectiveRequestedChecks,
+    requestedChecks,
     selectionMode,
     skippedChecks: availableCheckNames,
     ...summarizeCheckResults([]),

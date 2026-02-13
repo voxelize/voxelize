@@ -773,8 +773,33 @@ describe("preflight aggregate report", () => {
     expect(report.outputPath).toBeNull();
     expect(report.message).toBe("Missing value for --output option.");
     expect(report.invalidChecks).toEqual([]);
-    expect(report.requestedChecks).toEqual([]);
+    expect(report.requestedChecks).toEqual(["invalidCheck"]);
+    expect(report.selectionMode).toBe("only");
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
+    expect(result.status).toBe(1);
+  });
+
+  it("keeps parsed requested checks when output value is missing", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--output", "--only", "client"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.requestedChecks).toEqual(["client"]);
+    expect(report.selectionMode).toBe("only");
     expect(result.status).toBe(1);
   });
 
