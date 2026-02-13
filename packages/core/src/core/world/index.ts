@@ -4026,6 +4026,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       maxLightLevel,
       clientOnlyMeshing,
     } = this.options;
+    if (maxProcessesPerUpdate <= 0) {
+      return;
+    }
 
     const toProcessArray: Array<{
       data: import("@voxelize/protocol").ChunkProtocol;
@@ -4034,10 +4037,6 @@ export class World<T = any> extends Scene implements NetIntercept {
     const maybeQueueProcess = (
       data: import("@voxelize/protocol").ChunkProtocol
     ) => {
-      if (maxProcessesPerUpdate <= 0) {
-        return;
-      }
-
       const distance = (data.x - centerX) ** 2 + (data.z - centerZ) ** 2;
       if (toProcessArray.length < maxProcessesPerUpdate) {
         toProcessArray.push({ data, distance });
