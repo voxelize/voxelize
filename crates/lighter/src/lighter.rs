@@ -526,6 +526,15 @@ mod tests {
                     + lz as usize,
             )
         }
+
+        fn set_voxel(&mut self, vx: i32, vy: i32, vz: i32, id: u32) -> bool {
+            if let Some(index) = self.index(vx, vy, vz) {
+                self.voxels[index] = id;
+                return true;
+            }
+
+            false
+        }
     }
 
     impl LightVoxelAccess for TestSpace {
@@ -629,7 +638,7 @@ mod tests {
         let config = test_config();
         let mut space = TestSpace::new([0, 0, 0], [16, 64, 16]);
 
-        space.voxels[8 * 64 * 16 + 32 * 16 + 8] = 2;
+        assert!(space.set_voxel(8, 32, 8, 2));
         space.set_raw_light(8, 32, 8, LightUtils::insert_red_light(0, 15));
 
         flood_light(
@@ -659,10 +668,8 @@ mod tests {
 
         let source_a = [6, 32, 8];
         let source_b = [10, 32, 8];
-        space.voxels[source_a[0] as usize * 64 * 16 + source_a[1] as usize * 16 + source_a[2] as usize] =
-            2;
-        space.voxels[source_b[0] as usize * 64 * 16 + source_b[1] as usize * 16 + source_b[2] as usize] =
-            2;
+        assert!(space.set_voxel(source_a[0], source_a[1], source_a[2], 2));
+        assert!(space.set_voxel(source_b[0], source_b[1], source_b[2], 2));
 
         space.set_red_light(source_a[0], source_a[1], source_a[2], 15);
         space.set_red_light(source_b[0], source_b[1], source_b[2], 15);
@@ -722,8 +729,7 @@ mod tests {
         let config = test_config();
         let mut space = TestSpace::new([0, 0, 0], [16, 64, 16]);
 
-        let reducer_index = 8 * 64 * 16 + 48 * 16 + 8;
-        space.voxels[reducer_index] = 3;
+        assert!(space.set_voxel(8, 48, 8, 3));
 
         space.set_sunlight(8, 50, 8, 15);
         flood_light(
