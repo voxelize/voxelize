@@ -3637,7 +3637,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         continue;
                     }
                     let is_fluid = block.is_fluid;
-                    let mut current_mask_index = usize::MAX;
+                    let current_mask_index =
+                        (v - v_range.0) as usize * mask_width + (u - u_range.0) as usize;
 
                     let matched_face = if face_index >= 0 {
                         block.faces.get(face_index as usize)
@@ -3647,10 +3648,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
                     if let Some(face) = matched_face {
                         if !face.independent && !face.isolated {
-                            if current_mask_index == usize::MAX {
-                                current_mask_index =
-                                    (v - v_range.0) as usize * mask_width + (u - u_range.0) as usize;
-                            }
                             let (aos, lights) = if is_see_through || block.is_all_transparent {
                                 let (_, center_light) = space.get_raw_voxel_and_raw_light(vx, vy, vz);
                                 let light = (center_light & 0xFFFF) as i32;
@@ -3769,11 +3766,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                             uv_start_v: (uv_range.start_v * 1000000.0) as u32,
                             uv_end_v: (uv_range.end_v * 1000000.0) as u32,
                         };
-                        if current_mask_index == usize::MAX {
-                            current_mask_index =
-                                (v - v_range.0) as usize * mask_width + (u - u_range.0) as usize;
-                        }
-
                         greedy_mask[current_mask_index] = Some(FaceData {
                             key,
                             uv_range,
