@@ -126,6 +126,7 @@ let pendingBatchMessagesHead = 0;
 const MAX_PENDING_BATCH_MESSAGES = 512;
 const reusableBoundsMin = new Int32Array(3);
 const reusableBoundsShape = new Uint32Array(3);
+const emptyUint32Array = new Uint32Array(0);
 
 const hasPendingBatchMessages = () =>
   pendingBatchMessagesHead < pendingBatchMessages.length;
@@ -322,6 +323,43 @@ const serializeChunkGrid = (
   return serialized;
 };
 
+const serializeChunksData = (
+  chunksData: (SerializedChunkData | null)[],
+  gridWidth: number,
+  gridDepth: number
+) => {
+  const cellCount = gridWidth * gridDepth;
+  const serialized: (
+    | {
+        voxels: Uint32Array;
+        lights: Uint32Array;
+        shape: [number, number, number];
+      }
+    | null
+  )[] = new Array(cellCount);
+
+  for (let index = 0; index < cellCount; index++) {
+    const chunkData = chunksData[index];
+    if (!chunkData) {
+      serialized[index] = null;
+      continue;
+    }
+
+    const { size, maxHeight } = chunkData.options;
+    serialized[index] = {
+      voxels: chunkData.voxels.byteLength
+        ? new Uint32Array(chunkData.voxels)
+        : emptyUint32Array,
+      lights: chunkData.lights.byteLength
+        ? new Uint32Array(chunkData.lights)
+        : emptyUint32Array,
+      shape: [size, maxHeight, size],
+    };
+  }
+
+  return serialized;
+};
+
 const processBatchMessage = (message: LightBatchMessage) => {
   const {
     jobId,
@@ -337,17 +375,32 @@ const processBatchMessage = (message: LightBatchMessage) => {
 
   const [gridWidth, gridDepth] = chunkGridDimensions;
   const [gridOffsetX, gridOffsetZ] = chunkGridOffset;
-  const chunkGrid = deserializeChunkGrid(chunksData, gridWidth, gridDepth);
-  const lastSequenceId = applyRelevantDeltas(
-    chunkGrid,
-    gridWidth,
-    gridDepth,
-    gridOffsetX,
-    gridOffsetZ,
-    relevantDeltas
-  );
+  let lastSequenceId = 0;
+  let serializedChunks:
+    | (
+        | {
+            voxels: Uint32Array;
+            lights: Uint32Array;
+            shape: [number, number, number];
+          }
+        | null
+      )[];
 
-  const serializedChunks = serializeChunkGrid(chunkGrid, gridWidth, gridDepth);
+  if (relevantDeltas.length === 0) {
+    serializedChunks = serializeChunksData(chunksData, gridWidth, gridDepth);
+  } else {
+    const chunkGrid = deserializeChunkGrid(chunksData, gridWidth, gridDepth);
+    lastSequenceId = applyRelevantDeltas(
+      chunkGrid,
+      gridWidth,
+      gridDepth,
+      gridOffsetX,
+      gridOffsetZ,
+      relevantDeltas
+    );
+    serializedChunks = serializeChunkGrid(chunkGrid, gridWidth, gridDepth);
+  }
+
   reusableBoundsMin[0] = boundingBox.min[0];
   reusableBoundsMin[1] = boundingBox.min[1];
   reusableBoundsMin[2] = boundingBox.min[2];
