@@ -5751,10 +5751,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       processCount
     );
     const jobKeys = new Array<string>(processCount);
-    const jobCxs = new Array<number>(processCount);
-    const jobCzs = new Array<number>(processCount);
-    const jobLevels = new Array<number>(processCount);
-    const jobGenerations = new Array<number>(processCount);
+    const jobCxs = new Int32Array(processCount);
+    const jobCzs = new Int32Array(processCount);
+    const jobLevels = new Int32Array(processCount);
+    const jobGenerations = new Uint32Array(processCount);
     let workerCount = 0;
 
     for (let index = 0; index < processCount; index++) {
