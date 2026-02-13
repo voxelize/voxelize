@@ -282,14 +282,18 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     commandInfo: CommandInfo<ZodObject<Record<string, ZodTypeAny>>>
   ): string {
     const argMetadata = this.extractArgMetadata(commandInfo.args);
-    const usageArgs = argMetadata
-      .map((arg) => {
-        if (arg.type === "boolean") {
-          return `[${arg.name}]`;
-        }
-        return arg.required ? `<${arg.name}=>` : `[${arg.name}=]`;
-      })
-      .join(" ");
+    let usageArgs = "";
+    for (let argIndex = 0; argIndex < argMetadata.length; argIndex++) {
+      const arg = argMetadata[argIndex];
+      if (argIndex > 0) {
+        usageArgs += " ";
+      }
+      if (arg.type === "boolean") {
+        usageArgs += `[${arg.name}]`;
+      } else {
+        usageArgs += arg.required ? `<${arg.name}=>` : `[${arg.name}=]`;
+      }
+    }
     const usage = `Usage: ${this._commandSymbol}${trigger}${
       usageArgs ? ` ${usageArgs}` : ""
     }`;
@@ -393,7 +397,9 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
     return () => {
       this.commands.delete(trigger);
-      commandInfo.aliases.forEach((alias) => this.commands.delete(alias));
+      for (let aliasIndex = 0; aliasIndex < commandInfo.aliases.length; aliasIndex++) {
+        this.commands.delete(commandInfo.aliases[aliasIndex]);
+      }
     };
   }
 
@@ -589,11 +595,11 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       string
     >();
 
-    this.commands.forEach((commandInfo, trigger) => {
+    for (const [trigger, commandInfo] of this.commands) {
       if (!uniqueCommands.has(commandInfo)) {
         uniqueCommands.set(commandInfo, trigger);
       }
-    });
+    }
 
     const result: Array<{
       trigger: string;
@@ -603,7 +609,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       flags: string[];
       args: ArgMetadata[];
     }> = [];
-    uniqueCommands.forEach((primaryTrigger, commandInfo) => {
+    for (const [commandInfo, primaryTrigger] of uniqueCommands) {
       result.push({
         trigger: primaryTrigger,
         description: commandInfo.description,
@@ -614,7 +620,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
           ? this.extractArgMetadata(commandInfo.args, commandInfo.tabComplete)
           : [],
       });
-    });
+    }
 
     return result.sort((a, b) => a.trigger.localeCompare(b.trigger));
   }
