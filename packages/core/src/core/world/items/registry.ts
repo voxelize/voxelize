@@ -101,7 +101,7 @@ export class ItemRegistry {
 
   async waitForRenderers(): Promise<void> {
     const promises: Promise<void>[] = [];
-    for (const [id] of this.itemsById) {
+    for (const id of this.itemsById.keys()) {
       const renderer = this.getRenderer(id);
       if (renderer instanceof ImageItemRenderer) {
         promises.push(renderer.waitForLoad());
@@ -119,7 +119,13 @@ export class ItemRegistry {
   }
 
   getAll(): ItemDef[] {
-    return Array.from(this.itemsById.values());
+    const items = new Array<ItemDef>(this.itemsById.size);
+    let index = 0;
+    for (const item of this.itemsById.values()) {
+      items[index] = item;
+      index++;
+    }
+    return items;
   }
 
   getMaxStack(slot: SlotContent): number {
