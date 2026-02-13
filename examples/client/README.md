@@ -70,4 +70,6 @@ pnpm run check:wasm:verify
 pnpm run check:wasm:verify:json
 ```
 
+All JSON report commands include `schemaVersion: 1` for compatibility checks.
+
 This runs client typechecking and wasm-artifact preflight in sequence.

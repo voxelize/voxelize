@@ -135,6 +135,7 @@ pnpm run check:preflight:json
 # aggregated preflight report without auto-building wasm artifacts
 pnpm run check:preflight:verify:json
 # includes per-check and total duration metadata
+# all json report commands include schemaVersion: 1
 # optionally write the same report to disk
 pnpm run check:preflight:verify:json -- --output ./preflight-report.json
 
