@@ -20,6 +20,8 @@ pub struct Block {
     pub is_opaque: bool,
     pub is_see_through: bool,
     pub is_transparent: [bool; 6],
+    #[serde(skip, default)]
+    pub is_all_transparent: bool,
     pub transparent_standalone: bool,
     #[serde(default)]
     pub occludes_fluid: bool,
@@ -31,6 +33,7 @@ pub struct Block {
 impl Block {
     pub fn compute_name_lower(&mut self) {
         self.name_lower = self.name.to_lowercase();
+        self.is_all_transparent = self.is_transparent.iter().all(|transparent| *transparent);
         for face in &mut self.faces {
             face.compute_name_lower();
         }
@@ -859,7 +862,12 @@ fn geometry_key_for_face(block: &Block, face: &BlockFace, vx: i32, vy: i32, vz: 
 
 fn geometry_key_for_quad(block: &Block, face_name: &str, independent: bool) -> GeometryMapKey {
     if independent {
-        GeometryMapKey::Face(block.id, face_name.to_lowercase())
+        let normalized = if face_name.chars().any(|character| character.is_uppercase()) {
+            face_name.to_lowercase()
+        } else {
+            face_name.to_string()
+        };
+        GeometryMapKey::Face(block.id, normalized)
     } else {
         GeometryMapKey::Block(block.id)
     }
@@ -954,12 +962,7 @@ fn compute_face_ao_and_light(
     let [block_min_x, block_min_y, block_min_z] = block_min_corner(block);
 
     let is_see_through = block.is_see_through;
-    let is_all_transparent = block.is_transparent[0]
-        && block.is_transparent[1]
-        && block.is_transparent[2]
-        && block.is_transparent[3]
-        && block.is_transparent[4]
-        && block.is_transparent[5];
+    let is_all_transparent = block.is_all_transparent;
 
     let corner_positions: [[f32; 3]; 4] = match dir {
         [1, 0, 0] => [
@@ -1198,12 +1201,7 @@ fn compute_face_ao_and_light_fast(
     let block_aabb = AABB::union_all(&block.aabbs);
 
     let is_see_through = block.is_see_through;
-    let is_all_transparent = block.is_transparent[0]
-        && block.is_transparent[1]
-        && block.is_transparent[2]
-        && block.is_transparent[3]
-        && block.is_transparent[4]
-        && block.is_transparent[5];
+    let is_all_transparent = block.is_all_transparent;
     let needs_opaque_checks = !(is_see_through || is_all_transparent);
     let opaque_mask = if needs_opaque_checks {
         Some(build_neighbor_opaque_mask(neighbors, registry))
@@ -1851,12 +1849,7 @@ fn build_face_process_cache<S: VoxelAccess>(
     voxel_id: u32,
     space: &S,
 ) -> FaceProcessCache {
-    let is_all_transparent = block.is_transparent[0]
-        && block.is_transparent[1]
-        && block.is_transparent[2]
-        && block.is_transparent[3]
-        && block.is_transparent[4]
-        && block.is_transparent[5];
+    let is_all_transparent = block.is_all_transparent;
 
     FaceProcessCache {
         opaque_mask: if !(is_see_through || is_all_transparent) {
@@ -1902,15 +1895,9 @@ fn process_face<S: VoxelAccess>(
     let is_see_through = block.is_see_through;
     let rotatable = block.rotatable;
     let y_rotatable = block.y_rotatable;
-    let is_transparent = block.is_transparent;
 
     let mut dir = [face.dir[0] as f32, face.dir[1] as f32, face.dir[2] as f32];
-    let is_all_transparent = is_transparent[0]
-        && is_transparent[1]
-        && is_transparent[2]
-        && is_transparent[3]
-        && is_transparent[4]
-        && is_transparent[5];
+    let is_all_transparent = block.is_all_transparent;
 
     if (rotatable || y_rotatable) && !world_space {
         rotation.rotate_node(&mut dir, y_rotatable, false);
@@ -2979,12 +2966,7 @@ pub fn mesh_space<S: VoxelAccess>(
                 }
 
                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
-                let is_all_transparent = block.is_transparent[0]
-                    && block.is_transparent[1]
-                    && block.is_transparent[2]
-                    && block.is_transparent[3]
-                    && block.is_transparent[4]
-                    && block.is_transparent[5];
+                let is_all_transparent = block.is_all_transparent;
                 let face_cache = FaceProcessCache {
                     opaque_mask: if !(is_see_through || is_all_transparent) {
                         Some(build_neighbor_opaque_mask(&neighbors, registry))

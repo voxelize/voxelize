@@ -254,6 +254,7 @@ fn base_block(id: u32, name: &str) -> Block {
         is_opaque: true,
         is_see_through: false,
         is_transparent: [false; 6],
+        is_all_transparent: false,
         transparent_standalone: false,
         occludes_fluid: false,
         faces: six_faces(),
