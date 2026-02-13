@@ -400,14 +400,22 @@ export class LightShined {
       g = 0,
       b = 0;
 
-    for (const light of lights) {
-      const dist = light.position.distanceTo(pos);
-      if (dist > light.radius) continue;
+    for (let lightIndex = 0; lightIndex < lights.length; lightIndex++) {
+      const light = lights[lightIndex];
+      const radius = light.radius;
+      if (radius <= 0) {
+        continue;
+      }
 
-      const attenuation = Math.pow(
-        Math.max(0, 1 - dist / light.radius),
-        light.falloffExponent
-      );
+      const dx = light.position.x - pos.x;
+      const dy = light.position.y - pos.y;
+      const dz = light.position.z - pos.z;
+      const distSq = dx * dx + dy * dy + dz * dz;
+      const radiusSq = radius * radius;
+      if (distSq > radiusSq) continue;
+
+      const dist = Math.sqrt(distSq);
+      const attenuation = Math.pow(1 - dist / radius, light.falloffExponent);
       const intensity = light.intensity * attenuation;
 
       r += light.color.r * intensity;
