@@ -1089,7 +1089,10 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const chunk = this.getLoadedChunkByCoords(cx, cz);
     if (chunk) {
-      const meshes = chunk.meshes.get(level) || [];
+      const meshes = chunk.meshes.get(level);
+      if (!meshes) {
+        return completionStatus;
+      }
       this.emitChunkEvent("chunk-mesh-updated", {
         chunk,
         coords: chunk.coords,
