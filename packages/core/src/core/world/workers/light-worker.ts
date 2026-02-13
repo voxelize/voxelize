@@ -301,46 +301,6 @@ const applyRelevantDeltas = (
   return lastSequenceId;
 };
 
-const getLastRelevantSequenceId = (
-  chunksData: (SerializedChunkData | null)[],
-  gridWidth: number,
-  gridDepth: number,
-  gridOffsetX: number,
-  gridOffsetZ: number,
-  relevantDeltas: DeltaBatch[]
-) => {
-  let lastSequenceId = 0;
-
-  for (let index = 0; index < relevantDeltas.length; index++) {
-    const { cx, cz, deltas } = relevantDeltas[index];
-    if (deltas.length === 0) {
-      continue;
-    }
-
-    const localX = cx - gridOffsetX;
-    const localZ = cz - gridOffsetZ;
-    if (
-      localX < 0 ||
-      localX >= gridWidth ||
-      localZ < 0 ||
-      localZ >= gridDepth
-    ) {
-      continue;
-    }
-
-    if (!chunksData[localX * gridDepth + localZ]) {
-      continue;
-    }
-
-    const chunkLastSequenceId = deltas[deltas.length - 1].sequenceId;
-    if (chunkLastSequenceId > lastSequenceId) {
-      lastSequenceId = chunkLastSequenceId;
-    }
-  }
-
-  return lastSequenceId;
-};
-
 const serializeChunkGrid = (
   chunkGrid: (RawChunk | null)[],
   gridWidth: number,
@@ -431,6 +391,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
     chunksData,
     chunkGridDimensions,
     chunkGridOffset,
+    lastRelevantSequenceId,
     relevantDeltas,
     lightOps,
     options,
@@ -440,17 +401,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
   const [gridOffsetX, gridOffsetZ] = chunkGridOffset;
 
   if (lightOps.removals.length === 0 && lightOps.floods.length === 0) {
-    postEmptyBatchResult(
-      jobId,
-      getLastRelevantSequenceId(
-        chunksData,
-        gridWidth,
-        gridDepth,
-        gridOffsetX,
-        gridOffsetZ,
-        relevantDeltas
-      )
-    );
+    postEmptyBatchResult(jobId, lastRelevantSequenceId);
     return;
   }
 
@@ -464,28 +415,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
           }
         | null
       )[];
-  let hasPotentialRelevantDelta = false;
-  if (relevantDeltas.length > 0) {
-    for (let index = 0; index < relevantDeltas.length; index++) {
-      const { cx, cz, deltas } = relevantDeltas[index];
-      if (deltas.length === 0) {
-        continue;
-      }
-
-      const localX = cx - gridOffsetX;
-      const localZ = cz - gridOffsetZ;
-      if (
-        localX >= 0 &&
-        localX < gridWidth &&
-        localZ >= 0 &&
-        localZ < gridDepth &&
-        chunksData[localX * gridDepth + localZ]
-      ) {
-        hasPotentialRelevantDelta = true;
-        break;
-      }
-    }
-  }
+  const hasPotentialRelevantDelta = relevantDeltas.length > 0;
 
   if (!hasPotentialRelevantDelta) {
     const result = serializeChunksData(chunksData, gridWidth, gridDepth);
