@@ -922,6 +922,50 @@ describe("report-utils", () => {
     expect(diagnostics.activeCliOptionOccurrenceCount).toBe(3);
   });
 
+  it("keeps pre-terminator aliases active while ignoring post-terminator misuse", () => {
+    const diagnostics = createCliDiagnostics(
+      ["--json", "--verify", "--", "--verify=1", "--mystery=alpha"],
+      {
+        canonicalOptions: ["--json"],
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+      }
+    );
+
+    expect(diagnostics.unknownOptions).toEqual([]);
+    expect(diagnostics.unknownOptionCount).toBe(0);
+    expect(diagnostics.unsupportedOptionsError).toBeNull();
+    expect(diagnostics.validationErrorCode).toBeNull();
+    expect(diagnostics.activeCliOptions).toEqual(["--json", "--no-build"]);
+    expect(diagnostics.activeCliOptionCount).toBe(2);
+    expect(diagnostics.activeCliOptionTokens).toEqual(["--json", "--verify"]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+    ]);
+    expect(diagnostics.activeCliOptionResolutionCount).toBe(2);
+    expect(diagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+        index: 1,
+      },
+    ]);
+    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(2);
+  });
+
   it("prioritizes output validation in unified diagnostics", () => {
     const diagnostics = createCliDiagnostics(
       ["--json", "--mystery", "--output"],
@@ -1617,6 +1661,46 @@ describe("report-utils", () => {
       {
         token: "--output=./report.json",
         canonicalOption: "--output",
+        index: 1,
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(2);
+  });
+
+  it("keeps pre-terminator aliases active while ignoring post-terminator alias misuse", () => {
+    const activeMetadata = parseActiveCliOptionMetadata(
+      ["--json", "--verify", "--", "--verify=1", "--mystery=alpha"],
+      {
+        canonicalOptions: ["--json"],
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+      }
+    );
+
+    expect(activeMetadata.activeCliOptions).toEqual(["--json", "--no-build"]);
+    expect(activeMetadata.activeCliOptionCount).toBe(2);
+    expect(activeMetadata.activeCliOptionTokens).toEqual(["--json", "--verify"]);
+    expect(activeMetadata.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionResolutionCount).toBe(2);
+    expect(activeMetadata.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
         index: 1,
       },
     ]);
