@@ -521,6 +521,27 @@ describe("report-utils", () => {
     });
   });
 
+  it("includes alias canonical keys in supported options when omitted from canonical list", () => {
+    const catalog = createCliOptionCatalog({
+      canonicalOptions: ["--json"],
+      optionAliases: {
+        "--no-build": ["--verify"],
+      },
+    });
+
+    expect(catalog.supportedCliOptions).toEqual([
+      "--json",
+      "--no-build",
+      "--verify",
+    ]);
+    expect(catalog.supportedCliOptionCount).toBe(3);
+    expect(catalog.availableCliOptionCanonicalMap).toEqual({
+      "--json": "--json",
+      "--no-build": "--no-build",
+      "--verify": "--no-build",
+    });
+  });
+
   it("creates unified cli diagnostics metadata", () => {
     const diagnostics = createCliDiagnostics(
       ["--json", "--verify", "--output", "./report.json", "--mystery"],
@@ -749,6 +770,34 @@ describe("report-utils", () => {
       },
     ]);
     expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(5);
+  });
+
+  it("tracks active canonical options when aliases are configured outside canonical list", () => {
+    const activeMetadata = parseActiveCliOptionMetadata(["--verify"], {
+      canonicalOptions: ["--json"],
+      optionAliases: {
+        "--no-build": ["--verify"],
+      },
+    });
+
+    expect(activeMetadata.activeCliOptions).toEqual(["--no-build"]);
+    expect(activeMetadata.activeCliOptionCount).toBe(1);
+    expect(activeMetadata.activeCliOptionTokens).toEqual(["--verify"]);
+    expect(activeMetadata.activeCliOptionResolutions).toEqual([
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionResolutionCount).toBe(1);
+    expect(activeMetadata.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+        index: 0,
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(1);
   });
 
   it("writes report json payloads to output paths", () => {

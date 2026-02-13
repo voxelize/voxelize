@@ -250,7 +250,11 @@ const createCanonicalOptionMap = (canonicalOptions, optionAliases = {}) => {
 };
 
 const createSupportedCliOptions = (canonicalOptions, optionAliases = {}) => {
-  return [...canonicalOptions, ...Object.values(optionAliases).flat()].filter(
+  return [
+    ...canonicalOptions,
+    ...Object.keys(optionAliases),
+    ...Object.values(optionAliases).flat(),
+  ].filter(
     (optionToken, index, allOptions) => {
       return allOptions.indexOf(optionToken) === index;
     }
@@ -480,7 +484,17 @@ export const parseActiveCliOptionMetadata = (
   const uniqueCanonicalOptions = canonicalOptions.filter((optionToken, index) => {
     return canonicalOptions.indexOf(optionToken) === index;
   });
-  const activeCliOptions = uniqueCanonicalOptions.filter((optionToken) => {
+  const canonicalOptionCandidates = createSupportedCliOptions(
+    uniqueCanonicalOptions,
+    optionAliases
+  )
+    .map((optionToken) => {
+      return canonicalOptionMap.get(optionToken) ?? optionToken;
+    })
+    .filter((optionToken, index, allOptions) => {
+      return allOptions.indexOf(optionToken) === index;
+    });
+  const activeCliOptions = canonicalOptionCandidates.filter((optionToken) => {
     return activeCliOptionsSet.has(optionToken);
   });
   const activeCliOptionResolutions = activeCliOptionTokens.map((token) => {
