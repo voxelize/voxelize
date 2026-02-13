@@ -204,7 +204,7 @@ describe("preflight aggregate report", () => {
   it("supports canonical aliases and case-insensitive check names", () => {
     const result = spawnSync(
       process.execPath,
-      [preflightScript, "--no-build", "--only", "DEV-ENV,wasm-pack,CLIENT"],
+      [preflightScript, "--no-build", "--only", "DEV_ENV,wasm_pack,CLIENT"],
       {
         cwd: rootDir,
         encoding: "utf8",

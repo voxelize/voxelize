@@ -41,11 +41,17 @@ const availableChecks = [
   },
 ];
 const availableCheckNames = availableChecks.map((check) => check.name);
+const normalizeCheckToken = (value) => {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+};
 const checkAliases = new Map([
-  ...availableCheckNames.map((checkName) => [checkName.toLowerCase(), checkName]),
-  ["dev-env", "devEnvironment"],
-  ["dev-environment", "devEnvironment"],
-  ["wasm-pack", "wasmPack"],
+  ...availableCheckNames.map((checkName) => [
+    normalizeCheckToken(checkName),
+    checkName,
+  ]),
+  ["devenv", "devEnvironment"],
+  ["devenvironment", "devEnvironment"],
+  ["wasmpack", "wasmPack"],
 ]);
 
 const parseSelectedChecks = () => {
@@ -79,7 +85,7 @@ const parseSelectedChecks = () => {
   const unknownChecks = [];
   const resolvedChecks = [];
   for (const parsedCheck of parsedChecks) {
-    const resolvedCheck = checkAliases.get(parsedCheck.toLowerCase()) ?? null;
+    const resolvedCheck = checkAliases.get(normalizeCheckToken(parsedCheck)) ?? null;
     if (resolvedCheck === null) {
       unknownChecks.push(parsedCheck);
       continue;
