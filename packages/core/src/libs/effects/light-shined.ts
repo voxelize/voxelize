@@ -1,7 +1,7 @@
 import { Color, Material, Mesh, Object3D, Vector3 } from "three";
 
 import { World } from "../../core";
-import { ChunkUtils, ThreeUtils } from "../../utils";
+import { ThreeUtils } from "../../utils";
 import { NameTag } from "../nametag";
 import { Shadow } from "../shadows";
 
@@ -46,6 +46,8 @@ const defaultOptions: LightShinedOptions = {
  * @category Effects
  */
 export class LightShined {
+  private static readonly zeroColor = new Color(0, 0, 0);
+
   /**
    * Parameters to customize the effect.
    */
@@ -62,6 +64,7 @@ export class LightShined {
   public ignored: Set<any> = new Set();
 
   private positionOverrides = new Map<Object3D, Vector3>();
+  private torchLightColor = new Color();
 
   /**
    * Construct a light shined effect manager.
@@ -279,8 +282,10 @@ export class LightShined {
   };
 
   private computeCPUBasedLight(pos: Vector3): Color | null {
-    const voxel = ChunkUtils.mapWorldToVoxel(pos.toArray());
-    const lightValues = this.world.getLightValuesAt(...voxel);
+    const vx = Math.floor(pos.x);
+    const vy = Math.floor(pos.y);
+    const vz = Math.floor(pos.z);
+    const lightValues = this.world.getLightValuesAt(vx, vy, vz);
     if (!lightValues) return null;
 
     const { sunlight, red, green, blue } = lightValues;
@@ -320,8 +325,10 @@ export class LightShined {
 
     const torchLight = this.getTorchLightAtPosition(pos);
 
-    const voxel = ChunkUtils.mapWorldToVoxel(pos.toArray());
-    const lightValues = this.world.getLightValuesAt(...voxel);
+    const vx = Math.floor(pos.x);
+    const vy = Math.floor(pos.y);
+    const vz = Math.floor(pos.z);
+    const lightValues = this.world.getLightValuesAt(vx, vy, vz);
 
     let cpuTorchR = 0,
       cpuTorchG = 0,
@@ -357,7 +364,7 @@ export class LightShined {
 
   private getTorchLightAtPosition(pos: Vector3): Color {
     const registry = this.world.lightRegistry;
-    if (!registry) return new Color(0, 0, 0);
+    if (!registry) return LightShined.zeroColor;
 
     const lights = registry.getLightsNearPoint(pos, 16);
     let r = 0,
@@ -379,7 +386,7 @@ export class LightShined {
       b += light.color.b * intensity;
     }
 
-    return new Color(r, g, b);
+    return this.torchLightColor.setRGB(r, g, b);
   }
 
   private computeShadowFactor(pos: Vector3): number {
