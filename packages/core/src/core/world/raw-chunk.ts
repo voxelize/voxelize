@@ -45,8 +45,8 @@ export class RawChunk {
 
     const { size, maxHeight } = options;
 
-    this.voxels = ndarray([] as any, [size, maxHeight, size]);
-    this.lights = ndarray([] as any, [size, maxHeight, size]);
+    this.voxels = ndarray(new Uint32Array(0), [size, maxHeight, size]);
+    this.lights = ndarray(new Uint32Array(0), [size, maxHeight, size]);
 
     const [x, z] = coords;
 
