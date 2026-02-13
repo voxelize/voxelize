@@ -486,6 +486,20 @@ describe("report-utils", () => {
       "Missing value for --only option."
     );
 
+    const recognizedOnlyNoBuildAliasInlineMisuseAsSplitValue =
+      resolveLastOptionValue(
+        ["--only", "--verify=1"],
+        "--only",
+        ["--only", "--no-build", "--verify"]
+      );
+    expect(recognizedOnlyNoBuildAliasInlineMisuseAsSplitValue.hasOption).toBe(
+      true
+    );
+    expect(recognizedOnlyNoBuildAliasInlineMisuseAsSplitValue.value).toBeNull();
+    expect(recognizedOnlyNoBuildAliasInlineMisuseAsSplitValue.error).toBe(
+      "Missing value for --only option."
+    );
+
     const recognizedOutputLongAliasAsSplitValue = resolveLastOptionValue(
       ["--output", "--verify"],
       "--output",
@@ -1829,6 +1843,41 @@ describe("report-utils", () => {
     expect(diagnostics.unknownOptions).toEqual([]);
     expect(diagnostics.unknownOptionCount).toBe(0);
     expect(diagnostics.unsupportedOptionsError).toBeNull();
+  });
+
+  it("reports inline no-build alias misuse after strict only options as unknown", () => {
+    const diagnostics = createCliDiagnostics(["--only", "--verify=1"], {
+      canonicalOptions: ["--no-build", "--only"],
+      optionAliases: {
+        "--no-build": ["--verify"],
+      },
+      optionsWithValues: ["--only"],
+      optionsWithStrictValues: ["--only"],
+    });
+
+    expect(diagnostics.activeCliOptions).toEqual(["--only"]);
+    expect(diagnostics.activeCliOptionCount).toBe(1);
+    expect(diagnostics.activeCliOptionTokens).toEqual(["--only"]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+      },
+    ]);
+    expect(diagnostics.activeCliOptionResolutionCount).toBe(1);
+    expect(diagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+        index: 0,
+      },
+    ]);
+    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(1);
+    expect(diagnostics.unknownOptions).toEqual(["--no-build=<value>"]);
+    expect(diagnostics.unknownOptionCount).toBe(1);
+    expect(diagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --no-build=<value>. Supported options: --no-build, --only, --verify."
+    );
   });
 
   it("parses active cli option metadata with aliases and option values", () => {
