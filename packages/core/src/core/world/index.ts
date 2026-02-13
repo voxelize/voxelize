@@ -870,6 +870,9 @@ export class World<T = any> extends Scene implements NetIntercept {
   private meshWorkerPromises: Array<Promise<GeometryProtocol[] | null>> = [];
   private meshJobArrayCapacity = 0;
   private emitServerUpdateBlockCache = new Map<number, Block>();
+  private applyServerUpdateBlockCache = new Map<number, Block>();
+  private processLightUpdateBlockCache = new Map<number, Block>();
+  private maxHeightBlockCache = new Map<number, Block>();
   private dynamicAABBRuleCoords: Coords3 = [0, 0, 0];
   private dynamicPassableRuleCoords: Coords3 = [0, 0, 0];
   private readonly dynamicRuleQuery = {
@@ -2117,12 +2120,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       return 0;
     }
 
-    let blockCache: Map<number, Block> | null = null;
+    const blockCache = this.maxHeightBlockCache;
+    blockCache.clear();
     const getCachedBlock = (id: number) => {
-      if (!blockCache) {
-        blockCache = new Map();
-      }
-
       let block = blockCache.get(id);
       if (!block) {
         block = this.getBlockById(id);
@@ -2952,12 +2952,9 @@ export class World<T = any> extends Scene implements NetIntercept {
   private applyServerUpdatesImmediately(updates: UpdateProtocol[]) {
     const blockUpdates = new Array<BlockUpdateWithSource>(updates.length);
     let blockUpdateCount = 0;
-    let blockCache: Map<number, Block> | null = null;
+    const blockCache = this.applyServerUpdateBlockCache;
+    blockCache.clear();
     const getCachedBlock = (id: number) => {
-      if (!blockCache) {
-        blockCache = new Map();
-      }
-
       let block = blockCache.get(id);
       if (!block) {
         block = this.getBlockById(id);
@@ -5912,12 +5909,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     let processedClientUpdateCount = 0;
     const processedUpdates = new Array<ProcessedUpdate>(maxUpdates);
     let processedUpdateCount = 0;
-    let blockCache: Map<number, Block> | null = null;
+    const blockCache = this.processLightUpdateBlockCache;
+    blockCache.clear();
     const getCachedBlock = (id: number) => {
-      if (!blockCache) {
-        blockCache = new Map();
-      }
-
       let block = blockCache.get(id);
       if (!block) {
         block = this.getBlockById(id);
