@@ -194,11 +194,17 @@ export class LightVolume {
     return this.texture;
   }
 
-  getVolumeMin(): Vector3 {
+  getVolumeMin(target?: Vector3): Vector3 {
+    if (target) {
+      return target.copy(this.volumeMin);
+    }
     return this.volumeMin.clone();
   }
 
-  getVolumeSize(): Vector3 {
+  getVolumeSize(target?: Vector3): Vector3 {
+    if (target) {
+      return target.copy(this.volumeSize);
+    }
     return this.volumeSize.clone();
   }
 

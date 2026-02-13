@@ -5077,11 +5077,11 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       this.chunkRenderer.shaderLightingUniforms.lightVolume.value =
         this.lightVolume.getTexture();
-      this.chunkRenderer.shaderLightingUniforms.lightVolumeMin.value.copy(
-        this.lightVolume.getVolumeMin()
+      this.lightVolume.getVolumeMin(
+        this.chunkRenderer.shaderLightingUniforms.lightVolumeMin.value
       );
-      this.chunkRenderer.shaderLightingUniforms.lightVolumeSize.value.copy(
-        this.lightVolume.getVolumeSize()
+      this.lightVolume.getVolumeSize(
+        this.chunkRenderer.shaderLightingUniforms.lightVolumeSize.value
       );
     }
   }
