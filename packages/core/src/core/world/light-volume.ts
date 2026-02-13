@@ -133,6 +133,10 @@ export class LightVolume {
   ) {
     const res = this.config.resolution;
     const radius = light.radius;
+    if (radius <= 0) {
+      return;
+    }
+    const radiusSq = radius * radius;
     const falloff = light.falloffExponent;
 
     this.tempLocalPos.copy(light.position).sub(this.volumeMin);
@@ -163,10 +167,10 @@ export class LightVolume {
           const dx = worldX - this.tempLocalPos.x;
           const dy = worldY - this.tempLocalPos.y;
           const dz = worldZ - this.tempLocalPos.z;
-          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          const distSq = dx * dx + dy * dy + dz * dz;
+          if (distSq > radiusSq) continue;
 
-          if (dist > radius) continue;
-
+          const dist = Math.sqrt(distSq);
           const attenuation = Math.pow(Math.max(0, 1 - dist / radius), falloff);
           const intensity = light.intensity * attenuation;
 
