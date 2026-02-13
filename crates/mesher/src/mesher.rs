@@ -1989,7 +1989,7 @@ fn extract_greedy_quads_dense(
                     h: quad_height as i32,
                     data,
                 });
-                if u_off == 0 && quad_width == width {
+                if quad_width == width {
                     v_off += quad_height;
                     continue 'rows;
                 }
