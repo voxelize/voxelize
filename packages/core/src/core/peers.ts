@@ -7,6 +7,7 @@ import { NetIntercept } from "./network";
 
 const emptyQ = new Quaternion();
 const emptyP = new Vector3();
+const forwardDirection = new Vector3(0, 0, -1);
 
 /**
  * Parameters to customize the peers manager.
@@ -319,11 +320,8 @@ export class Peers<
    * @returns A peer protocol message
    */
   packInfo(): PeerProtocol<T> | void {
-    const {
-      x: dx,
-      y: dy,
-      z: dz,
-    } = new Vector3(0, 0, -1)
+    const direction = forwardDirection
+      .set(0, 0, -1)
       .applyQuaternion(this.object.getWorldQuaternion(emptyQ))
       .normalize();
     const { x: px, y: py, z: pz } = this.object.getWorldPosition(emptyP);
@@ -334,7 +332,7 @@ export class Peers<
       metadata: {
         ...this.ownMetadata,
         position: [px, py, pz],
-        direction: [dx, dy, dz],
+        direction: [direction.x, direction.y, direction.z],
       } as any as T,
     } as PeerProtocol<T>;
   }
