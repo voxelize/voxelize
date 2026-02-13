@@ -3393,9 +3393,14 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 current_mask_index =
                                     (v - v_range.0) as usize * mask_width + (u - u_range.0) as usize;
                             }
-                            let neighbors = NeighborCache::populate(vx, vy, vz, space);
-                            let (aos, lights) =
-                                compute_face_ao_and_light_fast(dir, block, &neighbors, registry);
+                            let (aos, lights) = if is_see_through || block.is_all_transparent {
+                                let (_, center_light) = space.get_raw_voxel_and_raw_light(vx, vy, vz);
+                                let light = (center_light & 0xFFFF) as i32;
+                                ([3, 3, 3, 3], [light; 4])
+                            } else {
+                                let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                                compute_face_ao_and_light_fast(dir, block, &neighbors, registry)
+                            };
                             let uv_range = face.range;
                             greedy_mask[current_mask_index] = Some(FaceData {
                                 key: FaceKey {
@@ -3479,9 +3484,15 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         }
 
                         let (aos, lights) = *cached_ao_light.get_or_insert_with(|| {
-                            let neighbors_ref =
-                                neighbors.get_or_insert_with(|| NeighborCache::populate(vx, vy, vz, space));
-                            compute_face_ao_and_light_fast(dir, block, neighbors_ref, registry)
+                            if is_see_through || block.is_all_transparent {
+                                let (_, center_light) = space.get_raw_voxel_and_raw_light(vx, vy, vz);
+                                let light = (center_light & 0xFFFF) as i32;
+                                ([3, 3, 3, 3], [light; 4])
+                            } else {
+                                let neighbors_ref = neighbors
+                                    .get_or_insert_with(|| NeighborCache::populate(vx, vy, vz, space));
+                                compute_face_ao_and_light_fast(dir, block, neighbors_ref, registry)
+                            }
                         });
                         let uv_range = face.range;
 
