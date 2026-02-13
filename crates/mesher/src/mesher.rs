@@ -477,12 +477,6 @@ impl NeighborCache {
         let idx = Self::offset_to_index(dx, dy, dz);
         self.data[idx][1]
     }
-
-    #[inline(always)]
-    fn get_all_lights(&self, dx: i32, dy: i32, dz: i32) -> (u32, u32, u32, u32) {
-        let light = self.get_raw_light(dx, dy, dz);
-        LightUtils::extract_all(light)
-    }
 }
 
 #[inline(always)]
@@ -1434,16 +1428,14 @@ fn compute_face_ao_and_light(
                             }
                         }
 
-                        let (local_sunlight, local_red_light, local_green_light, local_blue_light) =
-                            neighbors.get_all_lights(ddx, ddy, ddz);
-
-                        if local_sunlight == 0
-                            && local_red_light == 0
-                            && local_green_light == 0
-                            && local_blue_light == 0
-                        {
+                        let local_light = neighbors.get_raw_light(ddx, ddy, ddz);
+                        if local_light == 0 {
                             continue;
                         }
+                        let local_sunlight = (local_light >> 12) & 0xF;
+                        let local_red_light = (local_light >> 8) & 0xF;
+                        let local_green_light = (local_light >> 4) & 0xF;
+                        let local_blue_light = local_light & 0xF;
 
                         sum_sunlights += local_sunlight;
                         sum_red_lights += local_red_light;
@@ -1650,16 +1642,14 @@ fn compute_face_ao_and_light_fast(
                         }
                     }
 
-                    let (local_sunlight, local_red_light, local_green_light, local_blue_light) =
-                        neighbors.get_all_lights(ddx, ddy, ddz);
-
-                    if local_sunlight == 0
-                        && local_red_light == 0
-                        && local_green_light == 0
-                        && local_blue_light == 0
-                    {
+                    let local_light = neighbors.get_raw_light(ddx, ddy, ddz);
+                    if local_light == 0 {
                         continue;
                     }
+                    let local_sunlight = (local_light >> 12) & 0xF;
+                    let local_red_light = (local_light >> 8) & 0xF;
+                    let local_green_light = (local_light >> 4) & 0xF;
+                    let local_blue_light = local_light & 0xF;
 
                     sum_sunlights += local_sunlight;
                     sum_red_lights += local_red_light;
@@ -2523,16 +2513,14 @@ fn process_face<S: VoxelAccess>(
                             }
                         }
 
-                        let (local_sunlight, local_red_light, local_green_light, local_blue_light) =
-                            neighbors.get_all_lights(ddx, ddy, ddz);
-
-                        if local_sunlight == 0
-                            && local_red_light == 0
-                            && local_green_light == 0
-                            && local_blue_light == 0
-                        {
+                        let local_light = neighbors.get_raw_light(ddx, ddy, ddz);
+                        if local_light == 0 {
                             continue;
                         }
+                        let local_sunlight = (local_light >> 12) & 0xF;
+                        let local_red_light = (local_light >> 8) & 0xF;
+                        let local_green_light = (local_light >> 4) & 0xF;
+                        let local_blue_light = local_light & 0xF;
 
                         sum_sunlights += local_sunlight;
                         sum_red_lights += local_red_light;
