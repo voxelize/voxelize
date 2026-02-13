@@ -365,6 +365,7 @@ const CHUNK_NEIGHBOR_OFFSETS: Coords2[] = [
 ];
 
 const ZERO_DIRECTION: [number, number] = [0, 0];
+const ZERO_VECTOR3 = new Vector3(0, 0, 0);
 
 /**
  * Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture. Keep in mind that
@@ -3683,18 +3684,17 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.initialEntities = null;
     }
   }
-  update(
-    position: Vector3 = new Vector3(),
-    direction: Vector3 = new Vector3()
-  ) {
+  update(position?: Vector3, direction?: Vector3) {
     if (!this.isInitialized) {
       return;
     }
 
+    const worldPosition = position ?? ZERO_VECTOR3;
+    const worldDirection = direction ?? ZERO_VECTOR3;
     const delta = this.clock.getDelta();
     const chunkSize = this.options.chunkSize;
-    const centerX = Math.floor(position.x / chunkSize);
-    const centerZ = Math.floor(position.z / chunkSize);
+    const centerX = Math.floor(worldPosition.x / chunkSize);
+    const centerZ = Math.floor(worldPosition.z / chunkSize);
     if (this.options.doesTickTime) {
       this._time = (this.time + delta) % this.options.timePerDay;
     }
@@ -3710,11 +3710,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.updatePlantVisibility(centerX, centerZ);
     }
 
-    this.requestChunks(centerX, centerZ, direction);
+    this.requestChunks(centerX, centerZ, worldDirection);
     this.processChunks(centerX, centerZ);
     this.updatePhysics(delta);
     this.updateUniforms();
-    this.updateSkyAndClouds(position);
+    this.updateSkyAndClouds(worldPosition);
     this.emitServerUpdates();
   }
 
