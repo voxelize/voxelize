@@ -375,6 +375,28 @@ fn test_register_blocks_panics_on_duplicate_ids_in_batch() {
 }
 
 #[test]
+fn test_register_blocks_empty_keeps_conversion_caches() {
+    let mut registry = create_test_registry();
+
+    let mesher_before = registry.mesher_registry();
+    let lighter_before = registry.lighter_registry();
+
+    registry.register_blocks(&[]);
+
+    let mesher_after = registry.mesher_registry();
+    let lighter_after = registry.lighter_registry();
+
+    assert!(
+        Arc::ptr_eq(&mesher_before, &mesher_after),
+        "mesher cache should be reused for empty bulk registration"
+    );
+    assert!(
+        Arc::ptr_eq(&lighter_before, &lighter_after),
+        "lighter cache should be reused for empty bulk registration"
+    );
+}
+
+#[test]
 fn test_registry_clone_keeps_conversion_caches_independent() {
     let registry = create_test_registry();
     let mesher_original = registry.mesher_registry();
