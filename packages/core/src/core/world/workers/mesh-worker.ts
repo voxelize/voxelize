@@ -189,11 +189,35 @@ function workerComputeBoundingSphere(positions: Float32Array): {
 let wasmInitialized = false;
 let registryInitialized = false;
 const pendingMeshMessages: MeshBatchMessage[] = [];
+let pendingMeshMessagesHead = 0;
 const MAX_PENDING_MESH_MESSAGES = 512;
 
 const minArray = new Int32Array(3);
 const maxArray = new Int32Array(3);
 const emptyUint32Array = new Uint32Array(0);
+
+const hasPendingMeshMessages = () =>
+  pendingMeshMessagesHead < pendingMeshMessages.length;
+
+const pendingMeshMessageCount = () =>
+  pendingMeshMessages.length - pendingMeshMessagesHead;
+
+const normalizePendingMeshMessages = () => {
+  if (pendingMeshMessagesHead === 0) {
+    return;
+  }
+
+  if (pendingMeshMessagesHead >= pendingMeshMessages.length) {
+    pendingMeshMessages.length = 0;
+    pendingMeshMessagesHead = 0;
+    return;
+  }
+
+  if (pendingMeshMessagesHead >= 1024) {
+    pendingMeshMessages.splice(0, pendingMeshMessagesHead);
+    pendingMeshMessagesHead = 0;
+  }
+};
 
 const ensureWasmInitialized = async () => {
   if (!wasmInitialized) {
@@ -316,8 +340,10 @@ onmessage = async function (e: MessageEvent<MeshWorkerMessage>) {
     set_registry(wasmRegistry);
     registryInitialized = true;
 
-    if (pendingMeshMessages.length > 0) {
-      const toProcess = pendingMeshMessages.splice(0, pendingMeshMessages.length);
+    if (hasPendingMeshMessages()) {
+      const toProcess = pendingMeshMessages.slice(pendingMeshMessagesHead);
+      pendingMeshMessages.length = 0;
+      pendingMeshMessagesHead = 0;
       for (const pendingMessage of toProcess) {
         processMeshMessage(pendingMessage);
       }
@@ -328,9 +354,10 @@ onmessage = async function (e: MessageEvent<MeshWorkerMessage>) {
 
   await ensureWasmInitialized();
   if (!registryInitialized) {
-    if (pendingMeshMessages.length >= MAX_PENDING_MESH_MESSAGES) {
-      pendingMeshMessages.shift();
+    if (pendingMeshMessageCount() >= MAX_PENDING_MESH_MESSAGES) {
+      pendingMeshMessagesHead++;
       postEmptyMeshResult();
+      normalizePendingMeshMessages();
     }
     pendingMeshMessages.push(message);
     return;
