@@ -53,5 +53,8 @@ export default defineConfig({
   worker: {
     format: "es",
     plugins: () => [wasm(), topLevelAwait()],
+    rollupOptions: {
+      external: ["@voxelize/wasm-mesher"],
+    },
   },
 });
