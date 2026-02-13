@@ -299,6 +299,8 @@ const defaultOptions: RigidControlsOptions = {
  * @category Core
  */
 export class RigidControls extends EventEmitter implements NetIntercept {
+  private static readonly FORWARD_DIRECTION = new Vector3(0, 0, -1);
+
   /**
    * Parameters to initialize the Voxelize controls.
    */
@@ -409,6 +411,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   private pushVector: Coords3 = [0, 0, 0];
   private characterPosition: Coords3 = [0, 0, 0];
   private characterDirection: Coords3 = [0, 0, 0];
+  private resetDirection = new Vector3();
 
   /**
    * Whether or not is the first movement back on lock. This is because Chrome has a bug where
@@ -871,13 +874,17 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   reset = () => {
     this.teleport(...this.options.initialPosition);
 
+    const resetDirection = this.resetDirection;
+    resetDirection.set(
+      this.options.initialDirection[0],
+      this.options.initialDirection[1],
+      this.options.initialDirection[2]
+    );
+    resetDirection.normalize();
+
     this.quaternion.setFromUnitVectors(
-      new Vector3(0, 0, -1),
-      new Vector3(
-        this.options.initialDirection[0],
-        this.options.initialDirection[1],
-        this.options.initialDirection[2]
-      ).normalize()
+      RigidControls.FORWARD_DIRECTION,
+      resetDirection
     );
 
     this.object.rotation.set(0, 0, 0);
