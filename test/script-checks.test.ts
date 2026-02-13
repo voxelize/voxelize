@@ -159,13 +159,46 @@ type ClientJsonReport = OptionTerminatorMetadata &
   message?: string;
 } & CliOptionCatalogMetadata;
 
+type TsCoreJsonReport = OptionTerminatorMetadata &
+  ActiveCliOptionMetadata & {
+  schemaVersion: number;
+  passed: boolean;
+  exitCode: number;
+  noBuild: boolean;
+  packagePath: string;
+  requiredArtifacts: string[];
+  artifactsPresent: boolean;
+  missingArtifacts: string[];
+  attemptedBuild: boolean;
+  buildSkipped: boolean;
+  buildOutput: string | null;
+  outputPath: string | null;
+  unknownOptions: string[];
+  unknownOptionCount: number;
+  supportedCliOptions: string[];
+  supportedCliOptionCount: number;
+  availableCliOptionAliases: {
+    "--no-build": string[];
+  };
+  availableCliOptionCanonicalMap: Record<string, string>;
+  validationErrorCode:
+    | "output_option_missing_value"
+    | "unsupported_options"
+    | null;
+  startedAt: string;
+  endedAt: string;
+  durationMs: number;
+  message: string;
+  writeError?: string;
+};
+
 type OnboardingJsonStep = {
   name: string;
   passed: boolean;
   exitCode: number | null;
   skipped: boolean;
   reason: string | null;
-  report: DevEnvJsonReport | ClientJsonReport | null;
+  report: DevEnvJsonReport | TsCoreJsonReport | ClientJsonReport | null;
   output: string | null;
 };
 
@@ -4107,15 +4140,56 @@ describe("root preflight scripts", () => {
       report.totalSteps
     );
     expect(report.steps[0].name).toBe("Developer environment preflight");
+    const tsCoreStep = report.steps.find(
+      (step) => step.name === "TypeScript core checks"
+    );
+    expect(tsCoreStep).toBeDefined();
     expect(
       report.steps.some((step) => step.name === "Client checks")
     ).toBe(true);
+    const clientStep = report.steps.find((step) => step.name === "Client checks");
+    expect(clientStep).toBeDefined();
     expect(report.steps[0].report).not.toBeNull();
     if (report.steps[0].report !== null) {
       expect(report.steps[0].report.schemaVersion).toBe(1);
       expect(typeof report.steps[0].report.passed).toBe("boolean");
       expectTimingMetadata(report.steps[0].report);
       expectOptionTerminatorMetadata(report.steps[0].report);
+    }
+    if (tsCoreStep !== undefined && report.steps[0].passed === false) {
+      expect(tsCoreStep.skipped).toBe(true);
+      expect(tsCoreStep.exitCode).toBeNull();
+      expect(tsCoreStep.reason).toBe("Developer environment preflight failed");
+    }
+    if (
+      tsCoreStep !== undefined &&
+      report.steps[0].passed &&
+      tsCoreStep.report !== null
+    ) {
+      expect(tsCoreStep.skipped).toBe(false);
+      expect(tsCoreStep.report.packagePath).toBe("packages/ts-core");
+      expectTimingMetadata(tsCoreStep.report);
+      expectOptionTerminatorMetadata(tsCoreStep.report);
+    }
+    if (
+      clientStep !== undefined &&
+      tsCoreStep !== undefined &&
+      report.steps[0].passed === false
+    ) {
+      expect(clientStep.skipped).toBe(true);
+      expect(clientStep.exitCode).toBeNull();
+      expect(clientStep.reason).toBe("Developer environment preflight failed");
+    }
+    if (
+      clientStep !== undefined &&
+      tsCoreStep !== undefined &&
+      report.steps[0].passed &&
+      tsCoreStep.skipped === false &&
+      tsCoreStep.passed === false
+    ) {
+      expect(clientStep.skipped).toBe(true);
+      expect(clientStep.exitCode).toBeNull();
+      expect(clientStep.reason).toBe("TypeScript core checks failed");
     }
     if (report.failedStepCount > 0) {
       expect(report.firstFailedStep).toBe(
@@ -5628,14 +5702,47 @@ describe("root preflight scripts", () => {
     );
     expect(report.steps.length).toBeGreaterThan(0);
     expect(report.steps[0].name).toBe("Developer environment preflight");
+    const tsCoreStep = report.steps.find(
+      (step) => step.name === "TypeScript core checks"
+    );
+    expect(tsCoreStep).toBeDefined();
     const clientStep = report.steps.find((step) => step.name === "Client checks");
     expect(clientStep).toBeDefined();
-    if (clientStep !== undefined && report.steps[0].passed === false) {
+    if (tsCoreStep !== undefined && report.steps[0].passed === false) {
+      expect(tsCoreStep.skipped).toBe(true);
+      expect(tsCoreStep.exitCode).toBeNull();
+      expect(tsCoreStep.reason).toBe("Developer environment preflight failed");
+    }
+    if (
+      tsCoreStep !== undefined &&
+      report.steps[0].passed &&
+      tsCoreStep.report !== null
+    ) {
+      expect(tsCoreStep.skipped).toBe(false);
+      expect(tsCoreStep.report.noBuild).toBe(true);
+      expect(tsCoreStep.report.buildSkipped).toBe(true);
+    }
+    if (
+      clientStep !== undefined &&
+      tsCoreStep !== undefined &&
+      report.steps[0].passed === false
+    ) {
       expect(clientStep.skipped).toBe(true);
       expect(clientStep.exitCode).toBeNull();
       expect(clientStep.reason).toBe(
         "Developer environment preflight failed"
       );
+    }
+    if (
+      clientStep !== undefined &&
+      tsCoreStep !== undefined &&
+      report.steps[0].passed &&
+      tsCoreStep.skipped === false &&
+      tsCoreStep.passed === false
+    ) {
+      expect(clientStep.skipped).toBe(true);
+      expect(clientStep.exitCode).toBeNull();
+      expect(clientStep.reason).toBe("TypeScript core checks failed");
     }
     expectActiveCliOptionMetadata(
       report,
@@ -5670,8 +5777,46 @@ describe("root preflight scripts", () => {
     );
     expect(report.steps.length).toBeGreaterThan(0);
     expect(report.steps[0].name).toBe("Developer environment preflight");
+    const tsCoreStep = report.steps.find(
+      (step) => step.name === "TypeScript core checks"
+    );
+    expect(tsCoreStep).toBeDefined();
     const clientStep = report.steps.find((step) => step.name === "Client checks");
     expect(clientStep).toBeDefined();
+    if (tsCoreStep !== undefined && report.steps[0].passed === false) {
+      expect(tsCoreStep.skipped).toBe(true);
+      expect(tsCoreStep.exitCode).toBeNull();
+      expect(tsCoreStep.reason).toBe("Developer environment preflight failed");
+    }
+    if (
+      tsCoreStep !== undefined &&
+      report.steps[0].passed &&
+      tsCoreStep.report !== null
+    ) {
+      expect(tsCoreStep.skipped).toBe(false);
+      expect(tsCoreStep.report.noBuild).toBe(true);
+      expect(tsCoreStep.report.buildSkipped).toBe(true);
+    }
+    if (
+      clientStep !== undefined &&
+      tsCoreStep !== undefined &&
+      report.steps[0].passed === false
+    ) {
+      expect(clientStep.skipped).toBe(true);
+      expect(clientStep.exitCode).toBeNull();
+      expect(clientStep.reason).toBe("Developer environment preflight failed");
+    }
+    if (
+      clientStep !== undefined &&
+      tsCoreStep !== undefined &&
+      report.steps[0].passed &&
+      tsCoreStep.skipped === false &&
+      tsCoreStep.passed === false
+    ) {
+      expect(clientStep.skipped).toBe(true);
+      expect(clientStep.exitCode).toBeNull();
+      expect(clientStep.reason).toBe("TypeScript core checks failed");
+    }
     expectActiveCliOptionMetadata(
       report,
       ["--json", "--no-build"],

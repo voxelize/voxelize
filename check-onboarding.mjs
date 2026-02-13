@@ -193,12 +193,24 @@ const devEnvPassed = runStep(
   path.resolve(__dirname, "check-dev-env.mjs")
 );
 
-if (devEnvPassed) {
-  runStep("Client checks", path.resolve(__dirname, "check-client.mjs"), [
-    ...(isNoBuild ? ["--no-build"] : []),
-  ]);
-} else {
+if (!devEnvPassed) {
+  addSkippedStep("TypeScript core checks", "Developer environment preflight failed");
   addSkippedStep("Client checks", "Developer environment preflight failed");
+} else {
+  const tsCorePassed = runStep(
+    "TypeScript core checks",
+    path.resolve(__dirname, "check-ts-core.mjs"),
+    [
+      ...(isNoBuild ? ["--no-build"] : []),
+    ]
+  );
+  if (tsCorePassed) {
+    runStep("Client checks", path.resolve(__dirname, "check-client.mjs"), [
+      ...(isNoBuild ? ["--no-build"] : []),
+    ]);
+  } else {
+    addSkippedStep("Client checks", "TypeScript core checks failed");
+  }
 }
 
 if (isJson) {
