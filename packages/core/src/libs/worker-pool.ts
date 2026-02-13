@@ -259,13 +259,16 @@ export class WorkerPool {
         this.available.push(index);
         this.queueHead++;
         this.normalizeQueue();
-        rejectJob(
-          error instanceof Error
-            ? error
-            : new Error("Worker pool job failed while dispatching.")
-        );
-        if (this.hasQueuedJobs()) {
-          this.scheduleProcess();
+        try {
+          rejectJob(
+            error instanceof Error
+              ? error
+              : new Error("Worker pool job failed while dispatching.")
+          );
+        } finally {
+          if (this.hasQueuedJobs()) {
+            this.scheduleProcess();
+          }
         }
       }
     }
