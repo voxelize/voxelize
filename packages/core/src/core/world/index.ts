@@ -4260,6 +4260,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const [centerX, centerZ] = center;
     const deleted: Coords2[] = [];
     const toRemove: string[] = [];
+    const listenerNamesToRemove: string[] = [];
 
     for (const [name, chunk] of this.chunkPipeline.loadedEntries()) {
       const [x, z] = chunk.coords;
@@ -4291,6 +4292,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         chunk.dispose();
         this.meshPipeline.remove(x, z);
         toRemove.push(name);
+        listenerNamesToRemove.push(name);
         deleted.push(chunk.coords);
       }
     }
@@ -4304,6 +4306,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       const dz = z - centerZ;
       if (dx * dx + dz * dz > deleteRadiusSquared) {
         this.chunkPipeline.remove(name);
+        listenerNamesToRemove.push(name);
         deleted.push([x, z]);
       }
     }
@@ -4318,13 +4321,13 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     }
     for (let index = 0; index < processingToRemove.length; index++) {
-      this.chunkPipeline.remove(processingToRemove[index]);
+      const name = processingToRemove[index];
+      this.chunkPipeline.remove(name);
+      listenerNamesToRemove.push(name);
     }
 
-    for (let index = 0; index < deleted.length; index++) {
-      const coords = deleted[index];
-      const name = ChunkUtils.getChunkNameAt(coords[0], coords[1]);
-      this.chunkInitializeListeners.delete(name);
+    for (let index = 0; index < listenerNamesToRemove.length; index++) {
+      this.chunkInitializeListeners.delete(listenerNamesToRemove[index]);
     }
 
     if (deleted.length) {
