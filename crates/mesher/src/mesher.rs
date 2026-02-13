@@ -1029,8 +1029,8 @@ fn has_cardinal_faces(block: &Block) -> bool {
     })
 }
 
-fn can_greedy_mesh_block(block: &Block, rotation: &BlockRotation) -> bool {
-    block.can_greedy_mesh_without_rotation() && matches!(rotation, BlockRotation::PY(r) if *r == 0.0)
+fn can_greedy_mesh_block(block: &Block) -> bool {
+    block.can_greedy_mesh_without_rotation()
 }
 
 fn geometry_key_for_face(block: &Block, face: &BlockFace, vx: i32, vy: i32, vz: i32) -> GeometryMapKey {
@@ -2496,8 +2496,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     };
 
                     let voxel_id = space.get_voxel(vx, vy, vz);
-
-                    let rotation = space.get_voxel_rotation(vx, vy, vz);
                     let block = match registry.get_block_by_id(voxel_id) {
                         Some(b) => b,
                         None => continue,
@@ -2513,6 +2511,12 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         }
                     }
 
+                    let is_non_greedy_block = !can_greedy_mesh_block(block);
+                    if is_non_greedy_block && processed_non_greedy.contains(&(vx, vy, vz)) {
+                        continue;
+                    }
+
+                    let rotation = space.get_voxel_rotation(vx, vy, vz);
                     let is_fluid = block.is_fluid;
                     let is_see_through = block.is_see_through;
 
@@ -2528,12 +2532,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                             block.faces.iter().cloned().map(|f| (f, false)).collect()
                         };
 
-                    let is_non_greedy_block = !can_greedy_mesh_block(block, &rotation);
-
                     if is_non_greedy_block {
-                        if processed_non_greedy.contains(&(vx, vy, vz)) {
-                            continue;
-                        }
                         processed_non_greedy.insert((vx, vy, vz));
 
                         for (face, world_space) in faces.iter() {
