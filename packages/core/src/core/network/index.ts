@@ -437,13 +437,14 @@ export class Network {
   };
 
   flush = () => {
+    const ws = this.ws;
     for (let i = 0; i < this.intercepts.length; i++) {
       const intercept = this.intercepts[i];
       const packets = intercept.packets;
       if (packets && packets.length) {
         const packetCount = packets.length;
         for (let j = 0; j < packetCount; j++) {
-          this.send(packets[j]);
+          ws.sendEvent(packets[j]);
         }
         packets.length = 0;
       }
