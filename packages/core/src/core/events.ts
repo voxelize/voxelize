@@ -2,6 +2,9 @@ import { MessageProtocol } from "@voxelize/protocol";
 
 import { NetIntercept } from "./network";
 
+type JsonPrimitive = string | number | boolean | null;
+type JsonValue = JsonPrimitive | { [key: string]: JsonValue } | JsonValue[];
+
 /**
  * A Voxelize event from the server.
  */
@@ -14,13 +17,13 @@ export type Event = {
   /**
    * Additional information of the event.
    */
-  payload?: any;
+  payload?: JsonValue;
 };
 
 /**
  * The handler for an event sent from the Voxelize server.
  */
-export type EventHandler = (payload: any | null) => void;
+export type EventHandler = (payload: JsonValue | null) => void;
 
 /**
  * A manager for any events interacting with the Voxelize server. This is useful
@@ -52,7 +55,7 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
    *
    * @hidden
    */
-  public packets: MessageProtocol<any, any, any, any>[] = [];
+  public packets: MessageProtocol[] = [];
 
   /**
    * The network intercept implementation for events.
@@ -115,7 +118,7 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
    * @param name The name of the event to emit.
    * @param payload The payload to send with the event.
    */
-  emit = (name: string, payload: any = {}) => {
+  emit = (name: string, payload: JsonValue = {}) => {
     this.packets.push({
       type: "EVENT",
       events: [
@@ -132,7 +135,7 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
    *
    * @hidden
    */
-  handle = (name: string, payload: any) => {
+  handle = (name: string, payload: JsonValue | null) => {
     const handler = this.get(name);
 
     if (!handler) {
