@@ -90,6 +90,8 @@ export class Network {
   private packetQueue: ArrayBuffer[] = [];
   private packetQueueHead = 0;
   private decodePromises: Array<Promise<MessageProtocol[]>> = [];
+  private decodePacketBatches: Array<ArrayBuffer[]> = [];
+  private reusableDecodePacketBatches: Array<ArrayBuffer[]> = [];
 
   private joinStartTime = 0;
 
@@ -125,6 +127,33 @@ export class Network {
       this.packetQueueHead = 0;
     }
   };
+
+  private acquireDecodePacketBatch(size: number) {
+    const batch = this.reusableDecodePacketBatches.pop();
+    if (batch) {
+      batch.length = size;
+      return batch;
+    }
+    return new Array<ArrayBuffer>(size);
+  }
+
+  private releaseDecodePacketBatch(batch: ArrayBuffer[]) {
+    batch.length = 0;
+    this.reusableDecodePacketBatches.push(batch);
+  }
+
+  private copyPacketRangeIntoBatch(
+    source: ArrayBuffer[],
+    start: number,
+    end: number
+  ) {
+    const count = end - start;
+    const batch = this.acquireDecodePacketBatch(count);
+    for (let index = 0; index < count; index++) {
+      batch[index] = source[start + index];
+    }
+    return batch;
+  }
 
   constructor(options: Partial<NetworkOptions> = {}) {
     this.options = {
@@ -399,12 +428,18 @@ export class Network {
 
     if (packetCount <= perWorker) {
       let packets: ArrayBuffer[];
+      let shouldReleasePackets = false;
       if (this.packetQueueHead === 0 && batchEnd === this.packetQueue.length) {
         packets = this.packetQueue;
         this.packetQueue = [];
         this.packetQueueHead = 0;
       } else {
-        packets = this.packetQueue.slice(this.packetQueueHead, batchEnd);
+        packets = this.copyPacketRangeIntoBatch(
+          this.packetQueue,
+          this.packetQueueHead,
+          batchEnd
+        );
+        shouldReleasePackets = true;
         this.packetQueueHead = batchEnd;
         this.normalizePacketQueue();
       }
@@ -417,23 +452,35 @@ export class Network {
           ) {
             this.onMessage(messages[messageIndex]);
           }
-        })
-        .catch((error) => {
+          if (shouldReleasePackets) {
+            this.releaseDecodePacketBatch(packets);
+          }
+        }, (error) => {
           console.error("[NETWORK] Failed to decode packet batch.", error);
+          if (shouldReleasePackets) {
+            this.releaseDecodePacketBatch(packets);
+          }
         });
       return;
     }
 
     const batchCount = Math.ceil(packetCount / perWorker);
     const decodePromises = this.decodePromises;
+    const decodePacketBatches = this.decodePacketBatches;
     decodePromises.length = batchCount;
+    decodePacketBatches.length = batchCount;
     const sourceQueue = this.packetQueue;
     const batchStart = this.packetQueueHead;
     let batchIndex = 0;
     for (let offset = batchStart; offset < batchEnd; offset += perWorker) {
-      decodePromises[batchIndex] = this.decode(
-        sourceQueue.slice(offset, Math.min(offset + perWorker, batchEnd))
+      const end = Math.min(offset + perWorker, batchEnd);
+      const packetBatch = this.copyPacketRangeIntoBatch(
+        sourceQueue,
+        offset,
+        end
       );
+      decodePacketBatches[batchIndex] = packetBatch;
+      decodePromises[batchIndex] = this.decode(packetBatch);
       batchIndex++;
     }
     if (batchStart === 0 && batchEnd === sourceQueue.length) {
@@ -444,9 +491,15 @@ export class Network {
       this.normalizePacketQueue();
     }
 
-    Promise.all(decodePromises)
-      .then((results) => {
-        this.decodePromises.length = 0;
+    const clearDecodeBatches = () => {
+      for (let batchIndex = 0; batchIndex < decodePacketBatches.length; batchIndex++) {
+        this.releaseDecodePacketBatch(decodePacketBatches[batchIndex]);
+      }
+      decodePacketBatches.length = 0;
+      this.decodePromises.length = 0;
+    };
+
+    Promise.all(decodePromises).then((results) => {
         for (let batchIndex = 0; batchIndex < results.length; batchIndex++) {
           const messages = results[batchIndex];
           for (
@@ -457,10 +510,10 @@ export class Network {
             this.onMessage(messages[messageIndex]);
           }
         }
-      })
-      .catch((error) => {
-        this.decodePromises.length = 0;
+        clearDecodeBatches();
+      }, (error) => {
         console.error("[NETWORK] Failed to decode packet batches.", error);
+        clearDecodeBatches();
       });
   };
 
