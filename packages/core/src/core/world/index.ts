@@ -131,7 +131,12 @@ import { ItemDef, ItemRegistry } from "./items";
 import { LightSourceRegistry } from "./light-registry";
 import { LightVolume } from "./light-volume";
 import { Loader } from "./loader";
-import { ChunkPipeline, MeshPipeline } from "./pipelines";
+import {
+  ChunkPipeline,
+  MESH_JOB_ACCEPTED,
+  MESH_JOB_NEEDS_REMESH,
+  MeshPipeline,
+} from "./pipelines";
 import { Registry } from "./registry";
 import {
   DEFAULT_CHUNK_SHADERS,
@@ -1062,13 +1067,14 @@ export class World<T = any> extends Scene implements NetIntercept {
     level: number,
     geometries: GeometryProtocol[],
     generation?: number
-  ) {
+  ): number {
     const key = MeshPipeline.makeKey(cx, cz, level);
-    const accepted =
-      generation === undefined ||
-      this.meshPipeline.onJobComplete(key, generation);
-    if (generation !== undefined && !accepted) {
-      return;
+    let completionStatus = 0;
+    if (generation !== undefined) {
+      completionStatus = this.meshPipeline.completeJobStatus(key, generation);
+      if ((completionStatus & MESH_JOB_ACCEPTED) === 0) {
+        return completionStatus;
+      }
     }
 
     const mesh: MeshProtocol = {
@@ -1096,6 +1102,8 @@ export class World<T = any> extends Scene implements NetIntercept {
         reason: "voxel",
       });
     }
+
+    return completionStatus;
   }
 
   async meshChunkLocally(
@@ -5794,19 +5802,21 @@ export class World<T = any> extends Scene implements NetIntercept {
     for (let index = 0; index < geometriesResults.length; index++) {
       const geometries = geometriesResults[index];
       if (geometries) {
-        this.applyMeshResult(
+        const completionStatus = this.applyMeshResult(
           jobCxs[index],
           jobCzs[index],
           jobLevels[index],
           geometries,
           jobGenerations[index]
         );
+        if ((completionStatus & MESH_JOB_NEEDS_REMESH) !== 0) {
+          shouldScheduleDirtyChunks = true;
+        }
       } else {
-        this.meshPipeline.abortJob(jobKeys[index]);
-      }
-
-      if (this.meshPipeline.needsRemesh(jobKeys[index])) {
-        shouldScheduleDirtyChunks = true;
+        const abortStatus = this.meshPipeline.abortJob(jobKeys[index]);
+        if ((abortStatus & MESH_JOB_NEEDS_REMESH) !== 0) {
+          shouldScheduleDirtyChunks = true;
+        }
       }
     }
 

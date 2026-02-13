@@ -243,6 +243,9 @@ interface MeshState {
   displayedGeneration: number;
 }
 
+export const MESH_JOB_ACCEPTED = 1;
+export const MESH_JOB_NEEDS_REMESH = 2;
+
 export class MeshPipeline {
   private states = new Map<string, MeshState>();
   private dirty = new Set<string>();
@@ -315,30 +318,48 @@ export class MeshPipeline {
     return state;
   }
 
-  abortJob(key: string): void {
+  abortJob(key: string): number {
     const state = this.states.get(key);
     if (!state) {
-      return;
+      return 0;
     }
 
     state.inFlightGeneration = null;
-    if (state.generation > state.displayedGeneration) {
+    const needsRemesh = state.generation > state.displayedGeneration;
+    if (needsRemesh) {
       this.dirty.add(key);
     }
+
+    return needsRemesh ? MESH_JOB_NEEDS_REMESH : 0;
   }
 
   onJobComplete(key: string, jobGeneration: number): boolean {
+    return (this.completeJobStatus(key, jobGeneration) & MESH_JOB_ACCEPTED) !== 0;
+  }
+
+  completeJobStatus(key: string, jobGeneration: number): number {
     const state = this.states.get(key);
-    if (!state) return false;
+    if (!state) {
+      return 0;
+    }
 
     state.inFlightGeneration = null;
 
+    let status = 0;
     if (jobGeneration < state.displayedGeneration) {
-      return false;
+      if (state.generation > state.displayedGeneration) {
+        status |= MESH_JOB_NEEDS_REMESH;
+      }
+      return status;
     }
 
+    status |= MESH_JOB_ACCEPTED;
     state.displayedGeneration = jobGeneration;
-    return true;
+    if (state.generation > state.displayedGeneration) {
+      status |= MESH_JOB_NEEDS_REMESH;
+    }
+
+    return status;
   }
 
   needsRemesh(key: string): boolean {
