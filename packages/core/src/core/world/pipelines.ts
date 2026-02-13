@@ -50,7 +50,11 @@ export class ChunkPipeline {
   }
 
   markRequested(coords: Coords2): void {
-    const name = ChunkUtils.getChunkName(coords);
+    this.markRequestedAt(coords[0], coords[1]);
+  }
+
+  markRequestedAt(cx: number, cz: number): void {
+    const name = ChunkUtils.getChunkNameAt(cx, cz);
     this.setStage(name, {
       stage: "requested",
       retryCount: 0,
@@ -105,13 +109,21 @@ export class ChunkPipeline {
   }
 
   markLoaded(coords: Coords2, chunk: Chunk): void {
-    const name = ChunkUtils.getChunkName(coords);
+    this.markLoadedAt(coords[0], coords[1], chunk);
+  }
+
+  markLoadedAt(cx: number, cz: number, chunk: Chunk): void {
+    const name = ChunkUtils.getChunkNameAt(cx, cz);
     this.setStage(name, { stage: "loaded", chunk });
   }
 
   getLoadedChunk(name: string): Chunk | undefined {
     const state = this.states.get(name);
     return state?.stage === "loaded" ? state.chunk : undefined;
+  }
+
+  getLoadedChunkAt(cx: number, cz: number): Chunk | undefined {
+    return this.getLoadedChunk(ChunkUtils.getChunkNameAt(cx, cz));
   }
 
   getProcessingData(

@@ -1713,7 +1713,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private getLoadedChunkByCoords(cx: number, cz: number) {
-    return this.chunkPipeline.getLoadedChunk(ChunkUtils.getChunkNameAt(cx, cz));
+    return this.chunkPipeline.getLoadedChunkAt(cx, cz);
   }
 
   private getLoadedChunkAtVoxel(vx: number, vz: number) {
@@ -3983,7 +3983,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       });
 
       for (let index = 0; index < toRequest.length; index++) {
-        this.chunkPipeline.markRequested(toRequest[index] as Coords2);
+        const coords = toRequest[index];
+        this.chunkPipeline.markRequestedAt(coords[0], coords[1]);
       }
     }
   }
@@ -4051,7 +4052,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       chunk.setData(item.data);
       chunk.isDirty = false;
 
-      this.chunkPipeline.markLoaded([x, z], chunk);
+      this.chunkPipeline.markLoadedAt(x, z, chunk);
 
       this.emitChunkEvent("chunk-data-loaded", {
         chunk,
