@@ -116,7 +116,7 @@ export class ChunkUtils {
    * @returns The parsed chunk coordinates.
    */
   static parseChunkName = (name: string, concat = "|") => {
-    return name.split(concat).map((s: string) => parseInt(s, 10));
+    return ChunkUtils.parseChunkNameAt(name, concat);
   };
 
   /**
