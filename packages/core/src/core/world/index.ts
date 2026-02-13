@@ -878,6 +878,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     number,
     Map<string, Block["faces"][number]>
   >();
+  private textureGroupFirstFaceCache = new Map<
+    string,
+    { blockId: number; face: Block["faces"][number] } | null
+  >();
   private syncLightAffectedChunks = new Map<number, Set<number>>();
   private reusableSyncLightAffectedZSets: Set<number>[] = [];
   private dynamicAABBRuleCoords: Coords3 = [0, 0, 0];
@@ -1483,27 +1487,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     source: string | Color | HTMLImageElement | Texture
   ) {
     this.checkIsInitialized("apply texture group", false);
-
-    let firstFaceInGroup: { blockId: number; face: Block["faces"][0] } | null =
-      null;
-    let blockEntries = this.registry.blocksById.entries();
-    let blockEntry = blockEntries.next();
-    while (!blockEntry.done) {
-      const [id, block] = blockEntry.value;
-      const blockFaces = block.faces;
-      for (let faceIndex = 0; faceIndex < blockFaces.length; faceIndex++) {
-        const face = blockFaces[faceIndex];
-        if (face.isolated) continue;
-        if (face.textureGroup === groupName) {
-          firstFaceInGroup = { blockId: id, face };
-          break;
-        }
-      }
-      if (firstFaceInGroup) {
-        break;
-      }
-      blockEntry = blockEntries.next();
-    }
+    const firstFaceInGroup = this.getTextureGroupFirstFace(groupName);
 
     if (!firstFaceInGroup) {
       console.warn(`No faces found with texture group "${groupName}"`);
@@ -3859,6 +3843,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     // Loading the block registry
     this.blockEntityTypeBlockCache.clear();
     this.blockFaceNameCache.clear();
+    this.textureGroupFirstFaceCache.clear();
     const hasOwnBlock = Object.prototype.hasOwnProperty;
     for (const name in blocks) {
       if (!hasOwnBlock.call(blocks, name)) {
@@ -7430,6 +7415,37 @@ export class World<T = any> extends Scene implements NetIntercept {
     const block = this.registry.blocksByName.get(blockName.toLowerCase()) ?? null;
     this.blockEntityTypeBlockCache.set(type, block);
     return block;
+  }
+
+  private getTextureGroupFirstFace(groupName: string) {
+    if (this.textureGroupFirstFaceCache.has(groupName)) {
+      return this.textureGroupFirstFaceCache.get(groupName) ?? null;
+    }
+
+    let result: { blockId: number; face: Block["faces"][number] } | null = null;
+    let blockEntries = this.registry.blocksById.entries();
+    let blockEntry = blockEntries.next();
+    while (!blockEntry.done) {
+      const [id, block] = blockEntry.value;
+      const blockFaces = block.faces;
+      for (let faceIndex = 0; faceIndex < blockFaces.length; faceIndex++) {
+        const face = blockFaces[faceIndex];
+        if (face.isolated) {
+          continue;
+        }
+        if (face.textureGroup === groupName) {
+          result = { blockId: id, face };
+          break;
+        }
+      }
+      if (result) {
+        break;
+      }
+      blockEntry = blockEntries.next();
+    }
+
+    this.textureGroupFirstFaceCache.set(groupName, result);
+    return result;
   }
 
   private markTrackedChunkLevels(
