@@ -5770,7 +5770,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       jobCzs[workerCount] = cz;
       jobLevels[workerCount] = level;
       jobGenerations[workerCount] = generation;
-      workerPromises[workerCount] = this.dispatchMeshWorker(cx, cz, level);
+      workerPromises[workerCount] = this.dispatchMeshWorker(cx, cz, level).catch(
+        () => null
+      );
       workerCount++;
     }
     if (workerCount === 0) {
