@@ -76,6 +76,9 @@ cd voxelize
 # download dependencies
 pnpm install
 
+# verify wasm-pack setup
+pnpm run check:wasm-pack
+
 # generate protocol buffers
 pnpm run proto
 
