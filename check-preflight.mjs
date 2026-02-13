@@ -3,12 +3,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
-  createCliOptionCatalog,
-  createCliOptionValidation,
+  createCliDiagnostics,
   createTimedReportBuilder,
   deriveFailureMessageFromReport,
   hasCliOption as hasCliOptionInArgs,
-  parseActiveCliOptionMetadata,
   parseJsonOutput,
   resolveLastOptionValue,
   resolveOutputPath,
@@ -51,19 +49,6 @@ const supportedCliOptions = [
   "--quiet",
 ];
 const cliOptionsWithValues = new Set(["--only", "--output"]);
-const canonicalCliOptions = [
-  "--compact",
-  "--json",
-  "--list-checks",
-  "--no-build",
-  "--only",
-  "--output",
-  "--quiet",
-];
-const { availableCliOptionCanonicalMap } = createCliOptionCatalog({
-  canonicalOptions: supportedCliOptions,
-  optionAliases: availableCliOptionAliases,
-});
 const jsonFormat = { compact: isCompact };
 const { outputPath: resolvedOutputPath, error: outputPathError } =
   resolveOutputPath(cliOptionArgs);
@@ -322,16 +307,10 @@ const requestedCheckResolutionCounts = createRequestedCheckResolutionCounts(
   requestedCheckResolutions
 );
 const {
+  availableCliOptionCanonicalMap,
   unknownOptions,
   unknownOptionCount,
   unsupportedOptionsError,
-} = createCliOptionValidation(cliOptionArgs, {
-  canonicalOptions: supportedCliOptions,
-  optionAliases: availableCliOptionAliases,
-  optionsWithValues: Array.from(cliOptionsWithValues),
-  outputPathError: null,
-});
-const {
   activeCliOptions,
   activeCliOptionCount,
   activeCliOptionTokens,
@@ -339,10 +318,11 @@ const {
   activeCliOptionResolutionCount,
   activeCliOptionOccurrences,
   activeCliOptionOccurrenceCount,
-} = parseActiveCliOptionMetadata(cliOptionArgs, {
-  canonicalOptions: canonicalCliOptions,
+} = createCliDiagnostics(cliOptionArgs, {
+  canonicalOptions: supportedCliOptions,
   optionAliases: availableCliOptionAliases,
   optionsWithValues: Array.from(cliOptionsWithValues),
+  outputPathError: null,
 });
 const deriveValidationErrorCode = ({
   outputPathError,
