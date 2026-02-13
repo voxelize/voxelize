@@ -2023,8 +2023,8 @@ export class World<T = any> extends Scene implements NetIntercept {
   getMaxHeightAt(px: number, pz: number) {
     this.checkIsInitialized("get max height", false);
 
-    const vx = px | 0;
-    const vz = pz | 0;
+    const vx = Math.floor(px);
+    const vz = Math.floor(pz);
     const chunk = this.getLoadedChunkAtVoxel(vx, vz);
     if (!chunk) {
       return 0;
@@ -6775,9 +6775,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (!this.isTrackingChunks) return;
     const { chunkSize, maxHeight, subChunks } = this.options;
 
-    const ivx = vx | 0;
-    const ivy = vy | 0;
-    const ivz = vz | 0;
+    const ivx = Math.floor(vx);
+    const ivy = Math.floor(vy);
+    const ivz = Math.floor(vz);
     const cx = Math.floor(ivx / chunkSize);
     const cz = Math.floor(ivz / chunkSize);
     const lcx = ivx - cx * chunkSize;
@@ -6856,12 +6856,15 @@ export class World<T = any> extends Scene implements NetIntercept {
     deltaData: Partial<Omit<VoxelDelta, "coords" | "timestamp" | "sequenceId">>,
     chunkName?: string
   ) {
+    const vx = Math.floor(px);
+    const vy = Math.floor(py);
+    const vz = Math.floor(pz);
     const voxelChunkName =
       chunkName ??
-      ChunkUtils.getChunkNameByVoxel(px | 0, pz | 0, this.options.chunkSize);
+      ChunkUtils.getChunkNameByVoxel(vx, vz, this.options.chunkSize);
 
     const delta: VoxelDelta = {
-      coords: [px | 0, py | 0, pz | 0],
+      coords: [vx, vy, vz],
       oldVoxel: deltaData.oldVoxel ?? 0,
       newVoxel: deltaData.newVoxel ?? 0,
       oldRotation: deltaData.oldRotation,
