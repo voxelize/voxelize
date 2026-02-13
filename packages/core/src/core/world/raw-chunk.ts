@@ -118,8 +118,8 @@ export class RawChunk {
       return 0;
     }
 
-    const [lx, ly, lz] = this.localBuffer;
-    return this.voxels.get(lx, ly, lz);
+    const localBuffer = this.localBuffer;
+    return this.voxels.get(localBuffer[0], localBuffer[1], localBuffer[2]);
   }
 
   /**
@@ -135,8 +135,8 @@ export class RawChunk {
    */
   setRawValue(vx: number, vy: number, vz: number, val: number) {
     if (!this.contains(vx, vy, vz)) return 0;
-    const [lx, ly, lz] = this.localBuffer;
-    return this.voxels.set(lx, ly, lz, val);
+    const localBuffer = this.localBuffer;
+    return this.voxels.set(localBuffer[0], localBuffer[1], localBuffer[2], val);
   }
 
   /**
@@ -149,8 +149,8 @@ export class RawChunk {
    */
   getRawLight(vx: number, vy: number, vz: number) {
     if (!this.contains(vx, vy, vz)) return 0;
-    const [lx, ly, lz] = this.localBuffer;
-    return this.lights.get(lx, ly, lz);
+    const localBuffer = this.localBuffer;
+    return this.lights.get(localBuffer[0], localBuffer[1], localBuffer[2]);
   }
 
   /**
@@ -166,8 +166,13 @@ export class RawChunk {
    */
   setRawLight(vx: number, vy: number, vz: number, level: number) {
     if (!this.contains(vx, vy, vz)) return 0;
-    const [lx, ly, lz] = this.localBuffer;
-    return this.lights.set(lx, ly, lz, level);
+    const localBuffer = this.localBuffer;
+    return this.lights.set(
+      localBuffer[0],
+      localBuffer[1],
+      localBuffer[2],
+      level
+    );
   }
 
   /**
@@ -209,8 +214,10 @@ export class RawChunk {
    */
   getVoxelRotation(vx: number, vy: number, vz: number) {
     if (!this.contains(vx, vy, vz)) return new BlockRotation();
-    const [lx, ly, lz] = this.localBuffer;
-    return BlockUtils.extractRotation(this.voxels.get(lx, ly, lz));
+    const localBuffer = this.localBuffer;
+    return BlockUtils.extractRotation(
+      this.voxels.get(localBuffer[0], localBuffer[1], localBuffer[2])
+    );
   }
 
   /**
@@ -233,7 +240,10 @@ export class RawChunk {
       return;
     }
 
-    const [lx, ly, lz] = this.localBuffer;
+    const localBuffer = this.localBuffer;
+    const lx = localBuffer[0];
+    const ly = localBuffer[1];
+    const lz = localBuffer[2];
     const value = BlockUtils.insertRotation(this.voxels.get(lx, ly, lz), rotation);
     this.voxels.set(lx, ly, lz, value);
   }
@@ -248,8 +258,10 @@ export class RawChunk {
    */
   getVoxelStage(vx: number, vy: number, vz: number) {
     if (!this.contains(vx, vy, vz)) return 0;
-    const [lx, ly, lz] = this.localBuffer;
-    return BlockUtils.extractStage(this.voxels.get(lx, ly, lz));
+    const localBuffer = this.localBuffer;
+    return BlockUtils.extractStage(
+      this.voxels.get(localBuffer[0], localBuffer[1], localBuffer[2])
+    );
   }
 
   /**
@@ -268,7 +280,10 @@ export class RawChunk {
       return stage;
     }
 
-    const [lx, ly, lz] = this.localBuffer;
+    const localBuffer = this.localBuffer;
+    const lx = localBuffer[0];
+    const ly = localBuffer[1];
+    const lz = localBuffer[2];
     const value = BlockUtils.insertStage(this.voxels.get(lx, ly, lz), stage);
     this.voxels.set(lx, ly, lz, value);
     return stage;
@@ -287,8 +302,12 @@ export class RawChunk {
       return 0;
     }
 
-    const [lx, ly, lz] = this.localBuffer;
-    return this.getLocalRedLight(lx, ly, lz);
+    const localBuffer = this.localBuffer;
+    return this.getLocalRedLight(
+      localBuffer[0],
+      localBuffer[1],
+      localBuffer[2]
+    );
   }
 
   /**
@@ -307,8 +326,13 @@ export class RawChunk {
       return 0;
     }
 
-    const [lx, ly, lz] = this.localBuffer;
-    return this.setLocalRedLight(lx, ly, lz, level);
+    const localBuffer = this.localBuffer;
+    return this.setLocalRedLight(
+      localBuffer[0],
+      localBuffer[1],
+      localBuffer[2],
+      level
+    );
   }
 
   /**
@@ -324,8 +348,12 @@ export class RawChunk {
       return 0;
     }
 
-    const [lx, ly, lz] = this.localBuffer;
-    return this.getLocalGreenLight(lx, ly, lz);
+    const localBuffer = this.localBuffer;
+    return this.getLocalGreenLight(
+      localBuffer[0],
+      localBuffer[1],
+      localBuffer[2]
+    );
   }
 
   /**
@@ -344,8 +372,13 @@ export class RawChunk {
       return 0;
     }
 
-    const [lx, ly, lz] = this.localBuffer;
-    return this.setLocalGreenLight(lx, ly, lz, level);
+    const localBuffer = this.localBuffer;
+    return this.setLocalGreenLight(
+      localBuffer[0],
+      localBuffer[1],
+      localBuffer[2],
+      level
+    );
   }
 
   /**
@@ -361,8 +394,12 @@ export class RawChunk {
       return 0;
     }
 
-    const [lx, ly, lz] = this.localBuffer;
-    return this.getLocalBlueLight(lx, ly, lz);
+    const localBuffer = this.localBuffer;
+    return this.getLocalBlueLight(
+      localBuffer[0],
+      localBuffer[1],
+      localBuffer[2]
+    );
   }
 
   /**
@@ -381,8 +418,13 @@ export class RawChunk {
       return 0;
     }
 
-    const [lx, ly, lz] = this.localBuffer;
-    return this.setLocalBlueLight(lx, ly, lz, level);
+    const localBuffer = this.localBuffer;
+    return this.setLocalBlueLight(
+      localBuffer[0],
+      localBuffer[1],
+      localBuffer[2],
+      level
+    );
   }
 
   /**
@@ -454,8 +496,12 @@ export class RawChunk {
       return this.options.maxLightLevel;
     }
 
-    const [lx, ly, lz] = this.localBuffer;
-    return this.getLocalSunlight(lx, ly, lz);
+    const localBuffer = this.localBuffer;
+    return this.getLocalSunlight(
+      localBuffer[0],
+      localBuffer[1],
+      localBuffer[2]
+    );
   }
 
   /**
@@ -474,8 +520,13 @@ export class RawChunk {
       return 0;
     }
 
-    const [lx, ly, lz] = this.localBuffer;
-    return this.setLocalSunlight(lx, ly, lz, level);
+    const localBuffer = this.localBuffer;
+    return this.setLocalSunlight(
+      localBuffer[0],
+      localBuffer[1],
+      localBuffer[2],
+      level
+    );
   }
 
   /**
