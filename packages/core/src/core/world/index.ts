@@ -4758,7 +4758,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       gravityX * gravityX + gravityY * gravityY + gravityZ * gravityZ <
       0.01;
 
-    for (const body of this.physics.bodies) {
+    const bodies = this.physics.bodies;
+    for (let bodyIndex = 0; bodyIndex < bodies.length; bodyIndex++) {
+      const body = bodies[bodyIndex];
       const [vx, vy, vz] = body.getPosition() as Coords3;
       const cx = Math.floor(vx / chunkSize);
       const cz = Math.floor(vz / chunkSize);
