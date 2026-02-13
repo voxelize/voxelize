@@ -143,6 +143,8 @@ pnpm run check:preflight:verify:json -- --output ./preflight-report.json
 pnpm run test:scripts
 ```
 
+In JSON mode, skipped steps are represented with `skipped: true` and `exitCode: null`.
+
 visit http://localhost:3000
 
 For client-only setup details, see [`examples/client/README.md`](examples/client/README.md).

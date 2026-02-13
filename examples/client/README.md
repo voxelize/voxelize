@@ -71,5 +71,6 @@ pnpm run check:wasm:verify:json
 ```
 
 All JSON report commands include `schemaVersion: 1` for compatibility checks.
+Skipped JSON steps are represented with `skipped: true` and `exitCode: null`.
 
 This runs client typechecking and wasm-artifact preflight in sequence.
