@@ -2950,7 +2950,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
         (0, 0, -1),
     ];
 
-    let mut non_greedy_faces: Vec<(i32, i32, i32, u32, BlockFace, bool)> = Vec::new();
     let mut greedy_mask: Vec<Option<FaceData>> = Vec::new();
     let identity_rotation = BlockRotation::PY(0.0);
 
@@ -2985,12 +2984,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
             _ => (min_z, max_z),
         };
 
-        let slice_area = ((u_range.1 - u_range.0) * (v_range.1 - v_range.0)).max(0) as usize;
-        let non_greedy_target_capacity = slice_area.saturating_mul(6);
-        if non_greedy_faces.capacity() < non_greedy_target_capacity {
-            non_greedy_faces.reserve(non_greedy_target_capacity - non_greedy_faces.capacity());
-        }
-
         let mask_width = (u_range.1 - u_range.0) as usize;
         let mask_height = (v_range.1 - v_range.0) as usize;
         let mask_len = mask_width * mask_height;
@@ -2999,8 +2992,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
         }
 
         for slice in slice_range {
-            non_greedy_faces.clear();
-
             for u in u_range.0..u_range.1 {
                 for v in v_range.0..v_range.1 {
                     let current_mask_index =
@@ -3142,20 +3133,66 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 block.has_dynamic_patterns_cached()
                             };
                             if has_dynamic_patterns {
+                                let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                                let face_cache = build_face_process_cache(
+                                    block,
+                                    is_see_through,
+                                    is_fluid,
+                                    &neighbors,
+                                    registry,
+                                    vx,
+                                    vy,
+                                    vz,
+                                    voxel_id,
+                                    space,
+                                );
                                 visit_dynamic_faces(
                                     block,
                                     [vx, vy, vz],
                                     space,
                                     &rotation,
                                     |face, world_space| {
-                                    non_greedy_faces.push((
-                                        vx,
-                                        vy,
-                                        vz,
-                                        voxel_id,
-                                        face.clone(),
-                                        world_space,
-                                    ));
+                                        let geo_key = geometry_key_for_face(block, face, vx, vy, vz);
+                                        let geometry = map.entry(geo_key).or_insert_with(|| {
+                                            let mut entry = GeometryProtocol::default();
+                                            entry.voxel = voxel_id;
+                                            if face.independent || face.isolated {
+                                                entry.face_name = Some(face.name.clone());
+                                            }
+                                            if face.isolated {
+                                                entry.at = Some([vx, vy, vz]);
+                                            }
+                                            entry
+                                        });
+                                        let needs_rotation =
+                                            (block.rotatable || block.y_rotatable) && !world_space;
+                                        let face_rotation = if needs_rotation {
+                                            &rotation
+                                        } else {
+                                            &identity_rotation
+                                        };
+                                        process_face(
+                                            vx,
+                                            vy,
+                                            vz,
+                                            voxel_id,
+                                            face_rotation,
+                                            face,
+                                            &face.range,
+                                            block,
+                                            registry,
+                                            space,
+                                            &neighbors,
+                                            &face_cache,
+                                            is_see_through,
+                                            is_fluid,
+                                            &mut geometry.positions,
+                                            &mut geometry.indices,
+                                            &mut geometry.uvs,
+                                            &mut geometry.lights,
+                                            min,
+                                            world_space,
+                                        );
                                     },
                                 );
                             } else {
@@ -3439,108 +3476,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                 });
 
                 process_greedy_quad(&quad, axis, slice, dir, min, block, geometry);
-            }
-
-            let mut cached_voxel: Option<(i32, i32, i32, u32)> = None;
-            let mut cached_block: Option<&Block> = None;
-            let mut cached_neighbors: Option<NeighborCache> = None;
-            let mut cached_face_cache: Option<FaceProcessCache> = None;
-            let mut cached_rotation: Option<BlockRotation> = None;
-
-            for (
-                vx,
-                vy,
-                vz,
-                voxel_id,
-                face,
-                world_space,
-            ) in non_greedy_faces.drain(..)
-            {
-                let voxel_key = (vx, vy, vz, voxel_id);
-                if cached_voxel != Some(voxel_key) {
-                    let block = match registry.get_block_by_id(voxel_id) {
-                        Some(candidate) => candidate,
-                        None => {
-                            cached_voxel = None;
-                            cached_block = None;
-                            cached_neighbors = None;
-                            cached_face_cache = None;
-                            cached_rotation = None;
-                            continue;
-                        }
-                    };
-                    let is_see_through = block.is_see_through;
-                    let is_fluid = block.is_fluid;
-                    let neighbors = NeighborCache::populate(vx, vy, vz, space);
-                    let face_cache = build_face_process_cache(
-                        block,
-                        is_see_through,
-                        is_fluid,
-                        &neighbors,
-                        registry,
-                        vx,
-                        vy,
-                        vz,
-                        voxel_id,
-                        space,
-                    );
-                    cached_neighbors = Some(neighbors);
-                    cached_face_cache = Some(face_cache);
-                    cached_rotation = None;
-                    cached_block = Some(block);
-                    cached_voxel = Some(voxel_key);
-                }
-                let block = cached_block
-                    .expect("cached block must exist for non-greedy face");
-                let is_see_through = block.is_see_through;
-                let is_fluid = block.is_fluid;
-                let geo_key = geometry_key_for_face(block, &face, vx, vy, vz);
-
-                let geometry = map.entry(geo_key).or_insert_with(|| {
-                    let mut entry = GeometryProtocol::default();
-                    entry.voxel = voxel_id;
-                    if face.independent || face.isolated {
-                        entry.face_name = Some(face.name.clone());
-                    }
-                    if face.isolated {
-                        entry.at = Some([vx, vy, vz]);
-                    }
-                    entry
-                });
-                let neighbors = cached_neighbors
-                    .as_ref()
-                    .expect("cached neighbors must exist for non-greedy face");
-                let face_cache = cached_face_cache
-                    .as_ref()
-                    .expect("cached face data must exist for non-greedy face");
-                let needs_rotation = (block.rotatable || block.y_rotatable) && !world_space;
-                let rotation = if needs_rotation {
-                    cached_rotation.get_or_insert_with(|| space.get_voxel_rotation(vx, vy, vz))
-                } else {
-                    &identity_rotation
-                };
-                process_face(
-                    vx,
-                    vy,
-                    vz,
-                    voxel_id,
-                    rotation,
-                    &face,
-                    &face.range,
-                    block,
-                    registry,
-                    space,
-                    neighbors,
-                    face_cache,
-                    is_see_through,
-                    is_fluid,
-                    &mut geometry.positions,
-                    &mut geometry.indices,
-                    &mut geometry.uvs,
-                    &mut geometry.lights,
-                    min,
-                    world_space,
-                );
             }
         }
     }
