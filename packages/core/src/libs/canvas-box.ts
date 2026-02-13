@@ -739,10 +739,16 @@ const drawCrown: ArtFunction = (context: CanvasRenderingContext2D) => {
   ];
 
   context.fillStyle = "#f7ea00";
-  gold.forEach(([x, y]) => context.fillRect(x, y, 1, 1));
+  for (let index = 0; index < gold.length; index++) {
+    const [x, y] = gold[index];
+    context.fillRect(x, y, 1, 1);
+  }
 
   context.fillStyle = "#51c2d5";
-  blue.forEach(([x, y]) => context.fillRect(x, y, 1, 1));
+  for (let index = 0; index < blue.length; index++) {
+    const [x, y] = blue[index];
+    context.fillRect(x, y, 1, 1);
+  }
 
   context.fillStyle = "#ff005c";
   context.fillRect(3, 1, 1, 1);
