@@ -1728,16 +1728,47 @@ export class World<T = any> extends Scene implements NetIntercept {
       return allFaces;
     }
 
-    const allAvailableFaceNames = allFaces.map((f) => f.name);
-    const uniqueFaceNames = [...new Set(allAvailableFaceNames)];
-
     const faceNameArray = Array.isArray(faceNames) ? faceNames : [faceNames];
+    const faceNameRegexes = new Array<RegExp>(faceNameArray.length);
+    for (let matcherIndex = 0; matcherIndex < faceNameArray.length; matcherIndex++) {
+      const faceNamePattern = faceNameArray[matcherIndex];
+      faceNameRegexes[matcherIndex] =
+        faceNamePattern instanceof RegExp
+          ? new RegExp(faceNamePattern.source, faceNamePattern.flags)
+          : new RegExp(faceNamePattern);
+    }
 
     if (warnUnknown) {
-      for (const fn of faceNameArray) {
-        if (fn instanceof RegExp) continue;
-        const regex = new RegExp(fn);
-        const hasMatch = uniqueFaceNames.some((name) => regex.test(name));
+      const uniqueFaceNames: string[] = [];
+      const seenFaceNames = new Set<string>();
+      for (let faceIndex = 0; faceIndex < allFaces.length; faceIndex++) {
+        const faceName = allFaces[faceIndex].name;
+        if (seenFaceNames.has(faceName)) {
+          continue;
+        }
+        seenFaceNames.add(faceName);
+        uniqueFaceNames.push(faceName);
+      }
+
+      for (
+        let matcherIndex = 0;
+        matcherIndex < faceNameArray.length;
+        matcherIndex++
+      ) {
+        const fn = faceNameArray[matcherIndex];
+        if (fn instanceof RegExp) {
+          continue;
+        }
+
+        const regex = faceNameRegexes[matcherIndex];
+        let hasMatch = false;
+        for (let nameIndex = 0; nameIndex < uniqueFaceNames.length; nameIndex++) {
+          regex.lastIndex = 0;
+          if (regex.test(uniqueFaceNames[nameIndex])) {
+            hasMatch = true;
+            break;
+          }
+        }
         if (!hasMatch) {
           const suggestions = findSimilar(fn, uniqueFaceNames);
           const suggestionText = formatSuggestion(suggestions, uniqueFaceNames);
@@ -1748,24 +1779,43 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     }
 
-    return allFaces.filter((face) => {
-      if (typeof faceNames === "string" || faceNames instanceof RegExp) {
-        return new RegExp(faceNames).test(face.name);
-      } else if (Array.isArray(faceNames)) {
-        return faceNames.some((fn) => new RegExp(fn).test(face.name));
+    const matchedFaces: Block["faces"] = [];
+    for (let faceIndex = 0; faceIndex < allFaces.length; faceIndex++) {
+      const face = allFaces[faceIndex];
+      let isMatch = false;
+      for (let matcherIndex = 0; matcherIndex < faceNameRegexes.length; matcherIndex++) {
+        const matcher = faceNameRegexes[matcherIndex];
+        matcher.lastIndex = 0;
+        if (matcher.test(face.name)) {
+          isMatch = true;
+          break;
+        }
       }
-      return false;
-    });
+      if (isMatch) {
+        matchedFaces.push(face);
+      }
+    }
+    return matchedFaces;
   }
 
   private getAllBlockFaces(block: Block): Block["faces"] {
-    const result = [...block.faces];
-    const existingNames = new Set(block.faces.map((f) => f.name));
+    const blockFaces = block.faces;
+    const result = new Array<Block["faces"][number]>(blockFaces.length);
+    const existingNames = new Set<string>();
+    for (let faceIndex = 0; faceIndex < blockFaces.length; faceIndex++) {
+      const face = blockFaces[faceIndex];
+      result[faceIndex] = face;
+      existingNames.add(face.name);
+    }
 
-    if (block.dynamicPatterns) {
-      for (const pattern of block.dynamicPatterns) {
-        for (const part of pattern.parts) {
-          for (const face of part.faces) {
+    const dynamicPatterns = block.dynamicPatterns;
+    if (dynamicPatterns) {
+      for (let patternIndex = 0; patternIndex < dynamicPatterns.length; patternIndex++) {
+        const parts = dynamicPatterns[patternIndex].parts;
+        for (let partIndex = 0; partIndex < parts.length; partIndex++) {
+          const partFaces = parts[partIndex].faces;
+          for (let faceIndex = 0; faceIndex < partFaces.length; faceIndex++) {
+            const face = partFaces[faceIndex];
             if (!existingNames.has(face.name)) {
               result.push(face);
               existingNames.add(face.name);
