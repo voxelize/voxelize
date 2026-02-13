@@ -1904,11 +1904,9 @@ fn process_greedy_quad(
     let c_bt = LightUtils::extract_blue_light(face_lights[2] as u32) as i32;
     let d_bt = LightUtils::extract_blue_light(face_lights[3] as u32) as i32;
 
-    let threshold = 0;
-
-    let one_tr0 = a_rt <= threshold || b_rt <= threshold || c_rt <= threshold || d_rt <= threshold;
-    let one_tg0 = a_gt <= threshold || b_gt <= threshold || c_gt <= threshold || d_gt <= threshold;
-    let one_tb0 = a_bt <= threshold || b_bt <= threshold || c_bt <= threshold || d_bt <= threshold;
+    let one_tr0 = a_rt == 0 || b_rt == 0 || c_rt == 0 || d_rt == 0;
+    let one_tg0 = a_gt == 0 || b_gt == 0 || c_gt == 0 || d_gt == 0;
+    let one_tb0 = a_bt == 0 || b_bt == 0 || c_bt == 0 || d_bt == 0;
 
     let fequals = (face_aos[0] + face_aos[3]) == (face_aos[1] + face_aos[2]);
     let ozao_r = a_rt + d_rt < b_rt + c_rt && fequals;
@@ -2513,11 +2511,9 @@ fn process_face<S: VoxelAccess>(
     let c_bt = four_blue_lights[2];
     let d_bt = four_blue_lights[3];
 
-    let threshold = 0;
-
-    let one_tr0 = a_rt <= threshold || b_rt <= threshold || c_rt <= threshold || d_rt <= threshold;
-    let one_tg0 = a_gt <= threshold || b_gt <= threshold || c_gt <= threshold || d_gt <= threshold;
-    let one_tb0 = a_bt <= threshold || b_bt <= threshold || c_bt <= threshold || d_bt <= threshold;
+    let one_tr0 = a_rt == 0 || b_rt == 0 || c_rt == 0 || d_rt == 0;
+    let one_tg0 = a_gt == 0 || b_gt == 0 || c_gt == 0 || d_gt == 0;
+    let one_tb0 = a_bt == 0 || b_bt == 0 || c_bt == 0 || d_bt == 0;
 
     let fequals = (face_aos[0] + face_aos[3]) == (face_aos[1] + face_aos[2]);
     let ozao_r = a_rt + d_rt < b_rt + c_rt && fequals;
