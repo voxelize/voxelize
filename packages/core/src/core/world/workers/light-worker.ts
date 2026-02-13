@@ -399,12 +399,13 @@ onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
     registryInitialized = true;
 
     if (hasPendingBatchMessages()) {
-      const toProcess = pendingBatchMessages.slice(pendingBatchMessagesHead);
+      const start = pendingBatchMessagesHead;
+      const end = pendingBatchMessages.length;
+      for (let i = start; i < end; i++) {
+        processBatchMessage(pendingBatchMessages[i]);
+      }
       pendingBatchMessages.length = 0;
       pendingBatchMessagesHead = 0;
-      for (const pendingBatchMessage of toProcess) {
-        processBatchMessage(pendingBatchMessage);
-      }
     }
 
     return;

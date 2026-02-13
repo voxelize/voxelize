@@ -341,12 +341,13 @@ onmessage = async function (e: MessageEvent<MeshWorkerMessage>) {
     registryInitialized = true;
 
     if (hasPendingMeshMessages()) {
-      const toProcess = pendingMeshMessages.slice(pendingMeshMessagesHead);
+      const start = pendingMeshMessagesHead;
+      const end = pendingMeshMessages.length;
+      for (let i = start; i < end; i++) {
+        processMeshMessage(pendingMeshMessages[i]);
+      }
       pendingMeshMessages.length = 0;
       pendingMeshMessagesHead = 0;
-      for (const pendingMessage of toProcess) {
-        processMeshMessage(pendingMessage);
-      }
     }
 
     return;
