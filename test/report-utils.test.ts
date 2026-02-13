@@ -76,6 +76,20 @@ describe("report-utils", () => {
     );
     expect(invalidValue.error).toBe("Missing value for --output option.");
     expect(invalidValue.outputPath).toBeNull();
+
+    const lastOutputWins = resolveOutputPath(
+      ["--json", "--output", "./first.json", "--output", "./second.json"],
+      "/workspace"
+    );
+    expect(lastOutputWins.error).toBeNull();
+    expect(lastOutputWins.outputPath).toBe("/workspace/second.json");
+
+    const trailingMissingValue = resolveOutputPath(
+      ["--json", "--output", "./first.json", "--output"],
+      "/workspace"
+    );
+    expect(trailingMissingValue.error).toBe("Missing value for --output option.");
+    expect(trailingMissingValue.outputPath).toBeNull();
   });
 
   it("writes report json payloads to output paths", () => {

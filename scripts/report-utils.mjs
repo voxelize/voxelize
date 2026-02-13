@@ -140,7 +140,7 @@ export const deriveFailureMessageFromReport = (report) => {
 };
 
 export const resolveOutputPath = (args, cwd = process.cwd()) => {
-  const outputArgIndex = args.indexOf("--output");
+  const outputArgIndex = args.lastIndexOf("--output");
   if (outputArgIndex === -1) {
     return {
       outputPath: null,
