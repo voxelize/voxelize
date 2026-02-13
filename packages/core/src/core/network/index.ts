@@ -354,15 +354,16 @@ export class Network {
       batches.push(packets.slice(i, i + perWorker));
     }
 
-    Promise.all(
-      batches.map((batch, idx) =>
-        this.decode(batch).then((msgs) => ({ idx, msgs }))
-      )
-    ).then((results) => {
-      results.sort((a, b) => a.idx - b.idx);
-      for (const { msgs } of results) {
-        for (const message of msgs) {
-          this.onMessage(message);
+    const decodePromises = new Array<Promise<MessageProtocol[]>>(batches.length);
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      decodePromises[batchIndex] = this.decode(batches[batchIndex]);
+    }
+
+    Promise.all(decodePromises).then((results) => {
+      for (let batchIndex = 0; batchIndex < results.length; batchIndex++) {
+        const messages = results[batchIndex];
+        for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
+          this.onMessage(messages[messageIndex]);
         }
       }
     });
@@ -382,21 +383,22 @@ export class Network {
   };
 
   register = (...intercepts: NetIntercept[]) => {
-    intercepts.forEach((intercept) => {
-      this.intercepts.push(intercept);
-    });
+    for (let index = 0; index < intercepts.length; index++) {
+      this.intercepts.push(intercepts[index]);
+    }
 
     return this;
   };
 
   unregister = (...intercepts: NetIntercept[]) => {
-    intercepts.forEach((intercept) => {
+    for (let interceptIndex = 0; interceptIndex < intercepts.length; interceptIndex++) {
+      const intercept = intercepts[interceptIndex];
       const index = this.intercepts.indexOf(intercept);
 
       if (index !== -1) {
         this.intercepts.splice(index, 1);
       }
-    });
+    }
 
     return this;
   };
