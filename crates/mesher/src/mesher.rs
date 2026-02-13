@@ -24,6 +24,8 @@ pub struct Block {
     pub is_all_transparent: bool,
     #[serde(skip, default = "default_greedy_face_indices")]
     pub greedy_face_indices: [i16; 6],
+    #[serde(skip, default)]
+    pub has_standard_six_faces: bool,
     pub transparent_standalone: bool,
     #[serde(default)]
     pub occludes_fluid: bool,
@@ -40,6 +42,7 @@ impl Block {
         for face in &mut self.faces {
             face.compute_name_lower();
         }
+        self.has_standard_six_faces = has_standard_six_faces(&self.faces);
         for (face_index, face) in self.faces.iter().enumerate() {
             if let Some(dir_index) = cardinal_dir_index(face.dir) {
                 if self.greedy_face_indices[dir_index] == -1 {
@@ -75,6 +78,14 @@ impl Block {
             &self.name
         } else {
             &self.name_lower
+        }
+    }
+
+    pub fn has_standard_six_faces_cached(&self) -> bool {
+        if self.name_lower.is_empty() {
+            has_standard_six_faces(&self.faces)
+        } else {
+            self.has_standard_six_faces
         }
     }
 }
@@ -2379,7 +2390,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     let is_see_through = block.is_see_through;
 
                     let faces: Vec<(BlockFace, bool)> =
-                        if is_fluid && has_standard_six_faces(&block.faces) {
+                        if is_fluid && block.has_standard_six_faces_cached() {
                             create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
                                 .into_iter()
                                 .map(|f| (f, false))
@@ -2737,7 +2748,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
                     if is_non_greedy_block {
                         let faces: Vec<(BlockFace, bool)> =
-                            if is_fluid && has_standard_six_faces(&block.faces) {
+                            if is_fluid && block.has_standard_six_faces_cached() {
                                 create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
                                     .into_iter()
                                     .map(|face| (face, false))
@@ -3078,7 +3089,7 @@ pub fn mesh_space<S: VoxelAccess>(
                     );
                 };
 
-                if is_fluid && has_standard_six_faces(&block.faces) {
+                if is_fluid && block.has_standard_six_faces_cached() {
                     let fluid_faces =
                         create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry);
                     for face in &fluid_faces {
