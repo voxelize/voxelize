@@ -176,10 +176,16 @@ pnpm run check:preflight:list:verify:json:compact
 pnpm run check:preflight:list:dev:json
 pnpm run check:preflight:list:wasm:json
 pnpm run check:preflight:list:client:json
+# list-mode aliases for all checks
+pnpm run check:preflight:list:all:json
+pnpm run check:preflight:list:all:verify:json
 # compact list-mode aliases for single checks
 pnpm run check:preflight:list:dev:json:compact
 pnpm run check:preflight:list:wasm:json:compact
 pnpm run check:preflight:list:client:json:compact
+# compact list-mode aliases for all checks
+pnpm run check:preflight:list:all:json:compact
+pnpm run check:preflight:list:all:verify:json:compact
 # explicit all-check aliases (equivalent to default aggregate selection)
 pnpm run check:preflight:all:json
 pnpm run check:preflight:all:verify:json

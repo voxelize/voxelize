@@ -73,6 +73,18 @@ describe("script aliases", () => {
     expect(manifest.scripts["check:preflight:list:client:json:compact"]).toBe(
       "node ./check-preflight.mjs --list-checks --only client --compact"
     );
+    expect(manifest.scripts["check:preflight:list:all:json"]).toBe(
+      "node ./check-preflight.mjs --list-checks --only all"
+    );
+    expect(manifest.scripts["check:preflight:list:all:verify:json"]).toBe(
+      "node ./check-preflight.mjs --list-checks --no-build --only all"
+    );
+    expect(manifest.scripts["check:preflight:list:all:json:compact"]).toBe(
+      "node ./check-preflight.mjs --list-checks --only all --compact"
+    );
+    expect(
+      manifest.scripts["check:preflight:list:all:verify:json:compact"]
+    ).toBe("node ./check-preflight.mjs --list-checks --no-build --only all --compact");
     expect(manifest.scripts["check:preflight:all:json"]).toBe(
       "node ./check-preflight.mjs --only all"
     );
