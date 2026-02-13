@@ -2779,6 +2779,8 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         continue;
                     }
 
+                    let mut cached_neighbors = None;
+                    let mut cached_ao_light: Option<([i32; 4], [i32; 4])> = None;
                     for (face, world_space) in faces.iter() {
                         if !face_matches_direction(face, *world_space) {
                             continue;
@@ -2802,9 +2804,11 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                             continue;
                         }
 
-                        let neighbors = NeighborCache::populate(vx, vy, vz, space);
-                        let (aos, lights) =
-                            compute_face_ao_and_light(dir, block, &neighbors, registry);
+                        let (aos, lights) = *cached_ao_light.get_or_insert_with(|| {
+                            let neighbors = cached_neighbors
+                                .get_or_insert_with(|| NeighborCache::populate(vx, vy, vz, space));
+                            compute_face_ao_and_light(dir, block, neighbors, registry)
+                        });
 
                         let key = FaceKey {
                             block_id: block.id,
