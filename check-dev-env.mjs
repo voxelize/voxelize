@@ -11,6 +11,7 @@ import {
 } from "./scripts/dev-env-utils.mjs";
 import {
   createCliDiagnostics,
+  deriveCliValidationFailureMessage,
   createTimedReportBuilder,
   resolveOutputPath,
   serializeReportWithOptionalWrite,
@@ -55,6 +56,10 @@ const {
   outputPathError,
 });
 const buildTimedReport = createTimedReportBuilder();
+const validationFailureMessage = deriveCliValidationFailureMessage({
+  outputPathError,
+  unsupportedOptionsError,
+});
 const minimumVersions = loadWorkspaceMinimumVersions(__dirname);
 
 const checks = [
@@ -107,7 +112,7 @@ const checks = [
 let requiredFailures = 0;
 const checkResults = [];
 
-if (isJson && (outputPathError !== null || unsupportedOptionsError !== null)) {
+if (isJson && validationFailureMessage !== null) {
   console.log(
     toReportJson(
       buildTimedReport({
@@ -133,7 +138,7 @@ if (isJson && (outputPathError !== null || unsupportedOptionsError !== null)) {
         availableCliOptionAliases,
         availableCliOptionCanonicalMap,
         validationErrorCode,
-        message: outputPathError ?? unsupportedOptionsError,
+        message: validationFailureMessage,
       }),
       jsonFormat
     )
@@ -141,13 +146,8 @@ if (isJson && (outputPathError !== null || unsupportedOptionsError !== null)) {
   process.exit(1);
 }
 
-if (!isJson && outputPathError !== null) {
-  console.error(outputPathError);
-  process.exit(1);
-}
-
-if (!isJson && unsupportedOptionsError !== null) {
-  console.error(unsupportedOptionsError);
+if (!isJson && validationFailureMessage !== null) {
+  console.error(validationFailureMessage);
   process.exit(1);
 }
 

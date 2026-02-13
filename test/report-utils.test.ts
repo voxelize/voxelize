@@ -10,6 +10,7 @@ import {
   createCliDiagnostics,
   createTimedReportBuilder,
   createCliOptionValidation,
+  deriveCliValidationFailureMessage,
   deriveFailureMessageFromReport,
   hasCliOption,
   parseActiveCliOptionMetadata,
@@ -472,6 +473,26 @@ describe("report-utils", () => {
     expect(outputErrorPriority.validationErrorCode).toBe(
       "output_option_missing_value"
     );
+  });
+
+  it("derives cli validation failure messages with output priority", () => {
+    const noFailureMessage = deriveCliValidationFailureMessage({
+      outputPathError: null,
+      unsupportedOptionsError: null,
+    });
+    expect(noFailureMessage).toBeNull();
+
+    const unsupportedOnly = deriveCliValidationFailureMessage({
+      outputPathError: null,
+      unsupportedOptionsError: "Unsupported option(s): --mystery.",
+    });
+    expect(unsupportedOnly).toBe("Unsupported option(s): --mystery.");
+
+    const outputPriority = deriveCliValidationFailureMessage({
+      outputPathError: "Missing value for --output option.",
+      unsupportedOptionsError: "Unsupported option(s): --mystery.",
+    });
+    expect(outputPriority).toBe("Missing value for --output option.");
   });
 
   it("creates cli option catalogs with canonical token mapping", () => {

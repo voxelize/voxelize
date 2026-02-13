@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { resolvePnpmCommand } from "./scripts/command-utils.mjs";
 import {
   createCliDiagnostics,
+  deriveCliValidationFailureMessage,
   createTimedReportBuilder,
   hasCliOption,
   parseJsonOutput,
@@ -66,10 +67,14 @@ const {
   outputPathError,
 });
 const buildTimedReport = createTimedReportBuilder();
+const validationFailureMessage = deriveCliValidationFailureMessage({
+  outputPathError,
+  unsupportedOptionsError,
+});
 const stepResults = [];
 let exitCode = 0;
 
-if (isJson && (outputPathError !== null || unsupportedOptionsError !== null)) {
+if (isJson && validationFailureMessage !== null) {
   console.log(
     toReportJson(
       buildTimedReport({
@@ -96,7 +101,7 @@ if (isJson && (outputPathError !== null || unsupportedOptionsError !== null)) {
         validationErrorCode,
         steps: [],
         ...summarizeStepResults([]),
-        message: outputPathError ?? unsupportedOptionsError,
+        message: validationFailureMessage,
       }),
       jsonFormat
     )
@@ -104,13 +109,8 @@ if (isJson && (outputPathError !== null || unsupportedOptionsError !== null)) {
   process.exit(1);
 }
 
-if (!isJson && outputPathError !== null) {
-  console.error(outputPathError);
-  process.exit(1);
-}
-
-if (!isJson && unsupportedOptionsError !== null) {
-  console.error(unsupportedOptionsError);
+if (!isJson && validationFailureMessage !== null) {
+  console.error(validationFailureMessage);
   process.exit(1);
 }
 

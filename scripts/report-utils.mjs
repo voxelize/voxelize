@@ -410,6 +410,21 @@ export const createCliOptionValidation = (
   };
 };
 
+export const deriveCliValidationFailureMessage = ({
+  outputPathError = null,
+  unsupportedOptionsError = null,
+} = {}) => {
+  if (outputPathError !== null) {
+    return outputPathError;
+  }
+
+  if (unsupportedOptionsError !== null) {
+    return unsupportedOptionsError;
+  }
+
+  return null;
+};
+
 export const parseActiveCliOptionMetadata = (
   args,
   {
