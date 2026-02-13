@@ -1987,16 +1987,16 @@ fn evaluate_block_rule<S: VoxelAccess>(
                 }
             }
 
-            let actual_rotation =
-                space.get_voxel_rotation(check_pos[0], check_pos[1], check_pos[2]);
             if let Some(expected_rotation) = &simple.rotation {
+                let actual_rotation =
+                    space.get_voxel_rotation(check_pos[0], check_pos[1], check_pos[2]);
                 if actual_rotation != *expected_rotation {
                     rule_ok = false;
                 }
             }
 
-            let actual_stage = space.get_voxel_stage(check_pos[0], check_pos[1], check_pos[2]);
             if let Some(expected_stage) = simple.stage {
+                let actual_stage = space.get_voxel_stage(check_pos[0], check_pos[1], check_pos[2]);
                 if actual_stage != expected_stage {
                     rule_ok = false;
                 }
