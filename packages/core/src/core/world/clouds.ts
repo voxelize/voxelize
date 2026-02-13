@@ -339,8 +339,32 @@ export class Clouds extends Group {
    */
   private shiftX = async (direction = 1) => {
     const { width } = this.options;
+    const meshes = this.meshes;
 
-    const arr = direction > 0 ? this.meshes.shift() : this.meshes.pop();
+    if (!meshes || meshes.length === 0) {
+      return;
+    }
+
+    let arr: Mesh[] | undefined;
+    if (direction > 0) {
+      arr = meshes[0];
+      if (!arr) {
+        return;
+      }
+      if (width > 1) {
+        meshes.copyWithin(0, 1, width);
+      }
+      meshes[width - 1] = arr;
+    } else {
+      arr = meshes[width - 1];
+      if (!arr) {
+        return;
+      }
+      if (width > 1) {
+        meshes.copyWithin(1, 0, width - 1);
+      }
+      meshes[0] = arr;
+    }
 
     for (let z = 0; z < width; z++) {
       await this.makeCell(
@@ -348,12 +372,6 @@ export class Clouds extends Group {
         z + this.zOffset,
         arr[z]
       );
-    }
-
-    if (direction > 0) {
-      this.meshes.push(arr);
-    } else {
-      this.meshes.unshift(arr);
     }
 
     this.xOffset += direction;
@@ -382,25 +400,34 @@ export class Clouds extends Group {
         continue;
       }
 
-      // Safe array mutations with null checks
-      const cell = direction > 0 ? arr.shift() : arr.pop();
-
-      if (!cell) {
-        continue;
-      }
-
-      // Generate new cell
-      const newCell = await this.makeCell(
-        x + this.xOffset,
-        this.zOffset + (direction > 0 ? width : 0),
-        cell
-      );
-
-      // Safe array insertions
       if (direction > 0) {
-        arr.push(newCell);
+        const cell = arr[0];
+        if (!cell) {
+          continue;
+        }
+        const newCell = await this.makeCell(
+          x + this.xOffset,
+          this.zOffset + width,
+          cell
+        );
+        if (width > 1) {
+          arr.copyWithin(0, 1, width);
+        }
+        arr[width - 1] = newCell;
       } else {
-        arr.unshift(newCell);
+        const cell = arr[width - 1];
+        if (!cell) {
+          continue;
+        }
+        const newCell = await this.makeCell(
+          x + this.xOffset,
+          this.zOffset,
+          cell
+        );
+        if (width > 1) {
+          arr.copyWithin(1, 0, width - 1);
+        }
+        arr[0] = newCell;
       }
     }
 
