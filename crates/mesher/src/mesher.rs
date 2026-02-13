@@ -3386,12 +3386,13 @@ pub fn mesh_space<S: VoxelAccess>(
                 let is_empty = block.is_empty;
                 let is_opaque = block.is_opaque;
                 let is_fluid = block.is_fluid;
+                let has_dynamic_patterns = block.dynamic_patterns.is_some();
 
                 if is_empty {
                     continue;
                 }
 
-                if !is_fluid && block.dynamic_patterns.is_none() && block.faces.is_empty() {
+                if !is_fluid && !has_dynamic_patterns && block.faces.is_empty() {
                     continue;
                 }
 
@@ -3401,7 +3402,10 @@ pub fn mesh_space<S: VoxelAccess>(
                     }
                 }
 
-                let rotation = space.get_voxel_rotation(vx, vy, vz);
+                let mut rotation = BlockRotation::PY(0.0);
+                if block.rotatable || block.y_rotatable || has_dynamic_patterns {
+                    rotation = space.get_voxel_rotation(vx, vy, vz);
+                }
                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
                 let is_all_transparent = block.is_all_transparent;
                 let face_cache = FaceProcessCache {
@@ -3459,7 +3463,7 @@ pub fn mesh_space<S: VoxelAccess>(
                 };
 
                 let uses_main_geometry_only = !is_fluid
-                    && block.dynamic_patterns.is_none()
+                    && !has_dynamic_patterns
                     && !block.has_independent_or_isolated_faces_cached();
                 if uses_main_geometry_only {
                     let geometry = map.entry(GeometryMapKey::Block(block.id)).or_insert_with(|| {
@@ -3498,7 +3502,7 @@ pub fn mesh_space<S: VoxelAccess>(
                     for face in &fluid_faces {
                         process_single_face(face, false);
                     }
-                } else if block.dynamic_patterns.is_some() {
+                } else if has_dynamic_patterns {
                     let dynamic_faces = get_dynamic_faces(block, [vx, vy, vz], space, &rotation);
                     for (face, world_space) in &dynamic_faces {
                         process_single_face(face, *world_space);
