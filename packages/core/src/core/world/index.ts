@@ -6095,11 +6095,16 @@ export class World<T = any> extends Scene implements NetIntercept {
     const maxChunkZ = Math.floor(maxZ / chunkSize);
     const gridWidth = maxChunkX - minChunkX + 1;
     const gridDepth = maxChunkZ - minChunkZ + 1;
+    const gridChunkCount = gridWidth * gridDepth;
 
-    const relevantDeltas: { cx: number; cz: number; deltas: VoxelDelta[] }[] =
-      [];
+    const relevantDeltas = new Array<{
+      cx: number;
+      cz: number;
+      deltas: VoxelDelta[];
+    }>(gridChunkCount);
+    let relevantDeltaCount = 0;
     let lastRelevantSequenceId = 0;
-    const chunksData: (object | null)[] = new Array(gridWidth * gridDepth);
+    const chunksData: (object | null)[] = new Array(gridChunkCount);
     const arrayBuffers: ArrayBuffer[] = [];
     let chunkDataIndex = 0;
 
@@ -6121,14 +6126,15 @@ export class World<T = any> extends Scene implements NetIntercept {
             if (chunkLastSequenceId > lastRelevantSequenceId) {
               lastRelevantSequenceId = chunkLastSequenceId;
             }
-            relevantDeltas.push({
+            relevantDeltas[relevantDeltaCount] = {
               cx,
               cz,
               deltas:
                 firstRelevantIndex === 0
                   ? allDeltas
                   : allDeltas.slice(firstRelevantIndex),
-            });
+            };
+            relevantDeltaCount++;
           }
         }
 
@@ -6145,6 +6151,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
       }
     }
+    relevantDeltas.length = relevantDeltaCount;
 
     this.lightWorkerPool.addJob({
       message: {
