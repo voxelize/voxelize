@@ -423,7 +423,7 @@ impl NeighborCache {
     }
 }
 
-#[inline]
+#[inline(always)]
 fn build_neighbor_opaque_mask(neighbors: &NeighborCache, registry: &Registry) -> [bool; 27] {
     let mut mask = [false; 27];
     for x in -1..=1 {
