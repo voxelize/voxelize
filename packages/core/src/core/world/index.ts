@@ -932,6 +932,10 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private startDeltaCleanup() {
     this.cleanupDeltasInterval = setInterval(() => {
+      if (this.voxelDeltas.size === 0) {
+        return;
+      }
+
       const cutoff = performance.now() - this.options.deltaRetentionTime;
 
       for (const [chunkName, deltas] of this.voxelDeltas) {
