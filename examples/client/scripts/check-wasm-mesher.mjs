@@ -63,8 +63,6 @@ const {
   optionsWithValues: ["--output"],
   outputPathError,
 });
-const normalizedValidationErrorCode =
-  outputPathError !== null ? "output_option_missing_value" : validationErrorCode;
 const buildTimedReport = createTimedReportBuilder();
 
 if (isJson && (outputPathError !== null || unsupportedOptionsError !== null)) {
@@ -96,7 +94,7 @@ if (isJson && (outputPathError !== null || unsupportedOptionsError !== null)) {
         supportedCliOptions,
         availableCliOptionAliases,
         availableCliOptionCanonicalMap,
-        validationErrorCode: normalizedValidationErrorCode,
+        validationErrorCode,
         message: outputPathError ?? unsupportedOptionsError,
       }),
       jsonFormat
