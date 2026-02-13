@@ -49,6 +49,8 @@ From the repository root you can also run:
 
 ```bash
 pnpm run check:client
+# quiet mode (errors only)
+pnpm run check:client -- --quiet
 ```
 
 This runs client typechecking and wasm-artifact preflight in sequence.

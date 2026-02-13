@@ -79,6 +79,8 @@ pnpm install
 
 # verify local tooling and minimum versions
 pnpm run check:dev-env
+# quiet mode (errors only)
+pnpm run check:dev-env -- --quiet
 
 # verify wasm-pack setup
 pnpm run check:wasm-pack
@@ -104,9 +106,13 @@ pnpm run check:client:wasm
 
 # run both client checks in sequence
 pnpm run check:client
+# quiet mode (errors only)
+pnpm run check:client -- --quiet
 
 # run full onboarding checks (tooling + client)
 pnpm run check:onboarding
+# quiet mode (errors only)
+pnpm run check:onboarding -- --quiet
 
 # run root script checks and command utility tests
 pnpm run test:scripts
