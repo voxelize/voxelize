@@ -63,7 +63,8 @@ Checkout the Voxelize documentations here:
 Before starting, make sure to install the following:
 
 - [rust](https://www.rust-lang.org/tools/install)
-- [node.js](https://nodejs.org/en/download/)
+- [node.js (>=18)](https://nodejs.org/en/download/)
+- [pnpm (>=10)](https://pnpm.io/installation)
 - [wasm-pack](https://rustwasm.github.io/wasm-pack/installer/)
 - [cargo-watch](https://crates.io/crates/cargo-watch)
 - [protoc](https://grpc.io/docs/protoc-installation/)

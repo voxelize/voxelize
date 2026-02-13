@@ -4,8 +4,10 @@ This example runs the browser client against the demo server.
 
 ## Prerequisites
 
-- `pnpm install` at the repository root
+- Node.js 18+
+- pnpm 10+
 - `wasm-pack` installed
+- `pnpm install` at the repository root
 
 Before running client commands, you can verify toolchain availability from the repository root:
 
