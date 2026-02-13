@@ -59,6 +59,8 @@ const defaultOptions: PortraitOptions = {
   lightRotationOffset: -Math.PI / 8,
 };
 
+const PORTRAIT_LIGHT_AXIS = new Vector3(0, 1, 0);
+
 /**
  * This class allows you to render a single THREE.js object to a canvas element.
  * This is useful for generating images of objects for use in the game. However, there
@@ -108,6 +110,7 @@ export class Portrait {
    * The canvas element to render this portrait to.
    */
   public canvas: HTMLCanvasElement;
+  private canvasContext: CanvasRenderingContext2D;
 
   /**
    * The target of this portrait.
@@ -118,6 +121,7 @@ export class Portrait {
    * The animation frame id of the render loop.
    */
   private animationFrameId = -1;
+  private rendererSize = new Vector2();
 
   /**
    * Create a new portrait. This automatically starts a render loop.
@@ -141,6 +145,11 @@ export class Portrait {
     this.canvas = document.createElement("canvas");
     this.canvas.width = width;
     this.canvas.height = height;
+    const canvasContext = this.canvas.getContext("2d");
+    if (!canvasContext) {
+      throw new Error("Failed to create portrait canvas context.");
+    }
+    this.canvasContext = canvasContext;
 
     this.scene = new Scene();
 
@@ -161,7 +170,7 @@ export class Portrait {
 
     const lightPosition = this.camera.position.clone();
     // Rotate light position by y axis 45 degrees.
-    lightPosition.applyAxisAngle(new Vector3(0, 1, 0), lightRotationOffset);
+    lightPosition.applyAxisAngle(PORTRAIT_LIGHT_AXIS, lightRotationOffset);
 
     const light = new DirectionalLight(0xffffff, 3);
     light.position.copy(lightPosition);
@@ -207,7 +216,9 @@ export class Portrait {
     const { renderOnce } = this.options;
 
     // Get the renderer's sizes
-    const { width, height } = renderer.getSize(new Vector2(0, 0));
+    const rendererSize = renderer.getSize(this.rendererSize);
+    const width = rendererSize.x;
+    const height = rendererSize.y;
 
     if (width !== this.canvas.width || height !== this.canvas.height) {
       renderer.setSize(this.canvas.width, this.canvas.height);
@@ -216,7 +227,7 @@ export class Portrait {
     renderer.render(this.scene, this.camera);
 
     const rendererCanvas = renderer.domElement;
-    const ctx = this.canvas.getContext("2d");
+    const ctx = this.canvasContext;
 
     ctx.globalCompositeOperation = "copy";
     ctx.drawImage(
