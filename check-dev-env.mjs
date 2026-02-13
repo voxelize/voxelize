@@ -12,6 +12,7 @@ import {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const isQuiet = process.argv.includes("--quiet");
 const minimumVersions = loadWorkspaceMinimumVersions(__dirname);
 
 const checks = [
@@ -117,7 +118,9 @@ for (const check of checks) {
     }
   }
 
-  console.log(`✓ ${check.label}: ${firstLine}`);
+  if (!isQuiet) {
+    console.log(`✓ ${check.label}: ${firstLine}`);
+  }
 }
 
 if (requiredFailures > 0) {
@@ -127,4 +130,6 @@ if (requiredFailures > 0) {
   process.exit(1);
 }
 
-console.log("Environment check passed.");
+if (!isQuiet) {
+  console.log("Environment check passed.");
+}

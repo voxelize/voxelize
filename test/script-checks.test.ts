@@ -60,6 +60,12 @@ describe("root preflight scripts", () => {
     expect(result.output).toContain("Environment check failed:");
   });
 
+  it("check-dev-env quiet mode suppresses success lines", () => {
+    const result = runScript("check-dev-env.mjs", ["--quiet"]);
+
+    expect(result.output).not.toContain("✓ ");
+  });
+
   it("check-client returns pass or fail summary", () => {
     const result = runScript("check-client.mjs");
     expect(result.output).toContain(
