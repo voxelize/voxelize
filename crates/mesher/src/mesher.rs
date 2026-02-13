@@ -3239,7 +3239,44 @@ pub fn mesh_space<S: VoxelAccess>(
                     );
                 };
 
-                if is_fluid && block.has_standard_six_faces_cached() {
+                let uses_main_geometry_only = !is_fluid
+                    && block.dynamic_patterns.is_none()
+                    && block
+                        .faces
+                        .iter()
+                        .all(|face| !face.independent && !face.isolated);
+                if uses_main_geometry_only {
+                    let geometry = map.entry(GeometryMapKey::Block(block.id)).or_insert_with(|| {
+                        let mut entry = GeometryProtocol::default();
+                        entry.voxel = block.id;
+                        entry
+                    });
+
+                    for face in &block.faces {
+                        process_face(
+                            vx,
+                            vy,
+                            vz,
+                            voxel_id,
+                            &rotation,
+                            face,
+                            &face.range,
+                            block,
+                            registry,
+                            space,
+                            &neighbors,
+                            &face_cache,
+                            is_see_through,
+                            is_fluid,
+                            &mut geometry.positions,
+                            &mut geometry.indices,
+                            &mut geometry.uvs,
+                            &mut geometry.lights,
+                            min,
+                            false,
+                        );
+                    }
+                } else if is_fluid && block.has_standard_six_faces_cached() {
                     let fluid_faces =
                         create_fluid_faces(vx, vy, vz, block.id, space, block, registry);
                     for face in &fluid_faces {
