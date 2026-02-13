@@ -382,61 +382,82 @@ export class Arm extends THREE.Group {
     this.currentArmObject = object;
   };
 
+  private injectHeldObjectShadowMaterial(material: THREE.Material) {
+    if (!(material instanceof THREE.MeshBasicMaterial)) {
+      return;
+    }
+
+    const shadowUniforms = createEntityShadowUniforms();
+    this.heldObjectShadowUniforms.push(shadowUniforms);
+
+    material.onBeforeCompile = (shader) => {
+      Object.assign(shader.uniforms, shadowUniforms);
+
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          "#include <uv_pars_vertex>",
+          `#include <uv_pars_vertex>
+${ENTITY_SHADOW_VERTEX_PARS}
+`
+        )
+        .replace(
+          "#include <worldpos_vertex>",
+          `#include <worldpos_vertex>
+vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
+${ENTITY_SHADOW_VERTEX_MAIN}
+`
+        );
+
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          "#include <common>",
+          `#include <common>
+${ENTITY_SHADOW_FRAGMENT_PARS}
+`
+        )
+        .replace(
+          "#include <dithering_fragment>",
+          `#include <dithering_fragment>
+float shadow = getEntityShadow(vec3(0.0, 1.0, 0.0));
+gl_FragColor.rgb *= shadow;
+`
+        );
+    };
+
+    material.onBeforeCompile.toString = () => "held-object-shadow-shader";
+    material.needsUpdate = true;
+  }
+
   private injectShadowShaders(object: THREE.Object3D): void {
     if (!this.options.receiveShadows) return;
 
     this.heldObjectShadowUniforms = [];
+    const shadowTraversalStack = this.shadowTraversalStack;
+    shadowTraversalStack.length = 0;
+    shadowTraversalStack.push(object);
 
-    object.traverse((child) => {
-      if (!(child instanceof THREE.Mesh)) return;
-      const materials = Array.isArray(child.material)
-        ? child.material
-        : [child.material];
-
-      for (const material of materials) {
-        if (!(material instanceof THREE.MeshBasicMaterial)) continue;
-
-        const shadowUniforms = createEntityShadowUniforms();
-        this.heldObjectShadowUniforms.push(shadowUniforms);
-
-        material.onBeforeCompile = (shader) => {
-          Object.assign(shader.uniforms, shadowUniforms);
-
-          shader.vertexShader = shader.vertexShader
-            .replace(
-              "#include <uv_pars_vertex>",
-              `#include <uv_pars_vertex>
-${ENTITY_SHADOW_VERTEX_PARS}
-`
-            )
-            .replace(
-              "#include <worldpos_vertex>",
-              `#include <worldpos_vertex>
-vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
-${ENTITY_SHADOW_VERTEX_MAIN}
-`
-            );
-
-          shader.fragmentShader = shader.fragmentShader
-            .replace(
-              "#include <common>",
-              `#include <common>
-${ENTITY_SHADOW_FRAGMENT_PARS}
-`
-            )
-            .replace(
-              "#include <dithering_fragment>",
-              `#include <dithering_fragment>
-float shadow = getEntityShadow(vec3(0.0, 1.0, 0.0));
-gl_FragColor.rgb *= shadow;
-`
-            );
-        };
-
-        material.onBeforeCompile.toString = () => "held-object-shadow-shader";
-        material.needsUpdate = true;
+    while (shadowTraversalStack.length > 0) {
+      const child = shadowTraversalStack.pop();
+      if (!child) {
+        continue;
       }
-    });
+
+      if (child instanceof THREE.Mesh) {
+        if (Array.isArray(child.material)) {
+          const materials = child.material;
+          for (let materialIndex = 0; materialIndex < materials.length; materialIndex++) {
+            this.injectHeldObjectShadowMaterial(materials[materialIndex]);
+          }
+        } else {
+          this.injectHeldObjectShadowMaterial(child.material);
+        }
+      }
+
+      const children = child.children;
+      for (let childIndex = 0; childIndex < children.length; childIndex++) {
+        shadowTraversalStack.push(children[childIndex]);
+      }
+    }
   }
 
   /**
@@ -552,19 +573,36 @@ gl_FragColor.rgb *= shadow;
       const child = this.children[childIndex];
       if (child instanceof CanvasBox) {
         child.paint("all", texture);
+        const shadowTraversalStack = this.shadowTraversalStack;
+        shadowTraversalStack.length = 0;
+        shadowTraversalStack.push(child);
 
-        child.traverse((obj) => {
+        while (shadowTraversalStack.length > 0) {
+          const obj = shadowTraversalStack.pop();
+          if (!obj) {
+            continue;
+          }
+
           if (obj instanceof THREE.Mesh) {
             if (Array.isArray(obj.material)) {
               const materials = obj.material;
-              for (let materialIndex = 0; materialIndex < materials.length; materialIndex++) {
+              for (
+                let materialIndex = 0;
+                materialIndex < materials.length;
+                materialIndex++
+              ) {
                 materials[materialIndex].needsUpdate = true;
               }
             } else {
               obj.material.needsUpdate = true;
             }
           }
-        });
+
+          const objChildren = obj.children;
+          for (let objChildIndex = 0; objChildIndex < objChildren.length; objChildIndex++) {
+            shadowTraversalStack.push(objChildren[objChildIndex]);
+          }
+        }
       }
     }
   };
