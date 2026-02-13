@@ -4031,18 +4031,17 @@ export class World<T = any> extends Scene implements NetIntercept {
           if (block) {
             for (const face of block.faces) {
               if (face.isolated) {
-                const material = this.getBlockFaceMaterial(
+                const materialKey = this.makeChunkMaterialKey(
                   block.id,
                   face.name,
                   voxelCoords
                 );
+                const material = this.chunkRenderer.materials.get(materialKey);
                 if (material) {
                   material.dispose();
                   material.map?.dispose();
                 }
-                this.chunkRenderer.materials.delete(
-                  this.makeChunkMaterialKey(block.id, face.name, voxelCoords)
-                );
+                this.chunkRenderer.materials.delete(materialKey);
               }
             }
           }
