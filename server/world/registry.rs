@@ -361,10 +361,14 @@ impl Registry {
         let lower_name = name.to_lowercase();
         let existing_id_for_name = self.blocks_by_name.get(&lower_name).map(|existing| existing.id);
         let existing_name_for_id = self.name_map.get(id).cloned();
+        let mut ids_to_clear_textures = HashSet::new();
+
+        ids_to_clear_textures.insert(*id);
 
         if let Some(existing_id) = existing_id_for_name {
             self.blocks_by_id.remove(&existing_id);
             self.name_map.remove(&existing_id);
+            ids_to_clear_textures.insert(existing_id);
         }
         if let Some(existing_name) = existing_name_for_id {
             self.blocks_by_name.remove(&existing_name);
@@ -375,6 +379,8 @@ impl Registry {
         self.blocks_by_id.remove(id);
         self.name_map.remove(id);
         self.type_map.remove(&lower_name);
+        self.textures
+            .retain(|(texture_id, _, _)| !ids_to_clear_textures.contains(texture_id));
 
         self.blocks_by_name
             .insert(lower_name.clone(), block.clone());

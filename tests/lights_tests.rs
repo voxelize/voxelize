@@ -516,6 +516,39 @@ fn test_register_block_replacing_existing_name_removes_old_id_mapping() {
 }
 
 #[test]
+fn test_register_block_replacing_name_clears_old_texture_entries() {
+    let mut registry = create_test_registry();
+
+    assert!(
+        registry
+            .textures
+            .iter()
+            .find(|(id, _, _)| *id == 2)
+            .is_some(),
+        "precondition: original torch texture entries should exist"
+    );
+
+    registry.register_block(&Block::new("torch").id(41).faces(&[]).build());
+
+    assert!(
+        registry
+            .textures
+            .iter()
+            .find(|(id, _, _)| *id == 2)
+            .is_none(),
+        "texture entries for replaced id should be removed"
+    );
+    assert!(
+        registry
+            .textures
+            .iter()
+            .find(|(id, _, _)| *id == 41)
+            .is_none(),
+        "replacement block with no faces should not leave texture entries"
+    );
+}
+
+#[test]
 fn test_register_blocks_empty_keeps_conversion_caches() {
     let mut registry = create_test_registry();
 
