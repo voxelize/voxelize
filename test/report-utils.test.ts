@@ -28,6 +28,10 @@ describe("report-utils", () => {
     expect(parseJsonOutput("not-json")).toBeNull();
   });
 
+  it("returns null for whitespace-only output", () => {
+    expect(parseJsonOutput("   \n\t  \n")).toBeNull();
+  });
+
   it("parses compact json lines when logs are present", () => {
     expect(
       parseJsonOutput(`warning: preflight noise\n{"ok":true,"exitCode":0}`)
