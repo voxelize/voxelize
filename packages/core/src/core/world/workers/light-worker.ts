@@ -81,6 +81,7 @@ interface DeltaBatch {
   cx: number;
   cz: number;
   deltas: VoxelDelta[];
+  startIndex?: number;
 }
 
 interface LightBatchMessage {
@@ -276,6 +277,7 @@ const applyRelevantDeltas = (
   for (let batchIndex = 0; batchIndex < relevantDeltas.length; batchIndex++) {
     const deltaBatch = relevantDeltas[batchIndex];
     const { cx, cz, deltas } = deltaBatch;
+    const startIndex = deltaBatch.startIndex ?? 0;
     const localX = cx - gridOffsetX;
     const localZ = cz - gridOffsetZ;
 
@@ -300,7 +302,7 @@ const applyRelevantDeltas = (
       }
     }
 
-    for (let deltaIndex = 0; deltaIndex < deltas.length; deltaIndex++) {
+    for (let deltaIndex = startIndex; deltaIndex < deltas.length; deltaIndex++) {
       const delta = deltas[deltaIndex];
       const { coords, newVoxel, newRotation, newStage } = delta;
       const vx = coords[0];

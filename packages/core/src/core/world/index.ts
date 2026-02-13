@@ -6601,6 +6601,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       cx: number;
       cz: number;
       deltas: VoxelDelta[];
+      startIndex: number;
     }>(gridChunkCount);
     let relevantDeltaCount = 0;
     let lastRelevantSequenceId = 0;
@@ -6630,10 +6631,8 @@ export class World<T = any> extends Scene implements NetIntercept {
               relevantDeltas[relevantDeltaCount] = {
                 cx,
                 cz,
-                deltas:
-                  firstRelevantIndex === 0
-                    ? allDeltas
-                    : allDeltas.slice(firstRelevantIndex),
+                deltas: allDeltas,
+                startIndex: firstRelevantIndex,
               };
               relevantDeltaCount++;
             }
