@@ -588,10 +588,11 @@ fn build_neighbor_opaque_mask(neighbors: &NeighborCache, registry: &Registry) ->
     }
 
     if let Some(cache) = &registry.lookup_cache {
+        let blocks = &registry.blocks_by_id;
         for (idx, entry) in neighbors.data.iter().enumerate() {
             let voxel_id = entry[0] & 0xFFFF;
             if let Some(&lookup_index) = cache.get(&voxel_id) {
-                mask[idx] = registry.blocks_by_id[lookup_index].1.is_opaque;
+                mask[idx] = blocks[lookup_index].1.is_opaque;
             }
         }
         return mask;
@@ -1454,9 +1455,10 @@ fn is_surrounded_by_opaque_neighbors<S: VoxelAccess>(
     }
 
     if let Some(cache) = &registry.lookup_cache {
+        let blocks = &registry.blocks_by_id;
         let is_opaque = |id: u32| {
             if let Some(&lookup_index) = cache.get(&id) {
-                registry.blocks_by_id[lookup_index].1.is_opaque
+                blocks[lookup_index].1.is_opaque
             } else {
                 false
             }
