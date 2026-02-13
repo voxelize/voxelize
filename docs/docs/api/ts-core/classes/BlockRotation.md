@@ -10,13 +10,13 @@ custom_edit_url: null
 
 ### constructor
 
-• **new BlockRotation**(`axis?`, `yRotation?`): [`BlockRotation`](BlockRotation.md)
+• **new BlockRotation**(`value?`, `yRotation?`): [`BlockRotation`](BlockRotation.md)
 
 #### Parameters
 
 | Name | Type | Default value |
 | :------ | :------ | :------ |
-| `axis` | `number` | `PY_ROTATION` |
+| `value` | `number` | `PY_ROTATION` |
 | `yRotation` | `number` | `0` |
 
 #### Returns
@@ -25,15 +25,37 @@ custom_edit_url: null
 
 ## Properties
 
-### axis
+### value
 
-• **axis**: `number` = `PY_ROTATION`
+• **value**: `number` = `PY_ROTATION`
 
 ___
 
 ### yRotation
 
 • **yRotation**: `number` = `0`
+
+## Accessors
+
+### axis
+
+• `get` **axis**(): `number`
+
+#### Returns
+
+`number`
+
+• `set` **axis**(`axis`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `axis` | `number` |
+
+#### Returns
+
+`void`
 
 ## Methods
 

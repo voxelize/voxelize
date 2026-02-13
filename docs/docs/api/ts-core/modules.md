@@ -154,6 +154,24 @@ ___
 
 ___
 
+### Y\_ROT\_MAP
+
+• `Const` **Y\_ROT\_MAP**: [`number`, `number`][] = `[]`
+
+___
+
+### Y\_ROT\_MAP\_EIGHT
+
+• `Const` **Y\_ROT\_MAP\_EIGHT**: [`number`, `number`][] = `[]`
+
+___
+
+### Y\_ROT\_MAP\_FOUR
+
+• `Const` **Y\_ROT\_MAP\_FOUR**: [`number`, `number`][] = `[]`
+
+___
+
 ### Y\_ROT\_SEGMENTS
 
 • `Const` **Y\_ROT\_SEGMENTS**: ``16``
