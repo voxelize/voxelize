@@ -465,6 +465,54 @@ describe("client wasm preflight script", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("uses the last output flag when no-build aliases appear between outputs", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-wasm-preflight-last-output-strict-no-build-alias-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+    const secondOutputPath = path.resolve(tempDirectory, "second-report.json");
+
+    const result = spawnSync(
+      process.execPath,
+      [
+        wasmMesherScript,
+        "--json",
+        "--output",
+        firstOutputPath,
+        "--verify",
+        "--output",
+        secondOutputPath,
+      ],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const stdoutReport = JSON.parse(
+      `${result.stdout}${result.stderr}`
+    ) as WasmMesherJsonReport;
+    const secondFileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as WasmMesherJsonReport;
+
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(stdoutReport.buildSkipped).toBe(true);
+    expect(stdoutReport.unknownOptions).toEqual([]);
+    expect(stdoutReport.unknownOptionCount).toBe(0);
+    expect(stdoutReport.validationErrorCode).toBeNull();
+    expect(stdoutReport.activeCliOptions).toEqual([
+      "--json",
+      "--no-build",
+      "--output",
+    ]);
+    expect(secondFileReport.outputPath).toBe(secondOutputPath);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("fails with structured output when output value is missing", () => {
     const result = spawnSync(
       process.execPath,

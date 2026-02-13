@@ -335,6 +335,16 @@ describe("report-utils", () => {
     expect(recognizedAliasBeforeValidTrailingOutput.outputPath).toBe(
       "/workspace/final-report.json"
     );
+
+    const recognizedNoBuildAliasBeforeValidTrailingOutput = resolveOutputPath(
+      ["--output", "--verify", "--output=./final-report.json"],
+      "/workspace",
+      ["--output", "--no-build", "--verify"]
+    );
+    expect(recognizedNoBuildAliasBeforeValidTrailingOutput.error).toBeNull();
+    expect(recognizedNoBuildAliasBeforeValidTrailingOutput.outputPath).toBe(
+      "/workspace/final-report.json"
+    );
   });
 
   it("resolves last option values for both split and inline forms", () => {
@@ -551,6 +561,26 @@ describe("report-utils", () => {
     expect(recognizedAliasBeforeTrailingOnlyValue.hasOption).toBe(true);
     expect(recognizedAliasBeforeTrailingOnlyValue.value).toBe("client");
     expect(recognizedAliasBeforeTrailingOnlyValue.error).toBeNull();
+
+    const recognizedNoBuildAliasBeforeTrailingOutputValue = resolveLastOptionValue(
+      ["--output", "--verify", "--output=./final-report.json"],
+      "--output",
+      ["--output", "--no-build", "--verify"]
+    );
+    expect(recognizedNoBuildAliasBeforeTrailingOutputValue.hasOption).toBe(true);
+    expect(recognizedNoBuildAliasBeforeTrailingOutputValue.value).toBe(
+      "./final-report.json"
+    );
+    expect(recognizedNoBuildAliasBeforeTrailingOutputValue.error).toBeNull();
+
+    const recognizedNoBuildAliasBeforeTrailingOnlyValue = resolveLastOptionValue(
+      ["--only", "--verify", "--only=client"],
+      "--only",
+      ["--only", "--no-build", "--verify"]
+    );
+    expect(recognizedNoBuildAliasBeforeTrailingOnlyValue.hasOption).toBe(true);
+    expect(recognizedNoBuildAliasBeforeTrailingOnlyValue.value).toBe("client");
+    expect(recognizedNoBuildAliasBeforeTrailingOnlyValue.error).toBeNull();
   });
 
   it("splits option and positional args using option terminator", () => {
@@ -1849,6 +1879,64 @@ describe("report-utils", () => {
     expect(diagnostics.unsupportedOptionsError).toBeNull();
   });
 
+  it("keeps strict no-build aliases active when trailing only value resolves later", () => {
+    const diagnostics = createCliDiagnostics(
+      ["--only", "--verify", "--only=client"],
+      {
+        canonicalOptions: ["--no-build", "--only"],
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+        optionsWithValues: ["--only"],
+        optionsWithStrictValues: ["--only"],
+      }
+    );
+
+    expect(diagnostics.activeCliOptions).toEqual(["--no-build", "--only"]);
+    expect(diagnostics.activeCliOptionCount).toBe(2);
+    expect(diagnostics.activeCliOptionTokens).toEqual([
+      "--only",
+      "--verify",
+      "--only=client",
+    ]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+      {
+        token: "--only=client",
+        canonicalOption: "--only",
+      },
+    ]);
+    expect(diagnostics.activeCliOptionResolutionCount).toBe(3);
+    expect(diagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+        index: 0,
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+        index: 1,
+      },
+      {
+        token: "--only=client",
+        canonicalOption: "--only",
+        index: 2,
+      },
+    ]);
+    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(3);
+    expect(diagnostics.unknownOptions).toEqual([]);
+    expect(diagnostics.unknownOptionCount).toBe(0);
+    expect(diagnostics.unsupportedOptionsError).toBeNull();
+  });
+
   it("tracks recognized canonical options after strict value options as active", () => {
     const diagnostics = createCliDiagnostics(["--output", "--no-build"], {
       canonicalOptions: ["--no-build", "--output"],
@@ -1933,7 +2021,7 @@ describe("report-utils", () => {
     expect(diagnostics.unsupportedOptionsError).toBeNull();
   });
 
-  it("reports inline no-build alias misuse after strict only options as unknown", () => {
+  it("reports inline no-build alias misuse after strict only options as unsupported", () => {
     const diagnostics = createCliDiagnostics(["--only", "--verify=1"], {
       canonicalOptions: ["--no-build", "--only"],
       optionAliases: {

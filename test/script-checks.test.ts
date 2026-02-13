@@ -457,6 +457,38 @@ describe("root preflight scripts", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("check-wasm-pack json mode keeps trailing output when strict flags appear between outputs", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-wasm-pack-json-last-output-strict-flag-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+    const secondOutputPath = path.resolve(tempDirectory, "second-report.json");
+
+    const result = runScript("check-wasm-pack.mjs", [
+      "--json",
+      "--output",
+      firstOutputPath,
+      "--quiet",
+      "--output",
+      secondOutputPath,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as WasmPackJsonReport;
+    const secondFileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as WasmPackJsonReport;
+
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(stdoutReport.unknownOptions).toEqual([]);
+    expect(stdoutReport.unknownOptionCount).toBe(0);
+    expect(stdoutReport.validationErrorCode).toBeNull();
+    expect(stdoutReport.activeCliOptions).toEqual(["--json", "--output", "--quiet"]);
+    expect(secondFileReport.outputPath).toBe(secondOutputPath);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("check-wasm-pack json mode validates missing output value", () => {
     const result = runScript("check-wasm-pack.mjs", ["--json", "--output"]);
     const report = JSON.parse(result.output) as WasmPackJsonReport;
@@ -1452,6 +1484,38 @@ describe("root preflight scripts", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("check-dev-env json mode keeps trailing output when strict flags appear between outputs", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-dev-env-json-last-output-strict-flag-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+    const secondOutputPath = path.resolve(tempDirectory, "second-report.json");
+
+    const result = runScript("check-dev-env.mjs", [
+      "--json",
+      "--output",
+      firstOutputPath,
+      "--quiet",
+      "--output",
+      secondOutputPath,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as DevEnvJsonReport;
+    const secondFileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as DevEnvJsonReport;
+
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(stdoutReport.unknownOptions).toEqual([]);
+    expect(stdoutReport.unknownOptionCount).toBe(0);
+    expect(stdoutReport.validationErrorCode).toBeNull();
+    expect(stdoutReport.activeCliOptions).toEqual(["--json", "--output", "--quiet"]);
+    expect(secondFileReport.outputPath).toBe(secondOutputPath);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("check-dev-env json mode validates missing output value", () => {
     const result = runScript("check-dev-env.mjs", ["--json", "--output"]);
     const report = JSON.parse(result.output) as DevEnvJsonReport;
@@ -2433,6 +2497,46 @@ describe("root preflight scripts", () => {
     ) as ClientJsonReport;
 
     expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(secondFileReport.outputPath).toBe(secondOutputPath);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("check-client json mode keeps trailing output when no-build aliases appear between outputs", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "voxelize-client-json-last-output-strict-no-build-alias-"
+      )
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+    const secondOutputPath = path.resolve(tempDirectory, "second-report.json");
+
+    const result = runScript("check-client.mjs", [
+      "--json",
+      "--output",
+      firstOutputPath,
+      "--verify",
+      "--output",
+      secondOutputPath,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as ClientJsonReport;
+    const secondFileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as ClientJsonReport;
+
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(stdoutReport.noBuild).toBe(true);
+    expect(stdoutReport.unknownOptions).toEqual([]);
+    expect(stdoutReport.unknownOptionCount).toBe(0);
+    expect(stdoutReport.validationErrorCode).toBeNull();
+    expect(stdoutReport.activeCliOptions).toEqual([
+      "--json",
+      "--no-build",
+      "--output",
+    ]);
     expect(secondFileReport.outputPath).toBe(secondOutputPath);
     expect(fs.existsSync(firstOutputPath)).toBe(false);
     expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
@@ -3956,6 +4060,46 @@ describe("root preflight scripts", () => {
     ) as OnboardingJsonReport;
 
     expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(secondFileReport.outputPath).toBe(secondOutputPath);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("check-onboarding json mode keeps trailing output when no-build aliases appear between outputs", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "voxelize-onboarding-json-last-output-strict-no-build-alias-"
+      )
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+    const secondOutputPath = path.resolve(tempDirectory, "second-report.json");
+
+    const result = runScript("check-onboarding.mjs", [
+      "--json",
+      "--output",
+      firstOutputPath,
+      "--verify",
+      "--output",
+      secondOutputPath,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as OnboardingJsonReport;
+    const secondFileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as OnboardingJsonReport;
+
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(stdoutReport.noBuild).toBe(true);
+    expect(stdoutReport.unknownOptions).toEqual([]);
+    expect(stdoutReport.unknownOptionCount).toBe(0);
+    expect(stdoutReport.validationErrorCode).toBeNull();
+    expect(stdoutReport.activeCliOptions).toEqual([
+      "--json",
+      "--no-build",
+      "--output",
+    ]);
     expect(secondFileReport.outputPath).toBe(secondOutputPath);
     expect(fs.existsSync(firstOutputPath)).toBe(false);
     expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);

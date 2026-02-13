@@ -3249,6 +3249,84 @@ describe("preflight aggregate report", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("uses the last output flag when no-build aliases appear between outputs", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-preflight-last-output-strict-no-build-alias-")
+    );
+    const secondOutputPath = path.resolve(tempDirectory, "second-report.json");
+
+    const result = spawnSync(
+      process.execPath,
+      [
+        preflightScript,
+        "--list-checks",
+        "--output",
+        "--verify",
+        "--output",
+        secondOutputPath,
+      ],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const stdoutReport = JSON.parse(output) as PreflightReport;
+    const secondFileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as PreflightReport;
+
+    expect(stdoutReport.schemaVersion).toBe(1);
+    expect(stdoutReport.passed).toBe(true);
+    expect(stdoutReport.exitCode).toBe(0);
+    expect(stdoutReport.listChecksOnly).toBe(true);
+    expect(stdoutReport.noBuild).toBe(true);
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(stdoutReport.validationErrorCode).toBeNull();
+    expect(stdoutReport.unknownOptions).toEqual([]);
+    expect(stdoutReport.unknownOptionCount).toBe(0);
+    expect(stdoutReport.activeCliOptions).toEqual([
+      "--list-checks",
+      "--no-build",
+      "--output",
+    ]);
+    expect(stdoutReport.activeCliOptionCount).toBe(
+      stdoutReport.activeCliOptions.length
+    );
+    expect(stdoutReport.activeCliOptionTokens).toEqual([
+      "--list-checks",
+      "--output",
+      "--verify",
+    ]);
+    expect(stdoutReport.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions([
+        "--list-checks",
+        "--output",
+        "--verify",
+      ])
+    );
+    expect(stdoutReport.activeCliOptionResolutionCount).toBe(
+      stdoutReport.activeCliOptionResolutions.length
+    );
+    expect(stdoutReport.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences([
+        "--list-checks",
+        "--output",
+        "--verify",
+        "--output",
+        secondOutputPath,
+      ])
+    );
+    expect(stdoutReport.activeCliOptionOccurrenceCount).toBe(
+      stdoutReport.activeCliOptionOccurrences.length
+    );
+    expect(secondFileReport.outputPath).toBe(secondOutputPath);
+    expect(result.status).toBe(0);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("supports inline output option values", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-preflight-inline-output-")
