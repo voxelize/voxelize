@@ -1097,6 +1097,7 @@ fn block_min_corner(block: &Block) -> [f32; 3] {
     }
 }
 
+#[inline(always)]
 fn should_render_face<S: VoxelAccess>(
     vx: i32,
     vy: i32,
