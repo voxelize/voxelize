@@ -37,6 +37,9 @@ type PreflightReport = {
   noBuild: boolean;
   platform: string;
   nodeVersion: string;
+  optionTerminatorUsed: boolean;
+  positionalArgs: string[];
+  positionalArgCount: number;
   startedAt: string;
   endedAt: string;
   durationMs: number;
@@ -258,6 +261,9 @@ describe("preflight aggregate report", () => {
     expect(report.noBuild).toBe(true);
     expect(report.platform).toBe(process.platform);
     expect(report.nodeVersion).toBe(process.version);
+    expect(report.optionTerminatorUsed).toBe(false);
+    expect(report.positionalArgs).toEqual([]);
+    expect(report.positionalArgCount).toBe(0);
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
     expect(typeof report.startedAt).toBe("string");
     expect(typeof report.endedAt).toBe("string");
@@ -1021,6 +1027,42 @@ describe("preflight aggregate report", () => {
     expect(report.firstFailedCheck).toBeNull();
     expect(report.checks).toEqual([]);
     expect(report.failureSummaries).toEqual([]);
+    expect(result.status).toBe(0);
+  });
+
+  it("ignores option-like tokens after the option terminator", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--list-checks", "--", "--mystery", "--only", "client"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(true);
+    expect(report.passed).toBe(true);
+    expect(report.exitCode).toBe(0);
+    expect(report.optionTerminatorUsed).toBe(true);
+    expect(report.positionalArgs).toEqual(["--mystery", "--only", "client"]);
+    expect(report.positionalArgCount).toBe(report.positionalArgs.length);
+    expect(report.selectionMode).toBe("default");
+    expect(report.selectedChecks).toEqual(report.availableChecks);
+    expect(report.requestedChecks).toEqual([]);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--list-checks"]);
+    expect(report.activeCliOptionTokens).toEqual(["--list-checks"]);
+    expect(report.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences(["--list-checks"])
+    );
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
     expect(result.status).toBe(0);
   });
 

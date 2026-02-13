@@ -250,6 +250,7 @@ Invalid `--only` errors include available canonical check names and special sele
 Invalid `--only` errors also include `invalidChecks` for machine-readable diagnostics.
 Unsupported CLI flags return structured errors and include `unknownOptions` for machine-readable diagnostics.
 Argument values passed to `--output` and `--only` are excluded from unrecognized-option detection, even when they start with `-`.
+Arguments after `--` are treated as positional arguments and are excluded from preflight option parsing and unsupported-option detection.
 Unrecognized flags are still listed in `unknownOptions` even when a higher-priority validation error is reported.
 Aggregate preflight reports include `invalidCheckCount` and `unknownOptionCount` for quick numeric filtering in CI/log pipelines.
 Aggregate preflight validation errors include `validationErrorCode` for machine-readable error classification.
@@ -263,6 +264,7 @@ Aggregate preflight reports include `activeCliOptionOccurrences` to preserve eac
 Aggregate preflight reports include `activeCliOptionOccurrenceCount` for quick cardinality checks on `activeCliOptionOccurrences`.
 Aggregate preflight reports include `availableCliOptionAliases` to map canonical options (such as `--list-checks`) to accepted aliases (`--list`, `-l`).
 Aggregate preflight reports include `availableCliOptionCanonicalMap` so automation can resolve each supported option token to its canonical option.
+Aggregate preflight reports include `optionTerminatorUsed`, `positionalArgs`, and `positionalArgCount` to describe positional arguments supplied after `--`.
 Aggregate preflight reports include `availableCheckAliases` so automation can map user-facing aliases to canonical check names.
 Aggregate preflight reports include `availableCheckMetadata` with script mapping and no-build support per canonical check.
 Aggregate preflight reports include `availableSpecialCheckSelectors` for quick checks against supported special selector names.

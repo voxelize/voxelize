@@ -14,21 +14,32 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const cliArgs = process.argv.slice(2);
+const optionTerminatorIndex = cliArgs.indexOf("--");
+const cliOptionArgs =
+  optionTerminatorIndex === -1
+    ? cliArgs
+    : cliArgs.slice(0, optionTerminatorIndex);
+const positionalArgs =
+  optionTerminatorIndex === -1
+    ? []
+    : cliArgs.slice(optionTerminatorIndex + 1);
+const positionalArgCount = positionalArgs.length;
+const optionTerminatorUsed = optionTerminatorIndex !== -1;
 const availableCliOptionAliases = {
   "--list-checks": ["--list", "-l"],
   "--no-build": ["--verify"],
 };
 const hasCliOption = (canonicalOption) => {
-  if (cliArgs.includes(canonicalOption)) {
+  if (cliOptionArgs.includes(canonicalOption)) {
     return true;
   }
 
   const optionAliases = availableCliOptionAliases[canonicalOption] ?? [];
-  return optionAliases.some((alias) => cliArgs.includes(alias));
+  return optionAliases.some((alias) => cliOptionArgs.includes(alias));
 };
 const isNoBuild = hasCliOption("--no-build");
 const isListChecks = hasCliOption("--list-checks");
-const isCompact = cliArgs.includes("--compact");
+const isCompact = cliOptionArgs.includes("--compact");
 const supportedCliOptions = [
   "-l",
   "--compact",
@@ -68,8 +79,8 @@ const availableCliOptionCanonicalMap = Object.fromEntries(
 );
 const jsonFormat = { compact: isCompact };
 const { outputPath: resolvedOutputPath, error: outputPathError } =
-  resolveOutputPath(cliArgs);
-const onlyArgIndex = cliArgs.lastIndexOf("--only");
+  resolveOutputPath(cliOptionArgs);
+const onlyArgIndex = cliOptionArgs.lastIndexOf("--only");
 const buildTimedReport = createTimedReportBuilder();
 
 const availableChecks = [
@@ -168,7 +179,7 @@ const parseSelectedChecks = () => {
     };
   }
 
-  const onlyValue = cliArgs[onlyArgIndex + 1] ?? null;
+  const onlyValue = cliOptionArgs[onlyArgIndex + 1] ?? null;
   if (onlyValue === null || onlyValue.startsWith("--")) {
     return {
       selectedChecks: [],
@@ -350,7 +361,7 @@ const parseUnknownOptions = (args) => {
 
   return unknownOptions;
 };
-const unknownOptions = parseUnknownOptions(cliArgs);
+const unknownOptions = parseUnknownOptions(cliOptionArgs);
 const parseActiveCliOptions = (args) => {
   const activeCliOptions = new Set();
   for (const arg of args) {
@@ -362,7 +373,7 @@ const parseActiveCliOptions = (args) => {
 
   return canonicalCliOptions.filter((option) => activeCliOptions.has(option));
 };
-const activeCliOptions = parseActiveCliOptions(cliArgs);
+const activeCliOptions = parseActiveCliOptions(cliOptionArgs);
 const activeCliOptionCount = activeCliOptions.length;
 const parseActiveCliOptionTokens = (args) => {
   const activeTokens = [];
@@ -383,7 +394,7 @@ const parseActiveCliOptionTokens = (args) => {
 
   return activeTokens;
 };
-const activeCliOptionTokens = parseActiveCliOptionTokens(cliArgs);
+const activeCliOptionTokens = parseActiveCliOptionTokens(cliOptionArgs);
 const activeCliOptionResolutions = activeCliOptionTokens.map((token) => {
   const canonicalOption = cliOptionCanonicalMap.get(token);
   return {
@@ -411,7 +422,7 @@ const parseActiveCliOptionOccurrences = (args) => {
 
   return occurrences;
 };
-const activeCliOptionOccurrences = parseActiveCliOptionOccurrences(cliArgs);
+const activeCliOptionOccurrences = parseActiveCliOptionOccurrences(cliOptionArgs);
 const activeCliOptionOccurrenceCount = activeCliOptionOccurrences.length;
 const unsupportedOptionsError =
   unknownOptions.length === 0
@@ -491,6 +502,9 @@ if (
     noBuild: isNoBuild,
     platform,
     nodeVersion,
+    optionTerminatorUsed,
+    positionalArgs,
+    positionalArgCount,
     selectedChecks: [],
     selectedCheckCount: 0,
     requestedChecks,
@@ -553,6 +567,9 @@ if (isListChecks) {
     noBuild: isNoBuild,
     platform,
     nodeVersion,
+    optionTerminatorUsed,
+    positionalArgs,
+    positionalArgCount,
     selectedChecks,
     selectedCheckCount: selectedChecks.length,
     requestedChecks,
@@ -632,6 +649,9 @@ const report = buildTimedReport({
   noBuild: isNoBuild,
   platform,
   nodeVersion,
+  optionTerminatorUsed,
+  positionalArgs,
+  positionalArgCount,
   selectedChecks,
   selectedCheckCount: selectedChecks.length,
   requestedChecks,
