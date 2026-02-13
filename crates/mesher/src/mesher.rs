@@ -1305,13 +1305,12 @@ fn is_surrounded_by_opaque_neighbors<S: VoxelAccess>(
     space: &S,
     registry: &Registry,
 ) -> bool {
-    for [nx, ny, nz] in VOXEL_NEIGHBORS {
-        let id = extract_id(space.get_raw_voxel(vx + nx, vy + ny, vz + nz));
-        if !registry.is_opaque_id(id) {
-            return false;
-        }
-    }
-    true
+    registry.is_opaque_id(extract_id(space.get_raw_voxel(vx + 1, vy, vz)))
+        && registry.is_opaque_id(extract_id(space.get_raw_voxel(vx - 1, vy, vz)))
+        && registry.is_opaque_id(extract_id(space.get_raw_voxel(vx, vy + 1, vz)))
+        && registry.is_opaque_id(extract_id(space.get_raw_voxel(vx, vy - 1, vz)))
+        && registry.is_opaque_id(extract_id(space.get_raw_voxel(vx, vy, vz + 1)))
+        && registry.is_opaque_id(extract_id(space.get_raw_voxel(vx, vy, vz - 1)))
 }
 
 #[inline(always)]
