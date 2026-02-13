@@ -82,22 +82,32 @@ class Loader {
         const reader = new GifReader(intArray);
 
         const info = reader.frameInfo(0);
+        const frameCount = reader.numFrames();
+        const images = new Array<HTMLImageElement>(frameCount);
+        const canvas = document.createElement("canvas");
+        canvas.width = info.width;
+        canvas.height = info.height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          throw new Error("Failed to get 2D canvas context while decoding GIF.");
+        }
 
-        const images = new Array(reader.numFrames()).fill(0).map((_, k) => {
+        for (let frameIndex = 0; frameIndex < frameCount; frameIndex++) {
           const image = new ImageData(info.width, info.height);
-          reader.decodeAndBlitFrameRGBA(k, image.data as any);
+          const imageData = image.data;
+          const rgbaData = new Uint8Array(
+            imageData.buffer,
+            imageData.byteOffset,
+            imageData.byteLength
+          );
+          reader.decodeAndBlitFrameRGBA(frameIndex, rgbaData);
 
-          const canvas = document.createElement("canvas");
-          const ctx = canvas.getContext("2d");
-          canvas.width = image.width;
-          canvas.height = image.height;
           ctx.putImageData(image, 0, 0);
 
           const actual = new Image();
           actual.src = canvas.toDataURL();
-
-          return actual;
-        });
+          images[frameIndex] = actual;
+        }
 
         this.images.set(source, images);
         this.assetPromises.delete(source);
