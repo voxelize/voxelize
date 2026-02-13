@@ -6068,7 +6068,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       startSequenceId: firstJob.startSequenceId,
       totalJobs,
       completedJobs: 0,
-      results: [],
+      results: new Array<LightBatchResult>(totalJobs),
     };
 
     for (let index = batchStart; index < batchEnd; index++) {
@@ -6174,12 +6174,13 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     const batch = this.activeLightBatch;
-    batch.results.push({
+    const resultIndex = batch.completedJobs;
+    batch.results[resultIndex] = {
       color: job.color,
       modifiedChunks: result.modifiedChunks,
       boundingBox: job.boundingBox,
-    });
-    batch.completedJobs++;
+    };
+    batch.completedJobs = resultIndex + 1;
 
     if (batch.completedJobs < batch.totalJobs) {
       return;
