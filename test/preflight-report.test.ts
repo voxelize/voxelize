@@ -280,6 +280,44 @@ describe("preflight aggregate report", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("uses the last output flag when multiple are provided", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-preflight-last-output-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+    const secondOutputPath = path.resolve(tempDirectory, "second-report.json");
+
+    const result = spawnSync(
+      process.execPath,
+      [
+        preflightScript,
+        "--no-build",
+        "--output",
+        firstOutputPath,
+        "--output",
+        secondOutputPath,
+      ],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const stdoutReport = JSON.parse(output) as PreflightReport;
+    const secondFileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as PreflightReport;
+
+    expect(stdoutReport.schemaVersion).toBe(1);
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(secondFileReport.outputPath).toBe(secondOutputPath);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("fails with structured output when output value is missing", () => {
     const result = spawnSync(process.execPath, [preflightScript, "--output"], {
       cwd: rootDir,
