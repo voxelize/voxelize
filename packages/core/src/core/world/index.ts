@@ -5530,12 +5530,13 @@ export class World<T = any> extends Scene implements NetIntercept {
     const relevantDeltas: Record<string, VoxelDelta[]> = {};
     chunksInSpace.forEach((chunkName) => {
       const allDeltas = this.voxelDeltas.get(chunkName) || [];
-      const recentDeltas = allDeltas.filter(
-        (d) => d.sequenceId > startSequenceId
-      );
+      const recentDeltas: VoxelDelta[] = [];
+      for (const delta of allDeltas) {
+        if (delta.sequenceId <= startSequenceId) {
+          continue;
+        }
 
-      if (recentDeltas.length > 0) {
-        relevantDeltas[chunkName] = recentDeltas.map((delta) => ({
+        recentDeltas.push({
           ...delta,
           oldRotation: delta.oldRotation
             ? new BlockRotation(
@@ -5549,7 +5550,11 @@ export class World<T = any> extends Scene implements NetIntercept {
                 delta.newRotation.yRotation
               )
             : undefined,
-        }));
+        });
+      }
+
+      if (recentDeltas.length > 0) {
+        relevantDeltas[chunkName] = recentDeltas;
       }
     });
 
