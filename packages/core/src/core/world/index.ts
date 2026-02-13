@@ -6522,6 +6522,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       number,
       Map<number, ChunkLightColorResults>
     >();
+    const chunkResultsList: ChunkLightColorResults[] = [];
 
     let globalMinY = maxHeight;
     let globalMaxY = 0;
@@ -6563,6 +6564,7 @@ export class World<T = any> extends Scene implements NetIntercept {
             firstLights: lights,
           };
           chunkResultsByZ.set(cz, chunkResult);
+          chunkResultsList.push(chunkResult);
         }
 
         switch (result.color) {
@@ -6594,7 +6596,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     }
 
-    if (chunkResultsByX.size === 0) {
+    if (chunkResultsList.length === 0) {
       return;
     }
 
@@ -6604,26 +6606,20 @@ export class World<T = any> extends Scene implements NetIntercept {
       Math.floor(globalMaxY / subChunkHeight)
     );
 
-    for (const chunkResultsByZ of chunkResultsByX.values()) {
-      for (const chunkResult of chunkResultsByZ.values()) {
-        const { coords, colorCount, firstColor, firstLights } = chunkResult;
-        const chunk = this.getLoadedChunkByCoords(coords[0], coords[1]);
-        if (!chunk) continue;
+    for (let index = 0; index < chunkResultsList.length; index++) {
+      const chunkResult = chunkResultsList[index];
+      const { coords, colorCount, firstColor, firstLights } = chunkResult;
+      const chunk = this.getLoadedChunkByCoords(coords[0], coords[1]);
+      if (!chunk) continue;
 
-        if (colorCount === 1) {
-          this.mergeSingleColorResult(chunk, firstLights, firstColor);
-        } else {
-          this.mergeMultiColorResults(chunk, chunkResult);
-        }
-
-        chunk.isDirty = true;
-        this.markChunkForRemeshLevelsAt(
-          coords[0],
-          coords[1],
-          minLevel,
-          maxLevel
-        );
+      if (colorCount === 1) {
+        this.mergeSingleColorResult(chunk, firstLights, firstColor);
+      } else {
+        this.mergeMultiColorResults(chunk, chunkResult);
       }
+
+      chunk.isDirty = true;
+      this.markChunkForRemeshLevelsAt(coords[0], coords[1], minLevel, maxLevel);
     }
   }
 
