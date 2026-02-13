@@ -1728,14 +1728,14 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   getVoxelAt(px: number, py: number, pz: number) {
     this.checkIsInitialized("get voxel", false);
-    const chunk = this.getChunkByPosition(px, py, pz);
+    const chunk = this.getLoadedChunkAtVoxel(px, pz);
     if (chunk === undefined) return 0;
     return chunk.getVoxel(px, py, pz);
   }
 
   setVoxelAt(px: number, py: number, pz: number, voxel: number) {
     this.checkIsInitialized("set voxel", false);
-    const chunk = this.getChunkByPosition(px, py, pz);
+    const chunk = this.getLoadedChunkAtVoxel(px, pz);
     if (chunk === undefined) return;
 
     const oldVoxel = chunk.getVoxel(px, py, pz);
@@ -1758,7 +1758,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   getVoxelRotationAt(px: number, py: number, pz: number) {
     this.checkIsInitialized("get voxel rotation", false);
-    const chunk = this.getChunkByPosition(px, py, pz);
+    const chunk = this.getLoadedChunkAtVoxel(px, pz);
     if (chunk === undefined) return new BlockRotation();
     return chunk.getVoxelRotation(px, py, pz);
   }
@@ -1778,7 +1778,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     rotation: BlockRotation
   ) {
     this.checkIsInitialized("set voxel rotation", false);
-    const chunk = this.getChunkByPosition(px, py, pz);
+    const chunk = this.getLoadedChunkAtVoxel(px, pz);
     if (chunk === undefined) return;
 
     const oldRotation = chunk.getVoxelRotation(px, py, pz);
@@ -1804,14 +1804,14 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   getVoxelStageAt(px: number, py: number, pz: number) {
     this.checkIsInitialized("get voxel stage", false);
-    const chunk = this.getChunkByPosition(px, py, pz);
+    const chunk = this.getLoadedChunkAtVoxel(px, pz);
     if (chunk === undefined) return 0;
     return chunk.getVoxelStage(px, py, pz);
   }
 
   setVoxelStageAt(px: number, py: number, pz: number, stage: number) {
     this.checkIsInitialized("set voxel stage", false);
-    const chunk = this.getChunkByPosition(px, py, pz);
+    const chunk = this.getLoadedChunkAtVoxel(px, pz);
     if (chunk === undefined) return;
 
     const oldStage = chunk.getVoxelStage(px, py, pz);
@@ -1834,14 +1834,14 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   getSunlightAt(px: number, py: number, pz: number) {
     this.checkIsInitialized("get sunlight", false);
-    const chunk = this.getChunkByPosition(px, py, pz);
+    const chunk = this.getLoadedChunkAtVoxel(px, pz);
     if (chunk === undefined) return 0;
     return chunk.getSunlight(px, py, pz);
   }
 
   setSunlightAt(px: number, py: number, pz: number, level: number) {
     this.checkIsInitialized("set sunlight", false);
-    const chunk = this.getChunkByPosition(px, py, pz);
+    const chunk = this.getLoadedChunkAtVoxel(px, pz);
     if (chunk === undefined) return;
     chunk.setSunlight(px, py, pz, level);
     this.trackChunkAt(px, py, pz);
@@ -1858,7 +1858,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   getTorchLightAt(px: number, py: number, pz: number, color: LightColor) {
     this.checkIsInitialized("get torch light", false);
-    const chunk = this.getChunkByPosition(px, py, pz);
+    const chunk = this.getLoadedChunkAtVoxel(px, pz);
     if (chunk === undefined) return 0;
     return chunk.getTorchLight(px, py, pz, color);
   }
@@ -1871,7 +1871,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     color: LightColor
   ) {
     this.checkIsInitialized("set torch light", false);
-    const chunk = this.getChunkByPosition(px, py, pz);
+    const chunk = this.getLoadedChunkAtVoxel(px, pz);
     if (chunk === undefined) return;
     chunk.setTorchLight(px, py, pz, level, color);
     this.trackChunkAt(px, py, pz);
@@ -1879,7 +1879,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   getLightValuesAt(vx: number, vy: number, vz: number) {
     this.checkIsInitialized("get light values", false);
-    const chunk = this.getChunkByPosition(vx, vy, vz);
+    const chunk = this.getLoadedChunkAtVoxel(vx, vz);
     if (chunk === undefined) return null;
     return {
       sunlight: chunk.getSunlight(vx, vy, vz),
