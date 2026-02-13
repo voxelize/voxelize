@@ -551,7 +551,7 @@ impl<'a> VoxelSpace<'a> {
         self.chunks.get(index).and_then(|c| c.as_ref())
     }
 
-    #[inline]
+    #[inline(always)]
     fn get_index(&self, chunk: &ChunkData, vx: i32, vy: i32, vz: i32) -> Option<usize> {
         if vy < 0 {
             return None;
@@ -1918,7 +1918,7 @@ fn process_greedy_quad(
     }
 }
 
-#[inline]
+#[inline(always)]
 fn rotation_radians(rotation: &BlockRotation) -> f32 {
     match rotation {
         BlockRotation::PX(rot) => *rot,
