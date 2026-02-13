@@ -15,7 +15,7 @@ if (versionCheck.status === 0) {
 
 if (!isQuiet) {
   console.error(
-    "wasm-pack is required for wasm build commands. Install it from https://rustwasm.github.io/wasm-pack/installer/."
+    `wasm-pack is required for wasm build commands (expected command: ${wasmPackCommand}). Install it from https://rustwasm.github.io/wasm-pack/installer/.`
   );
 }
 process.exit(versionCheck.status ?? 1);
