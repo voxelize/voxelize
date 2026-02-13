@@ -457,7 +457,7 @@ export class Clouds extends Group {
         },
         resolve,
         reject,
-        buffers: [array.data.buffer.slice(0)],
+        buffers: [array.data.buffer],
       })
     );
 
