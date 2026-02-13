@@ -2160,7 +2160,7 @@ where
 
 struct FaceProcessCache {
     opaque_mask: Option<[bool; 27]>,
-    center_lights: Option<(u32, u32, u32, u32)>,
+    center_light: Option<u32>,
     fluid_surface_above: bool,
     block_min: [f32; 3],
 }
@@ -2186,8 +2186,8 @@ fn build_face_process_cache<S: VoxelAccess>(
         } else {
             None
         },
-        center_lights: if is_see_through || is_all_transparent {
-            Some(neighbors.get_all_lights(0, 0, 0))
+        center_light: if is_see_through || is_all_transparent {
+            Some(neighbors.get_raw_light(0, 0, 0) & 0xFFFF)
         } else {
             None
         },
@@ -2327,12 +2327,25 @@ fn process_face<S: VoxelAccess>(
     } else {
         None
     };
-    let center_lights = if skip_opaque_checks {
-        cache
-            .center_lights
-            .expect("center lights exist when opaque checks are skipped")
+    let (center_sunlight, center_red_light, center_green_light, center_blue_light) = if skip_opaque_checks {
+        let center_light = cache
+            .center_light
+            .expect("center light exists when opaque checks are skipped");
+        (
+            (center_light >> 12) & 0xF,
+            (center_light >> 8) & 0xF,
+            (center_light >> 4) & 0xF,
+            center_light & 0xF,
+        )
     } else {
         (0, 0, 0, 0)
+    };
+    let center_light_packed = if skip_opaque_checks {
+        cache
+            .center_light
+            .expect("center light exists when opaque checks are skipped")
+    } else {
+        0
     };
     let fluid_surface_above = cache.fluid_surface_above;
     let fluid_bit = if is_fluid { 1 << 18 } else { 0 };
@@ -2428,10 +2441,10 @@ fn process_face<S: VoxelAccess>(
         let blue_light;
 
         if skip_opaque_checks {
-            sunlight = center_lights.0;
-            red_light = center_lights.1;
-            green_light = center_lights.2;
-            blue_light = center_lights.3;
+            sunlight = center_sunlight;
+            red_light = center_red_light;
+            green_light = center_green_light;
+            blue_light = center_blue_light;
         } else {
             let mask = opaque_mask.expect("opaque mask exists when opaque checks are needed");
             let mut sum_sunlights = 0u32;
@@ -2544,11 +2557,15 @@ fn process_face<S: VoxelAccess>(
             }
         }
 
-        let mut light = 0u32;
-        light = LightUtils::insert_red_light(light, red_light);
-        light = LightUtils::insert_green_light(light, green_light);
-        light = LightUtils::insert_blue_light(light, blue_light);
-        light = LightUtils::insert_sunlight(light, sunlight);
+        let light = if skip_opaque_checks {
+            center_light_packed
+        } else {
+            let mut light = 0u32;
+            light = LightUtils::insert_red_light(light, red_light);
+            light = LightUtils::insert_green_light(light, green_light);
+            light = LightUtils::insert_blue_light(light, blue_light);
+            LightUtils::insert_sunlight(light, sunlight)
+        };
         let wave_bit = if apply_wave_bit && dy == 1 {
             1 << 20
         } else {
@@ -3613,8 +3630,8 @@ pub fn mesh_space<S: VoxelAccess>(
                     } else {
                         None
                     },
-                    center_lights: if is_see_through || is_all_transparent {
-                        Some(neighbors.get_all_lights(0, 0, 0))
+                    center_light: if is_see_through || is_all_transparent {
+                        Some(neighbors.get_raw_light(0, 0, 0) & 0xFFFF)
                     } else {
                         None
                     },
