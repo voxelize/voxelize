@@ -1599,6 +1599,14 @@ const FACE_CORNERS_NZ: [[f32; 3]; 4] = [
     [1.0, 1.0, 0.0],
     [0.0, 1.0, 0.0],
 ];
+const FACE_CORNERS_BY_DIR_INDEX: [[[f32; 3]; 4]; 6] = [
+    FACE_CORNERS_PX,
+    FACE_CORNERS_NX,
+    FACE_CORNERS_PY,
+    FACE_CORNERS_NY,
+    FACE_CORNERS_PZ,
+    FACE_CORNERS_NZ,
+];
 
 #[inline(always)]
 fn face_corner_positions(dir: [i32; 3]) -> Option<&'static [[f32; 3]; 4]> {
@@ -1615,15 +1623,9 @@ fn face_corner_positions(dir: [i32; 3]) -> Option<&'static [[f32; 3]; 4]> {
 
 #[inline(always)]
 fn face_corner_positions_by_dir_index(dir_index: usize) -> &'static [[f32; 3]; 4] {
-    match dir_index {
-        0 => &FACE_CORNERS_PX,
-        1 => &FACE_CORNERS_NX,
-        2 => &FACE_CORNERS_PY,
-        3 => &FACE_CORNERS_NY,
-        4 => &FACE_CORNERS_PZ,
-        5 => &FACE_CORNERS_NZ,
-        _ => unreachable!("greedy direction index must be in 0..6"),
-    }
+    FACE_CORNERS_BY_DIR_INDEX
+        .get(dir_index)
+        .expect("greedy direction index must be in 0..6")
 }
 
 #[inline(always)]
