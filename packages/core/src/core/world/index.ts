@@ -5527,31 +5527,37 @@ export class World<T = any> extends Scene implements NetIntercept {
     for (let cx = minChunkX; cx <= maxChunkX; cx++) {
       for (let cz = minChunkZ; cz <= maxChunkZ; cz++) {
         const chunkName = ChunkUtils.getChunkName([cx, cz]);
-        const allDeltas = this.voxelDeltas.get(chunkName) || [];
-        const recentDeltas: VoxelDelta[] = [];
-        for (const delta of allDeltas) {
-          if (delta.sequenceId <= startSequenceId) {
-            continue;
-          }
+        const allDeltas = this.voxelDeltas.get(chunkName);
+        if (allDeltas) {
+          let recentDeltas: VoxelDelta[] | undefined;
+          for (const delta of allDeltas) {
+            if (delta.sequenceId <= startSequenceId) {
+              continue;
+            }
 
-          recentDeltas.push({
-            ...delta,
-            oldRotation: delta.oldRotation
-              ? new BlockRotation(
-                  delta.oldRotation.value,
-                  delta.oldRotation.yRotation
-                )
-              : undefined,
-            newRotation: delta.newRotation
-              ? new BlockRotation(
-                  delta.newRotation.value,
-                  delta.newRotation.yRotation
-                )
-              : undefined,
-          });
-        }
-        if (recentDeltas.length > 0) {
-          relevantDeltas[chunkName] = recentDeltas;
+            if (!recentDeltas) {
+              recentDeltas = [];
+            }
+
+            recentDeltas.push({
+              ...delta,
+              oldRotation: delta.oldRotation
+                ? new BlockRotation(
+                    delta.oldRotation.value,
+                    delta.oldRotation.yRotation
+                  )
+                : undefined,
+              newRotation: delta.newRotation
+                ? new BlockRotation(
+                    delta.newRotation.value,
+                    delta.newRotation.yRotation
+                  )
+                : undefined,
+            });
+          }
+          if (recentDeltas) {
+            relevantDeltas[chunkName] = recentDeltas;
+          }
         }
 
         const chunk = this.getChunkByCoords(cx, cz);
