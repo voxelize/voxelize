@@ -391,7 +391,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       throw new Error(`Command trigger already taken: ${trigger}`);
     }
 
-    if (trigger.split(" ").length > 1) {
+    if (trigger.indexOf(" ") !== -1) {
       throw new Error("Command trigger must be one word.");
     }
 
