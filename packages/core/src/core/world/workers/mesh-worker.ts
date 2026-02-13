@@ -308,7 +308,8 @@ const processMeshMessage = (message: MeshBatchMessage) => {
   let geometryCount = 0;
   let bufferCount = 0;
 
-  for (const geometry of result.geometries) {
+  for (let geometryIndex = 0; geometryIndex < result.geometries.length; geometryIndex++) {
+    const geometry = result.geometries[geometryIndex];
     if (geometry.positions.length === 0) {
       continue;
     }
