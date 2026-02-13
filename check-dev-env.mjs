@@ -10,8 +10,8 @@ import {
   parseSemver,
 } from "./scripts/dev-env-utils.mjs";
 import {
+  createCliOptionValidation,
   createTimedReportBuilder,
-  parseUnknownCliOptions,
   resolveOutputPath,
   serializeReportWithOptionalWrite,
   splitCliArgs,
@@ -30,24 +30,19 @@ const positionalArgCount = positionalArgs.length;
 const isQuiet = cliOptionArgs.includes("--quiet");
 const isJson = cliOptionArgs.includes("--json");
 const isCompact = cliOptionArgs.includes("--compact");
-const supportedCliOptions = ["--compact", "--json", "--output", "--quiet"];
-const unknownOptions = parseUnknownCliOptions(cliOptionArgs, {
-  canonicalOptions: supportedCliOptions,
-  optionsWithValues: ["--output"],
-});
-const unknownOptionCount = unknownOptions.length;
-const unsupportedOptionsError =
-  unknownOptionCount === 0
-    ? null
-    : `Unsupported option(s): ${unknownOptions.join(", ")}. Supported options: ${supportedCliOptions.join(", ")}.`;
 const jsonFormat = { compact: isCompact };
 const { outputPath, error: outputPathError } = resolveOutputPath(cliOptionArgs);
-const validationErrorCode =
-  outputPathError !== null
-    ? "output_option_missing_value"
-    : unsupportedOptionsError !== null
-      ? "unsupported_options"
-      : null;
+const {
+  supportedCliOptions,
+  unknownOptions,
+  unknownOptionCount,
+  unsupportedOptionsError,
+  validationErrorCode,
+} = createCliOptionValidation(cliOptionArgs, {
+  canonicalOptions: ["--compact", "--json", "--output", "--quiet"],
+  optionsWithValues: ["--output"],
+  outputPathError,
+});
 const buildTimedReport = createTimedReportBuilder();
 const minimumVersions = loadWorkspaceMinimumVersions(__dirname);
 

@@ -3,9 +3,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  createCliOptionValidation,
   createTimedReportBuilder,
   hasCliOption,
-  parseUnknownCliOptions,
   parseJsonOutput,
   resolveOutputPath,
   serializeReportWithOptionalWrite,
@@ -28,34 +28,28 @@ const isQuiet = cliOptionArgs.includes("--quiet");
 const isJson = cliOptionArgs.includes("--json");
 const isNoBuild = hasCliOption(cliOptionArgs, "--no-build", noBuildOptionAliases);
 const isCompact = cliOptionArgs.includes("--compact");
-const canonicalCliOptions = [
-  "--compact",
-  "--json",
-  "--no-build",
-  "--output",
-  "--quiet",
-];
-const supportedCliOptions = [...canonicalCliOptions, ...noBuildOptionAliases];
-const unknownOptions = parseUnknownCliOptions(cliOptionArgs, {
-  canonicalOptions: canonicalCliOptions,
+const jsonFormat = { compact: isCompact };
+const { outputPath, error: outputPathError } = resolveOutputPath(cliOptionArgs);
+const {
+  supportedCliOptions,
+  unknownOptions,
+  unknownOptionCount,
+  unsupportedOptionsError,
+  validationErrorCode,
+} = createCliOptionValidation(cliOptionArgs, {
+  canonicalOptions: [
+    "--compact",
+    "--json",
+    "--no-build",
+    "--output",
+    "--quiet",
+  ],
   optionAliases: {
     "--no-build": noBuildOptionAliases,
   },
   optionsWithValues: ["--output"],
+  outputPathError,
 });
-const unknownOptionCount = unknownOptions.length;
-const unsupportedOptionsError =
-  unknownOptionCount === 0
-    ? null
-    : `Unsupported option(s): ${unknownOptions.join(", ")}. Supported options: ${supportedCliOptions.join(", ")}.`;
-const jsonFormat = { compact: isCompact };
-const { outputPath, error: outputPathError } = resolveOutputPath(cliOptionArgs);
-const validationErrorCode =
-  outputPathError !== null
-    ? "output_option_missing_value"
-    : unsupportedOptionsError !== null
-      ? "unsupported_options"
-      : null;
 const buildTimedReport = createTimedReportBuilder();
 const stepResults = [];
 let exitCode = 0;

@@ -329,6 +329,47 @@ export const parseUnknownCliOptions = (
   return unknownOptions;
 };
 
+export const createCliOptionValidation = (
+  args,
+  {
+    canonicalOptions = [],
+    optionAliases = {},
+    optionsWithValues = [],
+    outputPathError = null,
+  } = {}
+) => {
+  const supportedCliOptions = [
+    ...canonicalOptions,
+    ...Object.values(optionAliases).flat(),
+  ].filter((optionToken, index, allOptions) => {
+    return allOptions.indexOf(optionToken) === index;
+  });
+  const unknownOptions = parseUnknownCliOptions(args, {
+    canonicalOptions,
+    optionAliases,
+    optionsWithValues,
+  });
+  const unknownOptionCount = unknownOptions.length;
+  const unsupportedOptionsError =
+    unknownOptionCount === 0
+      ? null
+      : `Unsupported option(s): ${unknownOptions.join(", ")}. Supported options: ${supportedCliOptions.join(", ")}.`;
+  const validationErrorCode =
+    outputPathError !== null
+      ? "output_option_missing_value"
+      : unsupportedOptionsError !== null
+        ? "unsupported_options"
+        : null;
+
+  return {
+    supportedCliOptions,
+    unknownOptions,
+    unknownOptionCount,
+    unsupportedOptionsError,
+    validationErrorCode,
+  };
+};
+
 export const resolveLastOptionValue = (args, optionName) => {
   const { optionArgs } = splitCliArgs(args);
   const inlineOptionPrefix = `${optionName}=`;

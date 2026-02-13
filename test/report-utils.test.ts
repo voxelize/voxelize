@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   REPORT_SCHEMA_VERSION,
   createTimedReportBuilder,
+  createCliOptionValidation,
   deriveFailureMessageFromReport,
   hasCliOption,
   parseJsonOutput,
@@ -334,6 +335,53 @@ describe("report-utils", () => {
       }
     );
     expect(unknownWithMissingValueFollowedByUnknown).toEqual(["--mystery"]);
+  });
+
+  it("creates structured cli option validation metadata", () => {
+    const noValidationErrors = createCliOptionValidation(
+      ["--json", "--verify", "--output=./report.json"],
+      {
+        canonicalOptions: ["--json", "--no-build", "--output"],
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+        optionsWithValues: ["--output"],
+        outputPathError: null,
+      }
+    );
+    expect(noValidationErrors.supportedCliOptions).toEqual([
+      "--json",
+      "--no-build",
+      "--output",
+      "--verify",
+    ]);
+    expect(noValidationErrors.unknownOptions).toEqual([]);
+    expect(noValidationErrors.unknownOptionCount).toBe(0);
+    expect(noValidationErrors.unsupportedOptionsError).toBeNull();
+    expect(noValidationErrors.validationErrorCode).toBeNull();
+
+    const unsupportedOnly = createCliOptionValidation(["--json", "--mystery"], {
+      canonicalOptions: ["--json", "--output"],
+      optionsWithValues: ["--output"],
+    });
+    expect(unsupportedOnly.unknownOptions).toEqual(["--mystery"]);
+    expect(unsupportedOnly.unknownOptionCount).toBe(1);
+    expect(unsupportedOnly.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
+    expect(unsupportedOnly.validationErrorCode).toBe("unsupported_options");
+
+    const outputErrorPriority = createCliOptionValidation(
+      ["--json", "--mystery"],
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        outputPathError: "Missing value for --output option.",
+      }
+    );
+    expect(outputErrorPriority.validationErrorCode).toBe(
+      "output_option_missing_value"
+    );
   });
 
   it("writes report json payloads to output paths", () => {
