@@ -2821,7 +2821,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       const normalizedUpdate: BlockUpdate = {
-        ...update,
+        vx,
+        vy,
+        vz,
+        type,
         rotation: normalizedRotation,
         yRotation: normalizedYRotation,
         stage: normalizedStage,
