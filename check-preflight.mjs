@@ -9,7 +9,6 @@ import {
   resolveOutputPath,
   serializeReportWithOptionalWrite,
   summarizeCheckResults,
-  toReportJson,
 } from "./scripts/report-utils.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
