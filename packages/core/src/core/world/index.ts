@@ -1452,11 +1452,12 @@ export class World<T = any> extends Scene implements NetIntercept {
       source: string | Color;
     }[]
   ) {
-    return Promise.all(
-      data.map(({ idOrName, faceNames, source }) =>
-        this.applyBlockTexture(idOrName, faceNames, source)
-      )
-    );
+    const promises = new Array<void | Promise<void>>(data.length);
+    for (let index = 0; index < data.length; index++) {
+      const { idOrName, faceNames, source } = data[index];
+      promises[index] = this.applyBlockTexture(idOrName, faceNames, source);
+    }
+    return Promise.all(promises);
   }
 
   async applyTextureGroup(
@@ -1510,11 +1511,12 @@ export class World<T = any> extends Scene implements NetIntercept {
       source: string | Color | HTMLImageElement | Texture;
     }[]
   ) {
-    return Promise.all(
-      data.map(({ groupName, source }) =>
-        this.applyTextureGroup(groupName, source)
-      )
-    );
+    const promises = new Array<Promise<void>>(data.length);
+    for (let index = 0; index < data.length; index++) {
+      const { groupName, source } = data[index];
+      promises[index] = this.applyTextureGroup(groupName, source);
+    }
+    return Promise.all(promises);
   }
 
   /**
@@ -1612,10 +1614,10 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     // Load the keyframes from this GIF.
     const images = await this.loader.loadGifImages(source);
-
-    const keyframes = images.map(
-      (image) => [interval, image] as [number, HTMLImageElement]
-    );
+    const keyframes = new Array<[number, HTMLImageElement]>(images.length);
+    for (let index = 0; index < images.length; index++) {
+      keyframes[index] = [interval, images[index]];
+    }
 
     await this.applyBlockFrames(idOrName, faceNames, keyframes);
   }
