@@ -134,6 +134,8 @@ export const BOX_SIDES: BoxSides[] = [
   "right",
 ];
 
+const tempSRGBColor = new Color();
+
 /**
  * A layer of a canvas box. This is a group of six canvases that are rendered as a single mesh.
  *
@@ -280,19 +282,12 @@ export class BoxLayer extends Mesh {
 
       const { width, height } = this.getDimensionFromSide(face);
 
-      const isTexture = (art: any): art is Texture => {
-        return art.isTexture;
-      };
-      const isColor = (art: any): art is Color => {
-        return art.isColor;
-      };
-
-      if (isTexture(art)) {
+      if (art instanceof Texture) {
         context.drawImage(art.image, 0, 0, width, height);
       } else {
-        if (isColor(art)) {
+        if (art instanceof Color) {
           context.save();
-          const srgbColor = art.clone().convertLinearToSRGB();
+          const srgbColor = tempSRGBColor.copy(art).convertLinearToSRGB();
           context.fillStyle = `rgb(${srgbColor.r * 255},${srgbColor.g * 255},${
             srgbColor.b * 255
           })`;
