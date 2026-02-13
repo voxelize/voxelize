@@ -3643,7 +3643,10 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const group = new Group();
 
-    for (const [identifier, geometryData] of geometries) {
+    let geometryEntries = geometries.entries();
+    let geometryEntry = geometryEntries.next();
+    while (!geometryEntry.done) {
+      const [identifier, geometryData] = geometryEntry.value;
       const { positions, uvs, indices, material } = geometryData;
       const geometry = new BufferGeometry();
       geometry.setAttribute(
@@ -3657,6 +3660,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       const mesh = new Mesh(geometry, material);
       mesh.name = identifier;
       group.add(mesh);
+      geometryEntry = geometryEntries.next();
     }
 
     group.name = block.name;
