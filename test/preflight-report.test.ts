@@ -1606,6 +1606,56 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(1);
   });
 
+  it("deduplicates literal alias placeholders in unsupported-option output", () => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        preflightScript,
+        "--verify=<value>",
+        "--verify=1",
+        "--no-build=2",
+        "-l=<value>",
+        "-l=1",
+        "--list=2",
+        "--list-checks=3",
+        "--mystery=alpha",
+      ],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(false);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.unknownOptionCount).toBe(3);
+    expect(report.unknownOptions).toEqual([
+      "--no-build=<value>",
+      "--list-checks=<value>",
+      "--mystery",
+    ]);
+    expect(report.message).toBe(
+      expectedUnsupportedOptionsMessage([
+        "--no-build=<value>",
+        "--list-checks=<value>",
+        "--mystery",
+      ])
+    );
+    expect(output).not.toContain("--verify=1");
+    expect(output).not.toContain("--no-build=2");
+    expect(output).not.toContain("-l=1");
+    expect(output).not.toContain("--list=2");
+    expect(output).not.toContain("--list-checks=3");
+    expect(output).not.toContain("--mystery=alpha");
+    expect(result.status).toBe(1);
+  });
+
   it("redacts malformed inline option names in unsupported-option output", () => {
     const result = spawnSync(
       process.execPath,

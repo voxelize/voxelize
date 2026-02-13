@@ -917,6 +917,46 @@ describe("client wasm preflight script", () => {
     expect(result.status).toBe(1);
   });
 
+  it("deduplicates literal alias placeholders in structured output", () => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        wasmMesherScript,
+        "--json",
+        "--verify=<value>",
+        "--verify=1",
+        "--no-build=2",
+        "--mystery=alpha",
+      ],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const report = JSON.parse(`${result.stdout}${result.stderr}`) as WasmMesherJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedWasmMesherCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedWasmMesherCliOptions
+    );
+    expect(report.unknownOptions).toEqual(["--no-build=<value>", "--mystery"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --no-build=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --verify."
+    );
+    expect(`${result.stdout}${result.stderr}`).not.toContain("--verify=1");
+    expect(`${result.stdout}${result.stderr}`).not.toContain("--no-build=2");
+    expect(`${result.stdout}${result.stderr}`).not.toContain("--mystery=alpha");
+    expect(result.status).toBe(1);
+  });
+
   it("redacts malformed inline option names in structured output", () => {
     const result = spawnSync(
       process.execPath,
@@ -1313,6 +1353,33 @@ describe("client wasm preflight script", () => {
     const result = spawnSync(
       process.execPath,
       [wasmMesherScript, "--verify=1", "--no-build=2", "--mystery=alpha"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output).toContain(
+      "Unsupported option(s): --no-build=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --verify."
+    );
+    expect(output).not.toContain("--verify=1");
+    expect(output).not.toContain("--no-build=2");
+    expect(output).not.toContain("--mystery=alpha");
+  });
+
+  it("fails in non-json mode with deduplicated literal alias placeholders", () => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        wasmMesherScript,
+        "--verify=<value>",
+        "--verify=1",
+        "--no-build=2",
+        "--mystery=alpha",
+      ],
       {
         cwd: rootDir,
         encoding: "utf8",

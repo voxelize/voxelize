@@ -2697,6 +2697,37 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-client json mode deduplicates literal alias placeholders", () => {
+    const result = runScript("check-client.mjs", [
+      "--json",
+      "--verify=<value>",
+      "--verify=1",
+      "--no-build=2",
+      "--mystery=alpha",
+    ]);
+    const report = JSON.parse(result.output) as ClientJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedNoBuildCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedNoBuildCliOptions
+    );
+    expect(report.unknownOptions).toEqual(["--no-build=<value>", "--mystery"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --no-build=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expect(result.output).not.toContain("--verify=1");
+    expect(result.output).not.toContain("--no-build=2");
+    expect(result.output).not.toContain("--mystery=alpha");
+    expect(result.status).toBe(1);
+  });
+
   it("check-client json mode redacts malformed inline option names", () => {
     const result = runScript("check-client.mjs", [
       "--json",
@@ -2989,6 +3020,23 @@ describe("root preflight scripts", () => {
 
   it("check-client non-json mode redacts inline alias misuse tokens", () => {
     const result = runScript("check-client.mjs", [
+      "--verify=1",
+      "--no-build=2",
+      "--mystery=alpha",
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(
+      "Unsupported option(s): --no-build=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expect(result.output).not.toContain("--verify=1");
+    expect(result.output).not.toContain("--no-build=2");
+    expect(result.output).not.toContain("--mystery=alpha");
+  });
+
+  it("check-client non-json mode deduplicates literal alias placeholders", () => {
+    const result = runScript("check-client.mjs", [
+      "--verify=<value>",
       "--verify=1",
       "--no-build=2",
       "--mystery=alpha",
@@ -3816,6 +3864,37 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-onboarding json mode deduplicates literal alias placeholders", () => {
+    const result = runScript("check-onboarding.mjs", [
+      "--json",
+      "--verify=<value>",
+      "--verify=1",
+      "--no-build=2",
+      "--mystery=alpha",
+    ]);
+    const report = JSON.parse(result.output) as OnboardingJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedNoBuildCliOptions);
+    expectCliOptionCatalogMetadata(
+      report,
+      expectedNoBuildCliOptionAliases,
+      expectedNoBuildCliOptions
+    );
+    expect(report.unknownOptions).toEqual(["--no-build=<value>", "--mystery"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --no-build=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expect(result.output).not.toContain("--verify=1");
+    expect(result.output).not.toContain("--no-build=2");
+    expect(result.output).not.toContain("--mystery=alpha");
+    expect(result.status).toBe(1);
+  });
+
   it("check-onboarding json mode redacts malformed inline option names", () => {
     const result = runScript("check-onboarding.mjs", [
       "--json",
@@ -4108,6 +4187,23 @@ describe("root preflight scripts", () => {
 
   it("check-onboarding non-json mode redacts inline alias misuse tokens", () => {
     const result = runScript("check-onboarding.mjs", [
+      "--verify=1",
+      "--no-build=2",
+      "--mystery=alpha",
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(
+      "Unsupported option(s): --no-build=<value>, --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
+    );
+    expect(result.output).not.toContain("--verify=1");
+    expect(result.output).not.toContain("--no-build=2");
+    expect(result.output).not.toContain("--mystery=alpha");
+  });
+
+  it("check-onboarding non-json mode deduplicates literal alias placeholders", () => {
+    const result = runScript("check-onboarding.mjs", [
+      "--verify=<value>",
       "--verify=1",
       "--no-build=2",
       "--mystery=alpha",

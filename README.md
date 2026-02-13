@@ -258,6 +258,7 @@ Inline unsupported-option forms are normalized in diagnostics (for example `--my
 Inline misuse of supported non-value flags is redacted without exposing raw values (for example `--json=secret` is reported as `--json=<value>`).
 Alias misuse uses canonical redacted forms (for example `--verify=secret` is reported as `--no-build=<value>`).
 Malformed inline option names are redacted and deduplicated (for example `--=secret` and `--=` are reported as `--=<value>`, while `-=secret` and `-=` are reported as `-=<value>`).
+Literal placeholder tokens are deduplicated with redacted inline misuse forms (for example `--json=<value>` and `--json=secret` are reported once as `--json=<value>`).
 Root/client/onboarding/wasm JSON preflight reports include `supportedCliOptions`, `supportedCliOptionCount`, `unknownOptionCount`, and `validationErrorCode` for structured option-validation diagnostics.
 Root/client/onboarding/wasm JSON preflight reports include `activeCliOptions`, `activeCliOptionTokens`, `activeCliOptionResolutions`, and `activeCliOptionOccurrences` to describe recognized option usage.
 Root/client/onboarding/wasm JSON preflight reports include `availableCliOptionAliases` and `availableCliOptionCanonicalMap` so automation can resolve option aliases to canonical names.

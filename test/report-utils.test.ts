@@ -528,6 +528,30 @@ describe("report-utils", () => {
       "--mystery",
     ]);
 
+    const unknownWithLiteralAliasPlaceholders = parseUnknownCliOptions(
+      [
+        "--verify=<value>",
+        "--verify=1",
+        "--no-build=2",
+        "-j=<value>",
+        "-j=1",
+        "--json=2",
+        "--mystery=alpha",
+      ],
+      {
+        canonicalOptions: ["--json"],
+        optionAliases: {
+          "--no-build": ["--verify"],
+          "--json": ["-j"],
+        },
+      }
+    );
+    expect(unknownWithLiteralAliasPlaceholders).toEqual([
+      "--no-build=<value>",
+      "--json=<value>",
+      "--mystery",
+    ]);
+
     const unknownWithInlineAliasAndCanonicalMisuse = parseUnknownCliOptions(
       ["--verify=1", "--no-build=2", "--mystery=alpha"],
       {
@@ -1072,6 +1096,37 @@ describe("report-utils", () => {
   it("redacts inline alias misuse tokens in diagnostics", () => {
     const diagnostics = createCliDiagnostics(
       ["--verify=1", "--no-build=2", "-j=1", "--json=2", "--mystery=alpha"],
+      {
+        canonicalOptions: ["--json"],
+        optionAliases: {
+          "--no-build": ["--verify"],
+          "--json": ["-j"],
+        },
+      }
+    );
+
+    expect(diagnostics.unknownOptions).toEqual([
+      "--no-build=<value>",
+      "--json=<value>",
+      "--mystery",
+    ]);
+    expect(diagnostics.unknownOptionCount).toBe(3);
+    expect(diagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --no-build=<value>, --json=<value>, --mystery. Supported options: --json, --no-build, --verify, -j."
+    );
+  });
+
+  it("deduplicates literal alias placeholders in diagnostics", () => {
+    const diagnostics = createCliDiagnostics(
+      [
+        "--verify=<value>",
+        "--verify=1",
+        "--no-build=2",
+        "-j=<value>",
+        "-j=1",
+        "--json=2",
+        "--mystery=alpha",
+      ],
       {
         canonicalOptions: ["--json"],
         optionAliases: {
