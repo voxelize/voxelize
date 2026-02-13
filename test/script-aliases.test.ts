@@ -41,19 +41,19 @@ describe("script aliases", () => {
       "node ./check-preflight.mjs --compact"
     );
     expect(manifest.scripts["check:preflight:verify:json:compact"]).toBe(
-      "node ./check-preflight.mjs --no-build --compact"
+      "node ./check-preflight.mjs --verify --compact"
     );
     expect(manifest.scripts["check:preflight:list:json"]).toBe(
       "node ./check-preflight.mjs --list-checks"
     );
     expect(manifest.scripts["check:preflight:list:verify:json"]).toBe(
-      "node ./check-preflight.mjs --list-checks --no-build"
+      "node ./check-preflight.mjs --list-checks --verify"
     );
     expect(manifest.scripts["check:preflight:list:json:compact"]).toBe(
       "node ./check-preflight.mjs --list-checks --compact"
     );
     expect(manifest.scripts["check:preflight:list:verify:json:compact"]).toBe(
-      "node ./check-preflight.mjs --list-checks --no-build --compact"
+      "node ./check-preflight.mjs --list-checks --verify --compact"
     );
     expect(manifest.scripts["check:preflight:list:dev:json"]).toBe(
       "node ./check-preflight.mjs --list-checks --only devEnvironment"
@@ -77,19 +77,19 @@ describe("script aliases", () => {
       "node ./check-preflight.mjs --list-checks --only all"
     );
     expect(manifest.scripts["check:preflight:list:all:verify:json"]).toBe(
-      "node ./check-preflight.mjs --list-checks --no-build --only all"
+      "node ./check-preflight.mjs --list-checks --verify --only all"
     );
     expect(manifest.scripts["check:preflight:list:all:json:compact"]).toBe(
       "node ./check-preflight.mjs --list-checks --only all --compact"
     );
     expect(
       manifest.scripts["check:preflight:list:all:verify:json:compact"]
-    ).toBe("node ./check-preflight.mjs --list-checks --no-build --only all --compact");
+    ).toBe("node ./check-preflight.mjs --list-checks --verify --only all --compact");
     expect(manifest.scripts["check:preflight:list:all-checks:json"]).toBe(
       "node ./check-preflight.mjs --list-checks --only all-checks"
     );
     expect(manifest.scripts["check:preflight:list:all-checks:verify:json"]).toBe(
-      "node ./check-preflight.mjs --list-checks --no-build --only all-checks"
+      "node ./check-preflight.mjs --list-checks --verify --only all-checks"
     );
     expect(manifest.scripts["check:preflight:list:all-checks:json:compact"]).toBe(
       "node ./check-preflight.mjs --list-checks --only all-checks --compact"
@@ -97,32 +97,32 @@ describe("script aliases", () => {
     expect(
       manifest.scripts["check:preflight:list:all-checks:verify:json:compact"]
     ).toBe(
-      "node ./check-preflight.mjs --list-checks --no-build --only all-checks --compact"
+      "node ./check-preflight.mjs --list-checks --verify --only all-checks --compact"
     );
     expect(manifest.scripts["check:preflight:all:json"]).toBe(
       "node ./check-preflight.mjs --only all"
     );
     expect(manifest.scripts["check:preflight:all:verify:json"]).toBe(
-      "node ./check-preflight.mjs --no-build --only all"
+      "node ./check-preflight.mjs --verify --only all"
     );
     expect(manifest.scripts["check:preflight:all:json:compact"]).toBe(
       "node ./check-preflight.mjs --only all --compact"
     );
     expect(manifest.scripts["check:preflight:all:verify:json:compact"]).toBe(
-      "node ./check-preflight.mjs --no-build --only all --compact"
+      "node ./check-preflight.mjs --verify --only all --compact"
     );
     expect(manifest.scripts["check:preflight:all-checks:json"]).toBe(
       "node ./check-preflight.mjs --only all-checks"
     );
     expect(manifest.scripts["check:preflight:all-checks:verify:json"]).toBe(
-      "node ./check-preflight.mjs --no-build --only all-checks"
+      "node ./check-preflight.mjs --verify --only all-checks"
     );
     expect(manifest.scripts["check:preflight:all-checks:json:compact"]).toBe(
       "node ./check-preflight.mjs --only all-checks --compact"
     );
     expect(
       manifest.scripts["check:preflight:all-checks:verify:json:compact"]
-    ).toBe("node ./check-preflight.mjs --no-build --only all-checks --compact");
+    ).toBe("node ./check-preflight.mjs --verify --only all-checks --compact");
     expect(manifest.scripts["check:preflight:dev-env:json:compact"]).toBe(
       "node ./check-preflight.mjs --only devEnvironment --compact"
     );
@@ -145,7 +145,7 @@ describe("script aliases", () => {
       "node ./check-preflight.mjs --only client --compact"
     );
     expect(manifest.scripts["check:preflight:client:verify:json:compact"]).toBe(
-      "node ./check-preflight.mjs --no-build --only client --compact"
+      "node ./check-preflight.mjs --verify --only client --compact"
     );
   });
 
