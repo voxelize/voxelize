@@ -5857,8 +5857,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     const { maxHeight, subChunks, maxLightLevel } = this.options;
     const subChunkHeight = maxHeight / subChunks;
 
-    const chunkResultsByColor = new Map<string, Map<LightColor, Uint32Array>>();
-    const allChunkCoords = new Map<string, Coords2>();
+    const chunkResults = new Map<
+      string,
+      { coords: Coords2; colorMap: Map<LightColor, Uint32Array> }
+    >();
 
     let globalMinY = maxHeight;
     let globalMaxY = 0;
@@ -5877,14 +5879,15 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       for (const { coords, lights } of result.modifiedChunks) {
         const key = `${coords[0]},${coords[1]}`;
-        allChunkCoords.set(key, coords);
-
-        let colorMap = chunkResultsByColor.get(key);
-        if (!colorMap) {
-          colorMap = new Map();
-          chunkResultsByColor.set(key, colorMap);
+        let chunkResult = chunkResults.get(key);
+        if (!chunkResult) {
+          chunkResult = {
+            coords,
+            colorMap: new Map(),
+          };
+          chunkResults.set(key, chunkResult);
         }
-        colorMap.set(result.color, lights);
+        chunkResult.colorMap.set(result.color, lights);
       }
     }
 
@@ -5894,8 +5897,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       Math.floor(globalMaxY / subChunkHeight)
     );
 
-    for (const [key, colorMap] of chunkResultsByColor) {
-      const coords = allChunkCoords.get(key)!;
+    for (const { coords, colorMap } of chunkResults.values()) {
       const chunk = this.getChunkByCoords(coords[0], coords[1]);
       if (!chunk) continue;
 
