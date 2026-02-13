@@ -247,6 +247,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   ): z.infer<T> {
     const shape = schema.shape;
     const keys = Object.keys(shape);
+    const hasOwn = Object.prototype.hasOwnProperty;
 
     if (keys.length === 1 && keys[0] === "rest") {
       return schema.parse({ rest: raw });
@@ -254,8 +255,6 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
     const words = this.splitQuotedTokens(raw);
     const rawObj: Record<string, string> = {};
-    const keySet = new Set(keys);
-    const assignedKeys = new Set<string>();
     const positionalValues: string[] = [];
 
     const booleanKeys = new Set<string>();
@@ -280,16 +279,14 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       if (eqIndex > 0) {
         const key = word.substring(0, eqIndex);
         const value = word.substring(eqIndex + 1);
-        if (keySet.has(key)) {
+        if (hasOwn.call(shape, key)) {
           rawObj[key] = value;
-          assignedKeys.add(key);
           continue;
         }
       }
 
       if (booleanKeys.has(word)) {
         rawObj[word] = "true";
-        assignedKeys.add(word);
         continue;
       }
 
@@ -298,7 +295,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
     let posIndex = 0;
     for (const key of keys) {
-      if (assignedKeys.has(key)) continue;
+      if (hasOwn.call(rawObj, key)) continue;
       if (booleanKeys.has(key)) continue;
       if (posIndex < positionalValues.length) {
         rawObj[key] = positionalValues[posIndex];
