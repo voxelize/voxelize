@@ -3462,6 +3462,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
                     let is_see_through = block.is_see_through;
                     let is_all_transparent = block.is_all_transparent;
+                    let skip_opaque_checks = is_see_through || is_all_transparent;
 
                     if is_non_greedy_block {
                         let non_greedy_voxel_index = current_voxel_index;
@@ -3728,7 +3729,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
                     if let Some(face) = matched_face {
                         if !face.independent && !face.isolated {
-                            let (aos, lights) = if is_see_through || is_all_transparent {
+                            let (aos, lights) = if skip_opaque_checks {
                                 let (_, center_light) = space.get_raw_voxel_and_raw_light(vx, vy, vz);
                                 let light = (center_light & 0xFFFF) as i32;
                                 ([3, 3, 3, 3], [light; 4])
@@ -3819,7 +3820,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         }
 
                         let (aos, lights) = *cached_ao_light.get_or_insert_with(|| {
-                            if is_see_through || is_all_transparent {
+                            if skip_opaque_checks {
                                 let (_, center_light) = space.get_raw_voxel_and_raw_light(vx, vy, vz);
                                 let light = (center_light & 0xFFFF) as i32;
                                 ([3, 3, 3, 3], [light; 4])
