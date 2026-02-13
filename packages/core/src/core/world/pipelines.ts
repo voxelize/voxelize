@@ -261,9 +261,21 @@ export class MeshPipeline {
   }
 
   static parseKey(key: string): { cx: number; cz: number; level: number } {
-    const [coordsPart, levelStr] = key.split(":");
-    const [cx, cz] = coordsPart.split(",").map(Number);
-    return { cx, cz, level: parseInt(levelStr) };
+    const commaIndex = key.indexOf(",");
+    const colonIndex = key.indexOf(":", commaIndex + 1);
+
+    if (commaIndex < 0 || colonIndex < 0) {
+      return {
+        cx: Number.NaN,
+        cz: Number.NaN,
+        level: Number.NaN,
+      };
+    }
+
+    const cx = parseInt(key.slice(0, commaIndex), 10);
+    const cz = parseInt(key.slice(commaIndex + 1, colonIndex), 10);
+    const level = parseInt(key.slice(colonIndex + 1), 10);
+    return { cx, cz, level };
   }
 
   onVoxelChange(cx: number, cz: number, level: number): void {
