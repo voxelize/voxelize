@@ -5331,13 +5331,13 @@ export class World<T = any> extends Scene implements NetIntercept {
         rotation === undefined || Number.isNaN(rotation) ? PY_ROTATION : rotation;
       const normalizedYRotation =
         yRotation === undefined || Number.isNaN(yRotation) ? 0 : yRotation;
-      const encodedRotation = hasRotation
+      const finalRotation = hasRotation
         ? BlockRotation.encode(normalizedRotation, normalizedYRotation)
-        : currentRotation;
+        : new BlockRotation();
 
       const newValue = BlockUtils.insertAll(
         newBlock.id,
-        hasRotation ? encodedRotation : undefined,
+        hasRotation ? finalRotation : undefined,
         normalizedStage
       );
       this.attemptBlockCache(vx, vy, vz, newValue);
@@ -5346,7 +5346,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.setVoxelStageAt(vx, vy, vz, normalizedStage);
 
       if (hasRotation) {
-        this.setVoxelRotationAt(vx, vy, vz, encodedRotation);
+        this.setVoxelRotationAt(vx, vy, vz, finalRotation);
       }
 
       processedUpdates.push({
@@ -5356,7 +5356,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         oldBlock: currentBlock,
         newBlock: newBlock,
         oldRotation: currentRotation,
-        newRotation: encodedRotation,
+        newRotation: finalRotation,
         oldStage: currentStage,
         stage: normalizedStage,
       });
