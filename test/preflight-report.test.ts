@@ -2318,6 +2318,92 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(1);
   });
 
+  it("treats no-build alias tokens after --only as missing values while keeping no-build active", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--only", "--verify"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.noBuild).toBe(true);
+    expect(report.validationErrorCode).toBe("only_option_missing_value");
+    expect(report.message).toBe("Missing value for --only option.");
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.requestedChecks).toEqual([]);
+    expect(report.requestedCheckCount).toBe(0);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--no-build", "--only"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--only", "--verify"]);
+    expect(report.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions(["--only", "--verify"])
+    );
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences(["--only", "--verify"])
+    );
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(result.status).toBe(1);
+  });
+
+  it("treats canonical no-build tokens after --only as missing values while keeping no-build active", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--only", "--no-build"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.noBuild).toBe(true);
+    expect(report.validationErrorCode).toBe("only_option_missing_value");
+    expect(report.message).toBe("Missing value for --only option.");
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.requestedChecks).toEqual([]);
+    expect(report.requestedCheckCount).toBe(0);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--no-build", "--only"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--only", "--no-build"]);
+    expect(report.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions(["--only", "--no-build"])
+    );
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences(["--only", "--no-build"])
+    );
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("prioritizes output validation while still reporting unsupported options", () => {
     const result = spawnSync(
       process.execPath,

@@ -475,6 +475,17 @@ describe("report-utils", () => {
       "Missing value for --only option."
     );
 
+    const recognizedOnlyNoBuildAliasAsSplitValue = resolveLastOptionValue(
+      ["--only", "--verify"],
+      "--only",
+      ["--only", "--no-build", "--verify"]
+    );
+    expect(recognizedOnlyNoBuildAliasAsSplitValue.hasOption).toBe(true);
+    expect(recognizedOnlyNoBuildAliasAsSplitValue.value).toBeNull();
+    expect(recognizedOnlyNoBuildAliasAsSplitValue.error).toBe(
+      "Missing value for --only option."
+    );
+
     const recognizedOutputLongAliasAsSplitValue = resolveLastOptionValue(
       ["--output", "--verify"],
       "--output",
@@ -1768,6 +1779,48 @@ describe("report-utils", () => {
       },
       {
         token: "--no-build",
+        canonicalOption: "--no-build",
+        index: 1,
+      },
+    ]);
+    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(2);
+    expect(diagnostics.unknownOptions).toEqual([]);
+    expect(diagnostics.unknownOptionCount).toBe(0);
+    expect(diagnostics.unsupportedOptionsError).toBeNull();
+  });
+
+  it("tracks recognized no-build aliases after strict only options as active", () => {
+    const diagnostics = createCliDiagnostics(["--only", "--verify"], {
+      canonicalOptions: ["--no-build", "--only"],
+      optionAliases: {
+        "--no-build": ["--verify"],
+      },
+      optionsWithValues: ["--only"],
+      optionsWithStrictValues: ["--only"],
+    });
+
+    expect(diagnostics.activeCliOptions).toEqual(["--no-build", "--only"]);
+    expect(diagnostics.activeCliOptionCount).toBe(2);
+    expect(diagnostics.activeCliOptionTokens).toEqual(["--only", "--verify"]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+    ]);
+    expect(diagnostics.activeCliOptionResolutionCount).toBe(2);
+    expect(diagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+        index: 0,
+      },
+      {
+        token: "--verify",
         canonicalOption: "--no-build",
         index: 1,
       },
