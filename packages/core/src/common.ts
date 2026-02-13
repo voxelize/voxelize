@@ -127,8 +127,11 @@ export const TRANSPARENT_SORT = (object: Object3D) => {
 
       const aDist = getDistance(aObj, _lastCamX, _lastCamY, _lastCamZ);
       const bDist = getDistance(bObj, _lastCamX, _lastCamY, _lastCamZ);
-
-      return bDist - aDist > 0 ? 1 : -1;
+      const distanceDelta = bDist - aDist;
+      if (distanceDelta === 0) {
+        return 0;
+      }
+      return distanceDelta > 0 ? 1 : -1;
     }
 
     if (a.groupOrder !== b.groupOrder) {
