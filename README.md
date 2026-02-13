@@ -136,6 +136,7 @@ pnpm run check:preflight:json
 pnpm run check:preflight:verify:json
 # includes per-check and total duration metadata
 # all json report commands include schemaVersion: 1
+# includes passedChecks/failedChecks and runtime metadata (platform/nodeVersion)
 # optionally write the same report to disk
 pnpm run check:preflight:verify:json -- --output ./preflight-report.json
 
