@@ -2613,20 +2613,27 @@ export class World<T = any> extends Scene implements NetIntercept {
             wz,
             dynamicPatterns
           );
-          return aabbsWithFlags.map(({ aabb, worldSpace }) =>
-            worldSpace
-              ? aabb.translate([vx, vy, vz])
-              : rotation.rotateAABB(aabb).translate([vx, vy, vz])
-          );
+          const coords: Coords3 = [vx, vy, vz];
+          const translatedAabbs = new Array<AABB>(aabbsWithFlags.length);
+          for (let index = 0; index < aabbsWithFlags.length; index++) {
+            const aabbWithFlag = aabbsWithFlags[index];
+            translatedAabbs[index] = aabbWithFlag.worldSpace
+              ? aabbWithFlag.aabb.translate(coords)
+              : rotation.rotateAABB(aabbWithFlag.aabb).translate(coords);
+          }
+          return translatedAabbs;
         }
 
-        return (
-          isDynamic
-            ? dynamicFn
-              ? dynamicFn([vx, vy, vz]).aabbs
-              : aabbs
-            : aabbs
-        ).map((aabb) => rotation.rotateAABB(aabb).translate([vx, vy, vz]));
+        const resolvedAabbs =
+          isDynamic && dynamicFn ? dynamicFn([vx, vy, vz]).aabbs : aabbs;
+        const coords: Coords3 = [vx, vy, vz];
+        const translatedAabbs = new Array<AABB>(resolvedAabbs.length);
+        for (let index = 0; index < resolvedAabbs.length; index++) {
+          translatedAabbs[index] = rotation
+            .rotateAABB(resolvedAabbs[index])
+            .translate(coords);
+        }
+        return translatedAabbs;
       },
       origin,
       direction,
