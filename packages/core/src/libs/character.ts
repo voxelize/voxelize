@@ -17,6 +17,7 @@ import {
   ShaderLightingUniforms,
   updateEntityShadowUniforms,
 } from "../core/world/entity-shadow-uniforms";
+import { JsonValue } from "../types";
 import { AnimationUtils, MathUtils as VoxMathUtils } from "../utils";
 
 import { CanvasBox, CanvasBoxOptions } from "./canvas-box";
@@ -401,7 +402,7 @@ export class Character extends Group {
   /**
    * Somewhere to store whatever you want.
    */
-  public extraData: any = null;
+  public extraData: JsonValue = null;
 
   /**
    * Whether the character is in a sitting pose.

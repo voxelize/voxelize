@@ -82,7 +82,7 @@ export class Perspective {
   /**
    * The input manager that binds the perspective's keyboard inputs.
    */
-  public inputs?: Inputs<any>;
+  public inputs?: Inputs;
 
   /**
    * The internal state of the perspective.

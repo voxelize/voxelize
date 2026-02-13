@@ -153,7 +153,12 @@ export class Registry {
     };
   }
 
-  static deserialize(data: any): Registry {
+  static deserialize(data: {
+    blocksByName: [string, Block][];
+    blocksById: [number, Block][];
+    nameMap: [string, number][];
+    idMap: [number, string][];
+  }): Registry {
     const registry = new Registry();
     registry.blocksByName = new Map(data.blocksByName);
     registry.blocksById = new Map(data.blocksById);
