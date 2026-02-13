@@ -989,8 +989,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       CHUNK_NEIGHBOR_OFFSETS.length
     );
     for (let i = 0; i < CHUNK_NEIGHBOR_OFFSETS.length; i++) {
-      const [dx, dz] = CHUNK_NEIGHBOR_OFFSETS[i];
-      chunks[i] = this.getLoadedChunkByCoords(cx + dx, cz + dz);
+      const offset = CHUNK_NEIGHBOR_OFFSETS[i];
+      chunks[i] = this.getLoadedChunkByCoords(cx + offset[0], cz + offset[1]);
     }
 
     const centerChunk = chunks[4];
