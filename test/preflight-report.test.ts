@@ -38,6 +38,11 @@ type PreflightReport = {
   failedCheckCount: number;
   firstFailedCheck: string | null;
   availableChecks: string[];
+  availableCheckAliases: {
+    devEnvironment: string[];
+    wasmPack: string[];
+    client: string[];
+  };
   passedChecks: string[];
   failedChecks: string[];
   failureSummaries: PreflightFailureSummary[];
@@ -51,6 +56,18 @@ type PreflightReport = {
 const testDir = fileURLToPath(new URL(".", import.meta.url));
 const rootDir = path.resolve(testDir, "..");
 const preflightScript = path.resolve(rootDir, "check-preflight.mjs");
+const expectedAvailableCheckAliases = {
+  devEnvironment: [
+    "devEnvironment",
+    "dev",
+    "dev-env",
+    "dev_env",
+    "devenv",
+    "devenvironment",
+  ],
+  wasmPack: ["wasmPack", "wasm", "wasm-pack", "wasm_pack", "wasmpack"],
+  client: ["client"],
+};
 
 describe("preflight aggregate report", () => {
   it("emits machine-readable aggregate JSON", () => {
@@ -76,6 +93,7 @@ describe("preflight aggregate report", () => {
       "wasmPack",
       "client",
     ]);
+    expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(report.selectedChecks).toEqual(report.availableChecks);
     expect(report.skippedChecks).toEqual([]);
     expect(report.invalidChecks).toEqual([]);
@@ -552,6 +570,7 @@ describe("preflight aggregate report", () => {
       "wasmPack",
       "client",
     ]);
+    expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(result.status).toBe(1);
   });
 
@@ -585,6 +604,7 @@ describe("preflight aggregate report", () => {
       "wasmPack",
       "client",
     ]);
+    expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(result.status).toBe(1);
   });
 

@@ -41,20 +41,26 @@ const availableChecks = [
   },
 ];
 const availableCheckNames = availableChecks.map((check) => check.name);
+const availableCheckAliases = {
+  devEnvironment: [
+    "devEnvironment",
+    "dev",
+    "dev-env",
+    "dev_env",
+    "devenv",
+    "devenvironment",
+  ],
+  wasmPack: ["wasmPack", "wasm", "wasm-pack", "wasm_pack", "wasmpack"],
+  client: ["client"],
+};
 const normalizeCheckToken = (value) => {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
 };
-const checkAliases = new Map([
-  ...availableCheckNames.map((checkName) => [
-    normalizeCheckToken(checkName),
-    checkName,
-  ]),
-  ["dev", "devEnvironment"],
-  ["devenv", "devEnvironment"],
-  ["devenvironment", "devEnvironment"],
-  ["wasm", "wasmPack"],
-  ["wasmpack", "wasmPack"],
-]);
+const checkAliases = new Map(
+  Object.entries(availableCheckAliases).flatMap(([checkName, aliases]) => {
+    return aliases.map((alias) => [normalizeCheckToken(alias), checkName]);
+  })
+);
 
 const parseSelectedChecks = () => {
   if (onlyArgIndex === -1) {
@@ -180,6 +186,7 @@ if (outputPathError !== null || selectedChecksError !== null) {
     message: outputPathError ?? selectedChecksError,
     invalidChecks,
     availableChecks: availableCheckNames,
+    availableCheckAliases,
   });
   const { reportJson } = serializeReportWithOptionalWrite(report, {
     jsonFormat,
@@ -232,6 +239,7 @@ const report = buildTimedReport({
   outputPath: resolvedOutputPath,
   invalidChecks: [],
   availableChecks: availableCheckNames,
+  availableCheckAliases,
 });
 const { reportJson, writeError } = serializeReportWithOptionalWrite(report, {
   jsonFormat,
