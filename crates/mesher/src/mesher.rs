@@ -2600,12 +2600,14 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
     let y_span = (max_y - min_y).max(0) as usize;
     let z_span = (max_z - min_z).max(0) as usize;
     let mut processed_non_greedy = vec![false; x_span * y_span * z_span];
-    let non_greedy_index = |vx: i32, vy: i32, vz: i32| -> usize {
+    let voxel_index = |vx: i32, vy: i32, vz: i32| -> usize {
         let local_x = (vx - min_x) as usize;
         let local_y = (vy - min_y) as usize;
         let local_z = (vz - min_z) as usize;
         local_x * y_span * z_span + local_y * z_span + local_z
     };
+    const OCCLUSION_UNKNOWN: u8 = 2;
+    let mut fully_occluded_opaque = vec![OCCLUSION_UNKNOWN; x_span * y_span * z_span];
 
     let directions: [(i32, i32, i32); 6] = [
         (1, 0, 0),
@@ -2679,19 +2681,28 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         Some(candidate) => candidate,
                         None => continue,
                     };
+                    let current_voxel_index = voxel_index(vx, vy, vz);
 
                     if block.is_empty {
                         continue;
                     }
 
                     if block.is_opaque {
-                        if is_surrounded_by_opaque_neighbors(vx, vy, vz, space, registry) {
+                        let cached = fully_occluded_opaque[current_voxel_index];
+                        let is_fully_occluded = if cached == OCCLUSION_UNKNOWN {
+                            let value = is_surrounded_by_opaque_neighbors(vx, vy, vz, space, registry);
+                            fully_occluded_opaque[current_voxel_index] = if value { 1 } else { 0 };
+                            value
+                        } else {
+                            cached == 1
+                        };
+                        if is_fully_occluded {
                             continue;
                         }
                     }
 
                     let is_non_greedy_block = !can_greedy_mesh_block(block, &rotation);
-                    if is_non_greedy_block && processed_non_greedy[non_greedy_index(vx, vy, vz)] {
+                    if is_non_greedy_block && processed_non_greedy[current_voxel_index] {
                         continue;
                     }
 
@@ -2711,7 +2722,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 block.faces.iter().cloned().map(|face| (face, false)).collect()
                             };
 
-                        processed_non_greedy[non_greedy_index(vx, vy, vz)] = true;
+                        processed_non_greedy[current_voxel_index] = true;
                         for (face, world_space) in faces {
                             non_greedy_faces.push((
                                 vx,
