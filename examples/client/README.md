@@ -89,6 +89,7 @@ JSON preflight reports include `startedAt`, `endedAt`, and `durationMs`.
 Client aggregate JSON reports include `totalSteps`, `passedStepCount`, `failedStepCount`, `skippedStepCount`, and `firstFailedStep`.
 Skipped JSON steps are represented with `skipped: true` and `exitCode: null`.
 If `--output` is provided without a value, JSON commands return a structured error report.
+If `--output` is passed multiple times, the last value is used.
 Add `--compact` to each JSON preflight command for single-line JSON output.
 
 This runs client typechecking and wasm-artifact preflight in sequence.

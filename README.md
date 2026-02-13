@@ -194,6 +194,7 @@ In JSON mode, skipped steps are represented with `skipped: true` and `exitCode: 
 JSON preflight commands include `startedAt`, `endedAt`, and `durationMs`.
 Client and onboarding JSON reports also include `totalSteps`, `passedStepCount`, `failedStepCount`, `skippedStepCount`, and `firstFailedStep`.
 If `--output` is provided without a value, JSON commands return a structured error report.
+If `--output` or `--only` is passed multiple times, the last value is used.
 Add `--compact` to each JSON preflight command for single-line JSON output.
 
 visit http://localhost:3000
