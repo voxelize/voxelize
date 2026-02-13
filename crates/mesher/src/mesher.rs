@@ -1862,11 +1862,13 @@ fn compute_face_ao_and_light_fast(
 fn extract_greedy_quads(
     mask: &mut HashMap<(i32, i32), FaceData>,
     min_u: i32,
-    max_u: i32,
     min_v: i32,
-    max_v: i32,
+    width: i32,
+    height: i32,
 ) -> Vec<GreedyQuad> {
-    let estimated_cells = ((max_u - min_u) * (max_v - min_v)).max(0) as usize;
+    let max_u = min_u + width;
+    let max_v = min_v + height;
+    let estimated_cells = (width * height).max(0) as usize;
     let mut quads = Vec::with_capacity((estimated_cells / 2).max(16));
 
     for v in min_v..max_v {
@@ -3127,7 +3129,13 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
             }
 
             let quads =
-                extract_greedy_quads(&mut greedy_mask, u_range.0, u_range.1, v_range.0, v_range.1);
+                extract_greedy_quads(
+                    &mut greedy_mask,
+                    u_range.0,
+                    v_range.0,
+                    u_range.1 - u_range.0,
+                    v_range.1 - v_range.0,
+                );
 
             let mut cached_quad_block_id = u32::MAX;
             let mut cached_quad_block: Option<&Block> = None;
