@@ -990,7 +990,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     );
     for (let i = 0; i < CHUNK_NEIGHBOR_OFFSETS.length; i++) {
       const [dx, dz] = CHUNK_NEIGHBOR_OFFSETS[i];
-      chunks[i] = this.getChunkByCoords(cx + dx, cz + dz);
+      chunks[i] = this.getLoadedChunkByCoords(cx + dx, cz + dz);
     }
 
     const centerChunk = chunks[4];
@@ -1076,7 +1076,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.buildChunkMesh(cx, cz, mesh);
 
-    const chunk = this.getChunkByCoords(cx, cz);
+    const chunk = this.getLoadedChunkByCoords(cx, cz);
     if (chunk) {
       const meshes = chunk.meshes.get(level) || [];
       this.emitChunkEvent("chunk-mesh-updated", {
@@ -1696,7 +1696,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   getChunkByCoords(cx: number, cz: number) {
     this.checkIsInitialized("get chunk by coords", false);
-    return this.chunkPipeline.getLoadedChunk(ChunkUtils.getChunkNameAt(cx, cz));
+    return this.getLoadedChunkByCoords(cx, cz);
   }
 
   /**
@@ -1710,6 +1710,10 @@ export class World<T = any> extends Scene implements NetIntercept {
   getChunkByPosition(px: number, py: number, pz: number) {
     this.checkIsInitialized("get chunk by position", false);
     return this.getLoadedChunkAtVoxel(px, pz);
+  }
+
+  private getLoadedChunkByCoords(cx: number, cz: number) {
+    return this.chunkPipeline.getLoadedChunk(ChunkUtils.getChunkNameAt(cx, cz));
   }
 
   private getLoadedChunkAtVoxel(vx: number, vz: number) {
@@ -4017,7 +4021,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     toProcess.forEach((item) => {
       const { x, z, id } = item.data;
 
-      let chunk = this.getChunkByCoords(x, z);
+      let chunk = this.getLoadedChunkByCoords(x, z);
 
       if (!chunk) {
         chunk = new Chunk(id, [x, z], {
@@ -4511,7 +4515,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private buildChunkMesh(cx: number, cz: number, data: MeshProtocol) {
-    const chunk = this.getChunkByCoords(cx, cz);
+    const chunk = this.getLoadedChunkByCoords(cx, cz);
     if (!chunk) return;
 
     const { maxHeight, subChunks, chunkSize, mergeChunkGeometries } =
@@ -5932,7 +5936,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           }
         }
 
-        const chunk = this.getChunkByCoords(cx, cz);
+        const chunk = this.getLoadedChunkByCoords(cx, cz);
 
         if (chunk && chunk.isReady) {
           const [data, buffers] = chunk.serialize();
@@ -6091,7 +6095,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     for (const chunkResultsByZ of chunkResultsByX.values()) {
       for (const chunkResult of chunkResultsByZ.values()) {
         const { coords, colorCount, firstColor, firstLights } = chunkResult;
-        const chunk = this.getChunkByCoords(coords[0], coords[1]);
+        const chunk = this.getLoadedChunkByCoords(coords[0], coords[1]);
         if (!chunk) continue;
 
         if (colorCount === 1) {
@@ -6647,7 +6651,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     for (const [dx, dz] of CHUNK_NEIGHBOR_OFFSETS) {
       const nx = cx + dx;
       const nz = cz + dz;
-      const neighborChunk = this.getChunkByCoords(nx, nz);
+      const neighborChunk = this.getLoadedChunkByCoords(nx, nz);
 
       if (!neighborChunk || !neighborChunk.isReady) {
         continue;
@@ -6661,7 +6665,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           continue;
         }
 
-        const nn = this.getChunkByCoords(nnx, nnz);
+        const nn = this.getLoadedChunkByCoords(nnx, nnz);
         if (!nn || !nn.isReady) {
           allNeighborsReady = false;
           break;
