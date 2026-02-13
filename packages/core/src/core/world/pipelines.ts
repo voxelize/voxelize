@@ -176,9 +176,14 @@ export class ChunkPipeline {
   }
 
   remove(name: string): Chunk | undefined {
-    const chunk = this.getLoadedChunk(name);
-    this.removeStage(name);
-    return chunk;
+    const state = this.states.get(name);
+    if (!state) {
+      return undefined;
+    }
+
+    this.indices[state.stage].delete(name);
+    this.states.delete(name);
+    return state.stage === "loaded" ? state.chunk : undefined;
   }
 
   *loadedEntries(): IterableIterator<[string, Chunk]> {
