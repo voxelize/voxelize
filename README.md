@@ -42,6 +42,7 @@ This is purely a passionate project. The v0 of this engine, [mc.js](https://gith
 - Multi-stage chunk generation with chunk overflow support
   - No need to worry if a tree overflows to neighboring chunk, that is handled automatically
 - Fully configurable chat system with commands registry
+- Rust-free core voxel primitives available via `@voxelize/ts-core`
 - AABB Physics engine that works with any static or dynamic blocks
   - Auto-stepping, raycasting, all included
 - Entity-to-entity collision detection and resolution system
@@ -55,6 +56,7 @@ Checkout the Voxelize documentations here:
 
 - [Backend](https://docs.rs/voxelize/0.8.11/voxelize/index.html)
 - [Frontend](https://docs.voxelize.io/tutorials/intro/what-is-voxelize)
+- [TypeScript Core](https://docs.voxelize.io/tutorials/intermediate/typescript-core)
 
 ## Development
 
