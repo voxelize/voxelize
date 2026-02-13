@@ -248,42 +248,51 @@ const processMeshMessage = (message: MeshBatchMessage) => {
     chunkSize,
     greedyMeshing
   ) as { geometries: GeometryProtocol[] };
-  const geometries = result.geometries;
-
   const arrayBuffers: ArrayBuffer[] = [];
-  const geometriesPacked = geometries
-    .map((geometry) => {
-      const positions = new Float32Array(geometry.positions);
-      const indices = new Uint16Array(geometry.indices.length);
-      for (let i = 0; i < geometry.indices.length; i++) {
-        indices[i] = geometry.indices[i];
-      }
+  const geometriesPacked: {
+    indices: Uint16Array;
+    lights: Int32Array;
+    positions: Float32Array;
+    uvs: Float32Array;
+    normals: Float32Array;
+    bsCenter: [number, number, number];
+    bsRadius: number;
+    voxel: number;
+    faceName: string | null;
+    at: Coords3 | null;
+  }[] = [];
 
-      const normals = workerComputeNormals(positions, indices);
-      const bs = workerComputeBoundingSphere(positions);
+  for (const geometry of result.geometries) {
+    const positions = new Float32Array(geometry.positions);
+    if (positions.length === 0) {
+      continue;
+    }
 
-      const packedGeometry = {
-        indices,
-        lights: new Int32Array(geometry.lights),
-        positions,
-        uvs: new Float32Array(geometry.uvs),
-        normals,
-        bsCenter: bs.center,
-        bsRadius: bs.radius,
-        voxel: geometry.voxel,
-        faceName: geometry.faceName,
-        at: geometry.at,
-      };
+    const indices = new Uint16Array(geometry.indices);
+    const normals = workerComputeNormals(positions, indices);
+    const bs = workerComputeBoundingSphere(positions);
+    const lights = new Int32Array(geometry.lights);
+    const uvs = new Float32Array(geometry.uvs);
 
-      arrayBuffers.push(packedGeometry.indices.buffer);
-      arrayBuffers.push(packedGeometry.lights.buffer);
-      arrayBuffers.push(packedGeometry.positions.buffer);
-      arrayBuffers.push(packedGeometry.uvs.buffer);
-      arrayBuffers.push(packedGeometry.normals.buffer as ArrayBuffer);
+    geometriesPacked.push({
+      indices,
+      lights,
+      positions,
+      uvs,
+      normals,
+      bsCenter: bs.center,
+      bsRadius: bs.radius,
+      voxel: geometry.voxel,
+      faceName: geometry.faceName,
+      at: geometry.at,
+    });
 
-      return packedGeometry;
-    })
-    .filter((geometry) => geometry.positions.length > 0);
+    arrayBuffers.push(indices.buffer);
+    arrayBuffers.push(lights.buffer);
+    arrayBuffers.push(positions.buffer);
+    arrayBuffers.push(uvs.buffer);
+    arrayBuffers.push(normals.buffer as ArrayBuffer);
+  }
 
   postMessage(
     { geometries: geometriesPacked },
