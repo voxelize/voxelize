@@ -1982,15 +1982,18 @@ export class World<T = any> extends Scene implements NetIntercept {
     const invMaxLightLevel = 1 / this.options.maxLightLevel;
 
     const sunlightNorm = sunlight * invMaxLightLevel;
-    const sunlightFactor = sunlightNorm ** 2 * sunlightIntensity.value;
+    const sunlightFactor = sunlightNorm * sunlightNorm * sunlightIntensity.value;
     const s = Math.min(
       sunlightFactor + minLightLevel.value * sunlightNorm + baseAmbient.value,
       1
     );
 
-    const torchR = Math.pow(red * invMaxLightLevel, 2);
-    const torchG = Math.pow(green * invMaxLightLevel, 2);
-    const torchB = Math.pow(blue * invMaxLightLevel, 2);
+    const torchRed = red * invMaxLightLevel;
+    const torchGreen = green * invMaxLightLevel;
+    const torchBlue = blue * invMaxLightLevel;
+    const torchR = torchRed * torchRed;
+    const torchG = torchGreen * torchGreen;
+    const torchB = torchBlue * torchBlue;
     const torchAttenuation = 1.0 - s * 0.8;
 
     return new Color(
