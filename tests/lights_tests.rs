@@ -432,6 +432,31 @@ fn test_register_blocks_auto_id_reflects_ids_freed_by_earlier_updates() {
 }
 
 #[test]
+fn test_register_blocks_same_name_overwrite_keeps_latest_id_only() {
+    let mut registry = create_test_registry();
+
+    registry.register_blocks(&[
+        Block::new("torch").id(41).build(),
+        Block::new("torch").id(42).build(),
+    ]);
+
+    assert_eq!(registry.get_block_by_name("torch").id, 42);
+    assert!(registry.has_type(42));
+    assert!(
+        !registry.has_type(41),
+        "earlier overwritten id should be removed from registry maps"
+    );
+    assert!(
+        registry
+            .textures
+            .iter()
+            .find(|(id, _, _)| *id == 41)
+            .is_none(),
+        "texture entries for overwritten id should be removed"
+    );
+}
+
+#[test]
 fn test_register_blocks_panics_on_duplicate_ids_in_batch() {
     let mut registry = create_test_registry();
 
