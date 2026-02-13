@@ -2495,7 +2495,6 @@ fn process_face<S: VoxelAccess>(
     let ndx = (positions.len() / 3) as i32;
 
     let block_min = cache.block_min;
-    let block_min_y_eps = block_min[1] + 0.01;
     let skip_opaque_checks = see_through || is_all_transparent;
     let needs_opaque_checks = !skip_opaque_checks;
     let opaque_mask = if needs_opaque_checks {
@@ -2541,26 +2540,41 @@ fn process_face<S: VoxelAccess>(
             .expect("center light exists when opaque checks are skipped")
             as i32;
         let base_light_i32 = center_light_i32 | 3 << 16 | fluid_bit;
-        for corner in &face.corners {
-            let mut pos = corner.pos;
+        if apply_wave_bit {
+            let block_min_y_eps = block_min[1] + 0.01;
+            for corner in &face.corners {
+                let mut pos = corner.pos;
 
-            if needs_rotation {
-                rotation.rotate_node(&mut pos, y_rotatable, true);
+                if needs_rotation {
+                    rotation.rotate_node(&mut pos, y_rotatable, true);
+                }
+
+                positions.push(pos[0] + base_x);
+                positions.push(pos[1] + base_y);
+                positions.push(pos[2] + base_z);
+
+                uvs.push(corner.uv[0] * uv_span_u + start_u);
+                uvs.push(corner.uv[1] * uv_span_v + start_v);
+
+                let wave_bit = if pos[1] > block_min_y_eps { 1 << 20 } else { 0 };
+                lights.push(base_light_i32 | wave_bit);
             }
+        } else {
+            for corner in &face.corners {
+                let mut pos = corner.pos;
 
-            positions.push(pos[0] + base_x);
-            positions.push(pos[1] + base_y);
-            positions.push(pos[2] + base_z);
+                if needs_rotation {
+                    rotation.rotate_node(&mut pos, y_rotatable, true);
+                }
 
-            uvs.push(corner.uv[0] * uv_span_u + start_u);
-            uvs.push(corner.uv[1] * uv_span_v + start_v);
+                positions.push(pos[0] + base_x);
+                positions.push(pos[1] + base_y);
+                positions.push(pos[2] + base_z);
 
-            let wave_bit = if apply_wave_bit && pos[1] > block_min_y_eps {
-                1 << 20
-            } else {
-                0
-            };
-            lights.push(base_light_i32 | wave_bit);
+                uvs.push(corner.uv[0] * uv_span_u + start_u);
+                uvs.push(corner.uv[1] * uv_span_v + start_v);
+                lights.push(base_light_i32);
+            }
         }
     } else {
         let mut face_aos = [0i32; 4];
@@ -2573,6 +2587,7 @@ fn process_face<S: VoxelAccess>(
         let is_cardinal_dir = dir_is_x || dir_is_y || dir[2].abs() == 1;
         let center_opaque = neighbor_is_opaque(mask, 0, 0, 0);
         let block_min_x_eps = block_min[0] + 0.01;
+        let block_min_y_eps = block_min[1] + 0.01;
         let block_min_z_eps = block_min[2] + 0.01;
         for (corner_index, corner) in face.corners.iter().enumerate() {
             let mut pos = corner.pos;
