@@ -427,7 +427,7 @@ impl NeighborCache {
 fn build_neighbor_opaque_mask(neighbors: &NeighborCache, registry: &Registry) -> [bool; 27] {
     let mut mask = [false; 27];
     for (idx, entry) in neighbors.data.iter().enumerate() {
-        mask[idx] = registry.is_opaque_id(extract_id(entry[0]));
+        mask[idx] = registry.is_opaque_id(entry[0] & 0xFFFF);
     }
     mask
 }
