@@ -98,7 +98,8 @@ export class ChunkPipeline {
 
     state.retryCount++;
     if (state.retryCount > chunkRerequestInterval) {
-      this.removeStage(name);
+      this.indices.requested.delete(name);
+      this.states.delete(name);
       return true;
     }
 
