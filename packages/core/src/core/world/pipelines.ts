@@ -246,6 +246,21 @@ interface MeshState {
 export class MeshPipeline {
   private states = new Map<string, MeshState>();
   private dirty = new Set<string>();
+  private keysByChunk = new Map<string, Set<string>>();
+
+  private static makeChunkKey(cx: number, cz: number): string {
+    return `${cx},${cz}`;
+  }
+
+  private indexKeyForChunk(cx: number, cz: number, key: string) {
+    const chunkKey = MeshPipeline.makeChunkKey(cx, cz);
+    let keys = this.keysByChunk.get(chunkKey);
+    if (!keys) {
+      keys = new Set();
+      this.keysByChunk.set(chunkKey, keys);
+    }
+    keys.add(key);
+  }
 
   private getOrCreate(
     key: string,
@@ -264,12 +279,9 @@ export class MeshPipeline {
         displayedGeneration: 0,
       };
       this.states.set(key, state);
+      this.indexKeyForChunk(cx, cz, key);
       return state;
     }
-
-    state.cx = cx;
-    state.cz = cz;
-    state.level = level;
     return state;
   }
 
@@ -388,12 +400,17 @@ export class MeshPipeline {
   }
 
   remove(cx: number, cz: number): void {
-    for (const [key, state] of this.states) {
-      if (state.cx === cx && state.cz === cz) {
-        this.states.delete(key);
-        this.dirty.delete(key);
-      }
+    const chunkKey = MeshPipeline.makeChunkKey(cx, cz);
+    const keys = this.keysByChunk.get(chunkKey);
+    if (!keys) {
+      return;
     }
+
+    for (const key of keys) {
+      this.states.delete(key);
+      this.dirty.delete(key);
+    }
+    this.keysByChunk.delete(chunkKey);
   }
 
   hasInFlightJob(key: string): boolean {
