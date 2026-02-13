@@ -862,7 +862,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: true,
             isolated: false,
             texture_group: None,
-            range: standard_uvs[0].clone(),
+            range: standard_uvs[0],
             corners: [
                 CornerData {
                     pos: [0.0, h_nxpz, 1.0],
@@ -889,7 +889,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: false,
             isolated: false,
             texture_group: None,
-            range: standard_uvs[1].clone(),
+            range: standard_uvs[1],
             corners: [
                 CornerData {
                     pos: [1.0, 0.0, 1.0],
@@ -916,7 +916,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: true,
             isolated: false,
             texture_group: None,
-            range: standard_uvs[2].clone(),
+            range: standard_uvs[2],
             corners: [
                 CornerData {
                     pos: [1.0, h_pxpz, 1.0],
@@ -943,7 +943,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: true,
             isolated: false,
             texture_group: None,
-            range: standard_uvs[3].clone(),
+            range: standard_uvs[3],
             corners: [
                 CornerData {
                     pos: [0.0, h_nxnz, 0.0],
@@ -970,7 +970,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: true,
             isolated: false,
             texture_group: None,
-            range: standard_uvs[4].clone(),
+            range: standard_uvs[4],
             corners: [
                 CornerData {
                     pos: [0.0, 0.0, 1.0],
@@ -997,7 +997,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: true,
             isolated: false,
             texture_group: None,
-            range: standard_uvs[5].clone(),
+            range: standard_uvs[5],
             corners: [
                 CornerData {
                     pos: [1.0, 0.0, 0.0],
