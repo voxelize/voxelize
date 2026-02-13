@@ -420,4 +420,31 @@ describe("preflight aggregate report", () => {
 
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
+
+  it("returns structured write failures for validation-error output paths", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-preflight-invalid-output-path-")
+    );
+
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--only", "invalidCheck", "--output", tempDirectory],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBe(tempDirectory);
+    expect(report.message).toBe(`Failed to write report to ${tempDirectory}.`);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
 });

@@ -152,7 +152,6 @@ if (outputPathError !== null || selectedChecksError !== null) {
             ...report,
             passed: false,
             exitCode: 1,
-            outputPath: null,
             message: writeError,
           }),
           jsonFormat
