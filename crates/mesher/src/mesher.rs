@@ -1959,8 +1959,9 @@ fn extract_greedy_quads_dense(
                 }
 
                 let mut quad_height = 1usize;
+                let mut next_row_start = start_index + width;
                 'height: while v_off + quad_height < height {
-                    let row_start = (v_off + quad_height) * width + u_off;
+                    let row_start = next_row_start;
                     for du in 0..quad_width {
                         let neighbor_index = row_start + du;
                         if let Some(neighbor) = mask[neighbor_index].as_ref() {
@@ -1977,6 +1978,7 @@ fn extract_greedy_quads_dense(
                         mask[neighbor_index] = None;
                     }
                     quad_height += 1;
+                    next_row_start += width;
                 }
 
                 quads.push(GreedyQuad {
