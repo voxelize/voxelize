@@ -724,6 +724,7 @@ describe("preflight aggregate report", () => {
     expect(report.passedCheckCount).toBe(0);
     expect(report.failedCheckCount).toBe(0);
     expect(report.firstFailedCheck).toBeNull();
+    expect(report.selectionMode).toBe("default");
     expect(report.message).toBe("Missing value for --output option.");
     expect(report.invalidChecks).toEqual([]);
     expect(report.requestedChecks).toEqual([]);
@@ -747,6 +748,7 @@ describe("preflight aggregate report", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.outputPath).toBeNull();
+    expect(report.selectionMode).toBe("default");
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(report.message).toBe("Missing value for --output option.");
     expect(report.invalidChecks).toEqual([]);
@@ -820,6 +822,7 @@ describe("preflight aggregate report", () => {
     expect(report.passedCheckCount).toBe(0);
     expect(report.failedCheckCount).toBe(0);
     expect(report.firstFailedCheck).toBeNull();
+    expect(report.selectionMode).toBe("only");
     expect(report.message).toBe("Missing value for --only option.");
     expect(report.requestedChecks).toEqual([]);
     expect(report.availableChecks).toEqual([
