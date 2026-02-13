@@ -510,8 +510,34 @@ impl NeighborCache {
 #[inline(always)]
 fn build_neighbor_opaque_mask(neighbors: &NeighborCache, registry: &Registry) -> [bool; 27] {
     let mut mask = [false; 27];
+    if let Some(dense) = &registry.dense_lookup {
+        for (idx, entry) in neighbors.data.iter().enumerate() {
+            let voxel_id = (entry[0] & 0xFFFF) as usize;
+            if let Some(&dense_index) = dense.get(voxel_id) {
+                mask[idx] = dense_index != usize::MAX && registry.blocks_by_id[dense_index].1.is_opaque;
+            }
+        }
+        return mask;
+    }
+
+    if let Some(cache) = &registry.lookup_cache {
+        for (idx, entry) in neighbors.data.iter().enumerate() {
+            let voxel_id = entry[0] & 0xFFFF;
+            if let Some(&lookup_index) = cache.get(&voxel_id) {
+                mask[idx] = registry.blocks_by_id[lookup_index].1.is_opaque;
+            }
+        }
+        return mask;
+    }
+
     for (idx, entry) in neighbors.data.iter().enumerate() {
-        mask[idx] = registry.is_opaque_id(entry[0] & 0xFFFF);
+        let voxel_id = entry[0] & 0xFFFF;
+        mask[idx] = registry
+            .blocks_by_id
+            .iter()
+            .find(|(block_id, _)| *block_id == voxel_id)
+            .map(|(_, block)| block.is_opaque)
+            .unwrap_or(false);
     }
     mask
 }
