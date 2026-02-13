@@ -539,15 +539,17 @@ export class Character extends Group {
 
     this.newPosition.set(position[0], position[1], position[2]);
 
-    this.newDirection.copy(
-      VoxMathUtils.directionToQuaternion(
-        direction[0],
-        direction[1],
-        direction[2]
-      )
+    VoxMathUtils.directionToQuaternion(
+      direction[0],
+      direction[1],
+      direction[2],
+      this.newDirection
     );
-    this.newBodyDirection.copy(
-      VoxMathUtils.directionToQuaternion(direction[0], 0, direction[2])
+    VoxMathUtils.directionToQuaternion(
+      direction[0],
+      0,
+      direction[2],
+      this.newBodyDirection
     );
   }
 

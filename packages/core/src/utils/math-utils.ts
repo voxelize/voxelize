@@ -1,6 +1,10 @@
 import { Matrix4, Quaternion, Vector3 } from "three";
 
 const TWO_PI = Math.PI * 2;
+const DIRECTION_LOOK_MATRIX = new Matrix4();
+const DIRECTION_TARGET = new Vector3();
+const DIRECTION_ORIGIN = new Vector3(0, 0, 0);
+const DIRECTION_UP = new Vector3(0, 1, 0);
 
 /**
  * A utility class for doing math operations.
@@ -37,21 +41,21 @@ export class MathUtils {
    * @param dz Z component of the direction vector.
    * @returns The quaternion representing the direction vector.
    */
-  static directionToQuaternion = (dx: number, dy: number, dz: number) => {
-    const toQuaternion = (() => {
-      const m = new Matrix4();
-      const q = new Quaternion();
-      const zero = new Vector3(0, 0, 0);
-      const one = new Vector3(0, 1, 0);
-
-      return () => {
-        return q.setFromRotationMatrix(
-          m.lookAt(new Vector3(-dx, -dy, -dz), zero, one)
-        );
-      };
-    })();
-
-    return toQuaternion();
+  static directionToQuaternion = (
+    dx: number,
+    dy: number,
+    dz: number,
+    target?: Quaternion
+  ) => {
+    const quaternion = target ?? new Quaternion();
+    DIRECTION_TARGET.set(-dx, -dy, -dz);
+    return quaternion.setFromRotationMatrix(
+      DIRECTION_LOOK_MATRIX.lookAt(
+        DIRECTION_TARGET,
+        DIRECTION_ORIGIN,
+        DIRECTION_UP
+      )
+    );
   };
 
   private constructor() {
