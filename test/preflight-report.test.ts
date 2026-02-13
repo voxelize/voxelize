@@ -2937,6 +2937,53 @@ describe("preflight aggregate report", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("uses the last output flag for only-selection validation errors with unsupported options", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-preflight-only-unsupported-last-output-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+    const secondOutputPath = path.resolve(tempDirectory, "second-report.json");
+
+    const result = spawnSync(
+      process.execPath,
+      [
+        preflightScript,
+        "--mystery",
+        "--only",
+        "invalidCheck",
+        "--output",
+        firstOutputPath,
+        "--output",
+        secondOutputPath,
+      ],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const stdoutReport = JSON.parse(output) as PreflightReport;
+    const secondFileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as PreflightReport;
+
+    expect(stdoutReport.schemaVersion).toBe(1);
+    expect(stdoutReport.passed).toBe(false);
+    expect(stdoutReport.exitCode).toBe(1);
+    expect(stdoutReport.validationErrorCode).toBe("only_option_invalid_value");
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(stdoutReport.unknownOptions).toEqual(["--mystery"]);
+    expect(stdoutReport.unknownOptionCount).toBe(1);
+    expect(stdoutReport.invalidChecks).toEqual(["invalidCheck"]);
+    expect(stdoutReport.invalidCheckCount).toBe(1);
+    expect(secondFileReport).toEqual(stdoutReport);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("returns structured write failures for validation-error output paths", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-preflight-invalid-output-path-")
@@ -3032,6 +3079,50 @@ describe("preflight aggregate report", () => {
     expect(report.invalidCheckCount).toBe(1);
     expect(report.writeError).toContain(`Failed to write report to ${tempDirectory}.`);
     expect(report.message).toContain(`Failed to write report to ${tempDirectory}.`);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("returns write failures for only-selection validation with unsupported options when the last output path is invalid", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-preflight-only-unsupported-last-invalid-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+
+    const result = spawnSync(
+      process.execPath,
+      [
+        preflightScript,
+        "--mystery",
+        "--only",
+        "invalidCheck",
+        "--output",
+        firstOutputPath,
+        "--output",
+        tempDirectory,
+      ],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("only_option_invalid_value");
+    expect(report.outputPath).toBe(tempDirectory);
+    expect(report.unknownOptions).toEqual(["--mystery"]);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(report.invalidChecks).toEqual(["invalidCheck"]);
+    expect(report.invalidCheckCount).toBe(1);
+    expect(report.writeError).toContain(`Failed to write report to ${tempDirectory}.`);
+    expect(report.message).toContain(`Failed to write report to ${tempDirectory}.`);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
     expect(result.status).toBe(1);
 
     fs.rmSync(tempDirectory, { recursive: true, force: true });
