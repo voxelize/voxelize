@@ -15,6 +15,76 @@ const cliArgs = process.argv.slice(2);
 const isNoBuild = cliArgs.includes("--no-build");
 const { outputPath: resolvedOutputPath, error: outputPathError } =
   resolveOutputPath(cliArgs);
+const onlyArgIndex = cliArgs.indexOf("--only");
+
+const availableChecks = [
+  {
+    name: "devEnvironment",
+    scriptName: "check-dev-env.mjs",
+    extraArgs: [],
+  },
+  {
+    name: "wasmPack",
+    scriptName: "check-wasm-pack.mjs",
+    extraArgs: [],
+  },
+  {
+    name: "client",
+    scriptName: "check-client.mjs",
+    extraArgs: isNoBuild ? ["--no-build"] : [],
+  },
+];
+const availableCheckNames = availableChecks.map((check) => check.name);
+
+const parseSelectedChecks = () => {
+  if (onlyArgIndex === -1) {
+    return {
+      selectedChecks: availableCheckNames,
+      error: null,
+    };
+  }
+
+  const onlyValue = cliArgs[onlyArgIndex + 1] ?? null;
+  if (onlyValue === null || onlyValue.startsWith("--")) {
+    return {
+      selectedChecks: [],
+      error: "Missing value for --only option.",
+    };
+  }
+
+  const parsedChecks = Array.from(
+    new Set(
+      onlyValue
+        .split(",")
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0)
+    )
+  );
+
+  if (parsedChecks.length === 0) {
+    return {
+      selectedChecks: [],
+      error: "Missing value for --only option.",
+    };
+  }
+
+  const unknownChecks = parsedChecks.filter((value) => {
+    return !availableCheckNames.includes(value);
+  });
+
+  if (unknownChecks.length > 0) {
+    return {
+      selectedChecks: [],
+      error: `Unknown check name(s): ${unknownChecks.join(", ")}.`,
+    };
+  }
+
+  return {
+    selectedChecks: parsedChecks,
+    error: null,
+  };
+};
+const { selectedChecks, error: selectedChecksError } = parseSelectedChecks();
 
 const runCheck = (name, scriptName, extraArgs = []) => {
   const checkStartMs = Date.now();
@@ -44,7 +114,7 @@ const aggregateStartMs = Date.now();
 const platform = process.platform;
 const nodeVersion = process.version;
 
-if (outputPathError !== null) {
+if (outputPathError !== null || selectedChecksError !== null) {
   console.log(
     toReportJson({
       passed: false,
@@ -54,19 +124,26 @@ if (outputPathError !== null) {
       nodeVersion,
       startedAt,
       durationMs: 0,
+      selectedChecks: [],
+      skippedChecks: availableCheckNames,
       checks: [],
       outputPath: null,
-      message: outputPathError,
+      message: outputPathError ?? selectedChecksError,
+      availableChecks: availableCheckNames,
     })
   );
   process.exit(1);
 }
 
-const checks = [
-  runCheck("devEnvironment", "check-dev-env.mjs"),
-  runCheck("wasmPack", "check-wasm-pack.mjs"),
-  runCheck("client", "check-client.mjs", isNoBuild ? ["--no-build"] : []),
-];
+const selectedCheckSet = new Set(selectedChecks);
+const skippedChecks = availableCheckNames.filter((checkName) => {
+  return !selectedCheckSet.has(checkName);
+});
+const checks = availableChecks
+  .filter((check) => selectedCheckSet.has(check.name))
+  .map((check) => {
+    return runCheck(check.name, check.scriptName, check.extraArgs);
+  });
 
 const passed = checks.every((check) => check.passed);
 const exitCode = passed ? 0 : 1;
@@ -148,11 +225,14 @@ const report = {
   nodeVersion,
   startedAt,
   durationMs: Date.now() - aggregateStartMs,
+  selectedChecks,
+  skippedChecks,
   passedChecks,
   failedChecks,
   failureSummaries,
   checks,
   outputPath: resolvedOutputPath,
+  availableChecks: availableCheckNames,
 };
 const reportJson = toReportJson(report);
 

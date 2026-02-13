@@ -30,6 +30,9 @@ type PreflightReport = {
   nodeVersion: string;
   startedAt: string;
   durationMs: number;
+  selectedChecks: string[];
+  skippedChecks: string[];
+  availableChecks: string[];
   passedChecks: string[];
   failedChecks: string[];
   failureSummaries: PreflightFailureSummary[];
@@ -60,6 +63,13 @@ describe("preflight aggregate report", () => {
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
     expect(typeof report.startedAt).toBe("string");
     expect(report.durationMs).toBeGreaterThanOrEqual(0);
+    expect(report.availableChecks).toEqual([
+      "devEnvironment",
+      "wasmPack",
+      "client",
+    ]);
+    expect(report.selectedChecks).toEqual(report.availableChecks);
+    expect(report.skippedChecks).toEqual([]);
     expect(Array.isArray(report.passedChecks)).toBe(true);
     expect(Array.isArray(report.failedChecks)).toBe(true);
     expect(Array.isArray(report.failureSummaries)).toBe(true);
@@ -98,6 +108,30 @@ describe("preflight aggregate report", () => {
     for (const check of report.checks) {
       expect(check.durationMs).toBeGreaterThanOrEqual(0);
     }
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
+  it("supports selecting a subset of checks via --only", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--no-build", "--only", "devEnvironment,client"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.selectedChecks).toEqual(["devEnvironment", "client"]);
+    expect(report.skippedChecks).toEqual(["wasmPack"]);
+    expect(report.checks.length).toBe(2);
+    expect(report.checks.map((check) => check.name)).toEqual([
+      "devEnvironment",
+      "client",
+    ]);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
@@ -178,6 +212,52 @@ describe("preflight aggregate report", () => {
     expect(report.platform).toBe(process.platform);
     expect(report.nodeVersion).toBe(process.version);
     expect(report.message).toBe("Missing value for --output option.");
+    expect(result.status).toBe(1);
+  });
+
+  it("fails with structured output when only value is missing", () => {
+    const result = spawnSync(process.execPath, [preflightScript, "--only"], {
+      cwd: rootDir,
+      encoding: "utf8",
+      shell: false,
+    });
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.message).toBe("Missing value for --only option.");
+    expect(report.availableChecks).toEqual([
+      "devEnvironment",
+      "wasmPack",
+      "client",
+    ]);
+    expect(result.status).toBe(1);
+  });
+
+  it("fails with structured output for unknown check names", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--only", "devEnvironment,unknownCheck"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.message).toBe("Unknown check name(s): unknownCheck.");
+    expect(report.availableChecks).toEqual([
+      "devEnvironment",
+      "wasmPack",
+      "client",
+    ]);
     expect(result.status).toBe(1);
   });
 });
