@@ -241,6 +241,7 @@ const createCanonicalOptionMap = (canonicalOptions, optionAliases = {}) => {
   const canonicalMap = new Map(canonicalOptions.map((option) => [option, option]));
 
   for (const [canonicalOption, aliases] of Object.entries(optionAliases)) {
+    canonicalMap.set(canonicalOption, canonicalOption);
     for (const alias of aliases) {
       canonicalMap.set(alias, canonicalOption);
     }

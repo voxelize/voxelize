@@ -412,6 +412,17 @@ describe("report-utils", () => {
       }
     );
     expect(unknownWithMissingValueFollowedByUnknown).toEqual(["--mystery"]);
+
+    const unknownWithAliasCanonicalOnly = parseUnknownCliOptions(
+      ["--no-build", "--mystery"],
+      {
+        canonicalOptions: ["--json"],
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+      }
+    );
+    expect(unknownWithAliasCanonicalOnly).toEqual(["--mystery"]);
   });
 
   it("creates structured cli option validation metadata", () => {
@@ -473,6 +484,18 @@ describe("report-utils", () => {
     expect(outputErrorPriority.validationErrorCode).toBe(
       "output_option_missing_value"
     );
+
+    const aliasCanonicalTokenValidation = createCliOptionValidation(
+      ["--no-build"],
+      {
+        canonicalOptions: ["--json"],
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+      }
+    );
+    expect(aliasCanonicalTokenValidation.unknownOptions).toEqual([]);
+    expect(aliasCanonicalTokenValidation.unsupportedOptionsError).toBeNull();
   });
 
   it("derives cli validation failure messages with output priority", () => {
@@ -723,6 +746,32 @@ describe("report-utils", () => {
     expect(diagnostics.unsupportedOptionsError).toBe(
       "Unsupported option(s): --mystery. Supported options: --json, --no-build, --verify."
     );
+  });
+
+  it("builds diagnostics for canonical tokens defined through alias config", () => {
+    const diagnostics = createCliDiagnostics(["--no-build", "--mystery"], {
+      canonicalOptions: ["--json"],
+      optionAliases: {
+        "--no-build": ["--verify"],
+      },
+    });
+
+    expect(diagnostics.supportedCliOptions).toEqual([
+      "--json",
+      "--no-build",
+      "--verify",
+    ]);
+    expect(diagnostics.activeCliOptions).toEqual(["--no-build"]);
+    expect(diagnostics.activeCliOptionCount).toBe(1);
+    expect(diagnostics.activeCliOptionTokens).toEqual(["--no-build"]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--no-build",
+        canonicalOption: "--no-build",
+      },
+    ]);
+    expect(diagnostics.unknownOptions).toEqual(["--mystery"]);
+    expect(diagnostics.unknownOptionCount).toBe(1);
   });
 
   it("parses active cli option metadata with aliases and option values", () => {
