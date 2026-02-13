@@ -156,6 +156,26 @@ pnpm run check:onboarding:verify:json:compact
 pnpm run check:onboarding:verify:json -- --output ./onboarding-verify-report.json
 # direct cli alias also works: node ./check-onboarding.mjs --verify
 
+# check @voxelize/ts-core build artifacts
+pnpm run check:ts-core
+# quiet mode (errors only)
+pnpm run check:ts-core -- --quiet
+# json output (for CI integrations)
+pnpm run check:ts-core:json
+# compact json output (single line)
+pnpm run check:ts-core:json:compact
+# json output written to file
+pnpm run check:ts-core:json -- --output ./ts-core-report.json
+# verify ts-core artifacts without triggering an automatic build
+pnpm run check:ts-core:verify
+# verify + json output (for CI integrations)
+pnpm run check:ts-core:verify:json
+# verify + compact json output (single line)
+pnpm run check:ts-core:verify:json:compact
+# verify + json output written to file
+pnpm run check:ts-core:verify:json -- --output ./ts-core-verify-report.json
+# direct cli alias also works: node ./check-ts-core.mjs --verify
+
 # run an aggregated preflight report in json mode
 pnpm run check:preflight:json
 # compact aggregate preflight report
@@ -259,11 +279,11 @@ Inline misuse of supported non-value flags is redacted without exposing raw valu
 Alias misuse uses canonical redacted forms (for example `--verify=secret` is reported as `--no-build=<value>`).
 Malformed inline option names are redacted and deduplicated (for example `--=secret` and `--=` are reported as `--=<value>`, while `-=secret` and `-=` are reported as `-=<value>`).
 Literal placeholder tokens are deduplicated with redacted inline misuse forms (for example `--json=<value>` and `--json=secret` are reported once as `--json=<value>`).
-Root/client/onboarding/wasm JSON preflight reports include `supportedCliOptions`, `supportedCliOptionCount`, `unknownOptionCount`, and `validationErrorCode` for structured option-validation diagnostics.
-Root/client/onboarding/wasm JSON preflight reports include `activeCliOptions`, `activeCliOptionTokens`, `activeCliOptionResolutions`, and `activeCliOptionOccurrences` to describe recognized option usage.
+Root/client/onboarding/wasm/ts-core JSON preflight reports include `supportedCliOptions`, `supportedCliOptionCount`, `unknownOptionCount`, and `validationErrorCode` for structured option-validation diagnostics.
+Root/client/onboarding/wasm/ts-core JSON preflight reports include `activeCliOptions`, `activeCliOptionTokens`, `activeCliOptionResolutions`, and `activeCliOptionOccurrences` to describe recognized option usage.
 Misused inline option forms (for example `--json=secret` or `--verify=secret`) are excluded from `activeCliOption*` metadata and are instead reported via redacted `unknownOptions`.
 Recognized options in the same invocation are still preserved in `activeCliOption*` metadata even when misused inline options are also present.
-Root/client/onboarding/wasm JSON preflight reports include `availableCliOptionAliases` and `availableCliOptionCanonicalMap` so automation can resolve option aliases to canonical names.
+Root/client/onboarding/wasm/ts-core JSON preflight reports include `availableCliOptionAliases` and `availableCliOptionCanonicalMap` so automation can resolve option aliases to canonical names.
 Argument values passed to `--output` and `--only` are excluded from unrecognized-option detection, even when they start with `-`.
 If a split `--output` or `--only` value position is followed by a recognized option token (for example `--output -l` or `--only -l`) or recognized inline option misuse (for example `--output -l=1` or `--only -l=1`), that token is treated as an option and the value is considered missing.
 For commands that support no-build aliases, `--output --verify` and `--output --no-build` both fail output validation and still mark no-build as active.
