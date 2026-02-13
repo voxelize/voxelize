@@ -1495,6 +1495,7 @@ fn compute_face_ao_and_light_fast(
 
     let mut aos = [0i32; 4];
     let mut lights = [0i32; 4];
+    let mask = &opaque_mask;
 
     for (i, pos) in corner_positions.iter().enumerate() {
         let dx = if pos[0] <= block_min_x_eps {
@@ -1513,10 +1514,10 @@ fn compute_face_ao_and_light_fast(
             1
         };
 
-        let b011 = !neighbor_is_opaque(&opaque_mask, 0, dy, dz);
-        let b101 = !neighbor_is_opaque(&opaque_mask, dx, 0, dz);
-        let b110 = !neighbor_is_opaque(&opaque_mask, dx, dy, 0);
-        let b111 = !neighbor_is_opaque(&opaque_mask, dx, dy, dz);
+        let b011 = !neighbor_is_opaque(mask, 0, dy, dz);
+        let b101 = !neighbor_is_opaque(mask, dx, 0, dz);
+        let b110 = !neighbor_is_opaque(mask, dx, dy, 0);
+        let b111 = !neighbor_is_opaque(mask, dx, dy, dz);
 
         let ao = if dir_is_x {
             vertex_ao(b110, b101, b111)
@@ -1526,7 +1527,6 @@ fn compute_face_ao_and_light_fast(
             vertex_ao(b011, b101, b111)
         };
 
-        let mask = &opaque_mask;
         let mut sum_sunlights = 0u32;
         let mut sum_red_lights = 0u32;
         let mut sum_green_lights = 0u32;
