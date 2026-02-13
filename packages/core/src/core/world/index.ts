@@ -2305,7 +2305,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           );
           return aabbsWithFlags.map(({ aabb, worldSpace }) =>
             worldSpace
-              ? aabb.translate([vx, vy, vz])
+              ? aabb.clone().translate([vx, vy, vz])
               : rotation.rotateAABB(aabb).translate([vx, vy, vz])
           );
         }
@@ -2388,17 +2388,14 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         if (patternsMatched) {
           for (const aabb of part.aabbs) {
-            const resolvedAabb =
-              aabb instanceof AABB
-                ? aabb
-                : new AABB(
-                    (aabb as AABB).minX,
-                    (aabb as AABB).minY,
-                    (aabb as AABB).minZ,
-                    (aabb as AABB).maxX,
-                    (aabb as AABB).maxY,
-                    (aabb as AABB).maxZ
-                  );
+            const resolvedAabb = new AABB(
+              aabb.minX,
+              aabb.minY,
+              aabb.minZ,
+              aabb.maxX,
+              aabb.maxY,
+              aabb.maxZ
+            );
             aabbsWithFlags.push({ aabb: resolvedAabb, worldSpace });
           }
         }
@@ -4696,7 +4693,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           );
           return aabbsWithFlags.map(({ aabb, worldSpace }) =>
             worldSpace
-              ? aabb.translate([vx, vy, vz])
+              ? aabb.clone().translate([vx, vy, vz])
               : rotation.rotateAABB(aabb).translate([vx, vy, vz])
           );
         }
