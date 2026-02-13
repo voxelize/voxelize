@@ -2868,6 +2868,11 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         continue;
                     }
 
+                    let face_index = block.greedy_face_indices[dir_index];
+                    if face_index == -1 {
+                        continue;
+                    }
+
                     let should_render = should_render_face(
                         vx,
                         vy,
@@ -2930,7 +2935,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         });
                     };
 
-                    let face_index = block.greedy_face_indices[dir_index];
                     if face_index >= 0 {
                         if let Some(face) = block.faces.get(face_index as usize) {
                             push_greedy_face(face);
