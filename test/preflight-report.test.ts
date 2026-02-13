@@ -2739,6 +2739,39 @@ describe("preflight aggregate report", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("writes structured validation errors to inline output paths", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-preflight-invalid-only-inline-output-")
+    );
+    const outputPath = path.resolve(tempDirectory, "report.json");
+
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--only", "invalidCheck", `--output=${outputPath}`],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const stdoutReport = JSON.parse(output) as PreflightReport;
+    const fileReport = JSON.parse(fs.readFileSync(outputPath, "utf8")) as PreflightReport;
+
+    expect(stdoutReport.schemaVersion).toBe(1);
+    expect(stdoutReport.passed).toBe(false);
+    expect(stdoutReport.exitCode).toBe(1);
+    expect(stdoutReport.validationErrorCode).toBe("only_option_invalid_value");
+    expect(stdoutReport.outputPath).toBe(outputPath);
+    expect(stdoutReport.invalidChecks).toEqual(["invalidCheck"]);
+    expect(stdoutReport.specialSelectorsUsed).toEqual([]);
+    expect(stdoutReport.requestedChecks).toEqual(["invalidCheck"]);
+    expect(fileReport).toEqual(stdoutReport);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("uses the last output flag for only-selection validation errors", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-preflight-invalid-only-last-output-")
@@ -2850,6 +2883,39 @@ describe("preflight aggregate report", () => {
     expect(stdoutReport.message).toBe(expectedUnsupportedOptionsMessage(["--mystery"]));
     expect(stdoutReport.invalidChecks).toEqual([]);
     expect(stdoutReport.requestedChecks).toEqual([]);
+    expect(fileReport).toEqual(stdoutReport);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("writes unsupported-option validation errors to inline output paths", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-preflight-unsupported-inline-output-")
+    );
+    const outputPath = path.resolve(tempDirectory, "report.json");
+
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--mystery", `--output=${outputPath}`],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const stdoutReport = JSON.parse(output) as PreflightReport;
+    const fileReport = JSON.parse(fs.readFileSync(outputPath, "utf8")) as PreflightReport;
+
+    expect(stdoutReport.schemaVersion).toBe(1);
+    expect(stdoutReport.passed).toBe(false);
+    expect(stdoutReport.exitCode).toBe(1);
+    expect(stdoutReport.validationErrorCode).toBe("unsupported_options");
+    expect(stdoutReport.outputPath).toBe(outputPath);
+    expect(stdoutReport.unknownOptions).toEqual(["--mystery"]);
+    expect(stdoutReport.unknownOptionCount).toBe(1);
+    expect(stdoutReport.message).toBe(expectedUnsupportedOptionsMessage(["--mystery"]));
     expect(fileReport).toEqual(stdoutReport);
     expect(result.status).toBe(1);
 
