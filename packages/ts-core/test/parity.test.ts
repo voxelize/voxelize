@@ -47,6 +47,16 @@ describe("BlockUtils", () => {
     const extracted = BlockUtils.extractRotation(voxel);
     expect(extracted.equals(rotation)).toBe(true);
   });
+
+  it("accepts rotation-like objects for insertion", () => {
+    const inserted = BlockUtils.insertRotation(0, {
+      value: PY_ROTATION,
+      yRotation: Math.PI / 2,
+    });
+    const extracted = BlockUtils.extractRotation(inserted);
+    const [, yRotationSegment] = BlockRotation.decode(extracted);
+    expect(yRotationSegment).toBe(4);
+  });
 });
 
 describe("LightUtils", () => {
@@ -116,6 +126,12 @@ describe("BlockRotation", () => {
     const [axis, yRotation] = BlockRotation.decode(rotation);
     const decoded = BlockRotation.encode(axis, yRotation);
     expect(decoded.equals(rotation)).toBe(true);
+  });
+
+  it("supports equality by decoded segment", () => {
+    const base = BlockRotation.PY(Math.PI / 2);
+    const equivalent = BlockRotation.encode(PY_ROTATION, 4);
+    expect(base.equals(equivalent)).toBe(true);
   });
 
   it("normalizes negative y-rotation segments", () => {
