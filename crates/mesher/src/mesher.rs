@@ -1125,7 +1125,7 @@ fn should_render_face<S: VoxelAccess>(
         None => return !space.contains(nvx, nvy, nvz),
     };
 
-    if n_block_type.is_empty || !space.contains(nvx, nvy, nvz) {
+    if n_block_type.is_empty {
         return true;
     }
 
