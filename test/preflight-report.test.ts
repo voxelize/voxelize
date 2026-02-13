@@ -758,6 +758,9 @@ describe("preflight aggregate report", () => {
     expect(report.message).toBe("Missing value for --output option.");
     expect(report.invalidChecks).toEqual([]);
     expect(report.requestedChecks).toEqual([]);
+    expect(report.availableSpecialCheckAliases).toEqual(
+      expectedAvailableSpecialCheckAliases
+    );
     expect(result.status).toBe(1);
   });
 
@@ -780,6 +783,9 @@ describe("preflight aggregate report", () => {
     expect(report.outputPath).toBeNull();
     expect(report.selectionMode).toBe("default");
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
+    expect(report.availableSpecialCheckAliases).toEqual(
+      expectedAvailableSpecialCheckAliases
+    );
     expect(report.message).toBe("Missing value for --output option.");
     expect(report.invalidChecks).toEqual([]);
     expect(report.requestedChecks).toEqual([]);
@@ -808,6 +814,9 @@ describe("preflight aggregate report", () => {
     expect(report.requestedChecks).toEqual(["invalidCheck"]);
     expect(report.selectionMode).toBe("only");
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
+    expect(report.availableSpecialCheckAliases).toEqual(
+      expectedAvailableSpecialCheckAliases
+    );
     expect(result.status).toBe(1);
   });
 
@@ -832,6 +841,9 @@ describe("preflight aggregate report", () => {
     expect(report.invalidChecks).toEqual([]);
     expect(report.requestedChecks).toEqual(["client"]);
     expect(report.selectionMode).toBe("only");
+    expect(report.availableSpecialCheckAliases).toEqual(
+      expectedAvailableSpecialCheckAliases
+    );
     expect(result.status).toBe(1);
   });
 
@@ -922,6 +934,9 @@ describe("preflight aggregate report", () => {
       "client",
     ]);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
+    expect(report.availableSpecialCheckAliases).toEqual(
+      expectedAvailableSpecialCheckAliases
+    );
     expect(result.status).toBe(1);
   });
 
