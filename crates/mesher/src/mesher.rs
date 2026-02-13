@@ -2923,13 +2923,14 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
                     let greedy_without_rotation = block.can_greedy_mesh_without_rotation();
                     let is_non_greedy_block = !greedy_without_rotation;
+                    let has_dynamic_patterns = block.dynamic_patterns.is_some();
                     if is_non_greedy_block && processed_non_greedy[current_voxel_index] {
                         continue;
                     }
 
                     let mut rotation = BlockRotation::PY(0.0);
                     if is_non_greedy_block
-                        && (block.rotatable || block.y_rotatable || block.dynamic_patterns.is_some())
+                        && (block.rotatable || block.y_rotatable || has_dynamic_patterns)
                     {
                         rotation = space.get_voxel_rotation(vx, vy, vz);
                     }
@@ -2991,7 +2992,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                     false,
                                 );
                             }
-                        } else if block.dynamic_patterns.is_some() {
+                        } else if has_dynamic_patterns {
                             let faces = get_dynamic_faces(block, [vx, vy, vz], space, &rotation);
                             for (face, world_space) in faces {
                                 non_greedy_faces.push((
