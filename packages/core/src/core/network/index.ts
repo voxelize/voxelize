@@ -88,6 +88,7 @@ export class Network {
   private joinReject: ((reason: string) => void) | null = null;
 
   private packetQueue: ArrayBuffer[] = [];
+  private packetQueueHead = 0;
 
   private joinStartTime = 0;
 
@@ -98,6 +99,31 @@ export class Network {
   private rtc: WebRTCConnection | null = null;
 
   private useWebRTC = false;
+
+  private hasPendingPackets = () => this.packetQueueHead < this.packetQueue.length;
+
+  private queuedPacketCount = () => this.packetQueue.length - this.packetQueueHead;
+
+  private normalizePacketQueue = () => {
+    if (this.packetQueueHead === 0) {
+      return;
+    }
+
+    if (this.packetQueueHead >= this.packetQueue.length) {
+      this.packetQueue.length = 0;
+      this.packetQueueHead = 0;
+      return;
+    }
+
+    if (
+      this.packetQueueHead >= 1024 &&
+      this.packetQueueHead * 2 >= this.packetQueue.length
+    ) {
+      this.packetQueue.copyWithin(0, this.packetQueueHead);
+      this.packetQueue.length -= this.packetQueueHead;
+      this.packetQueueHead = 0;
+    }
+  };
 
   constructor(options: Partial<NetworkOptions> = {}) {
     this.options = {
@@ -194,7 +220,7 @@ export class Network {
             `  ReadyState: ${ws.readyState} (${
               ["CONNECTING", "OPEN", "CLOSING", "CLOSED"][ws.readyState]
             })\n` +
-            `  Pending packets: ${this.packetQueue.length}`
+            `  Pending packets: ${this.queuedPacketCount()}`
         );
       };
       ws.onmessage = ({ data }) => {
@@ -330,26 +356,32 @@ export class Network {
   };
 
   sync = () => {
-    if (!this.connected || !this.packetQueue.length) {
+    if (!this.connected || !this.hasPendingPackets()) {
       return;
     }
 
-    const queueLength = this.packetQueue.length;
+    const queueLength = this.queuedPacketCount();
     const backlogFactor = Math.min(
       this.options.maxBacklogFactor,
       Math.ceil(queueLength / 25)
     );
     const packetsToProcess = this.options.maxPacketsPerTick * backlogFactor;
-
-    const packets = this.packetQueue.splice(
-      0,
-      Math.min(packetsToProcess, this.packetQueue.length)
+    const batchEnd = Math.min(
+      this.packetQueueHead + packetsToProcess,
+      this.packetQueue.length
     );
+    const packetCount = batchEnd - this.packetQueueHead;
+    if (packetCount <= 0) {
+      return;
+    }
 
     const availableWorkers = Math.max(1, this.pool.availableCount);
-    const perWorker = Math.ceil(packets.length / availableWorkers);
+    const perWorker = Math.ceil(packetCount / availableWorkers);
 
-    if (packets.length <= perWorker) {
+    if (packetCount <= perWorker) {
+      const packets = this.packetQueue.slice(this.packetQueueHead, batchEnd);
+      this.packetQueueHead = batchEnd;
+      this.normalizePacketQueue();
       this.decode(packets).then((messages) => {
         for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
           this.onMessage(messages[messageIndex]);
@@ -358,15 +390,21 @@ export class Network {
       return;
     }
 
-    const batchCount = Math.ceil(packets.length / perWorker);
+    const batchCount = Math.ceil(packetCount / perWorker);
     const decodePromises = new Array<Promise<MessageProtocol[]>>(batchCount);
     let batchIndex = 0;
-    for (let offset = 0; offset < packets.length; offset += perWorker) {
+    for (
+      let offset = this.packetQueueHead;
+      offset < batchEnd;
+      offset += perWorker
+    ) {
       decodePromises[batchIndex] = this.decode(
-        packets.slice(offset, offset + perWorker)
+        this.packetQueue.slice(offset, Math.min(offset + perWorker, batchEnd))
       );
       batchIndex++;
     }
+    this.packetQueueHead = batchEnd;
+    this.normalizePacketQueue();
 
     Promise.all(decodePromises).then((results) => {
       for (let batchIndex = 0; batchIndex < results.length; batchIndex++) {
@@ -458,7 +496,7 @@ export class Network {
   }
 
   get packetQueueLength() {
-    return this.packetQueue.length;
+    return this.queuedPacketCount();
   }
 
   get rtcConnected() {
