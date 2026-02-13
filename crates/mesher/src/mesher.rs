@@ -585,13 +585,10 @@ fn calculate_fluid_corner_height<S: VoxelAccess>(
 
 fn has_standard_six_faces(faces: &[BlockFace]) -> bool {
     faces.iter().any(|f| {
-        let name_lower = f.name.to_lowercase();
-        name_lower == "py"
-            || name_lower == "ny"
-            || name_lower == "px"
-            || name_lower == "nx"
-            || name_lower == "pz"
-            || name_lower == "nz"
+        matches!(
+            f.get_name_lower(),
+            "py" | "ny" | "px" | "nx" | "pz" | "nz"
+        )
     })
 }
 
@@ -868,6 +865,16 @@ fn geometry_key_for_quad(block: &Block, face_name: &str, independent: bool) -> G
     }
 }
 
+#[inline]
+fn block_min_corner(block: &Block) -> [f32; 3] {
+    if block.is_full_cube() {
+        [0.0, 0.0, 0.0]
+    } else {
+        let block_aabb = AABB::union_all(&block.aabbs);
+        [block_aabb.min_x, block_aabb.min_y, block_aabb.min_z]
+    }
+}
+
 fn should_render_face<S: VoxelAccess>(
     vx: i32,
     vy: i32,
@@ -938,12 +945,7 @@ fn compute_face_ao_and_light(
     neighbors: &NeighborCache,
     registry: &Registry,
 ) -> ([i32; 4], [i32; 4]) {
-    let (block_min_x, block_min_y, block_min_z) = if block.is_full_cube() {
-        (0.0, 0.0, 0.0)
-    } else {
-        let block_aabb = AABB::union_all(&block.aabbs);
-        (block_aabb.min_x, block_aabb.min_y, block_aabb.min_z)
-    };
+    let [block_min_x, block_min_y, block_min_z] = block_min_corner(block);
 
     let is_see_through = block.is_see_through;
     let is_all_transparent = block.is_transparent[0]
@@ -1830,6 +1832,7 @@ struct FaceProcessCache {
     opaque_mask: Option<[bool; 27]>,
     center_lights: Option<(u32, u32, u32, u32)>,
     fluid_surface_above: bool,
+    block_min: [f32; 3],
 }
 
 fn process_face<S: VoxelAccess>(
@@ -1949,12 +1952,9 @@ fn process_face<S: VoxelAccess>(
     let mut four_green_lights = [0u32; 4];
     let mut four_blue_lights = [0u32; 4];
 
-    let (block_min_x, block_min_y, block_min_z) = if block.is_full_cube() {
-        (0.0, 0.0, 0.0)
-    } else {
-        let block_aabb = AABB::union_all(&block.aabbs);
-        (block_aabb.min_x, block_aabb.min_y, block_aabb.min_z)
-    };
+    let [block_min_x, block_min_y, block_min_z] = cache
+        .map(|entry| entry.block_min)
+        .unwrap_or_else(|| block_min_corner(block));
     let needs_opaque_checks = !(is_see_through || is_all_transparent);
     let precomputed_opaque_mask = cache.and_then(|entry| entry.opaque_mask.as_ref());
     let built_opaque_mask = if needs_opaque_checks && precomputed_opaque_mask.is_none() {
@@ -2548,6 +2548,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         None
                     },
                     fluid_surface_above: is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space),
+                    block_min: block_min_corner(&block),
                 };
                 process_face(
                     vx,
@@ -2879,6 +2880,26 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                 });
 
                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                let is_all_transparent = block.is_transparent[0]
+                    && block.is_transparent[1]
+                    && block.is_transparent[2]
+                    && block.is_transparent[3]
+                    && block.is_transparent[4]
+                    && block.is_transparent[5];
+                let face_cache = FaceProcessCache {
+                    opaque_mask: if !(is_see_through || is_all_transparent) {
+                        Some(build_neighbor_opaque_mask(&neighbors, registry))
+                    } else {
+                        None
+                    },
+                    center_lights: if is_see_through || is_all_transparent {
+                        Some(neighbors.get_all_lights(0, 0, 0))
+                    } else {
+                        None
+                    },
+                    fluid_surface_above: is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space),
+                    block_min: block_min_corner(block),
+                };
                 process_face(
                     vx,
                     vy,
@@ -2891,7 +2912,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     registry,
                     space,
                     &neighbors,
-                    None,
+                    Some(&face_cache),
                     is_see_through,
                     is_fluid,
                     &mut geometry.positions,
@@ -2996,6 +3017,7 @@ pub fn mesh_space<S: VoxelAccess>(
                         None
                     },
                     fluid_surface_above: is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space),
+                    block_min: block_min_corner(block),
                 };
 
                 for (face, world_space) in faces.iter() {
