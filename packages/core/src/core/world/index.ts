@@ -7110,8 +7110,11 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const textureGroups = new Set<string>();
     let ungroupedFaces = 0;
-    for (const block of blocks) {
-      for (const face of block.faces) {
+    for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
+      const block = blocks[blockIndex];
+      const blockFaces = block.faces;
+      for (let faceIndex = 0; faceIndex < blockFaces.length; faceIndex++) {
+        const face = blockFaces[faceIndex];
         if (face.independent || face.isolated) continue;
         if (face.textureGroup) {
           textureGroups.add(face.textureGroup);
@@ -7126,7 +7129,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.chunkRenderer.uniforms.atlasSize.value = countPerSide;
 
-    blocks.forEach((block) => {
+    for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
+      const block = blocks[blockIndex];
       const mat = make(
         block.isSeeThrough,
         atlas,
@@ -7137,8 +7141,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       const key = this.makeChunkMaterialKey(block.id);
       this.chunkRenderer.materials.set(key, mat);
 
-      block.faces.forEach((face) => {
-        if (!face.independent || face.isolated) return;
+      const blockFaces = block.faces;
+      for (let faceIndex = 0; faceIndex < blockFaces.length; faceIndex++) {
+        const face = blockFaces[faceIndex];
+        if (!face.independent || face.isolated) continue;
 
         const independentMat = make(
           block.isSeeThrough,
@@ -7149,8 +7155,8 @@ export class World<T = any> extends Scene implements NetIntercept {
         );
         const independentKey = this.makeChunkMaterialKey(block.id, face.name);
         this.chunkRenderer.materials.set(independentKey, independentMat);
-      });
-    });
+      }
+    }
   }
 
   private makeChunkMaterialKey(id: number, faceName?: string, voxel?: Coords3) {
