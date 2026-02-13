@@ -406,8 +406,29 @@ const processBatchMessage = (message: LightBatchMessage) => {
           }
         | null
       )[];
+  let hasPotentialRelevantDelta = false;
+  if (relevantDeltas.length > 0) {
+    for (let index = 0; index < relevantDeltas.length; index++) {
+      const { cx, cz, deltas } = relevantDeltas[index];
+      if (deltas.length === 0) {
+        continue;
+      }
 
-  if (relevantDeltas.length === 0) {
+      const localX = cx - gridOffsetX;
+      const localZ = cz - gridOffsetZ;
+      if (
+        localX >= 0 &&
+        localX < gridWidth &&
+        localZ >= 0 &&
+        localZ < gridDepth
+      ) {
+        hasPotentialRelevantDelta = true;
+        break;
+      }
+    }
+  }
+
+  if (!hasPotentialRelevantDelta) {
     const result = serializeChunksData(chunksData, gridWidth, gridDepth);
     if (!result.hasAnyChunk) {
       postEmptyBatchResult(jobId, 0);
