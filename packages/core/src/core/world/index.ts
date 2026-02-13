@@ -2569,9 +2569,6 @@ export class World<T = any> extends Scene implements NetIntercept {
   getBlockAABBsByIdAt = (id: number, vx: number, vy: number, vz: number) => {
     const block = this.getBlockById(id);
 
-    if (!block) {
-      return [];
-    }
     if (block.dynamicPatterns && block.dynamicPatterns.length > 0) {
       return this.getBlockAABBsForDynamicPatterns(
         vx,
