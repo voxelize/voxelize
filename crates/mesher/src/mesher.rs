@@ -281,7 +281,7 @@ impl Registry {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn get_block_by_id(&self, id: u32) -> Option<&Block> {
         if let Some(dense) = &self.dense_lookup {
             if let Some(&idx) = dense.get(id as usize) {
@@ -300,7 +300,7 @@ impl Registry {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn has_type(&self, id: u32) -> bool {
         if let Some(dense) = &self.dense_lookup {
             dense
@@ -316,7 +316,7 @@ impl Registry {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn is_opaque_id(&self, id: u32) -> bool {
         if let Some(dense) = &self.dense_lookup {
             if let Some(&idx) = dense.get(id as usize) {
