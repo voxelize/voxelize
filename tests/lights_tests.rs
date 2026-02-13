@@ -22,6 +22,42 @@ fn create_test_registry() -> Registry {
     registry
 }
 
+fn assert_registry_internal_consistency(registry: &Registry) {
+    for (name, block) in &registry.blocks_by_name {
+        assert_eq!(
+            registry.get_id_by_name(name),
+            block.id,
+            "type-map lookup should match blocks_by_name id"
+        );
+        assert_eq!(
+            registry.get_block_by_id(block.id).name.to_lowercase(),
+            *name,
+            "id map should resolve back to same lower-cased block name"
+        );
+    }
+
+    for (id, block) in &registry.blocks_by_id {
+        assert_eq!(
+            registry.get_block_by_name(&block.name).id,
+            *id,
+            "name lookup should resolve back to same block id"
+        );
+    }
+
+    for (id, face_index, independent) in &registry.textures {
+        let faces = registry.get_faces_by_id(*id);
+        assert!(
+            *face_index < faces.len(),
+            "texture face index should be in bounds for registered block"
+        );
+        assert_eq!(
+            faces[*face_index].independent,
+            *independent,
+            "texture independent flag should match source face"
+        );
+    }
+}
+
 #[test]
 fn test_can_enter_functions() {
     let source = [true, true, true, true, true, true];
@@ -454,6 +490,22 @@ fn test_register_blocks_same_name_overwrite_keeps_latest_id_only() {
             .is_none(),
         "texture entries for overwritten id should be removed"
     );
+}
+
+#[test]
+fn test_registry_consistency_after_complex_bulk_updates() {
+    let mut registry = create_test_registry();
+
+    registry.register_blocks(&[
+        Block::new("torch").id(41).build(),
+        Block::new("ephemeral").id(3).build(),
+        Block::new("ephemeral").id(4).build(),
+        Block::new("auto-a").is_passable(true).build(),
+        Block::new("stone").id(5).build(),
+        Block::new("auto-b").is_passable(true).build(),
+    ]);
+
+    assert_registry_internal_consistency(&registry);
 }
 
 #[test]
