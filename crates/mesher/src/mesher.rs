@@ -458,6 +458,34 @@ const FLUID_CORNER_PXNZ: [[i32; 2]; 3] = [[1, 0], [0, -1], [1, -1]];
 const FLUID_CORNER_NXPZ: [[i32; 2]; 3] = [[-1, 0], [0, 1], [-1, 1]];
 const FLUID_CORNER_PXPZ: [[i32; 2]; 3] = [[1, 0], [0, 1], [1, 1]];
 
+const fn fluid_effective_height_const(stage: u32) -> f32 {
+    let height = FLUID_BASE_HEIGHT - (stage as f32 * FLUID_STAGE_DROPOFF);
+    if height > 0.1 {
+        height
+    } else {
+        0.1
+    }
+}
+
+const FLUID_EFFECTIVE_HEIGHT_LUT: [f32; 16] = [
+    fluid_effective_height_const(0),
+    fluid_effective_height_const(1),
+    fluid_effective_height_const(2),
+    fluid_effective_height_const(3),
+    fluid_effective_height_const(4),
+    fluid_effective_height_const(5),
+    fluid_effective_height_const(6),
+    fluid_effective_height_const(7),
+    fluid_effective_height_const(8),
+    fluid_effective_height_const(9),
+    fluid_effective_height_const(10),
+    fluid_effective_height_const(11),
+    fluid_effective_height_const(12),
+    fluid_effective_height_const(13),
+    fluid_effective_height_const(14),
+    fluid_effective_height_const(15),
+];
+
 struct NeighborCache {
     data: [[u32; 2]; 27],
 }
@@ -884,7 +912,7 @@ fn pack_light_nibbles(sunlight: u32, red: u32, green: u32, blue: u32) -> u32 {
 
 #[inline(always)]
 fn get_fluid_effective_height(stage: u32) -> f32 {
-    (FLUID_BASE_HEIGHT - (stage as f32 * FLUID_STAGE_DROPOFF)).max(0.1)
+    FLUID_EFFECTIVE_HEIGHT_LUT[(stage & 0xF) as usize]
 }
 
 #[inline(always)]
