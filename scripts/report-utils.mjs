@@ -29,6 +29,14 @@ export const parseJsonOutput = (value) => {
       }
 
       for (let end = start; end < rawLines.length; end += 1) {
+        const trimmedEnd = rawLines[end].trim();
+        if (
+          !trimmedEnd.endsWith("}") &&
+          !trimmedEnd.endsWith("]")
+        ) {
+          continue;
+        }
+
         const candidate = rawLines.slice(start, end + 1).join("\n").trim();
         if (candidate.length === 0) {
           continue;
