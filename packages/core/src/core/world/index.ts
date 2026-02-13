@@ -2623,11 +2623,13 @@ export class World<T = any> extends Scene implements NetIntercept {
       const currId = this.getVoxelAt(vx, vy, vz);
       const currRot = this.getVoxelRotationAt(vx, vy, vz);
       const currStage = this.getVoxelStageAt(vx, vy, vz);
+      const currYRotation =
+        yRotation !== undefined ? BlockRotation.decode(currRot)[1] : undefined;
 
       if (
         currId === type &&
         (rotation !== undefined ? currRot.value === rotation : false) &&
-        (yRotation !== undefined ? currRot.yRotation === yRotation : false) &&
+        (yRotation !== undefined ? currYRotation === yRotation : false) &&
         (stage !== undefined ? currStage === stage : false)
       ) {
         continue;
