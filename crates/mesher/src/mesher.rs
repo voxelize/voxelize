@@ -321,10 +321,12 @@ impl Registry {
     #[inline(always)]
     pub fn has_type(&self, id: u32) -> bool {
         if let Some(dense) = &self.dense_lookup {
-            dense
-                .get(id as usize)
-                .map(|idx| *idx != usize::MAX)
-                .unwrap_or(false)
+            let dense_index = id as usize;
+            if dense_index < dense.len() {
+                dense[dense_index] != usize::MAX
+            } else {
+                false
+            }
         } else if let Some(cache) = &self.lookup_cache {
             cache.contains_key(&id)
         } else {
@@ -337,7 +339,9 @@ impl Registry {
     #[inline(always)]
     pub fn is_opaque_id(&self, id: u32) -> bool {
         if let Some(dense) = &self.dense_lookup {
-            if let Some(&idx) = dense.get(id as usize) {
+            let dense_index = id as usize;
+            if dense_index < dense.len() {
+                let idx = dense[dense_index];
                 return idx != usize::MAX && self.blocks_by_id[idx].1.is_opaque;
             }
             false
@@ -358,7 +362,9 @@ impl Registry {
     #[inline(always)]
     pub fn is_empty_id(&self, id: u32) -> bool {
         if let Some(dense) = &self.dense_lookup {
-            if let Some(&idx) = dense.get(id as usize) {
+            let dense_index = id as usize;
+            if dense_index < dense.len() {
+                let idx = dense[dense_index];
                 return idx != usize::MAX && self.blocks_by_id[idx].1.is_empty;
             }
             false
@@ -379,7 +385,9 @@ impl Registry {
     #[inline(always)]
     pub fn has_type_and_is_opaque(&self, id: u32) -> (bool, bool) {
         if let Some(dense) = &self.dense_lookup {
-            if let Some(&idx) = dense.get(id as usize) {
+            let dense_index = id as usize;
+            if dense_index < dense.len() {
+                let idx = dense[dense_index];
                 if idx != usize::MAX {
                     return (true, self.blocks_by_id[idx].1.is_opaque);
                 }
@@ -405,7 +413,9 @@ impl Registry {
     #[inline(always)]
     pub fn has_type_and_opaque_and_empty(&self, id: u32) -> (bool, bool, bool) {
         if let Some(dense) = &self.dense_lookup {
-            if let Some(&idx) = dense.get(id as usize) {
+            let dense_index = id as usize;
+            if dense_index < dense.len() {
+                let idx = dense[dense_index];
                 if idx != usize::MAX {
                     let block = &self.blocks_by_id[idx].1;
                     return (true, block.is_opaque, block.is_empty);
@@ -3727,13 +3737,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     let current_mask_index =
                         (v - v_range.0) as usize * mask_width + u_mask_offset;
 
-                    let matched_face = if greedy_face_index >= 0 {
-                        block.faces.get(greedy_face_index as usize)
-                    } else {
-                        None
-                    };
-
-                    if let Some(face) = matched_face {
+                    if greedy_face_index >= 0 {
+                        let face = &block.faces[greedy_face_index as usize];
                         if !face.independent && !face.isolated {
                             let (aos, lights) = if skip_opaque_checks {
                                 let (_, center_light) = space.get_raw_voxel_and_raw_light(vx, vy, vz);
@@ -3860,7 +3865,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         });
                     };
 
-                    if let Some(face) = matched_face {
+                    if greedy_face_index >= 0 {
+                        let face = &block.faces[greedy_face_index as usize];
                         push_greedy_face(face);
                     } else {
                         for face in &block.faces {
