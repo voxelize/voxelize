@@ -3977,30 +3977,9 @@ export class World<T = any> extends Scene implements NetIntercept {
           continue;
         }
 
-        const chunkName = ChunkUtils.getChunkNameAt(cx, cz);
-
-        const stage = this.chunkPipeline.getStage(chunkName);
-
-        if (stage === "loaded") {
-          continue;
+        if (this.chunkPipeline.shouldRequestAt(cx, cz, chunkRerequestInterval)) {
+          maybeQueueRequest(cx, cz);
         }
-
-        if (stage === "requested") {
-          const retryCount = this.chunkPipeline.incrementRetry(chunkName);
-
-          if (retryCount > chunkRerequestInterval) {
-            this.chunkPipeline.remove(chunkName);
-            maybeQueueRequest(cx, cz);
-          }
-
-          continue;
-        }
-
-        if (stage === "processing") {
-          continue;
-        }
-
-        maybeQueueRequest(cx, cz);
       }
     }
     toRequestClosest.sort((a, b) => a.distance - b.distance);

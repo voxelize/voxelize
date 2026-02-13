@@ -84,6 +84,27 @@ export class ChunkPipeline {
     return state?.stage === "requested" ? state.retryCount : 0;
   }
 
+  shouldRequestAt(cx: number, cz: number, chunkRerequestInterval: number) {
+    const name = ChunkUtils.getChunkNameAt(cx, cz);
+    const state = this.states.get(name);
+
+    if (!state) {
+      return true;
+    }
+
+    if (state.stage === "loaded" || state.stage === "processing") {
+      return false;
+    }
+
+    state.retryCount++;
+    if (state.retryCount > chunkRerequestInterval) {
+      this.removeStage(name);
+      return true;
+    }
+
+    return false;
+  }
+
   markProcessing(
     coords: Coords2,
     source: "update" | "load",
