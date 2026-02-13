@@ -4228,9 +4228,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.chunkPipeline.remove(toRemove[index]);
     }
 
-    for (const name of this.chunkPipeline.getInStage("requested")) {
-      const [x, z] = ChunkUtils.parseChunkNameAt(name);
-
+    for (const [name, x, z] of this.chunkPipeline.requestedEntries()) {
       if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
         this.chunkPipeline.remove(name);
         deleted.push([x, z]);

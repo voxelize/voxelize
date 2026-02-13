@@ -6,7 +6,7 @@ import { ChunkUtils } from "../../utils";
 import { Chunk } from "./chunk";
 
 export type ChunkStage =
-  | { stage: "requested"; retryCount: number }
+  | { stage: "requested"; retryCount: number; cx: number; cz: number }
   | { stage: "processing"; source: "update" | "load"; data: ChunkProtocol }
   | { stage: "loaded"; chunk: Chunk };
 
@@ -58,6 +58,8 @@ export class ChunkPipeline {
     this.setStage(name, {
       stage: "requested",
       retryCount: 0,
+      cx,
+      cz,
     });
   }
 
@@ -166,6 +168,15 @@ export class ChunkPipeline {
       const state = this.states.get(name);
       if (state?.stage === "processing") {
         yield [name, state.data];
+      }
+    }
+  }
+
+  *requestedEntries(): IterableIterator<[string, number, number]> {
+    for (const name of this.indices.requested) {
+      const state = this.states.get(name);
+      if (state?.stage === "requested") {
+        yield [name, state.cx, state.cz];
       }
     }
   }
