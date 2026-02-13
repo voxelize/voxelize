@@ -3978,6 +3978,9 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       const [px, py, pz] = metadata.voxel;
       const [vx, vy, vz] = [Math.floor(px), Math.floor(py), Math.floor(pz)];
+      if (!Number.isFinite(vx) || !Number.isFinite(vy) || !Number.isFinite(vz)) {
+        continue;
+      }
       const voxelId = ChunkUtils.getVoxelNameAt(vx, vy, vz);
       const voxelCoords: Coords3 = [vx, vy, vz];
 
