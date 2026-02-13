@@ -123,20 +123,26 @@ export class ChunkPipeline {
     const existing = this.states.get(name);
 
     if (existing?.stage === "processing") {
-      const merged: ChunkProtocol = {
-        ...existing.data,
-        ...data,
-        meshes:
-          data.meshes && data.meshes.length > 0
-            ? data.meshes
-            : existing.data.meshes,
-        voxels: data.voxels ?? existing.data.voxels,
-        lights: data.lights ?? existing.data.lights,
-      };
-      this.setStage(name, { stage: "processing", source, data: merged });
-    } else {
-      this.setStage(name, { stage: "processing", source, data });
+      const merged = existing.data;
+      merged.id = data.id;
+      merged.x = data.x;
+      merged.z = data.z;
+
+      if (data.meshes && data.meshes.length > 0) {
+        merged.meshes = data.meshes;
+      }
+      if (data.voxels !== undefined) {
+        merged.voxels = data.voxels;
+      }
+      if (data.lights !== undefined) {
+        merged.lights = data.lights;
+      }
+
+      existing.source = source;
+      return;
     }
+
+    this.setStage(name, { stage: "processing", source, data });
   }
 
   markLoaded(coords: Coords2, chunk: Chunk): void {
