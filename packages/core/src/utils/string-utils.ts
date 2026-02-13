@@ -73,14 +73,14 @@ export function formatSuggestion(
     return `${output}?`;
   }
 
-  const truncated = allAvailable.slice(0, maxFallbackItems);
-  const suffix = allAvailable.length > maxFallbackItems ? "..." : "";
+  const truncatedCount = Math.min(allAvailable.length, maxFallbackItems);
+  const suffix = allAvailable.length > truncatedCount ? "..." : "";
   let availableText = " Available: ";
-  for (let index = 0; index < truncated.length; index++) {
+  for (let index = 0; index < truncatedCount; index++) {
     if (index > 0) {
       availableText += ", ";
     }
-    availableText += `"${truncated[index]}"`;
+    availableText += `"${allAvailable[index]}"`;
   }
   return `${availableText}${suffix}`;
 }
