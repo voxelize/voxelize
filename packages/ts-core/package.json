@@ -19,7 +19,7 @@
     "compile": "vite build",
     "build": "pnpm run clean && pnpm run compile && pnpm run types",
     "types": "tsc --emitDeclarationOnly --outDir ./dist -p ./tsconfig.json --declaration",
-    "test": "vitest --run",
+    "test": "cross-env VITE_CJS_IGNORE_WARNING=true vitest --run",
     "example:end-to-end": "pnpm run build && node ./examples/end-to-end.mjs",
     "prepublishOnly": "pnpm run build",
     "preinstall": "npx only-allow pnpm"

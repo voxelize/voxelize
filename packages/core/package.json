@@ -17,7 +17,7 @@
     "watch:build": "pnpm types --watch --preserveWatchOutput",
     "watch:compile": "pnpm compile --watch",
     "copy": "cp ./src/styles.css ./dist",
-    "test": "vitest --config ../../vitest.config.ts --run",
+    "test": "cross-env VITE_CJS_IGNORE_WARNING=true vitest --config ../../vitest.config.ts --run",
     "prepublishOnly": "pnpm run build",
     "preinstall": "npx only-allow pnpm"
   },
