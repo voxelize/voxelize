@@ -196,6 +196,13 @@ export class Network {
       ws.binaryType = "arraybuffer";
       const sendWhenConnected = async (event: MessageProtocol) => {
         while (!this.connected) {
+          if (
+            ws.readyState === WebSocket.CLOSING ||
+            ws.readyState === WebSocket.CLOSED ||
+            this.ws !== ws
+          ) {
+            return;
+          }
           console.log(`waiting for websocket connection...`);
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
