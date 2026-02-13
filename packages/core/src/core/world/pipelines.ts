@@ -188,44 +188,63 @@ export class ChunkPipeline {
   }
 
   *loadedEntries(): IterableIterator<[string, Chunk]> {
-    for (const name of this.indices.loaded) {
-      const state = this.states.get(name);
+    let names = this.indices.loaded.values();
+    let name = names.next();
+    while (!name.done) {
+      const chunkName = name.value;
+      const state = this.states.get(chunkName);
       if (state?.stage === "loaded") {
-        yield [name, state.chunk];
+        yield [chunkName, state.chunk];
       }
+      name = names.next();
     }
   }
 
   *processingEntries(): IterableIterator<[string, ChunkProtocol]> {
-    for (const name of this.indices.processing) {
-      const state = this.states.get(name);
+    let names = this.indices.processing.values();
+    let name = names.next();
+    while (!name.done) {
+      const chunkName = name.value;
+      const state = this.states.get(chunkName);
       if (state?.stage === "processing") {
-        yield [name, state.data];
+        yield [chunkName, state.data];
       }
+      name = names.next();
     }
   }
 
   *requestedEntries(): IterableIterator<[string, number, number]> {
-    for (const name of this.indices.requested) {
-      const state = this.states.get(name);
+    let names = this.indices.requested.values();
+    let name = names.next();
+    while (!name.done) {
+      const chunkName = name.value;
+      const state = this.states.get(chunkName);
       if (state?.stage === "requested") {
-        yield [name, state.cx, state.cz];
+        yield [chunkName, state.cx, state.cz];
       }
+      name = names.next();
     }
   }
 
   forEach(stage: StageType, callback: (name: string) => void): void {
-    for (const name of this.indices[stage]) {
-      callback(name);
+    let names = this.indices[stage].values();
+    let name = names.next();
+    while (!name.done) {
+      callback(name.value);
+      name = names.next();
     }
   }
 
   forEachLoaded(callback: (chunk: Chunk, name: string) => void): void {
-    for (const name of this.indices.loaded) {
-      const state = this.states.get(name);
+    let names = this.indices.loaded.values();
+    let name = names.next();
+    while (!name.done) {
+      const chunkName = name.value;
+      const state = this.states.get(chunkName);
       if (state?.stage === "loaded") {
-        callback(state.chunk, name);
+        callback(state.chunk, chunkName);
       }
+      name = names.next();
     }
   }
 
@@ -408,16 +427,22 @@ export class MeshPipeline {
     let dirtyCount = 0;
     let hasMore = false;
 
-    for (const key of this.dirty) {
+    let dirtyEntries = this.dirty.values();
+    let dirtyEntry = dirtyEntries.next();
+    while (!dirtyEntry.done) {
+      const key = dirtyEntry.value;
       const state = this.states.get(key);
       if (!state) {
         this.dirty.delete(key);
+        dirtyEntry = dirtyEntries.next();
         continue;
       }
       if (state.inFlightGeneration !== null) {
+        dirtyEntry = dirtyEntries.next();
         continue;
       }
       if (state.generation === state.displayedGeneration) {
+        dirtyEntry = dirtyEntries.next();
         continue;
       }
 
@@ -428,6 +453,7 @@ export class MeshPipeline {
 
       dirtyKeys[dirtyCount] = key;
       dirtyCount++;
+      dirtyEntry = dirtyEntries.next();
     }
 
     dirtyKeys.length = dirtyCount;
@@ -438,16 +464,22 @@ export class MeshPipeline {
   }
 
   hasDirtyChunks(): boolean {
-    for (const key of this.dirty) {
+    let dirtyEntries = this.dirty.values();
+    let dirtyEntry = dirtyEntries.next();
+    while (!dirtyEntry.done) {
+      const key = dirtyEntry.value;
       const state = this.states.get(key);
       if (!state) {
         this.dirty.delete(key);
+        dirtyEntry = dirtyEntries.next();
         continue;
       }
       if (state.inFlightGeneration !== null) {
+        dirtyEntry = dirtyEntries.next();
         continue;
       }
       if (state.generation === state.displayedGeneration) {
+        dirtyEntry = dirtyEntries.next();
         continue;
       }
 
@@ -463,9 +495,13 @@ export class MeshPipeline {
       return;
     }
 
-    for (const key of keys) {
+    let keyEntries = keys.values();
+    let keyEntry = keyEntries.next();
+    while (!keyEntry.done) {
+      const key = keyEntry.value;
       this.states.delete(key);
       this.dirty.delete(key);
+      keyEntry = keyEntries.next();
     }
     this.keysByChunk.delete(chunkKey);
   }
@@ -476,8 +512,12 @@ export class MeshPipeline {
   }
 
   hasAnyInFlightJobs(): boolean {
-    for (const state of this.states.values()) {
+    let stateEntries = this.states.values();
+    let stateEntry = stateEntries.next();
+    while (!stateEntry.done) {
+      const state = stateEntry.value;
       if (state.inFlightGeneration !== null) return true;
+      stateEntry = stateEntries.next();
     }
     return false;
   }
