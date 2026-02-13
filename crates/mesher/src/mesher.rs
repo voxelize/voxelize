@@ -2009,7 +2009,7 @@ fn process_face<S: VoxelAccess>(
     registry: &Registry,
     space: &S,
     neighbors: &NeighborCache,
-    cache: Option<&FaceProcessCache>,
+    cache: &FaceProcessCache,
     see_through: bool,
     is_fluid: bool,
     positions: &mut Vec<f32>,
@@ -2091,31 +2091,19 @@ fn process_face<S: VoxelAccess>(
     let mut four_green_lights = [0u32; 4];
     let mut four_blue_lights = [0u32; 4];
 
-    let [block_min_x, block_min_y, block_min_z] = cache
-        .map(|entry| entry.block_min)
-        .unwrap_or_else(|| block_min_corner(block));
+    let [block_min_x, block_min_y, block_min_z] = cache.block_min;
     let needs_opaque_checks = !(is_see_through || is_all_transparent);
-    let precomputed_opaque_mask = cache.and_then(|entry| entry.opaque_mask.as_ref());
-    let built_opaque_mask = if needs_opaque_checks && precomputed_opaque_mask.is_none() {
-        Some(build_neighbor_opaque_mask(neighbors, registry))
-    } else {
-        None
-    };
     let opaque_mask = if needs_opaque_checks {
-        precomputed_opaque_mask.or(built_opaque_mask.as_ref())
+        cache.opaque_mask.as_ref()
     } else {
         None
     };
     let center_lights = if is_see_through || is_all_transparent {
-        cache
-            .and_then(|entry| entry.center_lights)
-            .or_else(|| Some(neighbors.get_all_lights(0, 0, 0)))
+        cache.center_lights
     } else {
         None
     };
-    let fluid_surface_above = cache
-        .map(|entry| entry.fluid_surface_above)
-        .unwrap_or_else(|| is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space));
+    let fluid_surface_above = cache.fluid_surface_above;
 
     let is_diagonal = dir == [0, 0, 0];
     let has_diagonals = is_see_through && block.has_diagonal_faces_cached();
@@ -2689,7 +2677,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     registry,
                     space,
                     &neighbors,
-                    Some(&face_cache),
+                    &face_cache,
                     is_see_through,
                     is_fluid,
                     &mut geometry.positions,
@@ -3068,7 +3056,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     registry,
                     space,
                     neighbors,
-                    Some(face_cache),
+                    face_cache,
                     is_see_through,
                     is_fluid,
                     &mut geometry.positions,
@@ -3177,7 +3165,7 @@ pub fn mesh_space<S: VoxelAccess>(
                         registry,
                         space,
                         &neighbors,
-                        Some(&face_cache),
+                        &face_cache,
                         is_see_through,
                         is_fluid,
                         &mut geometry.positions,
