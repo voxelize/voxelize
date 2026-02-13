@@ -22,6 +22,13 @@ cd examples/client
 pnpm run demo
 ```
 
+To typecheck the example without requiring wasm artifacts:
+
+```bash
+cd examples/client
+pnpm run typecheck
+```
+
 The client scripts run a wasm preflight check before `demo` and `build`:
 
 - if `crates/wasm-mesher/pkg/voxelize_wasm_mesher.js` already exists, they continue immediately
