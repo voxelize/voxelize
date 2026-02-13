@@ -3975,30 +3975,32 @@ export class World<T = any> extends Scene implements NetIntercept {
       const cx = Math.floor(vx / chunkSize);
       const cz = Math.floor(vz / chunkSize);
       const chunkName = ChunkUtils.getChunkNameAt(cx, cz);
-      const chunk = this.chunkPipeline.getLoadedChunk(chunkName);
-      let chunkCoords: Coords2 | null = null;
-      const shouldDeferUpdate =
-        operation !== "DELETE" && !this.isChunkReadyForEntityUpdates(chunk);
-      for (const listener of this.blockEntityUpdateListeners) {
-        const updateData: BlockEntityUpdateData<T> = {
-          id,
-          voxel: voxelCoords,
-          oldValue: originalData?.data ?? null,
-          newValue: data as T | null,
-          operation,
-          etype: type,
-        };
+      if (this.blockEntityUpdateListeners.size > 0) {
+        const chunk = this.chunkPipeline.getLoadedChunk(chunkName);
+        let chunkCoords: Coords2 | null = null;
+        const shouldDeferUpdate =
+          operation !== "DELETE" && !this.isChunkReadyForEntityUpdates(chunk);
+        for (const listener of this.blockEntityUpdateListeners) {
+          const updateData: BlockEntityUpdateData<T> = {
+            id,
+            voxel: voxelCoords,
+            oldValue: originalData?.data ?? null,
+            newValue: data as T | null,
+            operation,
+            etype: type,
+          };
 
-        if (shouldDeferUpdate) {
-          this.deferBlockEntityUpdateUntilChunkReady(
-            listener,
-            chunkCoords ?? (chunkCoords = [cx, cz]),
-            updateData
-          );
-          continue;
+          if (shouldDeferUpdate) {
+            this.deferBlockEntityUpdateUntilChunkReady(
+              listener,
+              chunkCoords ?? (chunkCoords = [cx, cz]),
+              updateData
+            );
+            continue;
+          }
+
+          listener(updateData);
         }
-
-        listener(updateData);
       }
 
       switch (operation) {
