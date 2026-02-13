@@ -354,14 +354,16 @@ export class CSMRenderer {
 
     this.frustumCenter.divideScalar(8);
 
-    let radius = 0;
+    let radiusSq = 0;
     for (let i = 0; i < 8; i++) {
-      radius = Math.max(
-        radius,
-        this.cornerPool[i].distanceTo(this.frustumCenter)
+      const cornerRadiusSq = this.cornerPool[i].distanceToSquared(
+        this.frustumCenter
       );
+      if (cornerRadiusSq > radiusSq) {
+        radiusSq = cornerRadiusSq;
+      }
     }
-    radius = Math.ceil(radius * 16) / 16;
+    const radius = Math.ceil(Math.sqrt(radiusSq) * 16) / 16;
 
     this.frustumUp.set(0, 1, 0);
     if (Math.abs(this.lightDirection.dot(this.frustumUp)) > 0.999) {
