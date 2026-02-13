@@ -6372,33 +6372,28 @@ export class World<T = any> extends Scene implements NetIntercept {
     const subChunkHeight = maxHeight / subChunks;
     const level = Math.floor(ivy / subChunkHeight);
 
-    const chunkCoordsList: Coords2[] = [];
-    chunkCoordsList.push([cx, cz]);
+    const touchesLowerBoundary = ivy % subChunkHeight === 0 && level > 0;
+    const touchesUpperBoundary =
+      ivy % subChunkHeight === subChunkHeight - 1 && level < subChunks - 1;
 
-    if (lcx === 0) chunkCoordsList.push([cx - 1, cz]);
-    if (lcz === 0) chunkCoordsList.push([cx, cz - 1]);
-    if (lcx === 0 && lcz === 0) chunkCoordsList.push([cx - 1, cz - 1]);
-    if (lcx === chunkSize - 1) chunkCoordsList.push([cx + 1, cz]);
-    if (lcz === chunkSize - 1) chunkCoordsList.push([cx, cz + 1]);
-    if (lcx === chunkSize - 1 && lcz === chunkSize - 1)
-      chunkCoordsList.push([cx + 1, cz + 1]);
-
-    const levels: number[] = [];
-
-    if (ivy % subChunkHeight === 0 && level > 0) {
-      levels.push(level - 1);
-    } else if (
-      ivy % subChunkHeight === subChunkHeight - 1 &&
-      level < subChunks
-    ) {
-      levels.push(level + 1);
-    }
-    levels.push(level);
-
-    for (const [chunkX, chunkZ] of chunkCoordsList) {
-      for (const lvl of levels) {
-        this.meshPipeline.onVoxelChange(chunkX, chunkZ, lvl);
+    const markChunkLevels = (chunkX: number, chunkZ: number) => {
+      if (touchesLowerBoundary) {
+        this.meshPipeline.onVoxelChange(chunkX, chunkZ, level - 1);
+      } else if (touchesUpperBoundary) {
+        this.meshPipeline.onVoxelChange(chunkX, chunkZ, level + 1);
       }
+      this.meshPipeline.onVoxelChange(chunkX, chunkZ, level);
+    };
+
+    markChunkLevels(cx, cz);
+
+    if (lcx === 0) markChunkLevels(cx - 1, cz);
+    if (lcz === 0) markChunkLevels(cx, cz - 1);
+    if (lcx === 0 && lcz === 0) markChunkLevels(cx - 1, cz - 1);
+    if (lcx === chunkSize - 1) markChunkLevels(cx + 1, cz);
+    if (lcz === chunkSize - 1) markChunkLevels(cx, cz + 1);
+    if (lcx === chunkSize - 1 && lcz === chunkSize - 1) {
+      markChunkLevels(cx + 1, cz + 1);
     }
   }
 
