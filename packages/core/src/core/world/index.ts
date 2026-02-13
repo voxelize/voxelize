@@ -52,7 +52,7 @@ import {
 } from "../../core/transparent-sorter";
 import { WorkerPool } from "../../libs";
 import { setWorkerInterval } from "../../libs/setWorkerInterval";
-import { Coords2, Coords3 } from "../../types";
+import { Coords2, Coords3, JsonValue } from "../../types";
 import {
   BLUE_LIGHT,
   BlockUtils,
@@ -809,7 +809,7 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
   private initialData: MessageProtocol["json"] | null = null;
   private initialEntities: MessageProtocol["entities"] | null = null;
 
-  public extraInitData: Record<string, unknown> = {};
+  public extraInitData: Record<string, JsonValue> = {};
 
   /**
    * The internal time in seconds.
@@ -3831,7 +3831,7 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
     }
 
     const { blocks, items, options, stats, ...extra } = this.initialData;
-    this.extraInitData = extra;
+    this.extraInitData = extra as Record<string, JsonValue>;
 
     this._time = stats.time;
 
