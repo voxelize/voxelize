@@ -3050,24 +3050,15 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
                     let is_fluid = block.is_fluid;
                     let is_see_through = block.is_see_through;
+                    let cache_ready = block.cache_ready;
 
                     if is_non_greedy_block {
-                        let has_independent_or_isolated_faces = if block.cache_ready {
-                            block.has_independent_or_isolated_faces
-                        } else {
-                            block.has_independent_or_isolated_faces_cached()
-                        };
-                        let has_dynamic_patterns = if block.cache_ready {
-                            block.has_dynamic_patterns
-                        } else {
-                            block.has_dynamic_patterns_cached()
-                        };
                         let mut rotation = BlockRotation::PY(0.0);
                         if block.rotatable || block.y_rotatable {
                             rotation = space.get_voxel_rotation(vx, vy, vz);
                         }
                         processed_non_greedy[current_voxel_index] = true;
-                        let has_standard_six_faces = if block.cache_ready {
+                        let has_standard_six_faces = if cache_ready {
                             block.has_standard_six_faces
                         } else {
                             block.has_standard_six_faces_cached()
@@ -3124,110 +3115,122 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                     false,
                                 );
                             }
-                        } else if has_dynamic_patterns {
-                            visit_dynamic_faces(
-                                block,
-                                [vx, vy, vz],
-                                space,
-                                &rotation,
-                                |face, world_space| {
-                                non_greedy_faces.push((
+                        } else {
+                            let has_dynamic_patterns = if cache_ready {
+                                block.has_dynamic_patterns
+                            } else {
+                                block.has_dynamic_patterns_cached()
+                            };
+                            if has_dynamic_patterns {
+                                visit_dynamic_faces(
+                                    block,
+                                    [vx, vy, vz],
+                                    space,
+                                    &rotation,
+                                    |face, world_space| {
+                                    non_greedy_faces.push((
+                                        vx,
+                                        vy,
+                                        vz,
+                                        voxel_id,
+                                        face.clone(),
+                                        world_space,
+                                    ));
+                                    },
+                                );
+                            } else {
+                                let has_independent_or_isolated_faces = if cache_ready {
+                                    block.has_independent_or_isolated_faces
+                                } else {
+                                    block.has_independent_or_isolated_faces_cached()
+                                };
+                                let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                                let face_cache = build_face_process_cache(
+                                    block,
+                                    is_see_through,
+                                    is_fluid,
+                                    &neighbors,
+                                    registry,
                                     vx,
                                     vy,
                                     vz,
                                     voxel_id,
-                                    face.clone(),
-                                    world_space,
-                                ));
-                                },
-                            );
-                        } else {
-                            let neighbors = NeighborCache::populate(vx, vy, vz, space);
-                            let face_cache = build_face_process_cache(
-                                block,
-                                is_see_through,
-                                is_fluid,
-                                &neighbors,
-                                registry,
-                                vx,
-                                vy,
-                                vz,
-                                voxel_id,
-                                space,
-                            );
-                            if !has_independent_or_isolated_faces {
-                                let geometry =
-                                    map.entry(GeometryMapKey::Block(block.id)).or_insert_with(|| {
-                                        let mut entry = GeometryProtocol::default();
-                                        entry.voxel = block.id;
+                                    space,
+                                );
+                                if !has_independent_or_isolated_faces {
+                                    let geometry =
+                                        map.entry(GeometryMapKey::Block(block.id)).or_insert_with(|| {
+                                            let mut entry = GeometryProtocol::default();
+                                            entry.voxel = block.id;
                                         entry
-                                    });
-                                for face in &block.faces {
-                                    process_face(
-                                        vx,
-                                        vy,
-                                        vz,
-                                        voxel_id,
-                                        &rotation,
-                                        face,
-                                        &face.range,
-                                        block,
-                                        registry,
-                                        space,
-                                        &neighbors,
-                                        &face_cache,
-                                        is_see_through,
-                                        is_fluid,
-                                        &mut geometry.positions,
-                                        &mut geometry.indices,
-                                        &mut geometry.uvs,
-                                        &mut geometry.lights,
-                                        min,
-                                        false,
-                                    );
-                                }
-                            } else {
-                                for face in &block.faces {
-                                    let geo_key = geometry_key_for_face(block, face, vx, vy, vz);
-                                    let geometry = map.entry(geo_key).or_insert_with(|| {
-                                        let mut entry = GeometryProtocol::default();
-                                        entry.voxel = voxel_id;
-                                        if face.independent || face.isolated {
-                                            entry.face_name = Some(face.name.clone());
-                                        }
-                                        if face.isolated {
-                                            entry.at = Some([vx, vy, vz]);
-                                        }
-                                        entry
-                                    });
-                                    process_face(
-                                        vx,
-                                        vy,
-                                        vz,
-                                        voxel_id,
-                                        &rotation,
-                                        face,
-                                        &face.range,
-                                        block,
-                                        registry,
-                                        space,
-                                        &neighbors,
-                                        &face_cache,
-                                        is_see_through,
-                                        is_fluid,
-                                        &mut geometry.positions,
-                                        &mut geometry.indices,
-                                        &mut geometry.uvs,
-                                        &mut geometry.lights,
-                                        min,
-                                        false,
-                                    );
+                                        });
+                                    for face in &block.faces {
+                                        process_face(
+                                            vx,
+                                            vy,
+                                            vz,
+                                            voxel_id,
+                                            &rotation,
+                                            face,
+                                            &face.range,
+                                            block,
+                                            registry,
+                                            space,
+                                            &neighbors,
+                                            &face_cache,
+                                            is_see_through,
+                                            is_fluid,
+                                            &mut geometry.positions,
+                                            &mut geometry.indices,
+                                            &mut geometry.uvs,
+                                            &mut geometry.lights,
+                                            min,
+                                            false,
+                                        );
+                                    }
+                                } else {
+                                    for face in &block.faces {
+                                        let geo_key = geometry_key_for_face(block, face, vx, vy, vz);
+                                        let geometry = map.entry(geo_key).or_insert_with(|| {
+                                            let mut entry = GeometryProtocol::default();
+                                            entry.voxel = voxel_id;
+                                            if face.independent || face.isolated {
+                                                entry.face_name = Some(face.name.clone());
+                                            }
+                                            if face.isolated {
+                                                entry.at = Some([vx, vy, vz]);
+                                            }
+                                            entry
+                                        });
+                                        process_face(
+                                            vx,
+                                            vy,
+                                            vz,
+                                            voxel_id,
+                                            &rotation,
+                                            face,
+                                            &face.range,
+                                            block,
+                                            registry,
+                                            space,
+                                            &neighbors,
+                                            &face_cache,
+                                            is_see_through,
+                                            is_fluid,
+                                            &mut geometry.positions,
+                                            &mut geometry.indices,
+                                            &mut geometry.uvs,
+                                            &mut geometry.lights,
+                                            min,
+                                            false,
+                                        );
+                                    }
                                 }
                             }
                         }
                         continue;
                     }
-                    let has_independent_or_isolated_faces = if block.cache_ready {
+                    let has_independent_or_isolated_faces = if cache_ready {
                         block.has_independent_or_isolated_faces
                     } else {
                         block.has_independent_or_isolated_faces_cached()
