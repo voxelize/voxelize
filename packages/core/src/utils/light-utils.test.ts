@@ -14,4 +14,25 @@ describe("LightUtils parity", () => {
     expect(LightUtils.extractGreenLight(green)).toBe(15);
     expect(LightUtils.extractBlueLight(blue)).toBe(15);
   });
+
+  it("rejects non-axis-aligned directions", () => {
+    expect(() =>
+      LightUtils.canEnterInto(
+        [true, true, true, true, true, true],
+        1,
+        -1,
+        1
+      )
+    ).toThrowError(Error);
+
+    expect(() =>
+      LightUtils.canEnter(
+        [true, true, true, true, true, true],
+        [true, true, true, true, true, true],
+        1,
+        -1,
+        1
+      )
+    ).toThrowError(Error);
+  });
 });

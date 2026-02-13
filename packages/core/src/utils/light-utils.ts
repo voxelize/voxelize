@@ -120,7 +120,7 @@ export class LightUtils {
     dy: number,
     dz: number
   ) => {
-    if (Math.abs(dx + dy + dz) !== 1) {
+    if (Math.abs(dx) + Math.abs(dy) + Math.abs(dz) !== 1) {
       throw new Error(
         "This isn't supposed to happen. Light neighboring direction should be on 1 axis only."
       );
@@ -174,7 +174,7 @@ export class LightUtils {
     dy: number,
     dz: number
   ) => {
-    if (Math.abs(dx + dy + dz) !== 1) {
+    if (Math.abs(dx) + Math.abs(dy) + Math.abs(dz) !== 1) {
       throw new Error(
         "This isn't supposed to happen. Light neighboring direction should be on 1 axis only."
       );
