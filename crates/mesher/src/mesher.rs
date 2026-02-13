@@ -2782,6 +2782,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
     ];
 
     let mut non_greedy_faces: Vec<(i32, i32, i32, u32, BlockFace, bool)> = Vec::new();
+    let mut greedy_mask: Vec<Option<FaceData>> = Vec::new();
 
     for (dx, dy, dz) in directions {
         let dir = [dx, dy, dz];
@@ -2821,12 +2822,15 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
         let mask_width = (u_range.1 - u_range.0) as usize;
         let mask_height = (v_range.1 - v_range.0) as usize;
-        let mut greedy_mask: Vec<Option<FaceData>> = vec![None; mask_width * mask_height];
+        let mask_len = mask_width * mask_height;
+        if greedy_mask.len() < mask_len {
+            greedy_mask.resize(mask_len, None);
+        }
         let mask_index =
             |u: i32, v: i32| -> usize { (v - v_range.0) as usize * mask_width + (u - u_range.0) as usize };
 
         for slice in slice_range {
-            greedy_mask.fill(None);
+            greedy_mask[..mask_len].fill(None);
             non_greedy_faces.clear();
 
             for u in u_range.0..u_range.1 {
@@ -2981,7 +2985,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
             }
 
             let quads = extract_greedy_quads_dense(
-                &mut greedy_mask,
+                &mut greedy_mask[..mask_len],
                 u_range.0,
                 u_range.1,
                 v_range.0,
