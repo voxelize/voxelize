@@ -224,15 +224,17 @@ export class Inputs<T extends string = any> extends EventEmitter {
     const name = key + occasion;
 
     const existing = this.keyBounds.get(name) || [];
-    if (existing.some((item) => item.identifier === identifier)) {
-      throw new Error(
-        `Error registering input, key ${key} with checkType ${checkType}: already bound.`
-      );
+    for (let existingIndex = 0; existingIndex < existing.length; existingIndex++) {
+      if (existing[existingIndex].identifier === identifier) {
+        throw new Error(
+          `Error registering input, key ${key} with checkType ${checkType}: already bound.`
+        );
+      }
     }
 
     const callbackWrapper = (event: KeyboardEvent) => {
       const eventKey = checkType === "code" ? event.code : event.key;
-      if (this.modifyKey(eventKey) === this.modifyKey(key)) {
+      if (this.modifyKey(eventKey) === key) {
         return callback(event);
       }
 
@@ -245,8 +247,12 @@ export class Inputs<T extends string = any> extends EventEmitter {
         : occasion === "keyup"
         ? this.keyUpCallbacks
         : this.keyPressCallbacks;
-
-    callbackMap.set(name, [...(callbackMap.get(name) || []), callbackWrapper]);
+    const callbacks = callbackMap.get(name);
+    if (callbacks) {
+      callbacks.push(callbackWrapper);
+    } else {
+      callbackMap.set(name, [callbackWrapper]);
+    }
 
     const unbind = () => {
       const callbacks = callbackMap.get(name);
@@ -259,9 +265,13 @@ export class Inputs<T extends string = any> extends EventEmitter {
       if (callbackMap.get(name)?.length === 0) callbackMap.delete(name);
 
       const boundItems = this.keyBounds.get(name) || [];
-      const index = boundItems.findIndex(
-        (item) => item.identifier === identifier
-      );
+      let index = -1;
+      for (let boundItemIndex = 0; boundItemIndex < boundItems.length; boundItemIndex++) {
+        if (boundItems[boundItemIndex].identifier === identifier) {
+          index = boundItemIndex;
+          break;
+        }
+      }
       if (index !== -1) {
         boundItems.splice(index, 1);
         if (boundItems.length === 0) {
@@ -300,7 +310,13 @@ export class Inputs<T extends string = any> extends EventEmitter {
     const name = key + occasion;
     const bounds = this.keyBounds.get(name) || [];
 
-    const index = bounds.findIndex((item) => item.identifier === identifier);
+    let index = -1;
+    for (let boundIndex = 0; boundIndex < bounds.length; boundIndex++) {
+      if (bounds[boundIndex].identifier === identifier) {
+        index = boundIndex;
+        break;
+      }
+    }
     if (index !== -1) {
       const { unbind } = bounds[index];
       unbind();
@@ -342,8 +358,20 @@ export class Inputs<T extends string = any> extends EventEmitter {
     const boundsA = this.keyBounds.get(nameA) || [];
     const boundsB = this.keyBounds.get(nameB) || [];
 
-    const indexA = boundsA.findIndex((item) => item.identifier === identifier);
-    const indexB = boundsB.findIndex((item) => item.identifier === identifier);
+    let indexA = -1;
+    for (let boundIndex = 0; boundIndex < boundsA.length; boundIndex++) {
+      if (boundsA[boundIndex].identifier === identifier) {
+        indexA = boundIndex;
+        break;
+      }
+    }
+    let indexB = -1;
+    for (let boundIndex = 0; boundIndex < boundsB.length; boundIndex++) {
+      if (boundsB[boundIndex].identifier === identifier) {
+        indexB = boundIndex;
+        break;
+      }
+    }
 
     if (indexA === -1) {
       throw new Error(`Key ${nameA} is not bound.`);
