@@ -238,11 +238,13 @@ export class BoxLayer extends Mesh {
       this.userData.receiveShadows = true;
     }
 
-    for (const face of BOX_SIDES) {
-      this.materials.set(face, this.createCanvasMaterial(face));
+    const materials = new Array<MeshBasicMaterial>(BOX_SIDES.length);
+    for (let faceIndex = 0; faceIndex < BOX_SIDES.length; faceIndex++) {
+      const face = BOX_SIDES[faceIndex];
+      const material = this.createCanvasMaterial(face);
+      this.materials.set(face, material);
+      materials[faceIndex] = material;
     }
-
-    const materials = Array.from(this.materials.values());
     const temp = materials[0];
     materials[0] = materials[1];
     materials[1] = temp;
