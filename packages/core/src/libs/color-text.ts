@@ -64,34 +64,45 @@ export class ColorText {
     defaultColor = "black"
   ): { color: string; text: string }[] {
     const rawSplitted = text.split(ColorText.getSplitterRegex());
-    const splitted: string[] = [];
+    let firstNonEmptyIndex = -1;
     for (let index = 0; index < rawSplitted.length; index++) {
+      if (rawSplitted[index]) {
+        firstNonEmptyIndex = index;
+        break;
+      }
+    }
+
+    if (firstNonEmptyIndex < 0) {
+      return [];
+    }
+
+    const splitter = ColorText.SPLITTER;
+    const result: { color: string; text: string }[] = [];
+    const firstSegment = rawSplitted[firstNonEmptyIndex];
+    let currentColor = defaultColor;
+    let expectingColorToken = firstSegment.includes(splitter);
+
+    for (
+      let index = firstNonEmptyIndex;
+      index < rawSplitted.length;
+      index++
+    ) {
       const segment = rawSplitted[index];
       if (!segment) {
         continue;
       }
-      splitted.push(segment);
-    }
 
-    if (splitted.length) {
-      if (!splitted[0].includes(ColorText.SPLITTER)) {
-        splitted.unshift(
-          `${ColorText.SPLITTER}${defaultColor}${ColorText.SPLITTER}`
-        );
-      }
-
-      if (splitted[splitted.length - 1].includes(ColorText.SPLITTER)) {
-        splitted.push("");
+      if (expectingColorToken) {
+        currentColor = segment.substring(1, segment.length - 1);
+        expectingColorToken = false;
+      } else {
+        result.push({ color: currentColor, text: segment });
+        expectingColorToken = true;
       }
     }
 
-    const result: { color: string; text: string }[] = [];
-
-    for (let i = 0; i < splitted.length; i += 2) {
-      const color = splitted[i].substring(1, splitted[i].length - 1);
-      const text = splitted[i + 1];
-
-      result.push({ color, text });
+    if (!expectingColorToken) {
+      result.push({ color: currentColor, text: "" });
     }
 
     return result;
