@@ -81,12 +81,16 @@ const checks = [
 
 const passed = checks.every((check) => check.passed);
 const exitCode = passed ? 0 : 1;
+const passedChecks = checks.filter((check) => check.passed).map((check) => check.name);
+const failedChecks = checks.filter((check) => !check.passed).map((check) => check.name);
 const report = {
   passed,
   exitCode,
   noBuild: isNoBuild,
   startedAt,
   durationMs: Date.now() - aggregateStartMs,
+  passedChecks,
+  failedChecks,
   checks,
   outputPath: resolvedOutputPath,
 };

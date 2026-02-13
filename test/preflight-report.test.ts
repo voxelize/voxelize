@@ -21,6 +21,8 @@ type PreflightReport = {
   noBuild: boolean;
   startedAt: string;
   durationMs: number;
+  passedChecks: string[];
+  failedChecks: string[];
   checks: PreflightCheckResult[];
   outputPath: string | null;
   message?: string;
@@ -45,6 +47,12 @@ describe("preflight aggregate report", () => {
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
     expect(typeof report.startedAt).toBe("string");
     expect(report.durationMs).toBeGreaterThanOrEqual(0);
+    expect(Array.isArray(report.passedChecks)).toBe(true);
+    expect(Array.isArray(report.failedChecks)).toBe(true);
+    expect(report.passedChecks.length + report.failedChecks.length).toBe(3);
+    expect([...report.passedChecks, ...report.failedChecks].sort()).toEqual(
+      ["client", "devEnvironment", "wasmPack"]
+    );
     expect(report.outputPath).toBeNull();
     expect(Array.isArray(report.checks)).toBe(true);
     expect(report.checks.length).toBe(3);
