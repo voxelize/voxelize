@@ -690,6 +690,41 @@ describe("report-utils", () => {
     expect(diagnostics.unknownOptionCount).toBe(0);
   });
 
+  it("builds diagnostics when canonical options come only from alias config", () => {
+    const diagnostics = createCliDiagnostics(["--verify", "--mystery"], {
+      canonicalOptions: ["--json"],
+      optionAliases: {
+        "--no-build": ["--verify"],
+      },
+    });
+
+    expect(diagnostics.supportedCliOptions).toEqual([
+      "--json",
+      "--no-build",
+      "--verify",
+    ]);
+    expect(diagnostics.supportedCliOptionCount).toBe(3);
+    expect(diagnostics.availableCliOptionCanonicalMap).toEqual({
+      "--json": "--json",
+      "--no-build": "--no-build",
+      "--verify": "--no-build",
+    });
+    expect(diagnostics.activeCliOptions).toEqual(["--no-build"]);
+    expect(diagnostics.activeCliOptionCount).toBe(1);
+    expect(diagnostics.activeCliOptionTokens).toEqual(["--verify"]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+    ]);
+    expect(diagnostics.unknownOptions).toEqual(["--mystery"]);
+    expect(diagnostics.unknownOptionCount).toBe(1);
+    expect(diagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --no-build, --verify."
+    );
+  });
+
   it("parses active cli option metadata with aliases and option values", () => {
     const activeMetadata = parseActiveCliOptionMetadata(
       [
