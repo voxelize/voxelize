@@ -2750,8 +2750,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     };
 
                     let voxel_id = space.get_voxel(vx, vy, vz);
-
-                    let rotation = space.get_voxel_rotation(vx, vy, vz);
                     let block = match registry.get_block_by_id(voxel_id) {
                         Some(candidate) => candidate,
                         None => continue,
@@ -2776,6 +2774,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         }
                     }
 
+                    let rotation = space.get_voxel_rotation(vx, vy, vz);
                     let is_non_greedy_block = !can_greedy_mesh_block(block, &rotation);
                     if is_non_greedy_block && processed_non_greedy[current_voxel_index] {
                         continue;
@@ -3048,8 +3047,6 @@ pub fn mesh_space<S: VoxelAccess>(
         for vz in min_z..max_z {
             for vy in min_y..max_y {
                 let voxel_id = space.get_voxel(vx, vy, vz);
-
-                let rotation = space.get_voxel_rotation(vx, vy, vz);
                 let block = match registry.get_block_by_id(voxel_id) {
                     Some(b) => b,
                     None => continue,
@@ -3070,6 +3067,7 @@ pub fn mesh_space<S: VoxelAccess>(
                     }
                 }
 
+                let rotation = space.get_voxel_rotation(vx, vy, vz);
                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
                 let is_all_transparent = block.is_all_transparent;
                 let face_cache = FaceProcessCache {
