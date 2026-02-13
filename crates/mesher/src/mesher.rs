@@ -2867,8 +2867,17 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         }
                     }
 
+                    let greedy_without_rotation = block.can_greedy_mesh_without_rotation();
+                    if !greedy_without_rotation && processed_non_greedy[current_voxel_index] {
+                        continue;
+                    }
+
                     let rotation = space.get_voxel_rotation(vx, vy, vz);
-                    let is_non_greedy_block = !can_greedy_mesh_block(block, &rotation);
+                    let is_non_greedy_block = if greedy_without_rotation {
+                        !matches!(rotation, BlockRotation::PY(r) if r == 0.0)
+                    } else {
+                        true
+                    };
                     if is_non_greedy_block && processed_non_greedy[current_voxel_index] {
                         continue;
                     }
