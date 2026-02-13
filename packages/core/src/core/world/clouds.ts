@@ -434,7 +434,7 @@ export class Clouds extends Group {
     const min = [x * count - 1, 0, z * count - 1];
     const max = [(x + 1) * count + 1, height, (z + 1) * count + 1];
 
-    const data = await new Promise<any>((resolve) =>
+    const data = await new Promise<Uint8Array>((resolve, reject) =>
       this.pool.addJob({
         message: {
           data: array.data,
@@ -450,6 +450,7 @@ export class Clouds extends Group {
           },
         },
         resolve,
+        reject,
         buffers: [array.data.buffer.slice(0)],
       })
     );

@@ -18,6 +18,13 @@ export type WorkerPoolJob<TMessage extends object = object> = {
    * @param value The result of the job.
    */
   resolve: (value: MessageEvent["data"]) => void;
+
+  /**
+   * A callback that is called when the worker fails to execute the job.
+   *
+   * @param reason The failure reason.
+   */
+  reject?: (reason: Error) => void;
 };
 
 type QueuedWorkerPoolJob = WorkerPoolJob<object>;
@@ -170,12 +177,22 @@ export class WorkerPool {
       const worker = this.workers[index];
 
       const job = this.queue[this.queueHead];
-      const { message, buffers, resolve } = job;
+      const { message, buffers, resolve, reject } = job;
+
+      const rejectJob = (reason: Error) => {
+        if (reject) {
+          reject(reason);
+        } else {
+          console.error(reason);
+        }
+      };
 
       const workerCallback = (event: MessageEvent<object>) => {
         const { data } = event;
         WorkerPool.WORKING_COUNT--;
         worker.removeEventListener("message", workerCallback);
+        worker.removeEventListener("error", workerErrorCallback);
+        worker.removeEventListener("messageerror", workerMessageErrorCallback);
         this.available.push(index);
         try {
           resolve(data);
@@ -186,7 +203,46 @@ export class WorkerPool {
         }
       };
 
+      const workerErrorCallback = (event: ErrorEvent) => {
+        event.preventDefault();
+        WorkerPool.WORKING_COUNT--;
+        worker.removeEventListener("message", workerCallback);
+        worker.removeEventListener("error", workerErrorCallback);
+        worker.removeEventListener("messageerror", workerMessageErrorCallback);
+        this.available.push(index);
+        try {
+          rejectJob(
+            new Error(
+              event.message || "Worker pool job failed while executing."
+            )
+          );
+        } finally {
+          if (this.hasQueuedJobs()) {
+            this.scheduleProcess();
+          }
+        }
+      };
+
+      const workerMessageErrorCallback = () => {
+        WorkerPool.WORKING_COUNT--;
+        worker.removeEventListener("message", workerCallback);
+        worker.removeEventListener("error", workerErrorCallback);
+        worker.removeEventListener("messageerror", workerMessageErrorCallback);
+        this.available.push(index);
+        try {
+          rejectJob(
+            new Error("Worker pool job failed due to response serialization.")
+          );
+        } finally {
+          if (this.hasQueuedJobs()) {
+            this.scheduleProcess();
+          }
+        }
+      };
+
       worker.addEventListener("message", workerCallback);
+      worker.addEventListener("error", workerErrorCallback);
+      worker.addEventListener("messageerror", workerMessageErrorCallback);
       try {
         if (buffers) {
           worker.postMessage(message, buffers);
@@ -198,8 +254,19 @@ export class WorkerPool {
         WorkerPool.WORKING_COUNT++;
       } catch (error) {
         worker.removeEventListener("message", workerCallback);
+        worker.removeEventListener("error", workerErrorCallback);
+        worker.removeEventListener("messageerror", workerMessageErrorCallback);
         this.available.push(index);
-        throw error;
+        this.queueHead++;
+        this.normalizeQueue();
+        rejectJob(
+          error instanceof Error
+            ? error
+            : new Error("Worker pool job failed while dispatching.")
+        );
+        if (this.hasQueuedJobs()) {
+          this.scheduleProcess();
+        }
       }
     }
   };

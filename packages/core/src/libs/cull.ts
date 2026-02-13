@@ -31,7 +31,7 @@ export async function cull(
   const { stride, data } = array;
   const { dimensions, min, max, realMin, realMax } = options;
 
-  return new Promise<MeshResultType>((resolve) => {
+  return new Promise<MeshResultType>((resolve, reject) => {
     cullPool.addJob({
       message: {
         data,
@@ -45,6 +45,7 @@ export async function cull(
         },
       },
       resolve,
+      reject,
       buffers: [(<Uint8Array>data).buffer.slice(0)],
     });
   });

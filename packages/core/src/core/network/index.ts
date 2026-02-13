@@ -537,11 +537,12 @@ export class Network {
   };
 
   private decode = (data: ArrayBuffer[]): Promise<MessageProtocol[]> => {
-    return new Promise<MessageProtocol[]>((resolve) => {
+    return new Promise<MessageProtocol[]>((resolve, reject) => {
       this.pool.addJob({
         message: data,
         buffers: data,
         resolve,
+        reject,
       });
     });
   };

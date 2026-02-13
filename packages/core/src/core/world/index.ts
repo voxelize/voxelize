@@ -1077,11 +1077,12 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const { geometries } = await new Promise<{
       geometries: GeometryProtocol[];
-    }>((resolve) => {
+    }>((resolve, reject) => {
       this.meshWorkerPool.addJob({
         message: data,
         buffers: arrayBuffers,
         resolve,
+        reject,
       });
     });
 
@@ -6311,6 +6312,18 @@ export class World<T = any> extends Scene implements NetIntercept {
       },
       buffers: arrayBuffers,
       resolve: (result) => this.handleLightJobResult(job, result),
+      reject: (error) => this.handleLightJobFailure(job, error),
+    });
+  }
+
+  private handleLightJobFailure(job: LightJob, error: Error) {
+    console.error(`Light worker job ${job.jobId} failed.`, error);
+    this.handleLightJobResult(job, {
+      jobId: job.jobId,
+      modifiedChunks: [],
+      appliedDeltas: {
+        lastSequenceId: 0,
+      },
     });
   }
 
