@@ -1106,6 +1106,250 @@ fn compute_face_ao_and_light(
     (aos, lights)
 }
 
+fn compute_face_ao_and_light_fast(
+    dir: [i32; 3],
+    block: &Block,
+    neighbors: &NeighborCache,
+    registry: &Registry,
+) -> ([i32; 4], [i32; 4]) {
+    let block_aabb = AABB::union_all(&block.aabbs);
+
+    let is_see_through = block.is_see_through;
+    let is_all_transparent = block.is_transparent[0]
+        && block.is_transparent[1]
+        && block.is_transparent[2]
+        && block.is_transparent[3]
+        && block.is_transparent[4]
+        && block.is_transparent[5];
+
+    let corner_positions: [[f32; 3]; 4] = match dir {
+        [1, 0, 0] => [
+            [1.0, 1.0, 1.0],
+            [1.0, 0.0, 1.0],
+            [1.0, 1.0, 0.0],
+            [1.0, 0.0, 0.0],
+        ],
+        [-1, 0, 0] => [
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [0.0, 1.0, 1.0],
+            [0.0, 0.0, 1.0],
+        ],
+        [0, 1, 0] => [
+            [0.0, 1.0, 1.0],
+            [1.0, 1.0, 1.0],
+            [0.0, 1.0, 0.0],
+            [1.0, 1.0, 0.0],
+        ],
+        [0, -1, 0] => [
+            [1.0, 0.0, 1.0],
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
+        ],
+        [0, 0, 1] => [
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 1.0],
+            [0.0, 1.0, 1.0],
+            [1.0, 1.0, 1.0],
+        ],
+        [0, 0, -1] => [
+            [1.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [1.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ],
+        _ => return ([3, 3, 3, 3], [0, 0, 0, 0]),
+    };
+
+    let mut aos = [0i32; 4];
+    let mut lights = [0i32; 4];
+
+    for (i, pos) in corner_positions.iter().enumerate() {
+        let dx = if pos[0] <= block_aabb.min_x + 0.01 {
+            -1
+        } else {
+            1
+        };
+        let dy = if pos[1] <= block_aabb.min_y + 0.01 {
+            -1
+        } else {
+            1
+        };
+        let dz = if pos[2] <= block_aabb.min_z + 0.01 {
+            -1
+        } else {
+            1
+        };
+
+        let get_block_opaque = |ox: i32, oy: i32, oz: i32| -> bool {
+            let id = neighbors.get_voxel(ox, oy, oz);
+            registry
+                .get_block_by_id(id)
+                .map(|candidate| candidate.is_opaque)
+                .unwrap_or(false)
+        };
+
+        let b011 = !get_block_opaque(0, dy, dz);
+        let b101 = !get_block_opaque(dx, 0, dz);
+        let b110 = !get_block_opaque(dx, dy, 0);
+        let b111 = !get_block_opaque(dx, dy, dz);
+
+        let ao = if is_see_through || is_all_transparent {
+            3
+        } else if dir[0].abs() == 1 {
+            vertex_ao(b110, b101, b111)
+        } else if dir[1].abs() == 1 {
+            vertex_ao(b110, b011, b111)
+        } else {
+            vertex_ao(b011, b101, b111)
+        };
+
+        let (sunlight, red_light, green_light, blue_light) = if is_see_through || is_all_transparent
+        {
+            neighbors.get_all_lights(0, 0, 0)
+        } else {
+            let mut sum_sunlights = 0u32;
+            let mut sum_red_lights = 0u32;
+            let mut sum_green_lights = 0u32;
+            let mut sum_blue_lights = 0u32;
+            let mut count = 0u32;
+
+            for x in 0..=1 {
+                for y in 0..=1 {
+                    for z in 0..=1 {
+                        let ddx = x * dx;
+                        let ddy = y * dy;
+                        let ddz = z * dz;
+
+                        let (local_sunlight, local_red_light, local_green_light, local_blue_light) =
+                            neighbors.get_all_lights(ddx, ddy, ddz);
+
+                        if local_sunlight == 0
+                            && local_red_light == 0
+                            && local_green_light == 0
+                            && local_blue_light == 0
+                        {
+                            continue;
+                        }
+
+                        let diagonal4_id = neighbors.get_voxel(ddx, ddy, ddz);
+                        let diagonal4_opaque = registry
+                            .get_block_by_id(diagonal4_id)
+                            .map(|candidate| candidate.is_opaque)
+                            .unwrap_or(false);
+
+                        if diagonal4_opaque {
+                            continue;
+                        }
+
+                        if dir[0] * ddx + dir[1] * ddy + dir[2] * ddz == 0 {
+                            let facing_id =
+                                neighbors.get_voxel(ddx * dir[0], ddy * dir[1], ddz * dir[2]);
+                            let facing_opaque = registry
+                                .get_block_by_id(facing_id)
+                                .map(|candidate| candidate.is_opaque)
+                                .unwrap_or(false);
+
+                            if facing_opaque {
+                                continue;
+                            }
+                        }
+
+                        if ddx.abs() + ddy.abs() + ddz.abs() == 3 {
+                            let diagonal_yz_opaque = registry
+                                .get_block_by_id(neighbors.get_voxel(0, ddy, ddz))
+                                .map(|candidate| candidate.is_opaque)
+                                .unwrap_or(false);
+                            let diagonal_xz_opaque = registry
+                                .get_block_by_id(neighbors.get_voxel(ddx, 0, ddz))
+                                .map(|candidate| candidate.is_opaque)
+                                .unwrap_or(false);
+                            let diagonal_xy_opaque = registry
+                                .get_block_by_id(neighbors.get_voxel(ddx, ddy, 0))
+                                .map(|candidate| candidate.is_opaque)
+                                .unwrap_or(false);
+
+                            if diagonal_yz_opaque && diagonal_xz_opaque && diagonal_xy_opaque {
+                                continue;
+                            }
+
+                            if diagonal_xy_opaque && diagonal_xz_opaque {
+                                let neighbor_y_opaque = registry
+                                    .get_block_by_id(neighbors.get_voxel(0, ddy, 0))
+                                    .map(|candidate| candidate.is_opaque)
+                                    .unwrap_or(false);
+                                let neighbor_z_opaque = registry
+                                    .get_block_by_id(neighbors.get_voxel(0, 0, ddz))
+                                    .map(|candidate| candidate.is_opaque)
+                                    .unwrap_or(false);
+                                if neighbor_y_opaque && neighbor_z_opaque {
+                                    continue;
+                                }
+                            }
+
+                            if diagonal_xy_opaque && diagonal_yz_opaque {
+                                let neighbor_x_opaque = registry
+                                    .get_block_by_id(neighbors.get_voxel(ddx, 0, 0))
+                                    .map(|candidate| candidate.is_opaque)
+                                    .unwrap_or(false);
+                                let neighbor_z_opaque = registry
+                                    .get_block_by_id(neighbors.get_voxel(0, 0, ddz))
+                                    .map(|candidate| candidate.is_opaque)
+                                    .unwrap_or(false);
+                                if neighbor_x_opaque && neighbor_z_opaque {
+                                    continue;
+                                }
+                            }
+
+                            if diagonal_xz_opaque && diagonal_yz_opaque {
+                                let neighbor_x_opaque = registry
+                                    .get_block_by_id(neighbors.get_voxel(ddx, 0, 0))
+                                    .map(|candidate| candidate.is_opaque)
+                                    .unwrap_or(false);
+                                let neighbor_y_opaque = registry
+                                    .get_block_by_id(neighbors.get_voxel(0, ddy, 0))
+                                    .map(|candidate| candidate.is_opaque)
+                                    .unwrap_or(false);
+                                if neighbor_x_opaque && neighbor_y_opaque {
+                                    continue;
+                                }
+                            }
+                        }
+
+                        sum_sunlights += local_sunlight;
+                        sum_red_lights += local_red_light;
+                        sum_green_lights += local_green_light;
+                        sum_blue_lights += local_blue_light;
+                        count += 1;
+                    }
+                }
+            }
+
+            if count > 0 {
+                (
+                    sum_sunlights / count,
+                    sum_red_lights / count,
+                    sum_green_lights / count,
+                    sum_blue_lights / count,
+                )
+            } else {
+                (0, 0, 0, 0)
+            }
+        };
+
+        aos[i] = ao;
+        let mut light = 0u32;
+        light = LightUtils::insert_red_light(light, red_light);
+        light = LightUtils::insert_green_light(light, green_light);
+        light = LightUtils::insert_blue_light(light, blue_light);
+        light = LightUtils::insert_sunlight(light, sunlight);
+        lights[i] = light as i32;
+    }
+
+    (aos, lights)
+}
+
 fn extract_greedy_quads(
     mask: &mut HashMap<(i32, i32), FaceData>,
     min_u: i32,
@@ -1154,6 +1398,71 @@ fn extract_greedy_quads(
                     y: v,
                     w: width,
                     h: height,
+                    data,
+                });
+            }
+        }
+    }
+
+    quads
+}
+
+fn extract_greedy_quads_dense(
+    mask: &mut [Option<FaceData>],
+    min_u: i32,
+    max_u: i32,
+    min_v: i32,
+    max_v: i32,
+) -> Vec<GreedyQuad> {
+    let mut quads = Vec::new();
+    let width = (max_u - min_u) as usize;
+
+    let index = |u: i32, v: i32| -> usize { (v - min_v) as usize * width + (u - min_u) as usize };
+
+    for v in min_v..max_v {
+        for u in min_u..max_u {
+            let start_index = index(u, v);
+            if let Some(data) = mask[start_index].take() {
+                let mut quad_width = 1;
+                while u + quad_width < max_u {
+                    let neighbor_index = index(u + quad_width, v);
+                    if let Some(neighbor) = mask[neighbor_index].as_ref() {
+                        if neighbor.key == data.key {
+                            mask[neighbor_index] = None;
+                            quad_width += 1;
+                        } else {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+
+                let mut quad_height = 1;
+                'height: while v + quad_height < max_v {
+                    for du in 0..quad_width {
+                        let neighbor_index = index(u + du, v + quad_height);
+                        if let Some(neighbor) = mask[neighbor_index].as_ref() {
+                            if neighbor.key != data.key {
+                                break 'height;
+                            }
+                        } else {
+                            break 'height;
+                        }
+                    }
+
+                    for du in 0..quad_width {
+                        let neighbor_index = index(u + du, v + quad_height);
+                        mask[neighbor_index] = None;
+                    }
+                    quad_height += 1;
+                }
+
+                quads.push(GreedyQuad {
+                    x: u,
+                    y: v,
+                    w: quad_width,
+                    h: quad_height,
                     data,
                 });
             }
@@ -1588,7 +1897,7 @@ fn process_face<S: VoxelAccess>(
 
     let is_diagonal = dir == [0, 0, 0];
     let has_diagonals = is_see_through && has_diagonal_faces(block);
-    let (hash_ox, hash_oz) = if has_diagonals {
+    let (hash_ox, _hash_oz) = if has_diagonals {
         diagonal_face_offsets(vx, vy, vz)
     } else {
         (0.0, 0.0)
@@ -2235,13 +2544,346 @@ pub fn mesh_space_greedy_legacy<S: VoxelAccess>(
     mesh_space_greedy_legacy_impl(min, max, space, registry)
 }
 
+fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
+    min: &[i32; 3],
+    max: &[i32; 3],
+    space: &S,
+    registry: &Registry,
+) -> Vec<GeometryProtocol> {
+    let mut map: HashMap<String, GeometryProtocol> = HashMap::new();
+    let mut processed_non_greedy: HashSet<(i32, i32, i32)> = HashSet::new();
+
+    let [min_x, min_y, min_z] = *min;
+    let [max_x, max_y, max_z] = *max;
+
+    let directions: [(i32, i32, i32); 6] = [
+        (1, 0, 0),
+        (-1, 0, 0),
+        (0, 1, 0),
+        (0, -1, 0),
+        (0, 0, 1),
+        (0, 0, -1),
+    ];
+
+    let mut non_greedy_faces: Vec<(i32, i32, i32, u32, BlockRotation, BlockFace, bool, bool, bool)> =
+        Vec::new();
+
+    for (dx, dy, dz) in directions {
+        let dir = [dx, dy, dz];
+
+        let (axis, u_axis, v_axis) = if dx != 0 {
+            (0, 2, 1)
+        } else if dy != 0 {
+            (1, 0, 2)
+        } else {
+            (2, 0, 1)
+        };
+
+        let slice_range = match axis {
+            0 => min_x..max_x,
+            1 => min_y..max_y,
+            _ => min_z..max_z,
+        };
+
+        let u_range = match u_axis {
+            0 => (min_x, max_x),
+            1 => (min_y, max_y),
+            _ => (min_z, max_z),
+        };
+
+        let v_range = match v_axis {
+            0 => (min_x, max_x),
+            1 => (min_y, max_y),
+            _ => (min_z, max_z),
+        };
+
+        let mask_width = (u_range.1 - u_range.0) as usize;
+        let mask_height = (v_range.1 - v_range.0) as usize;
+        let mut greedy_mask: Vec<Option<FaceData>> = vec![None; mask_width * mask_height];
+        let mask_index =
+            |u: i32, v: i32| -> usize { (v - v_range.0) as usize * mask_width + (u - u_range.0) as usize };
+
+        for slice in slice_range {
+            greedy_mask.fill(None);
+            non_greedy_faces.clear();
+
+            for u in u_range.0..u_range.1 {
+                for v in v_range.0..v_range.1 {
+                    let (vx, vy, vz) = match (axis, u_axis, v_axis) {
+                        (0, 2, 1) => (slice, v, u),
+                        (1, 0, 2) => (u, slice, v),
+                        (2, 0, 1) => (u, v, slice),
+                        _ => continue,
+                    };
+
+                    let voxel_id = space.get_voxel(vx, vy, vz);
+                    if !registry.has_type(voxel_id) {
+                        continue;
+                    }
+
+                    let rotation = space.get_voxel_rotation(vx, vy, vz);
+                    let block = match registry.get_block_by_id(voxel_id) {
+                        Some(candidate) => candidate,
+                        None => continue,
+                    };
+
+                    if block.is_empty {
+                        continue;
+                    }
+
+                    if block.is_opaque {
+                        let all_neighbors_opaque = VOXEL_NEIGHBORS.iter().all(|&[nx, ny, nz]| {
+                            let id = space.get_voxel(vx + nx, vy + ny, vz + nz);
+                            registry
+                                .get_block_by_id(id)
+                                .map(|candidate| candidate.is_opaque)
+                                .unwrap_or(false)
+                        });
+                        if all_neighbors_opaque {
+                            continue;
+                        }
+                    }
+
+                    let is_non_greedy_block = !can_greedy_mesh_block(block, &rotation);
+                    if is_non_greedy_block && processed_non_greedy.contains(&(vx, vy, vz)) {
+                        continue;
+                    }
+
+                    let is_fluid = block.is_fluid;
+                    let is_see_through = block.is_see_through;
+
+                    let faces: Vec<(BlockFace, bool)> =
+                        if is_fluid && has_standard_six_faces(&block.faces) {
+                            create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
+                                .into_iter()
+                                .map(|face| (face, false))
+                                .collect()
+                        } else if block.dynamic_patterns.is_some() {
+                            get_dynamic_faces(block, [vx, vy, vz], space, &rotation)
+                        } else {
+                            block.faces.iter().cloned().map(|face| (face, false)).collect()
+                        };
+
+                    if is_non_greedy_block {
+                        processed_non_greedy.insert((vx, vy, vz));
+                        for (face, world_space) in faces {
+                            non_greedy_faces.push((
+                                vx,
+                                vy,
+                                vz,
+                                voxel_id,
+                                rotation.clone(),
+                                face,
+                                is_see_through,
+                                is_fluid,
+                                world_space,
+                            ));
+                        }
+                        continue;
+                    }
+
+                    let mut should_render_checked = false;
+                    let mut should_render = false;
+                    let mut neighbors = None;
+
+                    for (face, world_space) in faces.iter() {
+                        let mut face_dir = [face.dir[0] as f32, face.dir[1] as f32, face.dir[2] as f32];
+                        if (block.rotatable || block.y_rotatable) && !*world_space {
+                            rotation.rotate_node(&mut face_dir, block.y_rotatable, false);
+                        }
+                        let effective_dir = [
+                            face_dir[0].round() as i32,
+                            face_dir[1].round() as i32,
+                            face_dir[2].round() as i32,
+                        ];
+                        if effective_dir != dir {
+                            continue;
+                        }
+
+                        if !should_render_checked {
+                            should_render = should_render_face(
+                                vx,
+                                vy,
+                                vz,
+                                voxel_id,
+                                dir,
+                                block,
+                                space,
+                                registry,
+                                is_see_through,
+                                is_fluid,
+                            );
+                            should_render_checked = true;
+                        }
+
+                        if !should_render {
+                            break;
+                        }
+
+                        if face.isolated {
+                            non_greedy_faces.push((
+                                vx,
+                                vy,
+                                vz,
+                                voxel_id,
+                                rotation.clone(),
+                                face.clone(),
+                                is_see_through,
+                                is_fluid,
+                                *world_space,
+                            ));
+                            continue;
+                        }
+
+                        let neighbors_ref =
+                            neighbors.get_or_insert_with(|| NeighborCache::populate(vx, vy, vz, space));
+                        let (aos, lights) =
+                            compute_face_ao_and_light_fast(dir, block, neighbors_ref, registry);
+                        let uv_range = face.range.clone();
+
+                        let key = FaceKey {
+                            block_id: block.id,
+                            face_name: face.name.clone(),
+                            independent: face.independent,
+                            ao: aos,
+                            light: lights,
+                            uv_start_u: (uv_range.start_u * 1000000.0) as u32,
+                            uv_end_u: (uv_range.end_u * 1000000.0) as u32,
+                            uv_start_v: (uv_range.start_v * 1000000.0) as u32,
+                            uv_end_v: (uv_range.end_v * 1000000.0) as u32,
+                        };
+
+                        greedy_mask[mask_index(u, v)] = Some(FaceData {
+                            key,
+                            uv_range,
+                            is_see_through,
+                            is_fluid,
+                        });
+                    }
+                }
+            }
+
+            let quads = extract_greedy_quads_dense(
+                &mut greedy_mask,
+                u_range.0,
+                u_range.1,
+                v_range.0,
+                v_range.1,
+            );
+
+            for quad in quads {
+                let block = match registry.get_block_by_id(quad.data.key.block_id) {
+                    Some(candidate) => candidate,
+                    None => continue,
+                };
+                let geo_key = if quad.data.key.independent {
+                    format!(
+                        "{}::{}",
+                        block.get_name_lower(),
+                        quad.data.key.face_name.to_lowercase()
+                    )
+                } else {
+                    block.get_name_lower().to_string()
+                };
+
+                let geometry = map.entry(geo_key).or_insert_with(|| {
+                    let mut entry = GeometryProtocol::default();
+                    entry.voxel = quad.data.key.block_id;
+                    if quad.data.key.independent {
+                        entry.face_name = Some(quad.data.key.face_name.clone());
+                    }
+                    entry
+                });
+
+                process_greedy_quad(&quad, axis, slice, dir, min, block, geometry);
+            }
+
+            for (
+                vx,
+                vy,
+                vz,
+                voxel_id,
+                rotation,
+                face,
+                is_see_through,
+                is_fluid,
+                world_space,
+            ) in non_greedy_faces.drain(..)
+            {
+                let block = match registry.get_block_by_id(voxel_id) {
+                    Some(candidate) => candidate,
+                    None => continue,
+                };
+
+                let geo_key = if face.isolated {
+                    format!(
+                        "{}::{}::{}-{}-{}",
+                        block.get_name_lower(),
+                        face.get_name_lower(),
+                        vx,
+                        vy,
+                        vz
+                    )
+                } else if face.independent {
+                    format!("{}::{}", block.get_name_lower(), face.get_name_lower())
+                } else {
+                    block.get_name_lower().to_string()
+                };
+
+                let geometry = map.entry(geo_key).or_insert_with(|| {
+                    let mut entry = GeometryProtocol::default();
+                    entry.voxel = voxel_id;
+                    if face.independent || face.isolated {
+                        entry.face_name = Some(face.name.clone());
+                    }
+                    if face.isolated {
+                        entry.at = Some([vx, vy, vz]);
+                    }
+                    entry
+                });
+
+                let mut uv_map = HashMap::new();
+                uv_map.insert(face.name.clone(), face.range.clone());
+
+                let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                process_face(
+                    vx,
+                    vy,
+                    vz,
+                    voxel_id,
+                    &rotation,
+                    &face,
+                    block,
+                    &uv_map,
+                    registry,
+                    space,
+                    &neighbors,
+                    is_see_through,
+                    is_fluid,
+                    &mut geometry.positions,
+                    &mut geometry.indices,
+                    &mut geometry.uvs,
+                    &mut geometry.lights,
+                    min,
+                    world_space,
+                );
+            }
+        }
+    }
+
+    map.into_iter()
+        .map(|(_, geometry)| geometry)
+        .filter(|geometry| !geometry.indices.is_empty())
+        .collect()
+}
+
 pub fn mesh_space_greedy<S: VoxelAccess>(
     min: &[i32; 3],
     max: &[i32; 3],
     space: &S,
     registry: &Registry,
 ) -> Vec<GeometryProtocol> {
-    mesh_space_greedy_legacy_impl(min, max, space, registry)
+    mesh_space_greedy_fast_impl(min, max, space, registry)
 }
 
 pub fn mesh_space<S: VoxelAccess>(
