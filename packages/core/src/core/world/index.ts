@@ -6341,16 +6341,17 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     const { chunkSize } = this.options;
-    const affectedChunks = new Map<string, Coords2>();
+    const affectedChunks = new Map<number, Set<number>>();
 
     const addAffectedChunk = (vx: number, vz: number) => {
       const cx = Math.floor(vx / chunkSize);
       const cz = Math.floor(vz / chunkSize);
-      const chunkName = ChunkUtils.getChunkNameAt(cx, cz);
-
-      if (!affectedChunks.has(chunkName)) {
-        affectedChunks.set(chunkName, [cx, cz]);
+      let zSet = affectedChunks.get(cx);
+      if (!zSet) {
+        zSet = new Set<number>();
+        affectedChunks.set(cx, zSet);
       }
+      zSet.add(cz);
     };
 
     for (const voxel of lightOps.removals) {
@@ -6361,8 +6362,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       addAffectedChunk(voxel[0], voxel[2]);
     }
 
-    for (const coords of affectedChunks.values()) {
-      this.markChunkForRemesh(coords);
+    for (const [cx, zSet] of affectedChunks) {
+      for (const cz of zSet) {
+        this.markChunkForRemesh([cx, cz]);
+      }
     }
   }
 
