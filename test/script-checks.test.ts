@@ -405,6 +405,23 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-dev-env json mode fails when last output flag value is missing", () => {
+    const result = runScript("check-dev-env.mjs", [
+      "--json",
+      "--output",
+      "./first.json",
+      "--output",
+    ]);
+    const report = JSON.parse(result.output) as DevEnvJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expectTimingMetadata(report);
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(result.status).toBe(1);
+  });
+
   it("check-dev-env json mode reports output write failures with details", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-dev-env-output-write-failure-")
@@ -563,6 +580,29 @@ describe("root preflight scripts", () => {
 
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
+    expectTimingMetadata(report);
+    expect(report.totalSteps).toBe(0);
+    expect(report.passedStepCount).toBe(0);
+    expect(report.failedStepCount).toBe(0);
+    expect(report.skippedStepCount).toBe(0);
+    expect(report.firstFailedStep).toBeNull();
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(result.status).toBe(1);
+  });
+
+  it("check-client json mode fails when last output flag value is missing", () => {
+    const result = runScript("check-client.mjs", [
+      "--json",
+      "--no-build",
+      "--output",
+      "./first.json",
+      "--output",
+    ]);
+    const report = JSON.parse(result.output) as ClientJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
     expectTimingMetadata(report);
     expect(report.totalSteps).toBe(0);
     expect(report.passedStepCount).toBe(0);
@@ -758,6 +798,29 @@ describe("root preflight scripts", () => {
 
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
+    expectTimingMetadata(report);
+    expect(report.totalSteps).toBe(0);
+    expect(report.passedStepCount).toBe(0);
+    expect(report.failedStepCount).toBe(0);
+    expect(report.skippedStepCount).toBe(0);
+    expect(report.firstFailedStep).toBeNull();
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(result.status).toBe(1);
+  });
+
+  it("check-onboarding json mode fails when last output flag value is missing", () => {
+    const result = runScript("check-onboarding.mjs", [
+      "--json",
+      "--no-build",
+      "--output",
+      "./first.json",
+      "--output",
+    ]);
+    const report = JSON.parse(result.output) as OnboardingJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
     expectTimingMetadata(report);
     expect(report.totalSteps).toBe(0);
     expect(report.passedStepCount).toBe(0);
