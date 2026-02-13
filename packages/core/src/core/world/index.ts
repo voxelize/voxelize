@@ -5589,6 +5589,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     const { maxHeight, maxLightsUpdateTime } = this.options;
     const updateDeadline = startTime + maxLightsUpdateTime;
     const maxUpdates = endIndex - startIndex;
+    if (maxUpdates <= 0) {
+      return {
+        consumedCount: 0,
+        processedClientUpdates: EMPTY_BLOCK_UPDATES,
+      };
+    }
 
     let consumedCount = 0;
     const processedClientUpdates = collectClientUpdates
