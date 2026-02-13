@@ -155,6 +155,35 @@ describe("client wasm preflight script", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("supports inline output values in machine-readable mode", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-wasm-preflight-inline-output-")
+    );
+    const outputPath = path.resolve(tempDirectory, "wasm-inline-report.json");
+
+    const result = spawnSync(
+      process.execPath,
+      [wasmMesherScript, "--json", "--no-build", `--output=${outputPath}`],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const stdoutReport = JSON.parse(
+      `${result.stdout}${result.stderr}`
+    ) as WasmMesherJsonReport;
+    const fileReport = JSON.parse(
+      fs.readFileSync(outputPath, "utf8")
+    ) as WasmMesherJsonReport;
+
+    expect(stdoutReport.outputPath).toBe(outputPath);
+    expect(fileReport.outputPath).toBe(outputPath);
+    expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("uses the last output flag when multiple are provided", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-wasm-preflight-last-output-")
@@ -198,6 +227,26 @@ describe("client wasm preflight script", () => {
     const result = spawnSync(
       process.execPath,
       [wasmMesherScript, "--json", "--output"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const report = JSON.parse(`${result.stdout}${result.stderr}`) as WasmMesherJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expectTimingMetadata(report);
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(result.status).toBe(1);
+  });
+
+  it("fails with structured output when inline output value is empty", () => {
+    const result = spawnSync(
+      process.execPath,
+      [wasmMesherScript, "--json", "--output="],
       {
         cwd: rootDir,
         encoding: "utf8",

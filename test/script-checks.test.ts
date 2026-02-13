@@ -411,6 +411,28 @@ describe("root preflight scripts", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("check-dev-env json mode supports inline output values", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-dev-env-json-inline-output-")
+    );
+    const outputPath = path.resolve(tempDirectory, "dev-env-inline-report.json");
+
+    const result = runScript("check-dev-env.mjs", [
+      "--json",
+      `--output=${outputPath}`,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as DevEnvJsonReport;
+    const fileReport = JSON.parse(
+      fs.readFileSync(outputPath, "utf8")
+    ) as DevEnvJsonReport;
+
+    expect(stdoutReport.outputPath).toBe(outputPath);
+    expect(fileReport.outputPath).toBe(outputPath);
+    expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("check-dev-env json mode uses the last output flag", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-dev-env-json-last-output-")
@@ -440,6 +462,17 @@ describe("root preflight scripts", () => {
 
   it("check-dev-env json mode validates missing output value", () => {
     const result = runScript("check-dev-env.mjs", ["--json", "--output"]);
+    const report = JSON.parse(result.output) as DevEnvJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expectTimingMetadata(report);
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(result.status).toBe(1);
+  });
+
+  it("check-dev-env json mode validates empty inline output value", () => {
+    const result = runScript("check-dev-env.mjs", ["--json", "--output="]);
     const report = JSON.parse(result.output) as DevEnvJsonReport;
 
     expect(report.passed).toBe(false);
@@ -590,6 +623,29 @@ describe("root preflight scripts", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("check-client json mode supports inline output values", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-client-json-inline-output-")
+    );
+    const outputPath = path.resolve(tempDirectory, "client-inline-report.json");
+
+    const result = runScript("check-client.mjs", [
+      "--json",
+      "--no-build",
+      `--output=${outputPath}`,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as ClientJsonReport;
+    const fileReport = JSON.parse(
+      fs.readFileSync(outputPath, "utf8")
+    ) as ClientJsonReport;
+
+    expect(stdoutReport.outputPath).toBe(outputPath);
+    expect(fileReport.outputPath).toBe(outputPath);
+    expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("check-client json mode uses the last output flag", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-client-json-last-output-")
@@ -620,6 +676,22 @@ describe("root preflight scripts", () => {
 
   it("check-client json mode validates missing output value", () => {
     const result = runScript("check-client.mjs", ["--json", "--output"]);
+    const report = JSON.parse(result.output) as ClientJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expectTimingMetadata(report);
+    expect(report.totalSteps).toBe(0);
+    expect(report.passedStepCount).toBe(0);
+    expect(report.failedStepCount).toBe(0);
+    expect(report.skippedStepCount).toBe(0);
+    expect(report.firstFailedStep).toBeNull();
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(result.status).toBe(1);
+  });
+
+  it("check-client json mode validates empty inline output value", () => {
+    const result = runScript("check-client.mjs", ["--json", "--output="]);
     const report = JSON.parse(result.output) as ClientJsonReport;
 
     expect(report.passed).toBe(false);
@@ -808,6 +880,29 @@ describe("root preflight scripts", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("check-onboarding json mode supports inline output values", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-onboarding-json-inline-output-")
+    );
+    const outputPath = path.resolve(tempDirectory, "onboarding-inline-report.json");
+
+    const result = runScript("check-onboarding.mjs", [
+      "--json",
+      "--no-build",
+      `--output=${outputPath}`,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as OnboardingJsonReport;
+    const fileReport = JSON.parse(
+      fs.readFileSync(outputPath, "utf8")
+    ) as OnboardingJsonReport;
+
+    expect(stdoutReport.outputPath).toBe(outputPath);
+    expect(fileReport.outputPath).toBe(outputPath);
+    expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("check-onboarding json mode uses the last output flag", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-onboarding-json-last-output-")
@@ -838,6 +933,22 @@ describe("root preflight scripts", () => {
 
   it("check-onboarding json mode validates missing output value", () => {
     const result = runScript("check-onboarding.mjs", ["--json", "--output"]);
+    const report = JSON.parse(result.output) as OnboardingJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expectTimingMetadata(report);
+    expect(report.totalSteps).toBe(0);
+    expect(report.passedStepCount).toBe(0);
+    expect(report.failedStepCount).toBe(0);
+    expect(report.skippedStepCount).toBe(0);
+    expect(report.firstFailedStep).toBeNull();
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(result.status).toBe(1);
+  });
+
+  it("check-onboarding json mode validates empty inline output value", () => {
+    const result = runScript("check-onboarding.mjs", ["--json", "--output="]);
     const report = JSON.parse(result.output) as OnboardingJsonReport;
 
     expect(report.passed).toBe(false);
