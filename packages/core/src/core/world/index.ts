@@ -6052,9 +6052,15 @@ export class World<T = any> extends Scene implements NetIntercept {
         ((rotation !== undefined && !Number.isNaN(rotation)) ||
           (yRotation !== undefined && !Number.isNaN(yRotation)))
       ) {
+        const encodedRotation =
+          rotation !== undefined && !Number.isNaN(rotation)
+            ? rotation
+            : PY_ROTATION;
+        const encodedYRotation =
+          yRotation !== undefined && !Number.isNaN(yRotation) ? yRotation : 0;
         raw = BlockUtils.insertRotation(
           raw,
-          BlockRotation.encode(rotation, yRotation)
+          BlockRotation.encode(encodedRotation, encodedYRotation)
         );
       }
 
