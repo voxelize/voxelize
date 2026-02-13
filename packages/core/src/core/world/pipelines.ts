@@ -235,6 +235,9 @@ export class ChunkPipeline {
 }
 
 interface MeshState {
+  cx: number;
+  cz: number;
+  level: number;
   generation: number;
   inFlightGeneration: number | null;
   displayedGeneration: number;
@@ -244,16 +247,29 @@ export class MeshPipeline {
   private states = new Map<string, MeshState>();
   private dirty = new Set<string>();
 
-  private getOrCreate(key: string): MeshState {
+  private getOrCreate(
+    key: string,
+    cx: number,
+    cz: number,
+    level: number
+  ): MeshState {
     let state = this.states.get(key);
     if (!state) {
       state = {
+        cx,
+        cz,
+        level,
         generation: 0,
         inFlightGeneration: null,
         displayedGeneration: 0,
       };
       this.states.set(key, state);
+      return state;
     }
+
+    state.cx = cx;
+    state.cz = cz;
+    state.level = level;
     return state;
   }
 
@@ -261,27 +277,9 @@ export class MeshPipeline {
     return `${cx},${cz}:${level}`;
   }
 
-  static parseKey(key: string): { cx: number; cz: number; level: number } {
-    const commaIndex = key.indexOf(",");
-    const colonIndex = key.indexOf(":", commaIndex + 1);
-
-    if (commaIndex < 0 || colonIndex < 0) {
-      return {
-        cx: Number.NaN,
-        cz: Number.NaN,
-        level: Number.NaN,
-      };
-    }
-
-    const cx = parseInt(key.slice(0, commaIndex), 10);
-    const cz = parseInt(key.slice(commaIndex + 1, colonIndex), 10);
-    const level = parseInt(key.slice(colonIndex + 1), 10);
-    return { cx, cz, level };
-  }
-
   onVoxelChange(cx: number, cz: number, level: number): void {
     const key = MeshPipeline.makeKey(cx, cz, level);
-    const state = this.getOrCreate(key);
+    const state = this.getOrCreate(key, cx, cz, level);
     state.generation++;
     this.dirty.add(key);
   }
@@ -294,12 +292,22 @@ export class MeshPipeline {
     return true;
   }
 
-  startJob(key: string): number {
+  startJob(
+    key: string
+  ): { generation: number; cx: number; cz: number; level: number } | null {
     const state = this.states.get(key);
-    if (!state) return 0;
+    if (!state) {
+      return null;
+    }
+
     state.inFlightGeneration = state.generation;
     this.dirty.delete(key);
-    return state.generation;
+    return {
+      generation: state.generation,
+      cx: state.cx,
+      cz: state.cz,
+      level: state.level,
+    };
   }
 
   onJobComplete(key: string, jobGeneration: number): boolean {
@@ -324,15 +332,7 @@ export class MeshPipeline {
 
   markFreshFromServer(cx: number, cz: number, level: number): void {
     const key = MeshPipeline.makeKey(cx, cz, level);
-    let state = this.states.get(key);
-    if (!state) {
-      state = {
-        generation: 0,
-        inFlightGeneration: null,
-        displayedGeneration: 0,
-      };
-      this.states.set(key, state);
-    }
+    const state = this.getOrCreate(key, cx, cz, level);
     state.displayedGeneration = state.generation;
     state.inFlightGeneration = null;
     this.dirty.delete(key);

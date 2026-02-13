@@ -5740,22 +5740,17 @@ export class World<T = any> extends Scene implements NetIntercept {
         geometries: GeometryProtocol[];
       }>
     >(processCount);
+    let workerCount = 0;
 
     for (let index = 0; index < processCount; index++) {
       const key = dirtyKeys[index];
-      const commaIndex = key.indexOf(",");
-      const colonIndex = key.indexOf(":", commaIndex + 1);
-      const cx =
-        commaIndex >= 0 ? parseInt(key.slice(0, commaIndex), 10) : Number.NaN;
-      const cz =
-        commaIndex >= 0 && colonIndex >= 0
-          ? parseInt(key.slice(commaIndex + 1, colonIndex), 10)
-          : Number.NaN;
-      const level =
-        colonIndex >= 0 ? parseInt(key.slice(colonIndex + 1), 10) : Number.NaN;
-      const generation = this.meshPipeline.startJob(key);
+      const startedJob = this.meshPipeline.startJob(key);
+      if (!startedJob) {
+        continue;
+      }
 
-      workerPromises[index] = this.dispatchMeshWorker(cx, cz, level).then(
+      const { cx, cz, level, generation } = startedJob;
+      workerPromises[workerCount] = this.dispatchMeshWorker(cx, cz, level).then(
         (geometries) =>
           ({
             cx,
@@ -5766,7 +5761,12 @@ export class World<T = any> extends Scene implements NetIntercept {
             geometries,
           })
       );
+      workerCount++;
     }
+    if (workerCount === 0) {
+      return;
+    }
+    workerPromises.length = workerCount;
 
     const results = await Promise.all(workerPromises);
     let shouldScheduleDirtyChunks = false;
