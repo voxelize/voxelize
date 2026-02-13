@@ -505,6 +505,32 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(1);
   });
 
+  it("deduplicates repeated invalid check names in error output", () => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        preflightScript,
+        "--only",
+        "devEnvironment,unknownCheck,unknownCheck,otherUnknown",
+      ],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.message).toBe(
+      "Invalid check name(s): unknownCheck, otherUnknown."
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("writes structured validation errors to output path", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-preflight-invalid-only-output-")
