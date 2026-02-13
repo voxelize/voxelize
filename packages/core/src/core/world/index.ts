@@ -5563,7 +5563,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       maxHeight,
     };
     const batchId = this.lightBatchIdCounter++;
-    const jobsForBatch: LightJob[] = [];
+    let queuedJobs = 0;
 
     for (const { color, channel } of LIGHT_COLOR_CHANNELS) {
       const job = this.createLightJob(
@@ -5575,14 +5575,13 @@ export class World<T = any> extends Scene implements NetIntercept {
         boundsConfig
       );
       if (job) {
-        jobsForBatch.push(job);
+        this.lightJobQueue.push(job);
+        queuedJobs++;
       }
     }
 
-    if (jobsForBatch.length === 0) return;
-
-    for (const job of jobsForBatch) {
-      this.lightJobQueue.push(job);
+    if (queuedJobs === 0) {
+      return;
     }
     this.processNextLightBatch();
   }
