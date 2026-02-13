@@ -1072,6 +1072,7 @@ fn face_name_owned(face: &BlockFace) -> String {
     }
 }
 
+#[inline(always)]
 fn geometry_key_for_face(block: &Block, face: &BlockFace, vx: i32, vy: i32, vz: i32) -> GeometryMapKey {
     if face.isolated {
         GeometryMapKey::Isolated(block.id, face_name_owned(face), vx, vy, vz)
@@ -1082,6 +1083,7 @@ fn geometry_key_for_face(block: &Block, face: &BlockFace, vx: i32, vy: i32, vz: 
     }
 }
 
+#[inline(always)]
 fn geometry_key_for_quad(block: &Block, face_name: Option<&str>, independent: bool) -> GeometryMapKey {
     if independent {
         let name = face_name.expect("independent greedy quad must include a face name");
