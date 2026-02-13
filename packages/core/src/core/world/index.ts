@@ -1466,18 +1466,21 @@ export class World<T = any> extends Scene implements NetIntercept {
   ) {
     this.checkIsInitialized("apply texture group", false);
 
-    const facesInGroup: { blockId: number; face: Block["faces"][0] }[] = [];
-
-    for (const [id, block] of this.registry.blocksById) {
-      for (const face of block.faces) {
+    let firstFaceInGroup: { blockId: number; face: Block["faces"][0] } | null =
+      null;
+    outer: for (const [id, block] of this.registry.blocksById) {
+      const blockFaces = block.faces;
+      for (let faceIndex = 0; faceIndex < blockFaces.length; faceIndex++) {
+        const face = blockFaces[faceIndex];
         if (face.isolated) continue;
         if (face.textureGroup === groupName) {
-          facesInGroup.push({ blockId: id, face });
+          firstFaceInGroup = { blockId: id, face };
+          break outer;
         }
       }
     }
 
-    if (facesInGroup.length === 0) {
+    if (!firstFaceInGroup) {
       console.warn(`No faces found with texture group "${groupName}"`);
       return;
     }
@@ -1487,21 +1490,20 @@ export class World<T = any> extends Scene implements NetIntercept {
       return this.applyTextureGroup(groupName, data);
     }
 
-    const firstEntry = facesInGroup[0];
     const mat = this.getBlockFaceMaterial(
-      firstEntry.blockId,
-      firstEntry.face.name
+      firstFaceInGroup.blockId,
+      firstFaceInGroup.face.name
     );
 
     if (!mat) {
       console.warn(
-        `No material found for texture group "${groupName}" (block ${firstEntry.blockId}, face ${firstEntry.face.name})`
+        `No material found for texture group "${groupName}" (block ${firstFaceInGroup.blockId}, face ${firstFaceInGroup.face.name})`
       );
       return;
     }
 
     const atlas = mat.map as AtlasTexture;
-    atlas.drawImageToRange(firstEntry.face.range, source);
+    atlas.drawImageToRange(firstFaceInGroup.face.range, source);
     mat.map.needsUpdate = true;
   }
 
