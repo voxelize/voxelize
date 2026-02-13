@@ -1730,7 +1730,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private getLoadedChunkAtVoxel(vx: number, vz: number) {
     return this.chunkPipeline.getLoadedChunk(
-      ChunkUtils.getChunkNameByVoxel(vx | 0, vz | 0, this.options.chunkSize)
+      ChunkUtils.getChunkNameByVoxel(vx, vz, this.options.chunkSize)
     );
   }
 
