@@ -5,6 +5,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   Object3D,
+  Vector3,
 } from "three";
 
 import type { World } from "../index";
@@ -44,6 +45,7 @@ export abstract class ItemRenderer {
 
 const THICKNESS = 0.25;
 const SIZE = 2.5;
+const Y_AXIS = new Vector3(0, 1, 0);
 const CUBE_FACE_TRIANGLE_INDICES = [
   0, 1, 2, 0, 2, 3,
   5, 4, 7, 5, 7, 6,
@@ -161,7 +163,7 @@ function createMeshFromData(data: ImageItemMeshData): Group {
   const mesh = new Mesh(geometry, material);
 
   mesh.position.set(1, -1.8, -2);
-  mesh.quaternion.setFromAxisAngle({ x: 0, y: 1, z: 0 } as never, -Math.PI / 4);
+  mesh.quaternion.setFromAxisAngle(Y_AXIS, -Math.PI / 4);
 
   const group1 = new Group();
   group1.add(mesh);
