@@ -2339,6 +2339,8 @@ fn process_face<S: VoxelAccess>(
     let end_u = uv_range.end_u;
     let start_v = uv_range.start_v;
     let end_v = uv_range.end_v;
+    let uv_span_u = end_u - start_u;
+    let uv_span_v = end_v - start_v;
 
     let ndx = (positions.len() / 3) as i32;
     let mut face_aos = [0i32; 4];
@@ -2423,8 +2425,8 @@ fn process_face<S: VoxelAccess>(
             positions.push(pos[1] + base_y);
             positions.push(pos[2] + base_z);
 
-            uvs.push(corner.uv[0] * (end_u - start_u) + start_u);
-            uvs.push(corner.uv[1] * (end_v - start_v) + start_v);
+            uvs.push(corner.uv[0] * uv_span_u + start_u);
+            uvs.push(corner.uv[1] * uv_span_v + start_v);
 
             let wave_bit = if apply_wave_bit && pos[1] > block_min_y_eps {
                 1 << 20
@@ -2448,8 +2450,8 @@ fn process_face<S: VoxelAccess>(
             positions.push(pos[1] + base_y);
             positions.push(pos[2] + base_z);
 
-            uvs.push(corner.uv[0] * (end_u - start_u) + start_u);
-            uvs.push(corner.uv[1] * (end_v - start_v) + start_v);
+            uvs.push(corner.uv[0] * uv_span_u + start_u);
+            uvs.push(corner.uv[1] * uv_span_v + start_v);
 
             let dx = if pos[0] <= block_min_x_eps { -1 } else { 1 };
             let dy = if pos[1] <= block_min_y_eps { -1 } else { 1 };
