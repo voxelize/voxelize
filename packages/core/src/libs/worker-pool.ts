@@ -146,9 +146,12 @@ export class WorkerPool {
         WorkerPool.WORKING_COUNT--;
         worker.removeEventListener("message", workerCallback);
         this.available.push(index);
-        resolve(data);
-        if (this.hasQueuedJobs()) {
-          queueMicrotask(this.process);
+        try {
+          resolve(data);
+        } finally {
+          if (this.hasQueuedJobs()) {
+            queueMicrotask(this.process);
+          }
         }
       };
 
