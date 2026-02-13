@@ -60,7 +60,13 @@ export class LightSourceRegistry {
   }
 
   getAllLights(): DynamicLight[] {
-    return Array.from(this.lights.values());
+    const lights = new Array<DynamicLight>(this.lights.size);
+    let index = 0;
+    for (const light of this.lights.values()) {
+      lights[index] = light;
+      index++;
+    }
+    return lights;
   }
 
   getLightsInRegion(min: Vector3, max: Vector3): DynamicLight[] {
@@ -89,8 +95,11 @@ export class LightSourceRegistry {
     const result: DynamicLight[] = [];
 
     for (const light of this.lights.values()) {
-      const dist = light.position.distanceTo(point);
-      if (dist <= maxDistance + light.radius) {
+      const maxDist = maxDistance + light.radius;
+      const dx = light.position.x - point.x;
+      const dy = light.position.y - point.y;
+      const dz = light.position.z - point.z;
+      if (dx * dx + dy * dy + dz * dz <= maxDist * maxDist) {
         result.push(light);
       }
     }
@@ -117,7 +126,13 @@ export class LightSourceRegistry {
   }
 
   getDirtyRegions(): string[] {
-    return Array.from(this.dirtyRegions);
+    const dirtyRegions = new Array<string>(this.dirtyRegions.size);
+    let index = 0;
+    for (const region of this.dirtyRegions.values()) {
+      dirtyRegions[index] = region;
+      index++;
+    }
+    return dirtyRegions;
   }
 
   clearDirtyRegions() {
@@ -129,8 +144,12 @@ export class LightSourceRegistry {
   }
 
   private notifyLightChanged(light: DynamicLight) {
-    for (const callback of this.onLightChangedCallbacks) {
-      callback(light);
+    for (
+      let callbackIndex = 0;
+      callbackIndex < this.onLightChangedCallbacks.length;
+      callbackIndex++
+    ) {
+      this.onLightChangedCallbacks[callbackIndex](light);
     }
   }
 
