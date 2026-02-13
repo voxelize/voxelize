@@ -276,7 +276,6 @@ export type LightBatch = {
   totalJobs: number;
   completedJobs: number;
   results: LightBatchResult[];
-  jobs: LightJob[];
 };
 
 export type LightOperations = {
@@ -5666,6 +5665,14 @@ export class World<T = any> extends Scene implements NetIntercept {
       shape: [maxX - minX + 1, maxY - minY + 1, maxZ - minZ + 1],
     };
 
+    if (
+      boundingBox.shape[0] <= 0 ||
+      boundingBox.shape[1] <= 0 ||
+      boundingBox.shape[2] <= 0
+    ) {
+      return null;
+    }
+
     return {
       jobId: `light-${color}-${this.lightJobIdCounter++}`,
       color,
@@ -5725,7 +5732,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       totalJobs,
       completedJobs: 0,
       results: [],
-      jobs: [],
     };
 
     for (let index = batchStart; index < batchEnd; index++) {
