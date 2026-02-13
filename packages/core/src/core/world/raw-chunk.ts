@@ -536,17 +536,15 @@ export class RawChunk {
     );
   }
 
-  private toLocal(vx: number, vy: number, vz: number) {
-    const [mx, my, mz] = this.min;
-    this.localBuffer[0] = Math.floor(vx) - mx;
-    this.localBuffer[1] = Math.floor(vy) - my;
-    this.localBuffer[2] = Math.floor(vz) - mz;
-    return this.localBuffer;
-  }
-
   private contains(vx: number, vy: number, vz: number) {
     const { size, maxHeight } = this.options;
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
+    const [mx, my, mz] = this.min;
+    const lx = Math.floor(vx) - mx;
+    const ly = Math.floor(vy) - my;
+    const lz = Math.floor(vz) - mz;
+    this.localBuffer[0] = lx;
+    this.localBuffer[1] = ly;
+    this.localBuffer[2] = lz;
 
     return (
       lx >= 0 && lx < size && ly >= 0 && ly < maxHeight && lz >= 0 && lz < size
