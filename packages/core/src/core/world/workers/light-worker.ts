@@ -357,10 +357,17 @@ const processBatchMessage = (message: LightBatchMessage) => {
     options.maxLightLevel
   ) as WasmLightBatchResult;
 
-  const modifiedChunks = wasmResult.modifiedChunks.map((chunk) => ({
-    coords: chunk.coords,
-    lights: new Uint32Array(chunk.lights),
-  }));
+  const modifiedChunks: { coords: Coords2; lights: Uint32Array }[] = [];
+  const transferBuffers: ArrayBuffer[] = [];
+
+  for (const chunk of wasmResult.modifiedChunks) {
+    const lights = new Uint32Array(chunk.lights);
+    modifiedChunks.push({
+      coords: chunk.coords,
+      lights,
+    });
+    transferBuffers.push(lights.buffer);
+  }
 
   postMessage(
     {
@@ -369,7 +376,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
       appliedDeltas: { lastSequenceId },
     },
     {
-      transfer: modifiedChunks.map((chunk) => chunk.lights.buffer),
+      transfer: transferBuffers,
     }
   );
 };
