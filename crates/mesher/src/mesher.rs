@@ -1248,6 +1248,8 @@ fn compute_face_ao_and_light(
 
     let mut aos = [0i32; 4];
     let mut lights = [0i32; 4];
+    let dir_is_x = dir[0].abs() == 1;
+    let dir_is_y = dir[1].abs() == 1;
 
     for (i, pos) in corner_positions.iter().enumerate() {
         let dx = if pos[0] <= block_min_x + 0.01 {
@@ -1281,9 +1283,9 @@ fn compute_face_ao_and_light(
 
         let ao = if is_see_through || is_all_transparent {
             3
-        } else if dir[0].abs() == 1 {
+        } else if dir_is_x {
             vertex_ao(b110, b101, b111)
-        } else if dir[1].abs() == 1 {
+        } else if dir_is_y {
             vertex_ao(b110, b011, b111)
         } else {
             vertex_ao(b011, b101, b111)
@@ -1297,6 +1299,7 @@ fn compute_face_ao_and_light(
             let mut sum_red_lights = Vec::with_capacity(8);
             let mut sum_green_lights = Vec::with_capacity(8);
             let mut sum_blue_lights = Vec::with_capacity(8);
+            let center_opaque = get_block_opaque(0, 0, 0);
 
             for x in 0..=1 {
                 for y in 0..=1 {
@@ -1326,17 +1329,15 @@ fn compute_face_ao_and_light(
                             continue;
                         }
 
-                        if dir[0] * ddx + dir[1] * ddy + dir[2] * ddz == 0 {
-                            let facing_id =
-                                neighbors.get_voxel(ddx * dir[0], ddy * dir[1], ddz * dir[2]);
-                            let facing_opaque = registry
-                                .get_block_by_id(facing_id)
-                                .map(|b| b.is_opaque)
-                                .unwrap_or(false);
-
-                            if facing_opaque {
-                                continue;
-                            }
+                        let is_face_plane_sample = if dir_is_x {
+                            ddx == 0
+                        } else if dir_is_y {
+                            ddy == 0
+                        } else {
+                            ddz == 0
+                        };
+                        if is_face_plane_sample && center_opaque {
+                            continue;
                         }
 
                         if ddx.abs() + ddy.abs() + ddz.abs() == 3 {
