@@ -394,6 +394,23 @@ const isKnownOptionTokenLike = (optionToken, canonicalOptionMap) => {
   return canonicalOptionMap.has(inlineOptionName);
 };
 
+const shouldConsumeSplitOptionValue = (
+  nextArg,
+  canonicalOption,
+  canonicalOptionMap,
+  canonicalStrictValueOptions
+) => {
+  if (nextArg === null || nextArg.startsWith("--")) {
+    return false;
+  }
+
+  if (!canonicalStrictValueOptions.has(canonicalOption)) {
+    return true;
+  }
+
+  return !isKnownOptionTokenLike(nextArg, canonicalOptionMap);
+};
+
 const createValueOptionMetadata = (
   optionsWithValues,
   optionsWithStrictValues,
@@ -498,15 +515,13 @@ export const parseUnknownCliOptions = (
         !resolvedOption.hasInlineValue
       ) {
         const nextArg = optionArgs[index + 1] ?? null;
-        const nextArgResolvesToKnownOption =
-          nextArg !== null && isKnownOptionTokenLike(nextArg, canonicalOptionMap);
-        const strictValueOptionWithRecognizedToken =
-          canonicalStrictValueOptions.has(resolvedOption.canonicalOption) &&
-          nextArgResolvesToKnownOption;
         if (
-          nextArg !== null &&
-          !nextArg.startsWith("--") &&
-          !strictValueOptionWithRecognizedToken
+          shouldConsumeSplitOptionValue(
+            nextArg,
+            resolvedOption.canonicalOption,
+            canonicalOptionMap,
+            canonicalStrictValueOptions
+          )
         ) {
           index += 1;
         }
@@ -646,15 +661,13 @@ export const parseActiveCliOptionMetadata = (
       !resolvedOption.hasInlineValue
     ) {
       const nextArg = optionArgs[index + 1] ?? null;
-      const nextArgResolvesToKnownOption =
-        nextArg !== null && isKnownOptionTokenLike(nextArg, canonicalOptionMap);
-      const strictValueOptionWithRecognizedToken =
-        canonicalStrictValueOptions.has(resolvedOption.canonicalOption) &&
-        nextArgResolvesToKnownOption;
       if (
-        nextArg !== null &&
-        !nextArg.startsWith("--") &&
-        !strictValueOptionWithRecognizedToken
+        shouldConsumeSplitOptionValue(
+          nextArg,
+          resolvedOption.canonicalOption,
+          canonicalOptionMap,
+          canonicalStrictValueOptions
+        )
       ) {
         index += 1;
       }
