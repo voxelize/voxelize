@@ -437,6 +437,10 @@ export class Network {
   };
 
   flush = () => {
+    if (!this.connected || !this.ws) {
+      return;
+    }
+
     const ws = this.ws;
     for (let i = 0; i < this.intercepts.length; i++) {
       const intercept = this.intercepts[i];
