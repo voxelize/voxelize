@@ -2663,8 +2663,9 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
 
                     let is_fluid = block.is_fluid;
                     let is_see_through = block.is_see_through;
+                    let block_needs_face_rotation = block.rotatable || block.y_rotatable;
                     let mut rotation = BlockRotation::PY(0.0);
-                    if block.rotatable || block.y_rotatable {
+                    if block_needs_face_rotation {
                         rotation = space.get_voxel_rotation(vx, vy, vz);
                     }
 
@@ -2718,10 +2719,11 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     let matching_faces: Vec<_> = faces
                         .iter()
                         .filter(|(f, world_space)| {
-                            let mut face_dir = [f.dir[0] as f32, f.dir[1] as f32, f.dir[2] as f32];
-                            if (block.rotatable || block.y_rotatable) && !*world_space {
-                                rotation.rotate_node(&mut face_dir, block.y_rotatable, false);
+                            if !block_needs_face_rotation || *world_space {
+                                return f.dir == dir;
                             }
+                            let mut face_dir = [f.dir[0] as f32, f.dir[1] as f32, f.dir[2] as f32];
+                            rotation.rotate_node(&mut face_dir, block.y_rotatable, false);
                             let effective_dir = [
                                 face_dir[0].round() as i32,
                                 face_dir[1].round() as i32,
