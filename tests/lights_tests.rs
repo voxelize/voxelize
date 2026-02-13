@@ -501,6 +501,21 @@ fn test_register_block_assigns_auto_id_and_refreshes_caches() {
 }
 
 #[test]
+fn test_register_block_replacing_existing_name_removes_old_id_mapping() {
+    let mut registry = create_test_registry();
+
+    registry.register_block(&Block::new("torch").id(41).build());
+
+    assert_eq!(registry.get_block_by_name("torch").id, 41);
+    assert_eq!(registry.get_id_by_name("torch"), 41);
+    assert!(registry.has_type(41));
+    assert!(
+        !registry.has_type(2),
+        "registering an existing name with a new id should remove the old id mapping"
+    );
+}
+
+#[test]
 fn test_register_blocks_empty_keeps_conversion_caches() {
     let mut registry = create_test_registry();
 

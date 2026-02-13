@@ -359,9 +359,22 @@ impl Registry {
         } = block;
 
         let lower_name = name.to_lowercase();
+        let existing_id_for_name = self.blocks_by_name.get(&lower_name).map(|existing| existing.id);
+        let existing_name_for_id = self.name_map.get(id).cloned();
+
+        if let Some(existing_id) = existing_id_for_name {
+            self.blocks_by_id.remove(&existing_id);
+            self.name_map.remove(&existing_id);
+        }
+        if let Some(existing_name) = existing_name_for_id {
+            self.blocks_by_name.remove(&existing_name);
+            self.type_map.remove(&existing_name);
+        }
 
         self.blocks_by_name.remove(&lower_name);
         self.blocks_by_id.remove(id);
+        self.name_map.remove(id);
+        self.type_map.remove(&lower_name);
 
         self.blocks_by_name
             .insert(lower_name.clone(), block.clone());
