@@ -2643,8 +2643,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
         (0, 0, -1),
     ];
 
-    let mut non_greedy_faces: Vec<(i32, i32, i32, u32, BlockRotation, BlockFace, bool)> =
-        Vec::new();
+    let mut non_greedy_faces: Vec<(i32, i32, i32, u32, BlockFace, bool)> = Vec::new();
 
     for (dx, dy, dz) in directions {
         let dir = [dx, dy, dz];
@@ -2756,7 +2755,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 vy,
                                 vz,
                                 voxel_id,
-                                rotation.clone(),
                                 face,
                                 world_space,
                             ));
@@ -2790,7 +2788,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 vy,
                                 vz,
                                 voxel_id,
-                                rotation.clone(),
                                 face.clone(),
                                 false,
                             ));
@@ -2873,13 +2870,13 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
             let mut cached_key: Option<(i32, i32, i32, u32, bool, bool)> = None;
             let mut cached_neighbors: Option<NeighborCache> = None;
             let mut cached_face_cache: Option<FaceProcessCache> = None;
+            let mut cached_rotation: Option<BlockRotation> = None;
 
             for (
                 vx,
                 vy,
                 vz,
                 voxel_id,
-                rotation,
                 face,
                 world_space,
             ) in non_greedy_faces.drain(..)
@@ -2908,6 +2905,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
                 if cached_key != Some(cache_key) {
                     let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                    let rotation = space.get_voxel_rotation(vx, vy, vz);
                     let face_cache = build_face_process_cache(
                         block,
                         is_see_through,
@@ -2922,6 +2920,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     );
                     cached_neighbors = Some(neighbors);
                     cached_face_cache = Some(face_cache);
+                    cached_rotation = Some(rotation);
                     cached_key = Some(cache_key);
                 }
                 let neighbors = cached_neighbors
@@ -2930,12 +2929,15 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                 let face_cache = cached_face_cache
                     .as_ref()
                     .expect("cached face data must exist for non-greedy face");
+                let rotation = cached_rotation
+                    .as_ref()
+                    .expect("cached rotation must exist for non-greedy face");
                 process_face(
                     vx,
                     vy,
                     vz,
                     voxel_id,
-                    &rotation,
+                    rotation,
                     &face,
                     &face.range,
                     block,
