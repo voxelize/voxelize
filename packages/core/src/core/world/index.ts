@@ -2645,12 +2645,17 @@ export class World<T = any> extends Scene implements NetIntercept {
     const block = this.getBlockById(id);
 
     if (block.dynamicPatterns && block.dynamicPatterns.length > 0) {
-      return this.getBlockAABBsForDynamicPatterns(
+      const aabbsWithFlags = this.getBlockAABBsForDynamicPatterns(
         vx,
         vy,
         vz,
         block.dynamicPatterns
-      ).map(({ aabb }) => aabb);
+      );
+      const resolvedAabbs = new Array<AABB>(aabbsWithFlags.length);
+      for (let index = 0; index < aabbsWithFlags.length; index++) {
+        resolvedAabbs[index] = aabbsWithFlags[index].aabb;
+      }
+      return resolvedAabbs;
     }
 
     return block.aabbs;
