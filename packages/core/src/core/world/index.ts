@@ -2255,7 +2255,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     coords: Coords2,
     listener: (chunk: Chunk) => void
   ) => {
-    const name = ChunkUtils.getChunkName(coords);
+    const name = ChunkUtils.getChunkNameAt(coords[0], coords[1]);
 
     const listeners = this.chunkInitializeListeners.get(name) || [];
     listeners.push(listener);
@@ -4138,7 +4138,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       const [x, z] = chunk.coords;
 
       if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
-        chunk.meshes.forEach((meshes, level) => {
+        for (const [level, meshes] of chunk.meshes) {
           for (const mesh of meshes) {
             if (mesh) {
               this.csmRenderer?.removeSkipShadowObject(mesh);
@@ -4150,7 +4150,7 @@ export class World<T = any> extends Scene implements NetIntercept {
             level,
             meshes,
           });
-        });
+        }
 
         this.emitChunkEvent("chunk-unloaded", {
           chunk,
@@ -4166,7 +4166,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     });
 
-    toRemove.forEach((name) => this.chunkPipeline.remove(name));
+    for (let index = 0; index < toRemove.length; index++) {
+      this.chunkPipeline.remove(toRemove[index]);
+    }
 
     this.chunkPipeline.forEach("requested", (name) => {
       const [x, z] = ChunkUtils.parseChunkNameAt(name);
@@ -4187,12 +4189,15 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
       }
     });
-    processingToRemove.forEach((name) => this.chunkPipeline.remove(name));
+    for (let index = 0; index < processingToRemove.length; index++) {
+      this.chunkPipeline.remove(processingToRemove[index]);
+    }
 
-    deleted.forEach((coords) => {
-      const name = ChunkUtils.getChunkName(coords);
+    for (let index = 0; index < deleted.length; index++) {
+      const coords = deleted[index];
+      const name = ChunkUtils.getChunkNameAt(coords[0], coords[1]);
       this.chunkInitializeListeners.delete(name);
-    });
+    }
 
     if (deleted.length) {
       this.packets.push({
@@ -4224,9 +4229,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       const [x, z] = chunk.coords;
       const showPlants = (x - cx) ** 2 + (z - cz) ** 2 <= radiusSq;
 
-      chunk.meshes.forEach((levelMeshes) => {
+      for (const levelMeshes of chunk.meshes.values()) {
         this.setPlantMeshVisibility(levelMeshes, showPlants);
-      });
+      }
     });
   }
 
