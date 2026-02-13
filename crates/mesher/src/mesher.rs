@@ -2958,6 +2958,16 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     if block.is_empty {
                         continue;
                     }
+                    if !block.is_fluid && block.faces.is_empty() {
+                        let has_dynamic_patterns = if block.cache_ready {
+                            block.has_dynamic_patterns
+                        } else {
+                            block.has_dynamic_patterns_cached()
+                        };
+                        if !has_dynamic_patterns {
+                            continue;
+                        }
+                    }
 
                     if block.is_opaque {
                         if is_surrounded_by_opaque_neighbors(vx, vy, vz, space, registry) {
@@ -3375,6 +3385,16 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
                     if block.is_empty {
                         continue;
+                    }
+                    if !block.is_fluid && block.faces.is_empty() {
+                        let has_dynamic_patterns = if block.cache_ready {
+                            block.has_dynamic_patterns
+                        } else {
+                            block.has_dynamic_patterns_cached()
+                        };
+                        if !has_dynamic_patterns {
+                            continue;
+                        }
                     }
 
                     let greedy_without_rotation = if block.cache_ready {
