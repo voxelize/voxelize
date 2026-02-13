@@ -596,7 +596,9 @@ export class Network {
     if (entities) {
       for (let index = 0; index < entities.length; index++) {
         const entity = entities[index];
-        entity.metadata = JSON.stringify(entity.metadata);
+        if (typeof entity.metadata !== "string") {
+          entity.metadata = JSON.stringify(entity.metadata);
+        }
       }
     }
     const peers = message.peers as Array<{
@@ -605,7 +607,9 @@ export class Network {
     if (peers) {
       for (let index = 0; index < peers.length; index++) {
         const peer = peers[index];
-        peer.metadata = JSON.stringify(peer.metadata);
+        if (typeof peer.metadata !== "string") {
+          peer.metadata = JSON.stringify(peer.metadata);
+        }
       }
     }
     return protocol.Message.encode(protocol.Message.create(message)).finish();
