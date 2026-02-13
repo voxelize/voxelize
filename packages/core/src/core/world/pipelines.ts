@@ -326,12 +326,43 @@ export class MeshPipeline {
   }
 
   getDirtyKeys(): string[] {
-    return [...this.dirty].filter((key) => this.shouldStartJob(key));
+    const dirtyKeys = new Array<string>(this.dirty.size);
+    let dirtyCount = 0;
+
+    for (const key of this.dirty) {
+      const state = this.states.get(key);
+      if (!state) {
+        continue;
+      }
+      if (state.inFlightGeneration !== null) {
+        continue;
+      }
+      if (state.generation === state.displayedGeneration) {
+        continue;
+      }
+
+      dirtyKeys[dirtyCount] = key;
+      dirtyCount++;
+    }
+
+    dirtyKeys.length = dirtyCount;
+    return dirtyKeys;
   }
 
   hasDirtyChunks(): boolean {
     for (const key of this.dirty) {
-      if (this.shouldStartJob(key)) return true;
+      const state = this.states.get(key);
+      if (!state) {
+        continue;
+      }
+      if (state.inFlightGeneration !== null) {
+        continue;
+      }
+      if (state.generation === state.displayedGeneration) {
+        continue;
+      }
+
+      return true;
     }
     return false;
   }
