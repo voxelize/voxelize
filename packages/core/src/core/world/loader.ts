@@ -284,7 +284,7 @@ class Loader {
    * @returns A promise that resolves when all assets are loaded.
    */
   load = async () => {
-    await Promise.all(Array.from(this.assetPromises.values()));
+    await Promise.all(this.assetPromises.values());
 
     this.assetPromises.clear();
   };
