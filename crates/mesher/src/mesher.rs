@@ -1975,7 +1975,9 @@ fn process_greedy_quad(
     let one_tg0 = a_gt == 0 || b_gt == 0 || c_gt == 0 || d_gt == 0;
     let one_tb0 = a_bt == 0 || b_bt == 0 || c_bt == 0 || d_bt == 0;
 
-    let fequals = (face_aos[0] + face_aos[3]) == (face_aos[1] + face_aos[2]);
+    let ao_diag_sum = face_aos[0] + face_aos[3];
+    let ao_off_sum = face_aos[1] + face_aos[2];
+    let fequals = ao_diag_sum == ao_off_sum;
     let ozao_r = a_rt + d_rt < b_rt + c_rt && fequals;
     let ozao_g = a_gt + d_gt < b_gt + c_gt && fequals;
     let ozao_b = a_bt + d_bt < b_bt + c_bt && fequals;
@@ -1988,7 +1990,7 @@ fn process_greedy_quad(
     let anz_g = one_tg0 && anzp1_g;
     let anz_b = one_tb0 && anzp1_b;
 
-    if face_aos[0] + face_aos[3] > face_aos[1] + face_aos[2]
+    if ao_diag_sum > ao_off_sum
         || (ozao_r || ozao_g || ozao_b)
         || (anz_r || anz_g || anz_b)
     {
@@ -2618,7 +2620,9 @@ fn process_face<S: VoxelAccess>(
     let one_tg0 = a_gt == 0 || b_gt == 0 || c_gt == 0 || d_gt == 0;
     let one_tb0 = a_bt == 0 || b_bt == 0 || c_bt == 0 || d_bt == 0;
 
-    let fequals = (face_aos[0] + face_aos[3]) == (face_aos[1] + face_aos[2]);
+    let ao_diag_sum = face_aos[0] + face_aos[3];
+    let ao_off_sum = face_aos[1] + face_aos[2];
+    let fequals = ao_diag_sum == ao_off_sum;
     let ozao_r = a_rt + d_rt < b_rt + c_rt && fequals;
     let ozao_g = a_gt + d_gt < b_gt + c_gt && fequals;
     let ozao_b = a_bt + d_bt < b_bt + c_bt && fequals;
@@ -2634,7 +2638,7 @@ fn process_face<S: VoxelAccess>(
     indices.push(ndx);
     indices.push(ndx + 1);
 
-    if face_aos[0] + face_aos[3] > face_aos[1] + face_aos[2]
+    if ao_diag_sum > ao_off_sum
         || (ozao_r || ozao_g || ozao_b)
         || (anz_r || anz_g || anz_b)
     {
