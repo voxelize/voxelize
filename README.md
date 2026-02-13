@@ -171,8 +171,10 @@ pnpm run check:preflight:client:json
 # single client check without auto-build
 pnpm run check:preflight:client:verify:json
 # includes per-check and total duration metadata
+# includes startedAt/endedAt plus totalChecks/passedCheckCount/failedCheckCount
 # all json report commands include schemaVersion: 1
 # includes passedChecks/failedChecks and runtime metadata (platform/nodeVersion)
+# includes firstFailedCheck for quick failure triage
 # includes failureSummaries for quick CI diagnostics
 # failureSummaries are derived from nested step/check report messages when available
 # optionally write the same report to disk
