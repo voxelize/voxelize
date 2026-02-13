@@ -70,7 +70,7 @@ export class RawChunk {
     this.minZ = this.min[2];
   }
 
-  serialize(): [object, ArrayBuffer[]] {
+  serialize(): [SerializedRawChunk, ArrayBuffer[]] {
     const voxelsBuffer = RawChunk.cloneDataBuffer(this.voxels.data);
     const lightsBuffer = RawChunk.cloneDataBuffer(this.lights.data);
     return [
