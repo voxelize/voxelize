@@ -865,6 +865,7 @@ fn has_fluid_above<S: VoxelAccess>(vx: i32, vy: i32, vz: i32, fluid_id: u32, spa
     extract_id(space.get_raw_voxel(vx, vy + 1, vz)) == fluid_id
 }
 
+#[inline(always)]
 fn calculate_fluid_corner_height<S: VoxelAccess>(
     vx: i32,
     vy: i32,
@@ -953,6 +954,7 @@ fn standard_face_uvs(faces: &[BlockFace]) -> [UV; 6] {
     uvs
 }
 
+#[inline(always)]
 fn create_fluid_faces<S: VoxelAccess>(
     vx: i32,
     vy: i32,
