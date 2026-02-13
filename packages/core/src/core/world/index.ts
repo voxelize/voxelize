@@ -4396,9 +4396,13 @@ export class World<T = any> extends Scene implements NetIntercept {
     let farthestProcessIndex = -1;
     let farthestProcessDistance = -1;
 
-    for (const name of this.chunkPipeline.getInStage("processing")) {
+    let processingChunks = this.chunkPipeline.getInStage("processing").values();
+    let processingChunkName = processingChunks.next();
+    while (!processingChunkName.done) {
+      const name = processingChunkName.value;
       const procData = this.chunkPipeline.getProcessingChunkData(name);
       if (!procData) {
+        processingChunkName = processingChunks.next();
         continue;
       }
 
@@ -4428,6 +4432,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           }
         }
       }
+      processingChunkName = processingChunks.next();
     }
 
     if (toProcessCount === 0) {
@@ -4506,8 +4511,11 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     this.chunkInitializeListeners.delete(chunk.name);
-    for (const listener of listeners) {
-      listener(chunk);
+    let listenerEntries = listeners.values();
+    let listenerEntry = listenerEntries.next();
+    while (!listenerEntry.done) {
+      listenerEntry.value(chunk);
+      listenerEntry = listenerEntries.next();
     }
   }
 
