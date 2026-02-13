@@ -3058,12 +3058,13 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                             rotation = space.get_voxel_rotation(vx, vy, vz);
                         }
                         processed_non_greedy[current_voxel_index] = true;
-                        let has_standard_six_faces = if cache_ready {
-                            block.has_standard_six_faces
-                        } else {
-                            block.has_standard_six_faces_cached()
-                        };
-                        if is_fluid && has_standard_six_faces {
+                        let has_standard_six_faces = is_fluid
+                            && if cache_ready {
+                                block.has_standard_six_faces
+                            } else {
+                                block.has_standard_six_faces_cached()
+                            };
+                        if has_standard_six_faces {
                             let fluid_faces =
                                 create_fluid_faces(vx, vy, vz, block.id, space, block, registry);
                             let neighbors = NeighborCache::populate(vx, vy, vz, space);
@@ -3685,13 +3686,14 @@ pub fn mesh_space<S: VoxelAccess>(
                         );
                     };
 
-                    let has_standard_six_faces = if cache_ready {
-                        block.has_standard_six_faces
-                    } else {
-                        block.has_standard_six_faces_cached()
-                    };
+                    let has_standard_six_faces = is_fluid
+                        && if cache_ready {
+                            block.has_standard_six_faces
+                        } else {
+                            block.has_standard_six_faces_cached()
+                        };
 
-                    if is_fluid && has_standard_six_faces {
+                    if has_standard_six_faces {
                         let fluid_faces =
                             create_fluid_faces(vx, vy, vz, block.id, space, block, registry);
                         for face in &fluid_faces {
