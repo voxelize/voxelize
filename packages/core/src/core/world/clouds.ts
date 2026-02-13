@@ -247,12 +247,13 @@ export class Clouds extends Group {
    * Reset the clouds to their initial state.
    */
   reset = async () => {
-    this.children.forEach((child: Mesh) => {
+    for (let childIndex = this.children.length - 1; childIndex >= 0; childIndex--) {
+      const child = this.children[childIndex] as Mesh;
       if (child.parent) {
         child.parent.remove(child);
         child.geometry?.dispose();
       }
-    });
+    }
 
     this.meshes.length = 0;
 
@@ -273,22 +274,26 @@ export class Clouds extends Group {
 
     const { speedFactor, count, dimensions } = this.options;
 
-    this.newPosition = this.position.clone();
-    this.newPosition.z -= speedFactor * delta;
+    const newPosition = this.newPosition;
+    newPosition.copy(this.position);
+    newPosition.z -= speedFactor * delta;
 
-    const locatedCell: Coords2 = [
-      Math.floor((position.x - this.position.x) / (count * dimensions[0])),
-      Math.floor((position.z - this.position.z) / (count * dimensions[2])),
-    ];
+    const locatedCellX = Math.floor(
+      (position.x - this.position.x) / (count * dimensions[0])
+    );
+    const locatedCellZ = Math.floor(
+      (position.z - this.position.z) / (count * dimensions[2])
+    );
 
     if (
-      this.locatedCell[0] !== locatedCell[0] ||
-      this.locatedCell[1] !== locatedCell[1]
+      this.locatedCell[0] !== locatedCellX ||
+      this.locatedCell[1] !== locatedCellZ
     ) {
-      const dx = locatedCell[0] - this.locatedCell[0];
-      const dz = locatedCell[1] - this.locatedCell[1];
+      const dx = locatedCellX - this.locatedCell[0];
+      const dz = locatedCellZ - this.locatedCell[1];
 
-      this.locatedCell = locatedCell;
+      this.locatedCell[0] = locatedCellX;
+      this.locatedCell[1] = locatedCellZ;
 
       if (Math.abs(dx) > 1 || Math.abs(dz) > 1) {
         this.reset();
@@ -303,7 +308,7 @@ export class Clouds extends Group {
       }
     }
 
-    this.position.lerp(this.newPosition, this.options.lerpFactor);
+    this.position.lerp(newPosition, this.options.lerpFactor);
   };
 
   /**
