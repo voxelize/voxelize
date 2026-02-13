@@ -51,6 +51,8 @@ From the repository root you can also run:
 pnpm run check:client
 # quiet mode (errors only)
 pnpm run check:client -- --quiet
+# json output (for CI integrations)
+pnpm run check:client:json
 ```
 
 This runs client typechecking and wasm-artifact preflight in sequence.

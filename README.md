@@ -110,11 +110,15 @@ pnpm run check:client:wasm
 pnpm run check:client
 # quiet mode (errors only)
 pnpm run check:client -- --quiet
+# json output (for CI integrations)
+pnpm run check:client:json
 
 # run full onboarding checks (tooling + client)
 pnpm run check:onboarding
 # quiet mode (errors only)
 pnpm run check:onboarding -- --quiet
+# json output (for CI integrations)
+pnpm run check:onboarding:json
 
 # run root script checks and command utility tests
 pnpm run test:scripts
