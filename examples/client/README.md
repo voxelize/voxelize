@@ -53,13 +53,21 @@ pnpm run check:client
 pnpm run check:client -- --quiet
 # json output (for CI integrations)
 pnpm run check:client:json
+# verify without auto-building wasm artifacts
+pnpm run check:client:verify
+# verify + json output (for CI integrations)
+pnpm run check:client:verify:json
 ```
 
-Or from the client directory, run only the wasm preflight JSON report:
+Or from the client directory, run only wasm preflight checks:
 
 ```bash
 cd examples/client
 pnpm run check:wasm:json
+# verify without auto-building wasm artifacts
+pnpm run check:wasm:verify
+# verify + json output (for CI integrations)
+pnpm run check:wasm:verify:json
 ```
 
 This runs client typechecking and wasm-artifact preflight in sequence.

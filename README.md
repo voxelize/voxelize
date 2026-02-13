@@ -114,6 +114,10 @@ pnpm run check:client
 pnpm run check:client -- --quiet
 # json output (for CI integrations)
 pnpm run check:client:json
+# verify client checks without auto-building wasm artifacts
+pnpm run check:client:verify
+# verify + json output (for CI integrations)
+pnpm run check:client:verify:json
 
 # run full onboarding checks (tooling + client)
 pnpm run check:onboarding
@@ -121,6 +125,10 @@ pnpm run check:onboarding
 pnpm run check:onboarding -- --quiet
 # json output (for CI integrations)
 pnpm run check:onboarding:json
+# verify onboarding checks without auto-building wasm artifacts
+pnpm run check:onboarding:verify
+# verify + json output (for CI integrations)
+pnpm run check:onboarding:verify:json
 
 # run script-focused integration tests
 pnpm run test:scripts
