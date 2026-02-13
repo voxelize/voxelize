@@ -484,6 +484,22 @@ describe("report-utils", () => {
       }
     );
     expect(unknownWithAliasValueThatMatchesAnotherAlias).toEqual([]);
+
+    const unknownWithInlineValues = parseUnknownCliOptions(
+      ["--json", "--mystery=alpha", "--mystery=beta", "-x=1", "-x=2"],
+      {
+        canonicalOptions: ["--json"],
+      }
+    );
+    expect(unknownWithInlineValues).toEqual(["--mystery", "-x"]);
+
+    const unknownWithMixedInlineAndBareTokens = parseUnknownCliOptions(
+      ["--mystery=alpha", "--mystery"],
+      {
+        canonicalOptions: [],
+      }
+    );
+    expect(unknownWithMixedInlineAndBareTokens).toEqual(["--mystery"]);
   });
 
   it("creates structured cli option validation metadata", () => {
@@ -521,6 +537,22 @@ describe("report-utils", () => {
       "Unsupported option(s): --mystery. Supported options: --json, --output."
     );
     expect(unsupportedOnly.validationErrorCode).toBe("unsupported_options");
+
+    const unsupportedInlineUnknownOption = createCliOptionValidation(
+      ["--json", "--mystery=alpha", "--mystery=beta"],
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+      }
+    );
+    expect(unsupportedInlineUnknownOption.unknownOptions).toEqual(["--mystery"]);
+    expect(unsupportedInlineUnknownOption.unknownOptionCount).toBe(1);
+    expect(unsupportedInlineUnknownOption.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
+    expect(unsupportedInlineUnknownOption.validationErrorCode).toBe(
+      "unsupported_options"
+    );
 
     const precomputedSupportedTokens = createCliOptionValidation(
       ["--mystery"],
@@ -871,6 +903,21 @@ describe("report-utils", () => {
     expect(diagnostics.unknownOptionCount).toBe(1);
     expect(diagnostics.unsupportedOptionsError).toBe(
       "Unsupported option(s): --mystery. Supported options: --json, --output, --report-path."
+    );
+  });
+
+  it("normalizes unknown inline option tokens in diagnostics", () => {
+    const diagnostics = createCliDiagnostics(
+      ["--json", "--mystery=alpha", "--mystery=beta", "-x=1", "-x=2"],
+      {
+        canonicalOptions: ["--json"],
+      }
+    );
+
+    expect(diagnostics.unknownOptions).toEqual(["--mystery", "-x"]);
+    expect(diagnostics.unknownOptionCount).toBe(2);
+    expect(diagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery, -x. Supported options: --json."
     );
   });
 
