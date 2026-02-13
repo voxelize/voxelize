@@ -1057,7 +1057,7 @@ fn can_greedy_mesh_block(block: &Block) -> bool {
     block.can_greedy_mesh_without_rotation()
 }
 
-#[inline]
+#[inline(always)]
 fn face_name_owned(face: &BlockFace) -> String {
     if face.name_lower.is_empty() {
         face.name.clone()
