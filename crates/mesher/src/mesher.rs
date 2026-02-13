@@ -2966,8 +2966,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
         if greedy_mask.len() < mask_len {
             greedy_mask.resize(mask_len, None);
         }
-        let mask_index =
-            |u: i32, v: i32| -> usize { (v - v_range.0) as usize * mask_width + (u - u_range.0) as usize };
 
         for slice in slice_range {
             greedy_mask[..mask_len].fill(None);
@@ -2975,6 +2973,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
             for u in u_range.0..u_range.1 {
                 for v in v_range.0..v_range.1 {
+                    let current_mask_index =
+                        (v - v_range.0) as usize * mask_width + (u - u_range.0) as usize;
                     let (vx, vy, vz, current_voxel_index) = match (axis, u_axis, v_axis) {
                         (0, 2, 1) => (
                             slice,
@@ -3228,7 +3228,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                             let (aos, lights) =
                                 compute_face_ao_and_light_fast(dir, block, &neighbors, registry);
                             let uv_range = face.range;
-                            greedy_mask[mask_index(u, v)] = Some(FaceData {
+                            greedy_mask[current_mask_index] = Some(FaceData {
                                 key: FaceKey {
                                     block_id: block.id,
                                     face_name: None,
@@ -3332,7 +3332,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                             uv_end_v: (uv_range.end_v * 1000000.0) as u32,
                         };
 
-                        greedy_mask[mask_index(u, v)] = Some(FaceData {
+                        greedy_mask[current_mask_index] = Some(FaceData {
                             key,
                             uv_range,
                             is_fluid,
