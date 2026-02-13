@@ -31,6 +31,7 @@ export class SpriteText extends Sprite {
   private _fontWeight = "normal";
 
   private _canvas = document.createElement("canvas");
+  private _context: CanvasRenderingContext2D;
 
   /**
    * Create a new sprite text.
@@ -44,6 +45,11 @@ export class SpriteText extends Sprite {
     this._text = `${text}`;
     this._textHeight = textHeight;
     this._backgroundColor = false;
+    const context = this._canvas.getContext("2d");
+    if (!context) {
+      throw new Error("SpriteText failed to create 2D canvas context.");
+    }
+    this._context = context;
 
     this.generate();
   }
@@ -237,7 +243,7 @@ export class SpriteText extends Sprite {
    */
   private generate = () => {
     const canvas = this._canvas;
-    const ctx = canvas.getContext("2d");
+    const ctx = this._context;
 
     const border = Array.isArray(this.borderWidth)
       ? this.borderWidth
