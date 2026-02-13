@@ -981,18 +981,21 @@ export class World<T = any> extends Scene implements NetIntercept {
     const subChunkMin = [min[0], heightPerSubChunk * level, min[2]];
     const subChunkMax = [max[0], heightPerSubChunk * (level + 1), max[2]];
 
-    const chunksData: unknown[] = [];
+    const chunksData: (object | null)[] = new Array(chunks.length);
     const arrayBuffers: ArrayBuffer[] = [];
+    let chunkDataIndex = 0;
 
     for (const chunk of chunks) {
       if (!chunk || !chunk.isReady) {
-        chunksData.push(null);
+        chunksData[chunkDataIndex] = null;
+        chunkDataIndex++;
         continue;
       }
 
       const [chunkData, chunkArrayBuffers] = chunk.serialize();
 
-      chunksData.push(chunkData);
+      chunksData[chunkDataIndex] = chunkData;
+      chunkDataIndex++;
       for (const buffer of chunkArrayBuffers) {
         arrayBuffers.push(buffer);
       }
@@ -5720,12 +5723,15 @@ export class World<T = any> extends Scene implements NetIntercept {
     const minChunkZ = Math.floor(minZ / chunkSize);
     const maxChunkX = Math.floor(maxX / chunkSize);
     const maxChunkZ = Math.floor(maxZ / chunkSize);
+    const gridWidth = maxChunkX - minChunkX + 1;
+    const gridDepth = maxChunkZ - minChunkZ + 1;
 
     const relevantDeltas: { cx: number; cz: number; deltas: VoxelDelta[] }[] =
       [];
     let lastRelevantSequenceId = 0;
-    const chunksData: (object | null)[] = [];
+    const chunksData: (object | null)[] = new Array(gridWidth * gridDepth);
     const arrayBuffers: ArrayBuffer[] = [];
+    let chunkDataIndex = 0;
 
     for (let cx = minChunkX; cx <= maxChunkX; cx++) {
       for (let cz = minChunkZ; cz <= maxChunkZ; cz++) {
@@ -5758,12 +5764,14 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         if (chunk && chunk.isReady) {
           const [data, buffers] = chunk.serialize();
-          chunksData.push(data);
+          chunksData[chunkDataIndex] = data;
+          chunkDataIndex++;
           for (const buffer of buffers) {
             arrayBuffers.push(buffer);
           }
         } else {
-          chunksData.push(null);
+          chunksData[chunkDataIndex] = null;
+          chunkDataIndex++;
         }
       }
     }
@@ -5775,10 +5783,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         color,
         boundingBox,
         chunksData,
-        chunkGridDimensions: [
-          maxChunkX - minChunkX + 1,
-          maxChunkZ - minChunkZ + 1,
-        ],
+        chunkGridDimensions: [gridWidth, gridDepth],
         chunkGridOffset: [minChunkX, minChunkZ],
         lastRelevantSequenceId,
         relevantDeltas,
