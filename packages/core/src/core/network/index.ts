@@ -3,6 +3,7 @@ import DOMUrl from "domurl";
 
 import { setWorkerInterval } from "../../libs/setWorkerInterval";
 import { WorkerPool } from "../../libs/worker-pool";
+import { JsonValue } from "../../types";
 
 import { NetIntercept } from "./intercept";
 import { WebRTCConnection } from "./webrtc";
@@ -33,13 +34,15 @@ export type NetworkConnectionOptions = {
   useWebRTC?: boolean;
 };
 
+type ClientMetadata = Record<string, JsonValue>;
+
 export class Network {
   public options: NetworkOptions;
 
   public clientInfo: {
     id: string;
     username: string;
-    metadata?: Record<string, any>;
+    metadata?: ClientMetadata;
   } = {
     id: "",
     username: "",
@@ -50,9 +53,7 @@ export class Network {
 
   public ws: ProtocolWS;
 
-  public url: DOMUrl<{
-    [key: string]: any;
-  }>;
+  public url: DOMUrl<Record<string, string>>;
 
   public world: string;
 
@@ -392,7 +393,7 @@ export class Network {
     });
   };
 
-  action = async (type: string, data?: any) => {
+  action = async (type: string, data?: JsonValue) => {
     this.send({
       type: "ACTION",
       json: {
@@ -592,7 +593,7 @@ export class Network {
     this.clientInfo.username = username || " ";
   };
 
-  setMetadata = (metadata: Record<string, any>) => {
+  setMetadata = (metadata: ClientMetadata) => {
     this.clientInfo.metadata = metadata || {};
   };
 

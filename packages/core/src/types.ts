@@ -2,9 +2,15 @@ export type DeepPartial<T> = {
   [P in keyof T]?: DeepPartial<T[P]>;
 };
 
-export type PartialRecord<K extends keyof any, T> = {
+export type PartialRecord<K extends PropertyKey, T> = {
   [P in K]?: T;
 };
+
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonObject = {
+  [key: string]: JsonValue;
+};
+export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
 
 export type Coords2 = [number, number];
 export type Coords3 = [number, number, number];
