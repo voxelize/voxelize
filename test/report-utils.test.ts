@@ -76,6 +76,17 @@ describe("report-utils", () => {
     ).toEqual({ check: "second", passed: false });
   });
 
+  it("parses json output containing ansi color sequences", () => {
+    expect(
+      parseJsonOutput(
+        `\u001b[31mwarning:\u001b[0m before\n\u001b[32m{\u001b[0m\n  "ok": true,\n  "exitCode": 0\n}`
+      )
+    ).toEqual({ ok: true, exitCode: 0 });
+    expect(
+      parseJsonOutput(`\u001b[33m{"ok":true,"exitCode":0}\u001b[0m`)
+    ).toEqual({ ok: true, exitCode: 0 });
+  });
+
   it("injects schema version in report payloads", () => {
     const report = toReport({ passed: true, schemaVersion: 999 });
 

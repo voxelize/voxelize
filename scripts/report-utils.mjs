@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 export const REPORT_SCHEMA_VERSION = 1;
+const ANSI_ESCAPE_SEQUENCE_REGEX = /\u001b\[[0-9;]*m/g;
 
 const isObjectLikeJsonValue = (value) => {
   return value !== null && typeof value === "object";
@@ -11,12 +12,13 @@ export const parseJsonOutput = (value) => {
   if (value.length === 0) {
     return null;
   }
+  const sanitizedValue = value.replace(ANSI_ESCAPE_SEQUENCE_REGEX, "");
 
   try {
-    const parsedValue = JSON.parse(value);
+    const parsedValue = JSON.parse(sanitizedValue);
     return isObjectLikeJsonValue(parsedValue) ? parsedValue : null;
   } catch {
-    const rawLines = value.split("\n");
+    const rawLines = sanitizedValue.split("\n");
     let bestMatch = null;
 
     for (let start = 0; start < rawLines.length; start += 1) {
