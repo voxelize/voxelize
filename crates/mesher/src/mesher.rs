@@ -752,6 +752,12 @@ fn vertex_ao(side1: bool, side2: bool, corner: bool) -> i32 {
 }
 
 #[inline(always)]
+fn has_channel_midpoint_anomaly(a: i32, b: i32, c: i32, d: i32) -> bool {
+    let ad_sum = a + d;
+    (2 * b > ad_sum && ad_sum > 2 * c) || (2 * c > ad_sum && ad_sum > 2 * b)
+}
+
+#[inline(always)]
 fn get_fluid_effective_height(stage: u32) -> f32 {
     (FLUID_BASE_HEIGHT - (stage as f32 * FLUID_STAGE_DROPOFF)).max(0.1)
 }
@@ -1889,15 +1895,9 @@ fn process_greedy_quad(
     let ozao_g = a_gt + d_gt < b_gt + c_gt && fequals;
     let ozao_b = a_bt + d_bt < b_bt + c_bt && fequals;
 
-    let anzp1_r = (b_rt as f32 > (a_rt + d_rt) as f32 / 2.0
-        && (a_rt + d_rt) as f32 / 2.0 > c_rt as f32)
-        || (c_rt as f32 > (a_rt + d_rt) as f32 / 2.0 && (a_rt + d_rt) as f32 / 2.0 > b_rt as f32);
-    let anzp1_g = (b_gt as f32 > (a_gt + d_gt) as f32 / 2.0
-        && (a_gt + d_gt) as f32 / 2.0 > c_gt as f32)
-        || (c_gt as f32 > (a_gt + d_gt) as f32 / 2.0 && (a_gt + d_gt) as f32 / 2.0 > b_gt as f32);
-    let anzp1_b = (b_bt as f32 > (a_bt + d_bt) as f32 / 2.0
-        && (a_bt + d_bt) as f32 / 2.0 > c_bt as f32)
-        || (c_bt as f32 > (a_bt + d_bt) as f32 / 2.0 && (a_bt + d_bt) as f32 / 2.0 > b_bt as f32);
+    let anzp1_r = has_channel_midpoint_anomaly(a_rt, b_rt, c_rt, d_rt);
+    let anzp1_g = has_channel_midpoint_anomaly(a_gt, b_gt, c_gt, d_gt);
+    let anzp1_b = has_channel_midpoint_anomaly(a_bt, b_bt, c_bt, d_bt);
 
     let anz_r = one_tr0 && anzp1_r;
     let anz_g = one_tg0 && anzp1_g;
@@ -2504,15 +2504,9 @@ fn process_face<S: VoxelAccess>(
     let ozao_g = a_gt + d_gt < b_gt + c_gt && fequals;
     let ozao_b = a_bt + d_bt < b_bt + c_bt && fequals;
 
-    let anzp1_r = (b_rt as f32 > (a_rt + d_rt) as f32 / 2.0
-        && (a_rt + d_rt) as f32 / 2.0 > c_rt as f32)
-        || (c_rt as f32 > (a_rt + d_rt) as f32 / 2.0 && (a_rt + d_rt) as f32 / 2.0 > b_rt as f32);
-    let anzp1_g = (b_gt as f32 > (a_gt + d_gt) as f32 / 2.0
-        && (a_gt + d_gt) as f32 / 2.0 > c_gt as f32)
-        || (c_gt as f32 > (a_gt + d_gt) as f32 / 2.0 && (a_gt + d_gt) as f32 / 2.0 > b_gt as f32);
-    let anzp1_b = (b_bt as f32 > (a_bt + d_bt) as f32 / 2.0
-        && (a_bt + d_bt) as f32 / 2.0 > c_bt as f32)
-        || (c_bt as f32 > (a_bt + d_bt) as f32 / 2.0 && (a_bt + d_bt) as f32 / 2.0 > b_bt as f32);
+    let anzp1_r = has_channel_midpoint_anomaly(a_rt as i32, b_rt as i32, c_rt as i32, d_rt as i32);
+    let anzp1_g = has_channel_midpoint_anomaly(a_gt as i32, b_gt as i32, c_gt as i32, d_gt as i32);
+    let anzp1_b = has_channel_midpoint_anomaly(a_bt as i32, b_bt as i32, c_bt as i32, d_bt as i32);
 
     let anz_r = one_tr0 && anzp1_r;
     let anz_g = one_tg0 && anzp1_g;
