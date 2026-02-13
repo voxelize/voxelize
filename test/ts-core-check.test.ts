@@ -455,6 +455,82 @@ describe("check-ts-core script", () => {
     }
   });
 
+  it("reports only pre-terminator unsupported options", () => {
+    const result = runScript([
+      "--json",
+      "--mystery",
+      "--",
+      "--another-mystery",
+      "--verify=1",
+      "--=secret",
+    ]);
+    const report = parseReport(result);
+
+    expect(result.status).toBe(1);
+    expect(report.schemaVersion).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.optionTerminatorUsed).toBe(true);
+    expect(report.positionalArgs).toEqual([
+      "--another-mystery",
+      "--verify=1",
+      "--=secret",
+    ]);
+    expect(report.positionalArgCount).toBe(report.positionalArgs.length);
+    expect(report.unknownOptions).toEqual(["--mystery"]);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(report.activeCliOptions).toEqual(["--json"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--json"]);
+    expect(report.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+    ]);
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+  });
+
+  it("redacts malformed inline option names in json mode", () => {
+    const result = runScript(["--json", "--=secret", "--=alpha", "-=beta", "-="]);
+    const report = parseReport(result);
+
+    expect(result.status).toBe(1);
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.unknownOptions).toEqual(["--=<value>", "-=<value>"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.activeCliOptions).toEqual(["--json"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--json"]);
+    expect(report.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.message).toContain("--=<value>");
+    expect(report.message).toContain("-=<value>");
+    expect(result.output).not.toContain("--=secret");
+    expect(result.output).not.toContain("-=beta");
+  });
+
   it("fails on missing output values in non-json mode", () => {
     const result = runScript(["--output"]);
 
@@ -469,5 +545,14 @@ describe("check-ts-core script", () => {
     expect(result.output).toContain("Missing value for --output option.");
     expect(result.output).not.toContain("Unsupported option(s):");
     expect(result.output).not.toContain("--verify=1");
+  });
+
+  it("redacts malformed inline option names in non-json mode", () => {
+    const result = runScript(["--=secret", "-=beta"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("Unsupported option(s): --=<value>, -=<value>.");
+    expect(result.output).not.toContain("--=secret");
+    expect(result.output).not.toContain("-=beta");
   });
 });
