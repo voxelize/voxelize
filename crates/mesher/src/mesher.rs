@@ -1414,6 +1414,7 @@ fn compute_face_ao_and_light(
     (aos, lights)
 }
 
+#[inline(always)]
 fn compute_face_ao_and_light_fast(
     dir: [i32; 3],
     block: &Block,
