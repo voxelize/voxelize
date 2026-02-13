@@ -1,3 +1,5 @@
+import { LightUtils as TSCoreLightUtils } from "@voxelize/ts-core";
+
 /**
  * A utility class for extracting and inserting light data from and into numbers.
  *
@@ -26,7 +28,7 @@ export class LightUtils {
    * @returns The extracted sunlight value.
    */
   static extractSunlight = (light: number) => {
-    return (light >> 12) & 0xf;
+    return TSCoreLightUtils.extractSunlight(light);
   };
 
   /**
@@ -37,7 +39,7 @@ export class LightUtils {
    * @returns The inserted light value.
    */
   static insertSunlight = (light: number, level: number) => {
-    return (light & 0xfff) | (level << 12);
+    return TSCoreLightUtils.insertSunlight(light, level);
   };
 
   /**
@@ -47,7 +49,7 @@ export class LightUtils {
    * @returns The extracted red light value.
    */
   static extractRedLight = (light: number) => {
-    return (light >> 8) & 0xf;
+    return TSCoreLightUtils.extractRedLight(light);
   };
 
   /**
@@ -58,7 +60,7 @@ export class LightUtils {
    * @returns The inserted light value.
    */
   static insertRedLight = (light: number, level: number) => {
-    return (light & 0xf0ff) | (level << 8);
+    return TSCoreLightUtils.insertRedLight(light, level);
   };
 
   /**
@@ -68,7 +70,7 @@ export class LightUtils {
    * @returns The extracted green light value.
    */
   static extractGreenLight = (light: number) => {
-    return (light >> 4) & 0xf;
+    return TSCoreLightUtils.extractGreenLight(light);
   };
 
   /**
@@ -79,7 +81,7 @@ export class LightUtils {
    * @returns The inserted light value.
    */
   static insertGreenLight = (light: number, level: number) => {
-    return (light & 0xff0f) | (level << 4);
+    return TSCoreLightUtils.insertGreenLight(light, level);
   };
 
   /**
@@ -89,7 +91,7 @@ export class LightUtils {
    * @returns The extracted blue light value.
    */
   static extractBlueLight = (light: number) => {
-    return light & 0xf;
+    return TSCoreLightUtils.extractBlueLight(light);
   };
 
   /**
@@ -100,7 +102,7 @@ export class LightUtils {
    * @returns The inserted light value.
    */
   static insertBlueLight = (light: number, level: number) => {
-    return (light & 0xfff0) | level;
+    return TSCoreLightUtils.insertBlueLight(light, level);
   };
 
   /**

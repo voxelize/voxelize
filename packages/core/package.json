@@ -44,6 +44,7 @@
     "@voxelize/physics-engine": "workspace:*",
     "@voxelize/protocol": "workspace:*",
     "@voxelize/raycast": "workspace:*",
+    "@voxelize/ts-core": "workspace:*",
     "@voxelize/wasm-mesher": "workspace:*",
     "deepmerge": "^4.3.1",
     "domurl": "^2.3.4",

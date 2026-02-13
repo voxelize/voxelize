@@ -43,9 +43,17 @@ const mapTransparencyValue = (
 
 export class BlockRotation {
   constructor(
-    public axis = PY_ROTATION,
+    public value = PY_ROTATION,
     public yRotation = 0
   ) {}
+
+  get axis(): number {
+    return this.value;
+  }
+
+  set axis(axis: number) {
+    this.value = axis;
+  }
 
   static px(yRotation = 0): BlockRotation {
     return new BlockRotation(PX_ROTATION, yRotation);

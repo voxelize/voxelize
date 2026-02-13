@@ -1,4 +1,9 @@
 import {
+  BlockRotation as TSCoreBlockRotation,
+  BlockUtils as TSCoreBlockUtils,
+} from "@voxelize/ts-core";
+
+import {
   Block,
   BlockRotation,
   BlockRule,
@@ -7,10 +12,6 @@ import {
 import { Coords3 } from "../types";
 
 import { LightColor } from "./light-utils";
-
-const ROTATION_MASK = 0xfff0ffff;
-const Y_ROTATION_MASK = 0xff0fffff;
-const STAGE_MASK = 0xf0ffffff;
 
 /**
  * A utility class for extracting and inserting voxel data from and into numbers.
@@ -40,7 +41,7 @@ export class BlockUtils {
    * @returns The extracted voxel id.
    */
   static extractID = (voxel: number) => {
-    return voxel & 0xffff;
+    return TSCoreBlockUtils.extractID(voxel);
   };
 
   /**
@@ -51,7 +52,7 @@ export class BlockUtils {
    * @returns The inserted voxel value.
    */
   static insertID = (voxel: number, id: number) => {
-    return (voxel & 0xffff0000) | (id & 0xffff);
+    return TSCoreBlockUtils.insertID(voxel, id);
   };
 
   /**
@@ -61,9 +62,8 @@ export class BlockUtils {
    * @returns The extracted voxel rotation.
    */
   static extractRotation = (voxel: number) => {
-    const rotation = (voxel >> 16) & 0xf;
-    const yRot = (voxel >> 20) & 0xf;
-    return BlockRotation.encode(rotation, yRot);
+    const rotation = TSCoreBlockUtils.extractRotation(voxel);
+    return new BlockRotation(rotation.value, rotation.yRotation);
   };
 
   /**
@@ -74,9 +74,10 @@ export class BlockUtils {
    * @returns The inserted voxel value.
    */
   static insertRotation = (voxel: number, rotation: BlockRotation) => {
-    const [rot, yRot] = BlockRotation.decode(rotation);
-    const value = (voxel & ROTATION_MASK) | ((rot & 0xf) << 16);
-    return (value & Y_ROTATION_MASK) | ((yRot & 0xf) << 20);
+    return TSCoreBlockUtils.insertRotation(
+      voxel,
+      new TSCoreBlockRotation(rotation.value, rotation.yRotation)
+    );
   };
 
   /**
@@ -86,7 +87,7 @@ export class BlockUtils {
    * @returns The extracted voxel stage.
    */
   static extractStage = (voxel: number) => {
-    return (voxel >> 24) & 0xf;
+    return TSCoreBlockUtils.extractStage(voxel);
   };
 
   /**
@@ -97,7 +98,7 @@ export class BlockUtils {
    * @returns The inserted voxel value.
    */
   static insertStage = (voxel: number, stage: number) => {
-    return (voxel & STAGE_MASK) | (stage << 24);
+    return TSCoreBlockUtils.insertStage(voxel, stage);
   };
 
   static insertAll = (id: number, rotation?: BlockRotation, stage?: number) => {
@@ -145,12 +146,12 @@ export class BlockUtils {
       const oy = offset[1] + vy;
       const oz = offset[2] + vz;
 
-      if (id !== null) {
+      if (id != null) {
         const voxelId = functions.getVoxelAt(ox, oy, oz);
         if (voxelId !== id) return false;
       }
 
-      if (rotation !== null) {
+      if (rotation != null) {
         const voxelRotation = functions.getVoxelRotationAt(ox, oy, oz);
         if (
           voxelRotation.value !== rotation.value ||
@@ -159,7 +160,7 @@ export class BlockUtils {
           return false;
       }
 
-      if (stage !== null) {
+      if (stage != null) {
         const voxelStage = functions.getVoxelStageAt(ox, oy, oz);
         if (voxelStage !== stage) return false;
       }
@@ -180,10 +181,12 @@ export class BlockUtils {
           return rules.some((subRule) =>
             BlockUtils.evaluateBlockRule(subRule, voxel, functions)
           );
-        case BlockRuleLogic.Not:
-          return !rules.some((subRule) =>
-            BlockUtils.evaluateBlockRule(subRule, voxel, functions)
-          );
+        case BlockRuleLogic.Not: {
+          const [firstRule] = rules;
+          return firstRule
+            ? !BlockUtils.evaluateBlockRule(firstRule, voxel, functions)
+            : true;
+        }
         default:
           return false; // Unsupported logic
       }
