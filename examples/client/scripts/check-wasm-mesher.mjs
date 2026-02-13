@@ -8,8 +8,8 @@ import {
   createTimedReportBuilder,
   parseJsonOutput,
   resolveOutputPath,
+  serializeReportWithOptionalWrite,
   toReportJson,
-  writeReportToPath,
 } from "../../../scripts/report-utils.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -58,27 +58,19 @@ const finish = (report) => {
       ...report,
       outputPath,
     });
-    const reportJson = toReportJson(finalizedReport, jsonFormat);
-
-    if (outputPath !== null) {
-      const writeError = writeReportToPath(reportJson, outputPath);
-      if (writeError !== null) {
-        console.log(
-          toReportJson(
-            buildTimedReport({
-              ...finalizedReport,
-              passed: false,
-              exitCode: 1,
-              message: writeError,
-            }),
-            jsonFormat
-          )
-        );
-        process.exit(1);
+    const { reportJson, writeError } = serializeReportWithOptionalWrite(
+      finalizedReport,
+      {
+        jsonFormat,
+        outputPath,
+        buildTimedReport,
       }
-    }
+    );
 
     console.log(reportJson);
+    if (writeError !== null) {
+      process.exit(1);
+    }
   } else if (!report.passed) {
     console.error(report.message);
   }

@@ -10,6 +10,7 @@ import {
   deriveFailureMessageFromReport,
   parseJsonOutput,
   resolveOutputPath,
+  serializeReportWithOptionalWrite,
   summarizeCheckResults,
   summarizeStepResults,
   toReport,
@@ -131,6 +132,115 @@ describe("report-utils", () => {
         `Failed to write report to ${tempDirectory}.`.length
       );
     }
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("serializes reports with optional output writes", () => {
+    const report = {
+      passed: true,
+      exitCode: 0,
+      outputPath: null,
+    };
+    const noWriteResult = serializeReportWithOptionalWrite(report, {
+      jsonFormat: { compact: true },
+      outputPath: null,
+      buildTimedReport: createTimedReportBuilder(),
+    });
+    const parsedNoWriteResult = JSON.parse(noWriteResult.reportJson) as {
+      schemaVersion: number;
+      passed: boolean;
+      exitCode: number;
+      outputPath: string | null;
+    };
+
+    expect(noWriteResult.writeError).toBeNull();
+    expect(parsedNoWriteResult.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+    expect(parsedNoWriteResult.passed).toBe(true);
+    expect(parsedNoWriteResult.exitCode).toBe(0);
+    expect(parsedNoWriteResult.outputPath).toBeNull();
+
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "report-utils-serialize-write-")
+    );
+    const outputPath = path.resolve(tempDirectory, "report.json");
+    const withWriteResult = serializeReportWithOptionalWrite(
+      {
+        ...report,
+        outputPath,
+      },
+      {
+        jsonFormat: { compact: false },
+        outputPath,
+        buildTimedReport: createTimedReportBuilder(),
+      }
+    );
+    const fileReport = JSON.parse(fs.readFileSync(outputPath, "utf8")) as {
+      schemaVersion: number;
+      outputPath: string;
+      passed: boolean;
+    };
+
+    expect(withWriteResult.writeError).toBeNull();
+    expect(fileReport.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+    expect(fileReport.outputPath).toBe(outputPath);
+    expect(fileReport.passed).toBe(true);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("returns a structured fallback report when output write fails", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "report-utils-serialize-failure-")
+    );
+    const timedReportBuilder = createTimedReportBuilder(
+      (() => {
+        let tick = 0;
+        return () => {
+          tick += 1;
+          return tick * 1000;
+        };
+      })(),
+      (value) => `iso-${value}`
+    );
+    const writeFailureResult = serializeReportWithOptionalWrite(
+      {
+        passed: true,
+        exitCode: 0,
+        outputPath: tempDirectory,
+      },
+      {
+        jsonFormat: { compact: true },
+        outputPath: tempDirectory,
+        buildTimedReport: timedReportBuilder,
+      }
+    );
+    const parsedWriteFailureResult = JSON.parse(
+      writeFailureResult.reportJson
+    ) as {
+      schemaVersion: number;
+      passed: boolean;
+      exitCode: number;
+      outputPath: string;
+      message: string;
+      startedAt: string;
+      endedAt: string;
+      durationMs: number;
+    };
+
+    expect(writeFailureResult.writeError).toContain(
+      `Failed to write report to ${tempDirectory}.`
+    );
+    expect(parsedWriteFailureResult.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+    expect(parsedWriteFailureResult.passed).toBe(false);
+    expect(parsedWriteFailureResult.exitCode).toBe(1);
+    expect(parsedWriteFailureResult.outputPath).toBe(tempDirectory);
+    expect(parsedWriteFailureResult.message).toContain(
+      `Failed to write report to ${tempDirectory}.`
+    );
+    expect(parsedWriteFailureResult.startedAt).toBe("iso-1000");
+    expect(parsedWriteFailureResult.endedAt).toBe("iso-2000");
+    expect(parsedWriteFailureResult.durationMs).toBe(1000);
 
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });

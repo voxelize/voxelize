@@ -192,3 +192,38 @@ export const writeReportToPath = (reportJson, outputPath) => {
     return `Failed to write report to ${outputPath}.${detail}`;
   }
 };
+
+export const serializeReportWithOptionalWrite = (
+  report,
+  { jsonFormat, outputPath, buildTimedReport }
+) => {
+  const reportJson = toReportJson(report, jsonFormat);
+
+  if (outputPath === null) {
+    return {
+      reportJson,
+      writeError: null,
+    };
+  }
+
+  const writeError = writeReportToPath(reportJson, outputPath);
+  if (writeError === null) {
+    return {
+      reportJson,
+      writeError: null,
+    };
+  }
+
+  return {
+    reportJson: toReportJson(
+      buildTimedReport({
+        ...report,
+        passed: false,
+        exitCode: 1,
+        message: writeError,
+      }),
+      jsonFormat
+    ),
+    writeError,
+  };
+};

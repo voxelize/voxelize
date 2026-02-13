@@ -4,8 +4,8 @@ import { resolveCommand } from "./scripts/command-utils.mjs";
 import {
   createTimedReportBuilder,
   resolveOutputPath,
+  serializeReportWithOptionalWrite,
   toReportJson,
-  writeReportToPath,
 } from "./scripts/report-utils.mjs";
 
 const wasmPackCommand = resolveCommand("wasm-pack");
@@ -60,28 +60,16 @@ if (checkStatus === 0) {
       version: firstLine,
       outputPath,
     });
-    const reportJson = toReportJson(report, jsonFormat);
-
-    if (outputPath !== null) {
-      const writeError = writeReportToPath(reportJson, outputPath);
-      if (writeError !== null) {
-        console.log(
-          toReportJson(
-            buildTimedReport({
-              ...report,
-              passed: false,
-              exitCode: 1,
-              version: null,
-              message: writeError,
-            }),
-            jsonFormat
-          )
-        );
-        process.exit(1);
-      }
-    }
+    const { reportJson, writeError } = serializeReportWithOptionalWrite(report, {
+      jsonFormat,
+      outputPath,
+      buildTimedReport,
+    });
 
     console.log(reportJson);
+    if (writeError !== null) {
+      process.exit(1);
+    }
   }
   process.exit(0);
 }
@@ -97,26 +85,16 @@ if (isJson) {
     outputPath,
     message: failureMessage,
   });
-  const reportJson = toReportJson(report, jsonFormat);
-
-  if (outputPath !== null) {
-    const writeError = writeReportToPath(reportJson, outputPath);
-    if (writeError !== null) {
-      console.log(
-        toReportJson(
-          buildTimedReport({
-            ...report,
-            exitCode: 1,
-            message: writeError,
-          }),
-          jsonFormat
-        )
-      );
-      process.exit(1);
-    }
-  }
+  const { reportJson, writeError } = serializeReportWithOptionalWrite(report, {
+    jsonFormat,
+    outputPath,
+    buildTimedReport,
+  });
 
   console.log(reportJson);
+  if (writeError !== null) {
+    process.exit(1);
+  }
 } else if (!isQuiet) {
   console.error(failureMessage);
 }

@@ -7,9 +7,9 @@ import {
   deriveFailureMessageFromReport,
   parseJsonOutput,
   resolveOutputPath,
+  serializeReportWithOptionalWrite,
   summarizeCheckResults,
   toReportJson,
-  writeReportToPath,
 } from "./scripts/report-utils.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -145,25 +145,11 @@ if (outputPathError !== null || selectedChecksError !== null) {
     message: outputPathError ?? selectedChecksError,
     availableChecks: availableCheckNames,
   });
-  const reportJson = toReportJson(report, jsonFormat);
-
-  if (outputPathError === null && resolvedOutputPath !== null) {
-    const writeError = writeReportToPath(reportJson, resolvedOutputPath);
-    if (writeError !== null) {
-      console.log(
-        toReportJson(
-          buildTimedReport({
-            ...report,
-            passed: false,
-            exitCode: 1,
-            message: writeError,
-          }),
-          jsonFormat
-        )
-      );
-      process.exit(1);
-    }
-  }
+  const { reportJson } = serializeReportWithOptionalWrite(report, {
+    jsonFormat,
+    outputPath: outputPathError === null ? resolvedOutputPath : null,
+    buildTimedReport,
+  });
 
   console.log(reportJson);
   process.exit(1);
@@ -210,23 +196,12 @@ const report = buildTimedReport({
   outputPath: resolvedOutputPath,
   availableChecks: availableCheckNames,
 });
-const reportJson = toReportJson(report, jsonFormat);
-
-if (resolvedOutputPath !== null) {
-  const writeError = writeReportToPath(reportJson, resolvedOutputPath);
-  if (writeError !== null) {
-    console.log(
-      toReportJson({
-        ...report,
-        passed: false,
-        exitCode: 1,
-        message: writeError,
-      }, jsonFormat)
-    );
-    process.exit(1);
-  }
-}
+const { reportJson, writeError } = serializeReportWithOptionalWrite(report, {
+  jsonFormat,
+  outputPath: resolvedOutputPath,
+  buildTimedReport,
+});
 
 console.log(reportJson);
 
-process.exit(exitCode);
+process.exit(writeError === null ? exitCode : 1);
