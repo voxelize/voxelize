@@ -2563,7 +2563,12 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         const currId = this.getVoxelAt(vx, vy, vz);
         const currRot = this.getVoxelRotationAt(vx, vy, vz);
+        const [, currYRotation] = BlockRotation.decode(currRot);
         const currStage = this.getVoxelStageAt(vx, vy, vz);
+
+        const normalizedRotation = isNaN(rotation) ? 0 : rotation;
+        const normalizedYRotation = isNaN(yRotation) ? 0 : yRotation;
+        const normalizedStage = isNaN(stage) ? 0 : stage;
 
         if (!this.getBlockById(type)) {
           console.warn(`Block ID ${type} does not exist.`);
@@ -2572,9 +2577,9 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         if (
           currId === type &&
-          (rotation !== undefined ? currRot.value === rotation : false) &&
-          (yRotation !== undefined ? currRot.yRotation === yRotation : false) &&
-          (stage !== undefined ? currStage === stage : false)
+          currRot.value === normalizedRotation &&
+          currYRotation === normalizedYRotation &&
+          currStage === normalizedStage
         ) {
           return false;
         }
@@ -2586,8 +2591,16 @@ export class World<T = any> extends Scene implements NetIntercept {
           update.rotation = 0;
         }
 
+        if (isNaN(update.yRotation)) {
+          update.yRotation = 0;
+        }
+
         if (!this.getBlockById(update.type).yRotatable) {
           update.yRotation = 0;
+        }
+
+        if (isNaN(update.stage)) {
+          update.stage = 0;
         }
 
         return update;
