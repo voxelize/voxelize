@@ -111,8 +111,11 @@ export class LightShined {
    * This should be called in the render loop.
    */
   update = () => {
-    for (const obj of this.list) {
-      this.recursiveUpdate(obj);
+    let objects = this.list.values();
+    let object = objects.next();
+    while (!object.done) {
+      this.recursiveUpdate(object.value);
+      object = objects.next();
     }
   };
 
@@ -181,12 +184,8 @@ export class LightShined {
       material.userData.lightEffectSetup = true;
     };
 
-    const isMesh = (object: any): object is Mesh => {
-      return object.isMesh;
-    };
-
     const setupObjectAndChildren = (object: Object3D) => {
-      if (isMesh(object)) {
+      if (object instanceof Mesh) {
         if (Array.isArray(object.material)) {
           const materials = object.material;
           for (let materialIndex = 0; materialIndex < materials.length; materialIndex++) {
@@ -206,7 +205,7 @@ export class LightShined {
 
     // Setup proxies to detect changes
     const setupProxies = (object: Object3D) => {
-      if (isMesh(object)) {
+      if (object instanceof Mesh) {
         object.material = new Proxy(object.material, {
           set: (target, prop, value) => {
             target[prop] = value;
