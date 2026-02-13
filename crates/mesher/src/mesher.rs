@@ -1963,23 +1963,27 @@ fn evaluate_block_rule<S: VoxelAccess>(
     match rule {
         BlockRule::None => true,
         BlockRule::Simple(simple) => {
-            let mut offset = [
-                simple.offset[0] as f32,
-                simple.offset[1] as f32,
-                simple.offset[2] as f32,
-            ];
-
-            if y_rotatable && !world_space {
+            let (check_x, check_y, check_z) = if y_rotatable && !world_space {
+                let mut offset = [
+                    simple.offset[0] as f32,
+                    simple.offset[1] as f32,
+                    simple.offset[2] as f32,
+                ];
                 rotate_offset_y(&mut offset, rotation);
-            }
+                (
+                    pos[0] + offset[0].round() as i32,
+                    pos[1] + offset[1].round() as i32,
+                    pos[2] + offset[2].round() as i32,
+                )
+            } else {
+                (
+                    pos[0] + simple.offset[0],
+                    pos[1] + simple.offset[1],
+                    pos[2] + simple.offset[2],
+                )
+            };
 
-            let check_pos = [
-                pos[0] + offset[0].round() as i32,
-                pos[1] + offset[1].round() as i32,
-                pos[2] + offset[2].round() as i32,
-            ];
-
-            let actual_id = space.get_voxel(check_pos[0], check_pos[1], check_pos[2]);
+            let actual_id = space.get_voxel(check_x, check_y, check_z);
             if let Some(expected_id) = simple.id {
                 if actual_id != expected_id {
                     return false;
@@ -1987,15 +1991,14 @@ fn evaluate_block_rule<S: VoxelAccess>(
             }
 
             if let Some(expected_rotation) = &simple.rotation {
-                let actual_rotation =
-                    space.get_voxel_rotation(check_pos[0], check_pos[1], check_pos[2]);
+                let actual_rotation = space.get_voxel_rotation(check_x, check_y, check_z);
                 if actual_rotation != *expected_rotation {
                     return false;
                 }
             }
 
             if let Some(expected_stage) = simple.stage {
-                let actual_stage = space.get_voxel_stage(check_pos[0], check_pos[1], check_pos[2]);
+                let actual_stage = space.get_voxel_stage(check_x, check_y, check_z);
                 if actual_stage != expected_stage {
                     return false;
                 }
