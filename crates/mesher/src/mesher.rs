@@ -1967,13 +1967,14 @@ fn evaluate_block_rule<S: VoxelAccess>(
                 return true;
             }
 
+            let [offset_x, offset_y, offset_z] = simple.offset;
             let needs_y_offset_rotation =
-                y_rotatable && !world_space && (simple.offset[0] != 0 || simple.offset[2] != 0);
+                y_rotatable && !world_space && (offset_x != 0 || offset_z != 0);
             let (check_x, check_y, check_z) = if needs_y_offset_rotation {
                 let mut offset = [
-                    simple.offset[0] as f32,
-                    simple.offset[1] as f32,
-                    simple.offset[2] as f32,
+                    offset_x as f32,
+                    offset_y as f32,
+                    offset_z as f32,
                 ];
                 rotate_offset_y(&mut offset, rotation);
                 (
@@ -1983,9 +1984,9 @@ fn evaluate_block_rule<S: VoxelAccess>(
                 )
             } else {
                 (
-                    pos[0] + simple.offset[0],
-                    pos[1] + simple.offset[1],
-                    pos[2] + simple.offset[2],
+                    pos[0] + offset_x,
+                    pos[1] + offset_y,
+                    pos[2] + offset_z,
                 )
             };
 
