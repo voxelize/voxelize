@@ -842,6 +842,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   private blockUpdatesQueueHead = 0;
   private blockUpdatesToEmit: BlockUpdate[] = [];
   private blockUpdatesToEmitHead = 0;
+  private clientUpdateBatchSize = 0;
 
   private voxelDeltas = new Map<string, VoxelDelta[]>();
   private deltaSequenceCounter = 0;
@@ -5970,36 +5971,36 @@ export class World<T = any> extends Scene implements NetIntercept {
       return;
     }
 
+    this.clientUpdateBatchSize = maxUpdatesPerUpdate;
     this.isTrackingChunks = true;
+    this.processUpdatesInIdleTime();
+  };
 
-    const processUpdatesInIdleTime = () => {
+  private processUpdatesInIdleTime = () => {
+    if (this.hasPendingBlockUpdates()) {
+      const batchEnd = Math.min(
+        this.blockUpdatesQueueHead + this.clientUpdateBatchSize,
+        this.blockUpdatesQueue.length
+      );
+
+      const { consumedCount, processedClientUpdates } = this.processLightUpdates(
+        this.blockUpdatesQueue,
+        this.blockUpdatesQueueHead,
+        batchEnd
+      );
+      this.blockUpdatesQueueHead += consumedCount;
+      this.normalizeBlockUpdatesQueue();
+      this.appendBlockUpdatesToEmit(processedClientUpdates);
+
       if (this.hasPendingBlockUpdates()) {
-        const batchEnd = Math.min(
-          this.blockUpdatesQueueHead + maxUpdatesPerUpdate,
-          this.blockUpdatesQueue.length
-        );
-
-        const { consumedCount, processedClientUpdates } = this.processLightUpdates(
-          this.blockUpdatesQueue,
-          this.blockUpdatesQueueHead,
-          batchEnd
-        );
-        this.blockUpdatesQueueHead += consumedCount;
-        this.normalizeBlockUpdatesQueue();
-        this.appendBlockUpdatesToEmit(processedClientUpdates);
-
-        if (this.hasPendingBlockUpdates()) {
-          requestAnimationFrame(processUpdatesInIdleTime);
-          return;
-        }
+        requestAnimationFrame(this.processUpdatesInIdleTime);
+        return;
       }
+    }
 
-      this.flushAccumulatedLightOps();
-      this.isTrackingChunks = false;
-      this.processDirtyChunks();
-    };
-
-    processUpdatesInIdleTime();
+    this.flushAccumulatedLightOps();
+    this.isTrackingChunks = false;
+    this.processDirtyChunks();
   };
 
   private appendBlockUpdatesToEmit(updates: BlockUpdate[]) {
