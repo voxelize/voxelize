@@ -34,6 +34,7 @@ export class LightVolume {
   private tempHalfSize = new Vector3();
   private tempVolumeMax = new Vector3();
   private tempLocalPos = new Vector3();
+  private lightsInRegionBuffer: DynamicLight[] = [];
 
   constructor(config: Partial<LightVolumeConfig> = {}) {
     this.config = { ...defaultConfig, ...config };
@@ -101,9 +102,11 @@ export class LightVolume {
     this.lastRegistryVersion = this.registryVersion;
 
     this.tempVolumeMax.copy(this.volumeMin).add(this.volumeSize);
-    const lights = registry.getLightsInRegion(
+    const lights = this.lightsInRegionBuffer;
+    const lightCount = registry.getLightsInRegionInto(
       this.volumeMin,
-      this.tempVolumeMax
+      this.tempVolumeMax,
+      lights
     );
 
     this.data.fill(0);
@@ -114,7 +117,7 @@ export class LightVolume {
     const texHeight = Math.ceil(height / res);
     const texDepth = Math.ceil(depth / res);
 
-    for (let lightIndex = 0; lightIndex < lights.length; lightIndex++) {
+    for (let lightIndex = 0; lightIndex < lightCount; lightIndex++) {
       this.accumulateLight(lights[lightIndex], texWidth, texHeight, texDepth);
     }
 

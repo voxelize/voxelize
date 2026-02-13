@@ -74,7 +74,16 @@ export class LightSourceRegistry {
 
   getLightsInRegion(min: Vector3, max: Vector3): DynamicLight[] {
     const result: DynamicLight[] = [];
+    this.getLightsInRegionInto(min, max, result);
+    return result;
+  }
 
+  getLightsInRegionInto(
+    min: Vector3,
+    max: Vector3,
+    out: DynamicLight[]
+  ): number {
+    let count = 0;
     let lightEntries = this.lights.values();
     let lightEntry = lightEntries.next();
     while (!lightEntry.done) {
@@ -90,12 +99,14 @@ export class LightSourceRegistry {
         pos.z + r >= min.z &&
         pos.z - r <= max.z
       ) {
-        result.push(light);
+        out[count] = light;
+        count++;
       }
       lightEntry = lightEntries.next();
     }
 
-    return result;
+    out.length = count;
+    return count;
   }
 
   getLightsNearPoint(point: Vector3, maxDistance: number): DynamicLight[] {
