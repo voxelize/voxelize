@@ -5435,19 +5435,30 @@ export class World<T = any> extends Scene implements NetIntercept {
     const batchId = this.lightBatchIdCounter++;
     const jobsForBatch: LightJob[] = [];
 
-    colorData.forEach(({ color, removals, floods }) => {
-      if (removals.length === 0 && floods.length === 0) return;
+    for (const { color, removals, floods } of colorData) {
+      if (removals.length === 0 && floods.length === 0) {
+        continue;
+      }
 
-      const allVoxels = [...removals, ...floods.map((n) => n.voxel)];
-
-      let minX = allVoxels[0][0];
-      let minY = allVoxels[0][1];
-      let minZ = allVoxels[0][2];
+      const firstVoxel = removals.length > 0 ? removals[0] : floods[0].voxel;
+      let minX = firstVoxel[0];
+      let minY = firstVoxel[1];
+      let minZ = firstVoxel[2];
       let maxX = minX;
       let maxY = minY;
       let maxZ = minZ;
 
-      for (const [x, y, z] of allVoxels) {
+      for (const [x, y, z] of removals) {
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        minZ = Math.min(minZ, z);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+        maxZ = Math.max(maxZ, z);
+      }
+
+      for (const { voxel } of floods) {
+        const [x, y, z] = voxel;
         minX = Math.min(minX, x);
         minY = Math.min(minY, y);
         minZ = Math.min(minZ, z);
@@ -5483,7 +5494,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         retryCount: 0,
         batchId,
       });
-    });
+    }
 
     if (jobsForBatch.length === 0) return;
 
