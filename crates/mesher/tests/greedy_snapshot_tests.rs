@@ -1,8 +1,8 @@
 use std::{fs, path::PathBuf};
 use voxelize_mesher::{
-    mesh_space, mesh_space_greedy, AABB, Block, BlockConditionalPart, BlockDynamicPattern, BlockFace,
-    BlockRotation, BlockRule, BlockSimpleRule, BlockUtils, CornerData, GeometryProtocol,
-    LightColor, LightUtils, Registry, UV, VoxelAccess,
+    mesh_space, mesh_space_greedy, mesh_space_greedy_legacy, AABB, Block, BlockConditionalPart,
+    BlockDynamicPattern, BlockFace, BlockRotation, BlockRule, BlockSimpleRule, BlockUtils,
+    CornerData, GeometryProtocol, LightColor, LightUtils, Registry, UV, VoxelAccess,
 };
 
 #[derive(Clone)]
@@ -497,6 +497,18 @@ fn mesh_and_snapshot_with_mode(
     assert_snapshot(name, &canonicalize(geometries));
 }
 
+fn assert_greedy_parity(space: &TestSpace, registry: &Registry) {
+    let min = [0, 0, 0];
+    let max = [space.shape[0] as i32, space.shape[1] as i32, space.shape[2] as i32];
+    let legacy = mesh_space_greedy_legacy(&min, &max, space, registry);
+    let optimized = mesh_space_greedy(&min, &max, space, registry);
+    assert_eq!(
+        canonicalize(legacy),
+        canonicalize(optimized),
+        "greedy optimized output diverged from legacy"
+    );
+}
+
 fn seeded_next(seed: &mut u32) -> u32 {
     *seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
     *seed
@@ -520,6 +532,7 @@ fn snapshot_transparency_properties() {
     space.set_light(2, 2, 2, 15, 0, 0, 0);
     space.set_light(3, 2, 4, 12, 4, 0, 0);
 
+    assert_greedy_parity(&space, &registry);
     mesh_and_snapshot_with_mode(
         "greedy_snapshot_transparency_properties",
         &space,
@@ -548,6 +561,7 @@ fn snapshot_dynamic_patterns_and_rules() {
     space.set_voxel_id(1, 2, 1, 1);
     space.set_voxel_id(1, 3, 1, 1);
 
+    assert_greedy_parity(&space, &registry);
     mesh_and_snapshot_with_mode(
         "greedy_snapshot_dynamic_patterns_and_rules",
         &space,
@@ -579,6 +593,7 @@ fn snapshot_fluid_waterlogged_and_occlusion_properties() {
     space.set_light(2, 1, 2, 15, 0, 0, 3);
     space.set_light(3, 1, 2, 13, 2, 1, 0);
 
+    assert_greedy_parity(&space, &registry);
     mesh_and_snapshot_with_mode(
         "greedy_snapshot_fluid_waterlogged_and_occlusion_properties",
         &space,
@@ -605,6 +620,7 @@ fn snapshot_rotation_independent_and_isolated_faces() {
     space.set_voxel_id(5, 2, 3, 10);
     space.set_voxel_id(5, 3, 2, 1);
 
+    assert_greedy_parity(&space, &registry);
     mesh_and_snapshot_with_mode(
         "greedy_snapshot_rotation_independent_and_isolated_faces",
         &space,
@@ -658,6 +674,7 @@ fn snapshot_seeded_property_mix() {
         }
     }
 
+    assert_greedy_parity(&space, &registry);
     mesh_and_snapshot_with_mode(
         "greedy_snapshot_seeded_property_mix",
         &space,
