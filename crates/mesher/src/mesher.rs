@@ -1955,29 +1955,6 @@ fn rotation_radians(rotation: &BlockRotation) -> f32 {
     }
 }
 
-fn evaluate_block_rule<S: VoxelAccess>(
-    rule: &BlockRule,
-    pos: [i32; 3],
-    space: &S,
-    rotation: &BlockRotation,
-    y_rotatable: bool,
-    world_space: bool,
-) -> bool {
-    let rotation_trig = if y_rotatable && !world_space {
-        let rotation_rad = rotation_radians(rotation);
-        if rotation_rad.abs() > f32::EPSILON {
-            let (sin_rot, cos_rot) = rotation_rad.sin_cos();
-            Some((sin_rot, cos_rot))
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
-    evaluate_block_rule_with_trig(rule, pos, space, rotation_trig)
-}
-
 #[inline(always)]
 fn evaluate_block_rule_with_trig<S: VoxelAccess>(
     rule: &BlockRule,
@@ -2103,18 +2080,33 @@ where
     S: VoxelAccess,
     F: FnMut(&BlockFace, bool),
 {
+    let local_rotation_trig = if block.y_rotatable {
+        let rotation_rad = rotation_radians(rotation);
+        if rotation_rad.abs() > f32::EPSILON {
+            let (sin_rot, cos_rot) = rotation_rad.sin_cos();
+            Some((sin_rot, cos_rot))
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     if let Some(dynamic_patterns) = &block.dynamic_patterns {
         for pattern in dynamic_patterns {
             let mut matched_rule = false;
 
             for part in &pattern.parts {
-                let rule_result = evaluate_block_rule(
+                let rotation_trig = if part.world_space {
+                    None
+                } else {
+                    local_rotation_trig
+                };
+                let rule_result = evaluate_block_rule_with_trig(
                     &part.rule,
                     pos,
                     space,
-                    rotation,
-                    block.y_rotatable,
-                    part.world_space,
+                    rotation_trig,
                 );
                 if rule_result {
                     matched_rule = true;
