@@ -417,32 +417,48 @@ impl Registry {
             .keys()
             .copied()
             .collect::<HashSet<u32>>();
-        let mut explicit_ids = HashSet::new();
+        let mut name_to_id = self
+            .blocks_by_name
+            .iter()
+            .map(|(name, block)| (name.clone(), block.id))
+            .collect::<HashMap<String, u32>>();
+        let mut id_to_name = self.name_map.clone();
+        let reserved_explicit_ids = blocks
+            .iter()
+            .filter(|block| block.id != 0)
+            .map(|block| block.id)
+            .collect::<HashSet<u32>>();
         let mut prepared_blocks = Vec::with_capacity(blocks.len());
         let mut next_available = 1;
 
         for block in blocks {
-            if block.id == 0 {
-                continue;
-            }
-
-            if occupied_ids.contains(&block.id) || !explicit_ids.insert(block.id) {
-                panic!("Duplicated key: {}-{}", block.name, block.id);
-            }
-        }
-
-        occupied_ids.extend(explicit_ids);
-
-        for block in blocks {
             let mut block = block.to_owned();
+            let lower_name = block.name.to_lowercase();
+            let existing_id_for_name = name_to_id.get(&lower_name).copied();
 
             if block.id == 0 {
-                while occupied_ids.contains(&next_available) {
+                while occupied_ids.contains(&next_available)
+                    || reserved_explicit_ids.contains(&next_available)
+                {
                     next_available += 1;
                 }
                 block.id = next_available;
-                occupied_ids.insert(block.id);
+            } else if occupied_ids.contains(&block.id) {
+                panic!("Duplicated key: {}-{}", block.name, block.id);
             }
+
+            if let Some(existing_id) = existing_id_for_name {
+                occupied_ids.remove(&existing_id);
+                id_to_name.remove(&existing_id);
+            }
+
+            if let Some(existing_name) = id_to_name.get(&block.id).cloned() {
+                name_to_id.remove(&existing_name);
+            }
+
+            occupied_ids.insert(block.id);
+            id_to_name.insert(block.id, lower_name.clone());
+            name_to_id.insert(lower_name, block.id);
             prepared_blocks.push(block);
         }
 

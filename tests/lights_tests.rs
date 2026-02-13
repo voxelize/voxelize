@@ -380,6 +380,21 @@ fn test_register_blocks_auto_id_avoids_explicit_ids_in_same_batch() {
 }
 
 #[test]
+fn test_register_blocks_can_reuse_id_freed_earlier_in_batch() {
+    let mut registry = create_test_registry();
+
+    registry.register_blocks(&[
+        Block::new("torch").id(41).build(),
+        Block::new("reused-id-two").id(2).build(),
+    ]);
+
+    assert_eq!(registry.get_block_by_name("torch").id, 41);
+    assert_eq!(registry.get_block_by_name("reused-id-two").id, 2);
+    assert!(registry.has_type(2));
+    assert!(registry.has_type(41));
+}
+
+#[test]
 fn test_register_blocks_panics_on_duplicate_ids_in_batch() {
     let mut registry = create_test_registry();
 
