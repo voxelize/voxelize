@@ -2377,13 +2377,10 @@ fn process_face<S: VoxelAccess>(
                     return;
                 }
 
-                let n_is_empty = n_block_type.is_empty;
-
-                n_is_empty
-                    || (see_through
-                        && !is_opaque
-                        && !n_block_type.is_opaque
-                        && (neighbor_id != voxel_id || n_block_type.transparent_standalone))
+                (see_through
+                    && !is_opaque
+                    && !n_block_type.is_opaque
+                    && (neighbor_id != voxel_id || n_block_type.transparent_standalone))
                     || (!see_through && (!is_opaque || !n_block_type.is_opaque))
                     || (n_block_type.is_opaque
                         && !n_block_type.is_fluid
