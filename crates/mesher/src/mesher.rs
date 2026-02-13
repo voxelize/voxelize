@@ -885,6 +885,7 @@ fn calculate_fluid_corner_height<S: VoxelAccess>(
     vx: i32,
     vy: i32,
     vz: i32,
+    self_height: f32,
     corner_x: i32,
     corner_z: i32,
     corner_offsets: &[[i32; 2]; 3],
@@ -904,9 +905,6 @@ fn calculate_fluid_corner_height<S: VoxelAccess>(
             return 1.0;
         }
     }
-
-    let self_stage = extract_stage(space.get_raw_voxel(vx, vy, vz));
-    let self_height = get_fluid_effective_height(self_stage);
 
     let mut total_height = self_height;
     let mut count = 1.0;
@@ -975,17 +973,62 @@ fn create_fluid_faces<S: VoxelAccess>(
     block: &Block,
     registry: &Registry,
 ) -> [BlockFace; 6] {
+    let self_height = get_fluid_effective_height(extract_stage(space.get_raw_voxel(vx, vy, vz)));
     let h_nxnz =
-        calculate_fluid_corner_height(vx, vy, vz, 0, 0, &FLUID_CORNER_NXNZ, fluid_id, space, registry)
+        calculate_fluid_corner_height(
+            vx,
+            vy,
+            vz,
+            self_height,
+            0,
+            0,
+            &FLUID_CORNER_NXNZ,
+            fluid_id,
+            space,
+            registry,
+        )
             - FLUID_SURFACE_OFFSET;
     let h_pxnz =
-        calculate_fluid_corner_height(vx, vy, vz, 1, 0, &FLUID_CORNER_PXNZ, fluid_id, space, registry)
+        calculate_fluid_corner_height(
+            vx,
+            vy,
+            vz,
+            self_height,
+            1,
+            0,
+            &FLUID_CORNER_PXNZ,
+            fluid_id,
+            space,
+            registry,
+        )
             - FLUID_SURFACE_OFFSET;
     let h_nxpz =
-        calculate_fluid_corner_height(vx, vy, vz, 0, 1, &FLUID_CORNER_NXPZ, fluid_id, space, registry)
+        calculate_fluid_corner_height(
+            vx,
+            vy,
+            vz,
+            self_height,
+            0,
+            1,
+            &FLUID_CORNER_NXPZ,
+            fluid_id,
+            space,
+            registry,
+        )
             - FLUID_SURFACE_OFFSET;
     let h_pxpz =
-        calculate_fluid_corner_height(vx, vy, vz, 1, 1, &FLUID_CORNER_PXPZ, fluid_id, space, registry)
+        calculate_fluid_corner_height(
+            vx,
+            vy,
+            vz,
+            self_height,
+            1,
+            1,
+            &FLUID_CORNER_PXPZ,
+            fluid_id,
+            space,
+            registry,
+        )
             - FLUID_SURFACE_OFFSET;
 
     let fallback_uvs;
