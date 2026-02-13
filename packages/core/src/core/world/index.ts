@@ -873,6 +873,8 @@ export class World<T = any> extends Scene implements NetIntercept {
   private applyServerUpdateBlockCache = new Map<number, Block>();
   private processLightUpdateBlockCache = new Map<number, Block>();
   private maxHeightBlockCache = new Map<number, Block>();
+  private syncLightAffectedChunks = new Map<number, Set<number>>();
+  private reusableSyncLightAffectedZSets: Set<number>[] = [];
   private dynamicAABBRuleCoords: Coords3 = [0, 0, 0];
   private dynamicPassableRuleCoords: Coords3 = [0, 0, 0];
   private readonly dynamicRuleQuery = {
@@ -6885,7 +6887,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     const { chunkSize } = this.options;
-    const affectedChunks = new Map<number, Set<number>>();
+    const affectedChunks = this.syncLightAffectedChunks;
+    const reusableZSets = this.reusableSyncLightAffectedZSets;
+    affectedChunks.clear();
 
     for (let removalIndex = 0; removalIndex < lightOps.removals.length; removalIndex++) {
       const voxel = lightOps.removals[removalIndex];
@@ -6893,7 +6897,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       const cz = Math.floor(voxel[2] / chunkSize);
       let zSet = affectedChunks.get(cx);
       if (!zSet) {
-        zSet = new Set<number>();
+        const pooled = reusableZSets.pop();
+        zSet = pooled ? pooled : new Set<number>();
         affectedChunks.set(cx, zSet);
       }
       zSet.add(cz);
@@ -6905,7 +6910,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       const cz = Math.floor(voxel[2] / chunkSize);
       let zSet = affectedChunks.get(cx);
       if (!zSet) {
-        zSet = new Set<number>();
+        const pooled = reusableZSets.pop();
+        zSet = pooled ? pooled : new Set<number>();
         affectedChunks.set(cx, zSet);
       }
       zSet.add(cz);
@@ -6915,7 +6921,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       for (const cz of zSet) {
         this.markChunkForRemeshAt(cx, cz);
       }
+      zSet.clear();
+      reusableZSets.push(zSet);
     }
+    affectedChunks.clear();
   }
 
   private executeLightOperationsSyncAll(lightOps: LightOperations) {
