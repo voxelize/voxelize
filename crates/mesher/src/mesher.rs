@@ -815,6 +815,7 @@ impl<'a> VoxelAccess for VoxelSpace<'a> {
     }
 }
 
+#[inline(always)]
 fn extract_id(voxel: u32) -> u32 {
     voxel & 0xFFFF
 }
