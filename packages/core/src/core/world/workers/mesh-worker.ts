@@ -266,11 +266,11 @@ const processMeshMessage = (message: MeshBatchMessage) => {
   }[] = [];
 
   for (const geometry of result.geometries) {
-    const positions = new Float32Array(geometry.positions);
-    if (positions.length === 0) {
+    if (geometry.positions.length === 0) {
       continue;
     }
 
+    const positions = new Float32Array(geometry.positions);
     const indices = new Uint16Array(geometry.indices);
     const normals = workerComputeNormals(positions, indices);
     const bs = workerComputeBoundingSphere(positions);
