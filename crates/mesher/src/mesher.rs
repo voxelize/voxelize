@@ -302,7 +302,9 @@ impl Registry {
     #[inline(always)]
     pub fn get_block_by_id(&self, id: u32) -> Option<&Block> {
         if let Some(dense) = &self.dense_lookup {
-            if let Some(&idx) = dense.get(id as usize) {
+            let dense_index = id as usize;
+            if dense_index < dense.len() {
+                let idx = dense[dense_index];
                 if idx != usize::MAX {
                     return Some(&self.blocks_by_id[idx].1);
                 }
@@ -1429,7 +1431,9 @@ fn is_surrounded_by_opaque_neighbors<S: VoxelAccess>(
 
     if let Some(dense) = &registry.dense_lookup {
         let is_opaque = |id: u32| {
-            if let Some(&dense_index) = dense.get(id as usize) {
+            let lookup_index = id as usize;
+            if lookup_index < dense.len() {
+                let dense_index = dense[lookup_index];
                 dense_index != usize::MAX && registry.blocks_by_id[dense_index].1.is_opaque
             } else {
                 false
