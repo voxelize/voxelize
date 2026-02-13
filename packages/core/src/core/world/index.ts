@@ -3895,6 +3895,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         maxChunkRequestsPerUpdate,
       },
     } = this;
+    if (maxChunkRequestsPerUpdate <= 0) {
+      return;
+    }
 
     const total = this.chunkPipeline.totalCount;
     const loadedCount = this.chunkPipeline.loadedCount;
