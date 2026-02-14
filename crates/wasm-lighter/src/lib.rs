@@ -88,8 +88,8 @@ impl BatchSpace {
         max_height: u32,
     ) -> Self {
         let modified_chunks = vec![false; chunks.len()];
-        let chunk_grid_width_i32 = i32::try_from(chunk_grid_width).unwrap_or(i32::MAX);
-        let chunk_grid_depth_i32 = i32::try_from(chunk_grid_depth).unwrap_or(i32::MAX);
+        let chunk_grid_width_i32 = chunk_grid_width as i32;
+        let chunk_grid_depth_i32 = chunk_grid_depth as i32;
         let chunk_size_usize = chunk_size as usize;
         let chunk_height = max_height as usize;
         let max_height_i32 = max_height as i32;
