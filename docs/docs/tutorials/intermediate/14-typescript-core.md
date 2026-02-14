@@ -445,6 +445,11 @@ Client JSON reports additionally expose top-level wasm preflight summary
 fields `wasmPackCheckStatus`, `wasmPackCheckCommand`,
 `wasmPackCheckArgs`, `wasmPackCheckArgCount`, `wasmPackCheckExitCode`,
 and `wasmPackCheckOutputLine`.
+Onboarding JSON reports additionally expose client-step wasm preflight
+summary fields `clientWasmPackCheckStatus`,
+`clientWasmPackCheckCommand`, `clientWasmPackCheckArgs`,
+`clientWasmPackCheckArgCount`, `clientWasmPackCheckExitCode`, and
+`clientWasmPackCheckOutputLine`.
 Nested client wasm artifact reports include `wasmPackCheckCommand`,
 `wasmPackCheckArgs`, `wasmPackCheckArgCount`, `wasmPackCheckExitCode`,
 `wasmPackCheckStatus`, and `wasmPackCheckOutputLine` for deterministic
