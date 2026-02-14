@@ -255,6 +255,36 @@ const withBaseReportFields = (report) => {
   const availablePackageCheckArgCountMap = {
     [tsCorePackageName]: packageCheckArgCount,
   };
+  const presentPackageCheckCommandMap = artifactsPresent
+    ? {
+        [tsCorePackageName]: packageCheckCommand,
+      }
+    : {};
+  const missingPackageCheckCommandMap = artifactsPresent
+    ? {}
+    : {
+        [tsCorePackageName]: packageCheckCommand,
+      };
+  const presentPackageCheckArgsMap = artifactsPresent
+    ? {
+        [tsCorePackageName]: packageCheckArgs,
+      }
+    : {};
+  const missingPackageCheckArgsMap = artifactsPresent
+    ? {}
+    : {
+        [tsCorePackageName]: packageCheckArgs,
+      };
+  const presentPackageCheckArgCountMap = artifactsPresent
+    ? {
+        [tsCorePackageName]: packageCheckArgCount,
+      }
+    : {};
+  const missingPackageCheckArgCountMap = artifactsPresent
+    ? {}
+    : {
+        [tsCorePackageName]: packageCheckArgCount,
+      };
   const availablePackageMetadata = {
     [tsCorePackageName]: {
       packagePath: tsCorePackagePath,
@@ -357,6 +387,12 @@ const withBaseReportFields = (report) => {
     missingPackagePaths,
     presentPackagePathMap,
     missingPackagePathMap,
+    presentPackageCheckCommandMap,
+    missingPackageCheckCommandMap,
+    presentPackageCheckArgsMap,
+    missingPackageCheckArgsMap,
+    presentPackageCheckArgCountMap,
+    missingPackageCheckArgCountMap,
     presentPackageMetadata,
     missingPackageMetadata,
     requiredPackageCount: 1,
@@ -370,6 +406,20 @@ const withBaseReportFields = (report) => {
     missingPackagePathCount,
     presentPackagePathMapCount: countRecordEntries(presentPackagePathMap),
     missingPackagePathMapCount: countRecordEntries(missingPackagePathMap),
+    presentPackageCheckCommandMapCount: countRecordEntries(
+      presentPackageCheckCommandMap
+    ),
+    missingPackageCheckCommandMapCount: countRecordEntries(
+      missingPackageCheckCommandMap
+    ),
+    presentPackageCheckArgsMapCount: countRecordEntries(presentPackageCheckArgsMap),
+    missingPackageCheckArgsMapCount: countRecordEntries(missingPackageCheckArgsMap),
+    presentPackageCheckArgCountMapCount: countRecordEntries(
+      presentPackageCheckArgCountMap
+    ),
+    missingPackageCheckArgCountMapCount: countRecordEntries(
+      missingPackageCheckArgCountMap
+    ),
     presentPackageMetadataCount: countRecordEntries(presentPackageMetadata),
     missingPackageMetadataCount: countRecordEntries(missingPackageMetadata),
     packageReport,

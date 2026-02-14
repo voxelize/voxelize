@@ -304,6 +304,27 @@ const summarizePackageReports = (packageReports) => {
         ];
       })
   );
+  const presentPackageCheckCommandMap = Object.fromEntries(
+    packageReports
+      .filter((packageReport) => packageReport.artifactsPresent)
+      .map((packageReport) => {
+        return [packageReport.packageName, packageReport.checkCommand];
+      })
+  );
+  const presentPackageCheckArgsMap = Object.fromEntries(
+    packageReports
+      .filter((packageReport) => packageReport.artifactsPresent)
+      .map((packageReport) => {
+        return [packageReport.packageName, packageReport.checkArgs];
+      })
+  );
+  const presentPackageCheckArgCountMap = Object.fromEntries(
+    packageReports
+      .filter((packageReport) => packageReport.artifactsPresent)
+      .map((packageReport) => {
+        return [packageReport.packageName, packageReport.checkArgCount];
+      })
+  );
   const missingPackageMetadata = Object.fromEntries(
     packageReports
       .filter((packageReport) => packageReport.artifactsPresent === false)
@@ -321,6 +342,27 @@ const summarizePackageReports = (packageReports) => {
             artifactsPresent: packageReport.artifactsPresent,
           },
         ];
+      })
+  );
+  const missingPackageCheckCommandMap = Object.fromEntries(
+    packageReports
+      .filter((packageReport) => packageReport.artifactsPresent === false)
+      .map((packageReport) => {
+        return [packageReport.packageName, packageReport.checkCommand];
+      })
+  );
+  const missingPackageCheckArgsMap = Object.fromEntries(
+    packageReports
+      .filter((packageReport) => packageReport.artifactsPresent === false)
+      .map((packageReport) => {
+        return [packageReport.packageName, packageReport.checkArgs];
+      })
+  );
+  const missingPackageCheckArgCountMap = Object.fromEntries(
+    packageReports
+      .filter((packageReport) => packageReport.artifactsPresent === false)
+      .map((packageReport) => {
+        return [packageReport.packageName, packageReport.checkArgCount];
       })
   );
   const presentArtifactCountByPackage = Object.fromEntries(
@@ -368,6 +410,16 @@ const summarizePackageReports = (packageReports) => {
     presentPackageIndexMapCount: countRecordEntries(presentPackageIndexMap),
     presentPackageMetadata,
     presentPackageMetadataCount: countRecordEntries(presentPackageMetadata),
+    presentPackageCheckCommandMap,
+    presentPackageCheckCommandMapCount: countRecordEntries(
+      presentPackageCheckCommandMap
+    ),
+    presentPackageCheckArgsMap,
+    presentPackageCheckArgsMapCount: countRecordEntries(presentPackageCheckArgsMap),
+    presentPackageCheckArgCountMap,
+    presentPackageCheckArgCountMapCount: countRecordEntries(
+      presentPackageCheckArgCountMap
+    ),
     presentArtifactCount,
     presentArtifacts,
     presentArtifactsByPackage,
@@ -392,6 +444,16 @@ const summarizePackageReports = (packageReports) => {
     missingPackageIndexMapCount: countRecordEntries(missingPackageIndexMap),
     missingPackageMetadata,
     missingPackageMetadataCount: countRecordEntries(missingPackageMetadata),
+    missingPackageCheckCommandMap,
+    missingPackageCheckCommandMapCount: countRecordEntries(
+      missingPackageCheckCommandMap
+    ),
+    missingPackageCheckArgsMap,
+    missingPackageCheckArgsMapCount: countRecordEntries(missingPackageCheckArgsMap),
+    missingPackageCheckArgCountMap,
+    missingPackageCheckArgCountMapCount: countRecordEntries(
+      missingPackageCheckArgCountMap
+    ),
     missingArtifactCount,
     missingArtifacts,
     missingArtifactsByPackage,
@@ -514,6 +576,12 @@ const withBaseReportFields = (report) => {
     presentPackageIndexMapCount,
     presentPackageMetadata,
     presentPackageMetadataCount,
+    presentPackageCheckCommandMap,
+    presentPackageCheckCommandMapCount,
+    presentPackageCheckArgsMap,
+    presentPackageCheckArgsMapCount,
+    presentPackageCheckArgCountMap,
+    presentPackageCheckArgCountMapCount,
     presentArtifactCount,
     presentArtifacts,
     presentArtifactsByPackage,
@@ -536,6 +604,12 @@ const withBaseReportFields = (report) => {
     missingPackageIndexMapCount,
     missingPackageMetadata,
     missingPackageMetadataCount,
+    missingPackageCheckCommandMap,
+    missingPackageCheckCommandMapCount,
+    missingPackageCheckArgsMap,
+    missingPackageCheckArgsMapCount,
+    missingPackageCheckArgCountMap,
+    missingPackageCheckArgCountMapCount,
     missingArtifactCount,
     missingArtifacts,
     missingArtifactsByPackage,
@@ -606,12 +680,18 @@ const withBaseReportFields = (report) => {
     presentPackageIndices,
     presentPackageIndexMap,
     presentPackageMetadata,
+    presentPackageCheckCommandMap,
+    presentPackageCheckArgsMap,
+    presentPackageCheckArgCountMap,
     missingPackages,
     missingPackagePaths,
     missingPackagePathMap,
     missingPackageIndices,
     missingPackageIndexMap,
     missingPackageMetadata,
+    missingPackageCheckCommandMap,
+    missingPackageCheckArgsMap,
+    missingPackageCheckArgCountMap,
     requiredPackageCount: runtimeLibraries.length,
     presentPackageCount,
     presentPackagePathCount,
@@ -619,6 +699,9 @@ const withBaseReportFields = (report) => {
     presentPackageIndexCount,
     presentPackageIndexMapCount,
     presentPackageMetadataCount,
+    presentPackageCheckCommandMapCount,
+    presentPackageCheckArgsMapCount,
+    presentPackageCheckArgCountMapCount,
     packageReportCount: packageReports.length,
     packageReportMap,
     packageReportMapCount,
@@ -649,6 +732,9 @@ const withBaseReportFields = (report) => {
     missingPackageIndexCount,
     missingPackageIndexMapCount,
     missingPackageMetadataCount,
+    missingPackageCheckCommandMapCount,
+    missingPackageCheckArgsMapCount,
+    missingPackageCheckArgCountMapCount,
     missingArtifactCount,
     missingArtifacts,
     missingArtifactsByPackage,
