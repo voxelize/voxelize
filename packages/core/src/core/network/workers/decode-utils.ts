@@ -98,7 +98,7 @@ function decompressToUint32Array(
   const result = new Uint32Array(
     bytes.buffer,
     bytes.byteOffset,
-    bytes.byteLength / 4
+    bytes.byteLength >>> 2
   );
   pushTransferableBuffer(transferables, result);
   return result;
@@ -114,7 +114,7 @@ function decompressToInt32Array(
   const result = new Int32Array(
     bytes.buffer,
     bytes.byteOffset,
-    bytes.byteLength / 4
+    bytes.byteLength >>> 2
   );
   if (transferables) {
     pushTransferableBuffer(transferables, result);
@@ -132,7 +132,7 @@ function decompressToFloat32Array(
   const result = new Float32Array(
     bytes.buffer,
     bytes.byteOffset,
-    bytes.byteLength / 4
+    bytes.byteLength >>> 2
   );
   pushTransferableBuffer(transferables, result);
   return result;
