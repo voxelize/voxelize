@@ -73,18 +73,6 @@ pub struct Space {
     height_maps: HashMap<Vec2<i32>, Arc<Ndarray<u32>>>,
 }
 
-impl Space {
-    /// Converts a voxel position to a chunk coordinate and a chunk local coordinate.
-    fn to_local(&self, vx: i32, vy: i32, vz: i32) -> (Vec2<i32>, Vec3<usize>) {
-        let SpaceOptions { chunk_size, .. } = self.options;
-
-        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
-        let local = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
-
-        (coords, local)
-    }
-}
-
 /// A data structure to build a space.
 pub struct SpaceBuilder<'a> {
     pub chunks: &'a Chunks,
@@ -246,9 +234,10 @@ impl VoxelAccess for Space {
             return 0;
         }
 
-        let (coords, Vec3(lx, ly, lz)) = self.to_local(vx, vy, vz);
-
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, self.options.chunk_size);
         if let Some(voxels) = self.voxels.get(&coords) {
+            let Vec3(lx, ly, lz) =
+                ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, self.options.chunk_size);
             if !voxels.contains(&[lx, ly, lz]) {
                 return 0;
             }
@@ -302,9 +291,10 @@ impl VoxelAccess for Space {
             return 0;
         }
 
-        let (coords, Vec3(lx, ly, lz)) = self.to_local(vx, vy, vz);
-
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, self.options.chunk_size);
         if let Some(lights) = self.lights.get(&coords) {
+            let Vec3(lx, ly, lz) =
+                ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, self.options.chunk_size);
             if !lights.contains(&[lx, ly, lz]) {
                 return 0;
             }
@@ -326,9 +316,10 @@ impl VoxelAccess for Space {
             return false;
         }
 
-        let (coords, Vec3(lx, ly, lz)) = self.to_local(vx, vy, vz);
-
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, self.options.chunk_size);
         if let Some(lights) = self.lights.get_mut(&coords) {
+            let Vec3(lx, ly, lz) =
+                ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, self.options.chunk_size);
             if lights[&[lx, ly, lz]] == level {
                 return true;
             }
@@ -366,9 +357,10 @@ impl VoxelAccess for Space {
             return 0;
         }
 
-        let (coords, Vec3(lx, _, lz)) = self.to_local(vx, 0, vz);
-
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, 0, vz, self.options.chunk_size);
         if let Some(height_map) = self.height_maps.get(&coords) {
+            let Vec3(lx, _, lz) =
+                ChunkUtils::map_voxel_to_chunk_local(vx, 0, vz, self.options.chunk_size);
             return height_map[&[lx, lz]];
         }
 
