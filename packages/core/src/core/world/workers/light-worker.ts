@@ -861,8 +861,11 @@ const deserializeChunkGrid = (
   chunkGrid.length = cellCount;
   let hasAnyChunk = false;
   let index = 0;
-  for (let localX = 0; localX < gridWidth; localX++) {
-    const expectedChunkX = gridOffsetX + localX;
+  for (
+    let localX = 0, expectedChunkX = gridOffsetX;
+    localX < gridWidth;
+    localX++, expectedChunkX++
+  ) {
     for (
       let localZ = 0, expectedChunkZ = gridOffsetZ;
       localZ < gridDepth;
@@ -1061,8 +1064,11 @@ const serializeChunksData = (
   serialized.length = cellCount;
   let hasAnyChunk = false;
   let index = 0;
-  for (let localX = 0; localX < gridWidth; localX++) {
-    const expectedChunkX = gridOffsetX + localX;
+  for (
+    let localX = 0, expectedChunkX = gridOffsetX;
+    localX < gridWidth;
+    localX++, expectedChunkX++
+  ) {
     for (
       let localZ = 0, expectedChunkZ = gridOffsetZ;
       localZ < gridDepth;
