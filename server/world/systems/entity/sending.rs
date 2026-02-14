@@ -216,42 +216,37 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         for (entity_id, (etype, metadata_str, is_new)) in &entity_metadata_map {
             let pos = entity_positions.get(entity_id).unwrap_or(&default_pos);
-            let nearby_player_ids = kdtree.player_ids_within_radius(pos, entity_visible_radius);
+            kdtree.for_each_player_id_within_radius(pos, entity_visible_radius, |player_entity_id| {
+                if let Some(client_id) = entity_to_client_id.get(&player_entity_id) {
+                    if let Some(known_entities) =
+                        bookkeeping.client_known_entities.get_mut(*client_id)
+                    {
+                        let client_known = known_entities.contains(entity_id);
 
-            for player_entity_id in nearby_player_ids {
-                let client_id = match entity_to_client_id.get(&player_entity_id) {
-                    Some(id) => *id,
-                    None => continue,
-                };
-                let known_entities = match bookkeeping.client_known_entities.get_mut(client_id) {
-                    Some(known_entities) => known_entities,
-                    None => continue,
-                };
+                        let operation = if !client_known {
+                            EntityOperation::Create
+                        } else if *is_new {
+                            EntityOperation::Create
+                        } else {
+                            EntityOperation::Update
+                        };
 
-                let client_known = known_entities.contains(entity_id);
+                        push_client_update(
+                            &mut self.client_updates_buffer,
+                            &mut self.clients_with_updates_buffer,
+                            client_id,
+                            EntityProtocol {
+                                operation,
+                                id: entity_id.clone(),
+                                r#type: etype.clone(),
+                                metadata: Some(metadata_str.clone()),
+                            },
+                        );
 
-                let operation = if !client_known {
-                    EntityOperation::Create
-                } else if *is_new {
-                    EntityOperation::Create
-                } else {
-                    EntityOperation::Update
-                };
-
-                push_client_update(
-                    &mut self.client_updates_buffer,
-                    &mut self.clients_with_updates_buffer,
-                    client_id,
-                    EntityProtocol {
-                        operation,
-                        id: entity_id.clone(),
-                        r#type: etype.clone(),
-                        metadata: Some(metadata_str.clone()),
-                    },
-                );
-
-                known_entities.insert(entity_id.clone());
-            }
+                        known_entities.insert(entity_id.clone());
+                    }
+                }
+            });
         }
 
         if !self.deleted_entities_buffer.is_empty() {

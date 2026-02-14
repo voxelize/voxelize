@@ -360,18 +360,27 @@ impl KdTree {
         self.collect_entities_with_distance(&results, skip)
     }
 
-    pub fn player_ids_within_radius(&self, point: &Vec3<f32>, radius: f32) -> Vec<u32> {
+    pub fn for_each_player_id_within_radius<F>(&self, point: &Vec3<f32>, radius: f32, mut f: F)
+    where
+        F: FnMut(u32),
+    {
         let Some(query_point) = point_array_if_finite(point) else {
-            return Vec::new();
+            return;
         };
         let Some(radius_squared) = normalized_radius_squared(radius) else {
-            return Vec::new();
+            return;
         };
         let results = self.players.within(&query_point, radius_squared);
-        let mut player_ids = Vec::with_capacity(results.len());
         for (_, ent_id) in results {
-            player_ids.push(ent_id);
+            f(ent_id);
         }
+    }
+
+    pub fn player_ids_within_radius(&self, point: &Vec3<f32>, radius: f32) -> Vec<u32> {
+        let mut player_ids = Vec::new();
+        self.for_each_player_id_within_radius(point, radius, |ent_id| {
+            player_ids.push(ent_id);
+        });
         player_ids
     }
 
