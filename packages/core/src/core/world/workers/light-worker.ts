@@ -863,8 +863,11 @@ const deserializeChunkGrid = (
   let index = 0;
   for (let localX = 0; localX < gridWidth; localX++) {
     const expectedChunkX = gridOffsetX + localX;
-    for (let localZ = 0; localZ < gridDepth; localZ++, index++) {
-      const expectedChunkZ = gridOffsetZ + localZ;
+    for (
+      let localZ = 0, expectedChunkZ = gridOffsetZ;
+      localZ < gridDepth;
+      localZ++, expectedChunkZ++, index++
+    ) {
       const chunkData = chunksData[index];
       if (
         !isCompatibleSerializedChunk(
@@ -1060,8 +1063,11 @@ const serializeChunksData = (
   let index = 0;
   for (let localX = 0; localX < gridWidth; localX++) {
     const expectedChunkX = gridOffsetX + localX;
-    for (let localZ = 0; localZ < gridDepth; localZ++, index++) {
-      const expectedChunkZ = gridOffsetZ + localZ;
+    for (
+      let localZ = 0, expectedChunkZ = gridOffsetZ;
+      localZ < gridDepth;
+      localZ++, expectedChunkZ++, index++
+    ) {
       const chunkData = chunksData[index];
       if (
         !isCompatibleSerializedChunk(
