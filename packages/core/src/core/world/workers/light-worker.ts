@@ -138,6 +138,11 @@ const emptyModifiedChunks: WorkerModifiedChunk[] = [];
 const emptyChunkGrid: (RawChunk | null)[] = [];
 const emptyAppliedDeltas = { lastSequenceId: 0 };
 const reusableAppliedDeltas = { lastSequenceId: 0 };
+const reusableBatchResultMessage = {
+  jobId: "",
+  modifiedChunks: emptyModifiedChunks,
+  appliedDeltas: emptyAppliedDeltas,
+};
 const reusablePostMessageOptions: StructuredSerializeOptions = {
   transfer: emptyTransferList,
 };
@@ -179,12 +184,10 @@ const normalizePendingBatchMessages = () => {
 
 const postEmptyBatchResult = (jobId: string, lastSequenceId = 0) => {
   const appliedDeltas = getAppliedDeltasPayload(lastSequenceId);
-  const modifiedChunks = emptyModifiedChunks;
-  postMessage({
-    jobId,
-    modifiedChunks,
-    appliedDeltas,
-  });
+  reusableBatchResultMessage.jobId = jobId;
+  reusableBatchResultMessage.modifiedChunks = emptyModifiedChunks;
+  reusableBatchResultMessage.appliedDeltas = appliedDeltas;
+  postMessage(reusableBatchResultMessage);
 };
 
 const ensureWasmInitialized = async () => {
@@ -511,12 +514,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
 
   const modifiedChunkCount = wasmResult.modifiedChunks.length;
   if (modifiedChunkCount === 0) {
-    const appliedDeltas = getAppliedDeltasPayload(lastSequenceId);
-    postMessage({
-      jobId,
-      modifiedChunks: emptyModifiedChunks,
-      appliedDeltas,
-    });
+    postEmptyBatchResult(jobId, lastSequenceId);
     return;
   }
 
@@ -543,14 +541,10 @@ const processBatchMessage = (message: LightBatchMessage) => {
 
   reusablePostMessageOptions.transfer = transferBuffers;
   const appliedDeltas = getAppliedDeltasPayload(lastSequenceId);
-  postMessage(
-    {
-      jobId,
-      modifiedChunks,
-      appliedDeltas,
-    },
-    reusablePostMessageOptions
-  );
+  reusableBatchResultMessage.jobId = jobId;
+  reusableBatchResultMessage.modifiedChunks = modifiedChunks;
+  reusableBatchResultMessage.appliedDeltas = appliedDeltas;
+  postMessage(reusableBatchResultMessage, reusablePostMessageOptions);
   modifiedChunks.length = 0;
   transferBuffers.length = 0;
   chunkGrid.length = 0;
