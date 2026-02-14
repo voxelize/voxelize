@@ -167,8 +167,12 @@ type TsCoreJsonReport = OptionTerminatorMetadata &
   noBuild: boolean;
   packagePath: string;
   requiredArtifacts: string[];
+  requiredArtifactCount: number;
   artifactsPresent: boolean;
   missingArtifacts: string[];
+  missingArtifactCount: number;
+  buildCommand: string;
+  buildArgs: string[];
   attemptedBuild: boolean;
   buildSkipped: boolean;
   buildOutput: string | null;
@@ -345,6 +349,35 @@ const expectedNoBuildCliOptions = [
 ];
 const expectedNoBuildCliOptionAliases = {
   "--no-build": ["--verify"],
+};
+const expectedTsCoreRequiredArtifacts = [
+  "packages/ts-core/dist/index.js",
+  "packages/ts-core/dist/index.mjs",
+  "packages/ts-core/dist/index.d.ts",
+];
+const expectedTsCoreBuildArgs = [
+  "--dir",
+  rootDir,
+  "--filter",
+  "@voxelize/ts-core",
+  "run",
+  "build",
+];
+const expectTsCoreReportMetadata = (report: TsCoreJsonReport) => {
+  expect(report.packagePath).toBe("packages/ts-core");
+  expect(report.requiredArtifacts).toEqual(expectedTsCoreRequiredArtifacts);
+  expect(report.requiredArtifactCount).toBe(report.requiredArtifacts.length);
+  expect(report.missingArtifactCount).toBe(report.missingArtifacts.length);
+  expect(typeof report.buildCommand).toBe("string");
+  expect(report.buildCommand.length).toBeGreaterThan(0);
+  expect(report.buildArgs).toEqual(expectedTsCoreBuildArgs);
+  expectTimingMetadata(report);
+  expectOptionTerminatorMetadata(report);
+  expectCliOptionCatalogMetadata(
+    report,
+    expectedNoBuildCliOptionAliases,
+    expectedNoBuildCliOptions
+  );
 };
 
 describe("root preflight scripts", () => {
@@ -4176,9 +4209,7 @@ describe("root preflight scripts", () => {
       tsCoreStep.report !== null
     ) {
       expect(tsCoreStep.skipped).toBe(false);
-      expect(tsCoreStep.report.packagePath).toBe("packages/ts-core");
-      expectTimingMetadata(tsCoreStep.report);
-      expectOptionTerminatorMetadata(tsCoreStep.report);
+      expectTsCoreReportMetadata(tsCoreStep.report);
     }
     if (
       clientStep !== undefined &&
@@ -5737,6 +5768,7 @@ describe("root preflight scripts", () => {
       tsCoreStep.report !== null
     ) {
       expect(tsCoreStep.skipped).toBe(false);
+      expectTsCoreReportMetadata(tsCoreStep.report);
       expect(tsCoreStep.report.noBuild).toBe(true);
       expect(tsCoreStep.report.buildSkipped).toBe(true);
     }
@@ -5821,6 +5853,7 @@ describe("root preflight scripts", () => {
       tsCoreStep.report !== null
     ) {
       expect(tsCoreStep.skipped).toBe(false);
+      expectTsCoreReportMetadata(tsCoreStep.report);
       expect(tsCoreStep.report.noBuild).toBe(true);
       expect(tsCoreStep.report.buildSkipped).toBe(true);
     }
