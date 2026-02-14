@@ -35,11 +35,12 @@ export async function cull(
     data.byteOffset,
     data.byteOffset + data.byteLength
   );
+  const transferData = new Uint8Array(transferBuffer);
 
   return new Promise<MeshResultType>((resolve, reject) => {
     cullPool.addJob({
       message: {
-        data,
+        data: transferData,
         configs: {
           min,
           max,
