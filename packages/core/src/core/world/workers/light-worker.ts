@@ -335,6 +335,12 @@ const applyRelevantDeltas = (
     const chunkMaxY = chunkMinY + chunk.options.maxHeight;
     const chunkMaxZ = chunkMinZ + chunk.options.size;
     const voxelData = chunk.voxels;
+    const voxelValues = voxelData.data;
+    const voxelStride = voxelData.stride;
+    const voxelStrideX = voxelStride[0];
+    const voxelStrideY = voxelStride[1];
+    const voxelStrideZ = voxelStride[2];
+    const voxelOffset = voxelData.offset;
 
     const deltasLength = deltas.length;
     if (deltasLength > 0) {
@@ -370,7 +376,9 @@ const applyRelevantDeltas = (
       const lx = vx - chunkMinX;
       const ly = vy - chunkMinY;
       const lz = vz - chunkMinZ;
-      let nextRaw = voxelData.get(lx, ly, lz);
+      const voxelIndex =
+        voxelOffset + lx * voxelStrideX + ly * voxelStrideY + lz * voxelStrideZ;
+      let nextRaw = voxelValues[voxelIndex];
       const currentRaw = nextRaw;
 
       if (delta.oldVoxel !== delta.newVoxel) {
@@ -386,7 +394,7 @@ const applyRelevantDeltas = (
       }
 
       if (nextRaw !== currentRaw) {
-        voxelData.set(lx, ly, lz, nextRaw);
+        voxelValues[voxelIndex] = nextRaw;
       }
     }
   }
