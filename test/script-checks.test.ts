@@ -629,14 +629,34 @@ const expectStepSummaryMetadata = (
   expect(report.failureSummaries.map((summary) => summary.name)).toEqual(
     failedSteps
   );
+  const failedStepEntriesByName = new Map(
+    report.steps
+      .filter((step) => {
+        return step.passed === false && step.skipped === false;
+      })
+      .map((step) => {
+        return [step.name, step];
+      })
+  );
   for (const [index, summary] of report.failureSummaries.entries()) {
     const stepName = failedSteps[index];
+    const failedStepEntry = failedStepEntriesByName.get(stepName);
+    expect(failedStepEntry).toBeDefined();
+    if (failedStepEntry === undefined) {
+      throw new Error(`Missing failed step entry for ${stepName}.`);
+    }
     expect(summary.scriptName).toBe(expectedStepMetadata[stepName].scriptName);
     expect(summary.supportsNoBuild).toBe(
       expectedStepMetadata[stepName].supportsNoBuild
     );
     expect(summary.stepIndex).toBe(failedStepIndices[index]);
-    expect(summary.exitCode).toBeGreaterThan(0);
+    expect(summary.scriptName).toBe(failedStepEntry.scriptName);
+    expect(summary.supportsNoBuild).toBe(failedStepEntry.supportsNoBuild);
+    expect(summary.stepIndex).toBe(failedStepEntry.stepIndex);
+    if (typeof failedStepEntry.exitCode !== "number") {
+      throw new Error(`Missing exit code for failed step ${stepName}.`);
+    }
+    expect(summary.exitCode).toBe(failedStepEntry.exitCode);
     expect(summary.message.length).toBeGreaterThan(0);
   }
   if (report.firstFailedStep === null) {

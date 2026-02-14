@@ -666,7 +666,21 @@ const expectCheckResultScriptMetadata = (report: PreflightReport) => {
   expect(report.failureSummaries.map((entry) => entry.name).sort()).toEqual(
     report.failedChecks.slice().sort()
   );
+  const failedChecksByName = new Map(
+    report.checks
+      .filter((check) => {
+        return check.passed === false;
+      })
+      .map((check) => {
+        return [check.name, check];
+      })
+  );
   for (const entry of report.failureSummaries) {
+    const failedCheck = failedChecksByName.get(entry.name);
+    expect(failedCheck).toBeDefined();
+    if (failedCheck === undefined) {
+      throw new Error(`Missing failed check entry for ${entry.name}.`);
+    }
     expect(entry.scriptName).toBe(
       expectedAvailableCheckMetadata[
         entry.name as keyof typeof expectedAvailableCheckMetadata
@@ -678,7 +692,10 @@ const expectCheckResultScriptMetadata = (report: PreflightReport) => {
       ].supportsNoBuild
     );
     expect(entry.checkIndex).toBe(expectedAvailableChecks.indexOf(entry.name));
-    expect(entry.exitCode).toBeGreaterThanOrEqual(1);
+    expect(entry.scriptName).toBe(failedCheck.scriptName);
+    expect(entry.supportsNoBuild).toBe(failedCheck.supportsNoBuild);
+    expect(entry.checkIndex).toBe(failedCheck.checkIndex);
+    expect(entry.exitCode).toBe(failedCheck.exitCode);
     expect(entry.message.length).toBeGreaterThan(0);
   }
 };
