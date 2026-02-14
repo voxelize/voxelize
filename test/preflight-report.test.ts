@@ -3970,7 +3970,9 @@ const expectTsCoreNestedReport = (
     ).toBe(true);
   }
   if (report.exampleRuleMatched !== null && report.exampleOutputLine !== null) {
-    expect(report.exampleOutputLine).toContain("ruleMatched");
+    expect(report.exampleOutputLine).toBe(
+      `ruleMatched=${report.exampleRuleMatched ? "true" : "false"}`
+    );
   }
 };
 const expectRuntimeLibrariesNestedReport = (

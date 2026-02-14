@@ -924,7 +924,9 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
     ).toBe(true);
   }
   if (report.exampleRuleMatched !== null && report.exampleOutputLine !== null) {
-    expect(report.exampleOutputLine).toContain("ruleMatched");
+    expect(report.exampleOutputLine).toBe(
+      `ruleMatched=${report.exampleRuleMatched ? "true" : "false"}`
+    );
   }
   return report;
 };
