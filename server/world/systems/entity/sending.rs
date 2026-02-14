@@ -14,6 +14,8 @@ use crate::{
 pub struct EntitiesSendingSystem {
     updated_entities_buffer: Vec<(String, Entity)>,
     new_entity_ids_buffer: HashSet<String>,
+    deleted_entities_buffer: Vec<(String, String, String)>,
+    known_entities_to_delete_buffer: Vec<String>,
 }
 
 #[inline]
@@ -87,6 +89,8 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         self.updated_entities_buffer.clear();
         self.new_entity_ids_buffer.clear();
+        self.deleted_entities_buffer.clear();
+        self.known_entities_to_delete_buffer.clear();
 
         let (entity_visible_radius, entity_visible_radius_sq) =
             normalized_visible_radius(config.entity_visible_radius);
@@ -114,8 +118,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         let old_entity_handlers = std::mem::take(&mut physics.entity_to_handlers);
 
-        let mut deleted_entities: Vec<(String, String, String)> =
-            Vec::with_capacity(old_entities.len());
+        self.deleted_entities_buffer.reserve(old_entities.len());
 
         for (id, (etype, ent, metadata, persisted)) in old_entities.iter() {
             if updated_ids.contains(id) {
@@ -131,7 +134,8 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 physics.unregister(body_handle, collider_handle);
             }
 
-            deleted_entities.push((id.clone(), etype.clone(), metadata.to_string()));
+            self.deleted_entities_buffer
+                .push((id.clone(), etype.clone(), metadata.to_string()));
         }
 
         physics.entity_to_handlers = new_entity_handlers;
@@ -235,7 +239,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             }
         }
 
-        for (entity_id, etype, metadata_str) in &deleted_entities {
+        for (entity_id, etype, metadata_str) in &self.deleted_entities_buffer {
             for client_id in clients.keys() {
                 if let Some(known_entities) = bookkeeping.client_known_entities.get_mut(client_id)
                 {
@@ -263,29 +267,29 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             };
 
             if let Some(known_entities) = bookkeeping.client_known_entities.get_mut(client_id) {
-                let entities_to_delete: Vec<String> = known_entities
-                    .iter()
-                    .filter(|entity_id| {
-                        if let Some((etype, ..)) = new_bookkeeping_records.get(*entity_id) {
-                            if etype.starts_with("block::") {
-                                return false;
-                            }
+                let entities_to_delete = &mut self.known_entities_to_delete_buffer;
+                entities_to_delete.clear();
+                for entity_id in known_entities.iter() {
+                    if let Some((etype, ..)) = new_bookkeeping_records.get(entity_id) {
+                        if etype.starts_with("block::") {
+                            continue;
                         }
-                        if let Some(entity_pos) = entity_positions.get(*entity_id) {
-                            let dx = entity_pos.0 - client_x;
-                            let dy = entity_pos.1 - client_y;
-                            let dz = entity_pos.2 - client_z;
-                            is_outside_visible_radius_sq(dx, dy, dz, entity_visible_radius_sq)
-                        } else {
-                            true
+                    }
+                    if let Some(entity_pos) = entity_positions.get(entity_id) {
+                        let dx = entity_pos.0 - client_x;
+                        let dy = entity_pos.1 - client_y;
+                        let dz = entity_pos.2 - client_z;
+                        if is_outside_visible_radius_sq(dx, dy, dz, entity_visible_radius_sq) {
+                            entities_to_delete.push(entity_id.clone());
                         }
-                    })
-                    .cloned()
-                    .collect();
+                    } else {
+                        entities_to_delete.push(entity_id.clone());
+                    }
+                }
 
-                for entity_id in entities_to_delete {
+                for entity_id in entities_to_delete.iter() {
                     if let Some((etype, _ent, metadata, _persisted)) =
-                        new_bookkeeping_records.get(&entity_id)
+                        new_bookkeeping_records.get(entity_id)
                     {
                         client_updates
                             .entry(client_id.clone())
@@ -297,7 +301,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                                 metadata: Some(metadata.to_string()),
                             });
                     }
-                    known_entities.remove(&entity_id);
+                    known_entities.remove(entity_id);
                 }
             }
         }
