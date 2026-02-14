@@ -147,8 +147,19 @@ type PreflightReport = {
     specialSelector: number;
     invalid: number;
   };
+  requestedCheckResolvedChecks: string[];
+  requestedCheckResolvedCheckCount: number;
   requestedCheckResolvedScripts: string[];
   requestedCheckResolvedScriptCount: number;
+  requestedCheckResolvedIndices: number[];
+  requestedCheckResolvedIndexCount: number;
+  requestedCheckResolvedMetadata: Record<
+    string,
+    {
+      scriptName: string;
+      supportsNoBuild: boolean;
+    }
+  >;
   skippedChecks: string[];
   skippedCheckCount: number;
   skippedCheckIndices: number[];
@@ -526,10 +537,16 @@ const expectSelectedCheckMetadata = (report: PreflightReport) => {
   const expectedSkippedIndices = report.skippedChecks.map((checkName) => {
     return expectedAvailableChecks.indexOf(checkName);
   });
+  const expectedResolvedChecks: string[] = [];
+  const seenResolvedChecks = new Set<string>();
   const expectedResolvedScripts: string[] = [];
   const seenResolvedScripts = new Set<string>();
   for (const resolution of report.requestedCheckResolutions) {
     for (const checkName of resolution.resolvedTo) {
+      if (!seenResolvedChecks.has(checkName)) {
+        seenResolvedChecks.add(checkName);
+        expectedResolvedChecks.push(checkName);
+      }
       const scriptName =
         expectedAvailableCheckMetadata[
           checkName as keyof typeof expectedAvailableCheckMetadata
@@ -541,6 +558,19 @@ const expectSelectedCheckMetadata = (report: PreflightReport) => {
       expectedResolvedScripts.push(scriptName);
     }
   }
+  const expectedResolvedIndices = expectedResolvedChecks.map((checkName) => {
+    return expectedAvailableChecks.indexOf(checkName);
+  });
+  const expectedResolvedMetadata = Object.fromEntries(
+    expectedResolvedChecks.map((checkName) => {
+      return [
+        checkName,
+        expectedAvailableCheckMetadata[
+          checkName as keyof typeof expectedAvailableCheckMetadata
+        ],
+      ];
+    })
+  );
 
   expect(report.selectedCheckMetadata).toEqual(expectedSelectedMetadata);
   expect(report.selectedCheckScripts).toEqual(expectedSelectedScripts);
@@ -552,10 +582,19 @@ const expectSelectedCheckMetadata = (report: PreflightReport) => {
   expect(report.skippedCheckIndices).toEqual(expectedSkippedIndices);
   expect(report.skippedCheckIndexCount).toBe(report.skippedCheckIndices.length);
   expect(report.skippedCheckScriptCount).toBe(report.skippedCheckScripts.length);
+  expect(report.requestedCheckResolvedChecks).toEqual(expectedResolvedChecks);
+  expect(report.requestedCheckResolvedCheckCount).toBe(
+    report.requestedCheckResolvedChecks.length
+  );
   expect(report.requestedCheckResolvedScripts).toEqual(expectedResolvedScripts);
   expect(report.requestedCheckResolvedScriptCount).toBe(
     report.requestedCheckResolvedScripts.length
   );
+  expect(report.requestedCheckResolvedIndices).toEqual(expectedResolvedIndices);
+  expect(report.requestedCheckResolvedIndexCount).toBe(
+    report.requestedCheckResolvedIndices.length
+  );
+  expect(report.requestedCheckResolvedMetadata).toEqual(expectedResolvedMetadata);
 };
 const expectCheckResultScriptMetadata = (report: PreflightReport) => {
   const expectedPassedScripts = report.passedChecks.map((checkName) => {
