@@ -395,8 +395,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       const eqIndex = word.indexOf("=");
       if (eqIndex > 0) {
         const key = word.substring(0, eqIndex);
-        const value = word.substring(eqIndex + 1);
         if (keySet.has(key)) {
+          const value = word.substring(eqIndex + 1);
           if (rawObj[key] === undefined) {
             rawObjKeys.push(key);
           }
