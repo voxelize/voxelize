@@ -27,6 +27,12 @@ describe("BlockUtils", () => {
     }
   });
 
+  it("supports legacy ID aliases", () => {
+    const voxel = BlockUtils.insertID(0, 77);
+    expect(BlockUtils.extractID(voxel)).toBe(77);
+    expect(BlockUtils.extractId(voxel)).toBe(77);
+  });
+
   it("masks overflowing ids like u16", () => {
     const voxel = BlockUtils.insertId(0, 65537);
     expect(BlockUtils.extractId(voxel)).toBe(1);
