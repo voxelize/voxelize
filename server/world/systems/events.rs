@@ -58,6 +58,7 @@ impl<'a> System<'a> for EventsSystem {
         if events.queue.is_empty() {
             return;
         }
+        let has_transports = !transports.is_empty();
         let queued_events_count = events.queue.len();
         let dispatch_map = &mut self.dispatch_map_buffer;
         dispatch_map.retain(|id, client_events| {
@@ -80,7 +81,7 @@ impl<'a> System<'a> for EventsSystem {
         }
         let transports_map = &mut self.transports_map_buffer;
         transports_map.clear();
-        if !transports.is_empty() && transports_map.capacity() < queued_events_count {
+        if has_transports && transports_map.capacity() < queued_events_count {
             transports_map.reserve(queued_events_count - transports_map.capacity());
         }
 
@@ -97,7 +98,7 @@ impl<'a> System<'a> for EventsSystem {
             payload: payload.unwrap_or_else(|| String::from("{}")),
         };
 
-        events.queue.drain(..).for_each(|event| {
+        for event in events.queue.drain(..) {
             let Event {
                 name,
                 payload,
@@ -107,7 +108,7 @@ impl<'a> System<'a> for EventsSystem {
 
             let serialized = serialize_payload(name, payload);
 
-            if !transports.is_empty() {
+            if has_transports {
                 transports_map.push(serialized.clone());
             }
 
@@ -184,7 +185,7 @@ impl<'a> System<'a> for EventsSystem {
                     push_dispatch_event(dispatch_map, touched_clients, id, serialized.clone());
                 });
             }
-        });
+        }
 
         // Process the dispatch map, sending them directly for fastest event responses.
         for id in touched_clients.drain(..) {
@@ -201,7 +202,7 @@ impl<'a> System<'a> for EventsSystem {
             }
         }
 
-        if !transports.is_empty() {
+        if has_transports {
             let message = Message::new(&MessageType::Event)
                 .world_name(&world_metadata.world_name)
                 .events(&transports_map)
