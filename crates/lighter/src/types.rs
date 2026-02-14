@@ -82,6 +82,9 @@ impl LightBounds {
         if shape_x == 0 || shape_z == 0 {
             return false;
         }
+        if vx < start_x || vz < start_z {
+            return false;
+        }
 
         let start_x_i64 = i64::from(start_x);
         let start_z_i64 = i64::from(start_z);
