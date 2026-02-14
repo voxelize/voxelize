@@ -180,6 +180,21 @@ const isBooleanValue = (value: DynamicValue): value is boolean => {
   return typeof value === "boolean";
 };
 
+const toFaceTransparency = (value: DynamicValue): FaceTransparency => {
+  if (!Array.isArray(value)) {
+    return [false, false, false, false, false, false];
+  }
+
+  return [
+    isBooleanValue(value[0]) ? value[0] : false,
+    isBooleanValue(value[1]) ? value[1] : false,
+    isBooleanValue(value[2]) ? value[2] : false,
+    isBooleanValue(value[3]) ? value[3] : false,
+    isBooleanValue(value[4]) ? value[4] : false,
+    isBooleanValue(value[5]) ? value[5] : false,
+  ];
+};
+
 const isVec2Value = (value: DynamicValue): value is Vec2 => {
   return (
     Array.isArray(value) &&
@@ -456,29 +471,7 @@ export const createBlockConditionalPart = (
         return clonedAabbs;
       }, [])
     : [];
-  const isTransparent: FaceTransparency =
-    normalizedPart.isTransparent === undefined
-      ? [false, false, false, false, false, false]
-      : [
-          isBooleanValue(normalizedPart.isTransparent[0])
-            ? normalizedPart.isTransparent[0]
-            : false,
-          isBooleanValue(normalizedPart.isTransparent[1])
-            ? normalizedPart.isTransparent[1]
-            : false,
-          isBooleanValue(normalizedPart.isTransparent[2])
-            ? normalizedPart.isTransparent[2]
-            : false,
-          isBooleanValue(normalizedPart.isTransparent[3])
-            ? normalizedPart.isTransparent[3]
-            : false,
-          isBooleanValue(normalizedPart.isTransparent[4])
-            ? normalizedPart.isTransparent[4]
-            : false,
-          isBooleanValue(normalizedPart.isTransparent[5])
-            ? normalizedPart.isTransparent[5]
-            : false,
-        ];
+  const isTransparent = toFaceTransparency(normalizedPart.isTransparent);
   const rule = createBlockRule(normalizedPart.rule);
 
   return {

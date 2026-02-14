@@ -49,8 +49,8 @@ Both helpers also accept readonly input arrays/tuples.
 Invalid face/AABB entries are skipped during helper cloning.
 Malformed dynamic-pattern part entries are skipped during helper cloning.
 Malformed optional face fields fall back to default face values.
-Malformed rules fall back to `BLOCK_RULE_NONE`, and malformed transparency tuple
-entries fall back to `false`.
+Malformed rules fall back to `BLOCK_RULE_NONE`, and malformed transparency
+inputs (including `null`/non-array values) fall back to `false` defaults.
 Malformed `worldSpace` values fall back to `false`.
 Cyclic rule graphs are sanitized by replacing recursive edges with `none`.
 

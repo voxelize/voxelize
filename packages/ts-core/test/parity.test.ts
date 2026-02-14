@@ -981,6 +981,43 @@ describe("Type builders", () => {
     ]);
   });
 
+  it("sanitizes null and non-array transparency inputs to defaults", () => {
+    const nullTransparencyPart = createBlockConditionalPart({
+      isTransparent: null as never,
+    });
+    const scalarTransparencyPart = createBlockConditionalPart({
+      isTransparent: 1 as never,
+    });
+    const shortTransparencyPart = createBlockConditionalPart({
+      isTransparent: [true] as never,
+    });
+
+    expect(nullTransparencyPart.isTransparent).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+    expect(scalarTransparencyPart.isTransparent).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+    expect(shortTransparencyPart.isTransparent).toEqual([
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+  });
+
   it("sanitizes malformed worldSpace values to false", () => {
     const malformedWorldSpacePart = createBlockConditionalPart({
       worldSpace: "yes" as never,
