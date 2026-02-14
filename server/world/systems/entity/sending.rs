@@ -1,4 +1,4 @@
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashMap;
 use specs::{
     Entities, Join, LendJoin, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage,
 };
@@ -12,7 +12,6 @@ use crate::{
 
 #[derive(Default)]
 pub struct EntitiesSendingSystem {
-    new_entity_ids_buffer: HashSet<String>,
     deleted_entities_buffer: Vec<(String, String, String)>,
     known_entities_to_delete_buffer: Vec<String>,
     clients_with_updates_buffer: Vec<String>,
@@ -102,7 +101,6 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         ) = data;
         let _t = timing.timer("entities-sending");
 
-        self.new_entity_ids_buffer.clear();
         self.deleted_entities_buffer.clear();
         self.known_entities_to_delete_buffer.clear();
         self.clients_with_updates_buffer.clear();
@@ -124,38 +122,10 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         }
 
         let mut old_entities = std::mem::take(&mut bookkeeping.entities);
-
-        let mut updated_entity_count = 0usize;
-        for (id, _, _) in (&ids, &entities, &flags).join() {
-            updated_entity_count += 1;
-            if old_entities.remove(&id.0).is_none() {
-                self.new_entity_ids_buffer.insert(id.0.to_owned());
-            }
-        }
-
-        self.deleted_entities_buffer.reserve(old_entities.len());
-
-        for (id, (etype, ent, metadata, persisted)) in old_entities.into_iter() {
-            if persisted {
-                bg_saver.remove(&id);
-            }
-            entity_ids.remove(&id);
-
-            if let Some((collider_handle, body_handle)) = old_entity_handlers.get(&ent) {
-                physics.unregister(body_handle, collider_handle);
-            }
-
-            self.deleted_entities_buffer
-                .push((id, etype, metadata.to_string()));
-        }
-
-        physics.entity_to_handlers = new_entity_handlers;
-
-        let mut new_bookkeeping_records = HashMap::with_capacity(updated_entity_count);
-        let mut entity_positions: HashMap<String, Vec3<f32>> =
-            HashMap::with_capacity(updated_entity_count);
+        let mut new_bookkeeping_records = HashMap::with_capacity(old_entities.len());
+        let mut entity_positions: HashMap<String, Vec3<f32>> = HashMap::with_capacity(old_entities.len());
         let mut entity_metadata_map: HashMap<String, (String, String, bool)> =
-            HashMap::with_capacity(updated_entity_count);
+            HashMap::with_capacity(old_entities.len());
 
         for (ent, id, metadata, etype, _, do_not_persist, position, voxel) in (
             &entities,
@@ -169,6 +139,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         )
             .join()
         {
+            let is_new = old_entities.remove(&id.0).is_none();
             if metadata.is_empty() {
                 continue;
             }
@@ -186,13 +157,28 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 .unwrap_or(Vec3(0.0, 0.0, 0.0));
             entity_positions.insert(id.0.clone(), pos);
 
-            let is_new = self.new_entity_ids_buffer.contains(&id.0);
             let (json_str, updated) = metadata.to_cached_str();
 
             if is_new || updated {
                 entity_metadata_map.insert(id.0.clone(), (etype.0.clone(), json_str, is_new));
             }
         }
+
+        self.deleted_entities_buffer.reserve(old_entities.len());
+        for (id, (etype, ent, metadata, persisted)) in old_entities.into_iter() {
+            if persisted {
+                bg_saver.remove(&id);
+            }
+            entity_ids.remove(&id);
+
+            if let Some((collider_handle, body_handle)) = old_entity_handlers.get(&ent) {
+                physics.unregister(body_handle, collider_handle);
+            }
+
+            self.deleted_entities_buffer
+                .push((id, etype, metadata.to_string()));
+        }
+        physics.entity_to_handlers = new_entity_handlers;
 
         if clients.is_empty() {
             bookkeeping.client_known_entities.clear();
