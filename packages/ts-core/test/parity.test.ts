@@ -1085,11 +1085,15 @@ describe("Type builders", () => {
     const malformedWorldSpacePart = createBlockConditionalPart({
       worldSpace: "yes" as never,
     });
+    const nullWorldSpacePart = createBlockConditionalPart({
+      worldSpace: null,
+    });
     const validWorldSpacePart = createBlockConditionalPart({
       worldSpace: true,
     });
 
     expect(malformedWorldSpacePart.worldSpace).toBe(false);
+    expect(nullWorldSpacePart.worldSpace).toBe(false);
     expect(validWorldSpacePart.worldSpace).toBe(true);
   });
 
