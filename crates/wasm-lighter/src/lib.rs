@@ -175,11 +175,8 @@ impl BatchSpace {
         }
 
         let index = lx * chunk_column_stride + ly * chunk_size_usize + lz;
-        if index < chunk.voxels.len() && index < chunk.lights.len() {
-            Some(index)
-        } else {
-            None
-        }
+        debug_assert!(index < chunk.voxels.len() && index < chunk.lights.len());
+        Some(index)
     }
 
     fn take_modified_chunks(self) -> Vec<ModifiedChunkData> {
@@ -312,7 +309,7 @@ struct ModifiedChunkData {
     lights: Vec<u32>,
 }
 
-fn parse_chunks(chunks_data: &Array) -> Vec<Option<ChunkData>> {
+fn parse_chunks(chunks_data: &Array, expected_chunk_len: usize) -> Vec<Option<ChunkData>> {
     JS_KEYS.with(|keys| {
         let chunk_count = chunks_data.length() as usize;
         let mut chunks = Vec::with_capacity(chunk_count);
@@ -339,6 +336,10 @@ fn parse_chunks(chunks_data: &Array) -> Vec<Option<ChunkData>> {
             let mut lights = vec![0; lights_array.length() as usize];
             voxels_array.copy_to(&mut voxels);
             lights_array.copy_to(&mut lights);
+            if voxels.len() != expected_chunk_len || lights.len() != expected_chunk_len {
+                chunks.push(None);
+                continue;
+            }
 
             chunks.push(Some(ChunkData {
                 voxels,
@@ -439,7 +440,12 @@ pub fn process_light_batch_fast(
         return empty_batch_result();
     }
 
-    let chunks = parse_chunks(chunks_data);
+    let chunk_size_usize = chunk_size as usize;
+    let chunk_height = max_height as usize;
+    let expected_chunk_len = chunk_size_usize
+        .saturating_mul(chunk_height)
+        .saturating_mul(chunk_size_usize);
+    let chunks = parse_chunks(chunks_data, expected_chunk_len);
     let mut space = BatchSpace::new(
         chunks,
         chunk_grid_width,
