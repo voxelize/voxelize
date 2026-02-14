@@ -338,7 +338,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     let posIndex = 0;
     for (let keyIndex = 0; keyIndex < keys.length; keyIndex++) {
       const key = keys[keyIndex];
-      if (hasOwn.call(rawObj, key)) continue;
+      if (rawObj[key] !== undefined) continue;
       if (booleanKeys.has(key)) continue;
       if (posIndex < positionalValues.length) {
         rawObj[key] = positionalValues[posIndex];
