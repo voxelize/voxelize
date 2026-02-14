@@ -79,6 +79,13 @@ type TsCoreCheckReport = {
   requiredArtifactCountByPackage: Record<string, number>;
   requiredArtifactCount: number;
   requiredArtifactCountByPackageCount: number;
+  packageStatusMap: Record<string, "present" | "missing">;
+  packageStatusMapCount: number;
+  packageStatusCountMap: {
+    present: number;
+    missing: number;
+  };
+  packageStatusCountMapCount: number;
   artifactsPresentByPackage: Record<string, boolean>;
   artifactsPresentByPackageCount: number;
   presentArtifacts: string[];
@@ -345,6 +352,19 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
   );
   expect(report.requiredArtifactCountByPackageCount).toBe(
     Object.keys(report.requiredArtifactCountByPackage).length
+  );
+  expect(report.packageStatusMap).toEqual({
+    [report.checkedPackage]: report.artifactsPresent ? "present" : "missing",
+  });
+  expect(report.packageStatusMapCount).toBe(
+    Object.keys(report.packageStatusMap).length
+  );
+  expect(report.packageStatusCountMap).toEqual({
+    present: report.presentPackageCount,
+    missing: report.missingPackageCount,
+  });
+  expect(report.packageStatusCountMapCount).toBe(
+    Object.keys(report.packageStatusCountMap).length
   );
   expect(report.artifactsPresentByPackage).toEqual({
     [report.checkedPackage]: report.artifactsPresent,

@@ -156,6 +156,13 @@ const withBaseReportFields = (report) => {
   const requiredArtifactCountByPackage = {
     [tsCorePackageName]: requiredArtifacts.length,
   };
+  const packageStatusMap = {
+    [tsCorePackageName]: artifactsPresent ? "present" : "missing",
+  };
+  const packageStatusCountMap = {
+    present: presentPackages.length,
+    missing: missingPackages.length,
+  };
   const requiredArtifactsByPackage = {
     [tsCorePackageName]: requiredArtifacts,
   };
@@ -227,6 +234,10 @@ const withBaseReportFields = (report) => {
     checkedPackageIndexMapCount: countRecordEntries(checkedPackageIndexMap),
     checkedPackagePathMap,
     checkedPackagePathMapCount: countRecordEntries(checkedPackagePathMap),
+    packageStatusMap,
+    packageStatusMapCount: countRecordEntries(packageStatusMap),
+    packageStatusCountMap,
+    packageStatusCountMapCount: countRecordEntries(packageStatusCountMap),
     presentPackages,
     missingPackages,
     presentPackageIndices,

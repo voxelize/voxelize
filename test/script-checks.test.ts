@@ -459,6 +459,13 @@ type TsCoreJsonReport = OptionTerminatorMetadata &
   requiredArtifactCountByPackage: Record<string, number>;
   requiredArtifactCount: number;
   requiredArtifactCountByPackageCount: number;
+  packageStatusMap: Record<string, "present" | "missing">;
+  packageStatusMapCount: number;
+  packageStatusCountMap: {
+    present: number;
+    missing: number;
+  };
+  packageStatusCountMapCount: number;
   artifactsPresentByPackage: Record<string, boolean>;
   artifactsPresentByPackageCount: number;
   presentArtifacts: string[];
@@ -557,6 +564,13 @@ type RuntimeLibrariesJsonReport = OptionTerminatorMetadata &
   requiredArtifactCountByPackage: Record<string, number>;
   requiredArtifactCount: number;
   requiredArtifactCountByPackageCount: number;
+  packageStatusMap: Record<string, "present" | "missing">;
+  packageStatusMapCount: number;
+  packageStatusCountMap: {
+    present: number;
+    missing: number;
+  };
+  packageStatusCountMapCount: number;
   artifactsPresentByPackage: Record<string, boolean>;
   artifactsPresentByPackageCount: number;
   presentArtifactsByPackage: Record<string, string[]>;
@@ -1977,6 +1991,19 @@ const expectTsCoreReportMetadata = (report: TsCoreJsonReport) => {
   expect(report.requiredArtifactCountByPackageCount).toBe(
     Object.keys(report.requiredArtifactCountByPackage).length
   );
+  expect(report.packageStatusMap).toEqual({
+    [report.checkedPackage]: report.artifactsPresent ? "present" : "missing",
+  });
+  expect(report.packageStatusMapCount).toBe(
+    Object.keys(report.packageStatusMap).length
+  );
+  expect(report.packageStatusCountMap).toEqual({
+    present: report.presentPackageCount,
+    missing: report.missingPackageCount,
+  });
+  expect(report.packageStatusCountMapCount).toBe(
+    Object.keys(report.packageStatusCountMap).length
+  );
   expect(report.artifactsPresentByPackage).toEqual({
     [report.checkedPackage]: report.artifactsPresent,
   });
@@ -2212,6 +2239,14 @@ const expectRuntimeLibrariesReportMetadata = (
       return [packageReport.packageName, packageReport.artifactsPresent];
     })
   );
+  const packageStatusMap = Object.fromEntries(
+    report.packageReports.map((packageReport) => {
+      return [
+        packageReport.packageName,
+        packageReport.artifactsPresent ? "present" : "missing",
+      ];
+    })
+  );
   const presentArtifacts = report.packageReports.reduce((artifacts, packageReport) => {
     return [...artifacts, ...packageReport.presentArtifacts];
   }, [] as string[]);
@@ -2262,6 +2297,17 @@ const expectRuntimeLibrariesReportMetadata = (
   expect(report.missingPackageIndices).toEqual(missingPackageIndices);
   expect(report.missingPackageIndices.length).toBe(report.missingPackageIndexCount);
   expect(report.presentArtifactCount).toBe(presentArtifactCount);
+  expect(report.packageStatusMap).toEqual(packageStatusMap);
+  expect(report.packageStatusMapCount).toBe(
+    Object.keys(report.packageStatusMap).length
+  );
+  expect(report.packageStatusCountMap).toEqual({
+    present: report.presentPackageCount,
+    missing: report.missingPackageCount,
+  });
+  expect(report.packageStatusCountMapCount).toBe(
+    Object.keys(report.packageStatusCountMap).length
+  );
   expect(report.artifactsPresentByPackage).toEqual(artifactsPresentByPackage);
   expect(report.artifactsPresentByPackageCount).toBe(
     Object.keys(report.artifactsPresentByPackage).length

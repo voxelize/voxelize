@@ -62,6 +62,13 @@ type RuntimeLibrariesCheckReport = {
   requiredArtifactCountByPackage: Record<string, number>;
   requiredArtifactCount: number;
   requiredArtifactCountByPackageCount: number;
+  packageStatusMap: Record<string, "present" | "missing">;
+  packageStatusMapCount: number;
+  packageStatusCountMap: {
+    present: number;
+    missing: number;
+  };
+  packageStatusCountMapCount: number;
   artifactsPresentByPackage: Record<string, boolean>;
   artifactsPresentByPackageCount: number;
   presentArtifactsByPackage: Record<string, string[]>;
@@ -384,6 +391,14 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
       return [packageReport.packageName, packageReport.artifactsPresent];
     })
   );
+  const packageStatusMap = Object.fromEntries(
+    report.packageReports.map((packageReport) => {
+      return [
+        packageReport.packageName,
+        packageReport.artifactsPresent ? "present" : "missing",
+      ];
+    })
+  );
   const presentArtifacts = report.packageReports.reduce((artifacts, packageReport) => {
     return [...artifacts, ...packageReport.presentArtifacts];
   }, [] as string[]);
@@ -443,6 +458,17 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   expect(report.missingPackageIndices).toEqual(missingPackageIndices);
   expect(report.missingPackageIndices.length).toBe(report.missingPackageIndexCount);
   expect(report.presentArtifactCount).toBe(presentArtifactCount);
+  expect(report.packageStatusMap).toEqual(packageStatusMap);
+  expect(report.packageStatusMapCount).toBe(
+    Object.keys(report.packageStatusMap).length
+  );
+  expect(report.packageStatusCountMap).toEqual({
+    present: report.presentPackageCount,
+    missing: report.missingPackageCount,
+  });
+  expect(report.packageStatusCountMapCount).toBe(
+    Object.keys(report.packageStatusCountMap).length
+  );
   expect(report.artifactsPresentByPackage).toEqual(artifactsPresentByPackage);
   expect(report.artifactsPresentByPackageCount).toBe(
     Object.keys(report.artifactsPresentByPackage).length

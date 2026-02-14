@@ -174,6 +174,14 @@ const summarizePackageReports = (packageReports) => {
       return [packageReport.packageName, packageReport.artifactsPresent];
     })
   );
+  const packageStatusMap = Object.fromEntries(
+    packageReports.map((packageReport) => {
+      return [
+        packageReport.packageName,
+        packageReport.artifactsPresent ? "present" : "missing",
+      ];
+    })
+  );
   const missingPackageCount = packageReports.filter((packageReport) => {
     return packageReport.artifactsPresent === false;
   }).length;
@@ -201,6 +209,10 @@ const summarizePackageReports = (packageReports) => {
       return [packageReport.packageName, packageReport.missingArtifactCount];
     })
   );
+  const packageStatusCountMap = {
+    present: presentPackageCount,
+    missing: missingPackageCount,
+  };
   return {
     presentPackages,
     presentPackagePaths,
@@ -217,6 +229,10 @@ const summarizePackageReports = (packageReports) => {
     presentArtifacts,
     presentArtifactsByPackage,
     artifactsPresentByPackage,
+    packageStatusMap,
+    packageStatusMapCount: countRecordEntries(packageStatusMap),
+    packageStatusCountMap,
+    packageStatusCountMapCount: countRecordEntries(packageStatusCountMap),
     presentArtifactCountByPackage,
     missingPackageCount,
     missingPackagePathCount: missingPackagePaths.length,
@@ -342,6 +358,10 @@ const withBaseReportFields = (report) => {
     presentArtifacts,
     presentArtifactsByPackage,
     artifactsPresentByPackage,
+    packageStatusMap,
+    packageStatusMapCount,
+    packageStatusCountMap,
+    packageStatusCountMapCount,
     presentArtifactCountByPackage,
     missingPackageCount,
     missingPackagePathCount,
@@ -417,6 +437,10 @@ const withBaseReportFields = (report) => {
     presentArtifacts,
     presentArtifactsByPackage,
     artifactsPresentByPackage,
+    packageStatusMap,
+    packageStatusMapCount,
+    packageStatusCountMap,
+    packageStatusCountMapCount,
     presentArtifactCountByPackage,
     missingPackageCount,
     missingPackagePathCount,
