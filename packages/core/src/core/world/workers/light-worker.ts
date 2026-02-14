@@ -1213,6 +1213,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
       coords[1] >= gridMaxChunkZExclusive ||
       !(lights instanceof Uint32Array) ||
       lights.length !== expectedVoxelCount ||
+      lights.byteOffset !== 0 ||
+      lights.byteLength !== expectedChunkByteLength ||
       !isArrayBuffer(lights.buffer)
     ) {
       continue;
