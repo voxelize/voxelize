@@ -16,6 +16,7 @@ const DEFAULT_ON_BEFORE_RENDER = Object3D.prototype.onBeforeRender;
 export interface TransparentMeshData {
   centroids: Float32Array;
   faceCount: number;
+  indexVersion: number;
   positionArray: ArrayLike<number>;
   positionVersion: number;
   originalIndices: Uint16Array | Uint32Array;
@@ -88,6 +89,7 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
   return {
     centroids,
     faceCount,
+    indexVersion: getPositionVersion(geometry.index),
     positionArray: positions,
     positionVersion: getPositionVersion(positionAttr),
     originalIndices,
@@ -212,7 +214,11 @@ export function sortTransparentMesh(
     return;
   }
   const geometryIndex = mesh.geometry.index;
-  if (!geometryIndex || geometryIndex.array !== data.sortedIndices) {
+  if (
+    !geometryIndex ||
+    geometryIndex.array !== data.sortedIndices ||
+    getPositionVersion(geometryIndex) !== data.indexVersion
+  ) {
     return;
   }
 
@@ -288,6 +294,7 @@ export function sortTransparentMeshOnBeforeRender(
   if (
     !geometryIndex ||
     geometryIndex.array !== sortData.sortedIndices ||
+    getPositionVersion(geometryIndex) !== sortData.indexVersion ||
     !positionAttr ||
     positionAttr.itemSize < 3 ||
     positionAttr.array !== sortData.positionArray ||

@@ -183,6 +183,37 @@ describe("transparent sorter", () => {
     expect(refreshedSortData.sortedIndices).toBe(mesh.geometry.index?.array);
   });
 
+  it("refreshes transparent sort data when geometry index version changes", () => {
+    const mesh = new Mesh(createQuadGeometry(2), new MeshBasicMaterial());
+    const sortData = prepareTransparentMesh(mesh);
+    expect(sortData).not.toBeNull();
+    if (!sortData) {
+      return;
+    }
+
+    mesh.userData.transparentSortData = sortData;
+    const geometryIndex = mesh.geometry.index;
+    expect(geometryIndex).not.toBeNull();
+    if (!geometryIndex) {
+      return;
+    }
+    geometryIndex.needsUpdate = true;
+    const camera = new PerspectiveCamera();
+    camera.position.set(0, 0, 10);
+
+    sortTransparentMeshOnBeforeRender.call(
+      mesh,
+      {} as WebGLRenderer,
+      new Scene(),
+      camera
+    );
+
+    const refreshedSortData = mesh.userData.transparentSortData;
+    expect(refreshedSortData).not.toBe(sortData);
+    expect(refreshedSortData.indexVersion).toBeGreaterThan(sortData.indexVersion);
+    expect(refreshedSortData.indexVersion).toBeLessThanOrEqual(geometryIndex.version);
+  });
+
   it("refreshes transparent sort data when position attribute changes", () => {
     const mesh = new Mesh(createQuadGeometry(2), new MeshBasicMaterial());
     const sortData = prepareTransparentMesh(mesh);
@@ -256,6 +287,29 @@ describe("transparent sorter", () => {
     const before = Array.from(geometryIndex.array);
     const positionAttr = mesh.geometry.getAttribute("position");
     positionAttr.needsUpdate = true;
+    const camera = new PerspectiveCamera();
+    camera.position.set(0, 0, 10);
+
+    sortTransparentMesh(mesh, sortData, camera);
+
+    expect(Array.from(geometryIndex.array)).toEqual(before);
+  });
+
+  it("skips direct transparent sort when cached index version is stale", () => {
+    const mesh = new Mesh(createQuadGeometry(2), new MeshBasicMaterial());
+    const sortData = prepareTransparentMesh(mesh);
+    expect(sortData).not.toBeNull();
+    if (!sortData) {
+      return;
+    }
+
+    const geometryIndex = mesh.geometry.index;
+    expect(geometryIndex).not.toBeNull();
+    if (!geometryIndex) {
+      return;
+    }
+    const before = Array.from(geometryIndex.array);
+    geometryIndex.needsUpdate = true;
     const camera = new PerspectiveCamera();
     camera.position.set(0, 0, 10);
 
