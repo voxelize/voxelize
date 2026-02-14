@@ -398,6 +398,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     rawObjKeys.length = 0;
     const positionalValues = this.positionalValuesBuffer;
     positionalValues.length = 0;
+    const hasPositionalKeys = positionalKeys.length > 0;
 
     for (let wordIndex = 0; wordIndex < words.length; wordIndex++) {
       const word = words[wordIndex];
@@ -422,7 +423,9 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         continue;
       }
 
-      positionalValues.push(word);
+      if (hasPositionalKeys) {
+        positionalValues.push(word);
+      }
     }
 
     let posIndex = 0;
