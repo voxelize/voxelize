@@ -200,6 +200,8 @@ const mapVoxelToChunkCoordinate = (
     : Math.floor(voxel / chunkSize);
 const isValidVoxelId = (value: number) =>
   isInteger(value) && value >= 0 && value <= 0xffff;
+const isValidRotationValue = (value: number) =>
+  isInteger(value) && value >= 0 && value <= 15;
 const isValidStage = (value: number) =>
   isInteger(value) && value >= 0 && value <= 15;
 const DELTA_WRITE_VOXEL = 1;
@@ -233,7 +235,7 @@ const hasFiniteRotationValues = (
 ): rotation is RotationWithScalarFields =>
   rotation !== undefined &&
   rotation !== null &&
-  isInteger(rotation.value) &&
+  isValidRotationValue(rotation.value) &&
   Number.isFinite(rotation.yRotation);
 const hasFiniteRotation = (
   rotation: VoxelDelta["newRotation"] | null | undefined
