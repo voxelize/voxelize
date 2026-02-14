@@ -104,15 +104,6 @@ const checkNameToIndex = new Map(
     return [checkName, index];
   })
 );
-const resolveCheckIndices = (checkNames) => {
-  return checkNames.map((checkName) => {
-    const checkIndex = checkNameToIndex.get(checkName);
-    if (checkIndex === undefined) {
-      throw new Error(`Missing check index metadata for ${checkName}.`);
-    }
-    return checkIndex;
-  });
-};
 const availableCheckMetadata = Object.fromEntries(
   availableChecks.map((check) => {
     return [
@@ -124,6 +115,25 @@ const availableCheckMetadata = Object.fromEntries(
     ];
   })
 );
+const resolveCheckDetails = (checkName) => {
+  const checkMetadata = availableCheckMetadata[checkName];
+  const checkIndex = checkNameToIndex.get(checkName);
+
+  if (checkMetadata === undefined || checkIndex === undefined) {
+    throw new Error(`Missing check metadata for ${checkName}.`);
+  }
+
+  return {
+    scriptName: checkMetadata.scriptName,
+    supportsNoBuild: checkMetadata.supportsNoBuild,
+    checkIndex,
+  };
+};
+const resolveCheckIndices = (checkNames) => {
+  return checkNames.map((checkName) => {
+    return resolveCheckDetails(checkName).checkIndex;
+  });
+};
 const availableCheckAliases = {
   devEnvironment: [
     "devEnvironment",
@@ -381,8 +391,8 @@ const createRequestedCheckResolvedScripts = (resolvedChecks) => {
   const seenScripts = new Set();
 
   for (const checkName of resolvedChecks) {
-    const scriptName = availableCheckMetadata[checkName]?.scriptName;
-    if (typeof scriptName !== "string" || seenScripts.has(scriptName)) {
+    const { scriptName } = resolveCheckDetails(checkName);
+    if (seenScripts.has(scriptName)) {
       continue;
     }
 
@@ -401,17 +411,19 @@ const requestedCheckResolvedScripts = createRequestedCheckResolvedScripts(
 const requestedCheckResolvedIndices = resolveCheckIndices(requestedCheckResolvedChecks);
 const requestedCheckResolvedMetadata = Object.fromEntries(
   requestedCheckResolvedChecks.map((checkName) => {
-    return [checkName, availableCheckMetadata[checkName]];
+    const { scriptName, supportsNoBuild } = resolveCheckDetails(checkName);
+    return [checkName, { scriptName, supportsNoBuild }];
   })
 );
 const buildCheckSelectionMetadata = (checkNames) => {
   const checkMetadata = Object.fromEntries(
     checkNames.map((checkName) => {
-      return [checkName, availableCheckMetadata[checkName]];
+      const { scriptName, supportsNoBuild } = resolveCheckDetails(checkName);
+      return [checkName, { scriptName, supportsNoBuild }];
     })
   );
   const checkScripts = checkNames.map((checkName) => {
-    return availableCheckMetadata[checkName].scriptName;
+    return resolveCheckDetails(checkName).scriptName;
   });
 
   return {
