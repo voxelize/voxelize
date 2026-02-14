@@ -1,7 +1,9 @@
+import { JsonValue } from "../../../types";
+
 export interface ItemDef {
   id: number;
   name: string;
-  components: Record<string, unknown>;
+  components: Record<string, JsonValue>;
 }
 
 export function getItemComponent<T>(

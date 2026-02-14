@@ -1,4 +1,5 @@
 import type { World } from "../index";
+import { JsonValue } from "../../../types";
 
 import { getImageComp, getItemComponent, ImageComp, ItemDef } from "./item";
 import {
@@ -11,8 +12,8 @@ import { DEFAULT_BLOCK_MAX_STACK, SlotContent } from "./slot";
 export type ImageResolver = (name: string) => string;
 
 function dataEqual(
-  a: Record<string, unknown> | undefined,
-  b: Record<string, unknown> | undefined
+  a: Record<string, JsonValue> | undefined,
+  b: Record<string, JsonValue> | undefined
 ): boolean {
   if (a === b) return true;
   if (!a && !b) return true;
