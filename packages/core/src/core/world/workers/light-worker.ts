@@ -240,6 +240,9 @@ const hasFiniteRotation = (
   hasFiniteRotationValues(rotation);
 const normalizeSequenceId = (sequenceId: number) =>
   isPositiveInteger(sequenceId) ? sequenceId : 0;
+type RuntimeJobId = string | number | boolean | null | undefined | object;
+const sanitizeJobId = (jobId: RuntimeJobId) =>
+  typeof jobId === "string" ? jobId : "";
 const isValidRuleType = (
   type: BlockRule["type"] | string | undefined
 ): type is BlockRule["type"] =>
@@ -457,7 +460,7 @@ const drainPendingBatchMessagesAsEmptyResults = () => {
   for (let i = start; i < end; i++) {
     const pendingMessage = pendingBatchMessages[i];
     postEmptyBatchResult(
-      pendingMessage.jobId,
+      sanitizeJobId(pendingMessage.jobId),
       pendingMessage.lastRelevantSequenceId
     );
   }
@@ -1012,7 +1015,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
     lightOps,
     options,
   } = message;
-  const jobId = typeof message.jobId === "string" ? message.jobId : "";
+  const jobId = sanitizeJobId(message.jobId);
 
   const normalizedLastRelevantSequenceId = normalizeSequenceId(lastRelevantSequenceId);
   if (
@@ -1371,7 +1374,7 @@ onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
     } catch {
       const failedBatchMessage = message as LightBatchMessage;
       postEmptyBatchResult(
-        failedBatchMessage.jobId,
+        sanitizeJobId(failedBatchMessage.jobId),
         failedBatchMessage.lastRelevantSequenceId
       );
       return;
@@ -1382,7 +1385,7 @@ onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
   if (!registryInitialized) {
     if (registryInitializationFailed) {
       postEmptyBatchResult(
-        batchMessage.jobId,
+        sanitizeJobId(batchMessage.jobId),
         batchMessage.lastRelevantSequenceId
       );
       return;
@@ -1391,7 +1394,10 @@ onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
       const dropped = pendingBatchMessages[pendingBatchMessagesHead];
       pendingBatchMessagesHead++;
       if (dropped) {
-        postEmptyBatchResult(dropped.jobId, dropped.lastRelevantSequenceId);
+        postEmptyBatchResult(
+          sanitizeJobId(dropped.jobId),
+          dropped.lastRelevantSequenceId
+        );
       }
       normalizePendingBatchMessages();
     }
