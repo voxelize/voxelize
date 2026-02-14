@@ -3,6 +3,7 @@ import {
   BlockRotation,
   BlockRuleEvaluator,
   BlockRuleLogic,
+  createBlockRule,
   createBlockConditionalPart,
   createBlockDynamicPattern,
   Light,
@@ -92,7 +93,7 @@ const main = () => {
   );
   assert(rotatedAabb.maxY > 0, "AABB rotation failed");
 
-  const connectionRule = {
+  const connectionRule = createBlockRule({
     type: "combination",
     logic: BlockRuleLogic.And,
     rules: [
@@ -107,7 +108,7 @@ const main = () => {
         stage: 7,
       },
     ],
-  };
+  });
 
   const matched = BlockRuleEvaluator.evaluate(connectionRule, [0, 0, 0], space);
   assert(matched, "Rule evaluation failed");
