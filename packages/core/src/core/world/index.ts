@@ -3914,6 +3914,14 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
       this.registry.blocksById.set(id, block);
       this.registry.nameMap.set(lowerName, id);
       this.registry.idMap.set(id, lowerName);
+      if (block.isSeeThrough) {
+        this.transparentRenderOrderById.set(
+          id,
+          block.isFluid
+            ? TRANSPARENT_FLUID_RENDER_ORDER
+            : TRANSPARENT_RENDER_ORDER
+        );
+      }
     }
 
     this._plantBlockIds.clear();
