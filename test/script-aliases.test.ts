@@ -73,8 +73,11 @@ describe("script aliases", () => {
     expect(manifest.scripts["check:runtime:release"]).toBe(
       "pnpm run check:runtime-libraries:release"
     );
+    expect(manifest.scripts["check:preflight:runtime-libraries:release"]).toBe(
+      "pnpm run check:runtime-libraries:release && pnpm run check:preflight:runtime-libraries:verify:json"
+    );
     expect(manifest.scripts["check:preflight:runtime:release"]).toBe(
-      "pnpm run check:runtime:release && pnpm run check:preflight:runtime:verify:json"
+      "pnpm run check:preflight:runtime-libraries:release"
     );
     expect(manifest.scripts["check:ts-core"]).toBe("node ./check-ts-core.mjs");
     expect(manifest.scripts["check:ts-core:json"]).toBe(
@@ -101,11 +104,14 @@ describe("script aliases", () => {
     expect(manifest.scripts["check:typescript:release"]).toBe(
       "pnpm run check:ts-core:release"
     );
+    expect(manifest.scripts["check:preflight:ts-core:release"]).toBe(
+      "pnpm run check:ts-core:release && pnpm run check:preflight:ts-core:verify:json"
+    );
     expect(manifest.scripts["check:preflight:ts:release"]).toBe(
-      "pnpm run check:ts:release && pnpm run check:preflight:ts:verify:json"
+      "pnpm run check:preflight:ts-core:release"
     );
     expect(manifest.scripts["check:preflight:typescript:release"]).toBe(
-      "pnpm run check:typescript:release && pnpm run check:preflight:typescript:verify:json"
+      "pnpm run check:preflight:ts-core:release"
     );
     expect(manifest.scripts["check:libraries:release"]).toBe(
       "pnpm run check:ts-core:release && pnpm run check:runtime-libraries:release"

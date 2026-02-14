@@ -180,6 +180,8 @@ pnpm run check:ts-core:release
 # ts-core release workflow aliases
 pnpm run check:ts:release
 pnpm run check:typescript:release
+# ts-core aggregate preflight release workflow
+pnpm run check:preflight:ts-core:release
 # ts-core aggregate preflight release workflow aliases
 pnpm run check:preflight:ts:release
 pnpm run check:preflight:typescript:release
@@ -207,6 +209,8 @@ pnpm run check:runtime-libraries:verify:json:compact
 pnpm run check:runtime-libraries:release
 # runtime-library release workflow alias
 pnpm run check:runtime:release
+# runtime-library aggregate preflight release workflow
+pnpm run check:preflight:runtime-libraries:release
 # runtime-library aggregate preflight release workflow alias
 pnpm run check:preflight:runtime:release
 # combined library release workflow (ts-core + runtime libraries)
