@@ -5154,6 +5154,7 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
       for (let geometryIndex = 0; geometryIndex < geometries.length; geometryIndex++) {
         const geo = geometries[geometryIndex];
         const { voxel, at, faceName, indices, lights, positions, uvs } = geo;
+        const texturePosition = at && at.length ? at : undefined;
         const geometry = new BufferGeometry();
 
         geometry.setAttribute("position", new BufferAttribute(positions, 3));
@@ -5169,7 +5170,7 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
         let material = this.getBlockFaceMaterial(
           voxel,
           faceName,
-          at && at.length ? at : undefined
+          texturePosition
         );
         if (!material) {
           const block = this.getBlockById(voxel);
@@ -5177,11 +5178,11 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
           if (!face) {
             continue;
           }
-          if (!face.isolated || !at) continue;
+          if (!face.isolated || !texturePosition) continue;
           try {
             material = this.getOrCreateIsolatedBlockMaterial(
               voxel,
-              at,
+              texturePosition,
               faceName
             );
           } catch {
@@ -5191,7 +5192,7 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
         const matKey = this.makeChunkMaterialKey(
           voxel,
           faceName,
-          at && at.length ? at : undefined
+          texturePosition
         );
         let geometriesByMaterial = materialToGeometries.get(matKey);
         if (!geometriesByMaterial) {
@@ -5258,6 +5259,7 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
       for (let i = 0; i < geometries.length; i++) {
         const geo = geometries[i];
         const { voxel, at, faceName, indices, lights, positions, uvs } = geo;
+        const texturePosition = at && at.length ? at : undefined;
         const geometry = new BufferGeometry();
 
         geometry.setAttribute("position", new BufferAttribute(positions, 3));
@@ -5281,7 +5283,7 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
         let material = this.getBlockFaceMaterial(
           voxel,
           faceName,
-          at && at.length ? at : undefined
+          texturePosition
         );
         if (!material) {
           const block = this.getBlockById(voxel);
@@ -5290,7 +5292,7 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
             continue;
           }
 
-          if (!face.isolated || !at) {
+          if (!face.isolated || !texturePosition) {
             console.warn("Unlikely situation happened...");
             continue;
           }
@@ -5298,7 +5300,7 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
           try {
             material = this.getOrCreateIsolatedBlockMaterial(
               voxel,
-              at,
+              texturePosition,
               faceName
             );
           } catch (e) {
