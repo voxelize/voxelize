@@ -545,7 +545,6 @@ pub fn propagate(
                             || (z > 0 && mask[current_mask_index - shape_x] == 0 && nz);
 
                     if should_add_max {
-                        space.set_sunlight(vx, y, vz, config.max_light_level);
                         sunlight_queue.push(LightNode {
                             voxel: [vx, y, vz],
                             level: config.max_light_level,
