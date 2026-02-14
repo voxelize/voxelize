@@ -13,7 +13,7 @@ const _camWorldPos = new Vector3();
 export interface TransparentMeshData {
   centroids: Float32Array;
   faceCount: number;
-  originalIndices: Uint32Array;
+  originalIndices: Uint16Array | Uint32Array;
   sortedIndices: Uint16Array | Uint32Array;
   distances: Float32Array;
   faceOrder: Uint32Array;
@@ -54,13 +54,15 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
       (positions[i0 + 2] + positions[i1 + 2] + positions[i2 + 2]) / 3;
   }
 
+  const originalIndices =
+    indices instanceof Uint32Array ? new Uint32Array(indices) : new Uint16Array(indices);
   const sortedIndices =
-    indices instanceof Uint32Array ? indices : new Uint32Array(indices.length);
+    indices instanceof Uint32Array ? indices : new Uint16Array(indices.length);
 
   return {
     centroids,
     faceCount,
-    originalIndices: new Uint32Array(indices),
+    originalIndices,
     sortedIndices,
     distances: new Float32Array(faceCount),
     faceOrder,
