@@ -532,10 +532,13 @@ const processBatchMessage = (message: LightBatchMessage) => {
   const [gridWidth, gridDepth] = chunkGridDimensions;
   const [gridOffsetX, gridOffsetZ] = chunkGridOffset;
   const normalizedLastRelevantSequenceId = normalizeSequenceId(lastRelevantSequenceId);
+  const chunkSize = options.chunkSize;
+  const maxHeight = options.maxHeight;
+  const maxLightLevel = options.maxLightLevel;
   if (
-    !isPositiveInteger(options.chunkSize) ||
-    !isPositiveInteger(options.maxHeight) ||
-    !isValidMaxLightLevel(options.maxLightLevel)
+    !isPositiveInteger(chunkSize) ||
+    !isPositiveInteger(maxHeight) ||
+    !isValidMaxLightLevel(maxLightLevel)
   ) {
     postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
     return;
@@ -577,8 +580,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
       gridWidth,
       gridDepth,
       serializedChunks,
-      options.chunkSize,
-      options.maxHeight
+      chunkSize,
+      maxHeight
     );
     if (!hasAnyChunk) {
       serializedChunks.length = 0;
@@ -591,8 +594,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
       gridWidth,
       gridDepth,
       chunkGrid,
-      options.chunkSize,
-      options.maxHeight
+      chunkSize,
+      maxHeight
     );
     if (!hasAnyChunk) {
       chunkGrid.length = 0;
@@ -638,9 +641,9 @@ const processBatchMessage = (message: LightBatchMessage) => {
     floods,
     reusableBoundsMin,
     reusableBoundsShape,
-    options.chunkSize,
-    options.maxHeight,
-    options.maxLightLevel
+    chunkSize,
+    maxHeight,
+    maxLightLevel
   ) as WasmLightBatchResult;
   serializedChunks.length = 0;
 
