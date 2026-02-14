@@ -242,15 +242,6 @@ type TsCoreJsonReport = OptionTerminatorMetadata &
     "--no-build": string[];
   };
   availableCliOptionCanonicalMap: Record<string, string>;
-  availableSteps: string[];
-  availableStepCount: number;
-  availableStepMetadata: Record<
-    string,
-    {
-      scriptName: string;
-      supportsNoBuild: boolean;
-    }
-  >;
   validationErrorCode:
     | "output_option_missing_value"
     | "unsupported_options"
