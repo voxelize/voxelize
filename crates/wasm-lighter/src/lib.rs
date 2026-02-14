@@ -321,9 +321,7 @@ fn parse_chunks(
 
         let provided_chunk_count = chunks_data.length() as usize;
         if provided_chunk_count == 0 {
-            let mut chunks = Vec::with_capacity(expected_chunk_count);
-            chunks.resize_with(expected_chunk_count, || None);
-            return (chunks, false);
+            return (Vec::new(), false);
         }
 
         let parse_count = provided_chunk_count.min(expected_chunk_count);
@@ -371,11 +369,14 @@ fn parse_chunks(
             has_any_chunk = true;
         }
 
+        if !has_any_chunk {
+            return (Vec::new(), false);
+        }
         if parse_count < expected_chunk_count {
             chunks.resize_with(expected_chunk_count, || None);
         }
 
-        (chunks, has_any_chunk)
+        (chunks, true)
     })
 }
 
