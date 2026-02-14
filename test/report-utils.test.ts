@@ -130,6 +130,15 @@ describe("report-utils", () => {
     });
   });
 
+  it("parses the latest payload from concatenated mixed json shapes", () => {
+    expect(parseJsonOutput(`[{"step":"first"}]{"step":"second"}`)).toEqual({
+      step: "second",
+    });
+    expect(parseJsonOutput(`{"step":"first"}[{"step":"second"}]`)).toEqual([
+      { step: "second" },
+    ]);
+  });
+
   it("parses json output containing ansi color sequences", () => {
     expect(
       parseJsonOutput(
