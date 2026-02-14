@@ -28,6 +28,15 @@ describe("ChunkUtils.mapVoxelToChunkAt", () => {
     ]);
   });
 
+  it("falls back to floor division for coordinates outside int32 range", () => {
+    const vx = 2147483648;
+    const vz = -2147483649;
+    expect(ChunkUtils.mapVoxelToChunkAt(vx, vz, 16)).toEqual([
+      Math.floor(vx / 16),
+      Math.floor(vz / 16),
+    ]);
+  });
+
   it("falls back to floored voxel coords for invalid chunk sizes", () => {
     expect(ChunkUtils.mapVoxelToChunkAt(3.7, -8.2, 0)).toEqual([3, -9]);
     expect(ChunkUtils.mapVoxelToChunkAt(3.7, -8.2, Number.NaN)).toEqual([3, -9]);
