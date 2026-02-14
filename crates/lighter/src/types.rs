@@ -311,14 +311,20 @@ impl LightBlock {
         if let Some(patterns) = &self.dynamic_patterns {
             for pattern in patterns {
                 for part in &pattern.parts {
-                    if part.red_light_level.unwrap_or(0) > 0 {
-                        dynamic_torch_mask |= RED_TORCH_MASK;
+                    if let Some(red_level) = part.red_light_level {
+                        if red_level > 0 {
+                            dynamic_torch_mask |= RED_TORCH_MASK;
+                        }
                     }
-                    if part.green_light_level.unwrap_or(0) > 0 {
-                        dynamic_torch_mask |= GREEN_TORCH_MASK;
+                    if let Some(green_level) = part.green_light_level {
+                        if green_level > 0 {
+                            dynamic_torch_mask |= GREEN_TORCH_MASK;
+                        }
                     }
-                    if part.blue_light_level.unwrap_or(0) > 0 {
-                        dynamic_torch_mask |= BLUE_TORCH_MASK;
+                    if let Some(blue_level) = part.blue_light_level {
+                        if blue_level > 0 {
+                            dynamic_torch_mask |= BLUE_TORCH_MASK;
+                        }
                     }
 
                     if dynamic_torch_mask == ALL_TORCH_MASKS {
