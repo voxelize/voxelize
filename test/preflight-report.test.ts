@@ -1357,6 +1357,10 @@ const deriveExpectedTsCoreExampleFailureMessage = (report: {
     return "TypeScript core end-to-end example reported ruleMatched=false.";
   }
 
+  if (report.exampleRuleMatched !== true) {
+    return "TypeScript core end-to-end example output was invalid.";
+  }
+
   if (report.examplePayloadValid === false) {
     return "TypeScript core end-to-end example output is missing required payload fields.";
   }

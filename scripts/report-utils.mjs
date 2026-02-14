@@ -530,11 +530,7 @@ export const summarizeTsCoreExampleOutput = (output) => {
       return minValue <= rotatedAabbValue.max[index];
     });
   const examplePayloadValid =
-    exampleRuleMatched !== null &&
-    voxelValid &&
-    lightValid &&
-    rotatedAabbValid &&
-    rotatedAabbBoundsOrdered;
+    voxelValid && lightValid && rotatedAabbValid && rotatedAabbBoundsOrdered;
   const exampleOutputLine =
     typeof exampleRuleMatched === "boolean"
       ? `ruleMatched=${exampleRuleMatched ? "true" : "false"}`

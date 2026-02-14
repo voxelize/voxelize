@@ -61,6 +61,10 @@ const deriveExampleFailureMessage = (exampleCheckResult) => {
     return "TypeScript core end-to-end example reported ruleMatched=false.";
   }
 
+  if (exampleCheckResult.exampleRuleMatched !== true) {
+    return "TypeScript core end-to-end example output was invalid.";
+  }
+
   if (exampleCheckResult.examplePayloadValid === false) {
     return "TypeScript core end-to-end example output is missing required payload fields.";
   }

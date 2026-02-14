@@ -3397,6 +3397,19 @@ describe("report-utils", () => {
       examplePayloadValid: false,
       exampleOutputLine: "ruleMatched=true",
     });
+    const payloadWithoutRuleMatched = JSON.stringify({
+      voxel: { id: 42, stage: 7 },
+      light: { sunlight: 15, red: 10, green: 5, blue: 3 },
+      rotatedAabb: {
+        min: [0, 0, 0],
+        max: [1, 1, 1],
+      },
+    });
+    expect(summarizeTsCoreExampleOutput(payloadWithoutRuleMatched)).toEqual({
+      exampleRuleMatched: null,
+      examplePayloadValid: true,
+      exampleOutputLine: payloadWithoutRuleMatched,
+    });
     expect(summarizeTsCoreExampleOutput("warning: no json")).toEqual({
       exampleRuleMatched: null,
       examplePayloadValid: null,
