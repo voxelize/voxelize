@@ -395,14 +395,17 @@ const normalizePendingBatchMessages = () => {
 const hasMatchingChunkOptions = (
   chunkOptions: SerializedRawChunk["options"] | null | undefined,
   expectedChunkSize: number,
-  expectedMaxHeight: number
+  expectedMaxHeight: number,
+  expectedMaxLightLevel: number
 ) =>
   chunkOptions !== null &&
   chunkOptions !== undefined &&
   isPositiveI32(chunkOptions.size) &&
   isPositiveI32(chunkOptions.maxHeight) &&
+  isValidMaxLightLevel(chunkOptions.maxLightLevel) &&
   chunkOptions.size === expectedChunkSize &&
-  chunkOptions.maxHeight === expectedMaxHeight;
+  chunkOptions.maxHeight === expectedMaxHeight &&
+  chunkOptions.maxLightLevel === expectedMaxLightLevel;
 
 type CompatibleSerializedChunk = SerializedRawChunk & {
   voxels: ArrayBuffer;
@@ -413,6 +416,7 @@ const isCompatibleSerializedChunk = (
   chunkData: SerializedRawChunk | null | undefined,
   expectedChunkSize: number,
   expectedMaxHeight: number,
+  expectedMaxLightLevel: number,
   expectedChunkByteLength: number
 ): chunkData is CompatibleSerializedChunk => {
   if (!chunkData) {
@@ -431,7 +435,12 @@ const isCompatibleSerializedChunk = (
     isArrayBuffer(lightsBuffer) &&
     voxelsBuffer.byteLength === expectedChunkByteLength &&
     lightsBuffer.byteLength === expectedChunkByteLength &&
-    hasMatchingChunkOptions(chunkOptions, expectedChunkSize, expectedMaxHeight)
+    hasMatchingChunkOptions(
+      chunkOptions,
+      expectedChunkSize,
+      expectedMaxHeight,
+      expectedMaxLightLevel
+    )
   );
 };
 
@@ -466,6 +475,7 @@ const hasPotentialRelevantDeltaBatches = (
   gridOffsetX: number,
   gridOffsetZ: number,
   maxHeight: number,
+  maxLightLevel: number,
   chunkSize: number,
   chunkShift: number,
   expectedChunkByteLength: number
@@ -509,6 +519,7 @@ const hasPotentialRelevantDeltaBatches = (
           chunkData,
           chunkSize,
           maxHeight,
+          maxLightLevel,
           expectedChunkByteLength
         )
           ? 1
@@ -523,6 +534,7 @@ const hasPotentialRelevantDeltaBatches = (
         chunksData[chunkIndex],
         chunkSize,
         maxHeight,
+        maxLightLevel,
         expectedChunkByteLength
       )
     ) {
@@ -745,6 +757,7 @@ const deserializeChunkGrid = (
   chunkGrid: (RawChunk | null)[],
   expectedChunkSize: number,
   expectedMaxHeight: number,
+  expectedMaxLightLevel: number,
   expectedChunkByteLength: number
 ): boolean => {
   const cellCount = gridWidth * gridDepth;
@@ -758,6 +771,7 @@ const deserializeChunkGrid = (
         chunkData,
         expectedChunkSize,
         expectedMaxHeight,
+        expectedMaxLightLevel,
         expectedChunkByteLength
       )
     ) {
@@ -938,6 +952,7 @@ const serializeChunksData = (
   serialized: SerializedWasmChunk[],
   expectedChunkSize: number,
   expectedMaxHeight: number,
+  expectedMaxLightLevel: number,
   expectedChunkByteLength: number
 ): boolean => {
   const cellCount = gridWidth * gridDepth;
@@ -951,6 +966,7 @@ const serializeChunksData = (
         chunkData,
         expectedChunkSize,
         expectedMaxHeight,
+        expectedMaxLightLevel,
         expectedChunkByteLength
       )
     ) {
@@ -1096,6 +1112,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
       gridOffsetX,
       gridOffsetZ,
       maxHeight,
+      maxLightLevel,
       chunkSize,
       chunkShift,
       expectedChunkByteLength
@@ -1110,6 +1127,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
       serializedChunks,
       chunkSize,
       maxHeight,
+      maxLightLevel,
       expectedChunkByteLength
     );
     if (!hasAnyChunk) {
@@ -1125,6 +1143,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
       chunkGrid,
       chunkSize,
       maxHeight,
+      maxLightLevel,
       expectedChunkByteLength
     );
     if (!hasAnyChunk) {
