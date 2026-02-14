@@ -101,3 +101,21 @@ It executes the complete flow:
 pnpm --filter @voxelize/ts-core test
 pnpm --filter @voxelize/ts-core build
 ```
+
+## Workspace artifact checks
+
+From the repository root you can validate generated artifacts:
+
+```bash
+# ts-core artifact report (auto-builds if needed)
+pnpm run check:ts-core:json
+
+# verify-only ts-core report (no auto-build)
+pnpm run check:ts-core:verify:json
+
+# full ts-core release workflow
+pnpm run check:ts-core:release
+
+# aggregate preflight release workflow for ts-core
+pnpm run check:preflight:ts-core:release
+```
