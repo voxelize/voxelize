@@ -64,7 +64,12 @@ impl ChunkUtils {
     /// Map a voxel coordinate to a chunk coordinate.
     pub fn map_voxel_to_chunk(vx: i32, _vy: i32, vz: i32, chunk_size: usize) -> Vec2<i32> {
         let cs = normalized_chunk_size(chunk_size);
-        Vec2(vx.div_euclid(cs), vz.div_euclid(cs))
+        if (cs as u32).is_power_of_two() {
+            let shift = cs.trailing_zeros();
+            Vec2(vx >> shift, vz >> shift)
+        } else {
+            Vec2(vx.div_euclid(cs), vz.div_euclid(cs))
+        }
     }
 
     /// Map a voxel coordinate to a chunk local coordinate.
@@ -105,6 +110,13 @@ mod tests {
         let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(-17, 0, -1, 16);
         assert_eq!(cx, -2);
         assert_eq!(cz, -1);
+    }
+
+    #[test]
+    fn map_voxel_to_chunk_keeps_euclid_semantics_for_non_power_of_two_sizes() {
+        let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(-11, 0, 19, 10);
+        assert_eq!(cx, -2);
+        assert_eq!(cz, 1);
     }
 
     #[test]
