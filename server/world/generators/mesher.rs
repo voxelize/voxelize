@@ -11,6 +11,49 @@ use crate::{
 
 use super::lights::Lights;
 
+#[inline]
+fn clamp_i64_to_i32(value: i64) -> i32 {
+    value.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
+}
+
+#[inline]
+fn clamp_u128_to_i64(value: u128) -> i64 {
+    if value > i64::MAX as u128 {
+        i64::MAX
+    } else {
+        value as i64
+    }
+}
+
+#[inline]
+fn sub_chunk_y_bounds(min_y: i32, max_height: usize, sub_chunks: usize, level: u32) -> Option<(i32, i32)> {
+    if max_height == 0 || sub_chunks == 0 {
+        return None;
+    }
+
+    let level = usize::try_from(level).ok()?;
+    if level >= sub_chunks {
+        return None;
+    }
+
+    let sub_chunks_u128 = sub_chunks as u128;
+    let max_height_u128 = max_height as u128;
+    let level_u128 = level as u128;
+    let start_offset = (level_u128 * max_height_u128) / sub_chunks_u128;
+    let end_offset = ((level_u128 + 1) * max_height_u128) / sub_chunks_u128;
+    if end_offset <= start_offset {
+        return None;
+    }
+
+    let start = clamp_i64_to_i32(i64::from(min_y).saturating_add(clamp_u128_to_i64(start_offset)));
+    let end = clamp_i64_to_i32(i64::from(min_y).saturating_add(clamp_u128_to_i64(end_offset)));
+    if end <= start {
+        return None;
+    }
+
+    Some((start, end))
+}
+
 pub struct Mesher {
     pub(crate) queue: std::collections::VecDeque<Vec2<i32>>,
     pub(crate) map: HashSet<Vec2<i32>>,
@@ -133,9 +176,6 @@ impl Mesher {
                     let sub_chunks = chunk.updated_levels.clone();
                     let Vec3(min_x, min_y, min_z) = chunk.min;
                     let Vec3(max_x, _, max_z) = chunk.max;
-                    let blocks_per_sub_chunk =
-                        (space.options.max_height / space.options.sub_chunks.max(1))
-                            .min(i32::MAX as usize) as i32;
 
                     if chunk.meshes.is_none() {
                         let mut light_queues = vec![VecDeque::new(); 4];
@@ -196,15 +236,15 @@ impl Mesher {
                     let mesher_registry = registry.mesher_registry();
 
                     for level in sub_chunks {
+                        let Some((level_start_y, level_end_y)) = sub_chunk_y_bounds(
+                            min_y,
+                            space.options.max_height,
+                            space.options.sub_chunks,
+                            level,
+                        ) else {
+                            continue;
+                        };
                         let level = i32::try_from(level).unwrap_or(i32::MAX);
-
-                        let level_start_y =
-                            min_y.saturating_add(level.saturating_mul(blocks_per_sub_chunk));
-                        let level_end_y = min_y.saturating_add(
-                            level
-                                .saturating_add(1)
-                                .saturating_mul(blocks_per_sub_chunk),
-                        );
                         let min = Vec3(min_x, level_start_y, min_z);
                         let max = Vec3(max_x, level_end_y, max_z);
 
@@ -270,5 +310,40 @@ impl Mesher {
 impl Default for Mesher {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sub_chunk_y_bounds;
+
+    #[test]
+    fn sub_chunk_y_bounds_cover_full_height_for_irregular_partitions() {
+        assert_eq!(sub_chunk_y_bounds(0, 10, 3, 0), Some((0, 3)));
+        assert_eq!(sub_chunk_y_bounds(0, 10, 3, 1), Some((3, 6)));
+        assert_eq!(sub_chunk_y_bounds(0, 10, 3, 2), Some((6, 10)));
+    }
+
+    #[test]
+    fn sub_chunk_y_bounds_reject_invalid_sub_chunk_levels() {
+        assert_eq!(sub_chunk_y_bounds(0, 10, 0, 0), None);
+        assert_eq!(sub_chunk_y_bounds(0, 0, 3, 0), None);
+        assert_eq!(sub_chunk_y_bounds(0, 10, 3, 3), None);
+    }
+
+    #[test]
+    fn sub_chunk_y_bounds_clamp_to_i32_range_for_extreme_offsets() {
+        assert_eq!(
+            sub_chunk_y_bounds(0, usize::MAX, 1, 0),
+            Some((0, i32::MAX))
+        );
+        assert_eq!(
+            sub_chunk_y_bounds(i32::MAX - 1, usize::MAX, 1, 0),
+            Some((i32::MAX - 1, i32::MAX))
+        );
+        assert_eq!(
+            sub_chunk_y_bounds(i32::MIN + 1, usize::MAX, 1, 0),
+            Some((i32::MIN + 1, i32::MAX))
+        );
     }
 }
