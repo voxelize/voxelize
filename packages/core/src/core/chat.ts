@@ -213,27 +213,43 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     const tokens = this.quotedTokensBuffer;
     tokens.length = 0;
     let current = "";
-    let quoteChar: string | null = null;
+    let quoteChar = "";
+    let segmentStart = -1;
+    const length = raw.length;
 
-    for (let i = 0; i < raw.length; i++) {
+    for (let i = 0; i < length; i++) {
       const ch = raw[i];
 
-      if (quoteChar) {
+      if (quoteChar !== "") {
         if (ch === quoteChar) {
-          quoteChar = null;
-        } else {
-          current += ch;
+          if (segmentStart >= 0) {
+            current += raw.substring(segmentStart, i);
+            segmentStart = -1;
+          }
+          quoteChar = "";
         }
       } else if (ch === '"' || ch === "'") {
+        if (segmentStart >= 0) {
+          current += raw.substring(segmentStart, i);
+        }
         quoteChar = ch;
+        segmentStart = i + 1;
       } else if (ch === " ") {
+        if (segmentStart >= 0) {
+          current += raw.substring(segmentStart, i);
+          segmentStart = -1;
+        }
         if (current) {
           tokens.push(current);
           current = "";
         }
-      } else {
-        current += ch;
+      } else if (segmentStart < 0) {
+        segmentStart = i;
       }
+    }
+
+    if (segmentStart >= 0) {
+      current += raw.substring(segmentStart, length);
     }
 
     if (current) {
