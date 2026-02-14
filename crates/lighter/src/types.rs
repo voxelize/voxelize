@@ -241,6 +241,16 @@ impl LightBlock {
     }
 
     #[inline]
+    pub fn get_transparency_from_raw_voxel(&self, raw_voxel: u32) -> [bool; 6] {
+        if self.has_uniform_transparency {
+            self.is_transparent
+        } else {
+            BlockRotation::encode((raw_voxel >> 16) & 0xF, (raw_voxel >> 20) & 0xF)
+                .rotate_transparency(self.is_transparent)
+        }
+    }
+
+    #[inline]
     pub fn get_torch_light_level(&self, color: &LightColor) -> u32 {
         match color {
             LightColor::Red => self.red_light_level,

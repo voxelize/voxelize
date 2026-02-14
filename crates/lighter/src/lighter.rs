@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use voxelize_core::{BlockRotation, LightColor, LightUtils};
+use voxelize_core::{LightColor, LightUtils};
 
 use crate::types::{
     LightBlock, LightBounds, LightConfig, LightNode, LightRegistry, LightVoxelAccess,
@@ -102,26 +102,6 @@ fn set_light_level(
 }
 
 #[inline]
-fn voxel_rotation_from_raw(raw_voxel: u32) -> BlockRotation {
-    BlockRotation::encode((raw_voxel >> 16) & 0xF, (raw_voxel >> 20) & 0xF)
-}
-
-#[inline]
-fn block_and_rotation_at<'a>(
-    registry: &'a LightRegistry,
-    space: &dyn LightVoxelAccess,
-    vx: i32,
-    vy: i32,
-    vz: i32,
-) -> (&'a LightBlock, BlockRotation) {
-    let raw_voxel = space.get_raw_voxel(vx, vy, vz);
-    (
-        registry.get_block_by_id(raw_voxel & 0xFFFF),
-        voxel_rotation_from_raw(raw_voxel),
-    )
-}
-
-#[inline]
 fn torch_color_mask(color: &LightColor) -> u8 {
     match color {
         LightColor::Red => 1 << 0,
@@ -204,13 +184,14 @@ fn flood_light_from_nodes(
         }
 
         let [vx, vy, vz] = voxel;
-        let (source_block, source_rotation) = block_and_rotation_at(registry, space, vx, vy, vz);
+        let source_raw_voxel = space.get_raw_voxel(vx, vy, vz);
+        let source_block = registry.get_block_by_id(source_raw_voxel & 0xFFFF);
         let source_transparency = if !is_sunlight
             && block_emits_torch_at(source_block, vx, vy, vz, space, color, color_mask)
         {
             ALL_TRANSPARENT
         } else {
-            source_block.get_rotated_transparency(&source_rotation)
+            source_block.get_transparency_from_raw_voxel(source_raw_voxel)
         };
 
         for (direction_index, [ox, oy, oz]) in VOXEL_NEIGHBORS.iter().copied().enumerate() {
@@ -236,8 +217,9 @@ fn flood_light_from_nodes(
                 }
             }
 
-            let (n_block, n_rotation) = block_and_rotation_at(registry, space, nvx, nvy, nvz);
-            let n_transparency = n_block.get_rotated_transparency(&n_rotation);
+            let n_raw_voxel = space.get_raw_voxel(nvx, nvy, nvz);
+            let n_block = registry.get_block_by_id(n_raw_voxel & 0xFFFF);
+            let n_transparency = n_block.get_transparency_from_raw_voxel(n_raw_voxel);
 
             let reduce = if is_sunlight
                 && !n_block.light_reduce
@@ -359,8 +341,9 @@ fn collect_refill_nodes_after_removals(
                 continue;
             }
 
-            let (n_block, n_rotation) = block_and_rotation_at(registry, space, nvx, nvy, nvz);
-            let n_transparency = n_block.get_rotated_transparency(&n_rotation);
+            let n_raw_voxel = space.get_raw_voxel(nvx, nvy, nvz);
+            let n_block = registry.get_block_by_id(n_raw_voxel & 0xFFFF);
+            let n_transparency = n_block.get_transparency_from_raw_voxel(n_raw_voxel);
 
             if is_sunlight {
                 if !can_enter_into_direction(&n_transparency, direction_index) {
@@ -513,8 +496,8 @@ pub fn propagate(
                 }
 
                 let mask_index = x + z * shape_x;
-                let [px, py, pz, nx, ny, nz] = voxel_rotation_from_raw(raw_voxel)
-                    .rotate_transparency(block.is_transparent);
+                let [px, py, pz, nx, ny, nz] =
+                    block.get_transparency_from_raw_voxel(raw_voxel);
 
                 if block.is_opaque {
                     mask[mask_index] = 0;
