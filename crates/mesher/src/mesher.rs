@@ -2964,7 +2964,8 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
         i32,
         u32,
         BlockRotation,
-        BlockFace,
+        i16,
+        Option<BlockFace>,
         UV,
         bool,
         bool,
@@ -3100,28 +3101,34 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     if is_non_greedy_block {
                         processed_non_greedy.insert((vx, vy, vz));
 
-                        let mut queue_non_greedy_face = |face: &BlockFace, world_space: bool| {
-                            let uv_range = face.range;
-                            non_greedy_faces.push((
-                                vx,
-                                vy,
-                                vz,
-                                voxel_id,
-                                rotation.clone(),
-                                face.clone(),
-                                uv_range,
-                                is_see_through,
-                                is_fluid,
-                                world_space,
-                            ));
-                        };
+                        let mut queue_non_greedy_face =
+                            |face: &BlockFace, face_index: Option<i16>, world_space: bool| {
+                                let uv_range = face.range;
+                                non_greedy_faces.push((
+                                    vx,
+                                    vy,
+                                    vz,
+                                    voxel_id,
+                                    rotation.clone(),
+                                    face_index.unwrap_or(-1),
+                                    if face_index.is_some() {
+                                        None
+                                    } else {
+                                        Some(face.clone())
+                                    },
+                                    uv_range,
+                                    is_see_through,
+                                    is_fluid,
+                                    world_space,
+                                ));
+                            };
                         if use_static_faces {
-                            for face in &block.faces {
-                                queue_non_greedy_face(face, false);
+                            for (face_index, face) in block.faces.iter().enumerate() {
+                                queue_non_greedy_face(face, Some(face_index as i16), false);
                             }
                         } else {
                             for (face, world_space) in faces.iter() {
-                                queue_non_greedy_face(face, *world_space);
+                                queue_non_greedy_face(face, None, *world_space);
                             }
                         }
                         continue;
@@ -3146,7 +3153,10 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         if use_static_faces && !block_needs_face_rotation && cache_ready {
                             let face_index = block.greedy_face_indices[dir_index];
                             if face_index >= 0 {
-                                block.faces.get(face_index as usize)
+                                block
+                                    .faces
+                                    .get(face_index as usize)
+                                    .map(|face| (face_index, face))
                             } else {
                                 None
                             }
@@ -3188,76 +3198,82 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
 
                     let mut cached_neighbors = None;
                     let mut cached_ao_light: Option<([i32; 4], [i32; 4])> = None;
-                    let mut process_candidate_face = |face: &BlockFace, world_space: bool| {
-                        if !face_matches_direction(face, world_space) {
-                            return;
-                        }
-                        let uv_range = face.range;
+                    let mut process_candidate_face =
+                        |face: &BlockFace, face_index: Option<i16>, world_space: bool| {
+                            if !face_matches_direction(face, world_space) {
+                                return;
+                            }
+                            let uv_range = face.range;
 
-                        if face.isolated {
-                            non_greedy_faces.push((
-                                vx,
-                                vy,
-                                vz,
-                                voxel_id,
-                                rotation.clone(),
-                                face.clone(),
-                                uv_range,
-                                is_see_through,
-                                is_fluid,
-                                world_space,
-                            ));
-                            return;
-                        }
-
-                        let (aos, lights) = *cached_ao_light.get_or_insert_with(|| {
-                            let neighbors = cached_neighbors.get_or_insert_with(|| {
-                                populate_neighbors_for_face_processing(
+                            if face.isolated {
+                                non_greedy_faces.push((
                                     vx,
                                     vy,
                                     vz,
-                                    space,
-                                    skip_opaque_checks,
-                                )
+                                    voxel_id,
+                                    rotation.clone(),
+                                    face_index.unwrap_or(-1),
+                                    if face_index.is_some() {
+                                        None
+                                    } else {
+                                        Some(face.clone())
+                                    },
+                                    uv_range,
+                                    is_see_through,
+                                    is_fluid,
+                                    world_space,
+                                ));
+                                return;
+                            }
+
+                            let (aos, lights) = *cached_ao_light.get_or_insert_with(|| {
+                                let neighbors = cached_neighbors.get_or_insert_with(|| {
+                                    populate_neighbors_for_face_processing(
+                                        vx,
+                                        vy,
+                                        vz,
+                                        space,
+                                        skip_opaque_checks,
+                                    )
+                                });
+                                compute_face_ao_and_light(dir_index, block, neighbors, registry)
                             });
-                            compute_face_ao_and_light(dir_index, block, neighbors, registry)
-                        });
 
-                        let key = FaceKey {
-                            block_id: block.id,
-                            face_name: if face.independent {
-                                Some(face_name_owned(face))
-                            } else {
-                                None
-                            },
-                            face_index: -1,
-                            independent: face.independent,
-                            ao: aos,
-                            light: lights,
-                            uv_start_u: (uv_range.start_u * 1000000.0) as u32,
-                            uv_end_u: (uv_range.end_u * 1000000.0) as u32,
-                            uv_start_v: (uv_range.start_v * 1000000.0) as u32,
-                            uv_end_v: (uv_range.end_v * 1000000.0) as u32,
-                        };
+                            let key = FaceKey {
+                                block_id: block.id,
+                                face_name: if face.independent {
+                                    Some(face_name_owned(face))
+                                } else {
+                                    None
+                                },
+                                face_index: -1,
+                                independent: face.independent,
+                                ao: aos,
+                                light: lights,
+                                uv_start_u: (uv_range.start_u * 1000000.0) as u32,
+                                uv_end_u: (uv_range.end_u * 1000000.0) as u32,
+                                uv_start_v: (uv_range.start_v * 1000000.0) as u32,
+                                uv_end_v: (uv_range.end_v * 1000000.0) as u32,
+                            };
 
-                        let data = FaceData {
-                            key,
-                            uv_range,
-                            is_fluid,
+                            let data = FaceData {
+                                key,
+                                uv_range,
+                                is_fluid,
+                            };
+                            let current_mask_index =
+                                (v - v_range.0) as usize * mask_width + u_mask_offset;
+                            greedy_mask[current_mask_index] = Some(data);
                         };
-                        let current_mask_index =
-                            (v - v_range.0) as usize * mask_width + u_mask_offset;
-                        greedy_mask[current_mask_index] = Some(data);
-                    };
-                    if let Some(face) = direct_face {
-                        process_candidate_face(face, false);
+                    if let Some((face_index, face)) = direct_face {
+                        process_candidate_face(face, Some(face_index), false);
                     } else if use_static_faces {
-                        for face in &block.faces {
-                            process_candidate_face(face, false);
+                        for (face_index, face) in block.faces.iter().enumerate() {
+                            process_candidate_face(face, Some(face_index as i16), false);
                         }
                     } else {
                         for (face, world_space) in faces.iter() {
-                            process_candidate_face(face, *world_space);
+                            process_candidate_face(face, None, *world_space);
                         }
                     }
                 }
@@ -3351,7 +3367,8 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                 vz,
                 voxel_id,
                 rotation,
-                face,
+                face_index,
+                face_owned,
                 uv_range,
                 is_see_through,
                 is_fluid,
@@ -3378,7 +3395,18 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     }
                 };
 
-                let geo_key = geometry_key_for_face(block, &face, vx, vy, vz);
+                let face = if face_index >= 0 {
+                    match block.faces.get(face_index as usize) {
+                        Some(face) => face,
+                        None => continue,
+                    }
+                } else {
+                    match face_owned.as_ref() {
+                        Some(face) => face,
+                        None => continue,
+                    }
+                };
+                let geo_key = geometry_key_for_face(block, face, vx, vy, vz);
 
                 let geometry = map.entry(geo_key).or_insert_with(|| {
                     let face_name = if face.independent || face.isolated {
@@ -3432,7 +3460,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     vz,
                     voxel_id,
                     &rotation,
-                    &face,
+                    face,
                     &uv_range,
                     block,
                     registry,
