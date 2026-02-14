@@ -380,16 +380,6 @@ pub fn process_light_batch_fast(
         return empty_batch_result();
     }
 
-    let chunks = parse_chunks(chunks_data);
-    let mut space = BatchSpace::new(
-        chunks,
-        chunk_grid_width,
-        chunk_grid_depth,
-        [grid_offset_x, grid_offset_z],
-        chunk_size,
-        max_height.max(0) as u32,
-    );
-
     let light_color = LightColor::from(color);
     let (removal_nodes, flood_nodes): (Vec<[i32; 3]>, Vec<LightNode>) = JS_KEYS.with(|keys| {
         let removal_nodes = if Reflect::get(&removals, &keys.length)
@@ -414,6 +404,19 @@ pub fn process_light_batch_fast(
         };
         (removal_nodes, flood_nodes)
     });
+    if removal_nodes.is_empty() && flood_nodes.is_empty() {
+        return empty_batch_result();
+    }
+
+    let chunks = parse_chunks(chunks_data);
+    let mut space = BatchSpace::new(
+        chunks,
+        chunk_grid_width,
+        chunk_grid_depth,
+        [grid_offset_x, grid_offset_z],
+        chunk_size,
+        max_height.max(0) as u32,
+    );
 
     let bounds = if bounds_min.len() >= 3 && bounds_shape.len() >= 3 {
         Some(LightBounds {
