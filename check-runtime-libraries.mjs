@@ -56,12 +56,17 @@ const resolvePackageReport = (library) => {
     const absoluteArtifactPath = path.resolve(repositoryRoot, artifactPath);
     return !fs.existsSync(absoluteArtifactPath);
   });
+  const missingArtifactSet = new Set(missingArtifacts);
+  const presentArtifacts = library.requiredArtifacts.filter((artifactPath) => {
+    return !missingArtifactSet.has(artifactPath);
+  });
   const presentArtifactCount = library.requiredArtifacts.length - missingArtifacts.length;
   return {
     packageName: library.packageName,
     packagePath: library.packagePath,
     requiredArtifacts: library.requiredArtifacts,
     requiredArtifactCount: library.requiredArtifacts.length,
+    presentArtifacts,
     presentArtifactCount,
     missingArtifacts,
     missingArtifactCount: missingArtifacts.length,

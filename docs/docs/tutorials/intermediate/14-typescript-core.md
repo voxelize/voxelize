@@ -187,6 +187,8 @@ Runtime-library JSON reports include package/build diagnostics such as
 `missingArtifactCount`,
 `buildCommand`, `buildArgs`, `buildExitCode`, `buildDurationMs`,
 `attemptedBuild`, `buildSkipped`, and `buildSkippedReason`.
+Each `packageReports` entry includes `requiredArtifacts`, `presentArtifacts`,
+and `missingArtifacts` for package-level artifact diagnostics.
 
 ## API reference
 

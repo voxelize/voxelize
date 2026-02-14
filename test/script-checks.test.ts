@@ -207,6 +207,7 @@ type RuntimeLibrariesJsonPackageReport = {
   packagePath: string;
   requiredArtifacts: string[];
   requiredArtifactCount: number;
+  presentArtifacts: string[];
   presentArtifactCount: number;
   missingArtifacts: string[];
   missingArtifactCount: number;
@@ -565,10 +566,16 @@ const expectRuntimeLibrariesReportMetadata = (
       packageReport.requiredArtifacts.length
     );
     expect(packageReport.presentArtifactCount).toBe(
+      packageReport.presentArtifacts.length
+    );
+    expect(packageReport.presentArtifactCount).toBe(
       packageReport.requiredArtifactCount - packageReport.missingArtifactCount
     );
     expect(packageReport.missingArtifactCount).toBe(
       packageReport.missingArtifacts.length
+    );
+    expect([...packageReport.presentArtifacts, ...packageReport.missingArtifacts].sort()).toEqual(
+      [...packageReport.requiredArtifacts].sort()
     );
   }
   expect(typeof report.buildCommand).toBe("string");
