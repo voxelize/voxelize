@@ -328,6 +328,24 @@ fn test_chunk_contains_handles_extreme_coordinate_deltas_without_overflow() {
 }
 
 #[test]
+fn test_chunk_get_max_height_returns_zero_outside_chunk_bounds() {
+    let chunk = Chunk::new(
+        "chunk-height-bounds",
+        0,
+        0,
+        &ChunkOptions {
+            size: 16,
+            max_height: 16,
+            sub_chunks: 1,
+        },
+    );
+
+    assert_eq!(chunk.get_max_height(0, 0), 0);
+    assert_eq!(chunk.get_max_height(16, 0), 0);
+    assert_eq!(chunk.get_max_height(0, 16), 0);
+}
+
+#[test]
 fn test_out_of_range_voxel_rotation_defaults_to_py() {
     let config = WorldConfig {
         chunk_size: 16,

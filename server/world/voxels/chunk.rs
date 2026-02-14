@@ -288,10 +288,10 @@ impl VoxelAccess for Chunk {
 
     /// Get the max height of a voxel column.
     ///
-    /// Returns `max_height` if it's not within the chunk.
+    /// Returns `0` if it's not within the chunk.
     fn get_max_height(&self, vx: i32, vz: i32) -> u32 {
         if !self.contains(vx, 0, vz) {
-            return self.options.max_height as u32;
+            return 0;
         }
 
         let Vec3(lx, _, lz) = self.to_local(vx, 0, vz);
