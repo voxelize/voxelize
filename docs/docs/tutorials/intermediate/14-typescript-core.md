@@ -60,6 +60,7 @@ inputs (including `null`/non-array values) fall back to `false` defaults.
 Extra transparency entries beyond six face slots are ignored.
 `createBlockRule` normalizes `null` simple-rule optional fields (`id`,
 `rotation`, `stage`) to omitted constraints.
+Nullable combination sub-rules are normalized to deterministic `none` entries.
 `createBlockRule` also accepts readonly rule-tree arrays/tuples for literal
 authoring ergonomics.
 Malformed `worldSpace` values fall back to `false`.

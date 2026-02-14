@@ -159,7 +159,7 @@ export type BlockRuleInput =
   | {
       type: "combination";
       logic: BlockRuleLogic;
-      rules: readonly BlockRuleInput[];
+      rules: readonly (BlockRuleInput | null | undefined)[];
     };
 
 export const BLOCK_RULE_NONE: BlockRule = { type: "none" };

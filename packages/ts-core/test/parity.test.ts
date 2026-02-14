@@ -1423,6 +1423,40 @@ describe("Type builders", () => {
     });
   });
 
+  it("sanitizes nullable combination sub-rules to none rules", () => {
+    const sanitizedRule = createBlockRule({
+      type: "combination",
+      logic: BlockRuleLogic.And,
+      rules: [
+        null,
+        undefined,
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 5,
+        },
+      ],
+    });
+
+    expect(sanitizedRule).toEqual({
+      type: "combination",
+      logic: BlockRuleLogic.And,
+      rules: [
+        {
+          type: "none",
+        },
+        {
+          type: "none",
+        },
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 5,
+        },
+      ],
+    });
+  });
+
   it("sanitizes malformed createBlockRule inputs to none rules", () => {
     const malformedRule = createBlockRule({
       type: "simple",

@@ -93,6 +93,7 @@ const voxel = Voxel.pack({
   - clones and sanitizes rule definitions with deterministic `none` fallbacks
   - breaks cyclic rule graphs safely by replacing cycle edges with `none`
   - accepts readonly rule-tree arrays/tuples for ergonomic literal input
+  - normalizes nullable combination sub-rules to deterministic `none` entries
   - normalizes `null` optional simple-rule fields (`id`/`rotation`/`stage`) to
     omitted constraints
 - `createBlockDynamicPattern`
