@@ -413,6 +413,11 @@ const processBatchMessage = (message: LightBatchMessage) => {
 
   const [gridWidth, gridDepth] = chunkGridDimensions;
   const [gridOffsetX, gridOffsetZ] = chunkGridOffset;
+  const cellCount = gridWidth * gridDepth;
+  if (cellCount === 0 || chunksData.length < cellCount) {
+    postEmptyBatchResult(jobId, 0);
+    return;
+  }
   reusableChunkShape[0] = options.chunkSize;
   reusableChunkShape[1] = options.maxHeight;
   reusableChunkShape[2] = options.chunkSize;
