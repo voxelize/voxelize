@@ -351,10 +351,31 @@ const drainPendingBatchMessagesAsEmptyResults = () => {
   pendingBatchMessagesHead = 0;
 };
 
-const hasPotentialRelevantDeltaBatches = (deltaBatches: DeltaBatch[]) => {
+const hasPotentialRelevantDeltaBatches = (
+  deltaBatches: DeltaBatch[],
+  gridWidth: number,
+  gridDepth: number,
+  gridOffsetX: number,
+  gridOffsetZ: number
+) => {
   for (let batchIndex = 0; batchIndex < deltaBatches.length; batchIndex++) {
     const deltaBatch = deltaBatches[batchIndex];
     if (!deltaBatch || typeof deltaBatch !== "object") {
+      continue;
+    }
+    const cx = deltaBatch.cx;
+    const cz = deltaBatch.cz;
+    if (!isInteger(cx) || !isInteger(cz)) {
+      continue;
+    }
+    const localX = cx - gridOffsetX;
+    const localZ = cz - gridOffsetZ;
+    if (
+      localX < 0 ||
+      localX >= gridWidth ||
+      localZ < 0 ||
+      localZ >= gridDepth
+    ) {
       continue;
     }
     const deltas = deltaBatch.deltas;
@@ -898,7 +919,14 @@ const processBatchMessage = (message: LightBatchMessage) => {
     ? relevantDeltas
     : emptyDeltaBatches;
   const hasPotentialRelevantDelta =
-    deltaBatches.length > 0 && hasPotentialRelevantDeltaBatches(deltaBatches);
+    deltaBatches.length > 0 &&
+    hasPotentialRelevantDeltaBatches(
+      deltaBatches,
+      gridWidth,
+      gridDepth,
+      gridOffsetX,
+      gridOffsetZ
+    );
   const chunkGrid = hasPotentialRelevantDelta ? reusableChunkGrid : emptyChunkGrid;
 
   if (!hasPotentialRelevantDelta) {
