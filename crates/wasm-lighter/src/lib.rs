@@ -435,6 +435,22 @@ fn compute_max_chunk_coordinate(grid_offset: i32, grid_extent: usize) -> Option<
     grid_offset.checked_add(extent_i32 - 1)
 }
 
+#[inline]
+fn compute_expected_chunk_sizes(
+    chunk_size: i32,
+    max_height: i32,
+    chunk_grid_width: usize,
+    chunk_grid_depth: usize,
+) -> Option<(usize, usize)> {
+    let chunk_size_usize = usize::try_from(chunk_size).ok()?;
+    let chunk_height = usize::try_from(max_height).ok()?;
+    let expected_chunk_len = chunk_size_usize
+        .checked_mul(chunk_height)?
+        .checked_mul(chunk_size_usize)?;
+    let expected_chunk_count = chunk_grid_width.checked_mul(chunk_grid_depth)?;
+    Some((expected_chunk_len, expected_chunk_count))
+}
+
 #[wasm_bindgen]
 pub fn init() {}
 
@@ -510,15 +526,12 @@ pub fn process_light_batch_fast(
         return empty_batch_result();
     };
 
-    let chunk_size_usize = chunk_size as usize;
-    let chunk_height = max_height as usize;
-    let Some(expected_chunk_len) = chunk_size_usize
-        .checked_mul(chunk_height)
-        .and_then(|value| value.checked_mul(chunk_size_usize))
-    else {
-        return empty_batch_result();
-    };
-    let Some(expected_chunk_count) = chunk_grid_width.checked_mul(chunk_grid_depth) else {
+    let Some((expected_chunk_len, expected_chunk_count)) = compute_expected_chunk_sizes(
+        chunk_size,
+        max_height,
+        chunk_grid_width,
+        chunk_grid_depth,
+    ) else {
         return empty_batch_result();
     };
     let Some(max_chunk_x) = compute_max_chunk_coordinate(grid_offset_x, chunk_grid_width) else {
@@ -757,5 +770,17 @@ mod tests {
         assert_eq!(super::compute_max_chunk_coordinate(0, 0), None);
         assert_eq!(super::compute_max_chunk_coordinate(i32::MAX, 2), None);
         assert_eq!(super::compute_max_chunk_coordinate(0, usize::MAX), None);
+    }
+
+    #[test]
+    fn compute_expected_chunk_sizes_detects_overflow_and_invalid_dimensions() {
+        assert_eq!(
+            super::compute_expected_chunk_sizes(16, 64, 3, 2),
+            Some((16 * 64 * 16, 6))
+        );
+        assert_eq!(super::compute_expected_chunk_sizes(0, 64, 1, 1), Some((0, 1)));
+        assert_eq!(super::compute_expected_chunk_sizes(16, -1, 1, 1), None);
+        assert_eq!(super::compute_expected_chunk_sizes(i32::MAX, i32::MAX, 2, 2), None);
+        assert_eq!(super::compute_expected_chunk_sizes(16, 64, usize::MAX, 2), None);
     }
 }
