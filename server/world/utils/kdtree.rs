@@ -252,14 +252,14 @@ impl KdTree {
     where
         F: Fn(EntityId) -> bool,
     {
-        let to_remove: Vec<(EntityId, EntityKind)> = self
+        let to_remove: Vec<EntityId> = self
             .kind_map
             .iter()
             .filter(|(&id, _)| !f(id))
-            .map(|(&id, &kind)| (id, kind))
+            .map(|(&id, _)| id)
             .collect();
 
-        for (ent_id, _) in to_remove {
+        for ent_id in to_remove {
             self.remove_entity_by_id(ent_id);
         }
     }
