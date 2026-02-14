@@ -15,7 +15,6 @@ export interface TransparentMeshData {
   faceCount: number;
   originalIndices: Uint16Array | Uint32Array;
   sortedIndices: Uint16Array | Uint32Array;
-  distances: Float32Array;
   faceOrder: Uint32Array;
   lastCameraPos: Vector3;
   sortKeys: Uint32Array;
@@ -63,7 +62,6 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
     faceCount,
     originalIndices,
     sortedIndices,
-    distances: new Float32Array(faceCount),
     faceOrder,
     lastCameraPos: new Vector3(Infinity, Infinity, Infinity),
     sortKeys: new Uint32Array(faceCount),
@@ -188,15 +186,13 @@ export function sortTransparentMesh(
   lastCameraPos.y = camY;
   lastCameraPos.z = camZ;
 
-  const { centroids, faceCount, distances, faceOrder, sortKeys, sortTemp } =
-    data;
+  const { centroids, faceCount, faceOrder, sortKeys, sortTemp } = data;
 
   for (let f = 0, centroidIndex = 0; f < faceCount; f++, centroidIndex += 3) {
     const cx = centroids[centroidIndex] - camX;
     const cy = centroids[centroidIndex + 1] - camY;
     const cz = centroids[centroidIndex + 2] - camZ;
     const distance = cx * cx + cy * cy + cz * cz;
-    distances[f] = distance;
     _floatView[0] = distance;
     const bits = _intView[0];
     sortKeys[f] = bits ^ (-(bits >> 31) | 0x80000000) ^ 0xffffffff;
