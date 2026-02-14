@@ -250,6 +250,21 @@ const fn default_greedy_face_indices() -> [i16; 6] {
 }
 
 #[inline]
+fn compute_greedy_face_indices(faces: &[BlockFace]) -> [i16; 6] {
+    let mut indices = default_greedy_face_indices();
+    for (face_index, face) in faces.iter().enumerate() {
+        if let Some(dir_index) = cardinal_dir_index(face.dir) {
+            if indices[dir_index] == -1 {
+                indices[dir_index] = face_index as i16;
+            } else {
+                indices[dir_index] = -2;
+            }
+        }
+    }
+    indices
+}
+
+#[inline]
 fn is_full_cube_from_aabbs(aabbs: &[AABB]) -> bool {
     aabbs.len() == 1
         && (aabbs[0].min_x - 0.0).abs() < f32::EPSILON
@@ -2971,6 +2986,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
         bool,
         bool,
     )> = Vec::new();
+    let mut uncached_greedy_face_indices_by_block: HashMap<u32, [i16; 6]> = HashMap::new();
 
     for (dir, dir_index) in GREEDY_DIRECTIONS_WITH_INDEX {
         let [dx, dy, dz] = dir;
@@ -3080,6 +3096,15 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         block.has_dynamic_patterns_cached()
                     };
                     let use_static_faces = !has_standard_six_faces && !has_dynamic_patterns;
+                    let uncached_face_indices = if use_static_faces && !cache_ready {
+                        Some(
+                            *uncached_greedy_face_indices_by_block
+                                .entry(block.id)
+                                .or_insert_with(|| compute_greedy_face_indices(&block.faces)),
+                        )
+                    } else {
+                        None
+                    };
                     faces.clear();
                     if has_standard_six_faces {
                         for face in create_fluid_faces(vx, vy, vz, block.id, space, block, registry)
@@ -3149,22 +3174,35 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         effective_dir == dir
                     };
 
-                    let direct_face =
-                        if use_static_faces && !block_needs_face_rotation && cache_ready {
-                            let face_index = block.greedy_face_indices[dir_index];
-                            if face_index >= 0 {
-                                block
-                                    .faces
-                                    .get(face_index as usize)
-                                    .map(|face| (face_index, face))
-                            } else {
-                                None
-                            }
+                    let cached_face_index = if use_static_faces && !block_needs_face_rotation {
+                        if cache_ready {
+                            Some(block.greedy_face_indices[dir_index])
+                        } else {
+                            uncached_face_indices.map(|indices| indices[dir_index])
+                        }
+                    } else {
+                        None
+                    };
+                    let direct_face = if let Some(face_index) = cached_face_index {
+                        if face_index >= 0 {
+                            block
+                                .faces
+                                .get(face_index as usize)
+                                .map(|face| (face_index, face))
                         } else {
                             None
-                        };
-                    let has_matching_face = if direct_face.is_some() {
-                        true
+                        }
+                    } else {
+                        None
+                    };
+                    let has_matching_face = if let Some(face_index) = cached_face_index {
+                        if face_index == -1 {
+                            false
+                        } else if face_index >= 0 {
+                            direct_face.is_some()
+                        } else {
+                            true
+                        }
                     } else if use_static_faces {
                         block
                             .faces
