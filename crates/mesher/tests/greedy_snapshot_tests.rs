@@ -562,6 +562,44 @@ fn assert_greedy_parity(space: &TestSpace, registry: &Registry) {
     );
 }
 
+fn assert_cached_uncached_parity(space: &TestSpace, cached_registry: &Registry, uncached_registry: &Registry) {
+    let min = [0, 0, 0];
+    let max = [space.shape[0] as i32, space.shape[1] as i32, space.shape[2] as i32];
+
+    let greedy_cached = canonicalize(mesh_space_greedy::<TestSpace>(
+        &min,
+        &max,
+        space,
+        cached_registry,
+    ));
+    let greedy_uncached = canonicalize(mesh_space_greedy::<TestSpace>(
+        &min,
+        &max,
+        space,
+        uncached_registry,
+    ));
+    assert_eq!(greedy_cached, greedy_uncached);
+
+    let legacy_cached = canonicalize(mesh_space_greedy_legacy::<TestSpace>(
+        &min,
+        &max,
+        space,
+        cached_registry,
+    ));
+    let legacy_uncached = canonicalize(mesh_space_greedy_legacy::<TestSpace>(
+        &min,
+        &max,
+        space,
+        uncached_registry,
+    ));
+    assert_eq!(legacy_cached, legacy_uncached);
+
+    let non_greedy_cached = canonicalize(mesh_space::<TestSpace>(&min, &max, space, cached_registry));
+    let non_greedy_uncached =
+        canonicalize(mesh_space::<TestSpace>(&min, &max, space, uncached_registry));
+    assert_eq!(non_greedy_cached, non_greedy_uncached);
+}
+
 fn seeded_next(seed: &mut u32) -> u32 {
     *seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
     *seed
@@ -964,25 +1002,56 @@ fn parity_matches_with_uncached_registry() {
         }
     }
 
-    let min = [0, 0, 0];
-    let max = [10, 8, 10];
+    assert_cached_uncached_parity(&space, &registry_cached, &registry_uncached);
+}
 
-    let greedy_cached = canonicalize(mesh_space_greedy::<TestSpace>(
-        &min,
-        &max,
-        &space,
-        &registry_cached,
-    ));
-    let greedy_uncached = canonicalize(mesh_space_greedy::<TestSpace>(
-        &min,
-        &max,
-        &space,
-        &registry_uncached,
-    ));
-    assert_eq!(greedy_cached, greedy_uncached);
+#[test]
+fn parity_matches_with_uncached_registry_across_randomized_seeds() {
+    let registry_cached = build_registry();
+    let registry_uncached = build_registry_uncached();
 
-    let non_greedy_cached = canonicalize(mesh_space::<TestSpace>(&min, &max, &space, &registry_cached));
-    let non_greedy_uncached =
-        canonicalize(mesh_space::<TestSpace>(&min, &max, &space, &registry_uncached));
-    assert_eq!(non_greedy_cached, non_greedy_uncached);
+    for seed_base in 0..12u32 {
+        let mut space = TestSpace::new([8, 6, 8]);
+        let mut seed = 0xA5A5_A5A5u32 ^ seed_base.wrapping_mul(747796405);
+
+        for x in 0..8 {
+            for z in 0..8 {
+                for y in 0..5 {
+                    let value = seeded_next(&mut seed) % 12;
+                    if value == 0 {
+                        continue;
+                    }
+                    if value == 4 {
+                        let stage = seeded_next(&mut seed) % 8;
+                        space.set_voxel_stage(x, y, z, value, stage);
+                    } else if value == 8 {
+                        let rotation = match seeded_next(&mut seed) % 4 {
+                            0 => BlockRotation::PY(0.0),
+                            1 => BlockRotation::PY(std::f32::consts::FRAC_PI_2),
+                            2 => BlockRotation::PY(std::f32::consts::PI),
+                            _ => BlockRotation::PY(std::f32::consts::PI * 1.5),
+                        };
+                        space.set_voxel_rotation(x, y, z, value, rotation);
+                    } else {
+                        let id = if value == 11 { 10 } else { value };
+                        space.set_voxel_id(x, y, z, id);
+                    }
+                }
+            }
+        }
+
+        for x in 0..8 {
+            for z in 0..8 {
+                let wave = seeded_next(&mut seed) & 0xF;
+                let sunlight = wave;
+                let red = (wave + 2) & 0xF;
+                let green = (wave + 6) & 0xF;
+                let blue = (wave + 10) & 0xF;
+                space.set_light(x, 5, z, sunlight, red, green, blue);
+            }
+        }
+
+        assert_cached_uncached_parity(&space, &registry_cached, &registry_uncached);
+        assert_greedy_parity(&space, &registry_uncached);
+    }
 }
