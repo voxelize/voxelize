@@ -473,6 +473,10 @@ fn parse_nodes_or_empty<T>(value: JsValue) -> Vec<T>
 where
     T: DeserializeOwned,
 {
+    if value.is_null() || value.is_undefined() {
+        return Vec::new();
+    }
+
     if let Some(array) = value.dyn_ref::<Array>() {
         let length = array.length() as usize;
         if length == 0 {
