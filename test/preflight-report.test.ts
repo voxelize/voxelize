@@ -1283,6 +1283,57 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
+  it("supports case-insensitive typescript aliases in execution-mode selection", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--no-build", "--only", "TYPESCRIPT"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(false);
+    expect(report.noBuild).toBe(true);
+    expect(report.selectionMode).toBe("only");
+    expect(report.specialSelectorsUsed).toEqual([]);
+    expect(report.selectedChecks).toEqual(["tsCore"]);
+    expect(report.selectedCheckCount).toBe(1);
+    expect(report.requestedChecks).toEqual(["TYPESCRIPT"]);
+    expect(report.requestedCheckCount).toBe(1);
+    expect(report.requestedCheckResolutions).toEqual([
+      {
+        token: "TYPESCRIPT",
+        normalizedToken: "typescript",
+        kind: "check",
+        resolvedTo: ["tsCore"],
+      },
+    ]);
+    expect(report.requestedCheckResolutionCounts).toEqual({
+      check: 1,
+      specialSelector: 0,
+      invalid: 0,
+    });
+    expect(report.skippedChecks).toEqual([
+      "devEnvironment",
+      "wasmPack",
+      "client",
+    ]);
+    expect(report.skippedCheckCount).toBe(report.skippedChecks.length);
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.checks.map((check) => check.name)).toEqual(["tsCore"]);
+    expect(report.totalChecks).toBe(1);
+    expect(report.passedCheckCount + report.failedCheckCount).toBe(1);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
   it("supports selecting ts-core checks in execution mode with verify alias", () => {
     const result = spawnSync(
       process.execPath,
