@@ -687,13 +687,11 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     if (!commandInfo) {
       return false;
     }
-    const isAliasTrigger = commandInfo.aliases.includes(trigger);
+    const aliasIndex = commandInfo.aliases.indexOf(trigger);
+    const isAliasTrigger = aliasIndex >= 0;
     this.commands.delete(trigger);
     if (isAliasTrigger) {
-      const aliasIndex = commandInfo.aliases.indexOf(trigger);
-      if (aliasIndex >= 0) {
-        commandInfo.aliases.splice(aliasIndex, 1);
-      }
+      commandInfo.aliases.splice(aliasIndex, 1);
       return true;
     }
     for (let aliasIndex = 0; aliasIndex < commandInfo.aliases.length; aliasIndex++) {
