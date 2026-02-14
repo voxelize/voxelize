@@ -366,6 +366,18 @@ const applyRelevantDeltas = (
       if (!isInteger(vx) || !isInteger(vy) || !isInteger(vz)) {
         continue;
       }
+      const newRotation = delta.newRotation;
+      const newStage = delta.newStage;
+      const shouldWriteVoxel =
+        delta.oldVoxel !== delta.newVoxel && isInteger(delta.newVoxel);
+      const shouldWriteRotation =
+        newRotation !== undefined &&
+        newRotation !== null &&
+        typeof newRotation === "object";
+      const shouldWriteStage = newStage !== undefined && isInteger(newStage);
+      if (!shouldWriteVoxel && !shouldWriteRotation && !shouldWriteStage) {
+        continue;
+      }
       if (
         vx < chunkMinX ||
         vx >= chunkMaxX ||
@@ -384,15 +396,13 @@ const applyRelevantDeltas = (
       let nextRaw = voxelValues[voxelIndex];
       const currentRaw = nextRaw;
 
-      if (delta.oldVoxel !== delta.newVoxel) {
+      if (shouldWriteVoxel) {
         nextRaw = BlockUtils.insertID(nextRaw, delta.newVoxel);
       }
-      const newRotation = delta.newRotation;
-      if (newRotation) {
+      if (shouldWriteRotation) {
         nextRaw = BlockUtils.insertRotation(nextRaw, newRotation);
       }
-      const newStage = delta.newStage;
-      if (newStage !== undefined && isInteger(newStage)) {
+      if (shouldWriteStage) {
         nextRaw = BlockUtils.insertStage(nextRaw, newStage);
       }
 
