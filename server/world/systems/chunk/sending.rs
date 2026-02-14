@@ -1,4 +1,4 @@
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use specs::{ReadExpect, System, WriteExpect};
 use std::collections::VecDeque;
 
@@ -16,6 +16,19 @@ impl ChunkSendingSystem {
     }
 }
 
+#[inline]
+fn take_updated_level_range(updated_levels: &mut HashSet<u32>) -> Option<(u32, u32)> {
+    let mut iter = updated_levels.drain();
+    let first = iter.next()?;
+    let mut min_level = first;
+    let mut max_level = first;
+    for level in iter {
+        min_level = min_level.min(level);
+        max_level = max_level.max(level);
+    }
+    Some((min_level, max_level.saturating_add(1)))
+}
+
 impl<'a> System<'a> for ChunkSendingSystem {
     type SystemData = (
         ReadExpect<'a, WorldConfig>,
@@ -28,6 +41,11 @@ impl<'a> System<'a> for ChunkSendingSystem {
     fn run(&mut self, data: Self::SystemData) {
         let (config, interests, mut chunks, mut queue, timing) = data;
         let _t = timing.timer("chunk-sending");
+        let sub_chunks_u32 = if config.sub_chunks > u32::MAX as usize {
+            u32::MAX
+        } else {
+            config.sub_chunks as u32
+        };
 
         if chunks.to_send.is_empty() {
             return;
@@ -57,8 +75,8 @@ impl<'a> System<'a> for ChunkSendingSystem {
             }
 
             if msg_type == MessageType::Load {
-                let mesh_model = chunk.to_model(true, false, 0..(config.sub_chunks as u32));
-                let data_model = chunk.to_model(false, true, 0..(config.sub_chunks as u32));
+                let mesh_model = chunk.to_model(true, false, 0..sub_chunks_u32);
+                let data_model = chunk.to_model(false, true, 0..sub_chunks_u32);
 
                 for client_id in &interested_clients {
                     client_load_mesh
@@ -71,12 +89,10 @@ impl<'a> System<'a> for ChunkSendingSystem {
                         .push(data_model.clone());
                 }
             } else {
-                let updated_levels: Vec<u32> = chunk.updated_levels.drain().collect();
-
-                if !updated_levels.is_empty() {
-                    let min_level = *updated_levels.iter().min().unwrap();
-                    let max_level = *updated_levels.iter().max().unwrap();
-                    let mesh_model = chunk.to_model(true, false, min_level..(max_level + 1));
+                if let Some((min_level, max_level_exclusive)) =
+                    take_updated_level_range(&mut chunk.updated_levels)
+                {
+                    let mesh_model = chunk.to_model(true, false, min_level..max_level_exclusive);
 
                     for client_id in &interested_clients {
                         client_update_mesh
@@ -139,5 +155,39 @@ impl<'a> System<'a> for ChunkSendingSystem {
                 ));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use hashbrown::HashSet;
+
+    use super::take_updated_level_range;
+
+    #[test]
+    fn take_updated_level_range_returns_none_for_empty_sets() {
+        let mut levels = HashSet::new();
+        assert_eq!(take_updated_level_range(&mut levels), None);
+    }
+
+    #[test]
+    fn take_updated_level_range_returns_min_and_exclusive_max() {
+        let mut levels = HashSet::new();
+        levels.insert(7);
+        levels.insert(3);
+        levels.insert(5);
+
+        assert_eq!(take_updated_level_range(&mut levels), Some((3, 8)));
+        assert!(levels.is_empty());
+    }
+
+    #[test]
+    fn take_updated_level_range_saturates_exclusive_max() {
+        let mut levels = HashSet::new();
+        levels.insert(u32::MAX);
+        assert_eq!(
+            take_updated_level_range(&mut levels),
+            Some((u32::MAX, u32::MAX))
+        );
     }
 }
