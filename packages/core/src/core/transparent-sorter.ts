@@ -31,6 +31,7 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
   if (!positionAttr) return null;
 
   const positions = positionAttr.array as ArrayLike<number>;
+  const positionsLength = positions.length;
   const indices = geometry.index.array as Uint16Array | Uint32Array;
   const indicesLength = indices.length;
   if (indicesLength % 6 !== 0) return null;
@@ -49,6 +50,19 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
     const i0 = indices[indexOffset] * 3;
     const i1 = indices[indexOffset + 1] * 3;
     const i2 = indices[indexOffset + 2] * 3;
+    const i3 = indices[indexOffset + 3] * 3;
+    const i4 = indices[indexOffset + 4] * 3;
+    const i5 = indices[indexOffset + 5] * 3;
+    if (
+      i0 + 2 >= positionsLength ||
+      i1 + 2 >= positionsLength ||
+      i2 + 2 >= positionsLength ||
+      i3 + 2 >= positionsLength ||
+      i4 + 2 >= positionsLength ||
+      i5 + 2 >= positionsLength
+    ) {
+      return null;
+    }
 
     centroids[centroidOffset] =
       (positions[i0] + positions[i1] + positions[i2]) / 3;
