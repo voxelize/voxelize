@@ -3316,18 +3316,18 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                 };
 
                 let geometry = map.entry(geo_key).or_insert_with(|| {
-                    let mut g = GeometryProtocol::default();
-                    g.voxel = block_id;
-                    if quad_key.independent {
-                        g.face_name = if let Some(face_name) = quad_key.face_name.as_ref() {
+                    let face_name = if quad_key.independent {
+                        if let Some(face_name) = quad_key.face_name.as_ref() {
                             Some(face_name.clone())
                         } else if quad_key.face_index >= 0 {
                             Some(block.faces[quad_key.face_index as usize].name.clone())
                         } else {
                             None
-                        };
-                    }
-                    g
+                        }
+                    } else {
+                        None
+                    };
+                    new_geometry_protocol(block_id, face_name, None)
                 });
 
                 process_greedy_quad(
@@ -3359,15 +3359,17 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                 let geo_key = geometry_key_for_face(&block, &face, vx, vy, vz);
 
                 let geometry = map.entry(geo_key).or_insert_with(|| {
-                    let mut g = GeometryProtocol::default();
-                    g.voxel = voxel_id;
-                    if face.independent || face.isolated {
-                        g.face_name = Some(face.name.clone());
-                    }
-                    if face.isolated {
-                        g.at = Some([vx, vy, vz]);
-                    }
-                    g
+                    let face_name = if face.independent || face.isolated {
+                        Some(face.name.clone())
+                    } else {
+                        None
+                    };
+                    let at = if face.isolated {
+                        Some([vx, vy, vz])
+                    } else {
+                        None
+                    };
+                    new_geometry_protocol(voxel_id, face_name, at)
                 });
 
                 let skip_opaque_checks = is_see_through || block.is_all_transparent;
