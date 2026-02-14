@@ -607,10 +607,35 @@ const requestedCheckResolvedIndexMap = Object.fromEntries(
 const requestedCheckResolvedIndexMapCount = countRecordEntries(
   requestedCheckResolvedIndexMap
 );
+const requestedCheckResolvedCommandMap = createCheckCommandMap(
+  requestedCheckResolvedChecks
+);
+const requestedCheckResolvedCommandMapCount = countRecordEntries(
+  requestedCheckResolvedCommandMap
+);
+const requestedCheckResolvedArgsMap = createCheckArgsMap(requestedCheckResolvedChecks);
+const requestedCheckResolvedArgsMapCount = countRecordEntries(
+  requestedCheckResolvedArgsMap
+);
+const requestedCheckResolvedArgCountMap = createCheckArgCountMap(
+  requestedCheckResolvedChecks
+);
+const requestedCheckResolvedArgCountMapCount = countRecordEntries(
+  requestedCheckResolvedArgCountMap
+);
 const requestedCheckResolvedMetadata = Object.fromEntries(
   requestedCheckResolvedChecks.map((checkName) => {
-    const { scriptName, supportsNoBuild } = resolveCheckDetails(checkName);
-    return [checkName, { scriptName, supportsNoBuild }];
+    const {
+      scriptName,
+      supportsNoBuild,
+      checkCommand,
+      checkArgs,
+      checkArgCount,
+    } = resolveCheckDetails(checkName);
+    return [
+      checkName,
+      { scriptName, supportsNoBuild, checkCommand, checkArgs, checkArgCount },
+    ];
   })
 );
 const requestedCheckResolvedMetadataCount = countRecordEntries(
@@ -619,8 +644,17 @@ const requestedCheckResolvedMetadataCount = countRecordEntries(
 const buildCheckSelectionMetadata = (checkNames) => {
   const checkMetadata = Object.fromEntries(
     checkNames.map((checkName) => {
-      const { scriptName, supportsNoBuild } = resolveCheckDetails(checkName);
-      return [checkName, { scriptName, supportsNoBuild }];
+      const {
+        scriptName,
+        supportsNoBuild,
+        checkCommand,
+        checkArgs,
+        checkArgCount,
+      } = resolveCheckDetails(checkName);
+      return [
+        checkName,
+        { scriptName, supportsNoBuild, checkCommand, checkArgs, checkArgCount },
+      ];
     })
   );
   const checkScripts = checkNames.map((checkName) => {
@@ -789,6 +823,12 @@ if (
     requestedCheckResolvedIndexCount: requestedCheckResolvedIndices.length,
     requestedCheckResolvedIndexMap,
     requestedCheckResolvedIndexMapCount,
+    requestedCheckResolvedCommandMap,
+    requestedCheckResolvedCommandMapCount,
+    requestedCheckResolvedArgsMap,
+    requestedCheckResolvedArgsMapCount,
+    requestedCheckResolvedArgCountMap,
+    requestedCheckResolvedArgCountMapCount,
     requestedCheckResolvedMetadata,
     requestedCheckResolvedMetadataCount,
     selectionMode,
@@ -1019,6 +1059,12 @@ if (isListChecks) {
     requestedCheckResolvedIndexCount: requestedCheckResolvedIndices.length,
     requestedCheckResolvedIndexMap,
     requestedCheckResolvedIndexMapCount,
+    requestedCheckResolvedCommandMap,
+    requestedCheckResolvedCommandMapCount,
+    requestedCheckResolvedArgsMap,
+    requestedCheckResolvedArgsMapCount,
+    requestedCheckResolvedArgCountMap,
+    requestedCheckResolvedArgCountMapCount,
     requestedCheckResolvedMetadata,
     requestedCheckResolvedMetadataCount,
     selectionMode,
@@ -1271,6 +1317,12 @@ const report = buildTimedReport({
   requestedCheckResolvedIndexCount: requestedCheckResolvedIndices.length,
   requestedCheckResolvedIndexMap,
   requestedCheckResolvedIndexMapCount,
+  requestedCheckResolvedCommandMap,
+  requestedCheckResolvedCommandMapCount,
+  requestedCheckResolvedArgsMap,
+  requestedCheckResolvedArgsMapCount,
+  requestedCheckResolvedArgCountMap,
+  requestedCheckResolvedArgCountMapCount,
   requestedCheckResolvedMetadata,
   requestedCheckResolvedMetadataCount,
   selectionMode,

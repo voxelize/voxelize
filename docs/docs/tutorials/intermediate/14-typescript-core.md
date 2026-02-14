@@ -324,6 +324,12 @@ For release automation and CI routing, aggregate preflight JSON reports include:
   `requestedCheckResolvedIndices`,
   `requestedCheckResolvedIndexMap`,
   `requestedCheckResolvedIndexMapCount`,
+  `requestedCheckResolvedCommandMap`,
+  `requestedCheckResolvedCommandMapCount`,
+  `requestedCheckResolvedArgsMap`,
+  `requestedCheckResolvedArgsMapCount`,
+  `requestedCheckResolvedArgCountMap`,
+  `requestedCheckResolvedArgCountMapCount`,
   `requestedCheckResolvedMetadata`,
   `requestedCheckResolvedMetadataCount`,
   `selectedChecks`, `skippedChecks`
