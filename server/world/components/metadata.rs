@@ -1,7 +1,6 @@
 use bincode;
 use blake3::Hash;
 use hashbrown::HashMap;
-use log::info;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
 use specs::{Component, VecStorage};
