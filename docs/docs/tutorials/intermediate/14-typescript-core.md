@@ -52,6 +52,8 @@ Malformed dynamic-pattern part entries are skipped during helper cloning.
 Malformed optional face fields fall back to default face values.
 Malformed rules fall back to `BLOCK_RULE_NONE`, and malformed transparency
 inputs (including `null`/non-array values) fall back to `false` defaults.
+`createBlockRule` normalizes `null` simple-rule optional fields (`id`,
+`rotation`, `stage`) to omitted constraints.
 Malformed `worldSpace` values fall back to `false`.
 Cyclic rule graphs are sanitized by replacing recursive edges with `none`.
 

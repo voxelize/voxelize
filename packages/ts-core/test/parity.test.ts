@@ -1424,6 +1424,23 @@ describe("Type builders", () => {
     });
   });
 
+  it("omits null optional simple-rule fields during sanitization", () => {
+    const part = createBlockConditionalPart({
+      rule: {
+        type: "simple",
+        offset: [1, 0, 0],
+        id: null,
+        stage: null,
+        rotation: null,
+      } as never,
+    });
+
+    expect(part.rule).toEqual({
+      type: "simple",
+      offset: [1, 0, 0],
+    });
+  });
+
   it("falls back to none rules for malformed rule inputs", () => {
     const malformedSimple = createBlockConditionalPart({
       rule: {
@@ -1842,6 +1859,23 @@ describe("BlockRuleEvaluator", () => {
       stage: 3,
     };
     expect(BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access)).toBe(true);
+  });
+
+  it("treats null simple-rule fields as optional constraints", () => {
+    const access = {
+      getVoxel: () => 12,
+      getVoxelRotation: () => BlockRotation.py(Math.PI / 2),
+      getVoxelStage: () => 3,
+    };
+    const rule = {
+      type: "simple" as const,
+      offset: [0, 0, 0] as [number, number, number],
+      id: null,
+      rotation: null,
+      stage: null,
+    };
+
+    expect(BlockRuleEvaluator.evaluate(rule as never, [0, 0, 0], access)).toBe(true);
   });
 
   it("uses first sub-rule semantics for NOT logic", () => {

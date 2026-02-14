@@ -283,20 +283,13 @@ const toCornerTuple = (
 
 const toOptionalRuleNumber = (
   value: DynamicValue
-): OptionalRuleValue<number> | undefined => {
-  if (value === undefined || value === null) {
-    return value;
-  }
-
+): number | undefined => {
   return isFiniteNumberValue(value) ? value : undefined;
 };
 
 const toOptionalRuleRotation = (
   value: DynamicValue
-): OptionalRuleValue<BlockRotation> | undefined => {
-  if (value === undefined || value === null) {
-    return value;
-  }
+): BlockRotation | undefined => {
 
   if (value instanceof BlockRotation) {
     return new BlockRotation(value.value, value.yRotation);
