@@ -337,6 +337,12 @@ fn build_registry() -> Registry {
     glass_standalone.is_transparent = [true; 6];
     glass_standalone.transparent_standalone = true;
 
+    let mut waterlogged_solid = base_block(7, "waterlogged_solid");
+    waterlogged_solid.is_waterlogged = true;
+
+    let mut fluid_occluder = base_block(8, "fluid_occluder");
+    fluid_occluder.occludes_fluid = true;
+
     let mut registry = Registry::new(vec![
         (0, air),
         (1, stone),
@@ -345,6 +351,8 @@ fn build_registry() -> Registry {
         (4, dynamic_gate),
         (5, y_rotatable),
         (6, glass_standalone),
+        (7, waterlogged_solid),
+        (8, fluid_occluder),
     ]);
     registry.build_cache();
     registry
@@ -513,6 +521,36 @@ fn standalone_transparency_scene() -> BenchSpace {
     space
 }
 
+fn fluid_occlusion_scene() -> BenchSpace {
+    let mut space = BenchSpace::new([16, 12, 16]);
+
+    for x in 0..16 {
+        for z in 0..16 {
+            space.set_voxel_id(x, 0, z, 1);
+            let stage = ((x * 7 + z * 3) % 8) as u32;
+            space.set_voxel_stage(x, 1, z, 3, stage);
+
+            if (x + z) % 4 == 0 {
+                space.set_voxel_id(x, 2, z, 7);
+            }
+            if (x + z) % 5 == 0 {
+                space.set_voxel_id(x, 2, z, 8);
+            }
+            if x > 0 && z > 0 && x < 15 && z < 15 && (x + z) % 6 == 0 {
+                space.set_voxel_stage(x, 2, z, 3, ((x + z) % 8) as u32);
+            }
+        }
+    }
+
+    for x in 0..16 {
+        for z in 0..16 {
+            space.set_light(x, 3, z, 11, 3, 1, 5);
+        }
+    }
+
+    space
+}
+
 fn greedy_mesher_benchmark(c: &mut Criterion) {
     let registry = build_registry();
     let scenes = vec![
@@ -520,6 +558,7 @@ fn greedy_mesher_benchmark(c: &mut Criterion) {
         ("dynamic_16x20x16", dynamic_scene()),
         ("transparency_16x16x16", transparency_scene()),
         ("standalone_transparency_16x12x16", standalone_transparency_scene()),
+        ("fluid_occlusion_16x12x16", fluid_occlusion_scene()),
     ];
 
     let mut group = c.benchmark_group("greedy_mesher");
@@ -571,6 +610,7 @@ fn non_greedy_mesher_benchmark(c: &mut Criterion) {
         ("dynamic_16x20x16", dynamic_scene()),
         ("transparency_16x16x16", transparency_scene()),
         ("standalone_transparency_16x12x16", standalone_transparency_scene()),
+        ("fluid_occlusion_16x12x16", fluid_occlusion_scene()),
     ];
     let mut group = c.benchmark_group("non_greedy_mesher");
 
