@@ -204,6 +204,8 @@ type TsCoreJsonReport = OptionTerminatorMetadata &
     "--no-build": string[];
   };
   availableCliOptionCanonicalMap: Record<string, string>;
+  availableSteps: string[];
+  availableStepCount: number;
   validationErrorCode:
     | "output_option_missing_value"
     | "unsupported_options"
@@ -305,6 +307,8 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
     | "output_option_missing_value"
     | "unsupported_options"
     | null;
+  availableSteps: string[];
+  availableStepCount: number;
   steps: OnboardingJsonStep[];
   totalSteps: number;
   passedStepCount: number;
@@ -394,6 +398,16 @@ const expectStepSummaryMetadata = (
   expect(report.skippedSteps).toEqual(skippedSteps);
   expect(report.firstFailedStep).toBe(failedSteps[0] ?? null);
 };
+const expectAvailableStepMetadata = (
+  report: {
+    availableSteps: string[];
+    availableStepCount: number;
+  },
+  expectedSteps: string[]
+) => {
+  expect(report.availableSteps).toEqual(expectedSteps);
+  expect(report.availableStepCount).toBe(report.availableSteps.length);
+};
 
 const expectedCanonicalOptionForToken = (token: string) => {
   if (token === "--verify") {
@@ -474,6 +488,16 @@ const expectedNoBuildCliOptions = [
 const expectedNoBuildCliOptionAliases = {
   "--no-build": ["--verify"],
 };
+const expectedClientAvailableSteps = [
+  "WASM artifact preflight",
+  "TypeScript typecheck",
+];
+const expectedOnboardingAvailableSteps = [
+  "Developer environment preflight",
+  "TypeScript core checks",
+  "Runtime library checks",
+  "Client checks",
+];
 const expectedTsCoreRequiredArtifacts = [
   "packages/ts-core/dist/index.js",
   "packages/ts-core/dist/index.mjs",
@@ -3011,6 +3035,7 @@ describe("root preflight scripts", () => {
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
     expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expectAvailableStepMetadata(report, expectedClientAvailableSteps);
     expectStepSummaryMetadata(report);
     expect(report.message).toBe("Missing value for --output option.");
     expectActiveCliOptionMetadata(
@@ -3105,6 +3130,7 @@ describe("root preflight scripts", () => {
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
     expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expectAvailableStepMetadata(report, expectedClientAvailableSteps);
     expectStepSummaryMetadata(report);
     expect(report.message).toBe("Missing value for --output option.");
     expectActiveCliOptionMetadata(
@@ -3155,11 +3181,8 @@ describe("root preflight scripts", () => {
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
     expect(report.validationErrorCode).toBe("output_option_missing_value");
-    expect(report.totalSteps).toBe(0);
-    expect(report.passedStepCount).toBe(0);
-    expect(report.failedStepCount).toBe(0);
-    expect(report.skippedStepCount).toBe(0);
-    expect(report.firstFailedStep).toBeNull();
+    expectAvailableStepMetadata(report, expectedClientAvailableSteps);
+    expectStepSummaryMetadata(report);
     expect(report.message).toBe("Missing value for --output option.");
     expectActiveCliOptionMetadata(
       report,
@@ -3246,11 +3269,8 @@ describe("root preflight scripts", () => {
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
     expect(report.validationErrorCode).toBe("output_option_missing_value");
-    expect(report.totalSteps).toBe(0);
-    expect(report.passedStepCount).toBe(0);
-    expect(report.failedStepCount).toBe(0);
-    expect(report.skippedStepCount).toBe(0);
-    expect(report.firstFailedStep).toBeNull();
+    expectAvailableStepMetadata(report, expectedClientAvailableSteps);
+    expectStepSummaryMetadata(report);
     expect(report.message).toBe("Missing value for --output option.");
     expect(report.outputPath).toBeNull();
     expectActiveCliOptionMetadata(
@@ -3284,11 +3304,8 @@ describe("root preflight scripts", () => {
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
     expect(report.validationErrorCode).toBe("output_option_missing_value");
-    expect(report.totalSteps).toBe(0);
-    expect(report.passedStepCount).toBe(0);
-    expect(report.failedStepCount).toBe(0);
-    expect(report.skippedStepCount).toBe(0);
-    expect(report.firstFailedStep).toBeNull();
+    expectAvailableStepMetadata(report, expectedClientAvailableSteps);
+    expectStepSummaryMetadata(report);
     expect(report.message).toBe("Missing value for --output option.");
     expect(report.outputPath).toBeNull();
     expectActiveCliOptionMetadata(
@@ -3322,11 +3339,8 @@ describe("root preflight scripts", () => {
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
     expect(report.validationErrorCode).toBe("output_option_missing_value");
-    expect(report.totalSteps).toBe(0);
-    expect(report.passedStepCount).toBe(0);
-    expect(report.failedStepCount).toBe(0);
-    expect(report.skippedStepCount).toBe(0);
-    expect(report.firstFailedStep).toBeNull();
+    expectAvailableStepMetadata(report, expectedClientAvailableSteps);
+    expectStepSummaryMetadata(report);
     expect(report.message).toBe("Missing value for --output option.");
     expectActiveCliOptionMetadata(
       report,
@@ -3359,11 +3373,8 @@ describe("root preflight scripts", () => {
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
     expect(report.validationErrorCode).toBe("output_option_missing_value");
-    expect(report.totalSteps).toBe(0);
-    expect(report.passedStepCount).toBe(0);
-    expect(report.failedStepCount).toBe(0);
-    expect(report.skippedStepCount).toBe(0);
-    expect(report.firstFailedStep).toBeNull();
+    expectAvailableStepMetadata(report, expectedClientAvailableSteps);
+    expectStepSummaryMetadata(report);
     expect(report.message).toBe("Missing value for --output option.");
     expectActiveCliOptionMetadata(
       report,
@@ -4468,6 +4479,7 @@ describe("root preflight scripts", () => {
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
     expect(report.validationErrorCode).toBeNull();
+    expectAvailableStepMetadata(report, expectedOnboardingAvailableSteps);
     expectTimingMetadata(report);
     expectOptionTerminatorMetadata(report);
     expectActiveCliOptionMetadata(

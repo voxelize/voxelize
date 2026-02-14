@@ -77,6 +77,12 @@ const validationFailureMessage = deriveCliValidationFailureMessage({
   outputPathError,
   unsupportedOptionsError,
 });
+const availableSteps = [
+  "Developer environment preflight",
+  "TypeScript core checks",
+  "Runtime library checks",
+  "Client checks",
+];
 const stepResults = [];
 let exitCode = 0;
 
@@ -103,6 +109,8 @@ if (isJson && validationFailureMessage !== null) {
     availableCliOptionAliases,
     availableCliOptionCanonicalMap,
     validationErrorCode,
+    availableSteps,
+    availableStepCount: availableSteps.length,
     steps: [],
     ...summarizeStepResults([]),
     message: validationFailureMessage,
@@ -253,6 +261,8 @@ if (isJson) {
     availableCliOptionAliases,
     availableCliOptionCanonicalMap,
     validationErrorCode: null,
+    availableSteps,
+    availableStepCount: availableSteps.length,
     steps: stepResults,
     ...stepSummary,
   });

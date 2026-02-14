@@ -80,6 +80,7 @@ const validationFailureMessage = deriveCliValidationFailureMessage({
   outputPathError,
   unsupportedOptionsError,
 });
+const availableSteps = ["WASM artifact preflight", "TypeScript typecheck"];
 const stepResults = [];
 let exitCode = 0;
 
@@ -106,6 +107,8 @@ if (isJson && validationFailureMessage !== null) {
     availableCliOptionAliases,
     availableCliOptionCanonicalMap,
     validationErrorCode,
+    availableSteps,
+    availableStepCount: availableSteps.length,
     steps: [],
     ...summarizeStepResults([]),
     message: validationFailureMessage,
@@ -231,6 +234,8 @@ if (isJson) {
     availableCliOptionAliases,
     availableCliOptionCanonicalMap,
     validationErrorCode: null,
+    availableSteps,
+    availableStepCount: availableSteps.length,
     steps: stepResults,
     ...stepSummary,
   });
