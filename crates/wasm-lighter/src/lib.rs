@@ -541,6 +541,16 @@ pub fn process_light_batch_fast(
     if removal_nodes.is_empty() && flood_nodes.is_empty() {
         return empty_batch_result();
     }
+    for node in &mut flood_nodes {
+        node.level = clamp_light_level(node.level, max_light_level);
+    }
+    flood_nodes.retain(|node| node.level > 0);
+    if removal_nodes.is_empty() && flood_nodes.is_empty() {
+        return empty_batch_result();
+    }
+    if has_invalid_flood_bounds(flood_nodes.len(), bounds_min.len(), bounds_shape) {
+        return empty_batch_result();
+    }
     let Some(registry) = CACHED_REGISTRY.with(|cached| cached.borrow().clone()) else {
         return empty_batch_result();
     };
@@ -582,16 +592,6 @@ pub fn process_light_batch_fast(
         min_chunk: [grid_offset_x, grid_offset_z],
         max_chunk: [max_chunk_x, max_chunk_z],
     };
-    for node in &mut flood_nodes {
-        node.level = clamp_light_level(node.level, max_light_level);
-    }
-    flood_nodes.retain(|node| node.level > 0);
-    if removal_nodes.is_empty() && flood_nodes.is_empty() {
-        return empty_batch_result();
-    }
-    if has_invalid_flood_bounds(flood_nodes.len(), bounds_min.len(), bounds_shape) {
-        return empty_batch_result();
-    }
     let bounds = if flood_nodes.is_empty() {
         None
     } else {
