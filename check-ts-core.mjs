@@ -45,7 +45,7 @@ const resolveMissingArtifacts = () => {
     return !fs.existsSync(absoluteArtifactPath);
   });
 };
-const resolveFirstNonEmptyOutputLine = (output) => {
+const resolveExampleOutputLine = (output) => {
   if (typeof output !== "string" || output.length === 0) {
     return null;
   }
@@ -167,7 +167,7 @@ const runTsCoreExampleCheck = () => {
   const exampleDurationMs = Date.now() - exampleStartedAt;
   const exampleExitCode = exampleResult.status ?? 1;
   const exampleOutput = `${exampleResult.stdout ?? ""}${exampleResult.stderr ?? ""}`.trim();
-  const exampleOutputLine = resolveFirstNonEmptyOutputLine(exampleOutput);
+  const exampleOutputLine = resolveExampleOutputLine(exampleOutput);
   const { exampleRuleMatched, examplePayloadValid } =
     resolveExamplePayloadSummary(exampleOutput);
 
