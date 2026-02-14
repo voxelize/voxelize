@@ -139,6 +139,10 @@ const runScript = (args: string[] = []): ScriptResult => {
 
 const parseReport = (result: ScriptResult): TsCoreCheckReport => {
   const report = JSON.parse(result.output) as TsCoreCheckReport;
+  expect(report.artifactsPresent).toBe(report.missingArtifacts.length === 0);
+  expect(report.requiredArtifactCount).toBe(
+    report.presentArtifactCount + report.missingArtifactCount
+  );
   expect(report.requiredArtifactCount).toBe(report.requiredArtifacts.length);
   expect(report.presentArtifactCount).toBe(
     report.requiredArtifactCount - report.missingArtifactCount

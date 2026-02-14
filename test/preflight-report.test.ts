@@ -22,6 +22,7 @@ type TsCoreNestedReport = {
   presentArtifactCount: number;
   missingArtifacts: string[];
   missingArtifactCount: number;
+  artifactsPresent: boolean;
   buildCommand: string;
   buildArgs: string[];
   buildExitCode: number | null;
@@ -44,6 +45,7 @@ type RuntimeLibrariesNestedPackageReport = {
 };
 
 type RuntimeLibrariesNestedReport = {
+  packagesPresent: boolean;
   checkedPackages: string[];
   checkedPackageCount: number;
   requiredPackageCount: number;
@@ -420,6 +422,10 @@ const expectTsCoreNestedReport = (
   const report = checkReport as TsCoreNestedReport;
   expect(report.packagePath).toBe("packages/ts-core");
   expect(report.requiredArtifacts).toEqual(expectedTsCoreRequiredArtifacts);
+  expect(report.artifactsPresent).toBe(report.missingArtifacts.length === 0);
+  expect(report.requiredArtifactCount).toBe(
+    report.presentArtifactCount + report.missingArtifactCount
+  );
   expect(report.requiredArtifactCount).toBe(report.requiredArtifacts.length);
   expect(report.presentArtifactCount).toBe(
     report.requiredArtifactCount - report.missingArtifactCount
@@ -461,6 +467,7 @@ const expectRuntimeLibrariesNestedReport = (
   }
 
   const report = checkReport as RuntimeLibrariesNestedReport;
+  expect(report.packagesPresent).toBe(report.missingPackageCount === 0);
   expect(report.checkedPackages).toEqual(expectedRuntimeLibrariesCheckedPackages);
   expect(report.checkedPackageCount).toBe(report.checkedPackages.length);
   expect(report.requiredPackageCount).toBe(
@@ -484,6 +491,12 @@ const expectRuntimeLibrariesNestedReport = (
       return count + packageReport.presentArtifactCount;
     },
     0
+  );
+  expect(report.requiredPackageCount).toBe(
+    report.presentPackageCount + report.missingPackageCount
+  );
+  expect(report.requiredArtifactCount).toBe(
+    report.presentArtifactCount + report.missingArtifactCount
   );
   const presentPackageCount = report.packageReports.length - missingPackageCount;
   expect(report.presentPackageCount).toBe(presentPackageCount);

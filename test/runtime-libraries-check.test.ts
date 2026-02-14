@@ -206,6 +206,13 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   const presentArtifactCount = report.packageReports.reduce((count, packageReport) => {
     return count + packageReport.presentArtifactCount;
   }, 0);
+  expect(report.packagesPresent).toBe(missingPackageCount === 0);
+  expect(report.requiredPackageCount).toBe(
+    report.presentPackageCount + report.missingPackageCount
+  );
+  expect(report.requiredArtifactCount).toBe(
+    report.presentArtifactCount + report.missingArtifactCount
+  );
   expect(report.presentPackageCount).toBe(presentPackageCount);
   expect(report.presentArtifactCount).toBe(presentArtifactCount);
   expect(report.missingPackageCount).toBe(missingPackageCount);

@@ -470,6 +470,10 @@ const expectedRuntimeLibrariesBuildArgs = [
 const expectTsCoreReportMetadata = (report: TsCoreJsonReport) => {
   expect(report.packagePath).toBe("packages/ts-core");
   expect(report.requiredArtifacts).toEqual(expectedTsCoreRequiredArtifacts);
+  expect(report.artifactsPresent).toBe(report.missingArtifacts.length === 0);
+  expect(report.requiredArtifactCount).toBe(
+    report.presentArtifactCount + report.missingArtifactCount
+  );
   expect(report.requiredArtifactCount).toBe(report.requiredArtifacts.length);
   expect(report.presentArtifactCount).toBe(
     report.requiredArtifactCount - report.missingArtifactCount
@@ -510,6 +514,7 @@ const expectTsCoreReportMetadata = (report: TsCoreJsonReport) => {
 const expectRuntimeLibrariesReportMetadata = (
   report: RuntimeLibrariesJsonReport
 ) => {
+  expect(report.packagesPresent).toBe(report.missingPackageCount === 0);
   expect(report.checkedPackages).toEqual(expectedRuntimeLibrariesCheckedPackages);
   expect(report.checkedPackageCount).toBe(report.checkedPackages.length);
   expect(report.requiredPackageCount).toBe(
@@ -533,6 +538,13 @@ const expectRuntimeLibrariesReportMetadata = (
       return count + packageReport.presentArtifactCount;
     },
     0
+  );
+  expect(report.packagesPresent).toBe(missingPackageCount === 0);
+  expect(report.requiredPackageCount).toBe(
+    report.presentPackageCount + report.missingPackageCount
+  );
+  expect(report.requiredArtifactCount).toBe(
+    report.presentArtifactCount + report.missingArtifactCount
   );
   const presentPackageCount = report.packageReports.length - missingPackageCount;
   expect(report.presentPackageCount).toBe(presentPackageCount);
