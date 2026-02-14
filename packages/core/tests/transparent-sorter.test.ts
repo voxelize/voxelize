@@ -130,4 +130,32 @@ describe("transparent sorter", () => {
     expect(mesh.userData.transparentSortData).toBeUndefined();
     expect(mesh.onBeforeRender).toBe(Object3D.prototype.onBeforeRender);
   });
+
+  it("clears sorting callback when refreshed geometry loses position data", () => {
+    const mesh = new Mesh(createQuadGeometry(2), new MeshBasicMaterial());
+    const sortData = prepareTransparentMesh(mesh);
+    expect(sortData).not.toBeNull();
+    if (!sortData) {
+      return;
+    }
+
+    mesh.userData.transparentSortData = sortData;
+    const geometryWithoutPositions = new BufferGeometry();
+    geometryWithoutPositions.setIndex(
+      new BufferAttribute(new Uint16Array([0, 1, 2, 0, 2, 3]), 1)
+    );
+    mesh.geometry = geometryWithoutPositions;
+    const camera = new PerspectiveCamera();
+    camera.position.set(0, 0, 10);
+
+    sortTransparentMeshOnBeforeRender.call(
+      mesh,
+      {} as WebGLRenderer,
+      new Scene(),
+      camera
+    );
+
+    expect(mesh.userData.transparentSortData).toBeUndefined();
+    expect(mesh.onBeforeRender).toBe(Object3D.prototype.onBeforeRender);
+  });
 });
