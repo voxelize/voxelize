@@ -455,6 +455,20 @@ describe("BlockRotation", () => {
     expect(yRotation).toBe(4);
   });
 
+  it("decodes large y-rotation angles via modulo-normalized segments", () => {
+    const largeAngle = 6728604188452.013;
+    const [axis, yRotation] = BlockRotation.decode(
+      new BlockRotation(PY_ROTATION, largeAngle)
+    );
+    const normalizedAngle =
+      ((largeAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    const expectedSegment = Math.round((normalizedAngle * 16) / (Math.PI * 2)) % 16;
+
+    expect(axis).toBe(PY_ROTATION);
+    expect(yRotation).toBe(expectedSegment);
+    expect(yRotation).toBe(15);
+  });
+
   it("normalizes non-finite y-rotation values in decode and transforms", () => {
     const input: [boolean, boolean, boolean, boolean, boolean, boolean] = [
       true,

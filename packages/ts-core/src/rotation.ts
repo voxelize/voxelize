@@ -141,9 +141,8 @@ export class BlockRotation {
   }
 
   static decode(rotation: BlockRotation): [number, number] {
-    const converted = Number.isFinite(rotation.yRotation)
-      ? Math.round((rotation.yRotation * Y_ROT_SEGMENTS) / TWO_PI)
-      : 0;
+    const normalizedYRotation = normalizeYRotation(rotation.yRotation);
+    const converted = Math.round((normalizedYRotation * Y_ROT_SEGMENTS) / TWO_PI);
     const yRotation =
       ((converted % Y_ROT_SEGMENTS) + Y_ROT_SEGMENTS) % Y_ROT_SEGMENTS;
 
