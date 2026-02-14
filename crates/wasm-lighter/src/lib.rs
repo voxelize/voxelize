@@ -855,6 +855,10 @@ mod tests {
         assert_eq!(super::compute_max_chunk_coordinate(-4, 3), Some(-2));
         assert_eq!(super::compute_max_chunk_coordinate(0, 0), None);
         assert_eq!(super::compute_max_chunk_coordinate(i32::MAX, 2), None);
+        assert_eq!(
+            super::compute_max_chunk_coordinate(0, i32::MAX as usize + 1),
+            None
+        );
         assert_eq!(super::compute_max_chunk_coordinate(0, usize::MAX), None);
     }
 
