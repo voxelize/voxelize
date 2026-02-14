@@ -601,6 +601,20 @@ describe("check-ts-core script", () => {
     expect(result.output).toContain("Missing value for --output option.");
   });
 
+  it("suppresses success output in quiet non-json mode", () => {
+    const result = runScript(["--quiet"]);
+
+    expect(result.status).toBe(0);
+    expect(result.output.trim()).toBe("");
+  });
+
+  it("does not suppress validation failures in quiet non-json mode", () => {
+    const result = runScript(["--quiet", "--output"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("Missing value for --output option.");
+  });
+
   it("prioritizes missing output values over inline no-build alias misuse in non-json mode", () => {
     const result = runScript(["--output", "--verify=1"]);
 
@@ -625,5 +639,63 @@ describe("check-ts-core script", () => {
     expect(result.output).toContain("Unsupported option(s): --=<value>, -=<value>.");
     expect(result.output).not.toContain("--=secret");
     expect(result.output).not.toContain("-=beta");
+  });
+
+  it("keeps json output machine-readable in quiet mode", () => {
+    const result = runScript(["--json", "--quiet", "--compact"]);
+    const report = parseReport(result);
+
+    expect(result.output).not.toContain("\n  \"");
+    expect(report.schemaVersion).toBe(1);
+    expect(report.optionTerminatorUsed).toBe(false);
+    expect(report.positionalArgs).toEqual([]);
+    expect(report.positionalArgCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--compact", "--json", "--quiet"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual([
+      "--json",
+      "--quiet",
+      "--compact",
+    ]);
+    expect(report.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+      {
+        token: "--quiet",
+        canonicalOption: "--quiet",
+      },
+      {
+        token: "--compact",
+        canonicalOption: "--compact",
+      },
+    ]);
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+      {
+        token: "--quiet",
+        canonicalOption: "--quiet",
+        index: 1,
+      },
+      {
+        token: "--compact",
+        canonicalOption: "--compact",
+        index: 2,
+      },
+    ]);
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 });
