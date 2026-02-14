@@ -67,11 +67,27 @@ impl Chunk {
         let lights = Arc::new(Ndarray::new(&[size, max_height, size], 0));
         let height_map = Arc::new(Ndarray::new(&[size, size], 0));
 
-        let min = Vec3(cx * size as i32, 0, cz * size as i32);
+        let clamp_i64_to_i32 =
+            |value: i64| value.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
+        let size_i64 = if size > i64::MAX as usize {
+            i64::MAX
+        } else {
+            size as i64
+        };
+        let min_x = i64::from(cx).saturating_mul(size_i64);
+        let min_z = i64::from(cz).saturating_mul(size_i64);
+        let max_x = min_x.saturating_add(size_i64);
+        let max_z = min_z.saturating_add(size_i64);
+        let max_height_i32 = if max_height > i32::MAX as usize {
+            i32::MAX
+        } else {
+            max_height as i32
+        };
+        let min = Vec3(clamp_i64_to_i32(min_x), 0, clamp_i64_to_i32(min_z));
         let max = Vec3(
-            (cx + 1) * size as i32,
-            max_height as i32,
-            (cz + 1) * size as i32,
+            clamp_i64_to_i32(max_x),
+            max_height_i32,
+            clamp_i64_to_i32(max_z),
         );
 
         Self {

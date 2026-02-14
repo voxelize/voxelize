@@ -418,6 +418,24 @@ fn test_chunk_set_raw_voxel_keeps_extra_changes_for_tall_worlds() {
 }
 
 #[test]
+fn test_chunk_new_handles_large_chunk_coordinates_without_i32_overflow() {
+    let edge_chunk_coord = i32::MAX / 16;
+    let chunk = Chunk::new(
+        "chunk-large-coords",
+        edge_chunk_coord,
+        edge_chunk_coord,
+        &ChunkOptions {
+            size: 16,
+            max_height: 16,
+            sub_chunks: 1,
+        },
+    );
+
+    assert!(chunk.contains(i32::MAX, 0, i32::MAX));
+    assert!(!chunk.contains(i32::MIN, 0, i32::MIN));
+}
+
+#[test]
 fn test_chunk_contains_handles_extreme_coordinate_deltas_without_overflow() {
     let edge_chunk_x = i32::MIN / 16;
     let edge_chunk_z = i32::MIN / 16;
