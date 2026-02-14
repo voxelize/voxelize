@@ -375,7 +375,8 @@ const hasPotentialRelevantDeltaBatches = (
   gridDepth: number,
   gridOffsetX: number,
   gridOffsetZ: number,
-  maxHeight: number
+  maxHeight: number,
+  chunkSize: number
 ) => {
   for (let batchIndex = 0; batchIndex < deltaBatches.length; batchIndex++) {
     const deltaBatch = deltaBatches[batchIndex];
@@ -397,6 +398,17 @@ const hasPotentialRelevantDeltaBatches = (
     ) {
       continue;
     }
+    const chunkMinX = cx * chunkSize;
+    const chunkMinZ = cz * chunkSize;
+    const hasFiniteChunkBounds =
+      Number.isSafeInteger(chunkMinX) && Number.isSafeInteger(chunkMinZ);
+    let chunkMaxX = 0;
+    let chunkMaxZ = 0;
+    if (hasFiniteChunkBounds) {
+      chunkMaxX = chunkMinX + chunkSize;
+      chunkMaxZ = chunkMinZ + chunkSize;
+    }
+
     const deltas = deltaBatch.deltas;
     if (!Array.isArray(deltas) || deltas.length === 0) {
       continue;
@@ -416,7 +428,9 @@ const hasPotentialRelevantDeltaBatches = (
         isInteger(coords[1]) &&
         isInteger(coords[2])
       ) {
+        const vx = coords[0];
         const vy = coords[1];
+        const vz = coords[2];
         if (vy < 0 || vy >= maxHeight) {
           continue;
         }
@@ -430,7 +444,17 @@ const hasPotentialRelevantDeltaBatches = (
         const newStage = delta.newStage;
         const shouldWriteStage = newStage !== undefined && isValidStage(newStage);
         if (shouldWriteVoxel || shouldWriteRotation || shouldWriteStage) {
-          return true;
+          if (!hasFiniteChunkBounds) {
+            return true;
+          }
+          if (
+            vx >= chunkMinX &&
+            vx < chunkMaxX &&
+            vz >= chunkMinZ &&
+            vz < chunkMaxZ
+          ) {
+            return true;
+          }
         }
       }
     }
@@ -1003,7 +1027,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
       gridDepth,
       gridOffsetX,
       gridOffsetZ,
-      maxHeight
+      maxHeight,
+      chunkSize
     );
   const chunkGrid = hasPotentialRelevantDelta ? reusableChunkGrid : emptyChunkGrid;
 
