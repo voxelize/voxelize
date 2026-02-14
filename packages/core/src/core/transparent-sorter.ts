@@ -215,8 +215,8 @@ export function sortTransparentMesh(
   }
 
   const indexAttr = mesh.geometry.index!;
-  const targetArray = indexAttr.array;
-  (targetArray as Uint32Array).set(sortedIndices);
+  const targetArray = indexAttr.array as Uint16Array | Uint32Array;
+  targetArray.set(sortedIndices);
   indexAttr.needsUpdate = true;
 }
 
