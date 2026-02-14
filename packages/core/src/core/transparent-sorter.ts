@@ -28,7 +28,7 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
   const geometry = mesh.geometry;
   if (!geometry.index) return null;
   const positionAttr = geometry.getAttribute("position");
-  if (!positionAttr) return null;
+  if (!positionAttr || positionAttr.itemSize < 3) return null;
 
   const positions = positionAttr.array as ArrayLike<number>;
   const positionsLength = positions.length;
