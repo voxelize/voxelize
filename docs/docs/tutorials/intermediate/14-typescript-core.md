@@ -223,7 +223,8 @@ Each aggregate `failureSummaries[]` entry includes `name`, `scriptName`,
 
 Client/onboarding aggregate JSON reports additionally include step-level
 partitions such as `availableSteps`, `passedSteps`, `failedSteps`,
-`skippedSteps`, `passedStepScripts`, `failedStepScripts`,
+`skippedSteps`, `availableStepScripts`, `availableStepIndices`,
+`passedStepScripts`, `failedStepScripts`,
 `skippedStepScripts`, `passedStepIndices`, `failedStepIndices`,
 `skippedStepIndices`, `failureSummaries`, and `failureSummaryCount`.
 Each step entry in `steps[]` includes `scriptName`, `supportsNoBuild`, and

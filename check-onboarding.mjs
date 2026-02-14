@@ -105,6 +105,9 @@ const availableStepMetadata = {
 const availableStepScripts = availableSteps.map((stepName) => {
   return availableStepMetadata[stepName].scriptName;
 });
+const availableStepIndices = availableSteps.map((_, index) => {
+  return index;
+});
 const availableStepIndexMap = new Map(
   availableSteps.map((stepName, index) => {
     return [stepName, index];
@@ -175,6 +178,8 @@ if (isJson && validationFailureMessage !== null) {
     availableStepCount: availableSteps.length,
     availableStepScripts,
     availableStepScriptCount: availableStepScripts.length,
+    availableStepIndices,
+    availableStepIndexCount: availableStepIndices.length,
     availableStepMetadata,
     steps: [],
     passedStepScripts: [],
@@ -365,6 +370,8 @@ if (isJson) {
     availableStepCount: availableSteps.length,
     availableStepScripts,
     availableStepScriptCount: availableStepScripts.length,
+    availableStepIndices,
+    availableStepIndexCount: availableStepIndices.length,
     availableStepMetadata,
     steps: stepResults,
     passedStepScripts,
