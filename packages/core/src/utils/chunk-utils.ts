@@ -122,9 +122,17 @@ export class ChunkUtils {
     concat = "|"
   ) => {
     const [normalizedChunkSize, chunkShift] = normalizeChunkMapping(chunkSize);
-    const useShift = chunkShift >= 0 && (vx | 0) === vx && (vz | 0) === vz;
-    const cx = useShift ? vx >> chunkShift : Math.floor(vx / normalizedChunkSize);
-    const cz = useShift ? vz >> chunkShift : Math.floor(vz / normalizedChunkSize);
+    if (chunkShift < 0) {
+      return ChunkUtils.getChunkNameAt(
+        Math.floor(vx / normalizedChunkSize),
+        Math.floor(vz / normalizedChunkSize),
+        concat
+      );
+    }
+    const useShiftX = (vx | 0) === vx;
+    const useShiftZ = (vz | 0) === vz;
+    const cx = useShiftX ? vx >> chunkShift : Math.floor(vx / normalizedChunkSize);
+    const cz = useShiftZ ? vz >> chunkShift : Math.floor(vz / normalizedChunkSize);
     return ChunkUtils.getChunkNameAt(cx, cz, concat);
   };
 

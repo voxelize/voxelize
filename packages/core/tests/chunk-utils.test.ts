@@ -93,6 +93,15 @@ describe("ChunkUtils.getChunkNameByVoxel", () => {
     );
   });
 
+  it("keeps mixed integer and fractional axis semantics for power-of-two chunk sizes", () => {
+    const vx = 31;
+    const vz = -16.25;
+    const [cx, cz] = ChunkUtils.mapVoxelToChunkAt(vx, vz, 16);
+    expect(ChunkUtils.getChunkNameByVoxel(vx, vz, 16)).toBe(
+      ChunkUtils.getChunkNameAt(cx, cz)
+    );
+  });
+
   it("handles invalid chunk sizes with normalized fallback", () => {
     expect(ChunkUtils.getChunkNameByVoxel(3.7, -8.2, 0)).toBe("3|-9");
     expect(ChunkUtils.getChunkNameByVoxel(3.7, -8.2, Number.NaN)).toBe("3|-9");
