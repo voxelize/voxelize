@@ -596,12 +596,12 @@ impl VoxelAccess for Chunks {
         }
         let chunk_size = self.config.chunk_size;
         let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
-        let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
 
         {
             let Some(chunk) = self.raw_mut(&coords) else {
                 return false;
             };
+            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
             if !Self::local_is_within_chunk(chunk, lx, ly, lz) {
                 return false;
             }
@@ -644,12 +644,12 @@ impl VoxelAccess for Chunks {
         }
         let chunk_size = self.config.chunk_size;
         let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
-        let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
 
         {
             let Some(chunk) = self.raw_mut(&coords) else {
                 return false;
             };
+            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
             if !Self::local_is_within_chunk(chunk, lx, ly, lz) {
                 return false;
             }
@@ -704,9 +704,9 @@ impl VoxelAccess for Chunks {
     fn set_max_height(&mut self, vx: i32, vz: i32, height: u32) -> bool {
         let chunk_size = self.config.chunk_size;
         let coords = ChunkUtils::map_voxel_to_chunk(vx, 0, vz, chunk_size);
-        let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, 0, vz, chunk_size);
 
         if let Some(chunk) = self.raw_mut(&coords) {
+            let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, 0, vz, chunk_size);
             if !Self::local_column_is_within_chunk(chunk, lx, lz) {
                 return false;
             }
