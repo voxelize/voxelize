@@ -182,7 +182,9 @@ export function sortTransparentMesh(
       return;
     }
   }
-  lastCameraPos.set(camX, camY, camZ);
+  lastCameraPos.x = camX;
+  lastCameraPos.y = camY;
+  lastCameraPos.z = camZ;
 
   const { centroids, faceCount, distances, faceOrder, sortKeys, sortTemp } =
     data;
