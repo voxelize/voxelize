@@ -232,37 +232,60 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         }
 
         if !self.deleted_entities_buffer.is_empty() {
-            let mut deleted_entities_lookup: HashMap<&str, (&String, &String)> =
-                HashMap::with_capacity(self.deleted_entities_buffer.len());
-            for (entity_id, etype, metadata_str) in &self.deleted_entities_buffer {
-                deleted_entities_lookup.insert(entity_id.as_str(), (etype, metadata_str));
-            }
-
-            for client_id in clients.keys() {
-                if let Some(known_entities) = bookkeeping.client_known_entities.get_mut(client_id)
-                {
-                    let entities_to_delete = &mut self.known_entities_to_delete_buffer;
-                    entities_to_delete.clear();
-
-                    for entity_id in known_entities.iter() {
-                        let Some((etype, metadata_str)) =
-                            deleted_entities_lookup.get(entity_id.as_str())
-                        else {
+            if self.deleted_entities_buffer.len() == 1 {
+                let (entity_id, etype, metadata_str) = &self.deleted_entities_buffer[0];
+                for client_id in clients.keys() {
+                    if let Some(known_entities) =
+                        bookkeeping.client_known_entities.get_mut(client_id)
+                    {
+                        if !known_entities.contains(entity_id) {
                             continue;
-                        };
+                        }
                         if let Some(updates) = client_updates.get_mut(client_id) {
                             updates.push(EntityProtocol {
                                 operation: EntityOperation::Delete,
                                 id: entity_id.clone(),
-                                r#type: (*etype).clone(),
-                                metadata: Some((*metadata_str).clone()),
+                                r#type: etype.clone(),
+                                metadata: Some(metadata_str.clone()),
                             });
                         }
-                        entities_to_delete.push(entity_id.clone());
-                    }
-
-                    for entity_id in entities_to_delete.iter() {
                         known_entities.remove(entity_id);
+                    }
+                }
+            } else {
+                let mut deleted_entities_lookup: HashMap<&str, (&String, &String)> =
+                    HashMap::with_capacity(self.deleted_entities_buffer.len());
+                for (entity_id, etype, metadata_str) in &self.deleted_entities_buffer {
+                    deleted_entities_lookup.insert(entity_id.as_str(), (etype, metadata_str));
+                }
+
+                for client_id in clients.keys() {
+                    if let Some(known_entities) =
+                        bookkeeping.client_known_entities.get_mut(client_id)
+                    {
+                        let entities_to_delete = &mut self.known_entities_to_delete_buffer;
+                        entities_to_delete.clear();
+
+                        for entity_id in known_entities.iter() {
+                            let Some((etype, metadata_str)) =
+                                deleted_entities_lookup.get(entity_id.as_str())
+                            else {
+                                continue;
+                            };
+                            if let Some(updates) = client_updates.get_mut(client_id) {
+                                updates.push(EntityProtocol {
+                                    operation: EntityOperation::Delete,
+                                    id: entity_id.clone(),
+                                    r#type: (*etype).clone(),
+                                    metadata: Some((*metadata_str).clone()),
+                                });
+                            }
+                            entities_to_delete.push(entity_id.clone());
+                        }
+
+                        for entity_id in entities_to_delete.iter() {
+                            known_entities.remove(entity_id);
+                        }
                     }
                 }
             }
