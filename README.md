@@ -177,6 +177,8 @@ pnpm run check:ts-core:verify:json:compact
 pnpm run check:ts-core:verify:json -- --output ./ts-core-verify-report.json
 # full release-readiness workflow (build + tests + e2e example + verify report)
 pnpm run check:ts-core:release
+# rerun the ts-core e2e example without rebuilding artifacts
+pnpm --filter @voxelize/ts-core run example:end-to-end:no-build
 # ts-core release workflow aliases
 pnpm run check:ts:release
 pnpm run check:typescript:release
