@@ -70,6 +70,9 @@ const resolvePackageReports = () => {
   return runtimeLibraries.map(resolvePackageReport);
 };
 const summarizePackageReports = (packageReports) => {
+  const presentPackageCount = packageReports.filter((packageReport) => {
+    return packageReport.artifactsPresent;
+  }).length;
   const missingPackageCount = packageReports.filter((packageReport) => {
     return packageReport.artifactsPresent === false;
   }).length;
@@ -77,6 +80,7 @@ const summarizePackageReports = (packageReports) => {
     return count + packageReport.missingArtifactCount;
   }, 0);
   return {
+    presentPackageCount,
     missingPackageCount,
     missingArtifactCount,
   };
@@ -168,9 +172,8 @@ const withBaseReportFields = (report) => {
   const packageReports = Array.isArray(report.packageReports)
     ? report.packageReports
     : [];
-  const { missingPackageCount, missingArtifactCount } = summarizePackageReports(
-    packageReports
-  );
+  const { presentPackageCount, missingPackageCount, missingArtifactCount } =
+    summarizePackageReports(packageReports);
   const buildExitCode =
     typeof report.buildExitCode === "number" ? report.buildExitCode : null;
   const buildDurationMs =
@@ -201,7 +204,9 @@ const withBaseReportFields = (report) => {
     availableCliOptionAliases,
     availableCliOptionCanonicalMap,
     checkedPackages,
+    checkedPackageCount: checkedPackages.length,
     requiredPackageCount: runtimeLibraries.length,
+    presentPackageCount,
     packageReportCount: packageReports.length,
     requiredArtifactCount,
     missingPackageCount,

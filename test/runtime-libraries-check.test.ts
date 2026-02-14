@@ -27,7 +27,9 @@ type RuntimeLibrariesCheckReport = {
   packagesPresent: boolean;
   packageReports: RuntimePackageReport[];
   checkedPackages: string[];
+  checkedPackageCount: number;
   requiredPackageCount: number;
+  presentPackageCount: number;
   packageReportCount: number;
   requiredArtifactCount: number;
   missingPackageCount: number;
@@ -174,6 +176,7 @@ const runScript = (args: string[] = []): ScriptResult => {
 const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   const report = JSON.parse(result.output) as RuntimeLibrariesCheckReport;
   expect(report.checkedPackages).toEqual(expectedCheckedPackages);
+  expect(report.checkedPackageCount).toBe(report.checkedPackages.length);
   expect(report.requiredPackageCount).toBe(expectedCheckedPackages.length);
   expect(report.packageReportCount).toBe(report.packageReports.length);
   expect(report.requiredArtifactCount).toBe(expectedRequiredArtifactCount);
@@ -197,6 +200,8 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   const missingArtifactCount = report.packageReports.reduce((count, packageReport) => {
     return count + packageReport.missingArtifactCount;
   }, 0);
+  const presentPackageCount = report.packageReports.length - missingPackageCount;
+  expect(report.presentPackageCount).toBe(presentPackageCount);
   expect(report.missingPackageCount).toBe(missingPackageCount);
   expect(report.missingArtifactCount).toBe(missingArtifactCount);
   for (const packageReport of report.packageReports) {
@@ -277,6 +282,7 @@ describe("check-runtime-libraries script", () => {
     expect(report.exitCode).toBe(0);
     expect(report.validationErrorCode).toBeNull();
     expect(report.packagesPresent).toBe(true);
+    expect(report.presentPackageCount).toBe(report.requiredPackageCount);
     expect(report.missingPackageCount).toBe(0);
     expect(report.missingArtifactCount).toBe(0);
     expect(report.outputPath).toBeNull();
@@ -669,6 +675,7 @@ describe("check-runtime-libraries script", () => {
       expect(report.passed).toBe(false);
       expect(report.noBuild).toBe(true);
       expect(report.packagesPresent).toBe(false);
+      expect(report.presentPackageCount).toBeLessThan(report.requiredPackageCount);
       expect(report.missingPackageCount).toBeGreaterThanOrEqual(1);
       expect(report.missingArtifactCount).toBeGreaterThanOrEqual(1);
       expect(report.buildSkipped).toBe(true);
@@ -687,6 +694,7 @@ describe("check-runtime-libraries script", () => {
       expect(result.status).toBe(0);
       expect(report.passed).toBe(true);
       expect(report.packagesPresent).toBe(true);
+      expect(report.presentPackageCount).toBe(report.requiredPackageCount);
       expect(report.missingPackageCount).toBe(0);
       expect(report.missingArtifactCount).toBe(0);
       expect(report.attemptedBuild).toBe(true);

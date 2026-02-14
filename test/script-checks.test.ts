@@ -218,7 +218,9 @@ type RuntimeLibrariesJsonReport = OptionTerminatorMetadata &
   packagesPresent: boolean;
   packageReports: RuntimeLibrariesJsonPackageReport[];
   checkedPackages: string[];
+  checkedPackageCount: number;
   requiredPackageCount: number;
+  presentPackageCount: number;
   packageReportCount: number;
   requiredArtifactCount: number;
   missingPackageCount: number;
@@ -503,6 +505,7 @@ const expectRuntimeLibrariesReportMetadata = (
   report: RuntimeLibrariesJsonReport
 ) => {
   expect(report.checkedPackages).toEqual(expectedRuntimeLibrariesCheckedPackages);
+  expect(report.checkedPackageCount).toBe(report.checkedPackages.length);
   expect(report.requiredPackageCount).toBe(
     expectedRuntimeLibrariesCheckedPackages.length
   );
@@ -519,6 +522,8 @@ const expectRuntimeLibrariesReportMetadata = (
     },
     0
   );
+  const presentPackageCount = report.packageReports.length - missingPackageCount;
+  expect(report.presentPackageCount).toBe(presentPackageCount);
   expect(report.missingPackageCount).toBe(missingPackageCount);
   expect(report.missingArtifactCount).toBe(missingArtifactCount);
   for (const packageReport of report.packageReports) {
