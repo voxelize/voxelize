@@ -196,13 +196,11 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         let mut client_updates: HashMap<String, Vec<EntityProtocol>> =
             HashMap::with_capacity(clients.len());
+        let default_pos = Vec3(0.0, 0.0, 0.0);
 
         for (entity_id, (etype, metadata_str, is_new)) in &entity_metadata_map {
-            let pos = entity_positions
-                .get(entity_id)
-                .cloned()
-                .unwrap_or(Vec3(0.0, 0.0, 0.0));
-            let nearby_players = kdtree.players_within_radius(&pos, entity_visible_radius);
+            let pos = entity_positions.get(entity_id).unwrap_or(&default_pos);
+            let nearby_players = kdtree.players_within_radius(pos, entity_visible_radius);
 
             for player_entity in nearby_players {
                 let client_id = match entity_to_client_id.get(player_entity) {
@@ -269,8 +267,8 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         }
 
         for (client_id, client) in clients.iter() {
-            let client_pos = match positions.get(client.entity) {
-                Some(p) => p.0.clone(),
+            let (client_x, client_y, client_z) = match positions.get(client.entity) {
+                Some(p) => (p.0 .0, p.0 .1, p.0 .2),
                 None => continue,
             };
 
@@ -284,9 +282,9 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                             }
                         }
                         if let Some(entity_pos) = entity_positions.get(*entity_id) {
-                            let dx = entity_pos.0 - client_pos.0;
-                            let dy = entity_pos.1 - client_pos.1;
-                            let dz = entity_pos.2 - client_pos.2;
+                            let dx = entity_pos.0 - client_x;
+                            let dy = entity_pos.1 - client_y;
+                            let dz = entity_pos.2 - client_z;
                             is_outside_visible_radius_sq(dx, dy, dz, entity_visible_radius_sq)
                         } else {
                             true
