@@ -1,6 +1,5 @@
 import { Coords2, Coords3 } from "../types";
 
-const MIN_INT32 = -0x80000000;
 const MAX_INT32 = 0x7fffffff;
 
 const getChunkShiftIfPowerOfTwo = (chunkSize: number) => {
@@ -19,10 +18,7 @@ const mapVoxelToChunkCoordinate = (
   chunkSize: number,
   chunkShift: number
 ) =>
-  chunkShift >= 0 &&
-  Number.isSafeInteger(voxel) &&
-  voxel >= MIN_INT32 &&
-  voxel <= MAX_INT32
+  chunkShift >= 0 && (voxel | 0) === voxel
     ? voxel >> chunkShift
     : Math.floor(voxel / chunkSize);
 
