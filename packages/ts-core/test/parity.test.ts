@@ -521,6 +521,25 @@ describe("BlockRotation", () => {
     expect(nodeB[2]).toBeCloseTo(0.75, 10);
   });
 
+  it("keeps AABB bounds unchanged for full-turn PY y rotations", () => {
+    const source = AABB.create(0.1, 0.2, 0.3, 0.9, 0.8, 0.7);
+    const positive = BlockRotation.py(Math.PI * 2).rotateAABB(source, true, true);
+    const negative = BlockRotation.py(-Math.PI * 2).rotateAABB(source, true, true);
+
+    expect(positive.minX).toBeCloseTo(source.minX, 10);
+    expect(positive.minY).toBeCloseTo(source.minY, 10);
+    expect(positive.minZ).toBeCloseTo(source.minZ, 10);
+    expect(positive.maxX).toBeCloseTo(source.maxX, 10);
+    expect(positive.maxY).toBeCloseTo(source.maxY, 10);
+    expect(positive.maxZ).toBeCloseTo(source.maxZ, 10);
+    expect(negative.minX).toBeCloseTo(source.minX, 10);
+    expect(negative.minY).toBeCloseTo(source.minY, 10);
+    expect(negative.minZ).toBeCloseTo(source.minZ, 10);
+    expect(negative.maxX).toBeCloseTo(source.maxX, 10);
+    expect(negative.maxY).toBeCloseTo(source.maxY, 10);
+    expect(negative.maxZ).toBeCloseTo(source.maxZ, 10);
+  });
+
   it("returns a boolean tuple for non-PY transparency rotations", () => {
     const rotation = BlockRotation.px(Math.PI / 2);
     const input: [boolean, boolean, boolean, boolean, boolean, boolean] = [
