@@ -134,33 +134,35 @@ impl BatchSpace {
         }
     }
 
-    fn take_modified_chunks(&self) -> Vec<ModifiedChunkData> {
+    fn take_modified_chunks(self) -> Vec<ModifiedChunkData> {
         if self.modified_count == 0 {
             return Vec::new();
         }
 
+        let chunk_grid_depth = self.chunk_grid_depth;
+        let [offset_x, offset_z] = self.chunk_grid_offset;
         let mut modified = Vec::with_capacity(self.modified_count);
-
-        for (index, is_modified) in self.modified_chunks.iter().enumerate() {
-            if !is_modified {
-                continue;
-            }
-
-            if let Some(Some(chunk)) = self.chunks.get(index) {
-                let local_x = index / self.chunk_grid_depth;
-                let local_z = index % self.chunk_grid_depth;
-                modified.push(ModifiedChunkData {
-                    coords: [
-                        self.chunk_grid_offset[0] + local_x as i32,
-                        self.chunk_grid_offset[1] + local_z as i32,
-                    ],
-                    lights: chunk.lights.clone(),
-                });
+        for (index, (is_modified, chunk)) in self
+            .modified_chunks
+            .into_iter()
+            .zip(self.chunks.into_iter())
+            .enumerate()
+        {
+            if is_modified {
+                if let Some(chunk) = chunk {
+                    let local_x = index / chunk_grid_depth;
+                    let local_z = index % chunk_grid_depth;
+                    modified.push(ModifiedChunkData {
+                        coords: [offset_x + local_x as i32, offset_z + local_z as i32],
+                        lights: chunk.lights,
+                    });
+                }
             }
         }
 
         modified
     }
+
 }
 
 impl LightVoxelAccess for BatchSpace {
