@@ -484,7 +484,7 @@ export class MeshPipeline {
         continue;
       }
 
-      if (dirtyCount >= normalizedMaxCount) {
+      if (hasFiniteLimit && dirtyCount >= normalizedMaxCount) {
         hasMore = true;
         break;
       }
