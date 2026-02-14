@@ -434,10 +434,10 @@ const applyRelevantDeltas = (
           continue;
         }
         const chunkLastSequenceId = tailDelta.sequenceId;
-        if (
-          isInteger(chunkLastSequenceId) &&
-          chunkLastSequenceId > lastSequenceId
-        ) {
+        if (!isInteger(chunkLastSequenceId)) {
+          continue;
+        }
+        if (chunkLastSequenceId > lastSequenceId) {
           lastSequenceId = chunkLastSequenceId;
         }
         break;
