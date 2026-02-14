@@ -76,6 +76,34 @@ const expectedRequiredArtifacts = [
   "packages/ts-core/dist/index.mjs",
   "packages/ts-core/dist/index.d.ts",
 ];
+const resolveArtifactPath = (artifactPath: string) => {
+  return path.resolve(rootDir, artifactPath);
+};
+
+const runWithTemporarilyMovedArtifact = (
+  artifactPath: string,
+  run: () => void
+) => {
+  const absoluteArtifactPath = resolveArtifactPath(artifactPath);
+  const backupPath = `${absoluteArtifactPath}.backup-${Date.now()}`;
+  fs.renameSync(absoluteArtifactPath, backupPath);
+
+  try {
+    run();
+  } finally {
+    const artifactExists = fs.existsSync(absoluteArtifactPath);
+    const backupExists = fs.existsSync(backupPath);
+
+    if (artifactExists && backupExists) {
+      fs.rmSync(backupPath, { force: true });
+      return;
+    }
+
+    if (!artifactExists && backupExists) {
+      fs.renameSync(backupPath, absoluteArtifactPath);
+    }
+  }
+};
 
 const runScript = (args: string[] = []): ScriptResult => {
   const result = spawnSync(process.execPath, [tsCoreCheckScript, ...args], {
@@ -170,6 +198,50 @@ describe("check-ts-core script", () => {
     expect(typeof report.startedAt).toBe("string");
     expect(typeof report.endedAt).toBe("string");
     expect(report.durationMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("reports missing artifacts in no-build mode when ts-core outputs are absent", () => {
+    const missingArtifactPath = expectedRequiredArtifacts[0];
+    runWithTemporarilyMovedArtifact(missingArtifactPath, () => {
+      const result = runScript(["--json", "--no-build"]);
+      const report = parseReport(result);
+
+      expect(result.status).toBe(1);
+      expect(report.schemaVersion).toBe(1);
+      expect(report.passed).toBe(false);
+      expect(report.exitCode).toBe(1);
+      expect(report.noBuild).toBe(true);
+      expect(report.validationErrorCode).toBeNull();
+      expect(report.artifactsPresent).toBe(false);
+      expect(report.missingArtifacts).toContain(missingArtifactPath);
+      expect(report.attemptedBuild).toBe(false);
+      expect(report.buildSkipped).toBe(true);
+      expect(report.buildOutput).toBeNull();
+      expect(report.message).toContain(
+        "Build was skipped due to --no-build."
+      );
+    });
+  });
+
+  it("rebuilds missing artifacts when no-build mode is disabled", () => {
+    const missingArtifactPath = expectedRequiredArtifacts[0];
+    runWithTemporarilyMovedArtifact(missingArtifactPath, () => {
+      const result = runScript(["--json"]);
+      const report = parseReport(result);
+
+      expect(result.status).toBe(0);
+      expect(report.schemaVersion).toBe(1);
+      expect(report.passed).toBe(true);
+      expect(report.exitCode).toBe(0);
+      expect(report.noBuild).toBe(false);
+      expect(report.validationErrorCode).toBeNull();
+      expect(report.artifactsPresent).toBe(true);
+      expect(report.missingArtifacts).toEqual([]);
+      expect(report.attemptedBuild).toBe(true);
+      expect(report.buildSkipped).toBe(false);
+      expect(report.message).toBe("TypeScript core build artifacts are available.");
+      expect(fs.existsSync(resolveArtifactPath(missingArtifactPath))).toBe(true);
+    });
   });
 
   it("writes unsupported-option validation report to trailing output path", () => {
