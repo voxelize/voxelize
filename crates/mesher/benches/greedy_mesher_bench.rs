@@ -703,6 +703,37 @@ fn dynamic_world_scene() -> BenchSpace {
     space
 }
 
+fn rotation_heavy_scene() -> BenchSpace {
+    let mut space = BenchSpace::new([16, 16, 16]);
+
+    for x in 0..16 {
+        for z in 0..16 {
+            space.set_voxel_id(x, 0, z, 1);
+            for y in 1..6 {
+                if (x + z + y) % 2 == 0 {
+                    let rotation = match (x + z + y) % 4 {
+                        0 => BlockRotation::PY(0.0),
+                        1 => BlockRotation::PY(std::f32::consts::FRAC_PI_2),
+                        2 => BlockRotation::PY(std::f32::consts::PI),
+                        _ => BlockRotation::PY(std::f32::consts::PI * 1.5),
+                    };
+                    space.set_voxel_rotation(x, y, z, 5, rotation);
+                } else {
+                    space.set_voxel_id(x, y, z, 2);
+                }
+            }
+        }
+    }
+
+    for x in 0..16 {
+        for z in 0..16 {
+            space.set_light(x, 7, z, 13, 1, 4, 2);
+        }
+    }
+
+    space
+}
+
 fn greedy_mesher_benchmark(c: &mut Criterion) {
     let registry = build_registry();
     let scenes = vec![
@@ -714,6 +745,7 @@ fn greedy_mesher_benchmark(c: &mut Criterion) {
         ("isolated_independent_16x10x16", isolated_independent_scene()),
         ("seeded_mix_16x12x16", seeded_mix_scene()),
         ("dynamic_world_16x10x16", dynamic_world_scene()),
+        ("rotation_heavy_16x16x16", rotation_heavy_scene()),
     ];
 
     let mut group = c.benchmark_group("greedy_mesher");
@@ -769,6 +801,7 @@ fn non_greedy_mesher_benchmark(c: &mut Criterion) {
         ("isolated_independent_16x10x16", isolated_independent_scene()),
         ("seeded_mix_16x12x16", seeded_mix_scene()),
         ("dynamic_world_16x10x16", dynamic_world_scene()),
+        ("rotation_heavy_16x16x16", rotation_heavy_scene()),
     ];
     let mut group = c.benchmark_group("non_greedy_mesher");
 
