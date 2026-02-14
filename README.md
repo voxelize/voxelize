@@ -372,6 +372,7 @@ pnpm run check:preflight:all-checks:verify:json:compact
 # includes firstFailedCheck for quick failure triage
 # includes failureSummaries for quick CI diagnostics
 # failureSummaries are derived from nested step/check report messages when available
+# failureSummaries also include scriptName and checkIndex for deterministic CI routing
 # optionally write the same report to disk
 pnpm run check:preflight:verify:json -- --output ./preflight-report.json
 

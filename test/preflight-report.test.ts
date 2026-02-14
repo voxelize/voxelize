@@ -87,6 +87,8 @@ type RuntimeLibrariesNestedReport = {
 
 type PreflightFailureSummary = {
   name: string;
+  scriptName: string;
+  checkIndex: number | null;
   exitCode: number;
   message: string;
 };
@@ -890,6 +892,12 @@ describe("preflight aggregate report", () => {
       report.failedChecks.slice().sort()
     );
     for (const entry of report.failureSummaries) {
+      expect(entry.scriptName).toBe(
+        expectedAvailableCheckMetadata[
+          entry.name as keyof typeof expectedAvailableCheckMetadata
+        ].scriptName
+      );
+      expect(entry.checkIndex).toBe(expectedAvailableChecks.indexOf(entry.name));
       expect(entry.exitCode).toBeGreaterThanOrEqual(1);
       expect(entry.message.length).toBeGreaterThan(0);
     }
@@ -2109,6 +2117,10 @@ describe("preflight aggregate report", () => {
       expect(report.failedChecks).toEqual(["tsCore"]);
       expect(report.failureSummaries.length).toBe(1);
       expect(report.failureSummaries[0].name).toBe("tsCore");
+      expect(report.failureSummaries[0].scriptName).toBe("check-ts-core.mjs");
+      expect(report.failureSummaries[0].checkIndex).toBe(
+        expectedAvailableChecks.indexOf("tsCore")
+      );
     }
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
