@@ -164,6 +164,11 @@ const summarizePackageReports = (packageReports) => {
   const presentPackageIndices = presentPackages.map((packageName) => {
     return resolveCheckedPackageIndex(packageName);
   });
+  const presentPackageIndexMap = Object.fromEntries(
+    presentPackages.map((packageName) => {
+      return [packageName, resolveCheckedPackageIndex(packageName)];
+    })
+  );
   const presentArtifactCount = packageReports.reduce((count, packageReport) => {
     return count + packageReport.presentArtifactCount;
   }, 0);
@@ -209,6 +214,11 @@ const summarizePackageReports = (packageReports) => {
   const missingPackageIndices = missingPackages.map((packageName) => {
     return resolveCheckedPackageIndex(packageName);
   });
+  const missingPackageIndexMap = Object.fromEntries(
+    missingPackages.map((packageName) => {
+      return [packageName, resolveCheckedPackageIndex(packageName)];
+    })
+  );
   const missingArtifactCount = packageReports.reduce((count, packageReport) => {
     return count + packageReport.missingArtifactCount;
   }, 0);
@@ -258,6 +268,8 @@ const summarizePackageReports = (packageReports) => {
     presentPackagePathMapCount: countRecordEntries(presentPackagePathMap),
     presentPackageIndices,
     presentPackageIndexCount: presentPackageIndices.length,
+    presentPackageIndexMap,
+    presentPackageIndexMapCount: countRecordEntries(presentPackageIndexMap),
     presentArtifactCount,
     presentArtifacts,
     presentArtifactsByPackage,
@@ -278,6 +290,8 @@ const summarizePackageReports = (packageReports) => {
     missingPackagePathMapCount: countRecordEntries(missingPackagePathMap),
     missingPackageIndices,
     missingPackageIndexCount: missingPackageIndices.length,
+    missingPackageIndexMap,
+    missingPackageIndexMapCount: countRecordEntries(missingPackageIndexMap),
     missingArtifactCount,
     missingArtifacts,
     missingArtifactsByPackage,
@@ -387,14 +401,17 @@ const withBaseReportFields = (report) => {
     presentPackagePaths,
     presentPackagePathMap,
     presentPackageIndices,
+    presentPackageIndexMap,
     missingPackages,
     missingPackagePaths,
     missingPackagePathMap,
     missingPackageIndices,
+    missingPackageIndexMap,
     presentPackageCount,
     presentPackagePathCount,
     presentPackagePathMapCount,
     presentPackageIndexCount,
+    presentPackageIndexMapCount,
     presentArtifactCount,
     presentArtifacts,
     presentArtifactsByPackage,
@@ -414,6 +431,7 @@ const withBaseReportFields = (report) => {
     missingPackagePathCount,
     missingPackagePathMapCount,
     missingPackageIndexCount,
+    missingPackageIndexMapCount,
     missingArtifactCount,
     missingArtifacts,
     missingArtifactsByPackage,
@@ -464,15 +482,18 @@ const withBaseReportFields = (report) => {
     presentPackagePaths,
     presentPackagePathMap,
     presentPackageIndices,
+    presentPackageIndexMap,
     missingPackages,
     missingPackagePaths,
     missingPackagePathMap,
     missingPackageIndices,
+    missingPackageIndexMap,
     requiredPackageCount: runtimeLibraries.length,
     presentPackageCount,
     presentPackagePathCount,
     presentPackagePathMapCount,
     presentPackageIndexCount,
+    presentPackageIndexMapCount,
     packageReportCount: packageReports.length,
     packageReportMap,
     packageReportMapCount,
@@ -501,6 +522,7 @@ const withBaseReportFields = (report) => {
     missingPackagePathCount,
     missingPackagePathMapCount,
     missingPackageIndexCount,
+    missingPackageIndexMapCount,
     missingArtifactCount,
     missingArtifacts,
     missingArtifactsByPackage,
