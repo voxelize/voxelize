@@ -158,6 +158,16 @@ describe("LightUtils", () => {
     });
   });
 
+  it("ignores upper bits when unpacking light channels", () => {
+    const light = 0xfff0abcd;
+    expect(Light.unpack(light)).toEqual({
+      sunlight: 0xa,
+      red: 0xb,
+      green: 0xc,
+      blue: 0xd,
+    });
+  });
+
   it("masks overflowing and negative channel levels to 4 bits", () => {
     const masked = Light.pack({
       sunlight: 20,
