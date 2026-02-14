@@ -139,7 +139,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
       if (commandInfo) {
         try {
-          const parsedArgs = this.parseArgs(rest.trim(), commandInfo.args);
+          const parsedArgs = this.parseArgs(rest, commandInfo.args);
           commandInfo.process(parsedArgs);
 
           this.packets.push({
@@ -307,7 +307,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     const hasOwn = Object.prototype.hasOwnProperty;
 
     if (keys.length === 1 && keys[0] === "rest") {
-      return schema.parse({ rest: raw });
+      return schema.parse({ rest: raw.trim() });
     }
 
     const words = this.splitQuotedTokens(raw);
