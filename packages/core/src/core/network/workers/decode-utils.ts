@@ -83,6 +83,7 @@ function decompressToUint32Array(
 ): Uint32Array {
   if (data.length === 0) return EMPTY_U32;
   const bytes = decompressLz4Block(data);
+  if (bytes.length === 0) return EMPTY_U32;
   const result = new Uint32Array(
     bytes.buffer,
     bytes.byteOffset,
@@ -98,6 +99,7 @@ function decompressToInt32Array(
 ): Int32Array {
   if (data.length === 0) return EMPTY_I32;
   const bytes = decompressLz4Block(data);
+  if (bytes.length === 0) return EMPTY_I32;
   const result = new Int32Array(
     bytes.buffer,
     bytes.byteOffset,
@@ -115,6 +117,7 @@ function decompressToFloat32Array(
 ): Float32Array {
   if (data.length === 0) return EMPTY_F32;
   const bytes = decompressLz4Block(data);
+  if (bytes.length === 0) return EMPTY_F32;
   const result = new Float32Array(
     bytes.buffer,
     bytes.byteOffset,
