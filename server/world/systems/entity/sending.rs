@@ -107,24 +107,21 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             );
         }
 
-        let mut updated_ids: HashSet<&String> = HashSet::new();
+        let mut old_entities = std::mem::take(&mut bookkeeping.entities);
 
         for (id, ent, _) in (&ids, &entities, &flags).join() {
-            updated_ids.insert(&id.0);
-            self.updated_entities_buffer.push((id.0.to_owned(), ent));
+            let id_owned = id.0.to_owned();
+            if old_entities.remove(&id.0).is_none() {
+                self.new_entity_ids_buffer.insert(id_owned.clone());
+            }
+            self.updated_entities_buffer.push((id_owned, ent));
         }
-
-        let old_entities = std::mem::take(&mut bookkeeping.entities);
 
         let old_entity_handlers = std::mem::take(&mut physics.entity_to_handlers);
 
         self.deleted_entities_buffer.reserve(old_entities.len());
 
         for (id, (etype, ent, metadata, persisted)) in old_entities.iter() {
-            if updated_ids.contains(id) {
-                continue;
-            }
-
             if *persisted {
                 bg_saver.remove(id);
             }
@@ -139,12 +136,6 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         }
 
         physics.entity_to_handlers = new_entity_handlers;
-
-        for (id, _) in &self.updated_entities_buffer {
-            if !old_entities.contains_key(id) {
-                self.new_entity_ids_buffer.insert(id.to_owned());
-            }
-        }
 
         let mut new_bookkeeping_records =
             HashMap::with_capacity(self.updated_entities_buffer.len());
