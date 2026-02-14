@@ -273,30 +273,29 @@ pub fn remove_light(
     );
 }
 
-pub fn remove_lights(
+pub fn remove_lights<I>(
     space: &mut dyn LightVoxelAccess,
-    voxels: &[[i32; 3]],
+    voxels: I,
     color: &LightColor,
     config: &LightConfig,
     registry: &LightRegistry,
-) {
-    if voxels.is_empty() {
-        return;
-    }
+) where
+    I: IntoIterator<Item = [i32; 3]>,
+{
 
     let is_sunlight = *color == LightColor::Sunlight;
     let mut fill = Vec::<LightNode>::new();
     let mut remove = Vec::<LightNode>::new();
 
     for voxel in voxels {
-        let [vx, vy, vz] = *voxel;
+        let [vx, vy, vz] = voxel;
         let level = get_light_level(space, vx, vy, vz, color, is_sunlight);
         if level == 0 {
             continue;
         }
 
         remove.push(LightNode {
-            voxel: *voxel,
+            voxel,
             level,
         });
         set_light_level(space, vx, vy, vz, 0, color, is_sunlight);
@@ -693,7 +692,7 @@ mod tests {
 
         remove_lights(
             &mut space,
-            &[source_a, source_b],
+            [source_a, source_b],
             &LightColor::Red,
             &config,
             &registry,

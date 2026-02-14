@@ -320,7 +320,7 @@ pub fn process_light_batch_fast(
         if !removal_nodes.is_empty() {
             remove_lights(
                 &mut space,
-                &removal_nodes,
+                removal_nodes.iter().copied(),
                 &light_color,
                 &config,
                 registry,

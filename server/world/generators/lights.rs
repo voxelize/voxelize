@@ -120,10 +120,9 @@ impl Lights {
     ) {
         let light_registry = registry.lighter_registry();
         let light_config = convert_config(config);
-        let converted_voxels: Vec<[i32; 3]> = voxels.iter().map(|v| [v.0, v.1, v.2]).collect();
         lighter_remove_lights(
             space,
-            &converted_voxels,
+            voxels.iter().map(|v| [v.0, v.1, v.2]),
             color,
             &light_config,
             light_registry.as_ref(),
