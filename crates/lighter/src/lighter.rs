@@ -171,7 +171,7 @@ fn flood_light_from_nodes(
     let color_mask = if is_sunlight { 0 } else { torch_color_mask(color) };
     let max_height = config.max_height;
     let max_light_level = config.max_light_level;
-    let chunk_size = config.chunk_size;
+    let chunk_size = config.chunk_size.max(1);
     let chunk_shift = resolve_chunk_shift(chunk_size);
     let [start_cx, start_cz] = config.min_chunk;
     let [end_cx, end_cz] = config.max_chunk;
@@ -998,6 +998,33 @@ mod tests {
             &LightColor::Red,
             &config,
             Some(&bounds),
+            &registry,
+        );
+
+        assert!(space.get_red_light(9, 32, 8) > 0);
+    }
+
+    #[test]
+    fn flood_light_handles_zero_chunk_size_without_panicking() {
+        let registry = test_registry();
+        let mut config = test_config();
+        config.chunk_size = 0;
+        config.min_chunk = [-16, -16];
+        config.max_chunk = [16, 16];
+        let mut space = TestSpace::new([0, 0, 0], [16, 64, 16]);
+
+        assert!(space.set_voxel(8, 32, 8, 2));
+        space.set_red_light(8, 32, 8, 15);
+
+        flood_light(
+            &mut space,
+            VecDeque::from(vec![LightNode {
+                voxel: [8, 32, 8],
+                level: 15,
+            }]),
+            &LightColor::Red,
+            &config,
+            None,
             &registry,
         );
 
