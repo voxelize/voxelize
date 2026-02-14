@@ -175,4 +175,20 @@ describe("ChunkPipeline.shouldRequestAt", () => {
     expect(pipeline.incrementRetry(name)).toBe(1);
     expect(pipeline.getRetryCount(name)).toBe(1);
   });
+
+  it("normalizes negative retry counters in shouldRequestAt flow", () => {
+    const pipeline = new ChunkPipeline();
+    pipeline.markRequestedAt(13, 14);
+    const name = ChunkUtils.getChunkNameAt(13, 14);
+    const requested = pipeline.getRequestedCoords(name);
+    if (!requested) {
+      throw new Error("Expected requested stage for negative retry normalization test");
+    }
+
+    requested.retryCount = -5;
+    expect(pipeline.shouldRequestAt(13, 14, 1)).toBe(false);
+    expect(pipeline.getRetryCount(name)).toBe(1);
+    expect(pipeline.shouldRequestAt(13, 14, 1)).toBe(true);
+    expect(pipeline.getStage(name)).toBeNull();
+  });
 });
