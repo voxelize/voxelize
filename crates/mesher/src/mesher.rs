@@ -2741,6 +2741,9 @@ fn process_face<S: VoxelAccess>(
         uvs.extend_from_slice(&uv_chunk);
         lights.extend_from_slice(&light_chunk);
     } else {
+        let mut positions_chunk = [0.0f32; 12];
+        let mut uv_chunk = [0.0f32; 8];
+        let mut light_chunk = [0i32; 4];
         let mut face_aos = [0i32; 4];
         let mut four_red_lights = [0u32; 4];
         let mut four_green_lights = [0u32; 4];
@@ -2774,12 +2777,14 @@ fn process_face<S: VoxelAccess>(
         for (corner_index, corner) in face.corners.iter().enumerate() {
             let pos = corner_positions[corner_index];
 
-            positions.push(pos[0] + base_x);
-            positions.push(pos[1] + base_y);
-            positions.push(pos[2] + base_z);
+            let positions_base = corner_index * 3;
+            positions_chunk[positions_base] = pos[0] + base_x;
+            positions_chunk[positions_base + 1] = pos[1] + base_y;
+            positions_chunk[positions_base + 2] = pos[2] + base_z;
 
-            uvs.push(corner.uv[0] * uv_span_u + start_u);
-            uvs.push(corner.uv[1] * uv_span_v + start_v);
+            let uv_base = corner_index * 2;
+            uv_chunk[uv_base] = corner.uv[0] * uv_span_u + start_u;
+            uv_chunk[uv_base + 1] = corner.uv[1] * uv_span_v + start_v;
 
             let dx = if pos[0] <= block_min_x_eps { -1 } else { 1 };
             let dy = if pos[1] <= block_min_y_eps { -1 } else { 1 };
@@ -2898,13 +2903,17 @@ fn process_face<S: VoxelAccess>(
 
             let light = pack_light_nibbles(sunlight, red_light, green_light, blue_light);
             let wave_bit = if apply_wave_bit && dy == 1 { 1 << 20 } else { 0 };
-            lights.push(light as i32 | ao << 16 | fluid_bit | wave_bit);
+            light_chunk[corner_index] = light as i32 | ao << 16 | fluid_bit | wave_bit;
 
             four_red_lights[corner_index] = red_light;
             four_green_lights[corner_index] = green_light;
             four_blue_lights[corner_index] = blue_light;
             face_aos[corner_index] = ao;
         }
+        positions.extend_from_slice(&positions_chunk);
+        uvs.extend_from_slice(&uv_chunk);
+        lights.extend_from_slice(&light_chunk);
+
         let a_rt = four_red_lights[0];
         let b_rt = four_red_lights[1];
         let c_rt = four_red_lights[2];
