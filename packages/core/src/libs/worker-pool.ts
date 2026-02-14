@@ -48,6 +48,13 @@ export type WorkerPoolOptions = {
 const defaultOptions: WorkerPoolOptions = {
   maxWorker: 8,
 };
+const normalizeMaxWorker = (maxWorker: number): number => {
+  if (!Number.isFinite(maxWorker)) {
+    return defaultOptions.maxWorker;
+  }
+  const normalized = Math.floor(maxWorker);
+  return normalized > 0 ? normalized : defaultOptions.maxWorker;
+};
 
 /**
  * A pool of web workers that can be used to execute jobs. The pool will create
@@ -90,7 +97,8 @@ export class WorkerPool {
     public Proto: new (options?: WorkerOptions) => Worker,
     public options: WorkerPoolOptions = defaultOptions
   ) {
-    const { maxWorker, name } = options;
+    const { name } = options;
+    const maxWorker = normalizeMaxWorker(options.maxWorker);
 
     for (let i = 0; i < maxWorker; i++) {
       const workerOptions: WorkerOptions | undefined = name
