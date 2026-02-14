@@ -157,6 +157,13 @@ const isInteger = (value: number) => Number.isInteger(value);
 const isPositiveInteger = (value: number) => isInteger(value) && value > 0;
 const isValidMaxLightLevel = (value: number) =>
   isInteger(value) && value >= 0 && value <= 15;
+const hasFiniteRotation = (
+  rotation: VoxelDelta["newRotation"] | null | undefined
+): rotation is NonNullable<VoxelDelta["newRotation"]> =>
+  rotation !== undefined &&
+  rotation !== null &&
+  isInteger(rotation.value) &&
+  Number.isFinite(rotation.yRotation);
 const normalizeSequenceId = (sequenceId: number) =>
   isPositiveInteger(sequenceId) ? sequenceId : 0;
 
@@ -398,10 +405,7 @@ const applyRelevantDeltas = (
       const newStage = delta.newStage;
       const shouldWriteVoxel =
         delta.oldVoxel !== delta.newVoxel && isInteger(delta.newVoxel);
-      const shouldWriteRotation =
-        newRotation !== undefined &&
-        newRotation !== null &&
-        typeof newRotation === "object";
+      const shouldWriteRotation = hasFiniteRotation(newRotation);
       const shouldWriteStage = newStage !== undefined && isInteger(newStage);
       if (!shouldWriteVoxel && !shouldWriteRotation && !shouldWriteStage) {
         continue;
