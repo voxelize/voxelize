@@ -1,4 +1,4 @@
-use hashbrown::{HashMap, HashSet};
+use hashbrown::{hash_map::RawEntryMut, HashMap, HashSet};
 use specs::{Entity, ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::{
@@ -63,8 +63,11 @@ impl<'a> System<'a> for EventsSystem {
         let dispatch_map = &mut self.dispatch_map_buffer;
         dispatch_map.retain(|id, _| clients.contains_key(id));
         for (id, _) in clients.iter() {
-            if !dispatch_map.contains_key(id) {
-                dispatch_map.insert(id.to_owned(), Vec::new());
+            match dispatch_map.raw_entry_mut().from_key(id) {
+                RawEntryMut::Occupied(_) => {}
+                RawEntryMut::Vacant(entry) => {
+                    entry.insert(id.to_owned(), Vec::new());
+                }
             }
         }
         let touched_clients = &mut self.touched_clients_buffer;
