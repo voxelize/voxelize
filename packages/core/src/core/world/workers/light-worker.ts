@@ -127,6 +127,8 @@ let pendingBatchMessagesHead = 0;
 const MAX_PENDING_BATCH_MESSAGES = 512;
 const reusableBoundsMin = new Int32Array(3);
 const reusableBoundsShape = new Uint32Array(3);
+const emptyBoundsMin = new Int32Array(0);
+const emptyBoundsShape = new Uint32Array(0);
 const emptyTransferList: Transferable[] = [];
 const reusableModifiedChunks: WorkerModifiedChunk[] = [];
 const reusableTransferBuffers: ArrayBuffer[] = [];
@@ -698,6 +700,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
     chunkGrid.length = 0;
   }
 
+  let boundsMinPayload: Int32Array;
+  let boundsShapePayload: Uint32Array;
   if (hasFloods && boundsMin && boundsShape) {
     reusableBoundsMin[0] = boundsMin[0];
     reusableBoundsMin[1] = boundsMin[1];
@@ -705,13 +709,11 @@ const processBatchMessage = (message: LightBatchMessage) => {
     reusableBoundsShape[0] = boundsShape[0];
     reusableBoundsShape[1] = boundsShape[1];
     reusableBoundsShape[2] = boundsShape[2];
+    boundsMinPayload = reusableBoundsMin;
+    boundsShapePayload = reusableBoundsShape;
   } else {
-    reusableBoundsMin[0] = 0;
-    reusableBoundsMin[1] = 0;
-    reusableBoundsMin[2] = 0;
-    reusableBoundsShape[0] = 0;
-    reusableBoundsShape[1] = 0;
-    reusableBoundsShape[2] = 0;
+    boundsMinPayload = emptyBoundsMin;
+    boundsShapePayload = emptyBoundsShape;
   }
   const colorIndex = colorToIndex(color);
   if (colorIndex === null) {
@@ -727,8 +729,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
     colorIndex,
     removals,
     floods,
-    reusableBoundsMin,
-    reusableBoundsShape,
+    boundsMinPayload,
+    boundsShapePayload,
     chunkSize,
     maxHeight,
     maxLightLevel
