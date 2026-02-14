@@ -338,6 +338,22 @@ const createRequestedCheckResolutionCounts = (resolutions) => {
 const requestedCheckResolutionCounts = createRequestedCheckResolutionCounts(
   requestedCheckResolutions
 );
+const buildCheckSelectionMetadata = (checkNames) => {
+  const checkMetadata = Object.fromEntries(
+    checkNames.map((checkName) => {
+      return [checkName, availableCheckMetadata[checkName]];
+    })
+  );
+  const checkScripts = checkNames.map((checkName) => {
+    return availableCheckMetadata[checkName].scriptName;
+  });
+
+  return {
+    checkMetadata,
+    checkScripts,
+    checkScriptCount: checkScripts.length,
+  };
+};
 const {
   availableCliOptionCanonicalMap,
   unknownOptions,
@@ -386,6 +402,11 @@ const validationErrorCode = deriveValidationErrorCode({
   selectedChecksError,
   unsupportedOptionsError,
 });
+const {
+  checkMetadata: allCheckMetadata,
+  checkScripts: allCheckScripts,
+  checkScriptCount: allCheckScriptCount,
+} = buildCheckSelectionMetadata(availableCheckNames);
 
 const runCheck = (name, scriptName, extraArgs = []) => {
   const checkStartMs = Date.now();
@@ -447,6 +468,9 @@ if (
     specialSelectorsUsed,
     skippedChecks: availableCheckNames,
     skippedCheckCount: availableCheckNames.length,
+    skippedCheckMetadata: allCheckMetadata,
+    skippedCheckScripts: allCheckScripts,
+    skippedCheckScriptCount: allCheckScriptCount,
     ...summarizeCheckResults([]),
     checks: [],
     outputPath: outputPathError === null ? resolvedOutputPath : null,
@@ -489,16 +513,16 @@ const selectedCheckSet = new Set(selectedChecks);
 const skippedChecks = availableCheckNames.filter((checkName) => {
   return !selectedCheckSet.has(checkName);
 });
-const selectedCheckMetadata = Object.fromEntries(
-  selectedChecks.map((checkName) => {
-    const metadata = availableCheckMetadata[checkName];
-    return [checkName, metadata];
-  })
-);
-const selectedCheckScripts = selectedChecks.map((checkName) => {
-  return availableCheckMetadata[checkName].scriptName;
-});
-const selectedCheckScriptCount = selectedCheckScripts.length;
+const {
+  checkMetadata: selectedCheckMetadata,
+  checkScripts: selectedCheckScripts,
+  checkScriptCount: selectedCheckScriptCount,
+} = buildCheckSelectionMetadata(selectedChecks);
+const {
+  checkMetadata: skippedCheckMetadata,
+  checkScripts: skippedCheckScripts,
+  checkScriptCount: skippedCheckScriptCount,
+} = buildCheckSelectionMetadata(skippedChecks);
 
 if (isListChecks) {
   const invalidCheckCount = 0;
@@ -525,6 +549,9 @@ if (isListChecks) {
     specialSelectorsUsed,
     skippedChecks,
     skippedCheckCount: skippedChecks.length,
+    skippedCheckMetadata,
+    skippedCheckScripts,
+    skippedCheckScriptCount,
     ...summarizeCheckResults([]),
     failureSummaries: [],
     checks: [],
@@ -610,6 +637,9 @@ const report = buildTimedReport({
   specialSelectorsUsed,
   skippedChecks,
   skippedCheckCount: skippedChecks.length,
+  skippedCheckMetadata,
+  skippedCheckScripts,
+  skippedCheckScriptCount,
   ...checkSummary,
   failureSummaries,
   checks,

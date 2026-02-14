@@ -124,6 +124,15 @@ type PreflightReport = {
   >;
   selectedCheckScripts: string[];
   selectedCheckScriptCount: number;
+  skippedCheckMetadata: Record<
+    string,
+    {
+      scriptName: string;
+      supportsNoBuild: boolean;
+    }
+  >;
+  skippedCheckScripts: string[];
+  skippedCheckScriptCount: number;
   requestedChecks: string[];
   requestedCheckCount: number;
   requestedCheckResolutions: RequestedCheckResolution[];
@@ -442,7 +451,7 @@ const expectedEmptyRequestedCheckResolutionCounts = {
 const expectedUsedAllSpecialSelector = ["all"];
 const expectedUsedLibrariesSpecialSelector = ["libraries"];
 const expectSelectedCheckMetadata = (report: PreflightReport) => {
-  const expectedMetadata = Object.fromEntries(
+  const expectedSelectedMetadata = Object.fromEntries(
     report.selectedChecks.map((checkName) => {
       return [
         checkName,
@@ -452,15 +461,33 @@ const expectSelectedCheckMetadata = (report: PreflightReport) => {
       ];
     })
   );
-  const expectedScripts = report.selectedChecks.map((checkName) => {
+  const expectedSelectedScripts = report.selectedChecks.map((checkName) => {
+    return expectedAvailableCheckMetadata[
+      checkName as keyof typeof expectedAvailableCheckMetadata
+    ].scriptName;
+  });
+  const expectedSkippedMetadata = Object.fromEntries(
+    report.skippedChecks.map((checkName) => {
+      return [
+        checkName,
+        expectedAvailableCheckMetadata[
+          checkName as keyof typeof expectedAvailableCheckMetadata
+        ],
+      ];
+    })
+  );
+  const expectedSkippedScripts = report.skippedChecks.map((checkName) => {
     return expectedAvailableCheckMetadata[
       checkName as keyof typeof expectedAvailableCheckMetadata
     ].scriptName;
   });
 
-  expect(report.selectedCheckMetadata).toEqual(expectedMetadata);
-  expect(report.selectedCheckScripts).toEqual(expectedScripts);
+  expect(report.selectedCheckMetadata).toEqual(expectedSelectedMetadata);
+  expect(report.selectedCheckScripts).toEqual(expectedSelectedScripts);
   expect(report.selectedCheckScriptCount).toBe(report.selectedCheckScripts.length);
+  expect(report.skippedCheckMetadata).toEqual(expectedSkippedMetadata);
+  expect(report.skippedCheckScripts).toEqual(expectedSkippedScripts);
+  expect(report.skippedCheckScriptCount).toBe(report.skippedCheckScripts.length);
 };
 const expectTsCoreNestedReport = (
   checkReport: object | null,
@@ -1684,6 +1711,7 @@ describe("preflight aggregate report", () => {
     expect(stdoutReport.specialSelectorsUsed).toEqual([]);
     expect(stdoutReport.selectedChecks).toEqual([]);
     expect(stdoutReport.selectedCheckCount).toBe(0);
+    expectSelectedCheckMetadata(stdoutReport);
     expect(stdoutReport.requestedChecks).toEqual(["ts-core"]);
     expect(stdoutReport.requestedCheckCount).toBe(1);
     expect(stdoutReport.requestedCheckResolutions).toEqual([
