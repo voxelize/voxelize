@@ -6,7 +6,10 @@ import { JsonObject, JsonValue } from "../../../types";
 
 const { Message, Entity } = protocol;
 
-const LZ4_FRAME_MAGIC = [0x04, 0x22, 0x4d, 0x18];
+const LZ4_MAGIC_0 = 0x04;
+const LZ4_MAGIC_1 = 0x22;
+const LZ4_MAGIC_2 = 0x4d;
+const LZ4_MAGIC_3 = 0x18;
 const ZLIB_MAGIC_0 = 0x78;
 const ZLIB_MAGIC_1 = 0x9c;
 const EMPTY_U8 = new Uint8Array(0);
@@ -70,10 +73,10 @@ const isJsonObject = (value: JsonValue): value is JsonObject =>
 function isLz4Frame(buffer: Uint8Array): boolean {
   return (
     buffer.length >= 4 &&
-    buffer[0] === LZ4_FRAME_MAGIC[0] &&
-    buffer[1] === LZ4_FRAME_MAGIC[1] &&
-    buffer[2] === LZ4_FRAME_MAGIC[2] &&
-    buffer[3] === LZ4_FRAME_MAGIC[3]
+    buffer[0] === LZ4_MAGIC_0 &&
+    buffer[1] === LZ4_MAGIC_1 &&
+    buffer[2] === LZ4_MAGIC_2 &&
+    buffer[3] === LZ4_MAGIC_3
   );
 }
 
