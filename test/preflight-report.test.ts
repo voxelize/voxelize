@@ -1354,6 +1354,7 @@ const deriveExpectedTsCoreExampleFailureMessage = (report: {
   exampleExitCode: number | null;
   exampleRuleMatched: boolean | null;
   examplePayloadValid: boolean | null;
+  examplePayloadIssues: string[] | null;
 }) => {
   if (report.exampleExitCode !== 0) {
     return "TypeScript core end-to-end example failed.";
@@ -1368,6 +1369,10 @@ const deriveExpectedTsCoreExampleFailureMessage = (report: {
   }
 
   if (report.examplePayloadValid === false) {
+    if (report.examplePayloadIssues !== null && report.examplePayloadIssues.length > 0) {
+      return `TypeScript core end-to-end example output has missing or invalid required payload fields: ${report.examplePayloadIssues.join(", ")}.`;
+    }
+
     return "TypeScript core end-to-end example output has missing or invalid required payload fields.";
   }
 

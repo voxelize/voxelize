@@ -52,6 +52,17 @@ const isExampleCheckPassing = (exampleCheckResult) => {
     exampleCheckResult.examplePayloadValid === true
   );
 };
+const normalizeExamplePayloadIssues = (payloadIssues) => {
+  if (!Array.isArray(payloadIssues)) {
+    return null;
+  }
+
+  const normalizedPayloadIssues = payloadIssues.filter((payloadIssue) => {
+    return typeof payloadIssue === "string";
+  });
+
+  return normalizedPayloadIssues;
+};
 const deriveExampleFailureMessage = (exampleCheckResult) => {
   if (exampleCheckResult.exampleExitCode !== 0) {
     return "TypeScript core end-to-end example failed.";
@@ -66,6 +77,13 @@ const deriveExampleFailureMessage = (exampleCheckResult) => {
   }
 
   if (exampleCheckResult.examplePayloadValid === false) {
+    const payloadIssues = normalizeExamplePayloadIssues(
+      exampleCheckResult.examplePayloadIssues
+    );
+    if (payloadIssues !== null && payloadIssues.length > 0) {
+      return `TypeScript core end-to-end example output has missing or invalid required payload fields: ${payloadIssues.join(", ")}.`;
+    }
+
     return "TypeScript core end-to-end example output has missing or invalid required payload fields.";
   }
 
@@ -393,15 +411,15 @@ const withBaseReportFields = (report) => {
     typeof report.examplePayloadValid === "boolean"
       ? report.examplePayloadValid
       : null;
-  const examplePayloadIssues = Array.isArray(report.examplePayloadIssues)
-    ? report.examplePayloadIssues.filter((issue) => {
-        return typeof issue === "string";
-      })
-    : null;
+  const examplePayloadIssues = normalizeExamplePayloadIssues(
+    report.examplePayloadIssues
+  );
   const examplePayloadIssueCount =
-    typeof report.examplePayloadIssueCount === "number"
-      ? report.examplePayloadIssueCount
-      : examplePayloadIssues?.length ?? null;
+    examplePayloadIssues === null
+      ? typeof report.examplePayloadIssueCount === "number"
+        ? report.examplePayloadIssueCount
+        : null
+      : examplePayloadIssues.length;
   const exampleOutputLine =
     typeof report.exampleOutputLine === "string" ? report.exampleOutputLine : null;
   const exampleAttempted =
@@ -457,6 +475,7 @@ const withBaseReportFields = (report) => {
               exampleExitCode,
               exampleRuleMatched,
               examplePayloadValid,
+              examplePayloadIssues,
             }),
           },
         ];

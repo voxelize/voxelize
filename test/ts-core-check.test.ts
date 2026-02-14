@@ -326,6 +326,7 @@ const deriveExpectedExampleFailureMessage = (report: {
   exampleExitCode: number | null;
   exampleRuleMatched: boolean | null;
   examplePayloadValid: boolean | null;
+  examplePayloadIssues: string[] | null;
 }) => {
   if (report.exampleExitCode !== 0) {
     return "TypeScript core end-to-end example failed.";
@@ -340,6 +341,10 @@ const deriveExpectedExampleFailureMessage = (report: {
   }
 
   if (report.examplePayloadValid === false) {
+    if (report.examplePayloadIssues !== null && report.examplePayloadIssues.length > 0) {
+      return `TypeScript core end-to-end example output has missing or invalid required payload fields: ${report.examplePayloadIssues.join(", ")}.`;
+    }
+
     return "TypeScript core end-to-end example output has missing or invalid required payload fields.";
   }
 
@@ -1226,7 +1231,7 @@ describe("check-ts-core script", () => {
           },
         ]);
         expect(report.message).toBe(
-          "TypeScript core build artifacts are available, but TypeScript core end-to-end example output has missing or invalid required payload fields."
+          `TypeScript core build artifacts are available, but ${deriveExpectedExampleFailureMessage(report)}`
         );
       }
     );
@@ -1333,7 +1338,7 @@ describe("check-ts-core script", () => {
           },
         ]);
         expect(report.message).toBe(
-          "TypeScript core build artifacts are available, but TypeScript core end-to-end example output has missing or invalid required payload fields."
+          `TypeScript core build artifacts are available, but ${deriveExpectedExampleFailureMessage(report)}`
         );
       }
     );
@@ -1388,7 +1393,7 @@ describe("check-ts-core script", () => {
           },
         ]);
         expect(report.message).toBe(
-          "TypeScript core build artifacts are available, but TypeScript core end-to-end example output has missing or invalid required payload fields."
+          `TypeScript core build artifacts are available, but ${deriveExpectedExampleFailureMessage(report)}`
         );
       }
     );
@@ -1443,7 +1448,7 @@ describe("check-ts-core script", () => {
           },
         ]);
         expect(report.message).toBe(
-          "TypeScript core build artifacts are available, but TypeScript core end-to-end example output has missing or invalid required payload fields."
+          `TypeScript core build artifacts are available, but ${deriveExpectedExampleFailureMessage(report)}`
         );
       }
     );
