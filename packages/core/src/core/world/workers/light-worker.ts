@@ -154,6 +154,8 @@ const pendingBatchMessageCount = () =>
 
 const isInteger = (value: number) => Number.isInteger(value);
 const isPositiveInteger = (value: number) => isInteger(value) && value > 0;
+const isValidMaxLightLevel = (value: number) =>
+  isInteger(value) && value >= 0 && value <= 15;
 
 const getAppliedDeltasPayload = (lastSequenceId: number) => {
   if (lastSequenceId === 0) {
@@ -488,7 +490,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
   if (
     !isPositiveInteger(options.chunkSize) ||
     !isPositiveInteger(options.maxHeight) ||
-    !isInteger(options.maxLightLevel)
+    !isValidMaxLightLevel(options.maxLightLevel)
   ) {
     postEmptyBatchResult(jobId, lastRelevantSequenceId);
     return;

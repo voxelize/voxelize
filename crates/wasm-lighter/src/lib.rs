@@ -396,10 +396,15 @@ fn light_color_from_index(color: usize) -> Option<LightColor> {
 fn has_invalid_batch_config(
     chunk_size: i32,
     max_height: i32,
+    max_light_level: u32,
     chunk_grid_width: usize,
     chunk_grid_depth: usize,
 ) -> bool {
-    chunk_size <= 0 || max_height <= 0 || chunk_grid_width == 0 || chunk_grid_depth == 0
+    chunk_size <= 0
+        || max_height <= 0
+        || max_light_level > 15
+        || chunk_grid_width == 0
+        || chunk_grid_depth == 0
 }
 
 #[wasm_bindgen]
@@ -432,7 +437,13 @@ pub fn process_light_batch_fast(
     max_height: i32,
     max_light_level: u32,
 ) -> JsValue {
-    if has_invalid_batch_config(chunk_size, max_height, chunk_grid_width, chunk_grid_depth) {
+    if has_invalid_batch_config(
+        chunk_size,
+        max_height,
+        max_light_level,
+        chunk_grid_width,
+        chunk_grid_depth,
+    ) {
         return empty_batch_result();
     }
 
@@ -680,10 +691,11 @@ mod tests {
 
     #[test]
     fn invalid_batch_config_detects_bad_dimensions() {
-        assert!(super::has_invalid_batch_config(0, 64, 1, 1));
-        assert!(super::has_invalid_batch_config(16, 0, 1, 1));
-        assert!(super::has_invalid_batch_config(16, 64, 0, 1));
-        assert!(super::has_invalid_batch_config(16, 64, 1, 0));
-        assert!(!super::has_invalid_batch_config(16, 64, 1, 1));
+        assert!(super::has_invalid_batch_config(0, 64, 15, 1, 1));
+        assert!(super::has_invalid_batch_config(16, 0, 15, 1, 1));
+        assert!(super::has_invalid_batch_config(16, 64, 16, 1, 1));
+        assert!(super::has_invalid_batch_config(16, 64, 15, 0, 1));
+        assert!(super::has_invalid_batch_config(16, 64, 15, 1, 0));
+        assert!(!super::has_invalid_batch_config(16, 64, 15, 1, 1));
     }
 }
