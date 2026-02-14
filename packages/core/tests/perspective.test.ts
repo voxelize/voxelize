@@ -12,9 +12,15 @@ const createControls = () =>
     isLocked: false,
   }) as RigidControls;
 
-const createWorld = () =>
+type RaycastResult = { point: [number, number, number] } | null;
+type RaycastFn = (
+  origin: [number, number, number],
+  direction: [number, number, number],
+  maxDistance: number
+) => RaycastResult;
+const createWorld = (raycastVoxels: RaycastFn = () => null) =>
   ({
-    raycastVoxels: () => null,
+    raycastVoxels,
   }) as World;
 
 describe("Perspective state transitions", () => {
@@ -29,5 +35,39 @@ describe("Perspective state transitions", () => {
     expect(controls.camera.quaternion.y).toBeCloseTo(0);
     expect(controls.camera.quaternion.z).toBeCloseTo(0);
     expect(controls.camera.quaternion.w).toBeCloseTo(1);
+  });
+
+  it("falls back to max distance when raycast result is non-finite", () => {
+    const controls = createControls();
+    const perspective = new Perspective(
+      controls,
+      createWorld(() => ({ point: [Number.NaN, 0, 0] })),
+      { maxDistance: 6, lerpFactor: 1 }
+    );
+    perspective.state = "second";
+
+    perspective.update();
+
+    expect(controls.camera.position.z).toBeCloseTo(-6);
+    expect(Number.isFinite(controls.camera.position.z)).toBe(true);
+  });
+
+  it("normalizes invalid max distance before raycasts", () => {
+    const controls = createControls();
+    const raycastCalls: number[] = [];
+    const perspective = new Perspective(
+      controls,
+      createWorld((_origin, _direction, maxDistance) => {
+        raycastCalls.push(maxDistance);
+        return null;
+      }),
+      { maxDistance: Number.NaN, lerpFactor: 1 }
+    );
+    perspective.state = "second";
+
+    perspective.update();
+
+    expect(raycastCalls).toEqual([5]);
+    expect(controls.camera.position.z).toBeCloseTo(-5);
   });
 });

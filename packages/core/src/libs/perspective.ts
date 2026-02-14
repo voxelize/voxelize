@@ -44,6 +44,9 @@ const defaultOptions: PerspectiveOptions = {
   ignoreFluids: true,
 };
 
+const normalizeNonNegativeFinite = (value: number, fallback: number) =>
+  Number.isFinite(value) && value >= 0 ? value : fallback;
+
 /**
  * A class that allows you to switch between first, second and third person perspectives for
  * a {@link RigidControls} instance. By default, the key to switch between perspectives is <kbd>C</kbd>.
@@ -221,6 +224,10 @@ export class Perspective {
    * block and then ensures that the camera is not clipping into any blocks.
    */
   private getDistance() {
+    const maxDistance = normalizeNonNegativeFinite(
+      this.options.maxDistance,
+      defaultOptions.maxDistance
+    );
     const { object, camera } = this.controls;
     const dir = this.raycastDirection;
     (this.state === "second" ? object : camera).getWorldDirection(dir);
@@ -244,7 +251,7 @@ export class Perspective {
     const result = this.world.raycastVoxels(
       raycastOrigin,
       raycastDirection,
-      this.options.maxDistance,
+      maxDistance,
       {
         ignoreFluids: this.options.ignoreFluids,
         ignoreSeeThrough: this.options.ignoreSeeThrough,
@@ -252,13 +259,14 @@ export class Perspective {
     );
 
     if (!result) {
-      return this.options.maxDistance;
+      return maxDistance;
     }
 
     const dx = pos.x - result.point[0];
     const dy = pos.y - result.point[1];
     const dz = pos.z - result.point[2];
-    return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    return normalizeNonNegativeFinite(distance, maxDistance);
   }
 
   update = () => {
