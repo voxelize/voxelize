@@ -370,6 +370,9 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     }
 
     const words = this.splitQuotedTokens(raw);
+    if (words.length === 0) {
+      return schema.parse({});
+    }
     const rawObj = this.parsedArgsObjectBuffer;
     const rawObjKeys = this.parsedArgsObjectKeysBuffer;
     for (let index = 0; index < rawObjKeys.length; index++) {
