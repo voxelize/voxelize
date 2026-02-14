@@ -3330,6 +3330,30 @@ describe("report-utils", () => {
     });
   });
 
+  it("derives ts-core example status from attempt, rule, and payload flags", () => {
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleAttempted: true,
+        exampleExitCode: 0,
+        exampleRuleMatched: true,
+        examplePayloadValid: true,
+      }).exampleStatus
+    ).toBe("ok");
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleAttempted: true,
+        exampleExitCode: 0,
+        exampleRuleMatched: false,
+        examplePayloadValid: true,
+      }).exampleStatus
+    ).toBe("failed");
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleAttempted: false,
+      }).exampleStatus
+    ).toBe("skipped");
+  });
+
   it("extracts wasm pack status from nested summary or check map reports", () => {
     expect(
       extractWasmPackStatusFromReport({
