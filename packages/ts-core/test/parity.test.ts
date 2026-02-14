@@ -260,6 +260,12 @@ describe("AABB", () => {
     ]).toEqual([1, 1, 1, 2, 2, 2]);
   });
 
+  it("returns empty AABB for unionAll with no entries", () => {
+    const emptyUnion = AABB.unionAll([]);
+    expect(emptyUnion).toEqual(AABB.empty());
+    expect(emptyUnion.mag()).toBe(0);
+  });
+
   it("computes geometric extents and magnitude", () => {
     const aabb = AABB.create(1, 2, 3, 4, 6, 15);
     expect(aabb.width()).toBe(3);
