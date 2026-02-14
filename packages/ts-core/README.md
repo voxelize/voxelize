@@ -78,6 +78,9 @@ const voxel = Voxel.pack({
 - `createBlockConditionalPart`
   - defensively clones rule, face, AABB, and transparency-array inputs to
     avoid external mutation side effects after construction
+- `createBlockDynamicPattern`
+  - defensively clones dynamic-pattern part inputs using
+    `createBlockConditionalPart`
 - `VoxelAccess`
   - interface contract for meshing/generation-style data access
 

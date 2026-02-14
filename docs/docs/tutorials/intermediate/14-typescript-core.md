@@ -35,6 +35,8 @@ flowchart LR
 - `BlockRuleEvaluator`: dynamic rule matching
 - `createBlockConditionalPart`: defensive rule/face/AABB/array copy helper for
   dynamic block-part definitions
+- `createBlockDynamicPattern`: defensive dynamic-pattern helper that clones part
+  inputs via `createBlockConditionalPart`
 - `VoxelAccess`: shared access contract
 
 ## Basic usage

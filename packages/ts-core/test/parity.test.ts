@@ -17,6 +17,7 @@ import {
   Y_ROT_MAP_EIGHT,
   Y_ROT_MAP_FOUR,
   createBlockConditionalPart,
+  createBlockDynamicPattern,
   createCornerData,
   createUV,
   toSaturatedUint32,
@@ -1008,6 +1009,68 @@ describe("Type builders", () => {
           rotation: BlockRotation.py(Math.PI / 2),
         },
       ],
+    });
+  });
+
+  it("builds dynamic patterns with deterministic defaults", () => {
+    const pattern = createBlockDynamicPattern();
+    expect(pattern.parts).toEqual([]);
+  });
+
+  it("clones dynamic pattern parts to avoid external mutation", () => {
+    const sourcePart = createBlockConditionalPart({
+      rule: {
+        type: "simple",
+        offset: [1, 0, 0],
+        id: 50,
+        rotation: BlockRotation.py(Math.PI / 2),
+      },
+      faces: [new BlockFace({ name: "PatternFace" })],
+      aabbs: [AABB.create(0, 0, 0, 1, 1, 1)],
+      isTransparent: [true, false, false, false, false, false],
+      worldSpace: false,
+    });
+    const pattern = createBlockDynamicPattern({
+      parts: [sourcePart],
+    });
+
+    expect(pattern.parts).toHaveLength(1);
+    expect(pattern.parts[0]).not.toBe(sourcePart);
+    expect(pattern.parts[0].faces[0]).not.toBe(sourcePart.faces[0]);
+    expect(pattern.parts[0].aabbs[0]).not.toBe(sourcePart.aabbs[0]);
+    expect(pattern.parts[0].rule).not.toBe(sourcePart.rule);
+
+    sourcePart.faces[0].name = "MutatedPatternFace";
+    sourcePart.aabbs[0].maxX = 9;
+    sourcePart.isTransparent[0] = false;
+    if (sourcePart.rule.type !== "simple") {
+      throw new Error("Expected simple rule in dynamic pattern source part");
+    }
+    sourcePart.rule.offset[0] = 9;
+    sourcePart.rule.id = 77;
+    if (
+      sourcePart.rule.rotation !== undefined &&
+      sourcePart.rule.rotation !== null
+    ) {
+      sourcePart.rule.rotation.axis = BlockRotation.PX().axis;
+    }
+
+    const [clonedPart] = pattern.parts;
+    expect(clonedPart.faces[0].name).toBe("PatternFace");
+    expect(clonedPart.aabbs[0].maxX).toBe(1);
+    expect(clonedPart.isTransparent).toEqual([
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+    expect(clonedPart.rule).toEqual({
+      type: "simple",
+      offset: [1, 0, 0],
+      id: 50,
+      rotation: BlockRotation.py(Math.PI / 2),
     });
   });
 

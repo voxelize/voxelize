@@ -204,3 +204,15 @@ export const createBlockConditionalPart = (
     worldSpace: part.worldSpace ?? false,
   };
 };
+
+export const createBlockDynamicPattern = (
+  pattern: Partial<BlockDynamicPattern> = {}
+): BlockDynamicPattern => {
+  const parts = Array.isArray(pattern.parts)
+    ? pattern.parts.map((part) => createBlockConditionalPart(part))
+    : [];
+
+  return {
+    parts,
+  };
+};
