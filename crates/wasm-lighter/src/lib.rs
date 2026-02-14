@@ -500,6 +500,9 @@ pub fn process_light_batch_fast(
     if removal_nodes.is_empty() && flood_nodes.is_empty() {
         return empty_batch_result();
     }
+    if has_invalid_flood_bounds(flood_nodes.len(), bounds_min.len(), bounds_shape) {
+        return empty_batch_result();
+    }
     let Some(registry) = CACHED_REGISTRY.with(|cached| cached.borrow().clone()) else {
         return empty_batch_result();
     };
@@ -533,9 +536,6 @@ pub fn process_light_batch_fast(
         chunk_size,
         max_height.max(0) as u32,
     );
-    if has_invalid_flood_bounds(flood_nodes.len(), bounds_min.len(), bounds_shape) {
-        return empty_batch_result();
-    }
 
     let bounds = if flood_nodes.is_empty() {
         None
