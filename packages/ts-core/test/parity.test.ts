@@ -209,6 +209,42 @@ describe("BlockRotation", () => {
     expect(BlockRotation.PZ(0).axis).toBe(4);
     expect(BlockRotation.NZ(0).axis).toBe(5);
   });
+
+  it("produces ordered finite AABB bounds for all encoded rotations", () => {
+    const source = AABB.create(0.1, 0.2, 0.3, 0.9, 0.8, 0.7);
+
+    for (const axis of [0, 1, 2, 3, 4, 5]) {
+      for (let segment = 0; segment < 16; segment += 1) {
+        const rotation = BlockRotation.encode(axis, segment);
+        const rotated = rotation.rotateAABB(source, true, true);
+
+        expect(Number.isFinite(rotated.minX)).toBe(true);
+        expect(Number.isFinite(rotated.minY)).toBe(true);
+        expect(Number.isFinite(rotated.minZ)).toBe(true);
+        expect(Number.isFinite(rotated.maxX)).toBe(true);
+        expect(Number.isFinite(rotated.maxY)).toBe(true);
+        expect(Number.isFinite(rotated.maxZ)).toBe(true);
+        expect(rotated.minX).toBeLessThanOrEqual(rotated.maxX);
+        expect(rotated.minY).toBeLessThanOrEqual(rotated.maxY);
+        expect(rotated.minZ).toBeLessThanOrEqual(rotated.maxZ);
+      }
+    }
+  });
+
+  it("ignores yRotation in rotateAABB when yRotate is false", () => {
+    const source = AABB.create(0, 0, 0, 1, 0.5, 0.25);
+    const rotationA = BlockRotation.py(0);
+    const rotationB = BlockRotation.py(Math.PI / 2);
+    const rotatedA = rotationA.rotateAABB(source, false, true);
+    const rotatedB = rotationB.rotateAABB(source, false, true);
+
+    expect(rotatedB.minX).toBeCloseTo(rotatedA.minX, 10);
+    expect(rotatedB.minY).toBeCloseTo(rotatedA.minY, 10);
+    expect(rotatedB.minZ).toBeCloseTo(rotatedA.minZ, 10);
+    expect(rotatedB.maxX).toBeCloseTo(rotatedA.maxX, 10);
+    expect(rotatedB.maxY).toBeCloseTo(rotatedA.maxY, 10);
+    expect(rotatedB.maxZ).toBeCloseTo(rotatedA.maxZ, 10);
+  });
 });
 
 describe("Rotation maps", () => {
