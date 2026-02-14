@@ -378,7 +378,9 @@ fn parse_chunks(
                 if !has_any_chunk {
                     let index = index_u32 as usize;
                     chunks = Vec::with_capacity(expected_chunk_count);
-                    chunks.resize(index, None);
+                    if index > 0 {
+                        chunks.resize(index, None);
+                    }
                     has_any_chunk = true;
                 }
                 chunks.push(Some(chunk_data));
