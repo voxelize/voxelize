@@ -243,6 +243,30 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
 };
 
 describe("check-runtime-libraries script", () => {
+  it("prints clear non-json success output", () => {
+    const result = runScript();
+
+    expect(result.status).toBe(0);
+    expect(result.output).toContain("Runtime library build artifacts are available.");
+  });
+
+  it("suppresses non-json success output in quiet mode", () => {
+    const result = runScript(["--quiet"]);
+
+    expect(result.status).toBe(0);
+    expect(result.output).toBe("");
+  });
+
+  it("keeps non-json failures visible in quiet mode", () => {
+    const missingArtifactPath = "packages/aabb/dist/index.js";
+    runWithTemporarilyMovedArtifact(missingArtifactPath, () => {
+      const result = runScript(["--no-build", "--quiet"]);
+
+      expect(result.status).toBe(1);
+      expect(result.output).toContain("Build was skipped due to --no-build.");
+    });
+  });
+
   it("emits machine-readable json report and auto-builds if needed", () => {
     const result = runScript(["--json"]);
     const report = parseReport(result);
@@ -272,6 +296,15 @@ describe("check-runtime-libraries script", () => {
     expect(report.attemptedBuild).toBe(false);
     expect(report.activeCliOptions).toEqual(["--json", "--no-build"]);
     expect(report.activeCliOptionTokens).toEqual(["--json", "--verify"]);
+  });
+
+  it("supports compact json output mode", () => {
+    const result = runScript(["--json", "--compact"]);
+    const report = parseReport(result);
+
+    expect(result.status).toBe(0);
+    expect(result.output).not.toContain("\n  \"");
+    expect(report.schemaVersion).toBe(1);
   });
 
   it("reports strict output validation errors while keeping verify aliases active", () => {
