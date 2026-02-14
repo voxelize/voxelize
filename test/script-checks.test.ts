@@ -555,6 +555,10 @@ type TsCoreJsonReport = OptionTerminatorMetadata &
   presentArtifactCount: number;
   presentArtifactCountByPackage: Record<string, number>;
   presentArtifactCountByPackageCount: number;
+  presentPackageArtifactsByPackage: Record<string, string[]>;
+  presentPackageArtifactsByPackageCount: number;
+  presentPackageArtifactCountByPackage: Record<string, number>;
+  presentPackageArtifactCountByPackageCount: number;
   artifactsPresent: boolean;
   missingArtifacts: string[];
   missingArtifactsByPackage: Record<string, string[]>;
@@ -562,6 +566,10 @@ type TsCoreJsonReport = OptionTerminatorMetadata &
   missingArtifactCount: number;
   missingArtifactCountByPackage: Record<string, number>;
   missingArtifactCountByPackageCount: number;
+  missingPackageArtifactsByPackage: Record<string, string[]>;
+  missingPackageArtifactsByPackageCount: number;
+  missingPackageArtifactCountByPackage: Record<string, number>;
+  missingPackageArtifactCountByPackageCount: number;
   failureSummaries: Array<{
     packageName: string;
     packagePath: string;
@@ -693,6 +701,10 @@ type RuntimeLibrariesJsonReport = OptionTerminatorMetadata &
     }
   >;
   presentPackageMetadataCount: number;
+  presentPackageArtifactsByPackage: Record<string, string[]>;
+  presentPackageArtifactsByPackageCount: number;
+  presentPackageArtifactCountByPackage: Record<string, number>;
+  presentPackageArtifactCountByPackageCount: number;
   missingPackages: string[];
   missingPackagePaths: string[];
   missingPackagePathMap: Record<string, string>;
@@ -721,6 +733,10 @@ type RuntimeLibrariesJsonReport = OptionTerminatorMetadata &
     }
   >;
   missingPackageMetadataCount: number;
+  missingPackageArtifactsByPackage: Record<string, string[]>;
+  missingPackageArtifactsByPackageCount: number;
+  missingPackageArtifactCountByPackage: Record<string, number>;
+  missingPackageArtifactCountByPackageCount: number;
   requiredPackageCount: number;
   presentPackageCount: number;
   presentPackagePathCount: number;
@@ -2135,6 +2151,14 @@ const expectTsCoreReportMetadata = (report: TsCoreJsonReport) => {
   expect(report.checkedPackageCount).toBe(
     report.presentPackageMetadataCount + report.missingPackageMetadataCount
   );
+  expect(report.presentArtifactsByPackageCount).toBe(
+    report.presentPackageArtifactsByPackageCount +
+      report.missingPackageArtifactsByPackageCount
+  );
+  expect(report.presentArtifactCountByPackageCount).toBe(
+    report.presentPackageArtifactCountByPackageCount +
+      report.missingPackageArtifactCountByPackageCount
+  );
   expect(report.packageCheckCommandMapCount).toBe(
     report.presentPackageCheckCommandMapCount +
       report.missingPackageCheckCommandMapCount
@@ -2403,6 +2427,26 @@ const expectTsCoreReportMetadata = (report: TsCoreJsonReport) => {
   expect(report.presentArtifactCountByPackageCount).toBe(
     Object.keys(report.presentArtifactCountByPackage).length
   );
+  expect(report.presentPackageArtifactsByPackage).toEqual(
+    Object.fromEntries(
+      report.presentPackages.map((packageName) => {
+        return [packageName, report.presentArtifacts];
+      })
+    )
+  );
+  expect(report.presentPackageArtifactsByPackageCount).toBe(
+    Object.keys(report.presentPackageArtifactsByPackage).length
+  );
+  expect(report.presentPackageArtifactCountByPackage).toEqual(
+    Object.fromEntries(
+      report.presentPackages.map((packageName) => {
+        return [packageName, report.presentArtifactCount];
+      })
+    )
+  );
+  expect(report.presentPackageArtifactCountByPackageCount).toBe(
+    Object.keys(report.presentPackageArtifactCountByPackage).length
+  );
   expect([...report.presentArtifacts, ...report.missingArtifacts].sort()).toEqual(
     [...report.requiredArtifacts].sort()
   );
@@ -2421,6 +2465,26 @@ const expectTsCoreReportMetadata = (report: TsCoreJsonReport) => {
   });
   expect(report.missingArtifactCountByPackageCount).toBe(
     Object.keys(report.missingArtifactCountByPackage).length
+  );
+  expect(report.missingPackageArtifactsByPackage).toEqual(
+    Object.fromEntries(
+      report.missingPackages.map((packageName) => {
+        return [packageName, report.missingArtifacts];
+      })
+    )
+  );
+  expect(report.missingPackageArtifactsByPackageCount).toBe(
+    Object.keys(report.missingPackageArtifactsByPackage).length
+  );
+  expect(report.missingPackageArtifactCountByPackage).toEqual(
+    Object.fromEntries(
+      report.missingPackages.map((packageName) => {
+        return [packageName, report.missingArtifactCount];
+      })
+    )
+  );
+  expect(report.missingPackageArtifactCountByPackageCount).toBe(
+    Object.keys(report.missingPackageArtifactCountByPackage).length
   );
   const expectedFailureSummaries =
     report.missingArtifactCount === 0
@@ -2827,10 +2891,24 @@ const expectRuntimeLibrariesReportMetadata = (
       return [packageReport.packageName, packageReport.presentArtifacts];
     })
   );
+  const presentPackageArtifactsByPackage = Object.fromEntries(
+    report.packageReports
+      .filter((packageReport) => packageReport.artifactsPresent)
+      .map((packageReport) => {
+        return [packageReport.packageName, packageReport.presentArtifacts];
+      })
+  );
   const missingArtifactCountByPackage = Object.fromEntries(
     report.packageReports.map((packageReport) => {
       return [packageReport.packageName, packageReport.missingArtifactCount];
     })
+  );
+  const presentPackageArtifactCountByPackage = Object.fromEntries(
+    report.packageReports
+      .filter((packageReport) => packageReport.artifactsPresent)
+      .map((packageReport) => {
+        return [packageReport.packageName, packageReport.presentArtifactCount];
+      })
   );
   const missingArtifacts = report.packageReports.reduce((artifacts, packageReport) => {
     return [...artifacts, ...packageReport.missingArtifacts];
@@ -2839,6 +2917,20 @@ const expectRuntimeLibrariesReportMetadata = (
     report.packageReports.map((packageReport) => {
       return [packageReport.packageName, packageReport.missingArtifacts];
     })
+  );
+  const missingPackageArtifactsByPackage = Object.fromEntries(
+    report.packageReports
+      .filter((packageReport) => packageReport.artifactsPresent === false)
+      .map((packageReport) => {
+        return [packageReport.packageName, packageReport.missingArtifacts];
+      })
+  );
+  const missingPackageArtifactCountByPackage = Object.fromEntries(
+    report.packageReports
+      .filter((packageReport) => packageReport.artifactsPresent === false)
+      .map((packageReport) => {
+        return [packageReport.packageName, packageReport.missingArtifactCount];
+      })
   );
   expect(report.packagesPresent).toBe(missingPackageCount === 0);
   expect(report.requiredPackageCount).toBe(
@@ -2936,6 +3028,14 @@ const expectRuntimeLibrariesReportMetadata = (
   expect(report.packageCheckArgCountMapCount).toBe(
     Object.keys(report.packageCheckArgCountMap).length
   );
+  expect(report.presentArtifactsByPackageCount).toBe(
+    report.presentPackageArtifactsByPackageCount +
+      report.missingPackageArtifactsByPackageCount
+  );
+  expect(report.presentArtifactCountByPackageCount).toBe(
+    report.presentPackageArtifactCountByPackageCount +
+      report.missingPackageArtifactCountByPackageCount
+  );
   expect(report.packageStatusMap).toEqual(packageStatusMap);
   expect(report.packageStatusMapCount).toBe(
     Object.keys(report.packageStatusMap).length
@@ -2954,7 +3054,19 @@ const expectRuntimeLibrariesReportMetadata = (
   expect(report.presentArtifactCountByPackage).toEqual(
     presentArtifactCountByPackage
   );
+  expect(report.presentPackageArtifactCountByPackage).toEqual(
+    presentPackageArtifactCountByPackage
+  );
+  expect(report.presentPackageArtifactCountByPackageCount).toBe(
+    Object.keys(report.presentPackageArtifactCountByPackage).length
+  );
   expect(report.presentArtifactsByPackage).toEqual(presentArtifactsByPackage);
+  expect(report.presentPackageArtifactsByPackage).toEqual(
+    presentPackageArtifactsByPackage
+  );
+  expect(report.presentPackageArtifactsByPackageCount).toBe(
+    Object.keys(report.presentPackageArtifactsByPackage).length
+  );
   expect(report.presentArtifactsByPackageCount).toBe(
     Object.keys(report.presentArtifactsByPackage).length
   );
@@ -2968,7 +3080,19 @@ const expectRuntimeLibrariesReportMetadata = (
   expect(report.missingArtifactCountByPackage).toEqual(
     missingArtifactCountByPackage
   );
+  expect(report.missingPackageArtifactCountByPackage).toEqual(
+    missingPackageArtifactCountByPackage
+  );
+  expect(report.missingPackageArtifactCountByPackageCount).toBe(
+    Object.keys(report.missingPackageArtifactCountByPackage).length
+  );
   expect(report.missingArtifactsByPackage).toEqual(missingArtifactsByPackage);
+  expect(report.missingPackageArtifactsByPackage).toEqual(
+    missingPackageArtifactsByPackage
+  );
+  expect(report.missingPackageArtifactsByPackageCount).toBe(
+    Object.keys(report.missingPackageArtifactsByPackage).length
+  );
   expect(report.missingArtifactsByPackageCount).toBe(
     Object.keys(report.missingArtifactsByPackage).length
   );

@@ -175,6 +175,10 @@ type TsCoreCheckReport = {
   presentArtifactCount: number;
   presentArtifactCountByPackage: Record<string, number>;
   presentArtifactCountByPackageCount: number;
+  presentPackageArtifactsByPackage: Record<string, string[]>;
+  presentPackageArtifactsByPackageCount: number;
+  presentPackageArtifactCountByPackage: Record<string, number>;
+  presentPackageArtifactCountByPackageCount: number;
   buildCommand: string;
   buildArgs: string[];
   buildExitCode: number | null;
@@ -186,6 +190,10 @@ type TsCoreCheckReport = {
   missingArtifactCount: number;
   missingArtifactCountByPackage: Record<string, number>;
   missingArtifactCountByPackageCount: number;
+  missingPackageArtifactsByPackage: Record<string, string[]>;
+  missingPackageArtifactsByPackageCount: number;
+  missingPackageArtifactCountByPackage: Record<string, number>;
+  missingPackageArtifactCountByPackageCount: number;
   failureSummaries: Array<{
     packageName: string;
     packagePath: string;
@@ -402,6 +410,14 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
   );
   expect(report.checkedPackageCount).toBe(
     report.presentPackageMetadataCount + report.missingPackageMetadataCount
+  );
+  expect(report.presentArtifactsByPackageCount).toBe(
+    report.presentPackageArtifactsByPackageCount +
+      report.missingPackageArtifactsByPackageCount
+  );
+  expect(report.presentArtifactCountByPackageCount).toBe(
+    report.presentPackageArtifactCountByPackageCount +
+      report.missingPackageArtifactCountByPackageCount
   );
   expect(report.packageCheckCommandMapCount).toBe(
     report.presentPackageCheckCommandMapCount +
@@ -669,6 +685,26 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
   expect(report.presentArtifactCountByPackageCount).toBe(
     Object.keys(report.presentArtifactCountByPackage).length
   );
+  expect(report.presentPackageArtifactsByPackage).toEqual(
+    Object.fromEntries(
+      report.presentPackages.map((packageName) => {
+        return [packageName, report.presentArtifacts];
+      })
+    )
+  );
+  expect(report.presentPackageArtifactsByPackageCount).toBe(
+    Object.keys(report.presentPackageArtifactsByPackage).length
+  );
+  expect(report.presentPackageArtifactCountByPackage).toEqual(
+    Object.fromEntries(
+      report.presentPackages.map((packageName) => {
+        return [packageName, report.presentArtifactCount];
+      })
+    )
+  );
+  expect(report.presentPackageArtifactCountByPackageCount).toBe(
+    Object.keys(report.presentPackageArtifactCountByPackage).length
+  );
   expect([...report.presentArtifacts, ...report.missingArtifacts].sort()).toEqual(
     [...report.requiredArtifacts].sort()
   );
@@ -687,6 +723,26 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
   });
   expect(report.missingArtifactCountByPackageCount).toBe(
     Object.keys(report.missingArtifactCountByPackage).length
+  );
+  expect(report.missingPackageArtifactsByPackage).toEqual(
+    Object.fromEntries(
+      report.missingPackages.map((packageName) => {
+        return [packageName, report.missingArtifacts];
+      })
+    )
+  );
+  expect(report.missingPackageArtifactsByPackageCount).toBe(
+    Object.keys(report.missingPackageArtifactsByPackage).length
+  );
+  expect(report.missingPackageArtifactCountByPackage).toEqual(
+    Object.fromEntries(
+      report.missingPackages.map((packageName) => {
+        return [packageName, report.missingArtifactCount];
+      })
+    )
+  );
+  expect(report.missingPackageArtifactCountByPackageCount).toBe(
+    Object.keys(report.missingPackageArtifactCountByPackage).length
   );
   const expectedFailureSummaries =
     report.missingArtifactCount === 0

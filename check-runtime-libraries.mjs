@@ -235,6 +235,13 @@ const summarizePackageReports = (packageReports) => {
       return [packageReport.packageName, packageReport.presentArtifacts];
     })
   );
+  const presentPackageArtifactsByPackage = Object.fromEntries(
+    packageReports
+      .filter((packageReport) => packageReport.artifactsPresent)
+      .map((packageReport) => {
+        return [packageReport.packageName, packageReport.presentArtifacts];
+      })
+  );
   const packageCheckCommandMap = Object.fromEntries(
     packageReports.map((packageReport) => {
       return [packageReport.packageName, packageReport.checkCommand];
@@ -284,6 +291,13 @@ const summarizePackageReports = (packageReports) => {
     packageReports.map((packageReport) => {
       return [packageReport.packageName, packageReport.missingArtifacts];
     })
+  );
+  const missingPackageArtifactsByPackage = Object.fromEntries(
+    packageReports
+      .filter((packageReport) => packageReport.artifactsPresent === false)
+      .map((packageReport) => {
+        return [packageReport.packageName, packageReport.missingArtifacts];
+      })
   );
   const presentPackageMetadata = Object.fromEntries(
     packageReports
@@ -370,10 +384,24 @@ const summarizePackageReports = (packageReports) => {
       return [packageReport.packageName, packageReport.presentArtifactCount];
     })
   );
+  const presentPackageArtifactCountByPackage = Object.fromEntries(
+    packageReports
+      .filter((packageReport) => packageReport.artifactsPresent)
+      .map((packageReport) => {
+        return [packageReport.packageName, packageReport.presentArtifactCount];
+      })
+  );
   const missingArtifactCountByPackage = Object.fromEntries(
     packageReports.map((packageReport) => {
       return [packageReport.packageName, packageReport.missingArtifactCount];
     })
+  );
+  const missingPackageArtifactCountByPackage = Object.fromEntries(
+    packageReports
+      .filter((packageReport) => packageReport.artifactsPresent === false)
+      .map((packageReport) => {
+        return [packageReport.packageName, packageReport.missingArtifactCount];
+      })
   );
   const packageStatusCountMap = {
     present: presentPackageCount,
@@ -423,6 +451,10 @@ const summarizePackageReports = (packageReports) => {
     presentArtifactCount,
     presentArtifacts,
     presentArtifactsByPackage,
+    presentPackageArtifactsByPackage,
+    presentPackageArtifactsByPackageCount: countRecordEntries(
+      presentPackageArtifactsByPackage
+    ),
     packageCheckCommandMap,
     packageCheckCommandMapCount: countRecordEntries(packageCheckCommandMap),
     packageCheckArgsMap,
@@ -435,6 +467,10 @@ const summarizePackageReports = (packageReports) => {
     packageStatusCountMap,
     packageStatusCountMapCount: countRecordEntries(packageStatusCountMap),
     presentArtifactCountByPackage,
+    presentPackageArtifactCountByPackage,
+    presentPackageArtifactCountByPackageCount: countRecordEntries(
+      presentPackageArtifactCountByPackage
+    ),
     missingPackageCount,
     missingPackagePathCount: missingPackagePaths.length,
     missingPackagePathMapCount: countRecordEntries(missingPackagePathMap),
@@ -457,7 +493,15 @@ const summarizePackageReports = (packageReports) => {
     missingArtifactCount,
     missingArtifacts,
     missingArtifactsByPackage,
+    missingPackageArtifactsByPackage,
+    missingPackageArtifactsByPackageCount: countRecordEntries(
+      missingPackageArtifactsByPackage
+    ),
     missingArtifactCountByPackage,
+    missingPackageArtifactCountByPackage,
+    missingPackageArtifactCountByPackageCount: countRecordEntries(
+      missingPackageArtifactCountByPackage
+    ),
     failureSummaries,
     failureSummaryCount: failureSummaries.length,
   };
@@ -585,6 +629,8 @@ const withBaseReportFields = (report) => {
     presentArtifactCount,
     presentArtifacts,
     presentArtifactsByPackage,
+    presentPackageArtifactsByPackage,
+    presentPackageArtifactsByPackageCount,
     packageCheckCommandMap,
     packageCheckCommandMapCount,
     packageCheckArgsMap,
@@ -597,6 +643,8 @@ const withBaseReportFields = (report) => {
     packageStatusCountMap,
     packageStatusCountMapCount,
     presentArtifactCountByPackage,
+    presentPackageArtifactCountByPackage,
+    presentPackageArtifactCountByPackageCount,
     missingPackageCount,
     missingPackagePathCount,
     missingPackagePathMapCount,
@@ -613,7 +661,11 @@ const withBaseReportFields = (report) => {
     missingArtifactCount,
     missingArtifacts,
     missingArtifactsByPackage,
+    missingPackageArtifactsByPackage,
+    missingPackageArtifactsByPackageCount,
     missingArtifactCountByPackage,
+    missingPackageArtifactCountByPackage,
+    missingPackageArtifactCountByPackageCount,
     failureSummaries,
     failureSummaryCount,
   } = summarizePackageReports(packageReports);
@@ -714,6 +766,7 @@ const withBaseReportFields = (report) => {
     presentArtifactCount,
     presentArtifacts,
     presentArtifactsByPackage,
+    presentPackageArtifactsByPackage,
     packageCheckCommandMap,
     packageCheckCommandMapCount,
     packageCheckArgsMap,
@@ -726,6 +779,7 @@ const withBaseReportFields = (report) => {
     packageStatusCountMap,
     packageStatusCountMapCount,
     presentArtifactCountByPackage,
+    presentPackageArtifactCountByPackage,
     missingPackageCount,
     missingPackagePathCount,
     missingPackagePathMapCount,
@@ -738,18 +792,24 @@ const withBaseReportFields = (report) => {
     missingArtifactCount,
     missingArtifacts,
     missingArtifactsByPackage,
+    missingPackageArtifactsByPackage,
     missingArtifactCountByPackage,
+    missingPackageArtifactCountByPackage,
     failureSummaries,
     failureSummaryCount,
     presentArtifactsByPackageCount: countRecordEntries(presentArtifactsByPackage),
+    presentPackageArtifactsByPackageCount,
     artifactsPresentByPackageCount: countRecordEntries(artifactsPresentByPackage),
     presentArtifactCountByPackageCount: countRecordEntries(
       presentArtifactCountByPackage
     ),
+    presentPackageArtifactCountByPackageCount,
     missingArtifactsByPackageCount: countRecordEntries(missingArtifactsByPackage),
+    missingPackageArtifactsByPackageCount,
     missingArtifactCountByPackageCount: countRecordEntries(
       missingArtifactCountByPackage
     ),
+    missingPackageArtifactCountByPackageCount,
     missingArtifactSummary,
     buildCommand: pnpmCommand,
     buildArgs: buildCommandArgs,

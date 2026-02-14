@@ -191,6 +191,26 @@ const withBaseReportFields = (report) => {
   const missingArtifactCountByPackage = {
     [tsCorePackageName]: missingArtifacts.length,
   };
+  const presentPackageArtifactsByPackage = artifactsPresent
+    ? {
+        [tsCorePackageName]: presentArtifacts,
+      }
+    : {};
+  const missingPackageArtifactsByPackage = artifactsPresent
+    ? {}
+    : {
+        [tsCorePackageName]: missingArtifacts,
+      };
+  const presentPackageArtifactCountByPackage = artifactsPresent
+    ? {
+        [tsCorePackageName]: presentArtifactCount,
+      }
+    : {};
+  const missingPackageArtifactCountByPackage = artifactsPresent
+    ? {}
+    : {
+        [tsCorePackageName]: missingArtifacts.length,
+      };
   const packageReport = {
     packageName: tsCorePackageName,
     packagePath: tsCorePackagePath,
@@ -451,12 +471,28 @@ const withBaseReportFields = (report) => {
     presentArtifactCountByPackageCount: countRecordEntries(
       presentArtifactCountByPackage
     ),
+    presentPackageArtifactsByPackage,
+    presentPackageArtifactsByPackageCount: countRecordEntries(
+      presentPackageArtifactsByPackage
+    ),
+    presentPackageArtifactCountByPackage,
+    presentPackageArtifactCountByPackageCount: countRecordEntries(
+      presentPackageArtifactCountByPackage
+    ),
     missingArtifactsByPackage,
     missingArtifactsByPackageCount: countRecordEntries(missingArtifactsByPackage),
     missingArtifactCount: missingArtifacts.length,
     missingArtifactCountByPackage,
     missingArtifactCountByPackageCount: countRecordEntries(
       missingArtifactCountByPackage
+    ),
+    missingPackageArtifactsByPackage,
+    missingPackageArtifactsByPackageCount: countRecordEntries(
+      missingPackageArtifactsByPackage
+    ),
+    missingPackageArtifactCountByPackage,
+    missingPackageArtifactCountByPackageCount: countRecordEntries(
+      missingPackageArtifactCountByPackage
     ),
     failureSummaries,
     failureSummaryCount: failureSummaries.length,
