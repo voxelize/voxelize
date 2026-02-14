@@ -762,8 +762,6 @@ struct VoxelSpace<'a> {
     center_coords: [i32; 2],
 }
 
-const CHUNK_GRID_INDEX: [[usize; 3]; 3] = [[0, 1, 2], [3, 4, 5], [6, 7, 8]];
-
 impl<'a> VoxelSpace<'a> {
     fn new(chunks: &'a [Option<ChunkData>], chunk_size: i32, center_coords: [i32; 2]) -> Self {
         let chunk_size_is_pow2 = chunk_size > 0 && (chunk_size & (chunk_size - 1)) == 0;
@@ -799,7 +797,7 @@ impl<'a> VoxelSpace<'a> {
         if dx_offset > 2 || dz_offset > 2 {
             return None;
         }
-        let index = CHUNK_GRID_INDEX[dz_offset as usize][dx_offset as usize];
+        let index = (dz_offset * 3 + dx_offset) as usize;
         self.chunks.get(index).and_then(|c| c.as_ref())
     }
 
