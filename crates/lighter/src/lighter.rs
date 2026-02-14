@@ -292,6 +292,9 @@ pub fn flood_light_nodes(
     bounds: Option<&LightBounds>,
     registry: &LightRegistry,
 ) {
+    if nodes.is_empty() {
+        return;
+    }
     flood_light_from_nodes(space, nodes, color, config, bounds, registry);
 }
 
