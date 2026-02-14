@@ -17,8 +17,9 @@ onmessage = (e: MessageEvent<DecodeWorkerInput>) => {
   const transferables = reusableTransferables;
   transferables.length = 0;
   const messages = reusableMessages;
-  messages.length = buffers.length;
-  for (let index = 0; index < buffers.length; index++) {
+  const bufferCount = buffers.length;
+  messages.length = bufferCount;
+  for (let index = 0; index < bufferCount; index++) {
     const buffer = buffers[index];
     const view = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
     messages[index] = decodeMessage(view, transferables);
