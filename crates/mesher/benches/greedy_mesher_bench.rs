@@ -358,6 +358,34 @@ fn build_registry() -> Registry {
         }
     }
 
+    let mut dynamic_world = base_block(11, "dynamic_world");
+    dynamic_world.is_opaque = false;
+    dynamic_world.is_see_through = true;
+    dynamic_world.faces = Vec::new();
+    dynamic_world.dynamic_patterns = Some(vec![BlockDynamicPattern {
+        parts: vec![BlockConditionalPart {
+            rule: BlockRule::Simple(BlockSimpleRule {
+                offset: [0, 1, 0],
+                id: Some(1),
+                rotation: None,
+                stage: None,
+            }),
+            faces: vec![cube_face(
+                "pz",
+                [0, 0, 1],
+                [
+                    [0.0, 0.0, 1.0],
+                    [1.0, 0.0, 1.0],
+                    [0.0, 1.0, 1.0],
+                    [1.0, 1.0, 1.0],
+                ],
+            )],
+            aabbs: Vec::new(),
+            is_transparent: [false; 6],
+            world_space: true,
+        }],
+    }]);
+
     let mut registry = Registry::new(vec![
         (0, air),
         (1, stone),
@@ -370,6 +398,7 @@ fn build_registry() -> Registry {
         (8, fluid_occluder),
         (9, mixed_transparency),
         (10, isolated_independent),
+        (11, dynamic_world),
     ]);
     registry.build_cache();
     registry
@@ -649,6 +678,31 @@ fn seeded_mix_scene() -> BenchSpace {
     space
 }
 
+fn dynamic_world_scene() -> BenchSpace {
+    let mut space = BenchSpace::new([16, 10, 16]);
+
+    for x in 0..16 {
+        for z in 0..16 {
+            space.set_voxel_id(x, 0, z, 1);
+            if (x + z) % 3 == 0 {
+                space.set_voxel_id(x, 1, z, 11);
+                space.set_voxel_id(x, 2, z, 1);
+            } else if (x + z) % 4 == 0 {
+                space.set_voxel_id(x, 1, z, 4);
+                space.set_voxel_id(x + (x < 15) as i32, 1, z, 1);
+            }
+        }
+    }
+
+    for x in 0..16 {
+        for z in 0..16 {
+            space.set_light(x, 3, z, 12, 3, 3, 3);
+        }
+    }
+
+    space
+}
+
 fn greedy_mesher_benchmark(c: &mut Criterion) {
     let registry = build_registry();
     let scenes = vec![
@@ -659,6 +713,7 @@ fn greedy_mesher_benchmark(c: &mut Criterion) {
         ("fluid_occlusion_16x12x16", fluid_occlusion_scene()),
         ("isolated_independent_16x10x16", isolated_independent_scene()),
         ("seeded_mix_16x12x16", seeded_mix_scene()),
+        ("dynamic_world_16x10x16", dynamic_world_scene()),
     ];
 
     let mut group = c.benchmark_group("greedy_mesher");
@@ -713,6 +768,7 @@ fn non_greedy_mesher_benchmark(c: &mut Criterion) {
         ("fluid_occlusion_16x12x16", fluid_occlusion_scene()),
         ("isolated_independent_16x10x16", isolated_independent_scene()),
         ("seeded_mix_16x12x16", seeded_mix_scene()),
+        ("dynamic_world_16x10x16", dynamic_world_scene()),
     ];
     let mut group = c.benchmark_group("non_greedy_mesher");
 
