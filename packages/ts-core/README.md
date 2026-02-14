@@ -157,6 +157,8 @@ When failures occur, `failureSummaries[]` entries include `kind`:
 If an example reports both `ruleMatched=false` and payload validation issues,
 the failure message includes both conditions for clearer diagnostics. If payload
 fields are valid, the message remains a pure `ruleMatched=false` diagnostic.
+A non-zero example `exitCode` always takes precedence and is reported as an
+execution failure, even if the payload itself is otherwise valid.
 
 Example `kind: "example"` failure payload (truncated):
 
