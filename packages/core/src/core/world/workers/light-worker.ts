@@ -1000,7 +1000,6 @@ const processBatchMessage = (message: LightBatchMessage) => {
   const gridOffsetX = chunkGridOffset[0];
   const gridOffsetZ = chunkGridOffset[1];
   const chunkSize = options.chunkSize;
-  const chunkShift = getChunkShiftIfPowerOfTwo(chunkSize);
   const maxHeight = options.maxHeight;
   const maxLightLevel = options.maxLightLevel;
   if (
@@ -1081,6 +1080,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
   const deltaBatches = Array.isArray(relevantDeltas)
     ? relevantDeltas
     : emptyDeltaBatches;
+  const chunkShift = getChunkShiftIfPowerOfTwo(chunkSize);
   const hasPotentialRelevantDelta =
     deltaBatches.length > 0 &&
     hasPotentialRelevantDeltaBatches(
