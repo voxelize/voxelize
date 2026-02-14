@@ -188,6 +188,13 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         let mut client_updates: HashMap<String, Vec<EntityProtocol>> =
             HashMap::with_capacity(clients.len());
+        for client_id in clients.keys() {
+            client_updates.insert(client_id.clone(), Vec::new());
+            bookkeeping
+                .client_known_entities
+                .entry(client_id.clone())
+                .or_default();
+        }
         let default_pos = Vec3(0.0, 0.0, 0.0);
 
         for (entity_id, (etype, metadata_str, is_new)) in &entity_metadata_map {
@@ -199,11 +206,10 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     Some(id) => id,
                     None => continue,
                 };
-                let client_id_key = client_id.clone();
-                let known_entities = bookkeeping
-                    .client_known_entities
-                    .entry(client_id_key.clone())
-                    .or_default();
+                let known_entities = match bookkeeping.client_known_entities.get_mut(client_id) {
+                    Some(known_entities) => known_entities,
+                    None => continue,
+                };
 
                 let client_known = known_entities.contains(entity_id);
 
@@ -215,15 +221,14 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     EntityOperation::Update
                 };
 
-                client_updates
-                    .entry(client_id_key)
-                    .or_default()
-                    .push(EntityProtocol {
+                if let Some(updates) = client_updates.get_mut(client_id) {
+                    updates.push(EntityProtocol {
                         operation,
                         id: entity_id.clone(),
                         r#type: etype.clone(),
                         metadata: Some(metadata_str.clone()),
                     });
+                }
 
                 known_entities.insert(entity_id.clone());
             }
@@ -246,15 +251,14 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     else {
                         continue;
                     };
-                    client_updates
-                        .entry(client_id.clone())
-                        .or_default()
-                        .push(EntityProtocol {
+                    if let Some(updates) = client_updates.get_mut(client_id) {
+                        updates.push(EntityProtocol {
                             operation: EntityOperation::Delete,
                             id: entity_id.clone(),
                             r#type: (*etype).clone(),
                             metadata: Some((*metadata_str).clone()),
                         });
+                    }
                     entities_to_delete.push(entity_id.clone());
                 }
 
@@ -295,15 +299,14 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     if let Some((etype, _ent, metadata, _persisted)) =
                         new_bookkeeping_records.get(entity_id)
                     {
-                        client_updates
-                            .entry(client_id.clone())
-                            .or_default()
-                            .push(EntityProtocol {
+                        if let Some(updates) = client_updates.get_mut(client_id) {
+                            updates.push(EntityProtocol {
                                 operation: EntityOperation::Delete,
                                 id: entity_id.clone(),
                                 r#type: etype.clone(),
                                 metadata: Some(metadata.to_string()),
                             });
+                        }
                     }
                     known_entities.remove(entity_id);
                 }
