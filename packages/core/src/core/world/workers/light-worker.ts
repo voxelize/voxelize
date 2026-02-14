@@ -395,7 +395,13 @@ const applyRelevantDeltas = (
 
     for (let deltaIndex = startIndex; deltaIndex < deltasLength; deltaIndex++) {
       const delta = deltas[deltaIndex];
+      if (!delta || typeof delta !== "object") {
+        continue;
+      }
       const coords = delta.coords;
+      if (!Array.isArray(coords) || coords.length < 3) {
+        continue;
+      }
       const vx = coords[0];
       const vy = coords[1];
       const vz = coords[2];
