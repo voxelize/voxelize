@@ -261,7 +261,7 @@ fn is_full_cube_from_aabbs(aabbs: &[AABB]) -> bool {
         && (aabbs[0].max_z - 1.0).abs() < f32::EPSILON
 }
 
-#[inline]
+#[inline(always)]
 const fn cardinal_dir_index(dir: [i32; 3]) -> Option<usize> {
     match dir {
         [1, 0, 0] => Some(0),
