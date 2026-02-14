@@ -201,10 +201,9 @@ export function sortTransparentMesh(
   radixSortDescending(faceOrder, faceCount, sortKeys, sortTemp);
 
   const { originalIndices, sortedIndices } = data;
-  for (let i = 0; i < faceCount; i++) {
+  for (let i = 0, dstOffset = 0; i < faceCount; i++, dstOffset += 6) {
     const srcFace = faceOrder[i];
     const srcOffset = srcFace * 6;
-    const dstOffset = i * 6;
 
     sortedIndices[dstOffset] = originalIndices[srcOffset];
     sortedIndices[dstOffset + 1] = originalIndices[srcOffset + 1];
