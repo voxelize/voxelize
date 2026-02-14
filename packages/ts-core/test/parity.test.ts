@@ -425,6 +425,35 @@ describe("BlockRotation", () => {
     expect(withoutTranslate).toEqual([0, 0, 0]);
   });
 
+  it("applies axis-specific translation offsets when enabled", () => {
+    const cases: Array<{
+      createRotation: () => BlockRotation;
+      expectedOffset: [number, number, number];
+    }> = [
+      { createRotation: () => BlockRotation.px(0), expectedOffset: [0, 1, 0] },
+      { createRotation: () => BlockRotation.nx(0), expectedOffset: [1, 0, 0] },
+      { createRotation: () => BlockRotation.ny(0), expectedOffset: [0, 1, 1] },
+      { createRotation: () => BlockRotation.pz(0), expectedOffset: [0, 1, 0] },
+      { createRotation: () => BlockRotation.nz(0), expectedOffset: [0, 0, 1] },
+    ];
+
+    for (const testCase of cases) {
+      const withTranslate: [number, number, number] = [0, 0, 0];
+      const withoutTranslate: [number, number, number] = [0, 0, 0];
+      const rotation = testCase.createRotation();
+
+      rotation.rotateNode(withTranslate, false, true);
+      rotation.rotateNode(withoutTranslate, false, false);
+
+      expect(withTranslate[0]).toBeCloseTo(testCase.expectedOffset[0], 10);
+      expect(withTranslate[1]).toBeCloseTo(testCase.expectedOffset[1], 10);
+      expect(withTranslate[2]).toBeCloseTo(testCase.expectedOffset[2], 10);
+      expect(withoutTranslate[0]).toBeCloseTo(0, 10);
+      expect(withoutTranslate[1]).toBeCloseTo(0, 10);
+      expect(withoutTranslate[2]).toBeCloseTo(0, 10);
+    }
+  });
+
   it("shifts rotated AABBs by axis translation offsets when enabled", () => {
     const source = AABB.create(0, 0, 0, 1, 1, 1);
     const rotation = BlockRotation.px(0);
