@@ -67,6 +67,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         self.new_entity_ids_buffer.clear();
 
         let entity_visible_radius = config.entity_visible_radius;
+        let entity_visible_radius_sq = entity_visible_radius * entity_visible_radius;
 
         let mut new_entity_handlers = HashMap::new();
 
@@ -93,7 +94,8 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         let old_entity_handlers = std::mem::take(&mut physics.entity_to_handlers);
 
-        let mut deleted_entities: Vec<(String, String, String)> = Vec::new();
+        let mut deleted_entities: Vec<(String, String, String)> =
+            Vec::with_capacity(old_entities.len());
 
         for (id, (etype, ent, metadata, persisted)) in old_entities.iter() {
             if updated_ids.contains(id) {
@@ -120,9 +122,12 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             }
         }
 
-        let mut new_bookkeeping_records = HashMap::new();
-        let mut entity_positions: HashMap<String, Vec3<f32>> = HashMap::new();
-        let mut entity_metadata_map: HashMap<String, (String, String, bool)> = HashMap::new();
+        let mut new_bookkeeping_records =
+            HashMap::with_capacity(self.updated_entities_buffer.len());
+        let mut entity_positions: HashMap<String, Vec3<f32>> =
+            HashMap::with_capacity(self.updated_entities_buffer.len());
+        let mut entity_metadata_map: HashMap<String, (String, String, bool)> =
+            HashMap::with_capacity(self.updated_entities_buffer.len());
 
         for (ent, id, metadata, etype, _, do_not_persist, position, voxel) in (
             &entities,
@@ -168,7 +173,8 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             .map(|(client_id, client)| (client.entity, client_id.clone()))
             .collect();
 
-        let mut client_updates: HashMap<String, Vec<EntityProtocol>> = HashMap::new();
+        let mut client_updates: HashMap<String, Vec<EntityProtocol>> =
+            HashMap::with_capacity(all_client_ids.len());
 
         for (entity_id, (etype, metadata_str, is_new)) in &entity_metadata_map {
             let pos = entity_positions
@@ -261,7 +267,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                             let dy = entity_pos.1 - client_pos.1;
                             let dz = entity_pos.2 - client_pos.2;
                             let dist_sq = dx * dx + dy * dy + dz * dz;
-                            dist_sq > entity_visible_radius * entity_visible_radius
+                            dist_sq > entity_visible_radius_sq
                         } else {
                             true
                         }
