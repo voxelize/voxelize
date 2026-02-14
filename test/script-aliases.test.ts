@@ -188,6 +188,44 @@ describe("script aliases", () => {
     ).toBe(
       "node ./check-preflight.mjs --list-checks --verify --only libraries --compact"
     );
+    expect(manifest.scripts["check:preflight:list:library:json"]).toBe(
+      "node ./check-preflight.mjs --list-checks --only libraries"
+    );
+    expect(manifest.scripts["check:preflight:list:library:verify:json"]).toBe(
+      "node ./check-preflight.mjs --list-checks --verify --only libraries"
+    );
+    expect(manifest.scripts["check:preflight:list:library:json:compact"]).toBe(
+      "node ./check-preflight.mjs --list-checks --only libraries --compact"
+    );
+    expect(
+      manifest.scripts["check:preflight:list:library:verify:json:compact"]
+    ).toBe(
+      "node ./check-preflight.mjs --list-checks --verify --only libraries --compact"
+    );
+    expect(manifest.scripts["check:preflight:list:libs:json"]).toBe(
+      "node ./check-preflight.mjs --list-checks --only libraries"
+    );
+    expect(manifest.scripts["check:preflight:list:libs:verify:json"]).toBe(
+      "node ./check-preflight.mjs --list-checks --verify --only libraries"
+    );
+    expect(manifest.scripts["check:preflight:list:libs:json:compact"]).toBe(
+      "node ./check-preflight.mjs --list-checks --only libraries --compact"
+    );
+    expect(manifest.scripts["check:preflight:list:libs:verify:json:compact"]).toBe(
+      "node ./check-preflight.mjs --list-checks --verify --only libraries --compact"
+    );
+    expect(manifest.scripts["check:preflight:list:lib:json"]).toBe(
+      "node ./check-preflight.mjs --list-checks --only libraries"
+    );
+    expect(manifest.scripts["check:preflight:list:lib:verify:json"]).toBe(
+      "node ./check-preflight.mjs --list-checks --verify --only libraries"
+    );
+    expect(manifest.scripts["check:preflight:list:lib:json:compact"]).toBe(
+      "node ./check-preflight.mjs --list-checks --only libraries --compact"
+    );
+    expect(manifest.scripts["check:preflight:list:lib:verify:json:compact"]).toBe(
+      "node ./check-preflight.mjs --list-checks --verify --only libraries --compact"
+    );
     expect(manifest.scripts["check:preflight:list:ts:json"]).toBe(
       "node ./check-preflight.mjs --list-checks --only tsCore"
     );
@@ -334,6 +372,42 @@ describe("script aliases", () => {
       "node ./check-preflight.mjs --only libraries --compact"
     );
     expect(manifest.scripts["check:preflight:libraries:verify:json:compact"]).toBe(
+      "node ./check-preflight.mjs --verify --only libraries --compact"
+    );
+    expect(manifest.scripts["check:preflight:library:json"]).toBe(
+      "node ./check-preflight.mjs --only libraries"
+    );
+    expect(manifest.scripts["check:preflight:library:verify:json"]).toBe(
+      "node ./check-preflight.mjs --verify --only libraries"
+    );
+    expect(manifest.scripts["check:preflight:library:json:compact"]).toBe(
+      "node ./check-preflight.mjs --only libraries --compact"
+    );
+    expect(manifest.scripts["check:preflight:library:verify:json:compact"]).toBe(
+      "node ./check-preflight.mjs --verify --only libraries --compact"
+    );
+    expect(manifest.scripts["check:preflight:libs:json"]).toBe(
+      "node ./check-preflight.mjs --only libraries"
+    );
+    expect(manifest.scripts["check:preflight:libs:verify:json"]).toBe(
+      "node ./check-preflight.mjs --verify --only libraries"
+    );
+    expect(manifest.scripts["check:preflight:libs:json:compact"]).toBe(
+      "node ./check-preflight.mjs --only libraries --compact"
+    );
+    expect(manifest.scripts["check:preflight:libs:verify:json:compact"]).toBe(
+      "node ./check-preflight.mjs --verify --only libraries --compact"
+    );
+    expect(manifest.scripts["check:preflight:lib:json"]).toBe(
+      "node ./check-preflight.mjs --only libraries"
+    );
+    expect(manifest.scripts["check:preflight:lib:verify:json"]).toBe(
+      "node ./check-preflight.mjs --verify --only libraries"
+    );
+    expect(manifest.scripts["check:preflight:lib:json:compact"]).toBe(
+      "node ./check-preflight.mjs --only libraries --compact"
+    );
+    expect(manifest.scripts["check:preflight:lib:verify:json:compact"]).toBe(
       "node ./check-preflight.mjs --verify --only libraries --compact"
     );
     expect(manifest.scripts["check:preflight:ts:json"]).toBe(
