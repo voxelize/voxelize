@@ -464,11 +464,14 @@ pub fn init() {}
 
 #[wasm_bindgen]
 pub fn set_registry(registry: JsValue) {
-    let mut parsed: LightRegistry =
-        serde_wasm_bindgen::from_value(registry).expect("Unable to deserialize light registry");
-    parsed.build_cache();
     CACHED_REGISTRY.with(|cached| {
-        *cached.borrow_mut() = Some(Arc::new(parsed));
+        let parsed_registry = serde_wasm_bindgen::from_value(registry)
+            .ok()
+            .map(|mut parsed: LightRegistry| {
+                parsed.build_cache();
+                Arc::new(parsed)
+            });
+        *cached.borrow_mut() = parsed_registry;
     });
 }
 
