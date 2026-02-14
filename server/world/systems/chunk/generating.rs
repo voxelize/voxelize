@@ -37,6 +37,23 @@ fn chunk_interest_alignment(center: &Vec2<i32>, coords: &Vec2<i32>, direction: &
     dot as f32
 }
 
+#[inline]
+fn accumulate_chunk_interest_weight(weight: f32, distance: f32, alignment: f32) -> f32 {
+    if alignment <= 0.0 {
+        return weight;
+    }
+    let contribution = distance * alignment;
+    if !contribution.is_finite() {
+        return f32::MAX;
+    }
+    let next = weight + contribution;
+    if next.is_finite() {
+        next
+    } else {
+        f32::MAX
+    }
+}
+
 #[derive(Default)]
 pub struct ChunkGeneratingSystem;
 
@@ -90,9 +107,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                         let dist = ChunkUtils::distance_squared(&request.center, &coords);
                         let alignment =
                             chunk_interest_alignment(&request.center, coords, &request.direction);
-                        if alignment > 0.0 {
-                            weight += dist * alignment;
-                        }
+                        weight = accumulate_chunk_interest_weight(weight, dist, alignment);
                     }
                 }
             }
@@ -459,7 +474,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
 #[cfg(test)]
 mod tests {
-    use super::chunk_interest_alignment;
+    use super::{accumulate_chunk_interest_weight, chunk_interest_alignment};
     use crate::Vec2;
 
     #[test]
@@ -500,5 +515,19 @@ mod tests {
         let alignment = chunk_interest_alignment(&center, &coords, &Vec2(0.0, 1.0));
         assert!(alignment.is_finite());
         assert!(alignment > 0.0);
+    }
+
+    #[test]
+    fn accumulate_chunk_interest_weight_clamps_non_finite_contributions() {
+        assert_eq!(
+            accumulate_chunk_interest_weight(1.0, f32::MAX, f32::MAX),
+            f32::MAX
+        );
+    }
+
+    #[test]
+    fn accumulate_chunk_interest_weight_ignores_non_positive_alignment() {
+        assert_eq!(accumulate_chunk_interest_weight(5.0, 10.0, 0.0), 5.0);
+        assert_eq!(accumulate_chunk_interest_weight(5.0, 10.0, -1.0), 5.0);
     }
 }
