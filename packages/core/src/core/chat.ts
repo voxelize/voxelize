@@ -323,12 +323,6 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       delete rawObj[rawObjKeys[index]];
     }
     rawObjKeys.length = 0;
-    const setRawArgValue = (key: string, value: string) => {
-      if (rawObj[key] === undefined) {
-        rawObjKeys.push(key);
-      }
-      rawObj[key] = value;
-    };
     const positionalValues = this.positionalValuesBuffer;
     positionalValues.length = 0;
 
@@ -339,13 +333,19 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         const key = word.substring(0, eqIndex);
         const value = word.substring(eqIndex + 1);
         if (hasOwn.call(shape, key)) {
-          setRawArgValue(key, value);
+          if (rawObj[key] === undefined) {
+            rawObjKeys.push(key);
+          }
+          rawObj[key] = value;
           continue;
         }
       }
 
       if (booleanKeys.has(word)) {
-        setRawArgValue(word, "true");
+        if (rawObj[word] === undefined) {
+          rawObjKeys.push(word);
+        }
+        rawObj[word] = "true";
         continue;
       }
 
@@ -358,7 +358,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       if (rawObj[key] !== undefined) continue;
       if (booleanKeys.has(key)) continue;
       if (posIndex < positionalValues.length) {
-        setRawArgValue(key, positionalValues[posIndex]);
+        rawObjKeys.push(key);
+        rawObj[key] = positionalValues[posIndex];
         posIndex++;
       }
     }
