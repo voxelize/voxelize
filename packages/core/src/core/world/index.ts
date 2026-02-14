@@ -870,6 +870,14 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
   private meshWorkerPromises: Array<Promise<GeometryProtocol[] | null>> = [];
   private meshJobArrayCapacity = 0;
   private mergeGeometriesBuffer: BufferGeometry[] = [];
+  private mergedMaterialGroupIndexByMaterial = new Map<
+    CustomChunkShaderMaterial,
+    number
+  >();
+  private mergedMaterialGeometryGroups: BufferGeometry[][] = [];
+  private reusableMergedMaterialGeometryGroups: BufferGeometry[][] = [];
+  private mergedMaterialGroupMaterials: CustomChunkShaderMaterial[] = [];
+  private mergedMaterialGroupVoxels: number[] = [];
   private emitServerUpdateBlockCache = new Map<number, Block>();
   private applyServerUpdateBlockCache = new Map<number, Block>();
   private processLightUpdateBlockCache = new Map<number, Block>();
@@ -5164,21 +5172,17 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
     let meshes: Mesh[];
 
     if (mergeChunkGeometries) {
-      const materialToGeometries = new Map<
-        CustomChunkShaderMaterial,
-        {
-          geometry: BufferGeometry;
-          material: CustomChunkShaderMaterial;
-          voxel: number;
-        }[]
-      >();
-      const materialGeometryGroups: Array<
-        {
-          geometry: BufferGeometry;
-          material: CustomChunkShaderMaterial;
-          voxel: number;
-        }[]
-      > = [];
+      const materialGroupIndexByMaterial =
+        this.mergedMaterialGroupIndexByMaterial;
+      materialGroupIndexByMaterial.clear();
+      const materialGeometryGroups = this.mergedMaterialGeometryGroups;
+      materialGeometryGroups.length = 0;
+      const materialGroupMaterials = this.mergedMaterialGroupMaterials;
+      materialGroupMaterials.length = 0;
+      const materialGroupVoxels = this.mergedMaterialGroupVoxels;
+      materialGroupVoxels.length = 0;
+      const reusableMaterialGeometryGroups =
+        this.reusableMergedMaterialGeometryGroups;
 
       for (let geometryIndex = 0; geometryIndex < geometries.length; geometryIndex++) {
         const geo = geometries[geometryIndex];
@@ -5219,13 +5223,21 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
             continue;
           }
         }
-        let geometriesByMaterial = materialToGeometries.get(material);
-        if (!geometriesByMaterial) {
-          geometriesByMaterial = [];
-          materialToGeometries.set(material, geometriesByMaterial);
+        let groupIndex = materialGroupIndexByMaterial.get(material);
+        if (groupIndex === undefined) {
+          let geometriesByMaterial = reusableMaterialGeometryGroups.pop();
+          if (!geometriesByMaterial) {
+            geometriesByMaterial = [];
+          } else {
+            geometriesByMaterial.length = 0;
+          }
+          groupIndex = materialGeometryGroups.length;
+          materialGroupIndexByMaterial.set(material, groupIndex);
           materialGeometryGroups.push(geometriesByMaterial);
+          materialGroupMaterials.push(material);
+          materialGroupVoxels.push(voxel);
         }
-        geometriesByMaterial.push({ geometry, material, voxel });
+        materialGeometryGroups[groupIndex].push(geometry);
       }
 
       meshes = new Array<Mesh>(materialGeometryGroups.length);
@@ -5235,21 +5247,21 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
         groupIndex < materialGeometryGroups.length;
         groupIndex++
       ) {
-        const geoMats = materialGeometryGroups[groupIndex];
-        if (geoMats.length === 0) continue;
+        const geometriesByMaterial = materialGeometryGroups[groupIndex];
+        if (geometriesByMaterial.length === 0) continue;
 
-        const material = geoMats[0].material;
-        const voxel = geoMats[0].voxel;
+        const material = materialGroupMaterials[groupIndex];
+        const voxel = materialGroupVoxels[groupIndex];
 
         let finalGeometry: BufferGeometry;
-        if (geoMats.length === 1) {
-          finalGeometry = geoMats[0].geometry;
+        if (geometriesByMaterial.length === 1) {
+          finalGeometry = geometriesByMaterial[0];
         } else {
-          const geoCount = geoMats.length;
+          const geoCount = geometriesByMaterial.length;
           const geos = this.mergeGeometriesBuffer;
           geos.length = geoCount;
           for (let i = 0; i < geoCount; i++) {
-            geos[i] = geoMats[i].geometry;
+            geos[i] = geometriesByMaterial[i];
           }
           const merged = mergeGeometries(geos, false);
           if (!merged) {
@@ -5285,6 +5297,14 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
         mergedMeshWriteIndex++;
       }
       meshes.length = mergedMeshWriteIndex;
+      for (let groupIndex = 0; groupIndex < materialGeometryGroups.length; groupIndex++) {
+        const geometriesByMaterial = materialGeometryGroups[groupIndex];
+        geometriesByMaterial.length = 0;
+        reusableMaterialGeometryGroups.push(geometriesByMaterial);
+      }
+      materialGeometryGroups.length = 0;
+      materialGroupMaterials.length = 0;
+      materialGroupVoxels.length = 0;
     } else {
       meshes = new Array<Mesh>(geometries.length);
       let meshWriteIndex = 0;
