@@ -612,6 +612,8 @@ describe("Rotation maps", () => {
 describe("Numeric helpers", () => {
   it("saturates values into unsigned 32-bit range", () => {
     expect(toSaturatedUint32(Number.NaN)).toBe(0);
+    expect(toSaturatedUint32(Number.POSITIVE_INFINITY)).toBe(0);
+    expect(toSaturatedUint32(Number.NEGATIVE_INFINITY)).toBe(0);
     expect(toSaturatedUint32(-5)).toBe(0);
     expect(toSaturatedUint32(12.9)).toBe(12);
     expect(toSaturatedUint32(0xffffffff + 1)).toBe(0xffffffff);
