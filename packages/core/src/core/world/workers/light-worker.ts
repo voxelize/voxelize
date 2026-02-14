@@ -199,7 +199,7 @@ const ensureWasmInitialized = async () => {
 const convertDynamicPatterns = (
   patterns: SerializedDynamicPattern[] | null | undefined
 ): WasmLightDynamicPattern[] | null => {
-  if (!patterns) {
+  if (!patterns || patterns.length === 0) {
     return null;
   }
 
