@@ -470,8 +470,8 @@ fn compute_expected_chunk_sizes(
     if chunk_size <= 0 || max_height <= 0 || chunk_grid_width == 0 || chunk_grid_depth == 0 {
         return None;
     }
-    let chunk_size_usize = usize::try_from(chunk_size).ok()?;
-    let chunk_height = usize::try_from(max_height).ok()?;
+    let chunk_size_usize = chunk_size as usize;
+    let chunk_height = max_height as usize;
     let expected_chunk_len = chunk_size_usize
         .checked_mul(chunk_height)?
         .checked_mul(chunk_size_usize)?;
