@@ -5,6 +5,7 @@ type DecodeWorkerInput = DecodeWorkerBuffer | DecodeWorkerBuffer[];
 
 const reusableTransferables: ArrayBuffer[] = [];
 const reusableSingleBufferList: DecodeWorkerBuffer[] = [new Uint8Array(0)];
+const reusableMessages: ReturnType<typeof decodeMessage>[] = [];
 
 onmessage = (e: MessageEvent<DecodeWorkerInput>) => {
   let { data: buffers } = e;
@@ -15,7 +16,8 @@ onmessage = (e: MessageEvent<DecodeWorkerInput>) => {
 
   const transferables = reusableTransferables;
   transferables.length = 0;
-  const messages = new Array<ReturnType<typeof decodeMessage>>(buffers.length);
+  const messages = reusableMessages;
+  messages.length = buffers.length;
   for (let index = 0; index < buffers.length; index++) {
     const buffer = buffers[index];
     const view = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
