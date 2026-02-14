@@ -208,6 +208,7 @@ For release automation and CI routing, aggregate preflight JSON reports include:
   `requestedCheckResolvedSupportsNoBuildMap`,
   `requestedCheckResolvedIndices`,
   `requestedCheckResolvedIndexMap`,
+  `requestedCheckResolvedIndexMapCount`,
   `requestedCheckResolvedMetadata`,
   `selectedChecks`, `skippedChecks`
 - script/index projections: `selectedCheckScripts`,
@@ -219,7 +220,7 @@ For release automation and CI routing, aggregate preflight JSON reports include:
 - executable inventory: `availableChecks`, `availableCheckScripts`,
   `availableCheckScriptMap`, `availableCheckSupportsNoBuildMap`,
   `availableCheckIndices`,
-  `availableCheckIndexMap`,
+  `availableCheckIndexMap`, `availableCheckIndexMapCount`,
   `availableCheckMetadata`, `availableCheckAliases`
 
 Each aggregate `checks[]` entry also includes `scriptName`,

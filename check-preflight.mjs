@@ -109,6 +109,7 @@ const availableCheckIndexMap = Object.fromEntries(
     return [checkName, index];
   })
 );
+const availableCheckIndexMapCount = Object.keys(availableCheckIndexMap).length;
 const checkNameToIndex = new Map(
   availableCheckNames.map((checkName, index) => {
     return [checkName, index];
@@ -434,6 +435,9 @@ const requestedCheckResolvedIndexMap = Object.fromEntries(
     return [checkName, resolveCheckDetails(checkName).checkIndex];
   })
 );
+const requestedCheckResolvedIndexMapCount = Object.keys(
+  requestedCheckResolvedIndexMap
+).length;
 const requestedCheckResolvedMetadata = Object.fromEntries(
   requestedCheckResolvedChecks.map((checkName) => {
     const { scriptName, supportsNoBuild } = resolveCheckDetails(checkName);
@@ -582,6 +586,7 @@ if (
     requestedCheckResolvedIndices,
     requestedCheckResolvedIndexCount: requestedCheckResolvedIndices.length,
     requestedCheckResolvedIndexMap,
+    requestedCheckResolvedIndexMapCount,
     requestedCheckResolvedMetadata,
     selectionMode,
     specialSelectorsUsed,
@@ -632,6 +637,7 @@ if (
     availableCheckIndices,
     availableCheckIndexCount: availableCheckIndices.length,
     availableCheckIndexMap,
+    availableCheckIndexMapCount,
     availableCheckMetadata,
     availableCheckAliases,
     availableSpecialCheckSelectors,
@@ -698,6 +704,7 @@ if (isListChecks) {
     requestedCheckResolvedIndices,
     requestedCheckResolvedIndexCount: requestedCheckResolvedIndices.length,
     requestedCheckResolvedIndexMap,
+    requestedCheckResolvedIndexMapCount,
     requestedCheckResolvedMetadata,
     selectionMode,
     specialSelectorsUsed,
@@ -747,6 +754,7 @@ if (isListChecks) {
     availableCheckIndices,
     availableCheckIndexCount: availableCheckIndices.length,
     availableCheckIndexMap,
+    availableCheckIndexMapCount,
     availableCheckMetadata,
     availableCheckAliases,
     availableSpecialCheckSelectors,
@@ -822,6 +830,7 @@ const report = buildTimedReport({
   requestedCheckResolvedIndices,
   requestedCheckResolvedIndexCount: requestedCheckResolvedIndices.length,
   requestedCheckResolvedIndexMap,
+  requestedCheckResolvedIndexMapCount,
   requestedCheckResolvedMetadata,
   selectionMode,
   specialSelectorsUsed,
@@ -871,6 +880,7 @@ const report = buildTimedReport({
   availableCheckIndices,
   availableCheckIndexCount: availableCheckIndices.length,
   availableCheckIndexMap,
+  availableCheckIndexMapCount,
   availableCheckMetadata,
   availableCheckAliases,
   availableSpecialCheckSelectors,
