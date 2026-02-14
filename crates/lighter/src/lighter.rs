@@ -91,7 +91,10 @@ fn set_light_level(
 ) {
     let raw = space.get_raw_light(vx, vy, vz);
     if is_sunlight {
-        space.set_raw_light(vx, vy, vz, LightUtils::insert_sunlight(raw, level));
+        let inserted = LightUtils::insert_sunlight(raw, level);
+        if inserted != raw {
+            space.set_raw_light(vx, vy, vz, inserted);
+        }
     } else {
         let inserted = match color {
             LightColor::Red => LightUtils::insert_red_light(raw, level),
@@ -99,7 +102,9 @@ fn set_light_level(
             LightColor::Blue => LightUtils::insert_blue_light(raw, level),
             LightColor::Sunlight => panic!("Setting torch light for sunlight channel."),
         };
-        space.set_raw_light(vx, vy, vz, inserted);
+        if inserted != raw {
+            space.set_raw_light(vx, vy, vz, inserted);
+        }
     }
 }
 
