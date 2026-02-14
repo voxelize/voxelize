@@ -794,7 +794,7 @@ impl<'a> VoxelSpace<'a> {
         let center_z = self.center_coords[1];
         let dx_offset = (coords[0] - center_x + 1) as u32;
         let dz_offset = (coords[1] - center_z + 1) as u32;
-        if dx_offset > 2 || dz_offset > 2 {
+        if dx_offset >= 3 || dz_offset >= 3 {
             return None;
         }
         let index = (dz_offset * 3 + dx_offset) as usize;
