@@ -53,8 +53,12 @@ fn process_pending_updates(
     max_updates: usize,
 ) -> Vec<UpdateProtocol> {
     let mut results = vec![];
-    let max_height = config.max_height as i32;
     let max_light_level = config.max_light_level;
+    let max_height = if config.max_height > i32::MAX as usize {
+        None
+    } else {
+        Some(config.max_height as i32)
+    };
 
     chunks.flush_staged_updates();
 
@@ -72,7 +76,10 @@ fn process_pending_updates(
         let Vec3(vx, vy, vz) = voxel;
 
         let updated_id = BlockUtils::extract_id(raw);
-        if vy < 0 || vy >= config.max_height as i32 || !registry.has_type(updated_id) {
+        if vy < 0
+            || max_height.is_some_and(|world_max_height| vy >= world_max_height)
+            || !registry.has_type(updated_id)
+        {
             continue;
         }
 
@@ -322,7 +329,7 @@ fn process_pending_updates(
 
             VOXEL_NEIGHBORS.iter().for_each(|&[ox, oy, oz]| {
                 let nvy = vy + oy;
-                if nvy < 0 || nvy >= max_height {
+                if nvy < 0 || max_height.is_some_and(|world_max_height| nvy >= world_max_height) {
                     return;
                 }
 
@@ -416,7 +423,7 @@ fn process_pending_updates(
                     return;
                 }
 
-                if nvy >= max_height {
+                if max_height.is_some_and(|world_max_height| nvy >= world_max_height) {
                     if Lights::can_enter(&ALL_TRANSPARENT, &updated_transparency, ox, -1, oz) {
                         sun_flood.push_back(LightNode {
                             voxel: [vx + ox, vy, vz + oz],
