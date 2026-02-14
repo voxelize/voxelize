@@ -149,9 +149,9 @@ fn can_enter_direction(source: &[bool; 6], target: &[bool; 6], direction_index: 
     source[SOURCE_FACE_BY_DIR[direction_index]] && target[TARGET_FACE_BY_DIR[direction_index]]
 }
 
-pub fn flood_light(
+fn flood_light_from_nodes(
     space: &mut dyn LightVoxelAccess,
-    queue: VecDeque<LightNode>,
+    mut nodes: Vec<LightNode>,
     color: &LightColor,
     config: &LightConfig,
     bounds: Option<&LightBounds>,
@@ -167,8 +167,6 @@ pub fn flood_light(
         let end_z = start_z.saturating_add(i64::try_from(limit.shape[2]).unwrap_or(i64::MAX));
         (start_x, start_z, end_x, end_z)
     });
-
-    let mut nodes: Vec<LightNode> = queue.into_iter().collect();
     let mut head = 0usize;
 
     while head < nodes.len() {
@@ -244,6 +242,17 @@ pub fn flood_light(
             });
         }
     }
+}
+
+pub fn flood_light(
+    space: &mut dyn LightVoxelAccess,
+    queue: VecDeque<LightNode>,
+    color: &LightColor,
+    config: &LightConfig,
+    bounds: Option<&LightBounds>,
+    registry: &LightRegistry,
+) {
+    flood_light_from_nodes(space, queue.into_iter().collect(), color, config, bounds, registry);
 }
 
 pub fn remove_light(
@@ -323,14 +332,7 @@ pub fn remove_light(
         }
     }
 
-    flood_light(
-        space,
-        VecDeque::from(fill),
-        color,
-        config,
-        None,
-        registry,
-    );
+    flood_light_from_nodes(space, fill, color, config, None, registry);
 }
 
 pub fn remove_lights<I>(
@@ -421,14 +423,7 @@ pub fn remove_lights<I>(
         }
     }
 
-    flood_light(
-        space,
-        VecDeque::from(fill),
-        color,
-        config,
-        None,
-        registry,
-    );
+    flood_light_from_nodes(space, fill, color, config, None, registry);
 }
 
 pub fn propagate(
