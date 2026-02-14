@@ -263,6 +263,60 @@ const createCheckStatusCountMap = ({
     skipped: skippedCheckCount,
   };
 };
+const resolveClientWasmPackCheckSummaryFromChecks = (checks) => {
+  const clientCheck = checks.find((check) => {
+    return check.name === "client";
+  });
+
+  if (
+    clientCheck === undefined ||
+    clientCheck.report === null ||
+    typeof clientCheck.report !== "object"
+  ) {
+    return {
+      clientWasmPackCheckStatus: null,
+      clientWasmPackCheckCommand: null,
+      clientWasmPackCheckArgs: null,
+      clientWasmPackCheckArgCount: null,
+      clientWasmPackCheckExitCode: null,
+      clientWasmPackCheckOutputLine: null,
+    };
+  }
+
+  const report = clientCheck.report;
+  const clientWasmPackCheckStatus =
+    typeof report.wasmPackCheckStatus === "string"
+      ? report.wasmPackCheckStatus
+      : null;
+  const clientWasmPackCheckCommand =
+    typeof report.wasmPackCheckCommand === "string"
+      ? report.wasmPackCheckCommand
+      : null;
+  const clientWasmPackCheckArgs = Array.isArray(report.wasmPackCheckArgs)
+    ? [...report.wasmPackCheckArgs]
+    : null;
+  const clientWasmPackCheckArgCount =
+    typeof report.wasmPackCheckArgCount === "number"
+      ? report.wasmPackCheckArgCount
+      : clientWasmPackCheckArgs?.length ?? null;
+  const clientWasmPackCheckExitCode =
+    typeof report.wasmPackCheckExitCode === "number"
+      ? report.wasmPackCheckExitCode
+      : null;
+  const clientWasmPackCheckOutputLine =
+    typeof report.wasmPackCheckOutputLine === "string"
+      ? report.wasmPackCheckOutputLine
+      : null;
+
+  return {
+    clientWasmPackCheckStatus,
+    clientWasmPackCheckCommand,
+    clientWasmPackCheckArgs,
+    clientWasmPackCheckArgCount,
+    clientWasmPackCheckExitCode,
+    clientWasmPackCheckOutputLine,
+  };
+};
 const availableCheckAliases = {
   devEnvironment: [
     "devEnvironment",
@@ -897,6 +951,12 @@ if (
     checkArgsMapCount: 0,
     checkArgCountMap: {},
     checkArgCountMapCount: 0,
+    clientWasmPackCheckStatus: null,
+    clientWasmPackCheckCommand: null,
+    clientWasmPackCheckArgs: null,
+    clientWasmPackCheckArgCount: null,
+    clientWasmPackCheckExitCode: null,
+    clientWasmPackCheckOutputLine: null,
     outputPath: outputPathError === null ? resolvedOutputPath : null,
     validationErrorCode,
     message: outputPathError ?? selectedChecksError ?? unsupportedOptionsError,
@@ -1133,6 +1193,12 @@ if (isListChecks) {
     checkArgsMapCount: 0,
     checkArgCountMap: {},
     checkArgCountMapCount: 0,
+    clientWasmPackCheckStatus: null,
+    clientWasmPackCheckCommand: null,
+    clientWasmPackCheckArgs: null,
+    clientWasmPackCheckArgCount: null,
+    clientWasmPackCheckExitCode: null,
+    clientWasmPackCheckOutputLine: null,
     outputPath: resolvedOutputPath,
     validationErrorCode: null,
     invalidChecks: [],
@@ -1270,6 +1336,14 @@ const checkArgCountMap = Object.fromEntries(
   })
 );
 const checkArgCountMapCount = countRecordEntries(checkArgCountMap);
+const {
+  clientWasmPackCheckStatus,
+  clientWasmPackCheckCommand,
+  clientWasmPackCheckArgs,
+  clientWasmPackCheckArgCount,
+  clientWasmPackCheckExitCode,
+  clientWasmPackCheckOutputLine,
+} = resolveClientWasmPackCheckSummaryFromChecks(checks);
 const invalidCheckCount = 0;
 const failureSummaries = summarizeCheckFailureResults(checks);
 const report = buildTimedReport({
@@ -1391,6 +1465,12 @@ const report = buildTimedReport({
   checkArgsMapCount,
   checkArgCountMap,
   checkArgCountMapCount,
+  clientWasmPackCheckStatus,
+  clientWasmPackCheckCommand,
+  clientWasmPackCheckArgs,
+  clientWasmPackCheckArgCount,
+  clientWasmPackCheckExitCode,
+  clientWasmPackCheckOutputLine,
   outputPath: resolvedOutputPath,
   validationErrorCode: null,
   invalidChecks: [],

@@ -984,6 +984,12 @@ type PreflightReport = {
     skipped: number;
   };
   checkStatusCountMapCount: number;
+  clientWasmPackCheckStatus: "ok" | "missing" | "unavailable" | "skipped" | null;
+  clientWasmPackCheckCommand: string | null;
+  clientWasmPackCheckArgs: string[] | null;
+  clientWasmPackCheckArgCount: number | null;
+  clientWasmPackCheckExitCode: number | null;
+  clientWasmPackCheckOutputLine: string | null;
   firstFailedCheck: string | null;
   availableChecks: string[];
   availableCheckScripts: string[];
@@ -2011,6 +2017,45 @@ const expectCheckResultScriptMetadata = (report: PreflightReport) => {
   expect(report.checkArgCountMapCount).toBe(
     report.passedCheckArgCountMapCount + report.failedCheckArgCountMapCount
   );
+  const clientCheck = report.checks.find((check) => {
+    return check.name === "client";
+  });
+  if (
+    clientCheck === undefined ||
+    clientCheck.report === null ||
+    typeof clientCheck.report !== "object"
+  ) {
+    expect(report.clientWasmPackCheckStatus).toBeNull();
+    expect(report.clientWasmPackCheckCommand).toBeNull();
+    expect(report.clientWasmPackCheckArgs).toBeNull();
+    expect(report.clientWasmPackCheckArgCount).toBeNull();
+    expect(report.clientWasmPackCheckExitCode).toBeNull();
+    expect(report.clientWasmPackCheckOutputLine).toBeNull();
+  } else {
+    const clientCheckReport = clientCheck.report as ClientNestedReport;
+    expect(report.clientWasmPackCheckStatus).toBe(clientCheckReport.wasmPackCheckStatus);
+    expect(report.clientWasmPackCheckCommand).toBe(
+      clientCheckReport.wasmPackCheckCommand
+    );
+    expect(report.clientWasmPackCheckArgs).toEqual(clientCheckReport.wasmPackCheckArgs);
+    expect(report.clientWasmPackCheckArgCount).toBe(
+      clientCheckReport.wasmPackCheckArgCount
+    );
+    expect(report.clientWasmPackCheckExitCode).toBe(
+      clientCheckReport.wasmPackCheckExitCode
+    );
+    expect(report.clientWasmPackCheckOutputLine).toBe(
+      clientCheckReport.wasmPackCheckOutputLine
+    );
+    if (
+      report.clientWasmPackCheckArgs !== null &&
+      report.clientWasmPackCheckArgCount !== null
+    ) {
+      expect(report.clientWasmPackCheckArgCount).toBe(
+        report.clientWasmPackCheckArgs.length
+      );
+    }
+  }
   for (const check of report.checks) {
     expect(check.scriptName).toBe(
       expectedAvailableCheckMetadata[

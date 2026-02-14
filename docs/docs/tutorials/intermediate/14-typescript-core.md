@@ -368,6 +368,10 @@ For release automation and CI routing, aggregate preflight JSON reports include:
   `checkArgsMap`, `checkArgsMapCount`,
   `checkArgCountMap`, `checkArgCountMapCount`,
   `failureSummaries`, `failureSummaryCount`
+- nested client wasm summary fields:
+  `clientWasmPackCheckStatus`, `clientWasmPackCheckCommand`,
+  `clientWasmPackCheckArgs`, `clientWasmPackCheckArgCount`,
+  `clientWasmPackCheckExitCode`, `clientWasmPackCheckOutputLine`
 - executable inventory: `availableChecks`, `availableCheckScripts`,
   `availableCheckScriptMap`, `availableCheckCommandMap`,
   `availableCheckArgsMap`, `availableCheckArgCountMap`,
