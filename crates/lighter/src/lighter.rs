@@ -522,10 +522,12 @@ pub fn propagate(
                     if mask[current_mask_index] != 0 {
                         let sunlight = mask[current_mask_index] - 1;
                         space.set_sunlight(vx, y, vz, sunlight);
-                        sunlight_queue.push(LightNode {
-                            voxel: [vx, y, vz],
-                            level: sunlight,
-                        });
+                        if sunlight > 0 {
+                            sunlight_queue.push(LightNode {
+                                voxel: [vx, y, vz],
+                                level: sunlight,
+                            });
+                        }
                         mask[current_mask_index] = 0;
                     }
                     continue;
@@ -831,6 +833,35 @@ mod tests {
         assert_eq!(space.get_sunlight(8, 48, 8), 14);
         assert_eq!(space.get_sunlight(8, 47, 8), 13);
         assert_eq!(space.get_sunlight(9, 50, 8), 14);
+    }
+
+    #[test]
+    fn propagate_skips_zero_level_sunlight_nodes_for_light_reducers() {
+        let mut air = LightBlock::default_air();
+        air.id = 0;
+
+        let mut reducer = LightBlock::default_air();
+        reducer.id = 3;
+        reducer.light_reduce = true;
+        reducer.recompute_flags();
+
+        let registry = LightRegistry::new(vec![(0, air), (3, reducer)]);
+        let config = LightConfig {
+            chunk_size: 16,
+            max_height: 2,
+            max_light_level: 1,
+            min_chunk: [0, 0],
+            max_chunk: [0, 0],
+        };
+        let mut space = TestSpace::new([0, 0, 0], [1, 2, 1]);
+        assert!(space.set_voxel(0, 0, 0, 3));
+
+        let [sunlight_queue, _, _, _] =
+            propagate(&mut space, [0, 0, 0], [1, 2, 1], &registry, &config);
+
+        assert!(sunlight_queue.is_empty());
+        assert_eq!(space.get_sunlight(0, 1, 0), 1);
+        assert_eq!(space.get_sunlight(0, 0, 0), 0);
     }
 
     #[test]
