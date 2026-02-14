@@ -88,10 +88,11 @@ impl EncodedMessageQueue {
     }
 
     pub fn process(&mut self) {
-        let all_pending = std::mem::take(&mut self.pending);
-        if all_pending.is_empty() {
+        if self.pending.is_empty() {
             return;
         }
+        let mut all_pending = Vec::with_capacity(self.pending.capacity());
+        std::mem::swap(&mut self.pending, &mut all_pending);
 
         let sender = Arc::clone(&self.sender);
         rayon::spawn_fifo(move || {
@@ -131,5 +132,65 @@ impl EncodedMessageQueue {
             Ok(MessageType::Peer) => true,
             _ => false,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{EncodedMessageQueue, MessageQueues};
+    use crate::{ClientFilter, EntityOperation, EntityProtocol, Message, MessageType};
+
+    #[test]
+    fn message_queues_drain_prioritized_orders_by_priority_group() {
+        let mut queue = MessageQueues::new();
+        queue.push((
+            Message::new(&MessageType::Load).build(),
+            ClientFilter::Direct("load".to_string()),
+        ));
+        queue.push((
+            Message::new(&MessageType::Update).build(),
+            ClientFilter::Direct("update".to_string()),
+        ));
+        queue.push((
+            Message::new(&MessageType::Peer).build(),
+            ClientFilter::Direct("peer".to_string()),
+        ));
+
+        let drained = queue.drain_prioritized();
+        assert_eq!(drained.len(), 3);
+        assert_eq!(MessageType::try_from(drained[0].0.r#type), Ok(MessageType::Peer));
+        assert_eq!(
+            MessageType::try_from(drained[1].0.r#type),
+            Ok(MessageType::Update)
+        );
+        assert_eq!(MessageType::try_from(drained[2].0.r#type), Ok(MessageType::Load));
+    }
+
+    #[test]
+    fn compute_rtc_eligibility_for_entities_requires_only_updates() {
+        let update_entity = EntityProtocol {
+            operation: EntityOperation::Update,
+            id: "id".to_string(),
+            r#type: "kind".to_string(),
+            metadata: None,
+        };
+        let delete_entity = EntityProtocol {
+            operation: EntityOperation::Delete,
+            id: "id".to_string(),
+            r#type: "kind".to_string(),
+            metadata: None,
+        };
+
+        let update_message = Message::new(&MessageType::Entity)
+            .entities(&[update_entity.clone()])
+            .build();
+        let mixed_message = Message::new(&MessageType::Entity)
+            .entities(&[update_entity, delete_entity])
+            .build();
+        let empty_message = Message::new(&MessageType::Entity).build();
+
+        assert!(EncodedMessageQueue::compute_rtc_eligibility(&update_message));
+        assert!(!EncodedMessageQueue::compute_rtc_eligibility(&mixed_message));
+        assert!(!EncodedMessageQueue::compute_rtc_eligibility(&empty_message));
     }
 }
