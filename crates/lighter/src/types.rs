@@ -651,6 +651,9 @@ pub trait LightVoxelAccess {
 
     #[inline]
     fn set_sunlight(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
+        if level > 15 {
+            return false;
+        }
         let raw = self.get_raw_light(vx, vy, vz);
         let inserted = LightUtils::insert_sunlight(raw, level);
         if inserted == raw {
@@ -666,6 +669,9 @@ pub trait LightVoxelAccess {
 
     #[inline]
     fn set_red_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
+        if level > 15 {
+            return false;
+        }
         let raw = self.get_raw_light(vx, vy, vz);
         let inserted = LightUtils::insert_red_light(raw, level);
         if inserted == raw {
@@ -681,6 +687,9 @@ pub trait LightVoxelAccess {
 
     #[inline]
     fn set_green_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
+        if level > 15 {
+            return false;
+        }
         let raw = self.get_raw_light(vx, vy, vz);
         let inserted = LightUtils::insert_green_light(raw, level);
         if inserted == raw {
@@ -696,6 +705,9 @@ pub trait LightVoxelAccess {
 
     #[inline]
     fn set_blue_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
+        if level > 15 {
+            return false;
+        }
         let raw = self.get_raw_light(vx, vy, vz);
         let inserted = LightUtils::insert_blue_light(raw, level);
         if inserted == raw {
@@ -1300,6 +1312,30 @@ mod tests {
         assert!(super::LightVoxelAccess::set_red_light(&mut present, 0, 0, 0, 3));
         assert_eq!(present.set_calls, 1);
         assert_eq!(LightUtils::extract_red_light(present.raw_light), 3);
+    }
+
+    #[test]
+    fn default_light_setters_reject_out_of_range_levels_without_writes() {
+        let mut probe = SetterProbeAccess {
+            raw_light: 0,
+            contains: true,
+            set_calls: 0,
+        };
+
+        assert!(!super::LightVoxelAccess::set_sunlight(
+            &mut probe, 0, 0, 0, 16
+        ));
+        assert!(!super::LightVoxelAccess::set_red_light(
+            &mut probe, 0, 0, 0, 16
+        ));
+        assert!(!super::LightVoxelAccess::set_green_light(
+            &mut probe, 0, 0, 0, 16
+        ));
+        assert!(!super::LightVoxelAccess::set_blue_light(
+            &mut probe, 0, 0, 0, 16
+        ));
+        assert_eq!(probe.set_calls, 0);
+        assert_eq!(probe.raw_light, 0);
     }
 
     struct SetterProbeAccess {
