@@ -479,6 +479,30 @@ pub struct GeometryProtocol {
     pub lights: Vec<i32>,
 }
 
+#[inline(always)]
+fn new_geometry_protocol(
+    voxel: u32,
+    face_name: Option<String>,
+    at: Option<[i32; 3]>,
+) -> GeometryProtocol {
+    let (positions_capacity, indices_capacity, uvs_capacity, lights_capacity) = if at.is_some() {
+        (12, 6, 8, 4)
+    } else if face_name.is_some() {
+        (384, 192, 256, 128)
+    } else {
+        (2048, 1024, 1536, 512)
+    };
+    GeometryProtocol {
+        voxel,
+        at,
+        face_name,
+        positions: Vec::with_capacity(positions_capacity),
+        indices: Vec::with_capacity(indices_capacity),
+        uvs: Vec::with_capacity(uvs_capacity),
+        lights: Vec::with_capacity(lights_capacity),
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MeshConfig {
@@ -3657,15 +3681,17 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                             for face in fluid_faces {
                                 let geo_key = geometry_key_for_face(block, &face, vx, vy, vz);
                                 let geometry = map.entry(geo_key).or_insert_with(|| {
-                                    let mut entry = GeometryProtocol::default();
-                                    entry.voxel = voxel_id;
-                                    if face.independent || face.isolated {
-                                        entry.face_name = Some(face.name.clone());
-                                    }
-                                    if face.isolated {
-                                        entry.at = Some([vx, vy, vz]);
-                                    }
-                                    entry
+                                    let face_name = if face.independent || face.isolated {
+                                        Some(face.name.clone())
+                                    } else {
+                                        None
+                                    };
+                                    let at = if face.isolated {
+                                        Some([vx, vy, vz])
+                                    } else {
+                                        None
+                                    };
+                                    new_geometry_protocol(voxel_id, face_name, at)
                                 });
                                 process_face(
                                     vx,
@@ -3728,15 +3754,17 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                     |face, world_space| {
                                         let geo_key = geometry_key_for_face(block, face, vx, vy, vz);
                                         let geometry = map.entry(geo_key).or_insert_with(|| {
-                                            let mut entry = GeometryProtocol::default();
-                                            entry.voxel = voxel_id;
-                                            if face.independent || face.isolated {
-                                                entry.face_name = Some(face.name.clone());
-                                            }
-                                            if face.isolated {
-                                                entry.at = Some([vx, vy, vz]);
-                                            }
-                                            entry
+                                            let face_name = if face.independent || face.isolated {
+                                                Some(face.name.clone())
+                                            } else {
+                                                None
+                                            };
+                                            let at = if face.isolated {
+                                                Some([vx, vy, vz])
+                                            } else {
+                                                None
+                                            };
+                                            new_geometry_protocol(voxel_id, face_name, at)
                                         });
                                         let needs_rotation =
                                             block_needs_rotation && !world_space;
@@ -3800,9 +3828,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 if uses_main_geometry_only {
                                     let geometry =
                                         map.entry(GeometryMapKey::Block(block.id)).or_insert_with(|| {
-                                            let mut entry = GeometryProtocol::default();
-                                            entry.voxel = block.id;
-                                        entry
+                                            new_geometry_protocol(block.id, None, None)
                                         });
                                     for face in &block.faces {
                                         process_face(
@@ -3832,15 +3858,17 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                     for face in &block.faces {
                                         let geo_key = geometry_key_for_face(block, face, vx, vy, vz);
                                         let geometry = map.entry(geo_key).or_insert_with(|| {
-                                            let mut entry = GeometryProtocol::default();
-                                            entry.voxel = voxel_id;
-                                            if face.independent || face.isolated {
-                                                entry.face_name = Some(face.name.clone());
-                                            }
-                                            if face.isolated {
-                                                entry.at = Some([vx, vy, vz]);
-                                            }
-                                            entry
+                                            let face_name = if face.independent || face.isolated {
+                                                Some(face.name.clone())
+                                            } else {
+                                                None
+                                            };
+                                            let at = if face.isolated {
+                                                Some([vx, vy, vz])
+                                            } else {
+                                                None
+                                            };
+                                            new_geometry_protocol(voxel_id, face_name, at)
                                         });
                                         process_face(
                                             vx,
@@ -3967,11 +3995,11 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                             }
                             let geo_key = geometry_key_for_face(block, face, vx, vy, vz);
                             let geometry = map.entry(geo_key).or_insert_with(|| {
-                                let mut entry = GeometryProtocol::default();
-                                entry.voxel = voxel_id;
-                                entry.face_name = Some(face.name.clone());
-                                entry.at = Some([vx, vy, vz]);
-                                entry
+                                new_geometry_protocol(
+                                    voxel_id,
+                                    Some(face.name.clone()),
+                                    Some([vx, vy, vz]),
+                                )
                             });
                             let neighbors = isolated_neighbors
                                 .as_ref()
@@ -4134,18 +4162,18 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                 };
 
                 let geometry = map.entry(geo_key).or_insert_with(|| {
-                    let mut entry = GeometryProtocol::default();
-                    entry.voxel = block_id;
-                    if quad_key.independent {
-                        entry.face_name = if let Some(face_name) = quad_key.face_name.as_ref() {
+                    let face_name = if quad_key.independent {
+                        if let Some(face_name) = quad_key.face_name.as_ref() {
                             Some(face_name.clone())
                         } else if quad_key.face_index >= 0 {
                             Some(block.faces[quad_key.face_index as usize].name.clone())
                         } else {
                             None
-                        };
-                    }
-                    entry
+                        }
+                    } else {
+                        None
+                    };
+                    new_geometry_protocol(block_id, face_name, None)
                 });
 
                 process_greedy_quad(
@@ -4286,9 +4314,7 @@ pub fn mesh_space<S: VoxelAccess>(
                 };
                 if uses_main_geometry_only {
                     let geometry = map.entry(GeometryMapKey::Block(block.id)).or_insert_with(|| {
-                        let mut entry = GeometryProtocol::default();
-                        entry.voxel = block.id;
-                        entry
+                        new_geometry_protocol(block.id, None, None)
                     });
 
                     for face in &block.faces {
@@ -4320,15 +4346,17 @@ pub fn mesh_space<S: VoxelAccess>(
                         let key = geometry_key_for_face(block, face, vx, vy, vz);
 
                         let geometry = map.entry(key).or_insert_with(|| {
-                            let mut entry = GeometryProtocol::default();
-                            entry.voxel = block.id;
-                            if face.independent || face.isolated {
-                                entry.face_name = Some(face.name.clone());
-                            }
-                            if face.isolated {
-                                entry.at = Some([vx, vy, vz]);
-                            }
-                            entry
+                            let face_name = if face.independent || face.isolated {
+                                Some(face.name.clone())
+                            } else {
+                                None
+                            };
+                            let at = if face.isolated {
+                                Some([vx, vy, vz])
+                            } else {
+                                None
+                            };
+                            new_geometry_protocol(block.id, face_name, at)
                         });
 
                         process_face(
