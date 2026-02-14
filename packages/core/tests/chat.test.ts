@@ -24,6 +24,18 @@ const initializeChat = (chat: Chat) => {
   chat.onMessage(initMessage);
 };
 
+const initializeChatWithSymbol = (chat: Chat, commandSymbol: string) => {
+  const initMessage: InitMessage = {
+    type: "INIT",
+    json: {
+      options: {
+        commandSymbol,
+      },
+    },
+  };
+  chat.onMessage(initMessage);
+};
+
 describe("Chat command parsing", () => {
   it("sends plain chat before init without throwing", () => {
     const chat = new Chat();
@@ -111,6 +123,33 @@ describe("Chat command parsing", () => {
     chat.send(message);
 
     expect(parsed).toEqual({ first: "hello world", second: "test" });
+  });
+
+  it("parses commands with multi-character command symbols", () => {
+    const chat = new Chat();
+    initializeChatWithSymbol(chat, "::");
+    let parsed: { first: string } | null = null;
+
+    chat.addCommand(
+      "echo",
+      (args) => {
+        parsed = args;
+      },
+      {
+        description: "Echo command",
+        args: z.object({
+          first: z.string(),
+        }),
+      }
+    );
+
+    const message: ChatProtocol = {
+      type: "CLIENT",
+      body: "::echo hello",
+    };
+    chat.send(message);
+
+    expect(parsed).toEqual({ first: "hello" });
   });
 
   it("parses command triggers and args separated by tab whitespace", () => {
