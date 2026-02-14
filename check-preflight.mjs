@@ -151,6 +151,13 @@ const resolveCheckIndices = (checkNames) => {
     return resolveCheckDetails(checkName).checkIndex;
   });
 };
+const createCheckIndexMap = (checkNames) => {
+  return Object.fromEntries(
+    checkNames.map((checkName) => {
+      return [checkName, resolveCheckDetails(checkName).checkIndex];
+    })
+  );
+};
 const availableCheckAliases = {
   devEnvironment: [
     "devEnvironment",
@@ -631,6 +638,8 @@ if (
     selectedCheckCount: 0,
     selectedCheckIndices: [],
     selectedCheckIndexCount: 0,
+    selectedCheckIndexMap: {},
+    selectedCheckIndexMapCount: 0,
     selectedCheckMetadata: {},
     selectedCheckMetadataCount: 0,
     selectedCheckScripts: [],
@@ -660,6 +669,8 @@ if (
     skippedCheckCount: availableCheckNames.length,
     skippedCheckIndices: resolveCheckIndices(availableCheckNames),
     skippedCheckIndexCount: availableCheckNames.length,
+    skippedCheckIndexMap: availableCheckIndexMap,
+    skippedCheckIndexMapCount: availableCheckIndexMapCount,
     skippedCheckMetadata: allCheckMetadata,
     skippedCheckMetadataCount: allCheckMetadataCount,
     skippedCheckScripts: allCheckScripts,
@@ -670,12 +681,16 @@ if (
     passedCheckMetadataCount: 0,
     passedCheckIndices: [],
     passedCheckIndexCount: 0,
+    passedCheckIndexMap: {},
+    passedCheckIndexMapCount: 0,
     failedCheckScripts: [],
     failedCheckScriptCount: 0,
     failedCheckMetadata: {},
     failedCheckMetadataCount: 0,
     failedCheckIndices: [],
     failedCheckIndexCount: 0,
+    failedCheckIndexMap: {},
+    failedCheckIndexMapCount: 0,
     ...summarizeCheckResults([]),
     failureSummaries: [],
     failureSummaryCount: 0,
@@ -746,6 +761,10 @@ const skippedChecks = availableCheckNames.filter((checkName) => {
 });
 const selectedCheckIndices = resolveCheckIndices(selectedChecks);
 const skippedCheckIndices = resolveCheckIndices(skippedChecks);
+const selectedCheckIndexMap = createCheckIndexMap(selectedChecks);
+const selectedCheckIndexMapCount = countRecordEntries(selectedCheckIndexMap);
+const skippedCheckIndexMap = createCheckIndexMap(skippedChecks);
+const skippedCheckIndexMapCount = countRecordEntries(skippedCheckIndexMap);
 const {
   checkMetadata: selectedCheckMetadata,
   checkScripts: selectedCheckScripts,
@@ -775,6 +794,8 @@ if (isListChecks) {
     selectedCheckCount: selectedChecks.length,
     selectedCheckIndices,
     selectedCheckIndexCount: selectedCheckIndices.length,
+    selectedCheckIndexMap,
+    selectedCheckIndexMapCount,
     selectedCheckMetadata,
     selectedCheckMetadataCount,
     selectedCheckScripts,
@@ -804,6 +825,8 @@ if (isListChecks) {
     skippedCheckCount: skippedChecks.length,
     skippedCheckIndices,
     skippedCheckIndexCount: skippedCheckIndices.length,
+    skippedCheckIndexMap,
+    skippedCheckIndexMapCount,
     skippedCheckMetadata,
     skippedCheckMetadataCount,
     skippedCheckScripts,
@@ -814,12 +837,16 @@ if (isListChecks) {
     passedCheckMetadataCount: 0,
     passedCheckIndices: [],
     passedCheckIndexCount: 0,
+    passedCheckIndexMap: {},
+    passedCheckIndexMapCount: 0,
     failedCheckScripts: [],
     failedCheckScriptCount: 0,
     failedCheckMetadata: {},
     failedCheckMetadataCount: 0,
     failedCheckIndices: [],
     failedCheckIndexCount: 0,
+    failedCheckIndexMap: {},
+    failedCheckIndexMapCount: 0,
     ...summarizeCheckResults([]),
     failureSummaries: [],
     failureSummaryCount: 0,
@@ -911,6 +938,10 @@ const {
 const failedCheckMetadataCount = countRecordEntries(failedCheckMetadata);
 const passedCheckIndices = resolveCheckIndices(checkSummary.passedChecks);
 const failedCheckIndices = resolveCheckIndices(checkSummary.failedChecks);
+const passedCheckIndexMap = createCheckIndexMap(checkSummary.passedChecks);
+const failedCheckIndexMap = createCheckIndexMap(checkSummary.failedChecks);
+const passedCheckIndexMapCount = countRecordEntries(passedCheckIndexMap);
+const failedCheckIndexMapCount = countRecordEntries(failedCheckIndexMap);
 const invalidCheckCount = 0;
 const failureSummaries = summarizeCheckFailureResults(checks);
 const report = buildTimedReport({
@@ -927,6 +958,8 @@ const report = buildTimedReport({
   selectedCheckCount: selectedChecks.length,
   selectedCheckIndices,
   selectedCheckIndexCount: selectedCheckIndices.length,
+  selectedCheckIndexMap,
+  selectedCheckIndexMapCount,
   selectedCheckMetadata,
   selectedCheckMetadataCount,
   selectedCheckScripts,
@@ -956,6 +989,8 @@ const report = buildTimedReport({
   skippedCheckCount: skippedChecks.length,
   skippedCheckIndices,
   skippedCheckIndexCount: skippedCheckIndices.length,
+  skippedCheckIndexMap,
+  skippedCheckIndexMapCount,
   skippedCheckMetadata,
   skippedCheckMetadataCount,
   skippedCheckScripts,
@@ -966,12 +1001,16 @@ const report = buildTimedReport({
   passedCheckMetadataCount,
   passedCheckIndices,
   passedCheckIndexCount: passedCheckIndices.length,
+  passedCheckIndexMap,
+  passedCheckIndexMapCount,
   failedCheckScripts,
   failedCheckScriptCount,
   failedCheckMetadata,
   failedCheckMetadataCount,
   failedCheckIndices,
   failedCheckIndexCount: failedCheckIndices.length,
+  failedCheckIndexMap,
+  failedCheckIndexMapCount,
   ...checkSummary,
   failureSummaries,
   failureSummaryCount: failureSummaries.length,

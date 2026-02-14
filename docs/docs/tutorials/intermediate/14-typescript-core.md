@@ -248,7 +248,12 @@ For release automation and CI routing, aggregate preflight JSON reports include:
   `passedCheckMetadataCount`, `passedCheckScripts`,
   `failedCheckMetadata`, `failedCheckMetadataCount`,
   `failedCheckScripts`, `selectedCheckIndices`,
-  `skippedCheckIndices`, `passedCheckIndices`, `failedCheckIndices`
+  `selectedCheckIndexMap`, `selectedCheckIndexMapCount`,
+  `skippedCheckIndices`, `skippedCheckIndexMap`,
+  `skippedCheckIndexMapCount`, `passedCheckIndices`,
+  `passedCheckIndexMap`, `passedCheckIndexMapCount`,
+  `failedCheckIndices`, `failedCheckIndexMap`,
+  `failedCheckIndexMapCount`
 - execution partitions: `passedChecks`, `failedChecks`,
   `failureSummaries`, `failureSummaryCount`
 - executable inventory: `availableChecks`, `availableCheckScripts`,
