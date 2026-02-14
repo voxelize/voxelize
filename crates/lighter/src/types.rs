@@ -622,6 +622,7 @@ impl LightRegistry {
             return;
         }
 
+        self.air_index = None;
         for (index, (id, block)) in self.blocks_by_id.iter_mut().enumerate() {
             if block.id != *id {
                 block.id = *id;
@@ -746,6 +747,23 @@ mod tests {
         assert!(registry.lookup_sparse.is_none());
         assert!(registry.has_type(1));
         assert!(!registry.has_type(999));
+    }
+
+    #[test]
+    fn build_cache_clears_stale_air_index_after_blocks_replaced() {
+        let mut air = LightBlock::default_air();
+        air.id = 0;
+        let mut solid = LightBlock::default_air();
+        solid.id = 1;
+
+        let mut registry = LightRegistry::new(vec![(0, air), (1, solid.clone())]);
+        assert_eq!(registry.get_block_by_id(99).id, 0);
+
+        registry.blocks_by_id = vec![(1, solid)];
+        registry.build_cache();
+
+        assert_eq!(registry.get_block_by_id(99).id, 0);
+        assert!(!registry.has_type(0));
     }
 
     #[test]
