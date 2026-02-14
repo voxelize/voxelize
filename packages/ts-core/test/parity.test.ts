@@ -148,6 +148,16 @@ describe("LightUtils", () => {
     });
   });
 
+  it("returns zero when packing empty light channel objects", () => {
+    expect(Light.pack({})).toBe(0);
+    expect(Light.unpack(0)).toEqual({
+      sunlight: 0,
+      red: 0,
+      green: 0,
+      blue: 0,
+    });
+  });
+
   it("masks overflowing and negative channel levels to 4 bits", () => {
     const masked = Light.pack({
       sunlight: 20,
