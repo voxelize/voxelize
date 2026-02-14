@@ -1030,8 +1030,9 @@ describe("Type builders", () => {
       isTransparent: [true, false, false, false, false, false],
       worldSpace: false,
     });
+    const sourceParts = [sourcePart];
     const pattern = createBlockDynamicPattern({
-      parts: [sourcePart],
+      parts: sourceParts,
     });
 
     expect(pattern.parts).toHaveLength(1);
@@ -1057,8 +1058,10 @@ describe("Type builders", () => {
     ) {
       sourcePart.rule.rotation.axis = BlockRotation.PX().axis;
     }
+    sourceParts.push(createBlockConditionalPart({}));
 
     const [clonedPart] = pattern.parts;
+    expect(pattern.parts).toHaveLength(1);
     expect(clonedPart.faces[0].name).toBe("PatternFace");
     expect(clonedPart.faces[0].dir[0]).toBe(0);
     expect(clonedPart.faces[0].corners[0].pos[0]).toBe(0);
