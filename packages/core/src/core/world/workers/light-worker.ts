@@ -919,8 +919,7 @@ const applyRelevantDeltas = (
     if (!isI32(cx) || !isI32(cz)) {
       continue;
     }
-    const startIndexValue = deltaBatch.startIndex;
-    const startIndex = normalizeStartIndex(startIndexValue);
+    const startIndex = normalizeStartIndex(deltaBatch.startIndex);
     const localX = cx - gridOffsetX;
     const localZ = cz - gridOffsetZ;
 
