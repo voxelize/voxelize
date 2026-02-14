@@ -480,9 +480,12 @@ const runCheck = (name, scriptName, extraArgs = []) => {
   const exitCode = result.status ?? 1;
   const output = `${result.stdout}${result.stderr}`.trim();
   const report = parseJsonOutput(output);
+  const checkIndex = checkNameToIndex.get(name);
 
   return {
     name,
+    scriptName,
+    checkIndex: typeof checkIndex === "number" ? checkIndex : null,
     passed: exitCode === 0,
     exitCode,
     durationMs: Date.now() - checkStartMs,

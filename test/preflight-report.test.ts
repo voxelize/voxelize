@@ -8,6 +8,8 @@ import { describe, expect, it } from "vitest";
 
 type PreflightCheckResult = {
   name: string;
+  scriptName: string;
+  checkIndex: number | null;
   passed: boolean;
   exitCode: number;
   durationMs: number;
@@ -645,6 +647,14 @@ const expectCheckResultScriptMetadata = (report: PreflightReport) => {
   expect(report.failedCheckMetadata).toEqual(expectedFailedMetadata);
   expect(report.failedCheckIndices).toEqual(expectedFailedIndices);
   expect(report.failedCheckIndexCount).toBe(report.failedCheckIndices.length);
+  for (const check of report.checks) {
+    expect(check.scriptName).toBe(
+      expectedAvailableCheckMetadata[
+        check.name as keyof typeof expectedAvailableCheckMetadata
+      ].scriptName
+    );
+    expect(check.checkIndex).toBe(expectedAvailableChecks.indexOf(check.name));
+  }
   expect(report.failureSummaryCount).toBe(report.failureSummaries.length);
   expect(report.failureSummaries.map((entry) => entry.name).sort()).toEqual(
     report.failedChecks.slice().sort()
