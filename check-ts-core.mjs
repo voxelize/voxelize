@@ -105,6 +105,10 @@ const withBaseReportFields = (report) => {
   const missingArtifacts = Array.isArray(report.missingArtifacts)
     ? report.missingArtifacts
     : [];
+  const buildExitCode =
+    typeof report.buildExitCode === "number" ? report.buildExitCode : null;
+  const buildDurationMs =
+    typeof report.buildDurationMs === "number" ? report.buildDurationMs : null;
   return {
     ...report,
     optionTerminatorUsed,
@@ -131,6 +135,8 @@ const withBaseReportFields = (report) => {
     missingArtifactCount: missingArtifacts.length,
     buildCommand: pnpmCommand,
     buildArgs: buildCommandArgs,
+    buildExitCode,
+    buildDurationMs,
   };
 };
 const finish = (report) => {
@@ -225,6 +231,7 @@ if (!isJson && !isQuiet) {
   console.log("TypeScript core build artifacts missing. Running package build...");
 }
 
+const buildStartedAt = Date.now();
 const buildResult = isJson
   ? spawnSync(pnpmCommand, buildCommandArgs, {
       encoding: "utf8",
@@ -236,6 +243,7 @@ const buildResult = isJson
       shell: false,
       cwd: repositoryRoot,
     });
+const buildDurationMs = Date.now() - buildStartedAt;
 const buildExitCode = buildResult.status ?? 1;
 const buildOutput = `${buildResult.stdout ?? ""}${buildResult.stderr ?? ""}`.trim();
 const missingArtifactsAfterBuild = resolveMissingArtifacts();
@@ -248,6 +256,8 @@ if (buildExitCode === 0 && missingArtifactsAfterBuild.length === 0) {
     attemptedBuild: true,
     buildSkipped: false,
     buildOutput: isJson ? buildOutput : null,
+    buildExitCode,
+    buildDurationMs,
     message: "TypeScript core build artifacts are available.",
   });
 }
@@ -260,6 +270,8 @@ finish({
   attemptedBuild: true,
   buildSkipped: false,
   buildOutput: isJson ? buildOutput : null,
+  buildExitCode,
+  buildDurationMs,
   message:
     missingArtifactsAfterBuild.length === 0
       ? "Failed to build @voxelize/ts-core."

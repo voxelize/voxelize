@@ -173,6 +173,8 @@ type TsCoreJsonReport = OptionTerminatorMetadata &
   missingArtifactCount: number;
   buildCommand: string;
   buildArgs: string[];
+  buildExitCode: number | null;
+  buildDurationMs: number | null;
   attemptedBuild: boolean;
   buildSkipped: boolean;
   buildOutput: string | null;
@@ -371,6 +373,16 @@ const expectTsCoreReportMetadata = (report: TsCoreJsonReport) => {
   expect(typeof report.buildCommand).toBe("string");
   expect(report.buildCommand.length).toBeGreaterThan(0);
   expect(report.buildArgs).toEqual(expectedTsCoreBuildArgs);
+  if (report.buildExitCode !== null) {
+    expect(Number.isInteger(report.buildExitCode)).toBe(true);
+  }
+  if (report.attemptedBuild) {
+    expect(typeof report.buildDurationMs).toBe("number");
+    expect(report.buildDurationMs).toBeGreaterThanOrEqual(0);
+  } else {
+    expect(report.buildExitCode).toBeNull();
+    expect(report.buildDurationMs).toBeNull();
+  }
   expectTimingMetadata(report);
   expectOptionTerminatorMetadata(report);
   expectCliOptionCatalogMetadata(

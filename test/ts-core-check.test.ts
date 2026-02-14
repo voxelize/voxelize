@@ -19,6 +19,8 @@ type TsCoreCheckReport = {
   requiredArtifactCount: number;
   buildCommand: string;
   buildArgs: string[];
+  buildExitCode: number | null;
+  buildDurationMs: number | null;
   artifactsPresent: boolean;
   missingArtifacts: string[];
   missingArtifactCount: number;
@@ -140,6 +142,16 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
   expect(typeof report.buildCommand).toBe("string");
   expect(report.buildCommand.length).toBeGreaterThan(0);
   expect(report.buildArgs).toEqual(expectedBuildArgs);
+  if (report.buildExitCode !== null) {
+    expect(Number.isInteger(report.buildExitCode)).toBe(true);
+  }
+  if (report.attemptedBuild) {
+    expect(typeof report.buildDurationMs).toBe("number");
+    expect(report.buildDurationMs).toBeGreaterThanOrEqual(0);
+  } else {
+    expect(report.buildExitCode).toBeNull();
+    expect(report.buildDurationMs).toBeNull();
+  }
   return report;
 };
 
