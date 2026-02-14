@@ -956,6 +956,10 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       uniqueEntry = uniqueEntries.next();
     }
 
+    if (result.length <= 1) {
+      return result;
+    }
+
     return result.sort((a, b) => a.trigger.localeCompare(b.trigger));
   }
 }
