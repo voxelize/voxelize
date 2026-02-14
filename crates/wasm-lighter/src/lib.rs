@@ -503,7 +503,8 @@ where
     }
 
     if let Some(array) = value.dyn_ref::<Array>() {
-        let length = array.length() as usize;
+        let length_u32 = array.length();
+        let length = length_u32 as usize;
         if length == 0 {
             return Vec::new();
         }
@@ -515,8 +516,8 @@ where
         }
 
         let mut nodes = Vec::with_capacity(length);
-        for index in 0..length {
-            let node_value = array.get(index as u32);
+        for index in 0..length_u32 {
+            let node_value = array.get(index);
             if node_value.is_null() || node_value.is_undefined() || !node_value.is_object() {
                 continue;
             }
