@@ -118,18 +118,18 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         self.deleted_entities_buffer.reserve(old_entities.len());
 
-        for (id, (etype, ent, metadata, persisted)) in old_entities.iter() {
-            if *persisted {
-                bg_saver.remove(id);
+        for (id, (etype, ent, metadata, persisted)) in old_entities.into_iter() {
+            if persisted {
+                bg_saver.remove(&id);
             }
-            entity_ids.remove(id);
+            entity_ids.remove(&id);
 
-            if let Some((collider_handle, body_handle)) = old_entity_handlers.get(ent) {
+            if let Some((collider_handle, body_handle)) = old_entity_handlers.get(&ent) {
                 physics.unregister(body_handle, collider_handle);
             }
 
             self.deleted_entities_buffer
-                .push((id.clone(), etype.clone(), metadata.to_string()));
+                .push((id, etype, metadata.to_string()));
         }
 
         physics.entity_to_handlers = new_entity_handlers;
