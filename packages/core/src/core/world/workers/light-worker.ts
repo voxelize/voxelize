@@ -612,22 +612,32 @@ const isValidFloodNode = (
   isPositiveU32(node.level) &&
   isStrictCoords3(node.voxel);
 
-const hasAnyValidRemovalNode = (removals: Coords3[]) => {
-  for (let index = 0; index < removals.length; index++) {
-    if (isStrictCoords3(removals[index])) {
-      return true;
+const compactValidRemovalNodesInPlace = (removals: Coords3[]) => {
+  let writeIndex = 0;
+  for (let readIndex = 0; readIndex < removals.length; readIndex++) {
+    const removal = removals[readIndex];
+    if (!isStrictCoords3(removal)) {
+      continue;
     }
+    removals[writeIndex] = removal;
+    writeIndex++;
   }
-  return false;
+  removals.length = writeIndex;
+  return writeIndex > 0;
 };
 
-const hasAnyValidFloodNode = (floods: LightNode[]) => {
-  for (let index = 0; index < floods.length; index++) {
-    if (isValidFloodNode(floods[index])) {
-      return true;
+const compactValidFloodNodesInPlace = (floods: LightNode[]) => {
+  let writeIndex = 0;
+  for (let readIndex = 0; readIndex < floods.length; readIndex++) {
+    const flood = floods[readIndex];
+    if (!isValidFloodNode(flood)) {
+      continue;
     }
+    floods[writeIndex] = flood;
+    writeIndex++;
   }
-  return false;
+  floods.length = writeIndex;
+  return writeIndex > 0;
 };
 
 const postEmptyBatchResult = (jobId: string, lastSequenceId = 0) => {
@@ -1094,8 +1104,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
     return;
   }
   const hasValidRemovalNodes =
-    removals.length > 0 && hasAnyValidRemovalNode(removals);
-  const hasFloods = floods.length > 0 && hasAnyValidFloodNode(floods);
+    removals.length > 0 && compactValidRemovalNodesInPlace(removals);
+  const hasFloods = floods.length > 0 && compactValidFloodNodesInPlace(floods);
   if (!hasValidRemovalNodes && !hasFloods) {
     postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
     return;
