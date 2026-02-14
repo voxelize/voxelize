@@ -60,6 +60,16 @@ type WasmPackJsonReport = OptionTerminatorMetadata &
   availableCheckArgCountMapCount: number;
   availableCheckIndexMap: Record<string, number>;
   availableCheckIndexMapCount: number;
+  availableCheckMetadata: Record<
+    string,
+    {
+      checkIndex: number;
+      command: string;
+      args: string[];
+      argCount: number;
+    }
+  >;
+  availableCheckMetadataCount: number;
   checkLabels: string[];
   checkCount: number;
   checkIndices: number[];
@@ -72,6 +82,16 @@ type WasmPackJsonReport = OptionTerminatorMetadata &
   checkArgsMapCount: number;
   checkArgCountMap: Record<string, number>;
   checkArgCountMapCount: number;
+  checkMetadata: Record<
+    string,
+    {
+      checkIndex: number;
+      command: string;
+      args: string[];
+      argCount: number;
+    }
+  >;
+  checkMetadataCount: number;
   checkStatusMap: Record<string, string>;
   checkStatusMapCount: number;
   checkStatusCountMap: Record<string, number>;
@@ -94,6 +114,16 @@ type WasmPackJsonReport = OptionTerminatorMetadata &
   passedCheckArgsMapCount: number;
   passedCheckArgCountMap: Record<string, number>;
   passedCheckArgCountMapCount: number;
+  passedCheckMetadata: Record<
+    string,
+    {
+      checkIndex: number;
+      command: string;
+      args: string[];
+      argCount: number;
+    }
+  >;
+  passedCheckMetadataCount: number;
   failedChecks: string[];
   failedCheckCount: number;
   failedCheckIndices: number[];
@@ -106,6 +136,16 @@ type WasmPackJsonReport = OptionTerminatorMetadata &
   failedCheckArgsMapCount: number;
   failedCheckArgCountMap: Record<string, number>;
   failedCheckArgCountMapCount: number;
+  failedCheckMetadata: Record<
+    string,
+    {
+      checkIndex: number;
+      command: string;
+      args: string[];
+      argCount: number;
+    }
+  >;
+  failedCheckMetadataCount: number;
   failureSummaries: Array<{
     name: string;
     checkIndex: number;
@@ -1150,6 +1190,14 @@ const expectWasmPackCheckMetadata = (report: WasmPackJsonReport) => {
   const expectedAvailableCheckIndexMap = {
     "wasm-pack": 0,
   };
+  const expectedAvailableCheckMetadata = {
+    "wasm-pack": {
+      checkIndex: 0,
+      command: report.command,
+      args: ["--version"],
+      argCount: 1,
+    },
+  };
   const expectedCheckIndexMap = {
     "wasm-pack": 0,
   };
@@ -1161,6 +1209,14 @@ const expectWasmPackCheckMetadata = (report: WasmPackJsonReport) => {
   };
   const expectedCheckArgCountMap = {
     "wasm-pack": 1,
+  };
+  const expectedCheckMetadata = {
+    "wasm-pack": {
+      checkIndex: 0,
+      command: report.command,
+      args: ["--version"],
+      argCount: 1,
+    },
   };
 
   expect(report.availableChecks).toEqual(expectedWasmPackAvailableChecks);
@@ -1181,6 +1237,10 @@ const expectWasmPackCheckMetadata = (report: WasmPackJsonReport) => {
   expect(report.availableCheckIndexMapCount).toBe(
     Object.keys(report.availableCheckIndexMap).length
   );
+  expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
+  expect(report.availableCheckMetadataCount).toBe(
+    Object.keys(report.availableCheckMetadata).length
+  );
 
   if (report.checkCount === 0) {
     expect(report.checkLabels).toEqual([]);
@@ -1194,6 +1254,8 @@ const expectWasmPackCheckMetadata = (report: WasmPackJsonReport) => {
     expect(report.checkArgsMapCount).toBe(0);
     expect(report.checkArgCountMap).toEqual({});
     expect(report.checkArgCountMapCount).toBe(0);
+    expect(report.checkMetadata).toEqual({});
+    expect(report.checkMetadataCount).toBe(0);
     expect(report.checkStatusMap).toEqual({});
     expect(report.checkStatusMapCount).toBe(0);
     expect(report.checkStatusCountMap).toEqual({});
@@ -1216,6 +1278,8 @@ const expectWasmPackCheckMetadata = (report: WasmPackJsonReport) => {
     expect(report.passedCheckArgsMapCount).toBe(0);
     expect(report.passedCheckArgCountMap).toEqual({});
     expect(report.passedCheckArgCountMapCount).toBe(0);
+    expect(report.passedCheckMetadata).toEqual({});
+    expect(report.passedCheckMetadataCount).toBe(0);
     expect(report.failedChecks).toEqual([]);
     expect(report.failedCheckCount).toBe(0);
     expect(report.failedCheckIndices).toEqual([]);
@@ -1228,6 +1292,8 @@ const expectWasmPackCheckMetadata = (report: WasmPackJsonReport) => {
     expect(report.failedCheckArgsMapCount).toBe(0);
     expect(report.failedCheckArgCountMap).toEqual({});
     expect(report.failedCheckArgCountMapCount).toBe(0);
+    expect(report.failedCheckMetadata).toEqual({});
+    expect(report.failedCheckMetadataCount).toBe(0);
     expect(report.failureSummaries).toEqual([]);
     expect(report.failureSummaryCount).toBe(0);
     return;
@@ -1249,6 +1315,8 @@ const expectWasmPackCheckMetadata = (report: WasmPackJsonReport) => {
   expect(report.checkArgCountMapCount).toBe(
     Object.keys(report.checkArgCountMap).length
   );
+  expect(report.checkMetadata).toEqual(expectedCheckMetadata);
+  expect(report.checkMetadataCount).toBe(Object.keys(report.checkMetadata).length);
   expect(report.checkStatusMapCount).toBe(Object.keys(report.checkStatusMap).length);
   expect(report.checkStatusCountMapCount).toBe(
     Object.keys(report.checkStatusCountMap).length
@@ -1291,12 +1359,14 @@ const expectWasmPackCheckMetadata = (report: WasmPackJsonReport) => {
     expect(report.passedCheckCommandMap).toEqual(report.checkCommandMap);
     expect(report.passedCheckArgsMap).toEqual(report.checkArgsMap);
     expect(report.passedCheckArgCountMap).toEqual(report.checkArgCountMap);
+    expect(report.passedCheckMetadata).toEqual(report.checkMetadata);
     expect(report.failedChecks).toEqual([]);
     expect(report.failedCheckIndices).toEqual([]);
     expect(report.failedCheckIndexMap).toEqual({});
     expect(report.failedCheckCommandMap).toEqual({});
     expect(report.failedCheckArgsMap).toEqual({});
     expect(report.failedCheckArgCountMap).toEqual({});
+    expect(report.failedCheckMetadata).toEqual({});
     expect(report.failureSummaries).toEqual([]);
   } else {
     expect(report.passedChecks).toEqual([]);
@@ -1305,12 +1375,14 @@ const expectWasmPackCheckMetadata = (report: WasmPackJsonReport) => {
     expect(report.passedCheckCommandMap).toEqual({});
     expect(report.passedCheckArgsMap).toEqual({});
     expect(report.passedCheckArgCountMap).toEqual({});
+    expect(report.passedCheckMetadata).toEqual({});
     expect(report.failedChecks).toEqual(expectedWasmPackAvailableChecks);
     expect(report.failedCheckIndices).toEqual(report.checkIndices);
     expect(report.failedCheckIndexMap).toEqual(report.checkIndexMap);
     expect(report.failedCheckCommandMap).toEqual(report.checkCommandMap);
     expect(report.failedCheckArgsMap).toEqual(report.checkArgsMap);
     expect(report.failedCheckArgCountMap).toEqual(report.checkArgCountMap);
+    expect(report.failedCheckMetadata).toEqual(report.checkMetadata);
     expect(report.failureSummaries).toEqual([
       {
         name: "wasm-pack",
@@ -1338,6 +1410,9 @@ const expectWasmPackCheckMetadata = (report: WasmPackJsonReport) => {
   expect(report.passedCheckArgCountMapCount).toBe(
     Object.keys(report.passedCheckArgCountMap).length
   );
+  expect(report.passedCheckMetadataCount).toBe(
+    Object.keys(report.passedCheckMetadata).length
+  );
   expect(report.failedCheckCount).toBe(report.failedChecks.length);
   expect(report.failedCheckIndexCount).toBe(report.failedCheckIndices.length);
   expect(report.failedCheckIndexMapCount).toBe(
@@ -1352,6 +1427,9 @@ const expectWasmPackCheckMetadata = (report: WasmPackJsonReport) => {
   expect(report.failedCheckArgCountMapCount).toBe(
     Object.keys(report.failedCheckArgCountMap).length
   );
+  expect(report.failedCheckMetadataCount).toBe(
+    Object.keys(report.failedCheckMetadata).length
+  );
   expect(report.failureSummaryCount).toBe(report.failureSummaries.length);
   expect(report.checkCommandMapCount).toBe(
     report.passedCheckCommandMapCount + report.failedCheckCommandMapCount
@@ -1361,6 +1439,9 @@ const expectWasmPackCheckMetadata = (report: WasmPackJsonReport) => {
   );
   expect(report.checkArgCountMapCount).toBe(
     report.passedCheckArgCountMapCount + report.failedCheckArgCountMapCount
+  );
+  expect(report.checkMetadataCount).toBe(
+    report.passedCheckMetadataCount + report.failedCheckMetadataCount
   );
 };
 const expectStepSummaryMetadata = (

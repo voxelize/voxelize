@@ -469,15 +469,17 @@ Developer-environment `checks[]` and `failureSummaries[]` entries include
 correlation with `availableChecks` and deterministic command diagnostics.
 WASM-pack JSON reports similarly expose single-check inventory and execution
 metadata such as `availableCheckCommandMap`, `availableCheckArgsMap`,
-`availableCheckArgCountMap`, `checkIndices`, `checkIndexMap`,
-`checkCommandMap`, `checkArgsMap`, `checkArgCountMap`,
+`availableCheckArgCountMap`, `availableCheckMetadata`, `checkIndices`,
+`checkIndexMap`, `checkCommandMap`, `checkArgsMap`, `checkArgCountMap`,
+`checkMetadata`,
 `checkStatusMap`, `checkStatusCountMap`, `checkVersionMap`,
 `checkExitCodeMap`, `checkOutputLineMap`, `passedChecks`,
 `passedCheckIndices`, `passedCheckIndexMap`, `passedCheckCommandMap`,
-`passedCheckArgsMap`, `passedCheckArgCountMap`, `failedChecks`,
+`passedCheckArgsMap`, `passedCheckArgCountMap`, `passedCheckMetadata`,
+`failedChecks`,
 `failedCheckIndices`, `failedCheckIndexMap`, `failedCheckCommandMap`,
-`failedCheckArgsMap`, `failedCheckArgCountMap`, `failureSummaries`, and
-companion `*Count` fields.
+`failedCheckArgsMap`, `failedCheckArgCountMap`, `failedCheckMetadata`,
+`failureSummaries`, and companion `*Count` fields.
 WASM-pack `failureSummaries[]` entries include `checkIndex`, `command`,
 `args`, and `argCount` for stable correlation with `availableChecks`.
 

@@ -71,6 +71,14 @@ const availableCheckArgCountMap = {
 const availableCheckIndexMap = {
   [checkName]: 0,
 };
+const availableCheckMetadata = {
+  [checkName]: {
+    checkIndex: availableCheckIndexMap[checkName],
+    command: wasmPackCommand,
+    args: [...checkArgs],
+    argCount: checkArgs.length,
+  },
+};
 const summarizeCheckResult = ({
   includeCheck,
   status,
@@ -93,6 +101,8 @@ const summarizeCheckResult = ({
       checkArgsMapCount: 0,
       checkArgCountMap: {},
       checkArgCountMapCount: 0,
+      checkMetadata: {},
+      checkMetadataCount: 0,
       checkStatusMap: {},
       checkStatusMapCount: 0,
       checkStatusCountMap: {},
@@ -115,6 +125,8 @@ const summarizeCheckResult = ({
       passedCheckArgsMapCount: 0,
       passedCheckArgCountMap: {},
       passedCheckArgCountMapCount: 0,
+      passedCheckMetadata: {},
+      passedCheckMetadataCount: 0,
       failedChecks: [],
       failedCheckCount: 0,
       failedCheckIndices: [],
@@ -127,6 +139,8 @@ const summarizeCheckResult = ({
       failedCheckArgsMapCount: 0,
       failedCheckArgCountMap: {},
       failedCheckArgCountMapCount: 0,
+      failedCheckMetadata: {},
+      failedCheckMetadataCount: 0,
       failureSummaries: [],
       failureSummaryCount: 0,
     };
@@ -145,6 +159,14 @@ const summarizeCheckResult = ({
   };
   const checkArgCountMap = {
     [checkName]: checkArgs.length,
+  };
+  const checkMetadata = {
+    [checkName]: {
+      checkIndex: availableCheckIndexMap[checkName],
+      command: wasmPackCommand,
+      args: [...checkArgs],
+      argCount: checkArgs.length,
+    },
   };
   const checkStatusMap = {
     [checkName]: status,
@@ -187,6 +209,12 @@ const summarizeCheckResult = ({
           ...checkArgCountMap,
         }
       : {};
+  const passedCheckMetadata =
+    status === "ok"
+      ? {
+          ...checkMetadata,
+        }
+      : {};
   const failedChecks = status === "ok" ? [] : [checkName];
   const failedCheckIndices = status === "ok" ? [] : [...checkIndices];
   const failedCheckIndexMap =
@@ -212,6 +240,12 @@ const summarizeCheckResult = ({
       ? {}
       : {
           ...checkArgCountMap,
+        };
+  const failedCheckMetadata =
+    status === "ok"
+      ? {}
+      : {
+          ...checkMetadata,
         };
   const failureSummaries =
     status === "ok"
@@ -242,6 +276,8 @@ const summarizeCheckResult = ({
     checkArgsMapCount: countRecordEntries(checkArgsMap),
     checkArgCountMap,
     checkArgCountMapCount: countRecordEntries(checkArgCountMap),
+    checkMetadata,
+    checkMetadataCount: countRecordEntries(checkMetadata),
     checkStatusMap,
     checkStatusMapCount: countRecordEntries(checkStatusMap),
     checkStatusCountMap,
@@ -264,6 +300,8 @@ const summarizeCheckResult = ({
     passedCheckArgsMapCount: countRecordEntries(passedCheckArgsMap),
     passedCheckArgCountMap,
     passedCheckArgCountMapCount: countRecordEntries(passedCheckArgCountMap),
+    passedCheckMetadata,
+    passedCheckMetadataCount: countRecordEntries(passedCheckMetadata),
     failedChecks,
     failedCheckCount: failedChecks.length,
     failedCheckIndices,
@@ -276,6 +314,8 @@ const summarizeCheckResult = ({
     failedCheckArgsMapCount: countRecordEntries(failedCheckArgsMap),
     failedCheckArgCountMap,
     failedCheckArgCountMapCount: countRecordEntries(failedCheckArgCountMap),
+    failedCheckMetadata,
+    failedCheckMetadataCount: countRecordEntries(failedCheckMetadata),
     failureSummaries,
     failureSummaryCount: failureSummaries.length,
   };
@@ -298,6 +338,8 @@ if (isJson && validationFailureMessage !== null) {
     availableCheckArgsMapCount: countRecordEntries(availableCheckArgsMap),
     availableCheckArgCountMap,
     availableCheckArgCountMapCount: countRecordEntries(availableCheckArgCountMap),
+    availableCheckMetadata,
+    availableCheckMetadataCount: countRecordEntries(availableCheckMetadata),
     availableCheckIndexMap,
     availableCheckIndexMapCount: countRecordEntries(availableCheckIndexMap),
     ...summarizeCheckResult({
@@ -376,6 +418,8 @@ if (checkStatus === 0) {
       availableCheckArgsMapCount: countRecordEntries(availableCheckArgsMap),
       availableCheckArgCountMap,
       availableCheckArgCountMapCount: countRecordEntries(availableCheckArgCountMap),
+      availableCheckMetadata,
+      availableCheckMetadataCount: countRecordEntries(availableCheckMetadata),
       availableCheckIndexMap,
       availableCheckIndexMapCount: countRecordEntries(availableCheckIndexMap),
       ...summarizeCheckResult({
@@ -435,6 +479,8 @@ if (isJson) {
     availableCheckArgsMapCount: countRecordEntries(availableCheckArgsMap),
     availableCheckArgCountMap,
     availableCheckArgCountMapCount: countRecordEntries(availableCheckArgCountMap),
+    availableCheckMetadata,
+    availableCheckMetadataCount: countRecordEntries(availableCheckMetadata),
     availableCheckIndexMap,
     availableCheckIndexMapCount: countRecordEntries(availableCheckIndexMap),
     ...summarizeCheckResult({
