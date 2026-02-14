@@ -119,3 +119,7 @@ pnpm run check:ts-core:release
 # aggregate preflight release workflow for ts-core
 pnpm run check:preflight:ts-core:release
 ```
+
+The ts-core JSON report includes package/artifact diagnostics such as
+`checkedPackage`, `requiredArtifacts`, `presentArtifacts`, `missingArtifacts`,
+`requiredArtifactCount`, `presentArtifactCount`, and `missingArtifactCount`.
