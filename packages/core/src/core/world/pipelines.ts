@@ -12,6 +12,16 @@ export type ChunkStage =
 
 type StageType = ChunkStage["stage"];
 
+const normalizeFiniteNonNegativeLimit = (value: number): number => {
+  if (value === Number.POSITIVE_INFINITY) {
+    return Number.POSITIVE_INFINITY;
+  }
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor(value));
+};
+
 export class ChunkPipeline {
   private states = new Map<string, ChunkStage>();
   private indices: Record<StageType, Set<string>> = {
@@ -84,14 +94,9 @@ export class ChunkPipeline {
   }
 
   shouldRequestAt(cx: number, cz: number, chunkRerequestInterval: number) {
-    let rerequestLimit: number;
-    if (chunkRerequestInterval === Number.POSITIVE_INFINITY) {
-      rerequestLimit = Number.POSITIVE_INFINITY;
-    } else if (!Number.isFinite(chunkRerequestInterval)) {
-      rerequestLimit = 0;
-    } else {
-      rerequestLimit = Math.max(0, Math.floor(chunkRerequestInterval));
-    }
+    const rerequestLimit = normalizeFiniteNonNegativeLimit(
+      chunkRerequestInterval
+    );
 
     const name = ChunkUtils.getChunkNameAt(cx, cz);
     const state = this.states.get(name);
@@ -443,14 +448,7 @@ export class MeshPipeline {
     keys: string[];
     hasMore: boolean;
   } {
-    let normalizedMaxCount: number;
-    if (maxCount === Number.POSITIVE_INFINITY) {
-      normalizedMaxCount = Number.POSITIVE_INFINITY;
-    } else if (!Number.isFinite(maxCount)) {
-      normalizedMaxCount = 0;
-    } else {
-      normalizedMaxCount = Math.max(0, Math.floor(maxCount));
-    }
+    const normalizedMaxCount = normalizeFiniteNonNegativeLimit(maxCount);
     if (normalizedMaxCount <= 0) {
       return { keys: [], hasMore: false };
     }
