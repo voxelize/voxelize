@@ -78,6 +78,7 @@ export class WorkerPool {
    * The list of available workers' indices.
    */
   private available: number[] = [];
+  private singleTransferBufferList: ArrayBuffer[] = [new ArrayBuffer(0)];
 
   /**
    * Create a new worker pool.
@@ -129,8 +130,10 @@ export class WorkerPool {
     const bufferCount = buffers.length;
     if (bufferCount === 1) {
       const sourceBuffer = buffers[0];
+      const transferBufferList = this.singleTransferBufferList;
       for (let workerIndex = 0; workerIndex < workerCount; workerIndex++) {
-        this.workers[workerIndex].postMessage(message, [sourceBuffer.slice(0)]);
+        transferBufferList[0] = sourceBuffer.slice(0);
+        this.workers[workerIndex].postMessage(message, transferBufferList);
       }
       return;
     }
