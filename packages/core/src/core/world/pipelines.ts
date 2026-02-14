@@ -466,11 +466,9 @@ export class MeshPipeline {
     }
 
     const hasFiniteLimit = normalizedMaxCount !== Number.POSITIVE_INFINITY;
-    const dirtyKeys = new Array<string>(
-      hasFiniteLimit
-        ? Math.min(this.dirty.size, normalizedMaxCount)
-        : this.dirty.size
-    );
+    const dirtyKeys = hasFiniteLimit
+      ? new Array<string>(Math.min(this.dirty.size, normalizedMaxCount))
+      : [];
     let dirtyCount = 0;
     let hasMore = false;
 
@@ -498,12 +496,18 @@ export class MeshPipeline {
         break;
       }
 
-      dirtyKeys[dirtyCount] = key;
-      dirtyCount++;
+      if (hasFiniteLimit) {
+        dirtyKeys[dirtyCount] = key;
+        dirtyCount++;
+      } else {
+        dirtyKeys.push(key);
+      }
       dirtyEntry = dirtyEntries.next();
     }
 
-    dirtyKeys.length = dirtyCount;
+    if (hasFiniteLimit) {
+      dirtyKeys.length = dirtyCount;
+    }
     return {
       keys: dirtyKeys,
       hasMore,
