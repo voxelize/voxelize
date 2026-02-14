@@ -245,6 +245,36 @@ describe("Chat command registration", () => {
     }
   });
 
+  it("returns copied alias and flag arrays from command listings", () => {
+    const chat = new Chat();
+    initializeChat(chat);
+
+    chat.addCommand(
+      "echo",
+      () => {
+        return;
+      },
+      {
+        description: "Metadata copy safety",
+        aliases: ["alias"],
+        flags: ["f"],
+        args: z.object({}),
+      }
+    );
+
+    const firstListing = chat.getAllCommands();
+    firstListing[0].aliases.push("mutated");
+    firstListing[0].flags.push("mutated");
+
+    expect(chat.getAllCommands()).toEqual([
+      expect.objectContaining({
+        trigger: "echo",
+        aliases: ["alias"],
+        flags: ["f"],
+      }),
+    ]);
+  });
+
   it("removes primary command trigger together with its aliases", () => {
     const chat = new Chat();
     initializeChat(chat);
