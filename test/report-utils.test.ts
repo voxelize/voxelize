@@ -3207,6 +3207,9 @@ describe("report-utils", () => {
         "rotatedAabb.bounds",
       ])
     ).toEqual(["voxel.id", "light.red", "rotatedAabb.bounds"]);
+    expect(
+      normalizeTsCorePayloadIssues(["light.red", "voxel.id", "light.red"])
+    ).toEqual(["light.red", "voxel.id"]);
   });
 
   it("extracts ts-core example summary fields from reports", () => {
