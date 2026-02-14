@@ -2240,7 +2240,7 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
       return this.getBlockById(idOrName);
     }
 
-    return this.getBlockByName(idOrName.toLowerCase());
+    return this.getBlockByName(idOrName);
   }
 
   /**
