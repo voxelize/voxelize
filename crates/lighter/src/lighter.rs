@@ -472,47 +472,7 @@ pub fn propagate(
                 if block.is_light {
                     let (red_level, green_level, blue_level) =
                         if block.has_dynamic_torch_mask(ALL_TORCH_COLOR_MASK) {
-                            let has_dynamic_red =
-                                block.has_dynamic_torch_color(&LightColor::Red);
-                            let has_dynamic_green =
-                                block.has_dynamic_torch_color(&LightColor::Green);
-                            let has_dynamic_blue =
-                                block.has_dynamic_torch_color(&LightColor::Blue);
-                            (
-                                if has_dynamic_red {
-                                    block.get_torch_light_level_at_xyz(
-                                        vx,
-                                        y,
-                                        vz,
-                                        space,
-                                        &LightColor::Red,
-                                    )
-                                } else {
-                                    block.red_light_level
-                                },
-                                if has_dynamic_green {
-                                    block.get_torch_light_level_at_xyz(
-                                        vx,
-                                        y,
-                                        vz,
-                                        space,
-                                        &LightColor::Green,
-                                    )
-                                } else {
-                                    block.green_light_level
-                                },
-                                if has_dynamic_blue {
-                                    block.get_torch_light_level_at_xyz(
-                                        vx,
-                                        y,
-                                        vz,
-                                        space,
-                                        &LightColor::Blue,
-                                    )
-                                } else {
-                                    block.blue_light_level
-                                },
-                            )
+                            block.get_torch_light_levels_at_xyz(vx, y, vz, space)
                         } else {
                             (
                                 block.red_light_level,

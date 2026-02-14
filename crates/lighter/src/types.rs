@@ -380,6 +380,68 @@ impl LightBlock {
         self.get_torch_light_level_at_xyz(pos[0], pos[1], pos[2], space, color)
     }
 
+    pub(crate) fn get_torch_light_levels_at_xyz(
+        &self,
+        vx: i32,
+        vy: i32,
+        vz: i32,
+        space: &dyn LightVoxelAccess,
+    ) -> (u32, u32, u32) {
+        let mut red = self.red_light_level;
+        let mut green = self.green_light_level;
+        let mut blue = self.blue_light_level;
+        let mut unresolved = self.dynamic_torch_mask;
+        if unresolved == 0 {
+            return (red, green, blue);
+        }
+
+        if let Some(patterns) = &self.dynamic_patterns {
+            'patterns: for pattern in patterns {
+                for part in &pattern.parts {
+                    let mut part_mask = 0;
+                    if unresolved & RED_TORCH_MASK != 0 && part.red_light_level.is_some() {
+                        part_mask |= RED_TORCH_MASK;
+                    }
+                    if unresolved & GREEN_TORCH_MASK != 0 && part.green_light_level.is_some() {
+                        part_mask |= GREEN_TORCH_MASK;
+                    }
+                    if unresolved & BLUE_TORCH_MASK != 0 && part.blue_light_level.is_some() {
+                        part_mask |= BLUE_TORCH_MASK;
+                    }
+                    if part_mask == 0 {
+                        continue;
+                    }
+                    if !Self::evaluate_rule(&part.rule, vx, vy, vz, space) {
+                        continue;
+                    }
+                    if part_mask & RED_TORCH_MASK != 0 {
+                        if let Some(level) = part.red_light_level {
+                            red = level;
+                            unresolved &= !RED_TORCH_MASK;
+                        }
+                    }
+                    if part_mask & GREEN_TORCH_MASK != 0 {
+                        if let Some(level) = part.green_light_level {
+                            green = level;
+                            unresolved &= !GREEN_TORCH_MASK;
+                        }
+                    }
+                    if part_mask & BLUE_TORCH_MASK != 0 {
+                        if let Some(level) = part.blue_light_level {
+                            blue = level;
+                            unresolved &= !BLUE_TORCH_MASK;
+                        }
+                    }
+                    if unresolved == 0 {
+                        break 'patterns;
+                    }
+                }
+            }
+        }
+
+        (red, green, blue)
+    }
+
     pub fn get_torch_light_level_at_xyz(
         &self,
         vx: i32,
@@ -841,6 +903,49 @@ mod tests {
                 &LightColor::Green
             ),
             7
+        );
+    }
+
+    #[test]
+    fn combined_torch_level_lookup_matches_per_color_dynamic_resolution() {
+        let block = LightBlock::new(
+            12,
+            [true, true, true, true, true, true],
+            false,
+            2,
+            3,
+            4,
+            Some(vec![LightDynamicPattern {
+                parts: vec![
+                    LightConditionalPart {
+                        rule: BlockRule::None,
+                        red_light_level: Some(5),
+                        green_light_level: None,
+                        blue_light_level: Some(1),
+                    },
+                    LightConditionalPart {
+                        rule: BlockRule::None,
+                        red_light_level: Some(8),
+                        green_light_level: Some(7),
+                        blue_light_level: Some(9),
+                    },
+                ],
+            }]),
+        );
+
+        let levels = block.get_torch_light_levels_at_xyz(0, 0, 0, &NoopAccess);
+        assert_eq!(levels, (5, 7, 1));
+        assert_eq!(
+            levels.0,
+            block.get_torch_light_level_at_xyz(0, 0, 0, &NoopAccess, &LightColor::Red)
+        );
+        assert_eq!(
+            levels.1,
+            block.get_torch_light_level_at_xyz(0, 0, 0, &NoopAccess, &LightColor::Green)
+        );
+        assert_eq!(
+            levels.2,
+            block.get_torch_light_level_at_xyz(0, 0, 0, &NoopAccess, &LightColor::Blue)
         );
     }
 
