@@ -1,5 +1,4 @@
 use hashbrown::HashMap;
-use serde_json::Value;
 use specs::{Entity, ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::{
@@ -23,7 +22,16 @@ impl<'a> System<'a> for EventsSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (transports, clients, interests, world_metadata, mut events, ids, requests, timing) =
+        let (
+            transports,
+            clients,
+            interests,
+            world_metadata,
+            mut events,
+            ids,
+            _requests,
+            timing,
+        ) =
             data;
         let _t = timing.timer("events");
 
@@ -69,15 +77,15 @@ impl<'a> System<'a> for EventsSystem {
             // Checks if location is required, otherwise just sends.
             let mut send_to_id = |id: &str| {
                 if let Some(client) = clients.get(id) {
-                    let mut queue = dispatch_map.remove(id).unwrap_or_default();
                     if let Some(location) = &location {
-                        if is_interested(location, client.entity.to_owned()) {
-                            queue.push(serialized.to_owned());
+                        if !is_interested(location, client.entity.to_owned()) {
+                            return;
                         }
-                    } else {
-                        queue.push(serialized.to_owned());
                     }
-                    dispatch_map.insert(id.to_owned(), queue);
+                    dispatch_map
+                        .entry(id.to_owned())
+                        .or_default()
+                        .push(serialized.to_owned());
                 }
             };
 
@@ -110,16 +118,18 @@ impl<'a> System<'a> for EventsSystem {
             else if let Some(location) = &location {
                 for (id, _) in clients.iter() {
                     if interests.is_interested(id, location) {
-                        let mut queue = dispatch_map.remove(id).unwrap_or_default();
-                        queue.push(serialized.clone());
-                        dispatch_map.insert(id.to_owned(), queue);
+                        dispatch_map
+                            .entry(id.to_owned())
+                            .or_default()
+                            .push(serialized.clone());
                     }
                 }
             } else {
                 clients.iter().for_each(|(id, _)| {
-                    let mut queue = dispatch_map.remove(id).unwrap_or_default();
-                    queue.push(serialized.clone());
-                    dispatch_map.insert(id.to_owned(), queue);
+                    dispatch_map
+                        .entry(id.to_owned())
+                        .or_default()
+                        .push(serialized.clone());
                 });
             }
         });
