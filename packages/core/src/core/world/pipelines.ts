@@ -467,17 +467,19 @@ export class MeshPipeline {
     if (this.dirty.size === 0) {
       return { keys: [], hasMore: false };
     }
+    const states = this.states;
+    const dirty = this.dirty;
 
     const hasFiniteLimit = normalizedMaxCount !== Number.POSITIVE_INFINITY;
     if (!hasFiniteLimit) {
       const dirtyKeys: string[] = [];
-      let dirtyEntries = this.dirty.values();
+      let dirtyEntries = dirty.values();
       let dirtyEntry = dirtyEntries.next();
       while (!dirtyEntry.done) {
         const key = dirtyEntry.value;
-        const state = this.states.get(key);
+        const state = states.get(key);
         if (!state) {
-          this.dirty.delete(key);
+          dirty.delete(key);
           dirtyEntry = dirtyEntries.next();
           continue;
         }
@@ -487,7 +489,7 @@ export class MeshPipeline {
         ) {
           dirtyKeys.push(key);
         } else if (state.inFlightGeneration === null) {
-          this.dirty.delete(key);
+          dirty.delete(key);
         }
         dirtyEntry = dirtyEntries.next();
       }
@@ -498,18 +500,18 @@ export class MeshPipeline {
     }
 
     const dirtyKeys = new Array<string>(
-      Math.min(this.dirty.size, normalizedMaxCount)
+      Math.min(dirty.size, normalizedMaxCount)
     );
     let dirtyCount = 0;
     let hasMore = false;
 
-    let dirtyEntries = this.dirty.values();
+    let dirtyEntries = dirty.values();
     let dirtyEntry = dirtyEntries.next();
     while (!dirtyEntry.done) {
       const key = dirtyEntry.value;
-      const state = this.states.get(key);
+      const state = states.get(key);
       if (!state) {
-        this.dirty.delete(key);
+        dirty.delete(key);
         dirtyEntry = dirtyEntries.next();
         continue;
       }
@@ -518,7 +520,7 @@ export class MeshPipeline {
         continue;
       }
       if (state.generation === state.displayedGeneration) {
-        this.dirty.delete(key);
+        dirty.delete(key);
         dirtyEntry = dirtyEntries.next();
         continue;
       }
@@ -543,14 +545,16 @@ export class MeshPipeline {
     if (this.dirty.size === 0) {
       return false;
     }
+    const states = this.states;
+    const dirty = this.dirty;
 
-    let dirtyEntries = this.dirty.values();
+    let dirtyEntries = dirty.values();
     let dirtyEntry = dirtyEntries.next();
     while (!dirtyEntry.done) {
       const key = dirtyEntry.value;
-      const state = this.states.get(key);
+      const state = states.get(key);
       if (!state) {
-        this.dirty.delete(key);
+        dirty.delete(key);
         dirtyEntry = dirtyEntries.next();
         continue;
       }
@@ -559,7 +563,7 @@ export class MeshPipeline {
         continue;
       }
       if (state.generation === state.displayedGeneration) {
-        this.dirty.delete(key);
+        dirty.delete(key);
         dirtyEntry = dirtyEntries.next();
         continue;
       }
