@@ -134,4 +134,15 @@ describe("ChunkPipeline.shouldRequestAt", () => {
     expect(pipeline.shouldRequestAt(5, 6, 1.8)).toBe(true);
     expect(pipeline.getStage(name)).toBeNull();
   });
+
+  it("never forces re-request for infinite retry intervals", () => {
+    const pipeline = new ChunkPipeline();
+    pipeline.markRequestedAt(7, 8);
+    const name = ChunkUtils.getChunkNameAt(7, 8);
+
+    expect(pipeline.shouldRequestAt(7, 8, Number.POSITIVE_INFINITY)).toBe(false);
+    expect(pipeline.shouldRequestAt(7, 8, Number.POSITIVE_INFINITY)).toBe(false);
+    expect(pipeline.getStage(name)).toBe("requested");
+    expect(pipeline.getRetryCount(name)).toBe(2);
+  });
 });
