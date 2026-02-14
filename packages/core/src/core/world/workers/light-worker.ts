@@ -170,9 +170,10 @@ const normalizePendingBatchMessages = () => {
 const postEmptyBatchResult = (jobId: string, lastSequenceId = 0) => {
   const appliedDeltas =
     lastSequenceId === 0 ? emptyAppliedDeltas : { lastSequenceId };
+  const modifiedChunks = emptyModifiedChunks;
   postMessage({
     jobId,
-    modifiedChunks: [],
+    modifiedChunks,
     appliedDeltas,
   });
 };
