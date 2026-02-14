@@ -2329,6 +2329,7 @@ fn evaluate_block_rule_with_trig<S: VoxelAccess>(
             if simple.id.is_none() && simple.rotation.is_none() && simple.stage.is_none() {
                 return true;
             }
+            let [pos_x, pos_y, pos_z] = pos;
 
             let [offset_x, offset_y, offset_z] = simple.offset;
             let (check_x, check_y, check_z) = if let Some((sin_rot, cos_rot)) = rotation_trig {
@@ -2336,15 +2337,15 @@ fn evaluate_block_rule_with_trig<S: VoxelAccess>(
                     let x = offset_x as f32;
                     let z = offset_z as f32;
                     (
-                        pos[0] + (x * cos_rot - z * sin_rot).round() as i32,
-                        pos[1] + offset_y,
-                        pos[2] + (x * sin_rot + z * cos_rot).round() as i32,
+                        pos_x + (x * cos_rot - z * sin_rot).round() as i32,
+                        pos_y + offset_y,
+                        pos_z + (x * sin_rot + z * cos_rot).round() as i32,
                     )
                 } else {
-                    (pos[0] + offset_x, pos[1] + offset_y, pos[2] + offset_z)
+                    (pos_x + offset_x, pos_y + offset_y, pos_z + offset_z)
                 }
             } else {
-                (pos[0] + offset_x, pos[1] + offset_y, pos[2] + offset_z)
+                (pos_x + offset_x, pos_y + offset_y, pos_z + offset_z)
             };
             let has_expected_rotation = simple.rotation.is_some();
             let has_expected_stage = simple.stage.is_some();
