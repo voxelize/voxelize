@@ -34,7 +34,12 @@ fn direction_to_index(dx: i32, dy: i32, dz: i32) -> usize {
 
 #[inline]
 fn map_voxel_to_chunk(vx: i32, vz: i32, chunk_size: i32) -> [i32; 2] {
-    [vx.div_euclid(chunk_size), vz.div_euclid(chunk_size)]
+    if chunk_size > 0 && (chunk_size as u32).is_power_of_two() {
+        let shift = chunk_size.trailing_zeros();
+        [vx >> shift, vz >> shift]
+    } else {
+        [vx.div_euclid(chunk_size), vz.div_euclid(chunk_size)]
+    }
 }
 
 #[inline]
@@ -645,6 +650,31 @@ mod tests {
         assert!(can_enter_into(&target, 1, 0, 0));
         assert!(can_enter_into(&target, -1, 0, 0));
         assert!(!can_enter_into(&opaque, 0, 1, 0));
+    }
+
+    #[test]
+    fn map_voxel_to_chunk_matches_div_euclid_for_negative_coords() {
+        let samples = [
+            (-33, -17),
+            (-16, -1),
+            (-15, -15),
+            (-1, -33),
+            (0, 0),
+            (1, 15),
+            (16, 16),
+            (33, 47),
+        ];
+
+        for (vx, vz) in samples {
+            assert_eq!(
+                map_voxel_to_chunk(vx, vz, 16),
+                [vx.div_euclid(16), vz.div_euclid(16)]
+            );
+            assert_eq!(
+                map_voxel_to_chunk(vx, vz, 18),
+                [vx.div_euclid(18), vz.div_euclid(18)]
+            );
+        }
     }
 
     #[test]
