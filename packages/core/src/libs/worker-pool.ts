@@ -50,6 +50,9 @@ const defaultOptions: WorkerPoolOptions = {
 };
 const MAX_WORKER_POOL_SIZE = 256;
 const normalizeMaxWorker = (maxWorker: number): number => {
+  if (maxWorker === Number.POSITIVE_INFINITY) {
+    return MAX_WORKER_POOL_SIZE;
+  }
   if (!Number.isFinite(maxWorker)) {
     return defaultOptions.maxWorker;
   }

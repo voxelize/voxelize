@@ -24,6 +24,20 @@ describe("WorkerPool constructor normalization", () => {
     const pool = new WorkerPool(FakeWorker, { maxWorker: Number.NaN });
     expect(pool.availableCount).toBe(8);
     expect(pool.options.maxWorker).toBe(8);
+
+    const negativeInfinityPool = new WorkerPool(FakeWorker, {
+      maxWorker: Number.NEGATIVE_INFINITY,
+    });
+    expect(negativeInfinityPool.availableCount).toBe(8);
+    expect(negativeInfinityPool.options.maxWorker).toBe(8);
+  });
+
+  it("caps positive infinity worker counts to configured maximum", () => {
+    const pool = new WorkerPool(FakeWorker, {
+      maxWorker: Number.POSITIVE_INFINITY,
+    });
+    expect(pool.availableCount).toBe(256);
+    expect(pool.options.maxWorker).toBe(256);
   });
 
   it("caps excessive worker counts to configured maximum", () => {
