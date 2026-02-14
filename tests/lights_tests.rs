@@ -221,6 +221,35 @@ fn test_chunks_voxel_accessors_reject_coordinates_outside_chunk_shape() {
 }
 
 #[test]
+fn test_chunks_handles_zero_chunk_size_without_underflow() {
+    let config = WorldConfig {
+        chunk_size: 0,
+        max_height: 16,
+        max_light_level: 15,
+        min_chunk: [0, 0],
+        max_chunk: [0, 0],
+        saving: false,
+        ..Default::default()
+    };
+    let mut chunks = Chunks::new(&config);
+    chunks.add(Chunk::new(
+        "chunk-0-0",
+        0,
+        0,
+        &ChunkOptions {
+            size: 1,
+            max_height: 16,
+            sub_chunks: 1,
+        },
+    ));
+
+    let affected = chunks.voxel_affected_chunks(0, 0, 0);
+    assert_eq!(affected, vec![Vec2(0, 0)]);
+    assert!(chunks.set_raw_voxel(0, 0, 0, 1));
+    assert_eq!(chunks.get_raw_voxel(0, 0, 0), 1);
+}
+
+#[test]
 fn test_space_get_raw_voxel_ignores_out_of_range_y() {
     let config = WorldConfig {
         chunk_size: 16,

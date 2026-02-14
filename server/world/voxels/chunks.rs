@@ -323,7 +323,7 @@ impl Chunks {
     /// Get neighboring coords of a voxel coordinate.
     pub fn voxel_affected_chunks(&self, vx: i32, vy: i32, vz: i32) -> Vec<Vec2<i32>> {
         let mut neighbors = Vec::with_capacity(9);
-        let chunk_size = self.config.chunk_size;
+        let chunk_size = self.config.chunk_size.max(1);
 
         let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
         let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
@@ -372,8 +372,8 @@ impl Chunks {
     /// Get a list of chunks that light could traverse within.
     pub fn light_traversed_chunks(&self, coords: &Vec2<i32>) -> Vec<Vec2<i32>> {
         let mut list = vec![];
-        let extended =
-            (self.config.max_light_level as f32 / self.config.chunk_size as f32).ceil() as i32;
+        let chunk_size = self.config.chunk_size.max(1) as f32;
+        let extended = (self.config.max_light_level as f32 / chunk_size).ceil() as i32;
 
         for x in -extended..=extended {
             for z in -extended..=extended {
@@ -522,7 +522,7 @@ impl Chunks {
         if vy < 0 || vy >= self.config.max_height as i32 {
             return;
         }
-        let chunk_size = self.config.chunk_size;
+        let chunk_size = self.config.chunk_size.max(1);
         let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
         let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
 
