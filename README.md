@@ -435,6 +435,7 @@ Aggregate preflight reports include `selectedCheckIndices`/`selectedCheckIndexCo
 Aggregate preflight reports include `selectedCheckMetadata`, `selectedCheckScripts`, and `selectedCheckScriptCount` as well as `skippedCheckMetadata`, `skippedCheckScripts`, and `skippedCheckScriptCount` so automation can map selected/skipped checks directly to executable scripts.
 Aggregate preflight reports include `passedCheckScripts`, `passedCheckScriptCount`, `failedCheckScripts`, and `failedCheckScriptCount` plus `passedCheckMetadata`, `failedCheckMetadata`, `passedCheckIndices`/`passedCheckIndexCount`, and `failedCheckIndices`/`failedCheckIndexCount` so CI systems can map pass/fail status directly to executed scripts.
 Aggregate preflight reports include `requestedCheckResolutions` to map each `--only` token to its resolved check, special selector, or invalid status.
+Aggregate preflight reports include `requestedCheckResolvedScripts` and `requestedCheckResolvedScriptCount` to summarize the script set resolved from `--only` tokens.
 Aggregate preflight reports include `requestedCheckResolutionKinds` to enumerate supported resolution kinds for `requestedCheckResolutions`.
 Aggregate preflight reports include `listChecksOnly` to indicate metadata-only check listing mode (`--list-checks`) where no checks are executed.
 When `--only` is omitted, `requestedChecks` is an empty array and `selectedChecks` contains the default aggregate checks.

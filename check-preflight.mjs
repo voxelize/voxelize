@@ -349,6 +349,27 @@ const createRequestedCheckResolutionCounts = (resolutions) => {
 const requestedCheckResolutionCounts = createRequestedCheckResolutionCounts(
   requestedCheckResolutions
 );
+const createRequestedCheckResolvedScripts = (resolutions) => {
+  const resolvedScripts = [];
+  const seenScripts = new Set();
+
+  for (const resolution of resolutions) {
+    for (const checkName of resolution.resolvedTo) {
+      const scriptName = availableCheckMetadata[checkName]?.scriptName;
+      if (typeof scriptName !== "string" || seenScripts.has(scriptName)) {
+        continue;
+      }
+
+      seenScripts.add(scriptName);
+      resolvedScripts.push(scriptName);
+    }
+  }
+
+  return resolvedScripts;
+};
+const requestedCheckResolvedScripts = createRequestedCheckResolvedScripts(
+  requestedCheckResolutions
+);
 const buildCheckSelectionMetadata = (checkNames) => {
   const checkMetadata = Object.fromEntries(
     checkNames.map((checkName) => {
@@ -477,6 +498,8 @@ if (
     requestedCheckCount: requestedChecks.length,
     requestedCheckResolutions,
     requestedCheckResolutionCounts,
+    requestedCheckResolvedScripts,
+    requestedCheckResolvedScriptCount: requestedCheckResolvedScripts.length,
     selectionMode,
     specialSelectorsUsed,
     skippedChecks: availableCheckNames,
@@ -576,6 +599,8 @@ if (isListChecks) {
     requestedCheckCount: requestedChecks.length,
     requestedCheckResolutions,
     requestedCheckResolutionCounts,
+    requestedCheckResolvedScripts,
+    requestedCheckResolvedScriptCount: requestedCheckResolvedScripts.length,
     selectionMode,
     specialSelectorsUsed,
     skippedChecks,
@@ -695,6 +720,8 @@ const report = buildTimedReport({
   requestedCheckCount: requestedChecks.length,
   requestedCheckResolutions,
   requestedCheckResolutionCounts,
+  requestedCheckResolvedScripts,
+  requestedCheckResolvedScriptCount: requestedCheckResolvedScripts.length,
   selectionMode,
   specialSelectorsUsed,
   skippedChecks,
