@@ -312,6 +312,9 @@ impl KdTree {
     {
         let mut to_remove = std::mem::take(&mut self.removal_buffer);
         to_remove.clear();
+        if to_remove.capacity() < self.kind_map.len() {
+            to_remove.reserve(self.kind_map.len() - to_remove.capacity());
+        }
         for (&id, _) in self.kind_map.iter() {
             if !f(id) {
                 to_remove.push(id);
