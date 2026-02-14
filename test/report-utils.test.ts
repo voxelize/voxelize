@@ -108,6 +108,14 @@ describe("report-utils", () => {
     ).toEqual({ step: "second", ok: false });
   });
 
+  it("prefers the latest inline json array in single-line mixed output", () => {
+    expect(
+      parseJsonOutput(
+        `checks=[{"name":"first","ok":true}] checks=[{"name":"second","ok":false}]`
+      )
+    ).toEqual([{ name: "second", ok: false }]);
+  });
+
   it("parses json output containing ansi color sequences", () => {
     expect(
       parseJsonOutput(
