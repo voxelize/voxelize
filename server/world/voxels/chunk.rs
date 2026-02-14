@@ -121,8 +121,11 @@ impl Chunk {
                 let mut column_height = 0;
 
                 for ly in (0..max_height).rev() {
+                    if ly == 0 {
+                        break;
+                    }
                     let id = BlockUtils::extract_id(self.voxels[&[lx, ly, lz]]);
-                    if ly == 0 || registry.check_height(id) {
+                    if registry.check_height(id) {
                         column_height = ly as u32;
                         break;
                     }
