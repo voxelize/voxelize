@@ -136,6 +136,14 @@ impl FlatlandStage {
     }
 }
 
+#[inline]
+fn clamped_flatland_top_height(top_height: u32, chunk_max_y: i32) -> u32 {
+    if chunk_max_y <= 0 {
+        return 0;
+    }
+    top_height.min(chunk_max_y as u32)
+}
+
 impl ChunkStage for FlatlandStage {
     fn name(&self) -> String {
         "Flatland".to_owned()
@@ -143,11 +151,12 @@ impl ChunkStage for FlatlandStage {
 
     fn process(&self, mut chunk: Chunk, _: Resources, _: Option<Space>) -> Chunk {
         let Vec3(min_x, _, min_z) = chunk.min;
-        let Vec3(max_x, _, max_z) = chunk.max;
+        let Vec3(max_x, max_y, max_z) = chunk.max;
+        let top_height = clamped_flatland_top_height(self.top_height, max_y);
 
         for vx in min_x..max_x {
             for vz in min_z..max_z {
-                for vy in 0..self.top_height {
+                for vy in 0..top_height {
                     if let Some(soiling) = self.query_soiling(vy) {
                         chunk.set_voxel(vx, vy as i32, vz, soiling);
                     }
@@ -421,7 +430,7 @@ impl Pipeline {
 
 #[cfg(test)]
 mod tests {
-    use super::FlatlandStage;
+    use super::{clamped_flatland_top_height, FlatlandStage};
 
     #[test]
     fn add_soiling_saturates_top_height_on_overflow() {
@@ -440,5 +449,17 @@ mod tests {
         let stage = FlatlandStage::new().add_soiling(7, 3);
         assert_eq!(stage.top_height, 3);
         assert_eq!(stage.soiling, vec![7, 7, 7]);
+    }
+
+    #[test]
+    fn clamped_flatland_top_height_limits_to_chunk_height() {
+        assert_eq!(clamped_flatland_top_height(u32::MAX, 16), 16);
+        assert_eq!(clamped_flatland_top_height(12, 8), 8);
+    }
+
+    #[test]
+    fn clamped_flatland_top_height_handles_non_positive_chunk_ceiling() {
+        assert_eq!(clamped_flatland_top_height(12, 0), 0);
+        assert_eq!(clamped_flatland_top_height(12, -8), 0);
     }
 }
