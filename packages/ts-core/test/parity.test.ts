@@ -445,6 +445,18 @@ describe("Rotation maps", () => {
 });
 
 describe("BlockRuleEvaluator", () => {
+  it("always matches BLOCK_RULE_NONE", () => {
+    const access = {
+      getVoxel: () => 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    expect(BlockRuleEvaluator.evaluate(BLOCK_RULE_NONE, [12, -5, 3], access)).toBe(
+      true
+    );
+  });
+
   it("evaluates simple rules", () => {
     const data = {
       voxel: Voxel.pack({ id: 12, rotation: BlockRotation.py(0), stage: 3 }),
