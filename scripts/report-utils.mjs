@@ -338,6 +338,15 @@ export const summarizeCheckFailureResults = (checks) => {
         scriptName: check.scriptName,
         supportsNoBuild: check.supportsNoBuild === true,
         checkIndex: typeof check.checkIndex === "number" ? check.checkIndex : null,
+        checkCommand:
+          typeof check.checkCommand === "string" ? check.checkCommand : "",
+        checkArgs: Array.isArray(check.checkArgs) ? check.checkArgs : [],
+        checkArgCount:
+          typeof check.checkArgCount === "number"
+            ? check.checkArgCount
+            : Array.isArray(check.checkArgs)
+              ? check.checkArgs.length
+              : 0,
         exitCode: typeof check.exitCode === "number" ? check.exitCode : 1,
         message: reportMessage ?? outputMessage ?? defaultMessage,
       };

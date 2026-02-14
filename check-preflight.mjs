@@ -60,7 +60,7 @@ const {
 } = resolveLastOptionValue(cliOptionArgs, "--only", supportedCliOptions);
 const buildTimedReport = createTimedReportBuilder();
 
-const availableChecks = [
+const baseAvailableChecks = [
   {
     name: "devEnvironment",
     scriptName: "check-dev-env.mjs",
@@ -92,6 +92,21 @@ const availableChecks = [
     extraArgs: isNoBuild ? ["--no-build"] : [],
   },
 ];
+const availableChecks = baseAvailableChecks.map((check) => {
+  const checkArgs = [
+    path.resolve(__dirname, check.scriptName),
+    "--json",
+    "--compact",
+    ...check.extraArgs,
+  ];
+
+  return {
+    ...check,
+    checkCommand: process.execPath,
+    checkArgs,
+    checkArgCount: checkArgs.length,
+  };
+});
 const availableCheckNames = availableChecks.map((check) => check.name);
 const availableCheckScripts = availableChecks.map((check) => check.scriptName);
 const availableCheckIndices = availableChecks.map((_, index) => index);
@@ -101,6 +116,26 @@ const availableCheckScriptMap = Object.fromEntries(
   })
 );
 const availableCheckScriptMapCount = countRecordEntries(availableCheckScriptMap);
+const availableCheckCommandMap = Object.fromEntries(
+  availableChecks.map((check) => {
+    return [check.name, check.checkCommand];
+  })
+);
+const availableCheckCommandMapCount = countRecordEntries(availableCheckCommandMap);
+const availableCheckArgsMap = Object.fromEntries(
+  availableChecks.map((check) => {
+    return [check.name, check.checkArgs];
+  })
+);
+const availableCheckArgsMapCount = countRecordEntries(availableCheckArgsMap);
+const availableCheckArgCountMap = Object.fromEntries(
+  availableChecks.map((check) => {
+    return [check.name, check.checkArgCount];
+  })
+);
+const availableCheckArgCountMapCount = countRecordEntries(
+  availableCheckArgCountMap
+);
 const availableCheckSupportsNoBuildMap = Object.fromEntries(
   availableChecks.map((check) => {
     return [check.name, check.supportsNoBuild];
@@ -120,6 +155,11 @@ const checkNameToIndex = new Map(
     return [checkName, index];
   })
 );
+const checkNameToDefinition = new Map(
+  availableChecks.map((check) => {
+    return [check.name, check];
+  })
+);
 const availableCheckMetadata = Object.fromEntries(
   availableChecks.map((check) => {
     return [
@@ -127,6 +167,9 @@ const availableCheckMetadata = Object.fromEntries(
       {
         scriptName: check.scriptName,
         supportsNoBuild: check.supportsNoBuild,
+        checkCommand: check.checkCommand,
+        checkArgs: check.checkArgs,
+        checkArgCount: check.checkArgCount,
       },
     ];
   })
@@ -135,14 +178,22 @@ const availableCheckMetadataCount = countRecordEntries(availableCheckMetadata);
 const resolveCheckDetails = (checkName) => {
   const checkMetadata = availableCheckMetadata[checkName];
   const checkIndex = checkNameToIndex.get(checkName);
+  const checkDefinition = checkNameToDefinition.get(checkName);
 
-  if (checkMetadata === undefined || checkIndex === undefined) {
+  if (
+    checkMetadata === undefined ||
+    checkIndex === undefined ||
+    checkDefinition === undefined
+  ) {
     throw new Error(`Missing check metadata for ${checkName}.`);
   }
 
   return {
     scriptName: checkMetadata.scriptName,
     supportsNoBuild: checkMetadata.supportsNoBuild,
+    checkCommand: checkDefinition.checkCommand,
+    checkArgs: checkDefinition.checkArgs,
+    checkArgCount: checkDefinition.checkArgCount,
     checkIndex,
   };
 };
@@ -616,28 +667,33 @@ const {
 } = buildCheckSelectionMetadata(availableCheckNames);
 const allCheckMetadataCount = countRecordEntries(allCheckMetadata);
 
-const runCheck = (name, scriptName, supportsNoBuild, extraArgs = []) => {
+const runCheck = (name) => {
+  const {
+    scriptName,
+    supportsNoBuild,
+    checkCommand,
+    checkArgs,
+    checkArgCount,
+    checkIndex,
+  } = resolveCheckDetails(name);
   const checkStartMs = Date.now();
-  const scriptPath = path.resolve(__dirname, scriptName);
-  const result = spawnSync(
-    process.execPath,
-    [scriptPath, "--json", "--compact", ...extraArgs],
-    {
-      cwd: __dirname,
-      encoding: "utf8",
-      shell: false,
-    }
-  );
+  const result = spawnSync(checkCommand, checkArgs, {
+    cwd: __dirname,
+    encoding: "utf8",
+    shell: false,
+  });
 
   const exitCode = result.status ?? 1;
   const output = `${result.stdout}${result.stderr}`.trim();
   const report = parseJsonOutput(output);
-  const checkIndex = checkNameToIndex.get(name);
 
   return {
     name,
     scriptName,
     supportsNoBuild,
+    checkCommand,
+    checkArgs,
+    checkArgCount,
     checkIndex: typeof checkIndex === "number" ? checkIndex : null,
     passed: exitCode === 0,
     exitCode,
@@ -750,6 +806,12 @@ if (
     failureSummaries: [],
     failureSummaryCount: 0,
     checks: [],
+    checkCommandMap: {},
+    checkCommandMapCount: 0,
+    checkArgsMap: {},
+    checkArgsMapCount: 0,
+    checkArgCountMap: {},
+    checkArgCountMapCount: 0,
     outputPath: outputPathError === null ? resolvedOutputPath : null,
     validationErrorCode,
     message: outputPathError ?? selectedChecksError ?? unsupportedOptionsError,
@@ -773,6 +835,12 @@ if (
     availableCheckScriptCount: availableCheckScripts.length,
     availableCheckScriptMap,
     availableCheckScriptMapCount,
+    availableCheckCommandMap,
+    availableCheckCommandMapCount,
+    availableCheckArgsMap,
+    availableCheckArgsMapCount,
+    availableCheckArgCountMap,
+    availableCheckArgCountMapCount,
     availableCheckSupportsNoBuildMap,
     availableCheckSupportsNoBuildMapCount,
     availableCheckIndices,
@@ -932,6 +1000,12 @@ if (isListChecks) {
     failureSummaries: [],
     failureSummaryCount: 0,
     checks: [],
+    checkCommandMap: {},
+    checkCommandMapCount: 0,
+    checkArgsMap: {},
+    checkArgsMapCount: 0,
+    checkArgCountMap: {},
+    checkArgCountMapCount: 0,
     outputPath: resolvedOutputPath,
     validationErrorCode: null,
     invalidChecks: [],
@@ -954,6 +1028,12 @@ if (isListChecks) {
     availableCheckScriptCount: availableCheckScripts.length,
     availableCheckScriptMap,
     availableCheckScriptMapCount,
+    availableCheckCommandMap,
+    availableCheckCommandMapCount,
+    availableCheckArgsMap,
+    availableCheckArgsMapCount,
+    availableCheckArgCountMap,
+    availableCheckArgCountMapCount,
     availableCheckSupportsNoBuildMap,
     availableCheckSupportsNoBuildMapCount,
     availableCheckIndices,
@@ -994,12 +1074,7 @@ if (isListChecks) {
 const checks = availableChecks
   .filter((check) => selectedCheckSet.has(check.name))
   .map((check) => {
-    return runCheck(
-      check.name,
-      check.scriptName,
-      check.supportsNoBuild,
-      check.extraArgs
-    );
+    return runCheck(check.name);
   });
 
 const passed = checks.every((check) => check.passed);
@@ -1038,6 +1113,24 @@ const checkStatusCountMap = createCheckStatusCountMap({
   skippedCheckCount: skippedChecks.length,
 });
 const checkStatusCountMapCount = countRecordEntries(checkStatusCountMap);
+const checkCommandMap = Object.fromEntries(
+  checks.map((check) => {
+    return [check.name, check.checkCommand];
+  })
+);
+const checkCommandMapCount = countRecordEntries(checkCommandMap);
+const checkArgsMap = Object.fromEntries(
+  checks.map((check) => {
+    return [check.name, check.checkArgs];
+  })
+);
+const checkArgsMapCount = countRecordEntries(checkArgsMap);
+const checkArgCountMap = Object.fromEntries(
+  checks.map((check) => {
+    return [check.name, check.checkArgCount];
+  })
+);
+const checkArgCountMapCount = countRecordEntries(checkArgCountMap);
 const invalidCheckCount = 0;
 const failureSummaries = summarizeCheckFailureResults(checks);
 const report = buildTimedReport({
@@ -1123,6 +1216,12 @@ const report = buildTimedReport({
   failureSummaries,
   failureSummaryCount: failureSummaries.length,
   checks,
+  checkCommandMap,
+  checkCommandMapCount,
+  checkArgsMap,
+  checkArgsMapCount,
+  checkArgCountMap,
+  checkArgCountMapCount,
   outputPath: resolvedOutputPath,
   validationErrorCode: null,
   invalidChecks: [],
@@ -1145,6 +1244,12 @@ const report = buildTimedReport({
   availableCheckScriptCount: availableCheckScripts.length,
   availableCheckScriptMap,
   availableCheckScriptMapCount,
+  availableCheckCommandMap,
+  availableCheckCommandMapCount,
+  availableCheckArgsMap,
+  availableCheckArgsMapCount,
+  availableCheckArgCountMap,
+  availableCheckArgCountMapCount,
   availableCheckSupportsNoBuildMap,
   availableCheckSupportsNoBuildMapCount,
   availableCheckIndices,

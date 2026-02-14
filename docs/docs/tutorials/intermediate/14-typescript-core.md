@@ -346,10 +346,17 @@ For release automation and CI routing, aggregate preflight JSON reports include:
   `failedCheckIndexMapCount`
 - execution partitions: `passedChecks`, `failedChecks`,
   `checkStatusMap`, `checkStatusCountMap`,
+  `checkCommandMap`, `checkCommandMapCount`,
+  `checkArgsMap`, `checkArgsMapCount`,
+  `checkArgCountMap`, `checkArgCountMapCount`,
   `failureSummaries`, `failureSummaryCount`
 - executable inventory: `availableChecks`, `availableCheckScripts`,
-  `availableCheckScriptMap`, `availableCheckSupportsNoBuildMap`,
-  `availableCheckScriptMapCount`, `availableCheckSupportsNoBuildMapCount`,
+  `availableCheckScriptMap`, `availableCheckCommandMap`,
+  `availableCheckArgsMap`, `availableCheckArgCountMap`,
+  `availableCheckSupportsNoBuildMap`,
+  `availableCheckScriptMapCount`, `availableCheckCommandMapCount`,
+  `availableCheckArgsMapCount`, `availableCheckArgCountMapCount`,
+  `availableCheckSupportsNoBuildMapCount`,
   `availableCheckIndices`,
   `availableCheckIndexMap`, `availableCheckIndexMapCount`,
   `availableCheckMetadata`, `availableCheckMetadataCount`,
@@ -367,10 +374,12 @@ For release automation and CI routing, aggregate preflight JSON reports include:
   `availableSpecialSelectorResolvedCheckCountMapCount`
 
 Each aggregate `checks[]` entry also includes `scriptName`,
-`supportsNoBuild`, and `checkIndex`.
+`supportsNoBuild`, `checkIndex`, `checkCommand`, `checkArgs`, and
+`checkArgCount`.
 
 Each aggregate `failureSummaries[]` entry includes `name`, `scriptName`,
-`supportsNoBuild`, `checkIndex`, `exitCode`, and `message`.
+`supportsNoBuild`, `checkIndex`, `checkCommand`, `checkArgs`,
+`checkArgCount`, `exitCode`, and `message`.
 
 Client/onboarding aggregate JSON reports additionally include step-level
 partitions such as `availableSteps`, `passedSteps`, `failedSteps`,

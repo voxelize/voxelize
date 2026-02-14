@@ -10,6 +10,9 @@ type PreflightCheckResult = {
   name: string;
   scriptName: string;
   supportsNoBuild: boolean;
+  checkCommand: string;
+  checkArgs: string[];
+  checkArgCount: number;
   checkIndex: number | null;
   passed: boolean;
   exitCode: number;
@@ -642,6 +645,9 @@ type PreflightFailureSummary = {
   scriptName: string;
   supportsNoBuild: boolean;
   checkIndex: number | null;
+  checkCommand: string;
+  checkArgs: string[];
+  checkArgCount: number;
   exitCode: number;
   message: string;
 };
@@ -784,6 +790,12 @@ type PreflightReport = {
   availableCheckScriptCount: number;
   availableCheckScriptMap: Record<string, string>;
   availableCheckScriptMapCount: number;
+  availableCheckCommandMap: Record<string, string>;
+  availableCheckCommandMapCount: number;
+  availableCheckArgsMap: Record<string, string[]>;
+  availableCheckArgsMapCount: number;
+  availableCheckArgCountMap: Record<string, number>;
+  availableCheckArgCountMapCount: number;
   availableCheckSupportsNoBuildMap: Record<string, boolean>;
   availableCheckSupportsNoBuildMapCount: number;
   availableCheckIndices: number[];
@@ -794,22 +806,37 @@ type PreflightReport = {
     devEnvironment: {
       scriptName: string;
       supportsNoBuild: boolean;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
     };
     wasmPack: {
       scriptName: string;
       supportsNoBuild: boolean;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
     };
     tsCore: {
       scriptName: string;
       supportsNoBuild: boolean;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
     };
     runtimeLibraries: {
       scriptName: string;
       supportsNoBuild: boolean;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
     };
     client: {
       scriptName: string;
       supportsNoBuild: boolean;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
     };
   };
   availableCheckMetadataCount: number;
@@ -850,6 +877,12 @@ type PreflightReport = {
   failureSummaries: PreflightFailureSummary[];
   failureSummaryCount: number;
   checks: PreflightCheckResult[];
+  checkCommandMap: Record<string, string>;
+  checkCommandMapCount: number;
+  checkArgsMap: Record<string, string[]>;
+  checkArgsMapCount: number;
+  checkArgCountMap: Record<string, number>;
+  checkArgCountMapCount: number;
   outputPath: string | null;
   validationErrorCode:
     | "output_option_missing_value"
@@ -1481,6 +1514,21 @@ const expectCheckResultScriptMetadata = (report: PreflightReport) => {
       return [checkName, expectedFailedIndices[index]];
     })
   );
+  const expectedCheckCommandMap = Object.fromEntries(
+    report.checks.map((check) => {
+      return [check.name, check.checkCommand];
+    })
+  );
+  const expectedCheckArgsMap = Object.fromEntries(
+    report.checks.map((check) => {
+      return [check.name, check.checkArgs];
+    })
+  );
+  const expectedCheckArgCountMap = Object.fromEntries(
+    report.checks.map((check) => {
+      return [check.name, check.checkArgCount];
+    })
+  );
   const passedCheckSet = new Set(report.passedChecks);
   const failedCheckSet = new Set(report.failedChecks);
   const expectedCheckStatusMap = Object.fromEntries(
@@ -1537,6 +1585,16 @@ const expectCheckResultScriptMetadata = (report: PreflightReport) => {
   expect(report.checkStatusCountMapCount).toBe(
     Object.keys(report.checkStatusCountMap).length
   );
+  expect(report.checkCommandMap).toEqual(expectedCheckCommandMap);
+  expect(report.checkCommandMapCount).toBe(
+    Object.keys(report.checkCommandMap).length
+  );
+  expect(report.checkArgsMap).toEqual(expectedCheckArgsMap);
+  expect(report.checkArgsMapCount).toBe(Object.keys(report.checkArgsMap).length);
+  expect(report.checkArgCountMap).toEqual(expectedCheckArgCountMap);
+  expect(report.checkArgCountMapCount).toBe(
+    Object.keys(report.checkArgCountMap).length
+  );
   for (const check of report.checks) {
     expect(check.scriptName).toBe(
       expectedAvailableCheckMetadata[
@@ -1548,6 +1606,8 @@ const expectCheckResultScriptMetadata = (report: PreflightReport) => {
         check.name as keyof typeof expectedAvailableCheckMetadata
       ].supportsNoBuild
     );
+    expect(check.checkCommand.length).toBeGreaterThan(0);
+    expect(check.checkArgCount).toBe(check.checkArgs.length);
     expect(check.checkIndex).toBe(expectedAvailableChecks.indexOf(check.name));
   }
   expect(report.failureSummaryCount).toBe(report.failureSummaries.length);
@@ -1583,8 +1643,34 @@ const expectCheckResultScriptMetadata = (report: PreflightReport) => {
     expect(entry.scriptName).toBe(failedCheck.scriptName);
     expect(entry.supportsNoBuild).toBe(failedCheck.supportsNoBuild);
     expect(entry.checkIndex).toBe(failedCheck.checkIndex);
+    expect(entry.checkCommand).toBe(failedCheck.checkCommand);
+    expect(entry.checkArgs).toEqual(failedCheck.checkArgs);
+    expect(entry.checkArgCount).toBe(failedCheck.checkArgCount);
     expect(entry.exitCode).toBe(failedCheck.exitCode);
     expect(entry.message.length).toBeGreaterThan(0);
+  }
+};
+const expectAvailableCheckMetadataCoreFields = (report: PreflightReport) => {
+  expect(
+    Object.fromEntries(
+      expectedAvailableChecks.map((checkName) => {
+        return [
+          checkName,
+          {
+            scriptName: report.availableCheckMetadata[checkName].scriptName,
+            supportsNoBuild: report.availableCheckMetadata[checkName].supportsNoBuild,
+          },
+        ];
+      })
+    )
+  ).toEqual(expectedAvailableCheckMetadata);
+  for (const checkName of expectedAvailableChecks) {
+    expect(report.availableCheckMetadata[checkName].checkCommand.length).toBeGreaterThan(
+      0
+    );
+    expect(report.availableCheckMetadata[checkName].checkArgCount).toBe(
+      report.availableCheckMetadata[checkName].checkArgs.length
+    );
   }
 };
 const expectAvailableCheckInventoryMetadata = (report: PreflightReport) => {
@@ -1595,6 +1681,21 @@ const expectAvailableCheckInventoryMetadata = (report: PreflightReport) => {
   expect(report.availableCheckScriptMapCount).toBe(
     Object.keys(report.availableCheckScriptMap).length
   );
+  expect(report.availableCheckCommandMapCount).toBe(
+    Object.keys(report.availableCheckCommandMap).length
+  );
+  expect(report.availableCheckArgsMapCount).toBe(
+    Object.keys(report.availableCheckArgsMap).length
+  );
+  expect(report.availableCheckArgCountMapCount).toBe(
+    Object.keys(report.availableCheckArgCountMap).length
+  );
+  for (const checkName of report.availableChecks) {
+    expect(report.availableCheckCommandMap[checkName]?.length).toBeGreaterThan(0);
+    const checkArgs = report.availableCheckArgsMap[checkName];
+    expect(Array.isArray(checkArgs)).toBe(true);
+    expect(checkArgs.length).toBe(report.availableCheckArgCountMap[checkName]);
+  }
   expect(report.availableCheckSupportsNoBuildMap).toEqual(
     expectedAvailableCheckSupportsNoBuildMap
   );
@@ -1616,12 +1717,15 @@ const expectAvailableCheckInventoryMetadata = (report: PreflightReport) => {
         {
           scriptName: report.availableCheckScriptMap[checkName],
           supportsNoBuild: report.availableCheckSupportsNoBuildMap[checkName],
+          checkCommand: report.availableCheckCommandMap[checkName],
+          checkArgs: report.availableCheckArgsMap[checkName],
+          checkArgCount: report.availableCheckArgCountMap[checkName],
         },
       ];
     })
   );
   expect(report.availableCheckMetadata).toEqual(metadataFromMaps);
-  expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
+  expectAvailableCheckMetadataCoreFields(report);
   expect(report.availableCheckMetadataCount).toBe(
     Object.keys(report.availableCheckMetadata).length
   );
@@ -8969,7 +9073,7 @@ describe("preflight aggregate report", () => {
     expect(report.exitCode).toBe(1);
     expect(report.platform).toBe(process.platform);
     expect(report.nodeVersion).toBe(process.version);
-    expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
+    expectAvailableCheckMetadataCoreFields(report);
     expectSelectorAndAliasMetadata(report);
     expect(typeof report.endedAt).toBe("string");
     expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
@@ -9167,7 +9271,7 @@ describe("preflight aggregate report", () => {
     expect(report.outputPath).toBeNull();
     expect(report.selectionMode).toBe("default");
     expect(report.specialSelectorsUsed).toEqual([]);
-    expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
+    expectAvailableCheckMetadataCoreFields(report);
     expectSelectorAndAliasMetadata(report);
     expect(report.message).toBe("Missing value for --output option.");
     expect(report.invalidChecks).toEqual([]);
@@ -9255,7 +9359,7 @@ describe("preflight aggregate report", () => {
       specialSelector: 0,
       invalid: 1,
     });
-    expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
+    expectAvailableCheckMetadataCoreFields(report);
     expectSelectorAndAliasMetadata(report);
     expect(result.status).toBe(1);
   });
@@ -9297,7 +9401,7 @@ describe("preflight aggregate report", () => {
       specialSelector: 0,
       invalid: 0,
     });
-    expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
+    expectAvailableCheckMetadataCoreFields(report);
     expectSelectorAndAliasMetadata(report);
     expect(result.status).toBe(1);
   });
@@ -9356,7 +9460,7 @@ describe("preflight aggregate report", () => {
     expect(report.requestedCheckResolutionCounts).toEqual(
       expectedEmptyRequestedCheckResolutionCounts
     );
-    expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
+    expectAvailableCheckMetadataCoreFields(report);
     expectSelectorAndAliasMetadata(report);
     expect(result.status).toBe(1);
   });
@@ -9396,7 +9500,7 @@ describe("preflight aggregate report", () => {
       invalid: 1,
     });
     expect(report.availableChecks).toEqual(expectedAvailableChecks);
-    expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
+    expectAvailableCheckMetadataCoreFields(report);
     expectSelectorAndAliasMetadata(report);
     expect(result.status).toBe(1);
   });
