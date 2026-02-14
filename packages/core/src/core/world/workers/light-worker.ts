@@ -447,6 +447,15 @@ const isStrictCoords3 = (
   isInteger(coords[1]) &&
   isInteger(coords[2]);
 
+const isStrictPositiveCoords3 = (
+  coords: Coords3 | readonly number[] | null | undefined
+): coords is Coords3 =>
+  Array.isArray(coords) &&
+  coords.length === 3 &&
+  isPositiveInteger(coords[0]) &&
+  isPositiveInteger(coords[1]) &&
+  isPositiveInteger(coords[2]);
+
 const isValidFloodNode = (
   node: LightNode | null | undefined
 ): node is LightNode =>
@@ -971,19 +980,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
   const bounds = boundingBox;
   const boundsMin = bounds?.min;
   const boundsShape = bounds?.shape;
-  if (
-    hasFloods &&
-    (!Array.isArray(boundsMin) ||
-      boundsMin.length < 3 ||
-      !Array.isArray(boundsShape) ||
-      boundsShape.length < 3 ||
-      !isInteger(boundsMin[0]) ||
-      !isInteger(boundsMin[1]) ||
-      !isInteger(boundsMin[2]) ||
-      !isPositiveInteger(boundsShape[0]) ||
-      !isPositiveInteger(boundsShape[1]) ||
-      !isPositiveInteger(boundsShape[2]))
-  ) {
+  if (hasFloods && (!isStrictCoords3(boundsMin) || !isStrictPositiveCoords3(boundsShape))) {
     postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
     return;
   }
