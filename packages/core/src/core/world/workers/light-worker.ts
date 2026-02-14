@@ -1198,6 +1198,15 @@ const processBatchMessage = (message: LightBatchMessage) => {
   transferBuffers.length = modifiedChunkCount;
   const gridMaxChunkXExclusive = gridOffsetX + gridWidth;
   const gridMaxChunkZExclusive = gridOffsetZ + gridDepth;
+  if (
+    !Number.isSafeInteger(gridMaxChunkXExclusive) ||
+    !Number.isSafeInteger(gridMaxChunkZExclusive)
+  ) {
+    modifiedChunks.length = 0;
+    transferBuffers.length = 0;
+    postEmptyBatchResult(jobId, lastSequenceId);
+    return;
+  }
   let validModifiedChunkCount = 0;
 
   for (let index = 0; index < modifiedChunkCount; index++) {
