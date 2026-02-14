@@ -2,7 +2,6 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use byteorder::{ByteOrder, LittleEndian};
 use hashbrown::{HashMap, HashSet};
 use libflate::zlib::{Decoder, Encoder};
-use log::info;
 use serde::{Deserialize, Serialize};
 use specs::Entity;
 use std::sync::Arc;

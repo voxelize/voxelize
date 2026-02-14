@@ -1,5 +1,4 @@
 use hashbrown::HashMap;
-use log::info;
 use nanoid::nanoid;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use specs::{ReadExpect, ReadStorage, System, WriteExpect};
