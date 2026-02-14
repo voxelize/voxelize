@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use voxelize_core::{LightColor, LightUtils};
+use voxelize_core::{BlockRotation, LightColor, LightUtils};
 
 use crate::types::{
     LightBlock, LightBounds, LightConfig, LightNode, LightRegistry, LightVoxelAccess,
@@ -89,14 +89,23 @@ fn set_light_level(
 }
 
 #[inline]
-fn block_at<'a>(
+fn voxel_rotation_from_raw(raw_voxel: u32) -> BlockRotation {
+    BlockRotation::encode((raw_voxel >> 16) & 0xF, (raw_voxel >> 20) & 0xF)
+}
+
+#[inline]
+fn block_and_rotation_at<'a>(
     registry: &'a LightRegistry,
     space: &dyn LightVoxelAccess,
     vx: i32,
     vy: i32,
     vz: i32,
-) -> &'a LightBlock {
-    registry.get_block_by_id(space.get_voxel(vx, vy, vz))
+) -> (&'a LightBlock, BlockRotation) {
+    let raw_voxel = space.get_raw_voxel(vx, vy, vz);
+    (
+        registry.get_block_by_id(raw_voxel & 0xFFFF),
+        voxel_rotation_from_raw(raw_voxel),
+    )
 }
 
 #[inline]
@@ -171,13 +180,13 @@ pub fn flood_light(
         }
 
         let [vx, vy, vz] = voxel;
-        let source_block = block_at(registry, space, vx, vy, vz);
+        let (source_block, source_rotation) = block_and_rotation_at(registry, space, vx, vy, vz);
         let source_transparency = if !is_sunlight
             && block_emits_torch_at(source_block, vx, vy, vz, space, color)
         {
             ALL_TRANSPARENT
         } else {
-            source_block.get_rotated_transparency(&space.get_voxel_rotation(vx, vy, vz))
+            source_block.get_rotated_transparency(&source_rotation)
         };
 
         for (direction_index, [ox, oy, oz]) in VOXEL_NEIGHBORS.iter().copied().enumerate() {
@@ -203,8 +212,7 @@ pub fn flood_light(
                 }
             }
 
-            let n_block = block_at(registry, space, nvx, nvy, nvz);
-            let n_rotation = space.get_voxel_rotation(nvx, nvy, nvz);
+            let (n_block, n_rotation) = block_and_rotation_at(registry, space, nvx, nvy, nvz);
             let n_transparency = n_block.get_rotated_transparency(&n_rotation);
 
             let reduce = if is_sunlight
@@ -276,9 +284,8 @@ pub fn remove_light(
                 continue;
             }
 
-            let n_block = block_at(registry, space, nvx, nvy, nvz);
-            let n_transparency =
-                n_block.get_rotated_transparency(&space.get_voxel_rotation(nvx, nvy, nvz));
+            let (n_block, n_rotation) = block_and_rotation_at(registry, space, nvx, nvy, nvz);
+            let n_transparency = n_block.get_rotated_transparency(&n_rotation);
 
             if (is_sunlight
                 || !block_emits_torch_at(n_block, nvx, nvy, nvz, space, color))
@@ -375,9 +382,8 @@ pub fn remove_lights<I>(
                 continue;
             }
 
-            let n_block = block_at(registry, space, nvx, nvy, nvz);
-            let n_transparency =
-                n_block.get_rotated_transparency(&space.get_voxel_rotation(nvx, nvy, nvz));
+            let (n_block, n_rotation) = block_and_rotation_at(registry, space, nvx, nvy, nvz);
+            let n_transparency = n_block.get_rotated_transparency(&n_rotation);
 
             if (is_sunlight
                 || !block_emits_torch_at(n_block, nvx, nvy, nvz, space, color))
@@ -449,7 +455,8 @@ pub fn propagate(
                 let vz = start_z + z as i32;
                 let voxel_pos = [vx, y, vz];
 
-                let block = block_at(registry, space, vx, y, vz);
+                let raw_voxel = space.get_raw_voxel(vx, y, vz);
+                let block = registry.get_block_by_id(raw_voxel & 0xFFFF);
                 let red_level = block.get_torch_light_level_at(&voxel_pos, space, &LightColor::Red);
                 let green_level =
                     block.get_torch_light_level_at(&voxel_pos, space, &LightColor::Green);
@@ -480,8 +487,7 @@ pub fn propagate(
                 }
 
                 let mask_index = x + z * shape_x;
-                let [px, py, pz, nx, ny, nz] = space
-                    .get_voxel_rotation(vx, y, vz)
+                let [px, py, pz, nx, ny, nz] = voxel_rotation_from_raw(raw_voxel)
                     .rotate_transparency(block.is_transparent);
 
                 if block.is_opaque {
