@@ -181,11 +181,10 @@ const getChunkShiftIfPowerOfTwo = (chunkSize: number) => {
   if (chunkSize <= 0 || chunkSize > MAX_INT32) {
     return -1;
   }
-  const chunkSizeInt = chunkSize as number;
-  if ((chunkSizeInt & (chunkSizeInt - 1)) !== 0) {
+  if ((chunkSize & (chunkSize - 1)) !== 0) {
     return -1;
   }
-  return 31 - Math.clz32(chunkSizeInt);
+  return 31 - Math.clz32(chunkSize);
 };
 const mapVoxelToChunkCoordinate = (
   voxel: number,
