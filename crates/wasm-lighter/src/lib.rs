@@ -324,12 +324,11 @@ fn parse_chunks(
                 continue;
             }
 
-            let chunk_obj = js_sys::Object::from(chunk_value);
-            let Ok(voxels_value) = Reflect::get(&chunk_obj, &keys.voxels) else {
+            let Ok(voxels_value) = Reflect::get(&chunk_value, &keys.voxels) else {
                 chunks.push(None);
                 continue;
             };
-            let Ok(lights_value) = Reflect::get(&chunk_obj, &keys.lights) else {
+            let Ok(lights_value) = Reflect::get(&chunk_value, &keys.lights) else {
                 chunks.push(None);
                 continue;
             };
