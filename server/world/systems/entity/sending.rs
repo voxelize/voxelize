@@ -12,7 +12,6 @@ use crate::{
 
 #[derive(Default)]
 pub struct EntitiesSendingSystem {
-    updated_entities_buffer: Vec<(String, Entity)>,
     new_entity_ids_buffer: HashSet<String>,
     deleted_entities_buffer: Vec<(String, String, String)>,
     known_entities_to_delete_buffer: Vec<String>,
@@ -87,7 +86,6 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         ) = data;
         let _t = timing.timer("entities-sending");
 
-        self.updated_entities_buffer.clear();
         self.new_entity_ids_buffer.clear();
         self.deleted_entities_buffer.clear();
         self.known_entities_to_delete_buffer.clear();
@@ -110,12 +108,12 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         let mut old_entities = std::mem::take(&mut bookkeeping.entities);
 
-        for (id, ent, _) in (&ids, &entities, &flags).join() {
-            let id_owned = id.0.to_owned();
+        let mut updated_entity_count = 0usize;
+        for (id, _, _) in (&ids, &entities, &flags).join() {
+            updated_entity_count += 1;
             if old_entities.remove(&id.0).is_none() {
-                self.new_entity_ids_buffer.insert(id_owned.clone());
+                self.new_entity_ids_buffer.insert(id.0.to_owned());
             }
-            self.updated_entities_buffer.push((id_owned, ent));
         }
 
         self.deleted_entities_buffer.reserve(old_entities.len());
@@ -136,12 +134,11 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         physics.entity_to_handlers = new_entity_handlers;
 
-        let mut new_bookkeeping_records =
-            HashMap::with_capacity(self.updated_entities_buffer.len());
+        let mut new_bookkeeping_records = HashMap::with_capacity(updated_entity_count);
         let mut entity_positions: HashMap<String, Vec3<f32>> =
-            HashMap::with_capacity(self.updated_entities_buffer.len());
+            HashMap::with_capacity(updated_entity_count);
         let mut entity_metadata_map: HashMap<String, (String, String, bool)> =
-            HashMap::with_capacity(self.updated_entities_buffer.len());
+            HashMap::with_capacity(updated_entity_count);
 
         for (ent, id, metadata, etype, _, do_not_persist, position, voxel) in (
             &entities,
