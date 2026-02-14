@@ -801,6 +801,10 @@ impl<'a> VoxelSpace<'a> {
         if vy < 0 {
             return None;
         }
+        let ly = vy as usize;
+        if ly >= chunk.shape[1] {
+            return None;
+        }
         let (lx, lz) = if self.chunk_size_is_pow2 {
             (
                 (vx & self.chunk_size_mask) as usize,
@@ -812,11 +816,6 @@ impl<'a> VoxelSpace<'a> {
                 vz.rem_euclid(self.chunk_size) as usize,
             )
         };
-        let ly = vy as usize;
-
-        if ly >= chunk.shape[1] {
-            return None;
-        }
 
         let index = lx * chunk.shape[1] * chunk.shape[2] + ly * chunk.shape[2] + lz;
         if index < chunk.voxels.len() {
