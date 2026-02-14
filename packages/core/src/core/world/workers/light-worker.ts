@@ -327,6 +327,23 @@ const normalizePendingBatchMessages = () => {
   }
 };
 
+const drainPendingBatchMessagesAsEmptyResults = () => {
+  if (!hasPendingBatchMessages()) {
+    return;
+  }
+  const start = pendingBatchMessagesHead;
+  const end = pendingBatchMessages.length;
+  for (let i = start; i < end; i++) {
+    const pendingMessage = pendingBatchMessages[i];
+    postEmptyBatchResult(
+      pendingMessage.jobId,
+      pendingMessage.lastRelevantSequenceId
+    );
+  }
+  pendingBatchMessages.length = 0;
+  pendingBatchMessagesHead = 0;
+};
+
 const postEmptyBatchResult = (jobId: string, lastSequenceId = 0) => {
   const appliedDeltas = getAppliedDeltasPayload(lastSequenceId);
   reusableBatchResultMessage.jobId = jobId;
@@ -991,23 +1008,23 @@ onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
       await ensureWasmInitialized();
     }
 
-    const wasmRegistry = convertRegistryToWasm((message as InitMessage).registryData);
+    const registryData = (message as InitMessage).registryData;
+    if (
+      !registryData ||
+      typeof registryData !== "object" ||
+      !Array.isArray(registryData.blocksById)
+    ) {
+      registryInitialized = false;
+      registryInitializationFailed = true;
+      drainPendingBatchMessagesAsEmptyResults();
+      return;
+    }
+
+    const wasmRegistry = convertRegistryToWasm(registryData);
     registryInitialized = set_registry(wasmRegistry);
     registryInitializationFailed = !registryInitialized;
     if (!registryInitialized) {
-      if (hasPendingBatchMessages()) {
-        const start = pendingBatchMessagesHead;
-        const end = pendingBatchMessages.length;
-        for (let i = start; i < end; i++) {
-          const pendingMessage = pendingBatchMessages[i];
-          postEmptyBatchResult(
-            pendingMessage.jobId,
-            pendingMessage.lastRelevantSequenceId
-          );
-        }
-        pendingBatchMessages.length = 0;
-        pendingBatchMessagesHead = 0;
-      }
+      drainPendingBatchMessagesAsEmptyResults();
       return;
     }
 
