@@ -136,13 +136,23 @@ impl LightBlock {
     }
 
     #[inline]
+    pub(crate) fn has_static_torch_mask(&self, color_mask: u8) -> bool {
+        (self.static_torch_mask & color_mask) != 0
+    }
+
+    #[inline]
+    pub(crate) fn has_dynamic_torch_mask(&self, color_mask: u8) -> bool {
+        (self.dynamic_torch_mask & color_mask) != 0
+    }
+
+    #[inline]
     pub fn has_static_torch_color(&self, color: &LightColor) -> bool {
-        (self.static_torch_mask & Self::color_mask(color)) != 0
+        self.has_static_torch_mask(Self::color_mask(color))
     }
 
     #[inline]
     pub fn has_dynamic_torch_color(&self, color: &LightColor) -> bool {
-        (self.dynamic_torch_mask & Self::color_mask(color)) != 0
+        self.has_dynamic_torch_mask(Self::color_mask(color))
     }
 
     pub fn recompute_flags(&mut self) {

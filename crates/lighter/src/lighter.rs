@@ -122,6 +122,16 @@ fn block_and_rotation_at<'a>(
 }
 
 #[inline]
+fn torch_color_mask(color: &LightColor) -> u8 {
+    match color {
+        LightColor::Red => 1 << 0,
+        LightColor::Green => 1 << 1,
+        LightColor::Blue => 1 << 2,
+        LightColor::Sunlight => 0,
+    }
+}
+
+#[inline]
 fn block_emits_torch_at(
     block: &LightBlock,
     vx: i32,
@@ -129,12 +139,13 @@ fn block_emits_torch_at(
     vz: i32,
     space: &dyn LightVoxelAccess,
     color: &LightColor,
+    color_mask: u8,
 ) -> bool {
-    if block.has_static_torch_color(color) {
+    if block.has_static_torch_mask(color_mask) {
         return true;
     }
 
-    if !block.has_dynamic_torch_color(color) {
+    if !block.has_dynamic_torch_mask(color_mask) {
         return false;
     }
 
@@ -170,6 +181,7 @@ fn flood_light_from_nodes(
     registry: &LightRegistry,
 ) {
     let is_sunlight = *color == LightColor::Sunlight;
+    let color_mask = if is_sunlight { 0 } else { torch_color_mask(color) };
     let chunk_size = config.chunk_size;
     let chunk_shift = resolve_chunk_shift(chunk_size);
     let [start_cx, start_cz] = config.min_chunk;
@@ -194,7 +206,7 @@ fn flood_light_from_nodes(
         let [vx, vy, vz] = voxel;
         let (source_block, source_rotation) = block_and_rotation_at(registry, space, vx, vy, vz);
         let source_transparency = if !is_sunlight
-            && block_emits_torch_at(source_block, vx, vy, vz, space, color)
+            && block_emits_torch_at(source_block, vx, vy, vz, space, color, color_mask)
         {
             ALL_TRANSPARENT
         } else {
@@ -323,6 +335,7 @@ fn collect_refill_nodes_after_removals(
 ) -> Vec<LightNode> {
     let mut fill = Vec::<LightNode>::with_capacity(remove.len());
     let mut head = 0usize;
+    let color_mask = if is_sunlight { 0 } else { torch_color_mask(color) };
 
     while head < remove.len() {
         let LightNode { voxel, level } = remove[head];
@@ -346,7 +359,7 @@ fn collect_refill_nodes_after_removals(
                 if !can_enter_into_direction(&n_transparency, direction_index) {
                     continue;
                 }
-            } else if !block_emits_torch_at(n_block, nvx, nvy, nvz, space, color)
+            } else if !block_emits_torch_at(n_block, nvx, nvy, nvz, space, color, color_mask)
                 && !can_enter_into_direction(&n_transparency, direction_index)
             {
                 continue;
