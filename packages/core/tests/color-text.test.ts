@@ -103,4 +103,21 @@ describe("ColorText.split", () => {
       ColorText.SPLITTER = previousSplitter;
     }
   });
+
+  it("supports multi-character splitters across matched and unmatched tokens", () => {
+    const previousSplitter = ColorText.SPLITTER;
+    ColorText.SPLITTER = "::";
+    try {
+      expect(ColorText.split("::green::Hello::yellow::World", "black")).toEqual([
+        { color: "green", text: "Hello" },
+        { color: "yellow", text: "World" },
+      ]);
+      expect(ColorText.split("lead::green::trail::blue", "black")).toEqual([
+        { color: "black", text: "lead" },
+        { color: "green", text: "trail::blue" },
+      ]);
+    } finally {
+      ColorText.SPLITTER = previousSplitter;
+    }
+  });
 });
