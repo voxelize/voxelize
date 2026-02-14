@@ -28,6 +28,14 @@ describe("ChunkUtils.mapVoxelToChunkAt", () => {
   });
 });
 
+describe("ChunkUtils.mapVoxelToChunkLocal", () => {
+  it("keeps invalid chunk sizes from producing NaN local coords", () => {
+    expect(ChunkUtils.mapVoxelToChunkLocal([3, 5, -8], 0)).toEqual([0, 5, 0]);
+    expect(ChunkUtils.mapVoxelToChunkLocal([3, 5, -8], Number.NaN)).toEqual([0, 5, 0]);
+    expect(ChunkUtils.mapVoxelToChunkLocal([3, 5, -8], Number.POSITIVE_INFINITY)).toEqual([0, 5, 0]);
+  });
+});
+
 describe("ChunkUtils.parseChunkNameAt", () => {
   it("keeps compatibility with extra separator segments", () => {
     expect(ChunkUtils.parseChunkNameAt("1|2|3")).toEqual([1, 2]);

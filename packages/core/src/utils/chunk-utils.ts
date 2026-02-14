@@ -33,6 +33,9 @@ const mapVoxelToChunkCoordinate = (
     ? voxel >> chunkShift
     : Math.floor(voxel / chunkSize);
 
+const normalizeChunkSize = (chunkSize: number) =>
+  Number.isFinite(chunkSize) && chunkSize > 0 ? chunkSize : 1;
+
 /**
  * A utility class for all things related to chunks and chunk coordinates.
  *
@@ -257,10 +260,11 @@ export class ChunkUtils {
     voxelPos: Coords3,
     chunkSize: number
   ): Coords3 => {
+    const normalizedChunkSize = normalizeChunkSize(chunkSize);
     const [cx, cz] = ChunkUtils.mapVoxelToChunk(voxelPos, chunkSize);
     const [vx, vy, vz] = voxelPos;
 
-    return [vx - cx * chunkSize, vy, vz - cz * chunkSize];
+    return [vx - cx * normalizedChunkSize, vy, vz - cz * normalizedChunkSize];
   };
 
   /**
