@@ -228,7 +228,8 @@ expected payload shape (`voxel.id`, `voxel.stage`, `voxel.rotation.value`,
 (`voxel.id` in `0..65535`, `voxel.stage`/light channels in `0..15`, rotation
 axis in `0..5`) and ordered AABB bounds (`min <= max` on each axis).
 When `examplePayloadValid` is `false`, `examplePayloadIssues` and
-`examplePayloadIssueCount` identify the failing payload paths.
+`examplePayloadIssueCount` identify the failing payload paths. Issue paths are
+normalized (trimmed + deduplicated) before reporting.
 If `ruleMatched=false` and payload issues are both present, ts-core failure
 messages include both conditions for faster debugging.
 
