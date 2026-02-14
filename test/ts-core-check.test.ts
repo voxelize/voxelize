@@ -452,6 +452,88 @@ describe("check-ts-core script", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("resolves trailing inline output values after strict no-build aliases", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "ts-core-check-inline-last-output-strict-alias-")
+    );
+    const outputPath = path.join(tempDirectory, "report.json");
+    const result = runScript([
+      "--json",
+      "--output",
+      "--verify",
+      `--output=${outputPath}`,
+    ]);
+    const report = parseReport(result);
+    const fileReport = JSON.parse(
+      fs.readFileSync(outputPath, "utf8")
+    ) as TsCoreCheckReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.validationErrorCode).toBeNull();
+    expect(report.noBuild).toBe(true);
+    expect(report.outputPath).toBe(outputPath);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--json", "--no-build", "--output"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual([
+      "--json",
+      "--output",
+      "--verify",
+      `--output=${outputPath}`,
+    ]);
+    expect(report.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+      {
+        token: `--output=${outputPath}`,
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 1,
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+        index: 2,
+      },
+      {
+        token: `--output=${outputPath}`,
+        canonicalOption: "--output",
+        index: 3,
+      },
+    ]);
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(fileReport).toEqual(report);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("reports output write failures with details", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "ts-core-check-output-write-failure-")
