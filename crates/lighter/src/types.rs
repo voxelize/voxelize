@@ -79,6 +79,9 @@ impl LightBounds {
     pub fn contains_xz(&self, vx: i32, vz: i32) -> bool {
         let [start_x, _, start_z] = self.min;
         let [shape_x, _, shape_z] = self.shape;
+        if shape_x == 0 || shape_z == 0 {
+            return false;
+        }
 
         let start_x_i64 = i64::from(start_x);
         let start_z_i64 = i64::from(start_z);

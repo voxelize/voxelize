@@ -838,4 +838,19 @@ mod tests {
         assert!(!bounds.contains_xz(9, 20));
         assert!(!bounds.contains_xz(10, 19));
     }
+
+    #[test]
+    fn light_bounds_contains_xz_returns_false_for_empty_shapes() {
+        let empty_x_bounds = LightBounds {
+            min: [10, 0, 20],
+            shape: [0, 1, 10],
+        };
+        let empty_z_bounds = LightBounds {
+            min: [10, 0, 20],
+            shape: [10, 1, 0],
+        };
+
+        assert!(!empty_x_bounds.contains_xz(10, 20));
+        assert!(!empty_z_bounds.contains_xz(10, 20));
+    }
 }
