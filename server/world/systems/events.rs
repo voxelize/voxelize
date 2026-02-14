@@ -126,7 +126,7 @@ impl<'a> System<'a> for EventsSystem {
             if let Some(filter) = filter {
                 if let ClientFilter::Direct(id) = &filter {
                     send_to_id(id);
-                    return;
+                    continue;
                 }
 
                 match &filter {
