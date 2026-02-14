@@ -285,6 +285,17 @@ type WasmPackNestedReport = {
   failureSummaryCount: number;
   message?: string;
 };
+type WasmMesherNestedReport = {
+  schemaVersion: number;
+  artifactPath: string;
+  outputPath: string | null;
+  wasmPackCheckCommand: string;
+  wasmPackCheckArgs: string[];
+  wasmPackCheckArgCount: number;
+  wasmPackCheckExitCode: number | null;
+  wasmPackCheckOutputLine: string | null;
+  wasmPackCheckReport: WasmPackNestedReport | null;
+};
 type ClientNestedStep = {
   name: string;
   scriptName: string;
@@ -294,7 +305,11 @@ type ClientNestedStep = {
   checkArgCount: number;
   stepIndex: number;
   passed: boolean;
+  exitCode: number | null;
   skipped: boolean;
+  reason: string | null;
+  report: WasmMesherNestedReport | null;
+  output: string | null;
 };
 type ClientNestedReport = {
   availableSteps: string[];
@@ -1100,6 +1115,7 @@ type PreflightReport = {
 const testDir = fileURLToPath(new URL(".", import.meta.url));
 const rootDir = path.resolve(testDir, "..");
 const preflightScript = path.resolve(rootDir, "check-preflight.mjs");
+const rootWasmPackCheckScript = path.resolve(rootDir, "check-wasm-pack.mjs");
 const expectedAvailableCheckAliases = {
   devEnvironment: [
     "devEnvironment",
@@ -3061,6 +3077,41 @@ const expectClientNestedReport = (checkReport: object | null) => {
   for (const step of report.steps) {
     expect(step.checkCommand.length).toBeGreaterThan(0);
     expect(step.checkArgCount).toBe(step.checkArgs.length);
+  }
+  const wasmArtifactStep = report.steps.find((step) => {
+    return step.name === "WASM artifact preflight";
+  });
+  expect(wasmArtifactStep).toBeDefined();
+  if (wasmArtifactStep !== undefined && wasmArtifactStep.report !== null) {
+    expect(wasmArtifactStep.report.schemaVersion).toBe(1);
+    expect(wasmArtifactStep.report.artifactPath).toBe(
+      "crates/wasm-mesher/pkg/voxelize_wasm_mesher.js"
+    );
+    expect(wasmArtifactStep.report.outputPath).toBeNull();
+    expect(wasmArtifactStep.report.wasmPackCheckCommand).toBe(process.execPath);
+    expect(wasmArtifactStep.report.wasmPackCheckArgs).toEqual([
+      rootWasmPackCheckScript,
+      "--json",
+      "--compact",
+    ]);
+    expect(wasmArtifactStep.report.wasmPackCheckArgCount).toBe(
+      wasmArtifactStep.report.wasmPackCheckArgs.length
+    );
+    expect(wasmArtifactStep.report.wasmPackCheckArgCount).toBe(3);
+    if (wasmArtifactStep.report.wasmPackCheckExitCode === null) {
+      expect(wasmArtifactStep.report.wasmPackCheckOutputLine).toBeNull();
+      expect(wasmArtifactStep.report.wasmPackCheckReport).toBeNull();
+    } else {
+      if (wasmArtifactStep.report.wasmPackCheckOutputLine !== null) {
+        expect(wasmArtifactStep.report.wasmPackCheckOutputLine.length).toBeGreaterThan(0);
+      }
+      if (wasmArtifactStep.report.wasmPackCheckReport !== null) {
+        expect(wasmArtifactStep.report.wasmPackCheckExitCode).toBe(
+          wasmArtifactStep.report.wasmPackCheckReport.exitCode
+        );
+        expectWasmPackNestedReport(wasmArtifactStep.report.wasmPackCheckReport);
+      }
+    }
   }
   expect(report.totalSteps).toBe(report.steps.length);
   expect(report.passedSteps.length).toBe(report.passedStepCount);
