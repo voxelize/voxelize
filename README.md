@@ -174,6 +174,8 @@ pnpm run check:ts-core:verify:json
 pnpm run check:ts-core:verify:json:compact
 # verify + json output written to file
 pnpm run check:ts-core:verify:json -- --output ./ts-core-verify-report.json
+# full release-readiness workflow (build + tests + e2e example + verify report)
+pnpm run check:ts-core:release
 # direct cli alias also works: node ./check-ts-core.mjs --verify
 # ts-core checks verify these artifact paths:
 # - packages/ts-core/dist/index.js

@@ -108,6 +108,7 @@
     "check:ts-core:verify": "node ./check-ts-core.mjs --verify",
     "check:ts-core:verify:json": "node ./check-ts-core.mjs --json --verify",
     "check:ts-core:verify:json:compact": "node ./check-ts-core.mjs --json --verify --compact",
+    "check:ts-core:release": "pnpm --filter @voxelize/ts-core run build && pnpm --filter @voxelize/ts-core run test && pnpm --filter @voxelize/ts-core run example:end-to-end && pnpm run check:ts-core:verify:json",
     "test:rust": "cargo test --test mesher_tests --test lights_tests",
     "test:rust:all": "cargo test --lib --tests",
     "bench": "cargo bench --bench mesher_bench --bench lights_bench",
