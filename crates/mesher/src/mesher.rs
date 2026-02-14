@@ -3321,12 +3321,12 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
 
                             let key = FaceKey {
                                 block_id: block.id,
-                                face_name: if face.independent {
+                                face_name: if face.independent && face_index.is_none() {
                                     Some(face_name_owned(face))
                                 } else {
                                     None
                                 },
-                                face_index: -1,
+                                face_index: face_index.unwrap_or(-1),
                                 independent: face.independent,
                                 ao: aos,
                                 light: lights,
