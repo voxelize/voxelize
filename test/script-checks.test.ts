@@ -7034,6 +7034,7 @@ describe("root preflight scripts", () => {
     expect(report.message).toBe(
       "Unsupported option(s): --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
     );
+    expectClientWasmPackCheckSummaryMetadata(report);
     expectActiveCliOptionMetadata(
       report,
       ["--json"],
@@ -8812,6 +8813,7 @@ describe("root preflight scripts", () => {
     expect(report.message).toBe(
       "Unsupported option(s): --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
     );
+    expectOnboardingClientWasmPackCheckSummaryMetadata(report);
     expectActiveCliOptionMetadata(
       report,
       ["--json"],
