@@ -22,6 +22,11 @@ const normalizeFiniteNonNegativeLimit = (value: number): number => {
   return Math.max(0, Math.floor(value));
 };
 
+const incrementRetryCountSafely = (retryCount: number) =>
+  retryCount >= Number.MAX_SAFE_INTEGER
+    ? Number.MAX_SAFE_INTEGER
+    : retryCount + 1;
+
 export class ChunkPipeline {
   private states = new Map<string, ChunkStage>();
   private indices: Record<StageType, Set<string>> = {
@@ -68,7 +73,7 @@ export class ChunkPipeline {
   incrementRetry(name: string): number {
     const state = this.states.get(name);
     if (state?.stage === "requested") {
-      state.retryCount++;
+      state.retryCount = incrementRetryCountSafely(state.retryCount);
       return state.retryCount;
     }
     return 0;
@@ -109,7 +114,7 @@ export class ChunkPipeline {
       return false;
     }
 
-    state.retryCount++;
+    state.retryCount = incrementRetryCountSafely(state.retryCount);
     if (state.retryCount > rerequestLimit) {
       this.indices.requested.delete(name);
       this.states.delete(name);
