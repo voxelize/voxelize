@@ -113,6 +113,7 @@ const availableCheckAliases = {
     "ts-core",
     "ts_core",
     "tscore",
+    "typescript",
     "typescript-core",
     "typescript_core",
     "typescriptcore",

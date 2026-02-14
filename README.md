@@ -239,7 +239,7 @@ pnpm run check:preflight:all-checks:json
 pnpm run check:preflight:all-checks:verify:json
 # run only specific checks (available: devEnvironment, wasmPack, tsCore, client)
 pnpm run check:preflight:json -- --only devEnvironment,client
-# aliases and case-insensitive names are supported (for example: dev/dev-env/dev_env, wasm/wasm-pack/wasm_pack, ts/ts-core/ts_core/tscore/typescript-core/typescript_core/typescriptcore, CLIENT, all/all-checks/all_checks/allchecks)
+# aliases and case-insensitive names are supported (for example: dev/dev-env/dev_env, wasm/wasm-pack/wasm_pack, ts/ts-core/ts_core/tscore/typescript/typescript-core/typescript_core/typescriptcore, CLIENT, all/all-checks/all_checks/allchecks)
 # selected checks are normalized to the standard aggregate order
 # run pre-defined single-check aggregate reports
 pnpm run check:preflight:dev-env:json
