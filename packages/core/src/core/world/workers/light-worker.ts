@@ -516,8 +516,8 @@ const hasPotentialRelevantDeltaBatches = (
     deltaBatches.length > 1 && cellCount <= MAX_CHUNK_VALIDITY_MEMO_LENGTH
       ? getChunkValidityMemo(cellCount)
       : null;
-  const chunkValidityTouched = chunkValidity ? reusableChunkValidityTouched : null;
-  if (chunkValidityTouched) {
+  const chunkValidityTouched = reusableChunkValidityTouched;
+  if (chunkValidity) {
     chunkValidityTouched.length = 0;
   }
   const chunkValiditySparse =
@@ -567,7 +567,7 @@ const hasPotentialRelevantDeltaBatches = (
           ? 1
           : -1;
         chunkValidity[chunkIndex] = chunkValidityState;
-        chunkValidityTouched?.push(chunkIndex);
+        chunkValidityTouched.push(chunkIndex);
       }
       if (chunkValidityState === -1) {
         continue;
@@ -633,9 +633,7 @@ const hasPotentialRelevantDeltaBatches = (
         const deltaChunkX = mapVoxelToChunkCoordinate(vx, chunkSize, chunkShift);
         const deltaChunkZ = mapVoxelToChunkCoordinate(vz, chunkSize, chunkShift);
         if (deltaChunkX === cx && deltaChunkZ === cz) {
-          if (chunkValidityTouched) {
-            resetChunkValidityMemo(chunkValidity, chunkValidityTouched);
-          }
+          resetChunkValidityMemo(chunkValidity, chunkValidityTouched);
           if (chunkValiditySparse) {
             chunkValiditySparse.clear();
           }
@@ -644,7 +642,7 @@ const hasPotentialRelevantDeltaBatches = (
       }
     }
   }
-  if (chunkValidityTouched) {
+  if (chunkValidity) {
     resetChunkValidityMemo(chunkValidity, chunkValidityTouched);
   }
   if (chunkValiditySparse) {
