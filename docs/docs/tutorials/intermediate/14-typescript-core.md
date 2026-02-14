@@ -206,6 +206,7 @@ For release automation and CI routing, aggregate preflight JSON reports include:
 
 - check-selection diagnostics: `selectionMode`, `requestedChecks`,
   `requestedCheckResolutions`, `requestedCheckResolutionCounts`,
+  `requestedCheckResolutionKinds`, `requestedCheckResolutionKindCount`,
   `requestedCheckResolvedChecks`, `requestedCheckResolvedScripts`,
   `requestedCheckResolvedScriptMap`,
   `requestedCheckResolvedSupportsNoBuildMap`,
@@ -233,7 +234,13 @@ For release automation and CI routing, aggregate preflight JSON reports include:
   `availableCheckIndices`,
   `availableCheckIndexMap`, `availableCheckIndexMapCount`,
   `availableCheckMetadata`, `availableCheckMetadataCount`,
-  `availableCheckAliases`
+  `availableCheckAliases`, `availableCheckAliasGroupCount`,
+  `availableCheckAliasTokenCount`, `availableSpecialCheckSelectors`,
+  `availableSpecialCheckSelectorCount`, `availableSpecialCheckAliases`,
+  `availableSpecialCheckAliasGroupCount`,
+  `availableSpecialCheckAliasTokenCount`,
+  `availableSpecialSelectorResolvedChecks`,
+  `availableSpecialSelectorResolvedChecksCount`
 
 Each aggregate `checks[]` entry also includes `scriptName`,
 `supportsNoBuild`, and `checkIndex`.

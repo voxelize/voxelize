@@ -246,18 +246,25 @@ type PreflightReport = {
     runtimeLibraries: string[];
     client: string[];
   };
+  availableCheckAliasGroupCount: number;
+  availableCheckAliasTokenCount: number;
   availableSpecialCheckSelectors: string[];
+  availableSpecialCheckSelectorCount: number;
   availableSpecialCheckAliases: {
     all: string[];
     libraries: string[];
   };
+  availableSpecialCheckAliasGroupCount: number;
+  availableSpecialCheckAliasTokenCount: number;
   availableSpecialSelectorResolvedChecks: {
     all: string[];
     libraries: string[];
   };
+  availableSpecialSelectorResolvedChecksCount: number;
   requestedCheckResolutionKinds: Array<
     RequestedCheckResolution["kind"]
   >;
+  requestedCheckResolutionKindCount: number;
   passedChecks: string[];
   failedChecks: string[];
   failureSummaries: PreflightFailureSummary[];
@@ -835,6 +842,49 @@ const expectAvailableCheckInventoryMetadata = (report: PreflightReport) => {
     Object.keys(report.availableCheckMetadata).length
   );
 };
+const expectSelectorAndAliasMetadata = (report: PreflightReport) => {
+  expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
+  expect(report.availableCheckAliasGroupCount).toBe(
+    Object.keys(report.availableCheckAliases).length
+  );
+  expect(report.availableCheckAliasTokenCount).toBe(
+    Object.values(report.availableCheckAliases).reduce((count, aliases) => {
+      return count + aliases.length;
+    }, 0)
+  );
+  expect(report.availableSpecialCheckSelectors).toEqual(
+    expectedAvailableSpecialCheckSelectors
+  );
+  expect(report.availableSpecialCheckSelectorCount).toBe(
+    report.availableSpecialCheckSelectors.length
+  );
+  expect(report.availableSpecialCheckAliases).toEqual(
+    expectedAvailableSpecialCheckAliases
+  );
+  expect(report.availableSpecialCheckAliasGroupCount).toBe(
+    Object.keys(report.availableSpecialCheckAliases).length
+  );
+  expect(report.availableSpecialCheckAliasTokenCount).toBe(
+    Object.values(report.availableSpecialCheckAliases).reduce(
+      (count, aliases) => {
+        return count + aliases.length;
+      },
+      0
+    )
+  );
+  expect(report.availableSpecialSelectorResolvedChecks).toEqual(
+    expectedAvailableSpecialSelectorResolvedChecks
+  );
+  expect(report.availableSpecialSelectorResolvedChecksCount).toBe(
+    Object.keys(report.availableSpecialSelectorResolvedChecks).length
+  );
+  expect(report.requestedCheckResolutionKinds).toEqual(
+    expectedRequestedCheckResolutionKinds
+  );
+  expect(report.requestedCheckResolutionKindCount).toBe(
+    report.requestedCheckResolutionKinds.length
+  );
+};
 const expectTsCoreNestedReport = (
   checkReport: object | null,
   expectedNoBuild: boolean
@@ -1066,16 +1116,7 @@ describe("preflight aggregate report", () => {
     expect(typeof report.endedAt).toBe("string");
     expect(report.durationMs).toBeGreaterThanOrEqual(0);
     expectAvailableCheckInventoryMetadata(report);
-    expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
-    expect(report.availableSpecialCheckSelectors).toEqual(
-      expectedAvailableSpecialCheckSelectors
-    );
-    expect(report.availableSpecialCheckAliases).toEqual(
-      expectedAvailableSpecialCheckAliases
-    );
-    expect(report.availableSpecialSelectorResolvedChecks).toEqual(
-      expectedAvailableSpecialSelectorResolvedChecks
-    );
+    expectSelectorAndAliasMetadata(report);
     expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
     expect(report.supportedCliOptionCount).toBe(
       report.supportedCliOptions.length
@@ -1100,9 +1141,6 @@ describe("preflight aggregate report", () => {
     );
     expect(report.availableCliOptionCanonicalMap).toEqual(
       expectedAvailableCliOptionCanonicalMap
-    );
-    expect(report.requestedCheckResolutionKinds).toEqual(
-      expectedRequestedCheckResolutionKinds
     );
     expect(report.selectionMode).toBe("default");
     expect(report.specialSelectorsUsed).toEqual([]);
@@ -6479,7 +6517,7 @@ describe("preflight aggregate report", () => {
     expect(report.platform).toBe(process.platform);
     expect(report.nodeVersion).toBe(process.version);
     expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
-    expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
+    expectSelectorAndAliasMetadata(report);
     expect(typeof report.endedAt).toBe("string");
     expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
     expect(report.supportedCliOptionCount).toBe(
@@ -6497,15 +6535,6 @@ describe("preflight aggregate report", () => {
     expect(report.invalidChecks).toEqual([]);
     expect(report.requestedChecks).toEqual([]);
     expect(report.requestedCheckResolutions).toEqual([]);
-    expect(report.availableSpecialCheckAliases).toEqual(
-      expectedAvailableSpecialCheckAliases
-    );
-    expect(report.availableSpecialSelectorResolvedChecks).toEqual(
-      expectedAvailableSpecialSelectorResolvedChecks
-    );
-    expect(report.requestedCheckResolutionKinds).toEqual(
-      expectedRequestedCheckResolutionKinds
-    );
     expect(result.status).toBe(1);
   });
 
@@ -6686,13 +6715,7 @@ describe("preflight aggregate report", () => {
     expect(report.selectionMode).toBe("default");
     expect(report.specialSelectorsUsed).toEqual([]);
     expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
-    expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
-    expect(report.availableSpecialCheckSelectors).toEqual(
-      expectedAvailableSpecialCheckSelectors
-    );
-    expect(report.availableSpecialCheckAliases).toEqual(
-      expectedAvailableSpecialCheckAliases
-    );
+    expectSelectorAndAliasMetadata(report);
     expect(report.message).toBe("Missing value for --output option.");
     expect(report.invalidChecks).toEqual([]);
     expect(report.requestedChecks).toEqual([]);
@@ -6780,19 +6803,7 @@ describe("preflight aggregate report", () => {
       invalid: 1,
     });
     expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
-    expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
-    expect(report.availableSpecialCheckSelectors).toEqual(
-      expectedAvailableSpecialCheckSelectors
-    );
-    expect(report.availableSpecialCheckAliases).toEqual(
-      expectedAvailableSpecialCheckAliases
-    );
-    expect(report.availableSpecialSelectorResolvedChecks).toEqual(
-      expectedAvailableSpecialSelectorResolvedChecks
-    );
-    expect(report.requestedCheckResolutionKinds).toEqual(
-      expectedRequestedCheckResolutionKinds
-    );
+    expectSelectorAndAliasMetadata(report);
     expect(result.status).toBe(1);
   });
 
@@ -6834,18 +6845,7 @@ describe("preflight aggregate report", () => {
       invalid: 0,
     });
     expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
-    expect(report.availableSpecialCheckAliases).toEqual(
-      expectedAvailableSpecialCheckAliases
-    );
-    expect(report.availableSpecialSelectorResolvedChecks).toEqual(
-      expectedAvailableSpecialSelectorResolvedChecks
-    );
-    expect(report.requestedCheckResolutionKinds).toEqual(
-      expectedRequestedCheckResolutionKinds
-    );
-    expect(report.availableSpecialCheckSelectors).toEqual(
-      expectedAvailableSpecialCheckSelectors
-    );
+    expectSelectorAndAliasMetadata(report);
     expect(result.status).toBe(1);
   });
 
@@ -6875,19 +6875,7 @@ describe("preflight aggregate report", () => {
       expectedEmptyRequestedCheckResolutionCounts
     );
     expectAvailableCheckInventoryMetadata(report);
-    expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
-    expect(report.availableSpecialCheckAliases).toEqual(
-      expectedAvailableSpecialCheckAliases
-    );
-    expect(report.availableSpecialSelectorResolvedChecks).toEqual(
-      expectedAvailableSpecialSelectorResolvedChecks
-    );
-    expect(report.requestedCheckResolutionKinds).toEqual(
-      expectedRequestedCheckResolutionKinds
-    );
-    expect(report.availableSpecialCheckSelectors).toEqual(
-      expectedAvailableSpecialCheckSelectors
-    );
+    expectSelectorAndAliasMetadata(report);
     expect(result.status).toBe(1);
   });
 
@@ -6916,7 +6904,7 @@ describe("preflight aggregate report", () => {
       expectedEmptyRequestedCheckResolutionCounts
     );
     expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
-    expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
+    expectSelectorAndAliasMetadata(report);
     expect(result.status).toBe(1);
   });
 
@@ -6956,19 +6944,7 @@ describe("preflight aggregate report", () => {
     });
     expect(report.availableChecks).toEqual(expectedAvailableChecks);
     expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
-    expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
-    expect(report.availableSpecialCheckAliases).toEqual(
-      expectedAvailableSpecialCheckAliases
-    );
-    expect(report.availableSpecialSelectorResolvedChecks).toEqual(
-      expectedAvailableSpecialSelectorResolvedChecks
-    );
-    expect(report.requestedCheckResolutionKinds).toEqual(
-      expectedRequestedCheckResolutionKinds
-    );
-    expect(report.availableSpecialCheckSelectors).toEqual(
-      expectedAvailableSpecialCheckSelectors
-    );
+    expectSelectorAndAliasMetadata(report);
     expect(result.status).toBe(1);
   });
 

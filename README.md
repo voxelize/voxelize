@@ -424,11 +424,12 @@ Aggregate preflight reports include `activeCliOptionOccurrenceCount` for quick c
 Aggregate preflight reports include `availableCliOptionAliases` to map canonical options (such as `--list-checks`) to accepted aliases (`--list`, `-l`).
 Aggregate preflight reports include `availableCliOptionCanonicalMap` so automation can resolve each supported option token to its canonical option.
 Aggregate preflight reports include `optionTerminatorUsed`, `positionalArgs`, and `positionalArgCount` to describe positional arguments supplied after `--`.
-Aggregate preflight reports include `availableCheckAliases` so automation can map user-facing aliases to canonical check names.
+Aggregate preflight reports include `availableCheckAliases`, `availableCheckAliasGroupCount`, and `availableCheckAliasTokenCount` so automation can map user-facing aliases to canonical check names and quickly validate alias inventory cardinality.
 Aggregate preflight reports include `availableCheckMetadata`/`availableCheckMetadataCount` with script mapping and no-build support per canonical check.
 Aggregate preflight reports include `availableCheckScripts`/`availableCheckScriptCount`, `availableCheckScriptMap`/`availableCheckScriptMapCount`, `availableCheckSupportsNoBuildMap`/`availableCheckSupportsNoBuildMapCount`, `availableCheckIndices`/`availableCheckIndexCount`, and `availableCheckIndexMap`/`availableCheckIndexMapCount` for direct canonical check-to-script/index lookup.
-Aggregate preflight reports include `availableSpecialCheckSelectors` for quick checks against supported special selector names.
-Aggregate preflight reports include `availableSpecialCheckAliases` for non-check selectors such as `all`.
+Aggregate preflight reports include `availableSpecialCheckSelectors` and `availableSpecialCheckSelectorCount` for quick checks against supported special selector names.
+Aggregate preflight reports include `availableSpecialCheckAliases`, `availableSpecialCheckAliasGroupCount`, and `availableSpecialCheckAliasTokenCount` for non-check selectors such as `all`.
+Aggregate preflight reports include `availableSpecialSelectorResolvedChecks` and `availableSpecialSelectorResolvedChecksCount` so automation can inspect how each special selector expands to canonical checks.
 Aggregate preflight reports include `requestedChecks` so CI logs can capture the exact `--only` inputs after tokenization.
 Aggregate preflight reports include `selectionMode` (`default` or `only`) to show whether selection came from defaults or an explicit `--only` filter.
 Aggregate preflight reports include `specialSelectorsUsed` to show which special selector names (for example `all`) were used in `--only`.
@@ -440,7 +441,7 @@ Aggregate preflight reports include `failureSummaries` and `failureSummaryCount`
 Each `checks[]` entry in aggregate preflight reports includes `scriptName`, `supportsNoBuild`, and `checkIndex` so execution records can be correlated with canonical check metadata.
 Aggregate preflight reports include `requestedCheckResolutions` to map each `--only` token to its resolved check, special selector, or invalid status.
 Aggregate preflight reports include `requestedCheckResolvedChecks`/`requestedCheckResolvedCheckCount`, `requestedCheckResolvedScripts`/`requestedCheckResolvedScriptCount`, `requestedCheckResolvedScriptMap`/`requestedCheckResolvedScriptMapCount`, `requestedCheckResolvedSupportsNoBuildMap`/`requestedCheckResolvedSupportsNoBuildMapCount`, `requestedCheckResolvedIndices`/`requestedCheckResolvedIndexCount`, `requestedCheckResolvedIndexMap`/`requestedCheckResolvedIndexMapCount`, and `requestedCheckResolvedMetadata`/`requestedCheckResolvedMetadataCount` to summarize canonical checks resolved from `--only` tokens.
-Aggregate preflight reports include `requestedCheckResolutionKinds` to enumerate supported resolution kinds for `requestedCheckResolutions`.
+Aggregate preflight reports include `requestedCheckResolutionKinds` and `requestedCheckResolutionKindCount` to enumerate supported resolution kinds for `requestedCheckResolutions`.
 Aggregate preflight reports include `listChecksOnly` to indicate metadata-only check listing mode (`--list-checks`) where no checks are executed.
 When `--only` is omitted, `requestedChecks` is an empty array and `selectedChecks` contains the default aggregate checks.
 When `--output` validation fails, `requestedChecks` still reflects parsed `--only` tokens for easier debugging.

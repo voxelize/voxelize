@@ -181,12 +181,29 @@ const availableCheckAliases = {
   ],
   client: ["client"],
 };
+const availableCheckAliasGroupCount = countRecordEntries(availableCheckAliases);
+const availableCheckAliasTokenCount = Object.values(availableCheckAliases).reduce(
+  (count, aliases) => {
+    return count + aliases.length;
+  },
+  0
+);
 const availableSpecialCheckAliases = {
   all: ["all", "all-checks", "all_checks", "allchecks"],
   libraries: ["libraries", "library", "libs", "lib"],
 };
 const availableSpecialCheckSelectors = Object.keys(availableSpecialCheckAliases);
+const availableSpecialCheckSelectorCount = availableSpecialCheckSelectors.length;
+const availableSpecialCheckAliasGroupCount = countRecordEntries(
+  availableSpecialCheckAliases
+);
+const availableSpecialCheckAliasTokenCount = Object.values(
+  availableSpecialCheckAliases
+).reduce((count, aliases) => {
+  return count + aliases.length;
+}, 0);
 const requestedCheckResolutionKinds = ["check", "specialSelector", "invalid"];
+const requestedCheckResolutionKindCount = requestedCheckResolutionKinds.length;
 const specialSelectorChecks = {
   all: availableCheckNames,
   libraries: ["tsCore", "runtimeLibraries"],
@@ -196,6 +213,9 @@ const availableSpecialSelectorResolvedChecks = Object.fromEntries(
     const selectorChecks = specialSelectorChecks[selector];
     return [selector, selectorChecks === undefined ? [] : selectorChecks];
   })
+);
+const availableSpecialSelectorResolvedChecksCount = countRecordEntries(
+  availableSpecialSelectorResolvedChecks
 );
 const specialSelectorHintText = availableSpecialCheckSelectors
   .map((selector) => {
@@ -666,10 +686,17 @@ if (
     availableCheckMetadata,
     availableCheckMetadataCount,
     availableCheckAliases,
+    availableCheckAliasGroupCount,
+    availableCheckAliasTokenCount,
     availableSpecialCheckSelectors,
+    availableSpecialCheckSelectorCount,
     availableSpecialCheckAliases,
+    availableSpecialCheckAliasGroupCount,
+    availableSpecialCheckAliasTokenCount,
     availableSpecialSelectorResolvedChecks,
+    availableSpecialSelectorResolvedChecksCount,
     requestedCheckResolutionKinds,
+    requestedCheckResolutionKindCount,
   });
   const { reportJson } = serializeReportWithOptionalWrite(report, {
     jsonFormat,
@@ -795,10 +822,17 @@ if (isListChecks) {
     availableCheckMetadata,
     availableCheckMetadataCount,
     availableCheckAliases,
+    availableCheckAliasGroupCount,
+    availableCheckAliasTokenCount,
     availableSpecialCheckSelectors,
+    availableSpecialCheckSelectorCount,
     availableSpecialCheckAliases,
+    availableSpecialCheckAliasGroupCount,
+    availableSpecialCheckAliasTokenCount,
     availableSpecialSelectorResolvedChecks,
+    availableSpecialSelectorResolvedChecksCount,
     requestedCheckResolutionKinds,
+    requestedCheckResolutionKindCount,
   });
   const { reportJson, writeError } = serializeReportWithOptionalWrite(report, {
     jsonFormat,
@@ -933,10 +967,17 @@ const report = buildTimedReport({
   availableCheckMetadata,
   availableCheckMetadataCount,
   availableCheckAliases,
+  availableCheckAliasGroupCount,
+  availableCheckAliasTokenCount,
   availableSpecialCheckSelectors,
+  availableSpecialCheckSelectorCount,
   availableSpecialCheckAliases,
+  availableSpecialCheckAliasGroupCount,
+  availableSpecialCheckAliasTokenCount,
   availableSpecialSelectorResolvedChecks,
+  availableSpecialSelectorResolvedChecksCount,
   requestedCheckResolutionKinds,
+  requestedCheckResolutionKindCount,
 });
 const { reportJson, writeError } = serializeReportWithOptionalWrite(report, {
   jsonFormat,
