@@ -616,7 +616,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
     return;
   }
   const hasFloods = floods.length > 0;
-  const bounds = message.boundingBox;
+  const bounds = boundingBox;
   const boundsMin = bounds?.min;
   const boundsShape = bounds?.shape;
   if (
