@@ -320,6 +320,248 @@ describe("check-runtime-libraries script", () => {
     expect(fileReport.requiredArtifactCount).toBe(expectedRequiredArtifactCount);
   });
 
+  it("writes unsupported-option validation reports to trailing output paths", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "runtime-libraries-check-validation-output-")
+    );
+    const firstOutputPath = path.join(tempDirectory, "first-report.json");
+    const secondOutputPath = path.join(tempDirectory, "second-report.json");
+    const result = runScript([
+      "--json",
+      "--output",
+      firstOutputPath,
+      "--verify=1",
+      "--output",
+      secondOutputPath,
+    ]);
+    const report = parseReport(result);
+    const fileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as RuntimeLibrariesCheckReport;
+
+    expect(result.status).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.outputPath).toBe(secondOutputPath);
+    expect(report.unknownOptions).toEqual(["--no-build=<value>"]);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(report.activeCliOptions).toEqual(["--json", "--output"]);
+    expect(report.activeCliOptionTokens).toEqual(["--json", "--output"]);
+    expect(report.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 1,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 4,
+      },
+    ]);
+    expect(fileReport).toEqual(report);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+  });
+
+  it("reports validation output write failures with details", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "runtime-libraries-check-validation-write-failure-")
+    );
+    const result = runScript([
+      "--json",
+      "--verify=1",
+      "--output",
+      tempDirectory,
+    ]);
+    const report = parseReport(result);
+    const failurePrefix = `Failed to write report to ${tempDirectory}.`;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.outputPath).toBe(tempDirectory);
+    expect(report.unknownOptions).toEqual(["--no-build=<value>"]);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(report.writeError).toContain(failurePrefix);
+    expect(report.message).toContain(failurePrefix);
+    expect(result.status).toBe(1);
+  });
+
+  it("keeps trailing output paths when no-build aliases appear between output flags", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "runtime-libraries-check-last-output-strict-no-build-alias-"
+      )
+    );
+    const firstOutputPath = path.join(tempDirectory, "first-report.json");
+    const secondOutputPath = path.join(tempDirectory, "second-report.json");
+    const result = runScript([
+      "--json",
+      "--output",
+      firstOutputPath,
+      "--verify",
+      "--output",
+      secondOutputPath,
+    ]);
+    const report = parseReport(result);
+    const fileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as RuntimeLibrariesCheckReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.outputPath).toBe(secondOutputPath);
+    expect(report.validationErrorCode).toBeNull();
+    expect(report.noBuild).toBe(true);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--json", "--no-build", "--output"]);
+    expect(report.activeCliOptionTokens).toEqual(["--json", "--output", "--verify"]);
+    expect(report.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+    ]);
+    expect(report.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 1,
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+        index: 3,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 4,
+      },
+    ]);
+    expect(fileReport).toEqual(report);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
+  it("resolves trailing inline output values after strict no-build aliases", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "runtime-libraries-check-inline-last-output-strict-alias-"
+      )
+    );
+    const outputPath = path.join(tempDirectory, "report.json");
+    const result = runScript([
+      "--json",
+      "--output",
+      "--verify",
+      `--output=${outputPath}`,
+    ]);
+    const report = parseReport(result);
+    const fileReport = JSON.parse(
+      fs.readFileSync(outputPath, "utf8")
+    ) as RuntimeLibrariesCheckReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.validationErrorCode).toBeNull();
+    expect(report.noBuild).toBe(true);
+    expect(report.outputPath).toBe(outputPath);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--json", "--no-build", "--output"]);
+    expect(report.activeCliOptionTokens).toEqual([
+      "--json",
+      "--output",
+      "--verify",
+      `--output=${outputPath}`,
+    ]);
+    expect(report.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+      {
+        token: `--output=${outputPath}`,
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(report.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 1,
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+        index: 2,
+      },
+      {
+        token: `--output=${outputPath}`,
+        canonicalOption: "--output",
+        index: 3,
+      },
+    ]);
+    expect(fileReport).toEqual(report);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
+  it("reports output write failures with details", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "runtime-libraries-check-output-write-failure-")
+    );
+    const result = runScript(["--json", "--output", tempDirectory]);
+    const report = parseReport(result);
+    const failurePrefix = `Failed to write report to ${tempDirectory}.`;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBeNull();
+    expect(report.outputPath).toBe(tempDirectory);
+    expect(report.writeError).toContain(failurePrefix);
+    expect(report.message).toContain(failurePrefix);
+    if (report.message !== undefined) {
+      expect(report.message.length).toBeGreaterThan(failurePrefix.length);
+    }
+    expect(result.status).toBe(1);
+  });
+
   it("reports missing artifacts in no-build mode", () => {
     const missingArtifactPath = "packages/aabb/dist/index.js";
     runWithTemporarilyMovedArtifact(missingArtifactPath, () => {
