@@ -135,6 +135,7 @@ const reusableSerializedChunks: SerializedWasmChunk[] = [];
 const reusableChunkGrid: (RawChunk | null)[] = [];
 const reusableChunkShape: [number, number, number] = [0, 0, 0];
 const emptyModifiedChunks: WorkerModifiedChunk[] = [];
+const emptyChunkGrid: (RawChunk | null)[] = [];
 const emptyAppliedDeltas = { lastSequenceId: 0 };
 const reusablePostMessageOptions: StructuredSerializeOptions = {
   transfer: emptyTransferList,
@@ -432,6 +433,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
   let lastSequenceId = 0;
   const serializedChunks = reusableSerializedChunks;
   const hasPotentialRelevantDelta = relevantDeltas.length > 0;
+  const chunkGrid = hasPotentialRelevantDelta ? reusableChunkGrid : emptyChunkGrid;
 
   if (!hasPotentialRelevantDelta) {
     const hasAnyChunk = serializeChunksData(
@@ -447,7 +449,6 @@ const processBatchMessage = (message: LightBatchMessage) => {
       return;
     }
   } else {
-    const chunkGrid = reusableChunkGrid;
     const hasAnyChunk = deserializeChunkGrid(
       chunksData,
       gridWidth,
@@ -502,6 +503,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
 
   const modifiedChunkCount = wasmResult.modifiedChunks.length;
   if (modifiedChunkCount === 0) {
+    chunkGrid.length = 0;
     postMessage({
       jobId,
       modifiedChunks: emptyModifiedChunks,
@@ -542,6 +544,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
   );
   modifiedChunks.length = 0;
   transferBuffers.length = 0;
+  chunkGrid.length = 0;
   reusablePostMessageOptions.transfer = emptyTransferList;
 };
 
