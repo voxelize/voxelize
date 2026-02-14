@@ -1,12 +1,64 @@
+use std::sync::OnceLock;
+
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 use voxelize_core::{BlockRotation, BlockRule, BlockRuleLogic, LightColor, LightUtils};
 
 const DENSE_LOOKUP_MAX_GROWTH_FACTOR: usize = 8;
+const ROTATION_VARIANT_COUNT: usize = 6;
+const Y_ROTATION_SEGMENT_COUNT: usize = 16;
+const TRANSPARENCY_ROTATION_MAP_COUNT: usize = ROTATION_VARIANT_COUNT * Y_ROTATION_SEGMENT_COUNT;
 const RED_TORCH_MASK: u8 = 1 << 0;
 const GREEN_TORCH_MASK: u8 = 1 << 1;
 const BLUE_TORCH_MASK: u8 = 1 << 2;
 const ALL_TORCH_MASKS: u8 = RED_TORCH_MASK | GREEN_TORCH_MASK | BLUE_TORCH_MASK;
+static TRANSPARENCY_ROTATION_MAPS: OnceLock<
+    [[usize; 6]; TRANSPARENCY_ROTATION_MAP_COUNT],
+> = OnceLock::new();
+
+#[inline]
+fn transparency_source_index(marker: f32) -> usize {
+    if marker == 1.0 {
+        0
+    } else if marker == 2.0 {
+        1
+    } else if marker == 3.0 {
+        2
+    } else if marker == 4.0 {
+        3
+    } else if marker == 5.0 {
+        4
+    } else {
+        5
+    }
+}
+
+fn build_transparency_rotation_maps() -> [[usize; 6]; TRANSPARENCY_ROTATION_MAP_COUNT] {
+    let mut maps = [[0usize; 6]; TRANSPARENCY_ROTATION_MAP_COUNT];
+    for rotation_value in 0..ROTATION_VARIANT_COUNT {
+        for y_rotation in 0..Y_ROTATION_SEGMENT_COUNT {
+            let rotation = BlockRotation::encode(rotation_value as u32, y_rotation as u32);
+            let mut positive = [1.0, 2.0, 3.0];
+            let mut negative = [4.0, 5.0, 6.0];
+            rotation.rotate_node(&mut positive, true, false);
+            rotation.rotate_node(&mut negative, true, false);
+            maps[rotation_value * Y_ROTATION_SEGMENT_COUNT + y_rotation] = [
+                transparency_source_index(positive[0]),
+                transparency_source_index(positive[1]),
+                transparency_source_index(positive[2]),
+                transparency_source_index(negative[0]),
+                transparency_source_index(negative[1]),
+                transparency_source_index(negative[2]),
+            ];
+        }
+    }
+    maps
+}
+
+#[inline]
+fn transparency_rotation_maps() -> &'static [[usize; 6]; TRANSPARENCY_ROTATION_MAP_COUNT] {
+    TRANSPARENCY_ROTATION_MAPS.get_or_init(build_transparency_rotation_maps)
+}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -112,44 +164,32 @@ impl Default for LightBlock {
 
 impl LightBlock {
     #[inline]
-    fn sample_transparency_marker(marker: f32, [px, py, pz, nx, ny, nz]: [bool; 6]) -> bool {
-        if marker == 1.0 {
-            px
-        } else if marker == 2.0 {
-            py
-        } else if marker == 3.0 {
-            pz
-        } else if marker == 4.0 {
-            nx
-        } else if marker == 5.0 {
-            ny
+    fn normalize_rotation_value(rotation_value: u32) -> usize {
+        if rotation_value < ROTATION_VARIANT_COUNT as u32 {
+            rotation_value as usize
         } else {
-            nz
+            0
         }
     }
 
-    fn rotate_transparency_no_alloc(
-        rotation: &BlockRotation,
+    #[inline]
+    fn transparency_rotation_index(rotation_value: u32, y_rotation: u32) -> usize {
+        Self::normalize_rotation_value(rotation_value) * Y_ROTATION_SEGMENT_COUNT
+            + (y_rotation as usize & (Y_ROTATION_SEGMENT_COUNT - 1))
+    }
+
+    #[inline]
+    fn apply_transparency_rotation_map(
         transparency: [bool; 6],
+        map: &[usize; 6],
     ) -> [bool; 6] {
-        if let BlockRotation::PY(rot) = rotation {
-            if rot.abs() < f32::EPSILON {
-                return transparency;
-            }
-        }
-
-        let mut positive = [1.0, 2.0, 3.0];
-        let mut negative = [4.0, 5.0, 6.0];
-        rotation.rotate_node(&mut positive, true, false);
-        rotation.rotate_node(&mut negative, true, false);
-
         [
-            Self::sample_transparency_marker(positive[0], transparency),
-            Self::sample_transparency_marker(positive[1], transparency),
-            Self::sample_transparency_marker(positive[2], transparency),
-            Self::sample_transparency_marker(negative[0], transparency),
-            Self::sample_transparency_marker(negative[1], transparency),
-            Self::sample_transparency_marker(negative[2], transparency),
+            transparency[map[0]],
+            transparency[map[1]],
+            transparency[map[2]],
+            transparency[map[3]],
+            transparency[map[4]],
+            transparency[map[5]],
         ]
     }
 
@@ -278,7 +318,10 @@ impl LightBlock {
         if self.has_uniform_transparency {
             self.is_transparent
         } else {
-            Self::rotate_transparency_no_alloc(rotation, self.is_transparent)
+            let (rotation_value, y_rotation) = BlockRotation::decode(rotation);
+            let map_index = Self::transparency_rotation_index(rotation_value, y_rotation);
+            let map = &transparency_rotation_maps()[map_index];
+            Self::apply_transparency_rotation_map(self.is_transparent, map)
         }
     }
 
@@ -287,10 +330,10 @@ impl LightBlock {
         if self.has_uniform_transparency {
             self.is_transparent
         } else {
-            Self::rotate_transparency_no_alloc(
-                &BlockRotation::encode((raw_voxel >> 16) & 0xF, (raw_voxel >> 20) & 0xF),
-                self.is_transparent,
-            )
+            let map_index =
+                Self::transparency_rotation_index((raw_voxel >> 16) & 0xF, (raw_voxel >> 20) & 0xF);
+            let map = &transparency_rotation_maps()[map_index];
+            Self::apply_transparency_rotation_map(self.is_transparent, map)
         }
     }
 
