@@ -19,8 +19,10 @@ impl ChunkUtils {
 
     /// Parse a chunk coordinate from a chunk representation.
     pub fn parse_chunk_name(name: &str) -> Vec2<i32> {
-        let vec = name.split(get_concat()).collect::<Vec<&str>>();
-        Vec2(vec[0].parse().unwrap(), vec[1].parse().unwrap())
+        let (raw_x, raw_z) = name
+            .split_once(get_concat())
+            .expect("Invalid chunk name format");
+        Vec2(raw_x.parse().unwrap(), raw_z.parse().unwrap())
     }
 
     /// Generate a voxel representation from a voxel coordinate.
@@ -32,11 +34,14 @@ impl ChunkUtils {
     /// Parse a voxel coordinate from a voxel representation.
     pub fn parse_voxel_name(name: &str) -> Vec3<i32> {
         let concat = get_concat();
-        let vec = name.split(concat).collect::<Vec<&str>>();
+        let mut segments = name.split(concat);
+        let raw_x = segments.next().expect("Invalid voxel name format");
+        let raw_y = segments.next().expect("Invalid voxel name format");
+        let raw_z = segments.next().expect("Invalid voxel name format");
         Vec3(
-            vec[0].parse().unwrap(),
-            vec[1].parse().unwrap(),
-            vec[2].parse().unwrap(),
+            raw_x.parse().unwrap(),
+            raw_y.parse().unwrap(),
+            raw_z.parse().unwrap(),
         )
     }
 
