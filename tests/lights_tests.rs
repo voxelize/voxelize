@@ -296,6 +296,36 @@ fn test_space_set_raw_light_handles_dense_sub_chunk_partitions() {
 }
 
 #[test]
+fn test_space_set_raw_light_rejects_coords_outside_loaded_chunk_shape() {
+    let config = WorldConfig {
+        chunk_size: 16,
+        max_height: 16,
+        max_light_level: 15,
+        min_chunk: [0, 0],
+        max_chunk: [0, 0],
+        saving: false,
+        ..Default::default()
+    };
+    let mut chunks = Chunks::new(&config);
+    chunks.add(Chunk::new(
+        "chunk-0-0",
+        0,
+        0,
+        &ChunkOptions {
+            size: 8,
+            max_height: 8,
+            sub_chunks: 1,
+        },
+    ));
+
+    let mut space = chunks.make_space(&Vec2(0, 0), 1).needs_lights().build();
+    space.updated_levels.clear();
+
+    assert!(!space.set_raw_light(12, 12, 0, 1));
+    assert!(space.updated_levels.is_empty());
+}
+
+#[test]
 fn test_chunk_updated_levels_stay_in_bounds_for_irregular_partitions() {
     let mut chunk = Chunk::new(
         "chunk-irregular",

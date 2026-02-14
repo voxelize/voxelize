@@ -312,14 +312,17 @@ impl VoxelAccess for Space {
             panic!("Space does not contain light data.");
         }
 
-        if !self.contains(vx, vy, vz) {
+        if vy < 0 || vy >= self.options.max_height as i32 {
             return false;
         }
 
-        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, self.options.chunk_size);
+        let chunk_size = self.options.chunk_size;
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
         if let Some(lights) = self.lights.get_mut(&coords) {
-            let Vec3(lx, ly, lz) =
-                ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, self.options.chunk_size);
+            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            if !lights.contains(&[lx, ly, lz]) {
+                return false;
+            }
             if lights[&[lx, ly, lz]] == level {
                 return true;
             }
