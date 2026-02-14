@@ -95,7 +95,8 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         let (entity_visible_radius, entity_visible_radius_sq) =
             normalized_visible_radius(config.entity_visible_radius);
 
-        let mut new_entity_handlers = HashMap::new();
+        let old_entity_handlers = std::mem::take(&mut physics.entity_to_handlers);
+        let mut new_entity_handlers = HashMap::with_capacity(old_entity_handlers.len());
 
         for (ent, interactor) in (&entities, &interactors).join() {
             new_entity_handlers.insert(
@@ -116,8 +117,6 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             }
             self.updated_entities_buffer.push((id_owned, ent));
         }
-
-        let old_entity_handlers = std::mem::take(&mut physics.entity_to_handlers);
 
         self.deleted_entities_buffer.reserve(old_entities.len());
 
