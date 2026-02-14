@@ -3330,6 +3330,8 @@ describe("report-utils", () => {
         exampleAttempted: true,
         exampleRuleMatched: true,
         examplePayloadValid: true,
+        examplePayloadIssues: ["voxel.id"],
+        examplePayloadIssueCount: 12,
         exampleExitCode: 0,
       })
     ).toEqual({
