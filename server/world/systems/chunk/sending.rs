@@ -26,7 +26,11 @@ fn take_updated_level_range(updated_levels: &mut HashSet<u32>) -> Option<(u32, u
         min_level = min_level.min(level);
         max_level = max_level.max(level);
     }
-    Some((min_level, max_level.saturating_add(1)))
+    let max_level_exclusive = max_level.saturating_add(1);
+    if max_level_exclusive <= min_level {
+        return None;
+    }
+    Some((min_level, max_level_exclusive))
 }
 
 impl<'a> System<'a> for ChunkSendingSystem {
@@ -183,9 +187,6 @@ mod tests {
     fn take_updated_level_range_saturates_exclusive_max() {
         let mut levels = HashSet::new();
         levels.insert(u32::MAX);
-        assert_eq!(
-            take_updated_level_range(&mut levels),
-            Some((u32::MAX, u32::MAX))
-        );
+        assert_eq!(take_updated_level_range(&mut levels), None);
     }
 }
