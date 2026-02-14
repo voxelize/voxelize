@@ -295,6 +295,7 @@ const deserializeChunkGrid = (
     }
     const chunkOptions = chunkData.options;
     if (
+      !chunkOptions ||
       !isPositiveInteger(chunkOptions.size) ||
       !isPositiveInteger(chunkOptions.maxHeight) ||
       chunkOptions.size !== expectedChunkSize ||
@@ -487,6 +488,7 @@ const serializeChunksData = (
     }
     const chunkOptions = chunkData.options;
     if (
+      !chunkOptions ||
       !isPositiveInteger(chunkOptions.size) ||
       !isPositiveInteger(chunkOptions.maxHeight) ||
       chunkOptions.size !== expectedChunkSize ||
