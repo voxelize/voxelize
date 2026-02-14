@@ -610,7 +610,9 @@ pub fn process_light_batch_fast(
     if removal_nodes.is_empty() && flood_nodes.is_empty() {
         return empty_batch_result();
     }
-    if has_invalid_flood_bounds(flood_nodes.len(), bounds_min.len(), bounds_shape) {
+    if !flood_nodes.is_empty()
+        && has_invalid_flood_bounds(flood_nodes.len(), bounds_min.len(), bounds_shape)
+    {
         return empty_batch_result();
     }
     let (chunks, has_any_chunk) = parse_chunks(chunks_data, expected_chunk_count, expected_chunk_len);
