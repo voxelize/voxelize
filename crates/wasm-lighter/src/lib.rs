@@ -17,10 +17,6 @@ thread_local! {
 struct JsInteropKeys {
     voxels: JsValue,
     lights: JsValue,
-    shape: JsValue,
-    shape0: JsValue,
-    shape1: JsValue,
-    shape2: JsValue,
     length: JsValue,
     modified_chunks: JsValue,
     coords: JsValue,
@@ -31,10 +27,6 @@ impl JsInteropKeys {
         Self {
             voxels: JsValue::from_str("voxels"),
             lights: JsValue::from_str("lights"),
-            shape: JsValue::from_str("shape"),
-            shape0: JsValue::from_f64(0.0),
-            shape1: JsValue::from_f64(1.0),
-            shape2: JsValue::from_f64(2.0),
             length: JsValue::from_str("length"),
             modified_chunks: JsValue::from_str("modifiedChunks"),
             coords: JsValue::from_str("coords"),
@@ -282,10 +274,15 @@ struct ModifiedChunkData {
     lights: Vec<u32>,
 }
 
-fn parse_chunks(chunks_data: &Array) -> Vec<Option<ChunkData>> {
+fn parse_chunks(chunks_data: &Array, chunk_size: i32, max_height: i32) -> Vec<Option<ChunkData>> {
     JS_KEYS.with(|keys| {
         let chunk_count = chunks_data.length() as usize;
         let mut chunks = Vec::with_capacity(chunk_count);
+        let shape = [
+            chunk_size.max(0) as usize,
+            max_height.max(0) as usize,
+            chunk_size.max(0) as usize,
+        ];
 
         for index in 0..chunk_count {
             let chunk_value = chunks_data.get(index as u32);
@@ -299,8 +296,6 @@ fn parse_chunks(chunks_data: &Array) -> Vec<Option<ChunkData>> {
                 .expect("chunksData item is missing voxels");
             let lights_value = Reflect::get(&chunk_obj, &keys.lights)
                 .expect("chunksData item is missing lights");
-            let shape_value =
-                Reflect::get(&chunk_obj, &keys.shape).expect("chunksData item is missing shape");
             let voxels_array: Uint32Array = voxels_value
                 .dyn_into()
                 .expect("chunksData voxels must be Uint32Array");
@@ -311,20 +306,6 @@ fn parse_chunks(chunks_data: &Array) -> Vec<Option<ChunkData>> {
             let mut lights = vec![0; lights_array.length() as usize];
             voxels_array.copy_to(&mut voxels);
             lights_array.copy_to(&mut lights);
-            let shape = [
-                Reflect::get(&shape_value, &keys.shape0)
-                    .expect("shape[0] must be present")
-                    .as_f64()
-                    .expect("shape[0] must be number") as usize,
-                Reflect::get(&shape_value, &keys.shape1)
-                    .expect("shape[1] must be present")
-                    .as_f64()
-                    .expect("shape[1] must be number") as usize,
-                Reflect::get(&shape_value, &keys.shape2)
-                    .expect("shape[2] must be present")
-                    .as_f64()
-                    .expect("shape[2] must be number") as usize,
-            ];
 
             chunks.push(Some(ChunkData {
                 voxels,
@@ -367,7 +348,7 @@ pub fn process_light_batch_fast(
     max_height: i32,
     max_light_level: u32,
 ) -> JsValue {
-    let chunks = parse_chunks(chunks_data);
+    let chunks = parse_chunks(chunks_data, chunk_size, max_height);
     let mut space = BatchSpace::new(
         chunks,
         chunk_grid_width,

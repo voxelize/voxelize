@@ -116,7 +116,6 @@ type SerializedWasmChunk =
   | {
       voxels: Uint32Array;
       lights: Uint32Array;
-      shape: [number, number, number];
     }
   | null;
 
@@ -133,7 +132,6 @@ const reusableModifiedChunks: WorkerModifiedChunk[] = [];
 const reusableTransferBuffers: ArrayBuffer[] = [];
 const reusableSerializedChunks: SerializedWasmChunk[] = [];
 const reusableChunkGrid: (RawChunk | null)[] = [];
-const reusableChunkShape: [number, number, number] = [0, 0, 0];
 const emptyModifiedChunks: WorkerModifiedChunk[] = [];
 const emptyChunkGrid: (RawChunk | null)[] = [];
 const emptyAppliedDeltas = { lastSequenceId: 0 };
@@ -356,7 +354,6 @@ const serializeChunkGrid = (
   chunkGrid: (RawChunk | null)[],
   gridWidth: number,
   gridDepth: number,
-  chunkShape: [number, number, number],
   serialized: SerializedWasmChunk[]
 ) => {
   const cellCount = gridWidth * gridDepth;
@@ -372,7 +369,6 @@ const serializeChunkGrid = (
     serialized[index] = {
       voxels: chunk.voxels.data,
       lights: chunk.lights.data,
-      shape: chunkShape,
     };
   }
 };
@@ -381,7 +377,6 @@ const serializeChunksData = (
   chunksData: (SerializedRawChunk | null)[],
   gridWidth: number,
   gridDepth: number,
-  chunkShape: [number, number, number],
   serialized: SerializedWasmChunk[]
 ): boolean => {
   const cellCount = gridWidth * gridDepth;
@@ -403,7 +398,6 @@ const serializeChunksData = (
       lights: chunkData.lights.byteLength
         ? new Uint32Array(chunkData.lights)
         : emptyUint32Array,
-      shape: chunkShape,
     };
   }
 
@@ -431,10 +425,6 @@ const processBatchMessage = (message: LightBatchMessage) => {
     postEmptyBatchResult(jobId, 0);
     return;
   }
-  reusableChunkShape[0] = options.chunkSize;
-  reusableChunkShape[1] = options.maxHeight;
-  reusableChunkShape[2] = options.chunkSize;
-  const chunkShape = reusableChunkShape;
 
   if (lightOps.removals.length === 0 && lightOps.floods.length === 0) {
     postEmptyBatchResult(jobId, lastRelevantSequenceId);
@@ -451,7 +441,6 @@ const processBatchMessage = (message: LightBatchMessage) => {
       chunksData,
       gridWidth,
       gridDepth,
-      chunkShape,
       serializedChunks
     );
     if (!hasAnyChunk) {
@@ -483,7 +472,6 @@ const processBatchMessage = (message: LightBatchMessage) => {
       chunkGrid,
       gridWidth,
       gridDepth,
-      chunkShape,
       serializedChunks
     );
     chunkGrid.length = 0;
