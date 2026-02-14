@@ -23,7 +23,9 @@ const normalizeFiniteNonNegativeLimit = (value: number): number => {
 };
 
 const incrementRetryCountSafely = (retryCount: number) =>
-  retryCount >= Number.MAX_SAFE_INTEGER
+  !Number.isSafeInteger(retryCount) || retryCount < 0
+    ? 1
+    : retryCount >= Number.MAX_SAFE_INTEGER
     ? Number.MAX_SAFE_INTEGER
     : retryCount + 1;
 

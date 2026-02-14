@@ -161,4 +161,18 @@ describe("ChunkPipeline.shouldRequestAt", () => {
     expect(pipeline.shouldRequestAt(9, 10, Number.POSITIVE_INFINITY)).toBe(false);
     expect(pipeline.getRetryCount(name)).toBe(Number.MAX_SAFE_INTEGER);
   });
+
+  it("normalizes invalid retry counters before incrementing", () => {
+    const pipeline = new ChunkPipeline();
+    pipeline.markRequestedAt(11, 12);
+    const name = ChunkUtils.getChunkNameAt(11, 12);
+    const requested = pipeline.getRequestedCoords(name);
+    if (!requested) {
+      throw new Error("Expected requested stage for invalid retry normalization test");
+    }
+
+    requested.retryCount = Number.NaN;
+    expect(pipeline.incrementRetry(name)).toBe(1);
+    expect(pipeline.getRetryCount(name)).toBe(1);
+  });
 });
