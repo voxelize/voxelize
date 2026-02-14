@@ -184,6 +184,15 @@ const summarizeCheckResults = (results) => {
     return check.label;
   });
   const checkIndexMap = mapChecksToIndexMap(results);
+  const checkCommandMap = mapChecksToRecord(results, (check) => {
+    return check.command;
+  });
+  const checkArgsMap = mapChecksToRecord(results, (check) => {
+    return check.args;
+  });
+  const checkArgCountMap = mapChecksToRecord(results, (check) => {
+    return check.args.length;
+  });
   const checkStatusMap = mapChecksToRecord(results, (check) => {
     return check.status;
   });
@@ -300,6 +309,12 @@ const summarizeCheckResults = (results) => {
     checkIndexCount: checkIndices.length,
     checkIndexMap,
     checkIndexMapCount: countRecordEntries(checkIndexMap),
+    checkCommandMap,
+    checkCommandMapCount: countRecordEntries(checkCommandMap),
+    checkArgsMap,
+    checkArgsMapCount: countRecordEntries(checkArgsMap),
+    checkArgCountMap,
+    checkArgCountMapCount: countRecordEntries(checkArgCountMap),
     checkStatusMap,
     checkStatusMapCount: countRecordEntries(checkStatusMap),
     checkStatusCountMap,
@@ -464,6 +479,8 @@ for (const check of checks) {
 
   checkResults.push({
     label: check.label,
+    command: check.command,
+    args: [...check.args],
     required: check.required,
     status,
     message,

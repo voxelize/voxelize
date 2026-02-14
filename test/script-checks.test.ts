@@ -114,6 +114,8 @@ type WasmPackJsonReport = OptionTerminatorMetadata &
 
 type DevEnvJsonCheck = {
   label: string;
+  command: string;
+  args: string[];
   required: boolean;
   status: string;
   message: string;
@@ -151,6 +153,12 @@ type DevEnvJsonReport = OptionTerminatorMetadata &
   checkIndexCount: number;
   checkIndexMap: Record<string, number>;
   checkIndexMapCount: number;
+  checkCommandMap: Record<string, string>;
+  checkCommandMapCount: number;
+  checkArgsMap: Record<string, string[]>;
+  checkArgsMapCount: number;
+  checkArgCountMap: Record<string, number>;
+  checkArgCountMapCount: number;
   checkStatusMap: Record<string, string>;
   checkStatusMapCount: number;
   checkStatusCountMap: Record<string, number>;
@@ -1359,6 +1367,21 @@ const expectDevEnvCheckMetadata = (report: DevEnvJsonReport) => {
     );
   };
   const expectedCheckIndices = mapCheckLabelsToIndices(expectedCheckLabels);
+  const expectedCheckCommandMap = Object.fromEntries(
+    report.checks.map((check) => {
+      return [check.label, check.command];
+    })
+  );
+  const expectedCheckArgsMap = Object.fromEntries(
+    report.checks.map((check) => {
+      return [check.label, check.args];
+    })
+  );
+  const expectedCheckArgCountMap = Object.fromEntries(
+    report.checks.map((check) => {
+      return [check.label, check.args.length];
+    })
+  );
   const expectedCheckStatusMap = Object.fromEntries(
     report.checks.map((check) => {
       return [check.label, check.status];
@@ -1476,6 +1499,16 @@ const expectDevEnvCheckMetadata = (report: DevEnvJsonReport) => {
   expect(report.checkIndexCount).toBe(report.checkIndices.length);
   expect(report.checkIndexMap).toEqual(expectedCheckIndexMap);
   expect(report.checkIndexMapCount).toBe(Object.keys(report.checkIndexMap).length);
+  expect(report.checkCommandMap).toEqual(expectedCheckCommandMap);
+  expect(report.checkCommandMapCount).toBe(
+    Object.keys(report.checkCommandMap).length
+  );
+  expect(report.checkArgsMap).toEqual(expectedCheckArgsMap);
+  expect(report.checkArgsMapCount).toBe(Object.keys(report.checkArgsMap).length);
+  expect(report.checkArgCountMap).toEqual(expectedCheckArgCountMap);
+  expect(report.checkArgCountMapCount).toBe(
+    Object.keys(report.checkArgCountMap).length
+  );
   expect(report.checkStatusMap).toEqual(expectedCheckStatusMap);
   expect(report.checkStatusMapCount).toBe(
     Object.keys(report.checkStatusMap).length
@@ -1551,6 +1584,10 @@ const expectDevEnvCheckMetadata = (report: DevEnvJsonReport) => {
   expect(report.failureSummaries).toEqual(expectedFailureSummaries);
   expect(report.failureSummaryCount).toBe(report.failureSummaries.length);
   expect(report.requiredFailures).toBe(report.requiredFailureCount);
+  for (const check of report.checks) {
+    expect(check.command.length).toBeGreaterThan(0);
+    expect(check.args.length).toBeGreaterThan(0);
+  }
 };
 
 const expectedCanonicalOptionForToken = (token: string) => {
