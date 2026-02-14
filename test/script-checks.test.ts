@@ -50,6 +50,39 @@ type WasmPackJsonReport = OptionTerminatorMetadata &
   exitCode: number;
   command: string;
   version: string | null;
+  availableChecks: string[];
+  availableCheckCount: number;
+  availableCheckCommandMap: Record<string, string>;
+  availableCheckCommandMapCount: number;
+  availableCheckArgsMap: Record<string, string[]>;
+  availableCheckArgsMapCount: number;
+  availableCheckArgCountMap: Record<string, number>;
+  availableCheckArgCountMapCount: number;
+  availableCheckIndexMap: Record<string, number>;
+  availableCheckIndexMapCount: number;
+  checkLabels: string[];
+  checkCount: number;
+  checkStatusMap: Record<string, string>;
+  checkStatusMapCount: number;
+  checkVersionMap: Record<string, string | null>;
+  checkVersionMapCount: number;
+  checkExitCodeMap: Record<string, number>;
+  checkExitCodeMapCount: number;
+  checkOutputLineMap: Record<string, string | null>;
+  checkOutputLineMapCount: number;
+  passedChecks: string[];
+  passedCheckCount: number;
+  failedChecks: string[];
+  failedCheckCount: number;
+  failureSummaries: Array<{
+    name: string;
+    command: string;
+    args: string[];
+    exitCode: number;
+    status: string;
+    message: string | null;
+  }>;
+  failureSummaryCount: number;
   outputPath: string | null;
   unknownOptions: string[];
   unknownOptionCount: number;
@@ -652,6 +685,111 @@ const expectOptionTerminatorMetadata = (
   expect(report.positionalArgs).toEqual(expectedPositionalArgs);
   expect(report.positionalArgCount).toBe(report.positionalArgs.length);
 };
+const expectWasmPackCheckMetadata = (report: WasmPackJsonReport) => {
+  const expectedAvailableCheckCommandMap = {
+    "wasm-pack": report.command,
+  };
+  const expectedAvailableCheckArgsMap = {
+    "wasm-pack": ["--version"],
+  };
+  const expectedAvailableCheckArgCountMap = {
+    "wasm-pack": 1,
+  };
+  const expectedAvailableCheckIndexMap = {
+    "wasm-pack": 0,
+  };
+
+  expect(report.availableChecks).toEqual(expectedWasmPackAvailableChecks);
+  expect(report.availableCheckCount).toBe(report.availableChecks.length);
+  expect(report.availableCheckCommandMap).toEqual(expectedAvailableCheckCommandMap);
+  expect(report.availableCheckCommandMapCount).toBe(
+    Object.keys(report.availableCheckCommandMap).length
+  );
+  expect(report.availableCheckArgsMap).toEqual(expectedAvailableCheckArgsMap);
+  expect(report.availableCheckArgsMapCount).toBe(
+    Object.keys(report.availableCheckArgsMap).length
+  );
+  expect(report.availableCheckArgCountMap).toEqual(expectedAvailableCheckArgCountMap);
+  expect(report.availableCheckArgCountMapCount).toBe(
+    Object.keys(report.availableCheckArgCountMap).length
+  );
+  expect(report.availableCheckIndexMap).toEqual(expectedAvailableCheckIndexMap);
+  expect(report.availableCheckIndexMapCount).toBe(
+    Object.keys(report.availableCheckIndexMap).length
+  );
+
+  if (report.checkCount === 0) {
+    expect(report.checkLabels).toEqual([]);
+    expect(report.checkStatusMap).toEqual({});
+    expect(report.checkStatusMapCount).toBe(0);
+    expect(report.checkVersionMap).toEqual({});
+    expect(report.checkVersionMapCount).toBe(0);
+    expect(report.checkExitCodeMap).toEqual({});
+    expect(report.checkExitCodeMapCount).toBe(0);
+    expect(report.checkOutputLineMap).toEqual({});
+    expect(report.checkOutputLineMapCount).toBe(0);
+    expect(report.passedChecks).toEqual([]);
+    expect(report.passedCheckCount).toBe(0);
+    expect(report.failedChecks).toEqual([]);
+    expect(report.failedCheckCount).toBe(0);
+    expect(report.failureSummaries).toEqual([]);
+    expect(report.failureSummaryCount).toBe(0);
+    return;
+  }
+
+  expect(report.checkLabels).toEqual(expectedWasmPackAvailableChecks);
+  expect(report.checkCount).toBe(report.checkLabels.length);
+  expect(report.checkStatusMapCount).toBe(Object.keys(report.checkStatusMap).length);
+  expect(report.checkVersionMapCount).toBe(
+    Object.keys(report.checkVersionMap).length
+  );
+  expect(report.checkExitCodeMapCount).toBe(
+    Object.keys(report.checkExitCodeMap).length
+  );
+  expect(report.checkOutputLineMapCount).toBe(
+    Object.keys(report.checkOutputLineMap).length
+  );
+
+  const checkStatus = report.checkStatusMap["wasm-pack"];
+  expect(checkStatus === "ok" || checkStatus === "missing" || checkStatus === "unavailable").toBe(true);
+  expect(report.checkStatusMap).toEqual({
+    "wasm-pack": checkStatus,
+  });
+  expect(report.checkVersionMap).toEqual({
+    "wasm-pack": report.version,
+  });
+  expect(report.checkExitCodeMap).toEqual({
+    "wasm-pack": report.exitCode,
+  });
+  const outputLine = report.checkOutputLineMap["wasm-pack"];
+  if (report.version !== null) {
+    expect(outputLine).toBe(report.version);
+  } else if (outputLine !== null) {
+    expect(outputLine.length).toBeGreaterThan(0);
+  }
+
+  if (checkStatus === "ok") {
+    expect(report.passedChecks).toEqual(expectedWasmPackAvailableChecks);
+    expect(report.failedChecks).toEqual([]);
+    expect(report.failureSummaries).toEqual([]);
+  } else {
+    expect(report.passedChecks).toEqual([]);
+    expect(report.failedChecks).toEqual(expectedWasmPackAvailableChecks);
+    expect(report.failureSummaries).toEqual([
+      {
+        name: "wasm-pack",
+        command: report.command,
+        args: ["--version"],
+        exitCode: report.exitCode,
+        status: checkStatus,
+        message: report.message ?? null,
+      },
+    ]);
+  }
+  expect(report.passedCheckCount).toBe(report.passedChecks.length);
+  expect(report.failedCheckCount).toBe(report.failedChecks.length);
+  expect(report.failureSummaryCount).toBe(report.failureSummaries.length);
+};
 const expectStepSummaryMetadata = (
   report: {
     availableSteps: string[];
@@ -1234,6 +1372,7 @@ const expectedNoBuildCliOptions = [
 const expectedNoBuildCliOptionAliases = {
   "--no-build": ["--verify"],
 };
+const expectedWasmPackAvailableChecks = ["wasm-pack"];
 const expectedClientAvailableSteps = [
   "WASM artifact preflight",
   "TypeScript typecheck",
@@ -1899,6 +2038,7 @@ describe("root preflight scripts", () => {
     expect(report.outputPath).toBeNull();
     expect(report.supportedCliOptions).toEqual(expectedStandardCliOptions);
     expectCliOptionCatalogMetadata(report, {}, expectedStandardCliOptions);
+    expectWasmPackCheckMetadata(report);
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
     expect(report.validationErrorCode).toBeNull();
@@ -2054,6 +2194,7 @@ describe("root preflight scripts", () => {
     expect(report.unknownOptionCount).toBe(0);
     expect(report.validationErrorCode).toBe("output_option_missing_value");
     expect(report.message).toBe("Missing value for --output option.");
+    expectWasmPackCheckMetadata(report);
     expectActiveCliOptionMetadata(
       report,
       ["--json", "--output"],

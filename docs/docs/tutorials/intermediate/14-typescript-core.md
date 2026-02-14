@@ -326,6 +326,11 @@ metadata such as `availableChecks`, `availableCheckIndexMap`,
 `availableCheckMinimumVersionMap`, `checkLabels`, `checkStatusMap`,
 `passedChecks`, `failedChecks`, `requiredFailureLabels`,
 `optionalFailureLabels`, `failureSummaries`, and associated `*Count` fields.
+WASM-pack JSON reports similarly expose single-check inventory and execution
+metadata such as `availableCheckCommandMap`, `availableCheckArgsMap`,
+`availableCheckArgCountMap`, `checkStatusMap`, `checkVersionMap`,
+`checkExitCodeMap`, `checkOutputLineMap`, `passedChecks`, `failedChecks`,
+`failureSummaries`, and companion `*Count` fields.
 
 ## API reference
 

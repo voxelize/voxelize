@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 
 import { resolveCommand } from "./scripts/command-utils.mjs";
 import {
+  countRecordEntries,
   createCliDiagnostics,
   deriveCliValidationFailureMessage,
   createTimedReportBuilder,
@@ -55,6 +56,98 @@ const validationFailureMessage = deriveCliValidationFailureMessage({
   outputPathError,
   unsupportedOptionsError,
 });
+const checkName = "wasm-pack";
+const checkArgs = ["--version"];
+const availableChecks = [checkName];
+const availableCheckCommandMap = {
+  [checkName]: wasmPackCommand,
+};
+const availableCheckArgsMap = {
+  [checkName]: checkArgs,
+};
+const availableCheckArgCountMap = {
+  [checkName]: checkArgs.length,
+};
+const availableCheckIndexMap = {
+  [checkName]: 0,
+};
+const summarizeCheckResult = ({
+  includeCheck,
+  status,
+  exitCode,
+  version,
+  outputLine,
+  message,
+}) => {
+  if (includeCheck === false) {
+    return {
+      checkLabels: [],
+      checkCount: 0,
+      checkStatusMap: {},
+      checkStatusMapCount: 0,
+      checkVersionMap: {},
+      checkVersionMapCount: 0,
+      checkExitCodeMap: {},
+      checkExitCodeMapCount: 0,
+      checkOutputLineMap: {},
+      checkOutputLineMapCount: 0,
+      passedChecks: [],
+      passedCheckCount: 0,
+      failedChecks: [],
+      failedCheckCount: 0,
+      failureSummaries: [],
+      failureSummaryCount: 0,
+    };
+  }
+
+  const checkLabels = [checkName];
+  const checkStatusMap = {
+    [checkName]: status,
+  };
+  const checkVersionMap = {
+    [checkName]: version,
+  };
+  const checkExitCodeMap = {
+    [checkName]: exitCode,
+  };
+  const checkOutputLineMap = {
+    [checkName]: outputLine,
+  };
+  const passedChecks = status === "ok" ? [checkName] : [];
+  const failedChecks = status === "ok" ? [] : [checkName];
+  const failureSummaries =
+    status === "ok"
+      ? []
+      : [
+          {
+            name: checkName,
+            command: wasmPackCommand,
+            args: [...checkArgs],
+            exitCode,
+            status,
+            message,
+          },
+        ];
+
+  return {
+    checkLabels,
+    checkCount: checkLabels.length,
+    checkStatusMap,
+    checkStatusMapCount: countRecordEntries(checkStatusMap),
+    checkVersionMap,
+    checkVersionMapCount: countRecordEntries(checkVersionMap),
+    checkExitCodeMap,
+    checkExitCodeMapCount: countRecordEntries(checkExitCodeMap),
+    checkOutputLineMap,
+    checkOutputLineMapCount: countRecordEntries(checkOutputLineMap),
+    passedChecks,
+    passedCheckCount: passedChecks.length,
+    failedChecks,
+    failedCheckCount: failedChecks.length,
+    failureSummaries,
+    failureSummaryCount: failureSummaries.length,
+  };
+};
 
 if (isJson && validationFailureMessage !== null) {
   const report = buildTimedReport({
@@ -65,6 +158,19 @@ if (isJson && validationFailureMessage !== null) {
     positionalArgCount,
     command: wasmPackCommand,
     version: null,
+    availableChecks,
+    availableCheckCount: availableChecks.length,
+    availableCheckCommandMap,
+    availableCheckCommandMapCount: countRecordEntries(availableCheckCommandMap),
+    availableCheckArgsMap,
+    availableCheckArgsMapCount: countRecordEntries(availableCheckArgsMap),
+    availableCheckArgCountMap,
+    availableCheckArgCountMapCount: countRecordEntries(availableCheckArgCountMap),
+    availableCheckIndexMap,
+    availableCheckIndexMapCount: countRecordEntries(availableCheckIndexMap),
+    ...summarizeCheckResult({
+      includeCheck: false,
+    }),
     outputPath: outputPathError === null ? outputPath : null,
     activeCliOptions,
     activeCliOptionCount,
@@ -98,11 +204,11 @@ if (!isJson && validationFailureMessage !== null) {
 }
 
 const versionCheck = isJson
-  ? spawnSync(wasmPackCommand, ["--version"], {
+  ? spawnSync(wasmPackCommand, checkArgs, {
       encoding: "utf8",
       shell: false,
     })
-  : spawnSync(wasmPackCommand, ["--version"], {
+  : spawnSync(wasmPackCommand, checkArgs, {
       stdio: "ignore",
       shell: false,
     });
@@ -113,6 +219,12 @@ const firstLine =
     .split("\n")
     .map((line) => line.trim())
     .find((line) => line.length > 0) ?? null;
+const checkStatusKind =
+  checkStatus === 0
+    ? "ok"
+    : versionCheck.error !== undefined
+      ? "missing"
+      : "unavailable";
 
 if (checkStatus === 0) {
   if (isJson) {
@@ -124,6 +236,24 @@ if (checkStatus === 0) {
       positionalArgCount,
       command: wasmPackCommand,
       version: firstLine,
+      availableChecks,
+      availableCheckCount: availableChecks.length,
+      availableCheckCommandMap,
+      availableCheckCommandMapCount: countRecordEntries(availableCheckCommandMap),
+      availableCheckArgsMap,
+      availableCheckArgsMapCount: countRecordEntries(availableCheckArgsMap),
+      availableCheckArgCountMap,
+      availableCheckArgCountMapCount: countRecordEntries(availableCheckArgCountMap),
+      availableCheckIndexMap,
+      availableCheckIndexMapCount: countRecordEntries(availableCheckIndexMap),
+      ...summarizeCheckResult({
+        includeCheck: true,
+        status: checkStatusKind,
+        exitCode: checkStatus,
+        version: firstLine,
+        outputLine: firstLine,
+        message: null,
+      }),
       outputPath,
       activeCliOptions,
       activeCliOptionCount,
@@ -165,6 +295,24 @@ if (isJson) {
     positionalArgCount,
     command: wasmPackCommand,
     version: null,
+    availableChecks,
+    availableCheckCount: availableChecks.length,
+    availableCheckCommandMap,
+    availableCheckCommandMapCount: countRecordEntries(availableCheckCommandMap),
+    availableCheckArgsMap,
+    availableCheckArgsMapCount: countRecordEntries(availableCheckArgsMap),
+    availableCheckArgCountMap,
+    availableCheckArgCountMapCount: countRecordEntries(availableCheckArgCountMap),
+    availableCheckIndexMap,
+    availableCheckIndexMapCount: countRecordEntries(availableCheckIndexMap),
+    ...summarizeCheckResult({
+      includeCheck: true,
+      status: checkStatusKind,
+      exitCode: checkStatus,
+      version: null,
+      outputLine: firstLine,
+      message: failureMessage,
+    }),
     outputPath,
     activeCliOptions,
     activeCliOptionCount,
