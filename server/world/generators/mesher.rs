@@ -111,7 +111,14 @@ impl Mesher {
             processes
                 .into_par_iter()
                 .for_each(|(mut chunk, mut space)| {
-                    let chunk_size = config.chunk_size as i32;
+                    let chunk_size = if config.chunk_size == 0 {
+                        1
+                    } else if config.chunk_size > i32::MAX as usize {
+                        i32::MAX
+                    } else {
+                        config.chunk_size as i32
+                    };
+                    let chunk_size_usize = chunk_size as usize;
                     let coords = space.coords.to_owned();
                     let min = space.min.to_owned();
                     let shape = space.shape.to_owned();
@@ -127,24 +134,34 @@ impl Mesher {
                     let Vec3(min_x, min_y, min_z) = chunk.min;
                     let Vec3(max_x, _, max_z) = chunk.max;
                     let blocks_per_sub_chunk =
-                        (space.options.max_height / space.options.sub_chunks) as i32;
+                        (space.options.max_height / space.options.sub_chunks.max(1))
+                            .min(i32::MAX as usize) as i32;
 
                     if chunk.meshes.is_none() {
                         let mut light_queues = vec![VecDeque::new(); 4];
 
                         for dx in -1..=1 {
                             for dz in -1..=1 {
+                                let center = dx == 0 && dz == 0;
+                                let min_x = coords
+                                    .0
+                                    .saturating_add(dx)
+                                    .saturating_mul(chunk_size)
+                                    .saturating_sub(if center { 1 } else { 0 });
+                                let min_z = coords
+                                    .1
+                                    .saturating_add(dz)
+                                    .saturating_mul(chunk_size)
+                                    .saturating_sub(if center { 1 } else { 0 });
                                 let min = Vec3(
-                                    (coords.0 + dx) * chunk_size
-                                        - if dx == 0 && dz == 0 { 1 } else { 0 },
+                                    min_x,
                                     0,
-                                    (coords.1 + dz) * chunk_size
-                                        - if dx == 0 && dz == 0 { 1 } else { 0 },
+                                    min_z,
                                 );
                                 let shape = Vec3(
-                                    chunk_size as usize + if dx == 0 && dz == 0 { 2 } else { 0 },
+                                    chunk_size_usize + if center { 2 } else { 0 },
                                     space.options.max_height as usize,
-                                    chunk_size as usize + if dx == 0 && dz == 0 { 2 } else { 0 },
+                                    chunk_size_usize + if center { 2 } else { 0 },
                                 );
 
                                 let light_subqueues =
@@ -179,10 +196,17 @@ impl Mesher {
                     let mesher_registry = registry.mesher_registry();
 
                     for level in sub_chunks {
-                        let level = level as i32;
+                        let level = i32::try_from(level).unwrap_or(i32::MAX);
 
-                        let min = Vec3(min_x, min_y + level * blocks_per_sub_chunk, min_z);
-                        let max = Vec3(max_x, min_y + (level + 1) * blocks_per_sub_chunk, max_z);
+                        let level_start_y =
+                            min_y.saturating_add(level.saturating_mul(blocks_per_sub_chunk));
+                        let level_end_y = min_y.saturating_add(
+                            level
+                                .saturating_add(1)
+                                .saturating_mul(blocks_per_sub_chunk),
+                        );
+                        let min = Vec3(min_x, level_start_y, min_z);
+                        let max = Vec3(max_x, level_end_y, max_z);
 
                         let min_arr = [min.0, min.1, min.2];
                         let max_arr = [max.0, max.1, max.2];
