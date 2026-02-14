@@ -2,7 +2,7 @@ use std::cell::RefCell;
 
 use js_sys::{Array, Object, Reflect, Uint32Array};
 use serde::Serialize;
-use wasm_bindgen::prelude::*;
+use wasm_bindgen::{prelude::*, JsCast};
 use voxelize_lighter::{
     flood_light_nodes, remove_lights, BlockRotation, LightBounds, LightColor, LightConfig,
     LightNode,
@@ -298,8 +298,16 @@ fn parse_chunks(chunks_data: &Array) -> Vec<Option<ChunkData>> {
                 .expect("chunksData item is missing lights");
             let shape_value =
                 Reflect::get(&chunk_obj, &keys.shape).expect("chunksData item is missing shape");
-            let voxels = Uint32Array::from(voxels_value).to_vec();
-            let lights = Uint32Array::from(lights_value).to_vec();
+            let voxels_array: Uint32Array = voxels_value
+                .dyn_into()
+                .expect("chunksData voxels must be Uint32Array");
+            let lights_array: Uint32Array = lights_value
+                .dyn_into()
+                .expect("chunksData lights must be Uint32Array");
+            let mut voxels = vec![0; voxels_array.length() as usize];
+            let mut lights = vec![0; lights_array.length() as usize];
+            voxels_array.copy_to(&mut voxels);
+            lights_array.copy_to(&mut lights);
             let shape = [
                 Reflect::get(&shape_value, &keys.shape0)
                     .expect("shape[0] must be present")
