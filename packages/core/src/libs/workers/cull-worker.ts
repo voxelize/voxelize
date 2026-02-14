@@ -82,6 +82,7 @@ self.onmessage = function (e: MessageEvent<CullWorkerMessage>) {
   const positions: number[] = [];
   const normals: number[] = [];
   const indices: number[] = [];
+  let vertexCount = 0;
 
   const [startX, startY, startZ] = min;
   const [endX, endY, endZ] = max;
@@ -124,7 +125,7 @@ self.onmessage = function (e: MessageEvent<CullWorkerMessage>) {
 
             if (!neighborSolid) {
               // this voxel has no neighbor in this direction so we need a face.
-              const ndx = positions.length / 3;
+              const ndx = vertexCount;
 
               for (let cornerIndex = 0; cornerIndex < corners.length; cornerIndex++) {
                 const corner = corners[cornerIndex];
@@ -135,6 +136,7 @@ self.onmessage = function (e: MessageEvent<CullWorkerMessage>) {
                 positions.push(posX * dx, posY * dy, posZ * dz);
                 normals.push(dir[0], dir[1], dir[2]);
               }
+              vertexCount += corners.length;
 
               indices.push(ndx, ndx + 1, ndx + 2, ndx + 2, ndx + 1, ndx + 3);
             }
