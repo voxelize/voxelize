@@ -614,7 +614,8 @@ const isValidFloodNode = (
 
 const compactValidRemovalNodesInPlace = (removals: Coords3[]) => {
   let writeIndex = 0;
-  for (let readIndex = 0; readIndex < removals.length; readIndex++) {
+  const removalsLength = removals.length;
+  for (let readIndex = 0; readIndex < removalsLength; readIndex++) {
     const removal = removals[readIndex];
     if (!isStrictCoords3(removal)) {
       continue;
@@ -630,7 +631,8 @@ const compactValidRemovalNodesInPlace = (removals: Coords3[]) => {
 
 const compactValidFloodNodesInPlace = (floods: LightNode[]) => {
   let writeIndex = 0;
-  for (let readIndex = 0; readIndex < floods.length; readIndex++) {
+  const floodsLength = floods.length;
+  for (let readIndex = 0; readIndex < floodsLength; readIndex++) {
     const flood = floods[readIndex];
     if (!isValidFloodNode(flood)) {
       continue;
