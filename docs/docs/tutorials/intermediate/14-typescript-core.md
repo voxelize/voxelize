@@ -166,6 +166,12 @@ pnpm run check:runtime-libraries:verify:json
 pnpm run check:runtime-libraries:release
 ```
 
+Runtime-library JSON reports include package/build diagnostics such as
+`packagesPresent`, `requiredPackageCount`, `packageReportCount`,
+`requiredArtifactCount`, `missingPackageCount`, `missingArtifactCount`,
+`buildCommand`, `buildArgs`, `buildExitCode`, `buildDurationMs`,
+`attemptedBuild`, `buildSkipped`, and `buildSkippedReason`.
+
 ## API reference
 
 Typed API docs are generated under:
