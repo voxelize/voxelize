@@ -268,8 +268,8 @@ impl LightBlock {
     }
 
     pub fn recompute_flags(&mut self) {
-        self.is_opaque = self.is_transparent.iter().all(|value| !value);
         let [t0, t1, t2, t3, t4, t5] = self.is_transparent;
+        self.is_opaque = !t0 && !t1 && !t2 && !t3 && !t4 && !t5;
         self.has_uniform_transparency = t0 == t1 && t0 == t2 && t0 == t3 && t0 == t4 && t0 == t5;
 
         let mut static_torch_mask = 0;
