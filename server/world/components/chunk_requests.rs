@@ -45,12 +45,8 @@ impl ChunkRequestsComp {
     }
 
     pub fn sort(&mut self) {
-        self.requests.sort_by(|a, b| {
-            let a_dist = manhattan_distance(a, &self.center);
-            let b_dist = manhattan_distance(b, &self.center);
-
-            a_dist.cmp(&b_dist)
-        });
+        self.requests
+            .sort_by_cached_key(|coords| manhattan_distance(coords, &self.center));
     }
 
     /// Remove a chunk from the list of chunks requested.
