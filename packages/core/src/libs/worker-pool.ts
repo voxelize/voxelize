@@ -291,7 +291,7 @@ export class WorkerPool {
       worker.addEventListener("error", workerErrorCallback);
       worker.addEventListener("messageerror", workerMessageErrorCallback);
       try {
-        if (buffers) {
+        if (buffers && buffers.length > 0) {
           worker.postMessage(message, buffers);
         } else {
           worker.postMessage(message);
