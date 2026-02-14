@@ -579,41 +579,53 @@ impl LightBlock {
 
                 true
             }
-            BlockRule::Combination { logic, rules } => match logic {
-                BlockRuleLogic::And => {
-                    if rules.len() == 1 {
-                        return Self::evaluate_rule(&rules[0], vx, vy, vz, space);
-                    }
-                    for sub_rule in rules {
-                        if !Self::evaluate_rule(sub_rule, vx, vy, vz, space) {
-                            return false;
-                        }
-                    }
-                    true
-                }
-                BlockRuleLogic::Or => {
-                    if rules.len() == 1 {
-                        return Self::evaluate_rule(&rules[0], vx, vy, vz, space);
-                    }
-                    for sub_rule in rules {
-                        if Self::evaluate_rule(sub_rule, vx, vy, vz, space) {
+            BlockRule::Combination { logic, rules } => {
+                let rules_len = rules.len();
+                match logic {
+                    BlockRuleLogic::And => {
+                        if rules_len == 0 {
                             return true;
                         }
+                        if rules_len == 1 {
+                            return Self::evaluate_rule(&rules[0], vx, vy, vz, space);
+                        }
+                        for sub_rule in rules {
+                            if !Self::evaluate_rule(sub_rule, vx, vy, vz, space) {
+                                return false;
+                            }
+                        }
+                        true
                     }
-                    false
-                }
-                BlockRuleLogic::Not => {
-                    if rules.len() == 1 {
-                        return !Self::evaluate_rule(&rules[0], vx, vy, vz, space);
-                    }
-                    for sub_rule in rules {
-                        if Self::evaluate_rule(sub_rule, vx, vy, vz, space) {
+                    BlockRuleLogic::Or => {
+                        if rules_len == 0 {
                             return false;
                         }
+                        if rules_len == 1 {
+                            return Self::evaluate_rule(&rules[0], vx, vy, vz, space);
+                        }
+                        for sub_rule in rules {
+                            if Self::evaluate_rule(sub_rule, vx, vy, vz, space) {
+                                return true;
+                            }
+                        }
+                        false
                     }
-                    true
+                    BlockRuleLogic::Not => {
+                        if rules_len == 0 {
+                            return true;
+                        }
+                        if rules_len == 1 {
+                            return !Self::evaluate_rule(&rules[0], vx, vy, vz, space);
+                        }
+                        for sub_rule in rules {
+                            if Self::evaluate_rule(sub_rule, vx, vy, vz, space) {
+                                return false;
+                            }
+                        }
+                        true
+                    }
                 }
-            },
+            }
         }
     }
 }
@@ -1142,6 +1154,63 @@ mod tests {
         assert_eq!(
             or_block.get_torch_light_level_at_xyz(0, 0, 0, &NoopAccess, &LightColor::Red),
             0
+        );
+    }
+
+    #[test]
+    fn dynamic_empty_combination_rules_follow_logic_identities() {
+        let mut and_block = LightBlock::default_air();
+        and_block.dynamic_patterns = Some(vec![LightDynamicPattern {
+            parts: vec![LightConditionalPart {
+                rule: BlockRule::Combination {
+                    logic: BlockRuleLogic::And,
+                    rules: vec![],
+                },
+                red_light_level: Some(6),
+                green_light_level: None,
+                blue_light_level: None,
+            }],
+        }]);
+        and_block.recompute_flags();
+        assert_eq!(
+            and_block.get_torch_light_level_at_xyz(0, 0, 0, &NoopAccess, &LightColor::Red),
+            6
+        );
+
+        let mut or_block = LightBlock::default_air();
+        or_block.dynamic_patterns = Some(vec![LightDynamicPattern {
+            parts: vec![LightConditionalPart {
+                rule: BlockRule::Combination {
+                    logic: BlockRuleLogic::Or,
+                    rules: vec![],
+                },
+                red_light_level: Some(6),
+                green_light_level: None,
+                blue_light_level: None,
+            }],
+        }]);
+        or_block.recompute_flags();
+        assert_eq!(
+            or_block.get_torch_light_level_at_xyz(0, 0, 0, &NoopAccess, &LightColor::Red),
+            0
+        );
+
+        let mut not_block = LightBlock::default_air();
+        not_block.dynamic_patterns = Some(vec![LightDynamicPattern {
+            parts: vec![LightConditionalPart {
+                rule: BlockRule::Combination {
+                    logic: BlockRuleLogic::Not,
+                    rules: vec![],
+                },
+                red_light_level: Some(6),
+                green_light_level: None,
+                blue_light_level: None,
+            }],
+        }]);
+        not_block.recompute_flags();
+        assert_eq!(
+            not_block.get_torch_light_level_at_xyz(0, 0, 0, &NoopAccess, &LightColor::Red),
+            6
         );
     }
 
