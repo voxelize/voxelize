@@ -421,7 +421,12 @@ const isCompatibleSerializedChunk = (
   const chunkOptions = chunkData.options;
   const voxelsBuffer = chunkData.voxels;
   const lightsBuffer = chunkData.lights;
+  const chunkX = chunkData.x;
+  const chunkZ = chunkData.z;
   return (
+    typeof chunkData.id === "string" &&
+    isI32(chunkX) &&
+    isI32(chunkZ) &&
     isArrayBuffer(voxelsBuffer) &&
     isArrayBuffer(lightsBuffer) &&
     voxelsBuffer.byteLength === expectedChunkByteLength &&
