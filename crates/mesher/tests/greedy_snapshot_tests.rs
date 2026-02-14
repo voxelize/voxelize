@@ -591,6 +591,42 @@ fn snapshot_transparency_properties() {
 }
 
 #[test]
+fn snapshot_standalone_transparency_boundaries() {
+    let registry = build_registry();
+    let mut space = TestSpace::new([8, 6, 8]);
+
+    space.set_voxel_id(0, 2, 0, 3);
+    space.set_voxel_id(1, 2, 0, 3);
+    space.set_voxel_id(0, 2, 1, 3);
+
+    space.set_voxel_id(7, 2, 7, 2);
+    space.set_voxel_id(6, 2, 7, 2);
+    space.set_voxel_id(7, 2, 6, 2);
+
+    space.set_voxel_id(4, 2, 4, 3);
+    space.set_voxel_id(5, 2, 4, 2);
+    space.set_voxel_id(4, 2, 5, 1);
+
+    space.set_light(0, 2, 0, 15, 0, 0, 0);
+    space.set_light(7, 2, 7, 11, 2, 4, 1);
+    space.set_light(4, 2, 4, 13, 1, 3, 5);
+
+    assert_greedy_parity(&space, &registry);
+    mesh_and_snapshot_with_mode(
+        "greedy_snapshot_standalone_transparency_boundaries",
+        &space,
+        &registry,
+        mesh_space_greedy::<TestSpace>,
+    );
+    mesh_and_snapshot_with_mode(
+        "non_greedy_snapshot_standalone_transparency_boundaries",
+        &space,
+        &registry,
+        mesh_space::<TestSpace>,
+    );
+}
+
+#[test]
 fn snapshot_dynamic_patterns_and_rules() {
     let registry = build_registry();
     let mut space = TestSpace::new([8, 6, 8]);
