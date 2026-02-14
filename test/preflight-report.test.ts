@@ -31,6 +31,34 @@ type TsCoreNestedReport = {
   noBuild: boolean;
 };
 
+type RuntimeLibrariesNestedPackageReport = {
+  packageName: string;
+  packagePath: string;
+  requiredArtifacts: string[];
+  requiredArtifactCount: number;
+  missingArtifacts: string[];
+  missingArtifactCount: number;
+  artifactsPresent: boolean;
+};
+
+type RuntimeLibrariesNestedReport = {
+  checkedPackages: string[];
+  requiredPackageCount: number;
+  packageReportCount: number;
+  packageReports: RuntimeLibrariesNestedPackageReport[];
+  requiredArtifactCount: number;
+  missingPackageCount: number;
+  missingArtifactCount: number;
+  buildCommand: string;
+  buildArgs: string[];
+  buildExitCode: number | null;
+  buildDurationMs: number | null;
+  attemptedBuild: boolean;
+  buildSkipped: boolean;
+  buildSkippedReason: "no-build" | "artifacts-present" | null;
+  noBuild: boolean;
+};
+
 type PreflightFailureSummary = {
   name: string;
   exitCode: number;
@@ -245,6 +273,45 @@ const expectedTsCoreBuildArgs = [
   "run",
   "build",
 ];
+const expectedRuntimeLibrariesCheckedPackages = [
+  "@voxelize/aabb",
+  "@voxelize/raycast",
+  "@voxelize/physics-engine",
+];
+const expectedRuntimeLibrariesArtifactsByPackage = {
+  "@voxelize/aabb": [
+    "packages/aabb/dist/index.js",
+    "packages/aabb/dist/index.mjs",
+    "packages/aabb/dist/index.d.ts",
+  ],
+  "@voxelize/raycast": [
+    "packages/raycast/dist/index.js",
+    "packages/raycast/dist/index.mjs",
+    "packages/raycast/dist/index.d.ts",
+  ],
+  "@voxelize/physics-engine": [
+    "packages/physics-engine/dist/index.cjs",
+    "packages/physics-engine/dist/index.js",
+    "packages/physics-engine/dist/index.d.ts",
+  ],
+};
+const expectedRuntimeLibrariesRequiredArtifactCount = Object.values(
+  expectedRuntimeLibrariesArtifactsByPackage
+).reduce((count, artifacts) => {
+  return count + artifacts.length;
+}, 0);
+const expectedRuntimeLibrariesBuildArgs = [
+  "--dir",
+  rootDir,
+  "--filter",
+  "@voxelize/aabb",
+  "--filter",
+  "@voxelize/raycast",
+  "--filter",
+  "@voxelize/physics-engine",
+  "run",
+  "build",
+];
 const expectedRequestedCheckResolutionKinds: Array<
   RequestedCheckResolution["kind"]
 > = ["check", "specialSelector", "invalid"];
@@ -361,6 +428,77 @@ const expectTsCoreNestedReport = (
   }
   if (report.buildSkipped) {
     expect(report.buildSkippedReason === "no-build" || report.buildSkippedReason === "artifacts-present").toBe(true);
+  } else {
+    expect(report.buildSkippedReason).toBeNull();
+  }
+  if (report.buildSkippedReason === "no-build") {
+    expect(report.noBuild).toBe(true);
+  }
+  if (report.buildSkippedReason === "artifacts-present") {
+    expect(report.attemptedBuild).toBe(false);
+  }
+};
+const expectRuntimeLibrariesNestedReport = (
+  checkReport: object | null,
+  expectedNoBuild: boolean
+) => {
+  expect(checkReport).not.toBeNull();
+  if (checkReport === null) {
+    return;
+  }
+
+  const report = checkReport as RuntimeLibrariesNestedReport;
+  expect(report.checkedPackages).toEqual(expectedRuntimeLibrariesCheckedPackages);
+  expect(report.requiredPackageCount).toBe(
+    expectedRuntimeLibrariesCheckedPackages.length
+  );
+  expect(report.packageReportCount).toBe(report.packageReports.length);
+  expect(report.requiredArtifactCount).toBe(
+    expectedRuntimeLibrariesRequiredArtifactCount
+  );
+  const missingPackageCount = report.packageReports.filter((packageReport) => {
+    return packageReport.artifactsPresent === false;
+  }).length;
+  const missingArtifactCount = report.packageReports.reduce(
+    (count, packageReport) => {
+      return count + packageReport.missingArtifactCount;
+    },
+    0
+  );
+  expect(report.missingPackageCount).toBe(missingPackageCount);
+  expect(report.missingArtifactCount).toBe(missingArtifactCount);
+  for (const packageReport of report.packageReports) {
+    expect(packageReport.requiredArtifacts).toEqual(
+      expectedRuntimeLibrariesArtifactsByPackage[
+        packageReport.packageName as keyof typeof expectedRuntimeLibrariesArtifactsByPackage
+      ]
+    );
+    expect(packageReport.requiredArtifactCount).toBe(
+      packageReport.requiredArtifacts.length
+    );
+    expect(packageReport.missingArtifactCount).toBe(
+      packageReport.missingArtifacts.length
+    );
+  }
+  expect(typeof report.buildCommand).toBe("string");
+  expect(report.buildCommand.length).toBeGreaterThan(0);
+  expect(report.buildArgs).toEqual(expectedRuntimeLibrariesBuildArgs);
+  expect(report.noBuild).toBe(expectedNoBuild);
+  if (report.buildExitCode !== null) {
+    expect(Number.isInteger(report.buildExitCode)).toBe(true);
+  }
+  if (report.attemptedBuild) {
+    expect(typeof report.buildDurationMs).toBe("number");
+    expect(report.buildDurationMs).toBeGreaterThanOrEqual(0);
+  } else {
+    expect(report.buildExitCode).toBeNull();
+    expect(report.buildDurationMs).toBeNull();
+  }
+  if (report.buildSkipped) {
+    expect(
+      report.buildSkippedReason === "no-build" ||
+        report.buildSkippedReason === "artifacts-present"
+    ).toBe(true);
   } else {
     expect(report.buildSkippedReason).toBeNull();
   }
@@ -1111,6 +1249,76 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(0);
   });
 
+  it("supports runtime aliases in list selection", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--list-checks", "--only", "runtime-libraries"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(true);
+    expect(report.passed).toBe(true);
+    expect(report.exitCode).toBe(0);
+    expect(report.noBuild).toBe(false);
+    expect(report.selectionMode).toBe("only");
+    expect(report.specialSelectorsUsed).toEqual([]);
+    expect(report.selectedChecks).toEqual(["runtimeLibraries"]);
+    expect(report.selectedCheckCount).toBe(1);
+    expect(report.requestedChecks).toEqual(["runtime-libraries"]);
+    expect(report.requestedCheckCount).toBe(1);
+    expect(report.requestedCheckResolutions).toEqual([
+      {
+        token: "runtime-libraries",
+        normalizedToken: "runtimelibraries",
+        kind: "check",
+        resolvedTo: ["runtimeLibraries"],
+      },
+    ]);
+    expect(report.requestedCheckResolutionCounts).toEqual({
+      check: 1,
+      specialSelector: 0,
+      invalid: 0,
+    });
+    expect(report.skippedChecks).toEqual([
+      "devEnvironment",
+      "wasmPack",
+      "tsCore",
+      "client",
+    ]);
+    expect(report.skippedCheckCount).toBe(report.skippedChecks.length);
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--list-checks", "--only"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--list-checks", "--only"]);
+    expect(report.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions(["--list-checks", "--only"])
+    );
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences([
+        "--list-checks",
+        "--only",
+        "runtime-libraries",
+      ])
+    );
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(result.status).toBe(0);
+  });
+
   it("writes list-mode ts-core reports to trailing output paths with no-build aliases", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "preflight-list-ts-core-last-output-")
@@ -1697,6 +1905,159 @@ describe("preflight aggregate report", () => {
     expect([...report.passedChecks, ...report.failedChecks].sort()).toEqual([
       "client",
       "tsCore",
+    ]);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
+  it("supports runtime shorthand aliases in execution mode", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--no-build", "--only", "runtime"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(false);
+    expect(report.noBuild).toBe(true);
+    expect(report.selectionMode).toBe("only");
+    expect(report.specialSelectorsUsed).toEqual([]);
+    expect(report.selectedChecks).toEqual(["runtimeLibraries"]);
+    expect(report.selectedCheckCount).toBe(1);
+    expect(report.requestedChecks).toEqual(["runtime"]);
+    expect(report.requestedCheckCount).toBe(1);
+    expect(report.requestedCheckResolutions).toEqual([
+      {
+        token: "runtime",
+        normalizedToken: "runtime",
+        kind: "check",
+        resolvedTo: ["runtimeLibraries"],
+      },
+    ]);
+    expect(report.requestedCheckResolutionCounts).toEqual({
+      check: 1,
+      specialSelector: 0,
+      invalid: 0,
+    });
+    expect(report.skippedChecks).toEqual([
+      "devEnvironment",
+      "wasmPack",
+      "tsCore",
+      "client",
+    ]);
+    expect(report.skippedCheckCount).toBe(report.skippedChecks.length);
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--no-build", "--only"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--no-build", "--only"]);
+    expect(report.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions(["--no-build", "--only"])
+    );
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences(["--no-build", "--only", "runtime"])
+    );
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(report.totalChecks).toBe(1);
+    expect(report.checks.length).toBe(1);
+    expect(report.checks[0].name).toBe("runtimeLibraries");
+    expectRuntimeLibrariesNestedReport(report.checks[0].report, true);
+    expect(report.passedCheckCount + report.failedCheckCount).toBe(1);
+    expect([...report.passedChecks, ...report.failedChecks]).toEqual([
+      "runtimeLibraries",
+    ]);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
+  it("executes runtime checks before client when both are selected", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--no-build", "--only", "runtime,client"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(false);
+    expect(report.noBuild).toBe(true);
+    expect(report.selectionMode).toBe("only");
+    expect(report.specialSelectorsUsed).toEqual([]);
+    expect(report.selectedChecks).toEqual(["runtimeLibraries", "client"]);
+    expect(report.selectedCheckCount).toBe(2);
+    expect(report.requestedChecks).toEqual(["runtime", "client"]);
+    expect(report.requestedCheckCount).toBe(2);
+    expect(report.requestedCheckResolutions).toEqual([
+      {
+        token: "runtime",
+        normalizedToken: "runtime",
+        kind: "check",
+        resolvedTo: ["runtimeLibraries"],
+      },
+      {
+        token: "client",
+        normalizedToken: "client",
+        kind: "check",
+        resolvedTo: ["client"],
+      },
+    ]);
+    expect(report.requestedCheckResolutionCounts).toEqual({
+      check: 2,
+      specialSelector: 0,
+      invalid: 0,
+    });
+    expect(report.skippedChecks).toEqual(["devEnvironment", "wasmPack", "tsCore"]);
+    expect(report.skippedCheckCount).toBe(3);
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--no-build", "--only"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--no-build", "--only"]);
+    expect(report.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions(["--no-build", "--only"])
+    );
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences([
+        "--no-build",
+        "--only",
+        "runtime,client",
+      ])
+    );
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(report.totalChecks).toBe(2);
+    expect(report.checks.length).toBe(2);
+    expect(report.checks.map((check) => check.name)).toEqual([
+      "runtimeLibraries",
+      "client",
+    ]);
+    expectRuntimeLibrariesNestedReport(report.checks[0].report, true);
+    expect(report.passedCheckCount + report.failedCheckCount).toBe(2);
+    expect([...report.passedChecks, ...report.failedChecks].sort()).toEqual([
+      "client",
+      "runtimeLibraries",
     ]);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
