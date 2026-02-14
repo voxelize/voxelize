@@ -17,6 +17,18 @@ fn max_search_depth_limit(max_search_depth: i32) -> usize {
     }
 }
 
+#[inline]
+fn required_height_steps(height: f32) -> Option<i32> {
+    if !height.is_finite() || height < 0.0 {
+        return None;
+    }
+    let ceil_height = height.ceil();
+    if ceil_height > i32::MAX as f32 {
+        return None;
+    }
+    Some(ceil_height as i32)
+}
+
 impl PathValidator {
     /// Check if a voxel position is walkable (has solid ground and enough space above)
     pub fn is_walkable(
@@ -26,6 +38,9 @@ impl PathValidator {
         registry: &Registry,
     ) -> bool {
         let Vec3(vx, vy, vz) = position;
+        let Some(height_needed) = required_height_steps(height) else {
+            return false;
+        };
 
         // Check if there's solid ground
         let ground_voxel = space.get_voxel(*vx, *vy - 1, *vz);
@@ -35,7 +50,6 @@ impl PathValidator {
         }
 
         // Check if there's enough space above
-        let height_needed = height.ceil() as i32;
         for i in 0..=height_needed {
             let check_voxel = space.get_voxel(*vx, *vy + i, *vz);
             let check_block = registry.get_block_by_id(check_voxel);
@@ -101,11 +115,18 @@ impl PathValidator {
         registry: &Registry,
         max_distance: f32,
     ) -> bool {
+        if !max_distance.is_finite() || max_distance < 0.0 {
+            return false;
+        }
+
         let dx = (i64::from(to.0) - i64::from(from.0)) as f64;
         let dy = (i64::from(to.1) - i64::from(from.1)) as f64;
         let dz = (i64::from(to.2) - i64::from(from.2)) as f64;
 
         let distance = dx.mul_add(dx, dy.mul_add(dy, dz * dz)).sqrt() as f32;
+        if !distance.is_finite() {
+            return false;
+        }
         if distance > max_distance {
             return false;
         }
@@ -180,7 +201,7 @@ impl PathValidator {
 
 #[cfg(test)]
 mod tests {
-    use super::{checked_offset, max_search_depth_limit};
+    use super::{checked_offset, max_search_depth_limit, required_height_steps};
 
     #[test]
     fn checked_offset_rejects_i32_overflow() {
@@ -194,5 +215,19 @@ mod tests {
         assert_eq!(max_search_depth_limit(-1), 0);
         assert_eq!(max_search_depth_limit(0), 0);
         assert_eq!(max_search_depth_limit(3), 3);
+    }
+
+    #[test]
+    fn required_height_steps_rejects_invalid_inputs() {
+        assert_eq!(required_height_steps(-0.1), None);
+        assert_eq!(required_height_steps(f32::NAN), None);
+        assert_eq!(required_height_steps(f32::INFINITY), None);
+    }
+
+    #[test]
+    fn required_height_steps_rounds_up_and_clamps_range() {
+        assert_eq!(required_height_steps(0.0), Some(0));
+        assert_eq!(required_height_steps(1.1), Some(2));
+        assert_eq!(required_height_steps(i32::MAX as f32 + 1000.0), None);
     }
 }
