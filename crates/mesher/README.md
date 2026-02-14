@@ -39,7 +39,9 @@ When making changes to meshing algorithms:
    - `VOXELIZE_UPDATE_SNAPSHOTS=1 cargo test --manifest-path crates/mesher/Cargo.toml --test greedy_snapshot_tests`
 5. Run benchmarks:
    - `cargo bench --manifest-path crates/mesher/Cargo.toml --bench greedy_mesher_bench`
-6. Rebuild WASM wrapper when needed:
+6. Compare benchmark medians between two runs:
+   - `python3 crates/mesher/scripts/compare_bench_medians.py --baseline <baseline_output.txt> --candidate <candidate_output.txt>`
+7. Rebuild WASM wrapper when needed:
    - `cd crates/wasm-mesher && wasm-pack build --target web`
 
 ## Structure
@@ -48,3 +50,4 @@ When making changes to meshing algorithms:
 - `src/lib.rs` - Public exports
 - `tests/greedy_snapshot_tests.rs` - Snapshot regressions across block-property fixtures
 - `benches/greedy_mesher_bench.rs` - Criterion benchmarks for greedy/non-greedy performance
+- `scripts/compare_bench_medians.py` - Median-only benchmark output comparison tool
