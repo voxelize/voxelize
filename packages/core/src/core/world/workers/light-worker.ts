@@ -691,11 +691,10 @@ const compactValidRemovalNodesInPlace = (removals: Coords3[]) => {
     removals[writeIndex] = removal;
     writeIndex++;
   }
-  if (writeIndex === removalsLength) {
-    return writeIndex > 0;
+  if (writeIndex < removalsLength) {
+    removals.length = writeIndex;
   }
-  removals.length = writeIndex;
-  return writeIndex > 0;
+  return writeIndex !== 0;
 };
 
 const compactValidFloodNodesInPlace = (floods: LightNode[]) => {
@@ -709,11 +708,10 @@ const compactValidFloodNodesInPlace = (floods: LightNode[]) => {
     floods[writeIndex] = flood;
     writeIndex++;
   }
-  if (writeIndex === floodsLength) {
-    return writeIndex > 0;
+  if (writeIndex < floodsLength) {
+    floods.length = writeIndex;
   }
-  floods.length = writeIndex;
-  return writeIndex > 0;
+  return writeIndex !== 0;
 };
 
 const postEmptyBatchResult = (jobId: string, lastSequenceId = 0) => {
