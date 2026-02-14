@@ -5,7 +5,7 @@ use serde::Serialize;
 use wasm_bindgen::prelude::*;
 use voxelize_lighter::{
     flood_light, remove_lights, BlockRotation, LightBounds, LightColor, LightConfig, LightNode,
-    LightRegistry, LightVoxelAccess,
+    LightRegistry, LightUtils, LightVoxelAccess,
 };
 
 thread_local! {
@@ -357,12 +357,34 @@ pub fn process_light_batch_fast(
         }
 
         if !flood_nodes.is_empty() {
-            for node in &flood_nodes {
-                let [vx, vy, vz] = node.voxel;
-                if light_color == LightColor::Sunlight {
-                    space.set_sunlight(vx, vy, vz, node.level);
-                } else {
-                    space.set_torch_light(vx, vy, vz, node.level, &light_color);
+            match light_color {
+                LightColor::Sunlight => {
+                    for node in &flood_nodes {
+                        let [vx, vy, vz] = node.voxel;
+                        let raw = space.get_raw_light(vx, vy, vz);
+                        space.set_raw_light(vx, vy, vz, LightUtils::insert_sunlight(raw, node.level));
+                    }
+                }
+                LightColor::Red => {
+                    for node in &flood_nodes {
+                        let [vx, vy, vz] = node.voxel;
+                        let raw = space.get_raw_light(vx, vy, vz);
+                        space.set_raw_light(vx, vy, vz, LightUtils::insert_red_light(raw, node.level));
+                    }
+                }
+                LightColor::Green => {
+                    for node in &flood_nodes {
+                        let [vx, vy, vz] = node.voxel;
+                        let raw = space.get_raw_light(vx, vy, vz);
+                        space.set_raw_light(vx, vy, vz, LightUtils::insert_green_light(raw, node.level));
+                    }
+                }
+                LightColor::Blue => {
+                    for node in &flood_nodes {
+                        let [vx, vy, vz] = node.voxel;
+                        let raw = space.get_raw_light(vx, vy, vz);
+                        space.set_raw_light(vx, vy, vz, LightUtils::insert_blue_light(raw, node.level));
+                    }
                 }
             }
 
