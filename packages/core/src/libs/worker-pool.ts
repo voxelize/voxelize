@@ -178,8 +178,6 @@ export class WorkerPool {
     }
   };
 
-  private hasQueuedJobs = () => this.queueHead < this.queue.length;
-
   private normalizeQueue = () => {
     if (this.queueHead === 0) {
       return;
@@ -217,14 +215,15 @@ export class WorkerPool {
   private process = () => {
     const available = this.available;
     const workers = this.workers;
-    while (this.hasQueuedJobs() && available.length > 0) {
+    const queue = this.queue;
+    while (this.queueHead < queue.length && available.length > 0) {
       const index = available.pop();
       if (index === undefined) {
         break;
       }
       const worker = workers[index];
 
-      const job = this.queue[this.queueHead];
+      const job = queue[this.queueHead];
       const { message, buffers, resolve, reject } = job;
 
       const rejectJob = (reason: Error) => {
@@ -245,7 +244,7 @@ export class WorkerPool {
         try {
           resolve(data);
         } finally {
-          if (this.hasQueuedJobs()) {
+          if (this.queueHead < queue.length) {
             this.scheduleProcess();
           }
         }
@@ -265,7 +264,7 @@ export class WorkerPool {
             )
           );
         } finally {
-          if (this.hasQueuedJobs()) {
+          if (this.queueHead < queue.length) {
             this.scheduleProcess();
           }
         }
@@ -282,7 +281,7 @@ export class WorkerPool {
             new Error("Worker pool job failed due to response serialization.")
           );
         } finally {
-          if (this.hasQueuedJobs()) {
+          if (this.queueHead < queue.length) {
             this.scheduleProcess();
           }
         }
@@ -314,7 +313,7 @@ export class WorkerPool {
               : new Error("Worker pool job failed while dispatching.")
           );
         } finally {
-          if (this.hasQueuedJobs()) {
+          if (this.queueHead < queue.length) {
             this.scheduleProcess();
           }
         }
