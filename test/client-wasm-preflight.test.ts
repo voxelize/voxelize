@@ -159,6 +159,11 @@ type WasmMesherJsonReport = OptionTerminatorMetadata &
   attemptedBuild: boolean;
   buildSkipped: boolean;
   wasmPackAvailable: boolean | null;
+  wasmPackCheckCommand: string;
+  wasmPackCheckArgs: string[];
+  wasmPackCheckArgCount: number;
+  wasmPackCheckExitCode: number | null;
+  wasmPackCheckOutputLine: string | null;
   wasmPackCheckReport: WasmPackJsonReport | null;
   buildOutput: string | null;
   outputPath: string | null;
@@ -182,6 +187,7 @@ const wasmMesherScript = path.resolve(
   rootDir,
   "examples/client/scripts/check-wasm-mesher.mjs"
 );
+const wasmPackCheckScript = path.resolve(rootDir, "check-wasm-pack.mjs");
 
 describe("client wasm preflight script", () => {
   const expectTimingMetadata = (report: {
@@ -283,6 +289,28 @@ describe("client wasm preflight script", () => {
     "--no-build": ["--verify"],
   };
   const expectedWasmPackAvailableChecks = ["wasm-pack"];
+  const expectedWasmPackCheckArgs = [wasmPackCheckScript, "--json", "--compact"];
+
+  const expectWasmPackCheckInvocationMetadata = (
+    report: WasmMesherJsonReport,
+    expectedExitCode: number | null
+  ) => {
+    expect(report.wasmPackCheckCommand).toBe(process.execPath);
+    expect(report.wasmPackCheckArgs).toEqual(expectedWasmPackCheckArgs);
+    expect(report.wasmPackCheckArgCount).toBe(report.wasmPackCheckArgs.length);
+    expect(report.wasmPackCheckArgCount).toBe(expectedWasmPackCheckArgs.length);
+    expect(report.wasmPackCheckExitCode).toBe(expectedExitCode);
+
+    if (expectedExitCode === null) {
+      expect(report.wasmPackCheckOutputLine).toBeNull();
+      expect(report.wasmPackCheckReport).toBeNull();
+      return;
+    }
+
+    if (report.wasmPackCheckOutputLine !== null) {
+      expect(report.wasmPackCheckOutputLine.length).toBeGreaterThan(0);
+    }
+  };
 
   const expectWasmPackCheckReportMetadata = (report: WasmPackJsonReport) => {
     const expectedAvailableCheckCommandMap = {
@@ -557,6 +585,10 @@ describe("client wasm preflight script", () => {
       ]
     );
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+    expectWasmPackCheckInvocationMetadata(
+      report,
+      report.wasmPackCheckReport?.exitCode ?? null
+    );
 
     if (report.wasmPackCheckReport !== null) {
       expectWasmPackCheckReportMetadata(report.wasmPackCheckReport);
@@ -629,6 +661,7 @@ describe("client wasm preflight script", () => {
         },
       ]
     );
+    expectWasmPackCheckInvocationMetadata(report, null);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
@@ -668,6 +701,7 @@ describe("client wasm preflight script", () => {
         },
       ]
     );
+    expectWasmPackCheckInvocationMetadata(report, null);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
@@ -875,6 +909,7 @@ describe("client wasm preflight script", () => {
         },
       ]
     );
+    expectWasmPackCheckInvocationMetadata(report, null);
     expect(result.status).toBe(1);
   });
 

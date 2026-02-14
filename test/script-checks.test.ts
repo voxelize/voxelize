@@ -354,6 +354,11 @@ type WasmMesherJsonReport = OptionTerminatorMetadata &
   attemptedBuild: boolean;
   buildSkipped: boolean;
   wasmPackAvailable: boolean | null;
+  wasmPackCheckCommand: string;
+  wasmPackCheckArgs: string[];
+  wasmPackCheckArgCount: number;
+  wasmPackCheckExitCode: number | null;
+  wasmPackCheckOutputLine: string | null;
   wasmPackCheckReport: WasmPackJsonReport | null;
   buildOutput: string | null;
   unknownOptions: string[];

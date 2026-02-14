@@ -25,6 +25,9 @@ const wasmMesherEntry = path.resolve(
 );
 const repositoryRoot = path.resolve(__dirname, "../../..");
 const rootWasmCheckScript = path.resolve(repositoryRoot, "check-wasm-pack.mjs");
+const wasmPackCheckCommand = process.execPath;
+const wasmPackCheckJsonArgs = [rootWasmCheckScript, "--json", "--compact"];
+const wasmPackCheckQuietArgs = [rootWasmCheckScript, "--quiet"];
 const pnpmCommand = resolvePnpmCommand();
 const cliArgs = process.argv.slice(2);
 const {
@@ -41,6 +44,9 @@ const canonicalCliOptions = ["--compact", "--json", "--no-build", "--output"];
 const isJson = cliOptionArgs.includes("--json");
 const isNoBuild = hasCliOption(cliOptionArgs, "--no-build", noBuildOptionAliases);
 const isCompact = cliOptionArgs.includes("--compact");
+const resolvedWasmPackCheckArgs = isJson
+  ? wasmPackCheckJsonArgs
+  : wasmPackCheckQuietArgs;
 const jsonFormat = { compact: isCompact };
 const { supportedCliOptions: supportedCliOptionTokens } = createCliOptionCatalog({
   canonicalOptions: canonicalCliOptions,
@@ -92,6 +98,11 @@ if (isJson && validationFailureMessage !== null) {
     attemptedBuild: false,
     buildSkipped: isNoBuild,
     wasmPackAvailable: null,
+    wasmPackCheckCommand,
+    wasmPackCheckArgs: [...resolvedWasmPackCheckArgs],
+    wasmPackCheckArgCount: resolvedWasmPackCheckArgs.length,
+    wasmPackCheckExitCode: null,
+    wasmPackCheckOutputLine: null,
     wasmPackCheckReport: null,
     buildOutput: null,
     outputPath: outputPathError === null ? outputPath : null,
@@ -178,6 +189,11 @@ if (fs.existsSync(wasmMesherEntry)) {
     attemptedBuild: false,
     buildSkipped: isNoBuild,
     wasmPackAvailable: null,
+    wasmPackCheckCommand,
+    wasmPackCheckArgs: [...resolvedWasmPackCheckArgs],
+    wasmPackCheckArgCount: resolvedWasmPackCheckArgs.length,
+    wasmPackCheckExitCode: null,
+    wasmPackCheckOutputLine: null,
     wasmPackCheckReport: null,
     buildOutput: null,
     message: "WASM mesher artifact already exists.",
@@ -193,6 +209,11 @@ if (isNoBuild) {
     attemptedBuild: false,
     buildSkipped: true,
     wasmPackAvailable: null,
+    wasmPackCheckCommand,
+    wasmPackCheckArgs: [...resolvedWasmPackCheckArgs],
+    wasmPackCheckArgCount: resolvedWasmPackCheckArgs.length,
+    wasmPackCheckExitCode: null,
+    wasmPackCheckOutputLine: null,
     wasmPackCheckReport: null,
     buildOutput: null,
     message:
@@ -201,16 +222,21 @@ if (isNoBuild) {
 }
 
 const wasmPackCheck = isJson
-  ? spawnSync(process.execPath, [rootWasmCheckScript, "--json", "--compact"], {
+  ? spawnSync(wasmPackCheckCommand, wasmPackCheckJsonArgs, {
       encoding: "utf8",
       shell: false,
     })
-  : spawnSync(process.execPath, [rootWasmCheckScript, "--quiet"], {
+  : spawnSync(wasmPackCheckCommand, wasmPackCheckQuietArgs, {
       stdio: "inherit",
       shell: false,
     });
 const wasmPackCheckStatus = wasmPackCheck.status ?? 1;
 const wasmPackCheckOutput = `${wasmPackCheck.stdout ?? ""}${wasmPackCheck.stderr ?? ""}`.trim();
+const wasmPackCheckOutputLine =
+  wasmPackCheckOutput
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => line.length > 0) ?? null;
 const wasmPackCheckReport = isJson ? parseJsonOutput(wasmPackCheckOutput) : null;
 
 if (wasmPackCheckStatus !== 0) {
@@ -222,6 +248,11 @@ if (wasmPackCheckStatus !== 0) {
     attemptedBuild: false,
     buildSkipped: false,
     wasmPackAvailable: false,
+    wasmPackCheckCommand,
+    wasmPackCheckArgs: [...resolvedWasmPackCheckArgs],
+    wasmPackCheckArgCount: resolvedWasmPackCheckArgs.length,
+    wasmPackCheckExitCode: wasmPackCheckStatus,
+    wasmPackCheckOutputLine,
     wasmPackCheckReport,
     buildOutput: null,
     message:
@@ -250,6 +281,11 @@ if (buildStatus === 0 && fs.existsSync(wasmMesherEntry)) {
     attemptedBuild: true,
     buildSkipped: false,
     wasmPackAvailable: true,
+    wasmPackCheckCommand,
+    wasmPackCheckArgs: [...resolvedWasmPackCheckArgs],
+    wasmPackCheckArgCount: resolvedWasmPackCheckArgs.length,
+    wasmPackCheckExitCode: wasmPackCheckStatus,
+    wasmPackCheckOutputLine,
     wasmPackCheckReport,
     buildOutput: isJson ? buildOutput : null,
     message: "WASM mesher artifact is available.",
@@ -264,6 +300,11 @@ finish({
   attemptedBuild: true,
   buildSkipped: false,
   wasmPackAvailable: true,
+  wasmPackCheckCommand,
+  wasmPackCheckArgs: [...resolvedWasmPackCheckArgs],
+  wasmPackCheckArgCount: resolvedWasmPackCheckArgs.length,
+  wasmPackCheckExitCode: wasmPackCheckStatus,
+  wasmPackCheckOutputLine,
   wasmPackCheckReport,
   buildOutput: isJson ? buildOutput : null,
   message:
