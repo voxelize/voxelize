@@ -429,25 +429,6 @@ const hasPotentialRelevantDeltaBatches = (
     ) {
       continue;
     }
-    const chunkMinX = cx * chunkSize;
-    const chunkMinZ = cz * chunkSize;
-    let hasFiniteChunkBounds =
-      Number.isSafeInteger(chunkMinX) && Number.isSafeInteger(chunkMinZ);
-    let chunkMaxX = 0;
-    let chunkMaxZ = 0;
-    if (hasFiniteChunkBounds) {
-      const nextChunkMaxX = chunkMinX + chunkSize;
-      const nextChunkMaxZ = chunkMinZ + chunkSize;
-      if (
-        Number.isSafeInteger(nextChunkMaxX) &&
-        Number.isSafeInteger(nextChunkMaxZ)
-      ) {
-        chunkMaxX = nextChunkMaxX;
-        chunkMaxZ = nextChunkMaxZ;
-      } else {
-        hasFiniteChunkBounds = false;
-      }
-    }
 
     const deltas = deltaBatch.deltas;
     if (!Array.isArray(deltas) || deltas.length === 0) {
@@ -476,15 +457,9 @@ const hasPotentialRelevantDeltaBatches = (
         }
         const writeIntentMask = getDeltaWriteIntentMask(delta);
         if (writeIntentMask !== 0) {
-          if (!hasFiniteChunkBounds) {
-            return true;
-          }
-          if (
-            vx >= chunkMinX &&
-            vx < chunkMaxX &&
-            vz >= chunkMinZ &&
-            vz < chunkMaxZ
-          ) {
+          const deltaChunkX = Math.floor(vx / chunkSize);
+          const deltaChunkZ = Math.floor(vz / chunkSize);
+          if (deltaChunkX === cx && deltaChunkZ === cz) {
             return true;
           }
         }
