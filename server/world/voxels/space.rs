@@ -382,13 +382,14 @@ impl VoxelAccess for Space {
 
     /// Check if space contains this coordinate
     fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        if vy < 0 || vy >= self.options.max_height as i32 {
+            return false;
+        }
         let (coords, _) = self.to_local(vx, vy, vz);
 
-        vy >= 0
-            && vy < self.options.max_height as i32
-            && (self.lights.contains_key(&coords)
-                || self.voxels.contains_key(&coords)
-                || self.height_maps.contains_key(&coords))
+        self.lights.contains_key(&coords)
+            || self.voxels.contains_key(&coords)
+            || self.height_maps.contains_key(&coords)
     }
 }
 

@@ -198,6 +198,14 @@ fn test_space_get_raw_voxel_ignores_out_of_range_y() {
 
     let space = chunks.make_space(&Vec2(0, 0), 1).needs_voxels().build();
     assert_eq!(space.get_raw_voxel(0, 0, 0), 1);
+    assert!(
+        !space.contains(0, -1, 0),
+        "space contains checks should reject negative world heights"
+    );
+    assert!(
+        !space.contains(0, config.max_height as i32, 0),
+        "space contains checks should reject y coordinates at max height boundary"
+    );
     assert_eq!(
         space.get_raw_voxel(0, -1, 0),
         0,
