@@ -1497,6 +1497,14 @@ describe("Type builders", () => {
     });
   });
 
+  it("sanitizes non-plain createBlockRule inputs to none rules", () => {
+    const dateRule = createBlockRule(new Date() as never);
+    const mapRule = createBlockRule(new Map() as never);
+
+    expect(dateRule).toEqual(BLOCK_RULE_NONE);
+    expect(mapRule).toEqual(BLOCK_RULE_NONE);
+  });
+
   it("sanitizes cyclic createBlockRule inputs without throwing", () => {
     type CyclicCombinationRule = {
       type: "combination";
