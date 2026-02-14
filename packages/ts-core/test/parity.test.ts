@@ -1225,6 +1225,36 @@ describe("BlockRuleEvaluator", () => {
     expect(matched).toBe(true);
   });
 
+  it("preserves large non-segment y-rotations for y-rotatable offsets", () => {
+    const rotationAngle = 0.1 + Math.PI * 2 * 1_000_000_000_000;
+    const normalizedAngle =
+      ((rotationAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    const expectedX = Math.round(1000 * Math.cos(normalizedAngle));
+    const expectedZ = Math.round(1000 * Math.sin(normalizedAngle));
+    const rule = {
+      type: "simple" as const,
+      offset: [1000, 0, 0] as [number, number, number],
+      id: 20,
+    };
+
+    const access = {
+      getVoxel: (x: number, y: number, z: number) =>
+        x === expectedX && y === 0 && z === expectedZ ? 20 : 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    const matched = BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access, {
+      rotation: BlockRotation.py(rotationAngle),
+      yRotatable: true,
+      worldSpace: false,
+    });
+
+    expect(expectedX).toBeLessThan(1000);
+    expect(expectedZ).toBeGreaterThan(0);
+    expect(matched).toBe(true);
+  });
+
   it("applies rotated offsets relative to non-origin positions", () => {
     const rule = {
       type: "simple" as const,
