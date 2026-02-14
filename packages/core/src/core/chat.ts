@@ -206,8 +206,11 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       return;
     }
 
-    const triggerEnd = raw.indexOf(" ", triggerStart);
-    if (triggerEnd === -1) {
+    let triggerEnd = triggerStart;
+    while (triggerEnd < length && raw.charCodeAt(triggerEnd) !== 32) {
+      triggerEnd++;
+    }
+    if (triggerEnd === length) {
       this.parsedCommandTrigger = raw.substring(triggerStart);
       this.parsedCommandRest = "";
       return;
