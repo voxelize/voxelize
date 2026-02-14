@@ -3079,6 +3079,9 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
 
                     let raw_voxel = space.get_raw_voxel(vx, vy, vz);
                     let voxel_id = extract_id(raw_voxel);
+                    if zero_is_empty && voxel_id == 0 {
+                        continue;
+                    }
                     let block = match registry.get_block_by_id(voxel_id) {
                         Some(b) => b,
                         None => continue,
