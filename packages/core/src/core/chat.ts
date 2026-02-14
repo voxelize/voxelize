@@ -226,8 +226,9 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   }
 
   private splitQuotedTokens(raw: string): string[] {
+    const length = raw.length;
     let hasQuote = false;
-    for (let index = 0; index < raw.length; index++) {
+    for (let index = 0; index < length; index++) {
       const code = raw.charCodeAt(index);
       if (code === 34 || code === 39) {
         hasQuote = true;
@@ -243,7 +244,6 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     let current = "";
     let quoteCharCode = 0;
     let segmentStart = -1;
-    const length = raw.length;
 
     for (let i = 0; i < length; i++) {
       const code = raw.charCodeAt(i);
