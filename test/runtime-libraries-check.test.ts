@@ -289,6 +289,70 @@ describe("check-runtime-libraries script", () => {
     expect(report.activeCliOptions).toEqual(["--json", "--no-build", "--output"]);
   });
 
+  it("reports strict output validation for empty split output values", () => {
+    const result = runScript(["--json", "--output", ""]);
+    const report = parseReport(result);
+
+    expect(result.status).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.outputPath).toBeNull();
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--json", "--output"]);
+    expect(report.activeCliOptionTokens).toEqual(["--json", "--output"]);
+  });
+
+  it("reports strict output validation for whitespace split output values", () => {
+    const result = runScript(["--json", "--output", "   "]);
+    const report = parseReport(result);
+
+    expect(result.status).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.outputPath).toBeNull();
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--json", "--output"]);
+    expect(report.activeCliOptionTokens).toEqual(["--json", "--output"]);
+  });
+
+  it("reports strict output validation for empty inline output values", () => {
+    const result = runScript(["--json", "--output="]);
+    const report = parseReport(result);
+
+    expect(result.status).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.outputPath).toBeNull();
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--json", "--output"]);
+    expect(report.activeCliOptionTokens).toEqual(["--json", "--output="]);
+  });
+
+  it("reports strict output validation for whitespace inline output values", () => {
+    const result = runScript(["--json", "--output=   "]);
+    const report = parseReport(result);
+
+    expect(result.status).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.outputPath).toBeNull();
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--json", "--output"]);
+    expect(report.activeCliOptionTokens).toEqual(["--json", "--output=   "]);
+  });
+
   it("reports unsupported options with canonical alias normalization", () => {
     const result = runScript(["--json", "--verify=1", "--mystery"]);
     const report = parseReport(result);
@@ -618,5 +682,30 @@ describe("check-runtime-libraries script", () => {
     expect(report.passed).toBe(true);
     expect(report.activeCliOptions).toEqual(["--json", "--quiet"]);
     expect(report.outputPath).toBeNull();
+  });
+
+  it("non-json mode prioritizes missing output value over inline json misuse", () => {
+    const result = runScript(["--output", "--json=1"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("Missing value for --output option.");
+    expect(result.output).not.toContain("Unsupported option(s):");
+    expect(result.output).not.toContain("--json=1");
+  });
+
+  it("non-json mode prioritizes whitespace inline output value over unsupported options", () => {
+    const result = runScript(["--mystery", "--output=   "]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("Missing value for --output option.");
+    expect(result.output).not.toContain("Unsupported option(s):");
+  });
+
+  it("non-json mode prioritizes empty inline output value over unsupported options", () => {
+    const result = runScript(["--mystery", "--output="]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("Missing value for --output option.");
+    expect(result.output).not.toContain("Unsupported option(s):");
   });
 });
