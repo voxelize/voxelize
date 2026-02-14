@@ -512,7 +512,7 @@ where
         return nodes;
     }
 
-    serde_wasm_bindgen::from_value(value).unwrap_or_default()
+    Vec::new()
 }
 
 #[wasm_bindgen]
