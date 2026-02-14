@@ -340,67 +340,51 @@ fn parse_chunks(
         let mut has_any_chunk = false;
 
         for index_u32 in 0..expected_chunk_count_u32 {
-            let chunk_value = chunks_data.get(index_u32);
-            if chunk_value.is_null() || chunk_value.is_undefined() {
-                if has_any_chunk {
-                    chunks.push(None);
+            let parsed_chunk = 'parse: {
+                let chunk_value = chunks_data.get(index_u32);
+                if !chunk_value.is_object() {
+                    break 'parse None;
                 }
-                continue;
-            }
-            if !chunk_value.is_object() {
-                if has_any_chunk {
-                    chunks.push(None);
+                let Ok(voxels_value) = Reflect::get(&chunk_value, &keys.voxels) else {
+                    break 'parse None;
+                };
+                let Ok(lights_value) = Reflect::get(&chunk_value, &keys.lights) else {
+                    break 'parse None;
+                };
+                let Ok(voxels_array) = voxels_value.dyn_into::<Uint32Array>() else {
+                    break 'parse None;
+                };
+                let Ok(lights_array) = lights_value.dyn_into::<Uint32Array>() else {
+                    break 'parse None;
+                };
+                if voxels_array.length() != expected_chunk_len_u32
+                    || lights_array.length() != expected_chunk_len_u32
+                {
+                    break 'parse None;
                 }
-                continue;
-            }
 
-            let Ok(voxels_value) = Reflect::get(&chunk_value, &keys.voxels) else {
-                if has_any_chunk {
-                    chunks.push(None);
-                }
-                continue;
-            };
-            let Ok(lights_value) = Reflect::get(&chunk_value, &keys.lights) else {
-                if has_any_chunk {
-                    chunks.push(None);
-                }
-                continue;
-            };
-            let Ok(voxels_array) = voxels_value.dyn_into::<Uint32Array>() else {
-                if has_any_chunk {
-                    chunks.push(None);
-                }
-                continue;
-            };
-            let Ok(lights_array) = lights_value.dyn_into::<Uint32Array>() else {
-                if has_any_chunk {
-                    chunks.push(None);
-                }
-                continue;
-            };
-            if voxels_array.length() != expected_chunk_len_u32
-                || lights_array.length() != expected_chunk_len_u32
-            {
-                if has_any_chunk {
-                    chunks.push(None);
-                }
-                continue;
-            }
-            let mut voxels = vec![0; expected_chunk_len];
-            let mut lights = vec![0; expected_chunk_len];
-            voxels_array.copy_to(&mut voxels);
-            lights_array.copy_to(&mut lights);
+                let mut voxels = vec![0; expected_chunk_len];
+                let mut lights = vec![0; expected_chunk_len];
+                voxels_array.copy_to(&mut voxels);
+                lights_array.copy_to(&mut lights);
 
-            if !has_any_chunk {
-                let index = index_u32 as usize;
-                chunks = Vec::with_capacity(expected_chunk_count);
-                chunks.resize(index, None);
-                has_any_chunk = true;
+                break 'parse Some(ChunkData {
+                    voxels,
+                    lights,
+                });
+            };
+
+            if let Some(chunk_data) = parsed_chunk {
+                if !has_any_chunk {
+                    let index = index_u32 as usize;
+                    chunks = Vec::with_capacity(expected_chunk_count);
+                    chunks.resize(index, None);
+                    has_any_chunk = true;
+                }
+                chunks.push(Some(chunk_data));
+            } else if has_any_chunk {
+                chunks.push(None);
             }
-            chunks.push(Some(ChunkData {
-                voxels,
-                lights,
-            }));
         }
 
         if !has_any_chunk {
