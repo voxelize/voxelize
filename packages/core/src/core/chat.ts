@@ -229,11 +229,16 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     const length = raw.length;
     let triggerStart = startIndex;
 
-    while (
+    if (
       triggerStart < length &&
       isWhitespaceCode(raw.charCodeAt(triggerStart))
     ) {
-      triggerStart++;
+      do {
+        triggerStart++;
+      } while (
+        triggerStart < length &&
+        isWhitespaceCode(raw.charCodeAt(triggerStart))
+      );
     }
 
     if (triggerStart >= length) {
@@ -257,11 +262,13 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     this.parsedCommandTrigger = raw.substring(triggerStart, triggerEnd);
 
     let restStart = triggerEnd + 1;
-    while (
-      restStart < length &&
-      isWhitespaceCode(raw.charCodeAt(restStart))
-    ) {
-      restStart++;
+    if (restStart < length && isWhitespaceCode(raw.charCodeAt(restStart))) {
+      do {
+        restStart++;
+      } while (
+        restStart < length &&
+        isWhitespaceCode(raw.charCodeAt(restStart))
+      );
     }
 
     this.parsedCommandRest = restStart < length ? raw.substring(restStart) : "";
