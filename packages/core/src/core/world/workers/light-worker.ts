@@ -542,22 +542,6 @@ const processBatchMessage = (message: LightBatchMessage) => {
   const [gridWidth, gridDepth] = chunkGridDimensions;
   const [gridOffsetX, gridOffsetZ] = chunkGridOffset;
   const normalizedLastRelevantSequenceId = normalizeSequenceId(lastRelevantSequenceId);
-  const bounds = message.boundingBox;
-  const boundsMin = bounds?.min;
-  const boundsShape = bounds?.shape;
-  if (
-    boundsMin === undefined ||
-    boundsShape === undefined ||
-    !isInteger(boundsMin[0]) ||
-    !isInteger(boundsMin[1]) ||
-    !isInteger(boundsMin[2]) ||
-    !isPositiveInteger(boundsShape[0]) ||
-    !isPositiveInteger(boundsShape[1]) ||
-    !isPositiveInteger(boundsShape[2])
-  ) {
-    postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
-    return;
-  }
   const chunkSize = options.chunkSize;
   const maxHeight = options.maxHeight;
   const maxLightLevel = options.maxLightLevel;
@@ -605,6 +589,24 @@ const processBatchMessage = (message: LightBatchMessage) => {
     return;
   }
   if (removals.length === 0 && floods.length === 0) {
+    postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
+    return;
+  }
+  const hasFloods = floods.length > 0;
+  const bounds = message.boundingBox;
+  const boundsMin = bounds?.min;
+  const boundsShape = bounds?.shape;
+  if (
+    hasFloods &&
+    (boundsMin === undefined ||
+      boundsShape === undefined ||
+      !isInteger(boundsMin[0]) ||
+      !isInteger(boundsMin[1]) ||
+      !isInteger(boundsMin[2]) ||
+      !isPositiveInteger(boundsShape[0]) ||
+      !isPositiveInteger(boundsShape[1]) ||
+      !isPositiveInteger(boundsShape[2]))
+  ) {
     postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
     return;
   }
@@ -664,12 +666,21 @@ const processBatchMessage = (message: LightBatchMessage) => {
     chunkGrid.length = 0;
   }
 
-  reusableBoundsMin[0] = boundsMin[0];
-  reusableBoundsMin[1] = boundsMin[1];
-  reusableBoundsMin[2] = boundsMin[2];
-  reusableBoundsShape[0] = boundsShape[0];
-  reusableBoundsShape[1] = boundsShape[1];
-  reusableBoundsShape[2] = boundsShape[2];
+  if (hasFloods && boundsMin && boundsShape) {
+    reusableBoundsMin[0] = boundsMin[0];
+    reusableBoundsMin[1] = boundsMin[1];
+    reusableBoundsMin[2] = boundsMin[2];
+    reusableBoundsShape[0] = boundsShape[0];
+    reusableBoundsShape[1] = boundsShape[1];
+    reusableBoundsShape[2] = boundsShape[2];
+  } else {
+    reusableBoundsMin[0] = 0;
+    reusableBoundsMin[1] = 0;
+    reusableBoundsMin[2] = 0;
+    reusableBoundsShape[0] = 0;
+    reusableBoundsShape[1] = 0;
+    reusableBoundsShape[2] = 0;
+  }
   const colorIndex = colorToIndex(color);
   if (colorIndex === null) {
     postEmptyBatchResult(jobId, lastSequenceId);
