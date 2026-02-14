@@ -164,7 +164,7 @@ export class Perspective {
     const unbindKeyC = inputs.bind(
       "KeyC",
       () => {
-        if (!this.controls?.isLocked) {
+        if (!this.controls.isLocked) {
           return;
         }
         this.toggle();
