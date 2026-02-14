@@ -322,13 +322,18 @@ impl Chunks {
 
     /// Get neighboring coords of a voxel coordinate.
     pub fn voxel_affected_chunks(&self, vx: i32, vy: i32, vz: i32) -> Vec<Vec2<i32>> {
-        let mut neighbors = vec![];
+        let mut neighbors = Vec::with_capacity(9);
         let chunk_size = self.config.chunk_size;
 
         let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
         let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+        let mut push_if_within_world = |coords: Vec2<i32>| {
+            if self.is_within_world(&coords) {
+                neighbors.push(coords);
+            }
+        };
 
-        neighbors.push(Vec2(cx, cz));
+        push_if_within_world(Vec2(cx, cz));
 
         let a = lx == 0;
         let b = lz == 0;
@@ -336,35 +341,32 @@ impl Chunks {
         let d = lz == chunk_size - 1;
 
         if a {
-            neighbors.push(Vec2(cx - 1, cz))
+            push_if_within_world(Vec2(cx - 1, cz));
         }
         if b {
-            neighbors.push(Vec2(cx, cz - 1));
+            push_if_within_world(Vec2(cx, cz - 1));
         }
         if c {
-            neighbors.push(Vec2(cx + 1, cz));
+            push_if_within_world(Vec2(cx + 1, cz));
         }
         if d {
-            neighbors.push(Vec2(cx, cz + 1));
+            push_if_within_world(Vec2(cx, cz + 1));
         }
 
         if a && b {
-            neighbors.push(Vec2(cx - 1, cz - 1));
+            push_if_within_world(Vec2(cx - 1, cz - 1));
         }
         if a && d {
-            neighbors.push(Vec2(cx - 1, cz + 1));
+            push_if_within_world(Vec2(cx - 1, cz + 1));
         }
         if b && c {
-            neighbors.push(Vec2(cx + 1, cz - 1));
+            push_if_within_world(Vec2(cx + 1, cz - 1));
         }
         if c && d {
-            neighbors.push(Vec2(cx + 1, cz + 1));
+            push_if_within_world(Vec2(cx + 1, cz + 1));
         }
 
         neighbors
-            .into_iter()
-            .filter(|coords| self.is_within_world(coords))
-            .collect()
     }
 
     /// Get a list of chunks that light could traverse within.
