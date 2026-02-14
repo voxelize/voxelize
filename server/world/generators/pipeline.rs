@@ -334,31 +334,25 @@ impl Pipeline {
         registry: &Registry,
         config: &WorldConfig,
     ) {
-        processes.iter().for_each(|(chunk, _)| {
+        let mut processes_with_stages: Vec<(Chunk, Option<Space>, Arc<dyn ChunkStage + Send + Sync>)> =
+            Vec::with_capacity(processes.len());
+        for (chunk, space) in processes {
             self.chunks.insert(chunk.coords.to_owned());
-        });
-
-        // Retrieve the chunk stages' Arc clones.
-        let processes: Vec<(Chunk, Option<Space>, Arc<dyn ChunkStage + Send + Sync>)> = processes
-            .into_iter()
-            .map(|(chunk, space)| {
-                let index = if let ChunkStatus::Generating(index) = chunk.status {
-                    index
-                } else {
-                    panic!("Chunk in pipeline does not have a generating status.");
-                };
-
-                let stage = self.stages.get(index).unwrap().clone();
-                (chunk, space, stage)
-            })
-            .collect();
+            let index = if let ChunkStatus::Generating(index) = chunk.status {
+                index
+            } else {
+                panic!("Chunk in pipeline does not have a generating status.");
+            };
+            let stage = self.stages.get(index).unwrap().clone();
+            processes_with_stages.push((chunk, space, stage));
+        }
 
         let sender = Arc::clone(&self.sender);
         let registry = Arc::new(registry.to_owned());
         let config = Arc::new(config.to_owned());
 
         rayon::spawn(move || {
-            processes
+            processes_with_stages
                 .into_par_iter()
                 .for_each(|(chunk, space, stage)| {
                     let sender = Arc::clone(&sender);
