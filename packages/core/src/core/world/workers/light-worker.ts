@@ -926,13 +926,20 @@ const processBatchMessage = (message: LightBatchMessage) => {
 
 onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
   const message = event.data;
+  if (!message || typeof message !== "object") {
+    return;
+  }
+  const messageType = (message as { type?: string }).type;
+  if (messageType !== "init" && messageType !== "batchOperations") {
+    return;
+  }
 
-  if (message.type === "init") {
+  if (messageType === "init") {
     if (!wasmInitialized) {
       await ensureWasmInitialized();
     }
 
-    const wasmRegistry = convertRegistryToWasm(message.registryData);
+    const wasmRegistry = convertRegistryToWasm((message as InitMessage).registryData);
     set_registry(wasmRegistry);
     registryInitialized = true;
 
@@ -962,9 +969,9 @@ onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
       }
       normalizePendingBatchMessages();
     }
-    pendingBatchMessages.push(message);
+    pendingBatchMessages.push(message as LightBatchMessage);
     return;
   }
 
-  processBatchMessage(message);
+  processBatchMessage(message as LightBatchMessage);
 };
