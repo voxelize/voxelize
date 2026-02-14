@@ -436,14 +436,7 @@ fn has_invalid_batch_config(
 }
 
 #[inline]
-fn has_invalid_flood_bounds(
-    flood_node_count: usize,
-    bounds_min_len: usize,
-    bounds_shape: &[u32],
-) -> bool {
-    if flood_node_count == 0 {
-        return false;
-    }
+fn has_invalid_flood_bounds(bounds_min_len: usize, bounds_shape: &[u32]) -> bool {
     if bounds_min_len < 3 || bounds_shape.len() < 3 {
         return true;
     }
@@ -605,9 +598,7 @@ pub fn process_light_batch_fast(
     if removal_nodes.is_empty() && flood_nodes.is_empty() {
         return empty_batch_result();
     }
-    if !flood_nodes.is_empty()
-        && has_invalid_flood_bounds(flood_nodes.len(), bounds_min.len(), bounds_shape)
-    {
+    if !flood_nodes.is_empty() && has_invalid_flood_bounds(bounds_min.len(), bounds_shape) {
         return empty_batch_result();
     }
     let (chunks, has_any_chunk) = parse_chunks(chunks_data, expected_chunk_count, expected_chunk_len);
@@ -818,11 +809,10 @@ mod tests {
 
     #[test]
     fn invalid_flood_bounds_detect_short_arrays_only_when_flooding() {
-        assert!(super::has_invalid_flood_bounds(1, 2, &[1, 1, 1]));
-        assert!(super::has_invalid_flood_bounds(1, 3, &[1, 1]));
-        assert!(super::has_invalid_flood_bounds(1, 3, &[0, 1, 1]));
-        assert!(!super::has_invalid_flood_bounds(0, 0, &[]));
-        assert!(!super::has_invalid_flood_bounds(2, 3, &[1, 1, 1]));
+        assert!(super::has_invalid_flood_bounds(2, &[1, 1, 1]));
+        assert!(super::has_invalid_flood_bounds(3, &[1, 1]));
+        assert!(super::has_invalid_flood_bounds(3, &[0, 1, 1]));
+        assert!(!super::has_invalid_flood_bounds(3, &[1, 1, 1]));
     }
 
     #[test]
