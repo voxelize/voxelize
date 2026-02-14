@@ -237,6 +237,9 @@ struct BatchOutput {
 fn parse_chunks(chunks_data: &Array) -> Vec<Option<ChunkData>> {
     let chunk_count = chunks_data.length() as usize;
     let mut chunks = Vec::with_capacity(chunk_count);
+    let voxels_key = JsValue::from_str("voxels");
+    let lights_key = JsValue::from_str("lights");
+    let shape_key = JsValue::from_str("shape");
 
     for index in 0..chunk_count {
         let chunk_value = chunks_data.get(index as u32);
@@ -246,12 +249,12 @@ fn parse_chunks(chunks_data: &Array) -> Vec<Option<ChunkData>> {
         }
 
         let chunk_obj = js_sys::Object::from(chunk_value);
-        let voxels_value = Reflect::get(&chunk_obj, &"voxels".into())
+        let voxels_value = Reflect::get(&chunk_obj, &voxels_key)
             .expect("chunksData item is missing voxels");
-        let lights_value = Reflect::get(&chunk_obj, &"lights".into())
+        let lights_value = Reflect::get(&chunk_obj, &lights_key)
             .expect("chunksData item is missing lights");
-        let shape_value =
-            Reflect::get(&chunk_obj, &"shape".into()).expect("chunksData item is missing shape");
+        let shape_value = Reflect::get(&chunk_obj, &shape_key)
+            .expect("chunksData item is missing shape");
         let voxels = Uint32Array::from(voxels_value).to_vec();
         let lights = Uint32Array::from(lights_value).to_vec();
         let shape_array = Array::from(&shape_value);
