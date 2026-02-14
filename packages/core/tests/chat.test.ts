@@ -81,6 +81,34 @@ describe("Chat command parsing", () => {
     expect(parsed).toEqual({ first: "hello world", second: "test" });
   });
 
+  it("parses command triggers and args separated by tab whitespace", () => {
+    const chat = new Chat();
+    initializeChat(chat);
+    let parsed: { first: string; second?: string } | null = null;
+
+    chat.addCommand(
+      "echo",
+      (args) => {
+        parsed = args;
+      },
+      {
+        description: "Echo command",
+        args: z.object({
+          first: z.string(),
+          second: z.string().optional(),
+        }),
+      }
+    );
+
+    const message: ChatProtocol = {
+      type: "CLIENT",
+      body: "/echo\thello\tworld",
+    };
+    chat.send(message);
+
+    expect(parsed).toEqual({ first: "hello", second: "world" });
+  });
+
   it("parses boolean-only schemas without positional token buffering", () => {
     const chat = new Chat();
     initializeChat(chat);

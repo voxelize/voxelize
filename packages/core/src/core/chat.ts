@@ -196,7 +196,10 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     const length = raw.length;
     let triggerStart = 0;
 
-    while (triggerStart < length && raw.charCodeAt(triggerStart) === 32) {
+    while (
+      triggerStart < length &&
+      isWhitespaceCode(raw.charCodeAt(triggerStart))
+    ) {
       triggerStart++;
     }
 
@@ -207,7 +210,10 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     }
 
     let triggerEnd = triggerStart;
-    while (triggerEnd < length && raw.charCodeAt(triggerEnd) !== 32) {
+    while (
+      triggerEnd < length &&
+      !isWhitespaceCode(raw.charCodeAt(triggerEnd))
+    ) {
       triggerEnd++;
     }
     if (triggerEnd === length) {
@@ -218,7 +224,10 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     this.parsedCommandTrigger = raw.substring(triggerStart, triggerEnd);
 
     let restStart = triggerEnd + 1;
-    while (restStart < length && raw.charCodeAt(restStart) === 32) {
+    while (
+      restStart < length &&
+      isWhitespaceCode(raw.charCodeAt(restStart))
+    ) {
       restStart++;
     }
 
@@ -262,7 +271,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         }
         quoteCharCode = code;
         segmentStart = i + 1;
-      } else if (code === 32) {
+      } else if (isWhitespaceCode(code)) {
         if (segmentStart >= 0) {
           current += raw.substring(segmentStart, i);
           segmentStart = -1;
@@ -293,7 +302,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     let firstSpace = -1;
     const rawLength = raw.length;
     for (let index = 0; index < rawLength; index++) {
-      if (raw.charCodeAt(index) === 32) {
+      if (isWhitespaceCode(raw.charCodeAt(index))) {
         firstSpace = index;
         break;
       }
@@ -318,7 +327,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
     let segmentStart = -1;
     for (let index = scanStart; index < rawLength; index++) {
-      if (raw.charCodeAt(index) === 32) {
+      if (isWhitespaceCode(raw.charCodeAt(index))) {
         if (segmentStart >= 0) {
           tokens.push(raw.substring(segmentStart, index));
           segmentStart = -1;
