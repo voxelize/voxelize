@@ -415,7 +415,18 @@ const hasPotentialRelevantDeltaBatches = (
         isInteger(coords[1]) &&
         isInteger(coords[2])
       ) {
-        return true;
+        const oldVoxel = delta.oldVoxel;
+        const newVoxel = delta.newVoxel;
+        const shouldWriteVoxel =
+          isValidVoxelId(oldVoxel) &&
+          isValidVoxelId(newVoxel) &&
+          oldVoxel !== newVoxel;
+        const shouldWriteRotation = hasFiniteRotation(delta.newRotation);
+        const newStage = delta.newStage;
+        const shouldWriteStage = newStage !== undefined && isValidStage(newStage);
+        if (shouldWriteVoxel || shouldWriteRotation || shouldWriteStage) {
+          return true;
+        }
       }
     }
   }
