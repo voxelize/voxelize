@@ -70,7 +70,7 @@ impl ChunkUtils {
     pub fn map_voxel_to_chunk_local(vx: i32, vy: i32, vz: i32, chunk_size: usize) -> Vec3<usize> {
         let cs = normalized_chunk_size(chunk_size);
         let lx = vx.rem_euclid(cs) as usize;
-        let ly = usize::try_from(vy).unwrap_or(0);
+        let ly = if vy < 0 { 0 } else { vy as usize };
         let lz = vz.rem_euclid(cs) as usize;
 
         Vec3(lx, ly, lz)
