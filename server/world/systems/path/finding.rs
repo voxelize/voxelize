@@ -227,16 +227,17 @@ impl<'a> System<'a> for PathFindingSystem {
 
                     let start_time = Instant::now();
                     let count = AtomicI32::new(0);
+                    let max_depth_search = normalized_max_depth_search(entity_path.max_depth_search);
 
                     let path = AStar::calculate(
                         &start,
                         &goal,
                         &|node| {
                             let &PathNode(vx, vy, vz) = node;
-                            let mut successors = vec![];
+                            let mut successors = Vec::with_capacity(12);
                             let current_count = count.fetch_add(1, Ordering::Relaxed);
 
-                            if current_count >= entity_path.max_depth_search
+                            if current_count >= max_depth_search
                                 || start_time.elapsed() > entity_path.max_pathfinding_time
                             {
                                 return successors;
@@ -403,11 +404,7 @@ impl<'a> System<'a> for PathFindingSystem {
                             entity_path.path = None;
                         } else {
                             entity_path.path = Some(
-                                nodes
-                                    .clone()
-                                    .iter()
-                                    .map(|p| Vec3(p.0, p.1, p.2))
-                                    .collect::<Vec<_>>(),
+                                nodes.into_iter().map(|p| Vec3(p.0, p.1, p.2)).collect(),
                             );
 
                             // Apply path smoothing to the first few nodes
@@ -637,6 +634,11 @@ fn clamp_usize_to_u32(value: usize) -> u32 {
     }
 }
 
+#[inline]
+fn normalized_max_depth_search(value: i32) -> i32 {
+    value.max(0)
+}
+
 /// Calculate the angle change in degrees between three points
 fn calculate_angle_change(p1: &Vec3<i32>, p2: &Vec3<i32>, p3: &Vec3<i32>) -> f32 {
     // Vector from p1 to p2
@@ -784,7 +786,7 @@ fn is_position_walkable(
 mod tests {
     use super::{
         axis_delta_i64, clamp_f64_to_i32, clamp_usize_to_u32, clamped_height_scan_steps,
-        floor_f32_to_i32, squared_voxel_distance_f64,
+        floor_f32_to_i32, normalized_max_depth_search, squared_voxel_distance_f64,
     };
     use crate::Vec3;
 
@@ -829,5 +831,12 @@ mod tests {
     fn clamp_usize_to_u32_saturates_large_values() {
         assert_eq!(clamp_usize_to_u32(5), 5);
         assert_eq!(clamp_usize_to_u32(usize::MAX), u32::MAX);
+    }
+
+    #[test]
+    fn normalized_max_depth_search_rejects_negative_values() {
+        assert_eq!(normalized_max_depth_search(-10), 0);
+        assert_eq!(normalized_max_depth_search(0), 0);
+        assert_eq!(normalized_max_depth_search(25), 25);
     }
 }
