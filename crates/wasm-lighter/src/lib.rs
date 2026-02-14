@@ -575,9 +575,6 @@ pub fn process_light_batch_fast(
     let Some(light_color) = light_color_from_index(color) else {
         return empty_batch_result();
     };
-    let Some(registry) = CACHED_REGISTRY.with(|cached| cached.borrow().clone()) else {
-        return empty_batch_result();
-    };
     let Some((expected_chunk_len, expected_chunk_count)) = compute_expected_chunk_sizes(
         chunk_size,
         max_height,
@@ -617,6 +614,9 @@ pub fn process_light_batch_fast(
     if !flood_nodes.is_empty() && has_invalid_flood_bounds(bounds_min.len(), bounds_shape) {
         return empty_batch_result();
     }
+    let Some(registry) = CACHED_REGISTRY.with(|cached| cached.borrow().clone()) else {
+        return empty_batch_result();
+    };
     let (chunks, has_any_chunk) = parse_chunks(chunks_data, expected_chunk_count, expected_chunk_len);
     if !has_any_chunk {
         return empty_batch_result();
