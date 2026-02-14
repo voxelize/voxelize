@@ -632,21 +632,18 @@ impl LightRegistry {
         }
 
         self.air_index = None;
+        let mut max_id = 0usize;
         for (index, (id, block)) in self.blocks_by_id.iter_mut().enumerate() {
             if block.id != *id {
                 block.id = *id;
             }
             block.recompute_flags();
-            if *id == 0 {
-                self.air_index = Some(index);
-            }
-        }
-
-        let mut max_id = 0usize;
-        for (id, _) in &self.blocks_by_id {
             let id_usize = *id as usize;
             if id_usize > max_id {
                 max_id = id_usize;
+            }
+            if *id == 0 {
+                self.air_index = Some(index);
             }
         }
 
