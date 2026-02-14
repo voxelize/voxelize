@@ -4,6 +4,7 @@ use crate::{Vec2, Vec3};
 const CHUNK_NAME_SEPARATOR: &str = "_";
 #[cfg(not(target_os = "windows"))]
 const CHUNK_NAME_SEPARATOR: &str = "|";
+const MAX_I32_USIZE: usize = i32::MAX as usize;
 
 /// A set of utility functions for chunk operations.
 pub struct ChunkUtils;
@@ -12,7 +13,7 @@ pub struct ChunkUtils;
 fn normalized_chunk_size(chunk_size: usize) -> i32 {
     if chunk_size == 0 {
         1
-    } else if chunk_size > i32::MAX as usize {
+    } else if chunk_size > MAX_I32_USIZE {
         i32::MAX
     } else {
         chunk_size as i32
