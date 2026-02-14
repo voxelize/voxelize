@@ -1093,6 +1093,24 @@ describe("Type builders", () => {
     expect(part.aabbs[0].maxX).toBe(1);
   });
 
+  it("skips invalid face and aabb entries during conditional part cloning", () => {
+    const validFaceInit: BlockFaceInit = {
+      name: "ValidFace",
+      dir: [1, 0, 0],
+    };
+    const validAabb = AABB.create(0, 0, 0, 1, 1, 1);
+    const part = createBlockConditionalPart({
+      faces: [null as never, validFaceInit],
+      aabbs: [null as never, validAabb],
+    });
+
+    expect(part.faces).toHaveLength(1);
+    expect(part.faces[0].name).toBe("ValidFace");
+    expect(part.aabbs).toHaveLength(1);
+    expect(part.aabbs[0]).toEqual(validAabb);
+    expect(part.aabbs[0]).not.toBe(validAabb);
+  });
+
   it("clones provided conditional part rules", () => {
     const inputRule: BlockRule = {
       type: "combination",
@@ -1248,6 +1266,28 @@ describe("Type builders", () => {
         worldSpace: false,
       },
     ]);
+  });
+
+  it("skips invalid nested face and aabb entries in dynamic pattern parts", () => {
+    const validFaceInit: BlockFaceInit = {
+      name: "ValidPatternFace",
+    };
+    const validAabb = AABB.create(0, 0, 0, 1, 1, 1);
+    const pattern = createBlockDynamicPattern({
+      parts: [
+        {
+          faces: [null as never, validFaceInit],
+          aabbs: [null as never, validAabb],
+        },
+      ],
+    });
+
+    expect(pattern.parts).toHaveLength(1);
+    expect(pattern.parts[0].faces).toHaveLength(1);
+    expect(pattern.parts[0].faces[0].name).toBe("ValidPatternFace");
+    expect(pattern.parts[0].aabbs).toHaveLength(1);
+    expect(pattern.parts[0].aabbs[0]).toEqual(validAabb);
+    expect(pattern.parts[0].aabbs[0]).not.toBe(validAabb);
   });
 
   it("clones dynamic pattern parts to avoid external mutation", () => {

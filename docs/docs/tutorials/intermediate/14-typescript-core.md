@@ -45,6 +45,7 @@ omitted.
 `createBlockConditionalPart` accepts either `BlockFace` instances or
 `BlockFaceInit` objects in `faces`.
 Both helpers also accept readonly input arrays/tuples.
+Invalid face/AABB entries are skipped during helper cloning.
 
 ## Basic usage
 

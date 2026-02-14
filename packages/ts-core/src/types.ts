@@ -220,10 +220,22 @@ export const createBlockConditionalPart = (
       ? part
       : {};
   const faces = Array.isArray(normalizedPart.faces)
-    ? normalizedPart.faces.map((face) => cloneBlockFace(face))
+    ? normalizedPart.faces.reduce<BlockFace[]>((clonedFaces, face) => {
+        try {
+          clonedFaces.push(cloneBlockFace(face));
+        } catch {}
+
+        return clonedFaces;
+      }, [])
     : [];
   const aabbs = Array.isArray(normalizedPart.aabbs)
-    ? normalizedPart.aabbs.map((aabb) => aabb.clone())
+    ? normalizedPart.aabbs.reduce<AABB[]>((clonedAabbs, aabb) => {
+        try {
+          clonedAabbs.push(aabb.clone());
+        } catch {}
+
+        return clonedAabbs;
+      }, [])
     : [];
   const isTransparent: FaceTransparency =
     normalizedPart.isTransparent === undefined
