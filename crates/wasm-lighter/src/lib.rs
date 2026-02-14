@@ -46,7 +46,6 @@ impl JsInteropKeys {
     }
 }
 
-const MAX_JS_ARRAY_LENGTH: usize = u32::MAX as usize;
 const MAX_JS_TYPED_ARRAY_LENGTH: usize = i32::MAX as usize;
 
 #[derive(Clone)]
@@ -478,7 +477,7 @@ fn compute_expected_chunk_sizes(
         return None;
     }
     let expected_chunk_count = chunk_grid_width.checked_mul(chunk_grid_depth)?;
-    if expected_chunk_count > MAX_JS_ARRAY_LENGTH {
+    if expected_chunk_count > MAX_JS_TYPED_ARRAY_LENGTH {
         return None;
     }
     Some((expected_chunk_len, expected_chunk_count))
@@ -868,6 +867,10 @@ mod tests {
         assert_eq!(super::compute_expected_chunk_sizes(65_536, 2, 1, 1), None);
         assert_eq!(super::compute_expected_chunk_sizes(46_341, 1, 1, 1), None);
         assert_eq!(super::compute_expected_chunk_sizes(i32::MAX, i32::MAX, 2, 2), None);
+        assert_eq!(
+            super::compute_expected_chunk_sizes(16, 64, 46_341, 46_341),
+            None
+        );
         assert_eq!(
             super::compute_expected_chunk_sizes(16, 64, u32::MAX as usize + 1, 1),
             None
