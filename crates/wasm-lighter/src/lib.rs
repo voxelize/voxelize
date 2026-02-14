@@ -564,19 +564,6 @@ pub fn process_light_batch_fast(
         max_height.max(0) as u32,
     );
 
-    let bounds = if flood_nodes.is_empty() {
-        None
-    } else {
-        Some(LightBounds {
-            min: [bounds_min[0], bounds_min[1], bounds_min[2]],
-            shape: [
-                bounds_shape[0] as usize,
-                bounds_shape[1] as usize,
-                bounds_shape[2] as usize,
-            ],
-        })
-    };
-
     let config = LightConfig {
         chunk_size,
         max_height,
@@ -591,6 +578,18 @@ pub fn process_light_batch_fast(
     if removal_nodes.is_empty() && flood_nodes.is_empty() {
         return empty_batch_result();
     }
+    let bounds = if flood_nodes.is_empty() {
+        None
+    } else {
+        Some(LightBounds {
+            min: [bounds_min[0], bounds_min[1], bounds_min[2]],
+            shape: [
+                bounds_shape[0] as usize,
+                bounds_shape[1] as usize,
+                bounds_shape[2] as usize,
+            ],
+        })
+    };
 
     if !removal_nodes.is_empty() {
         remove_lights(
