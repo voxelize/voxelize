@@ -207,6 +207,11 @@ fn flood_light_from_nodes(
         } else {
             source_block.get_transparency_from_raw_voxel(source_raw_voxel)
         };
+        let keeps_max_sunlight = is_sunlight && level == max_light_level;
+        let decremented_level = level.saturating_sub(1);
+        if !keeps_max_sunlight && decremented_level == 0 {
+            continue;
+        }
 
         for (direction_index, [ox, oy, oz]) in VOXEL_NEIGHBORS.iter().copied().enumerate() {
             let nvx = vx + ox;
@@ -235,16 +240,11 @@ fn flood_light_from_nodes(
             let n_block = registry.get_block_by_id(n_raw_voxel & 0xFFFF);
             let n_transparency = n_block.get_transparency_from_raw_voxel(n_raw_voxel);
 
-            let reduce = if is_sunlight
-                && !n_block.light_reduce
-                && oy == -1
-                && level == max_light_level
-            {
-                0
+            let next_level = if keeps_max_sunlight && oy == -1 && !n_block.light_reduce {
+                level
             } else {
-                1
+                decremented_level
             };
-            let next_level = level.saturating_sub(reduce);
 
             if next_level == 0
                 || !can_enter_direction(&source_transparency, &n_transparency, direction_index)
