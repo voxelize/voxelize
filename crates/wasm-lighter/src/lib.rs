@@ -462,7 +462,7 @@ fn compute_expected_chunk_sizes(
     chunk_grid_width: usize,
     chunk_grid_depth: usize,
 ) -> Option<(usize, usize)> {
-    if chunk_size <= 0 || max_height <= 0 {
+    if chunk_size <= 0 || max_height <= 0 || chunk_grid_width == 0 || chunk_grid_depth == 0 {
         return None;
     }
     let chunk_size_usize = usize::try_from(chunk_size).ok()?;
@@ -851,6 +851,8 @@ mod tests {
         );
         assert_eq!(super::compute_expected_chunk_sizes(0, 64, 1, 1), None);
         assert_eq!(super::compute_expected_chunk_sizes(16, -1, 1, 1), None);
+        assert_eq!(super::compute_expected_chunk_sizes(16, 64, 0, 1), None);
+        assert_eq!(super::compute_expected_chunk_sizes(16, 64, 1, 0), None);
         assert_eq!(super::compute_expected_chunk_sizes(i32::MAX, i32::MAX, 2, 2), None);
         assert_eq!(super::compute_expected_chunk_sizes(16, 64, usize::MAX, 2), None);
     }
