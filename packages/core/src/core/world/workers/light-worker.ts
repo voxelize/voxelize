@@ -1149,7 +1149,14 @@ onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
 
   if (messageType === "init") {
     if (!wasmInitialized) {
-      await ensureWasmInitialized();
+      try {
+        await ensureWasmInitialized();
+      } catch {
+        registryInitialized = false;
+        registryInitializationFailed = true;
+        drainPendingBatchMessagesAsEmptyResults();
+        return;
+      }
     }
 
     const registryData = (message as InitMessage).registryData;
@@ -1186,7 +1193,16 @@ onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
   }
 
   if (!wasmInitialized) {
-    await ensureWasmInitialized();
+    try {
+      await ensureWasmInitialized();
+    } catch {
+      const failedBatchMessage = message as LightBatchMessage;
+      postEmptyBatchResult(
+        failedBatchMessage.jobId,
+        failedBatchMessage.lastRelevantSequenceId
+      );
+      return;
+    }
   }
 
   const batchMessage = message as LightBatchMessage;
