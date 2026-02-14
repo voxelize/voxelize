@@ -367,9 +367,13 @@ fn test_voxel_access_no_op_setters_preserve_contains_semantics() {
     assert!(chunks.set_voxel_stage(0, 0, 0, 0));
     assert!(!chunks.set_voxel_stage(0, 0, 0, 16));
     assert!(chunks.set_red_light(0, 0, 0, 0));
+    assert!(!chunks.set_red_light(0, 0, 0, 16));
     assert!(chunks.set_green_light(0, 0, 0, 0));
+    assert!(!chunks.set_green_light(0, 0, 0, 16));
     assert!(chunks.set_blue_light(0, 0, 0, 0));
+    assert!(!chunks.set_blue_light(0, 0, 0, 16));
     assert!(chunks.set_sunlight(0, 0, 0, 0));
+    assert!(!chunks.set_sunlight(0, 0, 0, 16));
 
     assert!(!chunks.set_voxel_rotation(0, -1, 0, &BlockRotation::PY(0.0)));
     assert!(!chunks.set_voxel_stage(0, -1, 0, 0));

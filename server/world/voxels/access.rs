@@ -70,6 +70,9 @@ pub trait VoxelAccess {
     }
 
     fn set_sunlight(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
+        if level > 15 {
+            return false;
+        }
         let raw = self.get_raw_light(vx, vy, vz);
         let value = LightUtils::insert_sunlight(raw, level);
         if value == raw {
@@ -83,6 +86,9 @@ pub trait VoxelAccess {
     }
 
     fn set_red_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
+        if level > 15 {
+            return false;
+        }
         let raw = self.get_raw_light(vx, vy, vz);
         let value = LightUtils::insert_red_light(raw, level);
         if value == raw {
@@ -96,6 +102,9 @@ pub trait VoxelAccess {
     }
 
     fn set_green_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
+        if level > 15 {
+            return false;
+        }
         let raw = self.get_raw_light(vx, vy, vz);
         let value = LightUtils::insert_green_light(raw, level);
         if value == raw {
@@ -109,6 +118,9 @@ pub trait VoxelAccess {
     }
 
     fn set_blue_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
+        if level > 15 {
+            return false;
+        }
         let raw = self.get_raw_light(vx, vy, vz);
         let value = LightUtils::insert_blue_light(raw, level);
         if value == raw {
