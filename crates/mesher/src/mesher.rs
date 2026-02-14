@@ -2970,6 +2970,12 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
 
     let [min_x, min_y, min_z] = *min;
     let [max_x, max_y, max_z] = *max;
+    let x_span = (max_x - min_x).max(0) as usize;
+    let y_span = (max_y - min_y).max(0) as usize;
+    let z_span = (max_z - min_z).max(0) as usize;
+    let yz_span = y_span * z_span;
+    const OCCLUSION_UNKNOWN: u8 = 2;
+    let mut fully_occluded_opaque = vec![OCCLUSION_UNKNOWN; x_span * y_span * z_span];
 
     let slice_size = (max_x - min_x).max(max_y - min_y).max(max_z - min_z) as usize;
     let mut greedy_mask: Vec<Option<FaceData>> = vec![None; slice_size * slice_size];
@@ -3064,7 +3070,19 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     }
 
                     if block.is_opaque {
-                        if is_surrounded_by_opaque_neighbors(vx, vy, vz, space, registry) {
+                        let voxel_index = ((vx - min_x) as usize) * yz_span
+                            + ((vy - min_y) as usize) * z_span
+                            + (vz - min_z) as usize;
+                        let cached = fully_occluded_opaque[voxel_index];
+                        let is_fully_occluded = if cached == OCCLUSION_UNKNOWN {
+                            let value =
+                                is_surrounded_by_opaque_neighbors(vx, vy, vz, space, registry);
+                            fully_occluded_opaque[voxel_index] = if value { 1 } else { 0 };
+                            value
+                        } else {
+                            cached == 1
+                        };
+                        if is_fully_occluded {
                             continue;
                         }
                     }
