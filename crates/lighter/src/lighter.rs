@@ -386,19 +386,12 @@ fn collect_refill_nodes_after_removals(
 
             let n_raw_voxel = space.get_raw_voxel(nvx, nvy, nvz);
             let n_block = registry.get_block_by_id(n_raw_voxel & 0xFFFF);
-
-            if is_sunlight {
-                let n_transparency = n_block.get_transparency_from_raw_voxel(n_raw_voxel);
-                if !can_enter_into_direction(&n_transparency, direction_index) {
-                    continue;
-                }
-            } else {
-                let n_transparency = n_block.get_transparency_from_raw_voxel(n_raw_voxel);
-                if !can_enter_into_direction(&n_transparency, direction_index)
-                    && !block_emits_torch_at(n_block, nvx, nvy, nvz, space, color, color_mask)
-                {
-                    continue;
-                }
+            let n_transparency = n_block.get_transparency_from_raw_voxel(n_raw_voxel);
+            if !can_enter_into_direction(&n_transparency, direction_index)
+                && (is_sunlight
+                    || !block_emits_torch_at(n_block, nvx, nvy, nvz, space, color, color_mask))
+            {
+                continue;
             }
 
             if n_level < level
