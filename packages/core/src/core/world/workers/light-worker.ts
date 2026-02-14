@@ -531,35 +531,19 @@ const hasPotentialRelevantDeltaBatches = (
         continue;
       }
       const coords = delta.coords;
-      if (!Array.isArray(coords) || coords.length < 3) {
+      if (!isStrictCoords3(coords)) {
         continue;
       }
-      if (
-        isInteger(coords[0]) &&
-        isInteger(coords[1]) &&
-        isInteger(coords[2])
-      ) {
-        const vx = coords[0];
-        const vy = coords[1];
-        const vz = coords[2];
-        if (vy < 0 || vy >= maxHeight) {
-          continue;
-        }
-        const writeIntentMask = getDeltaWriteIntentMask(delta);
-        if (writeIntentMask !== 0) {
-          const deltaChunkX = mapVoxelToChunkCoordinate(
-            vx,
-            chunkSize,
-            chunkShift
-          );
-          const deltaChunkZ = mapVoxelToChunkCoordinate(
-            vz,
-            chunkSize,
-            chunkShift
-          );
-          if (deltaChunkX === cx && deltaChunkZ === cz) {
-            return true;
-          }
+      const [vx, vy, vz] = coords;
+      if (vy < 0 || vy >= maxHeight) {
+        continue;
+      }
+      const writeIntentMask = getDeltaWriteIntentMask(delta);
+      if (writeIntentMask !== 0) {
+        const deltaChunkX = mapVoxelToChunkCoordinate(vx, chunkSize, chunkShift);
+        const deltaChunkZ = mapVoxelToChunkCoordinate(vz, chunkSize, chunkShift);
+        if (deltaChunkX === cx && deltaChunkZ === cz) {
+          return true;
         }
       }
     }
@@ -860,15 +844,10 @@ const applyRelevantDeltas = (
         continue;
       }
       const coords = delta.coords;
-      if (!Array.isArray(coords) || coords.length < 3) {
+      if (!isStrictCoords3(coords)) {
         continue;
       }
-      const vx = coords[0];
-      const vy = coords[1];
-      const vz = coords[2];
-      if (!isInteger(vx) || !isInteger(vy) || !isInteger(vz)) {
-        continue;
-      }
+      const [vx, vy, vz] = coords;
       const newRotation = delta.newRotation;
       const newStage = delta.newStage;
       const newVoxel = delta.newVoxel;
