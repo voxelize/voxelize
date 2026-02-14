@@ -508,7 +508,7 @@ export class MeshPipeline {
 
   hasInFlightJob(key: string): boolean {
     const state = this.states.get(key);
-    return state?.inFlightGeneration !== null;
+    return state !== undefined && state.inFlightGeneration !== null;
   }
 
   hasAnyInFlightJobs(): boolean {
