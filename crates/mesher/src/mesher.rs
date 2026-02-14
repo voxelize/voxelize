@@ -2347,8 +2347,7 @@ fn evaluate_block_rule_with_trig<S: VoxelAccess>(
             } else {
                 (pos_x + offset_x, pos_y + offset_y, pos_z + offset_z)
             };
-            let has_expected_rotation = simple.rotation.is_some();
-            let has_expected_stage = simple.stage.is_some();
+            let has_no_rotation_or_stage = simple.rotation.is_none() && simple.stage.is_none();
             let raw_voxel = space.get_raw_voxel(check_x, check_y, check_z);
 
             if let Some(expected_id) = simple.id {
@@ -2357,7 +2356,7 @@ fn evaluate_block_rule_with_trig<S: VoxelAccess>(
                     return false;
                 }
 
-                if !has_expected_rotation && !has_expected_stage {
+                if has_no_rotation_or_stage {
                     return true;
                 }
             }
