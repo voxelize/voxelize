@@ -457,42 +457,22 @@ const isValidFloodNode = (
   node.level > 0 &&
   isStrictCoords3(node.voxel);
 
-const filterInvalidRemovalNodes = (removals: Coords3[]): Coords3[] => {
-  let sanitized: Coords3[] | null = null;
-
+const hasAnyValidRemovalNode = (removals: Coords3[]) => {
   for (let index = 0; index < removals.length; index++) {
-    const node = removals[index];
-    if (!isStrictCoords3(node)) {
-      if (!sanitized) {
-        sanitized = removals.slice(0, index);
-      }
-      continue;
-    }
-    if (sanitized) {
-      sanitized.push(node);
+    if (isStrictCoords3(removals[index])) {
+      return true;
     }
   }
-
-  return sanitized ?? removals;
+  return false;
 };
 
-const filterInvalidFloodNodes = (floods: LightNode[]): LightNode[] => {
-  let sanitized: LightNode[] | null = null;
-
+const hasAnyValidFloodNode = (floods: LightNode[]) => {
   for (let index = 0; index < floods.length; index++) {
-    const node = floods[index];
-    if (!isValidFloodNode(node)) {
-      if (!sanitized) {
-        sanitized = floods.slice(0, index);
-      }
-      continue;
-    }
-    if (sanitized) {
-      sanitized.push(node);
+    if (isValidFloodNode(floods[index])) {
+      return true;
     }
   }
-
-  return sanitized ?? floods;
+  return false;
 };
 
 const postEmptyBatchResult = (jobId: string, lastSequenceId = 0) => {
@@ -982,13 +962,12 @@ const processBatchMessage = (message: LightBatchMessage) => {
     postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
     return;
   }
-  const validRemovalNodes = filterInvalidRemovalNodes(removals);
-  const validFloodNodes = filterInvalidFloodNodes(floods);
-  if (validRemovalNodes.length === 0 && validFloodNodes.length === 0) {
+  const hasValidRemovalNodes = hasAnyValidRemovalNode(removals);
+  const hasFloods = hasAnyValidFloodNode(floods);
+  if (!hasValidRemovalNodes && !hasFloods) {
     postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
     return;
   }
-  const hasFloods = validFloodNodes.length > 0;
   const bounds = boundingBox;
   const boundsMin = bounds?.min;
   const boundsShape = bounds?.shape;
@@ -1100,8 +1079,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
     gridOffsetX,
     gridOffsetZ,
     colorIndex,
-    validRemovalNodes,
-    validFloodNodes,
+    removals,
+    floods,
     boundsMinPayload,
     boundsShapePayload,
     chunkSize,
