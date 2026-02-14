@@ -28,6 +28,14 @@ const normalizeChunkSize = (chunkSize: number) => {
   const normalized = Math.floor(chunkSize);
   return normalized > 0 ? normalized : 1;
 };
+
+const normalizeChunkMapping = (chunkSize: number): [number, number] => {
+  const normalizedChunkSize = normalizeChunkSize(chunkSize);
+  return [
+    normalizedChunkSize,
+    getChunkShiftIfPowerOfTwo(normalizedChunkSize),
+  ];
+};
 const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER;
 const MAX_SAFE_INTEGER_DIV_10 = Math.trunc(MAX_SAFE_INTEGER / 10);
 const MAX_SAFE_INTEGER_LAST_DIGIT =
@@ -83,8 +91,7 @@ export class ChunkUtils {
     vz: number,
     chunkSize: number
   ): Coords2 => {
-    const normalizedChunkSize = normalizeChunkSize(chunkSize);
-    const chunkShift = getChunkShiftIfPowerOfTwo(normalizedChunkSize);
+    const [normalizedChunkSize, chunkShift] = normalizeChunkMapping(chunkSize);
     return [
       mapVoxelToChunkCoordinate(vx, normalizedChunkSize, chunkShift),
       mapVoxelToChunkCoordinate(vz, normalizedChunkSize, chunkShift),
@@ -106,8 +113,7 @@ export class ChunkUtils {
     chunkSize: number,
     concat = "|"
   ) => {
-    const normalizedChunkSize = normalizeChunkSize(chunkSize);
-    const chunkShift = getChunkShiftIfPowerOfTwo(normalizedChunkSize);
+    const [normalizedChunkSize, chunkShift] = normalizeChunkMapping(chunkSize);
     const cx = mapVoxelToChunkCoordinate(vx, normalizedChunkSize, chunkShift);
     const cz = mapVoxelToChunkCoordinate(vz, normalizedChunkSize, chunkShift);
     return ChunkUtils.getChunkNameAt(cx, cz, concat);
@@ -262,9 +268,8 @@ export class ChunkUtils {
     voxelPos: Coords3,
     chunkSize: number
   ): Coords3 => {
-    const normalizedChunkSize = normalizeChunkSize(chunkSize);
+    const [normalizedChunkSize, chunkShift] = normalizeChunkMapping(chunkSize);
     const [vx, vy, vz] = voxelPos;
-    const chunkShift = getChunkShiftIfPowerOfTwo(normalizedChunkSize);
     const cx = mapVoxelToChunkCoordinate(vx, normalizedChunkSize, chunkShift);
     const cz = mapVoxelToChunkCoordinate(vz, normalizedChunkSize, chunkShift);
 
