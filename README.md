@@ -157,7 +157,7 @@ pnpm run check:onboarding:verify:json:compact
 pnpm run check:onboarding:verify:json -- --output ./onboarding-verify-report.json
 # direct cli alias also works: node ./check-onboarding.mjs --verify
 
-# check @voxelize/ts-core build artifacts
+# check @voxelize/ts-core build artifacts + end-to-end example
 pnpm run check:ts-core
 # quiet mode (errors only)
 pnpm run check:ts-core -- --quiet
@@ -167,7 +167,7 @@ pnpm run check:ts-core:json
 pnpm run check:ts-core:json:compact
 # json output written to file
 pnpm run check:ts-core:json -- --output ./ts-core-report.json
-# verify ts-core artifacts without triggering an automatic build
+# verify ts-core artifacts/example without triggering an automatic build
 pnpm run check:ts-core:verify
 # verify + json output (for CI integrations)
 pnpm run check:ts-core:verify:json
@@ -190,8 +190,10 @@ pnpm run check:preflight:typescript:release
 # - packages/ts-core/dist/index.js
 # - packages/ts-core/dist/index.mjs
 # - packages/ts-core/dist/index.d.ts
-# default mode auto-builds missing artifacts
-# verify/no-build mode fails without building
+# ts-core checks also run:
+# - packages/ts-core/examples/end-to-end.mjs
+# default mode auto-builds missing artifacts before running the example
+# verify/no-build mode fails without building and still runs the example when artifacts exist
 
 # check runtime library build artifacts (@voxelize/aabb, @voxelize/raycast, @voxelize/physics-engine)
 pnpm run check:runtime-libraries
