@@ -602,11 +602,7 @@ pub fn process_light_batch_fast(
             if node.level == 0 {
                 continue;
             }
-            if write_index != read_index {
-                flood_nodes[write_index] = node;
-            } else {
-                flood_nodes[read_index] = node;
-            }
+            flood_nodes[write_index] = node;
             write_index += 1;
         }
         flood_nodes.truncate(write_index);
