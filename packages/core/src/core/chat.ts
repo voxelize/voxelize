@@ -700,10 +700,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       return true;
     }
     for (let aliasIndex = 0; aliasIndex < commandInfo.aliases.length; aliasIndex++) {
-      const alias = commandInfo.aliases[aliasIndex];
-      if (alias !== trigger) {
-        this.commands.delete(alias);
-      }
+      this.commands.delete(commandInfo.aliases[aliasIndex]);
     }
     return true;
   }
