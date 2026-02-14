@@ -754,7 +754,10 @@ const convertDynamicPatterns = (
   const patternCount = patterns.length;
   for (let patternIndex = 0; patternIndex < patternCount; patternIndex++) {
     const pattern = patterns[patternIndex];
-    const patternParts = pattern?.parts;
+    if (!pattern || typeof pattern !== "object") {
+      continue;
+    }
+    const patternParts = pattern.parts;
     if (!Array.isArray(patternParts) || patternParts.length === 0) {
       continue;
     }
@@ -762,7 +765,10 @@ const convertDynamicPatterns = (
     const partCount = patternParts.length;
     for (let partIndex = 0; partIndex < partCount; partIndex++) {
       const part = patternParts[partIndex];
-      const rule = part?.rule;
+      if (!part || typeof part !== "object") {
+        continue;
+      }
+      const rule = part.rule;
       if (!rule) {
         continue;
       }
