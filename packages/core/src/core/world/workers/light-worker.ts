@@ -374,7 +374,8 @@ const hasPotentialRelevantDeltaBatches = (
   gridWidth: number,
   gridDepth: number,
   gridOffsetX: number,
-  gridOffsetZ: number
+  gridOffsetZ: number,
+  maxHeight: number
 ) => {
   for (let batchIndex = 0; batchIndex < deltaBatches.length; batchIndex++) {
     const deltaBatch = deltaBatches[batchIndex];
@@ -415,6 +416,10 @@ const hasPotentialRelevantDeltaBatches = (
         isInteger(coords[1]) &&
         isInteger(coords[2])
       ) {
+        const vy = coords[1];
+        if (vy < 0 || vy >= maxHeight) {
+          continue;
+        }
         const oldVoxel = delta.oldVoxel;
         const newVoxel = delta.newVoxel;
         const shouldWriteVoxel =
@@ -1021,7 +1026,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
       gridWidth,
       gridDepth,
       gridOffsetX,
-      gridOffsetZ
+      gridOffsetZ,
+      maxHeight
     );
   const chunkGrid = hasPotentialRelevantDelta ? reusableChunkGrid : emptyChunkGrid;
 
