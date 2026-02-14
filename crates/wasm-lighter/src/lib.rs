@@ -77,11 +77,11 @@ impl BatchSpace {
     }
 
     #[inline]
-    fn map_voxel_to_chunk(&self, vx: i32, vz: i32) -> [i32; 2] {
+    fn map_voxel_to_chunk(&self, vx: i32, vz: i32) -> (i32, i32) {
         if let Some(shift) = self.chunk_shift {
-            [vx >> shift, vz >> shift]
+            (vx >> shift, vz >> shift)
         } else {
-            [vx.div_euclid(self.chunk_size), vz.div_euclid(self.chunk_size)]
+            (vx.div_euclid(self.chunk_size), vz.div_euclid(self.chunk_size))
         }
     }
 
@@ -110,7 +110,7 @@ impl BatchSpace {
     }
 
     fn get_chunk_and_voxel_index(&self, vx: i32, vy: i32, vz: i32) -> Option<(usize, usize)> {
-        let [cx, cz] = self.map_voxel_to_chunk(vx, vz);
+        let (cx, cz) = self.map_voxel_to_chunk(vx, vz);
         let chunk_index = self.chunk_index_from_coords(cx, cz)?;
         let chunk = self.chunks.get(chunk_index)?.as_ref()?;
         let voxel_index = self.voxel_index_in_chunk(chunk, vx, vy, vz)?;
@@ -123,7 +123,7 @@ impl BatchSpace {
         vy: i32,
         vz: i32,
     ) -> Option<(usize, usize)> {
-        let [cx, cz] = self.map_voxel_to_chunk(vx, vz);
+        let (cx, cz) = self.map_voxel_to_chunk(vx, vz);
         let chunk_index = self.chunk_index_from_coords(cx, cz)?;
         let chunk = self.chunks.get(chunk_index)?.as_ref()?;
         let voxel_index = self.voxel_index_in_chunk(chunk, vx, vy, vz)?;
@@ -235,10 +235,11 @@ struct BatchOutput {
 }
 
 fn parse_chunks(chunks_data: &Array) -> Vec<Option<ChunkData>> {
-    let mut chunks = Vec::with_capacity(chunks_data.length() as usize);
+    let chunk_count = chunks_data.length() as usize;
+    let mut chunks = Vec::with_capacity(chunk_count);
 
-    for index in 0..chunks_data.length() {
-        let chunk_value = chunks_data.get(index);
+    for index in 0..chunk_count {
+        let chunk_value = chunks_data.get(index as u32);
         if chunk_value.is_null() || chunk_value.is_undefined() {
             chunks.push(None);
             continue;
@@ -429,11 +430,11 @@ mod tests {
         for (vx, vz) in samples {
             assert_eq!(
                 pow2_space.map_voxel_to_chunk(vx, vz),
-                [vx.div_euclid(16), vz.div_euclid(16)]
+                (vx.div_euclid(16), vz.div_euclid(16))
             );
             assert_eq!(
                 non_pow2_space.map_voxel_to_chunk(vx, vz),
-                [vx.div_euclid(18), vz.div_euclid(18)]
+                (vx.div_euclid(18), vz.div_euclid(18))
             );
         }
     }
