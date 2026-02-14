@@ -30,8 +30,9 @@ const normalizeChunkSize = (chunkSize: number) => {
   return normalized > 0 ? normalized : 1;
 };
 const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER;
-const MAX_SAFE_INTEGER_DIV_10 = 900719925474099;
-const MAX_SAFE_INTEGER_LAST_DIGIT = 1;
+const MAX_SAFE_INTEGER_DIV_10 = Math.trunc(MAX_SAFE_INTEGER / 10);
+const MAX_SAFE_INTEGER_LAST_DIGIT =
+  MAX_SAFE_INTEGER - MAX_SAFE_INTEGER_DIV_10 * 10;
 const isAsciiWhitespaceCode = (code: number) =>
   code === 32 || (code >= 9 && code <= 13);
 
