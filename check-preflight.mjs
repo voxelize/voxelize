@@ -79,6 +79,12 @@ const availableChecks = [
     extraArgs: isNoBuild ? ["--no-build"] : [],
   },
   {
+    name: "runtimeLibraries",
+    scriptName: "check-runtime-libraries.mjs",
+    supportsNoBuild: true,
+    extraArgs: isNoBuild ? ["--no-build"] : [],
+  },
+  {
     name: "client",
     scriptName: "check-client.mjs",
     supportsNoBuild: true,
@@ -117,6 +123,13 @@ const availableCheckAliases = {
     "typescript-core",
     "typescript_core",
     "typescriptcore",
+  ],
+  runtimeLibraries: [
+    "runtimeLibraries",
+    "runtime",
+    "runtime-libraries",
+    "runtime_libraries",
+    "runtimelibraries",
   ],
   client: ["client"],
 };

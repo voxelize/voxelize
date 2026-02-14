@@ -214,7 +214,7 @@ pnpm run check:libraries:release
 
 # run an aggregated preflight report in json mode
 pnpm run check:preflight:json
-# default aggregate execution order: devEnvironment, wasmPack, tsCore, client
+# default aggregate execution order: devEnvironment, wasmPack, tsCore, runtimeLibraries, client
 # compact aggregate preflight report
 pnpm run check:preflight:json:compact
 # list available aggregate checks without executing them
@@ -238,6 +238,10 @@ pnpm run check:preflight:list:dev:json
 pnpm run check:preflight:list:wasm:json
 pnpm run check:preflight:list:ts-core:json
 pnpm run check:preflight:list:ts-core:verify:json
+pnpm run check:preflight:list:runtime-libraries:json
+pnpm run check:preflight:list:runtime-libraries:verify:json
+pnpm run check:preflight:list:runtime:json
+pnpm run check:preflight:list:runtime:verify:json
 pnpm run check:preflight:list:ts:json
 pnpm run check:preflight:list:ts:verify:json
 pnpm run check:preflight:list:typescript:json
@@ -254,6 +258,10 @@ pnpm run check:preflight:list:dev:json:compact
 pnpm run check:preflight:list:wasm:json:compact
 pnpm run check:preflight:list:ts-core:json:compact
 pnpm run check:preflight:list:ts-core:verify:json:compact
+pnpm run check:preflight:list:runtime-libraries:json:compact
+pnpm run check:preflight:list:runtime-libraries:verify:json:compact
+pnpm run check:preflight:list:runtime:json:compact
+pnpm run check:preflight:list:runtime:verify:json:compact
 pnpm run check:preflight:list:ts:json:compact
 pnpm run check:preflight:list:ts:verify:json:compact
 pnpm run check:preflight:list:typescript:json:compact
@@ -271,15 +279,19 @@ pnpm run check:preflight:all:verify:json
 # explicit separator variant aliases for all-check selection
 pnpm run check:preflight:all-checks:json
 pnpm run check:preflight:all-checks:verify:json
-# run only specific checks (available: devEnvironment, wasmPack, tsCore, client)
+# run only specific checks (available: devEnvironment, wasmPack, tsCore, runtimeLibraries, client)
 pnpm run check:preflight:json -- --only devEnvironment,client
-# aliases and case-insensitive names are supported (for example: dev/dev-env/dev_env, wasm/wasm-pack/wasm_pack, ts/ts-core/ts_core/tscore/typescript/typescript-core/typescript_core/typescriptcore, CLIENT, all/all-checks/all_checks/allchecks)
+# aliases and case-insensitive names are supported (for example: dev/dev-env/dev_env, wasm/wasm-pack/wasm_pack, ts/ts-core/ts_core/tscore/typescript/typescript-core/typescript_core/typescriptcore, runtime/runtime-libraries/runtime_libraries/runtimelibraries, CLIENT, all/all-checks/all_checks/allchecks)
 # selected checks are normalized to the standard aggregate order
 # run pre-defined single-check aggregate reports
 pnpm run check:preflight:dev-env:json
 pnpm run check:preflight:wasm-pack:json
 pnpm run check:preflight:ts-core:json
 pnpm run check:preflight:ts-core:verify:json
+pnpm run check:preflight:runtime-libraries:json
+pnpm run check:preflight:runtime-libraries:verify:json
+pnpm run check:preflight:runtime:json
+pnpm run check:preflight:runtime:verify:json
 pnpm run check:preflight:client:json
 # shorthand aliases for single-check aggregate reports
 pnpm run check:preflight:dev:json
@@ -295,6 +307,10 @@ pnpm run check:preflight:dev-env:json:compact
 pnpm run check:preflight:wasm-pack:json:compact
 pnpm run check:preflight:ts-core:json:compact
 pnpm run check:preflight:ts-core:verify:json:compact
+pnpm run check:preflight:runtime-libraries:json:compact
+pnpm run check:preflight:runtime-libraries:verify:json:compact
+pnpm run check:preflight:runtime:json:compact
+pnpm run check:preflight:runtime:verify:json:compact
 pnpm run check:preflight:client:json:compact
 pnpm run check:preflight:client:verify:json:compact
 # shorthand compact aliases

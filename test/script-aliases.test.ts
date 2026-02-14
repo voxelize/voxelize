@@ -137,6 +137,40 @@ describe("script aliases", () => {
     expect(
       manifest.scripts["check:preflight:list:ts-core:verify:json:compact"]
     ).toBe("node ./check-preflight.mjs --list-checks --verify --only tsCore --compact");
+    expect(manifest.scripts["check:preflight:list:runtime-libraries:json"]).toBe(
+      "node ./check-preflight.mjs --list-checks --only runtimeLibraries"
+    );
+    expect(
+      manifest.scripts["check:preflight:list:runtime-libraries:verify:json"]
+    ).toBe(
+      "node ./check-preflight.mjs --list-checks --verify --only runtimeLibraries"
+    );
+    expect(
+      manifest.scripts["check:preflight:list:runtime-libraries:json:compact"]
+    ).toBe(
+      "node ./check-preflight.mjs --list-checks --only runtimeLibraries --compact"
+    );
+    expect(
+      manifest.scripts[
+        "check:preflight:list:runtime-libraries:verify:json:compact"
+      ]
+    ).toBe(
+      "node ./check-preflight.mjs --list-checks --verify --only runtimeLibraries --compact"
+    );
+    expect(manifest.scripts["check:preflight:list:runtime:json"]).toBe(
+      "node ./check-preflight.mjs --list-checks --only runtimeLibraries"
+    );
+    expect(manifest.scripts["check:preflight:list:runtime:verify:json"]).toBe(
+      "node ./check-preflight.mjs --list-checks --verify --only runtimeLibraries"
+    );
+    expect(manifest.scripts["check:preflight:list:runtime:json:compact"]).toBe(
+      "node ./check-preflight.mjs --list-checks --only runtimeLibraries --compact"
+    );
+    expect(
+      manifest.scripts["check:preflight:list:runtime:verify:json:compact"]
+    ).toBe(
+      "node ./check-preflight.mjs --list-checks --verify --only runtimeLibraries --compact"
+    );
     expect(manifest.scripts["check:preflight:list:ts:json"]).toBe(
       "node ./check-preflight.mjs --list-checks --only tsCore"
     );
@@ -246,6 +280,32 @@ describe("script aliases", () => {
     );
     expect(manifest.scripts["check:preflight:ts-core:verify:json:compact"]).toBe(
       "node ./check-preflight.mjs --verify --only tsCore --compact"
+    );
+    expect(manifest.scripts["check:preflight:runtime-libraries:json"]).toBe(
+      "node ./check-preflight.mjs --only runtimeLibraries"
+    );
+    expect(manifest.scripts["check:preflight:runtime-libraries:verify:json"]).toBe(
+      "node ./check-preflight.mjs --verify --only runtimeLibraries"
+    );
+    expect(
+      manifest.scripts["check:preflight:runtime-libraries:json:compact"]
+    ).toBe("node ./check-preflight.mjs --only runtimeLibraries --compact");
+    expect(
+      manifest.scripts["check:preflight:runtime-libraries:verify:json:compact"]
+    ).toBe(
+      "node ./check-preflight.mjs --verify --only runtimeLibraries --compact"
+    );
+    expect(manifest.scripts["check:preflight:runtime:json"]).toBe(
+      "node ./check-preflight.mjs --only runtimeLibraries"
+    );
+    expect(manifest.scripts["check:preflight:runtime:verify:json"]).toBe(
+      "node ./check-preflight.mjs --verify --only runtimeLibraries"
+    );
+    expect(manifest.scripts["check:preflight:runtime:json:compact"]).toBe(
+      "node ./check-preflight.mjs --only runtimeLibraries --compact"
+    );
+    expect(manifest.scripts["check:preflight:runtime:verify:json:compact"]).toBe(
+      "node ./check-preflight.mjs --verify --only runtimeLibraries --compact"
     );
     expect(manifest.scripts["check:preflight:ts:json"]).toBe(
       "node ./check-preflight.mjs --only tsCore"

@@ -91,6 +91,10 @@ type PreflightReport = {
       scriptName: string;
       supportsNoBuild: boolean;
     };
+    runtimeLibraries: {
+      scriptName: string;
+      supportsNoBuild: boolean;
+    };
     client: {
       scriptName: string;
       supportsNoBuild: boolean;
@@ -100,6 +104,7 @@ type PreflightReport = {
     devEnvironment: string[];
     wasmPack: string[];
     tsCore: string[];
+    runtimeLibraries: string[];
     client: string[];
   };
   availableSpecialCheckSelectors: string[];
@@ -176,6 +181,13 @@ const expectedAvailableCheckAliases = {
     "typescript_core",
     "typescriptcore",
   ],
+  runtimeLibraries: [
+    "runtimeLibraries",
+    "runtime",
+    "runtime-libraries",
+    "runtime_libraries",
+    "runtimelibraries",
+  ],
   client: ["client"],
 };
 const expectedAvailableCheckMetadata = {
@@ -191,6 +203,10 @@ const expectedAvailableCheckMetadata = {
     scriptName: "check-ts-core.mjs",
     supportsNoBuild: true,
   },
+  runtimeLibraries: {
+    scriptName: "check-runtime-libraries.mjs",
+    supportsNoBuild: true,
+  },
   client: {
     scriptName: "check-client.mjs",
     supportsNoBuild: true,
@@ -201,12 +217,19 @@ const expectedAvailableSpecialCheckAliases = {
 };
 const expectedAvailableSpecialCheckSelectors = ["all"];
 const expectedAvailableSpecialSelectorResolvedChecks = {
-  all: ["devEnvironment", "wasmPack", "tsCore", "client"],
+  all: [
+    "devEnvironment",
+    "wasmPack",
+    "tsCore",
+    "runtimeLibraries",
+    "client",
+  ],
 };
 const expectedAvailableChecks = [
   "devEnvironment",
   "wasmPack",
   "tsCore",
+  "runtimeLibraries",
   "client",
 ];
 const expectedTsCoreRequiredArtifacts = [
@@ -447,7 +470,13 @@ describe("preflight aggregate report", () => {
     );
     expect(report.failureSummaries.length).toBe(report.failedChecks.length);
     expect([...report.passedChecks, ...report.failedChecks].sort()).toEqual(
-      ["client", "devEnvironment", "tsCore", "wasmPack"]
+      [
+        "client",
+        "devEnvironment",
+        "runtimeLibraries",
+        "tsCore",
+        "wasmPack",
+      ]
     );
     expect(report.failureSummaries.map((entry) => entry.name).sort()).toEqual(
       report.failedChecks.slice().sort()
@@ -529,8 +558,12 @@ describe("preflight aggregate report", () => {
       specialSelector: 0,
       invalid: 0,
     });
-    expect(report.skippedChecks).toEqual(["wasmPack", "tsCore"]);
-    expect(report.skippedCheckCount).toBe(2);
+    expect(report.skippedChecks).toEqual([
+      "wasmPack",
+      "tsCore",
+      "runtimeLibraries",
+    ]);
+    expect(report.skippedCheckCount).toBe(3);
     expect(report.invalidChecks).toEqual([]);
     expect(report.totalChecks).toBe(2);
     expect(report.passedCheckCount + report.failedCheckCount).toBe(2);
@@ -579,8 +612,12 @@ describe("preflight aggregate report", () => {
     expect(report.requestedCheckCount).toBe(2);
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
-    expect(report.skippedChecks).toEqual(["wasmPack", "tsCore"]);
-    expect(report.skippedCheckCount).toBe(2);
+    expect(report.skippedChecks).toEqual([
+      "wasmPack",
+      "tsCore",
+      "runtimeLibraries",
+    ]);
+    expect(report.skippedCheckCount).toBe(3);
     expect(report.invalidChecks).toEqual([]);
     expect(report.totalChecks).toBe(2);
     expect(report.passedCheckCount + report.failedCheckCount).toBe(2);
@@ -631,8 +668,9 @@ describe("preflight aggregate report", () => {
       "devEnvironment",
       "wasmPack",
       "tsCore",
+      "runtimeLibraries",
     ]);
-    expect(report.skippedCheckCount).toBe(3);
+    expect(report.skippedCheckCount).toBe(4);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
@@ -656,7 +694,11 @@ describe("preflight aggregate report", () => {
       "client",
       "devEnvironment",
     ]);
-    expect(report.skippedChecks).toEqual(["wasmPack", "tsCore"]);
+    expect(report.skippedChecks).toEqual([
+      "wasmPack",
+      "tsCore",
+      "runtimeLibraries",
+    ]);
     expect(report.invalidChecks).toEqual([]);
     expect(report.checks.map((check) => check.name)).toEqual([
       "devEnvironment",
@@ -681,7 +723,11 @@ describe("preflight aggregate report", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.selectedChecks).toEqual(["devEnvironment", "client"]);
     expect(report.requestedChecks).toEqual(["client", "devEnvironment"]);
-    expect(report.skippedChecks).toEqual(["wasmPack", "tsCore"]);
+    expect(report.skippedChecks).toEqual([
+      "wasmPack",
+      "tsCore",
+      "runtimeLibraries",
+    ]);
     expect(report.invalidChecks).toEqual([]);
     expect(report.checks.map((check) => check.name)).toEqual([
       "devEnvironment",
@@ -710,7 +756,7 @@ describe("preflight aggregate report", () => {
       "client",
     ]);
     expect(report.requestedChecks).toEqual(["DEV_ENV", "wasm_pack", "CLIENT"]);
-    expect(report.skippedChecks).toEqual(["tsCore"]);
+    expect(report.skippedChecks).toEqual(["tsCore", "runtimeLibraries"]);
     expect(report.invalidChecks).toEqual([]);
     expect(report.checks.map((check) => check.name)).toEqual([
       "devEnvironment",
@@ -736,7 +782,11 @@ describe("preflight aggregate report", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.selectedChecks).toEqual(["devEnvironment", "wasmPack"]);
     expect(report.requestedChecks).toEqual(["wasmpack", "devenvironment"]);
-    expect(report.skippedChecks).toEqual(["tsCore", "client"]);
+    expect(report.skippedChecks).toEqual([
+      "tsCore",
+      "runtimeLibraries",
+      "client",
+    ]);
     expect(report.invalidChecks).toEqual([]);
     expect(report.checks.map((check) => check.name)).toEqual([
       "devEnvironment",
@@ -761,7 +811,11 @@ describe("preflight aggregate report", () => {
     expect(report.schemaVersion).toBe(1);
     expect(report.selectedChecks).toEqual(["devEnvironment", "wasmPack"]);
     expect(report.requestedChecks).toEqual(["dev", "wasm"]);
-    expect(report.skippedChecks).toEqual(["tsCore", "client"]);
+    expect(report.skippedChecks).toEqual([
+      "tsCore",
+      "runtimeLibraries",
+      "client",
+    ]);
     expect(report.invalidChecks).toEqual([]);
     expect(report.checks.map((check) => check.name)).toEqual([
       "devEnvironment",
@@ -810,6 +864,7 @@ describe("preflight aggregate report", () => {
     expect(report.skippedChecks).toEqual([
       "devEnvironment",
       "wasmPack",
+      "runtimeLibraries",
       "client",
     ]);
     expect(report.skippedCheckCount).toBe(report.skippedChecks.length);
@@ -890,6 +945,7 @@ describe("preflight aggregate report", () => {
     expect(report.skippedChecks).toEqual([
       "devEnvironment",
       "wasmPack",
+      "runtimeLibraries",
       "client",
     ]);
     expect(report.skippedCheckCount).toBe(report.skippedChecks.length);
@@ -959,6 +1015,7 @@ describe("preflight aggregate report", () => {
     expect(report.skippedChecks).toEqual([
       "devEnvironment",
       "wasmPack",
+      "runtimeLibraries",
       "client",
     ]);
     expect(report.skippedCheckCount).toBe(report.skippedChecks.length);
@@ -1024,6 +1081,7 @@ describe("preflight aggregate report", () => {
     expect(report.skippedChecks).toEqual([
       "devEnvironment",
       "wasmPack",
+      "runtimeLibraries",
       "client",
     ]);
     expect(report.skippedCheckCount).toBe(report.skippedChecks.length);
@@ -1143,6 +1201,7 @@ describe("preflight aggregate report", () => {
     expect(stdoutReport.skippedChecks).toEqual([
       "devEnvironment",
       "wasmPack",
+      "runtimeLibraries",
       "client",
     ]);
     expect(stdoutReport.skippedCheckCount).toBe(stdoutReport.skippedChecks.length);
@@ -1232,6 +1291,7 @@ describe("preflight aggregate report", () => {
       "devEnvironment",
       "wasmPack",
       "tsCore",
+      "runtimeLibraries",
       "client",
     ]);
     expect(stdoutReport.skippedCheckCount).toBe(stdoutReport.skippedChecks.length);
@@ -1283,8 +1343,12 @@ describe("preflight aggregate report", () => {
       specialSelector: 0,
       invalid: 0,
     });
-    expect(report.skippedChecks).toEqual(["devEnvironment", "wasmPack"]);
-    expect(report.skippedCheckCount).toBe(2);
+    expect(report.skippedChecks).toEqual([
+      "devEnvironment",
+      "wasmPack",
+      "runtimeLibraries",
+    ]);
+    expect(report.skippedCheckCount).toBe(3);
     expect(report.invalidChecks).toEqual([]);
     expect(report.invalidCheckCount).toBe(0);
     expect(report.unknownOptions).toEqual([]);
@@ -1337,8 +1401,12 @@ describe("preflight aggregate report", () => {
       specialSelector: 0,
       invalid: 0,
     });
-    expect(report.skippedChecks).toEqual(["devEnvironment", "wasmPack"]);
-    expect(report.skippedCheckCount).toBe(2);
+    expect(report.skippedChecks).toEqual([
+      "devEnvironment",
+      "wasmPack",
+      "runtimeLibraries",
+    ]);
+    expect(report.skippedCheckCount).toBe(3);
     expect(report.invalidChecks).toEqual([]);
     expect(report.invalidCheckCount).toBe(0);
     expect(report.unknownOptions).toEqual([]);
@@ -1390,6 +1458,7 @@ describe("preflight aggregate report", () => {
     expect(report.skippedChecks).toEqual([
       "devEnvironment",
       "wasmPack",
+      "runtimeLibraries",
       "client",
     ]);
     expect(report.skippedCheckCount).toBe(report.skippedChecks.length);
@@ -1441,6 +1510,7 @@ describe("preflight aggregate report", () => {
     expect(report.skippedChecks).toEqual([
       "devEnvironment",
       "wasmPack",
+      "runtimeLibraries",
       "client",
     ]);
     expect(report.skippedCheckCount).toBe(report.skippedChecks.length);
@@ -1518,6 +1588,7 @@ describe("preflight aggregate report", () => {
     expect(report.skippedChecks).toEqual([
       "devEnvironment",
       "wasmPack",
+      "runtimeLibraries",
       "client",
     ]);
     expect(report.skippedCheckCount).toBe(report.skippedChecks.length);
@@ -1594,8 +1665,12 @@ describe("preflight aggregate report", () => {
       specialSelector: 0,
       invalid: 0,
     });
-    expect(report.skippedChecks).toEqual(["devEnvironment", "wasmPack"]);
-    expect(report.skippedCheckCount).toBe(2);
+    expect(report.skippedChecks).toEqual([
+      "devEnvironment",
+      "wasmPack",
+      "runtimeLibraries",
+    ]);
+    expect(report.skippedCheckCount).toBe(3);
     expect(report.invalidChecks).toEqual([]);
     expect(report.invalidCheckCount).toBe(0);
     expect(report.unknownOptions).toEqual([]);
@@ -1644,6 +1719,7 @@ describe("preflight aggregate report", () => {
       "devEnvironment",
       "wasmPack",
       "tsCore",
+      "runtimeLibraries",
       "client",
     ]);
     expect(report.specialSelectorsUsed).toEqual(expectedUsedAllSpecialSelector);
@@ -1654,7 +1730,13 @@ describe("preflight aggregate report", () => {
         normalizedToken: "all",
         kind: "specialSelector",
         selector: "all",
-        resolvedTo: ["devEnvironment", "wasmPack", "tsCore", "client"],
+        resolvedTo: [
+          "devEnvironment",
+          "wasmPack",
+          "tsCore",
+          "runtimeLibraries",
+          "client",
+        ],
       },
     ]);
     expect(report.requestedCheckResolutionCounts).toEqual({
@@ -1668,6 +1750,7 @@ describe("preflight aggregate report", () => {
       "devEnvironment",
       "wasmPack",
       "tsCore",
+      "runtimeLibraries",
       "client",
     ]);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
@@ -1691,6 +1774,7 @@ describe("preflight aggregate report", () => {
       "devEnvironment",
       "wasmPack",
       "tsCore",
+      "runtimeLibraries",
       "client",
     ]);
     expect(report.specialSelectorsUsed).toEqual(expectedUsedAllSpecialSelector);
@@ -1701,6 +1785,7 @@ describe("preflight aggregate report", () => {
       "devEnvironment",
       "wasmPack",
       "tsCore",
+      "runtimeLibraries",
       "client",
     ]);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
@@ -1724,6 +1809,7 @@ describe("preflight aggregate report", () => {
       "devEnvironment",
       "wasmPack",
       "tsCore",
+      "runtimeLibraries",
       "client",
     ]);
     expect(report.specialSelectorsUsed).toEqual(expectedUsedAllSpecialSelector);
@@ -1734,6 +1820,7 @@ describe("preflight aggregate report", () => {
       "devEnvironment",
       "wasmPack",
       "tsCore",
+      "runtimeLibraries",
       "client",
     ]);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
@@ -1757,6 +1844,7 @@ describe("preflight aggregate report", () => {
       "devEnvironment",
       "wasmPack",
       "tsCore",
+      "runtimeLibraries",
       "client",
     ]);
     expect(report.specialSelectorsUsed).toEqual(expectedUsedAllSpecialSelector);
@@ -1767,6 +1855,7 @@ describe("preflight aggregate report", () => {
       "devEnvironment",
       "wasmPack",
       "tsCore",
+      "runtimeLibraries",
       "client",
     ]);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
@@ -1790,6 +1879,7 @@ describe("preflight aggregate report", () => {
       "devEnvironment",
       "wasmPack",
       "tsCore",
+      "runtimeLibraries",
       "client",
     ]);
     expect(report.specialSelectorsUsed).toEqual(expectedUsedAllSpecialSelector);
@@ -1800,7 +1890,13 @@ describe("preflight aggregate report", () => {
         normalizedToken: "all",
         kind: "specialSelector",
         selector: "all",
-        resolvedTo: ["devEnvironment", "wasmPack", "tsCore", "client"],
+        resolvedTo: [
+          "devEnvironment",
+          "wasmPack",
+          "tsCore",
+          "runtimeLibraries",
+          "client",
+        ],
       },
       {
         token: "client",
@@ -1820,6 +1916,7 @@ describe("preflight aggregate report", () => {
       "devEnvironment",
       "wasmPack",
       "tsCore",
+      "runtimeLibraries",
       "client",
     ]);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
@@ -1846,7 +1943,11 @@ describe("preflight aggregate report", () => {
       "DEV_ENV",
       "dev_env",
     ]);
-    expect(report.skippedChecks).toEqual(["wasmPack", "tsCore"]);
+    expect(report.skippedChecks).toEqual([
+      "wasmPack",
+      "tsCore",
+      "runtimeLibraries",
+    ]);
     expect(report.invalidChecks).toEqual([]);
     expect(report.checks.map((check) => check.name)).toEqual([
       "devEnvironment",
@@ -1875,7 +1976,12 @@ describe("preflight aggregate report", () => {
       "DEV_ENV",
       "dev",
     ]);
-    expect(report.skippedChecks).toEqual(["wasmPack", "tsCore", "client"]);
+    expect(report.skippedChecks).toEqual([
+      "wasmPack",
+      "tsCore",
+      "runtimeLibraries",
+      "client",
+    ]);
     expect(report.checks.map((check) => check.name)).toEqual(["devEnvironment"]);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
@@ -1920,6 +2026,7 @@ describe("preflight aggregate report", () => {
       "devEnvironment",
       "wasmPack",
       "tsCore",
+      "runtimeLibraries",
     ]);
     expect(report.invalidChecks).toEqual([]);
     expect(report.checks.map((check) => check.name)).toEqual(["client"]);
@@ -2397,6 +2504,7 @@ describe("preflight aggregate report", () => {
       "devEnvironment",
       "wasmPack",
       "tsCore",
+      "runtimeLibraries",
       "client",
     ]);
     expect(result.status).toBe(1);
@@ -2437,6 +2545,7 @@ describe("preflight aggregate report", () => {
       "devEnvironment",
       "wasmPack",
       "tsCore",
+      "runtimeLibraries",
       "client",
     ]);
     expect(report.unknownOptions).toEqual([]);
@@ -2499,6 +2608,7 @@ describe("preflight aggregate report", () => {
       "devEnvironment",
       "wasmPack",
       "tsCore",
+      "runtimeLibraries",
       "client",
     ]);
     expect(report.unknownOptions).toEqual(["--no-build=<value>"]);
@@ -2701,7 +2811,7 @@ describe("preflight aggregate report", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.message).toBe(
-      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, client. Special selectors: all (all-checks, all_checks, allchecks)."
+      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, runtimeLibraries, client. Special selectors: all (all-checks, all_checks, allchecks)."
     );
     expect(report.invalidChecks).toEqual(["invalidCheck"]);
     expect(report.specialSelectorsUsed).toEqual([]);
@@ -2718,6 +2828,7 @@ describe("preflight aggregate report", () => {
       "devEnvironment",
       "wasmPack",
       "tsCore",
+      "runtimeLibraries",
       "client",
     ]);
     expect(result.status).toBe(1);
@@ -3087,6 +3198,7 @@ describe("preflight aggregate report", () => {
       "devEnvironment",
       "wasmPack",
       "tsCore",
+      "runtimeLibraries",
       "client",
     ]);
     expect(report.requestedChecks).toEqual(["all", "client"]);
@@ -3097,7 +3209,13 @@ describe("preflight aggregate report", () => {
         normalizedToken: "all",
         kind: "specialSelector",
         selector: "all",
-        resolvedTo: ["devEnvironment", "wasmPack", "tsCore", "client"],
+        resolvedTo: [
+          "devEnvironment",
+          "wasmPack",
+          "tsCore",
+          "runtimeLibraries",
+          "client",
+        ],
       },
       {
         token: "client",
@@ -4493,7 +4611,7 @@ describe("preflight aggregate report", () => {
     expect(report.exitCode).toBe(1);
     expect(report.validationErrorCode).toBe("only_option_invalid_value");
     expect(report.message).toBe(
-      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, client. Special selectors: all (all-checks, all_checks, allchecks)."
+      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, runtimeLibraries, client. Special selectors: all (all-checks, all_checks, allchecks)."
     );
     expect(report.invalidChecks).toEqual(["invalidCheck"]);
     expect(report.invalidCheckCount).toBe(1);
@@ -5389,7 +5507,7 @@ describe("preflight aggregate report", () => {
     expect(report.failedCheckCount).toBe(0);
     expect(report.firstFailedCheck).toBeNull();
     expect(report.message).toBe(
-      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, client. Special selectors: all (all-checks, all_checks, allchecks)."
+      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, runtimeLibraries, client. Special selectors: all (all-checks, all_checks, allchecks)."
     );
     expect(report.invalidCheckCount).toBe(1);
     expect(report.unknownOptionCount).toBe(0);
@@ -5444,7 +5562,13 @@ describe("preflight aggregate report", () => {
         normalizedToken: "all",
         kind: "specialSelector",
         selector: "all",
-        resolvedTo: ["devEnvironment", "wasmPack", "tsCore", "client"],
+        resolvedTo: [
+          "devEnvironment",
+          "wasmPack",
+          "tsCore",
+          "runtimeLibraries",
+          "client",
+        ],
       },
       {
         token: "invalidCheck",
@@ -5459,7 +5583,7 @@ describe("preflight aggregate report", () => {
       invalid: 1,
     });
     expect(report.message).toBe(
-      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, client. Special selectors: all (all-checks, all_checks, allchecks)."
+      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, runtimeLibraries, client. Special selectors: all (all-checks, all_checks, allchecks)."
     );
     expect(result.status).toBe(1);
   });
@@ -5485,7 +5609,7 @@ describe("preflight aggregate report", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.message).toBe(
-      "Invalid check name(s): invalidCheck, otherInvalid. Available checks: devEnvironment, wasmPack, tsCore, client. Special selectors: all (all-checks, all_checks, allchecks)."
+      "Invalid check name(s): invalidCheck, otherInvalid. Available checks: devEnvironment, wasmPack, tsCore, runtimeLibraries, client. Special selectors: all (all-checks, all_checks, allchecks)."
     );
     expect(report.invalidCheckCount).toBe(2);
     expect(report.unknownOptionCount).toBe(0);
@@ -5530,7 +5654,7 @@ describe("preflight aggregate report", () => {
     expect(stdoutReport.exitCode).toBe(1);
     expect(stdoutReport.outputPath).toBe(outputPath);
     expect(stdoutReport.message).toBe(
-      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, client. Special selectors: all (all-checks, all_checks, allchecks)."
+      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, runtimeLibraries, client. Special selectors: all (all-checks, all_checks, allchecks)."
     );
     expect(stdoutReport.invalidChecks).toEqual(["invalidCheck"]);
     expect(stdoutReport.specialSelectorsUsed).toEqual([]);
@@ -5929,7 +6053,7 @@ describe("preflight aggregate report", () => {
     expect(stdoutReport.invalidChecks).toEqual(["invalidCheck"]);
     expect(stdoutReport.invalidCheckCount).toBe(1);
     expect(stdoutReport.message).toBe(
-      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, client. Special selectors: all (all-checks, all_checks, allchecks)."
+      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, runtimeLibraries, client. Special selectors: all (all-checks, all_checks, allchecks)."
     );
     expect(fileReport).toEqual(stdoutReport);
     expect(result.status).toBe(1);
@@ -6057,7 +6181,7 @@ describe("preflight aggregate report", () => {
       ])
     );
     expect(stdoutReport.message).toBe(
-      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, client. Special selectors: all (all-checks, all_checks, allchecks)."
+      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, runtimeLibraries, client. Special selectors: all (all-checks, all_checks, allchecks)."
     );
     expect(secondFileReport).toEqual(stdoutReport);
     expect(fs.existsSync(firstOutputPath)).toBe(false);
