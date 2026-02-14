@@ -78,6 +78,12 @@ const resolvePackageReports = () => {
   return runtimeLibraries.map(resolvePackageReport);
 };
 const summarizePackageReports = (packageReports) => {
+  const presentPackages = packageReports
+    .filter((packageReport) => packageReport.artifactsPresent)
+    .map((packageReport) => packageReport.packageName);
+  const missingPackages = packageReports
+    .filter((packageReport) => packageReport.artifactsPresent === false)
+    .map((packageReport) => packageReport.packageName);
   const presentPackageCount = packageReports.filter((packageReport) => {
     return packageReport.artifactsPresent;
   }).length;
@@ -91,6 +97,8 @@ const summarizePackageReports = (packageReports) => {
     return count + packageReport.missingArtifactCount;
   }, 0);
   return {
+    presentPackages,
+    missingPackages,
     presentPackageCount,
     presentArtifactCount,
     missingPackageCount,
@@ -185,6 +193,8 @@ const withBaseReportFields = (report) => {
     ? report.packageReports
     : [];
   const {
+    presentPackages,
+    missingPackages,
     presentPackageCount,
     presentArtifactCount,
     missingPackageCount,
@@ -223,6 +233,8 @@ const withBaseReportFields = (report) => {
     checkedPackagePaths,
     checkedPackageCount: checkedPackages.length,
     checkedPackagePathCount: checkedPackagePaths.length,
+    presentPackages,
+    missingPackages,
     requiredPackageCount: runtimeLibraries.length,
     presentPackageCount,
     packageReportCount: packageReports.length,

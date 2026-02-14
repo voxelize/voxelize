@@ -229,6 +229,8 @@ type RuntimeLibrariesJsonReport = OptionTerminatorMetadata &
   checkedPackagePaths: string[];
   checkedPackageCount: number;
   checkedPackagePathCount: number;
+  presentPackages: string[];
+  missingPackages: string[];
   requiredPackageCount: number;
   presentPackageCount: number;
   packageReportCount: number;
@@ -544,6 +546,14 @@ const expectRuntimeLibrariesReportMetadata = (
   expect(report.checkedPackagePaths).toEqual(
     report.packageReports.map((packageReport) => packageReport.packagePath)
   );
+  const presentPackages = report.packageReports
+    .filter((packageReport) => packageReport.artifactsPresent)
+    .map((packageReport) => packageReport.packageName);
+  const missingPackages = report.packageReports
+    .filter((packageReport) => packageReport.artifactsPresent === false)
+    .map((packageReport) => packageReport.packageName);
+  expect(report.presentPackages).toEqual(presentPackages);
+  expect(report.missingPackages).toEqual(missingPackages);
   expect(report.checkedPackageCount).toBe(report.checkedPackages.length);
   expect(report.checkedPackagePathCount).toBe(report.checkedPackagePaths.length);
   expect(report.checkedPackagePathCount).toBe(report.requiredPackageCount);
@@ -578,6 +588,8 @@ const expectRuntimeLibrariesReportMetadata = (
   );
   const presentPackageCount = report.packageReports.length - missingPackageCount;
   expect(report.presentPackageCount).toBe(presentPackageCount);
+  expect(report.presentPackages.length).toBe(report.presentPackageCount);
+  expect(report.missingPackages.length).toBe(report.missingPackageCount);
   expect(report.presentArtifactCount).toBe(presentArtifactCount);
   expect(report.missingPackageCount).toBe(missingPackageCount);
   expect(report.missingArtifactCount).toBe(missingArtifactCount);
