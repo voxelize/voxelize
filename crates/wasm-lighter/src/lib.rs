@@ -507,10 +507,15 @@ where
         if length == 0 {
             return Vec::new();
         }
+        if length_u32 == 1 {
+            let single_value = array.get(0);
+            if let Ok(node) = serde_wasm_bindgen::from_value(single_value) {
+                return vec![node];
+            }
+            return Vec::new();
+        }
 
-        if array.get(0).is_object()
-            && (length_u32 == 1 || array.get(length_u32 - 1).is_object())
-        {
+        if array.get(0).is_object() && array.get(length_u32 - 1).is_object() {
             if let Ok(nodes) = serde_wasm_bindgen::from_value(array.clone().into()) {
                 return nodes;
             }
