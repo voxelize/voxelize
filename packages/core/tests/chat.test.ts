@@ -80,4 +80,32 @@ describe("Chat command parsing", () => {
 
     expect(parsed).toEqual({ first: "hello world", second: "test" });
   });
+
+  it("parses boolean-only schemas without positional token buffering", () => {
+    const chat = new Chat();
+    initializeChat(chat);
+    let parsed: { verbose?: boolean; dryRun?: boolean } | null = null;
+
+    chat.addCommand(
+      "echo",
+      (args) => {
+        parsed = args;
+      },
+      {
+        description: "Echo command",
+        args: z.object({
+          verbose: z.coerce.boolean().optional(),
+          dryRun: z.coerce.boolean().optional(),
+        }),
+      }
+    );
+
+    const message: ChatProtocol = {
+      type: "CLIENT",
+      body: "/echo verbose dryRun ignored-token",
+    };
+    chat.send(message);
+
+    expect(parsed).toEqual({ verbose: true, dryRun: true });
+  });
 });
