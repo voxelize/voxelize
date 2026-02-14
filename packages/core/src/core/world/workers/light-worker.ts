@@ -127,7 +127,6 @@ let pendingBatchMessagesHead = 0;
 const MAX_PENDING_BATCH_MESSAGES = 512;
 const reusableBoundsMin = new Int32Array(3);
 const reusableBoundsShape = new Uint32Array(3);
-const emptyUint32Array = new Uint32Array(0);
 const emptyTransferList: Transferable[] = [];
 const reusableModifiedChunks: WorkerModifiedChunk[] = [];
 const reusableTransferBuffers: ArrayBuffer[] = [];
@@ -527,12 +526,8 @@ const serializeChunksData = (
 
     hasAnyChunk = true;
     serialized[index] = {
-      voxels: voxelsBuffer.byteLength
-        ? new Uint32Array(voxelsBuffer)
-        : emptyUint32Array,
-      lights: lightsBuffer.byteLength
-        ? new Uint32Array(lightsBuffer)
-        : emptyUint32Array,
+      voxels: new Uint32Array(voxelsBuffer),
+      lights: new Uint32Array(lightsBuffer),
     };
   }
 
