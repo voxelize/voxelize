@@ -135,27 +135,27 @@ export class WorkerPool {
   };
 
   postMessage = (message: object, buffers?: ArrayBuffer[]) => {
+    const workers = this.workers;
+    const workerCount = workers.length;
     if (!buffers || buffers.length === 0) {
-      const workerCount = this.workers.length;
       for (let workerIndex = 0; workerIndex < workerCount; workerIndex++) {
-        this.workers[workerIndex].postMessage(message);
+        workers[workerIndex].postMessage(message);
       }
       return;
     }
 
-    if (this.workers.length === 1) {
-      this.workers[0].postMessage(message, buffers);
+    if (workerCount === 1) {
+      workers[0].postMessage(message, buffers);
       return;
     }
 
-    const workerCount = this.workers.length;
     const bufferCount = buffers.length;
     if (bufferCount === 1) {
       const sourceBuffer = buffers[0];
       const transferBufferList = this.singleTransferBufferList;
       for (let workerIndex = 0; workerIndex < workerCount; workerIndex++) {
         transferBufferList[0] = sourceBuffer.slice(0);
-        this.workers[workerIndex].postMessage(message, transferBufferList);
+        workers[workerIndex].postMessage(message, transferBufferList);
       }
       return;
     }
@@ -166,7 +166,7 @@ export class WorkerPool {
       for (let index = 0; index < bufferCount; index++) {
         transferBuffers[index] = buffers[index].slice(0);
       }
-      this.workers[workerIndex].postMessage(message, transferBuffers);
+      workers[workerIndex].postMessage(message, transferBuffers);
     }
   };
 
