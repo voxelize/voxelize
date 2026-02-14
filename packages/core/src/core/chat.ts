@@ -683,7 +683,22 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
    * @param trigger - The trigger to remove.
    */
   public removeCommand(trigger: string) {
-    return !!this.commands.delete(trigger);
+    const commandInfo = this.commands.get(trigger);
+    if (!commandInfo) {
+      return false;
+    }
+    const isAliasTrigger = commandInfo.aliases.includes(trigger);
+    this.commands.delete(trigger);
+    if (isAliasTrigger) {
+      return true;
+    }
+    for (let aliasIndex = 0; aliasIndex < commandInfo.aliases.length; aliasIndex++) {
+      const alias = commandInfo.aliases[aliasIndex];
+      if (alias !== trigger) {
+        this.commands.delete(alias);
+      }
+    }
+    return true;
   }
 
   /**

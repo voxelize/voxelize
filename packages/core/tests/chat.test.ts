@@ -212,4 +212,57 @@ describe("Chat command registration", () => {
       warnSpy.mockRestore();
     }
   });
+
+  it("removes primary command trigger together with its aliases", () => {
+    const chat = new Chat();
+    initializeChat(chat);
+    let executions = 0;
+
+    chat.addCommand(
+      "echo",
+      () => {
+        executions++;
+      },
+      {
+        description: "Primary removal",
+        aliases: ["good", "alt"],
+        args: z.object({}),
+      }
+    );
+
+    chat.send({ type: "CLIENT", body: "/good" });
+    expect(executions).toBe(1);
+
+    expect(chat.removeCommand("echo")).toBe(true);
+
+    chat.send({ type: "CLIENT", body: "/echo" });
+    chat.send({ type: "CLIENT", body: "/good" });
+    chat.send({ type: "CLIENT", body: "/alt" });
+    expect(executions).toBe(1);
+  });
+
+  it("removes only the targeted alias when alias trigger is removed", () => {
+    const chat = new Chat();
+    initializeChat(chat);
+    let executions = 0;
+
+    chat.addCommand(
+      "echo",
+      () => {
+        executions++;
+      },
+      {
+        description: "Alias removal",
+        aliases: ["good", "alt"],
+        args: z.object({}),
+      }
+    );
+
+    expect(chat.removeCommand("good")).toBe(true);
+
+    chat.send({ type: "CLIENT", body: "/good" });
+    chat.send({ type: "CLIENT", body: "/alt" });
+    chat.send({ type: "CLIENT", body: "/echo" });
+    expect(executions).toBe(2);
+  });
 });
