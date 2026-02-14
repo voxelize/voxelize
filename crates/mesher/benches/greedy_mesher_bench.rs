@@ -331,6 +331,12 @@ fn build_registry() -> Registry {
     y_rotatable.is_see_through = true;
     y_rotatable.y_rotatable = true;
 
+    let mut glass_standalone = base_block(6, "glass_standalone");
+    glass_standalone.is_opaque = false;
+    glass_standalone.is_see_through = true;
+    glass_standalone.is_transparent = [true; 6];
+    glass_standalone.transparent_standalone = true;
+
     let mut registry = Registry::new(vec![
         (0, air),
         (1, stone),
@@ -338,6 +344,7 @@ fn build_registry() -> Registry {
         (3, water),
         (4, dynamic_gate),
         (5, y_rotatable),
+        (6, glass_standalone),
     ]);
     registry.build_cache();
     registry
@@ -474,12 +481,45 @@ fn transparency_scene() -> BenchSpace {
     space
 }
 
+fn standalone_transparency_scene() -> BenchSpace {
+    let mut space = BenchSpace::new([16, 12, 16]);
+
+    for x in 0..16 {
+        for z in 0..16 {
+            space.set_voxel_id(x, 0, z, 1);
+
+            if (x + z) % 2 == 0 {
+                space.set_voxel_id(x, 1, z, 6);
+                if x < 15 {
+                    space.set_voxel_id(x + 1, 1, z, 6);
+                }
+            } else {
+                space.set_voxel_id(x, 1, z, 2);
+            }
+
+            if (x + z) % 4 == 0 {
+                let stage = ((x * 3 + z * 5) % 8) as u32;
+                space.set_voxel_stage(x, 2, z, 3, stage);
+            }
+        }
+    }
+
+    for x in 0..16 {
+        for z in 0..16 {
+            space.set_light(x, 3, z, 14, 2, 4, 1);
+        }
+    }
+
+    space
+}
+
 fn greedy_mesher_benchmark(c: &mut Criterion) {
     let registry = build_registry();
     let scenes = vec![
         ("terrain_16x24x16", terrain_scene()),
         ("dynamic_16x20x16", dynamic_scene()),
         ("transparency_16x16x16", transparency_scene()),
+        ("standalone_transparency_16x12x16", standalone_transparency_scene()),
     ];
 
     let mut group = c.benchmark_group("greedy_mesher");
@@ -530,6 +570,7 @@ fn non_greedy_mesher_benchmark(c: &mut Criterion) {
         ("terrain_16x24x16", terrain_scene()),
         ("dynamic_16x20x16", dynamic_scene()),
         ("transparency_16x16x16", transparency_scene()),
+        ("standalone_transparency_16x12x16", standalone_transparency_scene()),
     ];
     let mut group = c.benchmark_group("non_greedy_mesher");
 
