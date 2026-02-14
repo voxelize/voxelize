@@ -991,8 +991,8 @@ fn extract_id(voxel: u32) -> u32 {
 
 #[inline(always)]
 fn extract_rotation(voxel: u32) -> BlockRotation {
-    let rotation_bits = (voxel >> 16) & 0xFF;
-    if rotation_bits == 0 {
+    let rotation_bits = voxel >> 16;
+    if (rotation_bits & 0xFF) == 0 {
         return BlockRotation::PY(0.0);
     }
     let rotation = rotation_bits & 0xF;
