@@ -3,6 +3,10 @@ use serde::{Deserialize, Serialize};
 use voxelize_core::{BlockRotation, BlockRule, BlockRuleLogic, LightColor, LightUtils};
 
 const DENSE_LOOKUP_MAX_GROWTH_FACTOR: usize = 8;
+const RED_TORCH_MASK: u8 = 1 << 0;
+const GREEN_TORCH_MASK: u8 = 1 << 1;
+const BLUE_TORCH_MASK: u8 = 1 << 2;
+const ALL_TORCH_MASKS: u8 = RED_TORCH_MASK | GREEN_TORCH_MASK | BLUE_TORCH_MASK;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -92,6 +96,10 @@ pub struct LightBlock {
     pub blue_light_level: u32,
     #[serde(default)]
     pub dynamic_patterns: Option<Vec<LightDynamicPattern>>,
+    #[serde(skip, default)]
+    static_torch_mask: u8,
+    #[serde(skip, default)]
+    dynamic_torch_mask: u8,
 }
 
 impl Default for LightBlock {
@@ -112,13 +120,73 @@ impl LightBlock {
             green_light_level: 0,
             blue_light_level: 0,
             dynamic_patterns: None,
+            static_torch_mask: 0,
+            dynamic_torch_mask: 0,
         }
+    }
+
+    #[inline]
+    fn color_mask(color: &LightColor) -> u8 {
+        match color {
+            LightColor::Red => RED_TORCH_MASK,
+            LightColor::Green => GREEN_TORCH_MASK,
+            LightColor::Blue => BLUE_TORCH_MASK,
+            LightColor::Sunlight => 0,
+        }
+    }
+
+    #[inline]
+    pub fn has_static_torch_color(&self, color: &LightColor) -> bool {
+        (self.static_torch_mask & Self::color_mask(color)) != 0
+    }
+
+    #[inline]
+    pub fn has_dynamic_torch_color(&self, color: &LightColor) -> bool {
+        (self.dynamic_torch_mask & Self::color_mask(color)) != 0
     }
 
     pub fn recompute_flags(&mut self) {
         self.is_opaque = self.is_transparent.iter().all(|value| !value);
-        self.is_light =
-            self.red_light_level > 0 || self.green_light_level > 0 || self.blue_light_level > 0;
+
+        let mut static_torch_mask = 0;
+        if self.red_light_level > 0 {
+            static_torch_mask |= RED_TORCH_MASK;
+        }
+        if self.green_light_level > 0 {
+            static_torch_mask |= GREEN_TORCH_MASK;
+        }
+        if self.blue_light_level > 0 {
+            static_torch_mask |= BLUE_TORCH_MASK;
+        }
+
+        let mut dynamic_torch_mask = 0;
+        if let Some(patterns) = &self.dynamic_patterns {
+            for pattern in patterns {
+                for part in &pattern.parts {
+                    if part.red_light_level.unwrap_or(0) > 0 {
+                        dynamic_torch_mask |= RED_TORCH_MASK;
+                    }
+                    if part.green_light_level.unwrap_or(0) > 0 {
+                        dynamic_torch_mask |= GREEN_TORCH_MASK;
+                    }
+                    if part.blue_light_level.unwrap_or(0) > 0 {
+                        dynamic_torch_mask |= BLUE_TORCH_MASK;
+                    }
+
+                    if dynamic_torch_mask == ALL_TORCH_MASKS {
+                        break;
+                    }
+                }
+
+                if dynamic_torch_mask == ALL_TORCH_MASKS {
+                    break;
+                }
+            }
+        }
+
+        self.static_torch_mask = static_torch_mask;
+        self.dynamic_torch_mask = dynamic_torch_mask;
+        self.is_light = (static_torch_mask | dynamic_torch_mask) != 0;
     }
 
     #[inline]
@@ -142,6 +210,10 @@ impl LightBlock {
         space: &dyn LightVoxelAccess,
         color: &LightColor,
     ) -> u32 {
+        if !self.has_dynamic_torch_color(color) {
+            return self.get_torch_light_level(color);
+        }
+
         if let Some(patterns) = &self.dynamic_patterns {
             for pattern in patterns {
                 for part in &pattern.parts {
@@ -416,7 +488,9 @@ impl LightRegistry {
 
 #[cfg(test)]
 mod tests {
-    use super::{LightBlock, LightRegistry};
+    use voxelize_core::{BlockRule, LightColor};
+
+    use super::{LightBlock, LightConditionalPart, LightDynamicPattern, LightRegistry};
 
     #[test]
     fn registry_uses_tuple_id_for_air_fallback() {
@@ -456,6 +530,75 @@ mod tests {
         assert!(registry.lookup_sparse.is_none());
         assert!(registry.has_type(1));
         assert!(!registry.has_type(999));
+    }
+
+    #[test]
+    fn recompute_flags_tracks_dynamic_torch_color_masks() {
+        let mut block = LightBlock {
+            id: 10,
+            is_transparent: [true, true, true, true, true, true],
+            is_opaque: false,
+            is_light: false,
+            light_reduce: false,
+            red_light_level: 0,
+            green_light_level: 0,
+            blue_light_level: 0,
+            dynamic_patterns: Some(vec![LightDynamicPattern {
+                parts: vec![LightConditionalPart {
+                    rule: BlockRule::None,
+                    red_light_level: None,
+                    green_light_level: Some(7),
+                    blue_light_level: None,
+                }],
+            }]),
+            static_torch_mask: 0,
+            dynamic_torch_mask: 0,
+        };
+
+        block.recompute_flags();
+        assert!(!block.has_static_torch_color(&LightColor::Green));
+        assert!(block.has_dynamic_torch_color(&LightColor::Green));
+        assert!(!block.has_dynamic_torch_color(&LightColor::Red));
+        assert_eq!(
+            block.get_torch_light_level_at(
+                &[0, 0, 0],
+                &NoopAccess,
+                &LightColor::Green
+            ),
+            7
+        );
+    }
+
+    struct NoopAccess;
+
+    impl super::LightVoxelAccess for NoopAccess {
+        fn get_raw_voxel(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+            0
+        }
+
+        fn get_voxel_rotation(&self, _vx: i32, _vy: i32, _vz: i32) -> voxelize_core::BlockRotation {
+            voxelize_core::BlockRotation::default()
+        }
+
+        fn get_voxel_stage(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+            0
+        }
+
+        fn get_raw_light(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+            0
+        }
+
+        fn set_raw_light(&mut self, _vx: i32, _vy: i32, _vz: i32, _level: u32) -> bool {
+            false
+        }
+
+        fn get_max_height(&self, _vx: i32, _vz: i32) -> u32 {
+            0
+        }
+
+        fn contains(&self, _vx: i32, _vy: i32, _vz: i32) -> bool {
+            false
+        }
     }
 }
 

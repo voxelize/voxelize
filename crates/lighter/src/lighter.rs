@@ -130,30 +130,11 @@ fn block_emits_torch_at(
     space: &dyn LightVoxelAccess,
     color: &LightColor,
 ) -> bool {
-    if block.get_torch_light_level(color) > 0 {
+    if block.has_static_torch_color(color) {
         return true;
     }
 
-    let has_dynamic_color = block
-        .dynamic_patterns
-        .as_ref()
-        .is_some_and(|patterns| {
-            for pattern in patterns {
-                for part in &pattern.parts {
-                    let has_color = match color {
-                        LightColor::Red => part.red_light_level.unwrap_or(0) > 0,
-                        LightColor::Green => part.green_light_level.unwrap_or(0) > 0,
-                        LightColor::Blue => part.blue_light_level.unwrap_or(0) > 0,
-                        LightColor::Sunlight => false,
-                    };
-                    if has_color {
-                        return true;
-                    }
-                }
-            }
-            false
-        });
-    if !has_dynamic_color {
+    if !block.has_dynamic_torch_color(color) {
         return false;
     }
 
@@ -631,30 +612,15 @@ mod tests {
         let mut air = LightBlock::default_air();
         air.id = 0;
 
-        let mut stone = LightBlock {
-            id: 1,
-            is_transparent: [false, false, false, false, false, false],
-            is_opaque: true,
-            is_light: false,
-            light_reduce: true,
-            red_light_level: 0,
-            green_light_level: 0,
-            blue_light_level: 0,
-            dynamic_patterns: None,
-        };
+        let mut stone = LightBlock::default_air();
+        stone.id = 1;
+        stone.is_transparent = [false, false, false, false, false, false];
+        stone.light_reduce = true;
         stone.recompute_flags();
 
-        let mut torch = LightBlock {
-            id: 2,
-            is_transparent: [true, true, true, true, true, true],
-            is_opaque: false,
-            is_light: true,
-            light_reduce: false,
-            red_light_level: 15,
-            green_light_level: 0,
-            blue_light_level: 0,
-            dynamic_patterns: None,
-        };
+        let mut torch = LightBlock::default_air();
+        torch.id = 2;
+        torch.red_light_level = 15;
         torch.recompute_flags();
 
         LightRegistry::new(vec![(0, air), (1, stone), (2, torch)])
@@ -792,17 +758,9 @@ mod tests {
         let mut air = LightBlock::default_air();
         air.id = 0;
 
-        let mut reducer = LightBlock {
-            id: 3,
-            is_transparent: [true, true, true, true, true, true],
-            is_opaque: false,
-            is_light: false,
-            light_reduce: true,
-            red_light_level: 0,
-            green_light_level: 0,
-            blue_light_level: 0,
-            dynamic_patterns: None,
-        };
+        let mut reducer = LightBlock::default_air();
+        reducer.id = 3;
+        reducer.light_reduce = true;
         reducer.recompute_flags();
 
         let registry = LightRegistry::new(vec![(0, air), (3, reducer)]);
