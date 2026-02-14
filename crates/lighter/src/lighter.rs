@@ -323,6 +323,9 @@ pub fn remove_light(
         registry,
         is_sunlight,
     );
+    if fill.is_empty() {
+        return;
+    }
 
     flood_light_from_nodes(space, fill, color, config, None, registry);
 }
@@ -437,6 +440,9 @@ pub fn remove_lights<I>(
 
     let fill =
         collect_refill_nodes_after_removals(space, remove, color, config, registry, is_sunlight);
+    if fill.is_empty() {
+        return;
+    }
     flood_light_from_nodes(space, fill, color, config, None, registry);
 }
 
