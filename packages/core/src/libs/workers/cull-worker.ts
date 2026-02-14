@@ -101,6 +101,9 @@ self.onmessage = function (e: MessageEvent<CullWorkerMessage>) {
           voxelIndex >= 0 && voxelIndex < dataLength ? data[voxelIndex] : 0;
 
         if (voxel) {
+          const baseX = x * dx;
+          const baseY = y * dy;
+          const baseZ = z * dz;
           // There is a voxel here but do we need faces for it?
           for (let faceIndex = 0; faceIndex < FACES.length; faceIndex++) {
             const face = FACES[faceIndex];
@@ -129,11 +132,11 @@ self.onmessage = function (e: MessageEvent<CullWorkerMessage>) {
 
               for (let cornerIndex = 0; cornerIndex < corners.length; cornerIndex++) {
                 const corner = corners[cornerIndex];
-                const posX = corner[0] + x;
-                const posY = corner[1] + y;
-                const posZ = corner[2] + z;
-
-                positions.push(posX * dx, posY * dy, posZ * dz);
+                positions.push(
+                  baseX + corner[0] * dx,
+                  baseY + corner[1] * dy,
+                  baseZ + corner[2] * dz
+                );
                 normals.push(dir[0], dir[1], dir[2]);
               }
               vertexCount += corners.length;
