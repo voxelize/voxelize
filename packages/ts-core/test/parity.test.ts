@@ -240,6 +240,14 @@ describe("AABB", () => {
     ]).toEqual([1, 1, 1, 2, 2, 2]);
   });
 
+  it("computes geometric extents and magnitude", () => {
+    const aabb = AABB.create(1, 2, 3, 4, 6, 15);
+    expect(aabb.width()).toBe(3);
+    expect(aabb.height()).toBe(4);
+    expect(aabb.depth()).toBe(12);
+    expect(aabb.mag()).toBe(13);
+  });
+
   it("detects touching bounds and supports clone/copy", () => {
     const a = AABB.create(0, 0, 0, 1, 1, 1);
     const b = AABB.create(1, 0, 0, 2, 1, 1);
@@ -254,6 +262,15 @@ describe("AABB", () => {
     copied.copy(cloned);
     expect([copied.minX, copied.minY, copied.minZ]).toEqual([1, 1, 1]);
     expect([copied.maxX, copied.maxY, copied.maxZ]).toEqual([2, 2, 2]);
+  });
+
+  it("uses epsilon tolerance for touching bounds", () => {
+    const a = AABB.create(0, 0, 0, 1, 1, 1);
+    const b = AABB.create(1 + 5e-5, 0, 0, 2, 1, 1);
+    const c = AABB.create(1 + 5e-4, 0, 0, 2, 1, 1);
+
+    expect(a.touches(b)).toBe(true);
+    expect(a.touches(c)).toBe(false);
   });
 });
 
