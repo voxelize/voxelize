@@ -154,6 +154,7 @@ type ClientJsonReport = OptionTerminatorMetadata &
   availableStepScripts: string[];
   availableStepScriptCount: number;
   availableStepScriptMap: Record<string, string>;
+  availableStepSupportsNoBuildMap: Record<string, boolean>;
   availableStepIndices: number[];
   availableStepIndexCount: number;
   availableStepIndexMap: Record<string, number>;
@@ -375,6 +376,7 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
   availableStepScripts: string[];
   availableStepScriptCount: number;
   availableStepScriptMap: Record<string, string>;
+  availableStepSupportsNoBuildMap: Record<string, boolean>;
   availableStepIndices: number[];
   availableStepIndexCount: number;
   availableStepIndexMap: Record<string, number>;
@@ -684,6 +686,7 @@ const expectAvailableStepMetadata = (
     availableStepScripts: string[];
     availableStepScriptCount: number;
     availableStepScriptMap: Record<string, string>;
+    availableStepSupportsNoBuildMap: Record<string, boolean>;
     availableStepIndices: number[];
     availableStepIndexCount: number;
     availableStepIndexMap: Record<string, number>;
@@ -712,6 +715,11 @@ const expectAvailableStepMetadata = (
       return [stepName, expectedMetadata[stepName].scriptName];
     })
   );
+  const expectedSupportsNoBuildMap = Object.fromEntries(
+    expectedSteps.map((stepName) => {
+      return [stepName, expectedMetadata[stepName].supportsNoBuild];
+    })
+  );
   const expectedIndices = expectedSteps.map((_, index) => {
     return index;
   });
@@ -726,6 +734,9 @@ const expectAvailableStepMetadata = (
   expect(report.availableStepScripts).toEqual(expectedScripts);
   expect(report.availableStepScriptCount).toBe(report.availableStepScripts.length);
   expect(report.availableStepScriptMap).toEqual(expectedScriptMap);
+  expect(report.availableStepSupportsNoBuildMap).toEqual(
+    expectedSupportsNoBuildMap
+  );
   expect(report.availableStepIndices).toEqual(expectedIndices);
   expect(report.availableStepIndexCount).toBe(report.availableStepIndices.length);
   expect(report.availableStepIndexMap).toEqual(expectedIndexMap);

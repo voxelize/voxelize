@@ -100,6 +100,11 @@ const availableStepScriptMap = Object.fromEntries(
     return [stepName, availableStepMetadata[stepName].scriptName];
   })
 );
+const availableStepSupportsNoBuildMap = Object.fromEntries(
+  availableSteps.map((stepName) => {
+    return [stepName, availableStepMetadata[stepName].supportsNoBuild];
+  })
+);
 const availableStepIndices = availableSteps.map((_, index) => {
   return index;
 });
@@ -172,6 +177,7 @@ if (isJson && validationFailureMessage !== null) {
     availableStepScripts,
     availableStepScriptCount: availableStepScripts.length,
     availableStepScriptMap,
+    availableStepSupportsNoBuildMap,
     availableStepIndices,
     availableStepIndexCount: availableStepIndices.length,
     availableStepIndexMap: availableStepIndexMapReport,
@@ -341,6 +347,7 @@ if (isJson) {
     availableStepScripts,
     availableStepScriptCount: availableStepScripts.length,
     availableStepScriptMap,
+    availableStepSupportsNoBuildMap,
     availableStepIndices,
     availableStepIndexCount: availableStepIndices.length,
     availableStepIndexMap: availableStepIndexMapReport,
