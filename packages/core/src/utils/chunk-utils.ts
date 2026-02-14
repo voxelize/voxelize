@@ -33,8 +33,13 @@ const mapVoxelToChunkCoordinate = (
     ? voxel >> chunkShift
     : Math.floor(voxel / chunkSize);
 
-const normalizeChunkSize = (chunkSize: number) =>
-  Number.isFinite(chunkSize) && chunkSize > 0 ? chunkSize : 1;
+const normalizeChunkSize = (chunkSize: number) => {
+  if (!Number.isFinite(chunkSize) || chunkSize <= 0) {
+    return 1;
+  }
+  const normalized = Math.floor(chunkSize);
+  return normalized > 0 ? normalized : 1;
+};
 const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER;
 const isAsciiWhitespaceCode = (code: number) =>
   code === 32 || (code >= 9 && code <= 13);

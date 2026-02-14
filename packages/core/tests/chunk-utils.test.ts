@@ -26,6 +26,10 @@ describe("ChunkUtils.mapVoxelToChunkAt", () => {
     expect(ChunkUtils.mapVoxelToChunkAt(3.7, -8.2, Number.NaN)).toEqual([3, -9]);
     expect(ChunkUtils.mapVoxelToChunkAt(3.7, -8.2, Number.POSITIVE_INFINITY)).toEqual([3, -9]);
   });
+
+  it("normalizes fractional chunk sizes to positive integer divisors", () => {
+    expect(ChunkUtils.mapVoxelToChunkAt(31, -1, 15.8)).toEqual([2, -1]);
+  });
 });
 
 describe("ChunkUtils.mapVoxelToChunkLocal", () => {
@@ -47,6 +51,10 @@ describe("ChunkUtils.getChunkNameByVoxel", () => {
   it("handles invalid chunk sizes with normalized fallback", () => {
     expect(ChunkUtils.getChunkNameByVoxel(3.7, -8.2, 0)).toBe("3|-9");
     expect(ChunkUtils.getChunkNameByVoxel(3.7, -8.2, Number.NaN)).toBe("3|-9");
+  });
+
+  it("normalizes fractional chunk sizes consistently", () => {
+    expect(ChunkUtils.getChunkNameByVoxel(31, -1, 15.8)).toBe("2|-1");
   });
 });
 
