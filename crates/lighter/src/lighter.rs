@@ -383,10 +383,11 @@ fn collect_refill_nodes_after_removals(
                 if !can_enter_into_direction(&n_transparency, direction_index) {
                     continue;
                 }
-            } else if !block_emits_torch_at(n_block, nvx, nvy, nvz, space, color, color_mask)
-            {
+            } else {
                 let n_transparency = n_block.get_transparency_from_raw_voxel(n_raw_voxel);
-                if !can_enter_into_direction(&n_transparency, direction_index) {
+                if !can_enter_into_direction(&n_transparency, direction_index)
+                    && !block_emits_torch_at(n_block, nvx, nvy, nvz, space, color, color_mask)
+                {
                     continue;
                 }
             }
