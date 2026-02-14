@@ -119,19 +119,12 @@ const _intView = new Uint32Array(_floatView.buffer);
 const _counts = new Uint32Array(256);
 
 function radixSortDescending(
-  distances: Float32Array,
   faceOrder: Uint32Array,
   faceCount: number,
   keys: Uint32Array,
   temp: Uint32Array
 ): void {
   const counts = _counts;
-  for (let i = 0; i < faceCount; i++) {
-    _floatView[0] = distances[i];
-    const bits = _intView[0];
-    keys[i] = bits ^ (-(bits >> 31) | 0x80000000) ^ 0xffffffff;
-  }
-
   let src = faceOrder;
   let dst = temp;
 
@@ -194,10 +187,14 @@ export function sortTransparentMesh(
     const cx = centroids[centroidIndex] - camX;
     const cy = centroids[centroidIndex + 1] - camY;
     const cz = centroids[centroidIndex + 2] - camZ;
-    distances[f] = cx * cx + cy * cy + cz * cz;
+    const distance = cx * cx + cy * cy + cz * cz;
+    distances[f] = distance;
+    _floatView[0] = distance;
+    const bits = _intView[0];
+    sortKeys[f] = bits ^ (-(bits >> 31) | 0x80000000) ^ 0xffffffff;
   }
 
-  radixSortDescending(distances, faceOrder, faceCount, sortKeys, sortTemp);
+  radixSortDescending(faceOrder, faceCount, sortKeys, sortTemp);
 
   const { originalIndices, sortedIndices } = data;
   for (let i = 0; i < faceCount; i++) {
