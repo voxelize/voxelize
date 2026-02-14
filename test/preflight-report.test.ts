@@ -163,6 +163,8 @@ type PreflightReport = {
       supportsNoBuild: boolean;
     }
   >;
+  passedCheckIndices: number[];
+  passedCheckIndexCount: number;
   failedCheckScripts: string[];
   failedCheckScriptCount: number;
   failedCheckMetadata: Record<
@@ -172,6 +174,8 @@ type PreflightReport = {
       supportsNoBuild: boolean;
     }
   >;
+  failedCheckIndices: number[];
+  failedCheckIndexCount: number;
   firstFailedCheck: string | null;
   availableChecks: string[];
   availableCheckScripts: string[];
@@ -563,13 +567,23 @@ const expectCheckResultScriptMetadata = (report: PreflightReport) => {
       ];
     })
   );
+  const expectedPassedIndices = report.passedChecks.map((checkName) => {
+    return expectedAvailableChecks.indexOf(checkName);
+  });
+  const expectedFailedIndices = report.failedChecks.map((checkName) => {
+    return expectedAvailableChecks.indexOf(checkName);
+  });
 
   expect(report.passedCheckScripts).toEqual(expectedPassedScripts);
   expect(report.passedCheckScriptCount).toBe(report.passedCheckScripts.length);
   expect(report.passedCheckMetadata).toEqual(expectedPassedMetadata);
+  expect(report.passedCheckIndices).toEqual(expectedPassedIndices);
+  expect(report.passedCheckIndexCount).toBe(report.passedCheckIndices.length);
   expect(report.failedCheckScripts).toEqual(expectedFailedScripts);
   expect(report.failedCheckScriptCount).toBe(report.failedCheckScripts.length);
   expect(report.failedCheckMetadata).toEqual(expectedFailedMetadata);
+  expect(report.failedCheckIndices).toEqual(expectedFailedIndices);
+  expect(report.failedCheckIndexCount).toBe(report.failedCheckIndices.length);
 };
 const expectTsCoreNestedReport = (
   checkReport: object | null,

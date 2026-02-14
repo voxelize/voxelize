@@ -489,9 +489,13 @@ if (
     passedCheckScripts: [],
     passedCheckScriptCount: 0,
     passedCheckMetadata: {},
+    passedCheckIndices: [],
+    passedCheckIndexCount: 0,
     failedCheckScripts: [],
     failedCheckScriptCount: 0,
     failedCheckMetadata: {},
+    failedCheckIndices: [],
+    failedCheckIndexCount: 0,
     ...summarizeCheckResults([]),
     checks: [],
     outputPath: outputPathError === null ? resolvedOutputPath : null,
@@ -584,9 +588,13 @@ if (isListChecks) {
     passedCheckScripts: [],
     passedCheckScriptCount: 0,
     passedCheckMetadata: {},
+    passedCheckIndices: [],
+    passedCheckIndexCount: 0,
     failedCheckScripts: [],
     failedCheckScriptCount: 0,
     failedCheckMetadata: {},
+    failedCheckIndices: [],
+    failedCheckIndexCount: 0,
     ...summarizeCheckResults([]),
     failureSummaries: [],
     checks: [],
@@ -646,6 +654,8 @@ const {
   checkScripts: failedCheckScripts,
   checkScriptCount: failedCheckScriptCount,
 } = buildCheckSelectionMetadata(checkSummary.failedChecks);
+const passedCheckIndices = resolveCheckIndices(checkSummary.passedChecks);
+const failedCheckIndices = resolveCheckIndices(checkSummary.failedChecks);
 const invalidCheckCount = 0;
 const failureSummaries = checks
   .filter((check) => !check.passed)
@@ -697,9 +707,13 @@ const report = buildTimedReport({
   passedCheckScripts,
   passedCheckScriptCount,
   passedCheckMetadata,
+  passedCheckIndices,
+  passedCheckIndexCount: passedCheckIndices.length,
   failedCheckScripts,
   failedCheckScriptCount,
   failedCheckMetadata,
+  failedCheckIndices,
+  failedCheckIndexCount: failedCheckIndices.length,
   ...checkSummary,
   failureSummaries,
   checks,
