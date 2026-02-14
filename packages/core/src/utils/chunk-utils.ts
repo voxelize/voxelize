@@ -283,12 +283,19 @@ export class ChunkUtils {
       const mask = normalizedChunkSize - 1;
       const useMaskX = (vx | 0) === vx;
       const useMaskZ = (vz | 0) === vz;
-      const cx = useMaskX ? vx >> chunkShift : Math.floor(vx / normalizedChunkSize);
-      const cz = useMaskZ ? vz >> chunkShift : Math.floor(vz / normalizedChunkSize);
+      if (useMaskX && useMaskZ) {
+        return [vx & mask, vy, vz & mask];
+      }
+      const localX = useMaskX
+        ? vx & mask
+        : vx - Math.floor(vx / normalizedChunkSize) * normalizedChunkSize;
+      const localZ = useMaskZ
+        ? vz & mask
+        : vz - Math.floor(vz / normalizedChunkSize) * normalizedChunkSize;
       return [
-        useMaskX ? vx & mask : vx - cx * normalizedChunkSize,
+        localX,
         vy,
-        useMaskZ ? vz & mask : vz - cz * normalizedChunkSize,
+        localZ,
       ];
     }
     const cx = Math.floor(vx / normalizedChunkSize);
