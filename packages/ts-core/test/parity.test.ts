@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   AABB,
   BLOCK_RULE_NONE,
+  type BlockRule,
   BlockFace,
   BlockRotation,
   BlockRuleEvaluator,
@@ -913,6 +914,7 @@ describe("Type builders", () => {
   it("builds conditional parts with deterministic defaults", () => {
     const part = createBlockConditionalPart({});
     expect(part.rule).toEqual(BLOCK_RULE_NONE);
+    expect(part.rule).not.toBe(BLOCK_RULE_NONE);
     expect(part.faces).toEqual([]);
     expect(part.aabbs).toEqual([]);
     expect(part.isTransparent).toEqual([false, false, false, false, false, false]);
@@ -961,6 +963,46 @@ describe("Type builders", () => {
     expect(part.faces).toHaveLength(1);
     expect(part.aabbs).toHaveLength(1);
     expect(part.isTransparent).toEqual([true, false, true, false, true, false]);
+  });
+
+  it("clones provided conditional part rules", () => {
+    const inputRule: BlockRule = {
+      type: "combination",
+      logic: BlockRuleLogic.And,
+      rules: [
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 99,
+          rotation: BlockRotation.py(Math.PI / 2),
+        },
+      ],
+    };
+    const part = createBlockConditionalPart({
+      rule: inputRule,
+      worldSpace: true,
+    });
+
+    const simpleRule = inputRule.rules[0];
+    if (simpleRule.type !== "simple" || simpleRule.rotation === undefined || simpleRule.rotation === null) {
+      throw new Error("Expected simple rule with rotation");
+    }
+    simpleRule.offset[0] = 9;
+    simpleRule.id = 77;
+    simpleRule.rotation.axis = BlockRotation.PX().axis;
+
+    expect(part.rule).toEqual({
+      type: "combination",
+      logic: BlockRuleLogic.And,
+      rules: [
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 99,
+          rotation: BlockRotation.py(Math.PI / 2),
+        },
+      ],
+    });
   });
 
   it("keeps BlockFace constructor option fields", () => {

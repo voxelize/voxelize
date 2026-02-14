@@ -139,6 +139,31 @@ export interface BlockDynamicPattern {
   parts: BlockConditionalPart[];
 }
 
+const cloneBlockRule = (rule: BlockRule): BlockRule => {
+  if (rule.type === "none") {
+    return { type: "none" };
+  }
+
+  if (rule.type === "simple") {
+    return {
+      type: "simple",
+      offset: [...rule.offset],
+      id: rule.id,
+      stage: rule.stage,
+      rotation:
+        rule.rotation === undefined || rule.rotation === null
+          ? rule.rotation
+          : new BlockRotation(rule.rotation.value, rule.rotation.yRotation),
+    };
+  }
+
+  return {
+    type: "combination",
+    logic: rule.logic,
+    rules: rule.rules.map((nestedRule) => cloneBlockRule(nestedRule)),
+  };
+};
+
 export const createBlockConditionalPart = (
   part: Partial<BlockConditionalPart>
 ): BlockConditionalPart => {
@@ -148,9 +173,10 @@ export const createBlockConditionalPart = (
     part.isTransparent === undefined
       ? [false, false, false, false, false, false]
       : [...part.isTransparent];
+  const rule = part.rule === undefined ? cloneBlockRule(BLOCK_RULE_NONE) : cloneBlockRule(part.rule);
 
   return {
-    rule: part.rule ?? BLOCK_RULE_NONE,
+    rule,
     faces,
     aabbs,
     isTransparent,
