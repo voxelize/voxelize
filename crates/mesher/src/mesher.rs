@@ -2988,13 +2988,13 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
     let [min_x, min_y, min_z] = *min;
     let [max_x, max_y, max_z] = *max;
 
-    let directions: [(i32, i32, i32); 6] = [
-        (1, 0, 0),
-        (-1, 0, 0),
-        (0, 1, 0),
-        (0, -1, 0),
-        (0, 0, 1),
-        (0, 0, -1),
+    let directions: [(i32, i32, i32, usize); 6] = [
+        (1, 0, 0, 0),
+        (-1, 0, 0, 1),
+        (0, 1, 0, 2),
+        (0, -1, 0, 3),
+        (0, 0, 1, 4),
+        (0, 0, -1, 5),
     ];
 
     let slice_size = (max_x - min_x).max(max_y - min_y).max(max_z - min_z) as usize;
@@ -3014,10 +3014,8 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
         bool,
     )> = Vec::new();
 
-    for (dx, dy, dz) in directions {
+    for (dx, dy, dz, dir_index) in directions {
         let dir = [dx, dy, dz];
-        let dir_index =
-            cardinal_dir_index(dir).expect("greedy directions are always cardinal unit vectors");
         let slice_offset = if dx > 0 || dy > 0 || dz > 0 { 1.0 } else { 0.0 };
 
         let (axis, u_axis, v_axis) = if dx != 0 {
@@ -3452,23 +3450,21 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
     const OCCLUSION_UNKNOWN: u8 = 2;
     let mut fully_occluded_opaque = vec![OCCLUSION_UNKNOWN; x_span * y_span * z_span];
 
-    let directions: [(i32, i32, i32); 6] = [
-        (1, 0, 0),
-        (-1, 0, 0),
-        (0, 1, 0),
-        (0, -1, 0),
-        (0, 0, 1),
-        (0, 0, -1),
+    let directions: [(i32, i32, i32, usize); 6] = [
+        (1, 0, 0, 0),
+        (-1, 0, 0, 1),
+        (0, 1, 0, 2),
+        (0, -1, 0, 3),
+        (0, 0, 1, 4),
+        (0, 0, -1, 5),
     ];
 
     let mut greedy_mask: Vec<Option<FaceData>> = Vec::new();
     let identity_rotation = BlockRotation::PY(0.0);
 
-    for (dx, dy, dz) in directions {
+    for (dx, dy, dz, dir_index) in directions {
         let dir = [dx, dy, dz];
         let slice_offset = if dx > 0 || dy > 0 || dz > 0 { 1.0 } else { 0.0 };
-        let dir_index =
-            cardinal_dir_index(dir).expect("greedy directions are always cardinal unit vectors");
         let mut cached_voxel_block_id = u32::MAX;
         let mut cached_voxel_block: Option<&Block> = None;
 
