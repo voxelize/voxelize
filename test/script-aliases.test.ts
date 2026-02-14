@@ -49,6 +49,24 @@ describe("script aliases", () => {
     expect(manifest.scripts["check:onboarding:verify:json:compact"]).toBe(
       "node ./check-onboarding.mjs --json --verify --compact"
     );
+    expect(manifest.scripts["check:runtime-libraries"]).toBe(
+      "node ./check-runtime-libraries.mjs"
+    );
+    expect(manifest.scripts["check:runtime-libraries:json"]).toBe(
+      "node ./check-runtime-libraries.mjs --json"
+    );
+    expect(manifest.scripts["check:runtime-libraries:json:compact"]).toBe(
+      "node ./check-runtime-libraries.mjs --json --compact"
+    );
+    expect(manifest.scripts["check:runtime-libraries:verify"]).toBe(
+      "node ./check-runtime-libraries.mjs --verify"
+    );
+    expect(manifest.scripts["check:runtime-libraries:verify:json"]).toBe(
+      "node ./check-runtime-libraries.mjs --json --verify"
+    );
+    expect(manifest.scripts["check:runtime-libraries:verify:json:compact"]).toBe(
+      "node ./check-runtime-libraries.mjs --json --verify --compact"
+    );
     expect(manifest.scripts["check:ts-core"]).toBe("node ./check-ts-core.mjs");
     expect(manifest.scripts["check:ts-core:json"]).toBe(
       "node ./check-ts-core.mjs --json"

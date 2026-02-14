@@ -184,6 +184,30 @@ pnpm run check:ts-core:release
 # default mode auto-builds missing artifacts
 # verify/no-build mode fails without building
 
+# check runtime library build artifacts (@voxelize/aabb, @voxelize/raycast, @voxelize/physics-engine)
+pnpm run check:runtime-libraries
+# json output (for CI integrations)
+pnpm run check:runtime-libraries:json
+# compact json output (single line)
+pnpm run check:runtime-libraries:json:compact
+# verify mode skips build attempts
+pnpm run check:runtime-libraries:verify
+# verify + json output (for CI integrations)
+pnpm run check:runtime-libraries:verify:json
+# verify + compact json output (single line)
+pnpm run check:runtime-libraries:verify:json:compact
+# direct cli alias also works: node ./check-runtime-libraries.mjs --verify
+# runtime library checks verify these artifact paths:
+# - packages/aabb/dist/index.js
+# - packages/aabb/dist/index.mjs
+# - packages/aabb/dist/index.d.ts
+# - packages/raycast/dist/index.js
+# - packages/raycast/dist/index.mjs
+# - packages/raycast/dist/index.d.ts
+# - packages/physics-engine/dist/index.cjs
+# - packages/physics-engine/dist/index.js
+# - packages/physics-engine/dist/index.d.ts
+
 # run an aggregated preflight report in json mode
 pnpm run check:preflight:json
 # default aggregate execution order: devEnvironment, wasmPack, tsCore, client
@@ -312,12 +336,13 @@ Inline misuse of supported non-value flags is redacted without exposing raw valu
 Alias misuse uses canonical redacted forms (for example `--verify=secret` is reported as `--no-build=<value>`).
 Malformed inline option names are redacted and deduplicated (for example `--=secret` and `--=` are reported as `--=<value>`, while `-=secret` and `-=` are reported as `-=<value>`).
 Literal placeholder tokens are deduplicated with redacted inline misuse forms (for example `--json=<value>` and `--json=secret` are reported once as `--json=<value>`).
-Root/client/onboarding/wasm/ts-core JSON preflight reports include `supportedCliOptions`, `supportedCliOptionCount`, `unknownOptionCount`, and `validationErrorCode` for structured option-validation diagnostics.
-Root/client/onboarding/wasm/ts-core JSON preflight reports include `activeCliOptions`, `activeCliOptionTokens`, `activeCliOptionResolutions`, and `activeCliOptionOccurrences` to describe recognized option usage.
+Root/client/onboarding/wasm/ts-core/runtime-library JSON preflight reports include `supportedCliOptions`, `supportedCliOptionCount`, `unknownOptionCount`, and `validationErrorCode` for structured option-validation diagnostics.
+Root/client/onboarding/wasm/ts-core/runtime-library JSON preflight reports include `activeCliOptions`, `activeCliOptionTokens`, `activeCliOptionResolutions`, and `activeCliOptionOccurrences` to describe recognized option usage.
 ts-core JSON preflight reports additionally include `artifactsPresent`, `missingArtifacts`, `requiredArtifactCount`, `missingArtifactCount`, `buildCommand`, `buildArgs`, `buildExitCode`, `buildDurationMs`, `attemptedBuild`, `buildSkipped`, and `buildSkippedReason` to classify artifact readiness and auto-build behavior.
+runtime-library JSON preflight reports additionally include `checkedPackages`, `packageReports`, `requiredPackageCount`, `packageReportCount`, `requiredArtifactCount`, `missingPackageCount`, and `missingArtifactCount` to classify multi-package artifact readiness.
 Misused inline option forms (for example `--json=secret` or `--verify=secret`) are excluded from `activeCliOption*` metadata and are instead reported via redacted `unknownOptions`.
 Recognized options in the same invocation are still preserved in `activeCliOption*` metadata even when misused inline options are also present.
-Root/client/onboarding/wasm/ts-core JSON preflight reports include `availableCliOptionAliases` and `availableCliOptionCanonicalMap` so automation can resolve option aliases to canonical names.
+Root/client/onboarding/wasm/ts-core/runtime-library JSON preflight reports include `availableCliOptionAliases` and `availableCliOptionCanonicalMap` so automation can resolve option aliases to canonical names.
 Argument values passed to `--output` and `--only` are excluded from unrecognized-option detection, even when they start with `-`.
 If a split `--output` or `--only` value position is followed by a recognized option token (for example `--output -l` or `--only -l`) or recognized inline option misuse (for example `--output -l=1` or `--only -l=1`), that token is treated as an option and the value is considered missing.
 For commands that support no-build aliases, `--output --verify` and `--output --no-build` both fail output validation and still mark no-build as active.

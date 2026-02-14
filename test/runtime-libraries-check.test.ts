@@ -1,0 +1,380 @@
+import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { describe, expect, it } from "vitest";
+
+type RuntimePackageReport = {
+  packageName: string;
+  packagePath: string;
+  requiredArtifacts: string[];
+  requiredArtifactCount: number;
+  missingArtifacts: string[];
+  missingArtifactCount: number;
+  artifactsPresent: boolean;
+};
+
+type RuntimeLibrariesCheckReport = {
+  schemaVersion: number;
+  passed: boolean;
+  exitCode: number;
+  optionTerminatorUsed: boolean;
+  positionalArgs: string[];
+  positionalArgCount: number;
+  noBuild: boolean;
+  packagesPresent: boolean;
+  packageReports: RuntimePackageReport[];
+  checkedPackages: string[];
+  requiredPackageCount: number;
+  packageReportCount: number;
+  requiredArtifactCount: number;
+  missingPackageCount: number;
+  missingArtifactCount: number;
+  attemptedBuild: boolean;
+  buildSkipped: boolean;
+  buildSkippedReason: "no-build" | "artifacts-present" | null;
+  buildOutput: string | null;
+  buildCommand: string;
+  buildArgs: string[];
+  buildExitCode: number | null;
+  buildDurationMs: number | null;
+  outputPath: string | null;
+  unknownOptions: string[];
+  unknownOptionCount: number;
+  supportedCliOptions: string[];
+  supportedCliOptionCount: number;
+  availableCliOptionAliases: {
+    "--no-build": string[];
+  };
+  availableCliOptionCanonicalMap: Record<string, string>;
+  validationErrorCode:
+    | "output_option_missing_value"
+    | "unsupported_options"
+    | null;
+  activeCliOptions: string[];
+  activeCliOptionCount: number;
+  activeCliOptionTokens: string[];
+  activeCliOptionResolutions: Array<{
+    token: string;
+    canonicalOption: string;
+  }>;
+  activeCliOptionResolutionCount: number;
+  activeCliOptionOccurrences: Array<{
+    token: string;
+    canonicalOption: string;
+    index: number;
+  }>;
+  activeCliOptionOccurrenceCount: number;
+  startedAt: string;
+  endedAt: string;
+  durationMs: number;
+  message: string;
+  writeError?: string;
+};
+
+type ScriptResult = {
+  status: number;
+  output: string;
+};
+
+const testDir = fileURLToPath(new URL(".", import.meta.url));
+const rootDir = path.resolve(testDir, "..");
+const checkerScript = path.resolve(rootDir, "check-runtime-libraries.mjs");
+const expectedCheckedPackages = [
+  "@voxelize/aabb",
+  "@voxelize/raycast",
+  "@voxelize/physics-engine",
+];
+const expectedSupportedCliOptions = [
+  "--compact",
+  "--json",
+  "--no-build",
+  "--output",
+  "--quiet",
+  "--verify",
+];
+const expectedBuildArgs = [
+  "--dir",
+  rootDir,
+  "--filter",
+  "@voxelize/aabb",
+  "--filter",
+  "@voxelize/raycast",
+  "--filter",
+  "@voxelize/physics-engine",
+  "run",
+  "build",
+];
+const expectedArtifactsByPackage = {
+  "@voxelize/aabb": [
+    "packages/aabb/dist/index.js",
+    "packages/aabb/dist/index.mjs",
+    "packages/aabb/dist/index.d.ts",
+  ],
+  "@voxelize/raycast": [
+    "packages/raycast/dist/index.js",
+    "packages/raycast/dist/index.mjs",
+    "packages/raycast/dist/index.d.ts",
+  ],
+  "@voxelize/physics-engine": [
+    "packages/physics-engine/dist/index.cjs",
+    "packages/physics-engine/dist/index.js",
+    "packages/physics-engine/dist/index.d.ts",
+  ],
+};
+const expectedRequiredArtifactCount = Object.values(
+  expectedArtifactsByPackage
+).reduce((count, artifacts) => {
+  return count + artifacts.length;
+}, 0);
+const resolveArtifactPath = (artifactPath: string) => {
+  return path.resolve(rootDir, artifactPath);
+};
+const runWithTemporarilyMovedArtifact = (
+  artifactPath: string,
+  run: () => void
+) => {
+  const absoluteArtifactPath = resolveArtifactPath(artifactPath);
+  if (!fs.existsSync(absoluteArtifactPath)) {
+    throw new Error(`Artifact does not exist for test setup: ${artifactPath}`);
+  }
+  const backupPath = `${absoluteArtifactPath}.backup-${Date.now()}`;
+  fs.renameSync(absoluteArtifactPath, backupPath);
+
+  try {
+    run();
+  } finally {
+    const artifactExists = fs.existsSync(absoluteArtifactPath);
+    const backupExists = fs.existsSync(backupPath);
+
+    if (artifactExists && backupExists) {
+      fs.rmSync(backupPath, { force: true });
+      return;
+    }
+
+    if (!artifactExists && backupExists) {
+      fs.renameSync(backupPath, absoluteArtifactPath);
+    }
+  }
+};
+const runScript = (args: string[] = []): ScriptResult => {
+  const result = spawnSync(process.execPath, [checkerScript, ...args], {
+    cwd: rootDir,
+    encoding: "utf8",
+    shell: false,
+  });
+
+  return {
+    status: result.status ?? 1,
+    output: `${result.stdout}${result.stderr}`,
+  };
+};
+const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
+  const report = JSON.parse(result.output) as RuntimeLibrariesCheckReport;
+  expect(report.checkedPackages).toEqual(expectedCheckedPackages);
+  expect(report.requiredPackageCount).toBe(expectedCheckedPackages.length);
+  expect(report.packageReportCount).toBe(report.packageReports.length);
+  expect(report.requiredArtifactCount).toBe(expectedRequiredArtifactCount);
+  expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
+  expect(report.supportedCliOptionCount).toBe(expectedSupportedCliOptions.length);
+  expect(report.availableCliOptionAliases).toEqual({
+    "--no-build": ["--verify"],
+  });
+  expect(report.availableCliOptionCanonicalMap).toEqual({
+    "--compact": "--compact",
+    "--json": "--json",
+    "--no-build": "--no-build",
+    "--output": "--output",
+    "--quiet": "--quiet",
+    "--verify": "--no-build",
+  });
+  expect(report.packageReports).toHaveLength(3);
+  const missingPackageCount = report.packageReports.filter((packageReport) => {
+    return packageReport.artifactsPresent === false;
+  }).length;
+  const missingArtifactCount = report.packageReports.reduce((count, packageReport) => {
+    return count + packageReport.missingArtifactCount;
+  }, 0);
+  expect(report.missingPackageCount).toBe(missingPackageCount);
+  expect(report.missingArtifactCount).toBe(missingArtifactCount);
+  for (const packageReport of report.packageReports) {
+    expect(packageReport.requiredArtifacts).toEqual(
+      expectedArtifactsByPackage[
+        packageReport.packageName as keyof typeof expectedArtifactsByPackage
+      ]
+    );
+    expect(packageReport.requiredArtifactCount).toBe(
+      packageReport.requiredArtifacts.length
+    );
+    expect(packageReport.missingArtifactCount).toBe(
+      packageReport.missingArtifacts.length
+    );
+  }
+  expect(typeof report.buildCommand).toBe("string");
+  expect(report.buildCommand.length).toBeGreaterThan(0);
+  expect(report.buildArgs).toEqual(expectedBuildArgs);
+  if (report.buildExitCode !== null) {
+    expect(Number.isInteger(report.buildExitCode)).toBe(true);
+  }
+  if (report.attemptedBuild) {
+    expect(typeof report.buildDurationMs).toBe("number");
+    expect(report.buildDurationMs).toBeGreaterThanOrEqual(0);
+  } else {
+    expect(report.buildExitCode).toBeNull();
+    expect(report.buildDurationMs).toBeNull();
+  }
+  if (report.buildSkipped) {
+    expect(
+      report.buildSkippedReason === "no-build" ||
+        report.buildSkippedReason === "artifacts-present"
+    ).toBe(true);
+  } else {
+    expect(report.buildSkippedReason).toBeNull();
+  }
+  if (report.buildSkippedReason === "no-build") {
+    expect(report.noBuild).toBe(true);
+  }
+  if (report.buildSkippedReason === "artifacts-present") {
+    expect(report.attemptedBuild).toBe(false);
+  }
+  return report;
+};
+
+describe("check-runtime-libraries script", () => {
+  it("emits machine-readable json report and auto-builds if needed", () => {
+    const result = runScript(["--json"]);
+    const report = parseReport(result);
+
+    expect(result.status).toBe(0);
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(true);
+    expect(report.exitCode).toBe(0);
+    expect(report.validationErrorCode).toBeNull();
+    expect(report.packagesPresent).toBe(true);
+    expect(report.missingPackageCount).toBe(0);
+    expect(report.missingArtifactCount).toBe(0);
+    expect(report.outputPath).toBeNull();
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+  });
+
+  it("supports verify mode alias and skips builds when artifacts are present", () => {
+    const result = runScript(["--json", "--verify"]);
+    const report = parseReport(result);
+
+    expect(result.status).toBe(0);
+    expect(report.noBuild).toBe(true);
+    expect(report.passed).toBe(true);
+    expect(report.buildSkipped).toBe(true);
+    expect(report.buildSkippedReason).toBe("artifacts-present");
+    expect(report.attemptedBuild).toBe(false);
+    expect(report.activeCliOptions).toEqual(["--json", "--no-build"]);
+    expect(report.activeCliOptionTokens).toEqual(["--json", "--verify"]);
+  });
+
+  it("reports strict output validation errors while keeping verify aliases active", () => {
+    const result = runScript(["--json", "--output", "--verify"]);
+    const report = parseReport(result);
+
+    expect(result.status).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.outputPath).toBeNull();
+    expect(report.noBuild).toBe(true);
+    expect(report.activeCliOptionTokens).toEqual(["--json", "--output", "--verify"]);
+    expect(report.activeCliOptions).toEqual(["--json", "--no-build", "--output"]);
+  });
+
+  it("reports unsupported options with canonical alias normalization", () => {
+    const result = runScript(["--json", "--verify=1", "--mystery"]);
+    const report = parseReport(result);
+
+    expect(result.status).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.unknownOptions).toEqual(["--no-build=<value>", "--mystery"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.message).toContain("Unsupported option(s):");
+  });
+
+  it("writes json reports to output paths", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "runtime-libraries-check-output-")
+    );
+    const outputPath = path.join(tempDirectory, "report.json");
+    const result = runScript(["--json", "--output", outputPath]);
+    const report = parseReport(result);
+    const fileReport = JSON.parse(
+      fs.readFileSync(outputPath, "utf8")
+    ) as RuntimeLibrariesCheckReport;
+
+    expect(result.status).toBe(0);
+    expect(report.outputPath).toBe(outputPath);
+    expect(fileReport.outputPath).toBe(outputPath);
+    expect(fileReport.checkedPackages).toEqual(expectedCheckedPackages);
+    expect(fileReport.requiredArtifactCount).toBe(expectedRequiredArtifactCount);
+  });
+
+  it("reports missing artifacts in no-build mode", () => {
+    const missingArtifactPath = "packages/aabb/dist/index.js";
+    runWithTemporarilyMovedArtifact(missingArtifactPath, () => {
+      const result = runScript(["--json", "--no-build"]);
+      const report = parseReport(result);
+
+      expect(result.status).toBe(1);
+      expect(report.passed).toBe(false);
+      expect(report.noBuild).toBe(true);
+      expect(report.packagesPresent).toBe(false);
+      expect(report.missingPackageCount).toBeGreaterThanOrEqual(1);
+      expect(report.missingArtifactCount).toBeGreaterThanOrEqual(1);
+      expect(report.buildSkipped).toBe(true);
+      expect(report.buildSkippedReason).toBe("no-build");
+      expect(report.attemptedBuild).toBe(false);
+      expect(report.message).toContain("Build was skipped due to --no-build.");
+    });
+  });
+
+  it("rebuilds missing artifacts when no-build mode is disabled", () => {
+    const missingArtifactPath = "packages/aabb/dist/index.js";
+    runWithTemporarilyMovedArtifact(missingArtifactPath, () => {
+      const result = runScript(["--json"]);
+      const report = parseReport(result);
+
+      expect(result.status).toBe(0);
+      expect(report.passed).toBe(true);
+      expect(report.packagesPresent).toBe(true);
+      expect(report.missingPackageCount).toBe(0);
+      expect(report.missingArtifactCount).toBe(0);
+      expect(report.attemptedBuild).toBe(true);
+      expect(report.buildSkipped).toBe(false);
+      expect(report.buildSkippedReason).toBeNull();
+      expect(fs.existsSync(resolveArtifactPath(missingArtifactPath))).toBe(true);
+    });
+  });
+
+  it("does not activate no-build aliases after option terminator", () => {
+    const result = runScript(["--json", "--", "--verify"]);
+    const report = parseReport(result);
+
+    expect(result.status).toBe(0);
+    expect(report.noBuild).toBe(false);
+    expect(report.optionTerminatorUsed).toBe(true);
+    expect(report.positionalArgs).toEqual(["--verify"]);
+    expect(report.activeCliOptions).toEqual(["--json"]);
+  });
+
+  it("keeps json output machine-readable in quiet mode", () => {
+    const result = runScript(["--json", "--quiet"]);
+    const report = parseReport(result);
+
+    expect(result.status).toBe(0);
+    expect(report.passed).toBe(true);
+    expect(report.activeCliOptions).toEqual(["--json", "--quiet"]);
+    expect(report.outputPath).toBeNull();
+  });
+});
