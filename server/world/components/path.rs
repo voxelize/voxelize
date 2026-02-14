@@ -1,7 +1,7 @@
 use crate::Vec3;
 use serde::{Deserialize, Serialize};
 use specs::{Component, VecStorage};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 #[derive(Component, Debug, Serialize, Deserialize, Default)]
 #[storage(VecStorage)]
 #[serde(rename_all = "camelCase")]
