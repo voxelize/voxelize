@@ -334,6 +334,18 @@ const normalizePendingBatchMessages = () => {
   }
 };
 
+const hasMatchingChunkOptions = (
+  chunkOptions: SerializedRawChunk["options"] | null | undefined,
+  expectedChunkSize: number,
+  expectedMaxHeight: number
+) =>
+  chunkOptions !== null &&
+  chunkOptions !== undefined &&
+  isPositiveInteger(chunkOptions.size) &&
+  isPositiveInteger(chunkOptions.maxHeight) &&
+  chunkOptions.size === expectedChunkSize &&
+  chunkOptions.maxHeight === expectedMaxHeight;
+
 const drainPendingBatchMessagesAsEmptyResults = () => {
   if (!hasPendingBatchMessages()) {
     return;
@@ -630,11 +642,11 @@ const deserializeChunkGrid = (
     }
     const chunkOptions = chunkData.options;
     if (
-      !chunkOptions ||
-      !isPositiveInteger(chunkOptions.size) ||
-      !isPositiveInteger(chunkOptions.maxHeight) ||
-      chunkOptions.size !== expectedChunkSize ||
-      chunkOptions.maxHeight !== expectedMaxHeight
+      !hasMatchingChunkOptions(
+        chunkOptions,
+        expectedChunkSize,
+        expectedMaxHeight
+      )
     ) {
       chunkGrid[index] = null;
       continue;
@@ -853,11 +865,11 @@ const serializeChunksData = (
     }
     const chunkOptions = chunkData.options;
     if (
-      !chunkOptions ||
-      !isPositiveInteger(chunkOptions.size) ||
-      !isPositiveInteger(chunkOptions.maxHeight) ||
-      chunkOptions.size !== expectedChunkSize ||
-      chunkOptions.maxHeight !== expectedMaxHeight
+      !hasMatchingChunkOptions(
+        chunkOptions,
+        expectedChunkSize,
+        expectedMaxHeight
+      )
     ) {
       serialized[index] = null;
       continue;
