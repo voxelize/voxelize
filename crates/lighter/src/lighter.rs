@@ -238,7 +238,6 @@ fn flood_light_from_nodes(
 
             let n_raw_voxel = space.get_raw_voxel(nvx, nvy, nvz);
             let n_block = registry.get_block_by_id(n_raw_voxel & 0xFFFF);
-            let n_transparency = n_block.get_transparency_from_raw_voxel(n_raw_voxel);
 
             let next_level = if keeps_max_sunlight && oy == -1 && !n_block.light_reduce {
                 level
@@ -246,14 +245,17 @@ fn flood_light_from_nodes(
                 decremented_level
             };
 
-            if next_level == 0
-                || !can_enter_direction(&source_transparency, &n_transparency, direction_index)
-            {
+            if next_level == 0 {
                 continue;
             }
 
             let current_neighbor = get_light_level(space, nvx, nvy, nvz, color, is_sunlight);
             if current_neighbor >= next_level {
+                continue;
+            }
+
+            let n_transparency = n_block.get_transparency_from_raw_voxel(n_raw_voxel);
+            if !can_enter_direction(&source_transparency, &n_transparency, direction_index) {
                 continue;
             }
 
