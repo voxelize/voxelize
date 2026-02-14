@@ -788,6 +788,23 @@ mod tests {
     }
 
     #[test]
+    fn batch_space_y_range_guards_reject_out_of_bounds_access() {
+        let chunk = ChunkData {
+            voxels: vec![0; 16 * 4 * 16],
+            lights: vec![0; 16 * 4 * 16],
+        };
+        let mut space = BatchSpace::new(vec![Some(chunk)], 1, 1, [0, 0], 16, 4);
+
+        assert!(!space.contains(0, -1, 0));
+        assert!(!space.contains(0, 4, 0));
+        assert_eq!(space.get_raw_light(0, -1, 0), 0);
+        assert_eq!(space.get_raw_light(0, 4, 0), 0);
+        assert!(!space.set_raw_light(0, -1, 0, 1));
+        assert!(!space.set_raw_light(0, 4, 0, 1));
+        assert_eq!(space.modified_indices.len(), 0);
+    }
+
+    #[test]
     fn light_color_from_index_handles_invalid_values() {
         assert_eq!(super::light_color_from_index(0), Some(LightColor::Sunlight));
         assert_eq!(super::light_color_from_index(1), Some(LightColor::Red));
