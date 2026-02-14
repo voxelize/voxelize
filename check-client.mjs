@@ -94,10 +94,24 @@ const availableStepMetadata = {
 const availableStepScripts = availableSteps.map((stepName) => {
   return availableStepMetadata[stepName].scriptName;
 });
+const availableStepIndexMap = new Map(
+  availableSteps.map((stepName, index) => {
+    return [stepName, index];
+  })
+);
 const mapStepNamesToScripts = (stepNames) => {
   return stepNames.map((stepName) => {
     return availableStepMetadata[stepName].scriptName;
   });
+};
+const mapStepNamesToIndices = (stepNames) => {
+  return stepNames
+    .map((stepName) => {
+      return availableStepIndexMap.get(stepName);
+    })
+    .filter((stepIndex) => {
+      return typeof stepIndex === "number";
+    });
 };
 const mapStepNamesToMetadata = (stepNames) => {
   return Object.fromEntries(
@@ -140,10 +154,16 @@ if (isJson && validationFailureMessage !== null) {
     steps: [],
     passedStepScripts: [],
     passedStepScriptCount: 0,
+    passedStepIndices: [],
+    passedStepIndexCount: 0,
     failedStepScripts: [],
     failedStepScriptCount: 0,
+    failedStepIndices: [],
+    failedStepIndexCount: 0,
     skippedStepScripts: [],
     skippedStepScriptCount: 0,
+    skippedStepIndices: [],
+    skippedStepIndexCount: 0,
     passedStepMetadata: {},
     failedStepMetadata: {},
     skippedStepMetadata: {},
@@ -252,6 +272,9 @@ if (isJson) {
   const passedStepScripts = mapStepNamesToScripts(stepSummary.passedSteps);
   const failedStepScripts = mapStepNamesToScripts(stepSummary.failedSteps);
   const skippedStepScripts = mapStepNamesToScripts(stepSummary.skippedSteps);
+  const passedStepIndices = mapStepNamesToIndices(stepSummary.passedSteps);
+  const failedStepIndices = mapStepNamesToIndices(stepSummary.failedSteps);
+  const skippedStepIndices = mapStepNamesToIndices(stepSummary.skippedSteps);
   const passedStepMetadata = mapStepNamesToMetadata(stepSummary.passedSteps);
   const failedStepMetadata = mapStepNamesToMetadata(stepSummary.failedSteps);
   const skippedStepMetadata = mapStepNamesToMetadata(stepSummary.skippedSteps);
@@ -285,10 +308,16 @@ if (isJson) {
     steps: stepResults,
     passedStepScripts,
     passedStepScriptCount: passedStepScripts.length,
+    passedStepIndices,
+    passedStepIndexCount: passedStepIndices.length,
     failedStepScripts,
     failedStepScriptCount: failedStepScripts.length,
+    failedStepIndices,
+    failedStepIndexCount: failedStepIndices.length,
     skippedStepScripts,
     skippedStepScriptCount: skippedStepScripts.length,
+    skippedStepIndices,
+    skippedStepIndexCount: skippedStepIndices.length,
     passedStepMetadata,
     failedStepMetadata,
     skippedStepMetadata,
