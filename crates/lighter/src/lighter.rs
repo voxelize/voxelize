@@ -578,10 +578,10 @@ pub fn propagate(
     }
 
     [
-        VecDeque::from(sunlight_queue),
-        VecDeque::from(red_light_queue),
-        VecDeque::from(green_light_queue),
-        VecDeque::from(blue_light_queue),
+        sunlight_queue.into(),
+        red_light_queue.into(),
+        green_light_queue.into(),
+        blue_light_queue.into(),
     ]
 }
 
