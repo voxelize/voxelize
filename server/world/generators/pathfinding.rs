@@ -43,7 +43,10 @@ impl PathValidator {
         };
 
         // Check if there's solid ground
-        let ground_voxel = space.get_voxel(*vx, *vy - 1, *vz);
+        let Some(ground_y) = checked_offset(*vy, -1) else {
+            return false;
+        };
+        let ground_voxel = space.get_voxel(*vx, ground_y, *vz);
         let ground_block = registry.get_block_by_id(ground_voxel);
         if ground_block.is_passable || ground_block.is_fluid {
             return false;
@@ -51,7 +54,10 @@ impl PathValidator {
 
         // Check if there's enough space above
         for i in 0..=height_needed {
-            let check_voxel = space.get_voxel(*vx, *vy + i, *vz);
+            let Some(check_y) = checked_offset(*vy, i) else {
+                return false;
+            };
+            let check_voxel = space.get_voxel(*vx, check_y, *vz);
             let check_block = registry.get_block_by_id(check_voxel);
             if !check_block.is_passable && !check_block.is_fluid {
                 return false;
