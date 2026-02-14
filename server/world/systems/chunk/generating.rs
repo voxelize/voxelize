@@ -185,7 +185,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /*                       PUSHING CHUNKS TO BE PROCESSED                       */
         /* -------------------------------------------------------------------------- */
 
-        let mut processes = vec![];
+        let mut processes = Vec::with_capacity(pipeline.queue.len());
 
         if !pipeline.queue.is_empty() {
             pipeline
@@ -194,7 +194,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 .sort_by(|a, b| interests.compare(a, b));
         }
 
-        let mut to_load = vec![];
+        let mut to_load = Vec::with_capacity(pipeline.queue.len());
         while !pipeline.queue.is_empty() && !pipeline.stages.is_empty() {
             let coords = pipeline.get().unwrap();
             let chunk = chunks.raw(&coords);
@@ -365,7 +365,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
         let pending_remesh_coords = mesher.drain_pending_remesh();
         if !pending_remesh_coords.is_empty() {
-            let mut remesh_processes = Vec::new();
+            let mut remesh_processes = Vec::with_capacity(pending_remesh_coords.len());
             for coords in pending_remesh_coords {
                 if !chunks.is_chunk_ready(&coords) {
                     continue;
@@ -400,7 +400,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 .sort_by(|a, b| interests.compare(a, b));
         }
 
-        let mut ready_chunks = vec![];
+        let mut ready_chunks = Vec::with_capacity(mesher.queue.len());
 
         while !mesher.queue.is_empty() {
             let coords = mesher.get().unwrap();
