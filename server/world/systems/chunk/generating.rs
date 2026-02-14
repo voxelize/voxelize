@@ -12,6 +12,24 @@ use crate::{
     VoxelAccess, WorldConfig,
 };
 
+#[inline]
+fn chunk_interest_alignment(center: &Vec2<i32>, coords: &Vec2<i32>, direction: &Vec2<f32>) -> f32 {
+    let direction_to_chunk_x = f64::from(coords.0) - f64::from(center.0);
+    let direction_to_chunk_z = f64::from(coords.1) - f64::from(center.1);
+    let mag = direction_to_chunk_x
+        .mul_add(direction_to_chunk_x, direction_to_chunk_z * direction_to_chunk_z)
+        .sqrt();
+    if mag <= f64::from(f32::EPSILON) {
+        return 0.0;
+    }
+    let normalized_direction_to_chunk = Vec2(
+        (direction_to_chunk_x / mag) as f32,
+        (direction_to_chunk_z / mag) as f32,
+    );
+    (direction.0 * normalized_direction_to_chunk.0 + direction.1 * normalized_direction_to_chunk.1)
+        .max(0.0)
+}
+
 #[derive(Default)]
 pub struct ChunkGeneratingSystem;
 
@@ -63,23 +81,11 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 if let Some(client) = clients.get(id) {
                     if let Some(request) = requests.get(client.entity) {
                         let dist = ChunkUtils::distance_squared(&request.center, &coords);
-                        let direction_to_chunk_x =
-                            f64::from(coords.0) - f64::from(request.center.0);
-                        let direction_to_chunk_z =
-                            f64::from(coords.1) - f64::from(request.center.1);
-                        let mag = direction_to_chunk_x
-                            .mul_add(direction_to_chunk_x, direction_to_chunk_z * direction_to_chunk_z)
-                            .sqrt();
-                        if mag <= f64::from(f32::EPSILON) {
-                            continue;
+                        let alignment =
+                            chunk_interest_alignment(&request.center, coords, &request.direction);
+                        if alignment > 0.0 {
+                            weight += dist * alignment;
                         }
-                        let normalized_direction_to_chunk = Vec2(
-                            (direction_to_chunk_x / mag) as f32,
-                            (direction_to_chunk_z / mag) as f32,
-                        );
-                        let dot_product = request.direction.0 * normalized_direction_to_chunk.0
-                            + request.direction.1 * normalized_direction_to_chunk.1;
-                        weight += dist * dot_product.max(0.0);
                     }
                 }
             }
@@ -450,5 +456,35 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 mesher.process(processes, &MessageType::Load, &registry, &config);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::chunk_interest_alignment;
+    use crate::Vec2;
+
+    #[test]
+    fn chunk_interest_alignment_is_zero_for_identical_coords() {
+        let center = Vec2(10, -4);
+        let alignment = chunk_interest_alignment(&center, &center, &Vec2(1.0, 0.0));
+        assert_eq!(alignment, 0.0);
+    }
+
+    #[test]
+    fn chunk_interest_alignment_clamps_negative_dot_products() {
+        let center = Vec2(0, 0);
+        let coords = Vec2(1, 0);
+        let alignment = chunk_interest_alignment(&center, &coords, &Vec2(-1.0, 0.0));
+        assert_eq!(alignment, 0.0);
+    }
+
+    #[test]
+    fn chunk_interest_alignment_stays_finite_for_extreme_coordinates() {
+        let center = Vec2(i32::MIN, i32::MIN);
+        let coords = Vec2(i32::MAX, i32::MAX);
+        let alignment = chunk_interest_alignment(&center, &coords, &Vec2(0.0, 1.0));
+        assert!(alignment.is_finite());
+        assert!(alignment > 0.0);
     }
 }
