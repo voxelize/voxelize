@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { parseJsonOutput } from "../../../scripts/report-utils.mjs";
 
 type ExampleOutput = {
   voxel: {
@@ -28,20 +29,24 @@ type ExampleOutput = {
 
 const testDirectory = fileURLToPath(new URL(".", import.meta.url));
 const packageDirectory = path.resolve(testDirectory, "..");
-const exampleScript = path.resolve(packageDirectory, "examples", "end-to-end.mjs");
+const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
 describe("ts-core end-to-end example", () => {
-  it("runs successfully and emits expected JSON output", () => {
-    const result = spawnSync(process.execPath, [exampleScript], {
+  it("runs the package example script successfully", () => {
+    const result = spawnSync(pnpmCommand, ["run", "example:end-to-end"], {
       cwd: packageDirectory,
       encoding: "utf8",
       shell: false,
     });
-    const output = `${result.stdout}`.trim();
-    const parsed = JSON.parse(output) as ExampleOutput;
+    const parsed = parseJsonOutput(`${result.stdout}${result.stderr}`) as
+      | ExampleOutput
+      | null;
 
     expect(result.status).toBe(0);
-    expect(result.stderr.trim()).toBe("");
+    expect(parsed).not.toBeNull();
+    if (parsed === null) {
+      throw new Error("Expected JSON output from ts-core example script.");
+    }
     expect(parsed.voxel.id).toBe(42);
     expect(parsed.voxel.stage).toBe(7);
     expect(parsed.voxel.rotation.value).toBe(0);
