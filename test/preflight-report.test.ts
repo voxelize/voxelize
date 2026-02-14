@@ -580,6 +580,14 @@ type TsCoreNestedReport = {
   buildArgs: string[];
   buildExitCode: number | null;
   buildDurationMs: number | null;
+  exampleCommand: string;
+  exampleArgs: string[];
+  exampleArgCount: number;
+  exampleAttempted: boolean;
+  exampleStatus: "ok" | "failed" | "skipped";
+  exampleExitCode: number | null;
+  exampleDurationMs: number | null;
+  exampleOutputLine: string | null;
   attemptedBuild: boolean;
   buildSkipped: boolean;
   buildSkippedReason: "no-build" | "artifacts-present" | null;
@@ -1302,6 +1310,9 @@ const expectedTsCoreBuildArgs = [
   "@voxelize/ts-core",
   "run",
   "build",
+];
+const expectedTsCoreExampleArgs = [
+  path.resolve(rootDir, "packages/ts-core/examples/end-to-end.mjs"),
 ];
 const expectedRuntimeLibrariesCheckedPackages = [
   "@voxelize/aabb",
@@ -3809,6 +3820,37 @@ const expectTsCoreNestedReport = (
   }
   if (report.buildSkippedReason === "artifacts-present") {
     expect(report.attemptedBuild).toBe(false);
+  }
+  expect(report.exampleCommand).toBe(process.execPath);
+  expect(report.exampleArgs).toEqual(expectedTsCoreExampleArgs);
+  expect(report.exampleArgCount).toBe(report.exampleArgs.length);
+  if (report.artifactsPresent) {
+    expect(report.exampleAttempted).toBe(true);
+  }
+  if (report.exampleAttempted) {
+    expect(report.exampleStatus === "ok" || report.exampleStatus === "failed").toBe(
+      true
+    );
+    expect(typeof report.exampleExitCode).toBe("number");
+    expect(report.exampleExitCode).not.toBeNull();
+    expect(typeof report.exampleDurationMs).toBe("number");
+    expect(report.exampleDurationMs).not.toBeNull();
+    if (report.exampleDurationMs !== null) {
+      expect(report.exampleDurationMs).toBeGreaterThanOrEqual(0);
+    }
+  } else {
+    expect(report.exampleStatus).toBe("skipped");
+    expect(report.exampleExitCode).toBeNull();
+    expect(report.exampleDurationMs).toBeNull();
+    expect(report.exampleOutputLine).toBeNull();
+  }
+  if (report.exampleStatus === "ok") {
+    expect(report.exampleExitCode).toBe(0);
+  }
+  if (report.exampleStatus === "failed") {
+    expect(report.exampleExitCode === null || report.exampleExitCode !== 0).toBe(
+      true
+    );
   }
 };
 const expectRuntimeLibrariesNestedReport = (
