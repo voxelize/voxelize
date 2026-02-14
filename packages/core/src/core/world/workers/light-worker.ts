@@ -172,6 +172,7 @@ const normalizeStartIndex = (startIndexValue: number | undefined) =>
     : 0;
 const MIN_INT32 = -0x80000000;
 const MAX_INT32 = 0x7fffffff;
+const MAX_TYPED_ARRAY_LENGTH = 0x7fffffff;
 const MAX_UINT32 = 0xffffffff;
 const isI32 = (value: number) =>
   isInteger(value) && value >= MIN_INT32 && value <= MAX_INT32;
@@ -464,8 +465,11 @@ const hasPotentialRelevantDeltaBatches = (
   chunkShift: number,
   expectedChunkByteLength: number
 ) => {
+  const cellCount = gridWidth * gridDepth;
   const chunkValidity =
-    deltaBatches.length > 1 ? new Int8Array(gridWidth * gridDepth) : null;
+    deltaBatches.length > 1 && cellCount <= MAX_TYPED_ARRAY_LENGTH
+      ? new Int8Array(cellCount)
+      : null;
   for (let batchIndex = 0; batchIndex < deltaBatches.length; batchIndex++) {
     const deltaBatch = deltaBatches[batchIndex];
     if (!deltaBatch || typeof deltaBatch !== "object") {
