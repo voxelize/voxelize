@@ -611,16 +611,16 @@ pub fn process_light_batch_fast(
     if !flood_nodes.is_empty() && has_invalid_flood_bounds(bounds_min.len(), bounds_shape) {
         return empty_batch_result();
     }
+    let (chunks, has_any_chunk) = parse_chunks(chunks_data, expected_chunk_count, expected_chunk_len);
+    if !has_any_chunk {
+        return empty_batch_result();
+    }
     let Some(max_chunk_x) = compute_max_chunk_coordinate(grid_offset_x, chunk_grid_width) else {
         return empty_batch_result();
     };
     let Some(max_chunk_z) = compute_max_chunk_coordinate(grid_offset_z, chunk_grid_depth) else {
         return empty_batch_result();
     };
-    let (chunks, has_any_chunk) = parse_chunks(chunks_data, expected_chunk_count, expected_chunk_len);
-    if !has_any_chunk {
-        return empty_batch_result();
-    }
     let mut space = BatchSpace::new(
         chunks,
         chunk_grid_width,
