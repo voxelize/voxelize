@@ -14,6 +14,12 @@ const readPackageManifest = (manifestPath: string): PackageManifest => {
 const rootDir = path.resolve(__dirname, "..");
 const rootManifestPath = path.resolve(rootDir, "package.json");
 const clientManifestPath = path.resolve(rootDir, "examples", "client", "package.json");
+const tsCoreManifestPath = path.resolve(
+  rootDir,
+  "packages",
+  "ts-core",
+  "package.json"
+);
 
 describe("script aliases", () => {
   it("defines compact json aliases for root preflight scripts", () => {
@@ -501,6 +507,17 @@ describe("script aliases", () => {
     );
     expect(manifest.scripts["check:wasm:verify:json:compact"]).toBe(
       "node ./scripts/check-wasm-mesher.mjs --json --verify --compact"
+    );
+  });
+
+  it("defines dedicated no-build ts-core example script aliases", () => {
+    const manifest = readPackageManifest(tsCoreManifestPath);
+
+    expect(manifest.scripts["example:end-to-end:no-build"]).toBe(
+      "node ./examples/end-to-end.mjs"
+    );
+    expect(manifest.scripts["example:end-to-end"]).toBe(
+      "pnpm run build && node ./examples/end-to-end.mjs"
     );
   });
 });
