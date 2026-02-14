@@ -12,6 +12,14 @@ import {
 const _worldPos = new Vector3();
 const _camWorldPos = new Vector3();
 const DEFAULT_ON_BEFORE_RENDER = Object3D.prototype.onBeforeRender;
+const clearTransparentSortState = (mesh: Mesh) => {
+  if (mesh.userData.transparentSortData !== undefined) {
+    delete mesh.userData.transparentSortData;
+  }
+  if (mesh.onBeforeRender === sortTransparentMeshOnBeforeRender) {
+    mesh.onBeforeRender = DEFAULT_ON_BEFORE_RENDER;
+  }
+};
 
 export interface TransparentMeshData {
   centroids: Float32Array;
@@ -165,6 +173,7 @@ export function setupTransparentSorting(object: Object3D): void {
     }
     const geometry = child.geometry;
     if (!geometry || !geometry.index) {
+      clearTransparentSortState(child);
       continue;
     }
 
@@ -189,11 +198,13 @@ export function setupTransparentSorting(object: Object3D): void {
     }
 
     if (!isTransparent) {
+      clearTransparentSortState(child);
       continue;
     }
 
     const sortData = prepareTransparentMesh(child);
     if (!sortData) {
+      clearTransparentSortState(child);
       continue;
     }
 
@@ -365,8 +376,7 @@ export function sortTransparentMeshOnBeforeRender(
   ) {
     const refreshedSortData = prepareTransparentMesh(mesh);
     if (!refreshedSortData) {
-      delete mesh.userData.transparentSortData;
-      mesh.onBeforeRender = DEFAULT_ON_BEFORE_RENDER;
+      clearTransparentSortState(mesh);
       return;
     }
     mesh.userData.transparentSortData = refreshedSortData;

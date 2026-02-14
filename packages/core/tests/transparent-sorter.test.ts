@@ -618,4 +618,30 @@ describe("transparent sorter", () => {
     expect(mesh.userData.transparentSortData).toBeDefined();
     expect(mesh.onBeforeRender).toBe(sortTransparentMeshOnBeforeRender);
   });
+
+  it("clears stale sort state when setup is rerun on opaque mesh", () => {
+    const mesh = new Mesh(createQuadGeometry(2), new MeshBasicMaterial({ transparent: true }));
+    setupTransparentSorting(mesh);
+    expect(mesh.userData.transparentSortData).toBeDefined();
+    expect(mesh.onBeforeRender).toBe(sortTransparentMeshOnBeforeRender);
+
+    mesh.material = new MeshBasicMaterial({ transparent: false });
+    setupTransparentSorting(mesh);
+
+    expect(mesh.userData.transparentSortData).toBeUndefined();
+    expect(mesh.onBeforeRender).toBe(Object3D.prototype.onBeforeRender);
+  });
+
+  it("clears stale sort state when setup is rerun without geometry index", () => {
+    const mesh = new Mesh(createQuadGeometry(2), new MeshBasicMaterial({ transparent: true }));
+    setupTransparentSorting(mesh);
+    expect(mesh.userData.transparentSortData).toBeDefined();
+    expect(mesh.onBeforeRender).toBe(sortTransparentMeshOnBeforeRender);
+
+    mesh.geometry.setIndex(null);
+    setupTransparentSorting(mesh);
+
+    expect(mesh.userData.transparentSortData).toBeUndefined();
+    expect(mesh.onBeforeRender).toBe(Object3D.prototype.onBeforeRender);
+  });
 });
