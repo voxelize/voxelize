@@ -2983,6 +2983,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
         i32,
         i32,
         i32,
+        usize,
         u32,
         BlockRotation,
         i16,
@@ -3153,10 +3154,10 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     }
 
                     if is_non_greedy_block {
-                        let voxel_key = ((vx - min_x) as usize) * yz_span
+                        let non_greedy_voxel_key = ((vx - min_x) as usize) * yz_span
                             + ((vy - min_y) as usize) * z_span
                             + (vz - min_z) as usize;
-                        processed_non_greedy.insert(voxel_key);
+                        processed_non_greedy.insert(non_greedy_voxel_key);
 
                         let mut queue_non_greedy_face =
                             |face: &BlockFace, face_index: Option<i16>, world_space: bool| {
@@ -3165,6 +3166,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                     vx,
                                     vy,
                                     vz,
+                                    non_greedy_voxel_key,
                                     voxel_id,
                                     rotation.clone(),
                                     face_index.unwrap_or(-1),
@@ -3266,6 +3268,9 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         continue;
                     }
 
+                    let deferred_voxel_key = ((vx - min_x) as usize) * yz_span
+                        + ((vy - min_y) as usize) * z_span
+                        + (vz - min_z) as usize;
                     let mut cached_neighbors = None;
                     let mut cached_ao_light: Option<([i32; 4], [i32; 4])> = None;
                     let mut process_candidate_face =
@@ -3280,6 +3285,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                     vx,
                                     vy,
                                     vz,
+                                    deferred_voxel_key,
                                     voxel_id,
                                     rotation.clone(),
                                     face_index.unwrap_or(-1),
@@ -3428,13 +3434,14 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
 
             let mut cached_non_greedy_block_id = u32::MAX;
             let mut cached_non_greedy_block: Option<&Block> = None;
-            let mut cached_non_greedy_voxel_key: Option<(i32, i32, i32, u32, bool, bool)> = None;
+            let mut cached_non_greedy_voxel_key: Option<(usize, u32, bool, bool)> = None;
             let mut cached_non_greedy_neighbors: Option<NeighborCache> = None;
             let mut cached_non_greedy_face_cache: Option<FaceProcessCache> = None;
             for (
                 vx,
                 vy,
                 vz,
+                voxel_key,
                 voxel_id,
                 rotation,
                 face_index,
@@ -3493,8 +3500,8 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                 });
 
                 let skip_opaque_checks = is_see_through || block.is_all_transparent;
-                let voxel_key = (vx, vy, vz, voxel_id, is_see_through, is_fluid);
-                if cached_non_greedy_voxel_key != Some(voxel_key) {
+                let cache_key = (voxel_key, voxel_id, is_see_through, is_fluid);
+                if cached_non_greedy_voxel_key != Some(cache_key) {
                     let neighbors = populate_neighbors_for_face_processing(
                         vx,
                         vy,
@@ -3514,7 +3521,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         voxel_id,
                         space,
                     );
-                    cached_non_greedy_voxel_key = Some(voxel_key);
+                    cached_non_greedy_voxel_key = Some(cache_key);
                     cached_non_greedy_neighbors = Some(neighbors);
                     cached_non_greedy_face_cache = Some(face_cache);
                 }
