@@ -2363,14 +2363,11 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
     return null;
   }
 
-  getBlockFaceMaterial(
-    idOrName: number | string,
+  private resolveChunkMaterialForBlock(
+    block: Block,
     faceName?: string,
     voxel?: Coords3
   ) {
-    this.checkIsInitialized("get material", false);
-
-    const block = this.getBlockOf(idOrName);
     let materialKey: string;
 
     if (voxel && faceName && block.isolatedFaces.has(faceName)) {
@@ -2382,6 +2379,29 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
     }
 
     return this.chunkRenderer.materials.get(materialKey);
+  }
+
+  private getBlockFaceMaterialByIdWithoutCheck(
+    id: number,
+    faceName?: string,
+    voxel?: Coords3
+  ) {
+    const block = this.registry.blocksById.get(id);
+    if (!block) {
+      return undefined;
+    }
+    return this.resolveChunkMaterialForBlock(block, faceName, voxel);
+  }
+
+  getBlockFaceMaterial(
+    idOrName: number | string,
+    faceName?: string,
+    voxel?: Coords3
+  ) {
+    this.checkIsInitialized("get material", false);
+
+    const block = this.getBlockOf(idOrName);
+    return this.resolveChunkMaterialForBlock(block, faceName, voxel);
   }
 
   getTextureInfo(): {
@@ -5177,7 +5197,7 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
           computeFlatNormals(geometry);
         }
 
-        let material = this.getBlockFaceMaterial(
+        let material = this.getBlockFaceMaterialByIdWithoutCheck(
           voxel,
           faceName,
           texturePosition
@@ -5293,7 +5313,7 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
           geometry.computeBoundingSphere();
         }
 
-        let material = this.getBlockFaceMaterial(
+        let material = this.getBlockFaceMaterialByIdWithoutCheck(
           voxel,
           faceName,
           texturePosition
