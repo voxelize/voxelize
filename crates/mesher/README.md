@@ -51,7 +51,9 @@ When making changes to meshing algorithms:
    - optional regression gate: `--max-regression-pct 1.0`
 10. Gate run-set stability by lane variance:
    - `python3 crates/mesher/scripts/bench_stability_gate.py --input <run1.txt> --input <run2.txt> --input <run3.txt> --include '^greedy_mesher/optimized/' --max-cv-pct 1.5`
-11. Rebuild WASM wrapper when needed:
+11. Summarize grouped speedups between two runs:
+   - `python3 crates/mesher/scripts/bench_speedup_summary.py --baseline <baseline_output.txt> --candidate <candidate_output.txt>`
+12. Rebuild WASM wrapper when needed:
    - `cd crates/wasm-mesher && wasm-pack build --target web`
 
 ## Structure
@@ -65,3 +67,4 @@ When making changes to meshing algorithms:
 - `scripts/aggregate_bench_medians.py` - Multi-run benchmark median aggregation tool
 - `scripts/compare_bench_sets.py` - Multi-run baseline/candidate comparison with spread and optional gate
 - `scripts/bench_stability_gate.py` - Run-set coefficient-of-variation stability gate
+- `scripts/bench_speedup_summary.py` - Grouped geomean/mean speedup summary tool
