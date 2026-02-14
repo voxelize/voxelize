@@ -174,7 +174,7 @@
     "check:ts-core:verify": "node ./check-ts-core.mjs --verify",
     "check:ts-core:verify:json": "node ./check-ts-core.mjs --json --verify",
     "check:ts-core:verify:json:compact": "node ./check-ts-core.mjs --json --verify --compact",
-    "check:ts-core:release": "pnpm --filter @voxelize/ts-core run build && pnpm --filter @voxelize/ts-core run test && pnpm --filter @voxelize/ts-core run example:end-to-end && pnpm run check:ts-core:verify:json",
+    "check:ts-core:release": "pnpm --filter @voxelize/ts-core run build && pnpm --filter @voxelize/ts-core run test && pnpm --filter @voxelize/ts-core run example:end-to-end:no-build && pnpm run check:ts-core:verify:json",
     "check:ts:release": "pnpm run check:ts-core:release",
     "check:typescript:release": "pnpm run check:ts-core:release",
     "check:preflight:ts-core:release": "pnpm run check:ts-core:release && pnpm run check:preflight:ts-core:verify:json",
