@@ -3,7 +3,7 @@ use std::f32::consts::PI;
 
 use crate::block::Y_ROT_SEGMENTS;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct UV {
     pub start_u: f32,
@@ -335,19 +335,19 @@ impl BlockRotation {
         }
     }
 
+    #[inline(always)]
     pub fn decode(rotation: &Self) -> (u32, u32) {
-        let convert_y_rot = |val: f32| {
-            let val = val * Y_ROT_SEGMENTS as f32 / (PI * 2.0);
-            (val.round() as u32) % Y_ROT_SEGMENTS
-        };
+        let y_scale = Y_ROT_SEGMENTS as f32 / (PI * 2.0);
+        let y_mask = Y_ROT_SEGMENTS - 1;
+        let y_code = |rot: f32| ((rot * y_scale).round() as u32) & y_mask;
 
         match rotation {
-            BlockRotation::PX(rot) => (2, convert_y_rot(*rot)),
-            BlockRotation::NX(rot) => (3, convert_y_rot(*rot)),
-            BlockRotation::PY(rot) => (0, convert_y_rot(*rot)),
-            BlockRotation::NY(rot) => (1, convert_y_rot(*rot)),
-            BlockRotation::PZ(rot) => (4, convert_y_rot(*rot)),
-            BlockRotation::NZ(rot) => (5, convert_y_rot(*rot)),
+            BlockRotation::PX(rot) => (2, y_code(*rot)),
+            BlockRotation::NX(rot) => (3, y_code(*rot)),
+            BlockRotation::PY(rot) => (0, y_code(*rot)),
+            BlockRotation::NY(rot) => (1, y_code(*rot)),
+            BlockRotation::PZ(rot) => (4, y_code(*rot)),
+            BlockRotation::NZ(rot) => (5, y_code(*rot)),
         }
     }
 
