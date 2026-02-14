@@ -46,6 +46,8 @@ impl JsInteropKeys {
     }
 }
 
+const MAX_JS_ARRAY_LENGTH: usize = u32::MAX as usize;
+
 #[derive(Clone)]
 struct ChunkData {
     voxels: Vec<u32>,
@@ -470,11 +472,11 @@ fn compute_expected_chunk_sizes(
     let expected_chunk_len = chunk_size_usize
         .checked_mul(chunk_height)?
         .checked_mul(chunk_size_usize)?;
-    if expected_chunk_len > u32::MAX as usize {
+    if expected_chunk_len > MAX_JS_ARRAY_LENGTH {
         return None;
     }
     let expected_chunk_count = chunk_grid_width.checked_mul(chunk_grid_depth)?;
-    if expected_chunk_count > u32::MAX as usize {
+    if expected_chunk_count > MAX_JS_ARRAY_LENGTH {
         return None;
     }
     Some((expected_chunk_len, expected_chunk_count))
