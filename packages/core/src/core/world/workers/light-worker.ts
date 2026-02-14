@@ -476,6 +476,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
     options.maxHeight,
     options.maxLightLevel
   ) as WasmLightBatchResult;
+  serializedChunks.length = 0;
 
   const modifiedChunkCount = wasmResult.modifiedChunks.length;
   const modifiedChunks = reusableModifiedChunks;
