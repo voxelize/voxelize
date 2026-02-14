@@ -2433,6 +2433,12 @@ where
 {
     let mut local_rotation_trig: Option<(f32, f32)> = None;
     let mut local_rotation_trig_ready = false;
+    let y_rotatable = block.y_rotatable;
+    let rotation_rad = if y_rotatable {
+        rotation_radians(rotation)
+    } else {
+        0.0
+    };
 
     if let Some(dynamic_patterns) = &block.dynamic_patterns {
         for pattern in dynamic_patterns {
@@ -2444,8 +2450,7 @@ where
                 } else {
                     if !local_rotation_trig_ready {
                         local_rotation_trig_ready = true;
-                        if block.y_rotatable {
-                            let rotation_rad = rotation_radians(rotation);
+                        if y_rotatable {
                             if rotation_rad.abs() > f32::EPSILON {
                                 let (sin_rot, cos_rot) = rotation_rad.sin_cos();
                                 local_rotation_trig = Some((sin_rot, cos_rot));
