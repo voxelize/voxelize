@@ -108,13 +108,16 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
       const i0 = i0Index * 3;
       const i1 = i1Index * 3;
       const i2 = i2Index * 3;
+      const cx = (positions[i0] + positions[i1] + positions[i2]) / 3;
+      const cy = (positions[i0 + 1] + positions[i1 + 1] + positions[i2 + 1]) / 3;
+      const cz = (positions[i0 + 2] + positions[i1 + 2] + positions[i2 + 2]) / 3;
+      if (!areFinite3(cx, cy, cz)) {
+        return null;
+      }
 
-      centroids[centroidOffset] =
-        (positions[i0] + positions[i1] + positions[i2]) / 3;
-      centroids[centroidOffset + 1] =
-        (positions[i0 + 1] + positions[i1 + 1] + positions[i2 + 1]) / 3;
-      centroids[centroidOffset + 2] =
-        (positions[i0 + 2] + positions[i1 + 2] + positions[i2 + 2]) / 3;
+      centroids[centroidOffset] = cx;
+      centroids[centroidOffset + 1] = cy;
+      centroids[centroidOffset + 2] = cz;
     }
   } else {
     for (
@@ -143,13 +146,16 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
       const i0 = i0Index * positionStride + positionOffset;
       const i1 = i1Index * positionStride + positionOffset;
       const i2 = i2Index * positionStride + positionOffset;
+      const cx = (positions[i0] + positions[i1] + positions[i2]) / 3;
+      const cy = (positions[i0 + 1] + positions[i1 + 1] + positions[i2 + 1]) / 3;
+      const cz = (positions[i0 + 2] + positions[i1 + 2] + positions[i2 + 2]) / 3;
+      if (!areFinite3(cx, cy, cz)) {
+        return null;
+      }
 
-      centroids[centroidOffset] =
-        (positions[i0] + positions[i1] + positions[i2]) / 3;
-      centroids[centroidOffset + 1] =
-        (positions[i0 + 1] + positions[i1 + 1] + positions[i2 + 1]) / 3;
-      centroids[centroidOffset + 2] =
-        (positions[i0 + 2] + positions[i1 + 2] + positions[i2 + 2]) / 3;
+      centroids[centroidOffset] = cx;
+      centroids[centroidOffset + 1] = cy;
+      centroids[centroidOffset + 2] = cz;
     }
   }
 
@@ -217,6 +223,8 @@ export function setupTransparentSorting(object: Object3D): void {
 const _floatView = new Float32Array(1);
 const _intView = new Uint32Array(_floatView.buffer);
 const _counts = new Uint32Array(256);
+const areFinite3 = (x: number, y: number, z: number) =>
+  Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z);
 const getPositionVersion = (
   attribute: BufferAttribute | InterleavedBufferAttribute
 ) => ("version" in attribute ? attribute.version : attribute.data.version);
@@ -298,6 +306,9 @@ export function sortTransparentMesh(
   const camX = _camWorldPos.x - _worldPos.x;
   const camY = _camWorldPos.y - _worldPos.y;
   const camZ = _camWorldPos.z - _worldPos.z;
+  if (!areFinite3(camX, camY, camZ)) {
+    return;
+  }
   const lastCameraPos = data.lastCameraPos;
 
   const isFirstSort = lastCameraPos.x === Infinity;

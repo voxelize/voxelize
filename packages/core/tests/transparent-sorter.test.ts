@@ -99,6 +99,16 @@ describe("transparent sorter", () => {
     expect(prepareTransparentMesh(mesh)).toBeNull();
   });
 
+  it("returns null when centroid coordinates are non-finite", () => {
+    const geometry = createQuadGeometry(2);
+    const positionAttr = geometry.getAttribute("position");
+    const positions = positionAttr.array as Float32Array;
+    positions[0] = Number.NaN;
+    const mesh = new Mesh(geometry, new MeshBasicMaterial());
+
+    expect(prepareTransparentMesh(mesh)).toBeNull();
+  });
+
   it("returns null when geometry indices are not quad-aligned", () => {
     const geometry = new BufferGeometry();
     geometry.setAttribute(
@@ -222,6 +232,34 @@ describe("transparent sorter", () => {
 
     expect(() => sortTransparentMesh(mesh, sortData, camera)).not.toThrow();
     expect(Array.from(replacementIndex)).toEqual(before);
+  });
+
+  it("returns early when camera world position is non-finite", () => {
+    const mesh = new Mesh(createQuadGeometry(2), new MeshBasicMaterial());
+    const sortData = prepareTransparentMesh(mesh);
+    expect(sortData).not.toBeNull();
+    if (!sortData) {
+      return;
+    }
+
+    const geometryIndex = mesh.geometry.index;
+    expect(geometryIndex).not.toBeNull();
+    if (!geometryIndex) {
+      return;
+    }
+
+    const before = Array.from(geometryIndex.array);
+    const camera = new PerspectiveCamera();
+    camera.position.set(Number.NaN, 0, 10);
+    camera.updateMatrixWorld(true);
+    mesh.updateMatrixWorld(true);
+
+    sortTransparentMesh(mesh, sortData, camera);
+
+    expect(Array.from(geometryIndex.array)).toEqual(before);
+    expect(sortData.lastCameraPos.x).toBe(Infinity);
+    expect(sortData.lastCameraPos.y).toBe(Infinity);
+    expect(sortData.lastCameraPos.z).toBe(Infinity);
   });
 
   it("refreshes transparent sort data when geometry index changes", () => {
