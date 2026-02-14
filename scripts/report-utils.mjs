@@ -449,6 +449,98 @@ export const createPrefixedTsCoreExampleSummary = (report, prefix = "") => {
   };
 };
 
+const resolveFirstNonEmptyOutputLine = (output) => {
+  if (typeof output !== "string" || output.length === 0) {
+    return null;
+  }
+
+  const nonEmptyLines = output
+    .split(/\r?\n/)
+    .map((line) => {
+      return line.trim();
+    })
+    .filter((line) => {
+      return line.length > 0;
+    });
+  const [firstNonEmptyLine] = nonEmptyLines;
+  return firstNonEmptyLine ?? null;
+};
+const isNumberVec3 = (value) => {
+  return (
+    Array.isArray(value) &&
+    value.length === 3 &&
+    value.every((entry) => {
+      return typeof entry === "number";
+    })
+  );
+};
+export const summarizeTsCoreExampleOutput = (output) => {
+  const parsedOutput = parseJsonOutput(output);
+  if (
+    parsedOutput === null ||
+    typeof parsedOutput !== "object" ||
+    Array.isArray(parsedOutput)
+  ) {
+    return {
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      exampleOutputLine: resolveFirstNonEmptyOutputLine(output),
+    };
+  }
+
+  const exampleRuleMatched =
+    "ruleMatched" in parsedOutput && typeof parsedOutput.ruleMatched === "boolean"
+      ? parsedOutput.ruleMatched
+      : null;
+  const voxelValue = "voxel" in parsedOutput ? parsedOutput.voxel : null;
+  const voxelValid =
+    voxelValue !== null &&
+    typeof voxelValue === "object" &&
+    !Array.isArray(voxelValue) &&
+    "id" in voxelValue &&
+    typeof voxelValue.id === "number" &&
+    "stage" in voxelValue &&
+    typeof voxelValue.stage === "number";
+  const lightValue = "light" in parsedOutput ? parsedOutput.light : null;
+  const lightValid =
+    lightValue !== null &&
+    typeof lightValue === "object" &&
+    !Array.isArray(lightValue) &&
+    "sunlight" in lightValue &&
+    typeof lightValue.sunlight === "number" &&
+    "red" in lightValue &&
+    typeof lightValue.red === "number" &&
+    "green" in lightValue &&
+    typeof lightValue.green === "number" &&
+    "blue" in lightValue &&
+    typeof lightValue.blue === "number";
+  const rotatedAabbValue =
+    "rotatedAabb" in parsedOutput ? parsedOutput.rotatedAabb : null;
+  const rotatedAabbValid =
+    rotatedAabbValue !== null &&
+    typeof rotatedAabbValue === "object" &&
+    !Array.isArray(rotatedAabbValue) &&
+    "min" in rotatedAabbValue &&
+    isNumberVec3(rotatedAabbValue.min) &&
+    "max" in rotatedAabbValue &&
+    isNumberVec3(rotatedAabbValue.max);
+  const examplePayloadValid =
+    exampleRuleMatched !== null &&
+    voxelValid &&
+    lightValid &&
+    rotatedAabbValid;
+  const exampleOutputLine =
+    typeof exampleRuleMatched === "boolean"
+      ? `ruleMatched=${exampleRuleMatched ? "true" : "false"}`
+      : resolveFirstNonEmptyOutputLine(output);
+
+  return {
+    exampleRuleMatched,
+    examplePayloadValid,
+    exampleOutputLine,
+  };
+};
+
 export const extractWasmPackStatusFromReport = (report) => {
   if (
     report === null ||

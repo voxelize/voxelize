@@ -27,6 +27,7 @@ import {
   resolveOutputPath,
   serializeReportWithOptionalWrite,
   splitCliArgs,
+  summarizeTsCoreExampleOutput,
   summarizeCheckFailureResults,
   summarizeCheckResults,
   summarizeStepFailureResults,
@@ -3352,6 +3353,38 @@ describe("report-utils", () => {
         exampleAttempted: false,
       }).exampleStatus
     ).toBe("skipped");
+  });
+
+  it("summarizes ts-core example output payloads", () => {
+    expect(
+      summarizeTsCoreExampleOutput(
+        JSON.stringify({
+          voxel: { id: 42, stage: 7 },
+          light: { sunlight: 15, red: 10, green: 5, blue: 3 },
+          rotatedAabb: {
+            min: [0, 0, 0],
+            max: [1, 1, 1],
+          },
+          ruleMatched: true,
+        })
+      )
+    ).toEqual({
+      exampleRuleMatched: true,
+      examplePayloadValid: true,
+      exampleOutputLine: "ruleMatched=true",
+    });
+    expect(
+      summarizeTsCoreExampleOutput('{"ruleMatched":false}')
+    ).toEqual({
+      exampleRuleMatched: false,
+      examplePayloadValid: false,
+      exampleOutputLine: "ruleMatched=false",
+    });
+    expect(summarizeTsCoreExampleOutput("warning: no json")).toEqual({
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      exampleOutputLine: "warning: no json",
+    });
   });
 
   it("extracts wasm pack status from nested summary or check map reports", () => {
