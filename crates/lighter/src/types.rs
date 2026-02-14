@@ -652,7 +652,11 @@ pub trait LightVoxelAccess {
     #[inline]
     fn set_sunlight(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
         let raw = self.get_raw_light(vx, vy, vz);
-        self.set_raw_light(vx, vy, vz, LightUtils::insert_sunlight(raw, level))
+        let inserted = LightUtils::insert_sunlight(raw, level);
+        if inserted == raw {
+            return self.contains(vx, vy, vz);
+        }
+        self.set_raw_light(vx, vy, vz, inserted)
     }
 
     #[inline]
@@ -663,7 +667,11 @@ pub trait LightVoxelAccess {
     #[inline]
     fn set_red_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
         let raw = self.get_raw_light(vx, vy, vz);
-        self.set_raw_light(vx, vy, vz, LightUtils::insert_red_light(raw, level))
+        let inserted = LightUtils::insert_red_light(raw, level);
+        if inserted == raw {
+            return self.contains(vx, vy, vz);
+        }
+        self.set_raw_light(vx, vy, vz, inserted)
     }
 
     #[inline]
@@ -674,7 +682,11 @@ pub trait LightVoxelAccess {
     #[inline]
     fn set_green_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
         let raw = self.get_raw_light(vx, vy, vz);
-        self.set_raw_light(vx, vy, vz, LightUtils::insert_green_light(raw, level))
+        let inserted = LightUtils::insert_green_light(raw, level);
+        if inserted == raw {
+            return self.contains(vx, vy, vz);
+        }
+        self.set_raw_light(vx, vy, vz, inserted)
     }
 
     #[inline]
@@ -685,7 +697,11 @@ pub trait LightVoxelAccess {
     #[inline]
     fn set_blue_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
         let raw = self.get_raw_light(vx, vy, vz);
-        self.set_raw_light(vx, vy, vz, LightUtils::insert_blue_light(raw, level))
+        let inserted = LightUtils::insert_blue_light(raw, level);
+        if inserted == raw {
+            return self.contains(vx, vy, vz);
+        }
+        self.set_raw_light(vx, vy, vz, inserted)
     }
 
     #[inline]
@@ -852,7 +868,7 @@ impl LightRegistry {
 
 #[cfg(test)]
 mod tests {
-    use voxelize_core::{BlockRotation, BlockRule, BlockRuleLogic, BlockSimpleRule, LightColor};
+    use voxelize_core::{BlockRotation, BlockRule, BlockRuleLogic, BlockSimpleRule, LightColor, LightUtils};
 
     use super::{LightBlock, LightConditionalPart, LightDynamicPattern, LightRegistry};
 
@@ -1260,9 +1276,73 @@ mod tests {
         assert_eq!(level, 9);
     }
 
+    #[test]
+    fn default_light_setters_skip_unchanged_writes_and_preserve_contains_result() {
+        let initial_raw = LightUtils::insert_red_light(0, 7);
+        let mut present = SetterProbeAccess {
+            raw_light: initial_raw,
+            contains: true,
+            set_calls: 0,
+        };
+        assert!(super::LightVoxelAccess::set_red_light(&mut present, 0, 0, 0, 7));
+        assert_eq!(present.set_calls, 0);
+        assert_eq!(present.raw_light, initial_raw);
+
+        let mut missing = SetterProbeAccess {
+            raw_light: initial_raw,
+            contains: false,
+            set_calls: 0,
+        };
+        assert!(!super::LightVoxelAccess::set_red_light(&mut missing, 0, 0, 0, 7));
+        assert_eq!(missing.set_calls, 0);
+        assert_eq!(missing.raw_light, initial_raw);
+
+        assert!(super::LightVoxelAccess::set_red_light(&mut present, 0, 0, 0, 3));
+        assert_eq!(present.set_calls, 1);
+        assert_eq!(LightUtils::extract_red_light(present.raw_light), 3);
+    }
+
+    struct SetterProbeAccess {
+        raw_light: u32,
+        contains: bool,
+        set_calls: usize,
+    }
+
     struct NoopAccess;
     struct NotRuleAccess;
     struct SingleNotAccess;
+
+    impl super::LightVoxelAccess for SetterProbeAccess {
+        fn get_raw_voxel(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+            0
+        }
+
+        fn get_voxel_rotation(&self, _vx: i32, _vy: i32, _vz: i32) -> voxelize_core::BlockRotation {
+            voxelize_core::BlockRotation::default()
+        }
+
+        fn get_voxel_stage(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+            0
+        }
+
+        fn get_raw_light(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+            self.raw_light
+        }
+
+        fn set_raw_light(&mut self, _vx: i32, _vy: i32, _vz: i32, level: u32) -> bool {
+            self.set_calls += 1;
+            self.raw_light = level;
+            self.contains
+        }
+
+        fn get_max_height(&self, _vx: i32, _vz: i32) -> u32 {
+            0
+        }
+
+        fn contains(&self, _vx: i32, _vy: i32, _vz: i32) -> bool {
+            self.contains
+        }
+    }
 
     impl super::LightVoxelAccess for NoopAccess {
         fn get_raw_voxel(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
