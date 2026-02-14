@@ -131,6 +131,22 @@ fn test_chunks_get_raw_light_handles_negative_and_above_height_queries() {
         "raw light below world height should stay dark"
     );
     assert!(
+        !chunks.set_raw_light(0, -1, 0, 1),
+        "raw light writes below world height should be rejected"
+    );
+    assert!(
+        !chunks.set_raw_light(0, config.max_height as i32, 0, 1),
+        "raw light writes at max height boundary should be rejected"
+    );
+    assert!(
+        !chunks.set_raw_voxel(0, -1, 0, 1),
+        "raw voxel writes below world height should be rejected"
+    );
+    assert!(
+        !chunks.set_raw_voxel(0, config.max_height as i32, 0, 1),
+        "raw voxel writes at max height boundary should be rejected"
+    );
+    assert!(
         !chunks.contains(0, -1, 0),
         "chunk contains checks should reject negative world heights"
     );
