@@ -178,12 +178,14 @@ export class Perspective {
     });
 
     this.inputs = inputs;
+    const unbinds = [unbindKeyC, unbindF5];
 
     return () => {
-      try {
-        unbindKeyC();
-        unbindF5();
-      } catch {}
+      for (let index = 0; index < unbinds.length; index++) {
+        try {
+          unbinds[index]();
+        } catch {}
+      }
     };
   };
 

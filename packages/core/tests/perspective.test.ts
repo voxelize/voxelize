@@ -3,6 +3,7 @@ import { Group, PerspectiveCamera } from "three";
 
 import { RigidControls } from "../src/core/controls";
 import { World } from "../src/core/world";
+import { Inputs } from "../src/core/inputs";
 import { Perspective } from "../src/libs/perspective";
 
 const createControls = () =>
@@ -69,5 +70,33 @@ describe("Perspective state transitions", () => {
 
     expect(raycastCalls).toEqual([5]);
     expect(controls.camera.position.z).toBeCloseTo(-5);
+  });
+
+  it("runs all unbind callbacks even when one throws", () => {
+    const controls = createControls();
+    const perspective = new Perspective(controls, createWorld());
+    let bindCount = 0;
+    let firstUnbindCalls = 0;
+    let secondUnbindCalls = 0;
+    const fakeInputs = {
+      bind: () => {
+        bindCount += 1;
+        if (bindCount === 1) {
+          return () => {
+            firstUnbindCalls += 1;
+            throw new Error("first-unbind-failure");
+          };
+        }
+        return () => {
+          secondUnbindCalls += 1;
+        };
+      },
+    } as Inputs;
+
+    const disconnect = perspective.connect(fakeInputs);
+    disconnect();
+
+    expect(firstUnbindCalls).toBe(1);
+    expect(secondUnbindCalls).toBe(1);
   });
 });
