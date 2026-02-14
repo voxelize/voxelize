@@ -617,7 +617,7 @@ impl LightRegistry {
     pub fn build_cache(&mut self) {
         if self.blocks_by_id.is_empty() {
             self.lookup_dense = Some(vec![]);
-            self.lookup_sparse = Some(HashMap::new());
+            self.lookup_sparse = None;
             self.air_index = None;
             return;
         }
