@@ -61,8 +61,19 @@ const FACES = [
   },
 ];
 
-// @ts-ignore
-onmessage = function (e) {
+type CullWorkerMessage = {
+  data: Uint8Array;
+  configs: {
+    dimensions: [number, number, number];
+    min: [number, number, number];
+    max: [number, number, number];
+    realMin: [number, number, number];
+    realMax: [number, number, number];
+    stride: [number, number, number];
+  };
+};
+
+self.onmessage = function (e: MessageEvent<CullWorkerMessage>) {
   const {
     data,
     configs: { dimensions, min, max, realMin, realMax, stride },
@@ -136,13 +147,14 @@ onmessage = function (e) {
   const normalsArray = new Int8Array(normals);
   const indicesArray = new Uint32Array(indices);
 
-  postMessage(
+  self.postMessage(
     {
       positions: positionsArray,
       normals: normalsArray,
       indices: indicesArray,
     },
-    // @ts-ignore
-    [positionsArray.buffer, normalsArray.buffer, indicesArray.buffer]
+    {
+      transfer: [positionsArray.buffer, normalsArray.buffer, indicesArray.buffer],
+    }
   );
 };
