@@ -1623,9 +1623,8 @@ fn face_corner_positions(dir: [i32; 3]) -> Option<&'static [[f32; 3]; 4]> {
 
 #[inline(always)]
 fn face_corner_positions_by_dir_index(dir_index: usize) -> &'static [[f32; 3]; 4] {
-    FACE_CORNERS_BY_DIR_INDEX
-        .get(dir_index)
-        .expect("greedy direction index must be in 0..6")
+    debug_assert!(dir_index < FACE_CORNERS_BY_DIR_INDEX.len());
+    unsafe { FACE_CORNERS_BY_DIR_INDEX.get_unchecked(dir_index) }
 }
 
 #[inline(always)]
