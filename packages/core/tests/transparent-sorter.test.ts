@@ -5,11 +5,14 @@ import {
   Mesh,
   MeshBasicMaterial,
   PerspectiveCamera,
+  Scene,
+  WebGLRenderer,
 } from "three";
 
 import {
   prepareTransparentMesh,
   sortTransparentMesh,
+  sortTransparentMeshOnBeforeRender,
 } from "../src/core/transparent-sorter";
 
 const createQuadGeometry = (quadCount: number) => {
@@ -65,5 +68,33 @@ describe("transparent sorter", () => {
 
     expect(() => sortTransparentMesh(mesh, sortData, camera)).not.toThrow();
     expect(Array.from(replacementIndex)).toEqual(before);
+  });
+
+  it("refreshes transparent sort data when geometry index changes", () => {
+    const mesh = new Mesh(createQuadGeometry(2), new MeshBasicMaterial());
+    const sortData = prepareTransparentMesh(mesh);
+    expect(sortData).not.toBeNull();
+    if (!sortData) {
+      return;
+    }
+
+    mesh.userData.transparentSortData = sortData;
+    const replacementIndex = new Uint16Array([
+      0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7,
+    ]);
+    mesh.geometry.setIndex(new BufferAttribute(replacementIndex, 1));
+    const camera = new PerspectiveCamera();
+    camera.position.set(0, 0, 10);
+
+    sortTransparentMeshOnBeforeRender.call(
+      mesh,
+      {} as WebGLRenderer,
+      new Scene(),
+      camera
+    );
+
+    const refreshedSortData = mesh.userData.transparentSortData;
+    expect(refreshedSortData).not.toBe(sortData);
+    expect(refreshedSortData.sortedIndices).toBe(mesh.geometry.index?.array);
   });
 });

@@ -230,11 +230,21 @@ export function sortTransparentMeshOnBeforeRender(
   camera: Camera
 ): void {
   const mesh = this as Mesh;
-  const sortData = mesh.userData.transparentSortData as
+  let sortData = mesh.userData.transparentSortData as
     | TransparentMeshData
     | undefined;
   if (!sortData) {
     return;
+  }
+  const geometryIndex = mesh.geometry.index;
+  if (!geometryIndex || geometryIndex.array !== sortData.sortedIndices) {
+    const refreshedSortData = prepareTransparentMesh(mesh);
+    if (!refreshedSortData) {
+      delete mesh.userData.transparentSortData;
+      return;
+    }
+    mesh.userData.transparentSortData = refreshedSortData;
+    sortData = refreshedSortData;
   }
 
   sortTransparentMesh(mesh, sortData, camera);
