@@ -143,9 +143,11 @@ type PreflightReport = {
   availableSpecialCheckSelectors: string[];
   availableSpecialCheckAliases: {
     all: string[];
+    libraries: string[];
   };
   availableSpecialSelectorResolvedChecks: {
     all: string[];
+    libraries: string[];
   };
   requestedCheckResolutionKinds: Array<
     RequestedCheckResolution["kind"]
