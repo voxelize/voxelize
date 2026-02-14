@@ -3286,6 +3286,29 @@ describe("report-utils", () => {
       exampleDurationMs: null,
       exampleOutputLine: null,
     });
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleAttempted: true,
+        exampleRuleMatched: true,
+        examplePayloadValid: false,
+        examplePayloadIssues: ["voxel.rotation", "light.red"],
+        examplePayloadIssueCount: 99,
+        exampleExitCode: 0,
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: null,
+      exampleArgCount: null,
+      exampleAttempted: true,
+      exampleStatus: "failed",
+      exampleRuleMatched: true,
+      examplePayloadValid: false,
+      examplePayloadIssues: ["voxel.rotation", "light.red"],
+      examplePayloadIssueCount: 2,
+      exampleExitCode: 0,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
     expect(extractTsCoreExampleSummaryFromReport(null)).toEqual({
       exampleCommand: null,
       exampleArgs: null,

@@ -403,9 +403,11 @@ export const extractTsCoreExampleSummaryFromReport = (report) => {
       })
     : null;
   const examplePayloadIssueCount =
-    typeof report.examplePayloadIssueCount === "number"
-      ? report.examplePayloadIssueCount
-      : examplePayloadIssues?.length ?? null;
+    examplePayloadIssues === null
+      ? typeof report.examplePayloadIssueCount === "number"
+        ? report.examplePayloadIssueCount
+        : null
+      : examplePayloadIssues.length;
   const exampleStatus =
     report.exampleStatus === "ok" ||
     report.exampleStatus === "failed" ||
