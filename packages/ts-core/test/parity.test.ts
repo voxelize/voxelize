@@ -224,6 +224,17 @@ describe("AABB", () => {
     expect(a.intersects(c)).toBe(false);
   });
 
+  it("treats boundary-touching boxes as non-intersecting", () => {
+    const a = AABB.create(0, 0, 0, 1, 1, 1);
+    const touchX = AABB.create(1, 0, 0, 2, 1, 1);
+    const touchY = AABB.create(0, 1, 0, 1, 2, 1);
+    const touchZ = AABB.create(0, 0, 1, 1, 1, 2);
+
+    expect(a.intersects(touchX)).toBe(false);
+    expect(a.intersects(touchY)).toBe(false);
+    expect(a.intersects(touchZ)).toBe(false);
+  });
+
   it("builds bounds via fluent AABB builder", () => {
     const aabb = AABB.new()
       .scaleX(2)
@@ -268,6 +279,22 @@ describe("AABB", () => {
       intersection.maxY,
       intersection.maxZ,
     ]).toEqual([1, 1, 1, 2, 2, 2]);
+  });
+
+  it("returns inverted intersection bounds for disjoint boxes", () => {
+    const a = AABB.create(0, 0, 0, 1, 1, 1);
+    const b = AABB.create(2, 2, 2, 3, 3, 3);
+    const intersection = a.intersection(b);
+
+    expect(intersection.minX).toBe(2);
+    expect(intersection.minY).toBe(2);
+    expect(intersection.minZ).toBe(2);
+    expect(intersection.maxX).toBe(1);
+    expect(intersection.maxY).toBe(1);
+    expect(intersection.maxZ).toBe(1);
+    expect(intersection.minX).toBeGreaterThan(intersection.maxX);
+    expect(intersection.minY).toBeGreaterThan(intersection.maxY);
+    expect(intersection.minZ).toBeGreaterThan(intersection.maxZ);
   });
 
   it("returns empty AABB for unionAll with no entries", () => {
