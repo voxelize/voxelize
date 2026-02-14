@@ -57,6 +57,7 @@ export class ColorText {
     while (cursor <= textLength) {
       const openIndex = text.indexOf(splitter, cursor);
       let segment = "";
+      let segmentContainsSplitter = false;
 
       if (openIndex === -1) {
         segment = text.substring(cursor);
@@ -66,6 +67,7 @@ export class ColorText {
         const closeIndex = text.indexOf(splitter, tokenStart);
         if (closeIndex === -1) {
           segment = text.substring(cursor);
+          segmentContainsSplitter = true;
           cursor = textLength + 1;
         } else {
           segment = text.substring(cursor, openIndex);
@@ -92,7 +94,7 @@ export class ColorText {
         continue;
       }
       if (!hasNonEmptySegment) {
-        expectingColorToken = segment.includes(splitter);
+        expectingColorToken = segmentContainsSplitter;
         hasNonEmptySegment = true;
       }
 
