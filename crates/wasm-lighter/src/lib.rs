@@ -451,6 +451,11 @@ fn compute_expected_chunk_sizes(
     Some((expected_chunk_len, expected_chunk_count))
 }
 
+#[inline]
+fn clamp_light_level(level: u32, max_light_level: u32) -> u32 {
+    level.min(max_light_level)
+}
+
 #[wasm_bindgen]
 pub fn init() {}
 
@@ -505,7 +510,7 @@ pub fn process_light_batch_fast(
             Err(_) => Vec::new(),
         }
     };
-    let flood_nodes: Vec<LightNode> = if floods
+    let mut flood_nodes: Vec<LightNode> = if floods
         .dyn_ref::<Array>()
         .is_some_and(|flood_array| flood_array.length() == 0)
     {
@@ -576,6 +581,9 @@ pub fn process_light_batch_fast(
         min_chunk: [grid_offset_x, grid_offset_z],
         max_chunk: [max_chunk_x, max_chunk_z],
     };
+    for node in &mut flood_nodes {
+        node.level = clamp_light_level(node.level, max_light_level);
+    }
 
     if !removal_nodes.is_empty() {
         remove_lights(
@@ -782,5 +790,11 @@ mod tests {
         assert_eq!(super::compute_expected_chunk_sizes(16, -1, 1, 1), None);
         assert_eq!(super::compute_expected_chunk_sizes(i32::MAX, i32::MAX, 2, 2), None);
         assert_eq!(super::compute_expected_chunk_sizes(16, 64, usize::MAX, 2), None);
+    }
+
+    #[test]
+    fn clamp_light_level_caps_values_to_max() {
+        assert_eq!(super::clamp_light_level(12, 15), 12);
+        assert_eq!(super::clamp_light_level(20, 15), 15);
     }
 }
