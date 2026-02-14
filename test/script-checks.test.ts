@@ -325,6 +325,14 @@ type ClientJsonReport = OptionTerminatorMetadata &
     message: string;
   }>;
   failureSummaryCount: number;
+  stepStatusMap: Record<string, "passed" | "failed" | "skipped">;
+  stepStatusMapCount: number;
+  stepStatusCountMap: {
+    passed: number;
+    failed: number;
+    skipped: number;
+  };
+  stepStatusCountMapCount: number;
   passedStepMetadata: Record<
     string,
     {
@@ -658,6 +666,14 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
     message: string;
   }>;
   failureSummaryCount: number;
+  stepStatusMap: Record<string, "passed" | "failed" | "skipped">;
+  stepStatusMapCount: number;
+  stepStatusCountMap: {
+    passed: number;
+    failed: number;
+    skipped: number;
+  };
+  stepStatusCountMapCount: number;
   passedStepMetadata: Record<
     string,
     {
@@ -926,6 +942,14 @@ const expectStepSummaryMetadata = (
       message: string;
     }>;
     failureSummaryCount: number;
+    stepStatusMap: Record<string, "passed" | "failed" | "skipped">;
+    stepStatusMapCount: number;
+    stepStatusCountMap: {
+      passed: number;
+      failed: number;
+      skipped: number;
+    };
+    stepStatusCountMapCount: number;
     passedStepMetadata: Record<
       string,
       {
@@ -1047,6 +1071,21 @@ const expectStepSummaryMetadata = (
       return [stepName, expectedStepMetadata[stepName]];
     })
   );
+  const expectedStepStatusMap = Object.fromEntries(
+    report.steps.map((step) => {
+      const status = step.skipped
+        ? "skipped"
+        : step.passed
+          ? "passed"
+          : "failed";
+      return [step.name, status];
+    })
+  );
+  const expectedStepStatusCountMap = {
+    passed: passedSteps.length,
+    failed: failedSteps.length,
+    skipped: skippedSteps.length,
+  };
 
   expect(report.totalSteps).toBe(report.steps.length);
   expect(report.passedStepCount).toBe(passedSteps.length);
@@ -1092,6 +1131,12 @@ const expectStepSummaryMetadata = (
     Object.keys(report.skippedStepIndexMap).length
   );
   expect(report.failureSummaryCount).toBe(report.failureSummaries.length);
+  expect(report.stepStatusMap).toEqual(expectedStepStatusMap);
+  expect(report.stepStatusMapCount).toBe(Object.keys(report.stepStatusMap).length);
+  expect(report.stepStatusCountMap).toEqual(expectedStepStatusCountMap);
+  expect(report.stepStatusCountMapCount).toBe(
+    Object.keys(report.stepStatusCountMap).length
+  );
   expect(report.failureSummaries.map((summary) => summary.name)).toEqual(
     failedSteps
   );

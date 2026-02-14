@@ -167,10 +167,33 @@ const mapStepNamesToMetadata = (stepNames) => {
     })
   );
 };
+const mapStepResultsToStatusMap = (results) => {
+  return Object.fromEntries(
+    results.map((stepResult) => {
+      const status = stepResult.skipped
+        ? "skipped"
+        : stepResult.passed
+          ? "passed"
+          : "failed";
+      return [stepResult.name, status];
+    })
+  );
+};
+const createStepStatusCountMap = (stepSummary) => {
+  return {
+    passed: stepSummary.passedStepCount,
+    failed: stepSummary.failedStepCount,
+    skipped: stepSummary.skippedStepCount,
+  };
+};
 const stepResults = [];
 let exitCode = 0;
 
 if (isJson && validationFailureMessage !== null) {
+  const validationStepSummary = summarizeStepResults([]);
+  const validationStepStatusCountMap = createStepStatusCountMap(
+    validationStepSummary
+  );
   const report = buildTimedReport({
     passed: false,
     exitCode: 1,
@@ -234,13 +257,17 @@ if (isJson && validationFailureMessage !== null) {
     skippedStepIndexMapCount: 0,
     failureSummaries: [],
     failureSummaryCount: 0,
+    stepStatusMap: {},
+    stepStatusMapCount: 0,
+    stepStatusCountMap: validationStepStatusCountMap,
+    stepStatusCountMapCount: countRecordEntries(validationStepStatusCountMap),
     passedStepMetadata: {},
     passedStepMetadataCount: 0,
     failedStepMetadata: {},
     failedStepMetadataCount: 0,
     skippedStepMetadata: {},
     skippedStepMetadataCount: 0,
-    ...summarizeStepResults([]),
+    ...validationStepSummary,
     message: validationFailureMessage,
   });
   const { reportJson } = serializeReportWithOptionalWrite(report, {
@@ -365,6 +392,8 @@ if (isJson) {
   const passedStepMetadata = mapStepNamesToMetadata(stepSummary.passedSteps);
   const failedStepMetadata = mapStepNamesToMetadata(stepSummary.failedSteps);
   const skippedStepMetadata = mapStepNamesToMetadata(stepSummary.skippedSteps);
+  const stepStatusMap = mapStepResultsToStatusMap(stepResults);
+  const stepStatusCountMap = createStepStatusCountMap(stepSummary);
   const failureSummaries = summarizeStepFailureResults(stepResults);
   const report = buildTimedReport({
     passed: exitCode === 0,
@@ -429,6 +458,10 @@ if (isJson) {
     skippedStepIndexMapCount: countRecordEntries(skippedStepIndexMap),
     failureSummaries,
     failureSummaryCount: failureSummaries.length,
+    stepStatusMap,
+    stepStatusMapCount: countRecordEntries(stepStatusMap),
+    stepStatusCountMap,
+    stepStatusCountMapCount: countRecordEntries(stepStatusCountMap),
     passedStepMetadata,
     passedStepMetadataCount: countRecordEntries(passedStepMetadata),
     failedStepMetadata,
