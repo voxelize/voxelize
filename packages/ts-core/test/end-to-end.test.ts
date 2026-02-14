@@ -50,15 +50,30 @@ describe("ts-core end-to-end example", () => {
     expect(parsed.voxel.id).toBe(42);
     expect(parsed.voxel.stage).toBe(7);
     expect(parsed.voxel.rotation.value).toBe(0);
+    expect(Number.isInteger(parsed.voxel.rotation.value)).toBe(true);
+    expect(parsed.voxel.rotation.value).toBeGreaterThanOrEqual(0);
+    expect(parsed.voxel.rotation.value).toBeLessThanOrEqual(5);
     expect(parsed.voxel.rotation.yRotation).toBeGreaterThan(0);
+    expect(Number.isFinite(parsed.voxel.rotation.yRotation)).toBe(true);
     expect(parsed.light).toEqual({
       sunlight: 15,
       red: 10,
       green: 5,
       blue: 3,
     });
+    for (const channelValue of Object.values(parsed.light)) {
+      expect(Number.isInteger(channelValue)).toBe(true);
+      expect(channelValue).toBeGreaterThanOrEqual(0);
+      expect(channelValue).toBeLessThanOrEqual(15);
+    }
     expect(parsed.rotatedAabb.min).toHaveLength(3);
     expect(parsed.rotatedAabb.max).toHaveLength(3);
+    expect(parsed.rotatedAabb.min.every((value) => Number.isFinite(value))).toBe(
+      true
+    );
+    expect(parsed.rotatedAabb.max.every((value) => Number.isFinite(value))).toBe(
+      true
+    );
     expect(parsed.rotatedAabb.min[0]).toBeLessThan(parsed.rotatedAabb.max[0]);
     expect(parsed.rotatedAabb.min[1]).toBeLessThan(parsed.rotatedAabb.max[1]);
     expect(parsed.rotatedAabb.min[2]).toBeLessThan(parsed.rotatedAabb.max[2]);
