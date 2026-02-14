@@ -121,7 +121,12 @@ impl FlatlandStage {
             self.soiling.push(block);
         }
 
-        self.top_height += height as u32;
+        let height_u32 = if height > u32::MAX as usize {
+            u32::MAX
+        } else {
+            height as u32
+        };
+        self.top_height = self.top_height.saturating_add(height_u32);
 
         self
     }
@@ -411,5 +416,29 @@ impl Pipeline {
         }
 
         self.stages = new_stages;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FlatlandStage;
+
+    #[test]
+    fn add_soiling_saturates_top_height_on_overflow() {
+        let stage = FlatlandStage {
+            top_height: u32::MAX - 1,
+            soiling: Vec::new(),
+        }
+        .add_soiling(3, 4);
+
+        assert_eq!(stage.top_height, u32::MAX);
+        assert_eq!(stage.soiling.len(), 4);
+    }
+
+    #[test]
+    fn add_soiling_appends_requested_soiling_values() {
+        let stage = FlatlandStage::new().add_soiling(7, 3);
+        assert_eq!(stage.top_height, 3);
+        assert_eq!(stage.soiling, vec![7, 7, 7]);
     }
 }
