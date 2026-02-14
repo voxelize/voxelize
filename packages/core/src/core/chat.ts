@@ -157,9 +157,10 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
    * @param chat The chat message to send.
    */
   public send(chat: T) {
-    if (chat.body.startsWith(this._commandSymbol)) {
-      const commandBody = chat.body.substring(this._commandSymbol.length);
-      this.parseCommandBody(commandBody);
+    const body = chat.body;
+    const commandBodyStart = this._commandSymbol.length;
+    if (body.startsWith(this._commandSymbol)) {
+      this.parseCommandBody(body, commandBodyStart);
       const trigger = this.parsedCommandTrigger || undefined;
       const rest = this.parsedCommandRest;
 
@@ -200,11 +201,12 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       }
 
       if (this.fallbackCommand) {
-        const commandBodyLength = commandBody.length;
+        const commandBodyLength = body.length - commandBodyStart;
         const shouldTrim =
           commandBodyLength > 0 &&
-          (isWhitespaceCode(commandBody.charCodeAt(0)) ||
-            isWhitespaceCode(commandBody.charCodeAt(commandBodyLength - 1)));
+          (isWhitespaceCode(body.charCodeAt(commandBodyStart)) ||
+            isWhitespaceCode(body.charCodeAt(body.length - 1)));
+        const commandBody = body.substring(commandBodyStart);
         this.fallbackCommand(shouldTrim ? commandBody.trim() : commandBody);
       }
     }
@@ -215,9 +217,9 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     });
   }
 
-  private parseCommandBody(raw: string) {
+  private parseCommandBody(raw: string, startIndex = 0) {
     const length = raw.length;
-    let triggerStart = 0;
+    let triggerStart = startIndex;
 
     while (
       triggerStart < length &&
