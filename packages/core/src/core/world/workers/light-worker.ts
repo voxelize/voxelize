@@ -402,12 +402,14 @@ const markRegistryInitializationFailed = () => {
 
 const hasPotentialRelevantDeltaBatches = (
   deltaBatches: DeltaBatch[],
+  chunksData: (SerializedRawChunk | null)[],
   gridWidth: number,
   gridDepth: number,
   gridOffsetX: number,
   gridOffsetZ: number,
   maxHeight: number,
-  chunkSize: number
+  chunkSize: number,
+  expectedChunkByteLength: number
 ) => {
   for (let batchIndex = 0; batchIndex < deltaBatches.length; batchIndex++) {
     const deltaBatch = deltaBatches[batchIndex];
@@ -426,6 +428,22 @@ const hasPotentialRelevantDeltaBatches = (
       localX >= gridWidth ||
       localZ < 0 ||
       localZ >= gridDepth
+    ) {
+      continue;
+    }
+    const chunkData = chunksData[localX * gridDepth + localZ];
+    if (!chunkData) {
+      continue;
+    }
+    const chunkOptions = chunkData.options;
+    const voxelsBuffer = chunkData.voxels;
+    const lightsBuffer = chunkData.lights;
+    if (
+      !isArrayBuffer(voxelsBuffer) ||
+      !isArrayBuffer(lightsBuffer) ||
+      voxelsBuffer.byteLength !== expectedChunkByteLength ||
+      lightsBuffer.byteLength !== expectedChunkByteLength ||
+      !hasMatchingChunkOptions(chunkOptions, chunkSize, maxHeight)
     ) {
       continue;
     }
@@ -1030,12 +1048,14 @@ const processBatchMessage = (message: LightBatchMessage) => {
     deltaBatches.length > 0 &&
     hasPotentialRelevantDeltaBatches(
       deltaBatches,
+      chunksData,
       gridWidth,
       gridDepth,
       gridOffsetX,
       gridOffsetZ,
       maxHeight,
-      chunkSize
+      chunkSize,
+      expectedChunkByteLength
     );
   const chunkGrid = hasPotentialRelevantDelta ? reusableChunkGrid : emptyChunkGrid;
 
