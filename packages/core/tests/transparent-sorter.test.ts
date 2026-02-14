@@ -50,6 +50,14 @@ describe("transparent sorter", () => {
     expect(prepareTransparentMesh(mesh)).toBeNull();
   });
 
+  it("returns null when geometry has no position attribute", () => {
+    const geometry = new BufferGeometry();
+    geometry.setIndex(new BufferAttribute(new Uint16Array([0, 1, 2, 0, 2, 3]), 1));
+    const mesh = new Mesh(geometry, new MeshBasicMaterial());
+
+    expect(prepareTransparentMesh(mesh)).toBeNull();
+  });
+
   it("returns early when mesh index buffer no longer matches sort data", () => {
     const mesh = new Mesh(createQuadGeometry(2), new MeshBasicMaterial());
     const sortData = prepareTransparentMesh(mesh);

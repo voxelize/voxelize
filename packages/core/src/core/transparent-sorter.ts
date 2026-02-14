@@ -27,8 +27,10 @@ const CAMERA_MOVE_THRESHOLD_SQ = 0.25;
 export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
   const geometry = mesh.geometry;
   if (!geometry.index) return null;
+  const positionAttr = geometry.getAttribute("position");
+  if (!positionAttr) return null;
 
-  const positions = geometry.getAttribute("position").array as Float32Array;
+  const positions = positionAttr.array as ArrayLike<number>;
   const indices = geometry.index.array as Uint16Array | Uint32Array;
   const faceCount = Math.floor(indices.length / 6);
 
