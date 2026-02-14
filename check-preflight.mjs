@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  countRecordEntries,
   createCliDiagnostics,
   createTimedReportBuilder,
   hasCliOption as hasCliOptionInArgs,
@@ -99,21 +100,21 @@ const availableCheckScriptMap = Object.fromEntries(
     return [check.name, check.scriptName];
   })
 );
-const availableCheckScriptMapCount = Object.keys(availableCheckScriptMap).length;
+const availableCheckScriptMapCount = countRecordEntries(availableCheckScriptMap);
 const availableCheckSupportsNoBuildMap = Object.fromEntries(
   availableChecks.map((check) => {
     return [check.name, check.supportsNoBuild];
   })
 );
-const availableCheckSupportsNoBuildMapCount = Object.keys(
+const availableCheckSupportsNoBuildMapCount = countRecordEntries(
   availableCheckSupportsNoBuildMap
-).length;
+);
 const availableCheckIndexMap = Object.fromEntries(
   availableCheckNames.map((checkName, index) => {
     return [checkName, index];
   })
 );
-const availableCheckIndexMapCount = Object.keys(availableCheckIndexMap).length;
+const availableCheckIndexMapCount = countRecordEntries(availableCheckIndexMap);
 const checkNameToIndex = new Map(
   availableCheckNames.map((checkName, index) => {
     return [checkName, index];
@@ -130,7 +131,7 @@ const availableCheckMetadata = Object.fromEntries(
     ];
   })
 );
-const availableCheckMetadataCount = Object.keys(availableCheckMetadata).length;
+const availableCheckMetadataCount = countRecordEntries(availableCheckMetadata);
 const resolveCheckDetails = (checkName) => {
   const checkMetadata = availableCheckMetadata[checkName];
   const checkIndex = checkNameToIndex.get(checkName);
@@ -429,35 +430,35 @@ const requestedCheckResolvedScriptMap = Object.fromEntries(
     return [checkName, resolveCheckDetails(checkName).scriptName];
   })
 );
-const requestedCheckResolvedScriptMapCount = Object.keys(
+const requestedCheckResolvedScriptMapCount = countRecordEntries(
   requestedCheckResolvedScriptMap
-).length;
+);
 const requestedCheckResolvedSupportsNoBuildMap = Object.fromEntries(
   requestedCheckResolvedChecks.map((checkName) => {
     return [checkName, resolveCheckDetails(checkName).supportsNoBuild];
   })
 );
-const requestedCheckResolvedSupportsNoBuildMapCount = Object.keys(
+const requestedCheckResolvedSupportsNoBuildMapCount = countRecordEntries(
   requestedCheckResolvedSupportsNoBuildMap
-).length;
+);
 const requestedCheckResolvedIndices = resolveCheckIndices(requestedCheckResolvedChecks);
 const requestedCheckResolvedIndexMap = Object.fromEntries(
   requestedCheckResolvedChecks.map((checkName) => {
     return [checkName, resolveCheckDetails(checkName).checkIndex];
   })
 );
-const requestedCheckResolvedIndexMapCount = Object.keys(
+const requestedCheckResolvedIndexMapCount = countRecordEntries(
   requestedCheckResolvedIndexMap
-).length;
+);
 const requestedCheckResolvedMetadata = Object.fromEntries(
   requestedCheckResolvedChecks.map((checkName) => {
     const { scriptName, supportsNoBuild } = resolveCheckDetails(checkName);
     return [checkName, { scriptName, supportsNoBuild }];
   })
 );
-const requestedCheckResolvedMetadataCount = Object.keys(
+const requestedCheckResolvedMetadataCount = countRecordEntries(
   requestedCheckResolvedMetadata
-).length;
+);
 const buildCheckSelectionMetadata = (checkNames) => {
   const checkMetadata = Object.fromEntries(
     checkNames.map((checkName) => {
@@ -528,7 +529,7 @@ const {
   checkScripts: allCheckScripts,
   checkScriptCount: allCheckScriptCount,
 } = buildCheckSelectionMetadata(availableCheckNames);
-const allCheckMetadataCount = Object.keys(allCheckMetadata).length;
+const allCheckMetadataCount = countRecordEntries(allCheckMetadata);
 
 const runCheck = (name, scriptName, supportsNoBuild, extraArgs = []) => {
   const checkStartMs = Date.now();
@@ -691,13 +692,13 @@ const {
   checkScripts: selectedCheckScripts,
   checkScriptCount: selectedCheckScriptCount,
 } = buildCheckSelectionMetadata(selectedChecks);
-const selectedCheckMetadataCount = Object.keys(selectedCheckMetadata).length;
+const selectedCheckMetadataCount = countRecordEntries(selectedCheckMetadata);
 const {
   checkMetadata: skippedCheckMetadata,
   checkScripts: skippedCheckScripts,
   checkScriptCount: skippedCheckScriptCount,
 } = buildCheckSelectionMetadata(skippedChecks);
-const skippedCheckMetadataCount = Object.keys(skippedCheckMetadata).length;
+const skippedCheckMetadataCount = countRecordEntries(skippedCheckMetadata);
 
 if (isListChecks) {
   const invalidCheckCount = 0;
@@ -828,13 +829,13 @@ const {
   checkScripts: passedCheckScripts,
   checkScriptCount: passedCheckScriptCount,
 } = buildCheckSelectionMetadata(checkSummary.passedChecks);
-const passedCheckMetadataCount = Object.keys(passedCheckMetadata).length;
+const passedCheckMetadataCount = countRecordEntries(passedCheckMetadata);
 const {
   checkMetadata: failedCheckMetadata,
   checkScripts: failedCheckScripts,
   checkScriptCount: failedCheckScriptCount,
 } = buildCheckSelectionMetadata(checkSummary.failedChecks);
-const failedCheckMetadataCount = Object.keys(failedCheckMetadata).length;
+const failedCheckMetadataCount = countRecordEntries(failedCheckMetadata);
 const passedCheckIndices = resolveCheckIndices(checkSummary.passedChecks);
 const failedCheckIndices = resolveCheckIndices(checkSummary.failedChecks);
 const invalidCheckCount = 0;

@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   REPORT_SCHEMA_VERSION,
+  countRecordEntries,
   createCliOptionCatalog,
   createCliDiagnostics,
   createTimedReportBuilder,
@@ -2822,6 +2823,16 @@ describe("report-utils", () => {
     expect(followUpReport.startedAt).toBe("iso-1000");
     expect(followUpReport.endedAt).toBe("iso-3000");
     expect(followUpReport.durationMs).toBe(2000);
+  });
+
+  it("counts record entries for map-style metadata", () => {
+    expect(countRecordEntries({})).toBe(0);
+    expect(countRecordEntries({ a: 1, b: 2 })).toBe(2);
+    expect(countRecordEntries([])).toBe(0);
+    expect(countRecordEntries(null)).toBe(0);
+    expect(countRecordEntries("text")).toBe(0);
+    expect(countRecordEntries(10)).toBe(0);
+    expect(countRecordEntries(true)).toBe(0);
   });
 
   it("summarizes step outcomes for json preflight reports", () => {

@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import { resolvePnpmCommand } from "./scripts/command-utils.mjs";
 import {
+  countRecordEntries,
   createCliOptionCatalog,
   createCliDiagnostics,
   deriveCliValidationFailureMessage,
@@ -92,7 +93,7 @@ const availableStepMetadata = {
     supportsNoBuild: false,
   },
 };
-const availableStepMetadataCount = Object.keys(availableStepMetadata).length;
+const availableStepMetadataCount = countRecordEntries(availableStepMetadata);
 const availableStepScripts = availableSteps.map((stepName) => {
   return availableStepMetadata[stepName].scriptName;
 });
@@ -101,15 +102,15 @@ const availableStepScriptMap = Object.fromEntries(
     return [stepName, availableStepMetadata[stepName].scriptName];
   })
 );
-const availableStepScriptMapCount = Object.keys(availableStepScriptMap).length;
+const availableStepScriptMapCount = countRecordEntries(availableStepScriptMap);
 const availableStepSupportsNoBuildMap = Object.fromEntries(
   availableSteps.map((stepName) => {
     return [stepName, availableStepMetadata[stepName].supportsNoBuild];
   })
 );
-const availableStepSupportsNoBuildMapCount = Object.keys(
+const availableStepSupportsNoBuildMapCount = countRecordEntries(
   availableStepSupportsNoBuildMap
-).length;
+);
 const availableStepIndices = availableSteps.map((_, index) => {
   return index;
 });
@@ -119,7 +120,7 @@ const availableStepIndexMap = new Map(
   })
 );
 const availableStepIndexMapReport = Object.fromEntries(availableStepIndexMap);
-const availableStepIndexMapCount = Object.keys(availableStepIndexMapReport).length;
+const availableStepIndexMapCount = countRecordEntries(availableStepIndexMapReport);
 const resolveStepDetails = (stepName) => {
   const stepMetadata = availableStepMetadata[stepName];
   const stepIndex = availableStepIndexMap.get(stepName);
@@ -385,11 +386,11 @@ if (isJson) {
     failureSummaries,
     failureSummaryCount: failureSummaries.length,
     passedStepMetadata,
-    passedStepMetadataCount: Object.keys(passedStepMetadata).length,
+    passedStepMetadataCount: countRecordEntries(passedStepMetadata),
     failedStepMetadata,
-    failedStepMetadataCount: Object.keys(failedStepMetadata).length,
+    failedStepMetadataCount: countRecordEntries(failedStepMetadata),
     skippedStepMetadata,
-    skippedStepMetadataCount: Object.keys(skippedStepMetadata).length,
+    skippedStepMetadataCount: countRecordEntries(skippedStepMetadata),
     ...stepSummary,
   });
   const { reportJson, writeError } = serializeReportWithOptionalWrite(report, {

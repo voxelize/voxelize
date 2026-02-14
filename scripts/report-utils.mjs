@@ -173,6 +173,14 @@ export const createTimedReportBuilder = (
   };
 };
 
+export const countRecordEntries = (value) => {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return 0;
+  }
+
+  return Object.keys(value).length;
+};
+
 export const summarizeStepResults = (steps) => {
   const passedSteps = steps
     .filter((step) => {
