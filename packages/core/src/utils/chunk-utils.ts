@@ -36,6 +36,9 @@ const normalizeChunkSize = (chunkSize: number) => {
   if (!Number.isFinite(chunkSize) || chunkSize <= 0) {
     return 1;
   }
+  if (Number.isInteger(chunkSize)) {
+    return chunkSize > MAX_INT32 ? MAX_INT32 : chunkSize;
+  }
   const normalized = Math.floor(chunkSize);
   if (normalized <= 0) {
     return 1;
