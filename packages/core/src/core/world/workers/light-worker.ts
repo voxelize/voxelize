@@ -1163,8 +1163,13 @@ const processBatchMessage = (message: LightBatchMessage) => {
     maxLightLevel
   ) as WasmLightBatchResult;
   serializedChunks.length = 0;
+  const modifiedChunksFromWasm = wasmResult?.modifiedChunks;
+  if (!Array.isArray(modifiedChunksFromWasm)) {
+    postEmptyBatchResult(jobId, lastSequenceId);
+    return;
+  }
 
-  const modifiedChunkCount = wasmResult.modifiedChunks.length;
+  const modifiedChunkCount = modifiedChunksFromWasm.length;
   if (modifiedChunkCount === 0) {
     postEmptyBatchResult(jobId, lastSequenceId);
     return;
@@ -1177,7 +1182,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
   let validModifiedChunkCount = 0;
 
   for (let index = 0; index < modifiedChunkCount; index++) {
-    const chunk = wasmResult.modifiedChunks[index];
+    const chunk = modifiedChunksFromWasm[index];
     if (!chunk || typeof chunk !== "object") {
       continue;
     }
