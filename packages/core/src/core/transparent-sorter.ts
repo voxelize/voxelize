@@ -163,25 +163,28 @@ export function sortTransparentMesh(
   mesh.getWorldPosition(_worldPos);
   camera.getWorldPosition(_camWorldPos);
   _camPos.copy(_camWorldPos).sub(_worldPos);
-
-  const isFirstSort =
-    data.lastCameraPos.x === Infinity &&
-    data.lastCameraPos.y === Infinity &&
-    data.lastCameraPos.z === Infinity;
-
-  if (
-    !isFirstSort &&
-    _camPos.distanceToSquared(data.lastCameraPos) < CAMERA_MOVE_THRESHOLD_SQ
-  ) {
-    return;
-  }
-  data.lastCameraPos.copy(_camPos);
-
-  const { centroids, faceCount, distances, faceOrder, sortKeys, sortTemp } =
-    data;
   const camX = _camPos.x;
   const camY = _camPos.y;
   const camZ = _camPos.z;
+  const lastCameraPos = data.lastCameraPos;
+
+  const isFirstSort =
+    lastCameraPos.x === Infinity &&
+    lastCameraPos.y === Infinity &&
+    lastCameraPos.z === Infinity;
+
+  if (!isFirstSort) {
+    const dx = camX - lastCameraPos.x;
+    const dy = camY - lastCameraPos.y;
+    const dz = camZ - lastCameraPos.z;
+    if (dx * dx + dy * dy + dz * dz < CAMERA_MOVE_THRESHOLD_SQ) {
+      return;
+    }
+  }
+  lastCameraPos.set(camX, camY, camZ);
+
+  const { centroids, faceCount, distances, faceOrder, sortKeys, sortTemp } =
+    data;
 
   for (let f = 0, centroidIndex = 0; f < faceCount; f++, centroidIndex += 3) {
     const cx = centroids[centroidIndex] - camX;
