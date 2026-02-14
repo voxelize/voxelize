@@ -135,6 +135,7 @@ const reusableSerializedChunks: SerializedWasmChunk[] = [];
 const reusableChunkGrid: (RawChunk | null)[] = [];
 const reusableChunkShape: [number, number, number] = [0, 0, 0];
 const emptyModifiedChunks: WorkerModifiedChunk[] = [];
+const emptyAppliedDeltas = { lastSequenceId: 0 };
 const reusablePostMessageOptions: StructuredSerializeOptions = {
   transfer: emptyTransferList,
 };
@@ -167,10 +168,12 @@ const normalizePendingBatchMessages = () => {
 };
 
 const postEmptyBatchResult = (jobId: string, lastSequenceId = 0) => {
+  const appliedDeltas =
+    lastSequenceId === 0 ? emptyAppliedDeltas : { lastSequenceId };
   postMessage({
     jobId,
     modifiedChunks: [],
-    appliedDeltas: { lastSequenceId },
+    appliedDeltas,
   });
 };
 
