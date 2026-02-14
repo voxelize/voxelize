@@ -1,4 +1,3 @@
-use hashbrown::HashMap;
 use nanoid::nanoid;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use specs::{ReadExpect, ReadStorage, System, WriteExpect};
@@ -99,11 +98,14 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /*                     RECALCULATE CHUNK INTEREST WEIGHTS                     */
         /* -------------------------------------------------------------------------- */
 
-        interests.weights.clear();
+        let mut weights = std::mem::take(&mut interests.weights);
+        weights.clear();
+        let interest_map = &interests.map;
+        if weights.capacity() < interest_map.len() {
+            weights.reserve(interest_map.len() - weights.capacity());
+        }
 
-        let mut weights = HashMap::with_capacity(interests.map.len());
-
-        for (coords, ids) in &interests.map {
+        for (coords, ids) in interest_map {
             let mut weight = 0.0;
 
             for id in ids {
