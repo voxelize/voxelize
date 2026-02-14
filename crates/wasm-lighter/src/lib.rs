@@ -29,6 +29,7 @@ struct BatchSpace {
     chunk_shift: Option<u32>,
     chunk_mask: Option<i32>,
     modified_chunks: Vec<bool>,
+    modified_count: usize,
 }
 
 impl BatchSpace {
@@ -55,6 +56,7 @@ impl BatchSpace {
             chunk_shift,
             chunk_mask,
             modified_chunks,
+            modified_count: 0,
         }
     }
 
@@ -129,7 +131,11 @@ impl BatchSpace {
     }
 
     fn take_modified_chunks(&self) -> Vec<ModifiedChunkData> {
-        let mut modified = Vec::new();
+        if self.modified_count == 0 {
+            return Vec::new();
+        }
+
+        let mut modified = Vec::with_capacity(self.modified_count);
 
         for (index, is_modified) in self.modified_chunks.iter().enumerate() {
             if !is_modified {
@@ -191,7 +197,10 @@ impl LightVoxelAccess for BatchSpace {
         if let Some((chunk_index, voxel_index)) = self.get_chunk_and_voxel_index_mut(vx, vy, vz) {
             if let Some(Some(chunk)) = self.chunks.get_mut(chunk_index) {
                 chunk.lights[voxel_index] = level;
-                self.modified_chunks[chunk_index] = true;
+                if !self.modified_chunks[chunk_index] {
+                    self.modified_chunks[chunk_index] = true;
+                    self.modified_count += 1;
+                }
                 return true;
             }
         }
@@ -378,6 +387,7 @@ pub fn process_light_batch_fast(
 #[cfg(test)]
 mod tests {
     use super::{BatchSpace, ChunkData};
+    use voxelize_lighter::LightVoxelAccess;
 
     #[test]
     fn map_voxel_to_chunk_fast_path_matches_div_euclid() {
@@ -432,5 +442,22 @@ mod tests {
                 Some(expected)
             );
         }
+    }
+
+    #[test]
+    fn set_raw_light_counts_unique_modified_chunks() {
+        let chunk = ChunkData {
+            voxels: vec![0; 16 * 4 * 16],
+            lights: vec![0; 16 * 4 * 16],
+            shape: [16, 4, 16],
+        };
+        let mut space = BatchSpace::new(vec![Some(chunk)], 1, 1, [0, 0], 16);
+
+        assert_eq!(space.modified_count, 0);
+        assert!(space.set_raw_light(0, 0, 0, 1));
+        assert_eq!(space.modified_count, 1);
+        assert!(space.set_raw_light(0, 0, 1, 2));
+        assert_eq!(space.modified_count, 1);
+        assert_eq!(space.take_modified_chunks().len(), 1);
     }
 }
