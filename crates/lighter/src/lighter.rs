@@ -117,12 +117,30 @@ fn block_emits_torch_at(
     space: &dyn LightVoxelAccess,
     color: &LightColor,
 ) -> bool {
-    if !block.is_light
-        && block
-            .dynamic_patterns
-            .as_ref()
-            .is_none_or(|patterns| patterns.is_empty())
-    {
+    if block.get_torch_light_level(color) > 0 {
+        return true;
+    }
+
+    let has_dynamic_color = block
+        .dynamic_patterns
+        .as_ref()
+        .is_some_and(|patterns| {
+            for pattern in patterns {
+                for part in &pattern.parts {
+                    let has_color = match color {
+                        LightColor::Red => part.red_light_level.unwrap_or(0) > 0,
+                        LightColor::Green => part.green_light_level.unwrap_or(0) > 0,
+                        LightColor::Blue => part.blue_light_level.unwrap_or(0) > 0,
+                        LightColor::Sunlight => false,
+                    };
+                    if has_color {
+                        return true;
+                    }
+                }
+            }
+            false
+        });
+    if !has_dynamic_color {
         return false;
     }
 
