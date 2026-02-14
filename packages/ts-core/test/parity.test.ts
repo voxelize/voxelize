@@ -193,6 +193,68 @@ describe("AABB", () => {
     expect(a.intersects(b)).toBe(true);
     expect(a.intersects(c)).toBe(false);
   });
+
+  it("builds bounds via fluent AABB builder", () => {
+    const aabb = AABB.new()
+      .scaleX(2)
+      .scaleY(3)
+      .scaleZ(4)
+      .offsetX(1)
+      .offsetY(2)
+      .offsetZ(3)
+      .build();
+
+    expect(aabb.minX).toBe(1);
+    expect(aabb.minY).toBe(2);
+    expect(aabb.minZ).toBe(3);
+    expect(aabb.maxX).toBe(3);
+    expect(aabb.maxY).toBe(5);
+    expect(aabb.maxZ).toBe(7);
+  });
+
+  it("supports translate and setPosition while preserving dimensions", () => {
+    const aabb = AABB.create(0, 0, 0, 2, 3, 4);
+    aabb.translate(1, -1, 2);
+    expect([aabb.minX, aabb.minY, aabb.minZ]).toEqual([1, -1, 2]);
+    expect([aabb.maxX, aabb.maxY, aabb.maxZ]).toEqual([3, 2, 6]);
+
+    aabb.setPosition(5, 6, 7);
+    expect([aabb.minX, aabb.minY, aabb.minZ]).toEqual([5, 6, 7]);
+    expect([aabb.width(), aabb.height(), aabb.depth()]).toEqual([2, 3, 4]);
+  });
+
+  it("supports union and intersection", () => {
+    const a = AABB.create(0, 0, 0, 2, 2, 2);
+    const b = AABB.create(1, 1, 1, 3, 4, 5);
+    const union = a.union(b);
+    const intersection = a.intersection(b);
+
+    expect([union.minX, union.minY, union.minZ, union.maxX, union.maxY, union.maxZ]).toEqual([0, 0, 0, 3, 4, 5]);
+    expect([
+      intersection.minX,
+      intersection.minY,
+      intersection.minZ,
+      intersection.maxX,
+      intersection.maxY,
+      intersection.maxZ,
+    ]).toEqual([1, 1, 1, 2, 2, 2]);
+  });
+
+  it("detects touching bounds and supports clone/copy", () => {
+    const a = AABB.create(0, 0, 0, 1, 1, 1);
+    const b = AABB.create(1, 0, 0, 2, 1, 1);
+    expect(a.touches(b)).toBe(true);
+
+    const cloned = a.clone();
+    cloned.translate(1, 1, 1);
+    expect([a.minX, a.minY, a.minZ]).toEqual([0, 0, 0]);
+    expect([cloned.minX, cloned.minY, cloned.minZ]).toEqual([1, 1, 1]);
+
+    const copied = AABB.empty();
+    copied.copy(cloned);
+    expect([copied.minX, copied.minY, copied.minZ]).toEqual([1, 1, 1]);
+    expect([copied.maxX, copied.maxY, copied.maxZ]).toEqual([2, 2, 2]);
+  });
 });
 
 describe("BlockRotation", () => {
