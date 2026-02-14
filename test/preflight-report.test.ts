@@ -237,6 +237,7 @@ type PreflightReport = {
   passedChecks: string[];
   failedChecks: string[];
   failureSummaries: PreflightFailureSummary[];
+  failureSummaryCount: number;
   checks: PreflightCheckResult[];
   outputPath: string | null;
   validationErrorCode:
@@ -949,6 +950,7 @@ describe("preflight aggregate report", () => {
     expect(Array.isArray(report.failedChecks)).toBe(true);
     expectCheckResultScriptMetadata(report);
     expect(Array.isArray(report.failureSummaries)).toBe(true);
+    expect(report.failureSummaryCount).toBe(report.failureSummaries.length);
     expect(report.passedChecks.length + report.failedChecks.length).toBe(
       expectedAvailableChecks.length
     );
@@ -2190,6 +2192,7 @@ describe("preflight aggregate report", () => {
       expect(report.exitCode).toBeGreaterThanOrEqual(1);
       expect(report.failedChecks).toEqual(["tsCore"]);
       expect(report.failureSummaries.length).toBe(1);
+      expect(report.failureSummaryCount).toBe(1);
       expect(report.failureSummaries[0].name).toBe("tsCore");
       expect(report.failureSummaries[0].scriptName).toBe("check-ts-core.mjs");
       expect(report.failureSummaries[0].checkIndex).toBe(
@@ -4135,6 +4138,7 @@ describe("preflight aggregate report", () => {
     expect(report.firstFailedCheck).toBeNull();
     expect(report.checks).toEqual([]);
     expect(report.failureSummaries).toEqual([]);
+    expect(report.failureSummaryCount).toBe(0);
     expect(result.status).toBe(0);
   });
 

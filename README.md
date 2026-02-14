@@ -371,6 +371,7 @@ pnpm run check:preflight:all-checks:verify:json:compact
 # includes passedChecks/failedChecks and runtime metadata (platform/nodeVersion)
 # includes firstFailedCheck for quick failure triage
 # includes failureSummaries for quick CI diagnostics
+# includes failureSummaryCount for stable failure partition sizing
 # failureSummaries are derived from nested step/check report messages when available
 # failureSummaries also include scriptName and checkIndex for deterministic CI routing
 # optionally write the same report to disk
