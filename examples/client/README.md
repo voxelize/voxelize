@@ -88,7 +88,7 @@ pnpm run check:wasm:verify:json -- --output ./wasm-verify-report.json
 
 All JSON report commands include `schemaVersion: 1` for compatibility checks.
 JSON preflight reports include `startedAt`, `endedAt`, and `durationMs`.
-Client aggregate JSON reports include `availableSteps`, `availableStepCount`, `availableStepScripts`, `availableStepScriptCount`, `availableStepMetadata`, `totalSteps`, `passedStepCount`, `failedStepCount`, `skippedStepCount`, `firstFailedStep`, `passedSteps`, `failedSteps`, `skippedSteps`, `passedStepScripts`, `passedStepScriptCount`, `failedStepScripts`, `failedStepScriptCount`, `skippedStepScripts`, and `skippedStepScriptCount`.
+Client aggregate JSON reports include `availableSteps`, `availableStepCount`, `availableStepScripts`, `availableStepScriptCount`, `availableStepMetadata`, `totalSteps`, `passedStepCount`, `failedStepCount`, `skippedStepCount`, `firstFailedStep`, `passedSteps`, `failedSteps`, `skippedSteps`, `passedStepScripts`, `passedStepScriptCount`, `failedStepScripts`, `failedStepScriptCount`, `skippedStepScripts`, `skippedStepScriptCount`, `passedStepMetadata`, `failedStepMetadata`, and `skippedStepMetadata`.
 Skipped JSON steps are represented with `skipped: true` and `exitCode: null`.
 If `--output` is provided without a value, commands fail fast. JSON commands return a structured error report; non-JSON commands print a plain error message.
 When `--output` is valid, JSON validation-error reports are also written to that output path.
