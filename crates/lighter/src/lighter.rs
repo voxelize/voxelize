@@ -225,9 +225,15 @@ fn flood_light_from_nodes(
         }
 
         for (direction_index, [ox, oy, oz]) in VOXEL_NEIGHBORS.iter().copied().enumerate() {
-            let nvx = vx + ox;
-            let nvy = vy + oy;
-            let nvz = vz + oz;
+            let Some(nvx) = vx.checked_add(ox) else {
+                continue;
+            };
+            let Some(nvy) = vy.checked_add(oy) else {
+                continue;
+            };
+            let Some(nvz) = vz.checked_add(oz) else {
+                continue;
+            };
 
             if nvy < 0 || nvy >= max_height {
                 continue;
@@ -372,9 +378,15 @@ fn collect_refill_nodes_after_removals(
         let [svx, svy, svz] = voxel;
 
         for (direction_index, [ox, oy, oz]) in VOXEL_NEIGHBORS.iter().copied().enumerate() {
-            let nvx = svx + ox;
-            let nvy = svy + oy;
-            let nvz = svz + oz;
+            let Some(nvx) = svx.checked_add(ox) else {
+                continue;
+            };
+            let Some(nvy) = svy.checked_add(oy) else {
+                continue;
+            };
+            let Some(nvz) = svz.checked_add(oz) else {
+                continue;
+            };
 
             if nvy < 0 || nvy >= max_height {
                 continue;
@@ -990,6 +1002,64 @@ mod tests {
         );
 
         assert!(space.get_red_light(9, 32, 8) > 0);
+    }
+
+    #[test]
+    fn flood_light_skips_overflowing_neighbor_coordinates() {
+        let registry = test_registry();
+        let source_chunk_x = i32::MAX.div_euclid(16);
+        let config = LightConfig {
+            chunk_size: 16,
+            max_height: 2,
+            max_light_level: 15,
+            min_chunk: [source_chunk_x, 0],
+            max_chunk: [source_chunk_x, 0],
+        };
+        let mut space = TestSpace::new([i32::MAX, 0, 0], [1, 2, 1]);
+
+        assert!(space.set_voxel(i32::MAX, 1, 0, 2));
+        space.set_red_light(i32::MAX, 1, 0, 15);
+
+        flood_light(
+            &mut space,
+            VecDeque::from(vec![LightNode {
+                voxel: [i32::MAX, 1, 0],
+                level: 15,
+            }]),
+            &LightColor::Red,
+            &config,
+            None,
+            &registry,
+        );
+
+        assert_eq!(space.get_red_light(i32::MAX, 1, 0), 15);
+    }
+
+    #[test]
+    fn remove_light_skips_overflowing_neighbor_coordinates() {
+        let registry = test_registry();
+        let source_chunk_x = i32::MAX.div_euclid(16);
+        let config = LightConfig {
+            chunk_size: 16,
+            max_height: 2,
+            max_light_level: 15,
+            min_chunk: [source_chunk_x, 0],
+            max_chunk: [source_chunk_x, 0],
+        };
+        let mut space = TestSpace::new([i32::MAX, 0, 0], [1, 2, 1]);
+
+        assert!(space.set_voxel(i32::MAX, 1, 0, 2));
+        space.set_red_light(i32::MAX, 1, 0, 15);
+
+        remove_light(
+            &mut space,
+            [i32::MAX, 1, 0],
+            &LightColor::Red,
+            &config,
+            &registry,
+        );
+
+        assert_eq!(space.get_red_light(i32::MAX, 1, 0), 0);
     }
 
     #[test]
