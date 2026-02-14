@@ -72,6 +72,8 @@ const voxel = Voxel.pack({
   - combination rule edge cases mirror core semantics (`NOT []` / `AND []`
     evaluate to `true`, `OR []` evaluates to `false`)
   - y-rotated rule offsets use rounded integer voxel positions after rotation
+  - rule-offset y-rotation also normalizes full turns/non-finite values to
+    identity before offset checks
 - `VoxelAccess`
   - interface contract for meshing/generation-style data access
 

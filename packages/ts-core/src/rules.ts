@@ -3,10 +3,29 @@ import { BlockRotation } from "./rotation";
 import { BlockRule, BlockRuleLogic } from "./types";
 import { Vec3 } from "./vectors";
 
-const rotateOffsetY = (offset: Vec3, rotation: BlockRotation): Vec3 => {
-  const rot = rotation.yRotation;
+const TWO_PI = Math.PI * 2.0;
+const ANGLE_EPSILON = 1e-12;
 
-  if (Math.abs(rot) <= Number.EPSILON) {
+const normalizeRuleYRotation = (rotation: number): number => {
+  if (!Number.isFinite(rotation)) {
+    return 0;
+  }
+
+  const wrappedRotation = ((rotation % TWO_PI) + TWO_PI) % TWO_PI;
+  if (
+    wrappedRotation <= ANGLE_EPSILON ||
+    Math.abs(wrappedRotation - TWO_PI) <= ANGLE_EPSILON
+  ) {
+    return 0;
+  }
+
+  return wrappedRotation;
+};
+
+const rotateOffsetY = (offset: Vec3, rotation: BlockRotation): Vec3 => {
+  const rot = normalizeRuleYRotation(rotation.yRotation);
+
+  if (Math.abs(rot) <= ANGLE_EPSILON) {
     return [...offset];
   }
 

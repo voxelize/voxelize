@@ -1156,6 +1156,29 @@ describe("BlockRuleEvaluator", () => {
     expect(matched).toBe(true);
   });
 
+  it("normalizes large full-turn y-rotations for y-rotatable offsets", () => {
+    const rule = {
+      type: "simple" as const,
+      offset: [1000, 0, 0] as [number, number, number],
+      id: 17,
+    };
+
+    const access = {
+      getVoxel: (x: number, y: number, z: number) =>
+        x === 1000 && y === 0 && z === 0 ? 17 : 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    const matched = BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access, {
+      rotation: BlockRotation.py(Math.PI * 2 * 1_000_000_000_000),
+      yRotatable: true,
+      worldSpace: false,
+    });
+
+    expect(matched).toBe(true);
+  });
+
   it("applies rotated offsets relative to non-origin positions", () => {
     const rule = {
       type: "simple" as const,
@@ -1177,6 +1200,31 @@ describe("BlockRuleEvaluator", () => {
     });
 
     expect(matched).toBe(true);
+  });
+
+  it("treats non-finite y-rotation offsets as identity for rules", () => {
+    const rule = {
+      type: "simple" as const,
+      offset: [1, 0, 0] as [number, number, number],
+      id: 22,
+    };
+
+    const access = {
+      getVoxel: (x: number, y: number, z: number) =>
+        x === 1 && y === 0 && z === 0 ? 22 : 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    for (const angle of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      const matched = BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access, {
+        rotation: BlockRotation.py(angle),
+        yRotatable: true,
+        worldSpace: false,
+      });
+
+      expect(matched).toBe(true);
+    }
   });
 
   it("rotates offsets for negative y-rotation values", () => {

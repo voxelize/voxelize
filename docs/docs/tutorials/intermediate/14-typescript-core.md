@@ -74,6 +74,8 @@ Non-finite y-rotation values (`NaN`, `Infinity`, `-Infinity`) are also
 normalized to identity for safer runtime behavior.
 Finite y-rotation values are normalized modulo full turns before decode
 segment quantization, which keeps large-angle decoding stable.
+The same normalization semantics are applied when `BlockRuleEvaluator` rotates
+rule offsets in y-rotatable matching mode.
 
 You can also pass plain rotation-like objects when packing voxels:
 
