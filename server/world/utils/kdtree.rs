@@ -290,12 +290,15 @@ impl KdTree {
     }
 
     pub fn search(&self, point: &Vec3<f32>, count: usize) -> Vec<(f32, &Entity)> {
-        if count == 0 || !is_finite_point(point) {
+        if count == 0 {
             return Vec::new();
         }
+        let Some(query_point) = point_array_if_finite(point) else {
+            return Vec::new();
+        };
         let results = self
             .all
-            .nearest(&[point.0, point.1, point.2], nearest_query_count(count, 1));
+            .nearest(&query_point, nearest_query_count(count, 1));
         self.collect_entities_with_distance(&results, 1)
     }
 
@@ -305,13 +308,16 @@ impl KdTree {
         count: usize,
         is_player: bool,
     ) -> Vec<(f32, &Entity)> {
-        if count == 0 || !is_finite_point(point) {
+        if count == 0 {
             return Vec::new();
         }
+        let Some(query_point) = point_array_if_finite(point) else {
+            return Vec::new();
+        };
         let skip = if is_player { 1 } else { 0 };
         let results = self
             .players
-            .nearest(&[point.0, point.1, point.2], nearest_query_count(count, skip));
+            .nearest(&query_point, nearest_query_count(count, skip));
         self.collect_entities_with_distance(&results, skip)
     }
 
@@ -321,26 +327,27 @@ impl KdTree {
         count: usize,
         is_entity: bool,
     ) -> Vec<(f32, &Entity)> {
-        if count == 0 || !is_finite_point(point) {
+        if count == 0 {
             return Vec::new();
         }
+        let Some(query_point) = point_array_if_finite(point) else {
+            return Vec::new();
+        };
         let skip = if is_entity { 1 } else { 0 };
         let results = self
             .entities
-            .nearest(&[point.0, point.1, point.2], nearest_query_count(count, skip));
+            .nearest(&query_point, nearest_query_count(count, skip));
         self.collect_entities_with_distance(&results, skip)
     }
 
     pub fn players_within_radius(&self, point: &Vec3<f32>, radius: f32) -> Vec<&Entity> {
-        if !is_finite_point(point) {
+        let Some(query_point) = point_array_if_finite(point) else {
             return Vec::new();
-        }
+        };
         let Some(radius_squared) = normalized_radius_squared(radius) else {
             return Vec::new();
         };
-        let results = self
-            .players
-            .within(&[point.0, point.1, point.2], radius_squared);
+        let results = self.players.within(&query_point, radius_squared);
         let mut entities = Vec::with_capacity(results.len());
         for (_, ent_id) in results {
             if let Some(entity) = self.entity_map.get(&ent_id) {
