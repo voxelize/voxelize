@@ -757,7 +757,7 @@ pub struct MeshOutput {
 struct VoxelSpace<'a> {
     chunks: &'a [Option<ChunkData>],
     chunk_size: i32,
-    chunk_size_mask: i32,
+    chunk_size_mask_usize: usize,
     chunk_size_is_pow2: bool,
     center_coords: [i32; 2],
 }
@@ -767,11 +767,15 @@ const CHUNK_GRID_INDEX: [[usize; 3]; 3] = [[0, 1, 2], [3, 4, 5], [6, 7, 8]];
 impl<'a> VoxelSpace<'a> {
     fn new(chunks: &'a [Option<ChunkData>], chunk_size: i32, center_coords: [i32; 2]) -> Self {
         let chunk_size_is_pow2 = chunk_size > 0 && (chunk_size & (chunk_size - 1)) == 0;
-        let chunk_size_mask = if chunk_size_is_pow2 { chunk_size - 1 } else { 0 };
+        let chunk_size_mask_usize = if chunk_size_is_pow2 {
+            (chunk_size - 1) as usize
+        } else {
+            0
+        };
         Self {
             chunks,
             chunk_size,
-            chunk_size_mask,
+            chunk_size_mask_usize,
             chunk_size_is_pow2,
             center_coords,
         }
@@ -809,8 +813,8 @@ impl<'a> VoxelSpace<'a> {
         }
         let (lx, lz) = if self.chunk_size_is_pow2 {
             (
-                (vx & self.chunk_size_mask) as usize,
-                (vz & self.chunk_size_mask) as usize,
+                (vx as usize) & self.chunk_size_mask_usize,
+                (vz as usize) & self.chunk_size_mask_usize,
             )
         } else {
             (
