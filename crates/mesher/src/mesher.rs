@@ -2304,12 +2304,12 @@ fn process_greedy_quad(
 #[inline(always)]
 fn rotation_radians(rotation: &BlockRotation) -> f32 {
     match rotation {
-        BlockRotation::PX(rot) => *rot,
-        BlockRotation::NX(rot) => *rot,
-        BlockRotation::PY(rot) => *rot,
-        BlockRotation::NY(rot) => *rot,
-        BlockRotation::PZ(rot) => *rot,
-        BlockRotation::NZ(rot) => *rot,
+        BlockRotation::PX(rot)
+        | BlockRotation::NX(rot)
+        | BlockRotation::PY(rot)
+        | BlockRotation::NY(rot)
+        | BlockRotation::PZ(rot)
+        | BlockRotation::NZ(rot) => *rot,
     }
 }
 
