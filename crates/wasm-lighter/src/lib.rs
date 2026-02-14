@@ -75,13 +75,9 @@ impl BatchSpace {
         chunk_grid_depth: usize,
         chunk_grid_offset: [i32; 2],
         chunk_size: i32,
+        max_height: u32,
     ) -> Self {
         let modified_chunks = vec![false; chunks.len()];
-        let max_height = chunks
-            .iter()
-            .flatten()
-            .next()
-            .map_or(0, |chunk| chunk.shape[1] as u32);
         let chunk_shift = if chunk_size > 0 && (chunk_size as u32).is_power_of_two() {
             Some(chunk_size.trailing_zeros())
         } else {
@@ -378,6 +374,7 @@ pub fn process_light_batch_fast(
         chunk_grid_depth,
         [grid_offset_x, grid_offset_z],
         chunk_size,
+        max_height.max(0) as u32,
     );
 
     let light_color = LightColor::from(color);
@@ -519,8 +516,8 @@ mod tests {
 
     #[test]
     fn map_voxel_to_chunk_fast_path_matches_div_euclid() {
-        let pow2_space = BatchSpace::new(Vec::new(), 1, 1, [0, 0], 16);
-        let non_pow2_space = BatchSpace::new(Vec::new(), 1, 1, [0, 0], 18);
+        let pow2_space = BatchSpace::new(Vec::new(), 1, 1, [0, 0], 16, 0);
+        let non_pow2_space = BatchSpace::new(Vec::new(), 1, 1, [0, 0], 18, 0);
         let samples = [
             (-33, -17),
             (-16, -1),
@@ -551,7 +548,7 @@ mod tests {
             lights: vec![0; 16 * 4 * 16],
             shape: [16, 4, 16],
         };
-        let space = BatchSpace::new(Vec::new(), 1, 1, [0, 0], 16);
+        let space = BatchSpace::new(Vec::new(), 1, 1, [0, 0], 16, 4);
 
         for (vx, vz) in [
             (-17_i32, -1_i32),
@@ -579,7 +576,7 @@ mod tests {
             lights: vec![0; 16 * 4 * 16],
             shape: [16, 4, 16],
         };
-        let mut space = BatchSpace::new(vec![Some(chunk)], 1, 1, [0, 0], 16);
+        let mut space = BatchSpace::new(vec![Some(chunk)], 1, 1, [0, 0], 16, 4);
 
         assert_eq!(space.modified_indices.len(), 0);
         assert!(space.set_raw_light(0, 0, 0, 0));
