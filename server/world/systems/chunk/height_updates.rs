@@ -9,6 +9,9 @@ pub(crate) fn update_chunk_column_height_for_voxel_update(
     vz: i32,
     updated_id: u32,
 ) {
+    if !chunks.contains(vx, vy, vz) {
+        return;
+    }
     let height = chunks.get_max_height(vx, vz);
     if registry.is_air(updated_id) {
         if let Ok(vy_u32) = u32::try_from(vy) {
@@ -99,6 +102,36 @@ mod tests {
         chunks.set_max_height(0, 0, 3);
 
         update_chunk_column_height_for_voxel_update(&mut chunks, &registry, 0, -1, 0, 1);
+
+        assert_eq!(chunks.get_max_height(0, 0), 3);
+    }
+
+    #[test]
+    fn update_chunk_column_height_for_voxel_update_ignores_coords_outside_chunk_shape() {
+        let registry = create_chunk_registry();
+        let config = WorldConfig {
+            chunk_size: 16,
+            max_height: 16,
+            max_light_level: 15,
+            min_chunk: [0, 0],
+            max_chunk: [0, 0],
+            saving: false,
+            ..Default::default()
+        };
+        let mut chunks = Chunks::new(&config);
+        chunks.add(Chunk::new(
+            "chunk-0-0",
+            0,
+            0,
+            &ChunkOptions {
+                size: 8,
+                max_height: 8,
+                sub_chunks: 1,
+            },
+        ));
+        chunks.set_max_height(0, 0, 3);
+
+        update_chunk_column_height_for_voxel_update(&mut chunks, &registry, 12, 4, 0, 1);
 
         assert_eq!(chunks.get_max_height(0, 0), 3);
     }
