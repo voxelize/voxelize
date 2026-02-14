@@ -36,6 +36,20 @@ describe("ChunkUtils.mapVoxelToChunkLocal", () => {
   });
 });
 
+describe("ChunkUtils.getChunkNameByVoxel", () => {
+  it("uses the same chunk mapping semantics as mapVoxelToChunkAt", () => {
+    const [cx, cz] = ChunkUtils.mapVoxelToChunkAt(33, -1, 16);
+    expect(ChunkUtils.getChunkNameByVoxel(33, -1, 16)).toBe(
+      ChunkUtils.getChunkNameAt(cx, cz)
+    );
+  });
+
+  it("handles invalid chunk sizes with normalized fallback", () => {
+    expect(ChunkUtils.getChunkNameByVoxel(3.7, -8.2, 0)).toBe("3|-9");
+    expect(ChunkUtils.getChunkNameByVoxel(3.7, -8.2, Number.NaN)).toBe("3|-9");
+  });
+});
+
 describe("ChunkUtils.parseChunkNameAt", () => {
   it("keeps compatibility with extra separator segments", () => {
     expect(ChunkUtils.parseChunkNameAt("1|2|3")).toEqual([1, 2]);

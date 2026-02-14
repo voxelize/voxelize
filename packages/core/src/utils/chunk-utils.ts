@@ -84,13 +84,11 @@ export class ChunkUtils {
     vz: number,
     chunkSize: number
   ): Coords2 => {
-    if (!Number.isFinite(chunkSize) || chunkSize <= 0) {
-      return [Math.floor(vx), Math.floor(vz)];
-    }
-    const chunkShift = getChunkShiftIfPowerOfTwo(chunkSize);
+    const normalizedChunkSize = normalizeChunkSize(chunkSize);
+    const chunkShift = getChunkShiftIfPowerOfTwo(normalizedChunkSize);
     return [
-      mapVoxelToChunkCoordinate(vx, chunkSize, chunkShift),
-      mapVoxelToChunkCoordinate(vz, chunkSize, chunkShift),
+      mapVoxelToChunkCoordinate(vx, normalizedChunkSize, chunkShift),
+      mapVoxelToChunkCoordinate(vz, normalizedChunkSize, chunkShift),
     ];
   };
 
@@ -109,8 +107,10 @@ export class ChunkUtils {
     chunkSize: number,
     concat = "|"
   ) => {
-    const cx = Math.floor(vx / chunkSize);
-    const cz = Math.floor(vz / chunkSize);
+    const normalizedChunkSize = normalizeChunkSize(chunkSize);
+    const chunkShift = getChunkShiftIfPowerOfTwo(normalizedChunkSize);
+    const cx = mapVoxelToChunkCoordinate(vx, normalizedChunkSize, chunkShift);
+    const cz = mapVoxelToChunkCoordinate(vz, normalizedChunkSize, chunkShift);
     return ChunkUtils.getChunkNameAt(cx, cz, concat);
   };
 
