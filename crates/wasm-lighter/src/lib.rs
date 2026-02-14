@@ -336,6 +336,16 @@ fn parse_chunks(chunks_data: &Array) -> Vec<Option<ChunkData>> {
     })
 }
 
+fn empty_batch_result() -> JsValue {
+    JS_KEYS.with(|keys| {
+        let output = Object::new();
+        let modified_chunks = Array::new_with_length(0);
+        Reflect::set(&output, &keys.modified_chunks, &modified_chunks)
+            .expect("Unable to set modified chunks");
+        output.into()
+    })
+}
+
 #[wasm_bindgen]
 pub fn init() {}
 
@@ -366,6 +376,10 @@ pub fn process_light_batch_fast(
     max_height: i32,
     max_light_level: u32,
 ) -> JsValue {
+    if chunk_size <= 0 || max_height <= 0 || chunk_grid_width == 0 || chunk_grid_depth == 0 {
+        return empty_batch_result();
+    }
+
     let chunks = parse_chunks(chunks_data);
     let mut space = BatchSpace::new(
         chunks,
