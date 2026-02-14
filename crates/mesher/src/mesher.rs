@@ -875,9 +875,7 @@ impl<'a> VoxelSpace<'a> {
     #[inline(always)]
     fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> BlockRotation {
         let raw = self.get_raw_voxel(vx, vy, vz);
-        let rotation = (raw >> 16) & 0xF;
-        let y_rotation = (raw >> 20) & 0xF;
-        BlockRotation::encode(rotation, y_rotation)
+        extract_rotation(raw)
     }
 
     #[inline(always)]
@@ -995,6 +993,9 @@ fn extract_id(voxel: u32) -> u32 {
 fn extract_rotation(voxel: u32) -> BlockRotation {
     let rotation = (voxel >> 16) & 0xF;
     let y_rotation = (voxel >> 20) & 0xF;
+    if rotation == 0 && y_rotation == 0 {
+        return BlockRotation::PY(0.0);
+    }
     BlockRotation::encode(rotation, y_rotation)
 }
 
