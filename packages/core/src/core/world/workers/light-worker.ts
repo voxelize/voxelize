@@ -100,7 +100,7 @@ type LightWorkerMessage = InitMessage | LightBatchMessage;
 
 interface WasmLightChunkResult {
   coords: Coords2;
-  lights: number[];
+  lights: Uint32Array | number[];
 }
 
 interface WasmLightBatchResult {
@@ -486,7 +486,10 @@ const processBatchMessage = (message: LightBatchMessage) => {
 
   for (let index = 0; index < modifiedChunkCount; index++) {
     const chunk = wasmResult.modifiedChunks[index];
-    const lights = new Uint32Array(chunk.lights);
+    const lights =
+      chunk.lights instanceof Uint32Array
+        ? chunk.lights
+        : new Uint32Array(chunk.lights);
     const existing = modifiedChunks[index];
     if (existing) {
       existing.coords = chunk.coords;

@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use js_sys::{Array, Reflect, Uint32Array};
+use js_sys::{Array, Object, Reflect, Uint32Array};
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 use voxelize_lighter::{
@@ -245,12 +245,6 @@ struct ModifiedChunkData {
     lights: Vec<u32>,
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct BatchOutput {
-    modified_chunks: Vec<ModifiedChunkData>,
-}
-
 fn parse_chunks(chunks_data: &Array) -> Vec<Option<ChunkData>> {
     let chunk_count = chunks_data.length() as usize;
     let mut chunks = Vec::with_capacity(chunk_count);
@@ -447,11 +441,29 @@ pub fn process_light_batch_fast(
         }
     });
 
-    let output = BatchOutput {
-        modified_chunks: space.take_modified_chunks(),
-    };
+    let modified_chunks = space.take_modified_chunks();
+    let output = Object::new();
+    let modified_chunks_js = Array::new_with_length(modified_chunks.len() as u32);
+    let modified_chunks_key = JsValue::from_str("modifiedChunks");
+    let coords_key = JsValue::from_str("coords");
+    let lights_key = JsValue::from_str("lights");
 
-    serde_wasm_bindgen::to_value(&output).expect("Unable to serialize lighting output")
+    for (index, chunk) in modified_chunks.into_iter().enumerate() {
+        let chunk_obj = Object::new();
+        let coords = Array::new_with_length(2);
+        coords.set(0, JsValue::from_f64(chunk.coords[0] as f64));
+        coords.set(1, JsValue::from_f64(chunk.coords[1] as f64));
+        Reflect::set(&chunk_obj, &coords_key, &coords).expect("Unable to set chunk coords");
+
+        let lights = Uint32Array::from(chunk.lights.as_slice());
+        Reflect::set(&chunk_obj, &lights_key, &lights).expect("Unable to set chunk lights");
+
+        modified_chunks_js.set(index as u32, chunk_obj.into());
+    }
+
+    Reflect::set(&output, &modified_chunks_key, &modified_chunks_js)
+        .expect("Unable to set modified chunks");
+    output.into()
 }
 
 #[cfg(test)]
