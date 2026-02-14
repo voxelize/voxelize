@@ -105,6 +105,10 @@ export class WorkerPool {
   ) {
     const { name } = options;
     const maxWorker = normalizeMaxWorker(options.maxWorker);
+    this.options = {
+      ...options,
+      maxWorker,
+    };
 
     for (let i = 0; i < maxWorker; i++) {
       const workerOptions: WorkerOptions | undefined = name
