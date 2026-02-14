@@ -8,6 +8,11 @@ describe("BlockUtils.insertStage", () => {
     expect(BlockUtils.extractStage(staged)).toBe(0xf);
   });
 
+  it("wraps negative stage values into packed nibble semantics", () => {
+    const staged = BlockUtils.insertStage(0, -1);
+    expect(BlockUtils.extractStage(staged)).toBe(0xf);
+  });
+
   it("preserves non-stage voxel bits", () => {
     let raw = 0;
     raw = BlockUtils.insertID(raw, 0x1234);
