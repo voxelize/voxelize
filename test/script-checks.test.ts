@@ -168,6 +168,7 @@ type ClientJsonReport = OptionTerminatorMetadata &
       supportsNoBuild: boolean;
     }
   >;
+  availableStepMetadataCount: number;
   steps: ClientJsonStep[];
   totalSteps: number;
   passedStepCount: number;
@@ -393,6 +394,7 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
       supportsNoBuild: boolean;
     }
   >;
+  availableStepMetadataCount: number;
   steps: OnboardingJsonStep[];
   totalSteps: number;
   passedStepCount: number;
@@ -706,6 +708,7 @@ const expectAvailableStepMetadata = (
         supportsNoBuild: boolean;
       }
     >;
+    availableStepMetadataCount: number;
   },
   expectedSteps: string[],
   expectedMetadata: Record<
@@ -771,6 +774,9 @@ const expectAvailableStepMetadata = (
   );
   expect(report.availableStepMetadata).toEqual(metadataFromMaps);
   expect(report.availableStepMetadata).toEqual(expectedMetadata);
+  expect(report.availableStepMetadataCount).toBe(
+    Object.keys(report.availableStepMetadata).length
+  );
 };
 
 const expectedCanonicalOptionForToken = (token: string) => {
