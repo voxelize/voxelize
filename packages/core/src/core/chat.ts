@@ -192,29 +192,32 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
   private parseCommandBody(raw: string) {
     const length = raw.length;
-    let index = 0;
+    let triggerStart = 0;
 
-    while (index < length && raw[index] === " ") {
-      index++;
+    while (triggerStart < length && raw[triggerStart] === " ") {
+      triggerStart++;
     }
 
-    if (index >= length) {
+    if (triggerStart >= length) {
       this.parsedCommandTrigger = "";
       this.parsedCommandRest = "";
       return;
     }
 
-    const triggerStart = index;
-    while (index < length && raw[index] !== " ") {
-      index++;
+    const triggerEnd = raw.indexOf(" ", triggerStart);
+    if (triggerEnd === -1) {
+      this.parsedCommandTrigger = raw.substring(triggerStart);
+      this.parsedCommandRest = "";
+      return;
     }
-    this.parsedCommandTrigger = raw.substring(triggerStart, index);
+    this.parsedCommandTrigger = raw.substring(triggerStart, triggerEnd);
 
-    while (index < length && raw[index] === " ") {
-      index++;
+    let restStart = triggerEnd + 1;
+    while (restStart < length && raw[restStart] === " ") {
+      restStart++;
     }
 
-    this.parsedCommandRest = index < length ? raw.substring(index) : "";
+    this.parsedCommandRest = restStart < length ? raw.substring(restStart) : "";
   }
 
   private splitQuotedTokens(raw: string): string[] {
