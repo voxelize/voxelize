@@ -187,6 +187,12 @@ fn flood_light_from_nodes(
         let end_z = start_z.saturating_add(shape_z);
         (start_x, start_z, end_x, end_z)
     });
+    let (has_bounds_xz, bounds_start_x, bounds_start_z, bounds_end_x, bounds_end_z) =
+        if let Some((start_x, start_z, end_x, end_z)) = bounds_xz {
+            (true, start_x, start_z, end_x, end_z)
+        } else {
+            (false, 0, 0, 0, 0)
+        };
     let mut head = 0usize;
 
     while head < nodes.len() {
@@ -227,10 +233,13 @@ fn flood_light_from_nodes(
                 continue;
             }
 
-            if let Some((start_x, start_z, end_x, end_z)) = bounds_xz {
+            if has_bounds_xz {
                 let nvx_i64 = i64::from(nvx);
                 let nvz_i64 = i64::from(nvz);
-                if nvx_i64 < start_x || nvx_i64 >= end_x || nvz_i64 < start_z || nvz_i64 >= end_z
+                if nvx_i64 < bounds_start_x
+                    || nvx_i64 >= bounds_end_x
+                    || nvz_i64 < bounds_start_z
+                    || nvz_i64 >= bounds_end_z
                 {
                     continue;
                 }
