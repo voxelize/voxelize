@@ -29,6 +29,22 @@
  * @category Effects
  */
 export class ColorText {
+  private static pushSegment(
+    result: { color: string; text: string }[],
+    color: string,
+    segment: string
+  ) {
+    if (segment.length === 0) {
+      return;
+    }
+    const lastIndex = result.length - 1;
+    if (lastIndex >= 0 && result[lastIndex].color === color) {
+      result[lastIndex].text += segment;
+      return;
+    }
+    result.push({ color, text: segment });
+  }
+
   /**
    * The symbol used to separate a text into a colored text object array.
    */
@@ -63,32 +79,25 @@ export class ColorText {
     let cursor = 0;
     let endedOnColorToken = false;
     let openIndex = firstSplitterIndex;
-    const pushSegment = (segment: string) => {
-      if (segment.length === 0) {
-        return;
-      }
-      const lastIndex = result.length - 1;
-      if (lastIndex >= 0 && result[lastIndex].color === currentColor) {
-        result[lastIndex].text += segment;
-        return;
-      }
-      result.push({ color: currentColor, text: segment });
-    };
 
     while (cursor < textLength) {
       if (openIndex === -1) {
-        pushSegment(text.substring(cursor));
+        ColorText.pushSegment(result, currentColor, text.substring(cursor));
         endedOnColorToken = false;
         break;
       }
       if (openIndex > cursor) {
-        pushSegment(text.substring(cursor, openIndex));
+        ColorText.pushSegment(
+          result,
+          currentColor,
+          text.substring(cursor, openIndex)
+        );
         endedOnColorToken = false;
       }
       const tokenStart = openIndex + splitterLength;
       const closeIndex = text.indexOf(splitter, tokenStart);
       if (closeIndex === -1) {
-        pushSegment(text.substring(openIndex));
+        ColorText.pushSegment(result, currentColor, text.substring(openIndex));
         endedOnColorToken = false;
         break;
       }
