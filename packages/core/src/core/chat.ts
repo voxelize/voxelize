@@ -116,6 +116,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   private fallbackCommand: ((rest: string) => void) | null = null;
   private quotedTokensBuffer: string[] = [];
   private positionalValuesBuffer: string[] = [];
+  private parsedArgsObjectBuffer: Record<string, string> = {};
+  private parsedArgsObjectKeysBuffer: string[] = [];
   private parsedCommandTrigger = "";
   private parsedCommandRest = "";
   private parseSchemaInfoBySchema = new WeakMap<
@@ -315,7 +317,18 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     }
 
     const words = this.splitQuotedTokens(raw);
-    const rawObj: Record<string, string> = {};
+    const rawObj = this.parsedArgsObjectBuffer;
+    const rawObjKeys = this.parsedArgsObjectKeysBuffer;
+    for (let index = 0; index < rawObjKeys.length; index++) {
+      delete rawObj[rawObjKeys[index]];
+    }
+    rawObjKeys.length = 0;
+    const setRawArgValue = (key: string, value: string) => {
+      if (rawObj[key] === undefined) {
+        rawObjKeys.push(key);
+      }
+      rawObj[key] = value;
+    };
     const positionalValues = this.positionalValuesBuffer;
     positionalValues.length = 0;
 
@@ -326,13 +339,13 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         const key = word.substring(0, eqIndex);
         const value = word.substring(eqIndex + 1);
         if (hasOwn.call(shape, key)) {
-          rawObj[key] = value;
+          setRawArgValue(key, value);
           continue;
         }
       }
 
       if (booleanKeys.has(word)) {
-        rawObj[word] = "true";
+        setRawArgValue(word, "true");
         continue;
       }
 
@@ -345,7 +358,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       if (rawObj[key] !== undefined) continue;
       if (booleanKeys.has(key)) continue;
       if (posIndex < positionalValues.length) {
-        rawObj[key] = positionalValues[posIndex];
+        setRawArgValue(key, positionalValues[posIndex]);
         posIndex++;
       }
     }
