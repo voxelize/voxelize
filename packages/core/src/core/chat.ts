@@ -127,6 +127,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       keySet: Set<string>;
       booleanKeys: Set<string>;
       positionalKeys: string[];
+      isRestOnly: boolean;
     }
   >();
 
@@ -301,6 +302,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     keySet: Set<string>;
     booleanKeys: Set<string>;
     positionalKeys: string[];
+    isRestOnly: boolean;
   } {
     const cached = this.parseSchemaInfoBySchema.get(schema);
     if (cached) {
@@ -338,7 +340,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       }
     }
 
-    const info = { keys, keySet, booleanKeys, positionalKeys };
+    const isRestOnly = keys.length === 1 && keys[0] === "rest";
+    const info = { keys, keySet, booleanKeys, positionalKeys, isRestOnly };
     this.parseSchemaInfoBySchema.set(schema, info);
     return info;
   }
@@ -347,10 +350,10 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     raw: string,
     schema: T
   ): z.infer<T> {
-    const { keys, keySet, booleanKeys, positionalKeys } =
+    const { keys, keySet, booleanKeys, positionalKeys, isRestOnly } =
       this.getParseSchemaInfo(schema);
 
-    if (keys.length === 1 && keys[0] === "rest") {
+    if (isRestOnly) {
       return schema.parse({ rest: raw.trim() });
     }
 
