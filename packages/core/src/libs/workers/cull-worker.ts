@@ -79,9 +79,9 @@ self.onmessage = function (e: MessageEvent<CullWorkerMessage>) {
     configs: { dimensions, min, max, realMin, realMax, stride },
   } = e.data;
 
-  const positions = [];
-  const normals = [];
-  const indices = [];
+  const positions: number[] = [];
+  const normals: number[] = [];
+  const indices: number[] = [];
 
   const [startX, startY, startZ] = min;
   const [endX, endY, endZ] = max;
