@@ -423,6 +423,11 @@ const requestedCheckResolvedScriptMap = Object.fromEntries(
     return [checkName, resolveCheckDetails(checkName).scriptName];
   })
 );
+const requestedCheckResolvedSupportsNoBuildMap = Object.fromEntries(
+  requestedCheckResolvedChecks.map((checkName) => {
+    return [checkName, resolveCheckDetails(checkName).supportsNoBuild];
+  })
+);
 const requestedCheckResolvedIndices = resolveCheckIndices(requestedCheckResolvedChecks);
 const requestedCheckResolvedIndexMap = Object.fromEntries(
   requestedCheckResolvedChecks.map((checkName) => {
@@ -573,6 +578,7 @@ if (
     requestedCheckResolvedScripts,
     requestedCheckResolvedScriptCount: requestedCheckResolvedScripts.length,
     requestedCheckResolvedScriptMap,
+    requestedCheckResolvedSupportsNoBuildMap,
     requestedCheckResolvedIndices,
     requestedCheckResolvedIndexCount: requestedCheckResolvedIndices.length,
     requestedCheckResolvedIndexMap,
@@ -688,6 +694,7 @@ if (isListChecks) {
     requestedCheckResolvedScripts,
     requestedCheckResolvedScriptCount: requestedCheckResolvedScripts.length,
     requestedCheckResolvedScriptMap,
+    requestedCheckResolvedSupportsNoBuildMap,
     requestedCheckResolvedIndices,
     requestedCheckResolvedIndexCount: requestedCheckResolvedIndices.length,
     requestedCheckResolvedIndexMap,
@@ -811,6 +818,7 @@ const report = buildTimedReport({
   requestedCheckResolvedScripts,
   requestedCheckResolvedScriptCount: requestedCheckResolvedScripts.length,
   requestedCheckResolvedScriptMap,
+  requestedCheckResolvedSupportsNoBuildMap,
   requestedCheckResolvedIndices,
   requestedCheckResolvedIndexCount: requestedCheckResolvedIndices.length,
   requestedCheckResolvedIndexMap,
