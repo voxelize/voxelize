@@ -46,6 +46,15 @@ describe("ChunkUtils.mapVoxelToChunkAt", () => {
   it("normalizes fractional chunk sizes to positive integer divisors", () => {
     expect(ChunkUtils.mapVoxelToChunkAt(31, -1, 15.8)).toEqual([2, -1]);
   });
+
+  it("clamps oversized chunk sizes to i32 max for stable mapping semantics", () => {
+    const largeChunkSize = Number.MAX_SAFE_INTEGER;
+    const vx = 4294967294;
+    expect(ChunkUtils.mapVoxelToChunkAt(vx, 0, largeChunkSize)).toEqual([
+      Math.floor(vx / 2147483647),
+      0,
+    ]);
+  });
 });
 
 describe("ChunkUtils.mapVoxelToChunkLocal", () => {

@@ -26,7 +26,10 @@ const normalizeChunkSize = (chunkSize: number) => {
     return 1;
   }
   const normalized = Math.floor(chunkSize);
-  return normalized > 0 ? normalized : 1;
+  if (normalized <= 0) {
+    return 1;
+  }
+  return normalized > MAX_INT32 ? MAX_INT32 : normalized;
 };
 
 const normalizeChunkMapping = (chunkSize: number): [number, number] => {
