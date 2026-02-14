@@ -278,6 +278,9 @@ pub fn flood_light(
     bounds: Option<&LightBounds>,
     registry: &LightRegistry,
 ) {
+    if queue.is_empty() {
+        return;
+    }
     flood_light_from_nodes(space, queue.into_iter().collect(), color, config, bounds, registry);
 }
 
