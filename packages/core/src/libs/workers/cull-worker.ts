@@ -61,19 +61,6 @@ const FACES = [
   },
 ];
 
-function get(
-  arr: Uint8Array,
-  x: number,
-  y: number,
-  z: number,
-  strideX: number,
-  strideY: number,
-  strideZ: number
-) {
-  const index = x * strideX + y * strideY + z * strideZ;
-  return index >= arr.length || index < 0 ? 0 : arr[index];
-}
-
 // @ts-ignore
 onmessage = function (e) {
   const {
@@ -96,7 +83,9 @@ onmessage = function (e) {
   for (let vx = startX, x = 0; vx < endX; ++vx, ++x) {
     for (let vz = startZ, z = 0; vz < endZ; ++vz, ++z) {
       for (let vy = startY, y = 0; vy < endY; ++vy, ++y) {
-        const voxel = get(data, vx, vy, vz, strideX, strideY, strideZ);
+        const voxelIndex = vx * strideX + vy * strideY + vz * strideZ;
+        const voxel =
+          voxelIndex >= 0 && voxelIndex < data.length ? data[voxelIndex] : 0;
 
         if (voxel) {
           // There is a voxel here but do we need faces for it?
@@ -113,11 +102,15 @@ onmessage = function (e) {
               nvy >= realStartY &&
               nvz < realEndZ &&
               nvz >= realStartZ;
+            let neighborSolid = 0;
+            if (inRealBounds) {
+              const neighborIndex = nvx * strideX + nvy * strideY + nvz * strideZ;
+              if (neighborIndex >= 0 && neighborIndex < data.length) {
+                neighborSolid = data[neighborIndex];
+              }
+            }
 
-            if (
-              !inRealBounds ||
-              !get(data, nvx, nvy, nvz, strideX, strideY, strideZ)
-            ) {
+            if (!neighborSolid) {
               // this voxel has no neighbor in this direction so we need a face.
               const ndx = positions.length / 3;
 
