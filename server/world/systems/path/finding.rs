@@ -70,7 +70,7 @@ impl<'a> System<'a> for PathFindingSystem {
             let half_width = clamp_f64_to_i32((f64::from(aabb_width) * 0.5).ceil()).max(0);
 
             // Check corners and edges of the bot's base
-            let check_points = vec![
+            let check_points = [
                 (-half_width, -half_width),
                 (half_width, -half_width),
                 (-half_width, half_width),
