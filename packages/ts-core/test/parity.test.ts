@@ -937,7 +937,7 @@ describe("Type builders", () => {
   });
 
   it("builds conditional parts with deterministic defaults for non-object inputs", () => {
-    const partFromNull = createBlockConditionalPart(null as never);
+    const partFromNull = createBlockConditionalPart(null);
     const partFromNumber = createBlockConditionalPart(42 as never);
 
     expect(partFromNull).toEqual({
@@ -983,7 +983,7 @@ describe("Type builders", () => {
 
   it("sanitizes null and non-array transparency inputs to defaults", () => {
     const nullTransparencyPart = createBlockConditionalPart({
-      isTransparent: null as never,
+      isTransparent: null,
     });
     const scalarTransparencyPart = createBlockConditionalPart({
       isTransparent: 1 as never,
@@ -1173,8 +1173,8 @@ describe("Type builders", () => {
     };
     const validAabb = AABB.create(0, 0, 0, 1, 1, 1);
     const part = createBlockConditionalPart({
-      faces: [null as never, { name: 42 } as never, validFaceInit],
-      aabbs: [null as never, { clone: "not-a-function" } as never, validAabb],
+      faces: [null, { name: 42 } as never, validFaceInit],
+      aabbs: [null, { clone: "not-a-function" } as never, validAabb],
     });
 
     expect(part.faces).toHaveLength(1);
@@ -1560,7 +1560,7 @@ describe("Type builders", () => {
   });
 
   it("builds dynamic patterns with deterministic defaults for non-object inputs", () => {
-    const patternFromNull = createBlockDynamicPattern(null as never);
+    const patternFromNull = createBlockDynamicPattern(null);
     const patternFromNumber = createBlockDynamicPattern(42 as never);
 
     expect(patternFromNull.parts).toEqual([]);
@@ -1569,7 +1569,7 @@ describe("Type builders", () => {
 
   it("skips malformed dynamic pattern part entries", () => {
     const pattern = createBlockDynamicPattern({
-      parts: [null as never, 42 as never, [] as never, { worldSpace: true }],
+      parts: [null, 42 as never, [] as never, { worldSpace: true }],
     });
 
     expect(pattern.parts).toEqual([
@@ -1696,8 +1696,8 @@ describe("Type builders", () => {
     const pattern = createBlockDynamicPattern({
       parts: [
         {
-          faces: [null as never, { name: 42 } as never, validFaceInit],
-          aabbs: [null as never, { clone: "not-a-function" } as never, validAabb],
+          faces: [null, { name: 42 } as never, validFaceInit],
+          aabbs: [null, { clone: "not-a-function" } as never, validAabb],
         },
       ],
     });

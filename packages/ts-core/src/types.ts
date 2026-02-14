@@ -165,15 +165,15 @@ export type FaceTransparencyInput = readonly [
 ];
 
 export interface BlockConditionalPartInput {
-  rule?: BlockRule;
-  faces?: readonly BlockFaceInput[];
-  aabbs?: readonly AABB[];
-  isTransparent?: FaceTransparencyInput;
-  worldSpace?: boolean;
+  rule?: BlockRule | null;
+  faces?: readonly (BlockFaceInput | null)[];
+  aabbs?: readonly (AABB | null)[];
+  isTransparent?: FaceTransparencyInput | null;
+  worldSpace?: boolean | null;
 }
 
 export interface BlockDynamicPatternInput {
-  parts?: readonly BlockConditionalPartInput[];
+  parts?: readonly (BlockConditionalPartInput | null)[];
 }
 
 type DynamicValue =
@@ -441,7 +441,11 @@ const toBlockFaceInit = (face: BlockFaceInput): BlockFaceInit | null => {
   };
 };
 
-const cloneBlockFace = (face: BlockFaceInput): BlockFace | null => {
+const cloneBlockFace = (face: BlockFaceInput | null): BlockFace | null => {
+  if (face === null) {
+    return null;
+  }
+
   const faceInit = toBlockFaceInit(face);
   if (faceInit === null) {
     return null;
@@ -451,7 +455,7 @@ const cloneBlockFace = (face: BlockFaceInput): BlockFace | null => {
 };
 
 export const createBlockConditionalPart = (
-  part: BlockConditionalPartInput = {}
+  part: BlockConditionalPartInput | null = {}
 ): BlockConditionalPart => {
   const normalizedPart =
     part !== null && typeof part === "object" && !Array.isArray(part)
@@ -491,7 +495,7 @@ export const createBlockConditionalPart = (
 };
 
 export const createBlockDynamicPattern = (
-  pattern: BlockDynamicPatternInput = {}
+  pattern: BlockDynamicPatternInput | null = {}
 ): BlockDynamicPattern => {
   const normalizedPattern =
     pattern !== null && typeof pattern === "object" && !Array.isArray(pattern)

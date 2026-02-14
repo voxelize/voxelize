@@ -43,7 +43,7 @@ flowchart LR
 - `VoxelAccess`: shared access contract
 
 Both helper constructors use deterministic defaults when optional fields are
-omitted.
+omitted or the top-level helper input is `null`.
 `createBlockConditionalPart` accepts either `BlockFace` instances or
 `BlockFaceInit` objects in `faces`.
 Both helpers also accept readonly input arrays/tuples.
