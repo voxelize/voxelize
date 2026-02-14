@@ -136,6 +136,7 @@ pub struct KdTree {
     entities: EntityTree,
     entity_map: HashMap<EntityId, Entity>,
     kind_map: HashMap<EntityId, EntityKind>,
+    removal_buffer: Vec<EntityId>,
 }
 
 impl Default for KdTree {
@@ -188,6 +189,7 @@ impl KdTree {
             entities: EntityTree::new(),
             entity_map: HashMap::new(),
             kind_map: HashMap::new(),
+            removal_buffer: Vec::new(),
         }
     }
 
@@ -197,6 +199,7 @@ impl KdTree {
         self.entities.clear();
         self.entity_map.clear();
         self.kind_map.clear();
+        self.removal_buffer.clear();
     }
 
     pub fn add_player(&mut self, ent: Entity, point: &Vec3<f32>) {
@@ -277,16 +280,18 @@ impl KdTree {
     where
         F: Fn(EntityId) -> bool,
     {
-        let to_remove: Vec<EntityId> = self
-            .kind_map
-            .iter()
-            .filter(|(&id, _)| !f(id))
-            .map(|(&id, _)| id)
-            .collect();
+        let mut to_remove = std::mem::take(&mut self.removal_buffer);
+        to_remove.clear();
+        for (&id, _) in self.kind_map.iter() {
+            if !f(id) {
+                to_remove.push(id);
+            }
+        }
 
-        for ent_id in to_remove {
+        for &ent_id in &to_remove {
             self.remove_entity_by_id(ent_id);
         }
+        self.removal_buffer = to_remove;
     }
 
     pub fn search(&self, point: &Vec3<f32>, count: usize) -> Vec<(f32, &Entity)> {
