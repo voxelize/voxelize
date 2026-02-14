@@ -1294,6 +1294,66 @@ describe("Type builders", () => {
     });
   });
 
+  it("sanitizes cyclic createBlockRule inputs without throwing", () => {
+    type CyclicCombinationRule = {
+      type: "combination";
+      logic: BlockRuleLogic;
+      rules: CyclicRuleValue[];
+    };
+    type CyclicRuleValue =
+      | CyclicCombinationRule
+      | {
+          type: "simple";
+          offset: [number, number, number];
+          id: number;
+        };
+
+    const cyclicRule: CyclicCombinationRule = {
+      type: "combination",
+      logic: BlockRuleLogic.And,
+      rules: [],
+    };
+    cyclicRule.rules.push({
+      type: "simple",
+      offset: [1, 0, 0],
+      id: 5,
+    });
+    cyclicRule.rules.push(cyclicRule);
+
+    expect(createBlockRule(cyclicRule as never)).toEqual({
+      type: "combination",
+      logic: BlockRuleLogic.And,
+      rules: [
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 5,
+        },
+        {
+          type: "none",
+        },
+      ],
+    });
+    expect(
+      createBlockConditionalPart({
+        rule: cyclicRule as never,
+      }).rule
+    ).toEqual({
+      type: "combination",
+      logic: BlockRuleLogic.And,
+      rules: [
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 5,
+        },
+        {
+          type: "none",
+        },
+      ],
+    });
+  });
+
   it("sanitizes malformed optional fields in simple rules", () => {
     const part = createBlockConditionalPart({
       rule: {

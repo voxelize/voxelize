@@ -293,68 +293,79 @@ const toOptionalRuleRotation = (
   return new BlockRotation(maybeRotation.value, maybeRotation.yRotation);
 };
 
-const toBlockRule = (value: DynamicValue): BlockRule => {
+const toBlockRule = (
+  value: DynamicValue,
+  path: Set<object> = new Set<object>()
+): BlockRule => {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return { type: "none" };
   }
-
-  const maybeRule = value as {
-    type?: DynamicValue;
-    logic?: DynamicValue;
-    rules?: DynamicValue;
-    offset?: DynamicValue;
-    id?: DynamicValue;
-    rotation?: DynamicValue;
-    stage?: DynamicValue;
-  };
-  if (maybeRule.type === "none") {
+  if (path.has(value)) {
     return { type: "none" };
   }
 
-  if (maybeRule.type === "simple") {
-    if (!isVec3Value(maybeRule.offset)) {
+  path.add(value);
+  try {
+    const maybeRule = value as {
+      type?: DynamicValue;
+      logic?: DynamicValue;
+      rules?: DynamicValue;
+      offset?: DynamicValue;
+      id?: DynamicValue;
+      rotation?: DynamicValue;
+      stage?: DynamicValue;
+    };
+    if (maybeRule.type === "none") {
       return { type: "none" };
     }
 
-    const simpleRule: { type: "simple" } & BlockSimpleRule = {
-      type: "simple",
-      offset: [...maybeRule.offset],
-    };
-    const id = toOptionalRuleNumber(maybeRule.id);
-    if (id !== undefined) {
-      simpleRule.id = id;
-    }
-    const stage = toOptionalRuleNumber(maybeRule.stage);
-    if (stage !== undefined) {
-      simpleRule.stage = stage;
-    }
-    const rotation = toOptionalRuleRotation(maybeRule.rotation);
-    if (rotation !== undefined) {
-      simpleRule.rotation = rotation;
+    if (maybeRule.type === "simple") {
+      if (!isVec3Value(maybeRule.offset)) {
+        return { type: "none" };
+      }
+
+      const simpleRule: { type: "simple" } & BlockSimpleRule = {
+        type: "simple",
+        offset: [...maybeRule.offset],
+      };
+      const id = toOptionalRuleNumber(maybeRule.id);
+      if (id !== undefined) {
+        simpleRule.id = id;
+      }
+      const stage = toOptionalRuleNumber(maybeRule.stage);
+      if (stage !== undefined) {
+        simpleRule.stage = stage;
+      }
+      const rotation = toOptionalRuleRotation(maybeRule.rotation);
+      if (rotation !== undefined) {
+        simpleRule.rotation = rotation;
+      }
+
+      return simpleRule;
     }
 
-    return simpleRule;
+    if (maybeRule.type === "combination") {
+      const logic =
+        maybeRule.logic === BlockRuleLogic.And ||
+        maybeRule.logic === BlockRuleLogic.Or ||
+        maybeRule.logic === BlockRuleLogic.Not
+          ? maybeRule.logic
+          : null;
+      if (logic === null || !Array.isArray(maybeRule.rules)) {
+        return { type: "none" };
+      }
+
+      return {
+        type: "combination",
+        logic,
+        rules: maybeRule.rules.map((nestedRule) => toBlockRule(nestedRule, path)),
+      };
+    }
+
+    return { type: "none" };
+  } finally {
+    path.delete(value);
   }
-
-  if (maybeRule.type === "combination") {
-    const logic =
-      maybeRule.logic === BlockRuleLogic.And ||
-      maybeRule.logic === BlockRuleLogic.Or ||
-      maybeRule.logic === BlockRuleLogic.Not
-        ? maybeRule.logic
-        : null;
-    if (logic === null || !Array.isArray(maybeRule.rules)) {
-      return { type: "none" };
-    }
-
-    return {
-      type: "combination",
-      logic,
-      rules: maybeRule.rules.map((nestedRule) => toBlockRule(nestedRule)),
-    };
-  }
-
-  return { type: "none" };
 };
 
 export const createBlockRule = (

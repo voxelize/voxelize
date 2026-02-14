@@ -89,6 +89,7 @@ const voxel = Voxel.pack({
     transparency tuple entries fall back to `false`
 - `createBlockRule`
   - clones and sanitizes rule definitions with deterministic `none` fallbacks
+  - breaks cyclic rule graphs safely by replacing cycle edges with `none`
 - `createBlockDynamicPattern`
   - defensively clones dynamic-pattern part inputs using
     `createBlockConditionalPart`
