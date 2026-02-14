@@ -67,6 +67,9 @@ describe("script aliases", () => {
     expect(manifest.scripts["check:runtime-libraries:verify:json:compact"]).toBe(
       "node ./check-runtime-libraries.mjs --json --verify --compact"
     );
+    expect(manifest.scripts["check:runtime-libraries:release"]).toBe(
+      "pnpm --filter @voxelize/aabb run build && pnpm --filter @voxelize/raycast run build && pnpm --filter @voxelize/physics-engine run build && pnpm run check:runtime-libraries:verify:json"
+    );
     expect(manifest.scripts["check:ts-core"]).toBe("node ./check-ts-core.mjs");
     expect(manifest.scripts["check:ts-core:json"]).toBe(
       "node ./check-ts-core.mjs --json"
