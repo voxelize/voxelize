@@ -287,28 +287,29 @@ export class Perspective {
 
   update = () => {
     const { object, camera } = this.controls;
+    const state = this.state;
     const lerpFactor = normalizeFinite(
       this.options.lerpFactor,
       defaultOptions.lerpFactor
     );
 
-    if (this.controls.character) {
-      if (this.state === "first" && this.controls.character.visible) {
-        this.controls.character.visible = false;
-      } else if (this.state !== "first" && !this.controls.character.visible) {
-        this.controls.character.visible = true;
+    const character = this.controls.character;
+    if (character) {
+      const shouldShowCharacter = state !== "first";
+      if (character.visible !== shouldShowCharacter) {
+        character.visible = shouldShowCharacter;
       }
     }
 
-    if (this.controls.arm) {
-      if (this.state === "first" && !this.controls.arm.visible) {
-        this.controls.arm.visible = true;
-      } else if (this.state !== "first" && this.controls.arm.visible) {
-        this.controls.arm.visible = false;
+    const arm = this.controls.arm;
+    if (arm) {
+      const shouldShowArm = state === "first";
+      if (arm.visible !== shouldShowArm) {
+        arm.visible = shouldShowArm;
       }
     }
 
-    switch (this.state) {
+    switch (state) {
       case "first": {
         break;
       }
