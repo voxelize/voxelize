@@ -437,6 +437,9 @@ export class MeshPipeline {
     if (maxCount <= 0) {
       return { keys: [], hasMore: false };
     }
+    if (this.dirty.size === 0) {
+      return { keys: [], hasMore: false };
+    }
 
     const dirtyKeys = new Array<string>(
       Number.isFinite(maxCount)
@@ -483,6 +486,10 @@ export class MeshPipeline {
   }
 
   hasDirtyChunks(): boolean {
+    if (this.dirty.size === 0) {
+      return false;
+    }
+
     let dirtyEntries = this.dirty.values();
     let dirtyEntry = dirtyEntries.next();
     while (!dirtyEntry.done) {
