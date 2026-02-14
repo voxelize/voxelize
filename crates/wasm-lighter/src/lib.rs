@@ -442,6 +442,9 @@ fn compute_expected_chunk_sizes(
     chunk_grid_width: usize,
     chunk_grid_depth: usize,
 ) -> Option<(usize, usize)> {
+    if chunk_size <= 0 || max_height <= 0 {
+        return None;
+    }
     let chunk_size_usize = usize::try_from(chunk_size).ok()?;
     let chunk_height = usize::try_from(max_height).ok()?;
     let expected_chunk_len = chunk_size_usize
@@ -786,7 +789,7 @@ mod tests {
             super::compute_expected_chunk_sizes(16, 64, 3, 2),
             Some((16 * 64 * 16, 6))
         );
-        assert_eq!(super::compute_expected_chunk_sizes(0, 64, 1, 1), Some((0, 1)));
+        assert_eq!(super::compute_expected_chunk_sizes(0, 64, 1, 1), None);
         assert_eq!(super::compute_expected_chunk_sizes(16, -1, 1, 1), None);
         assert_eq!(super::compute_expected_chunk_sizes(i32::MAX, i32::MAX, 2, 2), None);
         assert_eq!(super::compute_expected_chunk_sizes(16, 64, usize::MAX, 2), None);
