@@ -293,7 +293,7 @@ impl VoxelAccess for Space {
             panic!("Space does not contain light data.");
         }
 
-        if vy > 0 && vy as usize >= self.options.max_height {
+        if vy >= self.options.max_height as i32 {
             return LightUtils::insert_sunlight(0, self.options.max_light_level);
         } else if vy < 0 {
             return 0;
