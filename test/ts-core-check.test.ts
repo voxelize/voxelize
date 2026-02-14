@@ -48,8 +48,12 @@ type TsCoreCheckReport = {
   packageReport: {
     packageName: string;
     packagePath: string;
+    packageIndex: number;
     requiredArtifacts: string[];
     requiredArtifactCount: number;
+    checkCommand: string;
+    checkArgs: string[];
+    checkArgCount: number;
     presentArtifacts: string[];
     presentArtifactCount: number;
     missingArtifacts: string[];
@@ -62,8 +66,12 @@ type TsCoreCheckReport = {
     {
       packageName: string;
       packagePath: string;
+      packageIndex: number;
       requiredArtifacts: string[];
       requiredArtifactCount: number;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
       presentArtifacts: string[];
       presentArtifactCount: number;
       missingArtifacts: string[];
@@ -72,6 +80,12 @@ type TsCoreCheckReport = {
     }
   >;
   packageReportMapCount: number;
+  packageCheckCommandMap: Record<string, string>;
+  packageCheckCommandMapCount: number;
+  packageCheckArgsMap: Record<string, string[]>;
+  packageCheckArgsMapCount: number;
+  packageCheckArgCountMap: Record<string, number>;
+  packageCheckArgCountMapCount: number;
   packagePath: string;
   requiredArtifacts: string[];
   requiredArtifactsByPackage: Record<string, string[]>;
@@ -105,6 +119,15 @@ type TsCoreCheckReport = {
   missingArtifactCount: number;
   missingArtifactCountByPackage: Record<string, number>;
   missingArtifactCountByPackageCount: number;
+  failureSummaries: Array<{
+    packageName: string;
+    packagePath: string;
+    packageIndex: number;
+    missingArtifacts: string[];
+    missingArtifactCount: number;
+    message: string;
+  }>;
+  failureSummaryCount: number;
   missingArtifactSummary: string | null;
   attemptedBuild: boolean;
   buildSkipped: boolean;
@@ -175,6 +198,7 @@ const expectedCheckedPackageIndexMap = {
 const expectedRequiredArtifactCountByPackage = {
   "@voxelize/ts-core": expectedRequiredArtifacts.length,
 };
+const expectedPackageCheckCommand = "artifact-exists";
 const expectedBuildArgs = [
   "--dir",
   rootDir,
@@ -321,8 +345,12 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
   const expectedPackageReport = {
     packageName: report.checkedPackage,
     packagePath: report.checkedPackagePath,
+    packageIndex: report.checkedPackageIndices[0],
     requiredArtifacts: report.requiredArtifacts,
     requiredArtifactCount: report.requiredArtifactCount,
+    checkCommand: expectedPackageCheckCommand,
+    checkArgs: report.requiredArtifacts,
+    checkArgCount: report.requiredArtifactCount,
     presentArtifacts: report.presentArtifacts,
     presentArtifactCount: report.presentArtifactCount,
     missingArtifacts: report.missingArtifacts,
@@ -336,6 +364,24 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
   });
   expect(report.packageReportMapCount).toBe(
     Object.keys(report.packageReportMap).length
+  );
+  expect(report.packageCheckCommandMap).toEqual({
+    [report.checkedPackage]: expectedPackageCheckCommand,
+  });
+  expect(report.packageCheckCommandMapCount).toBe(
+    Object.keys(report.packageCheckCommandMap).length
+  );
+  expect(report.packageCheckArgsMap).toEqual({
+    [report.checkedPackage]: report.requiredArtifacts,
+  });
+  expect(report.packageCheckArgsMapCount).toBe(
+    Object.keys(report.packageCheckArgsMap).length
+  );
+  expect(report.packageCheckArgCountMap).toEqual({
+    [report.checkedPackage]: report.requiredArtifactCount,
+  });
+  expect(report.packageCheckArgCountMapCount).toBe(
+    Object.keys(report.packageCheckArgCountMap).length
   );
   expect(report.checkedPackagePathMap).toEqual({
     [report.checkedPackage]: report.checkedPackagePath,
@@ -408,6 +454,21 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
   expect(report.missingArtifactCountByPackageCount).toBe(
     Object.keys(report.missingArtifactCountByPackage).length
   );
+  const expectedFailureSummaries =
+    report.missingArtifactCount === 0
+      ? []
+      : [
+          {
+            packageName: report.checkedPackage,
+            packagePath: report.checkedPackagePath,
+            packageIndex: report.checkedPackageIndices[0],
+            missingArtifacts: report.missingArtifacts,
+            missingArtifactCount: report.missingArtifactCount,
+            message: `Missing artifacts for ${report.checkedPackage}: ${report.missingArtifacts.join(", ")}.`,
+          },
+        ];
+  expect(report.failureSummaries).toEqual(expectedFailureSummaries);
+  expect(report.failureSummaryCount).toBe(report.failureSummaries.length);
   if (report.missingArtifactCount === 0) {
     expect(report.missingArtifactSummary).toBeNull();
   } else {

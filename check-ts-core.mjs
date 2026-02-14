@@ -153,6 +153,9 @@ const withBaseReportFields = (report) => {
   const checkedPackagePathMap = {
     [tsCorePackageName]: tsCorePackagePath,
   };
+  const packageCheckCommand = "artifact-exists";
+  const packageCheckArgs = requiredArtifacts;
+  const packageCheckArgCount = packageCheckArgs.length;
   const requiredArtifactCountByPackage = {
     [tsCorePackageName]: requiredArtifacts.length,
   };
@@ -184,8 +187,12 @@ const withBaseReportFields = (report) => {
   const packageReport = {
     packageName: tsCorePackageName,
     packagePath: tsCorePackagePath,
+    packageIndex: 0,
     requiredArtifacts,
     requiredArtifactCount: requiredArtifacts.length,
+    checkCommand: packageCheckCommand,
+    checkArgs: packageCheckArgs,
+    checkArgCount: packageCheckArgCount,
     presentArtifacts,
     presentArtifactCount,
     missingArtifacts,
@@ -195,6 +202,28 @@ const withBaseReportFields = (report) => {
   const packageReportMap = {
     [tsCorePackageName]: packageReport,
   };
+  const packageCheckCommandMap = {
+    [tsCorePackageName]: packageCheckCommand,
+  };
+  const packageCheckArgsMap = {
+    [tsCorePackageName]: packageCheckArgs,
+  };
+  const packageCheckArgCountMap = {
+    [tsCorePackageName]: packageCheckArgCount,
+  };
+  const failureSummaries =
+    missingArtifacts.length === 0
+      ? []
+      : [
+          {
+            packageName: tsCorePackageName,
+            packagePath: tsCorePackagePath,
+            packageIndex: 0,
+            missingArtifacts,
+            missingArtifactCount: missingArtifacts.length,
+            message: `Missing artifacts for ${tsCorePackageName}: ${missingArtifacts.join(", ")}.`,
+          },
+        ];
   const buildExitCode =
     typeof report.buildExitCode === "number" ? report.buildExitCode : null;
   const buildDurationMs =
@@ -263,6 +292,12 @@ const withBaseReportFields = (report) => {
     packageReportCount: 1,
     packageReportMap,
     packageReportMapCount: countRecordEntries(packageReportMap),
+    packageCheckCommandMap,
+    packageCheckCommandMapCount: countRecordEntries(packageCheckCommandMap),
+    packageCheckArgsMap,
+    packageCheckArgsMapCount: countRecordEntries(packageCheckArgsMap),
+    packageCheckArgCountMap,
+    packageCheckArgCountMapCount: countRecordEntries(packageCheckArgCountMap),
     packagePath: tsCorePackagePath,
     requiredArtifacts,
     requiredArtifactsByPackage,
@@ -289,6 +324,8 @@ const withBaseReportFields = (report) => {
     missingArtifactCountByPackageCount: countRecordEntries(
       missingArtifactCountByPackage
     ),
+    failureSummaries,
+    failureSummaryCount: failureSummaries.length,
     missingArtifactSummary,
     buildCommand: pnpmCommand,
     buildArgs: buildCommandArgs,

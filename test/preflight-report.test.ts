@@ -251,8 +251,12 @@ type TsCoreNestedReport = {
   packageReport: {
     packageName: string;
     packagePath: string;
+    packageIndex: number;
     requiredArtifacts: string[];
     requiredArtifactCount: number;
+    checkCommand: string;
+    checkArgs: string[];
+    checkArgCount: number;
     presentArtifacts: string[];
     presentArtifactCount: number;
     missingArtifacts: string[];
@@ -265,8 +269,12 @@ type TsCoreNestedReport = {
     {
       packageName: string;
       packagePath: string;
+      packageIndex: number;
       requiredArtifacts: string[];
       requiredArtifactCount: number;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
       presentArtifacts: string[];
       presentArtifactCount: number;
       missingArtifacts: string[];
@@ -275,6 +283,12 @@ type TsCoreNestedReport = {
     }
   >;
   packageReportMapCount: number;
+  packageCheckCommandMap: Record<string, string>;
+  packageCheckCommandMapCount: number;
+  packageCheckArgsMap: Record<string, string[]>;
+  packageCheckArgsMapCount: number;
+  packageCheckArgCountMap: Record<string, number>;
+  packageCheckArgCountMapCount: number;
   packagePath: string;
   requiredArtifacts: string[];
   requiredArtifactsByPackage: Record<string, string[]>;
@@ -303,6 +317,15 @@ type TsCoreNestedReport = {
   missingArtifactCount: number;
   missingArtifactCountByPackage: Record<string, number>;
   missingArtifactCountByPackageCount: number;
+  failureSummaries: Array<{
+    packageName: string;
+    packagePath: string;
+    packageIndex: number;
+    missingArtifacts: string[];
+    missingArtifactCount: number;
+    message: string;
+  }>;
+  failureSummaryCount: number;
   missingArtifactSummary: string | null;
   artifactsPresent: boolean;
   buildCommand: string;
@@ -318,8 +341,12 @@ type TsCoreNestedReport = {
 type RuntimeLibrariesNestedPackageReport = {
   packageName: string;
   packagePath: string;
+  packageIndex: number;
   requiredArtifacts: string[];
   requiredArtifactCount: number;
+  checkCommand: string;
+  checkArgs: string[];
+  checkArgCount: number;
   presentArtifacts: string[];
   presentArtifactCount: number;
   missingArtifacts: string[];
@@ -364,6 +391,12 @@ type RuntimeLibrariesNestedReport = {
   packageReports: RuntimeLibrariesNestedPackageReport[];
   requiredArtifactCount: number;
   requiredArtifactCountByPackageCount: number;
+  packageCheckCommandMap: Record<string, string>;
+  packageCheckCommandMapCount: number;
+  packageCheckArgsMap: Record<string, string[]>;
+  packageCheckArgsMapCount: number;
+  packageCheckArgCountMap: Record<string, number>;
+  packageCheckArgCountMapCount: number;
   packageStatusMap: Record<string, "present" | "missing">;
   packageStatusMapCount: number;
   packageStatusCountMap: {
@@ -387,6 +420,15 @@ type RuntimeLibrariesNestedReport = {
   missingArtifactCount: number;
   missingArtifactsByPackageCount: number;
   missingArtifactCountByPackageCount: number;
+  failureSummaries: Array<{
+    packageName: string;
+    packagePath: string;
+    packageIndex: number;
+    missingArtifacts: string[];
+    missingArtifactCount: number;
+    message: string;
+  }>;
+  failureSummaryCount: number;
   missingArtifactSummary: string | null;
   buildCommand: string;
   buildArgs: string[];
@@ -815,6 +857,7 @@ const expectedTsCoreCheckedPackageIndexMap = {
 const expectedTsCoreRequiredArtifactCountByPackage = {
   "@voxelize/ts-core": expectedTsCoreRequiredArtifacts.length,
 };
+const expectedTsCorePackageCheckCommand = "artifact-exists";
 const expectedTsCoreBuildArgs = [
   "--dir",
   rootDir,
@@ -881,6 +924,7 @@ const expectedRuntimeLibrariesRequiredArtifactCountByPackage = Object.fromEntrie
     }
   )
 );
+const expectedRuntimeLibrariesPackageCheckCommand = "artifact-exists";
 const expectedRuntimeLibrariesBuildArgs = [
   "--dir",
   rootDir,
@@ -2070,8 +2114,12 @@ const expectTsCoreNestedReport = (
   const expectedPackageReport = {
     packageName: report.checkedPackage,
     packagePath: report.checkedPackagePath,
+    packageIndex: report.checkedPackageIndices[0],
     requiredArtifacts: report.requiredArtifacts,
     requiredArtifactCount: report.requiredArtifactCount,
+    checkCommand: expectedTsCorePackageCheckCommand,
+    checkArgs: report.requiredArtifacts,
+    checkArgCount: report.requiredArtifactCount,
     presentArtifacts: report.presentArtifacts,
     presentArtifactCount: report.presentArtifactCount,
     missingArtifacts: report.missingArtifacts,
@@ -2085,6 +2133,24 @@ const expectTsCoreNestedReport = (
   });
   expect(report.packageReportMapCount).toBe(
     Object.keys(report.packageReportMap).length
+  );
+  expect(report.packageCheckCommandMap).toEqual({
+    [report.checkedPackage]: expectedTsCorePackageCheckCommand,
+  });
+  expect(report.packageCheckCommandMapCount).toBe(
+    Object.keys(report.packageCheckCommandMap).length
+  );
+  expect(report.packageCheckArgsMap).toEqual({
+    [report.checkedPackage]: report.requiredArtifacts,
+  });
+  expect(report.packageCheckArgsMapCount).toBe(
+    Object.keys(report.packageCheckArgsMap).length
+  );
+  expect(report.packageCheckArgCountMap).toEqual({
+    [report.checkedPackage]: report.requiredArtifactCount,
+  });
+  expect(report.packageCheckArgCountMapCount).toBe(
+    Object.keys(report.packageCheckArgCountMap).length
   );
   expect(report.checkedPackagePathMap).toEqual({
     [report.checkedPackage]: report.checkedPackagePath,
@@ -2159,6 +2225,21 @@ const expectTsCoreNestedReport = (
   expect(report.missingArtifactCountByPackageCount).toBe(
     Object.keys(report.missingArtifactCountByPackage).length
   );
+  const expectedFailureSummaries =
+    report.missingArtifactCount === 0
+      ? []
+      : [
+          {
+            packageName: report.checkedPackage,
+            packagePath: report.checkedPackagePath,
+            packageIndex: report.checkedPackageIndices[0],
+            missingArtifacts: report.missingArtifacts,
+            missingArtifactCount: report.missingArtifactCount,
+            message: `Missing artifacts for ${report.checkedPackage}: ${report.missingArtifacts.join(", ")}.`,
+          },
+        ];
+  expect(report.failureSummaries).toEqual(expectedFailureSummaries);
+  expect(report.failureSummaryCount).toBe(report.failureSummaries.length);
   if (report.missingArtifactCount === 0) {
     expect(report.missingArtifactSummary).toBeNull();
   } else {
@@ -2367,6 +2448,21 @@ const expectRuntimeLibrariesNestedReport = (
       ];
     })
   );
+  const packageCheckCommandMap = Object.fromEntries(
+    report.packageReports.map((packageReport) => {
+      return [packageReport.packageName, packageReport.checkCommand];
+    })
+  );
+  const packageCheckArgsMap = Object.fromEntries(
+    report.packageReports.map((packageReport) => {
+      return [packageReport.packageName, packageReport.checkArgs];
+    })
+  );
+  const packageCheckArgCountMap = Object.fromEntries(
+    report.packageReports.map((packageReport) => {
+      return [packageReport.packageName, packageReport.checkArgCount];
+    })
+  );
   const presentArtifacts = report.packageReports.reduce((artifacts, packageReport) => {
     return [...artifacts, ...packageReport.presentArtifacts];
   }, [] as string[]);
@@ -2413,6 +2509,18 @@ const expectRuntimeLibrariesNestedReport = (
   expect(report.missingPackageIndices).toEqual(missingPackageIndices);
   expect(report.missingPackageIndices.length).toBe(report.missingPackageIndexCount);
   expect(report.presentArtifactCount).toBe(presentArtifactCount);
+  expect(report.packageCheckCommandMap).toEqual(packageCheckCommandMap);
+  expect(report.packageCheckCommandMapCount).toBe(
+    Object.keys(report.packageCheckCommandMap).length
+  );
+  expect(report.packageCheckArgsMap).toEqual(packageCheckArgsMap);
+  expect(report.packageCheckArgsMapCount).toBe(
+    Object.keys(report.packageCheckArgsMap).length
+  );
+  expect(report.packageCheckArgCountMap).toEqual(packageCheckArgCountMap);
+  expect(report.packageCheckArgCountMapCount).toBe(
+    Object.keys(report.packageCheckArgCountMap).length
+  );
   expect(report.packageStatusMap).toEqual(packageStatusMap);
   expect(report.packageStatusMapCount).toBe(
     Object.keys(report.packageStatusMap).length
@@ -2452,6 +2560,20 @@ const expectRuntimeLibrariesNestedReport = (
   expect(report.missingArtifactCountByPackageCount).toBe(
     Object.keys(report.missingArtifactCountByPackage).length
   );
+  const expectedFailureSummaries = report.packageReports
+    .filter((packageReport) => packageReport.artifactsPresent === false)
+    .map((packageReport) => {
+      return {
+        packageName: packageReport.packageName,
+        packagePath: packageReport.packagePath,
+        packageIndex: packageReport.packageIndex,
+        missingArtifacts: packageReport.missingArtifacts,
+        missingArtifactCount: packageReport.missingArtifactCount,
+        message: `Missing artifacts for ${packageReport.packageName}: ${packageReport.missingArtifacts.join(", ")}.`,
+      };
+    });
+  expect(report.failureSummaries).toEqual(expectedFailureSummaries);
+  expect(report.failureSummaryCount).toBe(report.failureSummaries.length);
   expect(report.missingArtifacts).toEqual(missingArtifacts);
   expect(report.missingArtifacts.length).toBe(report.missingArtifactCount);
   expect([...report.presentArtifacts, ...report.missingArtifacts].sort()).toEqual(
@@ -2469,6 +2591,14 @@ const expectRuntimeLibrariesNestedReport = (
     }
   }
   for (const packageReport of report.packageReports) {
+    expect(packageReport.packageIndex).toBe(
+      report.checkedPackageIndexMap[packageReport.packageName]
+    );
+    expect(packageReport.checkCommand).toBe(
+      expectedRuntimeLibrariesPackageCheckCommand
+    );
+    expect(packageReport.checkArgs).toEqual(packageReport.requiredArtifacts);
+    expect(packageReport.checkArgCount).toBe(packageReport.checkArgs.length);
     expect(packageReport.requiredArtifacts).toEqual(
       expectedRuntimeLibrariesArtifactsByPackage[
         packageReport.packageName as keyof typeof expectedRuntimeLibrariesArtifactsByPackage

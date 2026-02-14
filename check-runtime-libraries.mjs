@@ -100,6 +100,7 @@ const requiredArtifacts = runtimeLibraries.reduce((artifacts, library) => {
 const requiredArtifactCount = runtimeLibraries.reduce((count, library) => {
   return count + library.requiredArtifacts.length;
 }, 0);
+const packageCheckCommand = "artifact-exists";
 const resolvePackageReport = (library) => {
   const missingArtifacts = library.requiredArtifacts.filter((artifactPath) => {
     const absoluteArtifactPath = path.resolve(repositoryRoot, artifactPath);
@@ -110,11 +111,16 @@ const resolvePackageReport = (library) => {
     return !missingArtifactSet.has(artifactPath);
   });
   const presentArtifactCount = library.requiredArtifacts.length - missingArtifacts.length;
+  const checkArgs = library.requiredArtifacts;
   return {
     packageName: library.packageName,
     packagePath: library.packagePath,
+    packageIndex: resolveCheckedPackageIndex(library.packageName),
     requiredArtifacts: library.requiredArtifacts,
     requiredArtifactCount: library.requiredArtifacts.length,
+    checkCommand: packageCheckCommand,
+    checkArgs,
+    checkArgCount: checkArgs.length,
     presentArtifacts,
     presentArtifactCount,
     missingArtifacts,
@@ -169,6 +175,21 @@ const summarizePackageReports = (packageReports) => {
       return [packageReport.packageName, packageReport.presentArtifacts];
     })
   );
+  const packageCheckCommandMap = Object.fromEntries(
+    packageReports.map((packageReport) => {
+      return [packageReport.packageName, packageReport.checkCommand];
+    })
+  );
+  const packageCheckArgsMap = Object.fromEntries(
+    packageReports.map((packageReport) => {
+      return [packageReport.packageName, packageReport.checkArgs];
+    })
+  );
+  const packageCheckArgCountMap = Object.fromEntries(
+    packageReports.map((packageReport) => {
+      return [packageReport.packageName, packageReport.checkArgCount];
+    })
+  );
   const artifactsPresentByPackage = Object.fromEntries(
     packageReports.map((packageReport) => {
       return [packageReport.packageName, packageReport.artifactsPresent];
@@ -213,6 +234,18 @@ const summarizePackageReports = (packageReports) => {
     present: presentPackageCount,
     missing: missingPackageCount,
   };
+  const failureSummaries = packageReports
+    .filter((packageReport) => packageReport.artifactsPresent === false)
+    .map((packageReport) => {
+      return {
+        packageName: packageReport.packageName,
+        packagePath: packageReport.packagePath,
+        packageIndex: packageReport.packageIndex,
+        missingArtifacts: packageReport.missingArtifacts,
+        missingArtifactCount: packageReport.missingArtifactCount,
+        message: `Missing artifacts for ${packageReport.packageName}: ${packageReport.missingArtifacts.join(", ")}.`,
+      };
+    });
   return {
     presentPackages,
     presentPackagePaths,
@@ -228,6 +261,12 @@ const summarizePackageReports = (packageReports) => {
     presentArtifactCount,
     presentArtifacts,
     presentArtifactsByPackage,
+    packageCheckCommandMap,
+    packageCheckCommandMapCount: countRecordEntries(packageCheckCommandMap),
+    packageCheckArgsMap,
+    packageCheckArgsMapCount: countRecordEntries(packageCheckArgsMap),
+    packageCheckArgCountMap,
+    packageCheckArgCountMapCount: countRecordEntries(packageCheckArgCountMap),
     artifactsPresentByPackage,
     packageStatusMap,
     packageStatusMapCount: countRecordEntries(packageStatusMap),
@@ -243,6 +282,8 @@ const summarizePackageReports = (packageReports) => {
     missingArtifacts,
     missingArtifactsByPackage,
     missingArtifactCountByPackage,
+    failureSummaries,
+    failureSummaryCount: failureSummaries.length,
   };
 };
 const formatMissingArtifactSummary = (packageReports) => {
@@ -357,6 +398,12 @@ const withBaseReportFields = (report) => {
     presentArtifactCount,
     presentArtifacts,
     presentArtifactsByPackage,
+    packageCheckCommandMap,
+    packageCheckCommandMapCount,
+    packageCheckArgsMap,
+    packageCheckArgsMapCount,
+    packageCheckArgCountMap,
+    packageCheckArgCountMapCount,
     artifactsPresentByPackage,
     packageStatusMap,
     packageStatusMapCount,
@@ -371,6 +418,8 @@ const withBaseReportFields = (report) => {
     missingArtifacts,
     missingArtifactsByPackage,
     missingArtifactCountByPackage,
+    failureSummaries,
+    failureSummaryCount,
   } = summarizePackageReports(packageReports);
   const buildExitCode =
     typeof report.buildExitCode === "number" ? report.buildExitCode : null;
@@ -436,6 +485,12 @@ const withBaseReportFields = (report) => {
     presentArtifactCount,
     presentArtifacts,
     presentArtifactsByPackage,
+    packageCheckCommandMap,
+    packageCheckCommandMapCount,
+    packageCheckArgsMap,
+    packageCheckArgsMapCount,
+    packageCheckArgCountMap,
+    packageCheckArgCountMapCount,
     artifactsPresentByPackage,
     packageStatusMap,
     packageStatusMapCount,
@@ -450,6 +505,8 @@ const withBaseReportFields = (report) => {
     missingArtifacts,
     missingArtifactsByPackage,
     missingArtifactCountByPackage,
+    failureSummaries,
+    failureSummaryCount,
     presentArtifactsByPackageCount: countRecordEntries(presentArtifactsByPackage),
     artifactsPresentByPackageCount: countRecordEntries(artifactsPresentByPackage),
     presentArtifactCountByPackageCount: countRecordEntries(
