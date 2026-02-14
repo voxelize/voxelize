@@ -94,6 +94,21 @@ enum EntityKind {
     Entity,
 }
 
+#[inline]
+fn normalized_radius_squared(radius: f32) -> Option<f32> {
+    if !radius.is_finite() || radius < 0.0 {
+        return None;
+    }
+    let radius_sq = f64::from(radius) * f64::from(radius);
+    if !radius_sq.is_finite() {
+        return Some(f32::MAX);
+    }
+    if radius_sq > f64::from(f32::MAX) {
+        return Some(f32::MAX);
+    }
+    Some(radius_sq as f32)
+}
+
 #[derive(Debug)]
 pub struct KdTree {
     all: EntityTree,
@@ -262,7 +277,9 @@ impl KdTree {
     }
 
     pub fn players_within_radius(&self, point: &Vec3<f32>, radius: f32) -> Vec<&Entity> {
-        let radius_squared = radius * radius;
+        let Some(radius_squared) = normalized_radius_squared(radius) else {
+            return Vec::new();
+        };
         let results = self
             .players
             .within(&[point.0, point.1, point.2], radius_squared);
@@ -270,5 +287,23 @@ impl KdTree {
             .into_iter()
             .filter_map(|(_, ent_id)| self.entity_map.get(&ent_id))
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalized_radius_squared;
+
+    #[test]
+    fn normalized_radius_squared_rejects_invalid_inputs() {
+        assert_eq!(normalized_radius_squared(-1.0), None);
+        assert_eq!(normalized_radius_squared(f32::NAN), None);
+    }
+
+    #[test]
+    fn normalized_radius_squared_clamps_large_values() {
+        assert_eq!(normalized_radius_squared(2.0), Some(4.0));
+        assert_eq!(normalized_radius_squared(f32::MAX), Some(f32::MAX));
+        assert_eq!(normalized_radius_squared(f32::INFINITY), None);
     }
 }
