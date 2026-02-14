@@ -1992,11 +1992,9 @@ fn extract_greedy_quads_dense_into(
     quads: &mut Vec<GreedyQuad>,
 ) {
     let estimated_cells = width * height;
-    if quads_capacity_hint(estimated_cells) > 0 {
-        let required = quads_capacity_hint(estimated_cells);
-        if quads.capacity() < required {
-            quads.reserve(required - quads.capacity());
-        }
+    let required = quads_capacity_hint(estimated_cells);
+    if quads.capacity() < required {
+        quads.reserve(required - quads.capacity());
     }
     quads.clear();
     let mask_ptr = mask.as_mut_ptr();
