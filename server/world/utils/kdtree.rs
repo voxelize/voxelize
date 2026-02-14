@@ -34,6 +34,9 @@ impl EntityTree {
 
     fn update(&mut self, ent_id: EntityId, new_pos: [f32; 3]) {
         if let Some(old_pos) = self.positions.get(&ent_id) {
+            if old_pos == &new_pos {
+                return;
+            }
             self.tree.remove(old_pos, ent_id);
         }
         self.tree.add(&new_pos, ent_id);
