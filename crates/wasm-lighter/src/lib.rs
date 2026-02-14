@@ -31,7 +31,6 @@ thread_local! {
 struct JsInteropKeys {
     voxels: JsValue,
     lights: JsValue,
-    length: JsValue,
     modified_chunks: JsValue,
     coords: JsValue,
 }
@@ -41,7 +40,6 @@ impl JsInteropKeys {
         Self {
             voxels: JsValue::from_str("voxels"),
             lights: JsValue::from_str("lights"),
-            length: JsValue::from_str("length"),
             modified_chunks: JsValue::from_str("modifiedChunks"),
             coords: JsValue::from_str("coords"),
         }
@@ -413,29 +411,22 @@ pub fn process_light_batch_fast(
     let Some(light_color) = light_color_from_index(color) else {
         return empty_batch_result();
     };
-    let (removal_nodes, flood_nodes): (Vec<[i32; 3]>, Vec<LightNode>) = JS_KEYS.with(|keys| {
-        let removal_nodes = if Reflect::get(&removals, &keys.length)
-            .ok()
-            .and_then(|value| value.as_f64())
-            .unwrap_or(0.0)
-            == 0.0
-        {
-            Vec::new()
-        } else {
-            serde_wasm_bindgen::from_value(removals).expect("Unable to deserialize removal nodes")
-        };
-        let flood_nodes = if Reflect::get(&floods, &keys.length)
-            .ok()
-            .and_then(|value| value.as_f64())
-            .unwrap_or(0.0)
-            == 0.0
-        {
-            Vec::new()
-        } else {
-            serde_wasm_bindgen::from_value(floods).expect("Unable to deserialize flood nodes")
-        };
-        (removal_nodes, flood_nodes)
-    });
+    let removal_nodes: Vec<[i32; 3]> = if removals
+        .dyn_ref::<Array>()
+        .is_some_and(|removal_array| removal_array.length() == 0)
+    {
+        Vec::new()
+    } else {
+        serde_wasm_bindgen::from_value(removals).expect("Unable to deserialize removal nodes")
+    };
+    let flood_nodes: Vec<LightNode> = if floods
+        .dyn_ref::<Array>()
+        .is_some_and(|flood_array| flood_array.length() == 0)
+    {
+        Vec::new()
+    } else {
+        serde_wasm_bindgen::from_value(floods).expect("Unable to deserialize flood nodes")
+    };
     if removal_nodes.is_empty() && flood_nodes.is_empty() {
         return empty_batch_result();
     }
