@@ -3089,14 +3089,17 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     }
 
                     let is_non_greedy_block = !can_greedy_mesh_block(block);
-                    if is_non_greedy_block {
+                    let non_greedy_voxel_key = if is_non_greedy_block {
                         let voxel_key = ((vx - min_x) as usize) * yz_span
                             + ((vy - min_y) as usize) * z_span
                             + (vz - min_z) as usize;
-                        if processed_non_greedy.contains(&voxel_key) {
+                        if !processed_non_greedy.insert(voxel_key) {
                             continue;
                         }
-                    }
+                        Some(voxel_key)
+                    } else {
+                        None
+                    };
 
                     let cache_ready = block.cache_ready;
                     let is_fluid = block.is_fluid;
@@ -3154,10 +3157,8 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     }
 
                     if is_non_greedy_block {
-                        let non_greedy_voxel_key = ((vx - min_x) as usize) * yz_span
-                            + ((vy - min_y) as usize) * z_span
-                            + (vz - min_z) as usize;
-                        processed_non_greedy.insert(non_greedy_voxel_key);
+                        let non_greedy_voxel_key = non_greedy_voxel_key
+                            .expect("non-greedy voxel key must exist for non-greedy blocks");
 
                         let mut queue_non_greedy_face =
                             |face: &BlockFace, face_index: Option<i16>, world_space: bool| {
