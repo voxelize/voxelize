@@ -9,6 +9,7 @@ import {
 
 const _worldPos = new Vector3();
 const _camWorldPos = new Vector3();
+const DEFAULT_ON_BEFORE_RENDER = Object3D.prototype.onBeforeRender;
 
 export interface TransparentMeshData {
   centroids: Float32Array;
@@ -241,6 +242,7 @@ export function sortTransparentMeshOnBeforeRender(
     const refreshedSortData = prepareTransparentMesh(mesh);
     if (!refreshedSortData) {
       delete mesh.userData.transparentSortData;
+      mesh.onBeforeRender = DEFAULT_ON_BEFORE_RENDER;
       return;
     }
     mesh.userData.transparentSortData = refreshedSortData;

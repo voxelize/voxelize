@@ -4,6 +4,7 @@ import {
   BufferGeometry,
   Mesh,
   MeshBasicMaterial,
+  Object3D,
   PerspectiveCamera,
   Scene,
   WebGLRenderer,
@@ -96,5 +97,29 @@ describe("transparent sorter", () => {
     const refreshedSortData = mesh.userData.transparentSortData;
     expect(refreshedSortData).not.toBe(sortData);
     expect(refreshedSortData.sortedIndices).toBe(mesh.geometry.index?.array);
+  });
+
+  it("clears sorting callback when refreshed geometry no longer needs sorting", () => {
+    const mesh = new Mesh(createQuadGeometry(2), new MeshBasicMaterial());
+    const sortData = prepareTransparentMesh(mesh);
+    expect(sortData).not.toBeNull();
+    if (!sortData) {
+      return;
+    }
+
+    mesh.userData.transparentSortData = sortData;
+    mesh.geometry.setIndex(new BufferAttribute(new Uint16Array([0, 1, 2, 0, 2, 3]), 1));
+    const camera = new PerspectiveCamera();
+    camera.position.set(0, 0, 10);
+
+    sortTransparentMeshOnBeforeRender.call(
+      mesh,
+      {} as WebGLRenderer,
+      new Scene(),
+      camera
+    );
+
+    expect(mesh.userData.transparentSortData).toBeUndefined();
+    expect(mesh.onBeforeRender).toBe(Object3D.prototype.onBeforeRender);
   });
 });
