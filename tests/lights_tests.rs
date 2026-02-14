@@ -124,6 +124,9 @@ fn test_chunks_get_raw_light_handles_negative_and_above_height_queries() {
             sub_chunks: 1,
         },
     ));
+    if let Some(chunk) = chunks.raw_mut(&Vec2(0, 0)) {
+        chunk.updated_levels.clear();
+    }
 
     assert_eq!(
         chunks.get_raw_light(0, -1, 0),
@@ -156,6 +159,12 @@ fn test_chunks_get_raw_light_handles_negative_and_above_height_queries() {
         !chunks.set_raw_voxel(0, config.max_height as i32, 0, 1),
         "raw voxel writes at max height boundary should be rejected"
     );
+    if let Some(chunk) = chunks.raw(&Vec2(0, 0)) {
+        assert!(
+            chunk.updated_levels.is_empty(),
+            "out-of-range raw writes should not mark chunk levels as updated"
+        );
+    }
     assert!(
         !chunks.contains(0, -1, 0),
         "chunk contains checks should reject negative world heights"

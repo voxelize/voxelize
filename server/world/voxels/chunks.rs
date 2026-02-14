@@ -511,6 +511,9 @@ impl Chunks {
     }
 
     fn add_updated_level_at(&mut self, vx: i32, vy: i32, vz: i32) {
+        if vy < 0 || vy >= self.config.max_height as i32 {
+            return;
+        }
         self.voxel_affected_chunks(vx, vy, vz)
             .into_iter()
             .for_each(|coords| {
