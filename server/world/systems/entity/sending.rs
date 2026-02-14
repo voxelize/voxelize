@@ -204,13 +204,14 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         }
 
         for client_id in clients.keys() {
-            self.client_updates_buffer
-                .entry(client_id.clone())
-                .or_default();
-            bookkeeping
-                .client_known_entities
-                .entry(client_id.clone())
-                .or_default();
+            if !self.client_updates_buffer.contains_key(client_id) {
+                self.client_updates_buffer.insert(client_id.clone(), Vec::new());
+            }
+            if !bookkeeping.client_known_entities.contains_key(client_id) {
+                bookkeeping
+                    .client_known_entities
+                    .insert(client_id.clone(), Default::default());
+            }
         }
         let default_pos = Vec3(0.0, 0.0, 0.0);
 
