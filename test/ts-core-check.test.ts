@@ -333,6 +333,18 @@ const deriveExpectedExampleFailureMessage = (report: {
   }
 
   if (report.exampleRuleMatched === false) {
+    if (
+      report.examplePayloadValid === false &&
+      report.examplePayloadIssues !== null &&
+      report.examplePayloadIssues.length > 0
+    ) {
+      return `TypeScript core end-to-end example reported ruleMatched=false and has missing or invalid required payload fields: ${report.examplePayloadIssues.join(", ")}.`;
+    }
+
+    if (report.examplePayloadValid === false) {
+      return "TypeScript core end-to-end example reported ruleMatched=false and has missing or invalid required payload fields.";
+    }
+
     return "TypeScript core end-to-end example reported ruleMatched=false.";
   }
 
@@ -1179,7 +1191,7 @@ describe("check-ts-core script", () => {
           },
         ]);
         expect(report.message).toBe(
-          "TypeScript core build artifacts are available, but TypeScript core end-to-end example reported ruleMatched=false."
+          `TypeScript core build artifacts are available, but ${deriveExpectedExampleFailureMessage(report)}`
         );
       }
     );

@@ -69,6 +69,21 @@ const deriveExampleFailureMessage = (exampleCheckResult) => {
   }
 
   if (exampleCheckResult.exampleRuleMatched === false) {
+    const payloadIssues = normalizeExamplePayloadIssues(
+      exampleCheckResult.examplePayloadIssues
+    );
+    if (
+      exampleCheckResult.examplePayloadValid === false &&
+      payloadIssues !== null &&
+      payloadIssues.length > 0
+    ) {
+      return `TypeScript core end-to-end example reported ruleMatched=false and has missing or invalid required payload fields: ${payloadIssues.join(", ")}.`;
+    }
+
+    if (exampleCheckResult.examplePayloadValid === false) {
+      return "TypeScript core end-to-end example reported ruleMatched=false and has missing or invalid required payload fields.";
+    }
+
     return "TypeScript core end-to-end example reported ruleMatched=false.";
   }
 
