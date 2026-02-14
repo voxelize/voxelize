@@ -93,6 +93,16 @@ const availableChecks = [
 ];
 const availableCheckNames = availableChecks.map((check) => check.name);
 const availableCheckScripts = availableChecks.map((check) => check.scriptName);
+const checkNameToIndex = new Map(
+  availableCheckNames.map((checkName, index) => {
+    return [checkName, index];
+  })
+);
+const resolveCheckIndices = (checkNames) => {
+  return checkNames
+    .map((checkName) => checkNameToIndex.get(checkName))
+    .filter((checkIndex) => typeof checkIndex === "number");
+};
 const availableCheckMetadata = Object.fromEntries(
   availableChecks.map((check) => {
     return [
@@ -458,6 +468,8 @@ if (
     positionalArgCount,
     selectedChecks: [],
     selectedCheckCount: 0,
+    selectedCheckIndices: [],
+    selectedCheckIndexCount: 0,
     selectedCheckMetadata: {},
     selectedCheckScripts: [],
     selectedCheckScriptCount: 0,
@@ -469,6 +481,8 @@ if (
     specialSelectorsUsed,
     skippedChecks: availableCheckNames,
     skippedCheckCount: availableCheckNames.length,
+    skippedCheckIndices: resolveCheckIndices(availableCheckNames),
+    skippedCheckIndexCount: availableCheckNames.length,
     skippedCheckMetadata: allCheckMetadata,
     skippedCheckScripts: allCheckScripts,
     skippedCheckScriptCount: allCheckScriptCount,
@@ -522,6 +536,8 @@ const selectedCheckSet = new Set(selectedChecks);
 const skippedChecks = availableCheckNames.filter((checkName) => {
   return !selectedCheckSet.has(checkName);
 });
+const selectedCheckIndices = resolveCheckIndices(selectedChecks);
+const skippedCheckIndices = resolveCheckIndices(skippedChecks);
 const {
   checkMetadata: selectedCheckMetadata,
   checkScripts: selectedCheckScripts,
@@ -547,6 +563,8 @@ if (isListChecks) {
     positionalArgCount,
     selectedChecks,
     selectedCheckCount: selectedChecks.length,
+    selectedCheckIndices,
+    selectedCheckIndexCount: selectedCheckIndices.length,
     selectedCheckMetadata,
     selectedCheckScripts,
     selectedCheckScriptCount,
@@ -558,6 +576,8 @@ if (isListChecks) {
     specialSelectorsUsed,
     skippedChecks,
     skippedCheckCount: skippedChecks.length,
+    skippedCheckIndices,
+    skippedCheckIndexCount: skippedCheckIndices.length,
     skippedCheckMetadata,
     skippedCheckScripts,
     skippedCheckScriptCount,
@@ -653,6 +673,8 @@ const report = buildTimedReport({
   positionalArgCount,
   selectedChecks,
   selectedCheckCount: selectedChecks.length,
+  selectedCheckIndices,
+  selectedCheckIndexCount: selectedCheckIndices.length,
   selectedCheckMetadata,
   selectedCheckScripts,
   selectedCheckScriptCount,
@@ -664,6 +686,8 @@ const report = buildTimedReport({
   specialSelectorsUsed,
   skippedChecks,
   skippedCheckCount: skippedChecks.length,
+  skippedCheckIndices,
+  skippedCheckIndexCount: skippedCheckIndices.length,
   skippedCheckMetadata,
   skippedCheckScripts,
   skippedCheckScriptCount,

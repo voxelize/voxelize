@@ -115,6 +115,8 @@ type PreflightReport = {
   specialSelectorsUsed: string[];
   selectedChecks: string[];
   selectedCheckCount: number;
+  selectedCheckIndices: number[];
+  selectedCheckIndexCount: number;
   selectedCheckMetadata: Record<
     string,
     {
@@ -143,6 +145,8 @@ type PreflightReport = {
   };
   skippedChecks: string[];
   skippedCheckCount: number;
+  skippedCheckIndices: number[];
+  skippedCheckIndexCount: number;
   totalChecks: number;
   passedCheckCount: number;
   failedCheckCount: number;
@@ -491,6 +495,9 @@ const expectSelectedCheckMetadata = (report: PreflightReport) => {
       checkName as keyof typeof expectedAvailableCheckMetadata
     ].scriptName;
   });
+  const expectedSelectedIndices = report.selectedChecks.map((checkName) => {
+    return expectedAvailableChecks.indexOf(checkName);
+  });
   const expectedSkippedMetadata = Object.fromEntries(
     report.skippedChecks.map((checkName) => {
       return [
@@ -506,12 +513,19 @@ const expectSelectedCheckMetadata = (report: PreflightReport) => {
       checkName as keyof typeof expectedAvailableCheckMetadata
     ].scriptName;
   });
+  const expectedSkippedIndices = report.skippedChecks.map((checkName) => {
+    return expectedAvailableChecks.indexOf(checkName);
+  });
 
   expect(report.selectedCheckMetadata).toEqual(expectedSelectedMetadata);
   expect(report.selectedCheckScripts).toEqual(expectedSelectedScripts);
+  expect(report.selectedCheckIndices).toEqual(expectedSelectedIndices);
+  expect(report.selectedCheckIndexCount).toBe(report.selectedCheckIndices.length);
   expect(report.selectedCheckScriptCount).toBe(report.selectedCheckScripts.length);
   expect(report.skippedCheckMetadata).toEqual(expectedSkippedMetadata);
   expect(report.skippedCheckScripts).toEqual(expectedSkippedScripts);
+  expect(report.skippedCheckIndices).toEqual(expectedSkippedIndices);
+  expect(report.skippedCheckIndexCount).toBe(report.skippedCheckIndices.length);
   expect(report.skippedCheckScriptCount).toBe(report.skippedCheckScripts.length);
 };
 const expectCheckResultScriptMetadata = (report: PreflightReport) => {
