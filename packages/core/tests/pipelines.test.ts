@@ -176,6 +176,20 @@ describe("ChunkPipeline.shouldRequestAt", () => {
     expect(pipeline.getRetryCount(name)).toBe(1);
   });
 
+  it("normalizes fractional retry counters before incrementing", () => {
+    const pipeline = new ChunkPipeline();
+    pipeline.markRequestedAt(15, 16);
+    const name = ChunkUtils.getChunkNameAt(15, 16);
+    const requested = pipeline.getRequestedCoords(name);
+    if (!requested) {
+      throw new Error("Expected requested stage for fractional retry normalization test");
+    }
+
+    requested.retryCount = 1.8;
+    expect(pipeline.incrementRetry(name)).toBe(2);
+    expect(pipeline.getRetryCount(name)).toBe(2);
+  });
+
   it("normalizes negative retry counters in shouldRequestAt flow", () => {
     const pipeline = new ChunkPipeline();
     pipeline.markRequestedAt(13, 14);

@@ -23,11 +23,11 @@ const normalizeFiniteNonNegativeLimit = (value: number): number => {
 };
 
 const incrementRetryCountSafely = (retryCount: number) =>
-  !Number.isSafeInteger(retryCount) || retryCount < 0
+  !Number.isFinite(retryCount) || retryCount < 0
     ? 1
     : retryCount >= Number.MAX_SAFE_INTEGER
     ? Number.MAX_SAFE_INTEGER
-    : retryCount + 1;
+    : Math.floor(retryCount) + 1;
 
 export class ChunkPipeline {
   private states = new Map<string, ChunkStage>();
