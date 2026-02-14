@@ -30,7 +30,7 @@ struct BatchSpace {
     chunk_shift: Option<u32>,
     chunk_mask: Option<i32>,
     modified_chunks: Vec<bool>,
-    modified_count: usize,
+    modified_indices: Vec<usize>,
 }
 
 impl BatchSpace {
@@ -57,7 +57,7 @@ impl BatchSpace {
             chunk_shift,
             chunk_mask,
             modified_chunks,
-            modified_count: 0,
+            modified_indices: Vec::new(),
         }
     }
 
@@ -136,21 +136,17 @@ impl BatchSpace {
     }
 
     fn take_modified_chunks(self) -> Vec<ModifiedChunkData> {
-        if self.modified_count == 0 {
+        if self.modified_indices.is_empty() {
             return Vec::new();
         }
 
         let chunk_grid_depth = self.chunk_grid_depth;
         let [offset_x, offset_z] = self.chunk_grid_offset;
-        let mut modified = Vec::with_capacity(self.modified_count);
-        for (index, (is_modified, chunk)) in self
-            .modified_chunks
-            .into_iter()
-            .zip(self.chunks.into_iter())
-            .enumerate()
-        {
-            if is_modified {
-                if let Some(chunk) = chunk {
+        let mut chunks = self.chunks;
+        let mut modified = Vec::with_capacity(self.modified_indices.len());
+        for index in self.modified_indices {
+            if let Some(chunk_slot) = chunks.get_mut(index) {
+                if let Some(chunk) = chunk_slot.take() {
                     let local_x = index / chunk_grid_depth;
                     let local_z = index % chunk_grid_depth;
                     modified.push(ModifiedChunkData {
@@ -221,7 +217,7 @@ impl LightVoxelAccess for BatchSpace {
             chunk.lights[voxel_index] = level;
             if !self.modified_chunks[chunk_index] {
                 self.modified_chunks[chunk_index] = true;
-                self.modified_count += 1;
+                self.modified_indices.push(chunk_index);
             }
             return true;
         }
@@ -527,13 +523,13 @@ mod tests {
         };
         let mut space = BatchSpace::new(vec![Some(chunk)], 1, 1, [0, 0], 16);
 
-        assert_eq!(space.modified_count, 0);
+        assert_eq!(space.modified_indices.len(), 0);
         assert!(space.set_raw_light(0, 0, 0, 0));
-        assert_eq!(space.modified_count, 0);
+        assert_eq!(space.modified_indices.len(), 0);
         assert!(space.set_raw_light(0, 0, 0, 1));
-        assert_eq!(space.modified_count, 1);
+        assert_eq!(space.modified_indices.len(), 1);
         assert!(space.set_raw_light(0, 0, 1, 2));
-        assert_eq!(space.modified_count, 1);
+        assert_eq!(space.modified_indices.len(), 1);
         assert_eq!(space.take_modified_chunks().len(), 1);
     }
 }
