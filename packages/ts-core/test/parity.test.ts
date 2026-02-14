@@ -123,6 +123,13 @@ describe("BlockUtils", () => {
     });
     expect(Voxel.rotation(updated).equals(rotation)).toBe(true);
   });
+
+  it("masks packed voxel ids to 16 bits", () => {
+    const packed = Voxel.pack({ id: 0x12345, stage: 15 });
+
+    expect(Voxel.id(packed)).toBe(0x2345);
+    expect(Voxel.stage(packed)).toBe(15);
+  });
 });
 
 describe("LightUtils", () => {
