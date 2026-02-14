@@ -58,6 +58,7 @@ struct BatchSpace {
     chunk_size: i32,
     chunk_shift: Option<u32>,
     chunk_mask: Option<i32>,
+    max_height: u32,
     modified_chunks: Vec<bool>,
     modified_indices: Vec<usize>,
 }
@@ -71,6 +72,11 @@ impl BatchSpace {
         chunk_size: i32,
     ) -> Self {
         let modified_chunks = vec![false; chunks.len()];
+        let max_height = chunks
+            .iter()
+            .flatten()
+            .next()
+            .map_or(0, |chunk| chunk.shape[1] as u32);
         let chunk_shift = if chunk_size > 0 && (chunk_size as u32).is_power_of_two() {
             Some(chunk_size.trailing_zeros())
         } else {
@@ -85,6 +91,7 @@ impl BatchSpace {
             chunk_size,
             chunk_shift,
             chunk_mask,
+            max_height,
             modified_chunks,
             modified_indices: Vec::new(),
         }
@@ -253,11 +260,7 @@ impl LightVoxelAccess for BatchSpace {
     }
 
     fn get_max_height(&self, _vx: i32, _vz: i32) -> u32 {
-        self.chunks
-            .iter()
-            .flatten()
-            .next()
-            .map_or(0, |chunk| chunk.shape[1] as u32)
+        self.max_height
     }
 
     fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
