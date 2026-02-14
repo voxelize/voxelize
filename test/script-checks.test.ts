@@ -146,6 +146,17 @@ type ClientJsonReport = OptionTerminatorMetadata &
     | "output_option_missing_value"
     | "unsupported_options"
     | null;
+  availableSteps: string[];
+  availableStepCount: number;
+  availableStepScripts: string[];
+  availableStepScriptCount: number;
+  availableStepMetadata: Record<
+    string,
+    {
+      scriptName: string;
+      supportsNoBuild: boolean;
+    }
+  >;
   steps: ClientJsonStep[];
   totalSteps: number;
   passedStepCount: number;
@@ -154,6 +165,12 @@ type ClientJsonReport = OptionTerminatorMetadata &
   passedSteps: string[];
   failedSteps: string[];
   skippedSteps: string[];
+  passedStepScripts: string[];
+  passedStepScriptCount: number;
+  failedStepScripts: string[];
+  failedStepScriptCount: number;
+  skippedStepScripts: string[];
+  skippedStepScriptCount: number;
   firstFailedStep: string | null;
   startedAt: string;
   endedAt: string;
@@ -316,6 +333,8 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
     | null;
   availableSteps: string[];
   availableStepCount: number;
+  availableStepScripts: string[];
+  availableStepScriptCount: number;
   availableStepMetadata: Record<
     string,
     {
@@ -331,6 +350,12 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
   passedSteps: string[];
   failedSteps: string[];
   skippedSteps: string[];
+  passedStepScripts: string[];
+  passedStepScriptCount: number;
+  failedStepScripts: string[];
+  failedStepScriptCount: number;
+  skippedStepScripts: string[];
+  skippedStepScriptCount: number;
   firstFailedStep: string | null;
   startedAt: string;
   endedAt: string;
@@ -390,8 +415,21 @@ const expectStepSummaryMetadata = (
     passedSteps: string[];
     failedSteps: string[];
     skippedSteps: string[];
+    passedStepScripts: string[];
+    passedStepScriptCount: number;
+    failedStepScripts: string[];
+    failedStepScriptCount: number;
+    skippedStepScripts: string[];
+    skippedStepScriptCount: number;
     firstFailedStep: string | null;
-  }
+  },
+  expectedStepMetadata: Record<
+    string,
+    {
+      scriptName: string;
+      supportsNoBuild: boolean;
+    }
+  >
 ) => {
   const passedSteps = report.steps
     .filter((step) => step.passed && step.skipped === false)
@@ -402,6 +440,15 @@ const expectStepSummaryMetadata = (
   const skippedSteps = report.steps
     .filter((step) => step.skipped === true)
     .map((step) => step.name);
+  const passedStepScripts = passedSteps.map((stepName) => {
+    return expectedStepMetadata[stepName].scriptName;
+  });
+  const failedStepScripts = failedSteps.map((stepName) => {
+    return expectedStepMetadata[stepName].scriptName;
+  });
+  const skippedStepScripts = skippedSteps.map((stepName) => {
+    return expectedStepMetadata[stepName].scriptName;
+  });
 
   expect(report.totalSteps).toBe(report.steps.length);
   expect(report.passedStepCount).toBe(passedSteps.length);
@@ -410,12 +457,20 @@ const expectStepSummaryMetadata = (
   expect(report.passedSteps).toEqual(passedSteps);
   expect(report.failedSteps).toEqual(failedSteps);
   expect(report.skippedSteps).toEqual(skippedSteps);
+  expect(report.passedStepScripts).toEqual(passedStepScripts);
+  expect(report.passedStepScriptCount).toBe(report.passedStepScripts.length);
+  expect(report.failedStepScripts).toEqual(failedStepScripts);
+  expect(report.failedStepScriptCount).toBe(report.failedStepScripts.length);
+  expect(report.skippedStepScripts).toEqual(skippedStepScripts);
+  expect(report.skippedStepScriptCount).toBe(report.skippedStepScripts.length);
   expect(report.firstFailedStep).toBe(failedSteps[0] ?? null);
 };
 const expectAvailableStepMetadata = (
   report: {
     availableSteps: string[];
     availableStepCount: number;
+    availableStepScripts: string[];
+    availableStepScriptCount: number;
     availableStepMetadata: Record<
       string,
       {
@@ -433,8 +488,14 @@ const expectAvailableStepMetadata = (
     }
   >
 ) => {
+  const expectedScripts = expectedSteps.map((stepName) => {
+    return expectedMetadata[stepName].scriptName;
+  });
+
   expect(report.availableSteps).toEqual(expectedSteps);
   expect(report.availableStepCount).toBe(report.availableSteps.length);
+  expect(report.availableStepScripts).toEqual(expectedScripts);
+  expect(report.availableStepScriptCount).toBe(report.availableStepScripts.length);
   expect(report.availableStepMetadata).toEqual(expectedMetadata);
 };
 
@@ -2933,7 +2994,7 @@ describe("root preflight scripts", () => {
     );
     expect(Array.isArray(report.steps)).toBe(true);
     expect(report.steps.length).toBeGreaterThan(0);
-    expectStepSummaryMetadata(report);
+    expectStepSummaryMetadata(report, expectedClientAvailableStepMetadata);
     expect(report.steps[0].name).toBe("WASM artifact preflight");
     expect(typeof report.steps[0].skipped).toBe("boolean");
     expect(report.steps.some((step) => step.name === "TypeScript typecheck")).toBe(
@@ -3097,7 +3158,7 @@ describe("root preflight scripts", () => {
       expectedClientAvailableSteps,
       expectedClientAvailableStepMetadata
     );
-    expectStepSummaryMetadata(report);
+    expectStepSummaryMetadata(report, expectedClientAvailableStepMetadata);
     expect(report.message).toBe("Missing value for --output option.");
     expectActiveCliOptionMetadata(
       report,
@@ -3196,7 +3257,7 @@ describe("root preflight scripts", () => {
       expectedClientAvailableSteps,
       expectedClientAvailableStepMetadata
     );
-    expectStepSummaryMetadata(report);
+    expectStepSummaryMetadata(report, expectedClientAvailableStepMetadata);
     expect(report.message).toBe("Missing value for --output option.");
     expectActiveCliOptionMetadata(
       report,
@@ -3251,7 +3312,7 @@ describe("root preflight scripts", () => {
       expectedClientAvailableSteps,
       expectedClientAvailableStepMetadata
     );
-    expectStepSummaryMetadata(report);
+    expectStepSummaryMetadata(report, expectedClientAvailableStepMetadata);
     expect(report.message).toBe("Missing value for --output option.");
     expectActiveCliOptionMetadata(
       report,
@@ -3343,7 +3404,7 @@ describe("root preflight scripts", () => {
       expectedClientAvailableSteps,
       expectedClientAvailableStepMetadata
     );
-    expectStepSummaryMetadata(report);
+    expectStepSummaryMetadata(report, expectedClientAvailableStepMetadata);
     expect(report.message).toBe("Missing value for --output option.");
     expect(report.outputPath).toBeNull();
     expectActiveCliOptionMetadata(
@@ -3382,7 +3443,7 @@ describe("root preflight scripts", () => {
       expectedClientAvailableSteps,
       expectedClientAvailableStepMetadata
     );
-    expectStepSummaryMetadata(report);
+    expectStepSummaryMetadata(report, expectedClientAvailableStepMetadata);
     expect(report.message).toBe("Missing value for --output option.");
     expect(report.outputPath).toBeNull();
     expectActiveCliOptionMetadata(
@@ -3421,7 +3482,7 @@ describe("root preflight scripts", () => {
       expectedClientAvailableSteps,
       expectedClientAvailableStepMetadata
     );
-    expectStepSummaryMetadata(report);
+    expectStepSummaryMetadata(report, expectedClientAvailableStepMetadata);
     expect(report.message).toBe("Missing value for --output option.");
     expectActiveCliOptionMetadata(
       report,
@@ -3459,7 +3520,7 @@ describe("root preflight scripts", () => {
       expectedClientAvailableSteps,
       expectedClientAvailableStepMetadata
     );
-    expectStepSummaryMetadata(report);
+    expectStepSummaryMetadata(report, expectedClientAvailableStepMetadata);
     expect(report.message).toBe("Missing value for --output option.");
     expectActiveCliOptionMetadata(
       report,
@@ -4585,7 +4646,7 @@ describe("root preflight scripts", () => {
     );
     expect(Array.isArray(report.steps)).toBe(true);
     expect(report.steps.length).toBeGreaterThan(0);
-    expectStepSummaryMetadata(report);
+    expectStepSummaryMetadata(report, expectedOnboardingAvailableStepMetadata);
     expect(report.steps[0].name).toBe("Developer environment preflight");
     const tsCoreStep = report.steps.find(
       (step) => step.name === "TypeScript core checks"

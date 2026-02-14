@@ -91,6 +91,14 @@ const availableStepMetadata = {
     supportsNoBuild: false,
   },
 };
+const availableStepScripts = availableSteps.map((stepName) => {
+  return availableStepMetadata[stepName].scriptName;
+});
+const mapStepNamesToScripts = (stepNames) => {
+  return stepNames.map((stepName) => {
+    return availableStepMetadata[stepName].scriptName;
+  });
+};
 const stepResults = [];
 let exitCode = 0;
 
@@ -119,8 +127,16 @@ if (isJson && validationFailureMessage !== null) {
     validationErrorCode,
     availableSteps,
     availableStepCount: availableSteps.length,
+    availableStepScripts,
+    availableStepScriptCount: availableStepScripts.length,
     availableStepMetadata,
     steps: [],
+    passedStepScripts: [],
+    passedStepScriptCount: 0,
+    failedStepScripts: [],
+    failedStepScriptCount: 0,
+    skippedStepScripts: [],
+    skippedStepScriptCount: 0,
     ...summarizeStepResults([]),
     message: validationFailureMessage,
   });
@@ -223,6 +239,9 @@ if (wasmPreflightPassed) {
 
 if (isJson) {
   const stepSummary = summarizeStepResults(stepResults);
+  const passedStepScripts = mapStepNamesToScripts(stepSummary.passedSteps);
+  const failedStepScripts = mapStepNamesToScripts(stepSummary.failedSteps);
+  const skippedStepScripts = mapStepNamesToScripts(stepSummary.skippedSteps);
   const report = buildTimedReport({
     passed: exitCode === 0,
     exitCode,
@@ -247,8 +266,16 @@ if (isJson) {
     validationErrorCode: null,
     availableSteps,
     availableStepCount: availableSteps.length,
+    availableStepScripts,
+    availableStepScriptCount: availableStepScripts.length,
     availableStepMetadata,
     steps: stepResults,
+    passedStepScripts,
+    passedStepScriptCount: passedStepScripts.length,
+    failedStepScripts,
+    failedStepScriptCount: failedStepScripts.length,
+    skippedStepScripts,
+    skippedStepScriptCount: skippedStepScripts.length,
     ...stepSummary,
   });
   const { reportJson, writeError } = serializeReportWithOptionalWrite(report, {
