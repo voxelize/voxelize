@@ -224,16 +224,13 @@ export function sortTransparentMeshOnBeforeRender(
   _scene: Scene,
   camera: Camera
 ): void {
-  if (!(this instanceof Mesh)) {
-    return;
-  }
-
-  const sortData = this.userData.transparentSortData as
+  const mesh = this as Mesh;
+  const sortData = mesh.userData.transparentSortData as
     | TransparentMeshData
     | undefined;
   if (!sortData) {
     return;
   }
 
-  sortTransparentMesh(this, sortData, camera);
+  sortTransparentMesh(mesh, sortData, camera);
 }
