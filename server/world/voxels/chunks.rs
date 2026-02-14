@@ -524,6 +524,9 @@ impl Chunks {
 impl VoxelAccess for Chunks {
     /// Get the raw voxel value at a voxel coordinate. If chunk not found, 0 is returned.
     fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        if vy < 0 || vy >= self.config.max_height as i32 {
+            return 0;
+        }
         if let Some(chunk) = self.raw_chunk_by_voxel(vx, vy, vz) {
             chunk.get_raw_voxel(vx, vy, vz)
         } else {
