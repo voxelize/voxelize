@@ -315,9 +315,21 @@ fn parse_chunks(
     expected_chunk_len: usize,
 ) -> Vec<Option<ChunkData>> {
     JS_KEYS.with(|keys| {
+        if expected_chunk_count == 0 {
+            return Vec::new();
+        }
+
+        let provided_chunk_count = chunks_data.length() as usize;
+        if provided_chunk_count == 0 {
+            let mut chunks = Vec::with_capacity(expected_chunk_count);
+            chunks.resize_with(expected_chunk_count, || None);
+            return chunks;
+        }
+
+        let parse_count = provided_chunk_count.min(expected_chunk_count);
         let mut chunks = Vec::with_capacity(expected_chunk_count);
 
-        for index in 0..expected_chunk_count {
+        for index in 0..parse_count {
             let chunk_value = chunks_data.get(index as u32);
             if chunk_value.is_null() || chunk_value.is_undefined() {
                 chunks.push(None);
@@ -355,6 +367,10 @@ fn parse_chunks(
                 voxels,
                 lights,
             }));
+        }
+
+        if parse_count < expected_chunk_count {
+            chunks.resize_with(expected_chunk_count, || None);
         }
 
         chunks
