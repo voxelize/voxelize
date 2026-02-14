@@ -12,6 +12,23 @@ import {
 import { FaceTransparency, Vec3 } from "./vectors";
 
 const TWO_PI = Math.PI * 2.0;
+const ANGLE_EPSILON = 1e-12;
+
+const normalizeYRotation = (rotation: number): number => {
+  if (!Number.isFinite(rotation)) {
+    return rotation;
+  }
+
+  const wrappedRotation = ((rotation % TWO_PI) + TWO_PI) % TWO_PI;
+  if (
+    wrappedRotation <= ANGLE_EPSILON ||
+    Math.abs(wrappedRotation - TWO_PI) <= ANGLE_EPSILON
+  ) {
+    return 0;
+  }
+
+  return wrappedRotation;
+};
 
 const mapTransparencyValue = (
   value: number,
@@ -149,10 +166,11 @@ export class BlockRotation {
   }
 
   rotateNode(node: Vec3, yRotate = true, translate = true): void {
-    if (yRotate && Math.abs(this.yRotation) > Number.EPSILON) {
+    const normalizedYRotation = normalizeYRotation(this.yRotation);
+    if (yRotate && Math.abs(normalizedYRotation) > ANGLE_EPSILON) {
       node[0] -= 0.5;
       node[2] -= 0.5;
-      this.rotateY(node, this.yRotation);
+      this.rotateY(node, normalizedYRotation);
       node[0] += 0.5;
       node[2] += 0.5;
     }
@@ -270,7 +288,10 @@ export class BlockRotation {
   rotateTransparency(
     [px, py, pz, nx, ny, nz]: FaceTransparency
   ): FaceTransparency {
-    if (this.axis === PY_ROTATION && Math.abs(this.yRotation) < Number.EPSILON) {
+    if (
+      this.axis === PY_ROTATION &&
+      Math.abs(normalizeYRotation(this.yRotation)) <= ANGLE_EPSILON
+    ) {
       return [px, py, pz, nx, ny, nz];
     }
 

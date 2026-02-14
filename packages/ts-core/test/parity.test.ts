@@ -434,6 +434,34 @@ describe("BlockRotation", () => {
     expect(rotation.rotateTransparency(input)).toEqual(input);
   });
 
+  it("keeps transparency unchanged for full-turn y rotations on PY axis", () => {
+    const input: [boolean, boolean, boolean, boolean, boolean, boolean] = [
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+    ];
+    expect(BlockRotation.py(Math.PI * 2).rotateTransparency(input)).toEqual(input);
+    expect(BlockRotation.py(-Math.PI * 2).rotateTransparency(input)).toEqual(input);
+  });
+
+  it("keeps node positions unchanged for full-turn PY y rotations", () => {
+    const nodeA: [number, number, number] = [0.25, 0.5, 0.75];
+    const nodeB: [number, number, number] = [0.25, 0.5, 0.75];
+
+    BlockRotation.py(Math.PI * 2).rotateNode(nodeA, true, false);
+    BlockRotation.py(-Math.PI * 2).rotateNode(nodeB, true, false);
+
+    expect(nodeA[0]).toBeCloseTo(0.25, 10);
+    expect(nodeA[1]).toBeCloseTo(0.5, 10);
+    expect(nodeA[2]).toBeCloseTo(0.75, 10);
+    expect(nodeB[0]).toBeCloseTo(0.25, 10);
+    expect(nodeB[1]).toBeCloseTo(0.5, 10);
+    expect(nodeB[2]).toBeCloseTo(0.75, 10);
+  });
+
   it("returns a boolean tuple for non-PY transparency rotations", () => {
     const rotation = BlockRotation.px(Math.PI / 2);
     const input: [boolean, boolean, boolean, boolean, boolean, boolean] = [
