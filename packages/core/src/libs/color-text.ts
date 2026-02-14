@@ -48,16 +48,13 @@ export class ColorText {
     const splitter = ColorText.SPLITTER;
     const splitterLength = splitter.length;
     const textLength = text.length;
+    if (textLength === 0) {
+      return [];
+    }
     if (splitterLength === 0) {
-      if (textLength === 0) {
-        return [];
-      }
       return [{ color: defaultColor, text }];
     }
     if (text.indexOf(splitter) === -1) {
-      if (textLength === 0) {
-        return [];
-      }
       return [{ color: defaultColor, text }];
     }
     const result: { color: string; text: string }[] = [];
