@@ -878,6 +878,7 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
     number,
     Map<string, Block["faces"][number]>
   >();
+  private transparentRenderOrderById = new Map<number, number>();
   private textureGroupFirstFaceCache = new Map<
     string,
     { blockId: number; face: Block["faces"][number] } | null
@@ -3844,6 +3845,7 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
     // Loading the block registry
     this.blockEntityTypeBlockCache.clear();
     this.blockFaceNameCache.clear();
+    this.transparentRenderOrderById.clear();
     this.textureGroupFirstFaceCache.clear();
     const hasOwnBlock = Object.prototype.hasOwnProperty;
     for (const name in blocks) {
@@ -5376,10 +5378,15 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
       return;
     }
 
-    const block = this.getBlockByIdSafe(voxel);
-    mesh.renderOrder = block?.isFluid
-      ? TRANSPARENT_FLUID_RENDER_ORDER
-      : TRANSPARENT_RENDER_ORDER;
+    let renderOrder = this.transparentRenderOrderById.get(voxel);
+    if (renderOrder === undefined) {
+      const block = this.getBlockByIdSafe(voxel);
+      renderOrder = block?.isFluid
+        ? TRANSPARENT_FLUID_RENDER_ORDER
+        : TRANSPARENT_RENDER_ORDER;
+      this.transparentRenderOrderById.set(voxel, renderOrder);
+    }
+    mesh.renderOrder = renderOrder;
     if (!depthWrite) {
       const sortData = prepareTransparentMesh(mesh);
       if (sortData) {
