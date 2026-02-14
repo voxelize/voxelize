@@ -701,6 +701,14 @@ impl LightRegistry {
     }
 
     pub fn has_type(&self, id: u32) -> bool {
+        if id == 0 {
+            if let Some(index) = self.air_index {
+                if index < self.blocks_by_id.len() {
+                    return true;
+                }
+            }
+        }
+
         if let Some(dense) = &self.lookup_dense {
             let idx = id as usize;
             return idx < dense.len() && dense[idx] != usize::MAX;
