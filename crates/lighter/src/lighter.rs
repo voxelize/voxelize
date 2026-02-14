@@ -47,11 +47,11 @@ fn map_voxel_to_chunk_with_shift(
     vz: i32,
     chunk_size: i32,
     chunk_shift: Option<u32>,
-) -> [i32; 2] {
+) -> (i32, i32) {
     if let Some(shift) = chunk_shift {
-        [vx >> shift, vz >> shift]
+        (vx >> shift, vz >> shift)
     } else {
-        [vx.div_euclid(chunk_size), vz.div_euclid(chunk_size)]
+        (vx.div_euclid(chunk_size), vz.div_euclid(chunk_size))
     }
 }
 
@@ -222,7 +222,7 @@ fn flood_light_from_nodes(
                 continue;
             }
 
-            let [ncx, ncz] = map_voxel_to_chunk_with_shift(nvx, nvz, chunk_size, chunk_shift);
+            let (ncx, ncz) = map_voxel_to_chunk_with_shift(nvx, nvz, chunk_size, chunk_shift);
             if ncx < start_cx || ncz < start_cz || ncx > end_cx || ncz > end_cz {
                 continue;
             }
@@ -719,11 +719,11 @@ mod tests {
         for (vx, vz) in samples {
             assert_eq!(
                 map_voxel_to_chunk_with_shift(vx, vz, 16, resolve_chunk_shift(16)),
-                [vx.div_euclid(16), vz.div_euclid(16)]
+                (vx.div_euclid(16), vz.div_euclid(16))
             );
             assert_eq!(
                 map_voxel_to_chunk_with_shift(vx, vz, 18, resolve_chunk_shift(18)),
-                [vx.div_euclid(18), vz.div_euclid(18)]
+                (vx.div_euclid(18), vz.div_euclid(18))
             );
         }
     }
