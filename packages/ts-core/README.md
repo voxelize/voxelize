@@ -56,6 +56,8 @@ const voxel = Voxel.pack({
 - `BlockRotation`
   - encode/decode major axis + y-rotation segments
   - rotate nodes, AABBs, and transparency masks
+  - `rotateAABB` mirrors Rust core behavior, including axis-specific `yRotate`
+    handling for Y-facing rotations
 - `AABB`
   - union/intersection/translate/touches/intersects utilities
 - `BlockRuleEvaluator`
