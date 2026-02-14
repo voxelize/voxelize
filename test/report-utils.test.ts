@@ -3291,7 +3291,7 @@ describe("report-utils", () => {
         exampleAttempted: true,
         exampleRuleMatched: true,
         examplePayloadValid: false,
-        examplePayloadIssues: ["voxel.rotation", "light.red"],
+        examplePayloadIssues: [" voxel.rotation ", "light.red", "", "light.red", 3],
         examplePayloadIssueCount: 99,
         exampleExitCode: 0,
       })

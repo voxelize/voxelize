@@ -57,9 +57,25 @@ const normalizeExamplePayloadIssues = (payloadIssues) => {
     return null;
   }
 
-  const normalizedPayloadIssues = payloadIssues.filter((payloadIssue) => {
-    return typeof payloadIssue === "string";
-  });
+  const seenPayloadIssues = new Set();
+  const normalizedPayloadIssues = [];
+  for (const payloadIssue of payloadIssues) {
+    if (typeof payloadIssue !== "string") {
+      continue;
+    }
+
+    const normalizedPayloadIssue = payloadIssue.trim();
+    if (normalizedPayloadIssue.length === 0) {
+      continue;
+    }
+
+    if (seenPayloadIssues.has(normalizedPayloadIssue)) {
+      continue;
+    }
+
+    seenPayloadIssues.add(normalizedPayloadIssue);
+    normalizedPayloadIssues.push(normalizedPayloadIssue);
+  }
 
   return normalizedPayloadIssues;
 };

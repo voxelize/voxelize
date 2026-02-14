@@ -354,6 +354,34 @@ export const createPrefixedWasmPackCheckSummary = (report, prefix = "") => {
   };
 };
 
+const normalizeExamplePayloadIssues = (payloadIssues) => {
+  if (!Array.isArray(payloadIssues)) {
+    return null;
+  }
+
+  const seenPayloadIssues = new Set();
+  const normalizedPayloadIssues = [];
+  for (const payloadIssue of payloadIssues) {
+    if (typeof payloadIssue !== "string") {
+      continue;
+    }
+
+    const normalizedPayloadIssue = payloadIssue.trim();
+    if (normalizedPayloadIssue.length === 0) {
+      continue;
+    }
+
+    if (seenPayloadIssues.has(normalizedPayloadIssue)) {
+      continue;
+    }
+
+    seenPayloadIssues.add(normalizedPayloadIssue);
+    normalizedPayloadIssues.push(normalizedPayloadIssue);
+  }
+
+  return normalizedPayloadIssues;
+};
+
 export const extractTsCoreExampleSummaryFromReport = (report) => {
   if (
     report === null ||
@@ -397,11 +425,9 @@ export const extractTsCoreExampleSummaryFromReport = (report) => {
     typeof report.examplePayloadValid === "boolean"
       ? report.examplePayloadValid
       : null;
-  const rawExamplePayloadIssues = Array.isArray(report.examplePayloadIssues)
-    ? report.examplePayloadIssues.filter((issue) => {
-        return typeof issue === "string";
-      })
-    : null;
+  const rawExamplePayloadIssues = normalizeExamplePayloadIssues(
+    report.examplePayloadIssues
+  );
   const examplePayloadIssues =
     examplePayloadValid === true ? [] : rawExamplePayloadIssues;
   const examplePayloadIssueCount =
@@ -644,6 +670,8 @@ export const summarizeTsCoreExampleOutput = (output) => {
   }
   const examplePayloadValid =
     voxelValid && lightValid && rotatedAabbValid && examplePayloadIssues.length === 0;
+  const normalizedExamplePayloadIssues =
+    normalizeExamplePayloadIssues(examplePayloadIssues) ?? [];
   const exampleOutputLine =
     typeof exampleRuleMatched === "boolean"
       ? `ruleMatched=${exampleRuleMatched ? "true" : "false"}`
@@ -652,7 +680,7 @@ export const summarizeTsCoreExampleOutput = (output) => {
   return {
     exampleRuleMatched,
     examplePayloadValid,
-    examplePayloadIssues,
+    examplePayloadIssues: normalizedExamplePayloadIssues,
     exampleOutputLine,
   };
 };
