@@ -322,6 +322,8 @@ const expectedExampleArgs = [
 const exampleScriptRelativePath = "packages/ts-core/examples/end-to-end.mjs";
 const expectedSuccessMessage =
   "TypeScript core build artifacts are available and the end-to-end example succeeded.";
+const expectedRuleMismatchWithPayloadIssuesFailureMessage =
+  "TypeScript core end-to-end example reported ruleMatched=false and has missing or invalid required payload fields: voxel, light, rotatedAabb.";
 const deriveExpectedExampleFailureMessage = (report: {
   exampleExitCode: number | null;
   exampleRuleMatched: boolean | null;
@@ -1184,14 +1186,14 @@ describe("check-ts-core script", () => {
             exitCode: report.exampleExitCode,
             ruleMatched: report.exampleRuleMatched,
             payloadValid: report.examplePayloadValid,
-          payloadIssues: report.examplePayloadIssues,
-          payloadIssueCount: report.examplePayloadIssueCount,
+            payloadIssues: report.examplePayloadIssues,
+            payloadIssueCount: report.examplePayloadIssueCount,
             outputLine: report.exampleOutputLine,
-            message: deriveExpectedExampleFailureMessage(report),
+            message: expectedRuleMismatchWithPayloadIssuesFailureMessage,
           },
         ]);
         expect(report.message).toBe(
-          `TypeScript core build artifacts are available, but ${deriveExpectedExampleFailureMessage(report)}`
+          `TypeScript core build artifacts are available, but ${expectedRuleMismatchWithPayloadIssuesFailureMessage}`
         );
       }
     );
