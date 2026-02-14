@@ -42,6 +42,8 @@ type TsCoreCheckReport = {
   requiredArtifactCountByPackage: Record<string, number>;
   requiredArtifactCount: number;
   requiredArtifactCountByPackageCount: number;
+  artifactsPresentByPackage: Record<string, boolean>;
+  artifactsPresentByPackageCount: number;
   presentArtifacts: string[];
   presentArtifactCount: number;
   presentArtifactCountByPackage: Record<string, number>;
@@ -231,6 +233,12 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
   );
   expect(report.requiredArtifactCountByPackageCount).toBe(
     Object.keys(report.requiredArtifactCountByPackage).length
+  );
+  expect(report.artifactsPresentByPackage).toEqual({
+    [report.checkedPackage]: report.artifactsPresent,
+  });
+  expect(report.artifactsPresentByPackageCount).toBe(
+    Object.keys(report.artifactsPresentByPackage).length
   );
   expect(report.requiredArtifactCount).toBe(
     report.presentArtifactCount + report.missingArtifactCount

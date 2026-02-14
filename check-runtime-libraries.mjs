@@ -155,6 +155,11 @@ const summarizePackageReports = (packageReports) => {
       return [packageReport.packageName, packageReport.presentArtifacts];
     })
   );
+  const artifactsPresentByPackage = Object.fromEntries(
+    packageReports.map((packageReport) => {
+      return [packageReport.packageName, packageReport.artifactsPresent];
+    })
+  );
   const missingPackageCount = packageReports.filter((packageReport) => {
     return packageReport.artifactsPresent === false;
   }).length;
@@ -194,6 +199,7 @@ const summarizePackageReports = (packageReports) => {
     presentArtifactCount,
     presentArtifacts,
     presentArtifactsByPackage,
+    artifactsPresentByPackage,
     presentArtifactCountByPackage,
     missingPackageCount,
     missingPackagePathCount: missingPackagePaths.length,
@@ -314,6 +320,7 @@ const withBaseReportFields = (report) => {
     presentArtifactCount,
     presentArtifacts,
     presentArtifactsByPackage,
+    artifactsPresentByPackage,
     presentArtifactCountByPackage,
     missingPackageCount,
     missingPackagePathCount,
@@ -384,6 +391,7 @@ const withBaseReportFields = (report) => {
     presentArtifactCount,
     presentArtifacts,
     presentArtifactsByPackage,
+    artifactsPresentByPackage,
     presentArtifactCountByPackage,
     missingPackageCount,
     missingPackagePathCount,
@@ -393,6 +401,7 @@ const withBaseReportFields = (report) => {
     missingArtifactsByPackage,
     missingArtifactCountByPackage,
     presentArtifactsByPackageCount: countRecordEntries(presentArtifactsByPackage),
+    artifactsPresentByPackageCount: countRecordEntries(artifactsPresentByPackage),
     presentArtifactCountByPackageCount: countRecordEntries(
       presentArtifactCountByPackage
     ),

@@ -58,6 +58,8 @@ type RuntimeLibrariesCheckReport = {
   requiredArtifactCountByPackage: Record<string, number>;
   requiredArtifactCount: number;
   requiredArtifactCountByPackageCount: number;
+  artifactsPresentByPackage: Record<string, boolean>;
+  artifactsPresentByPackageCount: number;
   presentArtifactsByPackage: Record<string, string[]>;
   presentArtifacts: string[];
   presentArtifactCount: number;
@@ -359,6 +361,11 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
       return [packageReport.packageName, packageReport.presentArtifactCount];
     })
   );
+  const artifactsPresentByPackage = Object.fromEntries(
+    report.packageReports.map((packageReport) => {
+      return [packageReport.packageName, packageReport.artifactsPresent];
+    })
+  );
   const presentArtifacts = report.packageReports.reduce((artifacts, packageReport) => {
     return [...artifacts, ...packageReport.presentArtifacts];
   }, [] as string[]);
@@ -407,6 +414,10 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   expect(report.missingPackageIndices).toEqual(missingPackageIndices);
   expect(report.missingPackageIndices.length).toBe(report.missingPackageIndexCount);
   expect(report.presentArtifactCount).toBe(presentArtifactCount);
+  expect(report.artifactsPresentByPackage).toEqual(artifactsPresentByPackage);
+  expect(report.artifactsPresentByPackageCount).toBe(
+    Object.keys(report.artifactsPresentByPackage).length
+  );
   expect(report.presentArtifactCountByPackage).toEqual(
     presentArtifactCountByPackage
   );

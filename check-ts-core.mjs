@@ -136,6 +136,9 @@ const withBaseReportFields = (report) => {
   const requiredArtifactCountByPackage = {
     [tsCorePackageName]: requiredArtifacts.length,
   };
+  const artifactsPresentByPackage = {
+    [tsCorePackageName]: artifactsPresent,
+  };
   const presentArtifactCountByPackage = {
     [tsCorePackageName]: presentArtifactCount,
   };
@@ -201,6 +204,8 @@ const withBaseReportFields = (report) => {
     requiredArtifactCountByPackageCount: countRecordEntries(
       requiredArtifactCountByPackage
     ),
+    artifactsPresentByPackage,
+    artifactsPresentByPackageCount: countRecordEntries(artifactsPresentByPackage),
     presentArtifacts,
     presentArtifactCount,
     presentArtifactCountByPackage,
