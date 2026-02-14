@@ -217,18 +217,28 @@ export class WorkerPool {
     const workers = this.workers;
     const queue = this.queue;
     while (this.queueHead < queue.length && available.length > 0) {
+      const job = queue[this.queueHead];
+      if (!job || typeof job !== "object") {
+        this.queueHead++;
+        this.normalizeQueue();
+        continue;
+      }
+      const { message, buffers, resolve, reject } = job;
+      if (!message || typeof message !== "object" || typeof resolve !== "function") {
+        this.queueHead++;
+        this.normalizeQueue();
+        continue;
+      }
+      const rejectCallback = typeof reject === "function" ? reject : undefined;
       const index = available.pop();
       if (index === undefined) {
         break;
       }
       const worker = workers[index];
 
-      const job = queue[this.queueHead];
-      const { message, buffers, resolve, reject } = job;
-
       const rejectJob = (reason: Error) => {
-        if (reject) {
-          reject(reason);
+        if (rejectCallback) {
+          rejectCallback(reason);
         } else {
           console.error(reason);
         }

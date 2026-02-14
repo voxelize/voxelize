@@ -175,3 +175,41 @@ describe("WorkerPool.postMessage transfer cloning", () => {
     expect(new Set(secondBuffers).size).toBe(2);
   });
 });
+
+describe("WorkerPool queue hardening", () => {
+  it("skips malformed queued entries before dispatching valid jobs", () => {
+    const pool = new WorkerPool(FakeWorker, { maxWorker: 1 });
+    pool.queue.push({} as never);
+
+    expect(() =>
+      pool.addJob({
+        message: { type: "valid" },
+        resolve: () => {
+          return;
+        },
+      })
+    ).not.toThrow();
+
+    expect(FakeWorker.instances).toHaveLength(1);
+    const posts = FakeWorker.instances[0].posts;
+    expect(posts).toHaveLength(1);
+    expect(posts[0].message).toEqual({ type: "valid" });
+  });
+
+  it("treats non-function reject handlers as absent", () => {
+    const pool = new WorkerPool(FakeWorker, { maxWorker: 1 });
+    const worker = FakeWorker.instances[0];
+    let resolved = false;
+    pool.addJob({
+      message: { type: "reject-guard" },
+      resolve: () => {
+        resolved = true;
+      },
+      reject: "invalid-reject-handler" as never,
+    });
+
+    expect(worker.posts).toHaveLength(1);
+    worker.dispatchEvent(new MessageEvent("message", { data: { ok: true } }));
+    expect(resolved).toBe(true);
+  });
+});
