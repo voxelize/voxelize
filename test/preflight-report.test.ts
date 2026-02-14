@@ -161,6 +161,8 @@ type WasmPackNestedReport = {
   version: string | null;
   availableChecks: string[];
   availableCheckCount: number;
+  availableCheckIndices: number[];
+  availableCheckIndexCount: number;
   availableCheckCommandMap: Record<string, string>;
   availableCheckCommandMapCount: number;
   availableCheckArgsMap: Record<string, string[]>;
@@ -2716,6 +2718,7 @@ const expectWasmPackNestedReport = (checkReport: object | null) => {
   const expectedAvailableCheckIndexMap = {
     "wasm-pack": 0,
   };
+  const expectedAvailableCheckIndices = [0];
   const expectedAvailableCheckMetadata = {
     "wasm-pack": {
       checkIndex: 0,
@@ -2747,6 +2750,8 @@ const expectWasmPackNestedReport = (checkReport: object | null) => {
 
   expect(report.availableChecks).toEqual(expectedWasmPackAvailableChecks);
   expect(report.availableCheckCount).toBe(report.availableChecks.length);
+  expect(report.availableCheckIndices).toEqual(expectedAvailableCheckIndices);
+  expect(report.availableCheckIndexCount).toBe(report.availableCheckIndices.length);
   expect(report.availableCheckCommandMap).toEqual(expectedAvailableCheckCommandMap);
   expect(report.availableCheckCommandMapCount).toBe(
     Object.keys(report.availableCheckCommandMap).length
@@ -2763,6 +2768,7 @@ const expectWasmPackNestedReport = (checkReport: object | null) => {
   expect(report.availableCheckIndexMapCount).toBe(
     Object.keys(report.availableCheckIndexMap).length
   );
+  expect(report.availableCheckIndexCount).toBe(report.availableCheckIndexMapCount);
   expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
   expect(report.availableCheckMetadataCount).toBe(
     Object.keys(report.availableCheckMetadata).length

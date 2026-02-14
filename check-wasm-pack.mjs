@@ -71,6 +71,7 @@ const availableCheckArgCountMap = {
 const availableCheckIndexMap = {
   [checkName]: 0,
 };
+const availableCheckIndices = Object.values(availableCheckIndexMap);
 const availableCheckMetadata = {
   [checkName]: {
     checkIndex: availableCheckIndexMap[checkName],
@@ -338,6 +339,8 @@ if (isJson && validationFailureMessage !== null) {
     availableCheckArgsMapCount: countRecordEntries(availableCheckArgsMap),
     availableCheckArgCountMap,
     availableCheckArgCountMapCount: countRecordEntries(availableCheckArgCountMap),
+    availableCheckIndices,
+    availableCheckIndexCount: availableCheckIndices.length,
     availableCheckMetadata,
     availableCheckMetadataCount: countRecordEntries(availableCheckMetadata),
     availableCheckIndexMap,
@@ -418,6 +421,8 @@ if (checkStatus === 0) {
       availableCheckArgsMapCount: countRecordEntries(availableCheckArgsMap),
       availableCheckArgCountMap,
       availableCheckArgCountMapCount: countRecordEntries(availableCheckArgCountMap),
+      availableCheckIndices,
+      availableCheckIndexCount: availableCheckIndices.length,
       availableCheckMetadata,
       availableCheckMetadataCount: countRecordEntries(availableCheckMetadata),
       availableCheckIndexMap,
@@ -479,6 +484,8 @@ if (isJson) {
     availableCheckArgsMapCount: countRecordEntries(availableCheckArgsMap),
     availableCheckArgCountMap,
     availableCheckArgCountMapCount: countRecordEntries(availableCheckArgCountMap),
+    availableCheckIndices,
+    availableCheckIndexCount: availableCheckIndices.length,
     availableCheckMetadata,
     availableCheckMetadataCount: countRecordEntries(availableCheckMetadata),
     availableCheckIndexMap,
