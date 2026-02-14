@@ -82,6 +82,10 @@ describe("ChunkUtils.parseChunkNameAt", () => {
     expect(Number.isNaN(cz)).toBe(true);
   });
 
+  it("parses signed values with leading ASCII whitespace", () => {
+    expect(ChunkUtils.parseChunkNameAt("  +12| -3")).toEqual([12, -3]);
+  });
+
   it("saturates oversized numeric segments to safe integer bounds", () => {
     const [positiveX] = ChunkUtils.parseChunkNameAt("999999999999999999999999|1");
     const [negativeX] = ChunkUtils.parseChunkNameAt("-999999999999999999999999|1");
