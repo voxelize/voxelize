@@ -63,6 +63,11 @@ struct BatchSpace {
     modified_indices: Vec<usize>,
 }
 
+#[inline]
+fn unpack_voxel_rotation(raw: u32) -> (u32, u32) {
+    ((raw >> 16) & 0xF, (raw >> 20) & 0xF)
+}
+
 impl BatchSpace {
     fn new(
         chunks: Vec<Option<ChunkData>>,
@@ -207,8 +212,7 @@ impl LightVoxelAccess for BatchSpace {
 
     fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> BlockRotation {
         let raw = self.get_raw_voxel(vx, vy, vz);
-        let rotation = (raw >> 16) & 0xF;
-        let y_rotation = (raw >> 20) & 0xF;
+        let (rotation, y_rotation) = unpack_voxel_rotation(raw);
         BlockRotation::encode(rotation, y_rotation)
     }
 
