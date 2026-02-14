@@ -146,6 +146,10 @@ type PreflightReport = {
   totalChecks: number;
   passedCheckCount: number;
   failedCheckCount: number;
+  passedCheckScripts: string[];
+  passedCheckScriptCount: number;
+  failedCheckScripts: string[];
+  failedCheckScriptCount: number;
   firstFailedCheck: string | null;
   availableChecks: string[];
   availableCheckMetadata: {
@@ -489,6 +493,23 @@ const expectSelectedCheckMetadata = (report: PreflightReport) => {
   expect(report.skippedCheckScripts).toEqual(expectedSkippedScripts);
   expect(report.skippedCheckScriptCount).toBe(report.skippedCheckScripts.length);
 };
+const expectCheckResultScriptMetadata = (report: PreflightReport) => {
+  const expectedPassedScripts = report.passedChecks.map((checkName) => {
+    return expectedAvailableCheckMetadata[
+      checkName as keyof typeof expectedAvailableCheckMetadata
+    ].scriptName;
+  });
+  const expectedFailedScripts = report.failedChecks.map((checkName) => {
+    return expectedAvailableCheckMetadata[
+      checkName as keyof typeof expectedAvailableCheckMetadata
+    ].scriptName;
+  });
+
+  expect(report.passedCheckScripts).toEqual(expectedPassedScripts);
+  expect(report.passedCheckScriptCount).toBe(report.passedCheckScripts.length);
+  expect(report.failedCheckScripts).toEqual(expectedFailedScripts);
+  expect(report.failedCheckScriptCount).toBe(report.failedCheckScripts.length);
+};
 const expectTsCoreNestedReport = (
   checkReport: object | null,
   expectedNoBuild: boolean
@@ -770,6 +791,7 @@ describe("preflight aggregate report", () => {
     }
     expect(Array.isArray(report.passedChecks)).toBe(true);
     expect(Array.isArray(report.failedChecks)).toBe(true);
+    expectCheckResultScriptMetadata(report);
     expect(Array.isArray(report.failureSummaries)).toBe(true);
     expect(report.passedChecks.length + report.failedChecks.length).toBe(
       expectedAvailableChecks.length
@@ -1712,6 +1734,7 @@ describe("preflight aggregate report", () => {
     expect(stdoutReport.selectedChecks).toEqual([]);
     expect(stdoutReport.selectedCheckCount).toBe(0);
     expectSelectedCheckMetadata(stdoutReport);
+    expectCheckResultScriptMetadata(stdoutReport);
     expect(stdoutReport.requestedChecks).toEqual(["ts-core"]);
     expect(stdoutReport.requestedCheckCount).toBe(1);
     expect(stdoutReport.requestedCheckResolutions).toEqual([
@@ -2528,6 +2551,7 @@ describe("preflight aggregate report", () => {
     expect(report.activeCliOptionOccurrenceCount).toBe(
       report.activeCliOptionOccurrences.length
     );
+    expectCheckResultScriptMetadata(report);
     expect(report.checks).toEqual([]);
     expect(result.status).toBe(0);
   });
@@ -2596,6 +2620,7 @@ describe("preflight aggregate report", () => {
       "tsCore",
       "runtimeLibraries",
     ]);
+    expectCheckResultScriptMetadata(report);
     expectTsCoreNestedReport(report.checks[0].report, true);
     expectRuntimeLibrariesNestedReport(report.checks[1].report, true);
     expect(report.passedCheckCount + report.failedCheckCount).toBe(2);

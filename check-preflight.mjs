@@ -354,6 +354,16 @@ const buildCheckSelectionMetadata = (checkNames) => {
     checkScriptCount: checkScripts.length,
   };
 };
+const buildCheckScriptSummary = (checkNames) => {
+  const checkScripts = checkNames.map((checkName) => {
+    return availableCheckMetadata[checkName].scriptName;
+  });
+
+  return {
+    checkScripts,
+    checkScriptCount: checkScripts.length,
+  };
+};
 const {
   availableCliOptionCanonicalMap,
   unknownOptions,
@@ -471,6 +481,10 @@ if (
     skippedCheckMetadata: allCheckMetadata,
     skippedCheckScripts: allCheckScripts,
     skippedCheckScriptCount: allCheckScriptCount,
+    passedCheckScripts: [],
+    passedCheckScriptCount: 0,
+    failedCheckScripts: [],
+    failedCheckScriptCount: 0,
     ...summarizeCheckResults([]),
     checks: [],
     outputPath: outputPathError === null ? resolvedOutputPath : null,
@@ -552,6 +566,10 @@ if (isListChecks) {
     skippedCheckMetadata,
     skippedCheckScripts,
     skippedCheckScriptCount,
+    passedCheckScripts: [],
+    passedCheckScriptCount: 0,
+    failedCheckScripts: [],
+    failedCheckScriptCount: 0,
     ...summarizeCheckResults([]),
     failureSummaries: [],
     checks: [],
@@ -599,6 +617,10 @@ const checks = availableChecks
 const passed = checks.every((check) => check.passed);
 const exitCode = passed ? 0 : 1;
 const checkSummary = summarizeCheckResults(checks);
+const { checkScripts: passedCheckScripts, checkScriptCount: passedCheckScriptCount } =
+  buildCheckScriptSummary(checkSummary.passedChecks);
+const { checkScripts: failedCheckScripts, checkScriptCount: failedCheckScriptCount } =
+  buildCheckScriptSummary(checkSummary.failedChecks);
 const invalidCheckCount = 0;
 const failureSummaries = checks
   .filter((check) => !check.passed)
@@ -640,6 +662,10 @@ const report = buildTimedReport({
   skippedCheckMetadata,
   skippedCheckScripts,
   skippedCheckScriptCount,
+  passedCheckScripts,
+  passedCheckScriptCount,
+  failedCheckScripts,
+  failedCheckScriptCount,
   ...checkSummary,
   failureSummaries,
   checks,
