@@ -102,6 +102,9 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             let mut weight = 0.0;
 
             for id in ids {
+                if weight >= f32::MAX {
+                    break;
+                }
                 if let Some(client) = clients.get(id) {
                     if let Some(request) = requests.get(client.entity) {
                         let dist = ChunkUtils::distance_squared(&request.center, &coords);
