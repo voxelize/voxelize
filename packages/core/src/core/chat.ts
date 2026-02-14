@@ -399,6 +399,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     const positionalValues = this.positionalValuesBuffer;
     positionalValues.length = 0;
     const hasPositionalKeys = positionalKeys.length > 0;
+    const hasBooleanKeys = booleanKeys.size > 0;
 
     for (let wordIndex = 0; wordIndex < words.length; wordIndex++) {
       const word = words[wordIndex];
@@ -415,7 +416,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         }
       }
 
-      if (booleanKeys.has(word)) {
+      if (hasBooleanKeys && booleanKeys.has(word)) {
         if (rawObj[word] === undefined) {
           rawObjKeys.push(word);
         }
