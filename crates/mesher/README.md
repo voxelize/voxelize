@@ -41,7 +41,10 @@ When making changes to meshing algorithms:
    - `cargo bench --manifest-path crates/mesher/Cargo.toml --bench greedy_mesher_bench`
 6. Compare benchmark medians between two runs:
    - `python3 crates/mesher/scripts/compare_bench_medians.py --baseline <baseline_output.txt> --candidate <candidate_output.txt>`
-7. Rebuild WASM wrapper when needed:
+7. Gate benchmark regressions by median delta threshold:
+   - `python3 crates/mesher/scripts/bench_regression_gate.py --baseline <baseline_output.txt> --candidate <candidate_output.txt> --max-regression-pct 1.0`
+   - optional lane selection: `--include '^greedy_mesher/' --exclude '/legacy/'`
+8. Rebuild WASM wrapper when needed:
    - `cd crates/wasm-mesher && wasm-pack build --target web`
 
 ## Structure
@@ -51,3 +54,4 @@ When making changes to meshing algorithms:
 - `tests/greedy_snapshot_tests.rs` - Snapshot regressions across block-property fixtures
 - `benches/greedy_mesher_bench.rs` - Criterion benchmarks for greedy/non-greedy performance
 - `scripts/compare_bench_medians.py` - Median-only benchmark output comparison tool
+- `scripts/bench_regression_gate.py` - Threshold-based benchmark regression gate
