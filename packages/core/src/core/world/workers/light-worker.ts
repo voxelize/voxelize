@@ -180,6 +180,14 @@ const isValidRuleType = (
   type: BlockRule["type"] | string | undefined
 ): type is BlockRule["type"] =>
   type === "none" || type === "simple" || type === "combination";
+const normalizeOptionalLightLevel = (
+  value: number | null | undefined
+): number | undefined => {
+  if (value === null || value === undefined || !isValidStage(value)) {
+    return undefined;
+  }
+  return value;
+};
 
 const getAppliedDeltasPayload = (lastSequenceId: number) => {
   const normalizedSequenceId = normalizeSequenceId(lastSequenceId);
@@ -261,9 +269,9 @@ const convertDynamicPatterns = (
       }
       convertedParts.push({
         rule: part.rule,
-        redLightLevel: part.redLightLevel,
-        greenLightLevel: part.greenLightLevel,
-        blueLightLevel: part.blueLightLevel,
+        redLightLevel: normalizeOptionalLightLevel(part.redLightLevel),
+        greenLightLevel: normalizeOptionalLightLevel(part.greenLightLevel),
+        blueLightLevel: normalizeOptionalLightLevel(part.blueLightLevel),
       });
     }
     if (convertedParts.length > 0) {
