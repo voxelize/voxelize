@@ -1019,7 +1019,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
     return;
   }
   const cellCount = gridWidth * gridDepth;
-  if (!Number.isSafeInteger(cellCount)) {
+  if (!Number.isSafeInteger(cellCount) || cellCount > MAX_UINT32) {
     postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
     return;
   }
