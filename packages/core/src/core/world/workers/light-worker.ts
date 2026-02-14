@@ -997,6 +997,11 @@ const processBatchMessage = (message: LightBatchMessage) => {
     postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
     return;
   }
+  const colorIndex = colorToIndex(color);
+  if (colorIndex === null) {
+    postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
+    return;
+  }
 
   let lastSequenceId = 0;
   const serializedChunks = reusableSerializedChunks;
@@ -1075,12 +1080,6 @@ const processBatchMessage = (message: LightBatchMessage) => {
   } else {
     boundsMinPayload = emptyBoundsMin;
     boundsShapePayload = emptyBoundsShape;
-  }
-  const colorIndex = colorToIndex(color);
-  if (colorIndex === null) {
-    serializedChunks.length = 0;
-    postEmptyBatchResult(jobId, lastSequenceId);
-    return;
   }
   const wasmResult = process_light_batch_fast(
     serializedChunks,
