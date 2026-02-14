@@ -957,6 +957,29 @@ describe("Type builders", () => {
     expect(partFromNumber.rule).not.toBe(BLOCK_RULE_NONE);
   });
 
+  it("sanitizes malformed transparency entries to boolean defaults", () => {
+    const malformedTransparency = [
+      true,
+      "yes",
+      false,
+      1,
+      true,
+      null,
+    ] as never;
+    const part = createBlockConditionalPart({
+      isTransparent: malformedTransparency,
+    });
+
+    expect(part.isTransparent).toEqual([
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+    ]);
+  });
+
   it("preserves provided conditional part fields", () => {
     const face = new BlockFace({ name: "CustomFace" });
     const aabb = AABB.create(0, 0, 0, 1, 1, 1);
@@ -1180,6 +1203,47 @@ describe("Type builders", () => {
         },
       ],
     });
+  });
+
+  it("sanitizes malformed optional fields in simple rules", () => {
+    const part = createBlockConditionalPart({
+      rule: {
+        type: "simple",
+        offset: [1, 0, 0],
+        id: "bad",
+        stage: "bad",
+        rotation: {
+          value: 0,
+          yRotation: Math.PI / 2,
+        },
+      } as never,
+    });
+
+    expect(part.rule).toEqual({
+      type: "simple",
+      offset: [1, 0, 0],
+      rotation: BlockRotation.py(Math.PI / 2),
+    });
+  });
+
+  it("falls back to none rules for malformed rule inputs", () => {
+    const malformedSimple = createBlockConditionalPart({
+      rule: {
+        type: "simple",
+        offset: [1, "x", 0],
+        id: 1,
+      } as never,
+    });
+    const malformedCombination = createBlockConditionalPart({
+      rule: {
+        type: "combination",
+        logic: "xor",
+        rules: [],
+      } as never,
+    });
+
+    expect(malformedSimple.rule).toEqual(BLOCK_RULE_NONE);
+    expect(malformedCombination.rule).toEqual(BLOCK_RULE_NONE);
   });
 
   it("builds dynamic patterns with deterministic defaults", () => {

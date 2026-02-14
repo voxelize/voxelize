@@ -47,6 +47,8 @@ omitted.
 Both helpers also accept readonly input arrays/tuples.
 Invalid face/AABB entries are skipped during helper cloning.
 Malformed optional face fields fall back to default face values.
+Malformed rules fall back to `BLOCK_RULE_NONE`, and malformed transparency tuple
+entries fall back to `false`.
 
 ## Basic usage
 

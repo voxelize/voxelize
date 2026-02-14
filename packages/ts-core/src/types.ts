@@ -176,6 +176,10 @@ const isFiniteNumberValue = (value: DynamicValue): value is number => {
   return typeof value === "number" && Number.isFinite(value);
 };
 
+const isBooleanValue = (value: DynamicValue): value is boolean => {
+  return typeof value === "boolean";
+};
+
 const isVec2Value = (value: DynamicValue): value is Vec2 => {
   return (
     Array.isArray(value) &&
@@ -250,6 +254,109 @@ const toCornerTuple = (
   ];
 };
 
+const toOptionalRuleNumber = (
+  value: DynamicValue
+): OptionalRuleValue<number> | undefined => {
+  if (value === undefined || value === null) {
+    return value;
+  }
+
+  return isFiniteNumberValue(value) ? value : undefined;
+};
+
+const toOptionalRuleRotation = (
+  value: DynamicValue
+): OptionalRuleValue<BlockRotation> | undefined => {
+  if (value === undefined || value === null) {
+    return value;
+  }
+
+  if (value instanceof BlockRotation) {
+    return new BlockRotation(value.value, value.yRotation);
+  }
+
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const maybeRotation = value as {
+    value?: DynamicValue;
+    yRotation?: DynamicValue;
+  };
+  if (
+    !isFiniteNumberValue(maybeRotation.value) ||
+    !isFiniteNumberValue(maybeRotation.yRotation)
+  ) {
+    return undefined;
+  }
+
+  return new BlockRotation(maybeRotation.value, maybeRotation.yRotation);
+};
+
+const toBlockRule = (value: DynamicValue): BlockRule => {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return { type: "none" };
+  }
+
+  const maybeRule = value as {
+    type?: DynamicValue;
+    logic?: DynamicValue;
+    rules?: DynamicValue;
+    offset?: DynamicValue;
+    id?: DynamicValue;
+    rotation?: DynamicValue;
+    stage?: DynamicValue;
+  };
+  if (maybeRule.type === "none") {
+    return { type: "none" };
+  }
+
+  if (maybeRule.type === "simple") {
+    if (!isVec3Value(maybeRule.offset)) {
+      return { type: "none" };
+    }
+
+    const simpleRule: { type: "simple" } & BlockSimpleRule = {
+      type: "simple",
+      offset: [...maybeRule.offset],
+    };
+    const id = toOptionalRuleNumber(maybeRule.id);
+    if (id !== undefined) {
+      simpleRule.id = id;
+    }
+    const stage = toOptionalRuleNumber(maybeRule.stage);
+    if (stage !== undefined) {
+      simpleRule.stage = stage;
+    }
+    const rotation = toOptionalRuleRotation(maybeRule.rotation);
+    if (rotation !== undefined) {
+      simpleRule.rotation = rotation;
+    }
+
+    return simpleRule;
+  }
+
+  if (maybeRule.type === "combination") {
+    const logic =
+      maybeRule.logic === BlockRuleLogic.And ||
+      maybeRule.logic === BlockRuleLogic.Or ||
+      maybeRule.logic === BlockRuleLogic.Not
+        ? maybeRule.logic
+        : null;
+    if (logic === null || !Array.isArray(maybeRule.rules)) {
+      return { type: "none" };
+    }
+
+    return {
+      type: "combination",
+      logic,
+      rules: maybeRule.rules.map((nestedRule) => toBlockRule(nestedRule)),
+    };
+  }
+
+  return { type: "none" };
+};
+
 const toBlockFaceInit = (face: BlockFaceInput): BlockFaceInit | null => {
   if (face === null || typeof face !== "object" || Array.isArray(face)) {
     return null;
@@ -306,31 +413,6 @@ const cloneBlockFace = (face: BlockFaceInput): BlockFace | null => {
   return new BlockFace(faceInit);
 };
 
-const cloneBlockRule = (rule: BlockRule): BlockRule => {
-  if (rule.type === "none") {
-    return { type: "none" };
-  }
-
-  if (rule.type === "simple") {
-    return {
-      type: "simple",
-      offset: [...rule.offset],
-      id: rule.id,
-      stage: rule.stage,
-      rotation:
-        rule.rotation === undefined || rule.rotation === null
-          ? rule.rotation
-          : new BlockRotation(rule.rotation.value, rule.rotation.yRotation),
-    };
-  }
-
-  return {
-    type: "combination",
-    logic: rule.logic,
-    rules: rule.rules.map((nestedRule) => cloneBlockRule(nestedRule)),
-  };
-};
-
 export const createBlockConditionalPart = (
   part: BlockConditionalPartInput = {}
 ): BlockConditionalPart => {
@@ -361,17 +443,26 @@ export const createBlockConditionalPart = (
     normalizedPart.isTransparent === undefined
       ? [false, false, false, false, false, false]
       : [
-          normalizedPart.isTransparent[0],
-          normalizedPart.isTransparent[1],
-          normalizedPart.isTransparent[2],
-          normalizedPart.isTransparent[3],
-          normalizedPart.isTransparent[4],
-          normalizedPart.isTransparent[5],
+          isBooleanValue(normalizedPart.isTransparent[0])
+            ? normalizedPart.isTransparent[0]
+            : false,
+          isBooleanValue(normalizedPart.isTransparent[1])
+            ? normalizedPart.isTransparent[1]
+            : false,
+          isBooleanValue(normalizedPart.isTransparent[2])
+            ? normalizedPart.isTransparent[2]
+            : false,
+          isBooleanValue(normalizedPart.isTransparent[3])
+            ? normalizedPart.isTransparent[3]
+            : false,
+          isBooleanValue(normalizedPart.isTransparent[4])
+            ? normalizedPart.isTransparent[4]
+            : false,
+          isBooleanValue(normalizedPart.isTransparent[5])
+            ? normalizedPart.isTransparent[5]
+            : false,
         ];
-  const rule =
-    normalizedPart.rule === undefined
-      ? cloneBlockRule(BLOCK_RULE_NONE)
-      : cloneBlockRule(normalizedPart.rule);
+  const rule = toBlockRule(normalizedPart.rule);
 
   return {
     rule,

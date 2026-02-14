@@ -85,6 +85,8 @@ const voxel = Voxel.pack({
   - ignores invalid `faces`/`aabbs` entries instead of throwing
   - malformed optional face fields (such as invalid `dir`/`corners`/`range`)
     fall back to default face values
+  - malformed rule inputs fall back to `BLOCK_RULE_NONE` and malformed
+    transparency tuple entries fall back to `false`
 - `createBlockDynamicPattern`
   - defensively clones dynamic-pattern part inputs using
     `createBlockConditionalPart`
