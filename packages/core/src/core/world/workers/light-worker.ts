@@ -618,6 +618,10 @@ const hasPotentialRelevantDeltaBatches = (
       if (!delta || typeof delta !== "object") {
         continue;
       }
+      const writeIntentMask = getDeltaWriteIntentMask(delta);
+      if (writeIntentMask === 0) {
+        continue;
+      }
       const coords = delta.coords;
       if (!isStrictCoords3(coords)) {
         continue;
@@ -626,19 +630,16 @@ const hasPotentialRelevantDeltaBatches = (
       if (vy < 0 || vy >= maxHeight) {
         continue;
       }
-      const writeIntentMask = getDeltaWriteIntentMask(delta);
-      if (writeIntentMask !== 0) {
-        const deltaChunkX =
-          chunkShift >= 0 ? vx >> chunkShift : Math.floor(vx / chunkSize);
-        const deltaChunkZ =
-          chunkShift >= 0 ? vz >> chunkShift : Math.floor(vz / chunkSize);
-        if (deltaChunkX === cx && deltaChunkZ === cz) {
-          resetChunkValidityMemo(chunkValidity, chunkValidityTouched);
-          if (chunkValiditySparse) {
-            chunkValiditySparse.clear();
-          }
-          return true;
+      const deltaChunkX =
+        chunkShift >= 0 ? vx >> chunkShift : Math.floor(vx / chunkSize);
+      const deltaChunkZ =
+        chunkShift >= 0 ? vz >> chunkShift : Math.floor(vz / chunkSize);
+      if (deltaChunkX === cx && deltaChunkZ === cz) {
+        resetChunkValidityMemo(chunkValidity, chunkValidityTouched);
+        if (chunkValiditySparse) {
+          chunkValiditySparse.clear();
         }
+        return true;
       }
     }
   }
@@ -967,6 +968,10 @@ const applyRelevantDeltas = (
       if (!delta || typeof delta !== "object") {
         continue;
       }
+      const writeIntentMask = getDeltaWriteIntentMask(delta);
+      if (writeIntentMask === 0) {
+        continue;
+      }
       const coords = delta.coords;
       if (!isStrictCoords3(coords)) {
         continue;
@@ -980,10 +985,6 @@ const applyRelevantDeltas = (
         vz < chunkMinZ ||
         vz >= chunkMaxZ
       ) {
-        continue;
-      }
-      const writeIntentMask = getDeltaWriteIntentMask(delta);
-      if (writeIntentMask === 0) {
         continue;
       }
       const sequenceId = delta.sequenceId;
