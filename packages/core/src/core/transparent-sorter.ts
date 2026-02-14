@@ -125,6 +125,7 @@ function radixSortDescending(
   keys: Uint32Array,
   temp: Uint32Array
 ): void {
+  const counts = _counts;
   for (let i = 0; i < faceCount; i++) {
     _floatView[0] = distances[i];
     const bits = _intView[0];
@@ -135,20 +136,20 @@ function radixSortDescending(
   let dst = temp;
 
   for (let shift = 0; shift < 32; shift += 8) {
-    _counts.fill(0);
+    counts.fill(0);
 
     for (let i = 0; i < faceCount; i++) {
-      _counts[(keys[src[i]] >> shift) & 0xff]++;
+      counts[(keys[src[i]] >> shift) & 0xff]++;
     }
 
     for (let i = 1; i < 256; i++) {
-      _counts[i] += _counts[i - 1];
+      counts[i] += counts[i - 1];
     }
 
     for (let i = faceCount - 1; i >= 0; i--) {
       const idx = src[i];
       const bucket = (keys[idx] >> shift) & 0xff;
-      dst[--_counts[bucket]] = idx;
+      dst[--counts[bucket]] = idx;
     }
 
     const tmp = src;
