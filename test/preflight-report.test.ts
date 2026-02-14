@@ -1051,6 +1051,79 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
+  it("executes ts-core checks before client when both are selected", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--no-build", "--only", "ts,client"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(false);
+    expect(report.noBuild).toBe(true);
+    expect(report.selectionMode).toBe("only");
+    expect(report.specialSelectorsUsed).toEqual([]);
+    expect(report.selectedChecks).toEqual(["tsCore", "client"]);
+    expect(report.selectedCheckCount).toBe(2);
+    expect(report.requestedChecks).toEqual(["ts", "client"]);
+    expect(report.requestedCheckCount).toBe(2);
+    expect(report.requestedCheckResolutions).toEqual([
+      {
+        token: "ts",
+        normalizedToken: "ts",
+        kind: "check",
+        resolvedTo: ["tsCore"],
+      },
+      {
+        token: "client",
+        normalizedToken: "client",
+        kind: "check",
+        resolvedTo: ["client"],
+      },
+    ]);
+    expect(report.requestedCheckResolutionCounts).toEqual({
+      check: 2,
+      specialSelector: 0,
+      invalid: 0,
+    });
+    expect(report.skippedChecks).toEqual(["devEnvironment", "wasmPack"]);
+    expect(report.skippedCheckCount).toBe(2);
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--no-build", "--only"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--no-build", "--only"]);
+    expect(report.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions(["--no-build", "--only"])
+    );
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences(["--no-build", "--only", "ts,client"])
+    );
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(report.totalChecks).toBe(2);
+    expect(report.checks.length).toBe(2);
+    expect(report.checks.map((check) => check.name)).toEqual(["tsCore", "client"]);
+    expect(report.passedCheckCount + report.failedCheckCount).toBe(2);
+    expect([...report.passedChecks, ...report.failedChecks].sort()).toEqual([
+      "client",
+      "tsCore",
+    ]);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
   it("supports selecting all checks with the all alias", () => {
     const result = spawnSync(
       process.execPath,
