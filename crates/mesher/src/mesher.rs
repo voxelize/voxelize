@@ -1968,66 +1968,6 @@ fn compute_face_ao_and_light_fast(
     (aos, lights)
 }
 
-fn extract_greedy_quads(
-    mask: &mut HashMap<(i32, i32), FaceData>,
-    min_u: i32,
-    min_v: i32,
-    width: i32,
-    height: i32,
-) -> Vec<GreedyQuad> {
-    let max_u = min_u + width;
-    let max_v = min_v + height;
-    let estimated_cells = (width * height).max(0) as usize;
-    let mut quads = Vec::with_capacity((estimated_cells / 2).max(16));
-
-    for v in min_v..max_v {
-        for u in min_u..max_u {
-            if let Some(data) = mask.remove(&(u, v)) {
-                let mut width = 1;
-                while u + width < max_u {
-                    if let Some(neighbor) = mask.get(&(u + width, v)) {
-                        if neighbor.key == data.key {
-                            mask.remove(&(u + width, v));
-                            width += 1;
-                        } else {
-                            break;
-                        }
-                    } else {
-                        break;
-                    }
-                }
-
-                let mut height = 1;
-                'height: while v + height < max_v {
-                    for du in 0..width {
-                        if let Some(neighbor) = mask.get(&(u + du, v + height)) {
-                            if neighbor.key != data.key {
-                                break 'height;
-                            }
-                        } else {
-                            break 'height;
-                        }
-                    }
-                    for du in 0..width {
-                        mask.remove(&(u + du, v + height));
-                    }
-                    height += 1;
-                }
-
-                quads.push(GreedyQuad {
-                    x: u,
-                    y: v,
-                    w: width,
-                    h: height,
-                    data,
-                });
-            }
-        }
-    }
-
-    quads
-}
-
 fn extract_greedy_quads_dense(
     mask: &mut [Option<FaceData>],
     min_u: i32,
@@ -3017,8 +2957,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
     let [max_x, max_y, max_z] = *max;
 
     let slice_size = (max_x - min_x).max(max_y - min_y).max(max_z - min_z) as usize;
-    let mut greedy_mask: HashMap<(i32, i32), FaceData> =
-        HashMap::with_capacity(slice_size * slice_size);
+    let mut greedy_mask: Vec<Option<FaceData>> = vec![None; slice_size * slice_size];
     let mut non_greedy_faces: Vec<(
         i32,
         i32,
@@ -3062,13 +3001,19 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
             1 => (min_y, max_y),
             _ => (min_z, max_z),
         };
+        let mask_width = (u_range.1 - u_range.0) as usize;
+        let mask_height = (v_range.1 - v_range.0) as usize;
+        let mask_len = mask_width * mask_height;
+        if greedy_mask.len() < mask_len {
+            greedy_mask.resize(mask_len, None);
+        }
 
         for slice in slice_range {
-            greedy_mask.clear();
             non_greedy_faces.clear();
             let mut faces: Vec<(BlockFace, bool)> = Vec::with_capacity(8);
 
             for u in u_range.0..u_range.1 {
+                let u_mask_offset = (u - u_range.0) as usize;
                 for v in v_range.0..v_range.1 {
                     let (vx, vy, vz) = if axis == 0 {
                         (slice, v, u)
@@ -3279,18 +3224,19 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                             uv_range,
                             is_fluid,
                         };
-
-                        greedy_mask.insert((u, v), data);
+                        let current_mask_index =
+                            (v - v_range.0) as usize * mask_width + u_mask_offset;
+                        greedy_mask[current_mask_index] = Some(data);
                     }
                 }
             }
 
-            let quads = extract_greedy_quads(
-                &mut greedy_mask,
+            let quads = extract_greedy_quads_dense(
+                &mut greedy_mask[..mask_len],
                 u_range.0,
                 v_range.0,
-                u_range.1 - u_range.0,
-                v_range.1 - v_range.0,
+                mask_width,
+                mask_height,
             );
 
             let mut cached_quad_block_id = u32::MAX;
