@@ -38,7 +38,6 @@ impl JsInteropKeys {
 struct ChunkData {
     voxels: Vec<u32>,
     lights: Vec<u32>,
-    shape: [usize; 3],
 }
 
 #[derive(Clone)]
@@ -48,6 +47,8 @@ struct BatchSpace {
     chunk_grid_depth: usize,
     chunk_grid_offset: [i32; 2],
     chunk_size: i32,
+    chunk_size_usize: usize,
+    chunk_column_stride: usize,
     chunk_shift: Option<u32>,
     chunk_mask: Option<i32>,
     max_height: u32,
@@ -70,6 +71,9 @@ impl BatchSpace {
         max_height: u32,
     ) -> Self {
         let modified_chunks = vec![false; chunks.len()];
+        let chunk_size_usize = chunk_size.max(0) as usize;
+        let chunk_height = max_height as usize;
+        let chunk_column_stride = chunk_size_usize.saturating_mul(chunk_height);
         let chunk_shift = if chunk_size > 0 && (chunk_size as u32).is_power_of_two() {
             Some(chunk_size.trailing_zeros())
         } else {
@@ -82,6 +86,8 @@ impl BatchSpace {
             chunk_grid_depth,
             chunk_grid_offset,
             chunk_size,
+            chunk_size_usize,
+            chunk_column_stride,
             chunk_shift,
             chunk_mask,
             max_height,
@@ -124,6 +130,9 @@ impl BatchSpace {
             vz,
             self.chunk_size,
             self.chunk_mask,
+            self.chunk_size_usize,
+            self.max_height as usize,
+            self.chunk_column_stride,
         )
     }
 
@@ -134,6 +143,9 @@ impl BatchSpace {
         vz: i32,
         chunk_size: i32,
         chunk_mask: Option<i32>,
+        chunk_size_usize: usize,
+        chunk_height: usize,
+        chunk_column_stride: usize,
     ) -> Option<usize> {
         let (lx, lz) = if let Some(mask) = chunk_mask {
             ((vx & mask) as usize, (vz & mask) as usize)
@@ -144,11 +156,11 @@ impl BatchSpace {
             )
         };
         let ly = vy as usize;
-        if ly >= chunk.shape[1] {
+        if ly >= chunk_height {
             return None;
         }
 
-        let index = lx * chunk.shape[1] * chunk.shape[2] + ly * chunk.shape[2] + lz;
+        let index = lx * chunk_column_stride + ly * chunk_size_usize + lz;
         if index < chunk.voxels.len() && index < chunk.lights.len() {
             Some(index)
         } else {
@@ -229,10 +241,22 @@ impl LightVoxelAccess for BatchSpace {
         };
         let chunk_size = self.chunk_size;
         let chunk_mask = self.chunk_mask;
+        let chunk_size_usize = self.chunk_size_usize;
+        let chunk_height = self.max_height as usize;
+        let chunk_column_stride = self.chunk_column_stride;
 
         if let Some(Some(chunk)) = self.chunks.get_mut(chunk_index) {
-            let Some(voxel_index) =
-                Self::voxel_index_from_components(chunk, vx, vy, vz, chunk_size, chunk_mask)
+            let Some(voxel_index) = Self::voxel_index_from_components(
+                chunk,
+                vx,
+                vy,
+                vz,
+                chunk_size,
+                chunk_mask,
+                chunk_size_usize,
+                chunk_height,
+                chunk_column_stride,
+            )
             else {
                 return false;
             };
@@ -274,15 +298,10 @@ struct ModifiedChunkData {
     lights: Vec<u32>,
 }
 
-fn parse_chunks(chunks_data: &Array, chunk_size: i32, max_height: i32) -> Vec<Option<ChunkData>> {
+fn parse_chunks(chunks_data: &Array) -> Vec<Option<ChunkData>> {
     JS_KEYS.with(|keys| {
         let chunk_count = chunks_data.length() as usize;
         let mut chunks = Vec::with_capacity(chunk_count);
-        let shape = [
-            chunk_size.max(0) as usize,
-            max_height.max(0) as usize,
-            chunk_size.max(0) as usize,
-        ];
 
         for index in 0..chunk_count {
             let chunk_value = chunks_data.get(index as u32);
@@ -310,7 +329,6 @@ fn parse_chunks(chunks_data: &Array, chunk_size: i32, max_height: i32) -> Vec<Op
             chunks.push(Some(ChunkData {
                 voxels,
                 lights,
-                shape,
             }));
         }
 
@@ -348,7 +366,7 @@ pub fn process_light_batch_fast(
     max_height: i32,
     max_light_level: u32,
 ) -> JsValue {
-    let chunks = parse_chunks(chunks_data, chunk_size, max_height);
+    let chunks = parse_chunks(chunks_data);
     let mut space = BatchSpace::new(
         chunks,
         chunk_grid_width,
@@ -527,7 +545,6 @@ mod tests {
         let chunk = ChunkData {
             voxels: vec![0; 16 * 4 * 16],
             lights: vec![0; 16 * 4 * 16],
-            shape: [16, 4, 16],
         };
         let space = BatchSpace::new(Vec::new(), 1, 1, [0, 0], 16, 4);
 
@@ -542,7 +559,7 @@ mod tests {
             let ly = 2usize;
             let lx = vx.rem_euclid(16) as usize;
             let lz = vz.rem_euclid(16) as usize;
-            let expected = lx * chunk.shape[1] * chunk.shape[2] + ly * chunk.shape[2] + lz;
+            let expected = lx * 4 * 16 + ly * 16 + lz;
             assert_eq!(
                 space.voxel_index_in_chunk(&chunk, vx, ly as i32, vz),
                 Some(expected)
@@ -555,7 +572,6 @@ mod tests {
         let chunk = ChunkData {
             voxels: vec![0; 16 * 4 * 16],
             lights: vec![0; 16 * 4 * 16],
-            shape: [16, 4, 16],
         };
         let mut space = BatchSpace::new(vec![Some(chunk)], 1, 1, [0, 0], 16, 4);
 
