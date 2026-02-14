@@ -12,14 +12,15 @@ const getChunkShiftIfPowerOfTwo = (chunkSize: number) => {
   return 31 - Math.clz32(chunkSize);
 };
 
-const mapVoxelToChunkCoordinate = (
-  voxel: number,
+const mapVoxelToChunkCoordinates = (
+  vx: number,
+  vz: number,
   chunkSize: number,
   chunkShift: number
-) =>
-  chunkShift >= 0 && (voxel | 0) === voxel
-    ? voxel >> chunkShift
-    : Math.floor(voxel / chunkSize);
+): Coords2 =>
+  chunkShift >= 0 && (vx | 0) === vx && (vz | 0) === vz
+    ? [vx >> chunkShift, vz >> chunkShift]
+    : [Math.floor(vx / chunkSize), Math.floor(vz / chunkSize)];
 
 const normalizeChunkSize = (chunkSize: number) => {
   if (!Number.isFinite(chunkSize) || chunkSize <= 0) {
@@ -95,10 +96,7 @@ export class ChunkUtils {
     chunkSize: number
   ): Coords2 => {
     const [normalizedChunkSize, chunkShift] = normalizeChunkMapping(chunkSize);
-    return [
-      mapVoxelToChunkCoordinate(vx, normalizedChunkSize, chunkShift),
-      mapVoxelToChunkCoordinate(vz, normalizedChunkSize, chunkShift),
-    ];
+    return mapVoxelToChunkCoordinates(vx, vz, normalizedChunkSize, chunkShift);
   };
 
   /**
@@ -117,8 +115,12 @@ export class ChunkUtils {
     concat = "|"
   ) => {
     const [normalizedChunkSize, chunkShift] = normalizeChunkMapping(chunkSize);
-    const cx = mapVoxelToChunkCoordinate(vx, normalizedChunkSize, chunkShift);
-    const cz = mapVoxelToChunkCoordinate(vz, normalizedChunkSize, chunkShift);
+    const [cx, cz] = mapVoxelToChunkCoordinates(
+      vx,
+      vz,
+      normalizedChunkSize,
+      chunkShift
+    );
     return ChunkUtils.getChunkNameAt(cx, cz, concat);
   };
 
@@ -277,8 +279,12 @@ export class ChunkUtils {
       const mask = normalizedChunkSize - 1;
       return [vx & mask, vy, vz & mask];
     }
-    const cx = mapVoxelToChunkCoordinate(vx, normalizedChunkSize, chunkShift);
-    const cz = mapVoxelToChunkCoordinate(vz, normalizedChunkSize, chunkShift);
+    const [cx, cz] = mapVoxelToChunkCoordinates(
+      vx,
+      vz,
+      normalizedChunkSize,
+      chunkShift
+    );
 
     return [vx - cx * normalizedChunkSize, vy, vz - cz * normalizedChunkSize];
   };
