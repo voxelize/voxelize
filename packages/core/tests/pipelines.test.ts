@@ -112,6 +112,17 @@ describe("MeshPipeline.getDirtyKeysAndHasMore", () => {
     expect(result.keys).toHaveLength(1);
     expect(result.hasMore).toBe(true);
   });
+
+  it("returns all dirty keys when limit is infinite", () => {
+    const pipeline = new MeshPipeline();
+    pipeline.onVoxelChange(1, 2, 0);
+    pipeline.onVoxelChange(3, 4, 0);
+    pipeline.onVoxelChange(5, 6, 0);
+
+    const result = pipeline.getDirtyKeysAndHasMore(Number.POSITIVE_INFINITY);
+    expect(result.keys).toHaveLength(3);
+    expect(result.hasMore).toBe(false);
+  });
 });
 
 describe("ChunkPipeline.shouldRequestAt", () => {
