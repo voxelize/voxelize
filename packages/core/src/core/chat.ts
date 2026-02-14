@@ -286,6 +286,12 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       }
       return tokens;
     }
+    if (firstSpace === raw.length - 1) {
+      if (firstSpace > 0) {
+        tokens.push(raw.substring(0, firstSpace));
+      }
+      return tokens;
+    }
 
     let scanStart = firstSpace + 1;
     if (firstSpace > 0) {
