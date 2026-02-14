@@ -137,6 +137,7 @@ const reusableTransferBuffers: ArrayBuffer[] = [];
 const reusableSerializedChunks: SerializedWasmChunk[] = [];
 const reusableChunkGrid: (RawChunk | null)[] = [];
 let reusableChunkValidityDense = new Int8Array(0);
+const reusableChunkValidityTouched: number[] = [];
 const reusableChunkValiditySparse = new Map<number, boolean>();
 const emptyModifiedChunks: WorkerModifiedChunk[] = [];
 const emptyChunkGrid: (RawChunk | null)[] = [];
@@ -201,10 +202,14 @@ const mapVoxelToChunkCoordinate = (
 const getChunkValidityMemo = (cellCount: number) => {
   if (reusableChunkValidityDense.length < cellCount) {
     reusableChunkValidityDense = new Int8Array(cellCount);
-  } else if (cellCount > 0) {
-    reusableChunkValidityDense.fill(0, 0, cellCount);
   }
   return reusableChunkValidityDense;
+};
+const resetChunkValidityMemo = (chunkValidity: Int8Array, touched: number[]) => {
+  for (let index = 0; index < touched.length; index++) {
+    chunkValidity[touched[index]] = 0;
+  }
+  touched.length = 0;
 };
 const isValidVoxelId = (value: number) =>
   isInteger(value) && value >= 0 && value <= 0xffff;
@@ -511,6 +516,10 @@ const hasPotentialRelevantDeltaBatches = (
     deltaBatches.length > 1 && cellCount <= MAX_CHUNK_VALIDITY_MEMO_LENGTH
       ? getChunkValidityMemo(cellCount)
       : null;
+  const chunkValidityTouched = chunkValidity ? reusableChunkValidityTouched : null;
+  if (chunkValidityTouched) {
+    chunkValidityTouched.length = 0;
+  }
   const chunkValiditySparse =
     chunkValidity === null && deltaBatches.length > 1
       ? reusableChunkValiditySparse
@@ -558,6 +567,7 @@ const hasPotentialRelevantDeltaBatches = (
           ? 1
           : -1;
         chunkValidity[chunkIndex] = chunkValidityState;
+        chunkValidityTouched?.push(chunkIndex);
       }
       if (chunkValidityState === -1) {
         continue;
@@ -623,6 +633,9 @@ const hasPotentialRelevantDeltaBatches = (
         const deltaChunkX = mapVoxelToChunkCoordinate(vx, chunkSize, chunkShift);
         const deltaChunkZ = mapVoxelToChunkCoordinate(vz, chunkSize, chunkShift);
         if (deltaChunkX === cx && deltaChunkZ === cz) {
+          if (chunkValidityTouched) {
+            resetChunkValidityMemo(chunkValidity, chunkValidityTouched);
+          }
           if (chunkValiditySparse) {
             chunkValiditySparse.clear();
           }
@@ -630,6 +643,9 @@ const hasPotentialRelevantDeltaBatches = (
         }
       }
     }
+  }
+  if (chunkValidityTouched) {
+    resetChunkValidityMemo(chunkValidity, chunkValidityTouched);
   }
   if (chunkValiditySparse) {
     chunkValiditySparse.clear();
