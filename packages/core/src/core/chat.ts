@@ -461,47 +461,47 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     } else if (!hasPositionalKeys) {
       for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
         const word = words[wordIndex];
-        const eqIndex = getFirstEqualsIndex(word);
-        if (eqIndex > 0) {
-          const key = word.substring(0, eqIndex);
-          if (keySet.has(key)) {
-            const value = word.substring(eqIndex + 1);
-            if (rawObj[key] === undefined) {
-              rawObjKeys.push(key);
-            }
-            rawObj[key] = value;
-            continue;
-          }
-        }
-        if (booleanKeys.has(word)) {
-          if (rawObj[word] === undefined) {
-            rawObjKeys.push(word);
-          }
-          rawObj[word] = "true";
-        }
-      }
-    } else {
-      for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
-        const word = words[wordIndex];
-        const eqIndex = getFirstEqualsIndex(word);
-        if (eqIndex > 0) {
-          const key = word.substring(0, eqIndex);
-          if (keySet.has(key)) {
-            const value = word.substring(eqIndex + 1);
-            if (rawObj[key] === undefined) {
-              rawObjKeys.push(key);
-            }
-            rawObj[key] = value;
-            continue;
-          }
-        }
-
         if (booleanKeys.has(word)) {
           if (rawObj[word] === undefined) {
             rawObjKeys.push(word);
           }
           rawObj[word] = "true";
           continue;
+        }
+        const eqIndex = getFirstEqualsIndex(word);
+        if (eqIndex > 0) {
+          const key = word.substring(0, eqIndex);
+          if (keySet.has(key)) {
+            const value = word.substring(eqIndex + 1);
+            if (rawObj[key] === undefined) {
+              rawObjKeys.push(key);
+            }
+            rawObj[key] = value;
+            continue;
+          }
+        }
+      }
+    } else {
+      for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
+        const word = words[wordIndex];
+        if (booleanKeys.has(word)) {
+          if (rawObj[word] === undefined) {
+            rawObjKeys.push(word);
+          }
+          rawObj[word] = "true";
+          continue;
+        }
+        const eqIndex = getFirstEqualsIndex(word);
+        if (eqIndex > 0) {
+          const key = word.substring(0, eqIndex);
+          if (keySet.has(key)) {
+            const value = word.substring(eqIndex + 1);
+            if (rawObj[key] === undefined) {
+              rawObjKeys.push(key);
+            }
+            rawObj[key] = value;
+            continue;
+          }
         }
 
         positionalValues.push(word);
