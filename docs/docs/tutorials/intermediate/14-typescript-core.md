@@ -128,6 +128,12 @@ Run it with:
 pnpm --filter @voxelize/ts-core example:end-to-end
 ```
 
+If artifacts are already built and you only want to rerun the example:
+
+```bash
+pnpm --filter @voxelize/ts-core example:end-to-end:no-build
+```
+
 ## Build artifact preflight (root workspace)
 
 From the repository root you can validate `@voxelize/ts-core` artifacts with:
