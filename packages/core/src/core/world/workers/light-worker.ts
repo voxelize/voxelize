@@ -174,7 +174,8 @@ const normalizeStartIndex = (startIndexValue: number | undefined) =>
 const MIN_INT32 = -0x80000000;
 const MAX_INT32 = 0x7fffffff;
 const MAX_TYPED_ARRAY_LENGTH = 0x7fffffff;
-const MAX_CHUNK_VALIDITY_MEMO_LENGTH = 0x01000000;
+const MAX_LIGHT_BATCH_CELL_COUNT = 0x01000000;
+const MAX_CHUNK_VALIDITY_MEMO_LENGTH = MAX_LIGHT_BATCH_CELL_COUNT;
 const MAX_UINT32 = 0xffffffff;
 const isI32 = (value: number) =>
   isInteger(value) && value >= MIN_INT32 && value <= MAX_INT32;
@@ -1124,7 +1125,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
     return;
   }
   const cellCount = gridWidth * gridDepth;
-  if (!Number.isSafeInteger(cellCount) || cellCount > MAX_TYPED_ARRAY_LENGTH) {
+  if (!Number.isSafeInteger(cellCount) || cellCount > MAX_LIGHT_BATCH_CELL_COUNT) {
     postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
     return;
   }

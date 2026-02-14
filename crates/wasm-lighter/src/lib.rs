@@ -47,6 +47,7 @@ impl JsInteropKeys {
 }
 
 const MAX_JS_TYPED_ARRAY_LENGTH: usize = i32::MAX as usize;
+const MAX_LIGHT_BATCH_CHUNK_COUNT: usize = 0x0100_0000;
 
 #[derive(Clone)]
 struct ChunkData {
@@ -482,6 +483,9 @@ fn compute_expected_chunk_sizes(
         return None;
     }
     let expected_chunk_count = chunk_grid_width.checked_mul(chunk_grid_depth)?;
+    if expected_chunk_count > MAX_LIGHT_BATCH_CHUNK_COUNT {
+        return None;
+    }
     if expected_chunk_count > MAX_JS_TYPED_ARRAY_LENGTH {
         return None;
     }
@@ -883,10 +887,15 @@ mod tests {
             super::compute_expected_chunk_sizes(16, 64, 3, 2),
             Some((16 * 64 * 16, 6))
         );
+        assert_eq!(
+            super::compute_expected_chunk_sizes(1, 1, 4_096, 4_096),
+            Some((1, 4_096 * 4_096))
+        );
         assert_eq!(super::compute_expected_chunk_sizes(0, 64, 1, 1), None);
         assert_eq!(super::compute_expected_chunk_sizes(16, -1, 1, 1), None);
         assert_eq!(super::compute_expected_chunk_sizes(16, 64, 0, 1), None);
         assert_eq!(super::compute_expected_chunk_sizes(16, 64, 1, 0), None);
+        assert_eq!(super::compute_expected_chunk_sizes(1, 1, 4_097, 4_096), None);
         assert_eq!(super::compute_expected_chunk_sizes(65_536, 2, 1, 1), None);
         assert_eq!(super::compute_expected_chunk_sizes(46_341, 1, 1, 1), None);
         assert_eq!(super::compute_expected_chunk_sizes(i32::MAX, i32::MAX, 2, 2), None);
