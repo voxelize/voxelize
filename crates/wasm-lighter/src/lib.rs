@@ -509,6 +509,9 @@ where
         }
         if length_u32 == 1 {
             let single_value = array.get(0);
+            if !single_value.is_object() {
+                return Vec::new();
+            }
             if let Ok(node) = serde_wasm_bindgen::from_value(single_value) {
                 return vec![node];
             }
