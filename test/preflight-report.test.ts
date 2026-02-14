@@ -2276,6 +2276,23 @@ const expectPreflightTsCoreExampleSummaryMetadata = (report: PreflightReport) =>
       report.tsCoreExamplePayloadIssues.length
     );
   }
+  if (report.tsCoreExamplePayloadValid === true) {
+    expect(report.tsCoreExamplePayloadIssues).toEqual([]);
+    expect(report.tsCoreExamplePayloadIssueCount).toBe(0);
+  }
+  if (report.tsCoreExamplePayloadValid === false) {
+    expect(report.tsCoreExamplePayloadIssues).not.toBeNull();
+    expect(report.tsCoreExamplePayloadIssueCount).not.toBeNull();
+    if (
+      report.tsCoreExamplePayloadIssues !== null &&
+      report.tsCoreExamplePayloadIssueCount !== null
+    ) {
+      expect(report.tsCoreExamplePayloadIssueCount).toBeGreaterThan(0);
+      expect(report.tsCoreExamplePayloadIssueCount).toBe(
+        report.tsCoreExamplePayloadIssues.length
+      );
+    }
+  }
   if (
     report.tsCoreExampleAttempted !== null &&
     report.tsCoreExampleAttempted === false
