@@ -123,6 +123,7 @@ type SerializedWasmChunk =
 let wasmInitialized = false;
 let wasmInitializationPromise: Promise<void> | null = null;
 let registryInitialized = false;
+let registryInitializationFailed = false;
 const pendingBatchMessages: LightBatchMessage[] = [];
 let pendingBatchMessagesHead = 0;
 const MAX_PENDING_BATCH_MESSAGES = 512;
@@ -940,8 +941,24 @@ onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
     }
 
     const wasmRegistry = convertRegistryToWasm((message as InitMessage).registryData);
-    set_registry(wasmRegistry);
-    registryInitialized = true;
+    registryInitialized = set_registry(wasmRegistry);
+    registryInitializationFailed = !registryInitialized;
+    if (!registryInitialized) {
+      if (hasPendingBatchMessages()) {
+        const start = pendingBatchMessagesHead;
+        const end = pendingBatchMessages.length;
+        for (let i = start; i < end; i++) {
+          const pendingMessage = pendingBatchMessages[i];
+          postEmptyBatchResult(
+            pendingMessage.jobId,
+            pendingMessage.lastRelevantSequenceId
+          );
+        }
+        pendingBatchMessages.length = 0;
+        pendingBatchMessagesHead = 0;
+      }
+      return;
+    }
 
     if (hasPendingBatchMessages()) {
       const start = pendingBatchMessagesHead;
@@ -960,7 +977,15 @@ onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
     await ensureWasmInitialized();
   }
 
+  const batchMessage = message as LightBatchMessage;
   if (!registryInitialized) {
+    if (registryInitializationFailed) {
+      postEmptyBatchResult(
+        batchMessage.jobId,
+        batchMessage.lastRelevantSequenceId
+      );
+      return;
+    }
     if (pendingBatchMessageCount() >= MAX_PENDING_BATCH_MESSAGES) {
       const dropped = pendingBatchMessages[pendingBatchMessagesHead];
       pendingBatchMessagesHead++;
@@ -969,9 +994,9 @@ onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
       }
       normalizePendingBatchMessages();
     }
-    pendingBatchMessages.push(message as LightBatchMessage);
+    pendingBatchMessages.push(batchMessage);
     return;
   }
 
-  processBatchMessage(message as LightBatchMessage);
+  processBatchMessage(batchMessage);
 };

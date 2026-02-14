@@ -453,7 +453,7 @@ fn clamp_light_level(level: u32, max_light_level: u32) -> u32 {
 pub fn init() {}
 
 #[wasm_bindgen]
-pub fn set_registry(registry: JsValue) {
+pub fn set_registry(registry: JsValue) -> bool {
     CACHED_REGISTRY.with(|cached| {
         let parsed_registry = serde_wasm_bindgen::from_value(registry)
             .ok()
@@ -461,8 +461,10 @@ pub fn set_registry(registry: JsValue) {
                 parsed.build_cache();
                 Arc::new(parsed)
             });
+        let is_initialized = parsed_registry.is_some();
         *cached.borrow_mut() = parsed_registry;
-    });
+        is_initialized
+    })
 }
 
 #[wasm_bindgen]
