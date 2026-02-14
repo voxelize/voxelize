@@ -172,10 +172,7 @@ export function sortTransparentMesh(
   const camZ = _camPos.z;
   const lastCameraPos = data.lastCameraPos;
 
-  const isFirstSort =
-    lastCameraPos.x === Infinity &&
-    lastCameraPos.y === Infinity &&
-    lastCameraPos.z === Infinity;
+  const isFirstSort = lastCameraPos.x === Infinity;
 
   if (!isFirstSort) {
     const dx = camX - lastCameraPos.x;
