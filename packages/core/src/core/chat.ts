@@ -122,7 +122,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   private parsedCommandRest = "";
   private parseSchemaInfoBySchema = new WeakMap<
     ZodObject<Record<string, ZodTypeAny>>,
-    { keys: string[]; booleanKeys: Set<string> }
+    { keys: string[]; booleanKeys: Set<string>; positionalKeys: string[] }
   >();
 
   /**
@@ -263,7 +263,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
   private getParseSchemaInfo<T extends ZodObject<Record<string, ZodTypeAny>>>(
     schema: T
-  ): { keys: string[]; booleanKeys: Set<string> } {
+  ): { keys: string[]; booleanKeys: Set<string>; positionalKeys: string[] } {
     const cached = this.parseSchemaInfoBySchema.get(schema);
     if (cached) {
       return cached;
@@ -273,6 +273,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     const hasOwn = Object.prototype.hasOwnProperty;
     const keys: string[] = [];
     const booleanKeys = new Set<string>();
+    const positionalKeys: string[] = [];
 
     for (const key in shape) {
       if (!hasOwn.call(shape, key)) {
@@ -292,10 +293,12 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       }
       if (this.isBooleanSchema(innerType)) {
         booleanKeys.add(key);
+      } else {
+        positionalKeys.push(key);
       }
     }
 
-    const info = { keys, booleanKeys };
+    const info = { keys, booleanKeys, positionalKeys };
     this.parseSchemaInfoBySchema.set(schema, info);
     return info;
   }
@@ -305,7 +308,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     schema: T
   ): z.infer<T> {
     const shape = schema.shape;
-    const { keys, booleanKeys } = this.getParseSchemaInfo(schema);
+    const { keys, booleanKeys, positionalKeys } = this.getParseSchemaInfo(schema);
     const hasOwn = Object.prototype.hasOwnProperty;
 
     if (keys.length === 1 && keys[0] === "rest") {
@@ -353,10 +356,9 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     }
 
     let posIndex = 0;
-    for (let keyIndex = 0; keyIndex < keys.length; keyIndex++) {
-      const key = keys[keyIndex];
+    for (let keyIndex = 0; keyIndex < positionalKeys.length; keyIndex++) {
+      const key = positionalKeys[keyIndex];
       if (rawObj[key] !== undefined) continue;
-      if (booleanKeys.has(key)) continue;
       if (posIndex < positionalValues.length) {
         rawObjKeys.push(key);
         rawObj[key] = positionalValues[posIndex];
