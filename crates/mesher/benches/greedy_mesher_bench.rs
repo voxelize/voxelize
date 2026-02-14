@@ -1,8 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use voxelize_mesher::{
-    mesh_space, mesh_space_greedy, mesh_space_greedy_legacy, AABB, Block, BlockConditionalPart,
+    mesh_space, mesh_space_greedy, mesh_space_greedy_legacy, Block, BlockConditionalPart,
     BlockDynamicPattern, BlockFace, BlockRotation, BlockRule, BlockSimpleRule, BlockUtils,
-    CornerData, GeometryProtocol, LightColor, LightUtils, Registry, UV, VoxelAccess,
+    CornerData, GeometryProtocol, LightColor, LightUtils, Registry, VoxelAccess, AABB, UV,
 };
 
 #[derive(Clone)]
@@ -782,9 +782,15 @@ fn greedy_mesher_benchmark(c: &mut Criterion) {
         ("terrain_16x24x16", terrain_scene()),
         ("dynamic_16x20x16", dynamic_scene()),
         ("transparency_16x16x16", transparency_scene()),
-        ("standalone_transparency_16x12x16", standalone_transparency_scene()),
+        (
+            "standalone_transparency_16x12x16",
+            standalone_transparency_scene(),
+        ),
         ("fluid_occlusion_16x12x16", fluid_occlusion_scene()),
-        ("isolated_independent_16x10x16", isolated_independent_scene()),
+        (
+            "isolated_independent_16x10x16",
+            isolated_independent_scene(),
+        ),
         ("seeded_mix_16x12x16", seeded_mix_scene()),
         ("dynamic_world_16x10x16", dynamic_world_scene()),
         ("rotation_heavy_16x16x16", rotation_heavy_scene()),
@@ -794,7 +800,11 @@ fn greedy_mesher_benchmark(c: &mut Criterion) {
 
     for (scene_name, space) in &scenes {
         let min = [0, 0, 0];
-        let max = [space.shape[0] as i32, space.shape[1] as i32, space.shape[2] as i32];
+        let max = [
+            space.shape[0] as i32,
+            space.shape[1] as i32,
+            space.shape[2] as i32,
+        ];
 
         assert_parity(&min, &max, space, &registry);
 
@@ -838,9 +848,15 @@ fn non_greedy_mesher_benchmark(c: &mut Criterion) {
         ("terrain_16x24x16", terrain_scene()),
         ("dynamic_16x20x16", dynamic_scene()),
         ("transparency_16x16x16", transparency_scene()),
-        ("standalone_transparency_16x12x16", standalone_transparency_scene()),
+        (
+            "standalone_transparency_16x12x16",
+            standalone_transparency_scene(),
+        ),
         ("fluid_occlusion_16x12x16", fluid_occlusion_scene()),
-        ("isolated_independent_16x10x16", isolated_independent_scene()),
+        (
+            "isolated_independent_16x10x16",
+            isolated_independent_scene(),
+        ),
         ("seeded_mix_16x12x16", seeded_mix_scene()),
         ("dynamic_world_16x10x16", dynamic_world_scene()),
         ("rotation_heavy_16x16x16", rotation_heavy_scene()),
@@ -849,7 +865,11 @@ fn non_greedy_mesher_benchmark(c: &mut Criterion) {
 
     for (scene_name, space) in &scenes {
         let min = [0, 0, 0];
-        let max = [space.shape[0] as i32, space.shape[1] as i32, space.shape[2] as i32];
+        let max = [
+            space.shape[0] as i32,
+            space.shape[1] as i32,
+            space.shape[2] as i32,
+        ];
         group.bench_with_input(
             BenchmarkId::new("mesh_space", scene_name),
             scene_name,
@@ -876,9 +896,15 @@ fn uncached_mesher_benchmark(c: &mut Criterion) {
         ("terrain_16x24x16", terrain_scene()),
         ("dynamic_16x20x16", dynamic_scene()),
         ("transparency_16x16x16", transparency_scene()),
-        ("standalone_transparency_16x12x16", standalone_transparency_scene()),
+        (
+            "standalone_transparency_16x12x16",
+            standalone_transparency_scene(),
+        ),
         ("fluid_occlusion_16x12x16", fluid_occlusion_scene()),
-        ("isolated_independent_16x10x16", isolated_independent_scene()),
+        (
+            "isolated_independent_16x10x16",
+            isolated_independent_scene(),
+        ),
         ("seeded_mix_16x12x16", seeded_mix_scene()),
         ("dynamic_world_16x10x16", dynamic_world_scene()),
         ("rotation_heavy_16x16x16", rotation_heavy_scene()),
@@ -887,7 +913,11 @@ fn uncached_mesher_benchmark(c: &mut Criterion) {
 
     for (scene_name, space) in &scenes {
         let min = [0, 0, 0];
-        let max = [space.shape[0] as i32, space.shape[1] as i32, space.shape[2] as i32];
+        let max = [
+            space.shape[0] as i32,
+            space.shape[1] as i32,
+            space.shape[2] as i32,
+        ];
         assert_parity(&min, &max, space, &registry_cached);
         assert_parity(&min, &max, space, &registry_uncached);
         assert_cached_uncached_equivalence(&min, &max, space, &registry_cached, &registry_uncached);

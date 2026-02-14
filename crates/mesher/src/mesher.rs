@@ -148,9 +148,8 @@ impl Block {
         self.has_independent_or_isolated_faces = has_independent_or_isolated_faces;
         self.has_mixed_diagonal_and_cardinal = has_diagonal && has_cardinal;
         self.has_dynamic_patterns = self.dynamic_patterns.is_some();
-        self.uses_main_geometry_only = !self.is_fluid
-            && !self.has_dynamic_patterns
-            && !self.has_independent_or_isolated_faces;
+        self.uses_main_geometry_only =
+            !self.is_fluid && !self.has_dynamic_patterns && !self.has_independent_or_isolated_faces;
         self.greedy_mesh_eligible_no_rotation = !self.is_fluid
             && !self.rotatable
             && !self.y_rotatable
@@ -595,7 +594,12 @@ impl NeighborCache {
         Self { data }
     }
 
-    fn populate_voxels_and_center_light<S: VoxelAccess>(vx: i32, vy: i32, vz: i32, space: &S) -> Self {
+    fn populate_voxels_and_center_light<S: VoxelAccess>(
+        vx: i32,
+        vy: i32,
+        vz: i32,
+        space: &S,
+    ) -> Self {
         let mut data = [[0u32; 2]; 27];
         let mut idx = 0usize;
         for z in -1..=1 {
@@ -812,10 +816,7 @@ impl<'a> VoxelSpace<'a> {
     #[inline]
     fn map_voxel_to_chunk(&self, vx: i32, vz: i32) -> [i32; 2] {
         let chunk_size = self.chunk_size;
-        [
-            vx.div_euclid(chunk_size),
-            vz.div_euclid(chunk_size),
-        ]
+        [vx.div_euclid(chunk_size), vz.div_euclid(chunk_size)]
     }
 
     #[inline(always)]
@@ -1142,12 +1143,9 @@ fn calculate_fluid_corner_height<S: VoxelAccess>(
 }
 
 fn has_standard_six_faces(faces: &[BlockFace]) -> bool {
-    faces.iter().any(|f| {
-        matches!(
-            f.get_name_lower(),
-            "py" | "ny" | "px" | "nx" | "pz" | "nz"
-        )
-    })
+    faces
+        .iter()
+        .any(|f| matches!(f.get_name_lower(), "py" | "ny" | "px" | "nx" | "pz" | "nz"))
 }
 
 fn standard_face_uvs(faces: &[BlockFace]) -> [UV; 6] {
@@ -1462,7 +1460,13 @@ fn face_name_owned(face: &BlockFace) -> String {
 }
 
 #[inline(always)]
-fn geometry_key_for_face(block: &Block, face: &BlockFace, vx: i32, vy: i32, vz: i32) -> GeometryMapKey {
+fn geometry_key_for_face(
+    block: &Block,
+    face: &BlockFace,
+    vx: i32,
+    vy: i32,
+    vz: i32,
+) -> GeometryMapKey {
     if face.isolated {
         GeometryMapKey::Isolated(block.id, face_name_owned(face), vx, vy, vz)
     } else if face.independent {
@@ -1691,21 +1695,9 @@ fn compute_face_ao_and_light(
     let center_opaque = neighbor_is_opaque(mask, 0, 0, 0);
 
     for (i, pos) in corner_positions.iter().enumerate() {
-        let dx = if pos[0] <= block_min_x_eps {
-            -1
-        } else {
-            1
-        };
-        let dy = if pos[1] <= block_min_y_eps {
-            -1
-        } else {
-            1
-        };
-        let dz = if pos[2] <= block_min_z_eps {
-            -1
-        } else {
-            1
-        };
+        let dx = if pos[0] <= block_min_x_eps { -1 } else { 1 };
+        let dy = if pos[1] <= block_min_y_eps { -1 } else { 1 };
+        let dz = if pos[2] <= block_min_z_eps { -1 } else { 1 };
 
         let b011 = !neighbor_is_opaque(mask, 0, dy, dz);
         let b101 = !neighbor_is_opaque(mask, dx, 0, dz);
@@ -1862,21 +1854,9 @@ fn compute_face_ao_and_light_fast(
     let center_opaque = neighbor_is_opaque(mask, 0, 0, 0);
 
     for (i, pos) in corner_positions.iter().enumerate() {
-        let dx = if pos[0] <= block_min_x_eps {
-            -1
-        } else {
-            1
-        };
-        let dy = if pos[1] <= block_min_y_eps {
-            -1
-        } else {
-            1
-        };
-        let dz = if pos[2] <= block_min_z_eps {
-            -1
-        } else {
-            1
-        };
+        let dx = if pos[0] <= block_min_x_eps { -1 } else { 1 };
+        let dy = if pos[1] <= block_min_y_eps { -1 } else { 1 };
+        let dz = if pos[2] <= block_min_z_eps { -1 } else { 1 };
 
         let b011 = !neighbor_is_opaque(mask, 0, dy, dz);
         let b101 = !neighbor_is_opaque(mask, dx, 0, dz);
@@ -2407,12 +2387,7 @@ fn evaluate_block_rule_with_trig<S: VoxelAccess>(
         BlockRule::Combination { logic, rules } => match logic {
             BlockRuleLogic::And => {
                 for nested_rule in rules {
-                    if !evaluate_block_rule_with_trig(
-                        nested_rule,
-                        pos,
-                        space,
-                        rotation_trig,
-                    ) {
+                    if !evaluate_block_rule_with_trig(nested_rule, pos, space, rotation_trig) {
                         return false;
                     }
                 }
@@ -2420,12 +2395,7 @@ fn evaluate_block_rule_with_trig<S: VoxelAccess>(
             }
             BlockRuleLogic::Or => {
                 for nested_rule in rules {
-                    if evaluate_block_rule_with_trig(
-                        nested_rule,
-                        pos,
-                        space,
-                        rotation_trig,
-                    ) {
+                    if evaluate_block_rule_with_trig(nested_rule, pos, space, rotation_trig) {
                         return true;
                     }
                 }
@@ -2448,8 +2418,7 @@ fn visit_dynamic_faces<S, F>(
     space: &S,
     rotation: &BlockRotation,
     mut visitor: F,
-)
-where
+) where
     S: VoxelAccess,
     F: FnMut(&BlockFace, bool),
 {
@@ -2482,12 +2451,8 @@ where
                     }
                     local_rotation_trig
                 };
-                let rule_result = evaluate_block_rule_with_trig(
-                    &part.rule,
-                    pos,
-                    space,
-                    rotation_trig,
-                );
+                let rule_result =
+                    evaluate_block_rule_with_trig(&part.rule, pos, space, rotation_trig);
                 if rule_result {
                     matched_rule = true;
                     for face in &part.faces {
@@ -2599,8 +2564,12 @@ fn process_face<S: VoxelAccess>(
         let neighbor_id = if !needs_rotation {
             neighbors.get_voxel(dir[0], dir[1], dir[2])
         } else {
-            let rotated_dir_in_cache =
-                dir[0] >= -1 && dir[0] <= 1 && dir[1] >= -1 && dir[1] <= 1 && dir[2] >= -1 && dir[2] <= 1;
+            let rotated_dir_in_cache = dir[0] >= -1
+                && dir[0] <= 1
+                && dir[1] >= -1
+                && dir[1] <= 1
+                && dir[2] >= -1
+                && dir[2] <= 1;
             if rotated_dir_in_cache {
                 neighbors.get_voxel(dir[0], dir[1], dir[2])
             } else {
@@ -2711,31 +2680,77 @@ fn process_face<S: VoxelAccess>(
             .expect("center light exists when opaque checks are skipped")
             as i32;
         let base_light_i32 = center_light_i32 | 3 << 16 | fluid_bit;
-        let block_min_y_eps = block_min[1] + 0.01;
         let mut positions_chunk = [0.0f32; 12];
         let mut uv_chunk = [0.0f32; 8];
         let mut light_chunk = [0i32; 4];
-        for (corner_index, corner) in face.corners.iter().enumerate() {
-            let mut pos = corner.pos;
-            if needs_rotation {
-                rotation.rotate_node(&mut pos, y_rotatable, true);
-            }
+        if needs_rotation {
+            if apply_wave_bit {
+                let block_min_y_eps = block_min[1] + 0.01;
+                for (corner_index, corner) in face.corners.iter().enumerate() {
+                    let mut pos = corner.pos;
+                    rotation.rotate_node(&mut pos, y_rotatable, true);
 
-            let positions_base = corner_index * 3;
-            positions_chunk[positions_base] = pos[0] + base_x;
-            positions_chunk[positions_base + 1] = pos[1] + base_y;
-            positions_chunk[positions_base + 2] = pos[2] + base_z;
+                    let positions_base = corner_index * 3;
+                    positions_chunk[positions_base] = pos[0] + base_x;
+                    positions_chunk[positions_base + 1] = pos[1] + base_y;
+                    positions_chunk[positions_base + 2] = pos[2] + base_z;
 
-            let uv_base = corner_index * 2;
-            uv_chunk[uv_base] = corner.uv[0] * uv_span_u + start_u;
-            uv_chunk[uv_base + 1] = corner.uv[1] * uv_span_v + start_v;
+                    let uv_base = corner_index * 2;
+                    uv_chunk[uv_base] = corner.uv[0] * uv_span_u + start_u;
+                    uv_chunk[uv_base + 1] = corner.uv[1] * uv_span_v + start_v;
 
-            let wave_bit = if apply_wave_bit && pos[1] > block_min_y_eps {
-                1 << 20
+                    let wave_bit = if pos[1] > block_min_y_eps { 1 << 20 } else { 0 };
+                    light_chunk[corner_index] = base_light_i32 | wave_bit;
+                }
             } else {
-                0
-            };
-            light_chunk[corner_index] = base_light_i32 | wave_bit;
+                for (corner_index, corner) in face.corners.iter().enumerate() {
+                    let mut pos = corner.pos;
+                    rotation.rotate_node(&mut pos, y_rotatable, true);
+
+                    let positions_base = corner_index * 3;
+                    positions_chunk[positions_base] = pos[0] + base_x;
+                    positions_chunk[positions_base + 1] = pos[1] + base_y;
+                    positions_chunk[positions_base + 2] = pos[2] + base_z;
+
+                    let uv_base = corner_index * 2;
+                    uv_chunk[uv_base] = corner.uv[0] * uv_span_u + start_u;
+                    uv_chunk[uv_base + 1] = corner.uv[1] * uv_span_v + start_v;
+
+                    light_chunk[corner_index] = base_light_i32;
+                }
+            }
+        } else if apply_wave_bit {
+            let block_min_y_eps = block_min[1] + 0.01;
+            for (corner_index, corner) in face.corners.iter().enumerate() {
+                let pos = corner.pos;
+
+                let positions_base = corner_index * 3;
+                positions_chunk[positions_base] = pos[0] + base_x;
+                positions_chunk[positions_base + 1] = pos[1] + base_y;
+                positions_chunk[positions_base + 2] = pos[2] + base_z;
+
+                let uv_base = corner_index * 2;
+                uv_chunk[uv_base] = corner.uv[0] * uv_span_u + start_u;
+                uv_chunk[uv_base + 1] = corner.uv[1] * uv_span_v + start_v;
+
+                let wave_bit = if pos[1] > block_min_y_eps { 1 << 20 } else { 0 };
+                light_chunk[corner_index] = base_light_i32 | wave_bit;
+            }
+        } else {
+            for (corner_index, corner) in face.corners.iter().enumerate() {
+                let pos = corner.pos;
+
+                let positions_base = corner_index * 3;
+                positions_chunk[positions_base] = pos[0] + base_x;
+                positions_chunk[positions_base + 1] = pos[1] + base_y;
+                positions_chunk[positions_base + 2] = pos[2] + base_z;
+
+                let uv_base = corner_index * 2;
+                uv_chunk[uv_base] = corner.uv[0] * uv_span_u + start_u;
+                uv_chunk[uv_base + 1] = corner.uv[1] * uv_span_v + start_v;
+
+                light_chunk[corner_index] = base_light_i32;
+            }
         }
         positions.extend_from_slice(&positions_chunk);
         uvs.extend_from_slice(&uv_chunk);
@@ -2902,7 +2917,11 @@ fn process_face<S: VoxelAccess>(
             };
 
             let light = pack_light_nibbles(sunlight, red_light, green_light, blue_light);
-            let wave_bit = if apply_wave_bit && dy == 1 { 1 << 20 } else { 0 };
+            let wave_bit = if apply_wave_bit && dy == 1 {
+                1 << 20
+            } else {
+                0
+            };
             light_chunk[corner_index] = light as i32 | ao << 16 | fluid_bit | wave_bit;
 
             four_red_lights[corner_index] = red_light;
@@ -2952,23 +2971,23 @@ fn process_face<S: VoxelAccess>(
                 false
             } else {
                 let one_tr0 = a_rt == 0 || b_rt == 0 || c_rt == 0 || d_rt == 0;
-            let ozao_r = fequals && a_rt + d_rt < b_rt + c_rt;
-            let anz_r = one_tr0 && has_channel_midpoint_anomaly(a_rt, b_rt, c_rt, d_rt);
-            if ozao_r || anz_r {
-                true
-            } else {
-                let one_tg0 = a_gt == 0 || b_gt == 0 || c_gt == 0 || d_gt == 0;
-                let ozao_g = fequals && a_gt + d_gt < b_gt + c_gt;
-                let anz_g = one_tg0 && has_channel_midpoint_anomaly(a_gt, b_gt, c_gt, d_gt);
-                if ozao_g || anz_g {
+                let ozao_r = fequals && a_rt + d_rt < b_rt + c_rt;
+                let anz_r = one_tr0 && has_channel_midpoint_anomaly(a_rt, b_rt, c_rt, d_rt);
+                if ozao_r || anz_r {
                     true
                 } else {
-                    let one_tb0 = a_bt == 0 || b_bt == 0 || c_bt == 0 || d_bt == 0;
-                    let ozao_b = fequals && a_bt + d_bt < b_bt + c_bt;
-                    let anz_b = one_tb0 && has_channel_midpoint_anomaly(a_bt, b_bt, c_bt, d_bt);
-                    ozao_b || anz_b
+                    let one_tg0 = a_gt == 0 || b_gt == 0 || c_gt == 0 || d_gt == 0;
+                    let ozao_g = fequals && a_gt + d_gt < b_gt + c_gt;
+                    let anz_g = one_tg0 && has_channel_midpoint_anomaly(a_gt, b_gt, c_gt, d_gt);
+                    if ozao_g || anz_g {
+                        true
+                    } else {
+                        let one_tb0 = a_bt == 0 || b_bt == 0 || c_bt == 0 || d_bt == 0;
+                        let ozao_b = fequals && a_bt + d_bt < b_bt + c_bt;
+                        let anz_b = one_tb0 && has_channel_midpoint_anomaly(a_bt, b_bt, c_bt, d_bt);
+                        ozao_b || anz_b
+                    }
                 }
-            }
             }
         };
 
@@ -3109,34 +3128,33 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         } else {
                             block.has_standard_six_faces_cached()
                         };
-                    let faces: Vec<(BlockFace, bool)> =
-                        if has_standard_six_faces {
-                            create_fluid_faces(vx, vy, vz, block.id, space, block, registry)
-                                .into_iter()
-                                .map(|f| (f, false))
-                                .collect()
+                    let faces: Vec<(BlockFace, bool)> = if has_standard_six_faces {
+                        create_fluid_faces(vx, vy, vz, block.id, space, block, registry)
+                            .into_iter()
+                            .map(|f| (f, false))
+                            .collect()
+                    } else {
+                        let has_dynamic_patterns = if cache_ready {
+                            block.has_dynamic_patterns
                         } else {
-                            let has_dynamic_patterns = if cache_ready {
-                                block.has_dynamic_patterns
-                            } else {
-                                block.has_dynamic_patterns_cached()
-                            };
-                            if has_dynamic_patterns {
-                                let mut faces = Vec::with_capacity(8);
-                                visit_dynamic_faces(
-                                    block,
-                                    [vx, vy, vz],
-                                    space,
-                                    &rotation,
-                                    |face, world_space| {
-                                    faces.push((face.clone(), world_space));
-                                    },
-                                );
-                                faces
-                            } else {
-                                block.faces.iter().cloned().map(|f| (f, false)).collect()
-                            }
+                            block.has_dynamic_patterns_cached()
                         };
+                        if has_dynamic_patterns {
+                            let mut faces = Vec::with_capacity(8);
+                            visit_dynamic_faces(
+                                block,
+                                [vx, vy, vz],
+                                space,
+                                &rotation,
+                                |face, world_space| {
+                                    faces.push((face.clone(), world_space));
+                                },
+                            );
+                            faces
+                        } else {
+                            block.faces.iter().cloned().map(|f| (f, false)).collect()
+                        }
+                    };
 
                     if is_non_greedy_block {
                         processed_non_greedy.insert((vx, vy, vz));
@@ -3164,7 +3182,8 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         if !block_needs_face_rotation || world_space {
                             return face.dir == dir;
                         }
-                        let mut face_dir = [face.dir[0] as f32, face.dir[1] as f32, face.dir[2] as f32];
+                        let mut face_dir =
+                            [face.dir[0] as f32, face.dir[1] as f32, face.dir[2] as f32];
                         rotation.rotate_node(&mut face_dir, block.y_rotatable, false);
                         let effective_dir = [
                             face_dir[0].round() as i32,
@@ -3264,14 +3283,13 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                 }
             }
 
-            let quads =
-                extract_greedy_quads(
-                    &mut greedy_mask,
-                    u_range.0,
-                    v_range.0,
-                    u_range.1 - u_range.0,
-                    v_range.1 - v_range.0,
-                );
+            let quads = extract_greedy_quads(
+                &mut greedy_mask,
+                u_range.0,
+                v_range.0,
+                u_range.1 - u_range.0,
+                v_range.1 - v_range.0,
+            );
 
             let mut cached_quad_block_id = u32::MAX;
             let mut cached_quad_block: Option<&Block> = None;
@@ -3373,13 +3391,8 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                 });
 
                 let skip_opaque_checks = is_see_through || block.is_all_transparent;
-                let neighbors = populate_neighbors_for_face_processing(
-                    vx,
-                    vy,
-                    vz,
-                    space,
-                    skip_opaque_checks,
-                );
+                let neighbors =
+                    populate_neighbors_for_face_processing(vx, vy, vz, space, skip_opaque_checks);
                 let face_cache = build_face_process_cache(
                     &block,
                     is_see_through,
@@ -3585,7 +3598,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     if is_opaque {
                         let cached = fully_occluded_opaque[current_voxel_index];
                         let is_fully_occluded = if cached == OCCLUSION_UNKNOWN {
-                            let value = is_surrounded_by_opaque_neighbors(vx, vy, vz, space, registry);
+                            let value =
+                                is_surrounded_by_opaque_neighbors(vx, vy, vz, space, registry);
                             fully_occluded_opaque[current_voxel_index] = if value { 1 } else { 0 };
                             value
                         } else {
@@ -3680,15 +3694,14 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 );
                             }
                         } else {
-                            let has_dynamic_patterns = if let Some(cached) =
-                                has_dynamic_patterns_cached
-                            {
-                                cached
-                            } else if cache_ready {
-                                block.has_dynamic_patterns
-                            } else {
-                                block.has_dynamic_patterns_cached()
-                            };
+                            let has_dynamic_patterns =
+                                if let Some(cached) = has_dynamic_patterns_cached {
+                                    cached
+                                } else if cache_ready {
+                                    block.has_dynamic_patterns
+                                } else {
+                                    block.has_dynamic_patterns_cached()
+                                };
                             if has_dynamic_patterns {
                                 let neighbors = populate_neighbors_for_face_processing(
                                     vx,
@@ -3715,7 +3728,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                     space,
                                     &rotation,
                                     |face, world_space| {
-                                        let geo_key = geometry_key_for_face(block, face, vx, vy, vz);
+                                        let geo_key =
+                                            geometry_key_for_face(block, face, vx, vy, vz);
                                         let geometry = map.entry(geo_key).or_insert_with(|| {
                                             let face_name = if face.independent || face.isolated {
                                                 Some(face.name.clone())
@@ -3729,8 +3743,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                             };
                                             new_geometry_protocol(voxel_id, face_name, at)
                                         });
-                                        let needs_rotation =
-                                            block_needs_rotation && !world_space;
+                                        let needs_rotation = block_needs_rotation && !world_space;
                                         let face_rotation = if needs_rotation {
                                             &rotation
                                         } else {
@@ -3790,9 +3803,9 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 );
                                 if uses_main_geometry_only {
                                     let geometry =
-                                        map.entry(GeometryMapKey::Block(block.id)).or_insert_with(|| {
-                                            new_geometry_protocol(block.id, None, None)
-                                        });
+                                        map.entry(GeometryMapKey::Block(block.id)).or_insert_with(
+                                            || new_geometry_protocol(block.id, None, None),
+                                        );
                                     for face in &block.faces {
                                         process_face(
                                             vx,
@@ -3819,7 +3832,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                     }
                                 } else {
                                     for face in &block.faces {
-                                        let geo_key = geometry_key_for_face(block, face, vx, vy, vz);
+                                        let geo_key =
+                                            geometry_key_for_face(block, face, vx, vy, vz);
                                         let geometry = map.entry(geo_key).or_insert_with(|| {
                                             let face_name = if face.independent || face.isolated {
                                                 Some(face.name.clone())
@@ -3877,23 +3891,20 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     if !should_render {
                         continue;
                     }
-                    let current_mask_index =
-                        (v - v_range.0) as usize * mask_width + u_mask_offset;
+                    let current_mask_index = (v - v_range.0) as usize * mask_width + u_mask_offset;
 
                     if greedy_face_index >= 0 {
                         let face = &block.faces[greedy_face_index as usize];
                         if !face.independent && !face.isolated {
                             let (aos, lights) = if skip_opaque_checks {
-                                let (_, center_light) = space.get_raw_voxel_and_raw_light(vx, vy, vz);
+                                let (_, center_light) =
+                                    space.get_raw_voxel_and_raw_light(vx, vy, vz);
                                 let light = (center_light & 0xFFFF) as i32;
                                 ([3, 3, 3, 3], [light; 4])
                             } else {
                                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
                                 compute_face_ao_and_light_fast(
-                                    dir_index,
-                                    block,
-                                    &neighbors,
-                                    registry,
+                                    dir_index, block, &neighbors, registry,
                                 )
                             };
                             let uv_range = face.range;
@@ -3997,12 +4008,14 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
                         let (aos, lights) = *cached_ao_light.get_or_insert_with(|| {
                             if skip_opaque_checks {
-                                let (_, center_light) = space.get_raw_voxel_and_raw_light(vx, vy, vz);
+                                let (_, center_light) =
+                                    space.get_raw_voxel_and_raw_light(vx, vy, vz);
                                 let light = (center_light & 0xFFFF) as i32;
                                 ([3, 3, 3, 3], [light; 4])
                             } else {
-                                let neighbors_ref = neighbors
-                                    .get_or_insert_with(|| NeighborCache::populate(vx, vy, vz, space));
+                                let neighbors_ref = neighbors.get_or_insert_with(|| {
+                                    NeighborCache::populate(vx, vy, vz, space)
+                                });
                                 compute_face_ao_and_light_fast(
                                     dir_index,
                                     block,
@@ -4044,7 +4057,11 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         let key = FaceKey {
                             block_id: block.id,
                             face_name: None,
-                            face_index: if face.independent { face_index as i16 } else { -1 },
+                            face_index: if face.independent {
+                                face_index as i16
+                            } else {
+                                -1
+                            },
                             independent: face.independent,
                             ao: aos,
                             light: lights,
@@ -4243,13 +4260,8 @@ pub fn mesh_space<S: VoxelAccess>(
                 }
                 let is_all_transparent = block.is_all_transparent;
                 let skip_opaque_checks = is_see_through || is_all_transparent;
-                let neighbors = populate_neighbors_for_face_processing(
-                    vx,
-                    vy,
-                    vz,
-                    space,
-                    skip_opaque_checks,
-                );
+                let neighbors =
+                    populate_neighbors_for_face_processing(vx, vy, vz, space, skip_opaque_checks);
                 let center_light = if skip_opaque_checks {
                     Some(neighbors.get_raw_light(0, 0, 0) & 0xFFFF)
                 } else {
@@ -4276,9 +4288,9 @@ pub fn mesh_space<S: VoxelAccess>(
                     block.uses_main_geometry_only_cached()
                 };
                 if uses_main_geometry_only {
-                    let geometry = map.entry(GeometryMapKey::Block(block.id)).or_insert_with(|| {
-                        new_geometry_protocol(block.id, None, None)
-                    });
+                    let geometry = map
+                        .entry(GeometryMapKey::Block(block.id))
+                        .or_insert_with(|| new_geometry_protocol(block.id, None, None));
 
                     for face in &block.faces {
                         process_face(

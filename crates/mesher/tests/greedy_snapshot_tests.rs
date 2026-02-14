@@ -1,8 +1,8 @@
 use std::{fs, path::PathBuf};
 use voxelize_mesher::{
-    mesh_space, mesh_space_greedy, mesh_space_greedy_legacy, AABB, Block, BlockConditionalPart,
+    mesh_space, mesh_space_greedy, mesh_space_greedy_legacy, Block, BlockConditionalPart,
     BlockDynamicPattern, BlockFace, BlockRotation, BlockRule, BlockSimpleRule, BlockUtils,
-    CornerData, GeometryProtocol, LightColor, LightUtils, Registry, UV, VoxelAccess,
+    CornerData, GeometryProtocol, LightColor, LightUtils, Registry, VoxelAccess, AABB, UV,
 };
 
 #[derive(Clone)]
@@ -544,7 +544,11 @@ fn mesh_and_snapshot_with_mode(
     mesh_fn: fn(&[i32; 3], &[i32; 3], &TestSpace, &Registry) -> Vec<GeometryProtocol>,
 ) {
     let min = [0, 0, 0];
-    let max = [space.shape[0] as i32, space.shape[1] as i32, space.shape[2] as i32];
+    let max = [
+        space.shape[0] as i32,
+        space.shape[1] as i32,
+        space.shape[2] as i32,
+    ];
     let geometries = mesh_fn(&min, &max, space, registry);
     assert_geometry_integrity(&geometries);
     assert_snapshot(name, &canonicalize(geometries));
@@ -552,7 +556,11 @@ fn mesh_and_snapshot_with_mode(
 
 fn assert_greedy_parity(space: &TestSpace, registry: &Registry) {
     let min = [0, 0, 0];
-    let max = [space.shape[0] as i32, space.shape[1] as i32, space.shape[2] as i32];
+    let max = [
+        space.shape[0] as i32,
+        space.shape[1] as i32,
+        space.shape[2] as i32,
+    ];
     let legacy = mesh_space_greedy_legacy(&min, &max, space, registry);
     let optimized = mesh_space_greedy(&min, &max, space, registry);
     assert_eq!(
@@ -562,9 +570,17 @@ fn assert_greedy_parity(space: &TestSpace, registry: &Registry) {
     );
 }
 
-fn assert_cached_uncached_parity(space: &TestSpace, cached_registry: &Registry, uncached_registry: &Registry) {
+fn assert_cached_uncached_parity(
+    space: &TestSpace,
+    cached_registry: &Registry,
+    uncached_registry: &Registry,
+) {
     let min = [0, 0, 0];
-    let max = [space.shape[0] as i32, space.shape[1] as i32, space.shape[2] as i32];
+    let max = [
+        space.shape[0] as i32,
+        space.shape[1] as i32,
+        space.shape[2] as i32,
+    ];
 
     let greedy_cached = canonicalize(mesh_space_greedy::<TestSpace>(
         &min,
@@ -594,9 +610,14 @@ fn assert_cached_uncached_parity(space: &TestSpace, cached_registry: &Registry, 
     ));
     assert_eq!(legacy_cached, legacy_uncached);
 
-    let non_greedy_cached = canonicalize(mesh_space::<TestSpace>(&min, &max, space, cached_registry));
-    let non_greedy_uncached =
-        canonicalize(mesh_space::<TestSpace>(&min, &max, space, uncached_registry));
+    let non_greedy_cached =
+        canonicalize(mesh_space::<TestSpace>(&min, &max, space, cached_registry));
+    let non_greedy_uncached = canonicalize(mesh_space::<TestSpace>(
+        &min,
+        &max,
+        space,
+        uncached_registry,
+    ));
     assert_eq!(non_greedy_cached, non_greedy_uncached);
 }
 
@@ -829,7 +850,15 @@ fn snapshot_seeded_property_mix() {
     for x in 0..8 {
         for z in 0..8 {
             let light = (x + z) % 16;
-            space.set_light(x, 4, z, light as u32, (15 - light) as u32, 0, (light / 2) as u32);
+            space.set_light(
+                x,
+                4,
+                z,
+                light as u32,
+                (15 - light) as u32,
+                0,
+                (light / 2) as u32,
+            );
         }
     }
 
@@ -961,7 +990,15 @@ fn greedy_legacy_parity_transparency_fluid_boundary_volume() {
             }
 
             let wave = ((x * 11 + z * 13) % 16) as u32;
-            space.set_light(x, 6, z, wave, (wave + 3) & 0xF, (wave + 7) & 0xF, (wave + 11) & 0xF);
+            space.set_light(
+                x,
+                6,
+                z,
+                wave,
+                (wave + 3) & 0xF,
+                (wave + 7) & 0xF,
+                (wave + 11) & 0xF,
+            );
         }
     }
 
@@ -1123,7 +1160,15 @@ fn parity_matches_with_uncached_transparency_fluid_boundary_volume() {
             }
 
             let wave = ((x * 11 + z * 13) % 16) as u32;
-            space.set_light(x, 6, z, wave, (wave + 3) & 0xF, (wave + 7) & 0xF, (wave + 11) & 0xF);
+            space.set_light(
+                x,
+                6,
+                z,
+                wave,
+                (wave + 3) & 0xF,
+                (wave + 7) & 0xF,
+                (wave + 11) & 0xF,
+            );
         }
     }
 
