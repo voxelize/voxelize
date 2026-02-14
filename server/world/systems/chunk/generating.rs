@@ -46,7 +46,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         ) = data;
         let _t = timing.timer("chunk-generating");
 
-        let chunk_size = config.chunk_size;
+        let chunk_size = config.chunk_size.max(1);
 
         /* -------------------------------------------------------------------------- */
         /*                     RECALCULATE CHUNK INTEREST WEIGHTS                     */
@@ -68,6 +68,9 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                         let mag = (direction_to_chunk.0.pow(2) as f32
                             + direction_to_chunk.1.pow(2) as f32)
                             .sqrt();
+                        if mag <= f32::EPSILON {
+                            continue;
+                        }
                         let normalized_direction_to_chunk = Vec2(
                             direction_to_chunk.0 as f32 / mag,
                             direction_to_chunk.1 as f32 / mag,
@@ -208,7 +211,13 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                             continue;
                         }
 
-                        let n_coords = Vec2(coords.0 + x, coords.1 + z);
+                        let Some(nx) = coords.0.checked_add(x) else {
+                            continue;
+                        };
+                        let Some(nz) = coords.1.checked_add(z) else {
+                            continue;
+                        };
+                        let n_coords = Vec2(nx, nz);
 
                         if !chunks.is_within_world(&n_coords) || chunks.is_chunk_ready(&n_coords) {
                             continue;
