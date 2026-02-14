@@ -1,7 +1,7 @@
 use crate::{Vec2, Vec3};
 
 fn get_concat() -> &'static str {
-    if (cfg!(target_os = "windows")) {
+    if cfg!(target_os = "windows") {
         "_"
     } else {
         "|"
