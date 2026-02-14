@@ -467,6 +467,38 @@ fn assert_parity(min: &[i32; 3], max: &[i32; 3], space: &BenchSpace, registry: &
     );
 }
 
+fn assert_cached_uncached_equivalence(
+    min: &[i32; 3],
+    max: &[i32; 3],
+    space: &BenchSpace,
+    cached_registry: &Registry,
+    uncached_registry: &Registry,
+) {
+    let greedy_legacy_cached = mesh_space_greedy_legacy(min, max, space, cached_registry);
+    let greedy_legacy_uncached = mesh_space_greedy_legacy(min, max, space, uncached_registry);
+    assert_eq!(
+        geometry_fingerprint(&greedy_legacy_cached),
+        geometry_fingerprint(&greedy_legacy_uncached),
+        "uncached parity failed for greedy legacy benchmark fixture"
+    );
+
+    let greedy_optimized_cached = mesh_space_greedy(min, max, space, cached_registry);
+    let greedy_optimized_uncached = mesh_space_greedy(min, max, space, uncached_registry);
+    assert_eq!(
+        geometry_fingerprint(&greedy_optimized_cached),
+        geometry_fingerprint(&greedy_optimized_uncached),
+        "uncached parity failed for greedy optimized benchmark fixture"
+    );
+
+    let non_greedy_cached = mesh_space(min, max, space, cached_registry);
+    let non_greedy_uncached = mesh_space(min, max, space, uncached_registry);
+    assert_eq!(
+        geometry_fingerprint(&non_greedy_cached),
+        geometry_fingerprint(&non_greedy_uncached),
+        "uncached parity failed for non-greedy benchmark fixture"
+    );
+}
+
 fn terrain_scene() -> BenchSpace {
     let mut space = BenchSpace::new([16, 24, 16]);
 
@@ -838,7 +870,8 @@ fn non_greedy_mesher_benchmark(c: &mut Criterion) {
 }
 
 fn uncached_mesher_benchmark(c: &mut Criterion) {
-    let registry = build_registry_uncached();
+    let registry_cached = build_registry();
+    let registry_uncached = build_registry_uncached();
     let scenes = vec![
         ("terrain_16x24x16", terrain_scene()),
         ("dynamic_16x20x16", dynamic_scene()),
@@ -855,7 +888,9 @@ fn uncached_mesher_benchmark(c: &mut Criterion) {
     for (scene_name, space) in &scenes {
         let min = [0, 0, 0];
         let max = [space.shape[0] as i32, space.shape[1] as i32, space.shape[2] as i32];
-        assert_parity(&min, &max, space, &registry);
+        assert_parity(&min, &max, space, &registry_cached);
+        assert_parity(&min, &max, space, &registry_uncached);
+        assert_cached_uncached_equivalence(&min, &max, space, &registry_cached, &registry_uncached);
 
         group.bench_with_input(
             BenchmarkId::new("greedy_legacy", scene_name),
@@ -866,7 +901,7 @@ fn uncached_mesher_benchmark(c: &mut Criterion) {
                         black_box(&min),
                         black_box(&max),
                         black_box(space),
-                        black_box(&registry),
+                        black_box(&registry_uncached),
                     )
                 });
             },
@@ -881,7 +916,7 @@ fn uncached_mesher_benchmark(c: &mut Criterion) {
                         black_box(&min),
                         black_box(&max),
                         black_box(space),
-                        black_box(&registry),
+                        black_box(&registry_uncached),
                     )
                 });
             },
@@ -896,7 +931,7 @@ fn uncached_mesher_benchmark(c: &mut Criterion) {
                         black_box(&min),
                         black_box(&max),
                         black_box(space),
-                        black_box(&registry),
+                        black_box(&registry_uncached),
                     )
                 });
             },
