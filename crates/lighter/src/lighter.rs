@@ -277,7 +277,7 @@ pub fn flood_light(
     if queue.is_empty() {
         return;
     }
-    flood_light_from_nodes(space, queue.into_iter().collect(), color, config, bounds, registry);
+    flood_light_from_nodes(space, queue.into(), color, config, bounds, registry);
 }
 
 pub fn flood_light_nodes(
