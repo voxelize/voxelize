@@ -49,8 +49,14 @@ impl ChunkInterests {
 
     pub fn has_interests_in_region(&self, center: &Vec2<i32>) -> bool {
         for dx in -1..=1 {
+            let Some(nx) = center.0.checked_add(dx) else {
+                continue;
+            };
             for dz in -1..=1 {
-                let coords = Vec2(center.0 + dx, center.1 + dz);
+                let Some(nz) = center.1.checked_add(dz) else {
+                    continue;
+                };
+                let coords = Vec2(nx, nz);
                 if self.has_interests(&coords) {
                     return true;
                 }
@@ -62,8 +68,14 @@ impl ChunkInterests {
     pub fn get_interested_clients_in_region(&self, center: &Vec2<i32>) -> HashSet<String> {
         let mut clients = HashSet::new();
         for dx in -1..=1 {
+            let Some(nx) = center.0.checked_add(dx) else {
+                continue;
+            };
             for dz in -1..=1 {
-                let coords = Vec2(center.0 + dx, center.1 + dz);
+                let Some(nz) = center.1.checked_add(dz) else {
+                    continue;
+                };
+                let coords = Vec2(nx, nz);
                 if let Some(interested) = self.get_interests(&coords) {
                     clients.extend(interested.iter().cloned());
                 }
@@ -73,9 +85,10 @@ impl ChunkInterests {
     }
 
     pub fn add(&mut self, client_id: &str, coords: &Vec2<i32>) {
-        let mut clients = self.map.remove(coords).unwrap_or_default();
-        clients.insert(client_id.to_owned());
-        self.map.insert(coords.to_owned(), clients);
+        self.map
+            .entry(coords.to_owned())
+            .or_default()
+            .insert(client_id.to_owned());
     }
 
     pub fn remove(&mut self, client_id: &str, coords: &Vec2<i32>) {
@@ -105,5 +118,45 @@ impl ChunkInterests {
             clients.remove(client_id);
             !clients.is_empty()
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ChunkInterests;
+    use crate::Vec2;
+
+    #[test]
+    fn has_interests_in_region_handles_i32_edge_centers() {
+        let mut interests = ChunkInterests::new();
+        interests.add("a", &Vec2(i32::MAX, i32::MAX));
+
+        assert!(interests.has_interests_in_region(&Vec2(i32::MAX, i32::MAX)));
+        assert!(!interests.has_interests_in_region(&Vec2(i32::MIN, i32::MIN)));
+    }
+
+    #[test]
+    fn get_interested_clients_in_region_skips_overflowing_neighbors() {
+        let mut interests = ChunkInterests::new();
+        interests.add("center", &Vec2(i32::MAX, i32::MAX));
+        interests.add("left", &Vec2(i32::MAX - 1, i32::MAX));
+
+        let clients = interests.get_interested_clients_in_region(&Vec2(i32::MAX, i32::MAX));
+        assert!(clients.contains("center"));
+        assert!(clients.contains("left"));
+    }
+
+    #[test]
+    fn add_merges_clients_without_removal_roundtrip() {
+        let mut interests = ChunkInterests::new();
+        let coords = Vec2(2, 3);
+        interests.add("a", &coords);
+        interests.add("b", &coords);
+
+        let interested = interests
+            .get_interests(&coords)
+            .expect("expected registered clients");
+        assert!(interested.contains("a"));
+        assert!(interested.contains("b"));
     }
 }
