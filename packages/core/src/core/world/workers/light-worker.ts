@@ -170,6 +170,24 @@ const normalizeStartIndex = (startIndexValue: number | undefined) =>
   startIndexValue > 0
     ? startIndexValue
     : 0;
+const MIN_INT32 = -0x80000000;
+const MAX_INT32 = 0x7fffffff;
+const getChunkShiftIfPowerOfTwo = (chunkSize: number) => {
+  const log2ChunkSize = Math.log2(chunkSize);
+  return Number.isInteger(log2ChunkSize) &&
+    log2ChunkSize >= 0 &&
+    log2ChunkSize <= 30
+    ? log2ChunkSize
+    : -1;
+};
+const mapVoxelToChunkCoordinate = (
+  voxel: number,
+  chunkSize: number,
+  chunkShift: number
+) =>
+  chunkShift >= 0 && voxel >= MIN_INT32 && voxel <= MAX_INT32
+    ? voxel >> chunkShift
+    : Math.floor(voxel / chunkSize);
 const isValidVoxelId = (value: number) =>
   isInteger(value) && value >= 0 && value <= 0xffff;
 const isValidStage = (value: number) =>
@@ -435,6 +453,7 @@ const hasPotentialRelevantDeltaBatches = (
   gridOffsetZ: number,
   maxHeight: number,
   chunkSize: number,
+  chunkShift: number,
   expectedChunkByteLength: number
 ) => {
   const chunkValidity =
@@ -518,8 +537,16 @@ const hasPotentialRelevantDeltaBatches = (
         }
         const writeIntentMask = getDeltaWriteIntentMask(delta);
         if (writeIntentMask !== 0) {
-          const deltaChunkX = Math.floor(vx / chunkSize);
-          const deltaChunkZ = Math.floor(vz / chunkSize);
+          const deltaChunkX = mapVoxelToChunkCoordinate(
+            vx,
+            chunkSize,
+            chunkShift
+          );
+          const deltaChunkZ = mapVoxelToChunkCoordinate(
+            vz,
+            chunkSize,
+            chunkShift
+          );
           if (deltaChunkX === cx && deltaChunkZ === cz) {
             return true;
           }
@@ -977,6 +1004,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
   const gridOffsetX = chunkGridOffset[0];
   const gridOffsetZ = chunkGridOffset[1];
   const chunkSize = options.chunkSize;
+  const chunkShift = getChunkShiftIfPowerOfTwo(chunkSize);
   const maxHeight = options.maxHeight;
   const maxLightLevel = options.maxLightLevel;
   if (
@@ -1064,6 +1092,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
       gridOffsetZ,
       maxHeight,
       chunkSize,
+      chunkShift,
       expectedChunkByteLength
     );
   const chunkGrid = hasPotentialRelevantDelta ? reusableChunkGrid : emptyChunkGrid;
