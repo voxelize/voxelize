@@ -253,6 +253,12 @@ describe("AABB", () => {
     expect(aabb.maxZ).toBe(7);
   });
 
+  it("uses unit-cube defaults in AABB builder", () => {
+    const aabb = AABB.new().build();
+    expect([aabb.minX, aabb.minY, aabb.minZ]).toEqual([0, 0, 0]);
+    expect([aabb.maxX, aabb.maxY, aabb.maxZ]).toEqual([1, 1, 1]);
+  });
+
   it("supports translate and setPosition while preserving dimensions", () => {
     const aabb = AABB.create(0, 0, 0, 2, 3, 4);
     aabb.translate(1, -1, 2);
