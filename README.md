@@ -359,7 +359,7 @@ When `--output` is valid, JSON validation-error reports are also written to that
 If `--output` or `--only` is passed multiple times, the last value is used, even when recognized strict tokens appear between repeated flags.
 `--output` and `--only` also support inline assignment forms such as `--output=./report.json` and `--only=client`.
 Empty or whitespace-only split/inline output and selection values (for example `--output ""`, `--output "   "`, `--output=`, `--output=   `, `--only ""`, `--only "   "`, `--only=`, or `--only=   `) are treated as missing values.
-Invalid `--only` errors include available canonical check names and special selector aliases (for example `all`, `all-checks`, `all_checks`, `allchecks`) for quick correction.
+Invalid `--only` errors include available canonical check names and special selector aliases (for example `all`, `all-checks`, `all_checks`, `allchecks`, `libraries`, `library`, `libs`, `lib`) for quick correction.
 Invalid `--only` errors also include `invalidChecks` for machine-readable diagnostics.
 Unsupported CLI flags return structured errors and include `unknownOptions` for machine-readable diagnostics.
 Inline unsupported-option forms are normalized in diagnostics (for example `--mystery=alpha` is reported as `--mystery`) and deduplicated by option token.

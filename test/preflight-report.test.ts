@@ -242,8 +242,9 @@ const expectedAvailableCheckMetadata = {
 };
 const expectedAvailableSpecialCheckAliases = {
   all: ["all", "all-checks", "all_checks", "allchecks"],
+  libraries: ["libraries", "library", "libs", "lib"],
 };
-const expectedAvailableSpecialCheckSelectors = ["all"];
+const expectedAvailableSpecialCheckSelectors = ["all", "libraries"];
 const expectedAvailableSpecialSelectorResolvedChecks = {
   all: [
     "devEnvironment",
@@ -252,6 +253,7 @@ const expectedAvailableSpecialSelectorResolvedChecks = {
     "runtimeLibraries",
     "client",
   ],
+  libraries: ["tsCore", "runtimeLibraries"],
 };
 const expectedAvailableChecks = [
   "devEnvironment",
@@ -398,6 +400,7 @@ const expectedEmptyRequestedCheckResolutionCounts = {
   invalid: 0,
 };
 const expectedUsedAllSpecialSelector = ["all"];
+const expectedUsedLibrariesSpecialSelector = ["libraries"];
 const expectTsCoreNestedReport = (
   checkReport: object | null,
   expectedNoBuild: boolean
@@ -2298,6 +2301,142 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
+  it("supports libraries special selector in list mode", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--list-checks", "--only", "libraries"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(true);
+    expect(report.passed).toBe(true);
+    expect(report.exitCode).toBe(0);
+    expect(report.noBuild).toBe(false);
+    expect(report.selectionMode).toBe("only");
+    expect(report.specialSelectorsUsed).toEqual(expectedUsedLibrariesSpecialSelector);
+    expect(report.selectedChecks).toEqual(["tsCore", "runtimeLibraries"]);
+    expect(report.selectedCheckCount).toBe(2);
+    expect(report.requestedChecks).toEqual(["libraries"]);
+    expect(report.requestedCheckCount).toBe(1);
+    expect(report.requestedCheckResolutions).toEqual([
+      {
+        token: "libraries",
+        normalizedToken: "libraries",
+        kind: "specialSelector",
+        selector: "libraries",
+        resolvedTo: ["tsCore", "runtimeLibraries"],
+      },
+    ]);
+    expect(report.requestedCheckResolutionCounts).toEqual({
+      check: 0,
+      specialSelector: 1,
+      invalid: 0,
+    });
+    expect(report.skippedChecks).toEqual(["devEnvironment", "wasmPack", "client"]);
+    expect(report.skippedCheckCount).toBe(3);
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--list-checks", "--only"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--list-checks", "--only"]);
+    expect(report.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions(["--list-checks", "--only"])
+    );
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences(["--list-checks", "--only", "libraries"])
+    );
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(report.checks).toEqual([]);
+    expect(result.status).toBe(0);
+  });
+
+  it("supports libraries special selector in execution mode", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--no-build", "--only", "libraries"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(false);
+    expect(report.noBuild).toBe(true);
+    expect(report.selectionMode).toBe("only");
+    expect(report.specialSelectorsUsed).toEqual(expectedUsedLibrariesSpecialSelector);
+    expect(report.selectedChecks).toEqual(["tsCore", "runtimeLibraries"]);
+    expect(report.selectedCheckCount).toBe(2);
+    expect(report.requestedChecks).toEqual(["libraries"]);
+    expect(report.requestedCheckCount).toBe(1);
+    expect(report.requestedCheckResolutions).toEqual([
+      {
+        token: "libraries",
+        normalizedToken: "libraries",
+        kind: "specialSelector",
+        selector: "libraries",
+        resolvedTo: ["tsCore", "runtimeLibraries"],
+      },
+    ]);
+    expect(report.requestedCheckResolutionCounts).toEqual({
+      check: 0,
+      specialSelector: 1,
+      invalid: 0,
+    });
+    expect(report.skippedChecks).toEqual(["devEnvironment", "wasmPack", "client"]);
+    expect(report.skippedCheckCount).toBe(3);
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--no-build", "--only"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--no-build", "--only"]);
+    expect(report.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions(["--no-build", "--only"])
+    );
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences(["--no-build", "--only", "libraries"])
+    );
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(report.totalChecks).toBe(2);
+    expect(report.checks.length).toBe(2);
+    expect(report.checks.map((check) => check.name)).toEqual([
+      "tsCore",
+      "runtimeLibraries",
+    ]);
+    expectTsCoreNestedReport(report.checks[0].report, true);
+    expectRuntimeLibrariesNestedReport(report.checks[1].report, true);
+    expect(report.passedCheckCount + report.failedCheckCount).toBe(2);
+    expect([...report.passedChecks, ...report.failedChecks].sort()).toEqual([
+      "runtimeLibraries",
+      "tsCore",
+    ]);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
   it("supports selecting all checks with the all alias", () => {
     const result = spawnSync(
       process.execPath,
@@ -3408,7 +3547,7 @@ describe("preflight aggregate report", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.message).toBe(
-      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, runtimeLibraries, client. Special selectors: all (all-checks, all_checks, allchecks)."
+      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, runtimeLibraries, client. Special selectors: all (all-checks, all_checks, allchecks); libraries (library, libs, lib)."
     );
     expect(report.invalidChecks).toEqual(["invalidCheck"]);
     expect(report.specialSelectorsUsed).toEqual([]);
@@ -5208,7 +5347,7 @@ describe("preflight aggregate report", () => {
     expect(report.exitCode).toBe(1);
     expect(report.validationErrorCode).toBe("only_option_invalid_value");
     expect(report.message).toBe(
-      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, runtimeLibraries, client. Special selectors: all (all-checks, all_checks, allchecks)."
+      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, runtimeLibraries, client. Special selectors: all (all-checks, all_checks, allchecks); libraries (library, libs, lib)."
     );
     expect(report.invalidChecks).toEqual(["invalidCheck"]);
     expect(report.invalidCheckCount).toBe(1);
@@ -6104,7 +6243,7 @@ describe("preflight aggregate report", () => {
     expect(report.failedCheckCount).toBe(0);
     expect(report.firstFailedCheck).toBeNull();
     expect(report.message).toBe(
-      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, runtimeLibraries, client. Special selectors: all (all-checks, all_checks, allchecks)."
+      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, runtimeLibraries, client. Special selectors: all (all-checks, all_checks, allchecks); libraries (library, libs, lib)."
     );
     expect(report.invalidCheckCount).toBe(1);
     expect(report.unknownOptionCount).toBe(0);
@@ -6180,7 +6319,7 @@ describe("preflight aggregate report", () => {
       invalid: 1,
     });
     expect(report.message).toBe(
-      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, runtimeLibraries, client. Special selectors: all (all-checks, all_checks, allchecks)."
+      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, runtimeLibraries, client. Special selectors: all (all-checks, all_checks, allchecks); libraries (library, libs, lib)."
     );
     expect(result.status).toBe(1);
   });
@@ -6206,7 +6345,7 @@ describe("preflight aggregate report", () => {
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
     expect(report.message).toBe(
-      "Invalid check name(s): invalidCheck, otherInvalid. Available checks: devEnvironment, wasmPack, tsCore, runtimeLibraries, client. Special selectors: all (all-checks, all_checks, allchecks)."
+      "Invalid check name(s): invalidCheck, otherInvalid. Available checks: devEnvironment, wasmPack, tsCore, runtimeLibraries, client. Special selectors: all (all-checks, all_checks, allchecks); libraries (library, libs, lib)."
     );
     expect(report.invalidCheckCount).toBe(2);
     expect(report.unknownOptionCount).toBe(0);
@@ -6251,7 +6390,7 @@ describe("preflight aggregate report", () => {
     expect(stdoutReport.exitCode).toBe(1);
     expect(stdoutReport.outputPath).toBe(outputPath);
     expect(stdoutReport.message).toBe(
-      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, runtimeLibraries, client. Special selectors: all (all-checks, all_checks, allchecks)."
+      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, runtimeLibraries, client. Special selectors: all (all-checks, all_checks, allchecks); libraries (library, libs, lib)."
     );
     expect(stdoutReport.invalidChecks).toEqual(["invalidCheck"]);
     expect(stdoutReport.specialSelectorsUsed).toEqual([]);
@@ -6650,7 +6789,7 @@ describe("preflight aggregate report", () => {
     expect(stdoutReport.invalidChecks).toEqual(["invalidCheck"]);
     expect(stdoutReport.invalidCheckCount).toBe(1);
     expect(stdoutReport.message).toBe(
-      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, runtimeLibraries, client. Special selectors: all (all-checks, all_checks, allchecks)."
+      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, runtimeLibraries, client. Special selectors: all (all-checks, all_checks, allchecks); libraries (library, libs, lib)."
     );
     expect(fileReport).toEqual(stdoutReport);
     expect(result.status).toBe(1);
@@ -6778,7 +6917,7 @@ describe("preflight aggregate report", () => {
       ])
     );
     expect(stdoutReport.message).toBe(
-      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, runtimeLibraries, client. Special selectors: all (all-checks, all_checks, allchecks)."
+      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, tsCore, runtimeLibraries, client. Special selectors: all (all-checks, all_checks, allchecks); libraries (library, libs, lib)."
     );
     expect(secondFileReport).toEqual(stdoutReport);
     expect(fs.existsSync(firstOutputPath)).toBe(false);

@@ -135,11 +135,13 @@ const availableCheckAliases = {
 };
 const availableSpecialCheckAliases = {
   all: ["all", "all-checks", "all_checks", "allchecks"],
+  libraries: ["libraries", "library", "libs", "lib"],
 };
 const availableSpecialCheckSelectors = Object.keys(availableSpecialCheckAliases);
 const requestedCheckResolutionKinds = ["check", "specialSelector", "invalid"];
 const specialSelectorChecks = {
   all: availableCheckNames,
+  libraries: ["tsCore", "runtimeLibraries"],
 };
 const availableSpecialSelectorResolvedChecks = Object.fromEntries(
   availableSpecialCheckSelectors.map((selector) => {
