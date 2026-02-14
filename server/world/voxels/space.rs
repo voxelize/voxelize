@@ -385,7 +385,7 @@ impl VoxelAccess for Space {
         if vy < 0 || vy >= self.options.max_height as i32 {
             return false;
         }
-        let (coords, _) = self.to_local(vx, vy, vz);
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, self.options.chunk_size);
 
         self.lights.contains_key(&coords)
             || self.voxels.contains_key(&coords)
