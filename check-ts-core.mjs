@@ -156,11 +156,20 @@ const withBaseReportFields = (report) => {
   const requiredArtifactCountByPackage = {
     [tsCorePackageName]: requiredArtifacts.length,
   };
+  const requiredArtifactsByPackage = {
+    [tsCorePackageName]: requiredArtifacts,
+  };
   const artifactsPresentByPackage = {
     [tsCorePackageName]: artifactsPresent,
   };
+  const presentArtifactsByPackage = {
+    [tsCorePackageName]: presentArtifacts,
+  };
   const presentArtifactCountByPackage = {
     [tsCorePackageName]: presentArtifactCount,
+  };
+  const missingArtifactsByPackage = {
+    [tsCorePackageName]: missingArtifacts,
   };
   const missingArtifactCountByPackage = {
     [tsCorePackageName]: missingArtifacts.length,
@@ -245,6 +254,8 @@ const withBaseReportFields = (report) => {
     packageReportMapCount: countRecordEntries(packageReportMap),
     packagePath: tsCorePackagePath,
     requiredArtifacts,
+    requiredArtifactsByPackage,
+    requiredArtifactsByPackageCount: countRecordEntries(requiredArtifactsByPackage),
     requiredArtifactCountByPackage,
     requiredArtifactCount: requiredArtifacts.length,
     requiredArtifactCountByPackageCount: countRecordEntries(
@@ -253,11 +264,15 @@ const withBaseReportFields = (report) => {
     artifactsPresentByPackage,
     artifactsPresentByPackageCount: countRecordEntries(artifactsPresentByPackage),
     presentArtifacts,
+    presentArtifactsByPackage,
+    presentArtifactsByPackageCount: countRecordEntries(presentArtifactsByPackage),
     presentArtifactCount,
     presentArtifactCountByPackage,
     presentArtifactCountByPackageCount: countRecordEntries(
       presentArtifactCountByPackage
     ),
+    missingArtifactsByPackage,
+    missingArtifactsByPackageCount: countRecordEntries(missingArtifactsByPackage),
     missingArtifactCount: missingArtifacts.length,
     missingArtifactCountByPackage,
     missingArtifactCountByPackageCount: countRecordEntries(
