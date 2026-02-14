@@ -965,7 +965,6 @@ const serializeChunksData = (
 
 const processBatchMessage = (message: LightBatchMessage) => {
   const {
-    jobId,
     color,
     boundingBox,
     chunksData,
@@ -976,6 +975,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
     lightOps,
     options,
   } = message;
+  const jobId = typeof message.jobId === "string" ? message.jobId : "";
 
   const normalizedLastRelevantSequenceId = normalizeSequenceId(lastRelevantSequenceId);
   if (
