@@ -611,7 +611,9 @@ impl VoxelAccess for Chunks {
     }
 
     fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
-        self.raw_chunk_by_voxel(vx, vy, vz).is_some()
+        vy >= 0
+            && vy < self.config.max_height as i32
+            && self.raw_chunk_by_voxel(vx, vy, vz).is_some()
     }
 }
 

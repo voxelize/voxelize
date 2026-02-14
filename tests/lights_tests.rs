@@ -130,6 +130,14 @@ fn test_chunks_get_raw_light_handles_negative_and_above_height_queries() {
         0,
         "raw light below world height should stay dark"
     );
+    assert!(
+        !chunks.contains(0, -1, 0),
+        "chunk contains checks should reject negative world heights"
+    );
+    assert!(
+        !chunks.contains(0, config.max_height as i32, 0),
+        "chunk contains checks should reject y coordinates at max height boundary"
+    );
     let above_raw = chunks.get_raw_light(0, config.max_height as i32, 0);
     assert_eq!(
         voxelize::LightUtils::extract_sunlight(above_raw),
