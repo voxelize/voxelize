@@ -394,6 +394,12 @@ const drainPendingBatchMessagesAsEmptyResults = () => {
   pendingBatchMessagesHead = 0;
 };
 
+const markRegistryInitializationFailed = () => {
+  registryInitialized = false;
+  registryInitializationFailed = true;
+  drainPendingBatchMessagesAsEmptyResults();
+};
+
 const hasPotentialRelevantDeltaBatches = (
   deltaBatches: DeltaBatch[],
   gridWidth: number,
@@ -1204,9 +1210,7 @@ onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
       typeof registryData !== "object" ||
       !Array.isArray(registryData.blocksById)
     ) {
-      registryInitialized = false;
-      registryInitializationFailed = true;
-      drainPendingBatchMessagesAsEmptyResults();
+      markRegistryInitializationFailed();
       return;
     }
 
@@ -1214,7 +1218,7 @@ onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
     registryInitialized = set_registry(wasmRegistry);
     registryInitializationFailed = !registryInitialized;
     if (!registryInitialized) {
-      drainPendingBatchMessagesAsEmptyResults();
+      markRegistryInitializationFailed();
       return;
     }
 
