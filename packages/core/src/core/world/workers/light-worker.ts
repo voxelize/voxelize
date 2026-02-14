@@ -980,9 +980,9 @@ const processBatchMessage = (message: LightBatchMessage) => {
   const normalizedLastRelevantSequenceId = normalizeSequenceId(lastRelevantSequenceId);
   if (
     !Array.isArray(chunkGridDimensions) ||
-    chunkGridDimensions.length < 2 ||
+    chunkGridDimensions.length !== 2 ||
     !Array.isArray(chunkGridOffset) ||
-    chunkGridOffset.length < 2
+    chunkGridOffset.length !== 2
   ) {
     postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
     return;
