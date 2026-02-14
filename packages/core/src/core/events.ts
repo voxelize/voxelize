@@ -68,11 +68,12 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
     switch (message.type) {
       case "EVENT": {
         const events = message.events;
-        if (!events || events.length === 0) {
+        const eventCount = events?.length ?? 0;
+        if (eventCount === 0) {
           return;
         }
 
-        for (let eventIndex = 0; eventIndex < events.length; eventIndex++) {
+        for (let eventIndex = 0; eventIndex < eventCount; eventIndex++) {
           const event = events[eventIndex];
           this.handle(event.name, event.payload);
         }
