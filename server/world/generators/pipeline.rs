@@ -380,8 +380,7 @@ impl Pipeline {
         let mut results = Vec::new();
 
         while let Ok(result) = self.receiver.try_recv() {
-            if self.chunks.contains(&result.0.coords) {
-                self.remove_chunk(&result.0.coords);
+            if self.chunks.remove(&result.0.coords) {
                 results.push(result);
             }
         }
