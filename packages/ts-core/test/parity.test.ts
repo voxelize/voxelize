@@ -1034,6 +1034,16 @@ describe("Type builders", () => {
     expect(createdTransparency[0]).toBe(true);
   });
 
+  it("clones transparency helper outputs in conditional parts", () => {
+    const transparency = createFaceTransparency([true, false, false, false, false, false]);
+    const part = createBlockConditionalPart({
+      isTransparent: transparency,
+    });
+
+    transparency[0] = false;
+    expect(part.isTransparent).toEqual([true, false, false, false, false, false]);
+  });
+
   it("sanitizes null and non-array transparency inputs to defaults", () => {
     const nullTransparencyPart = createBlockConditionalPart({
       isTransparent: null,
