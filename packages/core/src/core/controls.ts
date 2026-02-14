@@ -741,11 +741,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     const x = bodyPosition[0];
     const y = bodyPosition[1] - this.options.bodyHeight * 0.5;
     const z = bodyPosition[2];
-    if (!target) {
-      return new Vector3(x, y, z);
-    }
-    target.set(x, y, z);
-    return target;
+    const position = target ?? new Vector3();
+    return position.set(x, y, z);
   };
 
   /**
