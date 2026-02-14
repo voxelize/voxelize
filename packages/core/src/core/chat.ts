@@ -280,14 +280,26 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   private splitQuotedTokens(raw: string): string[] {
     const length = raw.length;
     let hasQuote = false;
+    let hasWhitespace = false;
     for (let index = 0; index < length; index++) {
       const code = raw.charCodeAt(index);
       if (code === 34 || code === 39) {
         hasQuote = true;
         break;
       }
+      if (isWhitespaceCode(code)) {
+        hasWhitespace = true;
+      }
     }
     if (!hasQuote) {
+      if (!hasWhitespace) {
+        const tokens = this.quotedTokensBuffer;
+        tokens.length = 0;
+        if (length > 0) {
+          tokens.push(raw);
+        }
+        return tokens;
+      }
       return this.splitUnquotedTokens(raw);
     }
 

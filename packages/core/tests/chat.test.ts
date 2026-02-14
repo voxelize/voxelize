@@ -97,6 +97,33 @@ describe("Chat command parsing", () => {
     expect(parsed).toEqual({ first: "hello", second: "world" });
   });
 
+  it("parses single unquoted positional argument", () => {
+    const chat = new Chat();
+    initializeChat(chat);
+    let parsed: { first: string } | null = null;
+
+    chat.addCommand(
+      "echo",
+      (args) => {
+        parsed = args;
+      },
+      {
+        description: "Echo command",
+        args: z.object({
+          first: z.string(),
+        }),
+      }
+    );
+
+    const message: ChatProtocol = {
+      type: "CLIENT",
+      body: "/echo hello",
+    };
+    chat.send(message);
+
+    expect(parsed).toEqual({ first: "hello" });
+  });
+
   it("parses quoted positional arguments with embedded spaces", () => {
     const chat = new Chat();
     initializeChat(chat);
