@@ -196,7 +196,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     const length = raw.length;
     let triggerStart = 0;
 
-    while (triggerStart < length && raw[triggerStart] === " ") {
+    while (triggerStart < length && raw.charCodeAt(triggerStart) === 32) {
       triggerStart++;
     }
 
@@ -215,7 +215,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     this.parsedCommandTrigger = raw.substring(triggerStart, triggerEnd);
 
     let restStart = triggerEnd + 1;
-    while (restStart < length && raw[restStart] === " ") {
+    while (restStart < length && raw.charCodeAt(restStart) === 32) {
       restStart++;
     }
 
