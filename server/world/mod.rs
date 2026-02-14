@@ -25,7 +25,7 @@ use actix::{
     Actor, AsyncContext, Context, Handler, Message as ActixMessage, MessageResult, SyncContext,
 };
 use actix::{Addr, SyncArbiter};
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use log::{error, info, warn};
 use metadata::WorldMetadata;
 use nanoid::nanoid;
@@ -163,6 +163,26 @@ fn preload_check_radius(preload_radius: usize, max_light_level: u32, chunk_size:
 fn preload_expected_chunk_count(check_radius: i32) -> i64 {
     let diameter = i64::from(check_radius).saturating_mul(2).saturating_add(1);
     diameter.saturating_mul(diameter)
+}
+
+fn collect_preload_targets(chunks: &Chunks, radius: i32) -> Vec<Vec2<i32>> {
+    let mut targets = Vec::new();
+    let mut seen = HashSet::new();
+
+    for x in -radius..=radius {
+        for z in -radius..=radius {
+            let coords = Vec2(x, z);
+            let neighbors = chunks.light_traversed_chunks(&coords);
+
+            for n_coords in neighbors {
+                if chunks.is_within_world(&n_coords) && seen.insert(n_coords.clone()) {
+                    targets.push(n_coords);
+                }
+            }
+        }
+    }
+
+    targets
 }
 
 /// A voxelize world.
@@ -1429,25 +1449,15 @@ impl World {
     /// Preload the chunks in the world.
     pub(crate) fn preload(&mut self) {
         let radius = clamp_usize_to_i32(self.config().preload_radius);
+        let preload_targets = {
+            let chunks = self.chunks();
+            collect_preload_targets(&chunks, radius)
+        };
 
         {
-            for x in -radius..=radius {
-                for z in -radius..=radius {
-                    let coords = Vec2(x, z);
-                    let neighbors = self.chunks().light_traversed_chunks(&coords);
-
-                    neighbors.into_iter().for_each(|coords| {
-                        let is_within = {
-                            let chunks = self.chunks();
-                            chunks.is_within_world(&coords)
-                        };
-
-                        let mut pipeline = self.pipeline_mut();
-                        if is_within {
-                            pipeline.add_chunk(&coords, false);
-                        }
-                    });
-                }
+            let mut pipeline = self.pipeline_mut();
+            for coords in preload_targets {
+                pipeline.add_chunk(&coords, false);
             }
         }
 
@@ -1913,8 +1923,11 @@ impl World {
 
 #[cfg(test)]
 mod tests {
+    use hashbrown::HashSet;
+
     use super::{
-        preload_check_radius, preload_expected_chunk_count, preload_light_padding,
+        collect_preload_targets, preload_check_radius, preload_expected_chunk_count,
+        preload_light_padding, Chunks, Vec2, WorldConfig,
     };
 
     #[test]
@@ -1936,5 +1949,38 @@ mod tests {
         assert_eq!(preload_expected_chunk_count(0), 1);
         assert_eq!(preload_expected_chunk_count(1), 9);
         assert_eq!(preload_expected_chunk_count(2), 25);
+    }
+
+    #[test]
+    fn collect_preload_targets_deduplicates_neighbor_chunks() {
+        let config = WorldConfig {
+            chunk_size: 16,
+            max_height: 16,
+            max_light_level: 15,
+            min_chunk: [-1, -1],
+            max_chunk: [1, 1],
+            ..Default::default()
+        };
+        let chunks = Chunks::new(&config);
+
+        let targets = collect_preload_targets(&chunks, 1);
+        let unique: HashSet<_> = targets.iter().cloned().collect();
+        assert_eq!(targets.len(), unique.len());
+    }
+
+    #[test]
+    fn collect_preload_targets_respects_world_bounds() {
+        let config = WorldConfig {
+            chunk_size: 16,
+            max_height: 16,
+            max_light_level: 15,
+            min_chunk: [0, 0],
+            max_chunk: [0, 0],
+            ..Default::default()
+        };
+        let chunks = Chunks::new(&config);
+
+        let targets = collect_preload_targets(&chunks, 3);
+        assert_eq!(targets, vec![Vec2(0, 0)]);
     }
 }
