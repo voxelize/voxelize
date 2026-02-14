@@ -214,10 +214,14 @@ For release automation and CI routing, aggregate preflight JSON reports include:
   `requestedCheckResolvedMetadata`,
   `requestedCheckResolvedMetadataCount`,
   `selectedChecks`, `skippedChecks`
-- script/index projections: `selectedCheckScripts`,
-  `skippedCheckScripts`, `passedCheckScripts`, `failedCheckScripts`,
-  `selectedCheckIndices`, `skippedCheckIndices`, `passedCheckIndices`,
-  `failedCheckIndices`
+- script/index projections: `selectedCheckMetadata`,
+  `selectedCheckMetadataCount`, `selectedCheckScripts`,
+  `skippedCheckMetadata`, `skippedCheckMetadataCount`,
+  `skippedCheckScripts`, `passedCheckMetadata`,
+  `passedCheckMetadataCount`, `passedCheckScripts`,
+  `failedCheckMetadata`, `failedCheckMetadataCount`,
+  `failedCheckScripts`, `selectedCheckIndices`,
+  `skippedCheckIndices`, `passedCheckIndices`, `failedCheckIndices`
 - execution partitions: `passedChecks`, `failedChecks`,
   `failureSummaries`, `failureSummaryCount`
 - executable inventory: `availableChecks`, `availableCheckScripts`,

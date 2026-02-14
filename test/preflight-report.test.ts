@@ -132,6 +132,7 @@ type PreflightReport = {
       supportsNoBuild: boolean;
     }
   >;
+  selectedCheckMetadataCount: number;
   selectedCheckScripts: string[];
   selectedCheckScriptCount: number;
   skippedCheckMetadata: Record<
@@ -141,6 +142,7 @@ type PreflightReport = {
       supportsNoBuild: boolean;
     }
   >;
+  skippedCheckMetadataCount: number;
   skippedCheckScripts: string[];
   skippedCheckScriptCount: number;
   requestedChecks: string[];
@@ -187,6 +189,7 @@ type PreflightReport = {
       supportsNoBuild: boolean;
     }
   >;
+  passedCheckMetadataCount: number;
   passedCheckIndices: number[];
   passedCheckIndexCount: number;
   failedCheckScripts: string[];
@@ -198,6 +201,7 @@ type PreflightReport = {
       supportsNoBuild: boolean;
     }
   >;
+  failedCheckMetadataCount: number;
   failedCheckIndices: number[];
   failedCheckIndexCount: number;
   firstFailedCheck: string | null;
@@ -642,11 +646,17 @@ const expectSelectedCheckMetadata = (report: PreflightReport) => {
   );
 
   expect(report.selectedCheckMetadata).toEqual(expectedSelectedMetadata);
+  expect(report.selectedCheckMetadataCount).toBe(
+    Object.keys(report.selectedCheckMetadata).length
+  );
   expect(report.selectedCheckScripts).toEqual(expectedSelectedScripts);
   expect(report.selectedCheckIndices).toEqual(expectedSelectedIndices);
   expect(report.selectedCheckIndexCount).toBe(report.selectedCheckIndices.length);
   expect(report.selectedCheckScriptCount).toBe(report.selectedCheckScripts.length);
   expect(report.skippedCheckMetadata).toEqual(expectedSkippedMetadata);
+  expect(report.skippedCheckMetadataCount).toBe(
+    Object.keys(report.skippedCheckMetadata).length
+  );
   expect(report.skippedCheckScripts).toEqual(expectedSkippedScripts);
   expect(report.skippedCheckIndices).toEqual(expectedSkippedIndices);
   expect(report.skippedCheckIndexCount).toBe(report.skippedCheckIndices.length);
@@ -723,11 +733,17 @@ const expectCheckResultScriptMetadata = (report: PreflightReport) => {
   expect(report.passedCheckScripts).toEqual(expectedPassedScripts);
   expect(report.passedCheckScriptCount).toBe(report.passedCheckScripts.length);
   expect(report.passedCheckMetadata).toEqual(expectedPassedMetadata);
+  expect(report.passedCheckMetadataCount).toBe(
+    Object.keys(report.passedCheckMetadata).length
+  );
   expect(report.passedCheckIndices).toEqual(expectedPassedIndices);
   expect(report.passedCheckIndexCount).toBe(report.passedCheckIndices.length);
   expect(report.failedCheckScripts).toEqual(expectedFailedScripts);
   expect(report.failedCheckScriptCount).toBe(report.failedCheckScripts.length);
   expect(report.failedCheckMetadata).toEqual(expectedFailedMetadata);
+  expect(report.failedCheckMetadataCount).toBe(
+    Object.keys(report.failedCheckMetadata).length
+  );
   expect(report.failedCheckIndices).toEqual(expectedFailedIndices);
   expect(report.failedCheckIndexCount).toBe(report.failedCheckIndices.length);
   for (const check of report.checks) {

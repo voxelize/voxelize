@@ -528,6 +528,7 @@ const {
   checkScripts: allCheckScripts,
   checkScriptCount: allCheckScriptCount,
 } = buildCheckSelectionMetadata(availableCheckNames);
+const allCheckMetadataCount = Object.keys(allCheckMetadata).length;
 
 const runCheck = (name, scriptName, supportsNoBuild, extraArgs = []) => {
   const checkStartMs = Date.now();
@@ -585,6 +586,7 @@ if (
     selectedCheckIndices: [],
     selectedCheckIndexCount: 0,
     selectedCheckMetadata: {},
+    selectedCheckMetadataCount: 0,
     selectedCheckScripts: [],
     selectedCheckScriptCount: 0,
     requestedChecks,
@@ -612,16 +614,19 @@ if (
     skippedCheckIndices: resolveCheckIndices(availableCheckNames),
     skippedCheckIndexCount: availableCheckNames.length,
     skippedCheckMetadata: allCheckMetadata,
+    skippedCheckMetadataCount: allCheckMetadataCount,
     skippedCheckScripts: allCheckScripts,
     skippedCheckScriptCount: allCheckScriptCount,
     passedCheckScripts: [],
     passedCheckScriptCount: 0,
     passedCheckMetadata: {},
+    passedCheckMetadataCount: 0,
     passedCheckIndices: [],
     passedCheckIndexCount: 0,
     failedCheckScripts: [],
     failedCheckScriptCount: 0,
     failedCheckMetadata: {},
+    failedCheckMetadataCount: 0,
     failedCheckIndices: [],
     failedCheckIndexCount: 0,
     ...summarizeCheckResults([]),
@@ -686,11 +691,13 @@ const {
   checkScripts: selectedCheckScripts,
   checkScriptCount: selectedCheckScriptCount,
 } = buildCheckSelectionMetadata(selectedChecks);
+const selectedCheckMetadataCount = Object.keys(selectedCheckMetadata).length;
 const {
   checkMetadata: skippedCheckMetadata,
   checkScripts: skippedCheckScripts,
   checkScriptCount: skippedCheckScriptCount,
 } = buildCheckSelectionMetadata(skippedChecks);
+const skippedCheckMetadataCount = Object.keys(skippedCheckMetadata).length;
 
 if (isListChecks) {
   const invalidCheckCount = 0;
@@ -709,6 +716,7 @@ if (isListChecks) {
     selectedCheckIndices,
     selectedCheckIndexCount: selectedCheckIndices.length,
     selectedCheckMetadata,
+    selectedCheckMetadataCount,
     selectedCheckScripts,
     selectedCheckScriptCount,
     requestedChecks,
@@ -736,16 +744,19 @@ if (isListChecks) {
     skippedCheckIndices,
     skippedCheckIndexCount: skippedCheckIndices.length,
     skippedCheckMetadata,
+    skippedCheckMetadataCount,
     skippedCheckScripts,
     skippedCheckScriptCount,
     passedCheckScripts: [],
     passedCheckScriptCount: 0,
     passedCheckMetadata: {},
+    passedCheckMetadataCount: 0,
     passedCheckIndices: [],
     passedCheckIndexCount: 0,
     failedCheckScripts: [],
     failedCheckScriptCount: 0,
     failedCheckMetadata: {},
+    failedCheckMetadataCount: 0,
     failedCheckIndices: [],
     failedCheckIndexCount: 0,
     ...summarizeCheckResults([]),
@@ -817,11 +828,13 @@ const {
   checkScripts: passedCheckScripts,
   checkScriptCount: passedCheckScriptCount,
 } = buildCheckSelectionMetadata(checkSummary.passedChecks);
+const passedCheckMetadataCount = Object.keys(passedCheckMetadata).length;
 const {
   checkMetadata: failedCheckMetadata,
   checkScripts: failedCheckScripts,
   checkScriptCount: failedCheckScriptCount,
 } = buildCheckSelectionMetadata(checkSummary.failedChecks);
+const failedCheckMetadataCount = Object.keys(failedCheckMetadata).length;
 const passedCheckIndices = resolveCheckIndices(checkSummary.passedChecks);
 const failedCheckIndices = resolveCheckIndices(checkSummary.failedChecks);
 const invalidCheckCount = 0;
@@ -841,6 +854,7 @@ const report = buildTimedReport({
   selectedCheckIndices,
   selectedCheckIndexCount: selectedCheckIndices.length,
   selectedCheckMetadata,
+  selectedCheckMetadataCount,
   selectedCheckScripts,
   selectedCheckScriptCount,
   requestedChecks,
@@ -868,16 +882,19 @@ const report = buildTimedReport({
   skippedCheckIndices,
   skippedCheckIndexCount: skippedCheckIndices.length,
   skippedCheckMetadata,
+  skippedCheckMetadataCount,
   skippedCheckScripts,
   skippedCheckScriptCount,
   passedCheckScripts,
   passedCheckScriptCount,
   passedCheckMetadata,
+  passedCheckMetadataCount,
   passedCheckIndices,
   passedCheckIndexCount: passedCheckIndices.length,
   failedCheckScripts,
   failedCheckScriptCount,
   failedCheckMetadata,
+  failedCheckMetadataCount,
   failedCheckIndices,
   failedCheckIndexCount: failedCheckIndices.length,
   ...checkSummary,
