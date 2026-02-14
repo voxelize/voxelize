@@ -3277,13 +3277,9 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         + (vz - min_z) as usize;
                     let mut cached_neighbors = None;
                     let mut cached_ao_light: Option<([i32; 4], [i32; 4])> = None;
-                    let mut process_candidate_face =
-                        |face: &BlockFace, face_index: Option<i16>, world_space: bool| {
-                            if !face_matches_direction(face, world_space) {
-                                return;
-                            }
+                    if let Some((face_index, face)) = direct_face {
+                        if face_matches_direction(face, false) {
                             let uv_range = face.range;
-
                             if face.isolated {
                                 non_greedy_faces.push((
                                     vx,
@@ -3292,20 +3288,71 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                     deferred_voxel_key,
                                     voxel_id,
                                     rotation.clone(),
-                                    face_index.unwrap_or(-1),
-                                    if face_index.is_some() {
-                                        None
-                                    } else {
-                                        Some(face.clone())
-                                    },
+                                    face_index,
+                                    None,
                                     uv_range,
                                     is_see_through,
                                     is_fluid,
-                                    world_space,
+                                    false,
                                 ));
-                                return;
+                            } else {
+                                let (aos, lights) = *cached_ao_light.get_or_insert_with(|| {
+                                    let neighbors = cached_neighbors.get_or_insert_with(|| {
+                                        populate_neighbors_for_face_processing(
+                                            vx,
+                                            vy,
+                                            vz,
+                                            space,
+                                            skip_opaque_checks,
+                                        )
+                                    });
+                                    compute_face_ao_and_light(dir_index, block, neighbors, registry)
+                                });
+                                let key = FaceKey {
+                                    block_id: block.id,
+                                    face_name: None,
+                                    face_index,
+                                    independent: face.independent,
+                                    ao: aos,
+                                    light: lights,
+                                    uv_start_u: (uv_range.start_u * 1000000.0) as u32,
+                                    uv_end_u: (uv_range.end_u * 1000000.0) as u32,
+                                    uv_start_v: (uv_range.start_v * 1000000.0) as u32,
+                                    uv_end_v: (uv_range.end_v * 1000000.0) as u32,
+                                };
+                                let data = FaceData {
+                                    key,
+                                    uv_range,
+                                    is_fluid,
+                                };
+                                let current_mask_index =
+                                    (v - v_range.0) as usize * mask_width + u_mask_offset;
+                                greedy_mask[current_mask_index] = Some(data);
                             }
-
+                        }
+                    } else if use_static_faces {
+                        for (face_index, face) in block.faces.iter().enumerate() {
+                            if !face_matches_direction(face, false) {
+                                continue;
+                            }
+                            let uv_range = face.range;
+                            if face.isolated {
+                                non_greedy_faces.push((
+                                    vx,
+                                    vy,
+                                    vz,
+                                    deferred_voxel_key,
+                                    voxel_id,
+                                    rotation.clone(),
+                                    face_index as i16,
+                                    None,
+                                    uv_range,
+                                    is_see_through,
+                                    is_fluid,
+                                    false,
+                                ));
+                                continue;
+                            }
                             let (aos, lights) = *cached_ao_light.get_or_insert_with(|| {
                                 let neighbors = cached_neighbors.get_or_insert_with(|| {
                                     populate_neighbors_for_face_processing(
@@ -3318,15 +3365,10 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                 });
                                 compute_face_ao_and_light(dir_index, block, neighbors, registry)
                             });
-
                             let key = FaceKey {
                                 block_id: block.id,
-                                face_name: if face.independent && face_index.is_none() {
-                                    Some(face_name_owned(face))
-                                } else {
-                                    None
-                                },
-                                face_index: face_index.unwrap_or(-1),
+                                face_name: None,
+                                face_index: face_index as i16,
                                 independent: face.independent,
                                 ao: aos,
                                 light: lights,
@@ -3335,7 +3377,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                 uv_start_v: (uv_range.start_v * 1000000.0) as u32,
                                 uv_end_v: (uv_range.end_v * 1000000.0) as u32,
                             };
-
                             let data = FaceData {
                                 key,
                                 uv_range,
@@ -3344,16 +3385,66 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                             let current_mask_index =
                                 (v - v_range.0) as usize * mask_width + u_mask_offset;
                             greedy_mask[current_mask_index] = Some(data);
-                        };
-                    if let Some((face_index, face)) = direct_face {
-                        process_candidate_face(face, Some(face_index), false);
-                    } else if use_static_faces {
-                        for (face_index, face) in block.faces.iter().enumerate() {
-                            process_candidate_face(face, Some(face_index as i16), false);
                         }
                     } else {
                         for (face, world_space) in faces.iter() {
-                            process_candidate_face(face, None, *world_space);
+                            if !face_matches_direction(face, *world_space) {
+                                continue;
+                            }
+                            let uv_range = face.range;
+                            if face.isolated {
+                                non_greedy_faces.push((
+                                    vx,
+                                    vy,
+                                    vz,
+                                    deferred_voxel_key,
+                                    voxel_id,
+                                    rotation.clone(),
+                                    -1,
+                                    Some(face.clone()),
+                                    uv_range,
+                                    is_see_through,
+                                    is_fluid,
+                                    *world_space,
+                                ));
+                                continue;
+                            }
+                            let (aos, lights) = *cached_ao_light.get_or_insert_with(|| {
+                                let neighbors = cached_neighbors.get_or_insert_with(|| {
+                                    populate_neighbors_for_face_processing(
+                                        vx,
+                                        vy,
+                                        vz,
+                                        space,
+                                        skip_opaque_checks,
+                                    )
+                                });
+                                compute_face_ao_and_light(dir_index, block, neighbors, registry)
+                            });
+                            let key = FaceKey {
+                                block_id: block.id,
+                                face_name: if face.independent {
+                                    Some(face_name_owned(face))
+                                } else {
+                                    None
+                                },
+                                face_index: -1,
+                                independent: face.independent,
+                                ao: aos,
+                                light: lights,
+                                uv_start_u: (uv_range.start_u * 1000000.0) as u32,
+                                uv_end_u: (uv_range.end_u * 1000000.0) as u32,
+                                uv_start_v: (uv_range.start_v * 1000000.0) as u32,
+                                uv_end_v: (uv_range.end_v * 1000000.0) as u32,
+                            };
+                            let data = FaceData {
+                                key,
+                                uv_range,
+                                is_fluid,
+                            };
+                            let current_mask_index =
+                                (v - v_range.0) as usize * mask_width + u_mask_offset;
+                            greedy_mask[current_mask_index] = Some(data);
                         }
                     }
                 }
