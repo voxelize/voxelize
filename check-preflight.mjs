@@ -216,6 +216,27 @@ const createCheckScriptMap = (checkNames) => {
     })
   );
 };
+const createCheckCommandMap = (checkNames) => {
+  return Object.fromEntries(
+    checkNames.map((checkName) => {
+      return [checkName, resolveCheckDetails(checkName).checkCommand];
+    })
+  );
+};
+const createCheckArgsMap = (checkNames) => {
+  return Object.fromEntries(
+    checkNames.map((checkName) => {
+      return [checkName, resolveCheckDetails(checkName).checkArgs];
+    })
+  );
+};
+const createCheckArgCountMap = (checkNames) => {
+  return Object.fromEntries(
+    checkNames.map((checkName) => {
+      return [checkName, resolveCheckDetails(checkName).checkArgCount];
+    })
+  );
+};
 const createCheckStatusMap = ({ passedChecks, failedChecks }) => {
   const passedCheckSet = new Set(passedChecks);
   const failedCheckSet = new Set(failedChecks);
@@ -745,6 +766,12 @@ if (
     selectedCheckScriptCount: 0,
     selectedCheckScriptMap: {},
     selectedCheckScriptMapCount: 0,
+    selectedCheckCommandMap: {},
+    selectedCheckCommandMapCount: 0,
+    selectedCheckArgsMap: {},
+    selectedCheckArgsMapCount: 0,
+    selectedCheckArgCountMap: {},
+    selectedCheckArgCountMapCount: 0,
     requestedChecks,
     requestedCheckCount: requestedChecks.length,
     requestedCheckResolutions,
@@ -778,10 +805,22 @@ if (
     skippedCheckScriptCount: allCheckScriptCount,
     skippedCheckScriptMap: availableCheckScriptMap,
     skippedCheckScriptMapCount: availableCheckScriptMapCount,
+    skippedCheckCommandMap: availableCheckCommandMap,
+    skippedCheckCommandMapCount: availableCheckCommandMapCount,
+    skippedCheckArgsMap: availableCheckArgsMap,
+    skippedCheckArgsMapCount: availableCheckArgsMapCount,
+    skippedCheckArgCountMap: availableCheckArgCountMap,
+    skippedCheckArgCountMapCount: availableCheckArgCountMapCount,
     passedCheckScripts: [],
     passedCheckScriptCount: 0,
     passedCheckScriptMap: {},
     passedCheckScriptMapCount: 0,
+    passedCheckCommandMap: {},
+    passedCheckCommandMapCount: 0,
+    passedCheckArgsMap: {},
+    passedCheckArgsMapCount: 0,
+    passedCheckArgCountMap: {},
+    passedCheckArgCountMapCount: 0,
     passedCheckMetadata: {},
     passedCheckMetadataCount: 0,
     passedCheckIndices: [],
@@ -792,6 +831,12 @@ if (
     failedCheckScriptCount: 0,
     failedCheckScriptMap: {},
     failedCheckScriptMapCount: 0,
+    failedCheckCommandMap: {},
+    failedCheckCommandMapCount: 0,
+    failedCheckArgsMap: {},
+    failedCheckArgsMapCount: 0,
+    failedCheckArgCountMap: {},
+    failedCheckArgCountMapCount: 0,
     failedCheckMetadata: {},
     failedCheckMetadataCount: 0,
     failedCheckIndices: [],
@@ -890,8 +935,20 @@ const skippedCheckIndexMap = createCheckIndexMap(skippedChecks);
 const skippedCheckIndexMapCount = countRecordEntries(skippedCheckIndexMap);
 const selectedCheckScriptMap = createCheckScriptMap(selectedChecks);
 const selectedCheckScriptMapCount = countRecordEntries(selectedCheckScriptMap);
+const selectedCheckCommandMap = createCheckCommandMap(selectedChecks);
+const selectedCheckCommandMapCount = countRecordEntries(selectedCheckCommandMap);
+const selectedCheckArgsMap = createCheckArgsMap(selectedChecks);
+const selectedCheckArgsMapCount = countRecordEntries(selectedCheckArgsMap);
+const selectedCheckArgCountMap = createCheckArgCountMap(selectedChecks);
+const selectedCheckArgCountMapCount = countRecordEntries(selectedCheckArgCountMap);
 const skippedCheckScriptMap = createCheckScriptMap(skippedChecks);
 const skippedCheckScriptMapCount = countRecordEntries(skippedCheckScriptMap);
+const skippedCheckCommandMap = createCheckCommandMap(skippedChecks);
+const skippedCheckCommandMapCount = countRecordEntries(skippedCheckCommandMap);
+const skippedCheckArgsMap = createCheckArgsMap(skippedChecks);
+const skippedCheckArgsMapCount = countRecordEntries(skippedCheckArgsMap);
+const skippedCheckArgCountMap = createCheckArgCountMap(skippedChecks);
+const skippedCheckArgCountMapCount = countRecordEntries(skippedCheckArgCountMap);
 const {
   checkMetadata: selectedCheckMetadata,
   checkScripts: selectedCheckScripts,
@@ -939,6 +996,12 @@ if (isListChecks) {
     selectedCheckScriptCount,
     selectedCheckScriptMap,
     selectedCheckScriptMapCount,
+    selectedCheckCommandMap,
+    selectedCheckCommandMapCount,
+    selectedCheckArgsMap,
+    selectedCheckArgsMapCount,
+    selectedCheckArgCountMap,
+    selectedCheckArgCountMapCount,
     requestedChecks,
     requestedCheckCount: requestedChecks.length,
     requestedCheckResolutions,
@@ -972,10 +1035,22 @@ if (isListChecks) {
     skippedCheckScriptCount,
     skippedCheckScriptMap,
     skippedCheckScriptMapCount,
+    skippedCheckCommandMap,
+    skippedCheckCommandMapCount,
+    skippedCheckArgsMap,
+    skippedCheckArgsMapCount,
+    skippedCheckArgCountMap,
+    skippedCheckArgCountMapCount,
     passedCheckScripts: [],
     passedCheckScriptCount: 0,
     passedCheckScriptMap: {},
     passedCheckScriptMapCount: 0,
+    passedCheckCommandMap: {},
+    passedCheckCommandMapCount: 0,
+    passedCheckArgsMap: {},
+    passedCheckArgsMapCount: 0,
+    passedCheckArgCountMap: {},
+    passedCheckArgCountMapCount: 0,
     passedCheckMetadata: {},
     passedCheckMetadataCount: 0,
     passedCheckIndices: [],
@@ -986,6 +1061,12 @@ if (isListChecks) {
     failedCheckScriptCount: 0,
     failedCheckScriptMap: {},
     failedCheckScriptMapCount: 0,
+    failedCheckCommandMap: {},
+    failedCheckCommandMapCount: 0,
+    failedCheckArgsMap: {},
+    failedCheckArgsMapCount: 0,
+    failedCheckArgCountMap: {},
+    failedCheckArgCountMapCount: 0,
     failedCheckMetadata: {},
     failedCheckMetadataCount: 0,
     failedCheckIndices: [],
@@ -1102,6 +1183,18 @@ const passedCheckScriptMap = createCheckScriptMap(checkSummary.passedChecks);
 const failedCheckScriptMap = createCheckScriptMap(checkSummary.failedChecks);
 const passedCheckScriptMapCount = countRecordEntries(passedCheckScriptMap);
 const failedCheckScriptMapCount = countRecordEntries(failedCheckScriptMap);
+const passedCheckCommandMap = createCheckCommandMap(checkSummary.passedChecks);
+const passedCheckCommandMapCount = countRecordEntries(passedCheckCommandMap);
+const passedCheckArgsMap = createCheckArgsMap(checkSummary.passedChecks);
+const passedCheckArgsMapCount = countRecordEntries(passedCheckArgsMap);
+const passedCheckArgCountMap = createCheckArgCountMap(checkSummary.passedChecks);
+const passedCheckArgCountMapCount = countRecordEntries(passedCheckArgCountMap);
+const failedCheckCommandMap = createCheckCommandMap(checkSummary.failedChecks);
+const failedCheckCommandMapCount = countRecordEntries(failedCheckCommandMap);
+const failedCheckArgsMap = createCheckArgsMap(checkSummary.failedChecks);
+const failedCheckArgsMapCount = countRecordEntries(failedCheckArgsMap);
+const failedCheckArgCountMap = createCheckArgCountMap(checkSummary.failedChecks);
+const failedCheckArgCountMapCount = countRecordEntries(failedCheckArgCountMap);
 const checkStatusMap = createCheckStatusMap({
   passedChecks: checkSummary.passedChecks,
   failedChecks: checkSummary.failedChecks,
@@ -1155,6 +1248,12 @@ const report = buildTimedReport({
   selectedCheckScriptCount,
   selectedCheckScriptMap,
   selectedCheckScriptMapCount,
+  selectedCheckCommandMap,
+  selectedCheckCommandMapCount,
+  selectedCheckArgsMap,
+  selectedCheckArgsMapCount,
+  selectedCheckArgCountMap,
+  selectedCheckArgCountMapCount,
   requestedChecks,
   requestedCheckCount: requestedChecks.length,
   requestedCheckResolutions,
@@ -1188,10 +1287,22 @@ const report = buildTimedReport({
   skippedCheckScriptCount,
   skippedCheckScriptMap,
   skippedCheckScriptMapCount,
+  skippedCheckCommandMap,
+  skippedCheckCommandMapCount,
+  skippedCheckArgsMap,
+  skippedCheckArgsMapCount,
+  skippedCheckArgCountMap,
+  skippedCheckArgCountMapCount,
   passedCheckScripts,
   passedCheckScriptCount,
   passedCheckScriptMap,
   passedCheckScriptMapCount,
+  passedCheckCommandMap,
+  passedCheckCommandMapCount,
+  passedCheckArgsMap,
+  passedCheckArgsMapCount,
+  passedCheckArgCountMap,
+  passedCheckArgCountMapCount,
   passedCheckMetadata,
   passedCheckMetadataCount,
   passedCheckIndices,
@@ -1202,6 +1313,12 @@ const report = buildTimedReport({
   failedCheckScriptCount,
   failedCheckScriptMap,
   failedCheckScriptMapCount,
+  failedCheckCommandMap,
+  failedCheckCommandMapCount,
+  failedCheckArgsMap,
+  failedCheckArgsMapCount,
+  failedCheckArgCountMap,
+  failedCheckArgCountMapCount,
   failedCheckMetadata,
   failedCheckMetadataCount,
   failedCheckIndices,
