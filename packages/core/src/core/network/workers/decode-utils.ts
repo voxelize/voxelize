@@ -141,7 +141,16 @@ function decompressToFloat32Array(
 function tryParseJSON(str: string): JsonValue {
   if (str.length === 0) return str;
   const firstChar = str.charCodeAt(0);
-  if (firstChar !== 123 && firstChar !== 91 && firstChar !== 34) return str;
+  const startsWithNumber = firstChar >= 48 && firstChar <= 57;
+  const startsWithJsonToken =
+    firstChar === 123 || // {
+    firstChar === 91 || // [
+    firstChar === 34 || // "
+    firstChar === 45 || // -
+    firstChar === 116 || // t
+    firstChar === 102 || // f
+    firstChar === 110; // n
+  if (!startsWithNumber && !startsWithJsonToken) return str;
   try {
     return JSON.parse(str) as JsonValue;
   } catch {
