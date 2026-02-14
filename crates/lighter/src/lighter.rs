@@ -53,7 +53,11 @@ fn map_voxel_to_chunk_with_shift(
     if let Some(shift) = chunk_shift {
         (vx >> shift, vz >> shift)
     } else {
-        (vx.div_euclid(chunk_size), vz.div_euclid(chunk_size))
+        let normalized_chunk_size = chunk_size.max(1);
+        (
+            vx.div_euclid(normalized_chunk_size),
+            vz.div_euclid(normalized_chunk_size),
+        )
     }
 }
 
@@ -813,6 +817,15 @@ mod tests {
                 map_voxel_to_chunk_with_shift(vx, vz, 18, resolve_chunk_shift(18)),
                 (vx.div_euclid(18), vz.div_euclid(18))
             );
+        }
+    }
+
+    #[test]
+    fn map_voxel_to_chunk_handles_zero_chunk_size() {
+        let samples = [(-33, -17), (-1, -1), (0, 0), (15, 31)];
+
+        for (vx, vz) in samples {
+            assert_eq!(map_voxel_to_chunk_with_shift(vx, vz, 0, None), (vx, vz));
         }
     }
 
