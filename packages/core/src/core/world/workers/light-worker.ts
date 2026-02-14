@@ -619,7 +619,9 @@ const compactValidRemovalNodesInPlace = (removals: Coords3[]) => {
     if (!isStrictCoords3(removal)) {
       continue;
     }
-    removals[writeIndex] = removal;
+    if (writeIndex !== readIndex) {
+      removals[writeIndex] = removal;
+    }
     writeIndex++;
   }
   removals.length = writeIndex;
@@ -633,7 +635,9 @@ const compactValidFloodNodesInPlace = (floods: LightNode[]) => {
     if (!isValidFloodNode(flood)) {
       continue;
     }
-    floods[writeIndex] = flood;
+    if (writeIndex !== readIndex) {
+      floods[writeIndex] = flood;
+    }
     writeIndex++;
   }
   floods.length = writeIndex;
