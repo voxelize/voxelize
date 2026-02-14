@@ -223,7 +223,15 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   }
 
   private splitQuotedTokens(raw: string): string[] {
-    if (raw.indexOf('"') === -1 && raw.indexOf("'") === -1) {
+    let hasQuote = false;
+    for (let index = 0; index < raw.length; index++) {
+      const code = raw.charCodeAt(index);
+      if (code === 34 || code === 39) {
+        hasQuote = true;
+        break;
+      }
+    }
+    if (!hasQuote) {
       return this.splitUnquotedTokens(raw);
     }
 
