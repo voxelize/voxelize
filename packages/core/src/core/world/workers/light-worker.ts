@@ -421,6 +421,10 @@ const processBatchMessage = (message: LightBatchMessage) => {
 
   const [gridWidth, gridDepth] = chunkGridDimensions;
   const [gridOffsetX, gridOffsetZ] = chunkGridOffset;
+  if (options.chunkSize <= 0 || options.maxHeight <= 0) {
+    postEmptyBatchResult(jobId, lastRelevantSequenceId);
+    return;
+  }
   const cellCount = gridWidth * gridDepth;
   if (cellCount === 0 || chunksData.length < cellCount) {
     postEmptyBatchResult(jobId, 0);
