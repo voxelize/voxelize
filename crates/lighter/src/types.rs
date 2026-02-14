@@ -531,6 +531,13 @@ impl LightBlock {
         match rule {
             BlockRule::None => true,
             BlockRule::Simple(simple_rule) => {
+                let expected_id = simple_rule.id;
+                let expected_rotation = simple_rule.rotation.as_ref();
+                let expected_stage = simple_rule.stage;
+                if expected_id.is_none() && expected_rotation.is_none() && expected_stage.is_none()
+                {
+                    return true;
+                }
                 let Some(vx) = vx.checked_add(simple_rule.offset[0]) else {
                     return false;
                 };
@@ -540,13 +547,6 @@ impl LightBlock {
                 let Some(vz) = vz.checked_add(simple_rule.offset[2]) else {
                     return false;
                 };
-                let expected_id = simple_rule.id;
-                let expected_rotation = simple_rule.rotation.as_ref();
-                let expected_stage = simple_rule.stage;
-                if expected_id.is_none() && expected_rotation.is_none() && expected_stage.is_none()
-                {
-                    return true;
-                }
                 let raw_voxel = space.get_raw_voxel(vx, vy, vz);
 
                 if let Some(expected_id) = expected_id {
@@ -1064,6 +1064,29 @@ mod tests {
         let level =
             block.get_torch_light_level_at_xyz(i32::MAX, 0, 0, &NoopAccess, &LightColor::Red);
         assert_eq!(level, 0);
+    }
+
+    #[test]
+    fn dynamic_simple_rule_without_conditions_ignores_overflowed_offsets() {
+        let mut block = LightBlock::default_air();
+        block.dynamic_patterns = Some(vec![LightDynamicPattern {
+            parts: vec![LightConditionalPart {
+                rule: BlockRule::Simple(BlockSimpleRule {
+                    offset: [1, 0, 0],
+                    id: None,
+                    rotation: None,
+                    stage: None,
+                }),
+                red_light_level: Some(9),
+                green_light_level: None,
+                blue_light_level: None,
+            }],
+        }]);
+        block.recompute_flags();
+
+        let level =
+            block.get_torch_light_level_at_xyz(i32::MAX, 0, 0, &NoopAccess, &LightColor::Red);
+        assert_eq!(level, 9);
     }
 
     struct NoopAccess;
