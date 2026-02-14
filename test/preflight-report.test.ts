@@ -156,7 +156,9 @@ type PreflightReport = {
   requestedCheckResolvedScripts: string[];
   requestedCheckResolvedScriptCount: number;
   requestedCheckResolvedScriptMap: Record<string, string>;
+  requestedCheckResolvedScriptMapCount: number;
   requestedCheckResolvedSupportsNoBuildMap: Record<string, boolean>;
+  requestedCheckResolvedSupportsNoBuildMapCount: number;
   requestedCheckResolvedIndices: number[];
   requestedCheckResolvedIndexCount: number;
   requestedCheckResolvedIndexMap: Record<string, number>;
@@ -202,7 +204,9 @@ type PreflightReport = {
   availableCheckScripts: string[];
   availableCheckScriptCount: number;
   availableCheckScriptMap: Record<string, string>;
+  availableCheckScriptMapCount: number;
   availableCheckSupportsNoBuildMap: Record<string, boolean>;
+  availableCheckSupportsNoBuildMapCount: number;
   availableCheckIndices: number[];
   availableCheckIndexCount: number;
   availableCheckIndexMap: Record<string, number>;
@@ -654,8 +658,14 @@ const expectSelectedCheckMetadata = (report: PreflightReport) => {
     report.requestedCheckResolvedScripts.length
   );
   expect(report.requestedCheckResolvedScriptMap).toEqual(expectedResolvedScriptMap);
+  expect(report.requestedCheckResolvedScriptMapCount).toBe(
+    Object.keys(report.requestedCheckResolvedScriptMap).length
+  );
   expect(report.requestedCheckResolvedSupportsNoBuildMap).toEqual(
     expectedResolvedSupportsNoBuildMap
+  );
+  expect(report.requestedCheckResolvedSupportsNoBuildMapCount).toBe(
+    Object.keys(report.requestedCheckResolvedSupportsNoBuildMap).length
   );
   expect(report.requestedCheckResolvedIndices).toEqual(expectedResolvedIndices);
   expect(report.requestedCheckResolvedIndexCount).toBe(
@@ -770,8 +780,14 @@ const expectAvailableCheckInventoryMetadata = (report: PreflightReport) => {
   expect(report.availableCheckScripts).toEqual(expectedAvailableCheckScripts);
   expect(report.availableCheckScriptCount).toBe(report.availableCheckScripts.length);
   expect(report.availableCheckScriptMap).toEqual(expectedAvailableCheckScriptMap);
+  expect(report.availableCheckScriptMapCount).toBe(
+    Object.keys(report.availableCheckScriptMap).length
+  );
   expect(report.availableCheckSupportsNoBuildMap).toEqual(
     expectedAvailableCheckSupportsNoBuildMap
+  );
+  expect(report.availableCheckSupportsNoBuildMapCount).toBe(
+    Object.keys(report.availableCheckSupportsNoBuildMap).length
   );
   expect(report.availableCheckIndices).toEqual(expectedAvailableCheckIndices);
   expect(report.availableCheckIndexCount).toBe(

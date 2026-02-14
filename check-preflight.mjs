@@ -99,11 +99,15 @@ const availableCheckScriptMap = Object.fromEntries(
     return [check.name, check.scriptName];
   })
 );
+const availableCheckScriptMapCount = Object.keys(availableCheckScriptMap).length;
 const availableCheckSupportsNoBuildMap = Object.fromEntries(
   availableChecks.map((check) => {
     return [check.name, check.supportsNoBuild];
   })
 );
+const availableCheckSupportsNoBuildMapCount = Object.keys(
+  availableCheckSupportsNoBuildMap
+).length;
 const availableCheckIndexMap = Object.fromEntries(
   availableCheckNames.map((checkName, index) => {
     return [checkName, index];
@@ -424,11 +428,17 @@ const requestedCheckResolvedScriptMap = Object.fromEntries(
     return [checkName, resolveCheckDetails(checkName).scriptName];
   })
 );
+const requestedCheckResolvedScriptMapCount = Object.keys(
+  requestedCheckResolvedScriptMap
+).length;
 const requestedCheckResolvedSupportsNoBuildMap = Object.fromEntries(
   requestedCheckResolvedChecks.map((checkName) => {
     return [checkName, resolveCheckDetails(checkName).supportsNoBuild];
   })
 );
+const requestedCheckResolvedSupportsNoBuildMapCount = Object.keys(
+  requestedCheckResolvedSupportsNoBuildMap
+).length;
 const requestedCheckResolvedIndices = resolveCheckIndices(requestedCheckResolvedChecks);
 const requestedCheckResolvedIndexMap = Object.fromEntries(
   requestedCheckResolvedChecks.map((checkName) => {
@@ -582,7 +592,9 @@ if (
     requestedCheckResolvedScripts,
     requestedCheckResolvedScriptCount: requestedCheckResolvedScripts.length,
     requestedCheckResolvedScriptMap,
+    requestedCheckResolvedScriptMapCount,
     requestedCheckResolvedSupportsNoBuildMap,
+    requestedCheckResolvedSupportsNoBuildMapCount,
     requestedCheckResolvedIndices,
     requestedCheckResolvedIndexCount: requestedCheckResolvedIndices.length,
     requestedCheckResolvedIndexMap,
@@ -633,7 +645,9 @@ if (
     availableCheckScripts,
     availableCheckScriptCount: availableCheckScripts.length,
     availableCheckScriptMap,
+    availableCheckScriptMapCount,
     availableCheckSupportsNoBuildMap,
+    availableCheckSupportsNoBuildMapCount,
     availableCheckIndices,
     availableCheckIndexCount: availableCheckIndices.length,
     availableCheckIndexMap,
@@ -700,7 +714,9 @@ if (isListChecks) {
     requestedCheckResolvedScripts,
     requestedCheckResolvedScriptCount: requestedCheckResolvedScripts.length,
     requestedCheckResolvedScriptMap,
+    requestedCheckResolvedScriptMapCount,
     requestedCheckResolvedSupportsNoBuildMap,
+    requestedCheckResolvedSupportsNoBuildMapCount,
     requestedCheckResolvedIndices,
     requestedCheckResolvedIndexCount: requestedCheckResolvedIndices.length,
     requestedCheckResolvedIndexMap,
@@ -750,7 +766,9 @@ if (isListChecks) {
     availableCheckScripts,
     availableCheckScriptCount: availableCheckScripts.length,
     availableCheckScriptMap,
+    availableCheckScriptMapCount,
     availableCheckSupportsNoBuildMap,
+    availableCheckSupportsNoBuildMapCount,
     availableCheckIndices,
     availableCheckIndexCount: availableCheckIndices.length,
     availableCheckIndexMap,
@@ -826,7 +844,9 @@ const report = buildTimedReport({
   requestedCheckResolvedScripts,
   requestedCheckResolvedScriptCount: requestedCheckResolvedScripts.length,
   requestedCheckResolvedScriptMap,
+  requestedCheckResolvedScriptMapCount,
   requestedCheckResolvedSupportsNoBuildMap,
+  requestedCheckResolvedSupportsNoBuildMapCount,
   requestedCheckResolvedIndices,
   requestedCheckResolvedIndexCount: requestedCheckResolvedIndices.length,
   requestedCheckResolvedIndexMap,
@@ -876,7 +896,9 @@ const report = buildTimedReport({
   availableCheckScripts,
   availableCheckScriptCount: availableCheckScripts.length,
   availableCheckScriptMap,
+  availableCheckScriptMapCount,
   availableCheckSupportsNoBuildMap,
+  availableCheckSupportsNoBuildMapCount,
   availableCheckIndices,
   availableCheckIndexCount: availableCheckIndices.length,
   availableCheckIndexMap,
