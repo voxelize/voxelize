@@ -14,6 +14,7 @@ const DEFAULT_ON_BEFORE_RENDER = Object3D.prototype.onBeforeRender;
 export interface TransparentMeshData {
   centroids: Float32Array;
   faceCount: number;
+  positionArray: ArrayLike<number>;
   originalIndices: Uint16Array | Uint32Array;
   sortedIndices: Uint16Array | Uint32Array;
   faceOrder: Uint32Array;
@@ -84,6 +85,7 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
   return {
     centroids,
     faceCount,
+    positionArray: positions,
     originalIndices,
     sortedIndices,
     faceOrder,
@@ -193,6 +195,14 @@ export function sortTransparentMesh(
   data: TransparentMeshData,
   camera: Camera
 ): void {
+  const positionAttr = mesh.geometry.getAttribute("position");
+  if (
+    !positionAttr ||
+    positionAttr.itemSize < 3 ||
+    positionAttr.array !== data.positionArray
+  ) {
+    return;
+  }
   const geometryIndex = mesh.geometry.index;
   if (!geometryIndex || geometryIndex.array !== data.sortedIndices) {
     return;
@@ -264,8 +274,16 @@ export function sortTransparentMeshOnBeforeRender(
   if (!sortData) {
     return;
   }
-  const geometryIndex = mesh.geometry.index;
-  if (!geometryIndex || geometryIndex.array !== sortData.sortedIndices) {
+  const geometry = mesh.geometry;
+  const geometryIndex = geometry.index;
+  const positionAttr = geometry.getAttribute("position");
+  if (
+    !geometryIndex ||
+    geometryIndex.array !== sortData.sortedIndices ||
+    !positionAttr ||
+    positionAttr.itemSize < 3 ||
+    positionAttr.array !== sortData.positionArray
+  ) {
     const refreshedSortData = prepareTransparentMesh(mesh);
     if (!refreshedSortData) {
       delete mesh.userData.transparentSortData;

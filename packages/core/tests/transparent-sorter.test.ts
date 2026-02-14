@@ -181,6 +181,37 @@ describe("transparent sorter", () => {
     expect(refreshedSortData.sortedIndices).toBe(mesh.geometry.index?.array);
   });
 
+  it("refreshes transparent sort data when position attribute changes", () => {
+    const mesh = new Mesh(createQuadGeometry(2), new MeshBasicMaterial());
+    const sortData = prepareTransparentMesh(mesh);
+    expect(sortData).not.toBeNull();
+    if (!sortData) {
+      return;
+    }
+
+    mesh.userData.transparentSortData = sortData;
+    const newPositions = new Float32Array(sortData.faceCount * 12);
+    for (let index = 0; index < newPositions.length; index++) {
+      newPositions[index] = index;
+    }
+    mesh.geometry.setAttribute("position", new BufferAttribute(newPositions, 3));
+    const camera = new PerspectiveCamera();
+    camera.position.set(0, 0, 10);
+
+    sortTransparentMeshOnBeforeRender.call(
+      mesh,
+      {} as WebGLRenderer,
+      new Scene(),
+      camera
+    );
+
+    const refreshedSortData = mesh.userData.transparentSortData;
+    expect(refreshedSortData).not.toBe(sortData);
+    expect(refreshedSortData.positionArray).toBe(
+      mesh.geometry.getAttribute("position").array
+    );
+  });
+
   it("clears sorting callback when refreshed geometry no longer needs sorting", () => {
     const mesh = new Mesh(createQuadGeometry(2), new MeshBasicMaterial());
     const sortData = prepareTransparentMesh(mesh);
@@ -219,6 +250,30 @@ describe("transparent sorter", () => {
       new BufferAttribute(new Uint16Array([0, 1, 2, 0, 2, 3]), 1)
     );
     mesh.geometry = geometryWithoutPositions;
+    const camera = new PerspectiveCamera();
+    camera.position.set(0, 0, 10);
+
+    sortTransparentMeshOnBeforeRender.call(
+      mesh,
+      {} as WebGLRenderer,
+      new Scene(),
+      camera
+    );
+
+    expect(mesh.userData.transparentSortData).toBeUndefined();
+    expect(mesh.onBeforeRender).toBe(Object3D.prototype.onBeforeRender);
+  });
+
+  it("clears sorting callback when position attribute is removed in place", () => {
+    const mesh = new Mesh(createQuadGeometry(2), new MeshBasicMaterial());
+    const sortData = prepareTransparentMesh(mesh);
+    expect(sortData).not.toBeNull();
+    if (!sortData) {
+      return;
+    }
+
+    mesh.userData.transparentSortData = sortData;
+    mesh.geometry.deleteAttribute("position");
     const camera = new PerspectiveCamera();
     camera.position.set(0, 0, 10);
 
