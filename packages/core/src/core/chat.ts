@@ -115,6 +115,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
   private fallbackCommand: ((rest: string) => void) | null = null;
   private quotedTokensBuffer: string[] = [];
+  private positionalValuesBuffer: string[] = [];
   private parsedCommandTrigger = "";
   private parsedCommandRest = "";
   private parseSchemaInfoBySchema = new WeakMap<
@@ -313,7 +314,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
     const words = this.splitQuotedTokens(raw);
     const rawObj: Record<string, string> = {};
-    const positionalValues: string[] = [];
+    const positionalValues = this.positionalValuesBuffer;
+    positionalValues.length = 0;
 
     for (let wordIndex = 0; wordIndex < words.length; wordIndex++) {
       const word = words[wordIndex];
