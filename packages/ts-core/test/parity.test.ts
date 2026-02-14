@@ -967,6 +967,29 @@ describe("BlockRuleEvaluator", () => {
     expect(matched).toBe(true);
   });
 
+  it("rounds rotated offsets when y-rotation yields fractional components", () => {
+    const rule = {
+      type: "simple" as const,
+      offset: [1, 0, 0] as [number, number, number],
+      id: 15,
+    };
+
+    const access = {
+      getVoxel: (x: number, y: number, z: number) =>
+        x === 1 && y === 0 && z === 1 ? 15 : 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    const matched = BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access, {
+      rotation: BlockRotation.py(Math.PI / 4),
+      yRotatable: true,
+      worldSpace: false,
+    });
+
+    expect(matched).toBe(true);
+  });
+
   it("keeps offsets unrotated when yRotatable is false", () => {
     const rule = {
       type: "simple" as const,
