@@ -205,11 +205,15 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
             if margin > 0 {
                 let r = (margin as f32 / chunk_size as f32).ceil() as i32;
+                let radius_sq = i64::from(r) * i64::from(r);
                 let mut ready = true;
 
                 'outer: for x in -r..=r {
                     for z in -r..=r {
-                        if (x == 0 && z == 0) || (x * x + z * z > r * r) {
+                        if (x == 0 && z == 0)
+                            || (i64::from(x) * i64::from(x) + i64::from(z) * i64::from(z)
+                                > radius_sq)
+                        {
                             continue;
                         }
 
