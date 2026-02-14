@@ -2,6 +2,8 @@ use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 use voxelize_core::{BlockRotation, BlockRule, BlockRuleLogic, LightColor, LightUtils};
 
+const DENSE_LOOKUP_MAX_GROWTH_FACTOR: usize = 8;
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LightNode {
@@ -349,18 +351,29 @@ impl LightRegistry {
             .max()
             .unwrap_or(0);
 
-        let mut dense = vec![usize::MAX; max_id.saturating_add(1)];
+        let dense_limit = self
+            .blocks_by_id
+            .len()
+            .saturating_mul(DENSE_LOOKUP_MAX_GROWTH_FACTOR)
+            .max(64);
+        let mut dense = if max_id <= dense_limit {
+            Some(vec![usize::MAX; max_id.saturating_add(1)])
+        } else {
+            None
+        };
         let mut sparse = HashMap::with_capacity(self.blocks_by_id.len());
 
         for (index, (id, _)) in self.blocks_by_id.iter().enumerate() {
             let id_usize = *id as usize;
-            if id_usize < dense.len() {
-                dense[id_usize] = index;
+            if let Some(dense_map) = dense.as_mut() {
+                if id_usize < dense_map.len() {
+                    dense_map[id_usize] = index;
+                }
             }
             sparse.insert(*id, index);
         }
 
-        self.lookup_dense = Some(dense);
+        self.lookup_dense = dense;
         self.lookup_sparse = Some(sparse);
     }
 
@@ -416,6 +429,20 @@ mod tests {
 
         let fallback = registry.get_block_by_id(999_999);
         assert_eq!(fallback.id, 0);
+    }
+
+    #[test]
+    fn registry_uses_sparse_lookup_for_large_id_gaps() {
+        let mut air = LightBlock::default_air();
+        air.id = 0;
+
+        let mut distant = LightBlock::default_air();
+        distant.id = 1_000_000;
+
+        let registry = LightRegistry::new(vec![(0, air), (1_000_000, distant)]);
+        assert!(registry.lookup_dense.is_none());
+        assert_eq!(registry.get_block_by_id(1_000_000).id, 1_000_000);
+        assert!(registry.has_type(1_000_000));
     }
 }
 
