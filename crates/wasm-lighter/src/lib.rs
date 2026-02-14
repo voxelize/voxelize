@@ -261,6 +261,9 @@ fn parse_chunks(chunks_data: &Array) -> Vec<Option<ChunkData>> {
     let voxels_key = JsValue::from_str("voxels");
     let lights_key = JsValue::from_str("lights");
     let shape_key = JsValue::from_str("shape");
+    let shape0_key = JsValue::from_f64(0.0);
+    let shape1_key = JsValue::from_f64(1.0);
+    let shape2_key = JsValue::from_f64(2.0);
 
     for index in 0..chunk_count {
         let chunk_value = chunks_data.get(index as u32);
@@ -278,12 +281,19 @@ fn parse_chunks(chunks_data: &Array) -> Vec<Option<ChunkData>> {
             .expect("chunksData item is missing shape");
         let voxels = Uint32Array::from(voxels_value).to_vec();
         let lights = Uint32Array::from(lights_value).to_vec();
-        let shape_array = Array::from(&shape_value);
-
         let shape = [
-            shape_array.get(0).as_f64().expect("shape[0] must be number") as usize,
-            shape_array.get(1).as_f64().expect("shape[1] must be number") as usize,
-            shape_array.get(2).as_f64().expect("shape[2] must be number") as usize,
+            Reflect::get(&shape_value, &shape0_key)
+                .expect("shape[0] must be present")
+                .as_f64()
+                .expect("shape[0] must be number") as usize,
+            Reflect::get(&shape_value, &shape1_key)
+                .expect("shape[1] must be present")
+                .as_f64()
+                .expect("shape[1] must be number") as usize,
+            Reflect::get(&shape_value, &shape2_key)
+                .expect("shape[2] must be present")
+                .as_f64()
+                .expect("shape[2] must be number") as usize,
         ];
 
         chunks.push(Some(ChunkData {
@@ -336,12 +346,23 @@ pub fn process_light_batch_fast(
     );
 
     let light_color = LightColor::from(color);
-    let removal_nodes: Vec<[i32; 3]> = if Array::from(&removals).length() == 0 {
+    let length_key = JsValue::from_str("length");
+    let removal_nodes: Vec<[i32; 3]> = if Reflect::get(&removals, &length_key)
+        .ok()
+        .and_then(|value| value.as_f64())
+        .unwrap_or(0.0)
+        == 0.0
+    {
         Vec::new()
     } else {
         serde_wasm_bindgen::from_value(removals).expect("Unable to deserialize removal nodes")
     };
-    let flood_nodes: Vec<LightNode> = if Array::from(&floods).length() == 0 {
+    let flood_nodes: Vec<LightNode> = if Reflect::get(&floods, &length_key)
+        .ok()
+        .and_then(|value| value.as_f64())
+        .unwrap_or(0.0)
+        == 0.0
+    {
         Vec::new()
     } else {
         serde_wasm_bindgen::from_value(floods).expect("Unable to deserialize flood nodes")
