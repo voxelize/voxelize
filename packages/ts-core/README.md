@@ -168,6 +168,9 @@ the failure message includes both conditions for clearer diagnostics. If payload
 fields are valid, the message remains a pure `ruleMatched=false` diagnostic.
 A non-zero example `exitCode` always takes precedence and is reported as an
 execution failure, even if the payload itself is otherwise valid.
+If the example exits successfully but no parseable JSON object payload is
+produced, ts-core reports a dedicated "produced no parseable JSON output"
+diagnostic.
 
 Example `kind: "example"` failure payload (truncated):
 
