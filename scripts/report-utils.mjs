@@ -333,6 +333,27 @@ export const extractWasmPackCheckSummaryFromReport = (report) => {
   };
 };
 
+export const createPrefixedWasmPackCheckSummary = (report, prefix = "") => {
+  const keyPrefix = typeof prefix === "string" ? prefix : "";
+  const createKey = (suffix) => {
+    if (keyPrefix.length === 0) {
+      return `wasmPackCheck${suffix}`;
+    }
+
+    return `${keyPrefix}WasmPackCheck${suffix}`;
+  };
+  const summary = extractWasmPackCheckSummaryFromReport(report);
+
+  return {
+    [createKey("Status")]: summary.wasmPackCheckStatus,
+    [createKey("Command")]: summary.wasmPackCheckCommand,
+    [createKey("Args")]: summary.wasmPackCheckArgs,
+    [createKey("ArgCount")]: summary.wasmPackCheckArgCount,
+    [createKey("ExitCode")]: summary.wasmPackCheckExitCode,
+    [createKey("OutputLine")]: summary.wasmPackCheckOutputLine,
+  };
+};
+
 export const extractWasmPackStatusFromReport = (report) => {
   if (
     report === null ||

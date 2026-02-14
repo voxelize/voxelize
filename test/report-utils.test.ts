@@ -9,6 +9,7 @@ import {
   countRecordEntries,
   createCliOptionCatalog,
   createCliDiagnostics,
+  createPrefixedWasmPackCheckSummary,
   createTimedReportBuilder,
   createCliOptionValidation,
   deriveWasmPackCheckStatus,
@@ -3153,6 +3154,37 @@ describe("report-utils", () => {
       wasmPackCheckCommand: "node",
       wasmPackCheckArgs: ["check-wasm-pack.mjs"],
       wasmPackCheckArgCount: 1,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
+  });
+
+  it("creates prefixed wasm pack summary objects", () => {
+    expect(
+      createPrefixedWasmPackCheckSummary(
+        {
+          wasmPackCheckStatus: "ok",
+          wasmPackCheckCommand: "node",
+          wasmPackCheckArgs: ["check-wasm-pack.mjs"],
+          wasmPackCheckArgCount: 1,
+          wasmPackCheckExitCode: 0,
+          wasmPackCheckOutputLine: "wasm-pack 0.12.1",
+        },
+        "client"
+      )
+    ).toEqual({
+      clientWasmPackCheckStatus: "ok",
+      clientWasmPackCheckCommand: "node",
+      clientWasmPackCheckArgs: ["check-wasm-pack.mjs"],
+      clientWasmPackCheckArgCount: 1,
+      clientWasmPackCheckExitCode: 0,
+      clientWasmPackCheckOutputLine: "wasm-pack 0.12.1",
+    });
+    expect(createPrefixedWasmPackCheckSummary(null)).toEqual({
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: null,
+      wasmPackCheckArgCount: null,
       wasmPackCheckExitCode: null,
       wasmPackCheckOutputLine: null,
     });

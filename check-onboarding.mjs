@@ -4,10 +4,10 @@ import { fileURLToPath } from "node:url";
 
 import {
   countRecordEntries,
+  createPrefixedWasmPackCheckSummary,
   createCliOptionCatalog,
   createCliDiagnostics,
   deriveCliValidationFailureMessage,
-  extractWasmPackCheckSummaryFromReport,
   createTimedReportBuilder,
   hasCliOption,
   parseJsonOutput,
@@ -327,35 +327,15 @@ const resolveClientWasmPackCheckMetadataFromStepResults = (results) => {
     clientStepResult.report === null ||
     typeof clientStepResult.report !== "object"
   ) {
-    return {
-      clientWasmPackCheckStatus: null,
-      clientWasmPackCheckCommand: null,
-      clientWasmPackCheckArgs: null,
-      clientWasmPackCheckArgCount: null,
-      clientWasmPackCheckExitCode: null,
-      clientWasmPackCheckOutputLine: null,
-    };
+    return createPrefixedWasmPackCheckSummary(null, "client");
   }
 
-  const nestedReport = clientStepResult.report;
-  const {
-    wasmPackCheckStatus: clientWasmPackCheckStatus,
-    wasmPackCheckCommand: clientWasmPackCheckCommand,
-    wasmPackCheckArgs: clientWasmPackCheckArgs,
-    wasmPackCheckArgCount: clientWasmPackCheckArgCount,
-    wasmPackCheckExitCode: clientWasmPackCheckExitCode,
-    wasmPackCheckOutputLine: clientWasmPackCheckOutputLine,
-  } = extractWasmPackCheckSummaryFromReport(nestedReport);
-
-  return {
-    clientWasmPackCheckStatus,
-    clientWasmPackCheckCommand,
-    clientWasmPackCheckArgs,
-    clientWasmPackCheckArgCount,
-    clientWasmPackCheckExitCode,
-    clientWasmPackCheckOutputLine,
-  };
+  return createPrefixedWasmPackCheckSummary(clientStepResult.report, "client");
 };
+const emptyClientWasmPackCheckSummary = createPrefixedWasmPackCheckSummary(
+  null,
+  "client"
+);
 const stepResults = [];
 let exitCode = 0;
 
@@ -467,12 +447,7 @@ if (isJson && validationFailureMessage !== null) {
     failedStepMetadataCount: 0,
     skippedStepMetadata: {},
     skippedStepMetadataCount: 0,
-    clientWasmPackCheckStatus: null,
-    clientWasmPackCheckCommand: null,
-    clientWasmPackCheckArgs: null,
-    clientWasmPackCheckArgCount: null,
-    clientWasmPackCheckExitCode: null,
-    clientWasmPackCheckOutputLine: null,
+    ...emptyClientWasmPackCheckSummary,
     ...validationStepSummary,
     message: validationFailureMessage,
   });

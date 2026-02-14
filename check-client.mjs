@@ -5,10 +5,10 @@ import { fileURLToPath } from "node:url";
 import { resolvePnpmCommand } from "./scripts/command-utils.mjs";
 import {
   countRecordEntries,
+  createPrefixedWasmPackCheckSummary,
   createCliOptionCatalog,
   createCliDiagnostics,
   deriveCliValidationFailureMessage,
-  extractWasmPackCheckSummaryFromReport,
   createTimedReportBuilder,
   hasCliOption,
   parseJsonOutput,
@@ -293,18 +293,12 @@ const resolveWasmPackCheckMetadataFromStepResults = (results) => {
     wasmArtifactStepResult.report === null ||
     typeof wasmArtifactStepResult.report !== "object"
   ) {
-    return {
-      wasmPackCheckStatus: null,
-      wasmPackCheckCommand: null,
-      wasmPackCheckArgs: null,
-      wasmPackCheckArgCount: null,
-      wasmPackCheckExitCode: null,
-      wasmPackCheckOutputLine: null,
-    };
+    return createPrefixedWasmPackCheckSummary(null);
   }
 
-  return extractWasmPackCheckSummaryFromReport(wasmArtifactStepResult.report);
+  return createPrefixedWasmPackCheckSummary(wasmArtifactStepResult.report);
 };
+const emptyWasmPackCheckSummary = createPrefixedWasmPackCheckSummary(null);
 const stepResults = [];
 let exitCode = 0;
 
@@ -416,12 +410,7 @@ if (isJson && validationFailureMessage !== null) {
     failedStepMetadataCount: 0,
     skippedStepMetadata: {},
     skippedStepMetadataCount: 0,
-    wasmPackCheckStatus: null,
-    wasmPackCheckCommand: null,
-    wasmPackCheckArgs: null,
-    wasmPackCheckArgCount: null,
-    wasmPackCheckExitCode: null,
-    wasmPackCheckOutputLine: null,
+    ...emptyWasmPackCheckSummary,
     ...validationStepSummary,
     message: validationFailureMessage,
   });

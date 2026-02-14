@@ -4,9 +4,9 @@ import { fileURLToPath } from "node:url";
 
 import {
   countRecordEntries,
+  createPrefixedWasmPackCheckSummary,
   createCliDiagnostics,
   createTimedReportBuilder,
-  extractWasmPackCheckSummaryFromReport,
   hasCliOption as hasCliOptionInArgs,
   parseJsonOutput,
   resolveLastOptionValue,
@@ -274,35 +274,15 @@ const resolveClientWasmPackCheckSummaryFromChecks = (checks) => {
     clientCheck.report === null ||
     typeof clientCheck.report !== "object"
   ) {
-    return {
-      clientWasmPackCheckStatus: null,
-      clientWasmPackCheckCommand: null,
-      clientWasmPackCheckArgs: null,
-      clientWasmPackCheckArgCount: null,
-      clientWasmPackCheckExitCode: null,
-      clientWasmPackCheckOutputLine: null,
-    };
+    return createPrefixedWasmPackCheckSummary(null, "client");
   }
 
-  const report = clientCheck.report;
-  const {
-    wasmPackCheckStatus: clientWasmPackCheckStatus,
-    wasmPackCheckCommand: clientWasmPackCheckCommand,
-    wasmPackCheckArgs: clientWasmPackCheckArgs,
-    wasmPackCheckArgCount: clientWasmPackCheckArgCount,
-    wasmPackCheckExitCode: clientWasmPackCheckExitCode,
-    wasmPackCheckOutputLine: clientWasmPackCheckOutputLine,
-  } = extractWasmPackCheckSummaryFromReport(report);
-
-  return {
-    clientWasmPackCheckStatus,
-    clientWasmPackCheckCommand,
-    clientWasmPackCheckArgs,
-    clientWasmPackCheckArgCount,
-    clientWasmPackCheckExitCode,
-    clientWasmPackCheckOutputLine,
-  };
+  return createPrefixedWasmPackCheckSummary(clientCheck.report, "client");
 };
+const emptyClientWasmPackCheckSummary = createPrefixedWasmPackCheckSummary(
+  null,
+  "client"
+);
 const availableCheckAliases = {
   devEnvironment: [
     "devEnvironment",
@@ -937,12 +917,7 @@ if (
     checkArgsMapCount: 0,
     checkArgCountMap: {},
     checkArgCountMapCount: 0,
-    clientWasmPackCheckStatus: null,
-    clientWasmPackCheckCommand: null,
-    clientWasmPackCheckArgs: null,
-    clientWasmPackCheckArgCount: null,
-    clientWasmPackCheckExitCode: null,
-    clientWasmPackCheckOutputLine: null,
+    ...emptyClientWasmPackCheckSummary,
     outputPath: outputPathError === null ? resolvedOutputPath : null,
     validationErrorCode,
     message: outputPathError ?? selectedChecksError ?? unsupportedOptionsError,
@@ -1179,12 +1154,7 @@ if (isListChecks) {
     checkArgsMapCount: 0,
     checkArgCountMap: {},
     checkArgCountMapCount: 0,
-    clientWasmPackCheckStatus: null,
-    clientWasmPackCheckCommand: null,
-    clientWasmPackCheckArgs: null,
-    clientWasmPackCheckArgCount: null,
-    clientWasmPackCheckExitCode: null,
-    clientWasmPackCheckOutputLine: null,
+    ...emptyClientWasmPackCheckSummary,
     outputPath: resolvedOutputPath,
     validationErrorCode: null,
     invalidChecks: [],
