@@ -407,6 +407,15 @@ fn has_invalid_batch_config(
         || chunk_grid_depth == 0
 }
 
+#[inline]
+fn has_invalid_flood_bounds(
+    flood_node_count: usize,
+    bounds_min_len: usize,
+    bounds_shape_len: usize,
+) -> bool {
+    flood_node_count > 0 && (bounds_min_len < 3 || bounds_shape_len < 3)
+}
+
 #[wasm_bindgen]
 pub fn init() {}
 
@@ -497,8 +506,13 @@ pub fn process_light_batch_fast(
         chunk_size,
         max_height.max(0) as u32,
     );
+    if has_invalid_flood_bounds(flood_nodes.len(), bounds_min.len(), bounds_shape.len()) {
+        return empty_batch_result();
+    }
 
-    let bounds = if !flood_nodes.is_empty() && bounds_min.len() >= 3 && bounds_shape.len() >= 3 {
+    let bounds = if flood_nodes.is_empty() {
+        None
+    } else {
         Some(LightBounds {
             min: [bounds_min[0], bounds_min[1], bounds_min[2]],
             shape: [
@@ -507,8 +521,6 @@ pub fn process_light_batch_fast(
                 bounds_shape[2] as usize,
             ],
         })
-    } else {
-        None
     };
 
     let config = LightConfig {
@@ -697,5 +709,13 @@ mod tests {
         assert!(super::has_invalid_batch_config(16, 64, 15, 0, 1));
         assert!(super::has_invalid_batch_config(16, 64, 15, 1, 0));
         assert!(!super::has_invalid_batch_config(16, 64, 15, 1, 1));
+    }
+
+    #[test]
+    fn invalid_flood_bounds_detect_short_arrays_only_when_flooding() {
+        assert!(super::has_invalid_flood_bounds(1, 2, 3));
+        assert!(super::has_invalid_flood_bounds(1, 3, 2));
+        assert!(!super::has_invalid_flood_bounds(0, 0, 0));
+        assert!(!super::has_invalid_flood_bounds(2, 3, 3));
     }
 }
