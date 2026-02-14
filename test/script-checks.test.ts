@@ -125,6 +125,7 @@ type WasmMesherJsonReport = OptionTerminatorMetadata &
 type ClientJsonStep = {
   name: string;
   scriptName: string;
+  supportsNoBuild: boolean;
   stepIndex: number;
   passed: boolean;
   exitCode: number | null;
@@ -182,6 +183,7 @@ type ClientJsonReport = OptionTerminatorMetadata &
   failureSummaries: Array<{
     name: string;
     scriptName: string;
+    supportsNoBuild: boolean;
     stepIndex: number;
     exitCode: number;
     message: string;
@@ -335,6 +337,7 @@ type RuntimeLibrariesJsonReport = OptionTerminatorMetadata &
 type OnboardingJsonStep = {
   name: string;
   scriptName: string;
+  supportsNoBuild: boolean;
   stepIndex: number;
   passed: boolean;
   exitCode: number | null;
@@ -397,6 +400,7 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
   failureSummaries: Array<{
     name: string;
     scriptName: string;
+    supportsNoBuild: boolean;
     stepIndex: number;
     exitCode: number;
     message: string;
@@ -474,6 +478,7 @@ const expectStepSummaryMetadata = (
     steps: Array<{
       name: string;
       scriptName: string;
+      supportsNoBuild: boolean;
       stepIndex: number;
       passed: boolean;
       skipped: boolean;
@@ -500,6 +505,7 @@ const expectStepSummaryMetadata = (
     failureSummaries: Array<{
       name: string;
       scriptName: string;
+      supportsNoBuild: boolean;
       stepIndex: number;
       exitCode: number;
       message: string;
@@ -563,6 +569,9 @@ const expectStepSummaryMetadata = (
   for (const step of report.steps) {
     expect(expectedStepNames.has(step.name)).toBe(true);
     expect(step.scriptName).toBe(expectedStepMetadata[step.name].scriptName);
+    expect(step.supportsNoBuild).toBe(
+      expectedStepMetadata[step.name].supportsNoBuild
+    );
     const expectedStepIndex = stepIndexMap.get(step.name);
     if (expectedStepIndex === undefined) {
       throw new Error(`Missing step index metadata for ${step.name}.`);
@@ -623,6 +632,9 @@ const expectStepSummaryMetadata = (
   for (const [index, summary] of report.failureSummaries.entries()) {
     const stepName = failedSteps[index];
     expect(summary.scriptName).toBe(expectedStepMetadata[stepName].scriptName);
+    expect(summary.supportsNoBuild).toBe(
+      expectedStepMetadata[stepName].supportsNoBuild
+    );
     expect(summary.stepIndex).toBe(failedStepIndices[index]);
     expect(summary.exitCode).toBeGreaterThan(0);
     expect(summary.message.length).toBeGreaterThan(0);

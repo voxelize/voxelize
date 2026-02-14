@@ -140,6 +140,7 @@ const createStepFailureSummaries = (steps) => {
       return {
         name: step.name,
         scriptName: step.scriptName,
+        supportsNoBuild: step.supportsNoBuild,
         stepIndex: step.stepIndex,
         exitCode: typeof step.exitCode === "number" ? step.exitCode : 1,
         message: reportMessage ?? outputMessage ?? defaultMessage,
@@ -156,6 +157,7 @@ const resolveStepDetails = (stepName) => {
 
   return {
     scriptName: stepMetadata.scriptName,
+    supportsNoBuild: stepMetadata.supportsNoBuild,
     stepIndex,
   };
 };
@@ -230,11 +232,12 @@ const addSkippedStep = (name, reason) => {
   if (!isJson) {
     return;
   }
-  const { scriptName, stepIndex } = resolveStepDetails(name);
+  const { scriptName, supportsNoBuild, stepIndex } = resolveStepDetails(name);
 
   stepResults.push({
     name,
     scriptName,
+    supportsNoBuild,
     stepIndex,
     passed: false,
     exitCode: null,
@@ -264,12 +267,13 @@ const runStep = (name, command, args) => {
 
   const resolvedStatus = result.status ?? 1;
   if (isJson) {
-    const { scriptName, stepIndex } = resolveStepDetails(name);
+    const { scriptName, supportsNoBuild, stepIndex } = resolveStepDetails(name);
     const output = `${result.stdout ?? ""}${result.stderr ?? ""}`.trim();
     const report = parseJsonOutput(output);
     stepResults.push({
       name,
       scriptName,
+      supportsNoBuild,
       stepIndex,
       passed: resolvedStatus === 0,
       exitCode: resolvedStatus,
