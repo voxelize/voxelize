@@ -121,4 +121,12 @@ describe("ChunkUtils.mapChunkToVoxel", () => {
     expect(ChunkUtils.mapChunkToVoxel([3, -2], 0)).toEqual([3, 0, -2]);
     expect(ChunkUtils.mapChunkToVoxel([3, -2], 15.8)).toEqual([45, 0, -30]);
   });
+
+  it("clamps oversized chunk sizes to i32 max", () => {
+    expect(ChunkUtils.mapChunkToVoxel([2, -1], Number.MAX_SAFE_INTEGER)).toEqual([
+      2 * 2147483647,
+      0,
+      -2147483647,
+    ]);
+  });
 });
