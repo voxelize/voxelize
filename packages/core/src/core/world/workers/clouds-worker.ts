@@ -65,16 +65,13 @@ self.onmessage = function (e: MessageEvent<CloudsWorkerMessage>) {
   const [strideX, strideY, strideZ] = stride;
 
   for (let vx = startX, lx = 0; vx < endX; ++vx, ++lx) {
+    const scaledX = vx * noiseScale;
     for (let vz = startZ, lz = 0; vz < endZ; ++vz, ++lz) {
+      const scaledZ = vz * noiseScale;
       for (let vy = startY, ly = 0; vy < endY; ++vy, ++ly) {
+        const scaledY = vy * noiseScale;
         const value =
-          noise(
-            vx * noiseScale,
-            vy * noiseScale,
-            vz * noiseScale,
-            octaves,
-            falloff
-          ) > threshold
+          noise(scaledX, scaledY, scaledZ, octaves, falloff) > threshold
             ? 1
             : 0;
         data[lx * strideX + ly * strideY + lz * strideZ] = value;
