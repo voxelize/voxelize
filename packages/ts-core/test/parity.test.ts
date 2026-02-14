@@ -954,6 +954,25 @@ describe("BlockRuleEvaluator", () => {
     expect(matched).toBe(true);
   });
 
+  it("fails rotation rules when decoded segments differ", () => {
+    const ruleRotation = BlockRotation.encode(PY_ROTATION, 5);
+    const rule = {
+      type: "simple" as const,
+      offset: [0, 0, 0] as [number, number, number],
+      rotation: ruleRotation,
+    };
+
+    const access = {
+      getVoxel: () => 1,
+      getVoxelRotation: () => BlockRotation.encode(PY_ROTATION, 7),
+      getVoxelStage: () => 0,
+    };
+
+    const matched = BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access);
+
+    expect(matched).toBe(false);
+  });
+
   it("returns false for unsupported combination logic values", () => {
     const access = {
       getVoxel: () => 1,
