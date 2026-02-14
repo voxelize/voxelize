@@ -414,6 +414,8 @@ type CompatibleSerializedChunk = SerializedRawChunk & {
 
 const isCompatibleSerializedChunk = (
   chunkData: SerializedRawChunk | null | undefined,
+  expectedChunkX: number,
+  expectedChunkZ: number,
   expectedChunkSize: number,
   expectedMaxHeight: number,
   expectedMaxLightLevel: number,
@@ -431,6 +433,8 @@ const isCompatibleSerializedChunk = (
     typeof chunkData.id === "string" &&
     isI32(chunkX) &&
     isI32(chunkZ) &&
+    chunkX === expectedChunkX &&
+    chunkZ === expectedChunkZ &&
     isArrayBuffer(voxelsBuffer) &&
     isArrayBuffer(lightsBuffer) &&
     voxelsBuffer.byteLength === expectedChunkByteLength &&
@@ -517,6 +521,8 @@ const hasPotentialRelevantDeltaBatches = (
         const chunkData = chunksData[chunkIndex];
         chunkValidityState = isCompatibleSerializedChunk(
           chunkData,
+          cx,
+          cz,
           chunkSize,
           maxHeight,
           maxLightLevel,
@@ -532,6 +538,8 @@ const hasPotentialRelevantDeltaBatches = (
     } else if (
       !isCompatibleSerializedChunk(
         chunksData[chunkIndex],
+        cx,
+        cz,
         chunkSize,
         maxHeight,
         maxLightLevel,
@@ -754,6 +762,8 @@ const deserializeChunkGrid = (
   chunksData: (SerializedRawChunk | null)[],
   gridWidth: number,
   gridDepth: number,
+  gridOffsetX: number,
+  gridOffsetZ: number,
   chunkGrid: (RawChunk | null)[],
   expectedChunkSize: number,
   expectedMaxHeight: number,
@@ -765,10 +775,16 @@ const deserializeChunkGrid = (
   let hasAnyChunk = false;
 
   for (let index = 0; index < cellCount; index++) {
+    const localX = Math.floor(index / gridDepth);
+    const localZ = index - localX * gridDepth;
+    const expectedChunkX = gridOffsetX + localX;
+    const expectedChunkZ = gridOffsetZ + localZ;
     const chunkData = chunksData[index];
     if (
       !isCompatibleSerializedChunk(
         chunkData,
+        expectedChunkX,
+        expectedChunkZ,
         expectedChunkSize,
         expectedMaxHeight,
         expectedMaxLightLevel,
@@ -949,6 +965,8 @@ const serializeChunksData = (
   chunksData: (SerializedRawChunk | null)[],
   gridWidth: number,
   gridDepth: number,
+  gridOffsetX: number,
+  gridOffsetZ: number,
   serialized: SerializedWasmChunk[],
   expectedChunkSize: number,
   expectedMaxHeight: number,
@@ -960,10 +978,16 @@ const serializeChunksData = (
   let hasAnyChunk = false;
 
   for (let index = 0; index < cellCount; index++) {
+    const localX = Math.floor(index / gridDepth);
+    const localZ = index - localX * gridDepth;
+    const expectedChunkX = gridOffsetX + localX;
+    const expectedChunkZ = gridOffsetZ + localZ;
     const chunkData = chunksData[index];
     if (
       !isCompatibleSerializedChunk(
         chunkData,
+        expectedChunkX,
+        expectedChunkZ,
         expectedChunkSize,
         expectedMaxHeight,
         expectedMaxLightLevel,
@@ -1124,6 +1148,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
       chunksData,
       gridWidth,
       gridDepth,
+      gridOffsetX,
+      gridOffsetZ,
       serializedChunks,
       chunkSize,
       maxHeight,
@@ -1140,6 +1166,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
       chunksData,
       gridWidth,
       gridDepth,
+      gridOffsetX,
+      gridOffsetZ,
       chunkGrid,
       chunkSize,
       maxHeight,
