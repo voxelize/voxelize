@@ -145,7 +145,8 @@ When failures occur, `failureSummaries[]` entries include `kind`:
   `payloadIssueCount`, and `outputLine`)
 
 If an example reports both `ruleMatched=false` and payload validation issues,
-the failure message includes both conditions for clearer diagnostics.
+the failure message includes both conditions for clearer diagnostics. If payload
+fields are valid, the message remains a pure `ruleMatched=false` diagnostic.
 
 Example `kind: "example"` failure payload (truncated):
 
