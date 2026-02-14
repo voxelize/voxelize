@@ -336,7 +336,15 @@ const applyRelevantDeltas = (
 
   for (let batchIndex = 0; batchIndex < relevantDeltas.length; batchIndex++) {
     const deltaBatch = relevantDeltas[batchIndex];
-    const { cx, cz, deltas } = deltaBatch;
+    if (!deltaBatch || typeof deltaBatch !== "object") {
+      continue;
+    }
+    const deltas = deltaBatch.deltas;
+    if (!Array.isArray(deltas)) {
+      continue;
+    }
+    const cx = deltaBatch.cx;
+    const cz = deltaBatch.cz;
     if (!isInteger(cx) || !isInteger(cz)) {
       continue;
     }
