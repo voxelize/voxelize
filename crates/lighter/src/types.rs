@@ -356,25 +356,24 @@ impl LightRegistry {
             .len()
             .saturating_mul(DENSE_LOOKUP_MAX_GROWTH_FACTOR)
             .max(64);
-        let mut dense = if max_id <= dense_limit {
-            Some(vec![usize::MAX; max_id.saturating_add(1)])
-        } else {
-            None
-        };
-        let mut sparse = HashMap::with_capacity(self.blocks_by_id.len());
-
-        for (index, (id, _)) in self.blocks_by_id.iter().enumerate() {
-            let id_usize = *id as usize;
-            if let Some(dense_map) = dense.as_mut() {
-                if id_usize < dense_map.len() {
-                    dense_map[id_usize] = index;
+        if max_id <= dense_limit {
+            let mut dense = vec![usize::MAX; max_id.saturating_add(1)];
+            for (index, (id, _)) in self.blocks_by_id.iter().enumerate() {
+                let id_usize = *id as usize;
+                if id_usize < dense.len() {
+                    dense[id_usize] = index;
                 }
             }
-            sparse.insert(*id, index);
+            self.lookup_dense = Some(dense);
+            self.lookup_sparse = None;
+        } else {
+            let mut sparse = HashMap::with_capacity(self.blocks_by_id.len());
+            for (index, (id, _)) in self.blocks_by_id.iter().enumerate() {
+                sparse.insert(*id, index);
+            }
+            self.lookup_dense = None;
+            self.lookup_sparse = Some(sparse);
         }
-
-        self.lookup_dense = dense;
-        self.lookup_sparse = Some(sparse);
     }
 
     pub fn get_block_by_id(&self, id: u32) -> &LightBlock {
@@ -443,6 +442,20 @@ mod tests {
         assert!(registry.lookup_dense.is_none());
         assert_eq!(registry.get_block_by_id(1_000_000).id, 1_000_000);
         assert!(registry.has_type(1_000_000));
+    }
+
+    #[test]
+    fn registry_uses_dense_lookup_without_sparse_map_when_compact() {
+        let mut air = LightBlock::default_air();
+        air.id = 0;
+        let mut solid = LightBlock::default_air();
+        solid.id = 1;
+
+        let registry = LightRegistry::new(vec![(0, air), (1, solid)]);
+        assert!(registry.lookup_dense.is_some());
+        assert!(registry.lookup_sparse.is_none());
+        assert!(registry.has_type(1));
+        assert!(!registry.has_type(999));
     }
 }
 
