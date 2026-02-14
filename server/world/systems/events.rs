@@ -104,18 +104,36 @@ impl<'a> System<'a> for EventsSystem {
                         }
                     }
                     ClientFilter::Include(ids) => {
-                        let include_ids: HashSet<&str> = ids.iter().map(String::as_str).collect();
-                        for (id, _) in clients.iter() {
-                            if include_ids.contains(id.as_str()) {
-                                send_to_id(id);
+                        if ids.len() <= 4 {
+                            for (id, _) in clients.iter() {
+                                if ids.iter().any(|included_id| included_id == id) {
+                                    send_to_id(id);
+                                }
+                            }
+                        } else {
+                            let include_ids: HashSet<&str> =
+                                ids.iter().map(String::as_str).collect();
+                            for (id, _) in clients.iter() {
+                                if include_ids.contains(id.as_str()) {
+                                    send_to_id(id);
+                                }
                             }
                         }
                     }
                     ClientFilter::Exclude(ids) => {
-                        let exclude_ids: HashSet<&str> = ids.iter().map(String::as_str).collect();
-                        for (id, _) in clients.iter() {
-                            if !exclude_ids.contains(id.as_str()) {
-                                send_to_id(id);
+                        if ids.len() <= 4 {
+                            for (id, _) in clients.iter() {
+                                if !ids.iter().any(|excluded_id| excluded_id == id) {
+                                    send_to_id(id);
+                                }
+                            }
+                        } else {
+                            let exclude_ids: HashSet<&str> =
+                                ids.iter().map(String::as_str).collect();
+                            for (id, _) in clients.iter() {
+                                if !exclude_ids.contains(id.as_str()) {
+                                    send_to_id(id);
+                                }
                             }
                         }
                     }
