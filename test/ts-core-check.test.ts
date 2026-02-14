@@ -1193,7 +1193,7 @@ describe("check-ts-core script", () => {
       exampleScriptRelativePath,
       `console.log(
   JSON.stringify({
-    voxel: { id: 42, stage: 7 },
+    voxel: { id: 42, stage: 7, rotation: { value: 0, yRotation: 2.356 } },
     light: { sunlight: 15, red: 10, green: 5, blue: 3 },
     rotatedAabb: { min: [0, 0, 0], max: [1, 1, 1] },
   })
@@ -1238,12 +1238,63 @@ describe("check-ts-core script", () => {
     );
   });
 
-  it("fails when ts-core example payload has invalid rotatedAabb bounds", () => {
+  it("fails when ts-core example payload omits voxel rotation", () => {
     runWithTemporarilyRewrittenPath(
       exampleScriptRelativePath,
       `console.log(
   JSON.stringify({
     voxel: { id: 42, stage: 7 },
+    light: { sunlight: 15, red: 10, green: 5, blue: 3 },
+    rotatedAabb: { min: [0, 0, 0], max: [1, 1, 1] },
+    ruleMatched: true,
+  })
+);\n`,
+      () => {
+        const result = runScript(["--json"]);
+        const report = parseReport(result);
+
+        expect(result.status).toBe(1);
+        expect(report.schemaVersion).toBe(1);
+        expect(report.passed).toBe(false);
+        expect(report.exitCode).toBe(1);
+        expect(report.validationErrorCode).toBeNull();
+        expect(report.artifactsPresent).toBe(true);
+        expect(report.missingArtifacts).toEqual([]);
+        expect(report.exampleAttempted).toBe(true);
+        expect(report.exampleStatus).toBe("failed");
+        expect(report.exampleExitCode).toBe(0);
+        expect(report.exampleRuleMatched).toBe(true);
+        expect(report.examplePayloadValid).toBe(false);
+        expect(report.failureSummaryCount).toBe(1);
+        expect(report.failureSummaries).toEqual([
+          {
+            kind: "example",
+            packageName: report.checkedPackage,
+            packagePath: report.checkedPackagePath,
+            packageIndex: report.checkedPackageIndices[0],
+            checkCommand: process.execPath,
+            checkArgs: expectedExampleArgs,
+            checkArgCount: expectedExampleArgs.length,
+            exitCode: report.exampleExitCode,
+            ruleMatched: report.exampleRuleMatched,
+            payloadValid: report.examplePayloadValid,
+            outputLine: report.exampleOutputLine,
+            message: deriveExpectedExampleFailureMessage(report),
+          },
+        ]);
+        expect(report.message).toBe(
+          "TypeScript core build artifacts are available, but TypeScript core end-to-end example output is missing required payload fields."
+        );
+      }
+    );
+  });
+
+  it("fails when ts-core example payload has invalid rotatedAabb bounds", () => {
+    runWithTemporarilyRewrittenPath(
+      exampleScriptRelativePath,
+      `console.log(
+  JSON.stringify({
+    voxel: { id: 42, stage: 7, rotation: { value: 0, yRotation: 2.356 } },
     light: { sunlight: 15, red: 10, green: 5, blue: 3 },
     rotatedAabb: { min: [2, 0, 0], max: [1, 1, 1] },
     ruleMatched: true,

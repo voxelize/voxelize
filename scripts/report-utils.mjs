@@ -493,6 +493,21 @@ export const summarizeTsCoreExampleOutput = (output) => {
       ? parsedOutput.ruleMatched
       : null;
   const voxelValue = "voxel" in parsedOutput ? parsedOutput.voxel : null;
+  const voxelRotationValue =
+    voxelValue !== null &&
+    typeof voxelValue === "object" &&
+    !Array.isArray(voxelValue) &&
+    "rotation" in voxelValue
+      ? voxelValue.rotation
+      : null;
+  const voxelRotationValid =
+    voxelRotationValue !== null &&
+    typeof voxelRotationValue === "object" &&
+    !Array.isArray(voxelRotationValue) &&
+    "value" in voxelRotationValue &&
+    typeof voxelRotationValue.value === "number" &&
+    "yRotation" in voxelRotationValue &&
+    typeof voxelRotationValue.yRotation === "number";
   const voxelValid =
     voxelValue !== null &&
     typeof voxelValue === "object" &&
@@ -500,7 +515,8 @@ export const summarizeTsCoreExampleOutput = (output) => {
     "id" in voxelValue &&
     typeof voxelValue.id === "number" &&
     "stage" in voxelValue &&
-    typeof voxelValue.stage === "number";
+    typeof voxelValue.stage === "number" &&
+    voxelRotationValid;
   const lightValue = "light" in parsedOutput ? parsedOutput.light : null;
   const lightValid =
     lightValue !== null &&
