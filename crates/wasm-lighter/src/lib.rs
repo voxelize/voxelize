@@ -427,7 +427,10 @@ pub fn process_light_batch_fast(
     {
         Vec::new()
     } else {
-        serde_wasm_bindgen::from_value(removals).expect("Unable to deserialize removal nodes")
+        match serde_wasm_bindgen::from_value(removals) {
+            Ok(nodes) => nodes,
+            Err(_) => return empty_batch_result(),
+        }
     };
     let flood_nodes: Vec<LightNode> = if floods
         .dyn_ref::<Array>()
@@ -435,7 +438,10 @@ pub fn process_light_batch_fast(
     {
         Vec::new()
     } else {
-        serde_wasm_bindgen::from_value(floods).expect("Unable to deserialize flood nodes")
+        match serde_wasm_bindgen::from_value(floods) {
+            Ok(nodes) => nodes,
+            Err(_) => return empty_batch_result(),
+        }
     };
     if removal_nodes.is_empty() && flood_nodes.is_empty() {
         return empty_batch_result();
