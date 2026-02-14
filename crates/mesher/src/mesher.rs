@@ -2964,7 +2964,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
         i32,
         u32,
         BlockRotation,
-        Block,
         BlockFace,
         UV,
         bool,
@@ -3114,7 +3113,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                 vz,
                                 voxel_id,
                                 rotation.clone(),
-                                block.clone(),
                                 face.clone(),
                                 uv_range,
                                 is_see_through,
@@ -3179,7 +3177,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                 vz,
                                 voxel_id,
                                 rotation.clone(),
-                                block.clone(),
                                 face.clone(),
                                 uv_range,
                                 is_see_through,
@@ -3308,13 +3305,14 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                 );
             }
 
+            let mut cached_non_greedy_block_id = u32::MAX;
+            let mut cached_non_greedy_block: Option<&Block> = None;
             for (
                 vx,
                 vy,
                 vz,
                 voxel_id,
                 rotation,
-                block,
                 face,
                 uv_range,
                 is_see_through,
@@ -3322,7 +3320,27 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                 world_space,
             ) in non_greedy_faces.drain(..)
             {
-                let geo_key = geometry_key_for_face(&block, &face, vx, vy, vz);
+                let block = if cached_non_greedy_block_id == voxel_id {
+                    match cached_non_greedy_block {
+                        Some(block) => block,
+                        None => continue,
+                    }
+                } else {
+                    match registry.get_block_by_id(voxel_id) {
+                        Some(block) => {
+                            cached_non_greedy_block_id = voxel_id;
+                            cached_non_greedy_block = Some(block);
+                            block
+                        }
+                        None => {
+                            cached_non_greedy_block_id = voxel_id;
+                            cached_non_greedy_block = None;
+                            continue;
+                        }
+                    }
+                };
+
+                let geo_key = geometry_key_for_face(block, &face, vx, vy, vz);
 
                 let geometry = map.entry(geo_key).or_insert_with(|| {
                     let face_name = if face.independent || face.isolated {
@@ -3342,7 +3360,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                 let neighbors =
                     populate_neighbors_for_face_processing(vx, vy, vz, space, skip_opaque_checks);
                 let face_cache = build_face_process_cache(
-                    &block,
+                    block,
                     is_see_through,
                     is_fluid,
                     &neighbors,
@@ -3361,7 +3379,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     &rotation,
                     &face,
                     &uv_range,
-                    &block,
+                    block,
                     registry,
                     space,
                     &neighbors,
