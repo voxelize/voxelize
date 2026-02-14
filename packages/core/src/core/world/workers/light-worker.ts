@@ -4,6 +4,7 @@ import init, {
 } from "@voxelize/wasm-lighter";
 
 import { Coords2, Coords3 } from "../../../types";
+import { BlockUtils } from "../../../utils";
 import { LightColor } from "../../../utils/light-utils";
 import { BlockRule } from "../block";
 import type { LightNode, VoxelDelta, WorldOptions } from "../index";
@@ -333,17 +334,23 @@ const applyRelevantDeltas = (
       const vx = coords[0];
       const vy = coords[1];
       const vz = coords[2];
+      let nextRaw = chunk.getRawValue(vx, vy, vz);
+      const currentRaw = nextRaw;
 
       if (delta.oldVoxel !== delta.newVoxel) {
-        chunk.setVoxel(vx, vy, vz, delta.newVoxel);
+        nextRaw = BlockUtils.insertID(nextRaw, delta.newVoxel);
       }
       const newRotation = delta.newRotation;
       if (newRotation) {
-        chunk.setVoxelRotation(vx, vy, vz, newRotation);
+        nextRaw = BlockUtils.insertRotation(nextRaw, newRotation);
       }
       const newStage = delta.newStage;
       if (newStage !== undefined) {
-        chunk.setVoxelStage(vx, vy, vz, newStage);
+        nextRaw = BlockUtils.insertStage(nextRaw, newStage);
+      }
+
+      if (nextRaw !== currentRaw) {
+        chunk.setRawValue(vx, vy, vz, nextRaw);
       }
     }
   }
