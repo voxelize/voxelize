@@ -62,6 +62,7 @@ self.onmessage = function (e: MessageEvent<CloudsWorkerMessage>) {
 
   const [startX, startY, startZ] = min;
   const [endX, endY, endZ] = max;
+  const [strideX, strideY, strideZ] = stride;
 
   for (let vx = startX, lx = 0; vx < endX; ++vx, ++lx) {
     for (let vz = startZ, lz = 0; vz < endZ; ++vz, ++lz) {
@@ -76,7 +77,7 @@ self.onmessage = function (e: MessageEvent<CloudsWorkerMessage>) {
           ) > threshold
             ? 1
             : 0;
-        data[lx * stride[0] + ly * stride[1] + lz * stride[2]] = value;
+        data[lx * strideX + ly * strideY + lz * strideZ] = value;
       }
     }
   }
