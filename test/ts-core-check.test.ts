@@ -1190,6 +1190,44 @@ process.stdout.write(
     );
   });
 
+  it("ignores trailing primitive json lines after a valid payload", () => {
+    runWithTemporarilyRewrittenPath(
+      exampleScriptRelativePath,
+      `console.log(
+  JSON.stringify({
+    voxel: { id: 42, stage: 7, rotation: { value: 0, yRotation: 2.356 } },
+    light: { sunlight: 15, red: 10, green: 5, blue: 3 },
+    rotatedAabb: { min: [0, 0, 0], max: [1, 1, 1] },
+    ruleMatched: true,
+  })
+);
+console.log("true");\n`,
+      () => {
+        const result = runScript(["--json"]);
+        const report = parseReport(result);
+
+        expect(result.status).toBe(0);
+        expect(report.schemaVersion).toBe(1);
+        expect(report.passed).toBe(true);
+        expect(report.exitCode).toBe(0);
+        expect(report.validationErrorCode).toBeNull();
+        expect(report.artifactsPresent).toBe(true);
+        expect(report.missingArtifacts).toEqual([]);
+        expect(report.exampleAttempted).toBe(true);
+        expect(report.exampleStatus).toBe("ok");
+        expect(report.exampleExitCode).toBe(0);
+        expect(report.exampleRuleMatched).toBe(true);
+        expect(report.examplePayloadValid).toBe(true);
+        expect(report.examplePayloadIssues).toEqual([]);
+        expect(report.examplePayloadIssueCount).toBe(0);
+        expect(report.exampleOutputLine).toBe("ruleMatched=true");
+        expect(report.failureSummaryCount).toBe(0);
+        expect(report.failureSummaries).toEqual([]);
+        expect(report.message).toBe(expectedSuccessMessage);
+      }
+    );
+  });
+
   it("fails when latest concatenated payload is array-shaped", () => {
     runWithTemporarilyRewrittenPath(
       exampleScriptRelativePath,
