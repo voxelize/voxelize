@@ -131,6 +131,9 @@ export class ChunkUtils {
     }
     const useShiftX = (vx | 0) === vx;
     const useShiftZ = (vz | 0) === vz;
+    if (useShiftX && useShiftZ) {
+      return ChunkUtils.getChunkNameAt(vx >> chunkShift, vz >> chunkShift, concat);
+    }
     const cx = useShiftX ? vx >> chunkShift : Math.floor(vx / normalizedChunkSize);
     const cz = useShiftZ ? vz >> chunkShift : Math.floor(vz / normalizedChunkSize);
     return ChunkUtils.getChunkNameAt(cx, cz, concat);
