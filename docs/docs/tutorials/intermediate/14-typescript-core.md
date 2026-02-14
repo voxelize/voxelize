@@ -41,6 +41,8 @@ flowchart LR
 
 Both helper constructors use deterministic defaults when optional fields are
 omitted.
+`createBlockConditionalPart` accepts either `BlockFace` instances or
+`BlockFaceInit` objects in `faces`.
 
 ## Basic usage
 
@@ -146,6 +148,7 @@ const pattern = createBlockDynamicPattern({
         logic: BlockRuleLogic.And,
         rules: [{ type: "simple", offset: [0, 0, 0], id: 12 }],
       },
+      faces: [{ name: "Top", dir: [0, 1, 0] }],
       worldSpace: false,
     },
   ],

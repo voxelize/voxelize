@@ -4,6 +4,7 @@ import {
   AABB,
   BLOCK_RULE_NONE,
   type BlockConditionalPartInput,
+  type BlockFaceInit,
   type BlockRule,
   BlockFace,
   BlockRotation,
@@ -1005,6 +1006,53 @@ describe("Type builders", () => {
     expect(part.isTransparent).toEqual([true, false, true, false, true, false]);
   });
 
+  it("accepts BlockFaceInit inputs and clones nested face fields", () => {
+    const corner = createCornerData([0, 0, 0], [0.25, 0.75]);
+    const faceInit: BlockFaceInit = {
+      name: "InitFace",
+      independent: true,
+      isolated: true,
+      textureGroup: "decor",
+      dir: [1, 0, 0],
+      corners: [corner, corner, corner, corner],
+      range: createUV(1, 2, 3, 4),
+    };
+    const part = createBlockConditionalPart({
+      faces: [faceInit],
+    });
+
+    expect(part.faces).toHaveLength(1);
+    expect(part.faces[0]).toBeInstanceOf(BlockFace);
+    expect(part.faces[0].name).toBe("InitFace");
+    expect(part.faces[0].independent).toBe(true);
+    expect(part.faces[0].isolated).toBe(true);
+    expect(part.faces[0].textureGroup).toBe("decor");
+    expect(part.faces[0].dir).toEqual([1, 0, 0]);
+    expect(part.faces[0].corners[0].uv).toEqual([0.25, 0.75]);
+    expect(part.faces[0].range).toEqual({
+      startU: 1,
+      endU: 2,
+      startV: 3,
+      endV: 4,
+    });
+
+    faceInit.name = "MutatedFace";
+    if (faceInit.dir !== undefined) {
+      faceInit.dir[0] = 9;
+    }
+    if (faceInit.corners !== undefined) {
+      faceInit.corners[0].pos[0] = 9;
+    }
+    if (faceInit.range !== undefined) {
+      faceInit.range.startU = 9;
+    }
+
+    expect(part.faces[0].name).toBe("InitFace");
+    expect(part.faces[0].dir).toEqual([1, 0, 0]);
+    expect(part.faces[0].corners[0].pos[0]).toBe(0);
+    expect(part.faces[0].range.startU).toBe(1);
+  });
+
   it("clones provided conditional part rules", () => {
     const inputRule: BlockRule = {
       type: "combination",
@@ -1104,6 +1152,33 @@ describe("Type builders", () => {
       isTransparent: [false, false, false, false, false, false],
       worldSpace: true,
     });
+  });
+
+  it("accepts BlockFaceInit values in dynamic pattern parts", () => {
+    const faceInit: BlockFaceInit = {
+      name: "PatternInitFace",
+      dir: [1, 0, 0],
+    };
+    const pattern = createBlockDynamicPattern({
+      parts: [
+        {
+          faces: [faceInit],
+        },
+      ],
+    });
+
+    expect(pattern.parts).toHaveLength(1);
+    expect(pattern.parts[0].faces).toHaveLength(1);
+    expect(pattern.parts[0].faces[0].name).toBe("PatternInitFace");
+    expect(pattern.parts[0].faces[0].dir).toEqual([1, 0, 0]);
+
+    faceInit.name = "MutatedPatternInitFace";
+    if (faceInit.dir !== undefined) {
+      faceInit.dir[0] = 9;
+    }
+
+    expect(pattern.parts[0].faces[0].name).toBe("PatternInitFace");
+    expect(pattern.parts[0].faces[0].dir).toEqual([1, 0, 0]);
   });
 
   it("clones dynamic pattern parts to avoid external mutation", () => {

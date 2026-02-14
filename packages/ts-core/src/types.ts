@@ -139,9 +139,11 @@ export interface BlockDynamicPattern {
   parts: BlockConditionalPart[];
 }
 
+export type BlockFaceInput = BlockFace | BlockFaceInit;
+
 export interface BlockConditionalPartInput {
   rule?: BlockRule;
-  faces?: BlockFace[];
+  faces?: BlockFaceInput[];
   aabbs?: AABB[];
   isTransparent?: FaceTransparency;
   worldSpace?: boolean;
@@ -151,21 +153,26 @@ export interface BlockDynamicPatternInput {
   parts?: BlockConditionalPartInput[];
 }
 
-const cloneBlockFace = (face: BlockFace): BlockFace => {
-  const [corner0, corner1, corner2, corner3] = face.corners;
+const cloneBlockFace = (face: BlockFaceInput): BlockFace => {
+  const corners:
+    | [CornerData, CornerData, CornerData, CornerData]
+    | undefined =
+    face.corners === undefined
+      ? undefined
+      : [
+          createCornerData(face.corners[0].pos, face.corners[0].uv),
+          createCornerData(face.corners[1].pos, face.corners[1].uv),
+          createCornerData(face.corners[2].pos, face.corners[2].uv),
+          createCornerData(face.corners[3].pos, face.corners[3].uv),
+        ];
   return new BlockFace({
     name: face.name,
     independent: face.independent,
     isolated: face.isolated,
     textureGroup: face.textureGroup,
-    dir: [...face.dir],
-    corners: [
-      createCornerData(corner0.pos, corner0.uv),
-      createCornerData(corner1.pos, corner1.uv),
-      createCornerData(corner2.pos, corner2.uv),
-      createCornerData(corner3.pos, corner3.uv),
-    ],
-    range: { ...face.range },
+    dir: face.dir === undefined ? undefined : [...face.dir],
+    corners,
+    range: face.range === undefined ? undefined : { ...face.range },
   });
 };
 

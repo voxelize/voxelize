@@ -79,6 +79,7 @@ const voxel = Voxel.pack({
   - defensively clones rule, face, AABB, and transparency-array inputs to
     avoid external mutation side effects after construction
   - accepts omitted input and applies deterministic defaults
+  - accepts either `BlockFace` instances or `BlockFaceInit` objects in `faces`
 - `createBlockDynamicPattern`
   - defensively clones dynamic-pattern part inputs using
     `createBlockConditionalPart`
@@ -101,6 +102,7 @@ const pattern = createBlockDynamicPattern({
         logic: BlockRuleLogic.And,
         rules: [{ type: "simple", offset: [0, 0, 0], id: 42 }],
       },
+      faces: [{ name: "Top", dir: [0, 1, 0] }],
       worldSpace: false,
     },
   ],
