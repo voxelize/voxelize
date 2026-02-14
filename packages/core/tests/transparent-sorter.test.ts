@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   BufferAttribute,
   BufferGeometry,
+  InterleavedBuffer,
+  InterleavedBufferAttribute,
   Mesh,
   MeshBasicMaterial,
   Object3D,
@@ -260,6 +262,59 @@ describe("transparent sorter", () => {
     sortTransparentMesh(mesh, sortData, camera);
 
     expect(Array.from(geometryIndex.array)).toEqual(before);
+  });
+
+  it("refreshes transparent sort data for interleaved position updates", () => {
+    const geometry = new BufferGeometry();
+    const interleavedPositions = new InterleavedBuffer(
+      new Float32Array([
+        0, 0, 0,
+        1, 0, 0,
+        1, 1, 0,
+        0, 1, 0,
+        2, 0, 0,
+        3, 0, 0,
+        3, 1, 0,
+        2, 1, 0,
+      ]),
+      3
+    );
+    geometry.setAttribute(
+      "position",
+      new InterleavedBufferAttribute(interleavedPositions, 3, 0)
+    );
+    geometry.setIndex(
+      new BufferAttribute(
+        new Uint16Array([0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7]),
+        1
+      )
+    );
+    const mesh = new Mesh(geometry, new MeshBasicMaterial());
+    const sortData = prepareTransparentMesh(mesh);
+    expect(sortData).not.toBeNull();
+    if (!sortData) {
+      return;
+    }
+
+    mesh.userData.transparentSortData = sortData;
+    const positionAttr = mesh.geometry.getAttribute("position");
+    if (!(positionAttr instanceof InterleavedBufferAttribute)) {
+      throw new Error("Expected interleaved position attribute");
+    }
+    positionAttr.data.needsUpdate = true;
+    const camera = new PerspectiveCamera();
+    camera.position.set(0, 0, 10);
+
+    sortTransparentMeshOnBeforeRender.call(
+      mesh,
+      {} as WebGLRenderer,
+      new Scene(),
+      camera
+    );
+
+    const refreshedSortData = mesh.userData.transparentSortData;
+    expect(refreshedSortData).not.toBe(sortData);
+    expect(refreshedSortData.positionVersion).toBe(positionAttr.data.version);
   });
 
   it("clears sorting callback when refreshed geometry no longer needs sorting", () => {
