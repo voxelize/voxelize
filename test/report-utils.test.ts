@@ -116,6 +116,14 @@ describe("report-utils", () => {
     ).toEqual([{ name: "second", ok: false }]);
   });
 
+  it("prefers the last inline json payload across object/array shapes", () => {
+    expect(
+      parseJsonOutput(
+        `status={"phase":"first","ok":true} checks=[{"phase":"second","ok":false}]`
+      )
+    ).toEqual([{ phase: "second", ok: false }]);
+  });
+
   it("parses json output containing ansi color sequences", () => {
     expect(
       parseJsonOutput(
