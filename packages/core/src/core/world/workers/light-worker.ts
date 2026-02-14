@@ -966,10 +966,6 @@ const applyRelevantDeltas = (
       if (!delta || typeof delta !== "object") {
         continue;
       }
-      const sequenceId = delta.sequenceId;
-      if (isInteger(sequenceId) && sequenceId > chunkLastSequenceId) {
-        chunkLastSequenceId = sequenceId;
-      }
       const coords = delta.coords;
       if (!isStrictCoords3(coords)) {
         continue;
@@ -988,6 +984,10 @@ const applyRelevantDeltas = (
       const writeIntentMask = getDeltaWriteIntentMask(delta);
       if (writeIntentMask === 0) {
         continue;
+      }
+      const sequenceId = delta.sequenceId;
+      if (isInteger(sequenceId) && sequenceId > chunkLastSequenceId) {
+        chunkLastSequenceId = sequenceId;
       }
       const lx = vx - chunkMinX;
       const ly = vy - chunkMinY;
