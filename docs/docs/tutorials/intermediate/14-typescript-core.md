@@ -153,8 +153,9 @@ The checker validates:
 - `packages/ts-core/dist/index.d.ts`
 
 Use `--output <path>` for machine-readable report files in CI.
-The JSON report includes artifact/build diagnostics such as `requiredArtifactCount`,
-`presentArtifactCount`, `missingArtifactCount`, `buildCommand`, `buildArgs`, `buildExitCode`,
+The JSON report includes artifact/build diagnostics such as `checkedPackage`,
+`checkedPackageCount`, `requiredArtifactCount`, `presentArtifactCount`,
+`missingArtifactCount`, `buildCommand`, `buildArgs`, `buildExitCode`,
 `buildDurationMs`, `attemptedBuild`, `buildSkipped`, and `buildSkippedReason`.
 
 If your project also depends on runtime utility packages (`@voxelize/aabb`,

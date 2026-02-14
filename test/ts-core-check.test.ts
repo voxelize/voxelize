@@ -14,6 +14,8 @@ type TsCoreCheckReport = {
   positionalArgs: string[];
   positionalArgCount: number;
   noBuild: boolean;
+  checkedPackage: string;
+  checkedPackageCount: number;
   packagePath: string;
   requiredArtifacts: string[];
   requiredArtifactCount: number;
@@ -139,6 +141,8 @@ const runScript = (args: string[] = []): ScriptResult => {
 
 const parseReport = (result: ScriptResult): TsCoreCheckReport => {
   const report = JSON.parse(result.output) as TsCoreCheckReport;
+  expect(report.checkedPackage).toBe("@voxelize/ts-core");
+  expect(report.checkedPackageCount).toBe(1);
   expect(report.artifactsPresent).toBe(report.missingArtifacts.length === 0);
   expect(report.requiredArtifactCount).toBe(
     report.presentArtifactCount + report.missingArtifactCount

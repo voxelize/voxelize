@@ -18,6 +18,7 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repositoryRoot = __dirname;
+const tsCorePackageName = "@voxelize/ts-core";
 const tsCorePackagePath = "packages/ts-core";
 const requiredArtifacts = [
   "packages/ts-core/dist/index.js",
@@ -135,6 +136,8 @@ const withBaseReportFields = (report) => {
     supportedCliOptionCount,
     availableCliOptionAliases,
     availableCliOptionCanonicalMap,
+    checkedPackage: tsCorePackageName,
+    checkedPackageCount: 1,
     packagePath: tsCorePackagePath,
     requiredArtifacts,
     requiredArtifactCount: requiredArtifacts.length,

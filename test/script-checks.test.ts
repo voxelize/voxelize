@@ -165,6 +165,8 @@ type TsCoreJsonReport = OptionTerminatorMetadata &
   passed: boolean;
   exitCode: number;
   noBuild: boolean;
+  checkedPackage: string;
+  checkedPackageCount: number;
   packagePath: string;
   requiredArtifacts: string[];
   requiredArtifactCount: number;
@@ -468,6 +470,8 @@ const expectedRuntimeLibrariesBuildArgs = [
   "build",
 ];
 const expectTsCoreReportMetadata = (report: TsCoreJsonReport) => {
+  expect(report.checkedPackage).toBe("@voxelize/ts-core");
+  expect(report.checkedPackageCount).toBe(1);
   expect(report.packagePath).toBe("packages/ts-core");
   expect(report.requiredArtifacts).toEqual(expectedTsCoreRequiredArtifacts);
   expect(report.artifactsPresent).toBe(report.missingArtifacts.length === 0);
