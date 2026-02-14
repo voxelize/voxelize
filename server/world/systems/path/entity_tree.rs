@@ -39,11 +39,11 @@ impl<'a> System<'a> for EntityTreeSystem {
                     let dy = pos.0 .1 - old_pos[1];
                     let dz = pos.0 .2 - old_pos[2];
                     if should_update_position(dx, dy, dz) {
-                        tree.update_entity(ent, pos.0.clone());
+                        tree.update_entity(ent, &pos.0);
                     }
                 }
             } else {
-                tree.add_entity(ent, pos.0.clone());
+                tree.add_entity(ent, &pos.0);
             }
         }
 
@@ -56,11 +56,11 @@ impl<'a> System<'a> for EntityTreeSystem {
                     let dy = pos.0 .1 - old_pos[1];
                     let dz = pos.0 .2 - old_pos[2];
                     if should_update_position(dx, dy, dz) {
-                        tree.update_player(ent, pos.0.clone());
+                        tree.update_player(ent, &pos.0);
                     }
                 }
             } else {
-                tree.add_player(ent, pos.0.clone());
+                tree.add_player(ent, &pos.0);
             }
         }
 

@@ -178,7 +178,7 @@ impl KdTree {
         self.kind_map.clear();
     }
 
-    pub fn add_player(&mut self, ent: Entity, point: Vec3<f32>) {
+    pub fn add_player(&mut self, ent: Entity, point: &Vec3<f32>) {
         let ent_id = ent.id();
         let Some(pos) = point_array_if_finite(&point) else {
             self.remove_entity_by_id(ent_id);
@@ -197,7 +197,7 @@ impl KdTree {
         self.kind_map.insert(ent_id, EntityKind::Player);
     }
 
-    pub fn add_entity(&mut self, ent: Entity, point: Vec3<f32>) {
+    pub fn add_entity(&mut self, ent: Entity, point: &Vec3<f32>) {
         let ent_id = ent.id();
         let Some(pos) = point_array_if_finite(&point) else {
             self.remove_entity_by_id(ent_id);
@@ -216,11 +216,11 @@ impl KdTree {
         self.kind_map.insert(ent_id, EntityKind::Entity);
     }
 
-    pub fn update_player(&mut self, ent: Entity, point: Vec3<f32>) {
+    pub fn update_player(&mut self, ent: Entity, point: &Vec3<f32>) {
         self.add_player(ent, point);
     }
 
-    pub fn update_entity(&mut self, ent: Entity, point: Vec3<f32>) {
+    pub fn update_entity(&mut self, ent: Entity, point: &Vec3<f32>) {
         self.add_entity(ent, point);
     }
 
