@@ -350,11 +350,12 @@ impl LightBlock {
                     false
                 }
                 BlockRuleLogic::Not => {
-                    if let Some(first_rule) = rules.first() {
-                        !Self::evaluate_rule(first_rule, vx, vy, vz, space)
-                    } else {
-                        true
+                    for sub_rule in rules {
+                        if Self::evaluate_rule(sub_rule, vx, vy, vz, space) {
+                            return false;
+                        }
                     }
+                    true
                 }
             },
         }
@@ -564,7 +565,7 @@ impl LightRegistry {
 
 #[cfg(test)]
 mod tests {
-    use voxelize_core::{BlockRule, LightColor};
+    use voxelize_core::{BlockRule, BlockRuleLogic, BlockSimpleRule, LightColor};
 
     use super::{LightBlock, LightConditionalPart, LightDynamicPattern, LightRegistry};
 
@@ -645,7 +646,41 @@ mod tests {
         );
     }
 
+    #[test]
+    fn dynamic_not_rules_require_all_subrules_to_be_false() {
+        let mut block = LightBlock::default_air();
+        block.dynamic_patterns = Some(vec![LightDynamicPattern {
+            parts: vec![LightConditionalPart {
+                rule: BlockRule::Combination {
+                    logic: BlockRuleLogic::Not,
+                    rules: vec![
+                        BlockRule::Simple(BlockSimpleRule {
+                            offset: [1, 0, 0],
+                            id: Some(1),
+                            rotation: None,
+                            stage: None,
+                        }),
+                        BlockRule::Simple(BlockSimpleRule {
+                            offset: [2, 0, 0],
+                            id: Some(2),
+                            rotation: None,
+                            stage: None,
+                        }),
+                    ],
+                },
+                red_light_level: Some(9),
+                green_light_level: None,
+                blue_light_level: None,
+            }],
+        }]);
+        block.recompute_flags();
+
+        let level = block.get_torch_light_level_at_xyz(0, 0, 0, &NotRuleAccess, &LightColor::Red);
+        assert_eq!(level, 0);
+    }
+
     struct NoopAccess;
+    struct NotRuleAccess;
 
     impl super::LightVoxelAccess for NoopAccess {
         fn get_raw_voxel(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
@@ -674,6 +709,39 @@ mod tests {
 
         fn contains(&self, _vx: i32, _vy: i32, _vz: i32) -> bool {
             false
+        }
+    }
+
+    impl super::LightVoxelAccess for NotRuleAccess {
+        fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+            if vx == 2 && vy == 0 && vz == 0 {
+                return 2;
+            }
+            0
+        }
+
+        fn get_voxel_rotation(&self, _vx: i32, _vy: i32, _vz: i32) -> voxelize_core::BlockRotation {
+            voxelize_core::BlockRotation::default()
+        }
+
+        fn get_voxel_stage(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+            0
+        }
+
+        fn get_raw_light(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+            0
+        }
+
+        fn set_raw_light(&mut self, _vx: i32, _vy: i32, _vz: i32, _level: u32) -> bool {
+            false
+        }
+
+        fn get_max_height(&self, _vx: i32, _vz: i32) -> u32 {
+            0
+        }
+
+        fn contains(&self, _vx: i32, _vy: i32, _vz: i32) -> bool {
+            true
         }
     }
 }
