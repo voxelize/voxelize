@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   countRecordEntries,
+  createPrefixedTsCoreExampleSummary,
   createPrefixedWasmPackCheckSummary,
   createCliDiagnostics,
   createTimedReportBuilder,
@@ -279,6 +280,25 @@ const resolveClientWasmPackCheckSummaryFromChecks = (checks) => {
 
   return createPrefixedWasmPackCheckSummary(clientCheck.report, "client");
 };
+const resolveTsCoreExampleSummaryFromChecks = (checks) => {
+  const tsCoreCheck = checks.find((check) => {
+    return check.name === "tsCore";
+  });
+
+  if (
+    tsCoreCheck === undefined ||
+    tsCoreCheck.report === null ||
+    typeof tsCoreCheck.report !== "object"
+  ) {
+    return createPrefixedTsCoreExampleSummary(null, "tsCore");
+  }
+
+  return createPrefixedTsCoreExampleSummary(tsCoreCheck.report, "tsCore");
+};
+const emptyTsCoreExampleSummary = createPrefixedTsCoreExampleSummary(
+  null,
+  "tsCore"
+);
 const emptyClientWasmPackCheckSummary = createPrefixedWasmPackCheckSummary(
   null,
   "client"
@@ -917,6 +937,7 @@ if (
     checkArgsMapCount: 0,
     checkArgCountMap: {},
     checkArgCountMapCount: 0,
+    ...emptyTsCoreExampleSummary,
     ...emptyClientWasmPackCheckSummary,
     outputPath: outputPathError === null ? resolvedOutputPath : null,
     validationErrorCode,
@@ -1154,6 +1175,7 @@ if (isListChecks) {
     checkArgsMapCount: 0,
     checkArgCountMap: {},
     checkArgCountMapCount: 0,
+    ...emptyTsCoreExampleSummary,
     ...emptyClientWasmPackCheckSummary,
     outputPath: resolvedOutputPath,
     validationErrorCode: null,
@@ -1292,6 +1314,7 @@ const checkArgCountMap = Object.fromEntries(
   })
 );
 const checkArgCountMapCount = countRecordEntries(checkArgCountMap);
+const tsCoreExampleSummary = resolveTsCoreExampleSummaryFromChecks(checks);
 const clientWasmPackCheckSummary =
   resolveClientWasmPackCheckSummaryFromChecks(checks);
 const invalidCheckCount = 0;
@@ -1415,6 +1438,7 @@ const report = buildTimedReport({
   checkArgsMapCount,
   checkArgCountMap,
   checkArgCountMapCount,
+  ...tsCoreExampleSummary,
   ...clientWasmPackCheckSummary,
   outputPath: resolvedOutputPath,
   validationErrorCode: null,

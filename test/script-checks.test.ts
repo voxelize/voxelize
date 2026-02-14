@@ -1192,6 +1192,14 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
   clientWasmPackCheckArgCount: number | null;
   clientWasmPackCheckExitCode: number | null;
   clientWasmPackCheckOutputLine: string | null;
+  tsCoreExampleCommand: string | null;
+  tsCoreExampleArgs: string[] | null;
+  tsCoreExampleArgCount: number | null;
+  tsCoreExampleAttempted: boolean | null;
+  tsCoreExampleStatus: "ok" | "failed" | "skipped" | null;
+  tsCoreExampleExitCode: number | null;
+  tsCoreExampleDurationMs: number | null;
+  tsCoreExampleOutputLine: string | null;
   firstFailedStep: string | null;
   startedAt: string;
   endedAt: string;
@@ -1652,6 +1660,48 @@ const expectOnboardingClientWasmPackCheckSummaryMetadata = (
     expect(report.clientWasmPackCheckArgCount).toBe(
       report.clientWasmPackCheckArgs.length
     );
+  }
+};
+const expectOnboardingTsCoreExampleSummaryMetadata = (
+  report: OnboardingJsonReport
+) => {
+  const tsCoreStep = report.steps.find((step) => {
+    return step.name === "TypeScript core checks";
+  });
+
+  if (
+    tsCoreStep === undefined ||
+    tsCoreStep.report === null ||
+    typeof tsCoreStep.report !== "object"
+  ) {
+    expect(report.tsCoreExampleCommand).toBeNull();
+    expect(report.tsCoreExampleArgs).toBeNull();
+    expect(report.tsCoreExampleArgCount).toBeNull();
+    expect(report.tsCoreExampleAttempted).toBeNull();
+    expect(report.tsCoreExampleStatus).toBeNull();
+    expect(report.tsCoreExampleExitCode).toBeNull();
+    expect(report.tsCoreExampleDurationMs).toBeNull();
+    expect(report.tsCoreExampleOutputLine).toBeNull();
+    return;
+  }
+
+  const tsCoreReport = tsCoreStep.report as TsCoreJsonReport;
+  expect(report.tsCoreExampleCommand).toBe(tsCoreReport.exampleCommand);
+  expect(report.tsCoreExampleArgs).toEqual(tsCoreReport.exampleArgs);
+  expect(report.tsCoreExampleArgCount).toBe(tsCoreReport.exampleArgCount);
+  expect(report.tsCoreExampleAttempted).toBe(tsCoreReport.exampleAttempted);
+  expect(report.tsCoreExampleStatus).toBe(tsCoreReport.exampleStatus);
+  expect(report.tsCoreExampleExitCode).toBe(tsCoreReport.exampleExitCode);
+  expect(report.tsCoreExampleDurationMs).toBe(tsCoreReport.exampleDurationMs);
+  expect(report.tsCoreExampleOutputLine).toBe(tsCoreReport.exampleOutputLine);
+  if (report.tsCoreExampleArgs !== null && report.tsCoreExampleArgCount !== null) {
+    expect(report.tsCoreExampleArgCount).toBe(report.tsCoreExampleArgs.length);
+  }
+  if (
+    report.tsCoreExampleAttempted !== null &&
+    report.tsCoreExampleAttempted === false
+  ) {
+    expect(report.tsCoreExampleStatus).toBe("skipped");
   }
 };
 const expectStepSummaryMetadata = (
@@ -8130,6 +8180,7 @@ describe("root preflight scripts", () => {
     } else {
       expect(report.firstFailedStep).toBeNull();
     }
+    expectOnboardingTsCoreExampleSummaryMetadata(report);
     expectOnboardingClientWasmPackCheckSummaryMetadata(report);
     expect(result.status).toBe(report.passed ? 0 : 1);
     expect(result.output).not.toContain("Running onboarding step:");
@@ -8277,6 +8328,7 @@ describe("root preflight scripts", () => {
     expect(report.passedStepCount).toBe(0);
     expect(report.failedStepCount).toBe(0);
     expect(report.skippedStepCount).toBe(0);
+    expectOnboardingTsCoreExampleSummaryMetadata(report);
     expectOnboardingClientWasmPackCheckSummaryMetadata(report);
     expect(report.firstFailedStep).toBeNull();
     expect(report.message).toBe("Missing value for --output option.");
@@ -8327,6 +8379,7 @@ describe("root preflight scripts", () => {
     expect(report.passedStepCount).toBe(0);
     expect(report.failedStepCount).toBe(0);
     expect(report.skippedStepCount).toBe(0);
+    expectOnboardingTsCoreExampleSummaryMetadata(report);
     expectOnboardingClientWasmPackCheckSummaryMetadata(report);
     expect(report.firstFailedStep).toBeNull();
     expect(report.message).toBe("Missing value for --output option.");
@@ -8883,6 +8936,7 @@ describe("root preflight scripts", () => {
     expect(report.message).toBe(
       "Unsupported option(s): --mystery. Supported options: --compact, --json, --no-build, --output, --quiet, --verify."
     );
+    expectOnboardingTsCoreExampleSummaryMetadata(report);
     expectOnboardingClientWasmPackCheckSummaryMetadata(report);
     expectActiveCliOptionMetadata(
       report,
@@ -9764,6 +9818,7 @@ describe("root preflight scripts", () => {
       expect(clientStep.skipped).toBe(false);
       expectOnboardingClientNestedWasmMetadata(clientStep);
     }
+    expectOnboardingTsCoreExampleSummaryMetadata(report);
     expectOnboardingClientWasmPackCheckSummaryMetadata(report);
     expectActiveCliOptionMetadata(
       report,
@@ -9922,6 +9977,7 @@ describe("root preflight scripts", () => {
       expect(clientStep.skipped).toBe(false);
       expectOnboardingClientNestedWasmMetadata(clientStep);
     }
+    expectOnboardingTsCoreExampleSummaryMetadata(report);
     expectOnboardingClientWasmPackCheckSummaryMetadata(report);
     expectActiveCliOptionMetadata(
       report,

@@ -1007,6 +1007,14 @@ type PreflightReport = {
     skipped: number;
   };
   checkStatusCountMapCount: number;
+  tsCoreExampleCommand: string | null;
+  tsCoreExampleArgs: string[] | null;
+  tsCoreExampleArgCount: number | null;
+  tsCoreExampleAttempted: boolean | null;
+  tsCoreExampleStatus: "ok" | "failed" | "skipped" | null;
+  tsCoreExampleExitCode: number | null;
+  tsCoreExampleDurationMs: number | null;
+  tsCoreExampleOutputLine: string | null;
   clientWasmPackCheckStatus: "ok" | "missing" | "unavailable" | "skipped" | null;
   clientWasmPackCheckCommand: string | null;
   clientWasmPackCheckArgs: string[] | null;
@@ -2097,6 +2105,7 @@ const expectCheckResultScriptMetadata = (report: PreflightReport) => {
     expect(entry.exitCode).toBe(failedCheck.exitCode);
     expect(entry.message.length).toBeGreaterThan(0);
   }
+  expectPreflightTsCoreExampleSummaryMetadata(report);
   expectPreflightClientWasmSummaryMetadata(report);
 };
 const expectAvailableCheckMetadataCoreFields = (report: PreflightReport) => {
@@ -2178,6 +2187,45 @@ const expectAvailableCheckInventoryMetadata = (report: PreflightReport) => {
   expect(report.availableCheckMetadataCount).toBe(
     Object.keys(report.availableCheckMetadata).length
   );
+};
+const expectPreflightTsCoreExampleSummaryMetadata = (report: PreflightReport) => {
+  const tsCoreCheck = report.checks.find((check) => {
+    return check.name === "tsCore";
+  });
+  if (
+    tsCoreCheck === undefined ||
+    tsCoreCheck.report === null ||
+    typeof tsCoreCheck.report !== "object"
+  ) {
+    expect(report.tsCoreExampleCommand).toBeNull();
+    expect(report.tsCoreExampleArgs).toBeNull();
+    expect(report.tsCoreExampleArgCount).toBeNull();
+    expect(report.tsCoreExampleAttempted).toBeNull();
+    expect(report.tsCoreExampleStatus).toBeNull();
+    expect(report.tsCoreExampleExitCode).toBeNull();
+    expect(report.tsCoreExampleDurationMs).toBeNull();
+    expect(report.tsCoreExampleOutputLine).toBeNull();
+    return;
+  }
+
+  const tsCoreCheckReport = tsCoreCheck.report as TsCoreNestedReport;
+  expect(report.tsCoreExampleCommand).toBe(tsCoreCheckReport.exampleCommand);
+  expect(report.tsCoreExampleArgs).toEqual(tsCoreCheckReport.exampleArgs);
+  expect(report.tsCoreExampleArgCount).toBe(tsCoreCheckReport.exampleArgCount);
+  expect(report.tsCoreExampleAttempted).toBe(tsCoreCheckReport.exampleAttempted);
+  expect(report.tsCoreExampleStatus).toBe(tsCoreCheckReport.exampleStatus);
+  expect(report.tsCoreExampleExitCode).toBe(tsCoreCheckReport.exampleExitCode);
+  expect(report.tsCoreExampleDurationMs).toBe(tsCoreCheckReport.exampleDurationMs);
+  expect(report.tsCoreExampleOutputLine).toBe(tsCoreCheckReport.exampleOutputLine);
+  if (report.tsCoreExampleArgs !== null && report.tsCoreExampleArgCount !== null) {
+    expect(report.tsCoreExampleArgCount).toBe(report.tsCoreExampleArgs.length);
+  }
+  if (
+    report.tsCoreExampleAttempted !== null &&
+    report.tsCoreExampleAttempted === false
+  ) {
+    expect(report.tsCoreExampleStatus).toBe("skipped");
+  }
 };
 const expectPreflightClientWasmSummaryMetadata = (report: PreflightReport) => {
   const clientCheck = report.checks.find((check) => {
@@ -2289,6 +2337,7 @@ const expectSelectorAndAliasMetadata = (report: PreflightReport) => {
       report.requestedCheckResolutionCounts.specialSelector +
       report.requestedCheckResolutionCounts.invalid
   ).toBe(report.requestedCheckResolutionCount);
+  expectPreflightTsCoreExampleSummaryMetadata(report);
   expectPreflightClientWasmSummaryMetadata(report);
 };
 const expectDevEnvironmentNestedReport = (checkReport: object | null) => {

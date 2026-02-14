@@ -375,6 +375,11 @@ For release automation and CI routing, aggregate preflight JSON reports include:
   `checkArgsMap`, `checkArgsMapCount`,
   `checkArgCountMap`, `checkArgCountMapCount`,
   `failureSummaries`, `failureSummaryCount`
+- nested ts-core example summary fields:
+  `tsCoreExampleCommand`, `tsCoreExampleArgs`,
+  `tsCoreExampleArgCount`, `tsCoreExampleAttempted`,
+  `tsCoreExampleStatus`, `tsCoreExampleExitCode`,
+  `tsCoreExampleDurationMs`, `tsCoreExampleOutputLine`
 - nested client wasm summary fields:
   `clientWasmPackCheckStatus`, `clientWasmPackCheckCommand`,
   `clientWasmPackCheckArgs`, `clientWasmPackCheckArgCount`,
@@ -456,8 +461,12 @@ Client JSON reports additionally expose top-level wasm preflight summary
 fields `wasmPackCheckStatus`, `wasmPackCheckCommand`,
 `wasmPackCheckArgs`, `wasmPackCheckArgCount`, `wasmPackCheckExitCode`,
 and `wasmPackCheckOutputLine`.
-Onboarding JSON reports additionally expose client-step wasm preflight
-summary fields `clientWasmPackCheckStatus`,
+Onboarding JSON reports additionally expose ts-core example summary
+fields `tsCoreExampleCommand`, `tsCoreExampleArgs`,
+`tsCoreExampleArgCount`, `tsCoreExampleAttempted`,
+`tsCoreExampleStatus`, `tsCoreExampleExitCode`,
+`tsCoreExampleDurationMs`, `tsCoreExampleOutputLine`, plus
+client-step wasm preflight summary fields `clientWasmPackCheckStatus`,
 `clientWasmPackCheckCommand`, `clientWasmPackCheckArgs`,
 `clientWasmPackCheckArgCount`, `clientWasmPackCheckExitCode`, and
 `clientWasmPackCheckOutputLine`.

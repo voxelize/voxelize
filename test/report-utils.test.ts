@@ -9,12 +9,14 @@ import {
   countRecordEntries,
   createCliOptionCatalog,
   createCliDiagnostics,
+  createPrefixedTsCoreExampleSummary,
   createPrefixedWasmPackCheckSummary,
   createTimedReportBuilder,
   createCliOptionValidation,
   deriveWasmPackCheckStatus,
   deriveCliValidationFailureMessage,
   deriveFailureMessageFromReport,
+  extractTsCoreExampleSummaryFromReport,
   extractWasmPackCheckSummaryFromReport,
   extractWasmPackStatusFromReport,
   hasCliOption,
@@ -3187,6 +3189,92 @@ describe("report-utils", () => {
       wasmPackCheckArgCount: null,
       wasmPackCheckExitCode: null,
       wasmPackCheckOutputLine: null,
+    });
+  });
+
+  it("extracts ts-core example summary fields from reports", () => {
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleCommand: "node",
+        exampleArgs: ["packages/ts-core/examples/end-to-end.mjs"],
+        exampleArgCount: 1,
+        exampleAttempted: true,
+        exampleStatus: "ok",
+        exampleExitCode: 0,
+        exampleDurationMs: 125,
+        exampleOutputLine: "{\"ruleMatched\":true}",
+      })
+    ).toEqual({
+      exampleCommand: "node",
+      exampleArgs: ["packages/ts-core/examples/end-to-end.mjs"],
+      exampleArgCount: 1,
+      exampleAttempted: true,
+      exampleStatus: "ok",
+      exampleExitCode: 0,
+      exampleDurationMs: 125,
+      exampleOutputLine: "{\"ruleMatched\":true}",
+    });
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleArgs: ["packages/ts-core/examples/end-to-end.mjs"],
+        exampleAttempted: true,
+        exampleExitCode: 1,
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: ["packages/ts-core/examples/end-to-end.mjs"],
+      exampleArgCount: 1,
+      exampleAttempted: true,
+      exampleStatus: "failed",
+      exampleExitCode: 1,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    expect(extractTsCoreExampleSummaryFromReport(null)).toEqual({
+      exampleCommand: null,
+      exampleArgs: null,
+      exampleArgCount: null,
+      exampleAttempted: null,
+      exampleStatus: null,
+      exampleExitCode: null,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+  });
+
+  it("creates prefixed ts-core example summary objects", () => {
+    expect(
+      createPrefixedTsCoreExampleSummary(
+        {
+          exampleCommand: "node",
+          exampleArgs: ["packages/ts-core/examples/end-to-end.mjs"],
+          exampleAttempted: true,
+          exampleStatus: "ok",
+          exampleExitCode: 0,
+          exampleDurationMs: 125,
+          exampleOutputLine: "{\"ruleMatched\":true}",
+        },
+        "tsCore"
+      )
+    ).toEqual({
+      tsCoreExampleCommand: "node",
+      tsCoreExampleArgs: ["packages/ts-core/examples/end-to-end.mjs"],
+      tsCoreExampleArgCount: 1,
+      tsCoreExampleAttempted: true,
+      tsCoreExampleStatus: "ok",
+      tsCoreExampleExitCode: 0,
+      tsCoreExampleDurationMs: 125,
+      tsCoreExampleOutputLine: "{\"ruleMatched\":true}",
+    });
+    expect(createPrefixedTsCoreExampleSummary(null)).toEqual({
+      exampleCommand: null,
+      exampleArgs: null,
+      exampleArgCount: null,
+      exampleAttempted: null,
+      exampleStatus: null,
+      exampleExitCode: null,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
     });
   });
 

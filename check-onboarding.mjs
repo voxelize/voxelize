@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   countRecordEntries,
+  createPrefixedTsCoreExampleSummary,
   createPrefixedWasmPackCheckSummary,
   createCliOptionCatalog,
   createCliDiagnostics,
@@ -332,9 +333,28 @@ const resolveClientWasmPackCheckMetadataFromStepResults = (results) => {
 
   return createPrefixedWasmPackCheckSummary(clientStepResult.report, "client");
 };
+const resolveTsCoreExampleSummaryFromStepResults = (results) => {
+  const tsCoreStepResult = results.find((stepResult) => {
+    return stepResult.name === "TypeScript core checks";
+  });
+
+  if (
+    tsCoreStepResult === undefined ||
+    tsCoreStepResult.report === null ||
+    typeof tsCoreStepResult.report !== "object"
+  ) {
+    return createPrefixedTsCoreExampleSummary(null, "tsCore");
+  }
+
+  return createPrefixedTsCoreExampleSummary(tsCoreStepResult.report, "tsCore");
+};
 const emptyClientWasmPackCheckSummary = createPrefixedWasmPackCheckSummary(
   null,
   "client"
+);
+const emptyTsCoreExampleSummary = createPrefixedTsCoreExampleSummary(
+  null,
+  "tsCore"
 );
 const stepResults = [];
 let exitCode = 0;
@@ -447,6 +467,7 @@ if (isJson && validationFailureMessage !== null) {
     failedStepMetadataCount: 0,
     skippedStepMetadata: {},
     skippedStepMetadataCount: 0,
+    ...emptyTsCoreExampleSummary,
     ...emptyClientWasmPackCheckSummary,
     ...validationStepSummary,
     message: validationFailureMessage,
@@ -626,6 +647,9 @@ if (isJson) {
   const stepCheckArgCountMap = mapStepResultsToCheckArgCountMap(stepResults);
   const stepStatusCountMap = createStepStatusCountMap(stepSummary);
   const failureSummaries = summarizeStepFailureResults(stepResults);
+  const tsCoreExampleSummary = resolveTsCoreExampleSummaryFromStepResults(
+    stepResults
+  );
   const clientWasmPackCheckSummary =
     resolveClientWasmPackCheckMetadataFromStepResults(stepResults);
   const report = buildTimedReport({
@@ -743,6 +767,7 @@ if (isJson) {
     failedStepMetadataCount: countRecordEntries(failedStepMetadata),
     skippedStepMetadata,
     skippedStepMetadataCount: countRecordEntries(skippedStepMetadata),
+    ...tsCoreExampleSummary,
     ...clientWasmPackCheckSummary,
     ...stepSummary,
   });

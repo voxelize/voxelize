@@ -354,6 +354,87 @@ export const createPrefixedWasmPackCheckSummary = (report, prefix = "") => {
   };
 };
 
+export const extractTsCoreExampleSummaryFromReport = (report) => {
+  if (
+    report === null ||
+    typeof report !== "object" ||
+    Array.isArray(report)
+  ) {
+    return {
+      exampleCommand: null,
+      exampleArgs: null,
+      exampleArgCount: null,
+      exampleAttempted: null,
+      exampleStatus: null,
+      exampleExitCode: null,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    };
+  }
+
+  const exampleCommand =
+    typeof report.exampleCommand === "string" ? report.exampleCommand : null;
+  const exampleArgs = Array.isArray(report.exampleArgs) ? [...report.exampleArgs] : null;
+  const exampleArgCount =
+    typeof report.exampleArgCount === "number"
+      ? report.exampleArgCount
+      : exampleArgs?.length ?? null;
+  const exampleAttempted =
+    typeof report.exampleAttempted === "boolean" ? report.exampleAttempted : null;
+  const exampleExitCode =
+    typeof report.exampleExitCode === "number" ? report.exampleExitCode : null;
+  const exampleDurationMs =
+    typeof report.exampleDurationMs === "number" ? report.exampleDurationMs : null;
+  const exampleOutputLine =
+    typeof report.exampleOutputLine === "string" ? report.exampleOutputLine : null;
+  const exampleStatus =
+    report.exampleStatus === "ok" ||
+    report.exampleStatus === "failed" ||
+    report.exampleStatus === "skipped"
+      ? report.exampleStatus
+      : exampleAttempted === null
+        ? null
+        : exampleAttempted
+          ? exampleExitCode === 0
+            ? "ok"
+            : "failed"
+          : "skipped";
+
+  return {
+    exampleCommand,
+    exampleArgs,
+    exampleArgCount,
+    exampleAttempted,
+    exampleStatus,
+    exampleExitCode,
+    exampleDurationMs,
+    exampleOutputLine,
+  };
+};
+
+export const createPrefixedTsCoreExampleSummary = (report, prefix = "") => {
+  const keyPrefix = typeof prefix === "string" ? prefix : "";
+  const createKey = (suffix) => {
+    if (keyPrefix.length === 0) {
+      return `example${suffix}`;
+    }
+
+    return `${keyPrefix}Example${suffix}`;
+  };
+  const summary = extractTsCoreExampleSummaryFromReport(report);
+
+  return {
+    [createKey("Command")]: summary.exampleCommand,
+    [createKey("Args")]: summary.exampleArgs,
+    [createKey("ArgCount")]: summary.exampleArgCount,
+    [createKey("Attempted")]: summary.exampleAttempted,
+    [createKey("Status")]: summary.exampleStatus,
+    [createKey("ExitCode")]: summary.exampleExitCode,
+    [createKey("DurationMs")]: summary.exampleDurationMs,
+    [createKey("OutputLine")]: summary.exampleOutputLine,
+  };
+};
+
 export const extractWasmPackStatusFromReport = (report) => {
   if (
     report === null ||
