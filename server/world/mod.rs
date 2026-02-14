@@ -477,7 +477,7 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
         .with(PathFindingSystem, "path-finding", &["entity-observe"])
         .with(TargetMetadataSystem, "target-meta", &[])
         .with(PathMetadataSystem, "path-meta", &[])
-        .with(EntityTreeSystem, "entity-tree", &[])
+        .with(EntityTreeSystem::default(), "entity-tree", &[])
         .with(WalkTowardsSystem, "walk-towards", &["path-finding"])
 }
 

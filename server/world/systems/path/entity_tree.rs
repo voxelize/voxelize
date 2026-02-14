@@ -4,7 +4,10 @@ use specs::{Entities, LendJoin, ReadExpect, ReadStorage, System, Write};
 
 const POSITION_THRESHOLD_SQ: f32 = 0.01;
 
-pub struct EntityTreeSystem;
+#[derive(Default)]
+pub struct EntityTreeSystem {
+    current_ids_buffer: HashSet<u32>,
+}
 
 #[inline]
 fn should_update_position(dx: f32, dy: f32, dz: f32) -> bool {
@@ -51,7 +54,12 @@ impl<'a> System<'a> for EntityTreeSystem {
         let (entities, mut tree, entity_flags, client_flags, positions, timing) = data;
         let _t = timing.timer("entity-tree");
 
-        let mut current_ids: HashSet<u32> = HashSet::with_capacity(tree.len());
+        self.current_ids_buffer.clear();
+        if self.current_ids_buffer.capacity() < tree.len() {
+            self.current_ids_buffer
+                .reserve(tree.len() - self.current_ids_buffer.capacity());
+        }
+        let current_ids = &mut self.current_ids_buffer;
 
         for (ent, pos, entity_flag, client_flag) in (
             &entities,
