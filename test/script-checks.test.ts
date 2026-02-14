@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 
 const testDir = fileURLToPath(new URL(".", import.meta.url));
 const rootDir = path.resolve(testDir, "..");
+const rootWasmPackCheckScript = path.resolve(rootDir, "check-wasm-pack.mjs");
 
 type ScriptResult = {
   status: number;
@@ -361,6 +362,7 @@ type WasmMesherJsonReport = OptionTerminatorMetadata &
   wasmPackCheckOutputLine: string | null;
   wasmPackCheckReport: WasmPackJsonReport | null;
   buildOutput: string | null;
+  outputPath: string | null;
   unknownOptions: string[];
   unknownOptionCount: number;
   supportedCliOptions: string[];
@@ -1478,6 +1480,37 @@ const expectWasmPackCheckMetadata = (report: WasmPackJsonReport) => {
   expect(report.checkMetadataCount).toBe(
     report.passedCheckMetadataCount + report.failedCheckMetadataCount
   );
+};
+const expectWasmMesherNestedReportMetadata = (report: WasmMesherJsonReport) => {
+  expect(report.schemaVersion).toBe(1);
+  expect(report.artifactPath).toBe("crates/wasm-mesher/pkg/voxelize_wasm_mesher.js");
+  expect(report.outputPath).toBeNull();
+  expect(report.wasmPackCheckCommand).toBe(process.execPath);
+  expect(report.wasmPackCheckArgs).toEqual([
+    rootWasmPackCheckScript,
+    "--json",
+    "--compact",
+  ]);
+  expect(report.wasmPackCheckArgCount).toBe(report.wasmPackCheckArgs.length);
+  expect(report.wasmPackCheckArgCount).toBe(3);
+
+  if (report.wasmPackCheckExitCode === null) {
+    expect(report.wasmPackAvailable).toBeNull();
+    expect(report.wasmPackCheckOutputLine).toBeNull();
+    expect(report.wasmPackCheckReport).toBeNull();
+    return;
+  }
+
+  expect(report.wasmPackAvailable === true || report.wasmPackAvailable === false).toBe(
+    true
+  );
+  if (report.wasmPackCheckOutputLine !== null) {
+    expect(report.wasmPackCheckOutputLine.length).toBeGreaterThan(0);
+  }
+  if (report.wasmPackCheckReport !== null) {
+    expect(report.wasmPackCheckExitCode).toBe(report.wasmPackCheckReport.exitCode);
+    expectWasmPackCheckMetadata(report.wasmPackCheckReport);
+  }
 };
 const expectStepSummaryMetadata = (
   report: {
@@ -6120,10 +6153,7 @@ describe("root preflight scripts", () => {
     );
     expect(report.steps[0].report).not.toBeNull();
     if (report.steps[0].report !== null) {
-      expect(report.steps[0].report.schemaVersion).toBe(1);
-      expect(report.steps[0].report.artifactPath).toBe(
-        "crates/wasm-mesher/pkg/voxelize_wasm_mesher.js"
-      );
+      expectWasmMesherNestedReportMetadata(report.steps[0].report);
       expect(typeof report.steps[0].report.passed).toBe("boolean");
       expect(report.steps[0].report.buildSkipped).toBe(false);
       expectTimingMetadata(report.steps[0].report);
@@ -7638,6 +7668,7 @@ describe("root preflight scripts", () => {
     );
     expect(typecheckStep).toBeDefined();
     if (report.steps[0].report !== null) {
+      expectWasmMesherNestedReportMetadata(report.steps[0].report);
       expect(report.steps[0].report.buildSkipped).toBe(true);
       expect(report.steps[0].report.attemptedBuild).toBe(false);
       expectTimingMetadata(report.steps[0].report);
@@ -7681,6 +7712,7 @@ describe("root preflight scripts", () => {
     expect(report.steps.length).toBeGreaterThan(0);
     expect(report.steps[0].name).toBe("WASM artifact preflight");
     if (report.steps[0].report !== null) {
+      expectWasmMesherNestedReportMetadata(report.steps[0].report);
       expect(report.steps[0].report.buildSkipped).toBe(true);
       expect(report.steps[0].report.attemptedBuild).toBe(false);
       expectTimingMetadata(report.steps[0].report);
