@@ -5410,10 +5410,13 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
     }
     mesh.renderOrder = renderOrder;
     if (!depthWrite) {
-      const sortData = prepareTransparentMesh(mesh);
-      if (sortData) {
-        userData.transparentSortData = sortData;
-        mesh.onBeforeRender = sortTransparentMeshOnBeforeRender;
+      const geometryIndex = mesh.geometry.index;
+      if (geometryIndex && geometryIndex.count > 6) {
+        const sortData = prepareTransparentMesh(mesh);
+        if (sortData) {
+          userData.transparentSortData = sortData;
+          mesh.onBeforeRender = sortTransparentMeshOnBeforeRender;
+        }
       }
     }
     this.csmRenderer?.addSkipShadowObject(mesh);
