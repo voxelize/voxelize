@@ -920,12 +920,19 @@ const applyRelevantDeltas = (
     if (!Array.isArray(deltas)) {
       continue;
     }
+    const deltasLength = deltas.length;
+    if (deltasLength === 0) {
+      continue;
+    }
+    const startIndex = normalizeStartIndex(deltaBatch.startIndex);
+    if (startIndex >= deltasLength) {
+      continue;
+    }
     const cx = deltaBatch.cx;
     const cz = deltaBatch.cz;
     if (!isI32(cx) || !isI32(cz)) {
       continue;
     }
-    const startIndex = normalizeStartIndex(deltaBatch.startIndex);
     const localX = cx - gridOffsetX;
     const localZ = cz - gridOffsetZ;
 
@@ -935,11 +942,6 @@ const applyRelevantDeltas = (
       localZ < 0 ||
       localZ >= gridDepth
     ) {
-      continue;
-    }
-
-    const deltasLength = deltas.length;
-    if (startIndex >= deltasLength) {
       continue;
     }
 
