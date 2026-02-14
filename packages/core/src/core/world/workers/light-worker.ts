@@ -484,12 +484,7 @@ const hasPotentialRelevantDeltaBatches = (
   expectedChunkByteLength: number
 ) => {
   const cellCount = gridWidth * gridDepth;
-  const chunkValidity =
-    deltaBatches.length > 1 &&
-    Number.isSafeInteger(cellCount) &&
-    cellCount <= MAX_TYPED_ARRAY_LENGTH
-      ? new Int8Array(cellCount)
-      : null;
+  const chunkValidity = deltaBatches.length > 1 ? new Int8Array(cellCount) : null;
   for (let batchIndex = 0; batchIndex < deltaBatches.length; batchIndex++) {
     const deltaBatch = deltaBatches[batchIndex];
     if (!deltaBatch || typeof deltaBatch !== "object") {
