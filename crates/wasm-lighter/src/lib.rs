@@ -89,7 +89,7 @@ impl BatchSpace {
         let chunk_grid_depth_i32 = i32::try_from(chunk_grid_depth).unwrap_or(i32::MAX);
         let chunk_size_usize = chunk_size as usize;
         let chunk_height = max_height as usize;
-        let max_height_i32 = i32::try_from(max_height).unwrap_or(i32::MAX);
+        let max_height_i32 = max_height as i32;
         let chunk_column_stride = chunk_size_usize * chunk_height;
         let chunk_shift = if chunk_size > 0 && (chunk_size as u32).is_power_of_two() {
             Some(chunk_size.trailing_zeros())
