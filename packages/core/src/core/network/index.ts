@@ -692,6 +692,10 @@ export class Network {
       this.priorityWorker.removeEventListener("message", handler);
 
       const messages = e.data as MessageProtocol[];
+      if (!messages || messages.length === 0) {
+        this.packetQueue.push(buffer);
+        return;
+      }
       const decoded = messages[0];
 
       if (decoded.type === "INIT" && this.waitingForInit) {
