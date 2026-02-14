@@ -143,3 +143,6 @@ When failures occur, `failureSummaries[]` entries include `kind`:
 - `kind: "example"` for end-to-end example execution/output failures
   (`exitCode`, `ruleMatched`, `payloadValid`, `payloadIssues`,
   `payloadIssueCount`, and `outputLine`)
+
+If an example reports both `ruleMatched=false` and payload validation issues,
+the failure message includes both conditions for clearer diagnostics.

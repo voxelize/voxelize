@@ -229,6 +229,8 @@ expected payload shape (`voxel.id`, `voxel.stage`, `voxel.rotation.value`,
 axis in `0..5`) and ordered AABB bounds (`min <= max` on each axis).
 When `examplePayloadValid` is `false`, `examplePayloadIssues` and
 `examplePayloadIssueCount` identify the failing payload paths.
+If `ruleMatched=false` and payload issues are both present, ts-core failure
+messages include both conditions for faster debugging.
 
 If your project also depends on runtime utility packages (`@voxelize/aabb`,
 `@voxelize/raycast`, and `@voxelize/physics-engine`), you can validate all of
