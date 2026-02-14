@@ -379,8 +379,11 @@ impl Chunks {
 
     /// Get a list of chunks that light could traverse within.
     pub fn light_traversed_chunks(&self, coords: &Vec2<i32>) -> Vec<Vec2<i32>> {
-        let chunk_size = self.config.chunk_size.max(1) as f32;
-        let extended = (self.config.max_light_level as f32 / chunk_size).ceil() as i32;
+        let chunk_size = self.config.chunk_size.max(1);
+        let extended = ((self.config.max_light_level as usize)
+            .saturating_add(chunk_size.saturating_sub(1))
+            / chunk_size)
+            .min(i32::MAX as usize) as i32;
         let span = extended.saturating_mul(2).saturating_add(1);
         let capacity = (span as usize).saturating_mul(span as usize);
         let mut list = Vec::with_capacity(capacity);

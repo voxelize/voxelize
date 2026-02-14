@@ -250,6 +250,26 @@ fn test_chunks_handles_zero_chunk_size_without_underflow() {
 }
 
 #[test]
+fn test_light_traversed_chunks_uses_integer_ceil_span() {
+    let config = WorldConfig {
+        chunk_size: 6,
+        max_height: 16,
+        max_light_level: 15,
+        min_chunk: [-3, -3],
+        max_chunk: [3, 3],
+        saving: false,
+        ..Default::default()
+    };
+    let chunks = Chunks::new(&config);
+
+    let traversed = chunks.light_traversed_chunks(&Vec2(0, 0));
+
+    assert_eq!(traversed.len(), 49);
+    assert!(traversed.contains(&Vec2(3, 3)));
+    assert!(!traversed.contains(&Vec2(4, 0)));
+}
+
+#[test]
 fn test_chunks_neighbor_and_dirty_updates_handle_edge_chunk_coords_without_overflow() {
     let edge = i32::MAX;
     let config = WorldConfig {
