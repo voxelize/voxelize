@@ -100,7 +100,7 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
    * @param handler What to do when this event is received?
    */
   on = (name: string, handler: EventHandler) => {
-    if (this.has(name)) {
+    if (this.get(name) !== undefined) {
       console.warn(
         `Registering handler for ${name} canceled: handler already exists.`
       );
