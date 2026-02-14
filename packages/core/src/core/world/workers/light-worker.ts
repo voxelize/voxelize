@@ -136,6 +136,7 @@ const reusableModifiedChunks: WorkerModifiedChunk[] = [];
 const reusableTransferBuffers: ArrayBuffer[] = [];
 const reusableSerializedChunks: SerializedWasmChunk[] = [];
 const reusableChunkGrid: (RawChunk | null)[] = [];
+let reusableChunkValidityDense = new Int8Array(0);
 const reusableChunkValiditySparse = new Map<number, boolean>();
 const emptyModifiedChunks: WorkerModifiedChunk[] = [];
 const emptyChunkGrid: (RawChunk | null)[] = [];
@@ -197,6 +198,14 @@ const mapVoxelToChunkCoordinate = (
   chunkShift: number
 ) =>
   chunkShift >= 0 ? voxel >> chunkShift : Math.floor(voxel / chunkSize);
+const getChunkValidityMemo = (cellCount: number) => {
+  if (reusableChunkValidityDense.length < cellCount) {
+    reusableChunkValidityDense = new Int8Array(cellCount);
+  } else if (cellCount > 0) {
+    reusableChunkValidityDense.fill(0, 0, cellCount);
+  }
+  return reusableChunkValidityDense;
+};
 const isValidVoxelId = (value: number) =>
   isInteger(value) && value >= 0 && value <= 0xffff;
 const isValidRotationValue = (value: number) =>
@@ -500,7 +509,7 @@ const hasPotentialRelevantDeltaBatches = (
   const cellCount = gridWidth * gridDepth;
   const chunkValidity =
     deltaBatches.length > 1 && cellCount <= MAX_CHUNK_VALIDITY_MEMO_LENGTH
-      ? new Int8Array(cellCount)
+      ? getChunkValidityMemo(cellCount)
       : null;
   const chunkValiditySparse =
     chunkValidity === null && deltaBatches.length > 1
