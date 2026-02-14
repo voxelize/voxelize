@@ -53,6 +53,14 @@ const normalizeMaxWorker = (maxWorker: number): number => {
   if (maxWorker === Number.POSITIVE_INFINITY) {
     return MAX_WORKER_POOL_SIZE;
   }
+  if (Number.isSafeInteger(maxWorker)) {
+    if (maxWorker <= 0) {
+      return defaultOptions.maxWorker;
+    }
+    return maxWorker > MAX_WORKER_POOL_SIZE
+      ? MAX_WORKER_POOL_SIZE
+      : maxWorker;
+  }
   if (!Number.isFinite(maxWorker)) {
     return defaultOptions.maxWorker;
   }
