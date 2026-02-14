@@ -436,6 +436,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
       serializedChunks
     );
     if (!hasAnyChunk) {
+      serializedChunks.length = 0;
       postEmptyBatchResult(jobId, 0);
       return;
     }
@@ -448,6 +449,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
       chunkGrid
     );
     if (!hasAnyChunk) {
+      chunkGrid.length = 0;
       postEmptyBatchResult(jobId, 0);
       return;
     }
