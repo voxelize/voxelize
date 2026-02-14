@@ -14,17 +14,6 @@ type CloudsWorkerMessage = {
   };
 };
 
-function set(
-  arr: Uint8Array,
-  x: number,
-  y: number,
-  z: number,
-  stride: [number, number, number],
-  value: number
-) {
-  arr[x * stride[0] + y * stride[1] + z * stride[2]] = value;
-}
-
 const instance = new Noise();
 
 function noise(
@@ -87,7 +76,7 @@ self.onmessage = function (e: MessageEvent<CloudsWorkerMessage>) {
           ) > threshold
             ? 1
             : 0;
-        set(data, lx, ly, lz, stride, value);
+        data[lx * stride[0] + ly * stride[1] + lz * stride[2]] = value;
       }
     }
   }
