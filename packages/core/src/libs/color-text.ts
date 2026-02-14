@@ -33,24 +33,6 @@ export class ColorText {
    * The symbol used to separate a text into a colored text object array.
    */
   public static SPLITTER = "∆";
-  private static splitterRegex: RegExp | null = null;
-  private static splitterRegexSymbol = "";
-
-  private static getSplitterRegex() {
-    const splitter = ColorText.SPLITTER;
-    if (
-      ColorText.splitterRegex &&
-      ColorText.splitterRegexSymbol === splitter
-    ) {
-      return ColorText.splitterRegex;
-    }
-
-    ColorText.splitterRegex = new RegExp(
-      `(\\${splitter}[^\\${splitter}]*\\${splitter})`
-    );
-    ColorText.splitterRegexSymbol = splitter;
-    return ColorText.splitterRegex;
-  }
 
   /**
    * Split a text into a colored text object array by {@link ColorText.SPLITTER}.
@@ -63,42 +45,71 @@ export class ColorText {
     text: string,
     defaultColor = "black"
   ): { color: string; text: string }[] {
-    const rawSplitted = text.split(ColorText.getSplitterRegex());
-    let firstNonEmptyIndex = -1;
-    for (let index = 0; index < rawSplitted.length; index++) {
-      if (rawSplitted[index]) {
-        firstNonEmptyIndex = index;
-        break;
-      }
-    }
-
-    if (firstNonEmptyIndex < 0) {
-      return [];
-    }
-
     const splitter = ColorText.SPLITTER;
+    const splitterLength = splitter.length;
     const result: { color: string; text: string }[] = [];
-    const firstSegment = rawSplitted[firstNonEmptyIndex];
     let currentColor = defaultColor;
-    let expectingColorToken = firstSegment.includes(splitter);
+    let expectingColorToken = false;
+    let hasNonEmptySegment = false;
+    let cursor = 0;
 
-    for (
-      let index = firstNonEmptyIndex;
-      index < rawSplitted.length;
-      index++
-    ) {
-      const segment = rawSplitted[index];
+    while (cursor <= text.length) {
+      const openIndex = text.indexOf(splitter, cursor);
+      let segment = "";
+
+      if (openIndex === -1) {
+        segment = text.substring(cursor);
+        cursor = text.length + 1;
+      } else {
+        const closeIndex = text.indexOf(splitter, openIndex + splitterLength);
+        if (closeIndex === -1) {
+          segment = text.substring(cursor);
+          cursor = text.length + 1;
+        } else {
+          segment = text.substring(cursor, openIndex);
+          cursor = closeIndex + splitterLength;
+          const token = text.substring(openIndex, cursor);
+          if (token) {
+            if (!hasNonEmptySegment) {
+              expectingColorToken = token.includes(splitter);
+              hasNonEmptySegment = true;
+            }
+            if (expectingColorToken) {
+              currentColor = token.substring(
+                splitterLength,
+                token.length - splitterLength
+              );
+              expectingColorToken = false;
+            } else {
+              result.push({ color: currentColor, text: token });
+              expectingColorToken = true;
+            }
+          }
+        }
+      }
+
       if (!segment) {
         continue;
       }
+      if (!hasNonEmptySegment) {
+        expectingColorToken = segment.includes(splitter);
+        hasNonEmptySegment = true;
+      }
 
       if (expectingColorToken) {
-        currentColor = segment.substring(1, segment.length - 1);
+        currentColor = segment.substring(
+          splitterLength,
+          segment.length - splitterLength
+        );
         expectingColorToken = false;
       } else {
         result.push({ color: currentColor, text: segment });
         expectingColorToken = true;
       }
+    }
+
+    if (!hasNonEmptySegment) {
+      return result;
     }
 
     if (!expectingColorToken) {
