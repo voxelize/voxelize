@@ -226,6 +226,18 @@ describe("AABB", () => {
     expect(union.maxZ).toBe(2);
   });
 
+  it("does not mutate source boxes when computing unionAll", () => {
+    const first = AABB.create(0, 0, 0, 1, 1, 1);
+    const second = AABB.create(0.5, 0.5, 0.5, 2, 2, 2);
+    const union = AABB.unionAll([first, second]);
+
+    union.minX = -10;
+    union.maxX = 10;
+
+    expect([first.minX, first.maxX]).toEqual([0, 1]);
+    expect([second.minX, second.maxX]).toEqual([0.5, 2]);
+  });
+
   it("detects intersections", () => {
     const a = AABB.create(0, 0, 0, 1, 1, 1);
     const b = AABB.create(0.5, 0.5, 0.5, 1.5, 1.5, 1.5);
