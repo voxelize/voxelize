@@ -916,11 +916,12 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
   constructor(options: Partial<WorldOptions> = {}) {
     super();
 
-    // @ts-ignore
-    const { statsSyncInterval } = (this.options = {
+    const mergedOptions = {
       ...defaultOptions,
       ...options,
-    });
+    } as WorldOptions;
+    this.options = mergedOptions;
+    const { statsSyncInterval } = mergedOptions;
 
     this.lightWorkerPool = new WorkerPool(LightWorker, {
       maxWorker: this.options.maxLightWorkers,
