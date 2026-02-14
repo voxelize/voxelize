@@ -134,6 +134,7 @@ const reusableTransferBuffers: ArrayBuffer[] = [];
 const reusableSerializedChunks: SerializedWasmChunk[] = [];
 const reusableChunkGrid: (RawChunk | null)[] = [];
 const reusableChunkShape: [number, number, number] = [0, 0, 0];
+const emptyModifiedChunks: WorkerModifiedChunk[] = [];
 const reusablePostMessageOptions: StructuredSerializeOptions = {
   transfer: emptyTransferList,
 };
@@ -489,6 +490,15 @@ const processBatchMessage = (message: LightBatchMessage) => {
   serializedChunks.length = 0;
 
   const modifiedChunkCount = wasmResult.modifiedChunks.length;
+  if (modifiedChunkCount === 0) {
+    postMessage({
+      jobId,
+      modifiedChunks: emptyModifiedChunks,
+      appliedDeltas: { lastSequenceId },
+    });
+    return;
+  }
+
   const modifiedChunks = reusableModifiedChunks;
   modifiedChunks.length = modifiedChunkCount;
   const transferBuffers = reusableTransferBuffers;
