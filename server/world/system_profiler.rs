@@ -1,4 +1,4 @@
-use hashbrown::HashMap;
+use hashbrown::{hash_map::RawEntryMut, HashMap};
 use lazy_static::lazy_static;
 use serde::Serialize;
 use std::collections::VecDeque;
@@ -20,7 +20,10 @@ pub struct SystemTimings {
 
 impl SystemTimings {
     pub fn record(&mut self, name: &str, duration_ms: f64) {
-        let samples = self.samples.entry(name.to_string()).or_default();
+        let samples = match self.samples.raw_entry_mut().from_key(name) {
+            RawEntryMut::Occupied(entry) => entry.into_mut(),
+            RawEntryMut::Vacant(entry) => entry.insert(name.to_owned(), VecDeque::new()).1,
+        };
         if samples.len() >= MAX_SAMPLES {
             samples.pop_front();
         }
