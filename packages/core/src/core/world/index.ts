@@ -7431,7 +7431,9 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
       blockNameEnd >= 0
         ? type.slice(blockNameStart, blockNameEnd)
         : type.slice(blockNameStart);
-    const block = this.registry.blocksByName.get(blockName.toLowerCase()) ?? null;
+    const block =
+      this.registry.blocksByName.get(this.normalizeBlockNameLookup(blockName)) ??
+      null;
     this.blockEntityTypeBlockCache.set(type, block);
     return block;
   }
