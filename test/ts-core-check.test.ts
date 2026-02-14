@@ -1076,6 +1076,15 @@ describe("check-ts-core script", () => {
       expect(report.attemptedBuild).toBe(false);
       expect(report.buildSkipped).toBe(true);
       expect(report.buildOutput).toBeNull();
+      expect(report.exampleAttempted).toBe(false);
+      expect(report.exampleStatus).toBe("skipped");
+      expect(report.exampleExitCode).toBeNull();
+      expect(report.exampleDurationMs).toBeNull();
+      expect(report.exampleRuleMatched).toBeNull();
+      expect(report.examplePayloadValid).toBeNull();
+      expect(report.examplePayloadIssues).toBeNull();
+      expect(report.examplePayloadIssueCount).toBeNull();
+      expect(report.exampleOutputLine).toBeNull();
       expect(report.message).toContain(
         "Build was skipped due to --no-build."
       );
