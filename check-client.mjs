@@ -6,6 +6,7 @@ import { resolvePnpmCommand } from "./scripts/command-utils.mjs";
 import {
   createCliOptionCatalog,
   createCliDiagnostics,
+  deriveFailureMessageFromReport,
   deriveCliValidationFailureMessage,
   createTimedReportBuilder,
   hasCliOption,
@@ -120,6 +121,31 @@ const mapStepNamesToMetadata = (stepNames) => {
     })
   );
 };
+const createStepFailureSummaries = (steps) => {
+  return steps
+    .filter((step) => {
+      return !step.passed && step.skipped === false;
+    })
+    .map((step) => {
+      const reportMessage = deriveFailureMessageFromReport(step.report);
+      const outputMessage =
+        typeof step.output === "string" && step.output.length > 0
+          ? step.output
+          : null;
+      const defaultMessage =
+        typeof step.exitCode === "number"
+          ? `Step failed with exit code ${step.exitCode}.`
+          : "Step failed.";
+
+      return {
+        name: step.name,
+        scriptName: step.scriptName,
+        stepIndex: step.stepIndex,
+        exitCode: typeof step.exitCode === "number" ? step.exitCode : 1,
+        message: reportMessage ?? outputMessage ?? defaultMessage,
+      };
+    });
+};
 const resolveStepDetails = (stepName) => {
   const stepMetadata = availableStepMetadata[stepName];
   const stepIndex = availableStepIndexMap.get(stepName);
@@ -177,6 +203,8 @@ if (isJson && validationFailureMessage !== null) {
     skippedStepScriptCount: 0,
     skippedStepIndices: [],
     skippedStepIndexCount: 0,
+    failureSummaries: [],
+    failureSummaryCount: 0,
     passedStepMetadata: {},
     failedStepMetadata: {},
     skippedStepMetadata: {},
@@ -297,6 +325,7 @@ if (isJson) {
   const passedStepMetadata = mapStepNamesToMetadata(stepSummary.passedSteps);
   const failedStepMetadata = mapStepNamesToMetadata(stepSummary.failedSteps);
   const skippedStepMetadata = mapStepNamesToMetadata(stepSummary.skippedSteps);
+  const failureSummaries = createStepFailureSummaries(stepResults);
   const report = buildTimedReport({
     passed: exitCode === 0,
     exitCode,
@@ -337,6 +366,8 @@ if (isJson) {
     skippedStepScriptCount: skippedStepScripts.length,
     skippedStepIndices,
     skippedStepIndexCount: skippedStepIndices.length,
+    failureSummaries,
+    failureSummaryCount: failureSummaries.length,
     passedStepMetadata,
     failedStepMetadata,
     skippedStepMetadata,

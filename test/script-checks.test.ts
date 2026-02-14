@@ -179,6 +179,14 @@ type ClientJsonReport = OptionTerminatorMetadata &
   skippedStepScriptCount: number;
   skippedStepIndices: number[];
   skippedStepIndexCount: number;
+  failureSummaries: Array<{
+    name: string;
+    scriptName: string;
+    stepIndex: number;
+    exitCode: number;
+    message: string;
+  }>;
+  failureSummaryCount: number;
   passedStepMetadata: Record<
     string,
     {
@@ -386,6 +394,14 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
   skippedStepScriptCount: number;
   skippedStepIndices: number[];
   skippedStepIndexCount: number;
+  failureSummaries: Array<{
+    name: string;
+    scriptName: string;
+    stepIndex: number;
+    exitCode: number;
+    message: string;
+  }>;
+  failureSummaryCount: number;
   passedStepMetadata: Record<
     string,
     {
@@ -481,6 +497,14 @@ const expectStepSummaryMetadata = (
     skippedStepScriptCount: number;
     skippedStepIndices: number[];
     skippedStepIndexCount: number;
+    failureSummaries: Array<{
+      name: string;
+      scriptName: string;
+      stepIndex: number;
+      exitCode: number;
+      message: string;
+    }>;
+    failureSummaryCount: number;
     passedStepMetadata: Record<
       string,
       {
@@ -592,6 +616,22 @@ const expectStepSummaryMetadata = (
   expect(report.skippedStepScriptCount).toBe(report.skippedStepScripts.length);
   expect(report.skippedStepIndices).toEqual(skippedStepIndices);
   expect(report.skippedStepIndexCount).toBe(report.skippedStepIndices.length);
+  expect(report.failureSummaryCount).toBe(report.failureSummaries.length);
+  expect(report.failureSummaries.map((summary) => summary.name)).toEqual(
+    failedSteps
+  );
+  for (const [index, summary] of report.failureSummaries.entries()) {
+    const stepName = failedSteps[index];
+    expect(summary.scriptName).toBe(expectedStepMetadata[stepName].scriptName);
+    expect(summary.stepIndex).toBe(failedStepIndices[index]);
+    expect(summary.exitCode).toBeGreaterThan(0);
+    expect(summary.message.length).toBeGreaterThan(0);
+  }
+  if (report.firstFailedStep === null) {
+    expect(report.failureSummaries).toEqual([]);
+  } else {
+    expect(report.failureSummaries[0]?.name).toBe(report.firstFailedStep);
+  }
   expect(report.passedStepMetadata).toEqual(passedStepMetadata);
   expect(report.failedStepMetadata).toEqual(failedStepMetadata);
   expect(report.skippedStepMetadata).toEqual(skippedStepMetadata);
