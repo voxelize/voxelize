@@ -38,6 +38,7 @@ impl<'a> System<'a> for EventsSystem {
         if events.queue.is_empty() {
             return;
         }
+        let queued_events_count = events.queue.len();
 
         let is_interested = |coords: &Vec2<i32>, entity: Entity| {
             if let Some(id) = ids.get(entity) {
@@ -53,8 +54,13 @@ impl<'a> System<'a> for EventsSystem {
         };
 
         // ID to a set of events, serialized.
-        let mut dispatch_map: HashMap<String, Vec<EventProtocol>> = HashMap::new();
-        let mut transports_map: Vec<EventProtocol> = vec![];
+        let mut dispatch_map: HashMap<String, Vec<EventProtocol>> =
+            HashMap::with_capacity(clients.len());
+        let mut transports_map: Vec<EventProtocol> = if transports.is_empty() {
+            Vec::new()
+        } else {
+            Vec::with_capacity(queued_events_count)
+        };
 
         events.queue.drain(..).for_each(|event| {
             let Event {
@@ -74,14 +80,14 @@ impl<'a> System<'a> for EventsSystem {
             let mut send_to_id = |id: &str| {
                 if let Some(client) = clients.get(id) {
                     if let Some(location) = &location {
-                        if !is_interested(location, client.entity.to_owned()) {
+                        if !is_interested(location, client.entity) {
                             return;
                         }
                     }
                     dispatch_map
                         .entry(id.to_owned())
                         .or_default()
-                        .push(serialized.to_owned());
+                        .push(serialized.clone());
                 }
             };
 
@@ -138,21 +144,11 @@ impl<'a> System<'a> for EventsSystem {
 
         // Process the dispatch map, sending them directly for fastest event responses.
         dispatch_map.into_iter().for_each(|(id, events)| {
-            if events.is_empty() {
-                return;
+            if let Some(client) = clients.get(&id) {
+                let message = Message::new(&MessageType::Event).events(&events).build();
+                let encoded = encode_message(&message);
+                let _ = client.sender.send(encoded);
             }
-
-            let client = clients.get(&id);
-
-            if client.is_none() {
-                return;
-            }
-
-            let client = client.unwrap();
-            let message = Message::new(&MessageType::Event).events(&events).build();
-            let encoded = encode_message(&message);
-
-            let _ = client.sender.send(encoded);
         });
 
         if !transports.is_empty() {
