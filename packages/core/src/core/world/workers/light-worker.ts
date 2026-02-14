@@ -285,7 +285,8 @@ const deserializeChunkGrid = (
   gridDepth: number,
   chunkGrid: (RawChunk | null)[],
   expectedChunkSize: number,
-  expectedMaxHeight: number
+  expectedMaxHeight: number,
+  expectedChunkByteLength: number
 ): boolean => {
   const cellCount = gridWidth * gridDepth;
   chunkGrid.length = cellCount;
@@ -294,6 +295,13 @@ const deserializeChunkGrid = (
   for (let index = 0; index < cellCount; index++) {
     const chunkData = chunksData[index];
     if (!chunkData) {
+      chunkGrid[index] = null;
+      continue;
+    }
+    if (
+      chunkData.voxels.byteLength !== expectedChunkByteLength ||
+      chunkData.lights.byteLength !== expectedChunkByteLength
+    ) {
       chunkGrid[index] = null;
       continue;
     }
@@ -476,7 +484,8 @@ const serializeChunksData = (
   gridDepth: number,
   serialized: SerializedWasmChunk[],
   expectedChunkSize: number,
-  expectedMaxHeight: number
+  expectedMaxHeight: number,
+  expectedChunkByteLength: number
 ): boolean => {
   const cellCount = gridWidth * gridDepth;
   serialized.length = cellCount;
@@ -490,6 +499,13 @@ const serializeChunksData = (
     }
     const voxelsBuffer = chunkData.voxels;
     const lightsBuffer = chunkData.lights;
+    if (
+      voxelsBuffer.byteLength !== expectedChunkByteLength ||
+      lightsBuffer.byteLength !== expectedChunkByteLength
+    ) {
+      serialized[index] = null;
+      continue;
+    }
     if ((voxelsBuffer.byteLength & 3) !== 0 || (lightsBuffer.byteLength & 3) !== 0) {
       serialized[index] = null;
       continue;
@@ -578,6 +594,16 @@ const processBatchMessage = (message: LightBatchMessage) => {
     postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
     return;
   }
+  const expectedVoxelCount = chunkSize * maxHeight * chunkSize;
+  if (!Number.isSafeInteger(expectedVoxelCount) || expectedVoxelCount <= 0) {
+    postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
+    return;
+  }
+  const expectedChunkByteLength = expectedVoxelCount * Uint32Array.BYTES_PER_ELEMENT;
+  if (!Number.isSafeInteger(expectedChunkByteLength) || expectedChunkByteLength <= 0) {
+    postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
+    return;
+  }
   if (chunksData.length < cellCount) {
     postEmptyBatchResult(jobId, 0);
     return;
@@ -609,7 +635,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
       gridDepth,
       serializedChunks,
       chunkSize,
-      maxHeight
+      maxHeight,
+      expectedChunkByteLength
     );
     if (!hasAnyChunk) {
       serializedChunks.length = 0;
@@ -623,7 +650,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
       gridDepth,
       chunkGrid,
       chunkSize,
-      maxHeight
+      maxHeight,
+      expectedChunkByteLength
     );
     if (!hasAnyChunk) {
       chunkGrid.length = 0;
