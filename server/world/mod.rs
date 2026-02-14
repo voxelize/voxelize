@@ -472,7 +472,7 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
             "cleanup",
             &["entities-sending", "peers-sending"],
         )
-        .with(EventsSystem, "events", &["broadcast"])
+        .with(EventsSystem::default(), "events", &["broadcast"])
         .with(EntityObserveSystem, "entity-observe", &[])
         .with(PathFindingSystem, "path-finding", &["entity-observe"])
         .with(TargetMetadataSystem, "target-meta", &[])

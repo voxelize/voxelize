@@ -7,7 +7,27 @@ use crate::{
     Vec2, WorldTimingContext,
 };
 
-pub struct EventsSystem;
+#[derive(Default)]
+pub struct EventsSystem {
+    dispatch_map_buffer: HashMap<String, Vec<EventProtocol>>,
+    touched_clients_buffer: Vec<String>,
+    transports_map_buffer: Vec<EventProtocol>,
+}
+
+#[inline]
+fn push_dispatch_event(
+    dispatch_map: &mut HashMap<String, Vec<EventProtocol>>,
+    touched_clients: &mut Vec<String>,
+    client_id: &str,
+    event: EventProtocol,
+) {
+    if let Some(events) = dispatch_map.get_mut(client_id) {
+        if events.is_empty() {
+            touched_clients.push(client_id.to_owned());
+        }
+        events.push(event);
+    }
+}
 
 impl<'a> System<'a> for EventsSystem {
     type SystemData = (
@@ -39,6 +59,30 @@ impl<'a> System<'a> for EventsSystem {
             return;
         }
         let queued_events_count = events.queue.len();
+        let dispatch_map = &mut self.dispatch_map_buffer;
+        dispatch_map.retain(|id, client_events| {
+            if clients.contains_key(id) {
+                client_events.clear();
+                true
+            } else {
+                false
+            }
+        });
+        for (id, _) in clients.iter() {
+            if !dispatch_map.contains_key(id) {
+                dispatch_map.insert(id.to_owned(), Vec::new());
+            }
+        }
+        let touched_clients = &mut self.touched_clients_buffer;
+        touched_clients.clear();
+        if touched_clients.capacity() < clients.len() {
+            touched_clients.reserve(clients.len() - touched_clients.capacity());
+        }
+        let transports_map = &mut self.transports_map_buffer;
+        transports_map.clear();
+        if !transports.is_empty() && transports_map.capacity() < queued_events_count {
+            transports_map.reserve(queued_events_count - transports_map.capacity());
+        }
 
         let is_interested = |coords: &Vec2<i32>, entity: Entity| {
             if let Some(id) = ids.get(entity) {
@@ -51,15 +95,6 @@ impl<'a> System<'a> for EventsSystem {
         let serialize_payload = |name: String, payload: Option<String>| EventProtocol {
             name,
             payload: payload.unwrap_or_else(|| String::from("{}")),
-        };
-
-        // ID to a set of events, serialized.
-        let mut dispatch_map: HashMap<String, Vec<EventProtocol>> =
-            HashMap::with_capacity(clients.len());
-        let mut transports_map: Vec<EventProtocol> = if transports.is_empty() {
-            Vec::new()
-        } else {
-            Vec::with_capacity(queued_events_count)
         };
 
         events.queue.drain(..).for_each(|event| {
@@ -84,10 +119,7 @@ impl<'a> System<'a> for EventsSystem {
                             return;
                         }
                     }
-                    dispatch_map
-                        .entry(id.to_owned())
-                        .or_default()
-                        .push(serialized.clone());
+                    push_dispatch_event(dispatch_map, touched_clients, id, serialized.clone());
                 }
             };
 
@@ -144,30 +176,30 @@ impl<'a> System<'a> for EventsSystem {
             else if let Some(location) = &location {
                 for (id, _) in clients.iter() {
                     if interests.is_interested(id, location) {
-                        dispatch_map
-                            .entry(id.to_owned())
-                            .or_default()
-                            .push(serialized.clone());
+                        push_dispatch_event(dispatch_map, touched_clients, id, serialized.clone());
                     }
                 }
             } else {
                 clients.iter().for_each(|(id, _)| {
-                    dispatch_map
-                        .entry(id.to_owned())
-                        .or_default()
-                        .push(serialized.clone());
+                    push_dispatch_event(dispatch_map, touched_clients, id, serialized.clone());
                 });
             }
         });
 
         // Process the dispatch map, sending them directly for fastest event responses.
-        dispatch_map.into_iter().for_each(|(id, events)| {
+        for id in touched_clients.drain(..) {
+            let client_events = match dispatch_map.get(&id) {
+                Some(events) => events,
+                None => continue,
+            };
             if let Some(client) = clients.get(&id) {
-                let message = Message::new(&MessageType::Event).events(&events).build();
+                let message = Message::new(&MessageType::Event)
+                    .events(client_events)
+                    .build();
                 let encoded = encode_message(&message);
                 let _ = client.sender.send(encoded);
             }
-        });
+        }
 
         if !transports.is_empty() {
             let message = Message::new(&MessageType::Event)
