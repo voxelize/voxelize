@@ -55,6 +55,7 @@ const voxel = Voxel.pack({
   - pack and unpack sunlight + RGB torch channels
 - `BlockRotation`
   - encode/decode major axis + y-rotation segments
+  - encoded y-rotation segments wrap modulo 16 (including negative inputs)
   - rotate nodes, AABBs, and transparency masks
   - full-turn y-rotations (`±2π` multiples) normalize to identity transforms
   - non-finite y-rotation inputs are safely normalized to identity transforms
