@@ -427,12 +427,14 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     }
 
     const words = this.splitQuotedTokens(raw);
-    if (words.length === 0) {
+    const wordsLength = words.length;
+    if (wordsLength === 0) {
       return schema.parse({});
     }
     const rawObj = this.parsedArgsObjectBuffer;
     const rawObjKeys = this.parsedArgsObjectKeysBuffer;
-    for (let index = 0; index < rawObjKeys.length; index++) {
+    const rawObjKeysLength = rawObjKeys.length;
+    for (let index = 0; index < rawObjKeysLength; index++) {
       delete rawObj[rawObjKeys[index]];
     }
     rawObjKeys.length = 0;
@@ -442,7 +444,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     const hasBooleanKeys = booleanKeys.size > 0;
 
     if (!hasBooleanKeys) {
-      for (let wordIndex = 0; wordIndex < words.length; wordIndex++) {
+      for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
         const word = words[wordIndex];
         const eqIndex = getFirstEqualsIndex(word);
         if (eqIndex > 0) {
@@ -461,7 +463,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         }
       }
     } else if (!hasPositionalKeys) {
-      for (let wordIndex = 0; wordIndex < words.length; wordIndex++) {
+      for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
         const word = words[wordIndex];
         const eqIndex = getFirstEqualsIndex(word);
         if (eqIndex > 0) {
@@ -483,7 +485,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         }
       }
     } else {
-      for (let wordIndex = 0; wordIndex < words.length; wordIndex++) {
+      for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
         const word = words[wordIndex];
         const eqIndex = getFirstEqualsIndex(word);
         if (eqIndex > 0) {
