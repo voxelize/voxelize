@@ -81,3 +81,24 @@ describe("MeshPipeline.hasInFlightJob", () => {
     expect(pipeline.hasAnyInFlightJobs()).toBe(true);
   });
 });
+
+describe("MeshPipeline.getDirtyKeysAndHasMore", () => {
+  it("returns empty keys for fractional limits below one", () => {
+    const pipeline = new MeshPipeline();
+    pipeline.onVoxelChange(1, 2, 0);
+
+    const result = pipeline.getDirtyKeysAndHasMore(0.9);
+    expect(result.keys).toHaveLength(0);
+    expect(result.hasMore).toBe(false);
+  });
+
+  it("floors fractional limits when selecting dirty keys", () => {
+    const pipeline = new MeshPipeline();
+    pipeline.onVoxelChange(1, 2, 0);
+    pipeline.onVoxelChange(3, 4, 0);
+
+    const result = pipeline.getDirtyKeysAndHasMore(1.8);
+    expect(result.keys).toHaveLength(1);
+    expect(result.hasMore).toBe(true);
+  });
+});

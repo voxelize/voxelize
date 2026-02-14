@@ -434,7 +434,10 @@ export class MeshPipeline {
     keys: string[];
     hasMore: boolean;
   } {
-    if (maxCount <= 0) {
+    const normalizedMaxCount = Number.isFinite(maxCount)
+      ? Math.max(0, Math.floor(maxCount))
+      : Number.POSITIVE_INFINITY;
+    if (normalizedMaxCount <= 0) {
       return { keys: [], hasMore: false };
     }
     if (this.dirty.size === 0) {
@@ -442,8 +445,8 @@ export class MeshPipeline {
     }
 
     const dirtyKeys = new Array<string>(
-      Number.isFinite(maxCount)
-        ? Math.min(this.dirty.size, maxCount)
+      Number.isFinite(normalizedMaxCount)
+        ? Math.min(this.dirty.size, normalizedMaxCount)
         : this.dirty.size
     );
     let dirtyCount = 0;
@@ -468,7 +471,7 @@ export class MeshPipeline {
         continue;
       }
 
-      if (dirtyCount >= maxCount) {
+      if (dirtyCount >= normalizedMaxCount) {
         hasMore = true;
         break;
       }
