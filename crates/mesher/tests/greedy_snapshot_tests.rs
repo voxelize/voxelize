@@ -366,6 +366,34 @@ fn build_registry() -> Registry {
         }
     }
 
+    let mut dynamic_world = base_block(11, "dynamic_world");
+    dynamic_world.is_opaque = false;
+    dynamic_world.is_see_through = true;
+    dynamic_world.faces = Vec::new();
+    dynamic_world.dynamic_patterns = Some(vec![BlockDynamicPattern {
+        parts: vec![BlockConditionalPart {
+            rule: BlockRule::Simple(BlockSimpleRule {
+                offset: [0, 1, 0],
+                id: Some(1),
+                rotation: None,
+                stage: None,
+            }),
+            faces: vec![cube_face(
+                "pz",
+                [0, 0, 1],
+                [
+                    [0.0, 0.0, 1.0],
+                    [1.0, 0.0, 1.0],
+                    [0.0, 1.0, 1.0],
+                    [1.0, 1.0, 1.0],
+                ],
+            )],
+            aabbs: Vec::new(),
+            is_transparent: [false; 6],
+            world_space: true,
+        }],
+    }]);
+
     let mut registry = Registry::new(vec![
         (0, air),
         (1, stone),
@@ -378,6 +406,7 @@ fn build_registry() -> Registry {
         (8, y_rotatable),
         (9, mixed_transparency),
         (10, isolated_independent),
+        (11, dynamic_world),
     ]);
     registry.build_cache();
     registry
@@ -643,6 +672,38 @@ fn snapshot_rotation_independent_and_isolated_faces() {
     );
     mesh_and_snapshot_with_mode(
         "non_greedy_snapshot_rotation_independent_and_isolated_faces",
+        &space,
+        &registry,
+        mesh_space::<TestSpace>,
+    );
+}
+
+#[test]
+fn snapshot_dynamic_world_space_patterns() {
+    let registry = build_registry();
+    let mut space = TestSpace::new([8, 6, 8]);
+
+    space.set_voxel_id(2, 1, 2, 11);
+    space.set_voxel_id(2, 2, 2, 1);
+    space.set_voxel_id(3, 1, 2, 11);
+    space.set_voxel_id(4, 1, 2, 11);
+    space.set_voxel_id(4, 2, 2, 1);
+    space.set_voxel_id(4, 1, 3, 11);
+
+    space.set_voxel_id(1, 1, 1, 1);
+    space.set_voxel_id(5, 1, 4, 2);
+    space.set_light(2, 3, 2, 14, 3, 2, 1);
+    space.set_light(4, 3, 2, 10, 5, 1, 4);
+
+    assert_greedy_parity(&space, &registry);
+    mesh_and_snapshot_with_mode(
+        "greedy_snapshot_dynamic_world_space_patterns",
+        &space,
+        &registry,
+        mesh_space_greedy::<TestSpace>,
+    );
+    mesh_and_snapshot_with_mode(
+        "non_greedy_snapshot_dynamic_world_space_patterns",
         &space,
         &registry,
         mesh_space::<TestSpace>,
