@@ -81,9 +81,15 @@ const summarizePackageReports = (packageReports) => {
   const presentPackages = packageReports
     .filter((packageReport) => packageReport.artifactsPresent)
     .map((packageReport) => packageReport.packageName);
+  const presentPackagePaths = packageReports
+    .filter((packageReport) => packageReport.artifactsPresent)
+    .map((packageReport) => packageReport.packagePath);
   const missingPackages = packageReports
     .filter((packageReport) => packageReport.artifactsPresent === false)
     .map((packageReport) => packageReport.packageName);
+  const missingPackagePaths = packageReports
+    .filter((packageReport) => packageReport.artifactsPresent === false)
+    .map((packageReport) => packageReport.packagePath);
   const presentPackageCount = packageReports.filter((packageReport) => {
     return packageReport.artifactsPresent;
   }).length;
@@ -98,10 +104,14 @@ const summarizePackageReports = (packageReports) => {
   }, 0);
   return {
     presentPackages,
+    presentPackagePaths,
     missingPackages,
+    missingPackagePaths,
     presentPackageCount,
+    presentPackagePathCount: presentPackagePaths.length,
     presentArtifactCount,
     missingPackageCount,
+    missingPackagePathCount: missingPackagePaths.length,
     missingArtifactCount,
   };
 };
@@ -197,10 +207,14 @@ const withBaseReportFields = (report) => {
     missingArtifactSummaryText.length === 0 ? null : missingArtifactSummaryText;
   const {
     presentPackages,
+    presentPackagePaths,
     missingPackages,
+    missingPackagePaths,
     presentPackageCount,
+    presentPackagePathCount,
     presentArtifactCount,
     missingPackageCount,
+    missingPackagePathCount,
     missingArtifactCount,
   } = summarizePackageReports(packageReports);
   const buildExitCode =
@@ -237,13 +251,17 @@ const withBaseReportFields = (report) => {
     checkedPackageCount: checkedPackages.length,
     checkedPackagePathCount: checkedPackagePaths.length,
     presentPackages,
+    presentPackagePaths,
     missingPackages,
+    missingPackagePaths,
     requiredPackageCount: runtimeLibraries.length,
     presentPackageCount,
+    presentPackagePathCount,
     packageReportCount: packageReports.length,
     requiredArtifactCount,
     presentArtifactCount,
     missingPackageCount,
+    missingPackagePathCount,
     missingArtifactCount,
     missingArtifactSummary,
     buildCommand: pnpmCommand,

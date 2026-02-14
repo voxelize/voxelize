@@ -33,13 +33,17 @@ type RuntimeLibrariesCheckReport = {
   checkedPackageCount: number;
   checkedPackagePathCount: number;
   presentPackages: string[];
+  presentPackagePaths: string[];
   missingPackages: string[];
+  missingPackagePaths: string[];
   requiredPackageCount: number;
   presentPackageCount: number;
+  presentPackagePathCount: number;
   packageReportCount: number;
   requiredArtifactCount: number;
   presentArtifactCount: number;
   missingPackageCount: number;
+  missingPackagePathCount: number;
   missingArtifactCount: number;
   missingArtifactSummary: string | null;
   attemptedBuild: boolean;
@@ -226,9 +230,15 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   const presentPackages = report.packageReports
     .filter((packageReport) => packageReport.artifactsPresent)
     .map((packageReport) => packageReport.packageName);
+  const presentPackagePaths = report.packageReports
+    .filter((packageReport) => packageReport.artifactsPresent)
+    .map((packageReport) => packageReport.packagePath);
   const missingPackages = report.packageReports
     .filter((packageReport) => packageReport.artifactsPresent === false)
     .map((packageReport) => packageReport.packageName);
+  const missingPackagePaths = report.packageReports
+    .filter((packageReport) => packageReport.artifactsPresent === false)
+    .map((packageReport) => packageReport.packagePath);
   const presentArtifactCount = report.packageReports.reduce((count, packageReport) => {
     return count + packageReport.presentArtifactCount;
   }, 0);
@@ -236,14 +246,21 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   expect(report.requiredPackageCount).toBe(
     report.presentPackageCount + report.missingPackageCount
   );
+  expect(report.checkedPackagePathCount).toBe(
+    report.presentPackagePathCount + report.missingPackagePathCount
+  );
   expect(report.requiredArtifactCount).toBe(
     report.presentArtifactCount + report.missingArtifactCount
   );
   expect(report.presentPackageCount).toBe(presentPackageCount);
   expect(report.presentPackages).toEqual(presentPackages);
   expect(report.presentPackages.length).toBe(report.presentPackageCount);
+  expect(report.presentPackagePaths).toEqual(presentPackagePaths);
+  expect(report.presentPackagePaths.length).toBe(report.presentPackagePathCount);
   expect(report.missingPackages).toEqual(missingPackages);
   expect(report.missingPackages.length).toBe(report.missingPackageCount);
+  expect(report.missingPackagePaths).toEqual(missingPackagePaths);
+  expect(report.missingPackagePaths.length).toBe(report.missingPackagePathCount);
   expect(report.presentArtifactCount).toBe(presentArtifactCount);
   expect(report.missingPackageCount).toBe(missingPackageCount);
   expect(report.missingArtifactCount).toBe(missingArtifactCount);
@@ -346,10 +363,14 @@ describe("check-runtime-libraries script", () => {
     expect(report.validationErrorCode).toBeNull();
     expect(report.packagesPresent).toBe(true);
     expect(report.presentPackages).toEqual(expectedCheckedPackages);
+    expect(report.presentPackagePaths).toEqual(expectedCheckedPackagePaths);
     expect(report.missingPackages).toEqual([]);
+    expect(report.missingPackagePaths).toEqual([]);
     expect(report.presentPackageCount).toBe(report.requiredPackageCount);
+    expect(report.presentPackagePathCount).toBe(report.requiredPackageCount);
     expect(report.presentArtifactCount).toBe(report.requiredArtifactCount);
     expect(report.missingPackageCount).toBe(0);
+    expect(report.missingPackagePathCount).toBe(0);
     expect(report.missingArtifactCount).toBe(0);
     expect(report.outputPath).toBeNull();
     expect(report.unknownOptions).toEqual([]);
@@ -742,7 +763,9 @@ describe("check-runtime-libraries script", () => {
       expect(report.noBuild).toBe(true);
       expect(report.packagesPresent).toBe(false);
       expect(report.presentPackages.length).toBe(report.presentPackageCount);
+      expect(report.presentPackagePaths.length).toBe(report.presentPackagePathCount);
       expect(report.missingPackages.length).toBe(report.missingPackageCount);
+      expect(report.missingPackagePaths.length).toBe(report.missingPackagePathCount);
       expect(report.presentPackageCount).toBeLessThan(report.requiredPackageCount);
       expect(report.presentArtifactCount).toBeLessThan(report.requiredArtifactCount);
       expect(report.missingPackageCount).toBeGreaterThanOrEqual(1);
@@ -764,10 +787,14 @@ describe("check-runtime-libraries script", () => {
       expect(report.passed).toBe(true);
       expect(report.packagesPresent).toBe(true);
       expect(report.presentPackages).toEqual(expectedCheckedPackages);
+      expect(report.presentPackagePaths).toEqual(expectedCheckedPackagePaths);
       expect(report.missingPackages).toEqual([]);
+      expect(report.missingPackagePaths).toEqual([]);
       expect(report.presentPackageCount).toBe(report.requiredPackageCount);
+      expect(report.presentPackagePathCount).toBe(report.requiredPackageCount);
       expect(report.presentArtifactCount).toBe(report.requiredArtifactCount);
       expect(report.missingPackageCount).toBe(0);
+      expect(report.missingPackagePathCount).toBe(0);
       expect(report.missingArtifactCount).toBe(0);
       expect(report.attemptedBuild).toBe(true);
       expect(report.buildSkipped).toBe(false);
