@@ -582,6 +582,10 @@ const processBatchMessage = (message: LightBatchMessage) => {
     return;
   }
 
+  if (!lightOps || typeof lightOps !== "object") {
+    postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
+    return;
+  }
   const removals = lightOps.removals;
   const floods = lightOps.floods;
   if (!Array.isArray(removals) || !Array.isArray(floods)) {
