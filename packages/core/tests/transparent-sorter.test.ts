@@ -1,0 +1,69 @@
+import { describe, expect, it } from "vitest";
+import {
+  BufferAttribute,
+  BufferGeometry,
+  Mesh,
+  MeshBasicMaterial,
+  PerspectiveCamera,
+} from "three";
+
+import {
+  prepareTransparentMesh,
+  sortTransparentMesh,
+} from "../src/core/transparent-sorter";
+
+const createQuadGeometry = (quadCount: number) => {
+  const geometry = new BufferGeometry();
+  const vertexCount = quadCount * 4;
+  const positions = new Float32Array(vertexCount * 3);
+  for (let vertexIndex = 0; vertexIndex < vertexCount; vertexIndex++) {
+    const offset = vertexIndex * 3;
+    positions[offset] = vertexIndex;
+    positions[offset + 1] = 0;
+    positions[offset + 2] = 0;
+  }
+
+  const indices = new Uint16Array(quadCount * 6);
+  for (let quadIndex = 0; quadIndex < quadCount; quadIndex++) {
+    const baseVertex = quadIndex * 4;
+    const baseIndex = quadIndex * 6;
+    indices[baseIndex] = baseVertex;
+    indices[baseIndex + 1] = baseVertex + 1;
+    indices[baseIndex + 2] = baseVertex + 2;
+    indices[baseIndex + 3] = baseVertex;
+    indices[baseIndex + 4] = baseVertex + 2;
+    indices[baseIndex + 5] = baseVertex + 3;
+  }
+
+  geometry.setAttribute("position", new BufferAttribute(positions, 3));
+  geometry.setIndex(new BufferAttribute(indices, 1));
+  return geometry;
+};
+
+describe("transparent sorter", () => {
+  it("skips sort setup for single-face geometry", () => {
+    const mesh = new Mesh(createQuadGeometry(1), new MeshBasicMaterial());
+    expect(prepareTransparentMesh(mesh)).toBeNull();
+  });
+
+  it("returns early when mesh index buffer no longer matches sort data", () => {
+    const mesh = new Mesh(createQuadGeometry(2), new MeshBasicMaterial());
+    const sortData = prepareTransparentMesh(mesh);
+    expect(sortData).not.toBeNull();
+    if (!sortData) {
+      return;
+    }
+
+    const replacementIndex = new Uint16Array([
+      0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7,
+    ]);
+    mesh.geometry.setIndex(new BufferAttribute(replacementIndex, 1));
+
+    const before = Array.from(replacementIndex);
+    const camera = new PerspectiveCamera();
+    camera.position.set(0, 0, 10);
+
+    expect(() => sortTransparentMesh(mesh, sortData, camera)).not.toThrow();
+    expect(Array.from(replacementIndex)).toEqual(before);
+  });
+});
