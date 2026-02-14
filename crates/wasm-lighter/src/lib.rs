@@ -365,6 +365,16 @@ fn light_color_from_index(color: usize) -> Option<LightColor> {
     }
 }
 
+#[inline]
+fn has_invalid_batch_config(
+    chunk_size: i32,
+    max_height: i32,
+    chunk_grid_width: usize,
+    chunk_grid_depth: usize,
+) -> bool {
+    chunk_size <= 0 || max_height <= 0 || chunk_grid_width == 0 || chunk_grid_depth == 0
+}
+
 #[wasm_bindgen]
 pub fn init() {}
 
@@ -395,7 +405,7 @@ pub fn process_light_batch_fast(
     max_height: i32,
     max_light_level: u32,
 ) -> JsValue {
-    if chunk_size <= 0 || max_height <= 0 || chunk_grid_width == 0 || chunk_grid_depth == 0 {
+    if has_invalid_batch_config(chunk_size, max_height, chunk_grid_width, chunk_grid_depth) {
         return empty_batch_result();
     }
 
@@ -552,6 +562,7 @@ pub fn process_light_batch_fast(
 #[cfg(test)]
 mod tests {
     use super::{BatchSpace, ChunkData};
+    use voxelize_lighter::LightColor;
     use voxelize_lighter::LightVoxelAccess;
 
     #[test]
@@ -624,5 +635,24 @@ mod tests {
         assert!(space.set_raw_light(0, 0, 1, 2));
         assert_eq!(space.modified_indices.len(), 1);
         assert_eq!(space.take_modified_chunks().len(), 1);
+    }
+
+    #[test]
+    fn light_color_from_index_handles_invalid_values() {
+        assert_eq!(super::light_color_from_index(0), Some(LightColor::Sunlight));
+        assert_eq!(super::light_color_from_index(1), Some(LightColor::Red));
+        assert_eq!(super::light_color_from_index(2), Some(LightColor::Green));
+        assert_eq!(super::light_color_from_index(3), Some(LightColor::Blue));
+        assert_eq!(super::light_color_from_index(4), None);
+        assert_eq!(super::light_color_from_index(99), None);
+    }
+
+    #[test]
+    fn invalid_batch_config_detects_bad_dimensions() {
+        assert!(super::has_invalid_batch_config(0, 64, 1, 1));
+        assert!(super::has_invalid_batch_config(16, 0, 1, 1));
+        assert!(super::has_invalid_batch_config(16, 64, 0, 1));
+        assert!(super::has_invalid_batch_config(16, 64, 1, 0));
+        assert!(!super::has_invalid_batch_config(16, 64, 1, 1));
     }
 }
