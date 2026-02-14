@@ -171,8 +171,10 @@ fn flood_light_from_nodes(
     let bounds_xz = bounds.map(|limit| {
         let start_x = i64::from(limit.min[0]);
         let start_z = i64::from(limit.min[2]);
-        let end_x = start_x.saturating_add(limit.shape[0] as i64);
-        let end_z = start_z.saturating_add(limit.shape[2] as i64);
+        let shape_x = limit.shape[0].min(i64::MAX as usize) as i64;
+        let shape_z = limit.shape[2].min(i64::MAX as usize) as i64;
+        let end_x = start_x.saturating_add(shape_x);
+        let end_z = start_z.saturating_add(shape_z);
         (start_x, start_z, end_x, end_z)
     });
     let mut head = 0usize;
@@ -824,6 +826,35 @@ mod tests {
         assert_eq!(space.get_sunlight(8, 48, 8), 14);
         assert_eq!(space.get_sunlight(8, 47, 8), 13);
         assert_eq!(space.get_sunlight(9, 50, 8), 14);
+    }
+
+    #[test]
+    fn flood_light_handles_large_bounds_shapes_without_wrapping() {
+        let registry = test_registry();
+        let config = test_config();
+        let mut space = TestSpace::new([0, 0, 0], [16, 64, 16]);
+
+        assert!(space.set_voxel(8, 32, 8, 2));
+        space.set_red_light(8, 32, 8, 15);
+
+        let bounds = LightBounds {
+            min: [0, 0, 0],
+            shape: [usize::MAX, 1, usize::MAX],
+        };
+
+        flood_light(
+            &mut space,
+            VecDeque::from(vec![LightNode {
+                voxel: [8, 32, 8],
+                level: 15,
+            }]),
+            &LightColor::Red,
+            &config,
+            Some(&bounds),
+            &registry,
+        );
+
+        assert!(space.get_red_light(9, 32, 8) > 0);
     }
 
     #[test]
