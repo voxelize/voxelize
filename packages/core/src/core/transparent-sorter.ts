@@ -165,6 +165,11 @@ export function sortTransparentMesh(
   data: TransparentMeshData,
   camera: Camera
 ): void {
+  const geometryIndex = mesh.geometry.index;
+  if (!geometryIndex || geometryIndex.array !== data.sortedIndices) {
+    return;
+  }
+
   mesh.getWorldPosition(_worldPos);
   camera.getWorldPosition(_camWorldPos);
   const camX = _camWorldPos.x - _worldPos.x;
@@ -215,7 +220,7 @@ export function sortTransparentMesh(
     targetIndices[dstOffset + 5] = sourceIndices[srcOffset + 5];
   }
 
-  mesh.geometry.index!.needsUpdate = true;
+  geometryIndex.needsUpdate = true;
 }
 
 export function sortTransparentMeshOnBeforeRender(
