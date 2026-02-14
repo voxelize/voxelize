@@ -147,6 +147,8 @@ shape (`voxel.id`, `voxel.stage`, `voxel.rotation.value`,
 `voxel.rotation.yRotation`, `light`, `rotatedAabb`) with valid value domains
 (`voxel.id` in `0..65535`, `voxel.stage`/light channels in `0..15`, rotation
 axis in `0..5`) and ordered AABB bounds (`min <= max` per axis).
+Object-shaped JSON output is required for payload validation; array/primitive
+JSON outputs are treated as invalid example output.
 `examplePayloadIssues` lists each invalid payload path whenever
 `examplePayloadValid` is `false` and is normalized (trimmed + deduplicated).
 
