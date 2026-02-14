@@ -340,6 +340,22 @@ describe("BlockRotation", () => {
     expect(rotation.rotateTransparency(input)).not.toEqual(input);
   });
 
+  it("rotates nodes around voxel center for PY y-rotation", () => {
+    const rotation = BlockRotation.py(Math.PI / 2);
+    const nodeA: [number, number, number] = [1, 0, 0];
+    const nodeB: [number, number, number] = [1, 0, 1];
+
+    rotation.rotateNode(nodeA, true, false);
+    rotation.rotateNode(nodeB, true, false);
+
+    expect(nodeA[0]).toBeCloseTo(0, 10);
+    expect(nodeA[1]).toBeCloseTo(0, 10);
+    expect(nodeA[2]).toBeCloseTo(0, 10);
+    expect(nodeB[0]).toBeCloseTo(1, 10);
+    expect(nodeB[1]).toBeCloseTo(0, 10);
+    expect(nodeB[2]).toBeCloseTo(0, 10);
+  });
+
   it("keeps transparency unchanged for zero y rotation on PY axis", () => {
     const rotation = BlockRotation.encode(PY_ROTATION, 0);
     const input: [boolean, boolean, boolean, boolean, boolean, boolean] = [
