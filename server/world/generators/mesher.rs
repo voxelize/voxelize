@@ -26,6 +26,11 @@ fn clamp_u128_to_i64(value: u128) -> i64 {
 }
 
 #[inline]
+fn mesh_protocol_level(level: u32) -> i32 {
+    i32::try_from(level).unwrap_or(i32::MAX)
+}
+
+#[inline]
 fn sub_chunk_y_bounds(min_y: i32, max_height: usize, sub_chunks: usize, level: u32) -> Option<(i32, i32)> {
     if max_height == 0 || sub_chunks == 0 {
         return None;
@@ -235,16 +240,16 @@ impl Mesher {
 
                     let mesher_registry = registry.mesher_registry();
 
-                    for level in sub_chunks {
+                    for level_u32 in sub_chunks {
                         let Some((level_start_y, level_end_y)) = sub_chunk_y_bounds(
                             min_y,
                             space.options.max_height,
                             space.options.sub_chunks,
-                            level,
+                            level_u32,
                         ) else {
                             continue;
                         };
-                        let level = i32::try_from(level).unwrap_or(i32::MAX);
+                        let level = mesh_protocol_level(level_u32);
                         let min = Vec3(min_x, level_start_y, min_z);
                         let max = Vec3(max_x, level_end_y, max_z);
 
@@ -283,7 +288,7 @@ impl Mesher {
                         chunk
                             .meshes
                             .get_or_insert_with(HashMap::new)
-                            .insert(level as u32, MeshProtocol { level, geometries });
+                            .insert(level_u32, MeshProtocol { level, geometries });
                     }
 
                     sender.send((chunk, r#type.clone())).unwrap();
@@ -315,7 +320,7 @@ impl Default for Mesher {
 
 #[cfg(test)]
 mod tests {
-    use super::sub_chunk_y_bounds;
+    use super::{mesh_protocol_level, sub_chunk_y_bounds};
 
     #[test]
     fn sub_chunk_y_bounds_cover_full_height_for_irregular_partitions() {
@@ -345,5 +350,12 @@ mod tests {
             sub_chunk_y_bounds(i32::MIN + 1, usize::MAX, 1, 0),
             Some((i32::MIN + 1, i32::MAX))
         );
+    }
+
+    #[test]
+    fn mesh_protocol_level_saturates_to_i32_max() {
+        assert_eq!(mesh_protocol_level(0), 0);
+        assert_eq!(mesh_protocol_level(i32::MAX as u32), i32::MAX);
+        assert_eq!(mesh_protocol_level(u32::MAX), i32::MAX);
     }
 }
