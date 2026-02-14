@@ -162,6 +162,12 @@ const isArrayBuffer = (
 
 const isInteger = (value: number) => Number.isSafeInteger(value);
 const isPositiveInteger = (value: number) => isInteger(value) && value > 0;
+const normalizeStartIndex = (startIndexValue: number | undefined) =>
+  startIndexValue !== undefined &&
+  isInteger(startIndexValue) &&
+  startIndexValue > 0
+    ? startIndexValue
+    : 0;
 const isValidVoxelId = (value: number) =>
   isInteger(value) && value >= 0 && value <= 0xffff;
 const isValidStage = (value: number) =>
@@ -394,13 +400,7 @@ const hasPotentialRelevantDeltaBatches = (
     if (!Array.isArray(deltas) || deltas.length === 0) {
       continue;
     }
-    const startIndexValue = deltaBatch.startIndex;
-    const startIndex =
-      startIndexValue !== undefined &&
-      isInteger(startIndexValue) &&
-      startIndexValue > 0
-        ? startIndexValue
-        : 0;
+    const startIndex = normalizeStartIndex(deltaBatch.startIndex);
     for (let deltaIndex = startIndex; deltaIndex < deltas.length; deltaIndex++) {
       const delta = deltas[deltaIndex];
       if (!delta || typeof delta !== "object") {
@@ -684,12 +684,7 @@ const applyRelevantDeltas = (
       continue;
     }
     const startIndexValue = deltaBatch.startIndex;
-    const startIndex =
-      startIndexValue !== undefined &&
-      isInteger(startIndexValue) &&
-      startIndexValue > 0
-        ? startIndexValue
-        : 0;
+    const startIndex = normalizeStartIndex(startIndexValue);
     const localX = cx - gridOffsetX;
     const localZ = cz - gridOffsetZ;
 
