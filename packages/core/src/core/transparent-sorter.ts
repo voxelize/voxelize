@@ -192,13 +192,12 @@ export function setupTransparentSorting(object: Object3D): void {
     if (!(child instanceof Mesh)) {
       continue;
     }
-    const geometry = child.geometry;
-    if (!geometry || !geometry.index) {
+    if (!hasTransparentMaterial(child)) {
       clearTransparentSortState(child);
       continue;
     }
-
-    if (!hasTransparentMaterial(child)) {
+    const geometry = child.geometry;
+    if (!geometry || !geometry.index) {
       clearTransparentSortState(child);
       continue;
     }
