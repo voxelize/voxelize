@@ -2021,12 +2021,13 @@ fn extract_greedy_quads_dense(
         while u_off < width {
             let start_index = row_start + u_off;
             if let Some(data) = mask[start_index].take() {
+                let data_key = &data.key;
                 let mut quad_width = 1usize;
                 let mut next_u_off = u_off + 1;
                 while next_u_off < width {
                     let neighbor_index = row_start + next_u_off;
                     if let Some(neighbor) = mask[neighbor_index].as_ref() {
-                        if neighbor.key == data.key {
+                        if neighbor.key == *data_key {
                             mask[neighbor_index] = None;
                             quad_width += 1;
                             next_u_off += 1;
@@ -2048,7 +2049,7 @@ fn extract_greedy_quads_dense(
                     let mut neighbor_index = row_start;
                     while neighbor_index < row_end {
                         if let Some(neighbor) = mask[neighbor_index].as_ref() {
-                            if neighbor.key != data.key {
+                            if neighbor.key != *data_key {
                                 break 'height;
                             }
                         } else {
