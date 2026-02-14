@@ -282,7 +282,7 @@ fn base_block(id: u32, name: &str) -> Block {
     }
 }
 
-fn build_registry() -> Registry {
+fn build_registry_with_cache(cache_ready: bool) -> Registry {
     let mut air = base_block(0, "air");
     air.is_empty = true;
     air.is_opaque = false;
@@ -408,8 +408,18 @@ fn build_registry() -> Registry {
         (10, isolated_independent),
         (11, dynamic_world),
     ]);
-    registry.build_cache();
+    if cache_ready {
+        registry.build_cache();
+    }
     registry
+}
+
+fn build_registry() -> Registry {
+    build_registry_with_cache(true)
+}
+
+fn build_registry_uncached() -> Registry {
+    build_registry_with_cache(false)
 }
 
 struct CanonicalGeometry {
@@ -918,4 +928,61 @@ fn greedy_legacy_parity_transparency_fluid_boundary_volume() {
     }
 
     assert_greedy_parity(&space, &registry);
+}
+
+#[test]
+fn parity_matches_with_uncached_registry() {
+    let registry_cached = build_registry();
+    let registry_uncached = build_registry_uncached();
+    let mut space = TestSpace::new([10, 8, 10]);
+
+    for x in 0..10 {
+        for z in 0..10 {
+            space.set_voxel_id(x, 0, z, 1);
+            if (x + z) % 2 == 0 {
+                space.set_voxel_id(x, 1, z, 3);
+            } else {
+                space.set_voxel_id(x, 1, z, 2);
+            }
+            if (x + z) % 3 == 0 {
+                space.set_voxel_stage(x, 2, z, 4, ((x * 3 + z * 5) % 8) as u32);
+            }
+            if (x + z) % 4 == 0 {
+                space.set_voxel_rotation(
+                    x,
+                    3,
+                    z,
+                    8,
+                    BlockRotation::PY(std::f32::consts::FRAC_PI_2),
+                );
+            }
+            if (x + z) % 5 == 0 {
+                space.set_voxel_id(x, 4, z, 11);
+                space.set_voxel_id(x, 5, z, 1);
+            }
+            space.set_light(x, 6, z, 12, 3, 2, 1);
+        }
+    }
+
+    let min = [0, 0, 0];
+    let max = [10, 8, 10];
+
+    let greedy_cached = canonicalize(mesh_space_greedy::<TestSpace>(
+        &min,
+        &max,
+        &space,
+        &registry_cached,
+    ));
+    let greedy_uncached = canonicalize(mesh_space_greedy::<TestSpace>(
+        &min,
+        &max,
+        &space,
+        &registry_uncached,
+    ));
+    assert_eq!(greedy_cached, greedy_uncached);
+
+    let non_greedy_cached = canonicalize(mesh_space::<TestSpace>(&min, &max, &space, &registry_cached));
+    let non_greedy_uncached =
+        canonicalize(mesh_space::<TestSpace>(&min, &max, &space, &registry_uncached));
+    assert_eq!(non_greedy_cached, non_greedy_uncached);
 }

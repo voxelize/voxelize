@@ -3576,11 +3576,15 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     let greedy_face_index = if is_non_greedy_block {
                         -1i16
                     } else {
-                        let face_index = block.greedy_face_indices[dir_index];
-                        if face_index == -1 {
-                            continue;
+                        if cache_ready {
+                            let face_index = block.greedy_face_indices[dir_index];
+                            if face_index == -1 {
+                                continue;
+                            }
+                            face_index
+                        } else {
+                            -1
                         }
-                        face_index
                     };
 
                     let current_voxel_index = if is_opaque || is_non_greedy_block {
