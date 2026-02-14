@@ -269,6 +269,17 @@ pub fn flood_light(
     flood_light_from_nodes(space, queue.into_iter().collect(), color, config, bounds, registry);
 }
 
+pub fn flood_light_nodes(
+    space: &mut dyn LightVoxelAccess,
+    nodes: Vec<LightNode>,
+    color: &LightColor,
+    config: &LightConfig,
+    bounds: Option<&LightBounds>,
+    registry: &LightRegistry,
+) {
+    flood_light_from_nodes(space, nodes, color, config, bounds, registry);
+}
+
 pub fn remove_light(
     space: &mut dyn LightVoxelAccess,
     voxel: [i32; 3],

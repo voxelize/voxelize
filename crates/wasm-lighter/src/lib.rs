@@ -1,10 +1,11 @@
-use std::{cell::RefCell, collections::VecDeque};
+use std::cell::RefCell;
 
 use js_sys::{Array, Reflect, Uint32Array};
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 use voxelize_lighter::{
-    flood_light, remove_lights, BlockRotation, LightBounds, LightColor, LightConfig, LightNode,
+    flood_light_nodes, remove_lights, BlockRotation, LightBounds, LightColor, LightConfig,
+    LightNode,
     LightRegistry, LightUtils, LightVoxelAccess,
 };
 
@@ -418,9 +419,9 @@ pub fn process_light_batch_fast(
                 }
             }
 
-            flood_light(
+            flood_light_nodes(
                 &mut space,
-                VecDeque::from(flood_nodes),
+                flood_nodes,
                 &light_color,
                 &config,
                 bounds.as_ref(),
