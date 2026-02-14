@@ -539,9 +539,28 @@ const processBatchMessage = (message: LightBatchMessage) => {
     options,
   } = message;
 
-  const [gridWidth, gridDepth] = chunkGridDimensions;
-  const [gridOffsetX, gridOffsetZ] = chunkGridOffset;
   const normalizedLastRelevantSequenceId = normalizeSequenceId(lastRelevantSequenceId);
+  if (
+    !Array.isArray(chunkGridDimensions) ||
+    chunkGridDimensions.length < 2 ||
+    !Array.isArray(chunkGridOffset) ||
+    chunkGridOffset.length < 2
+  ) {
+    postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
+    return;
+  }
+  if (!options || typeof options !== "object") {
+    postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
+    return;
+  }
+  if (!Array.isArray(chunksData)) {
+    postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
+    return;
+  }
+  const gridWidth = chunkGridDimensions[0];
+  const gridDepth = chunkGridDimensions[1];
+  const gridOffsetX = chunkGridOffset[0];
+  const gridOffsetZ = chunkGridOffset[1];
   const chunkSize = options.chunkSize;
   const maxHeight = options.maxHeight;
   const maxLightLevel = options.maxLightLevel;
