@@ -8,11 +8,13 @@ import {
   BlockRuleLogic,
   BlockUtils,
   Light,
+  LightColor,
   LightUtils,
   PY_ROTATION,
   Y_ROT_MAP,
   Y_ROT_MAP_EIGHT,
   Y_ROT_MAP_FOUR,
+  lightColorFromIndex,
   Voxel,
 } from "../src";
 
@@ -155,6 +157,18 @@ describe("LightUtils", () => {
       green: 14,
       blue: 3,
     });
+  });
+
+  it("supports channel index to LightColor mapping", () => {
+    expect(lightColorFromIndex(0)).toBe(LightColor.Sunlight);
+    expect(lightColorFromIndex(1)).toBe(LightColor.Red);
+    expect(lightColorFromIndex(2)).toBe(LightColor.Green);
+    expect(lightColorFromIndex(3)).toBe(LightColor.Blue);
+  });
+
+  it("rejects invalid light channel indices", () => {
+    expect(() => lightColorFromIndex(-1)).toThrowError(RangeError);
+    expect(() => lightColorFromIndex(4)).toThrowError(RangeError);
   });
 });
 
