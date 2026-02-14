@@ -340,6 +340,7 @@ fields.
 WASM-pack JSON reports similarly expose single-check inventory and execution
 metadata such as `availableCheckCommandMap`, `availableCheckArgsMap`,
 `availableCheckArgCountMap`, `checkIndices`, `checkIndexMap`,
+`checkCommandMap`, `checkArgsMap`, `checkArgCountMap`,
 `checkStatusMap`, `checkStatusCountMap`, `checkVersionMap`,
 `checkExitCodeMap`, `checkOutputLineMap`, `passedChecks`,
 `passedCheckIndices`, `passedCheckIndexMap`, `failedChecks`,

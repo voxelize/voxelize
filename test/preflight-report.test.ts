@@ -131,6 +131,12 @@ type WasmPackNestedReport = {
   checkIndexCount: number;
   checkIndexMap: Record<string, number>;
   checkIndexMapCount: number;
+  checkCommandMap: Record<string, string>;
+  checkCommandMapCount: number;
+  checkArgsMap: Record<string, string[]>;
+  checkArgsMapCount: number;
+  checkArgCountMap: Record<string, number>;
+  checkArgCountMapCount: number;
   checkStatusMap: Record<string, string>;
   checkStatusMapCount: number;
   checkStatusCountMap: Record<string, number>;
@@ -1745,6 +1751,15 @@ const expectWasmPackNestedReport = (checkReport: object | null) => {
   const expectedAvailableCheckIndexMap = {
     "wasm-pack": 0,
   };
+  const expectedCheckCommandMap = {
+    "wasm-pack": report.command,
+  };
+  const expectedCheckArgsMap = {
+    "wasm-pack": ["--version"],
+  };
+  const expectedCheckArgCountMap = {
+    "wasm-pack": 1,
+  };
   const expectedCheckIndexMap = {
     "wasm-pack": 0,
   };
@@ -1773,6 +1788,16 @@ const expectWasmPackNestedReport = (checkReport: object | null) => {
   expect(report.checkIndexCount).toBe(report.checkIndices.length);
   expect(report.checkIndexMap).toEqual(expectedCheckIndexMap);
   expect(report.checkIndexMapCount).toBe(Object.keys(report.checkIndexMap).length);
+  expect(report.checkCommandMap).toEqual(expectedCheckCommandMap);
+  expect(report.checkCommandMapCount).toBe(
+    Object.keys(report.checkCommandMap).length
+  );
+  expect(report.checkArgsMap).toEqual(expectedCheckArgsMap);
+  expect(report.checkArgsMapCount).toBe(Object.keys(report.checkArgsMap).length);
+  expect(report.checkArgCountMap).toEqual(expectedCheckArgCountMap);
+  expect(report.checkArgCountMapCount).toBe(
+    Object.keys(report.checkArgCountMap).length
+  );
   expect(report.checkStatusMapCount).toBe(Object.keys(report.checkStatusMap).length);
   expect(report.checkStatusCountMapCount).toBe(
     Object.keys(report.checkStatusCountMap).length

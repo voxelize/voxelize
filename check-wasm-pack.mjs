@@ -87,6 +87,12 @@ const summarizeCheckResult = ({
       checkIndexCount: 0,
       checkIndexMap: {},
       checkIndexMapCount: 0,
+      checkCommandMap: {},
+      checkCommandMapCount: 0,
+      checkArgsMap: {},
+      checkArgsMapCount: 0,
+      checkArgCountMap: {},
+      checkArgCountMapCount: 0,
       checkStatusMap: {},
       checkStatusMapCount: 0,
       checkStatusCountMap: {},
@@ -118,6 +124,15 @@ const summarizeCheckResult = ({
   const checkIndices = [availableCheckIndexMap[checkName]];
   const checkIndexMap = {
     [checkName]: availableCheckIndexMap[checkName],
+  };
+  const checkCommandMap = {
+    [checkName]: wasmPackCommand,
+  };
+  const checkArgsMap = {
+    [checkName]: [...checkArgs],
+  };
+  const checkArgCountMap = {
+    [checkName]: checkArgs.length,
   };
   const checkStatusMap = {
     [checkName]: status,
@@ -171,6 +186,12 @@ const summarizeCheckResult = ({
     checkIndexCount: checkIndices.length,
     checkIndexMap,
     checkIndexMapCount: countRecordEntries(checkIndexMap),
+    checkCommandMap,
+    checkCommandMapCount: countRecordEntries(checkCommandMap),
+    checkArgsMap,
+    checkArgsMapCount: countRecordEntries(checkArgsMap),
+    checkArgCountMap,
+    checkArgCountMapCount: countRecordEntries(checkArgCountMap),
     checkStatusMap,
     checkStatusMapCount: countRecordEntries(checkStatusMap),
     checkStatusCountMap,
