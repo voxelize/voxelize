@@ -143,8 +143,10 @@ impl<'a> System<'a> for EventsSystem {
                                 }
                             }
                         } else {
-                            let include_ids: HashSet<&str> =
-                                ids.iter().map(String::as_str).collect();
+                            let mut include_ids: HashSet<&str> = HashSet::with_capacity(ids.len());
+                            for include_id in ids.iter() {
+                                include_ids.insert(include_id.as_str());
+                            }
                             for (id, client) in clients.iter() {
                                 if include_ids.contains(id.as_str()) {
                                     send_to_client(id, client.entity);
@@ -160,8 +162,10 @@ impl<'a> System<'a> for EventsSystem {
                                 }
                             }
                         } else {
-                            let exclude_ids: HashSet<&str> =
-                                ids.iter().map(String::as_str).collect();
+                            let mut exclude_ids: HashSet<&str> = HashSet::with_capacity(ids.len());
+                            for exclude_id in ids.iter() {
+                                exclude_ids.insert(exclude_id.as_str());
+                            }
                             for (id, client) in clients.iter() {
                                 if !exclude_ids.contains(id.as_str()) {
                                     send_to_client(id, client.entity);
