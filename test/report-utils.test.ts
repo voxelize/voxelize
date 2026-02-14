@@ -46,6 +46,8 @@ describe("report-utils", () => {
   it("returns null for invalid or empty json output", () => {
     expect(parseJsonOutput("")).toBeNull();
     expect(parseJsonOutput("not-json")).toBeNull();
+    expect(parseJsonOutput(null)).toBeNull();
+    expect(parseJsonOutput(42)).toBeNull();
   });
 
   it("ignores primitive json values in output parsing", () => {
@@ -3684,6 +3686,12 @@ describe("report-utils", () => {
       examplePayloadValid: null,
       examplePayloadIssues: null,
       exampleOutputLine: "warning: no json",
+    });
+    expect(summarizeTsCoreExampleOutput(null)).toEqual({
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      exampleOutputLine: null,
     });
     expect(
       summarizeTsCoreExampleOutput("\u001b[33mwarning: no json\u001b[39m")

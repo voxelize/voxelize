@@ -21,7 +21,7 @@ const isObjectLikeJsonValue = (value) => {
 };
 
 export const parseJsonOutput = (value) => {
-  if (value.length === 0) {
+  if (typeof value !== "string" || value.length === 0) {
     return null;
   }
   const sanitizedValue = sanitizeOutputForJsonParsing(value);
