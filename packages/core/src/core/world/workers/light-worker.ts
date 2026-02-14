@@ -856,9 +856,6 @@ const applyRelevantDeltas = (
         continue;
       }
       const [vx, vy, vz] = coords;
-      const newRotation = delta.newRotation;
-      const newStage = delta.newStage;
-      const newVoxel = delta.newVoxel;
       const writeIntentMask = getDeltaWriteIntentMask(delta);
       if (writeIntentMask === 0) {
         continue;
@@ -882,16 +879,19 @@ const applyRelevantDeltas = (
       const currentRaw = nextRaw;
 
       if ((writeIntentMask & DELTA_WRITE_VOXEL) !== 0) {
+        const newVoxel = delta.newVoxel as number;
         nextRaw = BlockUtils.insertID(nextRaw, newVoxel);
       }
       if ((writeIntentMask & DELTA_WRITE_ROTATION) !== 0) {
+        const newRotation = delta.newRotation as NonNullable<VoxelDelta["newRotation"]>;
         nextRaw = BlockUtils.insertRotation(
           nextRaw,
-          newRotation as NonNullable<VoxelDelta["newRotation"]>
+          newRotation
         );
       }
       if ((writeIntentMask & DELTA_WRITE_STAGE) !== 0) {
-        nextRaw = BlockUtils.insertStage(nextRaw, newStage as number);
+        const newStage = delta.newStage as number;
+        nextRaw = BlockUtils.insertStage(nextRaw, newStage);
       }
 
       if (nextRaw !== currentRaw) {
