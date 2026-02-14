@@ -811,14 +811,17 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   }
 
   private getDefaultValue(schema: ZodTypeAny): string | number | boolean | undefined {
-    if (!this.hasDefault(schema)) return undefined;
     const def = schema._def as {
       defaultValue?: string | number | boolean | (() => string | number | boolean);
     };
-    if (typeof def.defaultValue === "function") {
-      return def.defaultValue();
+    const defaultValue = def.defaultValue;
+    if (defaultValue === undefined) {
+      return undefined;
     }
-    return def.defaultValue;
+    if (typeof defaultValue === "function") {
+      return defaultValue();
+    }
+    return defaultValue;
   }
 
   private extractArgMetadata(
