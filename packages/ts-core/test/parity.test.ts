@@ -1041,6 +1041,9 @@ describe("Type builders", () => {
     expect(pattern.parts[0].rule).not.toBe(sourcePart.rule);
 
     sourcePart.faces[0].name = "MutatedPatternFace";
+    sourcePart.faces[0].dir[0] = 9;
+    sourcePart.faces[0].corners[0].pos[0] = 9;
+    sourcePart.faces[0].range.startU = 9;
     sourcePart.aabbs[0].maxX = 9;
     sourcePart.isTransparent[0] = false;
     if (sourcePart.rule.type !== "simple") {
@@ -1057,6 +1060,9 @@ describe("Type builders", () => {
 
     const [clonedPart] = pattern.parts;
     expect(clonedPart.faces[0].name).toBe("PatternFace");
+    expect(clonedPart.faces[0].dir[0]).toBe(0);
+    expect(clonedPart.faces[0].corners[0].pos[0]).toBe(0);
+    expect(clonedPart.faces[0].range.startU).toBe(0);
     expect(clonedPart.aabbs[0].maxX).toBe(1);
     expect(clonedPart.isTransparent).toEqual([
       true,
