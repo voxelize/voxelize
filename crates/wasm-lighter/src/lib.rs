@@ -12,6 +12,20 @@ use voxelize_lighter::{
 thread_local! {
     static CACHED_REGISTRY: RefCell<Option<LightRegistry>> = const { RefCell::new(None) };
     static JS_KEYS: JsInteropKeys = JsInteropKeys::new();
+    static EMPTY_BATCH_RESULT: JsValue = {
+        let output = Object::new();
+        let modified_chunks = Array::new_with_length(0);
+        let modified_chunks_obj: Object = modified_chunks.clone().unchecked_into();
+        Object::freeze(&modified_chunks_obj);
+        Reflect::set(
+            &output,
+            &JsValue::from_str("modifiedChunks"),
+            &modified_chunks,
+        )
+        .expect("Unable to set modified chunks");
+        Object::freeze(&output);
+        output.into()
+    };
 }
 
 struct JsInteropKeys {
@@ -337,13 +351,7 @@ fn parse_chunks(chunks_data: &Array) -> Vec<Option<ChunkData>> {
 }
 
 fn empty_batch_result() -> JsValue {
-    JS_KEYS.with(|keys| {
-        let output = Object::new();
-        let modified_chunks = Array::new_with_length(0);
-        Reflect::set(&output, &keys.modified_chunks, &modified_chunks)
-            .expect("Unable to set modified chunks");
-        output.into()
-    })
+    EMPTY_BATCH_RESULT.with(|result| result.clone())
 }
 
 #[wasm_bindgen]
