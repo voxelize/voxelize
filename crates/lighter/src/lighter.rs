@@ -451,8 +451,11 @@ pub fn propagate(
     for y in (0..max_height).rev() {
         for x in 0..shape_x {
             let vx = start_x + x as i32;
+            let mut mask_index = x;
             for z in 0..shape_z {
                 let vz = start_z + z as i32;
+                let current_mask_index = mask_index;
+                mask_index += shape_x;
 
                 let raw_voxel = space.get_raw_voxel(vx, y, vz);
                 let block = registry.get_block_by_id(raw_voxel & 0xFFFF);
@@ -502,40 +505,42 @@ pub fn propagate(
                     }
                 }
 
-                let mask_index = x + z * shape_x;
                 let [px, py, pz, nx, ny, nz] =
                     block.get_transparency_from_raw_voxel(raw_voxel);
 
                 if block.is_opaque {
-                    mask[mask_index] = 0;
+                    mask[current_mask_index] = 0;
                     continue;
                 }
 
                 if !py || !ny {
-                    mask[mask_index] = 0;
+                    mask[current_mask_index] = 0;
                     continue;
                 }
 
                 if block.light_reduce {
-                    if mask[mask_index] != 0 {
-                        let sunlight = mask[mask_index] - 1;
+                    if mask[current_mask_index] != 0 {
+                        let sunlight = mask[current_mask_index] - 1;
                         space.set_sunlight(vx, y, vz, sunlight);
                         sunlight_queue.push(LightNode {
                             voxel: [vx, y, vz],
                             level: sunlight,
                         });
-                        mask[mask_index] = 0;
+                        mask[current_mask_index] = 0;
                     }
                     continue;
                 }
 
-                space.set_sunlight(vx, y, vz, mask[mask_index]);
+                space.set_sunlight(vx, y, vz, mask[current_mask_index]);
 
-                if mask[mask_index] == config.max_light_level {
-                    let should_add_max = (x + 1 < shape_x && mask[mask_index + 1] == 0 && px)
-                        || (x > 0 && mask[mask_index - 1] == 0 && nx)
-                        || (z + 1 < shape_z && mask[mask_index + shape_x] == 0 && pz)
-                        || (z > 0 && mask[mask_index - shape_x] == 0 && nz);
+                if mask[current_mask_index] == config.max_light_level {
+                    let should_add_max =
+                        (x + 1 < shape_x && mask[current_mask_index + 1] == 0 && px)
+                            || (x > 0 && mask[current_mask_index - 1] == 0 && nx)
+                            || (z + 1 < shape_z
+                                && mask[current_mask_index + shape_x] == 0
+                                && pz)
+                            || (z > 0 && mask[current_mask_index - shape_x] == 0 && nz);
 
                     if should_add_max {
                         space.set_sunlight(vx, y, vz, config.max_light_level);
