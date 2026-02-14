@@ -103,17 +103,18 @@ const voxel = Voxel.pack({
 ```ts
 import {
   BlockRuleLogic,
+  createBlockRule,
   createBlockDynamicPattern,
 } from "@voxelize/ts-core";
 
 const pattern = createBlockDynamicPattern({
   parts: [
     {
-      rule: {
+      rule: createBlockRule({
         type: "combination",
         logic: BlockRuleLogic.And,
         rules: [{ type: "simple", offset: [0, 0, 0], id: 42 }],
-      },
+      }),
       faces: [{ name: "Top", dir: [0, 1, 0] }],
       worldSpace: false,
     },
