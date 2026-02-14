@@ -53,8 +53,9 @@ impl ChunkUtils {
 
     /// Map a voxel coordinate to a chunk local coordinate.
     pub fn map_voxel_to_chunk_local(vx: i32, vy: i32, vz: i32, chunk_size: usize) -> Vec3<usize> {
-        let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
-        let cs = chunk_size as i32;
+        let cs = i32::try_from(chunk_size).unwrap_or(i32::MAX);
+        let cx = vx.div_euclid(cs);
+        let cz = vz.div_euclid(cs);
 
         Vec3(
             (vx - cx * cs) as usize,
