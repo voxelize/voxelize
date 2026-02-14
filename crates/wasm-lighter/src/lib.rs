@@ -354,6 +354,17 @@ fn empty_batch_result() -> JsValue {
     EMPTY_BATCH_RESULT.with(|result| result.clone())
 }
 
+#[inline]
+fn light_color_from_index(color: usize) -> Option<LightColor> {
+    match color {
+        0 => Some(LightColor::Sunlight),
+        1 => Some(LightColor::Red),
+        2 => Some(LightColor::Green),
+        3 => Some(LightColor::Blue),
+        _ => None,
+    }
+}
+
 #[wasm_bindgen]
 pub fn init() {}
 
@@ -388,7 +399,9 @@ pub fn process_light_batch_fast(
         return empty_batch_result();
     }
 
-    let light_color = LightColor::from(color);
+    let Some(light_color) = light_color_from_index(color) else {
+        return empty_batch_result();
+    };
     let (removal_nodes, flood_nodes): (Vec<[i32; 3]>, Vec<LightNode>) = JS_KEYS.with(|keys| {
         let removal_nodes = if Reflect::get(&removals, &keys.length)
             .ok()
