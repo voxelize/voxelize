@@ -506,6 +506,9 @@ const hasPotentialRelevantDeltaBatches = (
   expectedChunkByteLength: number
 ) => {
   const deltaBatchesLength = deltaBatches.length;
+  if (deltaBatchesLength === 0) {
+    return false;
+  }
   const cellCount = gridWidth * gridDepth;
   const hasMultipleDeltaBatches = deltaBatchesLength > 1;
   const chunkValidity =
@@ -902,6 +905,9 @@ const applyRelevantDeltas = (
   gridOffsetZ: number,
   relevantDeltas: DeltaBatch[]
 ): number => {
+  if (relevantDeltas.length === 0) {
+    return 0;
+  }
   let lastSequenceId = 0;
 
   for (let batchIndex = 0; batchIndex < relevantDeltas.length; batchIndex++) {
