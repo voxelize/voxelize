@@ -50,10 +50,22 @@ const resolveFirstNonEmptyOutputLine = (output) => {
     return null;
   }
 
-  const lines = output.split(/\r?\n/);
-  const firstNonEmptyLine = lines.find((line) => {
-    return line.trim().length > 0;
+  const nonEmptyLines = output
+    .split(/\r?\n/)
+    .map((line) => {
+      return line.trim();
+    })
+    .filter((line) => {
+      return line.length > 0;
+    });
+  const ruleMatchedLine = nonEmptyLines.find((line) => {
+    return line.includes("ruleMatched");
   });
+  if (ruleMatchedLine !== undefined) {
+    return ruleMatchedLine;
+  }
+
+  const [firstNonEmptyLine] = nonEmptyLines;
   return firstNonEmptyLine ?? null;
 };
 const resolveExampleRuleMatched = (exampleOutput) => {
