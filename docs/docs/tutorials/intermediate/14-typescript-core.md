@@ -250,7 +250,9 @@ For release automation and CI routing, aggregate preflight JSON reports include:
   `availableSpecialCheckAliasGroupCount`,
   `availableSpecialCheckAliasTokenCount`,
   `availableSpecialSelectorResolvedChecks`,
-  `availableSpecialSelectorResolvedChecksCount`
+  `availableSpecialSelectorResolvedChecksCount`,
+  `availableSpecialSelectorResolvedCheckCountMap`,
+  `availableSpecialSelectorResolvedCheckCountMapCount`
 
 Each aggregate `checks[]` entry also includes `scriptName`,
 `supportsNoBuild`, and `checkIndex`.

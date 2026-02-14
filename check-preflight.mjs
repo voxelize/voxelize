@@ -217,6 +217,15 @@ const availableSpecialSelectorResolvedChecks = Object.fromEntries(
 const availableSpecialSelectorResolvedChecksCount = countRecordEntries(
   availableSpecialSelectorResolvedChecks
 );
+const availableSpecialSelectorResolvedCheckCountMap = Object.fromEntries(
+  availableSpecialCheckSelectors.map((selector) => {
+    const selectorChecks = availableSpecialSelectorResolvedChecks[selector];
+    return [selector, Array.isArray(selectorChecks) ? selectorChecks.length : 0];
+  })
+);
+const availableSpecialSelectorResolvedCheckCountMapCount = countRecordEntries(
+  availableSpecialSelectorResolvedCheckCountMap
+);
 const specialSelectorHintText = availableSpecialCheckSelectors
   .map((selector) => {
     const selectorAliases = availableSpecialCheckAliases[selector].filter((alias) => {
@@ -695,6 +704,8 @@ if (
     availableSpecialCheckAliasTokenCount,
     availableSpecialSelectorResolvedChecks,
     availableSpecialSelectorResolvedChecksCount,
+    availableSpecialSelectorResolvedCheckCountMap,
+    availableSpecialSelectorResolvedCheckCountMapCount,
     requestedCheckResolutionKinds,
     requestedCheckResolutionKindCount,
   });
@@ -831,6 +842,8 @@ if (isListChecks) {
     availableSpecialCheckAliasTokenCount,
     availableSpecialSelectorResolvedChecks,
     availableSpecialSelectorResolvedChecksCount,
+    availableSpecialSelectorResolvedCheckCountMap,
+    availableSpecialSelectorResolvedCheckCountMapCount,
     requestedCheckResolutionKinds,
     requestedCheckResolutionKindCount,
   });
@@ -976,6 +989,8 @@ const report = buildTimedReport({
   availableSpecialCheckAliasTokenCount,
   availableSpecialSelectorResolvedChecks,
   availableSpecialSelectorResolvedChecksCount,
+  availableSpecialSelectorResolvedCheckCountMap,
+  availableSpecialSelectorResolvedCheckCountMapCount,
   requestedCheckResolutionKinds,
   requestedCheckResolutionKindCount,
 });

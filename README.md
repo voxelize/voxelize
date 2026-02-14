@@ -430,6 +430,7 @@ Aggregate preflight reports include `availableCheckScripts`/`availableCheckScrip
 Aggregate preflight reports include `availableSpecialCheckSelectors` and `availableSpecialCheckSelectorCount` for quick checks against supported special selector names.
 Aggregate preflight reports include `availableSpecialCheckAliases`, `availableSpecialCheckAliasGroupCount`, and `availableSpecialCheckAliasTokenCount` for non-check selectors such as `all`.
 Aggregate preflight reports include `availableSpecialSelectorResolvedChecks` and `availableSpecialSelectorResolvedChecksCount` so automation can inspect how each special selector expands to canonical checks.
+Aggregate preflight reports include `availableSpecialSelectorResolvedCheckCountMap` and `availableSpecialSelectorResolvedCheckCountMapCount` for direct selector-to-check-count lookup.
 Aggregate preflight reports include `requestedChecks` so CI logs can capture the exact `--only` inputs after tokenization.
 Aggregate preflight reports include `selectionMode` (`default` or `only`) to show whether selection came from defaults or an explicit `--only` filter.
 Aggregate preflight reports include `specialSelectorsUsed` to show which special selector names (for example `all`) were used in `--only`.

@@ -286,6 +286,8 @@ type PreflightReport = {
     libraries: string[];
   };
   availableSpecialSelectorResolvedChecksCount: number;
+  availableSpecialSelectorResolvedCheckCountMap: Record<string, number>;
+  availableSpecialSelectorResolvedCheckCountMapCount: number;
   requestedCheckResolutionKinds: Array<
     RequestedCheckResolution["kind"]
   >;
@@ -401,6 +403,13 @@ const expectedAvailableSpecialSelectorResolvedChecks = {
   ],
   libraries: ["tsCore", "runtimeLibraries"],
 };
+const expectedAvailableSpecialSelectorResolvedCheckCountMap = Object.fromEntries(
+  Object.entries(expectedAvailableSpecialSelectorResolvedChecks).map(
+    ([selector, checks]) => {
+      return [selector, checks.length];
+    }
+  )
+);
 const expectedAvailableChecks = [
   "devEnvironment",
   "wasmPack",
@@ -925,6 +934,12 @@ const expectSelectorAndAliasMetadata = (report: PreflightReport) => {
   );
   expect(report.availableSpecialSelectorResolvedChecksCount).toBe(
     Object.keys(report.availableSpecialSelectorResolvedChecks).length
+  );
+  expect(report.availableSpecialSelectorResolvedCheckCountMap).toEqual(
+    expectedAvailableSpecialSelectorResolvedCheckCountMap
+  );
+  expect(report.availableSpecialSelectorResolvedCheckCountMapCount).toBe(
+    Object.keys(report.availableSpecialSelectorResolvedCheckCountMap).length
   );
   expect(report.requestedCheckResolutionKinds).toEqual(
     expectedRequestedCheckResolutionKinds
