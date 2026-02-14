@@ -47,8 +47,14 @@ impl<'a> System<'a> for PathFindingSystem {
                 return false;
             }
 
-            for i in 1..(h.ceil() as i32 + 1) {
-                if !get_is_voxel_passable(vx, vy + i, vz) {
+            let Some(height_steps) = clamped_height_scan_steps(h) else {
+                return false;
+            };
+            for i in 1..=height_steps {
+                let Some(check_y) = vy.checked_add(i) else {
+                    return false;
+                };
+                if !get_is_voxel_passable(vx, check_y, vz) {
                     return false;
                 }
             }
@@ -58,7 +64,10 @@ impl<'a> System<'a> for PathFindingSystem {
 
         // More lenient check for start positions - allows for edge standing and non-full blocks
         let is_position_supported = |pos: &Vec3<i32>, aabb_width: f32| -> bool {
-            let half_width = (aabb_width / 2.0).ceil() as i32;
+            if !aabb_width.is_finite() || aabb_width < 0.0 {
+                return false;
+            }
+            let half_width = clamp_f64_to_i32((f64::from(aabb_width) * 0.5).ceil()).max(0);
 
             // Check corners and edges of the bot's base
             let check_points = vec![
@@ -77,7 +86,10 @@ impl<'a> System<'a> for PathFindingSystem {
                 let check_z = pos.2 + dz;
 
                 // Check if there's a solid block below this point
-                let below = chunks.get_voxel(check_x, pos.1 - 1, check_z);
+                let Some(below_y) = pos.1.checked_sub(1) else {
+                    continue;
+                };
+                let below = chunks.get_voxel(check_x, below_y, check_z);
                 let block = registry.get_block_by_id(below);
                 if !block.is_passable && !block.is_fluid {
                     return true;
@@ -114,11 +126,14 @@ impl<'a> System<'a> for PathFindingSystem {
                 return voxel;
             }
 
-            let min_allowed_y = (original_y - max_drop).max(min_y);
+            let min_allowed_y = original_y.saturating_sub(max_drop).max(min_y);
 
             while voxel.1 > min_allowed_y {
-                if get_is_voxel_passable(voxel.0, voxel.1 - 1, voxel.2) {
-                    voxel.1 -= 1;
+                let Some(next_y) = voxel.1.checked_sub(1) else {
+                    break;
+                };
+                if get_is_voxel_passable(voxel.0, next_y, voxel.2) {
+                    voxel.1 = next_y;
                 } else {
                     break;
                 }
@@ -134,12 +149,21 @@ impl<'a> System<'a> for PathFindingSystem {
                     let body_vpos = body.0.get_voxel_position();
 
                     let height = body.0.aabb.height();
+                    let max_distance_allowed = entity_path.max_distance;
+                    if !max_distance_allowed.is_finite() || max_distance_allowed < 0.0 {
+                        entity_path.path = None;
+                        return;
+                    }
 
-                    let target_vpos = Vec3(
-                        target_position.0.floor() as i32,
-                        target_position.1.floor() as i32,
-                        target_position.2.floor() as i32,
-                    );
+                    let (Some(target_x), Some(target_y), Some(target_z)) = (
+                        floor_f32_to_i32(target_position.0),
+                        floor_f32_to_i32(target_position.1),
+                        floor_f32_to_i32(target_position.2),
+                    ) else {
+                        entity_path.path = None;
+                        return;
+                    };
+                    let target_vpos = Vec3(target_x, target_y, target_z);
 
                     if !get_is_voxel_passable(target_vpos.0, target_vpos.1, target_vpos.2) {
                         entity_path.path = None;
@@ -148,12 +172,8 @@ impl<'a> System<'a> for PathFindingSystem {
 
                     // Check the distance between the robot and the target
                     // If the distance is too large, skip pathfinding for this entity
-                    let max_distance_allowed = entity_path.max_distance as f64; // Set this to a suitable value for your game
-                    let distance = ((body_vpos.0 - target_vpos.0).pow(2)
-                        + (body_vpos.1 - target_vpos.1).pow(2)
-                        + (body_vpos.2 - target_vpos.2).pow(2))
-                        as f64;
-                    if distance.sqrt() > max_distance_allowed {
+                    let distance = squared_voxel_distance_f64(&body_vpos, &target_vpos).sqrt();
+                    if !distance.is_finite() || distance > max_distance_allowed {
                         entity_path.path = None;
                         return;
                     }
@@ -179,11 +199,10 @@ impl<'a> System<'a> for PathFindingSystem {
                     }
 
                     // Check if the start and goal are too far apart for pathfinding
-                    let start_goal_distance = ((start.0 - goal.0).pow(2)
-                        + (start.1 - goal.1).pow(2)
-                        + (start.2 - goal.2).pow(2))
-                        as f64;
-                    if start_goal_distance.sqrt() > max_distance_allowed {
+                    let start_goal_distance = squared_voxel_distance_f64(&start, &goal).sqrt();
+                    if !start_goal_distance.is_finite()
+                        || start_goal_distance > max_distance_allowed
+                    {
                         entity_path.path = None;
                         return;
                     }
@@ -370,7 +389,7 @@ impl<'a> System<'a> for PathFindingSystem {
                     );
 
                     if let Some((nodes, count)) = path {
-                        if count > entity_path.max_nodes as u32 {
+                        if count > clamp_usize_to_u32(entity_path.max_nodes) {
                             entity_path.path = None;
                         } else {
                             entity_path.path = Some(
@@ -558,8 +577,28 @@ fn can_walk_directly_with_clearance(
 }
 
 #[inline]
+fn floor_f32_to_i32(value: f32) -> Option<i32> {
+    if !value.is_finite() {
+        return None;
+    }
+    let floored = f64::from(value).floor();
+    if floored < f64::from(i32::MIN) || floored > f64::from(i32::MAX) {
+        return None;
+    }
+    Some(floored as i32)
+}
+
+#[inline]
 fn axis_delta_i64(to: i32, from: i32) -> i64 {
     i64::from(to) - i64::from(from)
+}
+
+#[inline]
+fn squared_voxel_distance_f64(a: &Vec3<i32>, b: &Vec3<i32>) -> f64 {
+    let dx = axis_delta_i64(a.0, b.0) as f64;
+    let dy = axis_delta_i64(a.1, b.1) as f64;
+    let dz = axis_delta_i64(a.2, b.2) as f64;
+    dx.mul_add(dx, dy.mul_add(dy, dz * dz))
 }
 
 #[inline]
@@ -577,6 +616,15 @@ fn clamped_height_scan_steps(height: f32) -> Option<i32> {
 #[inline]
 fn clamp_f64_to_i32(value: f64) -> i32 {
     value.clamp(f64::from(i32::MIN), f64::from(i32::MAX)) as i32
+}
+
+#[inline]
+fn clamp_usize_to_u32(value: usize) -> u32 {
+    if value > u32::MAX as usize {
+        u32::MAX
+    } else {
+        value as u32
+    }
 }
 
 /// Calculate the angle change in degrees between three points
@@ -724,7 +772,11 @@ fn is_position_walkable(
 
 #[cfg(test)]
 mod tests {
-    use super::{axis_delta_i64, clamp_f64_to_i32, clamped_height_scan_steps};
+    use super::{
+        axis_delta_i64, clamp_f64_to_i32, clamp_usize_to_u32, clamped_height_scan_steps,
+        floor_f32_to_i32, squared_voxel_distance_f64,
+    };
+    use crate::Vec3;
 
     #[test]
     fn axis_delta_i64_handles_i32_extreme_values() {
@@ -744,5 +796,28 @@ mod tests {
         assert_eq!(clamp_f64_to_i32(f64::from(i32::MAX) + 10_000.0), i32::MAX);
         assert_eq!(clamp_f64_to_i32(f64::from(i32::MIN) - 10_000.0), i32::MIN);
         assert_eq!(clamp_f64_to_i32(42.0), 42);
+    }
+
+    #[test]
+    fn floor_f32_to_i32_rejects_non_finite_and_out_of_range_values() {
+        assert_eq!(floor_f32_to_i32(f32::NAN), None);
+        assert_eq!(floor_f32_to_i32(f32::INFINITY), None);
+        assert_eq!(floor_f32_to_i32(i32::MAX as f32 + 1000.0), None);
+        assert_eq!(floor_f32_to_i32(12.9), Some(12));
+    }
+
+    #[test]
+    fn squared_voxel_distance_f64_handles_i32_extreme_values() {
+        let a = Vec3(i32::MIN, i32::MIN, i32::MIN);
+        let b = Vec3(i32::MAX, i32::MAX, i32::MAX);
+        let dist = squared_voxel_distance_f64(&a, &b);
+        assert!(dist.is_finite());
+        assert!(dist > 0.0);
+    }
+
+    #[test]
+    fn clamp_usize_to_u32_saturates_large_values() {
+        assert_eq!(clamp_usize_to_u32(5), 5);
+        assert_eq!(clamp_usize_to_u32(usize::MAX), u32::MAX);
     }
 }
