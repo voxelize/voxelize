@@ -21,6 +21,7 @@ import {
   createBlockConditionalPart,
   createBlockDynamicPattern,
   createBlockFace,
+  createBlockRule,
   createCornerData,
   createUV,
   toSaturatedUint32,
@@ -1200,6 +1201,94 @@ describe("Type builders", () => {
           offset: [1, 0, 0],
           id: 99,
           rotation: BlockRotation.py(Math.PI / 2),
+        },
+      ],
+    });
+  });
+
+  it("builds cloned none rules with createBlockRule defaults", () => {
+    const rule = createBlockRule();
+    expect(rule).toEqual(BLOCK_RULE_NONE);
+    expect(rule).not.toBe(BLOCK_RULE_NONE);
+  });
+
+  it("clones nested rules with createBlockRule", () => {
+    const sourceRule: BlockRule = {
+      type: "combination",
+      logic: BlockRuleLogic.And,
+      rules: [
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 5,
+          rotation: BlockRotation.py(Math.PI / 2),
+        },
+      ],
+    };
+    const clonedRule = createBlockRule(sourceRule);
+
+    const sourceSimpleRule = sourceRule.rules[0];
+    if (
+      sourceSimpleRule.type !== "simple" ||
+      sourceSimpleRule.rotation === undefined ||
+      sourceSimpleRule.rotation === null
+    ) {
+      throw new Error("Expected simple source rule with rotation");
+    }
+    sourceSimpleRule.offset[0] = 9;
+    sourceSimpleRule.id = 99;
+    sourceSimpleRule.rotation.axis = BlockRotation.PX().axis;
+
+    expect(clonedRule).toEqual({
+      type: "combination",
+      logic: BlockRuleLogic.And,
+      rules: [
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 5,
+          rotation: BlockRotation.py(Math.PI / 2),
+        },
+      ],
+    });
+    expect(clonedRule).not.toBe(sourceRule);
+  });
+
+  it("sanitizes malformed createBlockRule inputs to none rules", () => {
+    const malformedRule = createBlockRule({
+      type: "simple",
+      offset: [1, "x", 0],
+      id: 1,
+    } as never);
+    const malformedNestedRule = createBlockRule({
+      type: "combination",
+      logic: BlockRuleLogic.And,
+      rules: [
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 1,
+        },
+        {
+          type: "simple",
+          offset: [0, "bad", 0],
+          id: 2,
+        },
+      ],
+    } as never);
+
+    expect(malformedRule).toEqual(BLOCK_RULE_NONE);
+    expect(malformedNestedRule).toEqual({
+      type: "combination",
+      logic: BlockRuleLogic.And,
+      rules: [
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 1,
+        },
+        {
+          type: "none",
         },
       ],
     });

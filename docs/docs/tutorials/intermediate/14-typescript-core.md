@@ -33,6 +33,7 @@ flowchart LR
 - `BlockRotation`: axis/y-rotation encoding and transforms
 - `AABB`: geometry math helpers
 - `BlockRuleEvaluator`: dynamic rule matching
+- `createBlockRule`: rule clone/sanitization helper
 - `createBlockConditionalPart`: defensive rule/face/AABB/array copy helper for
   dynamic block-part definitions
 - `createBlockDynamicPattern`: defensive dynamic-pattern helper that clones part

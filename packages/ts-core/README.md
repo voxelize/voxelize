@@ -87,6 +87,8 @@ const voxel = Voxel.pack({
     fall back to default face values
   - malformed rule inputs fall back to `BLOCK_RULE_NONE` and malformed
     transparency tuple entries fall back to `false`
+- `createBlockRule`
+  - clones and sanitizes rule definitions with deterministic `none` fallbacks
 - `createBlockDynamicPattern`
   - defensively clones dynamic-pattern part inputs using
     `createBlockConditionalPart`

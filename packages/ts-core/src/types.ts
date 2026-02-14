@@ -357,6 +357,12 @@ const toBlockRule = (value: DynamicValue): BlockRule => {
   return { type: "none" };
 };
 
+export const createBlockRule = (
+  rule: BlockRule | null | undefined = BLOCK_RULE_NONE
+): BlockRule => {
+  return toBlockRule(rule);
+};
+
 const toBlockFaceInit = (face: BlockFaceInput): BlockFaceInit | null => {
   if (face === null || typeof face !== "object" || Array.isArray(face)) {
     return null;
@@ -462,7 +468,7 @@ export const createBlockConditionalPart = (
             ? normalizedPart.isTransparent[5]
             : false,
         ];
-  const rule = toBlockRule(normalizedPart.rule);
+  const rule = createBlockRule(normalizedPart.rule);
 
   return {
     rule,
