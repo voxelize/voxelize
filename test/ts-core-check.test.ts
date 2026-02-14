@@ -19,6 +19,7 @@ type TsCoreCheckReport = {
   packagePath: string;
   requiredArtifacts: string[];
   requiredArtifactCount: number;
+  presentArtifacts: string[];
   presentArtifactCount: number;
   buildCommand: string;
   buildArgs: string[];
@@ -148,6 +149,10 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
     report.presentArtifactCount + report.missingArtifactCount
   );
   expect(report.requiredArtifactCount).toBe(report.requiredArtifacts.length);
+  expect(report.presentArtifactCount).toBe(report.presentArtifacts.length);
+  expect([...report.presentArtifacts, ...report.missingArtifacts].sort()).toEqual(
+    [...report.requiredArtifacts].sort()
+  );
   expect(report.presentArtifactCount).toBe(
     report.requiredArtifactCount - report.missingArtifactCount
   );

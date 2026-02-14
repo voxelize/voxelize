@@ -106,6 +106,10 @@ const withBaseReportFields = (report) => {
   const missingArtifacts = Array.isArray(report.missingArtifacts)
     ? report.missingArtifacts
     : [];
+  const missingArtifactSet = new Set(missingArtifacts);
+  const presentArtifacts = requiredArtifacts.filter((artifactPath) => {
+    return !missingArtifactSet.has(artifactPath);
+  });
   const presentArtifactCount = requiredArtifacts.length - missingArtifacts.length;
   const buildExitCode =
     typeof report.buildExitCode === "number" ? report.buildExitCode : null;
@@ -141,6 +145,7 @@ const withBaseReportFields = (report) => {
     packagePath: tsCorePackagePath,
     requiredArtifacts,
     requiredArtifactCount: requiredArtifacts.length,
+    presentArtifacts,
     presentArtifactCount,
     missingArtifactCount: missingArtifacts.length,
     buildCommand: pnpmCommand,
