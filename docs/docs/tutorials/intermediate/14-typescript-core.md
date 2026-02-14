@@ -220,6 +220,9 @@ Each ts-core `failureSummaries` entry includes `kind`, `packageIndex`,
 failure-to-check correlation. ts-core uses `kind: "artifacts"` for missing
 artifact failures and `kind: "example"` for end-to-end example failures
 (including `exitCode`, `ruleMatched`, `payloadValid`, and `outputLine`).
+`examplePayloadValid` is `true` only when the end-to-end example emits the
+expected payload shape (`voxel`, `light`, `rotatedAabb`) and ordered AABB
+bounds (`min <= max` on each axis).
 
 If your project also depends on runtime utility packages (`@voxelize/aabb`,
 `@voxelize/raycast`, and `@voxelize/physics-engine`), you can validate all of
