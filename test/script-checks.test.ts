@@ -120,6 +120,7 @@ type WasmPackJsonReport = OptionTerminatorMetadata &
 
 type DevEnvJsonCheck = {
   label: string;
+  checkIndex: number;
   command: string;
   args: string[];
   required: boolean;
@@ -211,6 +212,7 @@ type DevEnvJsonReport = OptionTerminatorMetadata &
   optionalFailureIndexMapCount: number;
   failureSummaries: Array<{
     label: string;
+    checkIndex: number;
     required: boolean;
     status: string;
     message: string;
@@ -1517,6 +1519,7 @@ const expectDevEnvCheckMetadata = (report: DevEnvJsonReport) => {
     .map((check) => {
       return {
         label: check.label,
+        checkIndex: check.checkIndex,
         required: check.required,
         status: check.status,
         message: check.message,
@@ -1616,6 +1619,7 @@ const expectDevEnvCheckMetadata = (report: DevEnvJsonReport) => {
   expect(report.failureSummaryCount).toBe(report.failureSummaries.length);
   expect(report.requiredFailures).toBe(report.requiredFailureCount);
   for (const check of report.checks) {
+    expect(check.checkIndex).toBe(expectedCheckIndexMap[check.label]);
     expect(check.command.length).toBeGreaterThan(0);
     expect(check.args.length).toBeGreaterThan(0);
   }

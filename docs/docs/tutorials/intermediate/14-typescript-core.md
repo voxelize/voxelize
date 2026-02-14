@@ -337,6 +337,8 @@ metadata such as `availableChecks`, `availableCheckIndexMap`,
 `optionalFailureLabels`, `optionalFailureIndices`,
 `optionalFailureIndexMap`, `failureSummaries`, and associated `*Count`
 fields.
+Developer-environment `checks[]` and `failureSummaries[]` entries include
+`checkIndex` for stable correlation with `availableChecks`.
 WASM-pack JSON reports similarly expose single-check inventory and execution
 metadata such as `availableCheckCommandMap`, `availableCheckArgsMap`,
 `availableCheckArgCountMap`, `checkIndices`, `checkIndexMap`,

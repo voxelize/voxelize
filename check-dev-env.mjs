@@ -252,6 +252,7 @@ const summarizeCheckResults = (results) => {
     .map((check) => {
       return {
         label: check.label,
+        checkIndex: check.checkIndex,
         required: check.required,
         status: check.status,
         message: check.message,
@@ -430,6 +431,10 @@ if (!isJson && validationFailureMessage !== null) {
 }
 
 for (const check of checks) {
+  const checkIndex = availableCheckIndexMap[check.label];
+  if (checkIndex === undefined) {
+    throw new Error(`Missing check index metadata for ${check.label}.`);
+  }
   const result = spawnSync(check.command, check.args, {
     encoding: "utf8",
     shell: false,
@@ -479,6 +484,7 @@ for (const check of checks) {
 
   checkResults.push({
     label: check.label,
+    checkIndex,
     command: check.command,
     args: [...check.args],
     required: check.required,
