@@ -304,6 +304,15 @@ export const summarizeStepFailureResults = (steps) => {
         scriptName: step.scriptName,
         supportsNoBuild: step.supportsNoBuild === true,
         stepIndex: step.stepIndex,
+        checkCommand:
+          typeof step.checkCommand === "string" ? step.checkCommand : "",
+        checkArgs: Array.isArray(step.checkArgs) ? step.checkArgs : [],
+        checkArgCount:
+          typeof step.checkArgCount === "number"
+            ? step.checkArgCount
+            : Array.isArray(step.checkArgs)
+              ? step.checkArgs.length
+              : 0,
         exitCode: typeof step.exitCode === "number" ? step.exitCode : 1,
         message: reportMessage ?? outputMessage ?? defaultMessage,
       };

@@ -177,6 +177,9 @@ type ClientNestedStep = {
   name: string;
   scriptName: string;
   supportsNoBuild: boolean;
+  checkCommand: string;
+  checkArgs: string[];
+  checkArgCount: number;
   stepIndex: number;
   passed: boolean;
   skipped: boolean;
@@ -186,6 +189,12 @@ type ClientNestedReport = {
   availableStepCount: number;
   availableStepScriptMap: Record<string, string>;
   availableStepScriptMapCount: number;
+  availableStepCheckCommandMap: Record<string, string>;
+  availableStepCheckCommandMapCount: number;
+  availableStepCheckArgsMap: Record<string, string[]>;
+  availableStepCheckArgsMapCount: number;
+  availableStepCheckArgCountMap: Record<string, number>;
+  availableStepCheckArgCountMapCount: number;
   availableStepSupportsNoBuildMap: Record<string, boolean>;
   availableStepSupportsNoBuildMapCount: number;
   availableStepIndexMap: Record<string, number>;
@@ -195,6 +204,9 @@ type ClientNestedReport = {
     {
       scriptName: string;
       supportsNoBuild: boolean;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
     }
   >;
   availableStepMetadataCount: number;
@@ -206,6 +218,30 @@ type ClientNestedReport = {
   passedSteps: string[];
   failedSteps: string[];
   skippedSteps: string[];
+  passedStepCheckCommandMap: Record<string, string>;
+  passedStepCheckCommandMapCount: number;
+  passedStepCheckArgsMap: Record<string, string[]>;
+  passedStepCheckArgsMapCount: number;
+  passedStepCheckArgCountMap: Record<string, number>;
+  passedStepCheckArgCountMapCount: number;
+  failedStepCheckCommandMap: Record<string, string>;
+  failedStepCheckCommandMapCount: number;
+  failedStepCheckArgsMap: Record<string, string[]>;
+  failedStepCheckArgsMapCount: number;
+  failedStepCheckArgCountMap: Record<string, number>;
+  failedStepCheckArgCountMapCount: number;
+  skippedStepCheckCommandMap: Record<string, string>;
+  skippedStepCheckCommandMapCount: number;
+  skippedStepCheckArgsMap: Record<string, string[]>;
+  skippedStepCheckArgsMapCount: number;
+  skippedStepCheckArgCountMap: Record<string, number>;
+  skippedStepCheckArgCountMapCount: number;
+  stepCheckCommandMap: Record<string, string>;
+  stepCheckCommandMapCount: number;
+  stepCheckArgsMap: Record<string, string[]>;
+  stepCheckArgsMapCount: number;
+  stepCheckArgCountMap: Record<string, number>;
+  stepCheckArgCountMapCount: number;
   stepStatusMap: Record<string, "passed" | "failed" | "skipped">;
   stepStatusMapCount: number;
   stepStatusCountMap: {
@@ -2123,6 +2159,21 @@ const expectClientNestedReport = (checkReport: object | null) => {
       ];
     })
   );
+  const expectedAvailableStepCheckCommandMap = Object.fromEntries(
+    expectedClientAvailableSteps.map((stepName) => {
+      return [stepName, report.availableStepMetadata[stepName].checkCommand];
+    })
+  );
+  const expectedAvailableStepCheckArgsMap = Object.fromEntries(
+    expectedClientAvailableSteps.map((stepName) => {
+      return [stepName, report.availableStepMetadata[stepName].checkArgs];
+    })
+  );
+  const expectedAvailableStepCheckArgCountMap = Object.fromEntries(
+    expectedClientAvailableSteps.map((stepName) => {
+      return [stepName, report.availableStepMetadata[stepName].checkArgCount];
+    })
+  );
   const expectedAvailableStepIndexMap = Object.fromEntries(
     expectedClientAvailableSteps.map((stepName, index) => {
       return [stepName, index];
@@ -2145,6 +2196,22 @@ const expectClientNestedReport = (checkReport: object | null) => {
   expect(report.availableStepScriptMapCount).toBe(
     Object.keys(report.availableStepScriptMap).length
   );
+  expect(report.availableStepCheckCommandMap).toEqual(
+    expectedAvailableStepCheckCommandMap
+  );
+  expect(report.availableStepCheckCommandMapCount).toBe(
+    Object.keys(report.availableStepCheckCommandMap).length
+  );
+  expect(report.availableStepCheckArgsMap).toEqual(expectedAvailableStepCheckArgsMap);
+  expect(report.availableStepCheckArgsMapCount).toBe(
+    Object.keys(report.availableStepCheckArgsMap).length
+  );
+  expect(report.availableStepCheckArgCountMap).toEqual(
+    expectedAvailableStepCheckArgCountMap
+  );
+  expect(report.availableStepCheckArgCountMapCount).toBe(
+    Object.keys(report.availableStepCheckArgCountMap).length
+  );
   expect(report.availableStepSupportsNoBuildMap).toEqual(
     expectedAvailableStepSupportsNoBuildMap
   );
@@ -2155,14 +2222,163 @@ const expectClientNestedReport = (checkReport: object | null) => {
   expect(report.availableStepIndexMapCount).toBe(
     Object.keys(report.availableStepIndexMap).length
   );
-  expect(report.availableStepMetadata).toEqual(expectedClientAvailableStepMetadata);
+  expect(report.availableStepMetadata).toEqual(
+    Object.fromEntries(
+      expectedClientAvailableSteps.map((stepName) => {
+        return [
+          stepName,
+          {
+            scriptName: report.availableStepScriptMap[stepName],
+            supportsNoBuild: report.availableStepSupportsNoBuildMap[stepName],
+            checkCommand: report.availableStepCheckCommandMap[stepName],
+            checkArgs: report.availableStepCheckArgsMap[stepName],
+            checkArgCount: report.availableStepCheckArgCountMap[stepName],
+          },
+        ];
+      })
+    )
+  );
+  expect(
+    Object.fromEntries(
+      expectedClientAvailableSteps.map((stepName) => {
+        return [
+          stepName,
+          {
+            scriptName: report.availableStepMetadata[stepName].scriptName,
+            supportsNoBuild: report.availableStepMetadata[stepName].supportsNoBuild,
+          },
+        ];
+      })
+    )
+  ).toEqual(expectedClientAvailableStepMetadata);
   expect(report.availableStepMetadataCount).toBe(
     Object.keys(report.availableStepMetadata).length
   );
+  for (const step of report.steps) {
+    expect(step.checkCommand.length).toBeGreaterThan(0);
+    expect(step.checkArgCount).toBe(step.checkArgs.length);
+  }
   expect(report.totalSteps).toBe(report.steps.length);
   expect(report.passedSteps.length).toBe(report.passedStepCount);
   expect(report.failedSteps.length).toBe(report.failedStepCount);
   expect(report.skippedSteps.length).toBe(report.skippedStepCount);
+  const expectedStepCheckCommandMap = Object.fromEntries(
+    report.steps.map((step) => {
+      return [step.name, step.checkCommand];
+    })
+  );
+  const expectedStepCheckArgsMap = Object.fromEntries(
+    report.steps.map((step) => {
+      return [step.name, step.checkArgs];
+    })
+  );
+  const expectedStepCheckArgCountMap = Object.fromEntries(
+    report.steps.map((step) => {
+      return [step.name, step.checkArgCount];
+    })
+  );
+  const mapStepNamesToCheckCommandMap = (stepNames: string[]) => {
+    return Object.fromEntries(
+      stepNames.map((stepName) => {
+        return [stepName, expectedStepCheckCommandMap[stepName]];
+      })
+    );
+  };
+  const mapStepNamesToCheckArgsMap = (stepNames: string[]) => {
+    return Object.fromEntries(
+      stepNames.map((stepName) => {
+        return [stepName, expectedStepCheckArgsMap[stepName]];
+      })
+    );
+  };
+  const mapStepNamesToCheckArgCountMap = (stepNames: string[]) => {
+    return Object.fromEntries(
+      stepNames.map((stepName) => {
+        return [stepName, expectedStepCheckArgCountMap[stepName]];
+      })
+    );
+  };
+  expect(report.stepCheckCommandMap).toEqual(expectedStepCheckCommandMap);
+  expect(report.stepCheckCommandMapCount).toBe(
+    Object.keys(report.stepCheckCommandMap).length
+  );
+  expect(report.stepCheckArgsMap).toEqual(expectedStepCheckArgsMap);
+  expect(report.stepCheckArgsMapCount).toBe(
+    Object.keys(report.stepCheckArgsMap).length
+  );
+  expect(report.stepCheckArgCountMap).toEqual(expectedStepCheckArgCountMap);
+  expect(report.stepCheckArgCountMapCount).toBe(
+    Object.keys(report.stepCheckArgCountMap).length
+  );
+  expect(report.passedStepCheckCommandMap).toEqual(
+    mapStepNamesToCheckCommandMap(report.passedSteps)
+  );
+  expect(report.failedStepCheckCommandMap).toEqual(
+    mapStepNamesToCheckCommandMap(report.failedSteps)
+  );
+  expect(report.skippedStepCheckCommandMap).toEqual(
+    mapStepNamesToCheckCommandMap(report.skippedSteps)
+  );
+  expect(report.passedStepCheckArgsMap).toEqual(
+    mapStepNamesToCheckArgsMap(report.passedSteps)
+  );
+  expect(report.failedStepCheckArgsMap).toEqual(
+    mapStepNamesToCheckArgsMap(report.failedSteps)
+  );
+  expect(report.skippedStepCheckArgsMap).toEqual(
+    mapStepNamesToCheckArgsMap(report.skippedSteps)
+  );
+  expect(report.passedStepCheckArgCountMap).toEqual(
+    mapStepNamesToCheckArgCountMap(report.passedSteps)
+  );
+  expect(report.failedStepCheckArgCountMap).toEqual(
+    mapStepNamesToCheckArgCountMap(report.failedSteps)
+  );
+  expect(report.skippedStepCheckArgCountMap).toEqual(
+    mapStepNamesToCheckArgCountMap(report.skippedSteps)
+  );
+  expect(report.passedStepCheckCommandMapCount).toBe(
+    Object.keys(report.passedStepCheckCommandMap).length
+  );
+  expect(report.failedStepCheckCommandMapCount).toBe(
+    Object.keys(report.failedStepCheckCommandMap).length
+  );
+  expect(report.skippedStepCheckCommandMapCount).toBe(
+    Object.keys(report.skippedStepCheckCommandMap).length
+  );
+  expect(report.passedStepCheckArgsMapCount).toBe(
+    Object.keys(report.passedStepCheckArgsMap).length
+  );
+  expect(report.failedStepCheckArgsMapCount).toBe(
+    Object.keys(report.failedStepCheckArgsMap).length
+  );
+  expect(report.skippedStepCheckArgsMapCount).toBe(
+    Object.keys(report.skippedStepCheckArgsMap).length
+  );
+  expect(report.passedStepCheckArgCountMapCount).toBe(
+    Object.keys(report.passedStepCheckArgCountMap).length
+  );
+  expect(report.failedStepCheckArgCountMapCount).toBe(
+    Object.keys(report.failedStepCheckArgCountMap).length
+  );
+  expect(report.skippedStepCheckArgCountMapCount).toBe(
+    Object.keys(report.skippedStepCheckArgCountMap).length
+  );
+  expect(report.stepCheckCommandMapCount).toBe(
+    report.passedStepCheckCommandMapCount +
+      report.failedStepCheckCommandMapCount +
+      report.skippedStepCheckCommandMapCount
+  );
+  expect(report.stepCheckArgsMapCount).toBe(
+    report.passedStepCheckArgsMapCount +
+      report.failedStepCheckArgsMapCount +
+      report.skippedStepCheckArgsMapCount
+  );
+  expect(report.stepCheckArgCountMapCount).toBe(
+    report.passedStepCheckArgCountMapCount +
+      report.failedStepCheckArgCountMapCount +
+      report.skippedStepCheckArgCountMapCount
+  );
   expect(report.stepStatusMap).toEqual(expectedStepStatusMap);
   expect(report.stepStatusMapCount).toBe(Object.keys(report.stepStatusMap).length);
   expect(report.stepStatusCountMap).toEqual({

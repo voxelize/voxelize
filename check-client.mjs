@@ -83,14 +83,26 @@ const validationFailureMessage = deriveCliValidationFailureMessage({
   unsupportedOptionsError,
 });
 const availableSteps = ["WASM artifact preflight", "TypeScript typecheck"];
+const wasmArtifactCheckArgs = [
+  path.resolve(__dirname, "./examples/client/scripts/check-wasm-mesher.mjs"),
+  ...(isJson ? ["--json", "--compact"] : []),
+  ...(isNoBuild ? ["--no-build"] : []),
+];
+const typecheckCheckArgs = ["--dir", "./examples/client", "run", "typecheck"];
 const availableStepMetadata = {
   "WASM artifact preflight": {
     scriptName: "examples/client/scripts/check-wasm-mesher.mjs",
     supportsNoBuild: true,
+    checkCommand: process.execPath,
+    checkArgs: wasmArtifactCheckArgs,
+    checkArgCount: wasmArtifactCheckArgs.length,
   },
   "TypeScript typecheck": {
     scriptName: "examples/client:typecheck",
     supportsNoBuild: false,
+    checkCommand: pnpmCommand,
+    checkArgs: typecheckCheckArgs,
+    checkArgCount: typecheckCheckArgs.length,
   },
 };
 const availableStepMetadataCount = countRecordEntries(availableStepMetadata);
@@ -103,6 +115,30 @@ const availableStepScriptMap = Object.fromEntries(
   })
 );
 const availableStepScriptMapCount = countRecordEntries(availableStepScriptMap);
+const availableStepCheckCommandMap = Object.fromEntries(
+  availableSteps.map((stepName) => {
+    return [stepName, availableStepMetadata[stepName].checkCommand];
+  })
+);
+const availableStepCheckCommandMapCount = countRecordEntries(
+  availableStepCheckCommandMap
+);
+const availableStepCheckArgsMap = Object.fromEntries(
+  availableSteps.map((stepName) => {
+    return [stepName, availableStepMetadata[stepName].checkArgs];
+  })
+);
+const availableStepCheckArgsMapCount = countRecordEntries(
+  availableStepCheckArgsMap
+);
+const availableStepCheckArgCountMap = Object.fromEntries(
+  availableSteps.map((stepName) => {
+    return [stepName, availableStepMetadata[stepName].checkArgCount];
+  })
+);
+const availableStepCheckArgCountMapCount = countRecordEntries(
+  availableStepCheckArgCountMap
+);
 const availableStepSupportsNoBuildMap = Object.fromEntries(
   availableSteps.map((stepName) => {
     return [stepName, availableStepMetadata[stepName].supportsNoBuild];
@@ -132,6 +168,9 @@ const resolveStepDetails = (stepName) => {
   return {
     scriptName: stepMetadata.scriptName,
     supportsNoBuild: stepMetadata.supportsNoBuild,
+    checkCommand: stepMetadata.checkCommand,
+    checkArgs: stepMetadata.checkArgs,
+    checkArgCount: stepMetadata.checkArgCount,
     stepIndex,
   };
 };
@@ -144,6 +183,27 @@ const mapStepNamesToScriptMap = (stepNames) => {
   return Object.fromEntries(
     stepNames.map((stepName) => {
       return [stepName, resolveStepDetails(stepName).scriptName];
+    })
+  );
+};
+const mapStepNamesToCheckCommandMap = (stepNames) => {
+  return Object.fromEntries(
+    stepNames.map((stepName) => {
+      return [stepName, resolveStepDetails(stepName).checkCommand];
+    })
+  );
+};
+const mapStepNamesToCheckArgsMap = (stepNames) => {
+  return Object.fromEntries(
+    stepNames.map((stepName) => {
+      return [stepName, resolveStepDetails(stepName).checkArgs];
+    })
+  );
+};
+const mapStepNamesToCheckArgCountMap = (stepNames) => {
+  return Object.fromEntries(
+    stepNames.map((stepName) => {
+      return [stepName, resolveStepDetails(stepName).checkArgCount];
     })
   );
 };
@@ -162,8 +222,44 @@ const mapStepNamesToIndexMap = (stepNames) => {
 const mapStepNamesToMetadata = (stepNames) => {
   return Object.fromEntries(
     stepNames.map((stepName) => {
-      const { scriptName, supportsNoBuild } = resolveStepDetails(stepName);
-      return [stepName, { scriptName, supportsNoBuild }];
+      const {
+        scriptName,
+        supportsNoBuild,
+        checkCommand,
+        checkArgs,
+        checkArgCount,
+      } = resolveStepDetails(stepName);
+      return [
+        stepName,
+        {
+          scriptName,
+          supportsNoBuild,
+          checkCommand,
+          checkArgs,
+          checkArgCount,
+        },
+      ];
+    })
+  );
+};
+const mapStepResultsToCheckCommandMap = (results) => {
+  return Object.fromEntries(
+    results.map((stepResult) => {
+      return [stepResult.name, stepResult.checkCommand];
+    })
+  );
+};
+const mapStepResultsToCheckArgsMap = (results) => {
+  return Object.fromEntries(
+    results.map((stepResult) => {
+      return [stepResult.name, stepResult.checkArgs];
+    })
+  );
+};
+const mapStepResultsToCheckArgCountMap = (results) => {
+  return Object.fromEntries(
+    results.map((stepResult) => {
+      return [stepResult.name, stepResult.checkArgCount];
     })
   );
 };
@@ -222,6 +318,12 @@ if (isJson && validationFailureMessage !== null) {
     availableStepScriptCount: availableStepScripts.length,
     availableStepScriptMap,
     availableStepScriptMapCount,
+    availableStepCheckCommandMap,
+    availableStepCheckCommandMapCount,
+    availableStepCheckArgsMap,
+    availableStepCheckArgsMapCount,
+    availableStepCheckArgCountMap,
+    availableStepCheckArgCountMapCount,
     availableStepSupportsNoBuildMap,
     availableStepSupportsNoBuildMapCount,
     availableStepIndices,
@@ -235,6 +337,12 @@ if (isJson && validationFailureMessage !== null) {
     passedStepScriptCount: 0,
     passedStepScriptMap: {},
     passedStepScriptMapCount: 0,
+    passedStepCheckCommandMap: {},
+    passedStepCheckCommandMapCount: 0,
+    passedStepCheckArgsMap: {},
+    passedStepCheckArgsMapCount: 0,
+    passedStepCheckArgCountMap: {},
+    passedStepCheckArgCountMapCount: 0,
     passedStepIndices: [],
     passedStepIndexCount: 0,
     passedStepIndexMap: {},
@@ -243,6 +351,12 @@ if (isJson && validationFailureMessage !== null) {
     failedStepScriptCount: 0,
     failedStepScriptMap: {},
     failedStepScriptMapCount: 0,
+    failedStepCheckCommandMap: {},
+    failedStepCheckCommandMapCount: 0,
+    failedStepCheckArgsMap: {},
+    failedStepCheckArgsMapCount: 0,
+    failedStepCheckArgCountMap: {},
+    failedStepCheckArgCountMapCount: 0,
     failedStepIndices: [],
     failedStepIndexCount: 0,
     failedStepIndexMap: {},
@@ -251,10 +365,22 @@ if (isJson && validationFailureMessage !== null) {
     skippedStepScriptCount: 0,
     skippedStepScriptMap: {},
     skippedStepScriptMapCount: 0,
+    skippedStepCheckCommandMap: {},
+    skippedStepCheckCommandMapCount: 0,
+    skippedStepCheckArgsMap: {},
+    skippedStepCheckArgsMapCount: 0,
+    skippedStepCheckArgCountMap: {},
+    skippedStepCheckArgCountMapCount: 0,
     skippedStepIndices: [],
     skippedStepIndexCount: 0,
     skippedStepIndexMap: {},
     skippedStepIndexMapCount: 0,
+    stepCheckCommandMap: {},
+    stepCheckCommandMapCount: 0,
+    stepCheckArgsMap: {},
+    stepCheckArgsMapCount: 0,
+    stepCheckArgCountMap: {},
+    stepCheckArgCountMapCount: 0,
     failureSummaries: [],
     failureSummaryCount: 0,
     stepStatusMap: {},
@@ -289,12 +415,22 @@ const addSkippedStep = (name, reason) => {
   if (!isJson) {
     return;
   }
-  const { scriptName, supportsNoBuild, stepIndex } = resolveStepDetails(name);
+  const {
+    scriptName,
+    supportsNoBuild,
+    checkCommand,
+    checkArgs,
+    checkArgCount,
+    stepIndex,
+  } = resolveStepDetails(name);
 
   stepResults.push({
     name,
     scriptName,
     supportsNoBuild,
+    checkCommand,
+    checkArgs,
+    checkArgCount,
     stepIndex,
     passed: false,
     exitCode: null,
@@ -305,18 +441,27 @@ const addSkippedStep = (name, reason) => {
   });
 };
 
-const runStep = (name, command, args) => {
+const runStep = (name) => {
+  const {
+    scriptName,
+    supportsNoBuild,
+    checkCommand,
+    checkArgs,
+    checkArgCount,
+    stepIndex,
+  } = resolveStepDetails(name);
+
   if (!isQuiet && !isJson) {
     console.log(`Running client check step: ${name}`);
   }
 
   const result = isJson
-    ? spawnSync(command, args, {
+    ? spawnSync(checkCommand, checkArgs, {
         encoding: "utf8",
         shell: false,
         cwd: __dirname,
       })
-    : spawnSync(command, args, {
+    : spawnSync(checkCommand, checkArgs, {
         stdio: "inherit",
         shell: false,
         cwd: __dirname,
@@ -324,13 +469,15 @@ const runStep = (name, command, args) => {
 
   const resolvedStatus = result.status ?? 1;
   if (isJson) {
-    const { scriptName, supportsNoBuild, stepIndex } = resolveStepDetails(name);
     const output = `${result.stdout ?? ""}${result.stderr ?? ""}`.trim();
     const report = parseJsonOutput(output);
     stepResults.push({
       name,
       scriptName,
       supportsNoBuild,
+      checkCommand,
+      checkArgs,
+      checkArgCount,
       stepIndex,
       passed: resolvedStatus === 0,
       exitCode: resolvedStatus,
@@ -354,23 +501,10 @@ const runStep = (name, command, args) => {
   process.exit(exitCode);
 };
 
-const wasmPreflightPassed = runStep(
-  "WASM artifact preflight",
-  process.execPath,
-  [
-    path.resolve(__dirname, "./examples/client/scripts/check-wasm-mesher.mjs"),
-    ...(isJson ? ["--json", "--compact"] : []),
-    ...(isNoBuild ? ["--no-build"] : []),
-  ]
-);
+const wasmPreflightPassed = runStep("WASM artifact preflight");
 
 if (wasmPreflightPassed) {
-  runStep("TypeScript typecheck", pnpmCommand, [
-    "--dir",
-    "./examples/client",
-    "run",
-    "typecheck",
-  ]);
+  runStep("TypeScript typecheck");
 } else {
   addSkippedStep("TypeScript typecheck", "WASM artifact preflight failed");
 }
@@ -383,6 +517,29 @@ if (isJson) {
   const passedStepScriptMap = mapStepNamesToScriptMap(stepSummary.passedSteps);
   const failedStepScriptMap = mapStepNamesToScriptMap(stepSummary.failedSteps);
   const skippedStepScriptMap = mapStepNamesToScriptMap(stepSummary.skippedSteps);
+  const passedStepCheckCommandMap = mapStepNamesToCheckCommandMap(
+    stepSummary.passedSteps
+  );
+  const failedStepCheckCommandMap = mapStepNamesToCheckCommandMap(
+    stepSummary.failedSteps
+  );
+  const skippedStepCheckCommandMap = mapStepNamesToCheckCommandMap(
+    stepSummary.skippedSteps
+  );
+  const passedStepCheckArgsMap = mapStepNamesToCheckArgsMap(stepSummary.passedSteps);
+  const failedStepCheckArgsMap = mapStepNamesToCheckArgsMap(stepSummary.failedSteps);
+  const skippedStepCheckArgsMap = mapStepNamesToCheckArgsMap(
+    stepSummary.skippedSteps
+  );
+  const passedStepCheckArgCountMap = mapStepNamesToCheckArgCountMap(
+    stepSummary.passedSteps
+  );
+  const failedStepCheckArgCountMap = mapStepNamesToCheckArgCountMap(
+    stepSummary.failedSteps
+  );
+  const skippedStepCheckArgCountMap = mapStepNamesToCheckArgCountMap(
+    stepSummary.skippedSteps
+  );
   const passedStepIndices = mapStepNamesToIndices(stepSummary.passedSteps);
   const failedStepIndices = mapStepNamesToIndices(stepSummary.failedSteps);
   const skippedStepIndices = mapStepNamesToIndices(stepSummary.skippedSteps);
@@ -393,6 +550,9 @@ if (isJson) {
   const failedStepMetadata = mapStepNamesToMetadata(stepSummary.failedSteps);
   const skippedStepMetadata = mapStepNamesToMetadata(stepSummary.skippedSteps);
   const stepStatusMap = mapStepResultsToStatusMap(stepResults);
+  const stepCheckCommandMap = mapStepResultsToCheckCommandMap(stepResults);
+  const stepCheckArgsMap = mapStepResultsToCheckArgsMap(stepResults);
+  const stepCheckArgCountMap = mapStepResultsToCheckArgCountMap(stepResults);
   const stepStatusCountMap = createStepStatusCountMap(stepSummary);
   const failureSummaries = summarizeStepFailureResults(stepResults);
   const report = buildTimedReport({
@@ -423,6 +583,12 @@ if (isJson) {
     availableStepScriptCount: availableStepScripts.length,
     availableStepScriptMap,
     availableStepScriptMapCount,
+    availableStepCheckCommandMap,
+    availableStepCheckCommandMapCount,
+    availableStepCheckArgsMap,
+    availableStepCheckArgsMapCount,
+    availableStepCheckArgCountMap,
+    availableStepCheckArgCountMapCount,
     availableStepSupportsNoBuildMap,
     availableStepSupportsNoBuildMapCount,
     availableStepIndices,
@@ -436,6 +602,16 @@ if (isJson) {
     passedStepScriptCount: passedStepScripts.length,
     passedStepScriptMap,
     passedStepScriptMapCount: countRecordEntries(passedStepScriptMap),
+    passedStepCheckCommandMap,
+    passedStepCheckCommandMapCount: countRecordEntries(
+      passedStepCheckCommandMap
+    ),
+    passedStepCheckArgsMap,
+    passedStepCheckArgsMapCount: countRecordEntries(passedStepCheckArgsMap),
+    passedStepCheckArgCountMap,
+    passedStepCheckArgCountMapCount: countRecordEntries(
+      passedStepCheckArgCountMap
+    ),
     passedStepIndices,
     passedStepIndexCount: passedStepIndices.length,
     passedStepIndexMap,
@@ -444,6 +620,16 @@ if (isJson) {
     failedStepScriptCount: failedStepScripts.length,
     failedStepScriptMap,
     failedStepScriptMapCount: countRecordEntries(failedStepScriptMap),
+    failedStepCheckCommandMap,
+    failedStepCheckCommandMapCount: countRecordEntries(
+      failedStepCheckCommandMap
+    ),
+    failedStepCheckArgsMap,
+    failedStepCheckArgsMapCount: countRecordEntries(failedStepCheckArgsMap),
+    failedStepCheckArgCountMap,
+    failedStepCheckArgCountMapCount: countRecordEntries(
+      failedStepCheckArgCountMap
+    ),
     failedStepIndices,
     failedStepIndexCount: failedStepIndices.length,
     failedStepIndexMap,
@@ -452,10 +638,26 @@ if (isJson) {
     skippedStepScriptCount: skippedStepScripts.length,
     skippedStepScriptMap,
     skippedStepScriptMapCount: countRecordEntries(skippedStepScriptMap),
+    skippedStepCheckCommandMap,
+    skippedStepCheckCommandMapCount: countRecordEntries(
+      skippedStepCheckCommandMap
+    ),
+    skippedStepCheckArgsMap,
+    skippedStepCheckArgsMapCount: countRecordEntries(skippedStepCheckArgsMap),
+    skippedStepCheckArgCountMap,
+    skippedStepCheckArgCountMapCount: countRecordEntries(
+      skippedStepCheckArgCountMap
+    ),
     skippedStepIndices,
     skippedStepIndexCount: skippedStepIndices.length,
     skippedStepIndexMap,
     skippedStepIndexMapCount: countRecordEntries(skippedStepIndexMap),
+    stepCheckCommandMap,
+    stepCheckCommandMapCount: countRecordEntries(stepCheckCommandMap),
+    stepCheckArgsMap,
+    stepCheckArgsMapCount: countRecordEntries(stepCheckArgsMap),
+    stepCheckArgCountMap,
+    stepCheckArgCountMapCount: countRecordEntries(stepCheckArgCountMap),
     failureSummaries,
     failureSummaryCount: failureSummaries.length,
     stepStatusMap,

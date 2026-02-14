@@ -264,6 +264,9 @@ type ClientJsonStep = {
   name: string;
   scriptName: string;
   supportsNoBuild: boolean;
+  checkCommand: string;
+  checkArgs: string[];
+  checkArgCount: number;
   stepIndex: number;
   passed: boolean;
   exitCode: number | null;
@@ -293,6 +296,12 @@ type ClientJsonReport = OptionTerminatorMetadata &
   availableStepScriptCount: number;
   availableStepScriptMap: Record<string, string>;
   availableStepScriptMapCount: number;
+  availableStepCheckCommandMap: Record<string, string>;
+  availableStepCheckCommandMapCount: number;
+  availableStepCheckArgsMap: Record<string, string[]>;
+  availableStepCheckArgsMapCount: number;
+  availableStepCheckArgCountMap: Record<string, number>;
+  availableStepCheckArgCountMapCount: number;
   availableStepSupportsNoBuildMap: Record<string, boolean>;
   availableStepSupportsNoBuildMapCount: number;
   availableStepIndices: number[];
@@ -304,6 +313,9 @@ type ClientJsonReport = OptionTerminatorMetadata &
     {
       scriptName: string;
       supportsNoBuild: boolean;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
     }
   >;
   availableStepMetadataCount: number;
@@ -319,6 +331,12 @@ type ClientJsonReport = OptionTerminatorMetadata &
   passedStepScriptCount: number;
   passedStepScriptMap: Record<string, string>;
   passedStepScriptMapCount: number;
+  passedStepCheckCommandMap: Record<string, string>;
+  passedStepCheckCommandMapCount: number;
+  passedStepCheckArgsMap: Record<string, string[]>;
+  passedStepCheckArgsMapCount: number;
+  passedStepCheckArgCountMap: Record<string, number>;
+  passedStepCheckArgCountMapCount: number;
   passedStepIndices: number[];
   passedStepIndexCount: number;
   passedStepIndexMap: Record<string, number>;
@@ -327,6 +345,12 @@ type ClientJsonReport = OptionTerminatorMetadata &
   failedStepScriptCount: number;
   failedStepScriptMap: Record<string, string>;
   failedStepScriptMapCount: number;
+  failedStepCheckCommandMap: Record<string, string>;
+  failedStepCheckCommandMapCount: number;
+  failedStepCheckArgsMap: Record<string, string[]>;
+  failedStepCheckArgsMapCount: number;
+  failedStepCheckArgCountMap: Record<string, number>;
+  failedStepCheckArgCountMapCount: number;
   failedStepIndices: number[];
   failedStepIndexCount: number;
   failedStepIndexMap: Record<string, number>;
@@ -335,15 +359,30 @@ type ClientJsonReport = OptionTerminatorMetadata &
   skippedStepScriptCount: number;
   skippedStepScriptMap: Record<string, string>;
   skippedStepScriptMapCount: number;
+  skippedStepCheckCommandMap: Record<string, string>;
+  skippedStepCheckCommandMapCount: number;
+  skippedStepCheckArgsMap: Record<string, string[]>;
+  skippedStepCheckArgsMapCount: number;
+  skippedStepCheckArgCountMap: Record<string, number>;
+  skippedStepCheckArgCountMapCount: number;
   skippedStepIndices: number[];
   skippedStepIndexCount: number;
   skippedStepIndexMap: Record<string, number>;
   skippedStepIndexMapCount: number;
+  stepCheckCommandMap: Record<string, string>;
+  stepCheckCommandMapCount: number;
+  stepCheckArgsMap: Record<string, string[]>;
+  stepCheckArgsMapCount: number;
+  stepCheckArgCountMap: Record<string, number>;
+  stepCheckArgCountMapCount: number;
   failureSummaries: Array<{
     name: string;
     scriptName: string;
     supportsNoBuild: boolean;
     stepIndex: number;
+    checkCommand: string;
+    checkArgs: string[];
+    checkArgCount: number;
     exitCode: number;
     message: string;
   }>;
@@ -361,6 +400,9 @@ type ClientJsonReport = OptionTerminatorMetadata &
     {
       scriptName: string;
       supportsNoBuild: boolean;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
     }
   >;
   passedStepMetadataCount: number;
@@ -369,6 +411,9 @@ type ClientJsonReport = OptionTerminatorMetadata &
     {
       scriptName: string;
       supportsNoBuild: boolean;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
     }
   >;
   failedStepMetadataCount: number;
@@ -377,6 +422,9 @@ type ClientJsonReport = OptionTerminatorMetadata &
     {
       scriptName: string;
       supportsNoBuild: boolean;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
     }
   >;
   skippedStepMetadataCount: number;
@@ -823,6 +871,9 @@ type OnboardingJsonStep = {
   name: string;
   scriptName: string;
   supportsNoBuild: boolean;
+  checkCommand: string;
+  checkArgs: string[];
+  checkArgCount: number;
   stepIndex: number;
   passed: boolean;
   exitCode: number | null;
@@ -857,6 +908,12 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
   availableStepScriptCount: number;
   availableStepScriptMap: Record<string, string>;
   availableStepScriptMapCount: number;
+  availableStepCheckCommandMap: Record<string, string>;
+  availableStepCheckCommandMapCount: number;
+  availableStepCheckArgsMap: Record<string, string[]>;
+  availableStepCheckArgsMapCount: number;
+  availableStepCheckArgCountMap: Record<string, number>;
+  availableStepCheckArgCountMapCount: number;
   availableStepSupportsNoBuildMap: Record<string, boolean>;
   availableStepSupportsNoBuildMapCount: number;
   availableStepIndices: number[];
@@ -868,6 +925,9 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
     {
       scriptName: string;
       supportsNoBuild: boolean;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
     }
   >;
   availableStepMetadataCount: number;
@@ -883,6 +943,12 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
   passedStepScriptCount: number;
   passedStepScriptMap: Record<string, string>;
   passedStepScriptMapCount: number;
+  passedStepCheckCommandMap: Record<string, string>;
+  passedStepCheckCommandMapCount: number;
+  passedStepCheckArgsMap: Record<string, string[]>;
+  passedStepCheckArgsMapCount: number;
+  passedStepCheckArgCountMap: Record<string, number>;
+  passedStepCheckArgCountMapCount: number;
   passedStepIndices: number[];
   passedStepIndexCount: number;
   passedStepIndexMap: Record<string, number>;
@@ -891,6 +957,12 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
   failedStepScriptCount: number;
   failedStepScriptMap: Record<string, string>;
   failedStepScriptMapCount: number;
+  failedStepCheckCommandMap: Record<string, string>;
+  failedStepCheckCommandMapCount: number;
+  failedStepCheckArgsMap: Record<string, string[]>;
+  failedStepCheckArgsMapCount: number;
+  failedStepCheckArgCountMap: Record<string, number>;
+  failedStepCheckArgCountMapCount: number;
   failedStepIndices: number[];
   failedStepIndexCount: number;
   failedStepIndexMap: Record<string, number>;
@@ -899,15 +971,30 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
   skippedStepScriptCount: number;
   skippedStepScriptMap: Record<string, string>;
   skippedStepScriptMapCount: number;
+  skippedStepCheckCommandMap: Record<string, string>;
+  skippedStepCheckCommandMapCount: number;
+  skippedStepCheckArgsMap: Record<string, string[]>;
+  skippedStepCheckArgsMapCount: number;
+  skippedStepCheckArgCountMap: Record<string, number>;
+  skippedStepCheckArgCountMapCount: number;
   skippedStepIndices: number[];
   skippedStepIndexCount: number;
   skippedStepIndexMap: Record<string, number>;
   skippedStepIndexMapCount: number;
+  stepCheckCommandMap: Record<string, string>;
+  stepCheckCommandMapCount: number;
+  stepCheckArgsMap: Record<string, string[]>;
+  stepCheckArgsMapCount: number;
+  stepCheckArgCountMap: Record<string, number>;
+  stepCheckArgCountMapCount: number;
   failureSummaries: Array<{
     name: string;
     scriptName: string;
     supportsNoBuild: boolean;
     stepIndex: number;
+    checkCommand: string;
+    checkArgs: string[];
+    checkArgCount: number;
     exitCode: number;
     message: string;
   }>;
@@ -925,6 +1012,9 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
     {
       scriptName: string;
       supportsNoBuild: boolean;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
     }
   >;
   passedStepMetadataCount: number;
@@ -933,6 +1023,9 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
     {
       scriptName: string;
       supportsNoBuild: boolean;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
     }
   >;
   failedStepMetadataCount: number;
@@ -941,6 +1034,9 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
     {
       scriptName: string;
       supportsNoBuild: boolean;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
     }
   >;
   skippedStepMetadataCount: number;
@@ -1170,6 +1266,9 @@ const expectStepSummaryMetadata = (
       name: string;
       scriptName: string;
       supportsNoBuild: boolean;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
       stepIndex: number;
       passed: boolean;
       skipped: boolean;
@@ -1185,6 +1284,12 @@ const expectStepSummaryMetadata = (
     passedStepScriptCount: number;
     passedStepScriptMap: Record<string, string>;
     passedStepScriptMapCount: number;
+    passedStepCheckCommandMap: Record<string, string>;
+    passedStepCheckCommandMapCount: number;
+    passedStepCheckArgsMap: Record<string, string[]>;
+    passedStepCheckArgsMapCount: number;
+    passedStepCheckArgCountMap: Record<string, number>;
+    passedStepCheckArgCountMapCount: number;
     passedStepIndices: number[];
     passedStepIndexCount: number;
     passedStepIndexMap: Record<string, number>;
@@ -1193,6 +1298,12 @@ const expectStepSummaryMetadata = (
     failedStepScriptCount: number;
     failedStepScriptMap: Record<string, string>;
     failedStepScriptMapCount: number;
+    failedStepCheckCommandMap: Record<string, string>;
+    failedStepCheckCommandMapCount: number;
+    failedStepCheckArgsMap: Record<string, string[]>;
+    failedStepCheckArgsMapCount: number;
+    failedStepCheckArgCountMap: Record<string, number>;
+    failedStepCheckArgCountMapCount: number;
     failedStepIndices: number[];
     failedStepIndexCount: number;
     failedStepIndexMap: Record<string, number>;
@@ -1201,15 +1312,30 @@ const expectStepSummaryMetadata = (
     skippedStepScriptCount: number;
     skippedStepScriptMap: Record<string, string>;
     skippedStepScriptMapCount: number;
+    skippedStepCheckCommandMap: Record<string, string>;
+    skippedStepCheckCommandMapCount: number;
+    skippedStepCheckArgsMap: Record<string, string[]>;
+    skippedStepCheckArgsMapCount: number;
+    skippedStepCheckArgCountMap: Record<string, number>;
+    skippedStepCheckArgCountMapCount: number;
     skippedStepIndices: number[];
     skippedStepIndexCount: number;
     skippedStepIndexMap: Record<string, number>;
     skippedStepIndexMapCount: number;
+    stepCheckCommandMap: Record<string, string>;
+    stepCheckCommandMapCount: number;
+    stepCheckArgsMap: Record<string, string[]>;
+    stepCheckArgsMapCount: number;
+    stepCheckArgCountMap: Record<string, number>;
+    stepCheckArgCountMapCount: number;
     failureSummaries: Array<{
       name: string;
       scriptName: string;
       supportsNoBuild: boolean;
       stepIndex: number;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
       exitCode: number;
       message: string;
     }>;
@@ -1227,6 +1353,9 @@ const expectStepSummaryMetadata = (
       {
         scriptName: string;
         supportsNoBuild: boolean;
+        checkCommand: string;
+        checkArgs: string[];
+        checkArgCount: number;
       }
     >;
     passedStepMetadataCount: number;
@@ -1235,6 +1364,9 @@ const expectStepSummaryMetadata = (
       {
         scriptName: string;
         supportsNoBuild: boolean;
+        checkCommand: string;
+        checkArgs: string[];
+        checkArgCount: number;
       }
     >;
     failedStepMetadataCount: number;
@@ -1243,6 +1375,9 @@ const expectStepSummaryMetadata = (
       {
         scriptName: string;
         supportsNoBuild: boolean;
+        checkCommand: string;
+        checkArgs: string[];
+        checkArgCount: number;
       }
     >;
     skippedStepMetadataCount: number;
@@ -1281,9 +1416,54 @@ const expectStepSummaryMetadata = (
       })
     );
   };
+  const stepCheckCommandMap = Object.fromEntries(
+    report.steps.map((step) => {
+      return [step.name, step.checkCommand];
+    })
+  );
+  const stepCheckArgsMap = Object.fromEntries(
+    report.steps.map((step) => {
+      return [step.name, step.checkArgs];
+    })
+  );
+  const stepCheckArgCountMap = Object.fromEntries(
+    report.steps.map((step) => {
+      return [step.name, step.checkArgCount];
+    })
+  );
+  const mapStepNamesToCheckCommandMap = (stepNames: string[]) => {
+    return Object.fromEntries(
+      stepNames.map((stepName) => {
+        return [stepName, stepCheckCommandMap[stepName]];
+      })
+    );
+  };
+  const mapStepNamesToCheckArgsMap = (stepNames: string[]) => {
+    return Object.fromEntries(
+      stepNames.map((stepName) => {
+        return [stepName, stepCheckArgsMap[stepName]];
+      })
+    );
+  };
+  const mapStepNamesToCheckArgCountMap = (stepNames: string[]) => {
+    return Object.fromEntries(
+      stepNames.map((stepName) => {
+        return [stepName, stepCheckArgCountMap[stepName]];
+      })
+    );
+  };
   const passedStepScriptMap = mapStepNamesToScriptMap(passedSteps);
   const failedStepScriptMap = mapStepNamesToScriptMap(failedSteps);
   const skippedStepScriptMap = mapStepNamesToScriptMap(skippedSteps);
+  const passedStepCheckCommandMap = mapStepNamesToCheckCommandMap(passedSteps);
+  const failedStepCheckCommandMap = mapStepNamesToCheckCommandMap(failedSteps);
+  const skippedStepCheckCommandMap = mapStepNamesToCheckCommandMap(skippedSteps);
+  const passedStepCheckArgsMap = mapStepNamesToCheckArgsMap(passedSteps);
+  const failedStepCheckArgsMap = mapStepNamesToCheckArgsMap(failedSteps);
+  const skippedStepCheckArgsMap = mapStepNamesToCheckArgsMap(skippedSteps);
+  const passedStepCheckArgCountMap = mapStepNamesToCheckArgCountMap(passedSteps);
+  const failedStepCheckArgCountMap = mapStepNamesToCheckArgCountMap(failedSteps);
+  const skippedStepCheckArgCountMap = mapStepNamesToCheckArgCountMap(skippedSteps);
   const stepIndexMap = new Map(
     report.availableSteps.map((stepName, index) => {
       return [stepName, index];
@@ -1296,6 +1476,8 @@ const expectStepSummaryMetadata = (
     expect(step.supportsNoBuild).toBe(
       expectedStepMetadata[step.name].supportsNoBuild
     );
+    expect(step.checkCommand.length).toBeGreaterThan(0);
+    expect(step.checkArgCount).toBe(step.checkArgs.length);
     const expectedStepIndex = stepIndexMap.get(step.name);
     if (expectedStepIndex === undefined) {
       throw new Error(`Missing step index metadata for ${step.name}.`);
@@ -1330,17 +1512,41 @@ const expectStepSummaryMetadata = (
   const skippedStepIndexMap = mapStepNamesToIndexMap(skippedSteps);
   const passedStepMetadata = Object.fromEntries(
     passedSteps.map((stepName) => {
-      return [stepName, expectedStepMetadata[stepName]];
+      return [
+        stepName,
+        {
+          ...expectedStepMetadata[stepName],
+          checkCommand: stepCheckCommandMap[stepName],
+          checkArgs: stepCheckArgsMap[stepName],
+          checkArgCount: stepCheckArgCountMap[stepName],
+        },
+      ];
     })
   );
   const failedStepMetadata = Object.fromEntries(
     failedSteps.map((stepName) => {
-      return [stepName, expectedStepMetadata[stepName]];
+      return [
+        stepName,
+        {
+          ...expectedStepMetadata[stepName],
+          checkCommand: stepCheckCommandMap[stepName],
+          checkArgs: stepCheckArgsMap[stepName],
+          checkArgCount: stepCheckArgCountMap[stepName],
+        },
+      ];
     })
   );
   const skippedStepMetadata = Object.fromEntries(
     skippedSteps.map((stepName) => {
-      return [stepName, expectedStepMetadata[stepName]];
+      return [
+        stepName,
+        {
+          ...expectedStepMetadata[stepName],
+          checkCommand: stepCheckCommandMap[stepName],
+          checkArgs: stepCheckArgsMap[stepName],
+          checkArgCount: stepCheckArgCountMap[stepName],
+        },
+      ];
     })
   );
   const expectedStepStatusMap = Object.fromEntries(
@@ -1372,6 +1578,18 @@ const expectStepSummaryMetadata = (
   expect(report.passedStepScriptMapCount).toBe(
     Object.keys(report.passedStepScriptMap).length
   );
+  expect(report.passedStepCheckCommandMap).toEqual(passedStepCheckCommandMap);
+  expect(report.passedStepCheckCommandMapCount).toBe(
+    Object.keys(report.passedStepCheckCommandMap).length
+  );
+  expect(report.passedStepCheckArgsMap).toEqual(passedStepCheckArgsMap);
+  expect(report.passedStepCheckArgsMapCount).toBe(
+    Object.keys(report.passedStepCheckArgsMap).length
+  );
+  expect(report.passedStepCheckArgCountMap).toEqual(passedStepCheckArgCountMap);
+  expect(report.passedStepCheckArgCountMapCount).toBe(
+    Object.keys(report.passedStepCheckArgCountMap).length
+  );
   expect(report.passedStepIndices).toEqual(passedStepIndices);
   expect(report.passedStepIndexCount).toBe(report.passedStepIndices.length);
   expect(report.passedStepIndexMap).toEqual(passedStepIndexMap);
@@ -1383,6 +1601,18 @@ const expectStepSummaryMetadata = (
   expect(report.failedStepScriptMap).toEqual(failedStepScriptMap);
   expect(report.failedStepScriptMapCount).toBe(
     Object.keys(report.failedStepScriptMap).length
+  );
+  expect(report.failedStepCheckCommandMap).toEqual(failedStepCheckCommandMap);
+  expect(report.failedStepCheckCommandMapCount).toBe(
+    Object.keys(report.failedStepCheckCommandMap).length
+  );
+  expect(report.failedStepCheckArgsMap).toEqual(failedStepCheckArgsMap);
+  expect(report.failedStepCheckArgsMapCount).toBe(
+    Object.keys(report.failedStepCheckArgsMap).length
+  );
+  expect(report.failedStepCheckArgCountMap).toEqual(failedStepCheckArgCountMap);
+  expect(report.failedStepCheckArgCountMapCount).toBe(
+    Object.keys(report.failedStepCheckArgCountMap).length
   );
   expect(report.failedStepIndices).toEqual(failedStepIndices);
   expect(report.failedStepIndexCount).toBe(report.failedStepIndices.length);
@@ -1396,11 +1626,52 @@ const expectStepSummaryMetadata = (
   expect(report.skippedStepScriptMapCount).toBe(
     Object.keys(report.skippedStepScriptMap).length
   );
+  expect(report.skippedStepCheckCommandMap).toEqual(skippedStepCheckCommandMap);
+  expect(report.skippedStepCheckCommandMapCount).toBe(
+    Object.keys(report.skippedStepCheckCommandMap).length
+  );
+  expect(report.skippedStepCheckArgsMap).toEqual(skippedStepCheckArgsMap);
+  expect(report.skippedStepCheckArgsMapCount).toBe(
+    Object.keys(report.skippedStepCheckArgsMap).length
+  );
+  expect(report.skippedStepCheckArgCountMap).toEqual(
+    skippedStepCheckArgCountMap
+  );
+  expect(report.skippedStepCheckArgCountMapCount).toBe(
+    Object.keys(report.skippedStepCheckArgCountMap).length
+  );
   expect(report.skippedStepIndices).toEqual(skippedStepIndices);
   expect(report.skippedStepIndexCount).toBe(report.skippedStepIndices.length);
   expect(report.skippedStepIndexMap).toEqual(skippedStepIndexMap);
   expect(report.skippedStepIndexMapCount).toBe(
     Object.keys(report.skippedStepIndexMap).length
+  );
+  expect(report.stepCheckCommandMap).toEqual(stepCheckCommandMap);
+  expect(report.stepCheckCommandMapCount).toBe(
+    Object.keys(report.stepCheckCommandMap).length
+  );
+  expect(report.stepCheckArgsMap).toEqual(stepCheckArgsMap);
+  expect(report.stepCheckArgsMapCount).toBe(
+    Object.keys(report.stepCheckArgsMap).length
+  );
+  expect(report.stepCheckArgCountMap).toEqual(stepCheckArgCountMap);
+  expect(report.stepCheckArgCountMapCount).toBe(
+    Object.keys(report.stepCheckArgCountMap).length
+  );
+  expect(report.stepCheckCommandMapCount).toBe(
+    report.passedStepCheckCommandMapCount +
+      report.failedStepCheckCommandMapCount +
+      report.skippedStepCheckCommandMapCount
+  );
+  expect(report.stepCheckArgsMapCount).toBe(
+    report.passedStepCheckArgsMapCount +
+      report.failedStepCheckArgsMapCount +
+      report.skippedStepCheckArgsMapCount
+  );
+  expect(report.stepCheckArgCountMapCount).toBe(
+    report.passedStepCheckArgCountMapCount +
+      report.failedStepCheckArgCountMapCount +
+      report.skippedStepCheckArgCountMapCount
   );
   expect(report.failureSummaryCount).toBe(report.failureSummaries.length);
   expect(report.stepStatusMap).toEqual(expectedStepStatusMap);
@@ -1436,6 +1707,9 @@ const expectStepSummaryMetadata = (
     expect(summary.scriptName).toBe(failedStepEntry.scriptName);
     expect(summary.supportsNoBuild).toBe(failedStepEntry.supportsNoBuild);
     expect(summary.stepIndex).toBe(failedStepEntry.stepIndex);
+    expect(summary.checkCommand).toBe(failedStepEntry.checkCommand);
+    expect(summary.checkArgs).toEqual(failedStepEntry.checkArgs);
+    expect(summary.checkArgCount).toBe(failedStepEntry.checkArgCount);
     if (typeof failedStepEntry.exitCode !== "number") {
       throw new Error(`Missing exit code for failed step ${stepName}.`);
     }
@@ -1469,6 +1743,12 @@ const expectAvailableStepMetadata = (
     availableStepScriptCount: number;
     availableStepScriptMap: Record<string, string>;
     availableStepScriptMapCount: number;
+    availableStepCheckCommandMap: Record<string, string>;
+    availableStepCheckCommandMapCount: number;
+    availableStepCheckArgsMap: Record<string, string[]>;
+    availableStepCheckArgsMapCount: number;
+    availableStepCheckArgCountMap: Record<string, number>;
+    availableStepCheckArgCountMapCount: number;
     availableStepSupportsNoBuildMap: Record<string, boolean>;
     availableStepSupportsNoBuildMapCount: number;
     availableStepIndices: number[];
@@ -1480,6 +1760,9 @@ const expectAvailableStepMetadata = (
       {
         scriptName: string;
         supportsNoBuild: boolean;
+        checkCommand: string;
+        checkArgs: string[];
+        checkArgCount: number;
       }
     >;
     availableStepMetadataCount: number;
@@ -1506,6 +1789,21 @@ const expectAvailableStepMetadata = (
       return [stepName, expectedMetadata[stepName].supportsNoBuild];
     })
   );
+  const expectedCheckCommandMap = Object.fromEntries(
+    expectedSteps.map((stepName) => {
+      return [stepName, report.availableStepMetadata[stepName].checkCommand];
+    })
+  );
+  const expectedCheckArgsMap = Object.fromEntries(
+    expectedSteps.map((stepName) => {
+      return [stepName, report.availableStepMetadata[stepName].checkArgs];
+    })
+  );
+  const expectedCheckArgCountMap = Object.fromEntries(
+    expectedSteps.map((stepName) => {
+      return [stepName, report.availableStepMetadata[stepName].checkArgCount];
+    })
+  );
   const expectedIndices = expectedSteps.map((_, index) => {
     return index;
   });
@@ -1522,6 +1820,18 @@ const expectAvailableStepMetadata = (
   expect(report.availableStepScriptMap).toEqual(expectedScriptMap);
   expect(report.availableStepScriptMapCount).toBe(
     Object.keys(report.availableStepScriptMap).length
+  );
+  expect(report.availableStepCheckCommandMap).toEqual(expectedCheckCommandMap);
+  expect(report.availableStepCheckCommandMapCount).toBe(
+    Object.keys(report.availableStepCheckCommandMap).length
+  );
+  expect(report.availableStepCheckArgsMap).toEqual(expectedCheckArgsMap);
+  expect(report.availableStepCheckArgsMapCount).toBe(
+    Object.keys(report.availableStepCheckArgsMap).length
+  );
+  expect(report.availableStepCheckArgCountMap).toEqual(expectedCheckArgCountMap);
+  expect(report.availableStepCheckArgCountMapCount).toBe(
+    Object.keys(report.availableStepCheckArgCountMap).length
   );
   expect(report.availableStepSupportsNoBuildMap).toEqual(
     expectedSupportsNoBuildMap
@@ -1542,12 +1852,35 @@ const expectAvailableStepMetadata = (
         {
           scriptName: report.availableStepScriptMap[stepName],
           supportsNoBuild: report.availableStepSupportsNoBuildMap[stepName],
+          checkCommand: report.availableStepCheckCommandMap[stepName],
+          checkArgs: report.availableStepCheckArgsMap[stepName],
+          checkArgCount: report.availableStepCheckArgCountMap[stepName],
         },
       ];
     })
   );
   expect(report.availableStepMetadata).toEqual(metadataFromMaps);
-  expect(report.availableStepMetadata).toEqual(expectedMetadata);
+  expect(
+    Object.fromEntries(
+      expectedSteps.map((stepName) => {
+        return [
+          stepName,
+          {
+            scriptName: report.availableStepMetadata[stepName].scriptName,
+            supportsNoBuild: report.availableStepMetadata[stepName].supportsNoBuild,
+          },
+        ];
+      })
+    )
+  ).toEqual(expectedMetadata);
+  for (const stepName of expectedSteps) {
+    expect(report.availableStepMetadata[stepName].checkCommand.length).toBeGreaterThan(
+      0
+    );
+    expect(report.availableStepMetadata[stepName].checkArgCount).toBe(
+      report.availableStepMetadata[stepName].checkArgs.length
+    );
+  }
   expect(report.availableStepMetadataCount).toBe(
     Object.keys(report.availableStepMetadata).length
   );
