@@ -480,13 +480,29 @@ pub fn propagate(
     let [shape_x, _, shape_z] = shape;
     let max_height = config.max_height;
     let max_light_level = config.max_light_level;
+    if shape_x == 0 || shape_z == 0 || max_height <= 0 {
+        return [
+            VecDeque::new(),
+            VecDeque::new(),
+            VecDeque::new(),
+            VecDeque::new(),
+        ];
+    }
+    let Some(mask_len) = shape_x.checked_mul(shape_z) else {
+        return [
+            VecDeque::new(),
+            VecDeque::new(),
+            VecDeque::new(),
+            VecDeque::new(),
+        ];
+    };
 
     let mut red_light_queue = Vec::<LightNode>::new();
     let mut green_light_queue = Vec::<LightNode>::new();
     let mut blue_light_queue = Vec::<LightNode>::new();
     let mut sunlight_queue = Vec::<LightNode>::new();
 
-    let mut mask = vec![max_light_level; shape_x * shape_z];
+    let mut mask = vec![max_light_level; mask_len];
 
     for y in (0..max_height).rev() {
         for x in 0..shape_x {
@@ -683,6 +699,38 @@ mod tests {
 
         fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
             self.index(vx, vy, vz).is_some()
+        }
+    }
+
+    struct ZeroSpace;
+
+    impl LightVoxelAccess for ZeroSpace {
+        fn get_raw_voxel(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+            0
+        }
+
+        fn get_voxel_rotation(&self, _vx: i32, _vy: i32, _vz: i32) -> BlockRotation {
+            BlockRotation::default()
+        }
+
+        fn get_voxel_stage(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+            0
+        }
+
+        fn get_raw_light(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+            0
+        }
+
+        fn set_raw_light(&mut self, _vx: i32, _vy: i32, _vz: i32, _level: u32) -> bool {
+            false
+        }
+
+        fn get_max_height(&self, _vx: i32, _vz: i32) -> u32 {
+            0
+        }
+
+        fn contains(&self, _vx: i32, _vy: i32, _vz: i32) -> bool {
+            true
         }
     }
 
@@ -893,6 +941,26 @@ mod tests {
         assert!(sunlight_queue.is_empty());
         assert_eq!(space.get_sunlight(0, 1, 0), 1);
         assert_eq!(space.get_sunlight(0, 0, 0), 0);
+    }
+
+    #[test]
+    fn propagate_returns_empty_queues_when_mask_len_overflows() {
+        let registry = test_registry();
+        let config = LightConfig {
+            chunk_size: 16,
+            max_height: 1,
+            max_light_level: 15,
+            min_chunk: [0, 0],
+            max_chunk: [0, 0],
+        };
+        let mut space = ZeroSpace;
+
+        let queues = propagate(&mut space, [0, 0, 0], [usize::MAX, 1, 2], &registry, &config);
+
+        assert!(queues[0].is_empty());
+        assert!(queues[1].is_empty());
+        assert!(queues[2].is_empty());
+        assert!(queues[3].is_empty());
     }
 
     #[test]
