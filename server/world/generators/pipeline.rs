@@ -377,7 +377,7 @@ impl Pipeline {
 
     /// Attempt to retrieve the results from `pipeline.process`
     pub fn results(&mut self) -> Vec<(Chunk, Vec<VoxelUpdate>)> {
-        let mut results = Vec::new();
+        let mut results = Vec::with_capacity(self.receiver.len().min(self.chunks.len()));
 
         while let Ok(result) = self.receiver.try_recv() {
             if self.chunks.remove(&result.0.coords) {
