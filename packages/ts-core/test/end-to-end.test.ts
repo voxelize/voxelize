@@ -1,0 +1,62 @@
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { describe, expect, it } from "vitest";
+
+type ExampleOutput = {
+  voxel: {
+    id: number;
+    rotation: {
+      value: number;
+      yRotation: number;
+    };
+    stage: number;
+  };
+  light: {
+    sunlight: number;
+    red: number;
+    green: number;
+    blue: number;
+  };
+  rotatedAabb: {
+    min: [number, number, number];
+    max: [number, number, number];
+  };
+  ruleMatched: boolean;
+};
+
+const testDirectory = fileURLToPath(new URL(".", import.meta.url));
+const packageDirectory = path.resolve(testDirectory, "..");
+const exampleScript = path.resolve(packageDirectory, "examples", "end-to-end.mjs");
+
+describe("ts-core end-to-end example", () => {
+  it("runs successfully and emits expected JSON output", () => {
+    const result = spawnSync(process.execPath, [exampleScript], {
+      cwd: packageDirectory,
+      encoding: "utf8",
+      shell: false,
+    });
+    const output = `${result.stdout}`.trim();
+    const parsed = JSON.parse(output) as ExampleOutput;
+
+    expect(result.status).toBe(0);
+    expect(result.stderr.trim()).toBe("");
+    expect(parsed.voxel.id).toBe(42);
+    expect(parsed.voxel.stage).toBe(7);
+    expect(parsed.voxel.rotation.value).toBe(0);
+    expect(parsed.voxel.rotation.yRotation).toBeGreaterThan(0);
+    expect(parsed.light).toEqual({
+      sunlight: 15,
+      red: 10,
+      green: 5,
+      blue: 3,
+    });
+    expect(parsed.rotatedAabb.min).toHaveLength(3);
+    expect(parsed.rotatedAabb.max).toHaveLength(3);
+    expect(parsed.rotatedAabb.min[0]).toBeLessThan(parsed.rotatedAabb.max[0]);
+    expect(parsed.rotatedAabb.min[1]).toBeLessThan(parsed.rotatedAabb.max[1]);
+    expect(parsed.rotatedAabb.min[2]).toBeLessThan(parsed.rotatedAabb.max[2]);
+    expect(parsed.ruleMatched).toBe(true);
+  });
+});
