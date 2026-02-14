@@ -1292,14 +1292,8 @@ const checkArgCountMap = Object.fromEntries(
   })
 );
 const checkArgCountMapCount = countRecordEntries(checkArgCountMap);
-const {
-  clientWasmPackCheckStatus,
-  clientWasmPackCheckCommand,
-  clientWasmPackCheckArgs,
-  clientWasmPackCheckArgCount,
-  clientWasmPackCheckExitCode,
-  clientWasmPackCheckOutputLine,
-} = resolveClientWasmPackCheckSummaryFromChecks(checks);
+const clientWasmPackCheckSummary =
+  resolveClientWasmPackCheckSummaryFromChecks(checks);
 const invalidCheckCount = 0;
 const failureSummaries = summarizeCheckFailureResults(checks);
 const report = buildTimedReport({
@@ -1421,12 +1415,7 @@ const report = buildTimedReport({
   checkArgsMapCount,
   checkArgCountMap,
   checkArgCountMapCount,
-  clientWasmPackCheckStatus,
-  clientWasmPackCheckCommand,
-  clientWasmPackCheckArgs,
-  clientWasmPackCheckArgCount,
-  clientWasmPackCheckExitCode,
-  clientWasmPackCheckOutputLine,
+  ...clientWasmPackCheckSummary,
   outputPath: resolvedOutputPath,
   validationErrorCode: null,
   invalidChecks: [],

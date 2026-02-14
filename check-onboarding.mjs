@@ -626,14 +626,8 @@ if (isJson) {
   const stepCheckArgCountMap = mapStepResultsToCheckArgCountMap(stepResults);
   const stepStatusCountMap = createStepStatusCountMap(stepSummary);
   const failureSummaries = summarizeStepFailureResults(stepResults);
-  const {
-    clientWasmPackCheckStatus,
-    clientWasmPackCheckCommand,
-    clientWasmPackCheckArgs,
-    clientWasmPackCheckArgCount,
-    clientWasmPackCheckExitCode,
-    clientWasmPackCheckOutputLine,
-  } = resolveClientWasmPackCheckMetadataFromStepResults(stepResults);
+  const clientWasmPackCheckSummary =
+    resolveClientWasmPackCheckMetadataFromStepResults(stepResults);
   const report = buildTimedReport({
     passed: exitCode === 0,
     exitCode,
@@ -749,12 +743,7 @@ if (isJson) {
     failedStepMetadataCount: countRecordEntries(failedStepMetadata),
     skippedStepMetadata,
     skippedStepMetadataCount: countRecordEntries(skippedStepMetadata),
-    clientWasmPackCheckStatus,
-    clientWasmPackCheckCommand,
-    clientWasmPackCheckArgs,
-    clientWasmPackCheckArgCount,
-    clientWasmPackCheckExitCode,
-    clientWasmPackCheckOutputLine,
+    ...clientWasmPackCheckSummary,
     ...stepSummary,
   });
   const { reportJson, writeError } = serializeReportWithOptionalWrite(report, {
