@@ -85,6 +85,9 @@ const runWithTemporarilyMovedArtifact = (
   run: () => void
 ) => {
   const absoluteArtifactPath = resolveArtifactPath(artifactPath);
+  if (!fs.existsSync(absoluteArtifactPath)) {
+    throw new Error(`Artifact does not exist for test setup: ${artifactPath}`);
+  }
   const backupPath = `${absoluteArtifactPath}.backup-${Date.now()}`;
   fs.renameSync(absoluteArtifactPath, backupPath);
 
