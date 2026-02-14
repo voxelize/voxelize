@@ -34,11 +34,44 @@ const buildCommandArgs = [
   "run",
   "build",
 ];
+const exampleCommand = process.execPath;
+const exampleArgs = [
+  path.resolve(repositoryRoot, "packages/ts-core/examples/end-to-end.mjs"),
+];
 const resolveMissingArtifacts = () => {
   return requiredArtifacts.filter((artifactPath) => {
     const absoluteArtifactPath = path.resolve(repositoryRoot, artifactPath);
     return !fs.existsSync(absoluteArtifactPath);
   });
+};
+const resolveFirstNonEmptyOutputLine = (output) => {
+  if (typeof output !== "string" || output.length === 0) {
+    return null;
+  }
+
+  const lines = output.split(/\r?\n/);
+  const firstNonEmptyLine = lines.find((line) => {
+    return line.trim().length > 0;
+  });
+  return firstNonEmptyLine ?? null;
+};
+const runTsCoreExampleCheck = () => {
+  const exampleStartedAt = Date.now();
+  const exampleResult = spawnSync(exampleCommand, exampleArgs, {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+    shell: false,
+  });
+  const exampleDurationMs = Date.now() - exampleStartedAt;
+  const exampleExitCode = exampleResult.status ?? 1;
+  const exampleOutput = `${exampleResult.stdout ?? ""}${exampleResult.stderr ?? ""}`.trim();
+  const exampleOutputLine = resolveFirstNonEmptyOutputLine(exampleOutput);
+
+  return {
+    exampleExitCode,
+    exampleDurationMs,
+    exampleOutputLine,
+  };
 };
 
 const pnpmCommand = resolvePnpmCommand();
@@ -339,6 +372,26 @@ const withBaseReportFields = (report) => {
     report.buildSkippedReason === "artifacts-present"
       ? report.buildSkippedReason
       : null;
+  const exampleExitCode =
+    typeof report.exampleExitCode === "number" ? report.exampleExitCode : null;
+  const exampleDurationMs =
+    typeof report.exampleDurationMs === "number"
+      ? report.exampleDurationMs
+      : null;
+  const exampleOutputLine =
+    typeof report.exampleOutputLine === "string" ? report.exampleOutputLine : null;
+  const exampleAttempted =
+    typeof report.exampleAttempted === "boolean" ? report.exampleAttempted : false;
+  const exampleStatus =
+    report.exampleStatus === "ok" ||
+    report.exampleStatus === "failed" ||
+    report.exampleStatus === "skipped"
+      ? report.exampleStatus
+      : exampleAttempted
+        ? exampleExitCode === 0
+          ? "ok"
+          : "failed"
+        : "skipped";
   return {
     ...report,
     optionTerminatorUsed,
@@ -502,6 +555,14 @@ const withBaseReportFields = (report) => {
     buildExitCode,
     buildDurationMs,
     buildSkippedReason,
+    exampleCommand,
+    exampleArgs,
+    exampleArgCount: exampleArgs.length,
+    exampleAttempted,
+    exampleStatus,
+    exampleExitCode,
+    exampleDurationMs,
+    exampleOutputLine,
   };
 };
 const finish = (report) => {
@@ -568,16 +629,37 @@ if (!isJson && validationFailureMessage !== null) {
 
 const initialMissingArtifacts = resolveMissingArtifacts();
 if (initialMissingArtifacts.length === 0) {
+  const exampleCheckResult = runTsCoreExampleCheck();
+  if (exampleCheckResult.exampleExitCode === 0) {
+    finish({
+      passed: true,
+      exitCode: 0,
+      artifactsPresent: true,
+      missingArtifacts: [],
+      attemptedBuild: false,
+      buildSkipped: true,
+      buildSkippedReason: "artifacts-present",
+      buildOutput: null,
+      exampleAttempted: true,
+      ...exampleCheckResult,
+      message:
+        "TypeScript core build artifacts are available and the end-to-end example succeeded.",
+    });
+  }
+
   finish({
-    passed: true,
-    exitCode: 0,
+    passed: false,
+    exitCode: exampleCheckResult.exampleExitCode,
     artifactsPresent: true,
     missingArtifacts: [],
     attemptedBuild: false,
     buildSkipped: true,
     buildSkippedReason: "artifacts-present",
     buildOutput: null,
-    message: "TypeScript core build artifacts are available.",
+    exampleAttempted: true,
+    ...exampleCheckResult,
+    message:
+      "TypeScript core build artifacts are available, but the end-to-end example failed.",
   });
 }
 
@@ -616,9 +698,29 @@ const buildExitCode = buildResult.status ?? 1;
 const buildOutput = `${buildResult.stdout ?? ""}${buildResult.stderr ?? ""}`.trim();
 const missingArtifactsAfterBuild = resolveMissingArtifacts();
 if (buildExitCode === 0 && missingArtifactsAfterBuild.length === 0) {
+  const exampleCheckResult = runTsCoreExampleCheck();
+  if (exampleCheckResult.exampleExitCode === 0) {
+    finish({
+      passed: true,
+      exitCode: 0,
+      artifactsPresent: true,
+      missingArtifacts: [],
+      attemptedBuild: true,
+      buildSkipped: false,
+      buildSkippedReason: null,
+      buildOutput: isJson ? buildOutput : null,
+      buildExitCode,
+      buildDurationMs,
+      exampleAttempted: true,
+      ...exampleCheckResult,
+      message:
+        "TypeScript core build artifacts are available and the end-to-end example succeeded.",
+    });
+  }
+
   finish({
-    passed: true,
-    exitCode: 0,
+    passed: false,
+    exitCode: exampleCheckResult.exampleExitCode,
     artifactsPresent: true,
     missingArtifacts: [],
     attemptedBuild: true,
@@ -627,7 +729,10 @@ if (buildExitCode === 0 && missingArtifactsAfterBuild.length === 0) {
     buildOutput: isJson ? buildOutput : null,
     buildExitCode,
     buildDurationMs,
-    message: "TypeScript core build artifacts are available.",
+    exampleAttempted: true,
+    ...exampleCheckResult,
+    message:
+      "TypeScript core build artifacts are available, but the end-to-end example failed.",
   });
 }
 

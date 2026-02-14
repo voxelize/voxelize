@@ -211,7 +211,9 @@ The JSON report includes artifact/build diagnostics such as `checkedPackage`,
 `missingArtifactCount`, `failureSummaries`, `failureSummaryCount`,
 `missingArtifactSummary`, `buildCommand`, `buildArgs`, `buildExitCode`,
 `buildDurationMs`, `attemptedBuild`, `buildSkipped`, and
-`buildSkippedReason`.
+`buildSkippedReason`, `exampleCommand`, `exampleArgs`, `exampleArgCount`,
+`exampleAttempted`, `exampleStatus`, `exampleExitCode`,
+`exampleDurationMs`, and `exampleOutputLine`.
 Each ts-core `failureSummaries` entry includes `packageIndex`,
 `checkCommand`, `checkArgs`, and `checkArgCount` for deterministic
 failure-to-check correlation.
@@ -300,7 +302,10 @@ Runtime-library JSON reports include package/build diagnostics such as
 `missingPackageArtifactCountByPackageCount`, `failureSummaries`,
 `failureSummaryCount`, `missingArtifactSummary`,
 `buildCommand`, `buildArgs`, `buildExitCode`, `buildDurationMs`,
-`attemptedBuild`, `buildSkipped`, and `buildSkippedReason`.
+`attemptedBuild`, `buildSkipped`, `buildSkippedReason`,
+`exampleCommand`, `exampleArgs`, `exampleArgCount`, `exampleAttempted`,
+`exampleStatus`, `exampleExitCode`, `exampleDurationMs`, and
+`exampleOutputLine`.
 Each `packageReports` entry includes `packageIndex`, `checkCommand`,
 `checkArgs`, `checkArgCount`, `requiredArtifacts`, `presentArtifacts`, and
 `missingArtifacts` for package-level artifact diagnostics.

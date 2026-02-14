@@ -183,6 +183,14 @@ type TsCoreCheckReport = {
   buildArgs: string[];
   buildExitCode: number | null;
   buildDurationMs: number | null;
+  exampleCommand: string;
+  exampleArgs: string[];
+  exampleArgCount: number;
+  exampleAttempted: boolean;
+  exampleStatus: "ok" | "failed" | "skipped";
+  exampleExitCode: number | null;
+  exampleDurationMs: number | null;
+  exampleOutputLine: string | null;
   artifactsPresent: boolean;
   missingArtifacts: string[];
   missingArtifactsByPackage: Record<string, string[]>;
@@ -285,36 +293,48 @@ const expectedBuildArgs = [
   "run",
   "build",
 ];
+const expectedExampleArgs = [
+  path.resolve(rootDir, "packages/ts-core/examples/end-to-end.mjs"),
+];
+const exampleScriptRelativePath = "packages/ts-core/examples/end-to-end.mjs";
+const expectedSuccessMessage =
+  "TypeScript core build artifacts are available and the end-to-end example succeeded.";
 const resolveArtifactPath = (artifactPath: string) => {
   return path.resolve(rootDir, artifactPath);
 };
 
-const runWithTemporarilyMovedArtifact = (
-  artifactPath: string,
+const runWithTemporarilyMovedPath = (
+  relativePath: string,
   run: () => void
 ) => {
-  const absoluteArtifactPath = resolveArtifactPath(artifactPath);
-  if (!fs.existsSync(absoluteArtifactPath)) {
-    throw new Error(`Artifact does not exist for test setup: ${artifactPath}`);
+  const absolutePath = resolveArtifactPath(relativePath);
+  if (!fs.existsSync(absolutePath)) {
+    throw new Error(`Path does not exist for test setup: ${relativePath}`);
   }
-  const backupPath = `${absoluteArtifactPath}.backup-${Date.now()}`;
-  fs.renameSync(absoluteArtifactPath, backupPath);
+  const backupPath = `${absolutePath}.backup-${Date.now()}`;
+  fs.renameSync(absolutePath, backupPath);
 
   try {
     run();
   } finally {
-    const artifactExists = fs.existsSync(absoluteArtifactPath);
+    const pathExists = fs.existsSync(absolutePath);
     const backupExists = fs.existsSync(backupPath);
 
-    if (artifactExists && backupExists) {
+    if (pathExists && backupExists) {
       fs.rmSync(backupPath, { force: true });
       return;
     }
 
-    if (!artifactExists && backupExists) {
-      fs.renameSync(backupPath, absoluteArtifactPath);
+    if (!pathExists && backupExists) {
+      fs.renameSync(backupPath, absolutePath);
     }
   }
+};
+const runWithTemporarilyMovedArtifact = (
+  artifactPath: string,
+  run: () => void
+) => {
+  runWithTemporarilyMovedPath(artifactPath, run);
 };
 
 const runScript = (args: string[] = []): ScriptResult => {
@@ -794,6 +814,37 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
   if (report.buildSkippedReason === "artifacts-present") {
     expect(report.attemptedBuild).toBe(false);
   }
+  expect(report.exampleCommand).toBe(process.execPath);
+  expect(report.exampleArgs).toEqual(expectedExampleArgs);
+  expect(report.exampleArgCount).toBe(report.exampleArgs.length);
+  if (report.validationErrorCode === null && report.artifactsPresent) {
+    expect(report.exampleAttempted).toBe(true);
+  }
+  if (report.exampleAttempted) {
+    expect(report.exampleStatus === "ok" || report.exampleStatus === "failed").toBe(
+      true
+    );
+    expect(typeof report.exampleExitCode).toBe("number");
+    expect(report.exampleExitCode).not.toBeNull();
+    expect(typeof report.exampleDurationMs).toBe("number");
+    expect(report.exampleDurationMs).not.toBeNull();
+    if (report.exampleDurationMs !== null) {
+      expect(report.exampleDurationMs).toBeGreaterThanOrEqual(0);
+    }
+  } else {
+    expect(report.exampleStatus).toBe("skipped");
+    expect(report.exampleExitCode).toBeNull();
+    expect(report.exampleDurationMs).toBeNull();
+    expect(report.exampleOutputLine).toBeNull();
+  }
+  if (report.exampleStatus === "ok") {
+    expect(report.exampleExitCode).toBe(0);
+  }
+  if (report.exampleStatus === "failed") {
+    expect(report.exampleExitCode === null || report.exampleExitCode !== 0).toBe(
+      true
+    );
+  }
   return report;
 };
 
@@ -916,8 +967,30 @@ describe("check-ts-core script", () => {
       expect(report.missingArtifacts).toEqual([]);
       expect(report.attemptedBuild).toBe(true);
       expect(report.buildSkipped).toBe(false);
-      expect(report.message).toBe("TypeScript core build artifacts are available.");
+      expect(report.message).toBe(expectedSuccessMessage);
       expect(fs.existsSync(resolveArtifactPath(missingArtifactPath))).toBe(true);
+    });
+  });
+
+  it("fails when ts-core example execution fails after artifact checks pass", () => {
+    runWithTemporarilyMovedPath(exampleScriptRelativePath, () => {
+      const result = runScript(["--json"]);
+      const report = parseReport(result);
+
+      expect(result.status).toBe(1);
+      expect(report.schemaVersion).toBe(1);
+      expect(report.passed).toBe(false);
+      expect(report.exitCode).toBe(1);
+      expect(report.validationErrorCode).toBeNull();
+      expect(report.artifactsPresent).toBe(true);
+      expect(report.missingArtifacts).toEqual([]);
+      expect(report.exampleAttempted).toBe(true);
+      expect(report.exampleStatus).toBe("failed");
+      expect(report.exampleExitCode).not.toBeNull();
+      expect(report.exampleExitCode).not.toBe(0);
+      expect(report.message).toBe(
+        "TypeScript core build artifacts are available, but the end-to-end example failed."
+      );
     });
   });
 
