@@ -1030,6 +1030,10 @@ const processBatchMessage = (message: LightBatchMessage) => {
     postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
     return;
   }
+  if (expectedVoxelCount > MAX_TYPED_ARRAY_LENGTH) {
+    postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
+    return;
+  }
   const expectedChunkByteLength = expectedVoxelCount * Uint32Array.BYTES_PER_ELEMENT;
   if (!Number.isSafeInteger(expectedChunkByteLength) || expectedChunkByteLength <= 0) {
     postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
