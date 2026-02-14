@@ -6,6 +6,16 @@ const FINAL_NODE_THRESHOLD: f32 = 0.3;
 const CORNER_SLOWDOWN_FACTOR: f32 = 0.15;
 const TIGHT_TURN_ANGLE_THRESHOLD: f32 = 100.0;
 
+#[inline]
+fn axis_delta_f64(to: i32, from: i32) -> f64 {
+    (i64::from(to) - i64::from(from)) as f64
+}
+
+#[inline]
+fn axis_abs_delta_u64(a: i32, b: i32) -> u64 {
+    (i64::from(a) - i64::from(b)).unsigned_abs()
+}
+
 pub struct WalkTowardsSystem;
 
 impl<'a> System<'a> for WalkTowardsSystem {
@@ -107,10 +117,10 @@ impl<'a> System<'a> for WalkTowardsSystem {
 
                         let (is_turning, turn_angle) = if i > 0 {
                             let prev_node = &nodes[i - 1];
-                            let dir1_x = (target.0 - prev_node.0) as f32;
-                            let dir1_z = (target.2 - prev_node.2) as f32;
-                            let dir2_x = (next_node.0 - target.0) as f32;
-                            let dir2_z = (next_node.2 - target.2) as f32;
+                            let dir1_x = axis_delta_f64(target.0, prev_node.0);
+                            let dir1_z = axis_delta_f64(target.2, prev_node.2);
+                            let dir2_x = axis_delta_f64(next_node.0, target.0);
+                            let dir2_z = axis_delta_f64(next_node.2, target.2);
 
                             let is_turn = dir1_x != dir2_x || dir1_z != dir2_z;
 
@@ -119,7 +129,7 @@ impl<'a> System<'a> for WalkTowardsSystem {
 
                             let angle = if mag1 > 0.01 && mag2 > 0.01 {
                                 let dot = (dir1_x * dir2_x + dir1_z * dir2_z) / (mag1 * mag2);
-                                dot.clamp(-1.0, 1.0).acos().to_degrees()
+                                dot.clamp(-1.0, 1.0).acos().to_degrees() as f32
                             } else {
                                 0.0
                             };
@@ -169,9 +179,9 @@ impl<'a> System<'a> for WalkTowardsSystem {
                         let prev_node = &nodes[i - 1];
                         let curr_node = &nodes[i];
 
-                        let dy = curr_node.1 - prev_node.1;
-                        let dx = (curr_node.0 - prev_node.0).abs();
-                        let dz = (curr_node.2 - prev_node.2).abs();
+                        let dy = i64::from(curr_node.1) - i64::from(prev_node.1);
+                        let dx = axis_abs_delta_u64(curr_node.0, prev_node.0);
+                        let dz = axis_abs_delta_u64(curr_node.2, prev_node.2);
 
                         let is_jump_up = dy > 0 && (dx > 0 || dz > 0);
 
@@ -190,5 +200,22 @@ impl<'a> System<'a> for WalkTowardsSystem {
                     brain.stop();
                 }
             });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{axis_abs_delta_u64, axis_delta_f64};
+
+    #[test]
+    fn axis_delta_f64_handles_i32_extremes() {
+        assert_eq!(axis_delta_f64(i32::MAX, i32::MIN), 4_294_967_295.0);
+        assert_eq!(axis_delta_f64(i32::MIN, i32::MAX), -4_294_967_295.0);
+    }
+
+    #[test]
+    fn axis_abs_delta_u64_handles_i32_extremes() {
+        assert_eq!(axis_abs_delta_u64(i32::MAX, i32::MIN), 4_294_967_295);
+        assert_eq!(axis_abs_delta_u64(i32::MIN, i32::MAX), 4_294_967_295);
     }
 }
