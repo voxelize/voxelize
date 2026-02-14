@@ -16,6 +16,7 @@ pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
 ];
 
 const ALL_TRANSPARENT: [bool; 6] = [true, true, true, true, true, true];
+const ALL_TORCH_COLOR_MASK: u8 = (1 << 0) | (1 << 1) | (1 << 2);
 const SOURCE_FACE_BY_DIR: [usize; 6] = [0, 3, 2, 5, 1, 4];
 const TARGET_FACE_BY_DIR: [usize; 6] = [3, 0, 5, 2, 4, 1];
 const MAX_I64_USIZE: usize = i64::MAX as usize;
@@ -469,25 +470,56 @@ pub fn propagate(
                 let raw_voxel = space.get_raw_voxel(vx, y, vz);
                 let block = registry.get_block_by_id(raw_voxel & 0xFFFF);
                 if block.is_light {
-                    let has_dynamic_red = block.has_dynamic_torch_color(&LightColor::Red);
-                    let has_dynamic_green = block.has_dynamic_torch_color(&LightColor::Green);
-                    let has_dynamic_blue = block.has_dynamic_torch_color(&LightColor::Blue);
-
-                    let red_level = if has_dynamic_red {
-                        block.get_torch_light_level_at_xyz(vx, y, vz, space, &LightColor::Red)
-                    } else {
-                        block.red_light_level
-                    };
-                    let green_level = if has_dynamic_green {
-                        block.get_torch_light_level_at_xyz(vx, y, vz, space, &LightColor::Green)
-                    } else {
-                        block.green_light_level
-                    };
-                    let blue_level = if has_dynamic_blue {
-                        block.get_torch_light_level_at_xyz(vx, y, vz, space, &LightColor::Blue)
-                    } else {
-                        block.blue_light_level
-                    };
+                    let (red_level, green_level, blue_level) =
+                        if block.has_dynamic_torch_mask(ALL_TORCH_COLOR_MASK) {
+                            let has_dynamic_red =
+                                block.has_dynamic_torch_color(&LightColor::Red);
+                            let has_dynamic_green =
+                                block.has_dynamic_torch_color(&LightColor::Green);
+                            let has_dynamic_blue =
+                                block.has_dynamic_torch_color(&LightColor::Blue);
+                            (
+                                if has_dynamic_red {
+                                    block.get_torch_light_level_at_xyz(
+                                        vx,
+                                        y,
+                                        vz,
+                                        space,
+                                        &LightColor::Red,
+                                    )
+                                } else {
+                                    block.red_light_level
+                                },
+                                if has_dynamic_green {
+                                    block.get_torch_light_level_at_xyz(
+                                        vx,
+                                        y,
+                                        vz,
+                                        space,
+                                        &LightColor::Green,
+                                    )
+                                } else {
+                                    block.green_light_level
+                                },
+                                if has_dynamic_blue {
+                                    block.get_torch_light_level_at_xyz(
+                                        vx,
+                                        y,
+                                        vz,
+                                        space,
+                                        &LightColor::Blue,
+                                    )
+                                } else {
+                                    block.blue_light_level
+                                },
+                            )
+                        } else {
+                            (
+                                block.red_light_level,
+                                block.green_light_level,
+                                block.blue_light_level,
+                            )
+                        };
 
                     if red_level > 0 {
                         space.set_red_light(vx, y, vz, red_level);
