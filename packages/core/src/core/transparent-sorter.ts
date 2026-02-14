@@ -32,6 +32,8 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
 
   const positions = positionAttr.array as ArrayLike<number>;
   const positionsLength = positions.length;
+  if (positionsLength % 3 !== 0) return null;
+  const vertexCount = positionsLength / 3;
   const indices = geometry.index.array as Uint16Array | Uint32Array;
   const indicesLength = indices.length;
   if (indicesLength % 6 !== 0) return null;
@@ -47,22 +49,25 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
     faceIndex++, indexOffset += 6, centroidOffset += 3
   ) {
     faceOrder[faceIndex] = faceIndex;
-    const i0 = indices[indexOffset] * 3;
-    const i1 = indices[indexOffset + 1] * 3;
-    const i2 = indices[indexOffset + 2] * 3;
-    const i3 = indices[indexOffset + 3] * 3;
-    const i4 = indices[indexOffset + 4] * 3;
-    const i5 = indices[indexOffset + 5] * 3;
+    const i0Index = indices[indexOffset];
+    const i1Index = indices[indexOffset + 1];
+    const i2Index = indices[indexOffset + 2];
+    const i3Index = indices[indexOffset + 3];
+    const i4Index = indices[indexOffset + 4];
+    const i5Index = indices[indexOffset + 5];
     if (
-      i0 + 2 >= positionsLength ||
-      i1 + 2 >= positionsLength ||
-      i2 + 2 >= positionsLength ||
-      i3 + 2 >= positionsLength ||
-      i4 + 2 >= positionsLength ||
-      i5 + 2 >= positionsLength
+      i0Index >= vertexCount ||
+      i1Index >= vertexCount ||
+      i2Index >= vertexCount ||
+      i3Index >= vertexCount ||
+      i4Index >= vertexCount ||
+      i5Index >= vertexCount
     ) {
       return null;
     }
+    const i0 = i0Index * 3;
+    const i1 = i1Index * 3;
+    const i2 = i2Index * 3;
 
     centroids[centroidOffset] =
       (positions[i0] + positions[i1] + positions[i2]) / 3;

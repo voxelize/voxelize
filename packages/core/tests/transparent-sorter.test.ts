@@ -77,6 +77,25 @@ describe("transparent sorter", () => {
     expect(prepareTransparentMesh(mesh)).toBeNull();
   });
 
+  it("returns null when vec3 position attribute length is malformed", () => {
+    const geometry = new BufferGeometry();
+    geometry.setAttribute(
+      "position",
+      new BufferAttribute(
+        new Float32Array([
+          0, 0, 0, 1, 0, 0, 0, 1, 0, 1,
+        ]),
+        3
+      )
+    );
+    geometry.setIndex(
+      new BufferAttribute(new Uint16Array([0, 1, 2, 0, 2, 3, 0, 1, 2, 0, 2, 3]), 1)
+    );
+    const mesh = new Mesh(geometry, new MeshBasicMaterial());
+
+    expect(prepareTransparentMesh(mesh)).toBeNull();
+  });
+
   it("returns null when geometry indices are not quad-aligned", () => {
     const geometry = new BufferGeometry();
     geometry.setAttribute(
