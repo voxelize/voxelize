@@ -10,6 +10,7 @@ const LZ4_FRAME_MAGIC = [0x04, 0x22, 0x4d, 0x18];
 const ZLIB_MAGIC_0 = 0x78;
 const ZLIB_MAGIC_1 = 0x9c;
 const EMPTY_U8 = new Uint8Array(0);
+const EMPTY_U16 = new Uint16Array(0);
 const EMPTY_U32 = new Uint32Array(0);
 const EMPTY_I32 = new Int32Array(0);
 const EMPTY_F32 = new Float32Array(0);
@@ -227,6 +228,10 @@ export function decodeMessage(
                   const decompressedI32 = decompressToInt32Array(
                     geo.indices
                   );
+                  if (decompressedI32.length === 0) {
+                    geo.indices = EMPTY_U16;
+                    continue;
+                  }
                   const indices = new Uint16Array(decompressedI32.length);
                   for (let idx = 0; idx < decompressedI32.length; idx++) {
                     indices[idx] = decompressedI32[idx];
