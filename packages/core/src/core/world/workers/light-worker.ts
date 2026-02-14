@@ -334,7 +334,9 @@ const applyRelevantDeltas = (
       const vy = coords[1];
       const vz = coords[2];
 
-      chunk.setVoxel(vx, vy, vz, delta.newVoxel);
+      if (delta.oldVoxel !== delta.newVoxel) {
+        chunk.setVoxel(vx, vy, vz, delta.newVoxel);
+      }
       const newRotation = delta.newRotation;
       if (newRotation) {
         chunk.setVoxelRotation(vx, vy, vz, newRotation);
