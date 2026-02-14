@@ -7,6 +7,7 @@ import {
   createCliOptionCatalog,
   createCliDiagnostics,
   deriveCliValidationFailureMessage,
+  extractWasmPackCheckSummaryFromReport,
   createTimedReportBuilder,
   hasCliOption,
   parseJsonOutput,
@@ -337,29 +338,14 @@ const resolveClientWasmPackCheckMetadataFromStepResults = (results) => {
   }
 
   const nestedReport = clientStepResult.report;
-  const clientWasmPackCheckStatus =
-    typeof nestedReport.wasmPackCheckStatus === "string"
-      ? nestedReport.wasmPackCheckStatus
-      : null;
-  const clientWasmPackCheckCommand =
-    typeof nestedReport.wasmPackCheckCommand === "string"
-      ? nestedReport.wasmPackCheckCommand
-      : null;
-  const clientWasmPackCheckArgs = Array.isArray(nestedReport.wasmPackCheckArgs)
-    ? [...nestedReport.wasmPackCheckArgs]
-    : null;
-  const clientWasmPackCheckArgCount =
-    typeof nestedReport.wasmPackCheckArgCount === "number"
-      ? nestedReport.wasmPackCheckArgCount
-      : clientWasmPackCheckArgs?.length ?? null;
-  const clientWasmPackCheckExitCode =
-    typeof nestedReport.wasmPackCheckExitCode === "number"
-      ? nestedReport.wasmPackCheckExitCode
-      : null;
-  const clientWasmPackCheckOutputLine =
-    typeof nestedReport.wasmPackCheckOutputLine === "string"
-      ? nestedReport.wasmPackCheckOutputLine
-      : null;
+  const {
+    wasmPackCheckStatus: clientWasmPackCheckStatus,
+    wasmPackCheckCommand: clientWasmPackCheckCommand,
+    wasmPackCheckArgs: clientWasmPackCheckArgs,
+    wasmPackCheckArgCount: clientWasmPackCheckArgCount,
+    wasmPackCheckExitCode: clientWasmPackCheckExitCode,
+    wasmPackCheckOutputLine: clientWasmPackCheckOutputLine,
+  } = extractWasmPackCheckSummaryFromReport(nestedReport);
 
   return {
     clientWasmPackCheckStatus,

@@ -6,6 +6,7 @@ import {
   countRecordEntries,
   createCliDiagnostics,
   createTimedReportBuilder,
+  extractWasmPackCheckSummaryFromReport,
   hasCliOption as hasCliOptionInArgs,
   parseJsonOutput,
   resolveLastOptionValue,
@@ -284,29 +285,14 @@ const resolveClientWasmPackCheckSummaryFromChecks = (checks) => {
   }
 
   const report = clientCheck.report;
-  const clientWasmPackCheckStatus =
-    typeof report.wasmPackCheckStatus === "string"
-      ? report.wasmPackCheckStatus
-      : null;
-  const clientWasmPackCheckCommand =
-    typeof report.wasmPackCheckCommand === "string"
-      ? report.wasmPackCheckCommand
-      : null;
-  const clientWasmPackCheckArgs = Array.isArray(report.wasmPackCheckArgs)
-    ? [...report.wasmPackCheckArgs]
-    : null;
-  const clientWasmPackCheckArgCount =
-    typeof report.wasmPackCheckArgCount === "number"
-      ? report.wasmPackCheckArgCount
-      : clientWasmPackCheckArgs?.length ?? null;
-  const clientWasmPackCheckExitCode =
-    typeof report.wasmPackCheckExitCode === "number"
-      ? report.wasmPackCheckExitCode
-      : null;
-  const clientWasmPackCheckOutputLine =
-    typeof report.wasmPackCheckOutputLine === "string"
-      ? report.wasmPackCheckOutputLine
-      : null;
+  const {
+    wasmPackCheckStatus: clientWasmPackCheckStatus,
+    wasmPackCheckCommand: clientWasmPackCheckCommand,
+    wasmPackCheckArgs: clientWasmPackCheckArgs,
+    wasmPackCheckArgCount: clientWasmPackCheckArgCount,
+    wasmPackCheckExitCode: clientWasmPackCheckExitCode,
+    wasmPackCheckOutputLine: clientWasmPackCheckOutputLine,
+  } = extractWasmPackCheckSummaryFromReport(report);
 
   return {
     clientWasmPackCheckStatus,

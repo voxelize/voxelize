@@ -8,6 +8,7 @@ import {
   createCliOptionCatalog,
   createCliDiagnostics,
   deriveCliValidationFailureMessage,
+  extractWasmPackCheckSummaryFromReport,
   createTimedReportBuilder,
   hasCliOption,
   parseJsonOutput,
@@ -302,39 +303,7 @@ const resolveWasmPackCheckMetadataFromStepResults = (results) => {
     };
   }
 
-  const nestedReport = wasmArtifactStepResult.report;
-  const wasmPackCheckStatus =
-    typeof nestedReport.wasmPackCheckStatus === "string"
-      ? nestedReport.wasmPackCheckStatus
-      : null;
-  const wasmPackCheckCommand =
-    typeof nestedReport.wasmPackCheckCommand === "string"
-      ? nestedReport.wasmPackCheckCommand
-      : null;
-  const wasmPackCheckArgs = Array.isArray(nestedReport.wasmPackCheckArgs)
-    ? [...nestedReport.wasmPackCheckArgs]
-    : null;
-  const wasmPackCheckArgCount =
-    typeof nestedReport.wasmPackCheckArgCount === "number"
-      ? nestedReport.wasmPackCheckArgCount
-      : wasmPackCheckArgs?.length ?? null;
-  const wasmPackCheckExitCode =
-    typeof nestedReport.wasmPackCheckExitCode === "number"
-      ? nestedReport.wasmPackCheckExitCode
-      : null;
-  const wasmPackCheckOutputLine =
-    typeof nestedReport.wasmPackCheckOutputLine === "string"
-      ? nestedReport.wasmPackCheckOutputLine
-      : null;
-
-  return {
-    wasmPackCheckStatus,
-    wasmPackCheckCommand,
-    wasmPackCheckArgs,
-    wasmPackCheckArgCount,
-    wasmPackCheckExitCode,
-    wasmPackCheckOutputLine,
-  };
+  return extractWasmPackCheckSummaryFromReport(wasmArtifactStepResult.report);
 };
 const stepResults = [];
 let exitCode = 0;

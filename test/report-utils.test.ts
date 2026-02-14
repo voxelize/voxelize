@@ -13,6 +13,7 @@ import {
   createCliOptionValidation,
   deriveCliValidationFailureMessage,
   deriveFailureMessageFromReport,
+  extractWasmPackCheckSummaryFromReport,
   hasCliOption,
   parseActiveCliOptionMetadata,
   parseJsonOutput,
@@ -3099,5 +3100,59 @@ describe("report-utils", () => {
         steps: [{ name: "Client checks", passed: false, skipped: false }],
       })
     ).toBe("Client checks failed.");
+  });
+
+  it("extracts wasm pack summary fields from nested reports", () => {
+    expect(
+      extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckStatus: "missing",
+        wasmPackCheckCommand: "node",
+        wasmPackCheckArgs: ["check-wasm-pack.mjs", "--json", "--compact"],
+        wasmPackCheckArgCount: 3,
+        wasmPackCheckExitCode: 1,
+        wasmPackCheckOutputLine: "wasm-pack not found",
+      })
+    ).toEqual({
+      wasmPackCheckStatus: "missing",
+      wasmPackCheckCommand: "node",
+      wasmPackCheckArgs: ["check-wasm-pack.mjs", "--json", "--compact"],
+      wasmPackCheckArgCount: 3,
+      wasmPackCheckExitCode: 1,
+      wasmPackCheckOutputLine: "wasm-pack not found",
+    });
+  });
+
+  it("returns null defaults for missing wasm pack summary fields", () => {
+    expect(extractWasmPackCheckSummaryFromReport(null)).toEqual({
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: null,
+      wasmPackCheckArgCount: null,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
+    expect(extractWasmPackCheckSummaryFromReport([])).toEqual({
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: null,
+      wasmPackCheckArgCount: null,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
+    expect(
+      extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckStatus: "ok",
+        wasmPackCheckCommand: "node",
+        wasmPackCheckArgs: ["check-wasm-pack.mjs"],
+        wasmPackCheckExitCode: "1",
+      })
+    ).toEqual({
+      wasmPackCheckStatus: "ok",
+      wasmPackCheckCommand: "node",
+      wasmPackCheckArgs: ["check-wasm-pack.mjs"],
+      wasmPackCheckArgCount: 1,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
   });
 });

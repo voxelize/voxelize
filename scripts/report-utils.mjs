@@ -283,6 +283,56 @@ export const deriveFailureMessageFromReport = (report) => {
   return null;
 };
 
+export const extractWasmPackCheckSummaryFromReport = (report) => {
+  if (
+    report === null ||
+    typeof report !== "object" ||
+    Array.isArray(report)
+  ) {
+    return {
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: null,
+      wasmPackCheckArgCount: null,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    };
+  }
+
+  const wasmPackCheckStatus =
+    typeof report.wasmPackCheckStatus === "string"
+      ? report.wasmPackCheckStatus
+      : null;
+  const wasmPackCheckCommand =
+    typeof report.wasmPackCheckCommand === "string"
+      ? report.wasmPackCheckCommand
+      : null;
+  const wasmPackCheckArgs = Array.isArray(report.wasmPackCheckArgs)
+    ? [...report.wasmPackCheckArgs]
+    : null;
+  const wasmPackCheckArgCount =
+    typeof report.wasmPackCheckArgCount === "number"
+      ? report.wasmPackCheckArgCount
+      : wasmPackCheckArgs?.length ?? null;
+  const wasmPackCheckExitCode =
+    typeof report.wasmPackCheckExitCode === "number"
+      ? report.wasmPackCheckExitCode
+      : null;
+  const wasmPackCheckOutputLine =
+    typeof report.wasmPackCheckOutputLine === "string"
+      ? report.wasmPackCheckOutputLine
+      : null;
+
+  return {
+    wasmPackCheckStatus,
+    wasmPackCheckCommand,
+    wasmPackCheckArgs,
+    wasmPackCheckArgCount,
+    wasmPackCheckExitCode,
+    wasmPackCheckOutputLine,
+  };
+};
+
 export const summarizeStepFailureResults = (steps) => {
   return steps
     .filter((step) => {
