@@ -276,7 +276,7 @@ fn base_block(id: u32, name: &str) -> Block {
     }
 }
 
-fn build_registry() -> Registry {
+fn build_registry_with_cache(cache_ready: bool) -> Registry {
     let mut air = base_block(0, "air");
     air.is_empty = true;
     air.is_opaque = false;
@@ -400,8 +400,18 @@ fn build_registry() -> Registry {
         (10, isolated_independent),
         (11, dynamic_world),
     ]);
-    registry.build_cache();
+    if cache_ready {
+        registry.build_cache();
+    }
     registry
+}
+
+fn build_registry() -> Registry {
+    build_registry_with_cache(true)
+}
+
+fn build_registry_uncached() -> Registry {
+    build_registry_with_cache(false)
 }
 
 fn geometry_fingerprint(geometries: &[GeometryProtocol]) -> Vec<String> {
@@ -827,5 +837,73 @@ fn non_greedy_mesher_benchmark(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, greedy_mesher_benchmark, non_greedy_mesher_benchmark);
+fn uncached_mesher_benchmark(c: &mut Criterion) {
+    let registry = build_registry_uncached();
+    let scenes = vec![
+        ("dynamic_16x20x16", dynamic_scene()),
+        ("transparency_16x16x16", transparency_scene()),
+        ("seeded_mix_16x12x16", seeded_mix_scene()),
+    ];
+    let mut group = c.benchmark_group("uncached_mesher");
+
+    for (scene_name, space) in &scenes {
+        let min = [0, 0, 0];
+        let max = [space.shape[0] as i32, space.shape[1] as i32, space.shape[2] as i32];
+        assert_parity(&min, &max, space, &registry);
+
+        group.bench_with_input(
+            BenchmarkId::new("greedy_legacy", scene_name),
+            scene_name,
+            |bench, _| {
+                bench.iter(|| {
+                    mesh_space_greedy_legacy(
+                        black_box(&min),
+                        black_box(&max),
+                        black_box(space),
+                        black_box(&registry),
+                    )
+                });
+            },
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("greedy_optimized", scene_name),
+            scene_name,
+            |bench, _| {
+                bench.iter(|| {
+                    mesh_space_greedy(
+                        black_box(&min),
+                        black_box(&max),
+                        black_box(space),
+                        black_box(&registry),
+                    )
+                });
+            },
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("mesh_space", scene_name),
+            scene_name,
+            |bench, _| {
+                bench.iter(|| {
+                    mesh_space(
+                        black_box(&min),
+                        black_box(&max),
+                        black_box(space),
+                        black_box(&registry),
+                    )
+                });
+            },
+        );
+    }
+
+    group.finish();
+}
+
+criterion_group!(
+    benches,
+    greedy_mesher_benchmark,
+    non_greedy_mesher_benchmark,
+    uncached_mesher_benchmark
+);
 criterion_main!(benches);
