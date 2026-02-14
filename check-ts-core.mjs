@@ -411,9 +411,11 @@ const withBaseReportFields = (report) => {
     typeof report.examplePayloadValid === "boolean"
       ? report.examplePayloadValid
       : null;
-  const examplePayloadIssues = normalizeExamplePayloadIssues(
+  const rawExamplePayloadIssues = normalizeExamplePayloadIssues(
     report.examplePayloadIssues
   );
+  const examplePayloadIssues =
+    examplePayloadValid === true ? [] : rawExamplePayloadIssues;
   const examplePayloadIssueCount =
     examplePayloadIssues === null
       ? typeof report.examplePayloadIssueCount === "number"

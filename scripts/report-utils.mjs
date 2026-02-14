@@ -397,11 +397,13 @@ export const extractTsCoreExampleSummaryFromReport = (report) => {
     typeof report.examplePayloadValid === "boolean"
       ? report.examplePayloadValid
       : null;
-  const examplePayloadIssues = Array.isArray(report.examplePayloadIssues)
+  const rawExamplePayloadIssues = Array.isArray(report.examplePayloadIssues)
     ? report.examplePayloadIssues.filter((issue) => {
         return typeof issue === "string";
       })
     : null;
+  const examplePayloadIssues =
+    examplePayloadValid === true ? [] : rawExamplePayloadIssues;
   const examplePayloadIssueCount =
     examplePayloadIssues === null
       ? typeof report.examplePayloadIssueCount === "number"

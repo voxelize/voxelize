@@ -3309,6 +3309,27 @@ describe("report-utils", () => {
       exampleDurationMs: null,
       exampleOutputLine: null,
     });
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleAttempted: true,
+        exampleRuleMatched: true,
+        examplePayloadValid: true,
+        exampleExitCode: 0,
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: null,
+      exampleArgCount: null,
+      exampleAttempted: true,
+      exampleStatus: "ok",
+      exampleRuleMatched: true,
+      examplePayloadValid: true,
+      examplePayloadIssues: [],
+      examplePayloadIssueCount: 0,
+      exampleExitCode: 0,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
     expect(extractTsCoreExampleSummaryFromReport(null)).toEqual({
       exampleCommand: null,
       exampleArgs: null,
