@@ -100,6 +100,8 @@ pub struct LightBlock {
     static_torch_mask: u8,
     #[serde(skip, default)]
     dynamic_torch_mask: u8,
+    #[serde(skip, default)]
+    has_uniform_transparency: bool,
 }
 
 impl Default for LightBlock {
@@ -130,6 +132,7 @@ impl LightBlock {
             dynamic_patterns,
             static_torch_mask: 0,
             dynamic_torch_mask: 0,
+            has_uniform_transparency: false,
         };
         block.recompute_flags();
         block
@@ -148,6 +151,7 @@ impl LightBlock {
             dynamic_patterns: None,
             static_torch_mask: 0,
             dynamic_torch_mask: 0,
+            has_uniform_transparency: true,
         }
     }
 
@@ -183,6 +187,10 @@ impl LightBlock {
 
     pub fn recompute_flags(&mut self) {
         self.is_opaque = self.is_transparent.iter().all(|value| !value);
+        self.has_uniform_transparency = self
+            .is_transparent
+            .iter()
+            .all(|value| *value == self.is_transparent[0]);
 
         let mut static_torch_mask = 0;
         if self.red_light_level > 0 {
@@ -227,7 +235,11 @@ impl LightBlock {
 
     #[inline]
     pub fn get_rotated_transparency(&self, rotation: &BlockRotation) -> [bool; 6] {
-        rotation.rotate_transparency(self.is_transparent)
+        if self.has_uniform_transparency {
+            self.is_transparent
+        } else {
+            rotation.rotate_transparency(self.is_transparent)
+        }
     }
 
     #[inline]
@@ -656,6 +668,7 @@ mod tests {
             }]),
             static_torch_mask: 0,
             dynamic_torch_mask: 0,
+            has_uniform_transparency: true,
         };
 
         block.recompute_flags();
