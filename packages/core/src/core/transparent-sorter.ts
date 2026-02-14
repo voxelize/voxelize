@@ -185,11 +185,14 @@ export function sortTransparentMesh(
 
   const { centroids, faceCount, distances, faceOrder, sortKeys, sortTemp } =
     data;
+  const camX = _camPos.x;
+  const camY = _camPos.y;
+  const camZ = _camPos.z;
 
-  for (let f = 0; f < faceCount; f++) {
-    const cx = centroids[f * 3] - _camPos.x;
-    const cy = centroids[f * 3 + 1] - _camPos.y;
-    const cz = centroids[f * 3 + 2] - _camPos.z;
+  for (let f = 0, centroidIndex = 0; f < faceCount; f++, centroidIndex += 3) {
+    const cx = centroids[centroidIndex] - camX;
+    const cy = centroids[centroidIndex + 1] - camY;
+    const cz = centroids[centroidIndex + 2] - camZ;
     distances[f] = cx * cx + cy * cy + cz * cz;
   }
 
