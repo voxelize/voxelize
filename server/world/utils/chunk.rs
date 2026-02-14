@@ -90,6 +90,13 @@ mod tests {
     }
 
     #[test]
+    fn map_voxel_to_chunk_handles_oversized_chunk_size() {
+        let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(i32::MIN, 0, i32::MAX, usize::MAX);
+        assert_eq!(cx, -2);
+        assert_eq!(cz, 1);
+    }
+
+    #[test]
     fn map_voxel_to_chunk_local_handles_zero_chunk_size() {
         let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(5, 7, -3, 0);
         assert_eq!(lx, 0);
@@ -103,6 +110,15 @@ mod tests {
         assert_eq!(lx, 15);
         assert_eq!(ly, 7);
         assert_eq!(lz, 15);
+    }
+
+    #[test]
+    fn map_voxel_to_chunk_local_handles_oversized_chunk_size() {
+        let Vec3(lx, ly, lz) =
+            ChunkUtils::map_voxel_to_chunk_local(i32::MIN, 7, i32::MAX, usize::MAX);
+        assert_eq!(lx, (i32::MIN.rem_euclid(i32::MAX)) as usize);
+        assert_eq!(ly, 7);
+        assert_eq!(lz, 0);
     }
 
     #[test]
