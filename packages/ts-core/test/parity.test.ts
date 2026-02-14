@@ -14,6 +14,7 @@ import {
   Y_ROT_MAP,
   Y_ROT_MAP_EIGHT,
   Y_ROT_MAP_FOUR,
+  toSaturatedUint32,
   lightColorFromIndex,
   Voxel,
 } from "../src";
@@ -441,6 +442,15 @@ describe("Rotation maps", () => {
         return index % 4 === 0;
       })
     ).toBe(true);
+  });
+});
+
+describe("Numeric helpers", () => {
+  it("saturates values into unsigned 32-bit range", () => {
+    expect(toSaturatedUint32(Number.NaN)).toBe(0);
+    expect(toSaturatedUint32(-5)).toBe(0);
+    expect(toSaturatedUint32(12.9)).toBe(12);
+    expect(toSaturatedUint32(0xffffffff + 1)).toBe(0xffffffff);
   });
 });
 
