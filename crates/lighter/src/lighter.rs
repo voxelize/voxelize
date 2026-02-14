@@ -504,6 +504,26 @@ pub fn propagate(
             VecDeque::new(),
         ];
     }
+    let shape_x_i64 = if shape_x > MAX_I64_USIZE {
+        i64::MAX
+    } else {
+        shape_x as i64
+    };
+    let shape_z_i64 = if shape_z > MAX_I64_USIZE {
+        i64::MAX
+    } else {
+        shape_z as i64
+    };
+    if i64::from(start_x).saturating_add(shape_x_i64) > i64::from(i32::MAX) + 1
+        || i64::from(start_z).saturating_add(shape_z_i64) > i64::from(i32::MAX) + 1
+    {
+        return [
+            VecDeque::new(),
+            VecDeque::new(),
+            VecDeque::new(),
+            VecDeque::new(),
+        ];
+    }
     let Some(mask_len) = shape_x.checked_mul(shape_z) else {
         return [
             VecDeque::new(),
@@ -982,6 +1002,31 @@ mod tests {
 
         let queues = propagate(&mut space, [0, 0, 0], [usize::MAX, 1, 2], &registry, &config);
 
+        assert!(queues[0].is_empty());
+        assert!(queues[1].is_empty());
+        assert!(queues[2].is_empty());
+        assert!(queues[3].is_empty());
+    }
+
+    #[test]
+    fn propagate_returns_empty_queues_when_xz_ranges_overflow_i32() {
+        let registry = test_registry();
+        let config = LightConfig {
+            chunk_size: 16,
+            max_height: 1,
+            max_light_level: 15,
+            min_chunk: [0, 0],
+            max_chunk: [0, 0],
+        };
+        let mut space = ZeroSpace;
+
+        let queues = propagate(&mut space, [i32::MAX, 0, 0], [2, 1, 1], &registry, &config);
+        assert!(queues[0].is_empty());
+        assert!(queues[1].is_empty());
+        assert!(queues[2].is_empty());
+        assert!(queues[3].is_empty());
+
+        let queues = propagate(&mut space, [0, 0, i32::MAX], [1, 1, 2], &registry, &config);
         assert!(queues[0].is_empty());
         assert!(queues[1].is_empty());
         assert!(queues[2].is_empty());
