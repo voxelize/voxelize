@@ -11,6 +11,7 @@ import {
 
 const _worldPos = new Vector3();
 const _camWorldPos = new Vector3();
+const _transparentTraversalStack: Object3D[] = [];
 const DEFAULT_ON_BEFORE_RENDER = Object3D.prototype.onBeforeRender;
 const clearTransparentSortState = (mesh: Mesh) => {
   if (mesh.userData.transparentSortData !== undefined) {
@@ -176,7 +177,9 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
 }
 
 export function setupTransparentSorting(object: Object3D): void {
-  const traversalStack: Object3D[] = [object];
+  const traversalStack = _transparentTraversalStack;
+  traversalStack.length = 0;
+  traversalStack.push(object);
 
   while (traversalStack.length > 0) {
     const child = traversalStack.pop();
@@ -211,6 +214,7 @@ export function setupTransparentSorting(object: Object3D): void {
     child.userData.transparentSortData = sortData;
     child.onBeforeRender = sortTransparentMeshOnBeforeRender;
   }
+  traversalStack.length = 0;
 }
 
 const _floatView = new Float32Array(1);
