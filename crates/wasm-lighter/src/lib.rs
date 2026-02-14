@@ -469,6 +469,10 @@ fn compute_expected_chunk_sizes(
     if chunk_size <= 0 || max_height <= 0 || chunk_grid_width == 0 || chunk_grid_depth == 0 {
         return None;
     }
+    if chunk_grid_width > MAX_JS_TYPED_ARRAY_LENGTH || chunk_grid_depth > MAX_JS_TYPED_ARRAY_LENGTH
+    {
+        return None;
+    }
     let chunk_size_usize = chunk_size as usize;
     let chunk_height = max_height as usize;
     let expected_chunk_len = chunk_size_usize
