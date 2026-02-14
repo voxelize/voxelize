@@ -37,19 +37,21 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
 
   const centroids = new Float32Array(faceCount * 3);
   const faceOrder = new Uint32Array(faceCount);
-  for (let faceIndex = 0; faceIndex < faceCount; faceIndex++) {
+  for (
+    let faceIndex = 0, indexOffset = 0, centroidOffset = 0;
+    faceIndex < faceCount;
+    faceIndex++, indexOffset += 6, centroidOffset += 3
+  ) {
     faceOrder[faceIndex] = faceIndex;
-  }
+    const i0 = indices[indexOffset] * 3;
+    const i1 = indices[indexOffset + 1] * 3;
+    const i2 = indices[indexOffset + 2] * 3;
 
-  for (let f = 0; f < faceCount; f++) {
-    const i0 = indices[f * 6] * 3;
-    const i1 = indices[f * 6 + 1] * 3;
-    const i2 = indices[f * 6 + 2] * 3;
-
-    centroids[f * 3] = (positions[i0] + positions[i1] + positions[i2]) / 3;
-    centroids[f * 3 + 1] =
+    centroids[centroidOffset] =
+      (positions[i0] + positions[i1] + positions[i2]) / 3;
+    centroids[centroidOffset + 1] =
       (positions[i0 + 1] + positions[i1 + 1] + positions[i2 + 1]) / 3;
-    centroids[f * 3 + 2] =
+    centroids[centroidOffset + 2] =
       (positions[i0 + 2] + positions[i1 + 2] + positions[i2 + 2]) / 3;
   }
 
