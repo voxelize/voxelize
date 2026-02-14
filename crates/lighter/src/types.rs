@@ -315,9 +315,13 @@ impl LightBlock {
                 }
 
                 if let Some(expected_rotation) = simple_rule.rotation.as_ref() {
-                    let actual_rotation =
-                        BlockRotation::encode((raw_voxel >> 16) & 0xF, (raw_voxel >> 20) & 0xF);
-                    if actual_rotation != *expected_rotation {
+                    let (expected_rotation_value, expected_y_rotation) =
+                        BlockRotation::decode(expected_rotation);
+                    let actual_rotation_value = (raw_voxel >> 16) & 0xF;
+                    let actual_y_rotation = (raw_voxel >> 20) & 0xF;
+                    if actual_rotation_value != expected_rotation_value
+                        || actual_y_rotation != expected_y_rotation
+                    {
                         return false;
                     }
                 }
