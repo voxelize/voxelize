@@ -788,7 +788,7 @@ impl<'a> VoxelSpace<'a> {
         ]
     }
 
-    #[inline]
+    #[inline(always)]
     fn get_chunk(&self, coords: [i32; 2]) -> Option<&ChunkData> {
         let center_x = self.center_coords[0];
         let center_z = self.center_coords[1];
