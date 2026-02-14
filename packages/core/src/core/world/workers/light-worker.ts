@@ -225,12 +225,23 @@ const getDeltaWriteIntentMask = (delta: VoxelDelta) => {
   ) {
     mask |= DELTA_WRITE_VOXEL;
   }
-  if (hasFiniteRotation(delta.newRotation)) {
-    mask |= DELTA_WRITE_ROTATION;
+  const newRotation = delta.newRotation;
+  if (hasFiniteRotation(newRotation)) {
+    const oldRotation = delta.oldRotation;
+    if (
+      !hasFiniteRotationValues(oldRotation) ||
+      oldRotation.value !== newRotation.value ||
+      oldRotation.yRotation !== newRotation.yRotation
+    ) {
+      mask |= DELTA_WRITE_ROTATION;
+    }
   }
   const newStage = delta.newStage;
   if (newStage !== undefined && isValidStage(newStage)) {
-    mask |= DELTA_WRITE_STAGE;
+    const oldStage = delta.oldStage;
+    if (oldStage === undefined || !isValidStage(oldStage) || oldStage !== newStage) {
+      mask |= DELTA_WRITE_STAGE;
+    }
   }
   return mask;
 };
