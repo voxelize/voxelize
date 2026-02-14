@@ -492,7 +492,11 @@ where
 
         let mut nodes = Vec::with_capacity(length);
         for index in 0..length {
-            if let Ok(node) = serde_wasm_bindgen::from_value(array.get(index as u32)) {
+            let node_value = array.get(index as u32);
+            if node_value.is_null() || node_value.is_undefined() {
+                continue;
+            }
+            if let Ok(node) = serde_wasm_bindgen::from_value(node_value) {
                 nodes.push(node);
             }
         }
