@@ -112,7 +112,6 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         let old_entities = std::mem::take(&mut bookkeeping.entities);
         let old_ids: HashSet<&String> = old_entities.keys().collect();
-        let _old_entity_positions = std::mem::take(&mut bookkeeping.entity_positions);
 
         let old_entity_handlers = std::mem::take(&mut physics.entity_to_handlers);
 
