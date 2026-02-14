@@ -146,3 +146,16 @@ When failures occur, `failureSummaries[]` entries include `kind`:
 
 If an example reports both `ruleMatched=false` and payload validation issues,
 the failure message includes both conditions for clearer diagnostics.
+
+Example `kind: "example"` failure payload (truncated):
+
+```json
+{
+  "kind": "example",
+  "ruleMatched": false,
+  "payloadValid": false,
+  "payloadIssues": ["light.red"],
+  "payloadIssueCount": 1,
+  "outputLine": "ruleMatched=false"
+}
+```

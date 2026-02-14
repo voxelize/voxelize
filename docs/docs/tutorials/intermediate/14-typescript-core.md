@@ -232,6 +232,19 @@ When `examplePayloadValid` is `false`, `examplePayloadIssues` and
 If `ruleMatched=false` and payload issues are both present, ts-core failure
 messages include both conditions for faster debugging.
 
+Example `kind: "example"` failure payload (truncated):
+
+```json
+{
+  "kind": "example",
+  "ruleMatched": false,
+  "payloadValid": false,
+  "payloadIssues": ["light.red"],
+  "payloadIssueCount": 1,
+  "outputLine": "ruleMatched=false"
+}
+```
+
 If your project also depends on runtime utility packages (`@voxelize/aabb`,
 `@voxelize/raycast`, and `@voxelize/physics-engine`), you can validate all of
 their artifacts together from the root workspace:
