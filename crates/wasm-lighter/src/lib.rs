@@ -323,16 +323,22 @@ fn parse_chunks(
             }
 
             let chunk_obj = js_sys::Object::from(chunk_value);
-            let voxels_value = Reflect::get(&chunk_obj, &keys.voxels)
-                .expect("chunksData item is missing voxels");
-            let lights_value = Reflect::get(&chunk_obj, &keys.lights)
-                .expect("chunksData item is missing lights");
-            let voxels_array: Uint32Array = voxels_value
-                .dyn_into()
-                .expect("chunksData voxels must be Uint32Array");
-            let lights_array: Uint32Array = lights_value
-                .dyn_into()
-                .expect("chunksData lights must be Uint32Array");
+            let Ok(voxels_value) = Reflect::get(&chunk_obj, &keys.voxels) else {
+                chunks.push(None);
+                continue;
+            };
+            let Ok(lights_value) = Reflect::get(&chunk_obj, &keys.lights) else {
+                chunks.push(None);
+                continue;
+            };
+            let Ok(voxels_array) = voxels_value.dyn_into::<Uint32Array>() else {
+                chunks.push(None);
+                continue;
+            };
+            let Ok(lights_array) = lights_value.dyn_into::<Uint32Array>() else {
+                chunks.push(None);
+                continue;
+            };
             let mut voxels = vec![0; voxels_array.length() as usize];
             let mut lights = vec![0; lights_array.length() as usize];
             voxels_array.copy_to(&mut voxels);
