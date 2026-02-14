@@ -95,6 +95,7 @@ export class WorkerPool {
    */
   private available: number[] = [];
   private singleTransferBufferList: ArrayBuffer[] = [];
+  private reusableTransferBufferList: ArrayBuffer[] = [];
 
   /**
    * Create a new worker pool.
@@ -159,7 +160,8 @@ export class WorkerPool {
       return;
     }
 
-    const transferBuffers = new Array<ArrayBuffer>(bufferCount);
+    const transferBuffers = this.reusableTransferBufferList;
+    transferBuffers.length = bufferCount;
     for (let workerIndex = 0; workerIndex < workerCount; workerIndex++) {
       for (let index = 0; index < bufferCount; index++) {
         transferBuffers[index] = buffers[index].slice(0);
