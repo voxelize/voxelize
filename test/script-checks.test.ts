@@ -8206,6 +8206,7 @@ describe("root preflight scripts", () => {
     expect(report.passedStepCount).toBe(0);
     expect(report.failedStepCount).toBe(0);
     expect(report.skippedStepCount).toBe(0);
+    expectOnboardingClientWasmPackCheckSummaryMetadata(report);
     expect(report.firstFailedStep).toBeNull();
     expect(report.message).toBe("Missing value for --output option.");
     expectActiveCliOptionMetadata(
@@ -8255,6 +8256,7 @@ describe("root preflight scripts", () => {
     expect(report.passedStepCount).toBe(0);
     expect(report.failedStepCount).toBe(0);
     expect(report.skippedStepCount).toBe(0);
+    expectOnboardingClientWasmPackCheckSummaryMetadata(report);
     expect(report.firstFailedStep).toBeNull();
     expect(report.message).toBe("Missing value for --output option.");
     expectActiveCliOptionMetadata(
