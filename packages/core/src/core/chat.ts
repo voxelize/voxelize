@@ -372,6 +372,9 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     if (isRestOnly) {
       return schema.parse({ rest: raw.trim() });
     }
+    if (keys.length === 0) {
+      return schema.parse({});
+    }
 
     if (raw.length === 0) {
       return schema.parse({});
