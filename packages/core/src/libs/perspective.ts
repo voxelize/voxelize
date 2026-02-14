@@ -317,7 +317,7 @@ export class Perspective {
       camera.position.set(0, 0, 0);
     }
 
-    camera.quaternion.set(0, 0, 0, 0);
+    camera.quaternion.identity();
 
     if (state !== this._state) {
       this.onChangeState?.(state);
