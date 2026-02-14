@@ -54,6 +54,11 @@ fn accumulate_chunk_interest_weight(weight: f32, distance: f32, alignment: f32) 
     }
 }
 
+#[inline]
+fn next_pipeline_stage(curr_stage: usize) -> usize {
+    curr_stage.saturating_add(1)
+}
+
 #[derive(Default)]
 pub struct ChunkGeneratingSystem;
 
@@ -140,7 +145,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             }
 
             if let ChunkStatus::Generating(curr_stage) = chunk.status {
-                let next_stage = curr_stage + 1;
+                let next_stage = next_pipeline_stage(curr_stage);
 
                 if next_stage >= pipeline.stages.len() {
                     chunk.status = ChunkStatus::Meshing;
@@ -477,7 +482,9 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
 #[cfg(test)]
 mod tests {
-    use super::{accumulate_chunk_interest_weight, chunk_interest_alignment};
+    use super::{
+        accumulate_chunk_interest_weight, chunk_interest_alignment, next_pipeline_stage,
+    };
     use crate::Vec2;
 
     #[test]
@@ -532,5 +539,11 @@ mod tests {
     fn accumulate_chunk_interest_weight_ignores_non_positive_alignment() {
         assert_eq!(accumulate_chunk_interest_weight(5.0, 10.0, 0.0), 5.0);
         assert_eq!(accumulate_chunk_interest_weight(5.0, 10.0, -1.0), 5.0);
+    }
+
+    #[test]
+    fn next_pipeline_stage_saturates_at_usize_max() {
+        assert_eq!(next_pipeline_stage(0), 1);
+        assert_eq!(next_pipeline_stage(usize::MAX), usize::MAX);
     }
 }
