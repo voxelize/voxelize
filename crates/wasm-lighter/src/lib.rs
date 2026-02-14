@@ -332,13 +332,15 @@ fn parse_chunks(
         if expected_chunk_count == 0 {
             return (Vec::new(), false);
         }
+        let expected_chunk_count_u32 = expected_chunk_count as u32;
         let expected_chunk_len_u32 = expected_chunk_len as u32;
 
         let mut chunks: Vec<Option<ChunkData>> = Vec::new();
         let mut has_any_chunk = false;
 
-        for index in 0..expected_chunk_count {
-            let chunk_value = chunks_data.get(index as u32);
+        for index_u32 in 0..expected_chunk_count_u32 {
+            let index = index_u32 as usize;
+            let chunk_value = chunks_data.get(index_u32);
             if chunk_value.is_null() || chunk_value.is_undefined() {
                 if has_any_chunk {
                     chunks.push(None);
