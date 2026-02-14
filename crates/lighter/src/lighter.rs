@@ -529,9 +529,10 @@ pub fn propagate(
                     continue;
                 }
 
+                let current_mask = mask[current_mask_index];
                 if block.light_reduce {
-                    if mask[current_mask_index] != 0 {
-                        let sunlight = mask[current_mask_index] - 1;
+                    if current_mask != 0 {
+                        let sunlight = current_mask - 1;
                         space.set_sunlight(vx, y, vz, sunlight);
                         if sunlight > 0 {
                             sunlight_queue.push(LightNode {
@@ -544,9 +545,9 @@ pub fn propagate(
                     continue;
                 }
 
-                space.set_sunlight(vx, y, vz, mask[current_mask_index]);
+                space.set_sunlight(vx, y, vz, current_mask);
 
-                if mask[current_mask_index] == config.max_light_level {
+                if current_mask == config.max_light_level {
                     let should_add_max =
                         (x + 1 < shape_x && mask[current_mask_index + 1] == 0 && px)
                             || (x > 0 && mask[current_mask_index - 1] == 0 && nx)
