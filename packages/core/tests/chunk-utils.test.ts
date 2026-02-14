@@ -69,6 +69,12 @@ describe("ChunkUtils.parseChunkNameAt", () => {
     expect(Number.isNaN(cz)).toBe(true);
   });
 
+  it("handles empty separator without degenerate indexOf behavior", () => {
+    const [cx, cz] = ChunkUtils.parseChunkNameAt("123", "");
+    expect(cx).toBe(123);
+    expect(Number.isNaN(cz)).toBe(true);
+  });
+
   it("saturates oversized numeric segments to safe integer bounds", () => {
     const [positiveX] = ChunkUtils.parseChunkNameAt("999999999999999999999999|1");
     const [negativeX] = ChunkUtils.parseChunkNameAt("-999999999999999999999999|1");
