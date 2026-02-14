@@ -75,7 +75,8 @@ fn process_pending_updates(
     let total_updates = chunks.updates.len();
     let num_to_process = max_updates.min(total_updates);
 
-    let mut updates_by_chunk: HashMap<Vec2<i32>, Vec<(Vec3<i32>, u32)>> = HashMap::new();
+    let mut updates_by_chunk: HashMap<Vec2<i32>, Vec<(Vec3<i32>, u32)>> =
+        HashMap::with_capacity(num_to_process);
 
     for _ in 0..num_to_process {
         let (voxel, raw) = chunks.updates.pop_front().unwrap();
@@ -93,8 +94,8 @@ fn process_pending_updates(
         updates_by_chunk.entry(coords).or_default().push((voxel, raw));
     }
 
-    let mut removed_light_sources = Vec::new();
-    let mut processed_updates = Vec::new();
+    let mut removed_light_sources = Vec::with_capacity(num_to_process);
+    let mut processed_updates = Vec::with_capacity(num_to_process);
 
     for (coords, chunk_updates) in updates_by_chunk {
         if !chunks.is_chunk_ready(&coords) {
