@@ -181,7 +181,15 @@ const availableCheckAliases = {
   ],
   client: ["client"],
 };
+const availableCheckAliasCountMap = Object.fromEntries(
+  Object.entries(availableCheckAliases).map(([checkName, aliases]) => {
+    return [checkName, aliases.length];
+  })
+);
 const availableCheckAliasGroupCount = countRecordEntries(availableCheckAliases);
+const availableCheckAliasCountMapCount = countRecordEntries(
+  availableCheckAliasCountMap
+);
 const availableCheckAliasTokenCount = Object.values(availableCheckAliases).reduce(
   (count, aliases) => {
     return count + aliases.length;
@@ -192,10 +200,18 @@ const availableSpecialCheckAliases = {
   all: ["all", "all-checks", "all_checks", "allchecks"],
   libraries: ["libraries", "library", "libs", "lib"],
 };
+const availableSpecialCheckAliasCountMap = Object.fromEntries(
+  Object.entries(availableSpecialCheckAliases).map(([selector, aliases]) => {
+    return [selector, aliases.length];
+  })
+);
 const availableSpecialCheckSelectors = Object.keys(availableSpecialCheckAliases);
 const availableSpecialCheckSelectorCount = availableSpecialCheckSelectors.length;
 const availableSpecialCheckAliasGroupCount = countRecordEntries(
   availableSpecialCheckAliases
+);
+const availableSpecialCheckAliasCountMapCount = countRecordEntries(
+  availableSpecialCheckAliasCountMap
 );
 const availableSpecialCheckAliasTokenCount = Object.values(
   availableSpecialCheckAliases
@@ -696,12 +712,16 @@ if (
     availableCheckMetadata,
     availableCheckMetadataCount,
     availableCheckAliases,
+    availableCheckAliasCountMap,
     availableCheckAliasGroupCount,
+    availableCheckAliasCountMapCount,
     availableCheckAliasTokenCount,
     availableSpecialCheckSelectors,
     availableSpecialCheckSelectorCount,
     availableSpecialCheckAliases,
+    availableSpecialCheckAliasCountMap,
     availableSpecialCheckAliasGroupCount,
+    availableSpecialCheckAliasCountMapCount,
     availableSpecialCheckAliasTokenCount,
     availableSpecialSelectorResolvedChecks,
     availableSpecialSelectorResolvedChecksCount,
@@ -835,12 +855,16 @@ if (isListChecks) {
     availableCheckMetadata,
     availableCheckMetadataCount,
     availableCheckAliases,
+    availableCheckAliasCountMap,
     availableCheckAliasGroupCount,
+    availableCheckAliasCountMapCount,
     availableCheckAliasTokenCount,
     availableSpecialCheckSelectors,
     availableSpecialCheckSelectorCount,
     availableSpecialCheckAliases,
+    availableSpecialCheckAliasCountMap,
     availableSpecialCheckAliasGroupCount,
+    availableSpecialCheckAliasCountMapCount,
     availableSpecialCheckAliasTokenCount,
     availableSpecialSelectorResolvedChecks,
     availableSpecialSelectorResolvedChecksCount,
@@ -983,12 +1007,16 @@ const report = buildTimedReport({
   availableCheckMetadata,
   availableCheckMetadataCount,
   availableCheckAliases,
+  availableCheckAliasCountMap,
   availableCheckAliasGroupCount,
+  availableCheckAliasCountMapCount,
   availableCheckAliasTokenCount,
   availableSpecialCheckSelectors,
   availableSpecialCheckSelectorCount,
   availableSpecialCheckAliases,
+  availableSpecialCheckAliasCountMap,
   availableSpecialCheckAliasGroupCount,
+  availableSpecialCheckAliasCountMapCount,
   availableSpecialCheckAliasTokenCount,
   availableSpecialSelectorResolvedChecks,
   availableSpecialSelectorResolvedChecksCount,

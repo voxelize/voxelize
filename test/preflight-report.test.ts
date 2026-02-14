@@ -272,7 +272,9 @@ type PreflightReport = {
     runtimeLibraries: string[];
     client: string[];
   };
+  availableCheckAliasCountMap: Record<string, number>;
   availableCheckAliasGroupCount: number;
+  availableCheckAliasCountMapCount: number;
   availableCheckAliasTokenCount: number;
   availableSpecialCheckSelectors: string[];
   availableSpecialCheckSelectorCount: number;
@@ -280,7 +282,9 @@ type PreflightReport = {
     all: string[];
     libraries: string[];
   };
+  availableSpecialCheckAliasCountMap: Record<string, number>;
   availableSpecialCheckAliasGroupCount: number;
+  availableSpecialCheckAliasCountMapCount: number;
   availableSpecialCheckAliasTokenCount: number;
   availableSpecialSelectorResolvedChecks: {
     all: string[];
@@ -367,6 +371,11 @@ const expectedAvailableCheckAliases = {
   ],
   client: ["client"],
 };
+const expectedAvailableCheckAliasCountMap = Object.fromEntries(
+  Object.entries(expectedAvailableCheckAliases).map(([checkName, aliases]) => {
+    return [checkName, aliases.length];
+  })
+);
 const expectedAvailableCheckMetadata = {
   devEnvironment: {
     scriptName: "check-dev-env.mjs",
@@ -393,6 +402,13 @@ const expectedAvailableSpecialCheckAliases = {
   all: ["all", "all-checks", "all_checks", "allchecks"],
   libraries: ["libraries", "library", "libs", "lib"],
 };
+const expectedAvailableSpecialCheckAliasCountMap = Object.fromEntries(
+  Object.entries(expectedAvailableSpecialCheckAliases).map(
+    ([selector, aliases]) => {
+      return [selector, aliases.length];
+    }
+  )
+);
 const expectedAvailableSpecialCheckSelectors = ["all", "libraries"];
 const expectedAvailableSpecialSelectorResolvedChecks = {
   all: [
@@ -902,8 +918,14 @@ const expectAvailableCheckInventoryMetadata = (report: PreflightReport) => {
 };
 const expectSelectorAndAliasMetadata = (report: PreflightReport) => {
   expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
+  expect(report.availableCheckAliasCountMap).toEqual(
+    expectedAvailableCheckAliasCountMap
+  );
   expect(report.availableCheckAliasGroupCount).toBe(
     Object.keys(report.availableCheckAliases).length
+  );
+  expect(report.availableCheckAliasCountMapCount).toBe(
+    Object.keys(report.availableCheckAliasCountMap).length
   );
   expect(report.availableCheckAliasTokenCount).toBe(
     Object.values(report.availableCheckAliases).reduce((count, aliases) => {
@@ -919,8 +941,14 @@ const expectSelectorAndAliasMetadata = (report: PreflightReport) => {
   expect(report.availableSpecialCheckAliases).toEqual(
     expectedAvailableSpecialCheckAliases
   );
+  expect(report.availableSpecialCheckAliasCountMap).toEqual(
+    expectedAvailableSpecialCheckAliasCountMap
+  );
   expect(report.availableSpecialCheckAliasGroupCount).toBe(
     Object.keys(report.availableSpecialCheckAliases).length
+  );
+  expect(report.availableSpecialCheckAliasCountMapCount).toBe(
+    Object.keys(report.availableSpecialCheckAliasCountMap).length
   );
   expect(report.availableSpecialCheckAliasTokenCount).toBe(
     Object.values(report.availableSpecialCheckAliases).reduce(
