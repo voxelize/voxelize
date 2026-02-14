@@ -140,6 +140,22 @@ const availablePackageCheckArgCountMap = Object.fromEntries(
 const availablePackageCheckArgCountMapCount = countRecordEntries(
   availablePackageCheckArgCountMap
 );
+const availablePackageMetadata = Object.fromEntries(
+  runtimeLibraries.map((library, index) => {
+    return [
+      library.packageName,
+      {
+        packageIndex: index,
+        packagePath: library.packagePath,
+        checkCommand: packageCheckCommand,
+        checkArgs: library.requiredArtifacts,
+        checkArgCount: library.requiredArtifacts.length,
+        requiredArtifactCount: library.requiredArtifacts.length,
+      },
+    ];
+  })
+);
+const availablePackageMetadataCount = countRecordEntries(availablePackageMetadata);
 const resolvePackageReport = (library) => {
   const missingArtifacts = library.requiredArtifacts.filter((artifactPath) => {
     const absoluteArtifactPath = path.resolve(repositoryRoot, artifactPath);
@@ -536,6 +552,8 @@ const withBaseReportFields = (report) => {
     availablePackageCheckArgsMapCount,
     availablePackageCheckArgCountMap,
     availablePackageCheckArgCountMapCount,
+    availablePackageMetadata,
+    availablePackageMetadataCount,
     presentPackages,
     presentPackagePaths,
     presentPackagePathMap,

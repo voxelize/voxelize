@@ -227,6 +227,15 @@ const withBaseReportFields = (report) => {
   const availablePackageCheckArgCountMap = {
     [tsCorePackageName]: packageCheckArgCount,
   };
+  const availablePackageMetadata = {
+    [tsCorePackageName]: {
+      packagePath: tsCorePackagePath,
+      checkCommand: packageCheckCommand,
+      checkArgs: packageCheckArgs,
+      checkArgCount: packageCheckArgCount,
+      requiredArtifactCount: requiredArtifacts.length,
+    },
+  };
   const failureSummaries =
     missingArtifacts.length === 0
       ? []
@@ -298,6 +307,8 @@ const withBaseReportFields = (report) => {
     availablePackageCheckArgCountMapCount: countRecordEntries(
       availablePackageCheckArgCountMap
     ),
+    availablePackageMetadata,
+    availablePackageMetadataCount: countRecordEntries(availablePackageMetadata),
     checkedPackageIndices,
     checkedPackageIndexCount: checkedPackageIndices.length,
     checkedPackageIndexMap,

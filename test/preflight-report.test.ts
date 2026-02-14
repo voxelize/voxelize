@@ -237,6 +237,17 @@ type TsCoreNestedReport = {
   availablePackageCheckArgsMapCount: number;
   availablePackageCheckArgCountMap: Record<string, number>;
   availablePackageCheckArgCountMapCount: number;
+  availablePackageMetadata: Record<
+    string,
+    {
+      packagePath: string;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
+      requiredArtifactCount: number;
+    }
+  >;
+  availablePackageMetadataCount: number;
   checkedPackageIndices: number[];
   checkedPackageIndexCount: number;
   checkedPackageIndexMap: Record<string, number>;
@@ -398,6 +409,18 @@ type RuntimeLibrariesNestedReport = {
   availablePackageCheckArgsMapCount: number;
   availablePackageCheckArgCountMap: Record<string, number>;
   availablePackageCheckArgCountMapCount: number;
+  availablePackageMetadata: Record<
+    string,
+    {
+      packageIndex: number;
+      packagePath: string;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
+      requiredArtifactCount: number;
+    }
+  >;
+  availablePackageMetadataCount: number;
   checkedPackageCount: number;
   checkedPackagePathCount: number;
   checkedPackagePathMapCount: number;
@@ -2103,6 +2126,18 @@ const expectTsCoreNestedReport = (
   expect(report.availablePackageCheckArgCountMapCount).toBe(
     Object.keys(report.availablePackageCheckArgCountMap).length
   );
+  expect(report.availablePackageMetadata).toEqual({
+    [report.checkedPackage]: {
+      packagePath: report.checkedPackagePath,
+      checkCommand: expectedTsCorePackageCheckCommand,
+      checkArgs: report.requiredArtifacts,
+      checkArgCount: report.requiredArtifactCount,
+      requiredArtifactCount: report.requiredArtifactCount,
+    },
+  });
+  expect(report.availablePackageMetadataCount).toBe(
+    Object.keys(report.availablePackageMetadata).length
+  );
   expect(report.checkedPackageIndices).toEqual(expectedTsCoreCheckedPackageIndices);
   expect(report.checkedPackageIndexCount).toBe(report.checkedPackageIndices.length);
   expect(report.checkedPackageIndexMap).toEqual(expectedTsCoreCheckedPackageIndexMap);
@@ -2423,6 +2458,26 @@ const expectRuntimeLibrariesNestedReport = (
   );
   expect(report.availablePackageCheckArgCountMapCount).toBe(
     Object.keys(report.availablePackageCheckArgCountMap).length
+  );
+  expect(report.availablePackageMetadata).toEqual(
+    Object.fromEntries(
+      report.checkedPackages.map((packageName) => {
+        return [
+          packageName,
+          {
+            packageIndex: report.checkedPackageIndexMap[packageName],
+            packagePath: report.checkedPackagePathMap[packageName],
+            checkCommand: expectedRuntimeLibrariesPackageCheckCommand,
+            checkArgs: report.requiredArtifactsByPackage[packageName],
+            checkArgCount: report.requiredArtifactCountByPackage[packageName],
+            requiredArtifactCount: report.requiredArtifactCountByPackage[packageName],
+          },
+        ];
+      })
+    )
+  );
+  expect(report.availablePackageMetadataCount).toBe(
+    Object.keys(report.availablePackageMetadata).length
   );
   expect(report.checkedPackages).toEqual(
     report.packageReports.map((packageReport) => packageReport.packageName)

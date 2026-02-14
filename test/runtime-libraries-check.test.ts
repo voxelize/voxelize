@@ -55,6 +55,18 @@ type RuntimeLibrariesCheckReport = {
   availablePackageCheckArgsMapCount: number;
   availablePackageCheckArgCountMap: Record<string, number>;
   availablePackageCheckArgCountMapCount: number;
+  availablePackageMetadata: Record<
+    string,
+    {
+      packageIndex: number;
+      packagePath: string;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
+      requiredArtifactCount: number;
+    }
+  >;
+  availablePackageMetadataCount: number;
   checkedPackageCount: number;
   checkedPackagePathCount: number;
   checkedPackagePathMapCount: number;
@@ -350,6 +362,26 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   );
   expect(report.availablePackageCheckArgCountMapCount).toBe(
     Object.keys(report.availablePackageCheckArgCountMap).length
+  );
+  expect(report.availablePackageMetadata).toEqual(
+    Object.fromEntries(
+      report.checkedPackages.map((packageName) => {
+        return [
+          packageName,
+          {
+            packageIndex: report.checkedPackageIndexMap[packageName],
+            packagePath: report.checkedPackagePathMap[packageName],
+            checkCommand: expectedPackageCheckCommand,
+            checkArgs: report.requiredArtifactsByPackage[packageName],
+            checkArgCount: report.requiredArtifactCountByPackage[packageName],
+            requiredArtifactCount: report.requiredArtifactCountByPackage[packageName],
+          },
+        ];
+      })
+    )
+  );
+  expect(report.availablePackageMetadataCount).toBe(
+    Object.keys(report.availablePackageMetadata).length
   );
   expect(report.checkedPackages).toEqual(
     report.packageReports.map((packageReport) => packageReport.packageName)

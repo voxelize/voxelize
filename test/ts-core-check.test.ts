@@ -34,6 +34,17 @@ type TsCoreCheckReport = {
   availablePackageCheckArgsMapCount: number;
   availablePackageCheckArgCountMap: Record<string, number>;
   availablePackageCheckArgCountMapCount: number;
+  availablePackageMetadata: Record<
+    string,
+    {
+      packagePath: string;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
+      requiredArtifactCount: number;
+    }
+  >;
+  availablePackageMetadataCount: number;
   checkedPackageIndices: number[];
   checkedPackageIndexCount: number;
   checkedPackageIndexMap: Record<string, number>;
@@ -310,6 +321,18 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
   });
   expect(report.availablePackageCheckArgCountMapCount).toBe(
     Object.keys(report.availablePackageCheckArgCountMap).length
+  );
+  expect(report.availablePackageMetadata).toEqual({
+    [report.checkedPackage]: {
+      packagePath: report.checkedPackagePath,
+      checkCommand: expectedPackageCheckCommand,
+      checkArgs: report.requiredArtifacts,
+      checkArgCount: report.requiredArtifactCount,
+      requiredArtifactCount: report.requiredArtifactCount,
+    },
+  });
+  expect(report.availablePackageMetadataCount).toBe(
+    Object.keys(report.availablePackageMetadata).length
   );
   expect(report.checkedPackageIndices).toEqual(expectedCheckedPackageIndices);
   expect(report.checkedPackageIndexCount).toBe(report.checkedPackageIndices.length);
