@@ -470,6 +470,54 @@ describe("transparent sorter", () => {
     expect(refreshedSortData.positionVersion).toBe(positionAttr.data.version);
   });
 
+  it("refreshes transparent sort data when position layout changes with same array", () => {
+    const geometry = new BufferGeometry();
+    const interleaved = new InterleavedBuffer(
+      new Float32Array([
+        99, 0, 0, 0,
+        98, 1, 0, 0,
+        97, 0, 1, 0,
+        96, 1, 1, 0,
+        95, 2, 0, 0,
+        94, 3, 0, 0,
+        93, 2, 1, 0,
+        92, 3, 1, 0,
+      ]),
+      4
+    );
+    geometry.setAttribute("position", new InterleavedBufferAttribute(interleaved, 3, 1));
+    geometry.setIndex(
+      new BufferAttribute(
+        new Uint16Array([0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7]),
+        1
+      )
+    );
+    const mesh = new Mesh(geometry, new MeshBasicMaterial());
+    const sortData = prepareTransparentMesh(mesh);
+    expect(sortData).not.toBeNull();
+    if (!sortData) {
+      return;
+    }
+    mesh.userData.transparentSortData = sortData;
+    geometry.setAttribute("position", new InterleavedBufferAttribute(interleaved, 3, 0));
+    const positionAttr = mesh.geometry.getAttribute("position");
+    expect(positionAttr.array).toBe(sortData.positionArray);
+    const camera = new PerspectiveCamera();
+    camera.position.set(0, 0, 10);
+
+    sortTransparentMeshOnBeforeRender.call(
+      mesh,
+      {} as WebGLRenderer,
+      new Scene(),
+      camera
+    );
+
+    const refreshedSortData = mesh.userData.transparentSortData;
+    expect(refreshedSortData).not.toBe(sortData);
+    expect(refreshedSortData.positionOffset).toBe(0);
+    expect(refreshedSortData.positionStride).toBe(4);
+  });
+
   it("clears sorting callback when refreshed geometry no longer needs sorting", () => {
     const mesh = new Mesh(createQuadGeometry(2), new MeshBasicMaterial());
     const sortData = prepareTransparentMesh(mesh);

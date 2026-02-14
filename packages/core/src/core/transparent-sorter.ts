@@ -18,6 +18,9 @@ export interface TransparentMeshData {
   faceCount: number;
   indexVersion: number;
   positionArray: ArrayLike<number>;
+  positionCount: number;
+  positionOffset: number;
+  positionStride: number;
   positionVersion: number;
   originalIndices: Uint16Array | Uint32Array;
   sortedIndices: Uint16Array | Uint32Array;
@@ -38,12 +41,8 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
   const positions = positionAttr.array as ArrayLike<number>;
   const vertexCount = positionAttr.count;
   if (!Number.isInteger(vertexCount) || vertexCount <= 0) return null;
-  const positionStride =
-    positionAttr instanceof InterleavedBufferAttribute
-      ? positionAttr.data.stride
-      : positionAttr.itemSize;
-  const positionOffset =
-    positionAttr instanceof InterleavedBufferAttribute ? positionAttr.offset : 0;
+  const positionStride = getPositionStride(positionAttr);
+  const positionOffset = getPositionOffset(positionAttr);
   const requiredPositionLength = positionOffset + (vertexCount - 1) * positionStride + 3;
   if (requiredPositionLength > positions.length) return null;
   const indices = geometry.index.array as Uint16Array | Uint32Array;
@@ -98,6 +97,9 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
     faceCount,
     indexVersion: getPositionVersion(geometry.index),
     positionArray: positions,
+    positionCount: vertexCount,
+    positionOffset,
+    positionStride,
     positionVersion: getPositionVersion(positionAttr),
     originalIndices,
     sortedIndices,
@@ -168,6 +170,15 @@ const _counts = new Uint32Array(256);
 const getPositionVersion = (
   attribute: BufferAttribute | InterleavedBufferAttribute
 ) => ("version" in attribute ? attribute.version : attribute.data.version);
+const getPositionStride = (
+  attribute: BufferAttribute | InterleavedBufferAttribute
+) =>
+  attribute instanceof InterleavedBufferAttribute
+    ? attribute.data.stride
+    : attribute.itemSize;
+const getPositionOffset = (
+  attribute: BufferAttribute | InterleavedBufferAttribute
+) => (attribute instanceof InterleavedBufferAttribute ? attribute.offset : 0);
 
 function radixSortDescending(
   faceOrder: Uint32Array,
@@ -216,6 +227,9 @@ export function sortTransparentMesh(
     !positionAttr ||
     positionAttr.itemSize < 3 ||
     positionAttr.array !== data.positionArray ||
+    positionAttr.count !== data.positionCount ||
+    getPositionOffset(positionAttr) !== data.positionOffset ||
+    getPositionStride(positionAttr) !== data.positionStride ||
     getPositionVersion(positionAttr) !== data.positionVersion
   ) {
     return;
@@ -306,6 +320,9 @@ export function sortTransparentMeshOnBeforeRender(
     !positionAttr ||
     positionAttr.itemSize < 3 ||
     positionAttr.array !== sortData.positionArray ||
+    positionAttr.count !== sortData.positionCount ||
+    getPositionOffset(positionAttr) !== sortData.positionOffset ||
+    getPositionStride(positionAttr) !== sortData.positionStride ||
     getPositionVersion(positionAttr) !== sortData.positionVersion
   ) {
     const refreshedSortData = prepareTransparentMesh(mesh);
