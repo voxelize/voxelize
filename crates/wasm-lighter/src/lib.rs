@@ -26,6 +26,8 @@ struct BatchSpace {
     chunk_grid_depth: usize,
     chunk_grid_offset: [i32; 2],
     chunk_size: i32,
+    chunk_shift: Option<u32>,
+    chunk_mask: Option<i32>,
     modified_chunks: Vec<bool>,
 }
 
@@ -38,12 +40,20 @@ impl BatchSpace {
         chunk_size: i32,
     ) -> Self {
         let modified_chunks = vec![false; chunks.len()];
+        let chunk_shift = if chunk_size > 0 && (chunk_size as u32).is_power_of_two() {
+            Some(chunk_size.trailing_zeros())
+        } else {
+            None
+        };
+        let chunk_mask = chunk_shift.map(|_| chunk_size - 1);
         Self {
             chunks,
             chunk_grid_width,
             chunk_grid_depth,
             chunk_grid_offset,
             chunk_size,
+            chunk_shift,
+            chunk_mask,
             modified_chunks,
         }
     }
@@ -66,14 +76,24 @@ impl BatchSpace {
 
     #[inline]
     fn map_voxel_to_chunk(&self, vx: i32, vz: i32) -> [i32; 2] {
-        [vx.div_euclid(self.chunk_size), vz.div_euclid(self.chunk_size)]
+        if let Some(shift) = self.chunk_shift {
+            [vx >> shift, vz >> shift]
+        } else {
+            [vx.div_euclid(self.chunk_size), vz.div_euclid(self.chunk_size)]
+        }
     }
 
     #[inline]
     fn voxel_index_in_chunk(&self, chunk: &ChunkData, vx: i32, vy: i32, vz: i32) -> Option<usize> {
-        let lx = vx.rem_euclid(self.chunk_size) as usize;
+        let (lx, lz) = if let Some(mask) = self.chunk_mask {
+            ((vx & mask) as usize, (vz & mask) as usize)
+        } else {
+            (
+                vx.rem_euclid(self.chunk_size) as usize,
+                vz.rem_euclid(self.chunk_size) as usize,
+            )
+        };
         let ly = vy as usize;
-        let lz = vz.rem_euclid(self.chunk_size) as usize;
 
         if ly >= chunk.shape[1] {
             return None;
@@ -353,4 +373,64 @@ pub fn process_light_batch_fast(
     };
 
     serde_wasm_bindgen::to_value(&output).expect("Unable to serialize lighting output")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{BatchSpace, ChunkData};
+
+    #[test]
+    fn map_voxel_to_chunk_fast_path_matches_div_euclid() {
+        let pow2_space = BatchSpace::new(Vec::new(), 1, 1, [0, 0], 16);
+        let non_pow2_space = BatchSpace::new(Vec::new(), 1, 1, [0, 0], 18);
+        let samples = [
+            (-33, -17),
+            (-16, -1),
+            (-15, -15),
+            (-1, -33),
+            (0, 0),
+            (1, 15),
+            (16, 16),
+            (33, 47),
+        ];
+
+        for (vx, vz) in samples {
+            assert_eq!(
+                pow2_space.map_voxel_to_chunk(vx, vz),
+                [vx.div_euclid(16), vz.div_euclid(16)]
+            );
+            assert_eq!(
+                non_pow2_space.map_voxel_to_chunk(vx, vz),
+                [vx.div_euclid(18), vz.div_euclid(18)]
+            );
+        }
+    }
+
+    #[test]
+    fn voxel_index_fast_path_matches_rem_euclid() {
+        let chunk = ChunkData {
+            voxels: vec![0; 16 * 4 * 16],
+            lights: vec![0; 16 * 4 * 16],
+            shape: [16, 4, 16],
+        };
+        let space = BatchSpace::new(Vec::new(), 1, 1, [0, 0], 16);
+
+        for (vx, vz) in [
+            (-17_i32, -1_i32),
+            (-16_i32, -16_i32),
+            (-1_i32, -17_i32),
+            (0_i32, 0_i32),
+            (15_i32, 15_i32),
+            (33_i32, 47_i32),
+        ] {
+            let ly = 2usize;
+            let lx = vx.rem_euclid(16) as usize;
+            let lz = vz.rem_euclid(16) as usize;
+            let expected = lx * chunk.shape[1] * chunk.shape[2] + ly * chunk.shape[2] + lz;
+            assert_eq!(
+                space.voxel_index_in_chunk(&chunk, vx, ly as i32, vz),
+                Some(expected)
+            );
+        }
+    }
 }
