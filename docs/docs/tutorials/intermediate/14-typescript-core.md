@@ -325,7 +325,9 @@ Each step entry in `steps[]` includes `scriptName`, `supportsNoBuild`, and
 `stepIndex`.
 Developer-environment JSON reports include check inventory and partition
 metadata such as `availableChecks`, `availableCheckIndexMap`,
-`availableCheckRequiredMap`, `availableCheckHintMap`,
+`availableCheckCommandMap`, `availableCheckArgsMap`,
+`availableCheckArgCountMap`, `availableCheckRequiredMap`,
+`availableCheckHintMap`,
 `availableCheckMinimumVersionMap`, `checkLabels`, `checkIndices`,
 `checkIndexMap`, `checkStatusMap`, `checkStatusCountMap`, `passedChecks`,
 `passedCheckIndices`, `passedCheckIndexMap`, `failedChecks`,

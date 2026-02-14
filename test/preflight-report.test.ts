@@ -32,6 +32,12 @@ type DevEnvironmentNestedReport = {
   availableCheckCount: number;
   availableCheckIndexMap: Record<string, number>;
   availableCheckIndexMapCount: number;
+  availableCheckCommandMap: Record<string, string>;
+  availableCheckCommandMapCount: number;
+  availableCheckArgsMap: Record<string, string[]>;
+  availableCheckArgsMapCount: number;
+  availableCheckArgCountMap: Record<string, number>;
+  availableCheckArgCountMapCount: number;
   availableCheckRequiredMap: Record<string, boolean>;
   availableCheckRequiredMapCount: number;
   availableCheckHintMap: Record<string, string>;
@@ -1430,6 +1436,15 @@ const expectDevEnvironmentNestedReport = (checkReport: object | null) => {
   expect(report.availableCheckIndexMapCount).toBe(
     Object.keys(report.availableCheckIndexMap).length
   );
+  expect(report.availableCheckCommandMapCount).toBe(
+    Object.keys(report.availableCheckCommandMap).length
+  );
+  expect(report.availableCheckArgsMapCount).toBe(
+    Object.keys(report.availableCheckArgsMap).length
+  );
+  expect(report.availableCheckArgCountMapCount).toBe(
+    Object.keys(report.availableCheckArgCountMap).length
+  );
   expect(report.availableCheckRequiredMapCount).toBe(
     Object.keys(report.availableCheckRequiredMap).length
   );
@@ -1440,6 +1455,10 @@ const expectDevEnvironmentNestedReport = (checkReport: object | null) => {
     Object.keys(report.availableCheckMinimumVersionMap).length
   );
   for (const checkLabel of report.availableChecks) {
+    expect(report.availableCheckCommandMap[checkLabel]?.length).toBeGreaterThan(0);
+    const checkArgs = report.availableCheckArgsMap[checkLabel];
+    expect(Array.isArray(checkArgs)).toBe(true);
+    expect(checkArgs.length).toBe(report.availableCheckArgCountMap[checkLabel]);
     expect(typeof report.availableCheckRequiredMap[checkLabel]).toBe("boolean");
     expect(report.availableCheckHintMap[checkLabel]?.length).toBeGreaterThan(0);
     const minimumVersion = report.availableCheckMinimumVersionMap[checkLabel];

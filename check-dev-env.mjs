@@ -158,6 +158,15 @@ const availableChecks = checks.map((check) => {
   return check.label;
 });
 const availableCheckIndexMap = mapChecksToIndexMap(checks);
+const availableCheckCommandMap = mapChecksToRecord(checks, (check) => {
+  return check.command;
+});
+const availableCheckArgsMap = mapChecksToRecord(checks, (check) => {
+  return check.args;
+});
+const availableCheckArgCountMap = mapChecksToRecord(checks, (check) => {
+  return check.args.length;
+});
 const availableCheckRequiredMap = mapChecksToRecord(checks, (check) => {
   return check.required;
 });
@@ -355,6 +364,14 @@ if (isJson && validationFailureMessage !== null) {
     availableCheckCount: availableChecks.length,
     availableCheckIndexMap,
     availableCheckIndexMapCount: countRecordEntries(availableCheckIndexMap),
+    availableCheckCommandMap,
+    availableCheckCommandMapCount: countRecordEntries(availableCheckCommandMap),
+    availableCheckArgsMap,
+    availableCheckArgsMapCount: countRecordEntries(availableCheckArgsMap),
+    availableCheckArgCountMap,
+    availableCheckArgCountMapCount: countRecordEntries(
+      availableCheckArgCountMap
+    ),
     availableCheckRequiredMap,
     availableCheckRequiredMapCount: countRecordEntries(availableCheckRequiredMap),
     availableCheckHintMap,
@@ -484,6 +501,14 @@ if (isJson) {
     availableCheckCount: availableChecks.length,
     availableCheckIndexMap,
     availableCheckIndexMapCount: countRecordEntries(availableCheckIndexMap),
+    availableCheckCommandMap,
+    availableCheckCommandMapCount: countRecordEntries(availableCheckCommandMap),
+    availableCheckArgsMap,
+    availableCheckArgsMapCount: countRecordEntries(availableCheckArgsMap),
+    availableCheckArgCountMap,
+    availableCheckArgCountMapCount: countRecordEntries(
+      availableCheckArgCountMap
+    ),
     availableCheckRequiredMap,
     availableCheckRequiredMapCount: countRecordEntries(availableCheckRequiredMap),
     availableCheckHintMap,
