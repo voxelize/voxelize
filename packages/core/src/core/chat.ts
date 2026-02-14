@@ -9,6 +9,14 @@ import { NetIntercept } from "./network";
 type CommandErrorValue = Error | JsonValue | object;
 const isWhitespaceCode = (code: number) =>
   code === 32 || (code >= 9 && code <= 13);
+const getFirstEqualsIndex = (value: string) => {
+  for (let index = 1; index < value.length; index++) {
+    if (value.charCodeAt(index) === 61) {
+      return index;
+    }
+  }
+  return -1;
+};
 
 /**
  * Options for adding a command.
@@ -436,7 +444,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     if (!hasBooleanKeys) {
       for (let wordIndex = 0; wordIndex < words.length; wordIndex++) {
         const word = words[wordIndex];
-        const eqIndex = word.indexOf("=");
+        const eqIndex = getFirstEqualsIndex(word);
         if (eqIndex > 0) {
           const key = word.substring(0, eqIndex);
           if (keySet.has(key)) {
@@ -455,7 +463,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     } else if (!hasPositionalKeys) {
       for (let wordIndex = 0; wordIndex < words.length; wordIndex++) {
         const word = words[wordIndex];
-        const eqIndex = word.indexOf("=");
+        const eqIndex = getFirstEqualsIndex(word);
         if (eqIndex > 0) {
           const key = word.substring(0, eqIndex);
           if (keySet.has(key)) {
@@ -477,7 +485,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     } else {
       for (let wordIndex = 0; wordIndex < words.length; wordIndex++) {
         const word = words[wordIndex];
-        const eqIndex = word.indexOf("=");
+        const eqIndex = getFirstEqualsIndex(word);
         if (eqIndex > 0) {
           const key = word.substring(0, eqIndex);
           if (keySet.has(key)) {
