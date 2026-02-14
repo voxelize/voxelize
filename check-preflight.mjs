@@ -94,6 +94,11 @@ const availableChecks = [
 const availableCheckNames = availableChecks.map((check) => check.name);
 const availableCheckScripts = availableChecks.map((check) => check.scriptName);
 const availableCheckIndices = availableChecks.map((_, index) => index);
+const availableCheckScriptMap = Object.fromEntries(
+  availableChecks.map((check) => {
+    return [check.name, check.scriptName];
+  })
+);
 const availableCheckIndexMap = Object.fromEntries(
   availableCheckNames.map((checkName, index) => {
     return [checkName, index];
@@ -605,6 +610,7 @@ if (
     availableChecks: availableCheckNames,
     availableCheckScripts,
     availableCheckScriptCount: availableCheckScripts.length,
+    availableCheckScriptMap,
     availableCheckIndices,
     availableCheckIndexCount: availableCheckIndices.length,
     availableCheckIndexMap,
@@ -716,6 +722,7 @@ if (isListChecks) {
     availableChecks: availableCheckNames,
     availableCheckScripts,
     availableCheckScriptCount: availableCheckScripts.length,
+    availableCheckScriptMap,
     availableCheckIndices,
     availableCheckIndexCount: availableCheckIndices.length,
     availableCheckIndexMap,
@@ -836,6 +843,7 @@ const report = buildTimedReport({
   availableChecks: availableCheckNames,
   availableCheckScripts,
   availableCheckScriptCount: availableCheckScripts.length,
+  availableCheckScriptMap,
   availableCheckIndices,
   availableCheckIndexCount: availableCheckIndices.length,
   availableCheckIndexMap,

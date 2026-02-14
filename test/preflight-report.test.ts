@@ -198,6 +198,7 @@ type PreflightReport = {
   availableChecks: string[];
   availableCheckScripts: string[];
   availableCheckScriptCount: number;
+  availableCheckScriptMap: Record<string, string>;
   availableCheckIndices: number[];
   availableCheckIndexCount: number;
   availableCheckIndexMap: Record<string, number>;
@@ -365,6 +366,11 @@ const expectedAvailableCheckScripts = expectedAvailableChecks.map((checkName) =>
     checkName as keyof typeof expectedAvailableCheckMetadata
   ].scriptName;
 });
+const expectedAvailableCheckScriptMap = Object.fromEntries(
+  expectedAvailableChecks.map((checkName, index) => {
+    return [checkName, expectedAvailableCheckScripts[index]];
+  })
+);
 const expectedAvailableCheckIndices = expectedAvailableChecks.map((_, index) => {
   return index;
 });
@@ -950,6 +956,7 @@ describe("preflight aggregate report", () => {
     expect(report.availableChecks).toEqual(expectedAvailableChecks);
     expect(report.availableCheckScripts).toEqual(expectedAvailableCheckScripts);
     expect(report.availableCheckScriptCount).toBe(report.availableCheckScripts.length);
+    expect(report.availableCheckScriptMap).toEqual(expectedAvailableCheckScriptMap);
     expect(report.availableCheckIndices).toEqual(expectedAvailableCheckIndices);
     expect(report.availableCheckIndexCount).toBe(
       report.availableCheckIndices.length
@@ -6765,6 +6772,7 @@ describe("preflight aggregate report", () => {
       expectedEmptyRequestedCheckResolutionCounts
     );
     expect(report.availableChecks).toEqual(expectedAvailableChecks);
+    expect(report.availableCheckScriptMap).toEqual(expectedAvailableCheckScriptMap);
     expect(report.availableCheckIndices).toEqual(expectedAvailableCheckIndices);
     expect(report.availableCheckIndexCount).toBe(
       report.availableCheckIndices.length
