@@ -105,6 +105,9 @@ export class BlockFace {
   }
 }
 
+export const createBlockFace = (init: BlockFaceInit): BlockFace =>
+  new BlockFace(init);
+
 export type OptionalRuleValue<T> = T | null | undefined;
 
 export type BlockSimpleRule = {

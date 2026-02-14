@@ -20,6 +20,7 @@ import {
   Y_ROT_MAP_FOUR,
   createBlockConditionalPart,
   createBlockDynamicPattern,
+  createBlockFace,
   createCornerData,
   createUV,
   toSaturatedUint32,
@@ -1267,6 +1268,43 @@ describe("Type builders", () => {
       startV: 2,
       endV: 3,
     });
+  });
+
+  it("supports createBlockFace helper with cloned init fields", () => {
+    const initCorner = createCornerData([0, 0, 0], [0, 0]);
+    const init: BlockFaceInit = {
+      name: "HelperFace",
+      dir: [1, 0, 0],
+      corners: [initCorner, initCorner, initCorner, initCorner],
+      range: createUV(0, 1, 2, 3),
+    };
+    const face = createBlockFace(init);
+
+    expect(face).toBeInstanceOf(BlockFace);
+    expect(face.name).toBe("HelperFace");
+    expect(face.dir).toEqual([1, 0, 0]);
+    expect(face.range).toEqual({
+      startU: 0,
+      endU: 1,
+      startV: 2,
+      endV: 3,
+    });
+
+    init.name = "MutatedHelperFace";
+    if (init.dir !== undefined) {
+      init.dir[0] = 9;
+    }
+    if (init.corners !== undefined) {
+      init.corners[0].pos[0] = 9;
+    }
+    if (init.range !== undefined) {
+      init.range.startU = 9;
+    }
+
+    expect(face.name).toBe("HelperFace");
+    expect(face.dir).toEqual([1, 0, 0]);
+    expect(face.corners[0].pos[0]).toBe(0);
+    expect(face.range.startU).toBe(0);
   });
 });
 

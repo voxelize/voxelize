@@ -83,6 +83,8 @@ const voxel = Voxel.pack({
 - `createBlockDynamicPattern`
   - defensively clones dynamic-pattern part inputs using
     `createBlockConditionalPart`
+- `createBlockFace`
+  - ergonomic constructor helper mirroring `new BlockFace(...)`
 - `VoxelAccess`
   - interface contract for meshing/generation-style data access
 
