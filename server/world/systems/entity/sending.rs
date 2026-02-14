@@ -17,6 +17,24 @@ pub struct EntitiesSendingSystem {
     new_entity_ids_buffer: HashSet<String>,
 }
 
+#[inline]
+fn normalized_visible_radius(radius: f32) -> (f32, f32) {
+    if radius.is_nan() {
+        return (f32::MAX, f32::MAX);
+    }
+    if radius < 0.0 {
+        return (0.0, 0.0);
+    }
+    if !radius.is_finite() {
+        return (f32::MAX, f32::MAX);
+    }
+    let radius_sq = f64::from(radius) * f64::from(radius);
+    if !radius_sq.is_finite() || radius_sq > f64::from(f32::MAX) {
+        return (radius, f32::MAX);
+    }
+    (radius, radius_sq as f32)
+}
+
 impl<'a> System<'a> for EntitiesSendingSystem {
     type SystemData = (
         Entities<'a>,
@@ -66,8 +84,8 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         self.entity_updates_buffer.clear();
         self.new_entity_ids_buffer.clear();
 
-        let entity_visible_radius = config.entity_visible_radius;
-        let entity_visible_radius_sq = entity_visible_radius * entity_visible_radius;
+        let (entity_visible_radius, entity_visible_radius_sq) =
+            normalized_visible_radius(config.entity_visible_radius);
 
         let mut new_entity_handlers = HashMap::new();
 
@@ -306,5 +324,32 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 ));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalized_visible_radius;
+
+    #[test]
+    fn normalized_visible_radius_handles_invalid_values() {
+        assert_eq!(normalized_visible_radius(-1.0), (0.0, 0.0));
+        assert_eq!(
+            normalized_visible_radius(f32::INFINITY),
+            (f32::MAX, f32::MAX)
+        );
+        assert_eq!(
+            normalized_visible_radius(f32::NAN),
+            (f32::MAX, f32::MAX)
+        );
+    }
+
+    #[test]
+    fn normalized_visible_radius_clamps_squared_radius() {
+        assert_eq!(normalized_visible_radius(5.0), (5.0, 25.0));
+        assert_eq!(
+            normalized_visible_radius(f32::MAX),
+            (f32::MAX, f32::MAX)
+        );
     }
 }
