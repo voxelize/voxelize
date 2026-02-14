@@ -165,6 +165,32 @@ const createCheckScriptMap = (checkNames) => {
     })
   );
 };
+const createCheckStatusMap = ({ passedChecks, failedChecks }) => {
+  const passedCheckSet = new Set(passedChecks);
+  const failedCheckSet = new Set(failedChecks);
+
+  return Object.fromEntries(
+    availableCheckNames.map((checkName) => {
+      const status = passedCheckSet.has(checkName)
+        ? "passed"
+        : failedCheckSet.has(checkName)
+          ? "failed"
+          : "skipped";
+      return [checkName, status];
+    })
+  );
+};
+const createCheckStatusCountMap = ({
+  passedCheckCount,
+  failedCheckCount,
+  skippedCheckCount,
+}) => {
+  return {
+    passed: passedCheckCount,
+    failed: failedCheckCount,
+    skipped: skippedCheckCount,
+  };
+};
 const availableCheckAliases = {
   devEnvironment: [
     "devEnvironment",
@@ -631,6 +657,16 @@ if (
 ) {
   const effectiveInvalidChecks = outputPathError === null ? invalidChecks : [];
   const invalidCheckCount = effectiveInvalidChecks.length;
+  const validationCheckSummary = summarizeCheckResults([]);
+  const validationCheckStatusMap = createCheckStatusMap({
+    passedChecks: validationCheckSummary.passedChecks,
+    failedChecks: validationCheckSummary.failedChecks,
+  });
+  const validationCheckStatusCountMap = createCheckStatusCountMap({
+    passedCheckCount: validationCheckSummary.passedCheckCount,
+    failedCheckCount: validationCheckSummary.failedCheckCount,
+    skippedCheckCount: availableCheckNames.length,
+  });
   const report = buildTimedReport({
     passed: false,
     exitCode: 1,
@@ -706,7 +742,11 @@ if (
     failedCheckIndexCount: 0,
     failedCheckIndexMap: {},
     failedCheckIndexMapCount: 0,
-    ...summarizeCheckResults([]),
+    checkStatusMap: validationCheckStatusMap,
+    checkStatusMapCount: countRecordEntries(validationCheckStatusMap),
+    checkStatusCountMap: validationCheckStatusCountMap,
+    checkStatusCountMapCount: countRecordEntries(validationCheckStatusCountMap),
+    ...validationCheckSummary,
     failureSummaries: [],
     failureSummaryCount: 0,
     checks: [],
@@ -799,6 +839,16 @@ const skippedCheckMetadataCount = countRecordEntries(skippedCheckMetadata);
 
 if (isListChecks) {
   const invalidCheckCount = 0;
+  const listCheckSummary = summarizeCheckResults([]);
+  const listCheckStatusMap = createCheckStatusMap({
+    passedChecks: listCheckSummary.passedChecks,
+    failedChecks: listCheckSummary.failedChecks,
+  });
+  const listCheckStatusCountMap = createCheckStatusCountMap({
+    passedCheckCount: listCheckSummary.passedCheckCount,
+    failedCheckCount: listCheckSummary.failedCheckCount,
+    skippedCheckCount: availableCheckNames.length,
+  });
   const report = buildTimedReport({
     passed: true,
     exitCode: 0,
@@ -874,7 +924,11 @@ if (isListChecks) {
     failedCheckIndexCount: 0,
     failedCheckIndexMap: {},
     failedCheckIndexMapCount: 0,
-    ...summarizeCheckResults([]),
+    checkStatusMap: listCheckStatusMap,
+    checkStatusMapCount: countRecordEntries(listCheckStatusMap),
+    checkStatusCountMap: listCheckStatusCountMap,
+    checkStatusCountMapCount: countRecordEntries(listCheckStatusCountMap),
+    ...listCheckSummary,
     failureSummaries: [],
     failureSummaryCount: 0,
     checks: [],
@@ -973,6 +1027,17 @@ const passedCheckScriptMap = createCheckScriptMap(checkSummary.passedChecks);
 const failedCheckScriptMap = createCheckScriptMap(checkSummary.failedChecks);
 const passedCheckScriptMapCount = countRecordEntries(passedCheckScriptMap);
 const failedCheckScriptMapCount = countRecordEntries(failedCheckScriptMap);
+const checkStatusMap = createCheckStatusMap({
+  passedChecks: checkSummary.passedChecks,
+  failedChecks: checkSummary.failedChecks,
+});
+const checkStatusMapCount = countRecordEntries(checkStatusMap);
+const checkStatusCountMap = createCheckStatusCountMap({
+  passedCheckCount: checkSummary.passedCheckCount,
+  failedCheckCount: checkSummary.failedCheckCount,
+  skippedCheckCount: skippedChecks.length,
+});
+const checkStatusCountMapCount = countRecordEntries(checkStatusCountMap);
 const invalidCheckCount = 0;
 const failureSummaries = summarizeCheckFailureResults(checks);
 const report = buildTimedReport({
@@ -1050,6 +1115,10 @@ const report = buildTimedReport({
   failedCheckIndexCount: failedCheckIndices.length,
   failedCheckIndexMap,
   failedCheckIndexMapCount,
+  checkStatusMap,
+  checkStatusMapCount,
+  checkStatusCountMap,
+  checkStatusCountMapCount,
   ...checkSummary,
   failureSummaries,
   failureSummaryCount: failureSummaries.length,

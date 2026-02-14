@@ -488,6 +488,14 @@ type PreflightReport = {
   failedCheckIndexCount: number;
   failedCheckIndexMap: Record<string, number>;
   failedCheckIndexMapCount: number;
+  checkStatusMap: Record<string, "passed" | "failed" | "skipped">;
+  checkStatusMapCount: number;
+  checkStatusCountMap: {
+    passed: number;
+    failed: number;
+    skipped: number;
+  };
+  checkStatusCountMapCount: number;
   firstFailedCheck: string | null;
   availableChecks: string[];
   availableCheckScripts: string[];
@@ -1045,6 +1053,23 @@ const expectSelectedCheckMetadata = (report: PreflightReport) => {
       ];
     })
   );
+  const passedCheckSet = new Set(report.passedChecks);
+  const failedCheckSet = new Set(report.failedChecks);
+  const expectedCheckStatusMap = Object.fromEntries(
+    expectedAvailableChecks.map((checkName) => {
+      const status = passedCheckSet.has(checkName)
+        ? "passed"
+        : failedCheckSet.has(checkName)
+          ? "failed"
+          : "skipped";
+      return [checkName, status];
+    })
+  );
+  const expectedCheckStatusCountMap = {
+    passed: report.passedCheckCount,
+    failed: report.failedCheckCount,
+    skipped: expectedAvailableChecks.length - report.totalChecks,
+  };
 
   expect(report.selectedCheckMetadata).toEqual(expectedSelectedMetadata);
   expect(report.selectedCheckMetadataCount).toBe(
@@ -1108,6 +1133,12 @@ const expectSelectedCheckMetadata = (report: PreflightReport) => {
   expect(report.requestedCheckResolvedMetadataCount).toBe(
     Object.keys(report.requestedCheckResolvedMetadata).length
   );
+  expect(report.checkStatusMap).toEqual(expectedCheckStatusMap);
+  expect(report.checkStatusMapCount).toBe(Object.keys(report.checkStatusMap).length);
+  expect(report.checkStatusCountMap).toEqual(expectedCheckStatusCountMap);
+  expect(report.checkStatusCountMapCount).toBe(
+    Object.keys(report.checkStatusCountMap).length
+  );
 };
 const expectCheckResultScriptMetadata = (report: PreflightReport) => {
   const expectedPassedScripts = report.passedChecks.map((checkName) => {
@@ -1166,6 +1197,23 @@ const expectCheckResultScriptMetadata = (report: PreflightReport) => {
       return [checkName, expectedFailedIndices[index]];
     })
   );
+  const passedCheckSet = new Set(report.passedChecks);
+  const failedCheckSet = new Set(report.failedChecks);
+  const expectedCheckStatusMap = Object.fromEntries(
+    expectedAvailableChecks.map((checkName) => {
+      const status = passedCheckSet.has(checkName)
+        ? "passed"
+        : failedCheckSet.has(checkName)
+          ? "failed"
+          : "skipped";
+      return [checkName, status];
+    })
+  );
+  const expectedCheckStatusCountMap = {
+    passed: report.passedCheckCount,
+    failed: report.failedCheckCount,
+    skipped: expectedAvailableChecks.length - report.totalChecks,
+  };
 
   expect(report.passedCheckScripts).toEqual(expectedPassedScripts);
   expect(report.passedCheckScriptCount).toBe(report.passedCheckScripts.length);
@@ -1198,6 +1246,12 @@ const expectCheckResultScriptMetadata = (report: PreflightReport) => {
   expect(report.failedCheckIndexMap).toEqual(expectedFailedIndexMap);
   expect(report.failedCheckIndexMapCount).toBe(
     Object.keys(report.failedCheckIndexMap).length
+  );
+  expect(report.checkStatusMap).toEqual(expectedCheckStatusMap);
+  expect(report.checkStatusMapCount).toBe(Object.keys(report.checkStatusMap).length);
+  expect(report.checkStatusCountMap).toEqual(expectedCheckStatusCountMap);
+  expect(report.checkStatusCountMapCount).toBe(
+    Object.keys(report.checkStatusCountMap).length
   );
   for (const check of report.checks) {
     expect(check.scriptName).toBe(

@@ -271,6 +271,7 @@ For release automation and CI routing, aggregate preflight JSON reports include:
   `failedCheckIndices`, `failedCheckIndexMap`,
   `failedCheckIndexMapCount`
 - execution partitions: `passedChecks`, `failedChecks`,
+  `checkStatusMap`, `checkStatusCountMap`,
   `failureSummaries`, `failureSummaryCount`
 - executable inventory: `availableChecks`, `availableCheckScripts`,
   `availableCheckScriptMap`, `availableCheckSupportsNoBuildMap`,
