@@ -78,6 +78,20 @@ type RuntimeLibrariesCheckReport = {
   presentPackagePathMapCount: number;
   presentPackageIndexCount: number;
   presentPackageIndexMapCount: number;
+  presentPackageMetadata: Record<
+    string,
+    {
+      packagePath: string;
+      packageIndex: number;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
+      presentArtifactCount: number;
+      missingArtifactCount: number;
+      artifactsPresent: boolean;
+    }
+  >;
+  presentPackageMetadataCount: number;
   missingPackages: string[];
   missingPackagePaths: string[];
   missingPackagePathMap: Record<string, string>;
@@ -86,6 +100,20 @@ type RuntimeLibrariesCheckReport = {
   missingPackagePathMapCount: number;
   missingPackageIndexCount: number;
   missingPackageIndexMapCount: number;
+  missingPackageMetadata: Record<
+    string,
+    {
+      packagePath: string;
+      packageIndex: number;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
+      presentArtifactCount: number;
+      missingArtifactCount: number;
+      artifactsPresent: boolean;
+    }
+  >;
+  missingPackageMetadataCount: number;
   requiredPackageCount: number;
   presentPackageCount: number;
   presentPackagePathCount: number;
@@ -480,6 +508,25 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
       return [packageName, report.checkedPackageIndexMap[packageName]];
     })
   );
+  const presentPackageMetadata = Object.fromEntries(
+    report.packageReports
+      .filter((packageReport) => packageReport.artifactsPresent)
+      .map((packageReport) => {
+        return [
+          packageReport.packageName,
+          {
+            packagePath: packageReport.packagePath,
+            packageIndex: packageReport.packageIndex,
+            checkCommand: packageReport.checkCommand,
+            checkArgs: packageReport.checkArgs,
+            checkArgCount: packageReport.checkArgCount,
+            presentArtifactCount: packageReport.presentArtifactCount,
+            missingArtifactCount: packageReport.missingArtifactCount,
+            artifactsPresent: packageReport.artifactsPresent,
+          },
+        ];
+      })
+  );
   const missingPackages = report.packageReports
     .filter((packageReport) => packageReport.artifactsPresent === false)
     .map((packageReport) => packageReport.packageName);
@@ -502,6 +549,25 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
     missingPackages.map((packageName) => {
       return [packageName, report.checkedPackageIndexMap[packageName]];
     })
+  );
+  const missingPackageMetadata = Object.fromEntries(
+    report.packageReports
+      .filter((packageReport) => packageReport.artifactsPresent === false)
+      .map((packageReport) => {
+        return [
+          packageReport.packageName,
+          {
+            packagePath: packageReport.packagePath,
+            packageIndex: packageReport.packageIndex,
+            checkCommand: packageReport.checkCommand,
+            checkArgs: packageReport.checkArgs,
+            checkArgCount: packageReport.checkArgCount,
+            presentArtifactCount: packageReport.presentArtifactCount,
+            missingArtifactCount: packageReport.missingArtifactCount,
+            artifactsPresent: packageReport.artifactsPresent,
+          },
+        ];
+      })
   );
   const presentArtifactCount = report.packageReports.reduce((count, packageReport) => {
     return count + packageReport.presentArtifactCount;
@@ -573,6 +639,9 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   expect(report.checkedPackagePathCount).toBe(
     report.presentPackagePathCount + report.missingPackagePathCount
   );
+  expect(report.checkedPackageCount).toBe(
+    report.presentPackageMetadataCount + report.missingPackageMetadataCount
+  );
   expect(report.checkedPackagePathMapCount).toBe(
     report.presentPackagePathMapCount + report.missingPackagePathMapCount
   );
@@ -594,6 +663,10 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   expect(report.presentPackageIndexMapCount).toBe(
     Object.keys(report.presentPackageIndexMap).length
   );
+  expect(report.presentPackageMetadata).toEqual(presentPackageMetadata);
+  expect(report.presentPackageMetadataCount).toBe(
+    Object.keys(report.presentPackageMetadata).length
+  );
   expect(report.missingPackages).toEqual(missingPackages);
   expect(report.missingPackages.length).toBe(report.missingPackageCount);
   expect(report.missingPackagePaths).toEqual(missingPackagePaths);
@@ -607,6 +680,10 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   expect(report.missingPackageIndexMap).toEqual(missingPackageIndexMap);
   expect(report.missingPackageIndexMapCount).toBe(
     Object.keys(report.missingPackageIndexMap).length
+  );
+  expect(report.missingPackageMetadata).toEqual(missingPackageMetadata);
+  expect(report.missingPackageMetadataCount).toBe(
+    Object.keys(report.missingPackageMetadata).length
   );
   expect({
     ...report.presentPackageIndexMap,

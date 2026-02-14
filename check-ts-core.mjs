@@ -206,6 +206,34 @@ const withBaseReportFields = (report) => {
     missingArtifactCount: missingArtifacts.length,
     artifactsPresent,
   };
+  const presentPackageMetadata = artifactsPresent
+    ? {
+        [tsCorePackageName]: {
+          packagePath: tsCorePackagePath,
+          packageIndex: 0,
+          checkCommand: packageCheckCommand,
+          checkArgs: packageCheckArgs,
+          checkArgCount: packageCheckArgCount,
+          presentArtifactCount,
+          missingArtifactCount: missingArtifacts.length,
+          artifactsPresent,
+        },
+      }
+    : {};
+  const missingPackageMetadata = artifactsPresent
+    ? {}
+    : {
+        [tsCorePackageName]: {
+          packagePath: tsCorePackagePath,
+          packageIndex: 0,
+          checkCommand: packageCheckCommand,
+          checkArgs: packageCheckArgs,
+          checkArgCount: packageCheckArgCount,
+          presentArtifactCount,
+          missingArtifactCount: missingArtifacts.length,
+          artifactsPresent,
+        },
+      };
   const packageReportMap = {
     [tsCorePackageName]: packageReport,
   };
@@ -329,6 +357,8 @@ const withBaseReportFields = (report) => {
     missingPackagePaths,
     presentPackagePathMap,
     missingPackagePathMap,
+    presentPackageMetadata,
+    missingPackageMetadata,
     requiredPackageCount: 1,
     presentPackageCount: presentPackages.length,
     missingPackageCount: missingPackages.length,
@@ -340,6 +370,8 @@ const withBaseReportFields = (report) => {
     missingPackagePathCount,
     presentPackagePathMapCount: countRecordEntries(presentPackagePathMap),
     missingPackagePathMapCount: countRecordEntries(missingPackagePathMap),
+    presentPackageMetadataCount: countRecordEntries(presentPackageMetadata),
+    missingPackageMetadataCount: countRecordEntries(missingPackageMetadata),
     packageReport,
     packageReportCount: 1,
     packageReportMap,

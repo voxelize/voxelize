@@ -61,6 +61,32 @@ type TsCoreCheckReport = {
   missingPackagePaths: string[];
   presentPackagePathMap: Record<string, string>;
   missingPackagePathMap: Record<string, string>;
+  presentPackageMetadata: Record<
+    string,
+    {
+      packagePath: string;
+      packageIndex: number;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
+      presentArtifactCount: number;
+      missingArtifactCount: number;
+      artifactsPresent: boolean;
+    }
+  >;
+  missingPackageMetadata: Record<
+    string,
+    {
+      packagePath: string;
+      packageIndex: number;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
+      presentArtifactCount: number;
+      missingArtifactCount: number;
+      artifactsPresent: boolean;
+    }
+  >;
   requiredPackageCount: number;
   presentPackageCount: number;
   missingPackageCount: number;
@@ -72,6 +98,8 @@ type TsCoreCheckReport = {
   missingPackagePathCount: number;
   presentPackagePathMapCount: number;
   missingPackagePathMapCount: number;
+  presentPackageMetadataCount: number;
+  missingPackageMetadataCount: number;
   packageReport: {
     packageName: string;
     packagePath: string;
@@ -360,6 +388,9 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
   expect(report.checkedPackagePathMapCount).toBe(
     report.presentPackagePathMapCount + report.missingPackagePathMapCount
   );
+  expect(report.checkedPackageCount).toBe(
+    report.presentPackageMetadataCount + report.missingPackageMetadataCount
+  );
   expect(report.presentPackageIndices.length).toBe(report.presentPackageIndexCount);
   expect(report.missingPackageIndices.length).toBe(report.missingPackageIndexCount);
   expect(report.presentPackages.length).toBe(report.presentPackageCount);
@@ -414,6 +445,50 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
   );
   expect(report.missingPackagePathMapCount).toBe(
     Object.keys(report.missingPackagePathMap).length
+  );
+  expect(report.presentPackageMetadata).toEqual(
+    Object.fromEntries(
+      report.presentPackages.map((packageName) => {
+        return [
+          packageName,
+          {
+            packagePath: report.checkedPackagePathMap[packageName],
+            packageIndex: report.checkedPackageIndexMap[packageName],
+            checkCommand: expectedPackageCheckCommand,
+            checkArgs: report.requiredArtifacts,
+            checkArgCount: report.requiredArtifactCount,
+            presentArtifactCount: report.presentArtifactCount,
+            missingArtifactCount: report.missingArtifactCount,
+            artifactsPresent: report.artifactsPresent,
+          },
+        ];
+      })
+    )
+  );
+  expect(report.presentPackageMetadataCount).toBe(
+    Object.keys(report.presentPackageMetadata).length
+  );
+  expect(report.missingPackageMetadata).toEqual(
+    Object.fromEntries(
+      report.missingPackages.map((packageName) => {
+        return [
+          packageName,
+          {
+            packagePath: report.checkedPackagePathMap[packageName],
+            packageIndex: report.checkedPackageIndexMap[packageName],
+            checkCommand: expectedPackageCheckCommand,
+            checkArgs: report.requiredArtifacts,
+            checkArgCount: report.requiredArtifactCount,
+            presentArtifactCount: report.presentArtifactCount,
+            missingArtifactCount: report.missingArtifactCount,
+            artifactsPresent: report.artifactsPresent,
+          },
+        ];
+      })
+    )
+  );
+  expect(report.missingPackageMetadataCount).toBe(
+    Object.keys(report.missingPackageMetadata).length
   );
   expect(report.checkedPackageIndexMap).toEqual({
     [report.checkedPackage]: report.checkedPackageIndices[0],

@@ -441,6 +441,32 @@ type TsCoreJsonReport = OptionTerminatorMetadata &
   missingPackagePaths: string[];
   presentPackagePathMap: Record<string, string>;
   missingPackagePathMap: Record<string, string>;
+  presentPackageMetadata: Record<
+    string,
+    {
+      packagePath: string;
+      packageIndex: number;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
+      presentArtifactCount: number;
+      missingArtifactCount: number;
+      artifactsPresent: boolean;
+    }
+  >;
+  missingPackageMetadata: Record<
+    string,
+    {
+      packagePath: string;
+      packageIndex: number;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
+      presentArtifactCount: number;
+      missingArtifactCount: number;
+      artifactsPresent: boolean;
+    }
+  >;
   requiredPackageCount: number;
   presentPackageCount: number;
   missingPackageCount: number;
@@ -452,6 +478,8 @@ type TsCoreJsonReport = OptionTerminatorMetadata &
   missingPackagePathCount: number;
   presentPackagePathMapCount: number;
   missingPackagePathMapCount: number;
+  presentPackageMetadataCount: number;
+  missingPackageMetadataCount: number;
   packageReport: {
     packageName: string;
     packagePath: string;
@@ -633,6 +661,20 @@ type RuntimeLibrariesJsonReport = OptionTerminatorMetadata &
   presentPackagePathMapCount: number;
   presentPackageIndexCount: number;
   presentPackageIndexMapCount: number;
+  presentPackageMetadata: Record<
+    string,
+    {
+      packagePath: string;
+      packageIndex: number;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
+      presentArtifactCount: number;
+      missingArtifactCount: number;
+      artifactsPresent: boolean;
+    }
+  >;
+  presentPackageMetadataCount: number;
   missingPackages: string[];
   missingPackagePaths: string[];
   missingPackagePathMap: Record<string, string>;
@@ -641,6 +683,20 @@ type RuntimeLibrariesJsonReport = OptionTerminatorMetadata &
   missingPackagePathMapCount: number;
   missingPackageIndexCount: number;
   missingPackageIndexMapCount: number;
+  missingPackageMetadata: Record<
+    string,
+    {
+      packagePath: string;
+      packageIndex: number;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
+      presentArtifactCount: number;
+      missingArtifactCount: number;
+      artifactsPresent: boolean;
+    }
+  >;
+  missingPackageMetadataCount: number;
   requiredPackageCount: number;
   presentPackageCount: number;
   presentPackagePathCount: number;
@@ -2052,6 +2108,9 @@ const expectTsCoreReportMetadata = (report: TsCoreJsonReport) => {
   expect(report.checkedPackagePathMapCount).toBe(
     report.presentPackagePathMapCount + report.missingPackagePathMapCount
   );
+  expect(report.checkedPackageCount).toBe(
+    report.presentPackageMetadataCount + report.missingPackageMetadataCount
+  );
   expect(report.presentPackageIndices.length).toBe(report.presentPackageIndexCount);
   expect(report.missingPackageIndices.length).toBe(report.missingPackageIndexCount);
   expect(report.presentPackages.length).toBe(report.presentPackageCount);
@@ -2106,6 +2165,50 @@ const expectTsCoreReportMetadata = (report: TsCoreJsonReport) => {
   );
   expect(report.missingPackagePathMapCount).toBe(
     Object.keys(report.missingPackagePathMap).length
+  );
+  expect(report.presentPackageMetadata).toEqual(
+    Object.fromEntries(
+      report.presentPackages.map((packageName) => {
+        return [
+          packageName,
+          {
+            packagePath: report.checkedPackagePathMap[packageName],
+            packageIndex: report.checkedPackageIndexMap[packageName],
+            checkCommand: expectedTsCorePackageCheckCommand,
+            checkArgs: report.requiredArtifacts,
+            checkArgCount: report.requiredArtifactCount,
+            presentArtifactCount: report.presentArtifactCount,
+            missingArtifactCount: report.missingArtifactCount,
+            artifactsPresent: report.artifactsPresent,
+          },
+        ];
+      })
+    )
+  );
+  expect(report.presentPackageMetadataCount).toBe(
+    Object.keys(report.presentPackageMetadata).length
+  );
+  expect(report.missingPackageMetadata).toEqual(
+    Object.fromEntries(
+      report.missingPackages.map((packageName) => {
+        return [
+          packageName,
+          {
+            packagePath: report.checkedPackagePathMap[packageName],
+            packageIndex: report.checkedPackageIndexMap[packageName],
+            checkCommand: expectedTsCorePackageCheckCommand,
+            checkArgs: report.requiredArtifacts,
+            checkArgCount: report.requiredArtifactCount,
+            presentArtifactCount: report.presentArtifactCount,
+            missingArtifactCount: report.missingArtifactCount,
+            artifactsPresent: report.artifactsPresent,
+          },
+        ];
+      })
+    )
+  );
+  expect(report.missingPackageMetadataCount).toBe(
+    Object.keys(report.missingPackageMetadata).length
   );
   expect(report.checkedPackageIndexMap).toEqual({
     [report.checkedPackage]: report.checkedPackageIndices[0],
@@ -2412,6 +2515,25 @@ const expectRuntimeLibrariesReportMetadata = (
       return [packageName, report.checkedPackageIndexMap[packageName]];
     })
   );
+  const presentPackageMetadata = Object.fromEntries(
+    report.packageReports
+      .filter((packageReport) => packageReport.artifactsPresent)
+      .map((packageReport) => {
+        return [
+          packageReport.packageName,
+          {
+            packagePath: packageReport.packagePath,
+            packageIndex: packageReport.packageIndex,
+            checkCommand: packageReport.checkCommand,
+            checkArgs: packageReport.checkArgs,
+            checkArgCount: packageReport.checkArgCount,
+            presentArtifactCount: packageReport.presentArtifactCount,
+            missingArtifactCount: packageReport.missingArtifactCount,
+            artifactsPresent: packageReport.artifactsPresent,
+          },
+        ];
+      })
+  );
   const missingPackages = report.packageReports
     .filter((packageReport) => packageReport.artifactsPresent === false)
     .map((packageReport) => packageReport.packageName);
@@ -2435,6 +2557,25 @@ const expectRuntimeLibrariesReportMetadata = (
       return [packageName, report.checkedPackageIndexMap[packageName]];
     })
   );
+  const missingPackageMetadata = Object.fromEntries(
+    report.packageReports
+      .filter((packageReport) => packageReport.artifactsPresent === false)
+      .map((packageReport) => {
+        return [
+          packageReport.packageName,
+          {
+            packagePath: packageReport.packagePath,
+            packageIndex: packageReport.packageIndex,
+            checkCommand: packageReport.checkCommand,
+            checkArgs: packageReport.checkArgs,
+            checkArgCount: packageReport.checkArgCount,
+            presentArtifactCount: packageReport.presentArtifactCount,
+            missingArtifactCount: packageReport.missingArtifactCount,
+            artifactsPresent: packageReport.artifactsPresent,
+          },
+        ];
+      })
+  );
   expect(report.presentPackages).toEqual(presentPackages);
   expect(report.presentPackagePaths).toEqual(presentPackagePaths);
   expect(report.missingPackages).toEqual(missingPackages);
@@ -2444,6 +2585,9 @@ const expectRuntimeLibrariesReportMetadata = (
   expect(report.checkedPackagePathCount).toBe(report.requiredPackageCount);
   expect(report.checkedPackagePathCount).toBe(
     report.presentPackagePathCount + report.missingPackagePathCount
+  );
+  expect(report.checkedPackageCount).toBe(
+    report.presentPackageMetadataCount + report.missingPackageMetadataCount
   );
   expect(report.checkedPackagePathMapCount).toBe(
     report.presentPackagePathMapCount + report.missingPackagePathMapCount
@@ -2575,6 +2719,10 @@ const expectRuntimeLibrariesReportMetadata = (
   expect(report.presentPackageIndexMapCount).toBe(
     Object.keys(report.presentPackageIndexMap).length
   );
+  expect(report.presentPackageMetadata).toEqual(presentPackageMetadata);
+  expect(report.presentPackageMetadataCount).toBe(
+    Object.keys(report.presentPackageMetadata).length
+  );
   expect(report.missingPackages.length).toBe(report.missingPackageCount);
   expect(report.missingPackagePaths.length).toBe(report.missingPackagePathCount);
   expect(report.missingPackagePathMap).toEqual(missingPackagePathMap);
@@ -2586,6 +2734,10 @@ const expectRuntimeLibrariesReportMetadata = (
   expect(report.missingPackageIndexMap).toEqual(missingPackageIndexMap);
   expect(report.missingPackageIndexMapCount).toBe(
     Object.keys(report.missingPackageIndexMap).length
+  );
+  expect(report.missingPackageMetadata).toEqual(missingPackageMetadata);
+  expect(report.missingPackageMetadataCount).toBe(
+    Object.keys(report.missingPackageMetadata).length
   );
   expect({
     ...report.presentPackageIndexMap,

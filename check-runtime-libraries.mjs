@@ -285,6 +285,44 @@ const summarizePackageReports = (packageReports) => {
       return [packageReport.packageName, packageReport.missingArtifacts];
     })
   );
+  const presentPackageMetadata = Object.fromEntries(
+    packageReports
+      .filter((packageReport) => packageReport.artifactsPresent)
+      .map((packageReport) => {
+        return [
+          packageReport.packageName,
+          {
+            packagePath: packageReport.packagePath,
+            packageIndex: packageReport.packageIndex,
+            checkCommand: packageReport.checkCommand,
+            checkArgs: packageReport.checkArgs,
+            checkArgCount: packageReport.checkArgCount,
+            presentArtifactCount: packageReport.presentArtifactCount,
+            missingArtifactCount: packageReport.missingArtifactCount,
+            artifactsPresent: packageReport.artifactsPresent,
+          },
+        ];
+      })
+  );
+  const missingPackageMetadata = Object.fromEntries(
+    packageReports
+      .filter((packageReport) => packageReport.artifactsPresent === false)
+      .map((packageReport) => {
+        return [
+          packageReport.packageName,
+          {
+            packagePath: packageReport.packagePath,
+            packageIndex: packageReport.packageIndex,
+            checkCommand: packageReport.checkCommand,
+            checkArgs: packageReport.checkArgs,
+            checkArgCount: packageReport.checkArgCount,
+            presentArtifactCount: packageReport.presentArtifactCount,
+            missingArtifactCount: packageReport.missingArtifactCount,
+            artifactsPresent: packageReport.artifactsPresent,
+          },
+        ];
+      })
+  );
   const presentArtifactCountByPackage = Object.fromEntries(
     packageReports.map((packageReport) => {
       return [packageReport.packageName, packageReport.presentArtifactCount];
@@ -328,6 +366,8 @@ const summarizePackageReports = (packageReports) => {
     presentPackageIndexCount: presentPackageIndices.length,
     presentPackageIndexMap,
     presentPackageIndexMapCount: countRecordEntries(presentPackageIndexMap),
+    presentPackageMetadata,
+    presentPackageMetadataCount: countRecordEntries(presentPackageMetadata),
     presentArtifactCount,
     presentArtifacts,
     presentArtifactsByPackage,
@@ -350,6 +390,8 @@ const summarizePackageReports = (packageReports) => {
     missingPackageIndexCount: missingPackageIndices.length,
     missingPackageIndexMap,
     missingPackageIndexMapCount: countRecordEntries(missingPackageIndexMap),
+    missingPackageMetadata,
+    missingPackageMetadataCount: countRecordEntries(missingPackageMetadata),
     missingArtifactCount,
     missingArtifacts,
     missingArtifactsByPackage,
@@ -470,6 +512,8 @@ const withBaseReportFields = (report) => {
     presentPackagePathMapCount,
     presentPackageIndexCount,
     presentPackageIndexMapCount,
+    presentPackageMetadata,
+    presentPackageMetadataCount,
     presentArtifactCount,
     presentArtifacts,
     presentArtifactsByPackage,
@@ -490,6 +534,8 @@ const withBaseReportFields = (report) => {
     missingPackagePathMapCount,
     missingPackageIndexCount,
     missingPackageIndexMapCount,
+    missingPackageMetadata,
+    missingPackageMetadataCount,
     missingArtifactCount,
     missingArtifacts,
     missingArtifactsByPackage,
@@ -559,17 +605,20 @@ const withBaseReportFields = (report) => {
     presentPackagePathMap,
     presentPackageIndices,
     presentPackageIndexMap,
+    presentPackageMetadata,
     missingPackages,
     missingPackagePaths,
     missingPackagePathMap,
     missingPackageIndices,
     missingPackageIndexMap,
+    missingPackageMetadata,
     requiredPackageCount: runtimeLibraries.length,
     presentPackageCount,
     presentPackagePathCount,
     presentPackagePathMapCount,
     presentPackageIndexCount,
     presentPackageIndexMapCount,
+    presentPackageMetadataCount,
     packageReportCount: packageReports.length,
     packageReportMap,
     packageReportMapCount,
@@ -599,6 +648,7 @@ const withBaseReportFields = (report) => {
     missingPackagePathMapCount,
     missingPackageIndexCount,
     missingPackageIndexMapCount,
+    missingPackageMetadataCount,
     missingArtifactCount,
     missingArtifacts,
     missingArtifactsByPackage,
