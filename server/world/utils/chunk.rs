@@ -47,13 +47,13 @@ impl ChunkUtils {
 
     /// Map a voxel coordinate to a chunk coordinate.
     pub fn map_voxel_to_chunk(vx: i32, _vy: i32, vz: i32, chunk_size: usize) -> Vec2<i32> {
-        let cs = i32::try_from(chunk_size).unwrap_or(i32::MAX);
+        let cs = i32::try_from(chunk_size).unwrap_or(i32::MAX).max(1);
         Vec2(vx.div_euclid(cs), vz.div_euclid(cs))
     }
 
     /// Map a voxel coordinate to a chunk local coordinate.
     pub fn map_voxel_to_chunk_local(vx: i32, vy: i32, vz: i32, chunk_size: usize) -> Vec3<usize> {
-        let cs = i32::try_from(chunk_size).unwrap_or(i32::MAX);
+        let cs = i32::try_from(chunk_size).unwrap_or(i32::MAX).max(1);
         let cx = vx.div_euclid(cs);
         let cz = vz.div_euclid(cs);
 
