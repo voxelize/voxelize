@@ -83,6 +83,24 @@ const availableSteps = [
   "Runtime library checks",
   "Client checks",
 ];
+const availableStepMetadata = {
+  "Developer environment preflight": {
+    scriptName: "check-dev-env.mjs",
+    supportsNoBuild: false,
+  },
+  "TypeScript core checks": {
+    scriptName: "check-ts-core.mjs",
+    supportsNoBuild: true,
+  },
+  "Runtime library checks": {
+    scriptName: "check-runtime-libraries.mjs",
+    supportsNoBuild: true,
+  },
+  "Client checks": {
+    scriptName: "check-client.mjs",
+    supportsNoBuild: true,
+  },
+};
 const stepResults = [];
 let exitCode = 0;
 
@@ -111,6 +129,7 @@ if (isJson && validationFailureMessage !== null) {
     validationErrorCode,
     availableSteps,
     availableStepCount: availableSteps.length,
+    availableStepMetadata,
     steps: [],
     ...summarizeStepResults([]),
     message: validationFailureMessage,
@@ -263,6 +282,7 @@ if (isJson) {
     validationErrorCode: null,
     availableSteps,
     availableStepCount: availableSteps.length,
+    availableStepMetadata,
     steps: stepResults,
     ...stepSummary,
   });

@@ -81,6 +81,16 @@ const validationFailureMessage = deriveCliValidationFailureMessage({
   unsupportedOptionsError,
 });
 const availableSteps = ["WASM artifact preflight", "TypeScript typecheck"];
+const availableStepMetadata = {
+  "WASM artifact preflight": {
+    scriptName: "examples/client/scripts/check-wasm-mesher.mjs",
+    supportsNoBuild: true,
+  },
+  "TypeScript typecheck": {
+    scriptName: "examples/client:typecheck",
+    supportsNoBuild: false,
+  },
+};
 const stepResults = [];
 let exitCode = 0;
 
@@ -109,6 +119,7 @@ if (isJson && validationFailureMessage !== null) {
     validationErrorCode,
     availableSteps,
     availableStepCount: availableSteps.length,
+    availableStepMetadata,
     steps: [],
     ...summarizeStepResults([]),
     message: validationFailureMessage,
@@ -236,6 +247,7 @@ if (isJson) {
     validationErrorCode: null,
     availableSteps,
     availableStepCount: availableSteps.length,
+    availableStepMetadata,
     steps: stepResults,
     ...stepSummary,
   });
