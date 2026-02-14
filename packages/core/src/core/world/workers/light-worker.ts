@@ -253,7 +253,7 @@ const convertRegistryToWasm = (registry: SerializedRegistry): WasmLightRegistry 
   return { blocksById };
 };
 
-const colorToIndex = (color: LightColor): number => {
+const colorToIndex = (color: LightColor): number | null => {
   switch (color) {
     case "SUNLIGHT":
       return 0;
@@ -263,6 +263,8 @@ const colorToIndex = (color: LightColor): number => {
       return 2;
     case "BLUE":
       return 3;
+    default:
+      return null;
   }
 };
 
@@ -614,13 +616,18 @@ const processBatchMessage = (message: LightBatchMessage) => {
   reusableBoundsShape[0] = boundingBox.shape[0];
   reusableBoundsShape[1] = boundingBox.shape[1];
   reusableBoundsShape[2] = boundingBox.shape[2];
+  const colorIndex = colorToIndex(color);
+  if (colorIndex === null) {
+    postEmptyBatchResult(jobId, lastSequenceId);
+    return;
+  }
   const wasmResult = process_light_batch_fast(
     serializedChunks,
     gridWidth,
     gridDepth,
     gridOffsetX,
     gridOffsetZ,
-    colorToIndex(color),
+    colorIndex,
     removals,
     floods,
     reusableBoundsMin,
