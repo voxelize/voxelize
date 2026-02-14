@@ -155,11 +155,16 @@ The checker validates:
 Use `--output <path>` for machine-readable report files in CI.
 The JSON report includes artifact/build diagnostics such as `checkedPackage`,
 `checkedPackageCount`, `checkedPackagePath`, `checkedPackagePathCount`,
+`checkedPackagePathMap`, `checkedPackagePathMapCount`,
 `presentPackages`, `missingPackages`, `presentPackagePaths`,
 `missingPackagePaths`, `requiredPackageCount`, `presentPackageCount`,
 `missingPackageCount`, `presentPackagePathCount`,
-`missingPackagePathCount`, `requiredArtifacts`, `presentArtifacts`,
+`missingPackagePathCount`, `requiredArtifacts`,
+`requiredArtifactCountByPackage`, `requiredArtifactCountByPackageCount`,
+`presentArtifacts`, `presentArtifactCountByPackage`,
+`presentArtifactCountByPackageCount`,
 `missingArtifacts`, `requiredArtifactCount`, `presentArtifactCount`,
+`missingArtifactCountByPackage`, `missingArtifactCountByPackageCount`,
 `missingArtifactCount`, `missingArtifactSummary`, `buildCommand`, `buildArgs`, `buildExitCode`,
 `buildDurationMs`, `attemptedBuild`, `buildSkipped`, and
 `buildSkippedReason`.

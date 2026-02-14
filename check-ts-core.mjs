@@ -123,6 +123,18 @@ const withBaseReportFields = (report) => {
   const presentPackagePathCount = presentPackagePaths.length;
   const missingPackagePathCount = missingPackagePaths.length;
   const presentArtifactCount = requiredArtifacts.length - missingArtifacts.length;
+  const checkedPackagePathMap = {
+    [tsCorePackageName]: tsCorePackagePath,
+  };
+  const requiredArtifactCountByPackage = {
+    [tsCorePackageName]: requiredArtifacts.length,
+  };
+  const presentArtifactCountByPackage = {
+    [tsCorePackageName]: presentArtifactCount,
+  };
+  const missingArtifactCountByPackage = {
+    [tsCorePackageName]: missingArtifacts.length,
+  };
   const buildExitCode =
     typeof report.buildExitCode === "number" ? report.buildExitCode : null;
   const buildDurationMs =
@@ -156,6 +168,8 @@ const withBaseReportFields = (report) => {
     checkedPackageCount: 1,
     checkedPackagePath: tsCorePackagePath,
     checkedPackagePathCount: 1,
+    checkedPackagePathMap,
+    checkedPackagePathMapCount: 1,
     presentPackages,
     missingPackages,
     presentPackagePaths,
@@ -167,10 +181,16 @@ const withBaseReportFields = (report) => {
     missingPackagePathCount,
     packagePath: tsCorePackagePath,
     requiredArtifacts,
+    requiredArtifactCountByPackage,
     requiredArtifactCount: requiredArtifacts.length,
+    requiredArtifactCountByPackageCount: 1,
     presentArtifacts,
     presentArtifactCount,
+    presentArtifactCountByPackage,
+    presentArtifactCountByPackageCount: 1,
     missingArtifactCount: missingArtifacts.length,
+    missingArtifactCountByPackage,
+    missingArtifactCountByPackageCount: 1,
     missingArtifactSummary,
     buildCommand: pnpmCommand,
     buildArgs: buildCommandArgs,

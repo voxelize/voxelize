@@ -23,6 +23,8 @@ type TsCoreNestedReport = {
   checkedPackageCount: number;
   checkedPackagePath: string;
   checkedPackagePathCount: number;
+  checkedPackagePathMap: Record<string, string>;
+  checkedPackagePathMapCount: number;
   presentPackages: string[];
   missingPackages: string[];
   presentPackagePaths: string[];
@@ -34,11 +36,17 @@ type TsCoreNestedReport = {
   missingPackagePathCount: number;
   packagePath: string;
   requiredArtifacts: string[];
+  requiredArtifactCountByPackage: Record<string, number>;
   requiredArtifactCount: number;
+  requiredArtifactCountByPackageCount: number;
   presentArtifacts: string[];
   presentArtifactCount: number;
+  presentArtifactCountByPackage: Record<string, number>;
+  presentArtifactCountByPackageCount: number;
   missingArtifacts: string[];
   missingArtifactCount: number;
+  missingArtifactCountByPackage: Record<string, number>;
+  missingArtifactCountByPackageCount: number;
   missingArtifactSummary: string | null;
   artifactsPresent: boolean;
   buildCommand: string;
@@ -433,6 +441,12 @@ const expectedTsCoreRequiredArtifacts = [
   "packages/ts-core/dist/index.mjs",
   "packages/ts-core/dist/index.d.ts",
 ];
+const expectedTsCoreCheckedPackagePathMap = {
+  "@voxelize/ts-core": "packages/ts-core",
+};
+const expectedTsCoreRequiredArtifactCountByPackage = {
+  "@voxelize/ts-core": expectedTsCoreRequiredArtifacts.length,
+};
 const expectedTsCoreBuildArgs = [
   "--dir",
   rootDir,
@@ -933,6 +947,10 @@ const expectTsCoreNestedReport = (
   expect(report.checkedPackageCount).toBe(1);
   expect(report.checkedPackagePath).toBe("packages/ts-core");
   expect(report.checkedPackagePathCount).toBe(1);
+  expect(report.checkedPackagePathMap).toEqual(expectedTsCoreCheckedPackagePathMap);
+  expect(report.checkedPackagePathMapCount).toBe(
+    Object.keys(report.checkedPackagePathMap).length
+  );
   expect(report.requiredPackageCount).toBe(1);
   expect(report.presentPackageCount + report.missingPackageCount).toBe(
     report.requiredPackageCount
@@ -950,14 +968,29 @@ const expectTsCoreNestedReport = (
   expect([...report.presentPackagePaths, ...report.missingPackagePaths]).toEqual([
     report.checkedPackagePath,
   ]);
+  expect(report.checkedPackagePathMap).toEqual({
+    [report.checkedPackage]: report.checkedPackagePath,
+  });
   expect(report.packagePath).toBe("packages/ts-core");
   expect(report.requiredArtifacts).toEqual(expectedTsCoreRequiredArtifacts);
+  expect(report.requiredArtifactCountByPackage).toEqual(
+    expectedTsCoreRequiredArtifactCountByPackage
+  );
+  expect(report.requiredArtifactCountByPackageCount).toBe(
+    Object.keys(report.requiredArtifactCountByPackage).length
+  );
   expect(report.artifactsPresent).toBe(report.missingArtifacts.length === 0);
   expect(report.requiredArtifactCount).toBe(
     report.presentArtifactCount + report.missingArtifactCount
   );
   expect(report.requiredArtifactCount).toBe(report.requiredArtifacts.length);
   expect(report.presentArtifactCount).toBe(report.presentArtifacts.length);
+  expect(report.presentArtifactCountByPackage).toEqual({
+    [report.checkedPackage]: report.presentArtifactCount,
+  });
+  expect(report.presentArtifactCountByPackageCount).toBe(
+    Object.keys(report.presentArtifactCountByPackage).length
+  );
   expect([...report.presentArtifacts, ...report.missingArtifacts].sort()).toEqual(
     [...report.requiredArtifacts].sort()
   );
@@ -965,6 +998,12 @@ const expectTsCoreNestedReport = (
     report.requiredArtifactCount - report.missingArtifactCount
   );
   expect(report.missingArtifactCount).toBe(report.missingArtifacts.length);
+  expect(report.missingArtifactCountByPackage).toEqual({
+    [report.checkedPackage]: report.missingArtifactCount,
+  });
+  expect(report.missingArtifactCountByPackageCount).toBe(
+    Object.keys(report.missingArtifactCountByPackage).length
+  );
   if (report.missingArtifactCount === 0) {
     expect(report.missingArtifactSummary).toBeNull();
   } else {

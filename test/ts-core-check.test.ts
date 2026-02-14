@@ -18,6 +18,8 @@ type TsCoreCheckReport = {
   checkedPackageCount: number;
   checkedPackagePath: string;
   checkedPackagePathCount: number;
+  checkedPackagePathMap: Record<string, string>;
+  checkedPackagePathMapCount: number;
   presentPackages: string[];
   missingPackages: string[];
   presentPackagePaths: string[];
@@ -29,9 +31,13 @@ type TsCoreCheckReport = {
   missingPackagePathCount: number;
   packagePath: string;
   requiredArtifacts: string[];
+  requiredArtifactCountByPackage: Record<string, number>;
   requiredArtifactCount: number;
+  requiredArtifactCountByPackageCount: number;
   presentArtifacts: string[];
   presentArtifactCount: number;
+  presentArtifactCountByPackage: Record<string, number>;
+  presentArtifactCountByPackageCount: number;
   buildCommand: string;
   buildArgs: string[];
   buildExitCode: number | null;
@@ -39,6 +45,8 @@ type TsCoreCheckReport = {
   artifactsPresent: boolean;
   missingArtifacts: string[];
   missingArtifactCount: number;
+  missingArtifactCountByPackage: Record<string, number>;
+  missingArtifactCountByPackageCount: number;
   missingArtifactSummary: string | null;
   attemptedBuild: boolean;
   buildSkipped: boolean;
@@ -99,6 +107,12 @@ const expectedRequiredArtifacts = [
   "packages/ts-core/dist/index.mjs",
   "packages/ts-core/dist/index.d.ts",
 ];
+const expectedCheckedPackagePathMap = {
+  "@voxelize/ts-core": "packages/ts-core",
+};
+const expectedRequiredArtifactCountByPackage = {
+  "@voxelize/ts-core": expectedRequiredArtifacts.length,
+};
 const expectedBuildArgs = [
   "--dir",
   rootDir,
@@ -158,6 +172,10 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
   expect(report.checkedPackageCount).toBe(1);
   expect(report.checkedPackagePath).toBe("packages/ts-core");
   expect(report.checkedPackagePathCount).toBe(1);
+  expect(report.checkedPackagePathMap).toEqual(expectedCheckedPackagePathMap);
+  expect(report.checkedPackagePathMapCount).toBe(
+    Object.keys(report.checkedPackagePathMap).length
+  );
   expect(report.requiredPackageCount).toBe(1);
   expect(report.presentPackageCount + report.missingPackageCount).toBe(
     report.requiredPackageCount
@@ -175,12 +193,27 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
   expect([...report.presentPackagePaths, ...report.missingPackagePaths]).toEqual([
     report.checkedPackagePath,
   ]);
+  expect(report.checkedPackagePathMap).toEqual({
+    [report.checkedPackage]: report.checkedPackagePath,
+  });
   expect(report.artifactsPresent).toBe(report.missingArtifacts.length === 0);
+  expect(report.requiredArtifactCountByPackage).toEqual(
+    expectedRequiredArtifactCountByPackage
+  );
+  expect(report.requiredArtifactCountByPackageCount).toBe(
+    Object.keys(report.requiredArtifactCountByPackage).length
+  );
   expect(report.requiredArtifactCount).toBe(
     report.presentArtifactCount + report.missingArtifactCount
   );
   expect(report.requiredArtifactCount).toBe(report.requiredArtifacts.length);
   expect(report.presentArtifactCount).toBe(report.presentArtifacts.length);
+  expect(report.presentArtifactCountByPackage).toEqual({
+    [report.checkedPackage]: report.presentArtifactCount,
+  });
+  expect(report.presentArtifactCountByPackageCount).toBe(
+    Object.keys(report.presentArtifactCountByPackage).length
+  );
   expect([...report.presentArtifacts, ...report.missingArtifacts].sort()).toEqual(
     [...report.requiredArtifacts].sort()
   );
@@ -188,6 +221,12 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
     report.requiredArtifactCount - report.missingArtifactCount
   );
   expect(report.missingArtifactCount).toBe(report.missingArtifacts.length);
+  expect(report.missingArtifactCountByPackage).toEqual({
+    [report.checkedPackage]: report.missingArtifactCount,
+  });
+  expect(report.missingArtifactCountByPackageCount).toBe(
+    Object.keys(report.missingArtifactCountByPackage).length
+  );
   if (report.missingArtifactCount === 0) {
     expect(report.missingArtifactSummary).toBeNull();
   } else {
