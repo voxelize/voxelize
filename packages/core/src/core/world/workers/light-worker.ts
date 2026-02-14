@@ -301,7 +301,13 @@ const applyRelevantDeltas = (
   for (let batchIndex = 0; batchIndex < relevantDeltas.length; batchIndex++) {
     const deltaBatch = relevantDeltas[batchIndex];
     const { cx, cz, deltas } = deltaBatch;
-    const startIndex = deltaBatch.startIndex ?? 0;
+    const startIndexValue = deltaBatch.startIndex;
+    const startIndex =
+      startIndexValue !== undefined &&
+      isInteger(startIndexValue) &&
+      startIndexValue > 0
+        ? startIndexValue
+        : 0;
     const localX = cx - gridOffsetX;
     const localZ = cz - gridOffsetZ;
 
