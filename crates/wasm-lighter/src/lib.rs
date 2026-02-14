@@ -307,12 +307,15 @@ struct ModifiedChunkData {
     lights: Vec<u32>,
 }
 
-fn parse_chunks(chunks_data: &Array, expected_chunk_len: usize) -> Vec<Option<ChunkData>> {
+fn parse_chunks(
+    chunks_data: &Array,
+    expected_chunk_count: usize,
+    expected_chunk_len: usize,
+) -> Vec<Option<ChunkData>> {
     JS_KEYS.with(|keys| {
-        let chunk_count = chunks_data.length() as usize;
-        let mut chunks = Vec::with_capacity(chunk_count);
+        let mut chunks = Vec::with_capacity(expected_chunk_count);
 
-        for index in 0..chunk_count {
+        for index in 0..expected_chunk_count {
             let chunk_value = chunks_data.get(index as u32);
             if chunk_value.is_null() || chunk_value.is_undefined() {
                 chunks.push(None);
@@ -436,7 +439,11 @@ pub fn process_light_batch_fast(
     let expected_chunk_len = chunk_size_usize
         .saturating_mul(chunk_height)
         .saturating_mul(chunk_size_usize);
-    let chunks = parse_chunks(chunks_data, expected_chunk_len);
+    let expected_chunk_count = chunk_grid_width.saturating_mul(chunk_grid_depth);
+    if (chunks_data.length() as usize) < expected_chunk_count {
+        return empty_batch_result();
+    }
+    let chunks = parse_chunks(chunks_data, expected_chunk_count, expected_chunk_len);
     let mut space = BatchSpace::new(
         chunks,
         chunk_grid_width,
