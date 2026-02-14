@@ -156,8 +156,12 @@ const pendingBatchMessageCount = () =>
 
 const isInteger = (value: number) => Number.isSafeInteger(value);
 const isPositiveInteger = (value: number) => isInteger(value) && value > 0;
-const isValidMaxLightLevel = (value: number) =>
+const isValidVoxelId = (value: number) =>
+  isInteger(value) && value >= 0 && value <= 0xffff;
+const isValidStage = (value: number) =>
   isInteger(value) && value >= 0 && value <= 15;
+const isValidMaxLightLevel = (value: number) =>
+  isValidStage(value);
 const hasFiniteRotation = (
   rotation: VoxelDelta["newRotation"] | null | undefined
 ): rotation is NonNullable<VoxelDelta["newRotation"]> =>
@@ -422,9 +426,11 @@ const applyRelevantDeltas = (
       const oldVoxel = delta.oldVoxel;
       const newVoxel = delta.newVoxel;
       const shouldWriteVoxel =
-        isInteger(oldVoxel) && isInteger(newVoxel) && oldVoxel !== newVoxel;
+        isValidVoxelId(oldVoxel) &&
+        isValidVoxelId(newVoxel) &&
+        oldVoxel !== newVoxel;
       const shouldWriteRotation = hasFiniteRotation(newRotation);
-      const shouldWriteStage = newStage !== undefined && isInteger(newStage);
+      const shouldWriteStage = newStage !== undefined && isValidStage(newStage);
       if (!shouldWriteVoxel && !shouldWriteRotation && !shouldWriteStage) {
         continue;
       }
