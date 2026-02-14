@@ -640,8 +640,10 @@ const processBatchMessage = (message: LightBatchMessage) => {
   const boundsShape = bounds?.shape;
   if (
     hasFloods &&
-    (boundsMin === undefined ||
-      boundsShape === undefined ||
+    (!Array.isArray(boundsMin) ||
+      boundsMin.length < 3 ||
+      !Array.isArray(boundsShape) ||
+      boundsShape.length < 3 ||
       !isInteger(boundsMin[0]) ||
       !isInteger(boundsMin[1]) ||
       !isInteger(boundsMin[2]) ||
@@ -725,6 +727,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
   }
   const colorIndex = colorToIndex(color);
   if (colorIndex === null) {
+    serializedChunks.length = 0;
     postEmptyBatchResult(jobId, lastSequenceId);
     return;
   }
