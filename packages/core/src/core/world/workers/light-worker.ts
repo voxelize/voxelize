@@ -475,7 +475,7 @@ const hasPotentialRelevantDeltaBatches = (
     }
     const cx = deltaBatch.cx;
     const cz = deltaBatch.cz;
-    if (!isInteger(cx) || !isInteger(cz)) {
+    if (!isI32(cx) || !isI32(cz)) {
       continue;
     }
     const localX = cx - gridOffsetX;
@@ -780,7 +780,7 @@ const applyRelevantDeltas = (
     }
     const cx = deltaBatch.cx;
     const cz = deltaBatch.cz;
-    if (!isInteger(cx) || !isInteger(cz)) {
+    if (!isI32(cx) || !isI32(cz)) {
       continue;
     }
     const startIndexValue = deltaBatch.startIndex;
@@ -1006,8 +1006,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
   if (
     !isPositiveInteger(gridWidth) ||
     !isPositiveInteger(gridDepth) ||
-    !isInteger(gridOffsetX) ||
-    !isInteger(gridOffsetZ)
+    !isI32(gridOffsetX) ||
+    !isI32(gridOffsetZ)
   ) {
     postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
     return;
