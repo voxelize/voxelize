@@ -13,7 +13,6 @@ use crate::{
 #[derive(Default)]
 pub struct EntitiesSendingSystem {
     updated_entities_buffer: Vec<(String, Entity)>,
-    entity_updates_buffer: Vec<EntityProtocol>,
     new_entity_ids_buffer: HashSet<String>,
 }
 
@@ -81,7 +80,6 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         let _t = timing.timer("entities-sending");
 
         self.updated_entities_buffer.clear();
-        self.entity_updates_buffer.clear();
         self.new_entity_ids_buffer.clear();
 
         let (entity_visible_radius, entity_visible_radius_sq) =
