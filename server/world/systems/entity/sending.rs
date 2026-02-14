@@ -180,10 +180,10 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             }
         }
 
-        let mut entity_to_client_id: HashMap<Entity, String> =
+        let mut entity_to_client_id: HashMap<Entity, &String> =
             HashMap::with_capacity(clients.len());
         for (client_id, client) in clients.iter() {
-            entity_to_client_id.insert(client.entity, client_id.clone());
+            entity_to_client_id.insert(client.entity, client_id);
         }
 
         let mut client_updates: HashMap<String, Vec<EntityProtocol>> =
@@ -203,7 +203,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
             for player_entity in nearby_players {
                 let client_id = match entity_to_client_id.get(player_entity) {
-                    Some(id) => id,
+                    Some(id) => *id,
                     None => continue,
                 };
                 let known_entities = match bookkeeping.client_known_entities.get_mut(client_id) {
