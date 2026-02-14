@@ -95,6 +95,37 @@ describe("LightUtils", () => {
       blue: 2,
     });
   });
+
+  it("masks overflowing and negative channel levels to 4 bits", () => {
+    const masked = Light.pack({
+      sunlight: 20,
+      red: -1,
+      green: 31,
+      blue: -17,
+    });
+    expect(Light.unpack(masked)).toEqual({
+      sunlight: 4,
+      red: 15,
+      green: 15,
+      blue: 15,
+    });
+  });
+
+  it("preserves untouched channels when updating one channel", () => {
+    const base = Light.pack({
+      sunlight: 9,
+      red: 7,
+      green: 5,
+      blue: 3,
+    });
+    const updated = Light.withGreen(base, 14);
+    expect(Light.unpack(updated)).toEqual({
+      sunlight: 9,
+      red: 7,
+      green: 14,
+      blue: 3,
+    });
+  });
 });
 
 describe("AABB", () => {
