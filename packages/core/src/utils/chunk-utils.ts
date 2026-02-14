@@ -196,6 +196,9 @@ export class ChunkUtils {
     if (concat.length === 0) {
       return [ChunkUtils.parseSignedIntegerSegment(name, 0, nameLength), Number.NaN];
     }
+    if (concat.length > nameLength) {
+      return [ChunkUtils.parseSignedIntegerSegment(name, 0, nameLength), Number.NaN];
+    }
     let separatorIndex = -1;
     if (concat.length === 1) {
       const separatorCode = concat.charCodeAt(0);
