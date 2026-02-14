@@ -139,6 +139,8 @@ const reusableChunkGrid: (RawChunk | null)[] = [];
 const emptyModifiedChunks: WorkerModifiedChunk[] = [];
 const emptyChunkGrid: (RawChunk | null)[] = [];
 const emptyDeltaBatches: DeltaBatch[] = [];
+const emptyRemovalNodes: Coords3[] = [];
+const emptyFloodNodes: LightNode[] = [];
 const emptyAppliedDeltas = { lastSequenceId: 0 };
 const reusableAppliedDeltas = { lastSequenceId: 0 };
 const reusableBatchResultMessage = {
@@ -1022,6 +1024,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
     postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
     return;
   }
+  const removalNodesPayload = hasValidRemovalNodes ? removals : emptyRemovalNodes;
+  const floodNodesPayload = hasFloods ? floods : emptyFloodNodes;
   const bounds = boundingBox;
   const boundsMin = bounds?.min;
   const boundsShape = bounds?.shape;
@@ -1122,8 +1126,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
     gridOffsetX,
     gridOffsetZ,
     colorIndex,
-    removals,
-    floods,
+    removalNodesPayload,
+    floodNodesPayload,
     boundsMinPayload,
     boundsShapePayload,
     chunkSize,
