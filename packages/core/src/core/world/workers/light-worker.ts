@@ -263,17 +263,22 @@ const normalizeRule = (
       type: "simple",
       offset: [offset[0], offset[1], offset[2]],
     };
-    if (rule.id !== undefined && rule.id !== null && isValidVoxelId(rule.id)) {
+    if (rule.id !== undefined && rule.id !== null) {
+      if (!isValidVoxelId(rule.id)) {
+        return null;
+      }
       normalized.id = rule.id;
     }
-    if (hasFiniteRuleRotation(rule.rotation)) {
+    if (rule.rotation !== undefined && rule.rotation !== null) {
+      if (!hasFiniteRuleRotation(rule.rotation)) {
+        return null;
+      }
       normalized.rotation = rule.rotation;
     }
-    if (
-      rule.stage !== undefined &&
-      rule.stage !== null &&
-      isValidStage(rule.stage)
-    ) {
+    if (rule.stage !== undefined && rule.stage !== null) {
+      if (!isValidStage(rule.stage)) {
+        return null;
+      }
       normalized.stage = rule.stage;
     }
     return normalized;
