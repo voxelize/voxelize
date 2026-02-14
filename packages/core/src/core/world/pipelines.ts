@@ -345,10 +345,14 @@ export class MeshPipeline {
     if (!state) {
       return null;
     }
-
-    if (state.inFlightGeneration === null) {
-      this.inFlightCount++;
+    if (
+      state.inFlightGeneration !== null ||
+      state.generation === state.displayedGeneration
+    ) {
+      return null;
     }
+
+    this.inFlightCount++;
     state.inFlightGeneration = state.generation;
     this.dirty.delete(key);
     return state;
