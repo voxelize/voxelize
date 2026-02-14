@@ -339,7 +339,6 @@ fn parse_chunks(
         let mut has_any_chunk = false;
 
         for index_u32 in 0..expected_chunk_count_u32 {
-            let index = index_u32 as usize;
             let chunk_value = chunks_data.get(index_u32);
             if chunk_value.is_null() || chunk_value.is_undefined() {
                 if has_any_chunk {
@@ -392,6 +391,7 @@ fn parse_chunks(
             lights_array.copy_to(&mut lights);
 
             if !has_any_chunk {
+                let index = index_u32 as usize;
                 chunks = Vec::with_capacity(expected_chunk_count);
                 chunks.resize(index, None);
                 has_any_chunk = true;
