@@ -1,4 +1,4 @@
-import { Euler, PerspectiveCamera, Quaternion } from "three";
+import { Euler, PerspectiveCamera } from "three";
 
 import { RigidControls, RigidControlsOptions } from "./controls";
 import { World } from "./world";
@@ -12,7 +12,6 @@ import { World } from "./world";
  */
 export class MobileRigidControls extends RigidControls {
   private mobileEuler = new Euler(0, 0, 0, "YXZ");
-  private mobileQuaternion = new Quaternion();
 
   /**
    * Construct mobile rigid body controls with touch-based input.
@@ -72,7 +71,7 @@ export class MobileRigidControls extends RigidControls {
     const PI_2 = Math.PI / 2;
     const sensitivity = (this.options.sensitivity * 0.012) / 100;
 
-    this.mobileEuler.setFromQuaternion(this.mobileQuaternion);
+    this.mobileEuler.setFromQuaternion(this.quaternion);
     this.mobileEuler.y -= deltaX * sensitivity;
     this.mobileEuler.x -= deltaY * sensitivity;
     this.mobileEuler.x = Math.max(
@@ -80,9 +79,7 @@ export class MobileRigidControls extends RigidControls {
       Math.min(PI_2 - this.options.minPolarAngle, this.mobileEuler.x)
     );
 
-    this.mobileQuaternion.setFromEuler(this.mobileEuler);
-
-    this.quaternion.copy(this.mobileQuaternion);
+    this.quaternion.setFromEuler(this.mobileEuler);
   };
 
   /**
