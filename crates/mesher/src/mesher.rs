@@ -812,9 +812,11 @@ impl<'a> VoxelSpace<'a> {
             return None;
         }
         let (lx, lz) = if self.chunk_size_is_pow2 {
+            let vx_u = vx as usize;
+            let vz_u = vz as usize;
             (
-                (vx as usize) & self.chunk_size_mask_usize,
-                (vz as usize) & self.chunk_size_mask_usize,
+                vx_u & self.chunk_size_mask_usize,
+                vz_u & self.chunk_size_mask_usize,
             )
         } else {
             (
