@@ -273,6 +273,10 @@ export class ChunkUtils {
   ): Coords3 => {
     const [normalizedChunkSize, chunkShift] = normalizeChunkMapping(chunkSize);
     const [vx, vy, vz] = voxelPos;
+    if (chunkShift >= 0 && (vx | 0) === vx && (vz | 0) === vz) {
+      const mask = normalizedChunkSize - 1;
+      return [vx & mask, vy, vz & mask];
+    }
     const cx = mapVoxelToChunkCoordinate(vx, normalizedChunkSize, chunkShift);
     const cz = mapVoxelToChunkCoordinate(vz, normalizedChunkSize, chunkShift);
 

@@ -58,6 +58,18 @@ describe("ChunkUtils.mapVoxelToChunkAt", () => {
 });
 
 describe("ChunkUtils.mapVoxelToChunkLocal", () => {
+  it("keeps euclidean remainder semantics for power-of-two chunk sizes", () => {
+    expect(ChunkUtils.mapVoxelToChunkLocal([-1, 7, -17], 16)).toEqual([15, 7, 15]);
+  });
+
+  it("keeps floor-division semantics for fractional local coordinates", () => {
+    expect(ChunkUtils.mapVoxelToChunkLocal([-0.5, 7, -16.25], 16)).toEqual([
+      15.5,
+      7,
+      15.75,
+    ]);
+  });
+
   it("keeps invalid chunk sizes from producing NaN local coords", () => {
     expect(ChunkUtils.mapVoxelToChunkLocal([3, 5, -8], 0)).toEqual([0, 5, 0]);
     expect(ChunkUtils.mapVoxelToChunkLocal([3, 5, -8], Number.NaN)).toEqual([0, 5, 0]);
