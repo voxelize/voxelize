@@ -14,7 +14,7 @@ export interface TransparentMeshData {
   centroids: Float32Array;
   faceCount: number;
   originalIndices: Uint32Array;
-  sortedIndices: Uint32Array;
+  sortedIndices: Uint16Array | Uint32Array;
   distances: Float32Array;
   faceOrder: Uint32Array;
   lastCameraPos: Vector3;
@@ -54,11 +54,14 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
       (positions[i0 + 2] + positions[i1 + 2] + positions[i2 + 2]) / 3;
   }
 
+  const sortedIndices =
+    indices instanceof Uint32Array ? indices : new Uint32Array(indices.length);
+
   return {
     centroids,
     faceCount,
     originalIndices: new Uint32Array(indices),
-    sortedIndices: new Uint32Array(indices.length),
+    sortedIndices,
     distances: new Float32Array(faceCount),
     faceOrder,
     lastCameraPos: new Vector3(Infinity, Infinity, Infinity),
@@ -215,7 +218,9 @@ export function sortTransparentMesh(
 
   const indexAttr = mesh.geometry.index!;
   const targetArray = indexAttr.array as Uint16Array | Uint32Array;
-  targetArray.set(sortedIndices);
+  if (targetArray !== sortedIndices) {
+    targetArray.set(sortedIndices);
+  }
   indexAttr.needsUpdate = true;
 }
 
