@@ -85,21 +85,23 @@ export function setupTransparentSorting(object: Object3D): void {
     if (!(child instanceof Mesh)) {
       continue;
     }
-    if (!child.geometry?.index) {
+    const geometry = child.geometry;
+    if (!geometry || !geometry.index) {
       continue;
     }
 
     const material = child.material;
     let isTransparent = false;
     if (Array.isArray(material)) {
-      for (let materialIndex = 0; materialIndex < material.length; materialIndex++) {
+      const materialCount = material.length;
+      for (let materialIndex = 0; materialIndex < materialCount; materialIndex++) {
         if (material[materialIndex].transparent) {
           isTransparent = true;
           break;
         }
       }
     } else {
-      isTransparent = material?.transparent === true;
+      isTransparent = material.transparent;
     }
 
     if (!isTransparent) {
