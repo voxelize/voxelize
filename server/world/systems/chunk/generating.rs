@@ -158,17 +158,15 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
                 if let Some(listeners) = chunks.listeners.remove(&chunk.coords) {
                     for n_coords in listeners {
-                        if !chunks.map.contains_key(&n_coords)
-                            || matches!(
-                                chunks.raw(&n_coords).unwrap().status,
-                                ChunkStatus::Generating(_)
-                            )
-                        {
-                            pipeline.add_chunk(&n_coords, true);
-                        } else if let Some(chunk) = chunks.raw(&n_coords) {
-                            if matches!(chunk.status, ChunkStatus::Meshing) {
+                        match chunks.raw(&n_coords) {
+                            None => pipeline.add_chunk(&n_coords, true),
+                            Some(neighbor) if matches!(neighbor.status, ChunkStatus::Generating(_)) => {
+                                pipeline.add_chunk(&n_coords, true);
+                            }
+                            Some(neighbor) if matches!(neighbor.status, ChunkStatus::Meshing) => {
                                 mesher.add_chunk(&n_coords, true);
                             }
+                            Some(_) => {}
                         }
                     }
                 }
@@ -337,17 +335,15 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             if r#type == MessageType::Load {
                 if let Some(listeners) = chunks.listeners.remove(&chunk.coords) {
                     for n_coords in listeners {
-                        if !chunks.map.contains_key(&n_coords)
-                            || matches!(
-                                chunks.raw(&n_coords).unwrap().status,
-                                ChunkStatus::Generating(_)
-                            )
-                        {
-                            pipeline.add_chunk(&n_coords, true);
-                        } else if let Some(chunk) = chunks.raw(&n_coords) {
-                            if matches!(chunk.status, ChunkStatus::Meshing) {
+                        match chunks.raw(&n_coords) {
+                            None => pipeline.add_chunk(&n_coords, true),
+                            Some(neighbor) if matches!(neighbor.status, ChunkStatus::Generating(_)) => {
+                                pipeline.add_chunk(&n_coords, true);
+                            }
+                            Some(neighbor) if matches!(neighbor.status, ChunkStatus::Meshing) => {
                                 mesher.add_chunk(&n_coords, true);
                             }
+                            Some(_) => {}
                         }
                     }
                 }
@@ -409,17 +405,14 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             let mut ready = true;
 
             for n_coords in chunks.light_traversed_chunks(&coords) {
-                if !chunks.map.contains_key(&n_coords) {
+                let Some(n_chunk) = chunks.raw(&n_coords) else {
                     ready = false;
                     break;
-                }
-
-                if let Some(n_chunk) = chunks.raw(&n_coords) {
-                    if matches!(n_chunk.status, ChunkStatus::Generating(_)) {
-                        ready = false;
-                        chunks.add_listener(&n_coords, &coords);
-                        break;
-                    }
+                };
+                if matches!(n_chunk.status, ChunkStatus::Generating(_)) {
+                    ready = false;
+                    chunks.add_listener(&n_coords, &coords);
+                    break;
                 }
 
                 if let Some(blocks) = pipeline.leftovers.get(&n_coords) {
