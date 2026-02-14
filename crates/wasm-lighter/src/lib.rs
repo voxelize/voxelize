@@ -11,6 +11,35 @@ use voxelize_lighter::{
 
 thread_local! {
     static CACHED_REGISTRY: RefCell<Option<LightRegistry>> = const { RefCell::new(None) };
+    static JS_KEYS: JsInteropKeys = JsInteropKeys::new();
+}
+
+struct JsInteropKeys {
+    voxels: JsValue,
+    lights: JsValue,
+    shape: JsValue,
+    shape0: JsValue,
+    shape1: JsValue,
+    shape2: JsValue,
+    length: JsValue,
+    modified_chunks: JsValue,
+    coords: JsValue,
+}
+
+impl JsInteropKeys {
+    fn new() -> Self {
+        Self {
+            voxels: JsValue::from_str("voxels"),
+            lights: JsValue::from_str("lights"),
+            shape: JsValue::from_str("shape"),
+            shape0: JsValue::from_f64(0.0),
+            shape1: JsValue::from_f64(1.0),
+            shape2: JsValue::from_f64(2.0),
+            length: JsValue::from_str("length"),
+            modified_chunks: JsValue::from_str("modifiedChunks"),
+            coords: JsValue::from_str("coords"),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -251,54 +280,50 @@ struct ModifiedChunkData {
 }
 
 fn parse_chunks(chunks_data: &Array) -> Vec<Option<ChunkData>> {
-    let chunk_count = chunks_data.length() as usize;
-    let mut chunks = Vec::with_capacity(chunk_count);
-    let voxels_key = JsValue::from_str("voxels");
-    let lights_key = JsValue::from_str("lights");
-    let shape_key = JsValue::from_str("shape");
-    let shape0_key = JsValue::from_f64(0.0);
-    let shape1_key = JsValue::from_f64(1.0);
-    let shape2_key = JsValue::from_f64(2.0);
+    JS_KEYS.with(|keys| {
+        let chunk_count = chunks_data.length() as usize;
+        let mut chunks = Vec::with_capacity(chunk_count);
 
-    for index in 0..chunk_count {
-        let chunk_value = chunks_data.get(index as u32);
-        if chunk_value.is_null() || chunk_value.is_undefined() {
-            chunks.push(None);
-            continue;
+        for index in 0..chunk_count {
+            let chunk_value = chunks_data.get(index as u32);
+            if chunk_value.is_null() || chunk_value.is_undefined() {
+                chunks.push(None);
+                continue;
+            }
+
+            let chunk_obj = js_sys::Object::from(chunk_value);
+            let voxels_value = Reflect::get(&chunk_obj, &keys.voxels)
+                .expect("chunksData item is missing voxels");
+            let lights_value = Reflect::get(&chunk_obj, &keys.lights)
+                .expect("chunksData item is missing lights");
+            let shape_value =
+                Reflect::get(&chunk_obj, &keys.shape).expect("chunksData item is missing shape");
+            let voxels = Uint32Array::from(voxels_value).to_vec();
+            let lights = Uint32Array::from(lights_value).to_vec();
+            let shape = [
+                Reflect::get(&shape_value, &keys.shape0)
+                    .expect("shape[0] must be present")
+                    .as_f64()
+                    .expect("shape[0] must be number") as usize,
+                Reflect::get(&shape_value, &keys.shape1)
+                    .expect("shape[1] must be present")
+                    .as_f64()
+                    .expect("shape[1] must be number") as usize,
+                Reflect::get(&shape_value, &keys.shape2)
+                    .expect("shape[2] must be present")
+                    .as_f64()
+                    .expect("shape[2] must be number") as usize,
+            ];
+
+            chunks.push(Some(ChunkData {
+                voxels,
+                lights,
+                shape,
+            }));
         }
 
-        let chunk_obj = js_sys::Object::from(chunk_value);
-        let voxels_value = Reflect::get(&chunk_obj, &voxels_key)
-            .expect("chunksData item is missing voxels");
-        let lights_value = Reflect::get(&chunk_obj, &lights_key)
-            .expect("chunksData item is missing lights");
-        let shape_value = Reflect::get(&chunk_obj, &shape_key)
-            .expect("chunksData item is missing shape");
-        let voxels = Uint32Array::from(voxels_value).to_vec();
-        let lights = Uint32Array::from(lights_value).to_vec();
-        let shape = [
-            Reflect::get(&shape_value, &shape0_key)
-                .expect("shape[0] must be present")
-                .as_f64()
-                .expect("shape[0] must be number") as usize,
-            Reflect::get(&shape_value, &shape1_key)
-                .expect("shape[1] must be present")
-                .as_f64()
-                .expect("shape[1] must be number") as usize,
-            Reflect::get(&shape_value, &shape2_key)
-                .expect("shape[2] must be present")
-                .as_f64()
-                .expect("shape[2] must be number") as usize,
-        ];
-
-        chunks.push(Some(ChunkData {
-            voxels,
-            lights,
-            shape,
-        }));
-    }
-
-    chunks
+        chunks
+    })
 }
 
 #[wasm_bindgen]
@@ -341,27 +366,29 @@ pub fn process_light_batch_fast(
     );
 
     let light_color = LightColor::from(color);
-    let length_key = JsValue::from_str("length");
-    let removal_nodes: Vec<[i32; 3]> = if Reflect::get(&removals, &length_key)
-        .ok()
-        .and_then(|value| value.as_f64())
-        .unwrap_or(0.0)
-        == 0.0
-    {
-        Vec::new()
-    } else {
-        serde_wasm_bindgen::from_value(removals).expect("Unable to deserialize removal nodes")
-    };
-    let flood_nodes: Vec<LightNode> = if Reflect::get(&floods, &length_key)
-        .ok()
-        .and_then(|value| value.as_f64())
-        .unwrap_or(0.0)
-        == 0.0
-    {
-        Vec::new()
-    } else {
-        serde_wasm_bindgen::from_value(floods).expect("Unable to deserialize flood nodes")
-    };
+    let (removal_nodes, flood_nodes): (Vec<[i32; 3]>, Vec<LightNode>) = JS_KEYS.with(|keys| {
+        let removal_nodes = if Reflect::get(&removals, &keys.length)
+            .ok()
+            .and_then(|value| value.as_f64())
+            .unwrap_or(0.0)
+            == 0.0
+        {
+            Vec::new()
+        } else {
+            serde_wasm_bindgen::from_value(removals).expect("Unable to deserialize removal nodes")
+        };
+        let flood_nodes = if Reflect::get(&floods, &keys.length)
+            .ok()
+            .and_then(|value| value.as_f64())
+            .unwrap_or(0.0)
+            == 0.0
+        {
+            Vec::new()
+        } else {
+            serde_wasm_bindgen::from_value(floods).expect("Unable to deserialize flood nodes")
+        };
+        (removal_nodes, flood_nodes)
+    });
 
     let bounds = if bounds_min.len() >= 3 && bounds_shape.len() >= 3 {
         Some(LightBounds {
@@ -447,28 +474,27 @@ pub fn process_light_batch_fast(
     });
 
     let modified_chunks = space.take_modified_chunks();
-    let output = Object::new();
-    let modified_chunks_js = Array::new_with_length(modified_chunks.len() as u32);
-    let modified_chunks_key = JsValue::from_str("modifiedChunks");
-    let coords_key = JsValue::from_str("coords");
-    let lights_key = JsValue::from_str("lights");
+    JS_KEYS.with(|keys| {
+        let output = Object::new();
+        let modified_chunks_js = Array::new_with_length(modified_chunks.len() as u32);
 
-    for (index, chunk) in modified_chunks.into_iter().enumerate() {
-        let chunk_obj = Object::new();
-        let coords = Array::new_with_length(2);
-        coords.set(0, JsValue::from_f64(chunk.coords[0] as f64));
-        coords.set(1, JsValue::from_f64(chunk.coords[1] as f64));
-        Reflect::set(&chunk_obj, &coords_key, &coords).expect("Unable to set chunk coords");
+        for (index, chunk) in modified_chunks.iter().enumerate() {
+            let chunk_obj = Object::new();
+            let coords = Array::new_with_length(2);
+            coords.set(0, JsValue::from_f64(chunk.coords[0] as f64));
+            coords.set(1, JsValue::from_f64(chunk.coords[1] as f64));
+            Reflect::set(&chunk_obj, &keys.coords, &coords).expect("Unable to set chunk coords");
 
-        let lights = Uint32Array::from(chunk.lights.as_slice());
-        Reflect::set(&chunk_obj, &lights_key, &lights).expect("Unable to set chunk lights");
+            let lights = Uint32Array::from(chunk.lights.as_slice());
+            Reflect::set(&chunk_obj, &keys.lights, &lights).expect("Unable to set chunk lights");
 
-        modified_chunks_js.set(index as u32, chunk_obj.into());
-    }
+            modified_chunks_js.set(index as u32, chunk_obj.into());
+        }
 
-    Reflect::set(&output, &modified_chunks_key, &modified_chunks_js)
-        .expect("Unable to set modified chunks");
-    output.into()
+        Reflect::set(&output, &keys.modified_chunks, &modified_chunks_js)
+            .expect("Unable to set modified chunks");
+        output.into()
+    })
 }
 
 #[cfg(test)]
