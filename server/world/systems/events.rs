@@ -142,6 +142,14 @@ impl<'a> System<'a> for EventsSystem {
                                     send_to_client(id, client.entity);
                                 }
                             }
+                        } else if ids.len() < clients.len() {
+                            let mut seen_ids: HashSet<&str> = HashSet::with_capacity(ids.len());
+                            for include_id in ids.iter() {
+                                let include_id = include_id.as_str();
+                                if seen_ids.insert(include_id) {
+                                    send_to_id(include_id);
+                                }
+                            }
                         } else {
                             let mut include_ids: HashSet<&str> = HashSet::with_capacity(ids.len());
                             for include_id in ids.iter() {
