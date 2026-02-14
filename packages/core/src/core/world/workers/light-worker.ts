@@ -153,7 +153,7 @@ const hasPendingBatchMessages = () =>
 const pendingBatchMessageCount = () =>
   pendingBatchMessages.length - pendingBatchMessagesHead;
 
-const isInteger = (value: number) => Number.isInteger(value);
+const isInteger = (value: number) => Number.isSafeInteger(value);
 const isPositiveInteger = (value: number) => isInteger(value) && value > 0;
 const isValidMaxLightLevel = (value: number) =>
   isInteger(value) && value >= 0 && value <= 15;
