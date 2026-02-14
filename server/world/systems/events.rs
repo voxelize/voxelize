@@ -61,14 +61,7 @@ impl<'a> System<'a> for EventsSystem {
         let has_transports = !transports.is_empty();
         let queued_events_count = events.queue.len();
         let dispatch_map = &mut self.dispatch_map_buffer;
-        dispatch_map.retain(|id, client_events| {
-            if clients.contains_key(id) {
-                client_events.clear();
-                true
-            } else {
-                false
-            }
-        });
+        dispatch_map.retain(|id, _| clients.contains_key(id));
         for (id, _) in clients.iter() {
             if !dispatch_map.contains_key(id) {
                 dispatch_map.insert(id.to_owned(), Vec::new());
@@ -193,7 +186,7 @@ impl<'a> System<'a> for EventsSystem {
 
         // Process the dispatch map, sending them directly for fastest event responses.
         for id in touched_clients.drain(..) {
-            let client_events = match dispatch_map.get(&id) {
+            let client_events = match dispatch_map.get_mut(&id) {
                 Some(events) => events,
                 None => continue,
             };
@@ -204,6 +197,7 @@ impl<'a> System<'a> for EventsSystem {
                 let encoded = encode_message(&message);
                 let _ = client.sender.send(encoded);
             }
+            client_events.clear();
         }
 
         if has_transports {
