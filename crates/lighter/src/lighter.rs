@@ -401,8 +401,9 @@ pub fn remove_lights<I>(
 {
     let is_sunlight = *color == LightColor::Sunlight;
     let voxels = voxels.into_iter();
-    let (voxel_count, _) = voxels.size_hint();
-    let mut remove = Vec::<LightNode>::with_capacity(voxel_count);
+    let (voxel_count_lower, voxel_count_upper) = voxels.size_hint();
+    let voxel_capacity = voxel_count_upper.unwrap_or(voxel_count_lower);
+    let mut remove = Vec::<LightNode>::with_capacity(voxel_capacity);
 
     for voxel in voxels {
         let [vx, vy, vz] = voxel;
