@@ -45,14 +45,6 @@ const normalizeChunkSize = (chunkSize: number) => {
   }
   return normalized > MAX_INT32 ? MAX_INT32 : normalized;
 };
-
-const normalizeChunkMapping = (chunkSize: number): [number, number] => {
-  const normalizedChunkSize = normalizeChunkSize(chunkSize);
-  return [
-    normalizedChunkSize,
-    getChunkShiftIfPowerOfTwo(normalizedChunkSize),
-  ];
-};
 const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER;
 const MAX_SAFE_INTEGER_DIV_10 = Math.trunc(MAX_SAFE_INTEGER / 10);
 const MAX_SAFE_INTEGER_LAST_DIGIT =
@@ -108,7 +100,8 @@ export class ChunkUtils {
     vz: number,
     chunkSize: number
   ): Coords2 => {
-    const [normalizedChunkSize, chunkShift] = normalizeChunkMapping(chunkSize);
+    const normalizedChunkSize = normalizeChunkSize(chunkSize);
+    const chunkShift = getChunkShiftIfPowerOfTwo(normalizedChunkSize);
     return mapVoxelToChunkCoordinates(vx, vz, normalizedChunkSize, chunkShift);
   };
 
@@ -127,7 +120,8 @@ export class ChunkUtils {
     chunkSize: number,
     concat = "|"
   ) => {
-    const [normalizedChunkSize, chunkShift] = normalizeChunkMapping(chunkSize);
+    const normalizedChunkSize = normalizeChunkSize(chunkSize);
+    const chunkShift = getChunkShiftIfPowerOfTwo(normalizedChunkSize);
     if (chunkShift < 0) {
       return ChunkUtils.getChunkNameAt(
         Math.floor(vx / normalizedChunkSize),
@@ -303,7 +297,8 @@ export class ChunkUtils {
     voxelPos: Coords3,
     chunkSize: number
   ): Coords3 => {
-    const [normalizedChunkSize, chunkShift] = normalizeChunkMapping(chunkSize);
+    const normalizedChunkSize = normalizeChunkSize(chunkSize);
+    const chunkShift = getChunkShiftIfPowerOfTwo(normalizedChunkSize);
     const [vx, vy, vz] = voxelPos;
     if (chunkShift >= 0) {
       const mask = normalizedChunkSize - 1;
