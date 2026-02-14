@@ -411,9 +411,16 @@ fn has_invalid_batch_config(
 fn has_invalid_flood_bounds(
     flood_node_count: usize,
     bounds_min_len: usize,
-    bounds_shape_len: usize,
+    bounds_shape: &[u32],
 ) -> bool {
-    flood_node_count > 0 && (bounds_min_len < 3 || bounds_shape_len < 3)
+    if flood_node_count == 0 {
+        return false;
+    }
+    if bounds_min_len < 3 || bounds_shape.len() < 3 {
+        return true;
+    }
+
+    bounds_shape[0] == 0 || bounds_shape[1] == 0 || bounds_shape[2] == 0
 }
 
 #[wasm_bindgen]
@@ -506,7 +513,7 @@ pub fn process_light_batch_fast(
         chunk_size,
         max_height.max(0) as u32,
     );
-    if has_invalid_flood_bounds(flood_nodes.len(), bounds_min.len(), bounds_shape.len()) {
+    if has_invalid_flood_bounds(flood_nodes.len(), bounds_min.len(), bounds_shape) {
         return empty_batch_result();
     }
 
@@ -713,9 +720,10 @@ mod tests {
 
     #[test]
     fn invalid_flood_bounds_detect_short_arrays_only_when_flooding() {
-        assert!(super::has_invalid_flood_bounds(1, 2, 3));
-        assert!(super::has_invalid_flood_bounds(1, 3, 2));
-        assert!(!super::has_invalid_flood_bounds(0, 0, 0));
-        assert!(!super::has_invalid_flood_bounds(2, 3, 3));
+        assert!(super::has_invalid_flood_bounds(1, 2, &[1, 1, 1]));
+        assert!(super::has_invalid_flood_bounds(1, 3, &[1, 1]));
+        assert!(super::has_invalid_flood_bounds(1, 3, &[0, 1, 1]));
+        assert!(!super::has_invalid_flood_bounds(0, 0, &[]));
+        assert!(!super::has_invalid_flood_bounds(2, 3, &[1, 1, 1]));
     }
 }
