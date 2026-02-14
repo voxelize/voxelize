@@ -10,7 +10,8 @@ type CommandErrorValue = Error | JsonValue | object;
 const isWhitespaceCode = (code: number) =>
   code === 32 || (code >= 9 && code <= 13);
 const containsWhitespace = (value: string) => {
-  for (let index = 0; index < value.length; index++) {
+  const length = value.length;
+  for (let index = 0; index < length; index++) {
     if (isWhitespaceCode(value.charCodeAt(index))) {
       return true;
     }
@@ -18,7 +19,8 @@ const containsWhitespace = (value: string) => {
   return false;
 };
 const getFirstEqualsIndex = (value: string) => {
-  for (let index = 1; index < value.length; index++) {
+  const length = value.length;
+  for (let index = 1; index < length; index++) {
     if (value.charCodeAt(index) === 61) {
       return index;
     }
