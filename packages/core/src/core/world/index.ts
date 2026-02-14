@@ -2966,8 +2966,9 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
         blockCache = new Map();
       }
 
-      if (blockCache.has(id)) {
-        return blockCache.get(id) ?? null;
+      const cachedBlock = blockCache.get(id);
+      if (cachedBlock !== undefined) {
+        return cachedBlock;
       }
 
       const block = this.getBlockByIdSafe(id);
