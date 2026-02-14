@@ -89,6 +89,9 @@ describe("script aliases", () => {
     expect(manifest.scripts["check:ts-core:release"]).toBe(
       "pnpm --filter @voxelize/ts-core run build && pnpm --filter @voxelize/ts-core run test && pnpm --filter @voxelize/ts-core run example:end-to-end && pnpm run check:ts-core:verify:json"
     );
+    expect(manifest.scripts["check:libraries:release"]).toBe(
+      "pnpm run check:ts-core:release && pnpm run check:runtime-libraries:release"
+    );
     expect(manifest.scripts["check:preflight:json:compact"]).toBe(
       "node ./check-preflight.mjs --compact"
     );

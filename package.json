@@ -109,6 +109,7 @@
     "check:runtime-libraries:verify:json": "node ./check-runtime-libraries.mjs --json --verify",
     "check:runtime-libraries:verify:json:compact": "node ./check-runtime-libraries.mjs --json --verify --compact",
     "check:runtime-libraries:release": "pnpm --filter @voxelize/aabb run build && pnpm --filter @voxelize/raycast run build && pnpm --filter @voxelize/physics-engine run build && pnpm run check:runtime-libraries:verify:json",
+    "check:libraries:release": "pnpm run check:ts-core:release && pnpm run check:runtime-libraries:release",
     "check:ts-core": "node ./check-ts-core.mjs",
     "check:ts-core:json": "node ./check-ts-core.mjs --json",
     "check:ts-core:json:compact": "node ./check-ts-core.mjs --json --compact",
