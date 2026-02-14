@@ -110,6 +110,9 @@ type DevEnvironmentNestedReport = {
   failureSummaries: Array<{
     label: string;
     checkIndex: number;
+    checkCommand: string;
+    checkArgs: string[];
+    checkArgCount: number;
     required: boolean;
     status: string;
     message: string;
@@ -2282,6 +2285,9 @@ const expectDevEnvironmentNestedReport = (checkReport: object | null) => {
       return {
         label: check.label,
         checkIndex: check.checkIndex,
+        checkCommand: check.command,
+        checkArgs: check.args,
+        checkArgCount: check.args.length,
         required: check.required,
         status: check.status,
         message: check.message,

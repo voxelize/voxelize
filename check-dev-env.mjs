@@ -253,6 +253,9 @@ const summarizeCheckResults = (results) => {
       return {
         label: check.label,
         checkIndex: check.checkIndex,
+        checkCommand: check.command,
+        checkArgs: check.args,
+        checkArgCount: check.args.length,
         required: check.required,
         status: check.status,
         message: check.message,

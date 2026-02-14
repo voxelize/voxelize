@@ -214,6 +214,9 @@ type DevEnvJsonReport = OptionTerminatorMetadata &
   failureSummaries: Array<{
     label: string;
     checkIndex: number;
+    checkCommand: string;
+    checkArgs: string[];
+    checkArgCount: number;
     required: boolean;
     status: string;
     message: string;
@@ -2078,6 +2081,9 @@ const expectDevEnvCheckMetadata = (report: DevEnvJsonReport) => {
       return {
         label: check.label,
         checkIndex: check.checkIndex,
+        checkCommand: check.command,
+        checkArgs: check.args,
+        checkArgCount: check.args.length,
         required: check.required,
         status: check.status,
         message: check.message,
