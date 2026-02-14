@@ -88,11 +88,6 @@ impl<'a> System<'a> for EventsSystem {
             false
         };
 
-        let serialize_payload = |name: String, payload: Option<String>| EventProtocol {
-            name,
-            payload: payload.unwrap_or_else(|| String::from("{}")),
-        };
-
         for event in events.queue.drain(..) {
             let Event {
                 name,
@@ -101,7 +96,10 @@ impl<'a> System<'a> for EventsSystem {
                 location,
             } = event;
 
-            let serialized = serialize_payload(name, payload);
+            let serialized = EventProtocol {
+                name,
+                payload: payload.unwrap_or_else(|| String::from("{}")),
+            };
 
             if has_transports {
                 transports_map.push(serialized.clone());
