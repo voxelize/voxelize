@@ -172,6 +172,11 @@ const normalizeStartIndex = (startIndexValue: number | undefined) =>
     : 0;
 const MIN_INT32 = -0x80000000;
 const MAX_INT32 = 0x7fffffff;
+const MAX_UINT32 = 0xffffffff;
+const isI32 = (value: number) =>
+  isInteger(value) && value >= MIN_INT32 && value <= MAX_INT32;
+const isPositiveU32 = (value: number) =>
+  isInteger(value) && value > 0 && value <= MAX_UINT32;
 const getChunkShiftIfPowerOfTwo = (chunkSize: number) => {
   const log2ChunkSize = Math.log2(chunkSize);
   return Number.isInteger(log2ChunkSize) &&
@@ -562,18 +567,18 @@ const isStrictCoords3 = (
 ): coords is Coords3 =>
   Array.isArray(coords) &&
   coords.length === 3 &&
-  isInteger(coords[0]) &&
-  isInteger(coords[1]) &&
-  isInteger(coords[2]);
+  isI32(coords[0]) &&
+  isI32(coords[1]) &&
+  isI32(coords[2]);
 
 const isStrictPositiveCoords3 = (
   coords: Coords3 | readonly number[] | null | undefined
 ): coords is Coords3 =>
   Array.isArray(coords) &&
   coords.length === 3 &&
-  isPositiveInteger(coords[0]) &&
-  isPositiveInteger(coords[1]) &&
-  isPositiveInteger(coords[2]);
+  isPositiveU32(coords[0]) &&
+  isPositiveU32(coords[1]) &&
+  isPositiveU32(coords[2]);
 
 const isValidFloodNode = (
   node: LightNode | null | undefined
