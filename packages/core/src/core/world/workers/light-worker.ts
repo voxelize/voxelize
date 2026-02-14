@@ -505,6 +505,9 @@ const hasPotentialRelevantDeltaBatches = (
   chunkShift: number,
   expectedChunkByteLength: number
 ) => {
+  if (gridWidth <= 0 || gridDepth <= 0) {
+    return false;
+  }
   const deltaBatchesLength = deltaBatches.length;
   if (deltaBatchesLength === 0) {
     return false;
@@ -906,6 +909,9 @@ const applyRelevantDeltas = (
   gridOffsetZ: number,
   relevantDeltas: DeltaBatch[]
 ): number => {
+  if (gridWidth <= 0 || gridDepth <= 0) {
+    return 0;
+  }
   if (relevantDeltas.length === 0) {
     return 0;
   }
