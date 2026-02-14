@@ -1,15 +1,15 @@
 use hashbrown::HashMap;
 use log::info;
 use nanoid::nanoid;
-use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use specs::{ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::world::profiler::Profiler;
 use crate::world::system_profiler::WorldTimingContext;
 use crate::{
     BlockUtils, Chunk, ChunkInterests, ChunkOptions, ChunkRequestsComp, ChunkStatus, ChunkUtils,
-    Chunks, Clients, Mesher, MessageType, Pipeline, PositionComp, Registry, Stats, Vec2, Vec3,
-    VoxelAccess, WorldConfig,
+    Chunks, Clients, Mesher, MessageType, Pipeline, Registry, Stats, Vec2, Vec3, VoxelAccess,
+    WorldConfig,
 };
 
 #[inline]
@@ -449,7 +449,6 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
         // Process the ready chunks in parallel
         if !ready_chunks.is_empty() {
-            let len = ready_chunks.len();
             let processes = ready_chunks
                 .into_iter()
                 .map(|(coords, chunk)| {
