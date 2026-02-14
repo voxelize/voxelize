@@ -29,7 +29,7 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
   if (!geometry.index) return null;
 
   const positions = geometry.getAttribute("position").array as Float32Array;
-  const indices = geometry.index.array;
+  const indices = geometry.index.array as Uint16Array | Uint32Array;
   const faceCount = Math.floor(indices.length / 6);
 
   if (faceCount === 0) return null;
@@ -56,8 +56,7 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
 
   const originalIndices =
     indices instanceof Uint32Array ? new Uint32Array(indices) : new Uint16Array(indices);
-  const sortedIndices =
-    indices instanceof Uint32Array ? indices : new Uint16Array(indices.length);
+  const sortedIndices = indices;
 
   return {
     centroids,
@@ -221,10 +220,6 @@ export function sortTransparentMesh(
   }
 
   const indexAttr = mesh.geometry.index!;
-  const targetArray = indexAttr.array as Uint16Array | Uint32Array;
-  if (targetArray !== sortedIndices) {
-    targetArray.set(sortedIndices);
-  }
   indexAttr.needsUpdate = true;
 }
 
