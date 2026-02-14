@@ -81,6 +81,18 @@ describe("BlockUtils", () => {
     expect(extracted.axis).toBe(PY_ROTATION);
   });
 
+  it("normalizes non-finite y-rotation values during insertion", () => {
+    const inserted = BlockUtils.insertRotation(0, {
+      value: PY_ROTATION,
+      yRotation: Number.POSITIVE_INFINITY,
+    });
+    const extracted = BlockUtils.extractRotation(inserted);
+    const [axis, yRotationSegment] = BlockRotation.decode(extracted);
+
+    expect(axis).toBe(PY_ROTATION);
+    expect(yRotationSegment).toBe(0);
+  });
+
   it("keeps packed voxel values in unsigned 32-bit space", () => {
     const packed = BlockUtils.insertId(-1, 1);
     expect(packed).toBe(0xffff0001);
