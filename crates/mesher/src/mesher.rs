@@ -1609,16 +1609,6 @@ const FACE_CORNERS_BY_DIR_INDEX: [[[f32; 3]; 4]; 6] = [
 ];
 
 #[inline(always)]
-fn face_corner_positions(dir: [i32; 3]) -> Option<&'static [[f32; 3]; 4]> {
-    if let Some(dir_index) = cardinal_dir_index(dir) {
-        debug_assert!(dir_index < FACE_CORNERS_BY_DIR_INDEX.len());
-        Some(unsafe { FACE_CORNERS_BY_DIR_INDEX.get_unchecked(dir_index) })
-    } else {
-        None
-    }
-}
-
-#[inline(always)]
 fn face_corner_positions_by_dir_index(dir_index: usize) -> &'static [[f32; 3]; 4] {
     debug_assert!(dir_index < FACE_CORNERS_BY_DIR_INDEX.len());
     unsafe { FACE_CORNERS_BY_DIR_INDEX.get_unchecked(dir_index) }
@@ -1626,7 +1616,7 @@ fn face_corner_positions_by_dir_index(dir_index: usize) -> &'static [[f32; 3]; 4
 
 #[inline(always)]
 fn compute_face_ao_and_light(
-    dir: [i32; 3],
+    dir_index: usize,
     block: &Block,
     neighbors: &NeighborCache,
     registry: &Registry,
@@ -1639,15 +1629,12 @@ fn compute_face_ao_and_light(
     }
     let [block_min_x, block_min_y, block_min_z] = block_min_corner(block);
     let opaque_mask = build_neighbor_opaque_mask(neighbors, registry);
-    let corner_positions = match face_corner_positions(dir) {
-        Some(corners) => corners,
-        None => return ([3, 3, 3, 3], [0, 0, 0, 0]),
-    };
+    let corner_positions = face_corner_positions_by_dir_index(dir_index);
 
     let mut aos = [0i32; 4];
     let mut lights = [0i32; 4];
-    let dir_is_x = dir[0] != 0;
-    let dir_is_y = dir[1] != 0;
+    let dir_is_x = dir_index <= 1;
+    let dir_is_y = (2..=3).contains(&dir_index);
     let block_min_x_eps = block_min_x + 0.01;
     let block_min_y_eps = block_min_y + 0.01;
     let block_min_z_eps = block_min_z + 0.01;
@@ -3242,7 +3229,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                     skip_opaque_checks,
                                 )
                             });
-                            compute_face_ao_and_light(dir, block, neighbors, registry)
+                            compute_face_ao_and_light(dir_index, block, neighbors, registry)
                         });
 
                         let key = FaceKey {
