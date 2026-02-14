@@ -438,7 +438,7 @@ const isValidFloodNode = (
   node !== null &&
   typeof node === "object" &&
   isInteger(node.level) &&
-  node.level >= 0 &&
+  node.level > 0 &&
   isStrictCoords3(node.voxel);
 
 const filterInvalidRemovalNodes = (removals: Coords3[]): Coords3[] => {
