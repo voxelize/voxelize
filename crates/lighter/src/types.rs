@@ -633,12 +633,13 @@ impl LightRegistry {
             }
         }
 
-        let max_id = self
-            .blocks_by_id
-            .iter()
-            .map(|(id, _)| *id as usize)
-            .max()
-            .unwrap_or(0);
+        let mut max_id = 0usize;
+        for (id, _) in &self.blocks_by_id {
+            let id_usize = *id as usize;
+            if id_usize > max_id {
+                max_id = id_usize;
+            }
+        }
 
         let dense_limit = self
             .blocks_by_id
