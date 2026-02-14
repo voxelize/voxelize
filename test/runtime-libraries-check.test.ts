@@ -42,18 +42,24 @@ type RuntimeLibrariesCheckReport = {
   presentPackageCount: number;
   presentPackagePathCount: number;
   packageReportCount: number;
+  requiredArtifactsByPackage: Record<string, string[]>;
   requiredArtifacts: string[];
+  requiredArtifactsByPackageCount: number;
   requiredArtifactCountByPackage: Record<string, number>;
   requiredArtifactCount: number;
   requiredArtifactCountByPackageCount: number;
+  presentArtifactsByPackage: Record<string, string[]>;
   presentArtifacts: string[];
   presentArtifactCount: number;
+  presentArtifactsByPackageCount: number;
   presentArtifactCountByPackage: Record<string, number>;
   presentArtifactCountByPackageCount: number;
   missingPackageCount: number;
   missingPackagePathCount: number;
+  missingArtifactsByPackage: Record<string, string[]>;
   missingArtifacts: string[];
   missingArtifactCount: number;
+  missingArtifactsByPackageCount: number;
   missingArtifactCountByPackage: Record<string, number>;
   missingArtifactCountByPackageCount: number;
   missingArtifactSummary: string | null;
@@ -246,6 +252,10 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   expect(report.requiredArtifactCount).toBe(expectedRequiredArtifactCount);
   expect(report.requiredArtifacts).toEqual(expectedRequiredArtifacts);
   expect(report.requiredArtifacts.length).toBe(report.requiredArtifactCount);
+  expect(report.requiredArtifactsByPackage).toEqual(expectedArtifactsByPackage);
+  expect(report.requiredArtifactsByPackageCount).toBe(
+    Object.keys(report.requiredArtifactsByPackage).length
+  );
   expect(report.requiredArtifactCountByPackage).toEqual(
     expectedRequiredArtifactCountByPackage
   );
@@ -296,6 +306,11 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   const presentArtifacts = report.packageReports.reduce((artifacts, packageReport) => {
     return [...artifacts, ...packageReport.presentArtifacts];
   }, [] as string[]);
+  const presentArtifactsByPackage = Object.fromEntries(
+    report.packageReports.map((packageReport) => {
+      return [packageReport.packageName, packageReport.presentArtifacts];
+    })
+  );
   const missingArtifactCountByPackage = Object.fromEntries(
     report.packageReports.map((packageReport) => {
       return [packageReport.packageName, packageReport.missingArtifactCount];
@@ -304,6 +319,11 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   const missingArtifacts = report.packageReports.reduce((artifacts, packageReport) => {
     return [...artifacts, ...packageReport.missingArtifacts];
   }, [] as string[]);
+  const missingArtifactsByPackage = Object.fromEntries(
+    report.packageReports.map((packageReport) => {
+      return [packageReport.packageName, packageReport.missingArtifacts];
+    })
+  );
   expect(report.packagesPresent).toBe(missingPackageCount === 0);
   expect(report.requiredPackageCount).toBe(
     report.presentPackageCount + report.missingPackageCount
@@ -327,6 +347,10 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   expect(report.presentArtifactCountByPackage).toEqual(
     presentArtifactCountByPackage
   );
+  expect(report.presentArtifactsByPackage).toEqual(presentArtifactsByPackage);
+  expect(report.presentArtifactsByPackageCount).toBe(
+    Object.keys(report.presentArtifactsByPackage).length
+  );
   expect(report.presentArtifactCountByPackageCount).toBe(
     Object.keys(report.presentArtifactCountByPackage).length
   );
@@ -336,6 +360,10 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   expect(report.missingArtifactCount).toBe(missingArtifactCount);
   expect(report.missingArtifactCountByPackage).toEqual(
     missingArtifactCountByPackage
+  );
+  expect(report.missingArtifactsByPackage).toEqual(missingArtifactsByPackage);
+  expect(report.missingArtifactsByPackageCount).toBe(
+    Object.keys(report.missingArtifactsByPackage).length
   );
   expect(report.missingArtifactCountByPackageCount).toBe(
     Object.keys(report.missingArtifactCountByPackage).length

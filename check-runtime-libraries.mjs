@@ -64,6 +64,14 @@ const requiredArtifactCountByPackage = Object.fromEntries(
 const requiredArtifactCountByPackageCount = countRecordEntries(
   requiredArtifactCountByPackage
 );
+const requiredArtifactsByPackage = Object.fromEntries(
+  runtimeLibraries.map((library) => {
+    return [library.packageName, library.requiredArtifacts];
+  })
+);
+const requiredArtifactsByPackageCount = countRecordEntries(
+  requiredArtifactsByPackage
+);
 const requiredArtifacts = runtimeLibraries.reduce((artifacts, library) => {
   return [...artifacts, ...library.requiredArtifacts];
 }, []);
@@ -117,6 +125,11 @@ const summarizePackageReports = (packageReports) => {
   const presentArtifacts = packageReports.reduce((artifacts, packageReport) => {
     return [...artifacts, ...packageReport.presentArtifacts];
   }, []);
+  const presentArtifactsByPackage = Object.fromEntries(
+    packageReports.map((packageReport) => {
+      return [packageReport.packageName, packageReport.presentArtifacts];
+    })
+  );
   const missingPackageCount = packageReports.filter((packageReport) => {
     return packageReport.artifactsPresent === false;
   }).length;
@@ -126,6 +139,11 @@ const summarizePackageReports = (packageReports) => {
   const missingArtifacts = packageReports.reduce((artifacts, packageReport) => {
     return [...artifacts, ...packageReport.missingArtifacts];
   }, []);
+  const missingArtifactsByPackage = Object.fromEntries(
+    packageReports.map((packageReport) => {
+      return [packageReport.packageName, packageReport.missingArtifacts];
+    })
+  );
   const presentArtifactCountByPackage = Object.fromEntries(
     packageReports.map((packageReport) => {
       return [packageReport.packageName, packageReport.presentArtifactCount];
@@ -145,11 +163,13 @@ const summarizePackageReports = (packageReports) => {
     presentPackagePathCount: presentPackagePaths.length,
     presentArtifactCount,
     presentArtifacts,
+    presentArtifactsByPackage,
     presentArtifactCountByPackage,
     missingPackageCount,
     missingPackagePathCount: missingPackagePaths.length,
     missingArtifactCount,
     missingArtifacts,
+    missingArtifactsByPackage,
     missingArtifactCountByPackage,
   };
 };
@@ -252,11 +272,13 @@ const withBaseReportFields = (report) => {
     presentPackagePathCount,
     presentArtifactCount,
     presentArtifacts,
+    presentArtifactsByPackage,
     presentArtifactCountByPackage,
     missingPackageCount,
     missingPackagePathCount,
     missingArtifactCount,
     missingArtifacts,
+    missingArtifactsByPackage,
     missingArtifactCountByPackage,
   } = summarizePackageReports(packageReports);
   const buildExitCode =
@@ -302,21 +324,27 @@ const withBaseReportFields = (report) => {
     presentPackageCount,
     presentPackagePathCount,
     packageReportCount: packageReports.length,
+    requiredArtifactsByPackage,
     requiredArtifacts,
+    requiredArtifactsByPackageCount,
     requiredArtifactCountByPackage,
     requiredArtifactCount,
     requiredArtifactCountByPackageCount,
     presentArtifactCount,
     presentArtifacts,
+    presentArtifactsByPackage,
     presentArtifactCountByPackage,
     missingPackageCount,
     missingPackagePathCount,
     missingArtifactCount,
     missingArtifacts,
+    missingArtifactsByPackage,
     missingArtifactCountByPackage,
+    presentArtifactsByPackageCount: countRecordEntries(presentArtifactsByPackage),
     presentArtifactCountByPackageCount: countRecordEntries(
       presentArtifactCountByPackage
     ),
+    missingArtifactsByPackageCount: countRecordEntries(missingArtifactsByPackage),
     missingArtifactCountByPackageCount: countRecordEntries(
       missingArtifactCountByPackage
     ),
