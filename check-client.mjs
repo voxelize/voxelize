@@ -106,13 +106,13 @@ const mapStepNamesToScripts = (stepNames) => {
   });
 };
 const mapStepNamesToIndices = (stepNames) => {
-  return stepNames
-    .map((stepName) => {
-      return availableStepIndexMap.get(stepName);
-    })
-    .filter((stepIndex) => {
-      return typeof stepIndex === "number";
-    });
+  return stepNames.map((stepName) => {
+    const stepIndex = availableStepIndexMap.get(stepName);
+    if (stepIndex === undefined) {
+      throw new Error(`Missing step index metadata for ${stepName}.`);
+    }
+    return stepIndex;
+  });
 };
 const mapStepNamesToMetadata = (stepNames) => {
   return Object.fromEntries(

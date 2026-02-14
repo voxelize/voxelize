@@ -99,9 +99,13 @@ const checkNameToIndex = new Map(
   })
 );
 const resolveCheckIndices = (checkNames) => {
-  return checkNames
-    .map((checkName) => checkNameToIndex.get(checkName))
-    .filter((checkIndex) => typeof checkIndex === "number");
+  return checkNames.map((checkName) => {
+    const checkIndex = checkNameToIndex.get(checkName);
+    if (checkIndex === undefined) {
+      throw new Error(`Missing check index metadata for ${checkName}.`);
+    }
+    return checkIndex;
+  });
 };
 const availableCheckMetadata = Object.fromEntries(
   availableChecks.map((check) => {
