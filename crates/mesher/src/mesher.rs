@@ -3142,7 +3142,20 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         effective_dir == dir
                     };
 
-                    let has_matching_face = if use_static_faces {
+                    let direct_face =
+                        if use_static_faces && !block_needs_face_rotation && cache_ready {
+                            let face_index = block.greedy_face_indices[dir_index];
+                            if face_index >= 0 {
+                                block.faces.get(face_index as usize)
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        };
+                    let has_matching_face = if direct_face.is_some() {
+                        true
+                    } else if use_static_faces {
                         block
                             .faces
                             .iter()
@@ -3236,7 +3249,9 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                             (v - v_range.0) as usize * mask_width + u_mask_offset;
                         greedy_mask[current_mask_index] = Some(data);
                     };
-                    if use_static_faces {
+                    if let Some(face) = direct_face {
+                        process_candidate_face(face, false);
+                    } else if use_static_faces {
                         for face in &block.faces {
                             process_candidate_face(face, false);
                         }
