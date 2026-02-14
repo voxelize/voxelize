@@ -1319,6 +1319,76 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(0);
   });
 
+  it("supports case-insensitive runtime aliases in list selection", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--list-checks", "--only", "RUNTIME_LIBRARIES"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(true);
+    expect(report.passed).toBe(true);
+    expect(report.exitCode).toBe(0);
+    expect(report.noBuild).toBe(false);
+    expect(report.selectionMode).toBe("only");
+    expect(report.specialSelectorsUsed).toEqual([]);
+    expect(report.selectedChecks).toEqual(["runtimeLibraries"]);
+    expect(report.selectedCheckCount).toBe(1);
+    expect(report.requestedChecks).toEqual(["RUNTIME_LIBRARIES"]);
+    expect(report.requestedCheckCount).toBe(1);
+    expect(report.requestedCheckResolutions).toEqual([
+      {
+        token: "RUNTIME_LIBRARIES",
+        normalizedToken: "runtimelibraries",
+        kind: "check",
+        resolvedTo: ["runtimeLibraries"],
+      },
+    ]);
+    expect(report.requestedCheckResolutionCounts).toEqual({
+      check: 1,
+      specialSelector: 0,
+      invalid: 0,
+    });
+    expect(report.skippedChecks).toEqual([
+      "devEnvironment",
+      "wasmPack",
+      "tsCore",
+      "client",
+    ]);
+    expect(report.skippedCheckCount).toBe(report.skippedChecks.length);
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--list-checks", "--only"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--list-checks", "--only"]);
+    expect(report.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions(["--list-checks", "--only"])
+    );
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences([
+        "--list-checks",
+        "--only",
+        "RUNTIME_LIBRARIES",
+      ])
+    );
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(result.status).toBe(0);
+  });
+
   it("writes list-mode ts-core reports to trailing output paths with no-build aliases", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "preflight-list-ts-core-last-output-")
@@ -1977,6 +2047,160 @@ describe("preflight aggregate report", () => {
     expect(report.passedCheckCount + report.failedCheckCount).toBe(1);
     expect([...report.passedChecks, ...report.failedChecks]).toEqual([
       "runtimeLibraries",
+    ]);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
+  it("supports separator-free runtime aliases in execution mode", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--no-build", "--only", "runtimelibraries"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(false);
+    expect(report.noBuild).toBe(true);
+    expect(report.selectionMode).toBe("only");
+    expect(report.specialSelectorsUsed).toEqual([]);
+    expect(report.selectedChecks).toEqual(["runtimeLibraries"]);
+    expect(report.selectedCheckCount).toBe(1);
+    expect(report.requestedChecks).toEqual(["runtimelibraries"]);
+    expect(report.requestedCheckCount).toBe(1);
+    expect(report.requestedCheckResolutions).toEqual([
+      {
+        token: "runtimelibraries",
+        normalizedToken: "runtimelibraries",
+        kind: "check",
+        resolvedTo: ["runtimeLibraries"],
+      },
+    ]);
+    expect(report.requestedCheckResolutionCounts).toEqual({
+      check: 1,
+      specialSelector: 0,
+      invalid: 0,
+    });
+    expect(report.skippedChecks).toEqual([
+      "devEnvironment",
+      "wasmPack",
+      "tsCore",
+      "client",
+    ]);
+    expect(report.skippedCheckCount).toBe(report.skippedChecks.length);
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--no-build", "--only"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--no-build", "--only"]);
+    expect(report.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions(["--no-build", "--only"])
+    );
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences([
+        "--no-build",
+        "--only",
+        "runtimelibraries",
+      ])
+    );
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(report.totalChecks).toBe(1);
+    expect(report.checks.length).toBe(1);
+    expect(report.checks[0].name).toBe("runtimeLibraries");
+    expectRuntimeLibrariesNestedReport(report.checks[0].report, true);
+    expect(report.passedCheckCount + report.failedCheckCount).toBe(1);
+    expect([...report.passedChecks, ...report.failedChecks]).toEqual([
+      "runtimeLibraries",
+    ]);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
+  it("executes ts-core before runtime when both are selected", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--no-build", "--only", "ts,runtime"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(false);
+    expect(report.noBuild).toBe(true);
+    expect(report.selectionMode).toBe("only");
+    expect(report.specialSelectorsUsed).toEqual([]);
+    expect(report.selectedChecks).toEqual(["tsCore", "runtimeLibraries"]);
+    expect(report.selectedCheckCount).toBe(2);
+    expect(report.requestedChecks).toEqual(["ts", "runtime"]);
+    expect(report.requestedCheckCount).toBe(2);
+    expect(report.requestedCheckResolutions).toEqual([
+      {
+        token: "ts",
+        normalizedToken: "ts",
+        kind: "check",
+        resolvedTo: ["tsCore"],
+      },
+      {
+        token: "runtime",
+        normalizedToken: "runtime",
+        kind: "check",
+        resolvedTo: ["runtimeLibraries"],
+      },
+    ]);
+    expect(report.requestedCheckResolutionCounts).toEqual({
+      check: 2,
+      specialSelector: 0,
+      invalid: 0,
+    });
+    expect(report.skippedChecks).toEqual(["devEnvironment", "wasmPack", "client"]);
+    expect(report.skippedCheckCount).toBe(3);
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--no-build", "--only"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--no-build", "--only"]);
+    expect(report.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions(["--no-build", "--only"])
+    );
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences(["--no-build", "--only", "ts,runtime"])
+    );
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(report.totalChecks).toBe(2);
+    expect(report.checks.length).toBe(2);
+    expect(report.checks.map((check) => check.name)).toEqual([
+      "tsCore",
+      "runtimeLibraries",
+    ]);
+    expectTsCoreNestedReport(report.checks[0].report, true);
+    expectRuntimeLibrariesNestedReport(report.checks[1].report, true);
+    expect(report.passedCheckCount + report.failedCheckCount).toBe(2);
+    expect([...report.passedChecks, ...report.failedChecks].sort()).toEqual([
+      "runtimeLibraries",
+      "tsCore",
     ]);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
