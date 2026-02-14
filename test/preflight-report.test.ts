@@ -760,6 +760,33 @@ const expectCheckResultScriptMetadata = (report: PreflightReport) => {
     expect(entry.message.length).toBeGreaterThan(0);
   }
 };
+const expectAvailableCheckInventoryMetadata = (report: PreflightReport) => {
+  expect(report.availableChecks).toEqual(expectedAvailableChecks);
+  expect(report.availableCheckScripts).toEqual(expectedAvailableCheckScripts);
+  expect(report.availableCheckScriptCount).toBe(report.availableCheckScripts.length);
+  expect(report.availableCheckScriptMap).toEqual(expectedAvailableCheckScriptMap);
+  expect(report.availableCheckSupportsNoBuildMap).toEqual(
+    expectedAvailableCheckSupportsNoBuildMap
+  );
+  expect(report.availableCheckIndices).toEqual(expectedAvailableCheckIndices);
+  expect(report.availableCheckIndexCount).toBe(
+    report.availableCheckIndices.length
+  );
+  expect(report.availableCheckIndexMap).toEqual(expectedAvailableCheckIndexMap);
+  const metadataFromMaps = Object.fromEntries(
+    expectedAvailableChecks.map((checkName) => {
+      return [
+        checkName,
+        {
+          scriptName: report.availableCheckScriptMap[checkName],
+          supportsNoBuild: report.availableCheckSupportsNoBuildMap[checkName],
+        },
+      ];
+    })
+  );
+  expect(report.availableCheckMetadata).toEqual(metadataFromMaps);
+  expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
+};
 const expectTsCoreNestedReport = (
   checkReport: object | null,
   expectedNoBuild: boolean
@@ -990,19 +1017,7 @@ describe("preflight aggregate report", () => {
     expect(typeof report.startedAt).toBe("string");
     expect(typeof report.endedAt).toBe("string");
     expect(report.durationMs).toBeGreaterThanOrEqual(0);
-    expect(report.availableChecks).toEqual(expectedAvailableChecks);
-    expect(report.availableCheckScripts).toEqual(expectedAvailableCheckScripts);
-    expect(report.availableCheckScriptCount).toBe(report.availableCheckScripts.length);
-    expect(report.availableCheckScriptMap).toEqual(expectedAvailableCheckScriptMap);
-    expect(report.availableCheckSupportsNoBuildMap).toEqual(
-      expectedAvailableCheckSupportsNoBuildMap
-    );
-    expect(report.availableCheckIndices).toEqual(expectedAvailableCheckIndices);
-    expect(report.availableCheckIndexCount).toBe(
-      report.availableCheckIndices.length
-    );
-    expect(report.availableCheckIndexMap).toEqual(expectedAvailableCheckIndexMap);
-    expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
+    expectAvailableCheckInventoryMetadata(report);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(report.availableSpecialCheckSelectors).toEqual(
       expectedAvailableSpecialCheckSelectors
@@ -6811,17 +6826,7 @@ describe("preflight aggregate report", () => {
     expect(report.requestedCheckResolutionCounts).toEqual(
       expectedEmptyRequestedCheckResolutionCounts
     );
-    expect(report.availableChecks).toEqual(expectedAvailableChecks);
-    expect(report.availableCheckScriptMap).toEqual(expectedAvailableCheckScriptMap);
-    expect(report.availableCheckSupportsNoBuildMap).toEqual(
-      expectedAvailableCheckSupportsNoBuildMap
-    );
-    expect(report.availableCheckIndices).toEqual(expectedAvailableCheckIndices);
-    expect(report.availableCheckIndexCount).toBe(
-      report.availableCheckIndices.length
-    );
-    expect(report.availableCheckIndexMap).toEqual(expectedAvailableCheckIndexMap);
-    expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
+    expectAvailableCheckInventoryMetadata(report);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(report.availableSpecialCheckAliases).toEqual(
       expectedAvailableSpecialCheckAliases

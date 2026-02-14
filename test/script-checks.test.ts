@@ -740,6 +740,18 @@ const expectAvailableStepMetadata = (
   expect(report.availableStepIndices).toEqual(expectedIndices);
   expect(report.availableStepIndexCount).toBe(report.availableStepIndices.length);
   expect(report.availableStepIndexMap).toEqual(expectedIndexMap);
+  const metadataFromMaps = Object.fromEntries(
+    expectedSteps.map((stepName) => {
+      return [
+        stepName,
+        {
+          scriptName: report.availableStepScriptMap[stepName],
+          supportsNoBuild: report.availableStepSupportsNoBuildMap[stepName],
+        },
+      ];
+    })
+  );
+  expect(report.availableStepMetadata).toEqual(metadataFromMaps);
   expect(report.availableStepMetadata).toEqual(expectedMetadata);
 };
 
