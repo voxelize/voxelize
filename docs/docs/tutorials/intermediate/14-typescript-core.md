@@ -128,6 +128,26 @@ Run it with:
 pnpm --filter @voxelize/ts-core example:end-to-end
 ```
 
+## Build artifact preflight (root workspace)
+
+From the repository root you can validate `@voxelize/ts-core` artifacts with:
+
+```bash
+# auto-builds missing artifacts when needed
+pnpm run check:ts-core:json
+
+# verify-only mode (no auto-build)
+pnpm run check:ts-core:verify:json
+```
+
+The checker validates:
+
+- `packages/ts-core/dist/index.js`
+- `packages/ts-core/dist/index.mjs`
+- `packages/ts-core/dist/index.d.ts`
+
+Use `--output <path>` for machine-readable report files in CI.
+
 ## API reference
 
 Typed API docs are generated under:
