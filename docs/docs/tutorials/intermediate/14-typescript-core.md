@@ -127,6 +127,29 @@ const rule = {
 const matched = BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access);
 ```
 
+You can build cloned dynamic part definitions with helper constructors:
+
+```ts title="Dynamic pattern helper"
+import {
+  BlockRuleLogic,
+  createBlockConditionalPart,
+  createBlockDynamicPattern,
+} from "@voxelize/ts-core";
+
+const pattern = createBlockDynamicPattern({
+  parts: [
+    createBlockConditionalPart({
+      rule: {
+        type: "combination",
+        logic: BlockRuleLogic.And,
+        rules: [{ type: "simple", offset: [0, 0, 0], id: 12 }],
+      },
+      worldSpace: false,
+    }),
+  ],
+});
+```
+
 ## End-to-end runnable example
 
 The package includes a full end-to-end script that:

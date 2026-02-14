@@ -84,6 +84,29 @@ const voxel = Voxel.pack({
 - `VoxelAccess`
   - interface contract for meshing/generation-style data access
 
+## Dynamic pattern helper
+
+```ts
+import {
+  BlockRuleLogic,
+  createBlockConditionalPart,
+  createBlockDynamicPattern,
+} from "@voxelize/ts-core";
+
+const pattern = createBlockDynamicPattern({
+  parts: [
+    createBlockConditionalPart({
+      rule: {
+        type: "combination",
+        logic: BlockRuleLogic.And,
+        rules: [{ type: "simple", offset: [0, 0, 0], id: 42 }],
+      },
+      worldSpace: false,
+    }),
+  ],
+});
+```
+
 ## Bit layout
 
 Voxel value (`u32` style in JS):
