@@ -31,13 +31,17 @@
 export class ColorText {
   private static findSplitterIndex(
     text: string,
+    textLength: number,
     splitter: string,
     splitterLength: number,
     start: number,
     singleSplitterCode: number
   ) {
+    if (start >= textLength) {
+      return -1;
+    }
     if (splitterLength === 1) {
-      for (let index = start; index < text.length; index++) {
+      for (let index = start; index < textLength; index++) {
         if (text.charCodeAt(index) === singleSplitterCode) {
           return index;
         }
@@ -92,6 +96,7 @@ export class ColorText {
       splitterLength === 1 ? splitter.charCodeAt(0) : -1;
     const firstSplitterIndex = ColorText.findSplitterIndex(
       text,
+      textLength,
       splitter,
       splitterLength,
       0,
@@ -123,6 +128,7 @@ export class ColorText {
       const tokenStart = openIndex + splitterLength;
       const closeIndex = ColorText.findSplitterIndex(
         text,
+        textLength,
         splitter,
         splitterLength,
         tokenStart,
@@ -139,6 +145,7 @@ export class ColorText {
       endedOnColorToken = cursor >= textLength;
       openIndex = ColorText.findSplitterIndex(
         text,
+        textLength,
         splitter,
         splitterLength,
         cursor,
