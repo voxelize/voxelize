@@ -531,9 +531,15 @@ impl LightBlock {
         match rule {
             BlockRule::None => true,
             BlockRule::Simple(simple_rule) => {
-                let vx = simple_rule.offset[0] + vx;
-                let vy = simple_rule.offset[1] + vy;
-                let vz = simple_rule.offset[2] + vz;
+                let Some(vx) = vx.checked_add(simple_rule.offset[0]) else {
+                    return false;
+                };
+                let Some(vy) = vy.checked_add(simple_rule.offset[1]) else {
+                    return false;
+                };
+                let Some(vz) = vz.checked_add(simple_rule.offset[2]) else {
+                    return false;
+                };
                 let expected_id = simple_rule.id;
                 let expected_rotation = simple_rule.rotation.as_ref();
                 let expected_stage = simple_rule.stage;
@@ -1034,6 +1040,29 @@ mod tests {
         block.recompute_flags();
 
         let level = block.get_torch_light_level_at_xyz(0, 0, 0, &NotRuleAccess, &LightColor::Red);
+        assert_eq!(level, 0);
+    }
+
+    #[test]
+    fn dynamic_simple_rule_overflow_offsets_return_false() {
+        let mut block = LightBlock::default_air();
+        block.dynamic_patterns = Some(vec![LightDynamicPattern {
+            parts: vec![LightConditionalPart {
+                rule: BlockRule::Simple(BlockSimpleRule {
+                    offset: [1, 0, 0],
+                    id: Some(1),
+                    rotation: None,
+                    stage: None,
+                }),
+                red_light_level: Some(9),
+                green_light_level: None,
+                blue_light_level: None,
+            }],
+        }]);
+        block.recompute_flags();
+
+        let level =
+            block.get_torch_light_level_at_xyz(i32::MAX, 0, 0, &NoopAccess, &LightColor::Red);
         assert_eq!(level, 0);
     }
 
