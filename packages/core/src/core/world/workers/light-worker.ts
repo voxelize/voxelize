@@ -964,7 +964,7 @@ const applyRelevantDeltas = (
         continue;
       }
       const sequenceId = delta.sequenceId;
-      if (isInteger(sequenceId)) {
+      if (isInteger(sequenceId) && sequenceId > chunkLastSequenceId) {
         chunkLastSequenceId = sequenceId;
       }
       const coords = delta.coords;
