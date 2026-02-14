@@ -2972,29 +2972,15 @@ fn process_face<S: VoxelAccess>(
             }
         };
 
-        indices.push(ndx);
-        indices.push(ndx + 1);
-
         if should_flip {
-            indices.push(ndx + 3);
-            indices.push(ndx + 3);
-            indices.push(ndx + 2);
-            indices.push(ndx);
+            indices.extend_from_slice(&[ndx, ndx + 1, ndx + 3, ndx + 3, ndx + 2, ndx]);
         } else {
-            indices.push(ndx + 2);
-            indices.push(ndx + 2);
-            indices.push(ndx + 1);
-            indices.push(ndx + 3);
+            indices.extend_from_slice(&[ndx, ndx + 1, ndx + 2, ndx + 2, ndx + 1, ndx + 3]);
         }
         return;
     }
 
-    indices.push(ndx);
-    indices.push(ndx + 1);
-    indices.push(ndx + 2);
-    indices.push(ndx + 2);
-    indices.push(ndx + 1);
-    indices.push(ndx + 3);
+    indices.extend_from_slice(&[ndx, ndx + 1, ndx + 2, ndx + 2, ndx + 1, ndx + 3]);
 }
 
 fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
