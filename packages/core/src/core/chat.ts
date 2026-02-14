@@ -114,8 +114,9 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   private _commandSymbolCode: string;
 
   private fallbackCommand: ((rest: string) => void) | null = null;
-  private commandWordsBuffer: string[] = [];
   private quotedTokensBuffer: string[] = [];
+  private parsedCommandTrigger = "";
+  private parsedCommandRest = "";
   private parseSchemaInfoBySchema = new WeakMap<
     ZodObject<Record<string, ZodTypeAny>>,
     { keys: string[]; booleanKeys: Set<string> }
@@ -129,15 +130,9 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   public send(chat: T) {
     if (chat.body.startsWith(this._commandSymbol)) {
       const commandBody = chat.body.substring(this._commandSymbol.length);
-      const words = this.splitCommandWords(commandBody);
-      const trigger = words.length > 0 ? words[0] : undefined;
-      let rest = "";
-      for (let wordIndex = 1; wordIndex < words.length; wordIndex++) {
-        if (wordIndex > 1) {
-          rest += " ";
-        }
-        rest += words[wordIndex];
-      }
+      this.parseCommandBody(commandBody);
+      const trigger = this.parsedCommandTrigger || undefined;
+      const rest = this.parsedCommandRest;
 
       const commandInfo = this.commands.get(trigger);
 
@@ -186,16 +181,26 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     });
   }
 
-  private splitCommandWords(raw: string): string[] {
-    const words = this.commandWordsBuffer;
-    words.length = 0;
-
+  private parseCommandBody(raw: string) {
+    let trigger = "";
+    let rest = "";
     let tokenStart = -1;
+    let tokenCount = 0;
+
     for (let index = 0; index < raw.length; index++) {
       const char = raw[index];
       if (char === " ") {
         if (tokenStart !== -1) {
-          words.push(raw.substring(tokenStart, index));
+          const token = raw.substring(tokenStart, index);
+          if (tokenCount === 0) {
+            trigger = token;
+          } else {
+            if (rest.length > 0) {
+              rest += " ";
+            }
+            rest += token;
+          }
+          tokenCount++;
           tokenStart = -1;
         }
         continue;
@@ -207,10 +212,18 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     }
 
     if (tokenStart !== -1) {
-      words.push(raw.substring(tokenStart));
+      const token = raw.substring(tokenStart);
+      if (tokenCount === 0) {
+        trigger = token;
+      } else {
+        if (rest.length > 0) {
+          rest += " ";
+        }
+        rest += token;
+      }
     }
-
-    return words;
+    this.parsedCommandTrigger = trigger;
+    this.parsedCommandRest = rest;
   }
 
   private splitQuotedTokens(raw: string): string[] {
