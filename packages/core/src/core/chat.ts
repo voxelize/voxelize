@@ -7,6 +7,7 @@ import { JsonValue } from "../types";
 import { NetIntercept } from "./network";
 
 type CommandErrorValue = Error | JsonValue | object;
+const edgeWhitespacePattern = /\s/;
 
 /**
  * Options for adding a command.
@@ -372,7 +373,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       const rawLength = raw.length;
       const shouldTrim =
         rawLength > 0 &&
-        (/\s/.test(raw[0]) || /\s/.test(raw[rawLength - 1]));
+        (edgeWhitespacePattern.test(raw[0]) ||
+          edgeWhitespacePattern.test(raw[rawLength - 1]));
       return schema.parse({ rest: shouldTrim ? raw.trim() : raw });
     }
     if (keys.length === 0) {
