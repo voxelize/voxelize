@@ -54,38 +54,74 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
 
   const centroids = new Float32Array(faceCount * 3);
   const faceOrder = new Uint32Array(faceCount);
-  for (
-    let faceIndex = 0, indexOffset = 0, centroidOffset = 0;
-    faceIndex < faceCount;
-    faceIndex++, indexOffset += 6, centroidOffset += 3
-  ) {
-    faceOrder[faceIndex] = faceIndex;
-    const i0Index = indices[indexOffset];
-    const i1Index = indices[indexOffset + 1];
-    const i2Index = indices[indexOffset + 2];
-    const i3Index = indices[indexOffset + 3];
-    const i4Index = indices[indexOffset + 4];
-    const i5Index = indices[indexOffset + 5];
-    if (
-      i0Index >= vertexCount ||
-      i1Index >= vertexCount ||
-      i2Index >= vertexCount ||
-      i3Index >= vertexCount ||
-      i4Index >= vertexCount ||
-      i5Index >= vertexCount
+  if (positionStride === 3 && positionOffset === 0) {
+    for (
+      let faceIndex = 0, indexOffset = 0, centroidOffset = 0;
+      faceIndex < faceCount;
+      faceIndex++, indexOffset += 6, centroidOffset += 3
     ) {
-      return null;
-    }
-    const i0 = i0Index * positionStride + positionOffset;
-    const i1 = i1Index * positionStride + positionOffset;
-    const i2 = i2Index * positionStride + positionOffset;
+      faceOrder[faceIndex] = faceIndex;
+      const i0Index = indices[indexOffset];
+      const i1Index = indices[indexOffset + 1];
+      const i2Index = indices[indexOffset + 2];
+      const i3Index = indices[indexOffset + 3];
+      const i4Index = indices[indexOffset + 4];
+      const i5Index = indices[indexOffset + 5];
+      if (
+        i0Index >= vertexCount ||
+        i1Index >= vertexCount ||
+        i2Index >= vertexCount ||
+        i3Index >= vertexCount ||
+        i4Index >= vertexCount ||
+        i5Index >= vertexCount
+      ) {
+        return null;
+      }
+      const i0 = i0Index * 3;
+      const i1 = i1Index * 3;
+      const i2 = i2Index * 3;
 
-    centroids[centroidOffset] =
-      (positions[i0] + positions[i1] + positions[i2]) / 3;
-    centroids[centroidOffset + 1] =
-      (positions[i0 + 1] + positions[i1 + 1] + positions[i2 + 1]) / 3;
-    centroids[centroidOffset + 2] =
-      (positions[i0 + 2] + positions[i1 + 2] + positions[i2 + 2]) / 3;
+      centroids[centroidOffset] =
+        (positions[i0] + positions[i1] + positions[i2]) / 3;
+      centroids[centroidOffset + 1] =
+        (positions[i0 + 1] + positions[i1 + 1] + positions[i2 + 1]) / 3;
+      centroids[centroidOffset + 2] =
+        (positions[i0 + 2] + positions[i1 + 2] + positions[i2 + 2]) / 3;
+    }
+  } else {
+    for (
+      let faceIndex = 0, indexOffset = 0, centroidOffset = 0;
+      faceIndex < faceCount;
+      faceIndex++, indexOffset += 6, centroidOffset += 3
+    ) {
+      faceOrder[faceIndex] = faceIndex;
+      const i0Index = indices[indexOffset];
+      const i1Index = indices[indexOffset + 1];
+      const i2Index = indices[indexOffset + 2];
+      const i3Index = indices[indexOffset + 3];
+      const i4Index = indices[indexOffset + 4];
+      const i5Index = indices[indexOffset + 5];
+      if (
+        i0Index >= vertexCount ||
+        i1Index >= vertexCount ||
+        i2Index >= vertexCount ||
+        i3Index >= vertexCount ||
+        i4Index >= vertexCount ||
+        i5Index >= vertexCount
+      ) {
+        return null;
+      }
+      const i0 = i0Index * positionStride + positionOffset;
+      const i1 = i1Index * positionStride + positionOffset;
+      const i2 = i2Index * positionStride + positionOffset;
+
+      centroids[centroidOffset] =
+        (positions[i0] + positions[i1] + positions[i2]) / 3;
+      centroids[centroidOffset + 1] =
+        (positions[i0 + 1] + positions[i1 + 1] + positions[i2 + 1]) / 3;
+      centroids[centroidOffset + 2] =
+        (positions[i0 + 2] + positions[i1 + 2] + positions[i2 + 2]) / 3;
+    }
   }
 
   const originalIndices =
