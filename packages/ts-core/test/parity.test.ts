@@ -1403,6 +1403,44 @@ describe("Type builders", () => {
     });
   });
 
+  it("preserves shared non-cyclic rule references during sanitization", () => {
+    const sharedSimpleRule = {
+      type: "simple" as const,
+      offset: [1, 0, 0] as [number, number, number],
+      id: 5,
+    };
+    const sharedRuleTree = {
+      type: "combination" as const,
+      logic: BlockRuleLogic.And,
+      rules: [sharedSimpleRule, sharedSimpleRule],
+    };
+    const clonedRule = createBlockRule(sharedRuleTree);
+
+    sharedSimpleRule.offset[0] = 9;
+    sharedSimpleRule.id = 99;
+
+    expect(clonedRule).toEqual({
+      type: "combination",
+      logic: BlockRuleLogic.And,
+      rules: [
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 5,
+        },
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 5,
+        },
+      ],
+    });
+    if (clonedRule.type !== "combination") {
+      throw new Error("Expected sanitized shared rule tree to be a combination.");
+    }
+    expect(clonedRule.rules[0]).not.toBe(clonedRule.rules[1]);
+  });
+
   it("sanitizes malformed optional fields in simple rules", () => {
     const part = createBlockConditionalPart({
       rule: {
