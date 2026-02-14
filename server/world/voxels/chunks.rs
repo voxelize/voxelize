@@ -497,9 +497,10 @@ impl Chunks {
 
     /// Add a listener to a chunk.
     pub fn add_listener(&mut self, coords: &Vec2<i32>, listener: &Vec2<i32>) {
-        let mut listeners = self.listeners.remove(coords).unwrap_or_default();
-        listeners.push(listener.to_owned());
-        self.listeners.insert(coords.to_owned(), listeners);
+        self.listeners
+            .entry(coords.to_owned())
+            .or_default()
+            .push(listener.to_owned());
     }
 
     fn get_chunk_file_path(&self, chunk_name: &str) -> PathBuf {
