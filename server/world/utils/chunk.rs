@@ -88,6 +88,9 @@ impl ChunkUtils {
     /// Map a voxel coordinate to a chunk coordinate.
     pub fn map_voxel_to_chunk(vx: i32, _vy: i32, vz: i32, chunk_size: usize) -> Vec2<i32> {
         let cs = normalized_chunk_size(chunk_size);
+        if cs == 1 {
+            return Vec2(vx, vz);
+        }
         if let Some(shift) = chunk_shift_if_power_of_two(cs) {
             Vec2(vx >> shift, vz >> shift)
         } else {
@@ -135,6 +138,13 @@ mod tests {
         let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(-17, 0, -1, 16);
         assert_eq!(cx, -2);
         assert_eq!(cz, -1);
+    }
+
+    #[test]
+    fn map_voxel_to_chunk_with_unit_chunks_returns_original_xz() {
+        let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(i32::MAX, 0, i32::MIN, 1);
+        assert_eq!(cx, i32::MAX);
+        assert_eq!(cz, i32::MIN);
     }
 
     #[test]
