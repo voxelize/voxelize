@@ -359,6 +359,11 @@ fn collect_refill_nodes_after_removals(
                 continue;
             }
 
+            let n_level = get_light_level(space, nvx, nvy, nvz, color, is_sunlight);
+            if n_level == 0 {
+                continue;
+            }
+
             let n_raw_voxel = space.get_raw_voxel(nvx, nvy, nvz);
             let n_block = registry.get_block_by_id(n_raw_voxel & 0xFFFF);
             let n_transparency = n_block.get_transparency_from_raw_voxel(n_raw_voxel);
@@ -370,11 +375,6 @@ fn collect_refill_nodes_after_removals(
             } else if !block_emits_torch_at(n_block, nvx, nvy, nvz, space, color, color_mask)
                 && !can_enter_into_direction(&n_transparency, direction_index)
             {
-                continue;
-            }
-
-            let n_level = get_light_level(space, nvx, nvy, nvz, color, is_sunlight);
-            if n_level == 0 {
                 continue;
             }
 
