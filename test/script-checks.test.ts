@@ -240,15 +240,23 @@ type TsCoreJsonReport = OptionTerminatorMetadata &
   checkedPackageCount: number;
   checkedPackagePath: string;
   checkedPackagePathCount: number;
+  checkedPackageIndices: number[];
+  checkedPackageIndexCount: number;
+  checkedPackageIndexMap: Record<string, number>;
+  checkedPackageIndexMapCount: number;
   checkedPackagePathMap: Record<string, string>;
   checkedPackagePathMapCount: number;
   presentPackages: string[];
   missingPackages: string[];
+  presentPackageIndices: number[];
+  missingPackageIndices: number[];
   presentPackagePaths: string[];
   missingPackagePaths: string[];
   requiredPackageCount: number;
   presentPackageCount: number;
   missingPackageCount: number;
+  presentPackageIndexCount: number;
+  missingPackageIndexCount: number;
   presentPackagePathCount: number;
   missingPackagePathCount: number;
   packagePath: string;
@@ -961,6 +969,10 @@ const expectedTsCoreRequiredArtifacts = [
 const expectedTsCoreCheckedPackagePathMap = {
   "@voxelize/ts-core": "packages/ts-core",
 };
+const expectedTsCoreCheckedPackageIndices = [0];
+const expectedTsCoreCheckedPackageIndexMap = {
+  "@voxelize/ts-core": 0,
+};
 const expectedTsCoreRequiredArtifactCountByPackage = {
   "@voxelize/ts-core": expectedTsCoreRequiredArtifacts.length,
 };
@@ -1047,6 +1059,12 @@ const expectTsCoreReportMetadata = (report: TsCoreJsonReport) => {
   expect(report.checkedPackageCount).toBe(1);
   expect(report.checkedPackagePath).toBe("packages/ts-core");
   expect(report.checkedPackagePathCount).toBe(1);
+  expect(report.checkedPackageIndices).toEqual(expectedTsCoreCheckedPackageIndices);
+  expect(report.checkedPackageIndexCount).toBe(report.checkedPackageIndices.length);
+  expect(report.checkedPackageIndexMap).toEqual(expectedTsCoreCheckedPackageIndexMap);
+  expect(report.checkedPackageIndexMapCount).toBe(
+    Object.keys(report.checkedPackageIndexMap).length
+  );
   expect(report.checkedPackagePathMap).toEqual(expectedTsCoreCheckedPackagePathMap);
   expect(report.checkedPackagePathMapCount).toBe(
     Object.keys(report.checkedPackagePathMap).length
@@ -1055,9 +1073,14 @@ const expectTsCoreReportMetadata = (report: TsCoreJsonReport) => {
   expect(report.presentPackageCount + report.missingPackageCount).toBe(
     report.requiredPackageCount
   );
+  expect(report.checkedPackageIndexCount).toBe(
+    report.presentPackageIndexCount + report.missingPackageIndexCount
+  );
   expect(report.checkedPackagePathCount).toBe(
     report.presentPackagePathCount + report.missingPackagePathCount
   );
+  expect(report.presentPackageIndices.length).toBe(report.presentPackageIndexCount);
+  expect(report.missingPackageIndices.length).toBe(report.missingPackageIndexCount);
   expect(report.presentPackages.length).toBe(report.presentPackageCount);
   expect(report.missingPackages.length).toBe(report.missingPackageCount);
   expect(report.presentPackagePaths.length).toBe(report.presentPackagePathCount);
@@ -1065,9 +1088,15 @@ const expectTsCoreReportMetadata = (report: TsCoreJsonReport) => {
   expect([...report.presentPackages, ...report.missingPackages]).toEqual([
     report.checkedPackage,
   ]);
+  expect([...report.presentPackageIndices, ...report.missingPackageIndices]).toEqual(
+    report.checkedPackageIndices
+  );
   expect([...report.presentPackagePaths, ...report.missingPackagePaths]).toEqual([
     report.checkedPackagePath,
   ]);
+  expect(report.checkedPackageIndexMap).toEqual({
+    [report.checkedPackage]: report.checkedPackageIndices[0],
+  });
   expect(report.checkedPackagePathMap).toEqual({
     [report.checkedPackage]: report.checkedPackagePath,
   });

@@ -119,8 +119,14 @@ const withBaseReportFields = (report) => {
       : missingArtifacts.length === 0;
   const presentPackages = artifactsPresent ? [tsCorePackageName] : [];
   const missingPackages = artifactsPresent ? [] : [tsCorePackageName];
+  const checkedPackageIndices = [0];
+  const checkedPackageIndexMap = {
+    [tsCorePackageName]: 0,
+  };
   const presentPackagePaths = artifactsPresent ? [tsCorePackagePath] : [];
   const missingPackagePaths = artifactsPresent ? [] : [tsCorePackagePath];
+  const presentPackageIndices = artifactsPresent ? [0] : [];
+  const missingPackageIndices = artifactsPresent ? [] : [0];
   const presentPackagePathCount = presentPackagePaths.length;
   const missingPackagePathCount = missingPackagePaths.length;
   const presentArtifactCount = requiredArtifacts.length - missingArtifacts.length;
@@ -169,15 +175,23 @@ const withBaseReportFields = (report) => {
     checkedPackageCount: 1,
     checkedPackagePath: tsCorePackagePath,
     checkedPackagePathCount: 1,
+    checkedPackageIndices,
+    checkedPackageIndexCount: checkedPackageIndices.length,
+    checkedPackageIndexMap,
+    checkedPackageIndexMapCount: countRecordEntries(checkedPackageIndexMap),
     checkedPackagePathMap,
     checkedPackagePathMapCount: countRecordEntries(checkedPackagePathMap),
     presentPackages,
     missingPackages,
+    presentPackageIndices,
+    missingPackageIndices,
     presentPackagePaths,
     missingPackagePaths,
     requiredPackageCount: 1,
     presentPackageCount: presentPackages.length,
     missingPackageCount: missingPackages.length,
+    presentPackageIndexCount: presentPackageIndices.length,
+    missingPackageIndexCount: missingPackageIndices.length,
     presentPackagePathCount,
     missingPackagePathCount,
     packagePath: tsCorePackagePath,
