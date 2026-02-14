@@ -175,6 +175,12 @@ pnpm run check:ts-core:verify:json:compact
 # verify + json output written to file
 pnpm run check:ts-core:verify:json -- --output ./ts-core-verify-report.json
 # direct cli alias also works: node ./check-ts-core.mjs --verify
+# ts-core checks verify these artifact paths:
+# - packages/ts-core/dist/index.js
+# - packages/ts-core/dist/index.mjs
+# - packages/ts-core/dist/index.d.ts
+# default mode auto-builds missing artifacts
+# verify/no-build mode fails without building
 
 # run an aggregated preflight report in json mode
 pnpm run check:preflight:json
@@ -297,6 +303,7 @@ Malformed inline option names are redacted and deduplicated (for example `--=sec
 Literal placeholder tokens are deduplicated with redacted inline misuse forms (for example `--json=<value>` and `--json=secret` are reported once as `--json=<value>`).
 Root/client/onboarding/wasm/ts-core JSON preflight reports include `supportedCliOptions`, `supportedCliOptionCount`, `unknownOptionCount`, and `validationErrorCode` for structured option-validation diagnostics.
 Root/client/onboarding/wasm/ts-core JSON preflight reports include `activeCliOptions`, `activeCliOptionTokens`, `activeCliOptionResolutions`, and `activeCliOptionOccurrences` to describe recognized option usage.
+ts-core JSON preflight reports additionally include `artifactsPresent`, `missingArtifacts`, `attemptedBuild`, and `buildSkipped` to classify artifact readiness and auto-build behavior.
 Misused inline option forms (for example `--json=secret` or `--verify=secret`) are excluded from `activeCliOption*` metadata and are instead reported via redacted `unknownOptions`.
 Recognized options in the same invocation are still preserved in `activeCliOption*` metadata even when misused inline options are also present.
 Root/client/onboarding/wasm/ts-core JSON preflight reports include `availableCliOptionAliases` and `availableCliOptionCanonicalMap` so automation can resolve option aliases to canonical names.
