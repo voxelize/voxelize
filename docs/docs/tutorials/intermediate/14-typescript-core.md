@@ -248,6 +248,8 @@ messages include both conditions for faster debugging. If payload fields are
 valid, diagnostics remain a pure `ruleMatched=false` message.
 If the example exits with code `0` but emits no parseable JSON object payload,
 diagnostics report a dedicated "produced no parseable JSON output" failure.
+When fallback non-JSON output is reported, `exampleOutputLine` is normalized to
+a readable line by stripping ANSI/control escape sequences.
 
 Example `kind: "example"` failure payload (truncated):
 

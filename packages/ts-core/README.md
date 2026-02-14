@@ -171,6 +171,8 @@ execution failure, even if the payload itself is otherwise valid.
 If the example exits successfully but no parseable JSON object payload is
 produced, ts-core reports a dedicated "produced no parseable JSON output"
 diagnostic.
+When non-JSON output fallback is used, `exampleOutputLine` is normalized to a
+clean printable line (ANSI/control escapes are stripped).
 
 Example `kind: "example"` failure payload (truncated):
 
