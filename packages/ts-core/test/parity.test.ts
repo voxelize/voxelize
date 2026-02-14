@@ -396,6 +396,13 @@ describe("BlockRotation", () => {
     expect(yRotation).toBe(2);
   });
 
+  it("normalizes negative encoded y-rotation segments", () => {
+    const rotation = BlockRotation.encode(PY_ROTATION, -1);
+    const [axis, yRotation] = BlockRotation.decode(rotation);
+    expect(axis).toBe(PY_ROTATION);
+    expect(yRotation).toBe(15);
+  });
+
   it("supports equality by decoded segment", () => {
     const base = BlockRotation.PY(Math.PI / 2);
     const equivalent = BlockRotation.encode(PY_ROTATION, 4);
