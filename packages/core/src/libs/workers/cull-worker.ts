@@ -88,6 +88,7 @@ self.onmessage = function (e: MessageEvent<CullWorkerMessage>) {
   const [realStartX, realStartY, realStartZ] = realMin;
   const [realEndX, realEndY, realEndZ] = realMax;
   const [strideX, strideY, strideZ] = stride;
+  const dataLength = data.length;
 
   const [dx, dy, dz] = dimensions;
 
@@ -96,7 +97,7 @@ self.onmessage = function (e: MessageEvent<CullWorkerMessage>) {
       for (let vy = startY, y = 0; vy < endY; ++vy, ++y) {
         const voxelIndex = vx * strideX + vy * strideY + vz * strideZ;
         const voxel =
-          voxelIndex >= 0 && voxelIndex < data.length ? data[voxelIndex] : 0;
+          voxelIndex >= 0 && voxelIndex < dataLength ? data[voxelIndex] : 0;
 
         if (voxel) {
           // There is a voxel here but do we need faces for it?
@@ -116,7 +117,7 @@ self.onmessage = function (e: MessageEvent<CullWorkerMessage>) {
             let neighborSolid = 0;
             if (inRealBounds) {
               const neighborIndex = nvx * strideX + nvy * strideY + nvz * strideZ;
-              if (neighborIndex >= 0 && neighborIndex < data.length) {
+              if (neighborIndex >= 0 && neighborIndex < dataLength) {
                 neighborSolid = data[neighborIndex];
               }
             }
