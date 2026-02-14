@@ -25,6 +25,22 @@ const initializeChat = (chat: Chat) => {
 };
 
 describe("Chat command parsing", () => {
+  it("sends plain chat before init without throwing", () => {
+    const chat = new Chat();
+    const message: ChatProtocol = {
+      type: "CLIENT",
+      body: "hello before init",
+    };
+
+    expect(() => chat.send(message)).not.toThrow();
+    expect(chat.packets).toEqual([
+      {
+        type: "CHAT",
+        chat: message,
+      },
+    ]);
+  });
+
   it("parses unquoted positional arguments with repeated spaces", () => {
     const chat = new Chat();
     initializeChat(chat);
