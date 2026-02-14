@@ -667,6 +667,14 @@ impl LightRegistry {
     }
 
     pub fn get_block_by_id(&self, id: u32) -> &LightBlock {
+        if id == 0 {
+            if let Some(index) = self.air_index {
+                if index < self.blocks_by_id.len() {
+                    return &self.blocks_by_id[index].1;
+                }
+            }
+        }
+
         if let Some(dense) = &self.lookup_dense {
             let idx = id as usize;
             if idx < dense.len() {
