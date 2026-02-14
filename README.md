@@ -242,6 +242,8 @@ pnpm run check:preflight:list:runtime-libraries:json
 pnpm run check:preflight:list:runtime-libraries:verify:json
 pnpm run check:preflight:list:runtime:json
 pnpm run check:preflight:list:runtime:verify:json
+pnpm run check:preflight:list:libraries:json
+pnpm run check:preflight:list:libraries:verify:json
 pnpm run check:preflight:list:ts:json
 pnpm run check:preflight:list:ts:verify:json
 pnpm run check:preflight:list:typescript:json
@@ -262,6 +264,8 @@ pnpm run check:preflight:list:runtime-libraries:json:compact
 pnpm run check:preflight:list:runtime-libraries:verify:json:compact
 pnpm run check:preflight:list:runtime:json:compact
 pnpm run check:preflight:list:runtime:verify:json:compact
+pnpm run check:preflight:list:libraries:json:compact
+pnpm run check:preflight:list:libraries:verify:json:compact
 pnpm run check:preflight:list:ts:json:compact
 pnpm run check:preflight:list:ts:verify:json:compact
 pnpm run check:preflight:list:typescript:json:compact
@@ -283,7 +287,7 @@ pnpm run check:preflight:all-checks:verify:json
 pnpm run check:preflight:json -- --only devEnvironment,client
 # aliases and case-insensitive names are supported (for example: dev/dev-env/dev_env, wasm/wasm-pack/wasm_pack, ts/ts-core/ts_core/tscore/typescript/typescript-core/typescript_core/typescriptcore, runtime/runtime-libraries/runtime_libraries/runtimelibraries, CLIENT, all/all-checks/all_checks/allchecks)
 # selected checks are normalized to the standard aggregate order
-# run pre-defined single-check aggregate reports
+# run pre-defined targeted aggregate reports
 pnpm run check:preflight:dev-env:json
 pnpm run check:preflight:wasm-pack:json
 pnpm run check:preflight:ts-core:json
@@ -292,6 +296,8 @@ pnpm run check:preflight:runtime-libraries:json
 pnpm run check:preflight:runtime-libraries:verify:json
 pnpm run check:preflight:runtime:json
 pnpm run check:preflight:runtime:verify:json
+pnpm run check:preflight:libraries:json
+pnpm run check:preflight:libraries:verify:json
 pnpm run check:preflight:client:json
 # shorthand aliases for single-check aggregate reports
 pnpm run check:preflight:dev:json
@@ -302,7 +308,7 @@ pnpm run check:preflight:typescript:json
 pnpm run check:preflight:typescript:verify:json
 # single client check without auto-build
 pnpm run check:preflight:client:verify:json
-# compact single-check aggregate reports
+# compact targeted aggregate reports
 pnpm run check:preflight:dev-env:json:compact
 pnpm run check:preflight:wasm-pack:json:compact
 pnpm run check:preflight:ts-core:json:compact
@@ -311,6 +317,8 @@ pnpm run check:preflight:runtime-libraries:json:compact
 pnpm run check:preflight:runtime-libraries:verify:json:compact
 pnpm run check:preflight:runtime:json:compact
 pnpm run check:preflight:runtime:verify:json:compact
+pnpm run check:preflight:libraries:json:compact
+pnpm run check:preflight:libraries:verify:json:compact
 pnpm run check:preflight:client:json:compact
 pnpm run check:preflight:client:verify:json:compact
 # shorthand compact aliases
