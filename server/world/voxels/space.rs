@@ -251,30 +251,23 @@ impl VoxelAccess for Space {
     /// Get the voxel type at the voxel position. Zero is returned if chunk doesn't exist.
     /// Panics if space does not contain voxel data.
     fn get_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        if !self.contains(vx, vy, vz) {
-            return 0;
-        }
-
         BlockUtils::extract_id(self.get_raw_voxel(vx, vy, vz))
     }
 
     /// Get the voxel rotation at the voxel position. Zero is returned if chunk doesn't exist.
     /// Panics if space does not contain voxel data.
     fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> BlockRotation {
-        if !self.contains(vx, vy, vz) {
+        let raw = self.get_raw_voxel(vx, vy, vz);
+        if raw == 0 {
             return BlockRotation::encode(PY_ROTATION, 0);
         }
 
-        BlockUtils::extract_rotation(self.get_raw_voxel(vx, vy, vz))
+        BlockUtils::extract_rotation(raw)
     }
 
     /// Get the voxel stage at the voxel position. Zero is returned if chunk doesn't exist.
     /// Panics if space does not contain voxel data.
     fn get_voxel_stage(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        if !self.contains(vx, vy, vz) {
-            return 0;
-        }
-
         BlockUtils::extract_stage(self.get_raw_voxel(vx, vy, vz))
     }
 
