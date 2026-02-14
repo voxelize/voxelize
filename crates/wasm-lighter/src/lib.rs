@@ -330,6 +330,12 @@ fn parse_chunks(
                 }
                 continue;
             }
+            if !chunk_value.is_object() {
+                if has_any_chunk {
+                    chunks.push(None);
+                }
+                continue;
+            }
 
             let Ok(voxels_value) = Reflect::get(&chunk_value, &keys.voxels) else {
                 if has_any_chunk {
