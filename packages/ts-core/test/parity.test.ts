@@ -39,6 +39,7 @@ describe("BlockUtils", () => {
   it("rejects invalid stages", () => {
     expect(() => BlockUtils.insertStage(0, 16)).toThrowError(RangeError);
     expect(() => BlockUtils.insertStage(0, -1)).toThrowError(RangeError);
+    expect(() => BlockUtils.insertStage(0, 1.5)).toThrowError(RangeError);
   });
 
   it("supports rotation roundtrip", () => {
@@ -56,6 +57,13 @@ describe("BlockUtils", () => {
     const extracted = BlockUtils.extractRotation(inserted);
     const [, yRotationSegment] = BlockRotation.decode(extracted);
     expect(yRotationSegment).toBe(4);
+  });
+
+  it("keeps packed voxel values in unsigned 32-bit space", () => {
+    const packed = BlockUtils.insertId(-1, 1);
+    expect(packed).toBe(0xffff0001);
+    expect(Voxel.id(packed)).toBe(1);
+    expect(Voxel.stage(packed)).toBe(15);
   });
 });
 
