@@ -2966,7 +2966,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
         .get_block_by_id(0)
         .map(|block| block.is_empty)
         .unwrap_or(true);
-    let mut processed_non_greedy: HashSet<(i32, i32, i32)> = HashSet::new();
+    let mut processed_non_greedy: HashSet<usize> = HashSet::new();
 
     let [min_x, min_y, min_z] = *min;
     let [max_x, max_y, max_z] = *max;
@@ -3088,8 +3088,13 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     }
 
                     let is_non_greedy_block = !can_greedy_mesh_block(block);
-                    if is_non_greedy_block && processed_non_greedy.contains(&(vx, vy, vz)) {
-                        continue;
+                    if is_non_greedy_block {
+                        let voxel_key = ((vx - min_x) as usize) * yz_span
+                            + ((vy - min_y) as usize) * z_span
+                            + (vz - min_z) as usize;
+                        if processed_non_greedy.contains(&voxel_key) {
+                            continue;
+                        }
                     }
 
                     let cache_ready = block.cache_ready;
@@ -3148,7 +3153,10 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     }
 
                     if is_non_greedy_block {
-                        processed_non_greedy.insert((vx, vy, vz));
+                        let voxel_key = ((vx - min_x) as usize) * yz_span
+                            + ((vy - min_y) as usize) * z_span
+                            + (vz - min_z) as usize;
+                        processed_non_greedy.insert(voxel_key);
 
                         let mut queue_non_greedy_face =
                             |face: &BlockFace, face_index: Option<i16>, world_space: bool| {
