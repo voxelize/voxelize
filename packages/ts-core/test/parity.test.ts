@@ -53,6 +53,13 @@ describe("BlockUtils", () => {
     expect(() => BlockUtils.insertStage(0, 16)).toThrowError(RangeError);
     expect(() => BlockUtils.insertStage(0, -1)).toThrowError(RangeError);
     expect(() => BlockUtils.insertStage(0, 1.5)).toThrowError(RangeError);
+    expect(() => BlockUtils.insertStage(0, Number.NaN)).toThrowError(RangeError);
+    expect(() => BlockUtils.insertStage(0, Number.POSITIVE_INFINITY)).toThrowError(
+      RangeError
+    );
+    expect(() => BlockUtils.insertStage(0, Number.NEGATIVE_INFINITY)).toThrowError(
+      RangeError
+    );
   });
 
   it("supports rotation roundtrip", () => {
