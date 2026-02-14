@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use voxelize_core::LightColor;
+use voxelize_core::{LightColor, LightUtils};
 
 use crate::types::{
     LightBlock, LightBounds, LightConfig, LightNode, LightRegistry, LightVoxelAccess,
@@ -51,10 +51,16 @@ fn get_light_level(
     color: &LightColor,
     is_sunlight: bool,
 ) -> u32 {
+    let raw = space.get_raw_light(vx, vy, vz);
     if is_sunlight {
-        space.get_sunlight(vx, vy, vz)
+        LightUtils::extract_sunlight(raw)
     } else {
-        space.get_torch_light(vx, vy, vz, color)
+        match color {
+            LightColor::Red => LightUtils::extract_red_light(raw),
+            LightColor::Green => LightUtils::extract_green_light(raw),
+            LightColor::Blue => LightUtils::extract_blue_light(raw),
+            LightColor::Sunlight => panic!("Getting torch light for sunlight channel."),
+        }
     }
 }
 
@@ -68,10 +74,17 @@ fn set_light_level(
     color: &LightColor,
     is_sunlight: bool,
 ) {
+    let raw = space.get_raw_light(vx, vy, vz);
     if is_sunlight {
-        space.set_sunlight(vx, vy, vz, level);
+        space.set_raw_light(vx, vy, vz, LightUtils::insert_sunlight(raw, level));
     } else {
-        space.set_torch_light(vx, vy, vz, level, color);
+        let inserted = match color {
+            LightColor::Red => LightUtils::insert_red_light(raw, level),
+            LightColor::Green => LightUtils::insert_green_light(raw, level),
+            LightColor::Blue => LightUtils::insert_blue_light(raw, level),
+            LightColor::Sunlight => panic!("Setting torch light for sunlight channel."),
+        };
+        space.set_raw_light(vx, vy, vz, inserted);
     }
 }
 
