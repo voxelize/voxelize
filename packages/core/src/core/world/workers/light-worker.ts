@@ -586,8 +586,7 @@ const isValidFloodNode = (
   node !== undefined &&
   node !== null &&
   typeof node === "object" &&
-  isInteger(node.level) &&
-  node.level > 0 &&
+  isPositiveU32(node.level) &&
   isStrictCoords3(node.voxel);
 
 const hasAnyValidRemovalNode = (removals: Coords3[]) => {
