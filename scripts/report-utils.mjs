@@ -524,16 +524,20 @@ const isIntegerInRange = (value, min, max) => {
 };
 export const summarizeTsCoreExampleOutput = (output) => {
   const parsedOutput = parseJsonOutput(output);
-  if (
-    parsedOutput === null ||
-    typeof parsedOutput !== "object" ||
-    Array.isArray(parsedOutput)
-  ) {
+  if (parsedOutput === null || typeof parsedOutput !== "object") {
     return {
       exampleRuleMatched: null,
       examplePayloadValid: null,
       examplePayloadIssues: null,
       exampleOutputLine: resolveFirstNonEmptyOutputLine(output),
+    };
+  }
+  if (Array.isArray(parsedOutput)) {
+    return {
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      exampleOutputLine: JSON.stringify(parsedOutput),
     };
   }
 

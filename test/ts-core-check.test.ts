@@ -1229,11 +1229,9 @@ process.stdout.write(
         expect(report.examplePayloadValid).toBeNull();
         expect(report.examplePayloadIssues).toBeNull();
         expect(report.examplePayloadIssueCount).toBeNull();
-        expect(report.exampleOutputLine).not.toBeNull();
-        if (report.exampleOutputLine !== null) {
-          expect(report.exampleOutputLine.startsWith('{"voxel":')).toBe(true);
-          expect(report.exampleOutputLine.includes('[{"voxel":')).toBe(true);
-        }
+        expect(report.exampleOutputLine).toBe(
+          '[{"voxel":{"id":42,"stage":7,"rotation":{"value":0,"yRotation":2.356}},"light":{"sunlight":15,"red":10,"green":5,"blue":3},"rotatedAabb":{"min":[0,0,0],"max":[1,1,1]},"ruleMatched":true}]'
+        );
         expect(report.failureSummaryCount).toBe(1);
         expect(report.failureSummaries).toEqual([
           {
