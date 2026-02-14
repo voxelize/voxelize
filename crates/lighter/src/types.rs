@@ -111,6 +111,48 @@ impl Default for LightBlock {
 }
 
 impl LightBlock {
+    #[inline]
+    fn sample_transparency_marker(marker: f32, [px, py, pz, nx, ny, nz]: [bool; 6]) -> bool {
+        if marker == 1.0 {
+            px
+        } else if marker == 2.0 {
+            py
+        } else if marker == 3.0 {
+            pz
+        } else if marker == 4.0 {
+            nx
+        } else if marker == 5.0 {
+            ny
+        } else {
+            nz
+        }
+    }
+
+    fn rotate_transparency_no_alloc(
+        rotation: &BlockRotation,
+        transparency: [bool; 6],
+    ) -> [bool; 6] {
+        if let BlockRotation::PY(rot) = rotation {
+            if rot.abs() < f32::EPSILON {
+                return transparency;
+            }
+        }
+
+        let mut positive = [1.0, 2.0, 3.0];
+        let mut negative = [4.0, 5.0, 6.0];
+        rotation.rotate_node(&mut positive, true, false);
+        rotation.rotate_node(&mut negative, true, false);
+
+        [
+            Self::sample_transparency_marker(positive[0], transparency),
+            Self::sample_transparency_marker(positive[1], transparency),
+            Self::sample_transparency_marker(positive[2], transparency),
+            Self::sample_transparency_marker(negative[0], transparency),
+            Self::sample_transparency_marker(negative[1], transparency),
+            Self::sample_transparency_marker(negative[2], transparency),
+        ]
+    }
+
     pub fn new(
         id: u32,
         is_transparent: [bool; 6],
@@ -236,7 +278,7 @@ impl LightBlock {
         if self.has_uniform_transparency {
             self.is_transparent
         } else {
-            rotation.rotate_transparency(self.is_transparent)
+            Self::rotate_transparency_no_alloc(rotation, self.is_transparent)
         }
     }
 
@@ -245,8 +287,10 @@ impl LightBlock {
         if self.has_uniform_transparency {
             self.is_transparent
         } else {
-            BlockRotation::encode((raw_voxel >> 16) & 0xF, (raw_voxel >> 20) & 0xF)
-                .rotate_transparency(self.is_transparent)
+            Self::rotate_transparency_no_alloc(
+                &BlockRotation::encode((raw_voxel >> 16) & 0xF, (raw_voxel >> 20) & 0xF),
+                self.is_transparent,
+            )
         }
     }
 
@@ -611,7 +655,7 @@ impl LightRegistry {
 
 #[cfg(test)]
 mod tests {
-    use voxelize_core::{BlockRule, BlockRuleLogic, BlockSimpleRule, LightColor};
+    use voxelize_core::{BlockRotation, BlockRule, BlockRuleLogic, BlockSimpleRule, LightColor};
 
     use super::{LightBlock, LightConditionalPart, LightDynamicPattern, LightRegistry};
 
@@ -699,6 +743,37 @@ mod tests {
         assert!(block.is_opaque);
         assert!(block.is_light);
         assert!(block.has_static_torch_color(&LightColor::Blue));
+    }
+
+    #[test]
+    fn rotated_transparency_matches_core_rotation_logic() {
+        let block = LightBlock::new(
+            11,
+            [true, false, true, false, true, false],
+            false,
+            0,
+            0,
+            0,
+            None,
+        );
+
+        let rotations = [
+            BlockRotation::encode(0, 0),
+            BlockRotation::encode(0, 1),
+            BlockRotation::encode(0, 4),
+            BlockRotation::encode(1, 0),
+            BlockRotation::encode(2, 7),
+            BlockRotation::encode(3, 3),
+            BlockRotation::encode(4, 0),
+            BlockRotation::encode(5, 0),
+        ];
+
+        for rotation in rotations {
+            assert_eq!(
+                block.get_rotated_transparency(&rotation),
+                rotation.rotate_transparency(block.is_transparent)
+            );
+        }
     }
 
     #[test]
