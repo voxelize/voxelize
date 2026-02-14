@@ -122,7 +122,12 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   private parsedCommandRest = "";
   private parseSchemaInfoBySchema = new WeakMap<
     ZodObject<Record<string, ZodTypeAny>>,
-    { keys: string[]; booleanKeys: Set<string>; positionalKeys: string[] }
+    {
+      keys: string[];
+      keySet: Set<string>;
+      booleanKeys: Set<string>;
+      positionalKeys: string[];
+    }
   >();
 
   /**
@@ -291,7 +296,12 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
   private getParseSchemaInfo<T extends ZodObject<Record<string, ZodTypeAny>>>(
     schema: T
-  ): { keys: string[]; booleanKeys: Set<string>; positionalKeys: string[] } {
+  ): {
+    keys: string[];
+    keySet: Set<string>;
+    booleanKeys: Set<string>;
+    positionalKeys: string[];
+  } {
     const cached = this.parseSchemaInfoBySchema.get(schema);
     if (cached) {
       return cached;
@@ -300,6 +310,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     const shape = schema.shape;
     const hasOwn = Object.prototype.hasOwnProperty;
     const keys: string[] = [];
+    const keySet = new Set<string>();
     const booleanKeys = new Set<string>();
     const positionalKeys: string[] = [];
 
@@ -308,6 +319,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         continue;
       }
       keys.push(key);
+      keySet.add(key);
 
       let innerType = shape[key] as ZodTypeAny;
       if (this.isOptionalSchema(innerType)) {
@@ -326,7 +338,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       }
     }
 
-    const info = { keys, booleanKeys, positionalKeys };
+    const info = { keys, keySet, booleanKeys, positionalKeys };
     this.parseSchemaInfoBySchema.set(schema, info);
     return info;
   }
@@ -335,9 +347,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     raw: string,
     schema: T
   ): z.infer<T> {
-    const shape = schema.shape;
-    const { keys, booleanKeys, positionalKeys } = this.getParseSchemaInfo(schema);
-    const hasOwn = Object.prototype.hasOwnProperty;
+    const { keys, keySet, booleanKeys, positionalKeys } =
+      this.getParseSchemaInfo(schema);
 
     if (keys.length === 1 && keys[0] === "rest") {
       return schema.parse({ rest: raw.trim() });
@@ -363,7 +374,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       if (eqIndex > 0) {
         const key = word.substring(0, eqIndex);
         const value = word.substring(eqIndex + 1);
-        if (hasOwn.call(shape, key)) {
+        if (keySet.has(key)) {
           if (rawObj[key] === undefined) {
             rawObjKeys.push(key);
           }
