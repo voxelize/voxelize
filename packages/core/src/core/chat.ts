@@ -510,49 +510,31 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         positionalValues.push(word);
       }
     } else if (!hasPositionalKeys) {
-      if (!hasEquals) {
-        for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
-          const word = words[wordIndex];
-          if (booleanKeys.has(word)) {
-            assignParsedArg(rawObj, rawObjKeys, word, "true");
-          }
+      for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
+        const word = words[wordIndex];
+        if (booleanKeys.has(word)) {
+          assignParsedArg(rawObj, rawObjKeys, word, "true");
+          continue;
         }
-      } else {
-        for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
-          const word = words[wordIndex];
-          if (booleanKeys.has(word)) {
-            assignParsedArg(rawObj, rawObjKeys, word, "true");
-            continue;
-          }
+        if (hasEquals) {
           const eqIndex = getFirstEqualsIndex(word);
           if (eqIndex > 0) {
             const key = word.substring(0, eqIndex);
             if (keySet.has(key)) {
               const value = word.substring(eqIndex + 1);
               assignParsedArg(rawObj, rawObjKeys, key, value);
-              continue;
             }
           }
         }
       }
     } else {
-      if (!hasEquals) {
-        for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
-          const word = words[wordIndex];
-          if (booleanKeys.has(word)) {
-            assignParsedArg(rawObj, rawObjKeys, word, "true");
-            continue;
-          }
-
-          positionalValues.push(word);
+      for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
+        const word = words[wordIndex];
+        if (booleanKeys.has(word)) {
+          assignParsedArg(rawObj, rawObjKeys, word, "true");
+          continue;
         }
-      } else {
-        for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
-          const word = words[wordIndex];
-          if (booleanKeys.has(word)) {
-            assignParsedArg(rawObj, rawObjKeys, word, "true");
-            continue;
-          }
+        if (hasEquals) {
           const eqIndex = getFirstEqualsIndex(word);
           if (eqIndex > 0) {
             const key = word.substring(0, eqIndex);
@@ -562,9 +544,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
               continue;
             }
           }
-
-          positionalValues.push(word);
         }
+        positionalValues.push(word);
       }
     }
 
