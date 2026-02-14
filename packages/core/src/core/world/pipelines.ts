@@ -579,17 +579,19 @@ export class MeshPipeline {
     if (!keys) {
       return;
     }
+    const states = this.states;
+    const dirty = this.dirty;
 
     let keyEntries = keys.values();
     let keyEntry = keyEntries.next();
     while (!keyEntry.done) {
       const key = keyEntry.value;
-      const state = this.states.get(key);
+      const state = states.get(key);
       if (state !== undefined && state.inFlightGeneration !== null) {
         this.inFlightCount--;
       }
-      this.states.delete(key);
-      this.dirty.delete(key);
+      states.delete(key);
+      dirty.delete(key);
       keyEntry = keyEntries.next();
     }
     this.keysByChunk.delete(chunkKey);
