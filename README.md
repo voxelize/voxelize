@@ -184,6 +184,7 @@ pnpm run check:ts-core:verify:json -- --output ./ts-core-verify-report.json
 
 # run an aggregated preflight report in json mode
 pnpm run check:preflight:json
+# default aggregate execution order: devEnvironment, wasmPack, tsCore, client
 # compact aggregate preflight report
 pnpm run check:preflight:json:compact
 # list available aggregate checks without executing them
