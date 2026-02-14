@@ -294,6 +294,17 @@ impl Pipeline {
     /// Remove a chunk coordinate from the pipeline.
     pub fn remove_chunk(&mut self, coords: &Vec2<i32>) {
         self.chunks.remove(coords);
+        if self.queue.is_empty() {
+            return;
+        }
+        if self.queue.front().is_some_and(|front| front == coords) {
+            self.queue.pop_front();
+            return;
+        }
+        if self.queue.back().is_some_and(|back| back == coords) {
+            self.queue.pop_back();
+            return;
+        }
         self.queue.retain(|c| c != coords);
     }
 
