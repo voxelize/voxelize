@@ -177,6 +177,12 @@ pnpm run check:ts-core:verify:json:compact
 pnpm run check:ts-core:verify:json -- --output ./ts-core-verify-report.json
 # full release-readiness workflow (build + tests + e2e example + verify report)
 pnpm run check:ts-core:release
+# ts-core release workflow aliases
+pnpm run check:ts:release
+pnpm run check:typescript:release
+# ts-core aggregate preflight release workflow aliases
+pnpm run check:preflight:ts:release
+pnpm run check:preflight:typescript:release
 # direct cli alias also works: node ./check-ts-core.mjs --verify
 # ts-core checks verify these artifact paths:
 # - packages/ts-core/dist/index.js
@@ -199,6 +205,10 @@ pnpm run check:runtime-libraries:verify:json
 pnpm run check:runtime-libraries:verify:json:compact
 # full release-readiness workflow (build each runtime package + verify report)
 pnpm run check:runtime-libraries:release
+# runtime-library release workflow alias
+pnpm run check:runtime:release
+# runtime-library aggregate preflight release workflow alias
+pnpm run check:preflight:runtime:release
 # combined library release workflow (ts-core + runtime libraries)
 pnpm run check:libraries:release
 # combined library release workflow aliases

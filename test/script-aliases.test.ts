@@ -70,6 +70,12 @@ describe("script aliases", () => {
     expect(manifest.scripts["check:runtime-libraries:release"]).toBe(
       "pnpm --filter @voxelize/aabb run build && pnpm --filter @voxelize/raycast run build && pnpm --filter @voxelize/physics-engine run build && pnpm run check:runtime-libraries:verify:json"
     );
+    expect(manifest.scripts["check:runtime:release"]).toBe(
+      "pnpm run check:runtime-libraries:release"
+    );
+    expect(manifest.scripts["check:preflight:runtime:release"]).toBe(
+      "pnpm run check:runtime:release && pnpm run check:preflight:runtime:verify:json"
+    );
     expect(manifest.scripts["check:ts-core"]).toBe("node ./check-ts-core.mjs");
     expect(manifest.scripts["check:ts-core:json"]).toBe(
       "node ./check-ts-core.mjs --json"
@@ -88,6 +94,18 @@ describe("script aliases", () => {
     );
     expect(manifest.scripts["check:ts-core:release"]).toBe(
       "pnpm --filter @voxelize/ts-core run build && pnpm --filter @voxelize/ts-core run test && pnpm --filter @voxelize/ts-core run example:end-to-end && pnpm run check:ts-core:verify:json"
+    );
+    expect(manifest.scripts["check:ts:release"]).toBe(
+      "pnpm run check:ts-core:release"
+    );
+    expect(manifest.scripts["check:typescript:release"]).toBe(
+      "pnpm run check:ts-core:release"
+    );
+    expect(manifest.scripts["check:preflight:ts:release"]).toBe(
+      "pnpm run check:ts:release && pnpm run check:preflight:ts:verify:json"
+    );
+    expect(manifest.scripts["check:preflight:typescript:release"]).toBe(
+      "pnpm run check:typescript:release && pnpm run check:preflight:typescript:verify:json"
     );
     expect(manifest.scripts["check:libraries:release"]).toBe(
       "pnpm run check:ts-core:release && pnpm run check:runtime-libraries:release"
