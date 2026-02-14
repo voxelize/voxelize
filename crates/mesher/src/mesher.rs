@@ -2230,13 +2230,7 @@ fn process_greedy_quad(
         geometry.lights.push(light | (ao << 16) | light_flags);
     }
 
-    if face_aos[0] == face_aos[1]
-        && face_aos[1] == face_aos[2]
-        && face_aos[2] == face_aos[3]
-        && face_lights[0] == face_lights[1]
-        && face_lights[1] == face_lights[2]
-        && face_lights[2] == face_lights[3]
-    {
+    if face_aos == [face_aos[0]; 4] && face_lights == [face_lights[0]; 4] {
         geometry.indices.push(ndx);
         geometry.indices.push(ndx + 1);
         geometry.indices.push(ndx + 2);
