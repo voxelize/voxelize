@@ -150,10 +150,15 @@ function tryParseJSON(str: string): JsonValue {
 }
 
 function deepParseJSON(value: JsonValue): JsonValue {
-  if (typeof value !== "string") return value;
-  const parsed = tryParseJSON(value);
-  if (parsed === value) return value;
-  return deepParseJSON(parsed);
+  let current = value;
+  while (typeof current === "string") {
+    const parsed = tryParseJSON(current);
+    if (parsed === current) {
+      break;
+    }
+    current = parsed;
+  }
+  return current;
 }
 
 export function decodeMessage(
