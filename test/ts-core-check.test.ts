@@ -17,6 +17,8 @@ type TsCoreCheckReport = {
   packagePath: string;
   requiredArtifacts: string[];
   requiredArtifactCount: number;
+  buildCommand: string;
+  buildArgs: string[];
   artifactsPresent: boolean;
   missingArtifacts: string[];
   missingArtifactCount: number;
@@ -78,6 +80,14 @@ const expectedRequiredArtifacts = [
   "packages/ts-core/dist/index.mjs",
   "packages/ts-core/dist/index.d.ts",
 ];
+const expectedBuildArgs = [
+  "--dir",
+  rootDir,
+  "--filter",
+  "@voxelize/ts-core",
+  "run",
+  "build",
+];
 const resolveArtifactPath = (artifactPath: string) => {
   return path.resolve(rootDir, artifactPath);
 };
@@ -127,6 +137,9 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
   const report = JSON.parse(result.output) as TsCoreCheckReport;
   expect(report.requiredArtifactCount).toBe(report.requiredArtifacts.length);
   expect(report.missingArtifactCount).toBe(report.missingArtifacts.length);
+  expect(typeof report.buildCommand).toBe("string");
+  expect(report.buildCommand.length).toBeGreaterThan(0);
+  expect(report.buildArgs).toEqual(expectedBuildArgs);
   return report;
 };
 

@@ -24,6 +24,14 @@ const requiredArtifacts = [
   "packages/ts-core/dist/index.mjs",
   "packages/ts-core/dist/index.d.ts",
 ];
+const buildCommandArgs = [
+  "--dir",
+  repositoryRoot,
+  "--filter",
+  "@voxelize/ts-core",
+  "run",
+  "build",
+];
 const resolveMissingArtifacts = () => {
   return requiredArtifacts.filter((artifactPath) => {
     const absoluteArtifactPath = path.resolve(repositoryRoot, artifactPath);
@@ -121,6 +129,8 @@ const withBaseReportFields = (report) => {
     requiredArtifacts,
     requiredArtifactCount: requiredArtifacts.length,
     missingArtifactCount: missingArtifacts.length,
+    buildCommand: pnpmCommand,
+    buildArgs: buildCommandArgs,
   };
 };
 const finish = (report) => {
@@ -215,14 +225,6 @@ if (!isJson && !isQuiet) {
   console.log("TypeScript core build artifacts missing. Running package build...");
 }
 
-const buildCommandArgs = [
-  "--dir",
-  repositoryRoot,
-  "--filter",
-  "@voxelize/ts-core",
-  "run",
-  "build",
-];
 const buildResult = isJson
   ? spawnSync(pnpmCommand, buildCommandArgs, {
       encoding: "utf8",
