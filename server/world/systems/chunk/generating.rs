@@ -402,17 +402,17 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 if let Some(blocks) = pipeline.leftovers.get(&n_coords) {
                     for (voxel, val) in blocks.iter() {
                         let Vec3(vx, vy, vz) = *voxel;
-                        chunks.set_raw_voxel(vx, vy, vz, *val);
-
-                        let id = BlockUtils::extract_id(*val);
-                        update_chunk_column_height_for_voxel_update(
-                            &mut chunks,
-                            &registry,
-                            vx,
-                            vy,
-                            vz,
-                            id,
-                        );
+                        if chunks.set_raw_voxel(vx, vy, vz, *val) {
+                            let id = BlockUtils::extract_id(*val);
+                            update_chunk_column_height_for_voxel_update(
+                                &mut chunks,
+                                &registry,
+                                vx,
+                                vy,
+                                vz,
+                                id,
+                            );
+                        }
                     }
                 }
             }
