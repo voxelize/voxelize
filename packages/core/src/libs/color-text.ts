@@ -47,43 +47,43 @@ export class ColorText {
   ): { color: string; text: string }[] {
     const splitter = ColorText.SPLITTER;
     const splitterLength = splitter.length;
+    const textLength = text.length;
     const result: { color: string; text: string }[] = [];
     let currentColor = defaultColor;
     let expectingColorToken = false;
     let hasNonEmptySegment = false;
     let cursor = 0;
 
-    while (cursor <= text.length) {
+    while (cursor <= textLength) {
       const openIndex = text.indexOf(splitter, cursor);
       let segment = "";
 
       if (openIndex === -1) {
         segment = text.substring(cursor);
-        cursor = text.length + 1;
+        cursor = textLength + 1;
       } else {
-        const closeIndex = text.indexOf(splitter, openIndex + splitterLength);
+        const tokenStart = openIndex + splitterLength;
+        const closeIndex = text.indexOf(splitter, tokenStart);
         if (closeIndex === -1) {
           segment = text.substring(cursor);
-          cursor = text.length + 1;
+          cursor = textLength + 1;
         } else {
           segment = text.substring(cursor, openIndex);
-          cursor = closeIndex + splitterLength;
-          const token = text.substring(openIndex, cursor);
-          if (token) {
-            if (!hasNonEmptySegment) {
-              expectingColorToken = true;
-              hasNonEmptySegment = true;
-            }
-            if (expectingColorToken) {
-              currentColor = token.substring(
-                splitterLength,
-                token.length - splitterLength
-              );
-              expectingColorToken = false;
-            } else {
-              result.push({ color: currentColor, text: token });
-              expectingColorToken = true;
-            }
+          const tokenEnd = closeIndex + splitterLength;
+          cursor = tokenEnd;
+          if (!hasNonEmptySegment) {
+            expectingColorToken = true;
+            hasNonEmptySegment = true;
+          }
+          if (expectingColorToken) {
+            currentColor = text.substring(tokenStart, closeIndex);
+            expectingColorToken = false;
+          } else {
+            result.push({
+              color: currentColor,
+              text: text.substring(openIndex, tokenEnd),
+            });
+            expectingColorToken = true;
           }
         }
       }
