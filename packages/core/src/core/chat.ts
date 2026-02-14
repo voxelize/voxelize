@@ -285,10 +285,9 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       return tokens;
     }
 
-    let scanStart = 0;
+    let scanStart = firstSpace + 1;
     if (firstSpace > 0) {
       tokens.push(raw.substring(0, firstSpace));
-      scanStart = firstSpace + 1;
     }
 
     let segmentStart = -1;
