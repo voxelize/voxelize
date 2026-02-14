@@ -23,6 +23,9 @@ const mapVoxelToChunkCoordinates = (
   }
   const useShiftX = (vx | 0) === vx;
   const useShiftZ = (vz | 0) === vz;
+  if (useShiftX && useShiftZ) {
+    return [vx >> chunkShift, vz >> chunkShift];
+  }
   return [
     useShiftX ? vx >> chunkShift : Math.floor(vx / chunkSize),
     useShiftZ ? vz >> chunkShift : Math.floor(vz / chunkSize),
