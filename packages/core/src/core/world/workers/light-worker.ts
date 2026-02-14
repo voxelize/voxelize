@@ -1012,8 +1012,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
     return;
   }
   if (
-    !isPositiveInteger(gridWidth) ||
-    !isPositiveInteger(gridDepth) ||
+    !isPositiveI32(gridWidth) ||
+    !isPositiveI32(gridDepth) ||
     !isI32(gridOffsetX) ||
     !isI32(gridOffsetZ)
   ) {
