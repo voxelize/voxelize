@@ -17,10 +17,17 @@ const mapVoxelToChunkCoordinates = (
   vz: number,
   chunkSize: number,
   chunkShift: number
-): Coords2 =>
-  chunkShift >= 0 && (vx | 0) === vx && (vz | 0) === vz
-    ? [vx >> chunkShift, vz >> chunkShift]
-    : [Math.floor(vx / chunkSize), Math.floor(vz / chunkSize)];
+): Coords2 => {
+  if (chunkShift < 0) {
+    return [Math.floor(vx / chunkSize), Math.floor(vz / chunkSize)];
+  }
+  const useShiftX = (vx | 0) === vx;
+  const useShiftZ = (vz | 0) === vz;
+  return [
+    useShiftX ? vx >> chunkShift : Math.floor(vx / chunkSize),
+    useShiftZ ? vz >> chunkShift : Math.floor(vz / chunkSize),
+  ];
+};
 
 const normalizeChunkSize = (chunkSize: number) => {
   if (!Number.isFinite(chunkSize) || chunkSize <= 0) {
@@ -272,9 +279,17 @@ export class ChunkUtils {
   ): Coords3 => {
     const [normalizedChunkSize, chunkShift] = normalizeChunkMapping(chunkSize);
     const [vx, vy, vz] = voxelPos;
-    if (chunkShift >= 0 && (vx | 0) === vx && (vz | 0) === vz) {
+    if (chunkShift >= 0) {
       const mask = normalizedChunkSize - 1;
-      return [vx & mask, vy, vz & mask];
+      const useMaskX = (vx | 0) === vx;
+      const useMaskZ = (vz | 0) === vz;
+      const cx = useMaskX ? vx >> chunkShift : Math.floor(vx / normalizedChunkSize);
+      const cz = useMaskZ ? vz >> chunkShift : Math.floor(vz / normalizedChunkSize);
+      return [
+        useMaskX ? vx & mask : vx - cx * normalizedChunkSize,
+        vy,
+        useMaskZ ? vz & mask : vz - cz * normalizedChunkSize,
+      ];
     }
     const cx = Math.floor(vx / normalizedChunkSize);
     const cz = Math.floor(vz / normalizedChunkSize);

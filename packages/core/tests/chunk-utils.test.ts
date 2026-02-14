@@ -62,6 +62,14 @@ describe("ChunkUtils.mapVoxelToChunkLocal", () => {
     expect(ChunkUtils.mapVoxelToChunkLocal([-1, 7, -17], 16)).toEqual([15, 7, 15]);
   });
 
+  it("keeps mixed int/fractional semantics for power-of-two chunk sizes", () => {
+    expect(ChunkUtils.mapVoxelToChunkLocal([-1, 7, -16.25], 16)).toEqual([
+      15,
+      7,
+      15.75,
+    ]);
+  });
+
   it("keeps floor-division semantics for fractional local coordinates", () => {
     expect(ChunkUtils.mapVoxelToChunkLocal([-0.5, 7, -16.25], 16)).toEqual([
       15.5,
