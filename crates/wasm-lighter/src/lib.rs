@@ -495,9 +495,6 @@ fn parse_nodes_or_empty<T>(value: JsValue) -> Vec<T>
 where
     T: DeserializeOwned,
 {
-    if value.is_null() || value.is_undefined() {
-        return Vec::new();
-    }
     if !value.is_object() {
         return Vec::new();
     }
@@ -529,7 +526,7 @@ where
         let mut nodes = Vec::with_capacity(length);
         for index in 0..length_u32 {
             let node_value = array.get(index);
-            if node_value.is_null() || node_value.is_undefined() || !node_value.is_object() {
+            if !node_value.is_object() {
                 continue;
             }
             if let Ok(node) = serde_wasm_bindgen::from_value(node_value) {
