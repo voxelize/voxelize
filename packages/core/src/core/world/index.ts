@@ -2243,6 +2243,16 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
     return this.getBlockByName(idOrName);
   }
 
+  private normalizeBlockNameLookup(name: string) {
+    for (let index = 0; index < name.length; index++) {
+      const code = name.charCodeAt(index);
+      if (code >= 65 && code <= 90) {
+        return name.toLowerCase();
+      }
+    }
+    return name;
+  }
+
   /**
    * Get the block type data by a block id.
    *
@@ -2270,7 +2280,9 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
    * @returns The block data for the given name, or null if it does not exist.
    */
   getBlockByName(name: string) {
-    const block = this.registry.blocksByName.get(name.toLowerCase());
+    const block = this.registry.blocksByName.get(
+      this.normalizeBlockNameLookup(name)
+    );
 
     if (!block) {
       throw new Error(`Block with name ${name} does not exist`);
