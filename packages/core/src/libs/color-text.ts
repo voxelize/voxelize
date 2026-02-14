@@ -29,6 +29,24 @@
  * @category Effects
  */
 export class ColorText {
+  private static findSplitterIndex(
+    text: string,
+    splitter: string,
+    splitterLength: number,
+    start: number,
+    singleSplitterCode: number
+  ) {
+    if (splitterLength === 1) {
+      for (let index = start; index < text.length; index++) {
+        if (text.charCodeAt(index) === singleSplitterCode) {
+          return index;
+        }
+      }
+      return -1;
+    }
+    return text.indexOf(splitter, start);
+  }
+
   private static pushSegment(
     result: { color: string; text: string }[],
     color: string,
@@ -70,7 +88,15 @@ export class ColorText {
     if (splitterLength === 0) {
       return [{ color: defaultColor, text }];
     }
-    const firstSplitterIndex = text.indexOf(splitter);
+    const singleSplitterCode =
+      splitterLength === 1 ? splitter.charCodeAt(0) : -1;
+    const firstSplitterIndex = ColorText.findSplitterIndex(
+      text,
+      splitter,
+      splitterLength,
+      0,
+      singleSplitterCode
+    );
     if (firstSplitterIndex === -1) {
       return [{ color: defaultColor, text }];
     }
@@ -95,7 +121,13 @@ export class ColorText {
         endedOnColorToken = false;
       }
       const tokenStart = openIndex + splitterLength;
-      const closeIndex = text.indexOf(splitter, tokenStart);
+      const closeIndex = ColorText.findSplitterIndex(
+        text,
+        splitter,
+        splitterLength,
+        tokenStart,
+        singleSplitterCode
+      );
       if (closeIndex === -1) {
         ColorText.pushSegment(result, currentColor, text.substring(openIndex));
         endedOnColorToken = false;
@@ -105,7 +137,13 @@ export class ColorText {
       currentColor = text.substring(tokenStart, closeIndex);
       cursor = closeIndex + splitterLength;
       endedOnColorToken = cursor >= textLength;
-      openIndex = text.indexOf(splitter, cursor);
+      openIndex = ColorText.findSplitterIndex(
+        text,
+        splitter,
+        splitterLength,
+        cursor,
+        singleSplitterCode
+      );
     }
 
     if (endedOnColorToken) {
