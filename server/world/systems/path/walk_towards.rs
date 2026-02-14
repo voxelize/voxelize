@@ -108,9 +108,10 @@ impl<'a> System<'a> for WalkTowardsSystem {
                             next_node.2 as f32 + offset,
                         );
 
-                        let dist_to_current = ((current_pos.0 - current_target.0).powi(2)
-                            + (current_pos.2 - current_target.2).powi(2))
-                        .sqrt();
+                        let current_dx = current_pos.0 - current_target.0;
+                        let current_dz = current_pos.2 - current_target.2;
+                        let dist_to_current =
+                            (current_dx * current_dx + current_dz * current_dz).sqrt();
 
                         let (is_turning, turn_angle) = if target_index > 0 {
                             let prev_node = &nodes[target_index - 1];
