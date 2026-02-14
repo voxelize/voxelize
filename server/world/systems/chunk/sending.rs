@@ -64,9 +64,8 @@ impl<'a> System<'a> for ChunkSendingSystem {
         let mut client_update_data: HashMap<String, Vec<ChunkProtocol>> = HashMap::new();
 
         while let Some((coords, msg_type)) = to_send.pop_front() {
-            let chunk = match chunks.get_mut(&coords) {
-                Some(c) => c,
-                None => panic!("Something went wrong with sending chunks..."),
+            let Some(chunk) = chunks.get_mut(&coords) else {
+                continue;
             };
 
             let Some(interested_clients) = interests.get_interests(&coords) else {
