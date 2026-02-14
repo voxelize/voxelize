@@ -73,7 +73,8 @@ const voxel = Voxel.pack({
     evaluate to `true`, `OR []` evaluates to `false`)
   - y-rotated rule offsets use rounded integer voxel positions after rotation
   - rule-offset y-rotation also normalizes full turns/non-finite values to
-    identity before offset checks
+    identity before offset checks and snaps large-angle precision drift near
+    segment boundaries
 - `VoxelAccess`
   - interface contract for meshing/generation-style data access
 
