@@ -130,8 +130,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   /**
    * The symbol that is used to trigger commands.
    */
-  private _commandSymbol: string;
-  private _commandSymbolCode: string;
+  private _commandSymbol = "";
+  private _commandSymbolCode = "";
 
   private fallbackCommand: ((rest: string) => void) | null = null;
   private quotedTokensBuffer: string[] = [];
