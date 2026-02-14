@@ -94,14 +94,11 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
       const i3Index = indices[indexOffset + 3];
       const i4Index = indices[indexOffset + 4];
       const i5Index = indices[indexOffset + 5];
-      const maxIndex = Math.max(
-        i0Index,
-        i1Index,
-        i2Index,
-        i3Index,
-        i4Index,
-        i5Index
-      );
+      let maxIndex = i0Index > i1Index ? i0Index : i1Index;
+      if (i2Index > maxIndex) maxIndex = i2Index;
+      if (i3Index > maxIndex) maxIndex = i3Index;
+      if (i4Index > maxIndex) maxIndex = i4Index;
+      if (i5Index > maxIndex) maxIndex = i5Index;
       if (maxIndex >= vertexCount) {
         return null;
       }
@@ -132,14 +129,11 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
       const i3Index = indices[indexOffset + 3];
       const i4Index = indices[indexOffset + 4];
       const i5Index = indices[indexOffset + 5];
-      const maxIndex = Math.max(
-        i0Index,
-        i1Index,
-        i2Index,
-        i3Index,
-        i4Index,
-        i5Index
-      );
+      let maxIndex = i0Index > i1Index ? i0Index : i1Index;
+      if (i2Index > maxIndex) maxIndex = i2Index;
+      if (i3Index > maxIndex) maxIndex = i3Index;
+      if (i4Index > maxIndex) maxIndex = i4Index;
+      if (i5Index > maxIndex) maxIndex = i5Index;
       if (maxIndex >= vertexCount) {
         return null;
       }
