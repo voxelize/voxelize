@@ -46,7 +46,10 @@ When making changes to meshing algorithms:
    - optional lane selection: `--include '^greedy_mesher/' --exclude '/legacy/'`
 8. Aggregate lane medians over repeated runs:
    - `python3 crates/mesher/scripts/aggregate_bench_medians.py --input <run1.txt> --input <run2.txt> --include '^greedy_mesher/'`
-9. Rebuild WASM wrapper when needed:
+9. Compare baseline/candidate run sets with per-lane spread:
+   - `python3 crates/mesher/scripts/compare_bench_sets.py --baseline <baseline_run1.txt> --baseline <baseline_run2.txt> --candidate <candidate_run1.txt> --candidate <candidate_run2.txt> --include '^greedy_mesher/'`
+   - optional regression gate: `--max-regression-pct 1.0`
+10. Rebuild WASM wrapper when needed:
    - `cd crates/wasm-mesher && wasm-pack build --target web`
 
 ## Structure
@@ -58,3 +61,4 @@ When making changes to meshing algorithms:
 - `scripts/compare_bench_medians.py` - Median-only benchmark output comparison tool
 - `scripts/bench_regression_gate.py` - Threshold-based benchmark regression gate
 - `scripts/aggregate_bench_medians.py` - Multi-run benchmark median aggregation tool
+- `scripts/compare_bench_sets.py` - Multi-run baseline/candidate comparison with spread and optional gate
