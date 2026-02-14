@@ -67,8 +67,10 @@ type RuntimeLibrariesNestedReport = {
   packagesPresent: boolean;
   checkedPackages: string[];
   checkedPackagePaths: string[];
+  checkedPackagePathMap: Record<string, string>;
   checkedPackageCount: number;
   checkedPackagePathCount: number;
+  checkedPackagePathMapCount: number;
   presentPackages: string[];
   presentPackagePaths: string[];
   missingPackages: string[];
@@ -78,14 +80,20 @@ type RuntimeLibrariesNestedReport = {
   presentPackagePathCount: number;
   packageReportCount: number;
   requiredArtifacts: string[];
+  requiredArtifactCountByPackage: Record<string, number>;
   packageReports: RuntimeLibrariesNestedPackageReport[];
   requiredArtifactCount: number;
+  requiredArtifactCountByPackageCount: number;
   presentArtifacts: string[];
+  presentArtifactCountByPackage: Record<string, number>;
   presentArtifactCount: number;
+  presentArtifactCountByPackageCount: number;
   missingPackageCount: number;
   missingPackagePathCount: number;
   missingArtifacts: string[];
+  missingArtifactCountByPackage: Record<string, number>;
   missingArtifactCount: number;
+  missingArtifactCountByPackageCount: number;
   missingArtifactSummary: string | null;
   buildCommand: string;
   buildArgs: string[];
@@ -443,6 +451,11 @@ const expectedRuntimeLibrariesCheckedPackagePaths = [
   "packages/raycast",
   "packages/physics-engine",
 ];
+const expectedRuntimeLibrariesCheckedPackagePathMap = Object.fromEntries(
+  expectedRuntimeLibrariesCheckedPackages.map((packageName, index) => {
+    return [packageName, expectedRuntimeLibrariesCheckedPackagePaths[index]];
+  })
+);
 const expectedRuntimeLibrariesArtifactsByPackage = {
   "@voxelize/aabb": [
     "packages/aabb/dist/index.js",
@@ -470,6 +483,13 @@ const expectedRuntimeLibrariesRequiredArtifacts = Object.values(
 ).reduce((artifacts, packageArtifacts) => {
   return [...artifacts, ...packageArtifacts];
 }, [] as string[]);
+const expectedRuntimeLibrariesRequiredArtifactCountByPackage = Object.fromEntries(
+  Object.entries(expectedRuntimeLibrariesArtifactsByPackage).map(
+    ([packageName, artifacts]) => {
+      return [packageName, artifacts.length];
+    }
+  )
+);
 const expectedRuntimeLibrariesBuildArgs = [
   "--dir",
   rootDir,
@@ -994,11 +1014,24 @@ const expectRuntimeLibrariesNestedReport = (
   expect(report.checkedPackagePaths).toEqual(
     expectedRuntimeLibrariesCheckedPackagePaths
   );
+  expect(report.checkedPackagePathMap).toEqual(
+    expectedRuntimeLibrariesCheckedPackagePathMap
+  );
+  expect(report.checkedPackagePathMapCount).toBe(
+    Object.keys(report.checkedPackagePathMap).length
+  );
   expect(report.checkedPackages).toEqual(
     report.packageReports.map((packageReport) => packageReport.packageName)
   );
   expect(report.checkedPackagePaths).toEqual(
     report.packageReports.map((packageReport) => packageReport.packagePath)
+  );
+  expect(report.checkedPackagePathMap).toEqual(
+    Object.fromEntries(
+      report.packageReports.map((packageReport) => {
+        return [packageReport.packageName, packageReport.packagePath];
+      })
+    )
   );
   const presentPackages = report.packageReports
     .filter((packageReport) => packageReport.artifactsPresent)
@@ -1028,6 +1061,12 @@ const expectRuntimeLibrariesNestedReport = (
   expect(report.packageReportCount).toBe(report.packageReports.length);
   expect(report.requiredArtifacts).toEqual(expectedRuntimeLibrariesRequiredArtifacts);
   expect(report.requiredArtifacts.length).toBe(report.requiredArtifactCount);
+  expect(report.requiredArtifactCountByPackage).toEqual(
+    expectedRuntimeLibrariesRequiredArtifactCountByPackage
+  );
+  expect(report.requiredArtifactCountByPackageCount).toBe(
+    Object.keys(report.requiredArtifactCountByPackage).length
+  );
   expect(report.requiredArtifactCount).toBe(
     expectedRuntimeLibrariesRequiredArtifactCount
   );
@@ -1046,9 +1085,19 @@ const expectRuntimeLibrariesNestedReport = (
     },
     0
   );
+  const presentArtifactCountByPackage = Object.fromEntries(
+    report.packageReports.map((packageReport) => {
+      return [packageReport.packageName, packageReport.presentArtifactCount];
+    })
+  );
   const presentArtifacts = report.packageReports.reduce((artifacts, packageReport) => {
     return [...artifacts, ...packageReport.presentArtifacts];
   }, [] as string[]);
+  const missingArtifactCountByPackage = Object.fromEntries(
+    report.packageReports.map((packageReport) => {
+      return [packageReport.packageName, packageReport.missingArtifactCount];
+    })
+  );
   const missingArtifacts = report.packageReports.reduce((artifacts, packageReport) => {
     return [...artifacts, ...packageReport.missingArtifacts];
   }, [] as string[]);
@@ -1065,10 +1114,22 @@ const expectRuntimeLibrariesNestedReport = (
   expect(report.missingPackages.length).toBe(report.missingPackageCount);
   expect(report.missingPackagePaths.length).toBe(report.missingPackagePathCount);
   expect(report.presentArtifactCount).toBe(presentArtifactCount);
+  expect(report.presentArtifactCountByPackage).toEqual(
+    presentArtifactCountByPackage
+  );
+  expect(report.presentArtifactCountByPackageCount).toBe(
+    Object.keys(report.presentArtifactCountByPackage).length
+  );
   expect(report.presentArtifacts).toEqual(presentArtifacts);
   expect(report.presentArtifacts.length).toBe(report.presentArtifactCount);
   expect(report.missingPackageCount).toBe(missingPackageCount);
   expect(report.missingArtifactCount).toBe(missingArtifactCount);
+  expect(report.missingArtifactCountByPackage).toEqual(
+    missingArtifactCountByPackage
+  );
+  expect(report.missingArtifactCountByPackageCount).toBe(
+    Object.keys(report.missingArtifactCountByPackage).length
+  );
   expect(report.missingArtifacts).toEqual(missingArtifacts);
   expect(report.missingArtifacts.length).toBe(report.missingArtifactCount);
   expect([...report.presentArtifacts, ...report.missingArtifacts].sort()).toEqual(
