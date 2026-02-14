@@ -1581,7 +1581,7 @@ describe("Type builders", () => {
         id: null,
         stage: null,
         rotation: null,
-      } as never,
+      },
     });
 
     expect(part.rule).toEqual({
@@ -1655,7 +1655,7 @@ describe("Type builders", () => {
           value: 0,
           yRotation: Math.PI / 2,
         },
-      } as never,
+      },
     });
 
     expect(part.rule).toEqual({
@@ -2024,7 +2024,7 @@ describe("BlockRuleEvaluator", () => {
       stage: null,
     };
 
-    expect(BlockRuleEvaluator.evaluate(rule as never, [0, 0, 0], access)).toBe(true);
+    expect(BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access)).toBe(true);
   });
 
   it("uses first sub-rule semantics for NOT logic", () => {
