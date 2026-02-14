@@ -168,13 +168,18 @@ const isValidStage = (value: number) =>
   isInteger(value) && value >= 0 && value <= 15;
 const isValidMaxLightLevel = (value: number) =>
   isValidStage(value);
-const hasFiniteRotation = (
-  rotation: VoxelDelta["newRotation"] | null | undefined
-): rotation is NonNullable<VoxelDelta["newRotation"]> =>
+type RotationWithScalarFields = { value: number; yRotation: number };
+const hasFiniteRotationValues = (
+  rotation: RotationWithScalarFields | null | undefined
+): rotation is RotationWithScalarFields =>
   rotation !== undefined &&
   rotation !== null &&
   isInteger(rotation.value) &&
   Number.isFinite(rotation.yRotation);
+const hasFiniteRotation = (
+  rotation: VoxelDelta["newRotation"] | null | undefined
+): rotation is NonNullable<VoxelDelta["newRotation"]> =>
+  hasFiniteRotationValues(rotation);
 const normalizeSequenceId = (sequenceId: number) =>
   isPositiveInteger(sequenceId) ? sequenceId : 0;
 const isValidRuleType = (
@@ -190,10 +195,7 @@ const isValidRuleLogic = (
 const hasFiniteRuleRotation = (
   rotation: { value: number; yRotation: number } | null | undefined
 ): rotation is { value: number; yRotation: number } =>
-  rotation !== undefined &&
-  rotation !== null &&
-  isInteger(rotation.value) &&
-  Number.isFinite(rotation.yRotation);
+  hasFiniteRotationValues(rotation);
 const normalizeOptionalLightLevel = (
   value: number | null | undefined
 ): number | undefined => {
