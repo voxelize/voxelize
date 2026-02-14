@@ -332,9 +332,12 @@ impl LightRegistry {
             return;
         }
 
-        for (index, (_, block)) in self.blocks_by_id.iter_mut().enumerate() {
+        for (index, (id, block)) in self.blocks_by_id.iter_mut().enumerate() {
+            if block.id != *id {
+                block.id = *id;
+            }
             block.recompute_flags();
-            if block.id == 0 {
+            if *id == 0 {
                 self.air_index = Some(index);
             }
         }
@@ -396,6 +399,23 @@ impl LightRegistry {
         }
 
         self.blocks_by_id.iter().any(|(block_id, _)| *block_id == id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{LightBlock, LightRegistry};
+
+    #[test]
+    fn registry_uses_tuple_id_for_air_fallback() {
+        let mut mismatched_air = LightBlock::default_air();
+        mismatched_air.id = 42;
+
+        let registry = LightRegistry::new(vec![(0, mismatched_air)]);
+        assert_eq!(registry.blocks_by_id[0].1.id, 0);
+
+        let fallback = registry.get_block_by_id(999_999);
+        assert_eq!(fallback.id, 0);
     }
 }
 
