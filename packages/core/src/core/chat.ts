@@ -373,7 +373,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       const rawLength = raw.length;
       const shouldTrim =
         rawLength > 0 &&
-        (raw.charCodeAt(0) === 32 || raw.charCodeAt(rawLength - 1) === 32);
+        (/\s/.test(raw[0]) || /\s/.test(raw[rawLength - 1]));
       return schema.parse({ rest: shouldTrim ? raw.trim() : raw });
     }
     if (keys.length === 0) {
