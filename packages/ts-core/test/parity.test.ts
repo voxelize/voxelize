@@ -61,6 +61,15 @@ describe("BlockUtils", () => {
     expect(yRotationSegment).toBe(4);
   });
 
+  it("falls back to PY axis when inserting invalid rotation axis values", () => {
+    const inserted = BlockUtils.insertRotation(0, {
+      value: 99,
+      yRotation: Math.PI / 2,
+    });
+    const extracted = BlockUtils.extractRotation(inserted);
+    expect(extracted.axis).toBe(PY_ROTATION);
+  });
+
   it("keeps packed voxel values in unsigned 32-bit space", () => {
     const packed = BlockUtils.insertId(-1, 1);
     expect(packed).toBe(0xffff0001);
@@ -280,6 +289,13 @@ describe("BlockRotation", () => {
     const [axis, yRotation] = BlockRotation.decode(rotation);
     const decoded = BlockRotation.encode(axis, yRotation);
     expect(decoded.equals(rotation)).toBe(true);
+  });
+
+  it("normalizes oversized encoded y-rotation segments", () => {
+    const rotation = BlockRotation.encode(PY_ROTATION, 18);
+    const [axis, yRotation] = BlockRotation.decode(rotation);
+    expect(axis).toBe(PY_ROTATION);
+    expect(yRotation).toBe(2);
   });
 
   it("supports equality by decoded segment", () => {
