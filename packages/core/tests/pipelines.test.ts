@@ -40,4 +40,32 @@ describe("MeshPipeline.hasInFlightJob", () => {
     pipeline.remove(2, 3);
     expect(pipeline.hasAnyInFlightJobs()).toBe(false);
   });
+
+  it("clears aggregate in-flight state when a started job aborts", () => {
+    const pipeline = new MeshPipeline();
+    pipeline.onVoxelChange(6, 7, 2);
+    const key = MeshPipeline.makeKey(6, 7, 2);
+
+    const started = pipeline.startJob(key);
+    expect(started).not.toBeNull();
+    expect(pipeline.hasAnyInFlightJobs()).toBe(true);
+
+    pipeline.abortJob(key);
+    expect(pipeline.hasInFlightJob(key)).toBe(false);
+    expect(pipeline.hasAnyInFlightJobs()).toBe(false);
+  });
+
+  it("clears aggregate in-flight state when chunk becomes fresh from server", () => {
+    const pipeline = new MeshPipeline();
+    pipeline.onVoxelChange(9, 4, 0);
+    const key = MeshPipeline.makeKey(9, 4, 0);
+
+    const started = pipeline.startJob(key);
+    expect(started).not.toBeNull();
+    expect(pipeline.hasAnyInFlightJobs()).toBe(true);
+
+    pipeline.markFreshFromServer(9, 4, 0);
+    expect(pipeline.hasInFlightJob(key)).toBe(false);
+    expect(pipeline.hasAnyInFlightJobs()).toBe(false);
+  });
 });
