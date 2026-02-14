@@ -127,6 +127,14 @@ export class WorkerPool {
 
     const workerCount = this.workers.length;
     const bufferCount = buffers.length;
+    if (bufferCount === 1) {
+      const sourceBuffer = buffers[0];
+      for (let workerIndex = 0; workerIndex < workerCount; workerIndex++) {
+        this.workers[workerIndex].postMessage(message, [sourceBuffer.slice(0)]);
+      }
+      return;
+    }
+
     for (let workerIndex = 0; workerIndex < workerCount; workerIndex++) {
       const transferBuffers = new Array<ArrayBuffer>(bufferCount);
       for (let index = 0; index < bufferCount; index++) {
