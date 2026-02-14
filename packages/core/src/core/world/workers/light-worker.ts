@@ -305,13 +305,6 @@ const deserializeChunkGrid = (
       chunkGrid[index] = null;
       continue;
     }
-    if (
-      (chunkData.voxels.byteLength & 3) !== 0 ||
-      (chunkData.lights.byteLength & 3) !== 0
-    ) {
-      chunkGrid[index] = null;
-      continue;
-    }
     const chunkOptions = chunkData.options;
     if (
       !chunkOptions ||
@@ -503,10 +496,6 @@ const serializeChunksData = (
       voxelsBuffer.byteLength !== expectedChunkByteLength ||
       lightsBuffer.byteLength !== expectedChunkByteLength
     ) {
-      serialized[index] = null;
-      continue;
-    }
-    if ((voxelsBuffer.byteLength & 3) !== 0 || (lightsBuffer.byteLength & 3) !== 0) {
       serialized[index] = null;
       continue;
     }
