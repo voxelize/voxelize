@@ -28,7 +28,7 @@ impl<'a> System<'a> for EntityTreeSystem {
         let (entities, mut tree, entity_flags, client_flags, positions, timing) = data;
         let _t = timing.timer("entity-tree");
 
-        let mut current_ids: HashSet<u32> = HashSet::new();
+        let mut current_ids: HashSet<u32> = HashSet::with_capacity(tree.len());
 
         for (ent, pos, _) in (&entities, &positions, &entity_flags).join() {
             current_ids.insert(ent.id());

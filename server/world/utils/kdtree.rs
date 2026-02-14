@@ -244,6 +244,10 @@ impl KdTree {
         self.kind_map.get(&ent.id()) == Some(&EntityKind::Entity)
     }
 
+    pub fn len(&self) -> usize {
+        self.entity_map.len()
+    }
+
     pub fn get_position(&self, ent: Entity) -> Option<[f32; 3]> {
         self.all.positions.get(&ent.id()).copied()
     }
@@ -373,5 +377,11 @@ mod tests {
     fn point_array_if_finite_requires_finite_coordinates() {
         assert_eq!(point_array_if_finite(&Vec3(1.0, 2.0, 3.0)), Some([1.0, 2.0, 3.0]));
         assert_eq!(point_array_if_finite(&Vec3(f32::NAN, 2.0, 3.0)), None);
+    }
+
+    #[test]
+    fn new_tree_starts_empty() {
+        let tree = super::KdTree::new();
+        assert_eq!(tree.len(), 0);
     }
 }
