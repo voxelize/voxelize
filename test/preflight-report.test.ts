@@ -150,6 +150,48 @@ type WasmPackNestedReport = {
   failureSummaryCount: number;
   message?: string;
 };
+type ClientNestedStep = {
+  name: string;
+  scriptName: string;
+  supportsNoBuild: boolean;
+  stepIndex: number;
+  passed: boolean;
+  skipped: boolean;
+};
+type ClientNestedReport = {
+  availableSteps: string[];
+  availableStepCount: number;
+  availableStepScriptMap: Record<string, string>;
+  availableStepScriptMapCount: number;
+  availableStepSupportsNoBuildMap: Record<string, boolean>;
+  availableStepSupportsNoBuildMapCount: number;
+  availableStepIndexMap: Record<string, number>;
+  availableStepIndexMapCount: number;
+  availableStepMetadata: Record<
+    string,
+    {
+      scriptName: string;
+      supportsNoBuild: boolean;
+    }
+  >;
+  availableStepMetadataCount: number;
+  steps: ClientNestedStep[];
+  totalSteps: number;
+  passedStepCount: number;
+  failedStepCount: number;
+  skippedStepCount: number;
+  passedSteps: string[];
+  failedSteps: string[];
+  skippedSteps: string[];
+  stepStatusMap: Record<string, "passed" | "failed" | "skipped">;
+  stepStatusMapCount: number;
+  stepStatusCountMap: {
+    passed: number;
+    failed: number;
+    skipped: number;
+  };
+  stepStatusCountMapCount: number;
+};
 
 type TsCoreNestedReport = {
   checkedPackage: string;
@@ -659,6 +701,26 @@ const expectedDevEnvironmentAvailableChecks = [
   "cargo watch",
 ];
 const expectedWasmPackAvailableChecks = ["wasm-pack"];
+const expectedClientAvailableSteps = [
+  "WASM artifact preflight",
+  "TypeScript typecheck",
+];
+const expectedClientAvailableStepMetadata: Record<
+  string,
+  {
+    scriptName: string;
+    supportsNoBuild: boolean;
+  }
+> = {
+  "WASM artifact preflight": {
+    scriptName: "examples/client/scripts/check-wasm-mesher.mjs",
+    supportsNoBuild: true,
+  },
+  "TypeScript typecheck": {
+    scriptName: "examples/client:typecheck",
+    supportsNoBuild: false,
+  },
+};
 const expectedAvailableCheckScripts = expectedAvailableChecks.map((checkName) => {
   return expectedAvailableCheckMetadata[
     checkName as keyof typeof expectedAvailableCheckMetadata
@@ -1675,6 +1737,77 @@ const expectWasmPackNestedReport = (checkReport: object | null) => {
   );
   expect(report.failureSummaryCount).toBe(report.failureSummaries.length);
 };
+const expectClientNestedReport = (checkReport: object | null) => {
+  expect(checkReport).not.toBeNull();
+  if (checkReport === null) {
+    return;
+  }
+
+  const report = checkReport as ClientNestedReport;
+  const expectedAvailableStepScriptMap = Object.fromEntries(
+    expectedClientAvailableSteps.map((stepName) => {
+      return [stepName, expectedClientAvailableStepMetadata[stepName].scriptName];
+    })
+  );
+  const expectedAvailableStepSupportsNoBuildMap = Object.fromEntries(
+    expectedClientAvailableSteps.map((stepName) => {
+      return [
+        stepName,
+        expectedClientAvailableStepMetadata[stepName].supportsNoBuild,
+      ];
+    })
+  );
+  const expectedAvailableStepIndexMap = Object.fromEntries(
+    expectedClientAvailableSteps.map((stepName, index) => {
+      return [stepName, index];
+    })
+  );
+  const expectedStepStatusMap = Object.fromEntries(
+    report.steps.map((step) => {
+      const status = step.skipped
+        ? "skipped"
+        : step.passed
+          ? "passed"
+          : "failed";
+      return [step.name, status];
+    })
+  );
+
+  expect(report.availableSteps).toEqual(expectedClientAvailableSteps);
+  expect(report.availableStepCount).toBe(report.availableSteps.length);
+  expect(report.availableStepScriptMap).toEqual(expectedAvailableStepScriptMap);
+  expect(report.availableStepScriptMapCount).toBe(
+    Object.keys(report.availableStepScriptMap).length
+  );
+  expect(report.availableStepSupportsNoBuildMap).toEqual(
+    expectedAvailableStepSupportsNoBuildMap
+  );
+  expect(report.availableStepSupportsNoBuildMapCount).toBe(
+    Object.keys(report.availableStepSupportsNoBuildMap).length
+  );
+  expect(report.availableStepIndexMap).toEqual(expectedAvailableStepIndexMap);
+  expect(report.availableStepIndexMapCount).toBe(
+    Object.keys(report.availableStepIndexMap).length
+  );
+  expect(report.availableStepMetadata).toEqual(expectedClientAvailableStepMetadata);
+  expect(report.availableStepMetadataCount).toBe(
+    Object.keys(report.availableStepMetadata).length
+  );
+  expect(report.totalSteps).toBe(report.steps.length);
+  expect(report.passedSteps.length).toBe(report.passedStepCount);
+  expect(report.failedSteps.length).toBe(report.failedStepCount);
+  expect(report.skippedSteps.length).toBe(report.skippedStepCount);
+  expect(report.stepStatusMap).toEqual(expectedStepStatusMap);
+  expect(report.stepStatusMapCount).toBe(Object.keys(report.stepStatusMap).length);
+  expect(report.stepStatusCountMap).toEqual({
+    passed: report.passedStepCount,
+    failed: report.failedStepCount,
+    skipped: report.skippedStepCount,
+  });
+  expect(report.stepStatusCountMapCount).toBe(
+    Object.keys(report.stepStatusCountMap).length
+  );
+};
 const expectTsCoreNestedReport = (
   checkReport: object | null,
   expectedNoBuild: boolean
@@ -2334,6 +2467,13 @@ describe("preflight aggregate report", () => {
     expect(runtimeLibrariesCheck).toBeDefined();
     if (runtimeLibrariesCheck !== undefined) {
       expectRuntimeLibrariesNestedReport(runtimeLibrariesCheck.report, true);
+    }
+    const clientCheck = report.checks.find((check) => {
+      return check.name === "client";
+    });
+    expect(clientCheck).toBeDefined();
+    if (clientCheck !== undefined) {
+      expectClientNestedReport(clientCheck.report);
     }
     for (const check of report.checks) {
       expect(check.durationMs).toBeGreaterThanOrEqual(0);
