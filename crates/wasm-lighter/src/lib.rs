@@ -318,10 +318,16 @@ pub fn process_light_batch_fast(
     );
 
     let light_color = LightColor::from(color);
-    let removal_nodes: Vec<[i32; 3]> =
-        serde_wasm_bindgen::from_value(removals).expect("Unable to deserialize removal nodes");
-    let flood_nodes: Vec<LightNode> =
-        serde_wasm_bindgen::from_value(floods).expect("Unable to deserialize flood nodes");
+    let removal_nodes: Vec<[i32; 3]> = if Array::from(&removals).length() == 0 {
+        Vec::new()
+    } else {
+        serde_wasm_bindgen::from_value(removals).expect("Unable to deserialize removal nodes")
+    };
+    let flood_nodes: Vec<LightNode> = if Array::from(&floods).length() == 0 {
+        Vec::new()
+    } else {
+        serde_wasm_bindgen::from_value(floods).expect("Unable to deserialize flood nodes")
+    };
 
     let bounds = if bounds_min.len() >= 3 && bounds_shape.len() >= 3 {
         Some(LightBounds {
