@@ -497,10 +497,15 @@ pub fn process_light_batch_fast(
 
     let chunk_size_usize = chunk_size as usize;
     let chunk_height = max_height as usize;
-    let expected_chunk_len = chunk_size_usize
-        .saturating_mul(chunk_height)
-        .saturating_mul(chunk_size_usize);
-    let expected_chunk_count = chunk_grid_width.saturating_mul(chunk_grid_depth);
+    let Some(expected_chunk_len) = chunk_size_usize
+        .checked_mul(chunk_height)
+        .and_then(|value| value.checked_mul(chunk_size_usize))
+    else {
+        return empty_batch_result();
+    };
+    let Some(expected_chunk_count) = chunk_grid_width.checked_mul(chunk_grid_depth) else {
+        return empty_batch_result();
+    };
     if (chunks_data.length() as usize) < expected_chunk_count {
         return empty_batch_result();
     }
