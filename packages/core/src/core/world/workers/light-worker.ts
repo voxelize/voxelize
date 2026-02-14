@@ -156,12 +156,15 @@ const isInteger = (value: number) => Number.isInteger(value);
 const isPositiveInteger = (value: number) => isInteger(value) && value > 0;
 const isValidMaxLightLevel = (value: number) =>
   isInteger(value) && value >= 0 && value <= 15;
+const normalizeSequenceId = (sequenceId: number) =>
+  isPositiveInteger(sequenceId) ? sequenceId : 0;
 
 const getAppliedDeltasPayload = (lastSequenceId: number) => {
-  if (lastSequenceId === 0) {
+  const normalizedSequenceId = normalizeSequenceId(lastSequenceId);
+  if (normalizedSequenceId === 0) {
     return emptyAppliedDeltas;
   }
-  reusableAppliedDeltas.lastSequenceId = lastSequenceId;
+  reusableAppliedDeltas.lastSequenceId = normalizedSequenceId;
   return reusableAppliedDeltas;
 };
 
@@ -528,12 +531,13 @@ const processBatchMessage = (message: LightBatchMessage) => {
 
   const [gridWidth, gridDepth] = chunkGridDimensions;
   const [gridOffsetX, gridOffsetZ] = chunkGridOffset;
+  const normalizedLastRelevantSequenceId = normalizeSequenceId(lastRelevantSequenceId);
   if (
     !isPositiveInteger(options.chunkSize) ||
     !isPositiveInteger(options.maxHeight) ||
     !isValidMaxLightLevel(options.maxLightLevel)
   ) {
-    postEmptyBatchResult(jobId, lastRelevantSequenceId);
+    postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
     return;
   }
   if (
@@ -542,7 +546,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
     !isInteger(gridOffsetX) ||
     !isInteger(gridOffsetZ)
   ) {
-    postEmptyBatchResult(jobId, lastRelevantSequenceId);
+    postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
     return;
   }
   const cellCount = gridWidth * gridDepth;
@@ -554,11 +558,11 @@ const processBatchMessage = (message: LightBatchMessage) => {
   const removals = lightOps.removals;
   const floods = lightOps.floods;
   if (!Array.isArray(removals) || !Array.isArray(floods)) {
-    postEmptyBatchResult(jobId, lastRelevantSequenceId);
+    postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
     return;
   }
   if (removals.length === 0 && floods.length === 0) {
-    postEmptyBatchResult(jobId, lastRelevantSequenceId);
+    postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
     return;
   }
 
