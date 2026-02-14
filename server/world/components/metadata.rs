@@ -1,6 +1,6 @@
 use bincode;
 use blake3::Hash;
-use hashbrown::HashMap;
+use hashbrown::{hash_map::Entry, HashMap};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
 use specs::{Component, VecStorage};
@@ -43,9 +43,8 @@ impl MetadataComp {
 
     /// Set static metadata only if it doesn't already exist (sent on CREATE, not every UPDATE)
     pub fn set_once<T: Component + Serialize>(&mut self, component: &str, data: &T) {
-        if !self.map.contains_key(component) {
-            let value = json!(data);
-            self.map.insert(component.to_owned(), value);
+        if let Entry::Vacant(entry) = self.map.entry(component.to_owned()) {
+            entry.insert(json!(data));
             self.cached_json = None;
         }
     }
