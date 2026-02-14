@@ -459,21 +459,25 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     const hasBooleanKeys = booleanKeys.size > 0;
 
     if (!hasBooleanKeys) {
-      for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
-        const word = words[wordIndex];
-        const eqIndex = getFirstEqualsIndex(word);
-        if (eqIndex > 0) {
-          const key = word.substring(0, eqIndex);
-          if (keySet.has(key)) {
-            const value = word.substring(eqIndex + 1);
-            if (rawObj[key] === undefined) {
-              rawObjKeys.push(key);
-            }
-            rawObj[key] = value;
-            continue;
-          }
+      if (raw.indexOf("=") < 0) {
+        for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
+          positionalValues.push(words[wordIndex]);
         }
-        if (hasPositionalKeys) {
+      } else {
+        for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
+          const word = words[wordIndex];
+          const eqIndex = getFirstEqualsIndex(word);
+          if (eqIndex > 0) {
+            const key = word.substring(0, eqIndex);
+            if (keySet.has(key)) {
+              const value = word.substring(eqIndex + 1);
+              if (rawObj[key] === undefined) {
+                rawObjKeys.push(key);
+              }
+              rawObj[key] = value;
+              continue;
+            }
+          }
           positionalValues.push(word);
         }
       }
