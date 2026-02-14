@@ -202,13 +202,13 @@ const convertDynamicPatterns = (
     return null;
   }
 
-  const convertedPatterns = new Array<WasmLightDynamicPattern>(patterns.length);
-  for (let patternIndex = 0; patternIndex < patterns.length; patternIndex++) {
+  const patternCount = patterns.length;
+  const convertedPatterns = new Array<WasmLightDynamicPattern>(patternCount);
+  for (let patternIndex = 0; patternIndex < patternCount; patternIndex++) {
     const pattern = patterns[patternIndex];
-    const convertedParts = new Array<WasmLightConditionalPart>(
-      pattern.parts.length
-    );
-    for (let partIndex = 0; partIndex < pattern.parts.length; partIndex++) {
+    const partCount = pattern.parts.length;
+    const convertedParts = new Array<WasmLightConditionalPart>(partCount);
+    for (let partIndex = 0; partIndex < partCount; partIndex++) {
       const part = pattern.parts[partIndex];
       convertedParts[partIndex] = {
         rule: part.rule,
@@ -224,10 +224,9 @@ const convertDynamicPatterns = (
 };
 
 const convertRegistryToWasm = (registry: SerializedRegistry): WasmLightRegistry => {
-  const blocksById = new Array<[number, WasmLightBlock]>(
-    registry.blocksById.length
-  );
-  for (let blockIndex = 0; blockIndex < registry.blocksById.length; blockIndex++) {
+  const blockCount = registry.blocksById.length;
+  const blocksById = new Array<[number, WasmLightBlock]>(blockCount);
+  for (let blockIndex = 0; blockIndex < blockCount; blockIndex++) {
     const [id, block] = registry.blocksById[blockIndex];
     blocksById[blockIndex] = [
       id,
