@@ -552,22 +552,6 @@ pub fn process_light_batch_fast(
     let Some(registry) = CACHED_REGISTRY.with(|cached| cached.borrow().clone()) else {
         return empty_batch_result();
     };
-    let removal_nodes: Vec<[i32; 3]> = parse_nodes_or_empty(removals);
-    let mut flood_nodes: Vec<LightNode> = parse_nodes_or_empty(floods);
-    if removal_nodes.is_empty() && flood_nodes.is_empty() {
-        return empty_batch_result();
-    }
-    for node in &mut flood_nodes {
-        node.level = clamp_light_level(node.level, max_light_level);
-    }
-    flood_nodes.retain(|node| node.level > 0);
-    if removal_nodes.is_empty() && flood_nodes.is_empty() {
-        return empty_batch_result();
-    }
-    if has_invalid_flood_bounds(flood_nodes.len(), bounds_min.len(), bounds_shape) {
-        return empty_batch_result();
-    }
-
     let Some((expected_chunk_len, expected_chunk_count)) = compute_expected_chunk_sizes(
         chunk_size,
         max_height,
@@ -583,6 +567,22 @@ pub fn process_light_batch_fast(
         return empty_batch_result();
     };
     if (chunks_data.length() as usize) < expected_chunk_count {
+        return empty_batch_result();
+    }
+
+    let removal_nodes: Vec<[i32; 3]> = parse_nodes_or_empty(removals);
+    let mut flood_nodes: Vec<LightNode> = parse_nodes_or_empty(floods);
+    if removal_nodes.is_empty() && flood_nodes.is_empty() {
+        return empty_batch_result();
+    }
+    for node in &mut flood_nodes {
+        node.level = clamp_light_level(node.level, max_light_level);
+    }
+    flood_nodes.retain(|node| node.level > 0);
+    if removal_nodes.is_empty() && flood_nodes.is_empty() {
+        return empty_batch_result();
+    }
+    if has_invalid_flood_bounds(flood_nodes.len(), bounds_min.len(), bounds_shape) {
         return empty_batch_result();
     }
     let (chunks, has_any_chunk) = parse_chunks(chunks_data, expected_chunk_count, expected_chunk_len);
