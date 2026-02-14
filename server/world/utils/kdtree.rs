@@ -193,6 +193,17 @@ impl KdTree {
         entities
     }
 
+    #[inline]
+    fn player_results_within_radius(
+        &self,
+        point: &Vec3<f32>,
+        radius: f32,
+    ) -> Option<Vec<(f32, EntityId)>> {
+        let query_point = point_array_if_finite(point)?;
+        let radius_squared = normalized_radius_squared(radius)?;
+        Some(self.players.within(&query_point, radius_squared))
+    }
+
     pub fn new() -> Self {
         Self {
             all: EntityTree::new(),
@@ -368,33 +379,35 @@ impl KdTree {
     where
         F: FnMut(u32),
     {
-        let Some(query_point) = point_array_if_finite(point) else {
+        let Some(results) = self.player_results_within_radius(point, radius) else {
             return;
         };
-        let Some(radius_squared) = normalized_radius_squared(radius) else {
-            return;
-        };
-        let results = self.players.within(&query_point, radius_squared);
         for (_, ent_id) in results {
             f(ent_id);
         }
     }
 
     pub fn player_ids_within_radius(&self, point: &Vec3<f32>, radius: f32) -> Vec<u32> {
-        let mut player_ids = Vec::new();
-        self.for_each_player_id_within_radius(point, radius, |ent_id| {
+        let Some(results) = self.player_results_within_radius(point, radius) else {
+            return Vec::new();
+        };
+        let mut player_ids = Vec::with_capacity(results.len());
+        for (_, ent_id) in results {
             player_ids.push(ent_id);
-        });
+        }
         player_ids
     }
 
     pub fn players_within_radius(&self, point: &Vec3<f32>, radius: f32) -> Vec<&Entity> {
-        let mut entities = Vec::new();
-        self.for_each_player_id_within_radius(point, radius, |ent_id| {
+        let Some(results) = self.player_results_within_radius(point, radius) else {
+            return Vec::new();
+        };
+        let mut entities = Vec::with_capacity(results.len());
+        for (_, ent_id) in results {
             if let Some(entity) = self.entity_map.get(&ent_id) {
                 entities.push(entity);
             }
-        });
+        }
         entities
     }
 }
