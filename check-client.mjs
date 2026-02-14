@@ -6,7 +6,6 @@ import { resolvePnpmCommand } from "./scripts/command-utils.mjs";
 import {
   createCliOptionCatalog,
   createCliDiagnostics,
-  deriveFailureMessageFromReport,
   deriveCliValidationFailureMessage,
   createTimedReportBuilder,
   hasCliOption,
@@ -14,6 +13,7 @@ import {
   resolveOutputPath,
   serializeReportWithOptionalWrite,
   splitCliArgs,
+  summarizeStepFailureResults,
   summarizeStepResults,
 } from "./scripts/report-utils.mjs";
 
@@ -120,32 +120,6 @@ const mapStepNamesToMetadata = (stepNames) => {
       return [stepName, availableStepMetadata[stepName]];
     })
   );
-};
-const createStepFailureSummaries = (steps) => {
-  return steps
-    .filter((step) => {
-      return !step.passed && step.skipped === false;
-    })
-    .map((step) => {
-      const reportMessage = deriveFailureMessageFromReport(step.report);
-      const outputMessage =
-        typeof step.output === "string" && step.output.length > 0
-          ? step.output
-          : null;
-      const defaultMessage =
-        typeof step.exitCode === "number"
-          ? `Step failed with exit code ${step.exitCode}.`
-          : "Step failed.";
-
-      return {
-        name: step.name,
-        scriptName: step.scriptName,
-        supportsNoBuild: step.supportsNoBuild,
-        stepIndex: step.stepIndex,
-        exitCode: typeof step.exitCode === "number" ? step.exitCode : 1,
-        message: reportMessage ?? outputMessage ?? defaultMessage,
-      };
-    });
 };
 const resolveStepDetails = (stepName) => {
   const stepMetadata = availableStepMetadata[stepName];
@@ -329,7 +303,7 @@ if (isJson) {
   const passedStepMetadata = mapStepNamesToMetadata(stepSummary.passedSteps);
   const failedStepMetadata = mapStepNamesToMetadata(stepSummary.failedSteps);
   const skippedStepMetadata = mapStepNamesToMetadata(stepSummary.skippedSteps);
-  const failureSummaries = createStepFailureSummaries(stepResults);
+  const failureSummaries = summarizeStepFailureResults(stepResults);
   const report = buildTimedReport({
     passed: exitCode === 0,
     exitCode,

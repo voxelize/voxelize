@@ -275,6 +275,33 @@ export const deriveFailureMessageFromReport = (report) => {
   return null;
 };
 
+export const summarizeStepFailureResults = (steps) => {
+  return steps
+    .filter((step) => {
+      return !step.passed && step.skipped === false;
+    })
+    .map((step) => {
+      const reportMessage = deriveFailureMessageFromReport(step.report);
+      const outputMessage =
+        typeof step.output === "string" && step.output.length > 0
+          ? step.output
+          : null;
+      const defaultMessage =
+        typeof step.exitCode === "number"
+          ? `Step failed with exit code ${step.exitCode}.`
+          : "Step failed.";
+
+      return {
+        name: step.name,
+        scriptName: step.scriptName,
+        supportsNoBuild: step.supportsNoBuild === true,
+        stepIndex: step.stepIndex,
+        exitCode: typeof step.exitCode === "number" ? step.exitCode : 1,
+        message: reportMessage ?? outputMessage ?? defaultMessage,
+      };
+    });
+};
+
 export const splitCliArgs = (args) => {
   const optionTerminatorIndex = args.indexOf("--");
   if (optionTerminatorIndex === -1) {

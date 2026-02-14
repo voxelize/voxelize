@@ -21,6 +21,7 @@ import {
   serializeReportWithOptionalWrite,
   splitCliArgs,
   summarizeCheckResults,
+  summarizeStepFailureResults,
   summarizeStepResults,
   toReport,
   toReportJson,
@@ -2839,6 +2840,93 @@ describe("report-utils", () => {
       failedSteps: ["step-b"],
       skippedSteps: ["step-c"],
     });
+  });
+
+  it("summarizes failed step entries with message fallbacks", () => {
+    const failureSummaries = summarizeStepFailureResults([
+      {
+        name: "step-a",
+        scriptName: "check-a.mjs",
+        supportsNoBuild: true,
+        stepIndex: 0,
+        passed: true,
+        skipped: false,
+        exitCode: 0,
+        report: null,
+        output: null,
+      },
+      {
+        name: "step-b",
+        scriptName: "check-b.mjs",
+        supportsNoBuild: false,
+        stepIndex: 1,
+        passed: false,
+        skipped: false,
+        exitCode: 2,
+        report: { message: "report failure" },
+        output: "output failure",
+      },
+      {
+        name: "step-c",
+        scriptName: "check-c.mjs",
+        supportsNoBuild: true,
+        stepIndex: 2,
+        passed: false,
+        skipped: false,
+        exitCode: 3,
+        report: null,
+        output: "output failure",
+      },
+      {
+        name: "step-d",
+        scriptName: "check-d.mjs",
+        supportsNoBuild: false,
+        stepIndex: 3,
+        passed: false,
+        skipped: false,
+        exitCode: null,
+        report: null,
+        output: "",
+      },
+      {
+        name: "step-e",
+        scriptName: "check-e.mjs",
+        supportsNoBuild: true,
+        stepIndex: 4,
+        passed: false,
+        skipped: true,
+        exitCode: null,
+        report: null,
+        output: null,
+      },
+    ]);
+
+    expect(failureSummaries).toEqual([
+      {
+        name: "step-b",
+        scriptName: "check-b.mjs",
+        supportsNoBuild: false,
+        stepIndex: 1,
+        exitCode: 2,
+        message: "report failure",
+      },
+      {
+        name: "step-c",
+        scriptName: "check-c.mjs",
+        supportsNoBuild: true,
+        stepIndex: 2,
+        exitCode: 3,
+        message: "output failure",
+      },
+      {
+        name: "step-d",
+        scriptName: "check-d.mjs",
+        supportsNoBuild: false,
+        stepIndex: 3,
+        exitCode: 1,
+        message: "Step failed.",
+      },
+    ]);
   });
 
   it("summarizes check outcomes for aggregate preflight reports", () => {
