@@ -332,8 +332,17 @@ impl Chunks {
                 neighbors.push(coords);
             }
         };
+        let mut push_with_offset = |offset_x: i32, offset_z: i32| {
+            let Some(nx) = cx.checked_add(offset_x) else {
+                return;
+            };
+            let Some(nz) = cz.checked_add(offset_z) else {
+                return;
+            };
+            push_if_within_world(Vec2(nx, nz));
+        };
 
-        push_if_within_world(Vec2(cx, cz));
+        push_with_offset(0, 0);
 
         let a = lx == 0;
         let b = lz == 0;
@@ -341,29 +350,29 @@ impl Chunks {
         let d = lz == chunk_size - 1;
 
         if a {
-            push_if_within_world(Vec2(cx - 1, cz));
+            push_with_offset(-1, 0);
         }
         if b {
-            push_if_within_world(Vec2(cx, cz - 1));
+            push_with_offset(0, -1);
         }
         if c {
-            push_if_within_world(Vec2(cx + 1, cz));
+            push_with_offset(1, 0);
         }
         if d {
-            push_if_within_world(Vec2(cx, cz + 1));
+            push_with_offset(0, 1);
         }
 
         if a && b {
-            push_if_within_world(Vec2(cx - 1, cz - 1));
+            push_with_offset(-1, -1);
         }
         if a && d {
-            push_if_within_world(Vec2(cx - 1, cz + 1));
+            push_with_offset(-1, 1);
         }
         if b && c {
-            push_if_within_world(Vec2(cx + 1, cz - 1));
+            push_with_offset(1, -1);
         }
         if c && d {
-            push_if_within_world(Vec2(cx + 1, cz + 1));
+            push_with_offset(1, 1);
         }
 
         neighbors
@@ -560,30 +569,39 @@ impl Chunks {
         let touches_min_z = lz == 0;
         let touches_max_x = lx == chunk_size - 1;
         let touches_max_z = lz == chunk_size - 1;
+        let mut add_with_offset = |offset_x: i32, offset_z: i32| {
+            let Some(nx) = cx.checked_add(offset_x) else {
+                return;
+            };
+            let Some(nz) = cz.checked_add(offset_z) else {
+                return;
+            };
+            self.add_updated_level_for_chunk(Vec2(nx, nz), vy);
+        };
 
         if touches_min_x {
-            self.add_updated_level_for_chunk(Vec2(cx - 1, cz), vy);
+            add_with_offset(-1, 0);
         }
         if touches_min_z {
-            self.add_updated_level_for_chunk(Vec2(cx, cz - 1), vy);
+            add_with_offset(0, -1);
         }
         if touches_max_x {
-            self.add_updated_level_for_chunk(Vec2(cx + 1, cz), vy);
+            add_with_offset(1, 0);
         }
         if touches_max_z {
-            self.add_updated_level_for_chunk(Vec2(cx, cz + 1), vy);
+            add_with_offset(0, 1);
         }
         if touches_min_x && touches_min_z {
-            self.add_updated_level_for_chunk(Vec2(cx - 1, cz - 1), vy);
+            add_with_offset(-1, -1);
         }
         if touches_min_x && touches_max_z {
-            self.add_updated_level_for_chunk(Vec2(cx - 1, cz + 1), vy);
+            add_with_offset(-1, 1);
         }
         if touches_max_x && touches_min_z {
-            self.add_updated_level_for_chunk(Vec2(cx + 1, cz - 1), vy);
+            add_with_offset(1, -1);
         }
         if touches_max_x && touches_max_z {
-            self.add_updated_level_for_chunk(Vec2(cx + 1, cz + 1), vy);
+            add_with_offset(1, 1);
         }
     }
 

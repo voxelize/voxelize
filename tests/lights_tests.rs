@@ -250,6 +250,37 @@ fn test_chunks_handles_zero_chunk_size_without_underflow() {
 }
 
 #[test]
+fn test_chunks_neighbor_and_dirty_updates_handle_edge_chunk_coords_without_overflow() {
+    let edge = i32::MAX;
+    let config = WorldConfig {
+        chunk_size: 1,
+        max_height: 16,
+        max_light_level: 15,
+        min_chunk: [edge, edge],
+        max_chunk: [edge, edge],
+        saving: false,
+        ..Default::default()
+    };
+    let mut chunks = Chunks::new(&config);
+    chunks.add(Chunk::new(
+        "chunk-edge",
+        edge,
+        edge,
+        &ChunkOptions {
+            size: 1,
+            max_height: 16,
+            sub_chunks: 1,
+        },
+    ));
+
+    let affected = chunks.voxel_affected_chunks(i32::MAX, 0, i32::MAX);
+    assert_eq!(affected, vec![Vec2(edge, edge)]);
+
+    assert!(chunks.set_raw_voxel(i32::MAX, 0, i32::MAX, 1));
+    assert_eq!(chunks.get_raw_voxel(i32::MAX, 0, i32::MAX), 1);
+}
+
+#[test]
 fn test_chunks_and_space_handle_large_world_max_height_without_i32_wrap() {
     let config = WorldConfig {
         chunk_size: 16,
