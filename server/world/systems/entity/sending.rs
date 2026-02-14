@@ -200,6 +200,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             bookkeeping.entity_positions = entity_positions;
             return;
         }
+        self.clients_with_updates_buffer.reserve(clients.len());
 
         let mut entity_to_client_id: HashMap<Entity, &String> =
             HashMap::with_capacity(clients.len());
