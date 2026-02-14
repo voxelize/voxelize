@@ -799,6 +799,8 @@ mod tests {
 
         assert!(!space.contains(0, -1, 0));
         assert!(!space.contains(0, 4, 0));
+        assert_eq!(space.get_raw_voxel(0, -1, 0), 0);
+        assert_eq!(space.get_raw_voxel(0, 4, 0), 0);
         assert_eq!(space.get_raw_light(0, -1, 0), 0);
         assert_eq!(space.get_raw_light(0, 4, 0), 0);
         assert!(!space.set_raw_light(0, -1, 0, 1));
