@@ -452,7 +452,7 @@ impl LightBlock {
     ) -> u32 {
         match color {
             LightColor::Red => {
-                if !self.has_dynamic_torch_color(&LightColor::Red) {
+                if self.dynamic_torch_mask & RED_TORCH_MASK == 0 {
                     return self.red_light_level;
                 }
 
@@ -471,7 +471,7 @@ impl LightBlock {
                 self.red_light_level
             }
             LightColor::Green => {
-                if !self.has_dynamic_torch_color(&LightColor::Green) {
+                if self.dynamic_torch_mask & GREEN_TORCH_MASK == 0 {
                     return self.green_light_level;
                 }
 
@@ -490,7 +490,7 @@ impl LightBlock {
                 self.green_light_level
             }
             LightColor::Blue => {
-                if !self.has_dynamic_torch_color(&LightColor::Blue) {
+                if self.dynamic_torch_mask & BLUE_TORCH_MASK == 0 {
                     return self.blue_light_level;
                 }
 
