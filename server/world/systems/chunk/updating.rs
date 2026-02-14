@@ -186,9 +186,15 @@ fn process_pending_updates(
             }
 
             for [ox, oy, oz] in VOXEL_NEIGHBORS_WITH_STAIRS {
-                let nx = vx + ox;
-                let ny = vy + oy;
-                let nz = vz + oz;
+                let Some(nx) = vx.checked_add(ox) else {
+                    continue;
+                };
+                let Some(ny) = vy.checked_add(oy) else {
+                    continue;
+                };
+                let Some(nz) = vz.checked_add(oz) else {
+                    continue;
+                };
 
                 let neighbor_id = chunks.get_voxel(nx, ny, nz);
                 let neighbor_block = registry.get_block_by_id(neighbor_id);
@@ -328,13 +334,19 @@ fn process_pending_updates(
             ];
 
             VOXEL_NEIGHBORS.iter().for_each(|&[ox, oy, oz]| {
-                let nvy = vy + oy;
+                let Some(nvy) = vy.checked_add(oy) else {
+                    return;
+                };
                 if nvy < 0 || max_height.is_some_and(|world_max_height| nvy >= world_max_height) {
                     return;
                 }
 
-                let nvx = vx + ox;
-                let nvz = vz + oz;
+                let Some(nvx) = vx.checked_add(ox) else {
+                    return;
+                };
+                let Some(nvz) = vz.checked_add(oz) else {
+                    return;
+                };
 
                 let n_block = registry.get_block_by_id(chunks.get_voxel(nvx, nvy, nvz));
                 let n_transparency =
@@ -417,7 +429,15 @@ fn process_pending_updates(
             }
         } else if current_type.is_opaque && !updated_type.is_opaque {
             VOXEL_NEIGHBORS.iter().for_each(|&[ox, oy, oz]| {
-                let nvy = vy + oy;
+                let Some(nvy) = vy.checked_add(oy) else {
+                    return;
+                };
+                let Some(nvx) = vx.checked_add(ox) else {
+                    return;
+                };
+                let Some(nvz) = vz.checked_add(oz) else {
+                    return;
+                };
 
                 if nvy < 0 {
                     return;
@@ -426,15 +446,12 @@ fn process_pending_updates(
                 if max_height.is_some_and(|world_max_height| nvy >= world_max_height) {
                     if Lights::can_enter(&ALL_TRANSPARENT, &updated_transparency, ox, -1, oz) {
                         sun_flood.push_back(LightNode {
-                            voxel: [vx + ox, vy, vz + oz],
+                            voxel: [nvx, vy, nvz],
                             level: max_light_level,
                         })
                     }
                     return;
                 }
-
-                let nvx = vx + ox;
-                let nvz = vz + oz;
 
                 let n_block = registry.get_block_by_id(chunks.get_voxel(nvx, nvy, nvz));
                 let n_transparency =
