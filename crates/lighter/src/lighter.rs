@@ -112,6 +112,13 @@ pub fn flood_light(
     let is_sunlight = *color == LightColor::Sunlight;
     let [start_cx, start_cz] = config.min_chunk;
     let [end_cx, end_cz] = config.max_chunk;
+    let bounds_xz = bounds.map(|limit| {
+        let start_x = i64::from(limit.min[0]);
+        let start_z = i64::from(limit.min[2]);
+        let end_x = start_x.saturating_add(i64::try_from(limit.shape[0]).unwrap_or(i64::MAX));
+        let end_z = start_z.saturating_add(i64::try_from(limit.shape[2]).unwrap_or(i64::MAX));
+        (start_x, start_z, end_x, end_z)
+    });
 
     let mut nodes: Vec<LightNode> = queue.into_iter().collect();
     let mut head = 0usize;
@@ -148,8 +155,11 @@ pub fn flood_light(
                 continue;
             }
 
-            if let Some(limit) = bounds {
-                if !limit.contains_xz(nvx, nvz) {
+            if let Some((start_x, start_z, end_x, end_z)) = bounds_xz {
+                let nvx_i64 = i64::from(nvx);
+                let nvz_i64 = i64::from(nvz);
+                if nvx_i64 < start_x || nvx_i64 >= end_x || nvz_i64 < start_z || nvz_i64 >= end_z
+                {
                     continue;
                 }
             }
