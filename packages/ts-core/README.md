@@ -142,7 +142,8 @@ It executes the complete flow:
 2. Store/retrieve through an in-memory space
 3. Apply AABB rotation
 4. Evaluate block rules
-5. Serialize and validate roundtrip data
+5. Build/evaluate a cloned dynamic pattern
+6. Serialize and validate roundtrip data
 
 ## Development
 

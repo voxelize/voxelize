@@ -157,7 +157,8 @@ The package includes a full end-to-end script that:
 2. Stores and reads values from an in-memory space
 3. Rotates an AABB
 4. Evaluates block rules
-5. Verifies JSON serialization roundtrip
+5. Builds/evaluates a cloned dynamic pattern
+6. Verifies JSON serialization roundtrip
 
 Run it with:
 

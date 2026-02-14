@@ -3,6 +3,8 @@ import {
   BlockRotation,
   BlockRuleEvaluator,
   BlockRuleLogic,
+  createBlockConditionalPart,
+  createBlockDynamicPattern,
   Light,
   LightUtils,
   Voxel,
@@ -109,6 +111,27 @@ const main = () => {
 
   const matched = BlockRuleEvaluator.evaluate(connectionRule, [0, 0, 0], space);
   assert(matched, "Rule evaluation failed");
+  const pattern = createBlockDynamicPattern({
+    parts: [
+      createBlockConditionalPart({
+        rule: connectionRule,
+        worldSpace: false,
+      }),
+    ],
+  });
+  const [patternPart] = pattern.parts;
+  if (patternPart === undefined) {
+    throw new Error("Dynamic pattern was not created.");
+  }
+  const patternMatched = BlockRuleEvaluator.evaluate(
+    patternPart.rule,
+    [0, 0, 0],
+    space,
+    {
+      worldSpace: patternPart.worldSpace,
+    }
+  );
+  assert(patternMatched, "Dynamic pattern evaluation failed");
 
   const serialized = JSON.stringify({
     voxel: space.getRawVoxel(0, 0, 0),
@@ -133,6 +156,7 @@ const main = () => {
           max: [rotatedAabb.maxX, rotatedAabb.maxY, rotatedAabb.maxZ],
         },
         ruleMatched: matched,
+        patternMatched,
       },
       null,
       2

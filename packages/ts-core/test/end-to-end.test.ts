@@ -25,6 +25,7 @@ type ExampleOutput = {
     max: [number, number, number];
   };
   ruleMatched: boolean;
+  patternMatched: boolean;
 };
 
 const testDirectory = fileURLToPath(new URL(".", import.meta.url));
@@ -78,5 +79,6 @@ describe("ts-core end-to-end example", () => {
     expect(parsed.rotatedAabb.min[1]).toBeLessThan(parsed.rotatedAabb.max[1]);
     expect(parsed.rotatedAabb.min[2]).toBeLessThan(parsed.rotatedAabb.max[2]);
     expect(parsed.ruleMatched).toBe(true);
+    expect(parsed.patternMatched).toBe(true);
   });
 });
