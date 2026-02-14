@@ -199,6 +199,9 @@ describe("report-utils", () => {
       ok: false,
       exitCode: 2,
     });
+    expect(parseJsonOutput(`progress\r\uFEFF{"ok":true}`)).toEqual({
+      ok: true,
+    });
   });
 
   it("parses json output containing carriage-return progress updates", () => {
@@ -3710,6 +3713,14 @@ describe("report-utils", () => {
     });
     expect(
       summarizeTsCoreExampleOutput("\u001b[33mwarning: no json\u001b[39m")
+    ).toEqual({
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      exampleOutputLine: "warning: no json",
+    });
+    expect(
+      summarizeTsCoreExampleOutput("\r\uFEFFwarning: no json")
     ).toEqual({
       exampleRuleMatched: null,
       examplePayloadValid: null,

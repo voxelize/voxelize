@@ -12,11 +12,11 @@ const UTF8_BOM_LINE_PREFIX_REGEX = /\n\uFEFF+/g;
 
 const sanitizeOutputForJsonParsing = (value) => {
   return value
+    .replace(/\r/g, "\n")
     .replace(UTF8_BOM_PREFIX_REGEX, "")
     .replace(UTF8_BOM_LINE_PREFIX_REGEX, "\n")
     .replace(ANSI_OSC_ESCAPE_SEQUENCE_REGEX, "")
     .replace(ANSI_CSI_ESCAPE_SEQUENCE_REGEX, "")
-    .replace(/\r/g, "\n")
     .replace(NON_JSON_CONTROL_CHAR_REGEX, "");
 };
 
