@@ -197,6 +197,38 @@ Runtime-library JSON reports include package/build diagnostics such as
 Each `packageReports` entry includes `requiredArtifacts`, `presentArtifacts`,
 and `missingArtifacts` for package-level artifact diagnostics.
 
+## Aggregate preflight report metadata
+
+For release automation and CI routing, aggregate preflight JSON reports include:
+
+- check-selection diagnostics: `selectionMode`, `requestedChecks`,
+  `requestedCheckResolutions`, `requestedCheckResolutionCounts`,
+  `requestedCheckResolvedChecks`, `requestedCheckResolvedScripts`,
+  `requestedCheckResolvedIndices`, `requestedCheckResolvedMetadata`,
+  `selectedChecks`, `skippedChecks`
+- script/index projections: `selectedCheckScripts`,
+  `skippedCheckScripts`, `passedCheckScripts`, `failedCheckScripts`,
+  `selectedCheckIndices`, `skippedCheckIndices`, `passedCheckIndices`,
+  `failedCheckIndices`
+- execution partitions: `passedChecks`, `failedChecks`,
+  `failureSummaries`, `failureSummaryCount`
+- executable inventory: `availableChecks`, `availableCheckScripts`,
+  `availableCheckMetadata`, `availableCheckAliases`
+
+Each aggregate `checks[]` entry also includes `scriptName`,
+`supportsNoBuild`, and `checkIndex`.
+
+Each aggregate `failureSummaries[]` entry includes `name`, `scriptName`,
+`supportsNoBuild`, `checkIndex`, `exitCode`, and `message`.
+
+Client/onboarding aggregate JSON reports additionally include step-level
+partitions such as `availableSteps`, `passedSteps`, `failedSteps`,
+`skippedSteps`, `passedStepScripts`, `failedStepScripts`,
+`skippedStepScripts`, `passedStepIndices`, `failedStepIndices`,
+`skippedStepIndices`, `failureSummaries`, and `failureSummaryCount`.
+Each step entry in `steps[]` includes `scriptName`, `supportsNoBuild`, and
+`stepIndex`.
+
 ## API reference
 
 Typed API docs are generated under:
