@@ -2266,12 +2266,9 @@ fn process_greedy_quad(
     geometry.lights.extend_from_slice(&light_chunk);
 
     if face_aos == [face_aos[0]; 4] && face_lights == [face_lights[0]; 4] {
-        geometry.indices.push(ndx);
-        geometry.indices.push(ndx + 1);
-        geometry.indices.push(ndx + 2);
-        geometry.indices.push(ndx + 2);
-        geometry.indices.push(ndx + 1);
-        geometry.indices.push(ndx + 3);
+        geometry
+            .indices
+            .extend_from_slice(&[ndx, ndx + 1, ndx + 2, ndx + 2, ndx + 1, ndx + 3]);
         return;
     }
 
@@ -2319,19 +2316,13 @@ fn process_greedy_quad(
     };
 
     if should_flip {
-        geometry.indices.push(ndx);
-        geometry.indices.push(ndx + 1);
-        geometry.indices.push(ndx + 3);
-        geometry.indices.push(ndx + 3);
-        geometry.indices.push(ndx + 2);
-        geometry.indices.push(ndx);
+        geometry
+            .indices
+            .extend_from_slice(&[ndx, ndx + 1, ndx + 3, ndx + 3, ndx + 2, ndx]);
     } else {
-        geometry.indices.push(ndx);
-        geometry.indices.push(ndx + 1);
-        geometry.indices.push(ndx + 2);
-        geometry.indices.push(ndx + 2);
-        geometry.indices.push(ndx + 1);
-        geometry.indices.push(ndx + 3);
+        geometry
+            .indices
+            .extend_from_slice(&[ndx, ndx + 1, ndx + 2, ndx + 2, ndx + 1, ndx + 3]);
     }
 }
 
