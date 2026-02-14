@@ -200,7 +200,12 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       }
 
       if (this.fallbackCommand) {
-        this.fallbackCommand(commandBody.trim());
+        const commandBodyLength = commandBody.length;
+        const shouldTrim =
+          commandBodyLength > 0 &&
+          (isWhitespaceCode(commandBody.charCodeAt(0)) ||
+            isWhitespaceCode(commandBody.charCodeAt(commandBodyLength - 1)));
+        this.fallbackCommand(shouldTrim ? commandBody.trim() : commandBody);
       }
     }
 
