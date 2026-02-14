@@ -131,6 +131,14 @@ mod tests {
     }
 
     #[test]
+    fn map_voxel_to_chunk_local_keeps_euclid_semantics_for_non_power_of_two_sizes() {
+        let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(-1, 7, -11, 10);
+        assert_eq!(lx, 9);
+        assert_eq!(ly, 7);
+        assert_eq!(lz, 9);
+    }
+
+    #[test]
     fn map_voxel_to_chunk_local_handles_oversized_chunk_size() {
         let Vec3(lx, ly, lz) =
             ChunkUtils::map_voxel_to_chunk_local(i32::MIN, 7, i32::MAX, usize::MAX);
