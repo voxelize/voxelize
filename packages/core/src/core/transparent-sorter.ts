@@ -32,7 +32,9 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
 
   const positions = positionAttr.array as ArrayLike<number>;
   const indices = geometry.index.array as Uint16Array | Uint32Array;
-  const faceCount = Math.floor(indices.length / 6);
+  const indicesLength = indices.length;
+  if (indicesLength % 6 !== 0) return null;
+  const faceCount = indicesLength / 6;
 
   if (faceCount <= 1) return null;
 
