@@ -8,7 +8,6 @@ import {
 } from "three";
 
 const _worldPos = new Vector3();
-const _camPos = new Vector3();
 const _camWorldPos = new Vector3();
 
 export interface TransparentMeshData {
@@ -166,10 +165,9 @@ export function sortTransparentMesh(
 ): void {
   mesh.getWorldPosition(_worldPos);
   camera.getWorldPosition(_camWorldPos);
-  _camPos.copy(_camWorldPos).sub(_worldPos);
-  const camX = _camPos.x;
-  const camY = _camPos.y;
-  const camZ = _camPos.z;
+  const camX = _camWorldPos.x - _worldPos.x;
+  const camY = _camWorldPos.y - _worldPos.y;
+  const camZ = _camWorldPos.z - _worldPos.z;
   const lastCameraPos = data.lastCameraPos;
 
   const isFirstSort = lastCameraPos.x === Infinity;
