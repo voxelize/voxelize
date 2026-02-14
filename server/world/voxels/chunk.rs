@@ -307,6 +307,9 @@ impl VoxelAccess for Chunk {
         }
 
         let Vec3(lx, _, lz) = self.to_local(vx, 0, vz);
+        if self.height_map[&[lx as usize, lz as usize]] == height {
+            return true;
+        }
         Arc::make_mut(&mut self.height_map)[&[lx as usize, lz as usize]] = height;
 
         true
