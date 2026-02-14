@@ -388,6 +388,9 @@ fn collect_refill_nodes_after_removals(
             if n_level == 0 {
                 continue;
             }
+            if is_sunlight && oy == -1 && n_level == level && level != max_light_level {
+                continue;
+            }
 
             let n_raw_voxel = space.get_raw_voxel(nvx, nvy, nvz);
             let n_block = registry.get_block_by_id(n_raw_voxel & 0xFFFF);
