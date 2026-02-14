@@ -93,6 +93,7 @@ export class Network {
   private decodePromises: Array<Promise<MessageProtocol[]>> = [];
   private decodePacketBatches: Array<ArrayBuffer[]> = [];
   private reusableDecodePacketBatches: Array<ArrayBuffer[]> = [];
+  private priorityDecodeBatch: ArrayBuffer[] = [new ArrayBuffer(0)];
 
   private joinStartTime = 0;
 
@@ -688,10 +689,10 @@ export class Network {
   }
 
   private decodePriority = (buffer: ArrayBuffer) => {
-    const handler = (e: MessageEvent) => {
+    const handler = (e: MessageEvent<MessageProtocol[]>) => {
       this.priorityWorker.removeEventListener("message", handler);
 
-      const messages = e.data as MessageProtocol[];
+      const messages = e.data;
       if (!messages || messages.length === 0) {
         this.packetQueue.push(buffer);
         return;
@@ -706,7 +707,8 @@ export class Network {
     };
 
     this.priorityWorker.addEventListener("message", handler);
-    this.priorityWorker.postMessage([buffer]);
+    this.priorityDecodeBatch[0] = buffer;
+    this.priorityWorker.postMessage(this.priorityDecodeBatch);
   };
 
   private decode = (data: ArrayBuffer[]): Promise<MessageProtocol[]> => {
