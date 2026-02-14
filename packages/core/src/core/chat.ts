@@ -447,8 +447,10 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     const rawObj = this.parsedArgsObjectBuffer;
     const rawObjKeys = this.parsedArgsObjectKeysBuffer;
     const rawObjKeysLength = rawObjKeys.length;
-    for (let index = 0; index < rawObjKeysLength; index++) {
-      delete rawObj[rawObjKeys[index]];
+    if (rawObjKeysLength > 0) {
+      for (let index = 0; index < rawObjKeysLength; index++) {
+        delete rawObj[rawObjKeys[index]];
+      }
     }
     rawObjKeys.length = 0;
     const positionalValues = this.positionalValuesBuffer;
