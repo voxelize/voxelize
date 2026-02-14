@@ -31,7 +31,7 @@ pub trait VoxelAccess {
 
     fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> BlockRotation {
         if !self.contains(vx, vy, vz) {
-            return BlockRotation::PX(0.0);
+            return BlockRotation::PY(0.0);
         }
 
         BlockUtils::extract_rotation(self.get_raw_voxel(vx, vy, vz))

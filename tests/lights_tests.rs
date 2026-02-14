@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use voxelize::{
-    Block, BlockConditionalPart, BlockDynamicPattern, BlockRule, BlockSimpleRule, Chunk,
+    Block, BlockConditionalPart, BlockDynamicPattern, BlockRotation, BlockRule, BlockSimpleRule, Chunk,
     ChunkOptions, Chunks, LightColor, Lights, Registry, Vec2, Vec3, VoxelAccess, WorldConfig,
 };
 
@@ -270,6 +270,36 @@ fn test_chunk_updated_levels_ignore_out_of_range_y() {
         "valid y updates should still produce in-range sub-chunk levels"
     );
     assert!(!chunk.updated_levels.is_empty());
+}
+
+#[test]
+fn test_out_of_range_voxel_rotation_defaults_to_py() {
+    let config = WorldConfig {
+        chunk_size: 16,
+        max_height: 16,
+        max_light_level: 15,
+        min_chunk: [0, 0],
+        max_chunk: [0, 0],
+        saving: false,
+        ..Default::default()
+    };
+    let mut chunks = Chunks::new(&config);
+    chunks.add(Chunk::new(
+        "chunk-0-0",
+        0,
+        0,
+        &ChunkOptions {
+            size: 16,
+            max_height: 16,
+            sub_chunks: 1,
+        },
+    ));
+
+    let out_of_bounds_rotation = chunks.get_voxel_rotation(0, -1, 0);
+    assert_eq!(out_of_bounds_rotation, BlockRotation::PY(0.0));
+
+    let space = chunks.make_space(&Vec2(0, 0), 1).needs_voxels().build();
+    assert_eq!(space.get_voxel_rotation(0, -1, 0), BlockRotation::PY(0.0));
 }
 
 #[test]
