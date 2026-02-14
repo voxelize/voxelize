@@ -49,11 +49,7 @@ impl<'a> System<'a> for EventsSystem {
 
         let serialize_payload = |name: String, payload: Option<String>| EventProtocol {
             name,
-            payload: if payload.is_none() {
-                String::from("{}")
-            } else {
-                payload.unwrap()
-            },
+            payload: payload.unwrap_or_else(|| String::from("{}")),
         };
 
         // ID to a set of events, serialized.
