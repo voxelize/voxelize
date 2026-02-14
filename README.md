@@ -391,6 +391,7 @@ Developer-environment `checks[]` and `failureSummaries[]` entries include `check
 WASM-pack `failureSummaries[]` entries include `checkIndex`, `command`, `args`, `argCount`, `checkCommand`, `checkArgs`, and `checkArgCount` for stable index correlation and deterministic command diagnostics.
 Each `steps[]` entry in client/onboarding JSON mode includes `scriptName`, `supportsNoBuild`, `checkCommand`, `checkArgs`, `checkArgCount`, and `stepIndex` so downstream tooling can map step outcomes to stable script identifiers and executed commands.
 Each client/onboarding `failureSummaries[]` entry includes `checkCommand`, `checkArgs`, and `checkArgCount` for deterministic failed-step command diagnostics.
+Nested client wasm artifact reports include `wasmPackCheckCommand`, `wasmPackCheckArgs`, `wasmPackCheckArgCount`, `wasmPackCheckExitCode`, and `wasmPackCheckOutputLine` for deterministic tracing of wasm-pack preflight invocation.
 If `--output` is provided without a value, commands fail fast. JSON commands return a structured error report; non-JSON commands print a plain error message.
 When `--output` is valid, JSON validation-error reports are also written to that output path.
 If `--output` or `--only` is passed multiple times, the last value is used, even when recognized strict tokens appear between repeated flags.
