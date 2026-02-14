@@ -155,6 +155,30 @@ impl Chunk {
             return;
         }
 
+        if max_height % sub_chunks == 0 {
+            let partition = max_height / sub_chunks;
+            if partition > 0 {
+                let level = vy / partition;
+                if level < sub_chunks {
+                    if let Ok(level_u32) = u32::try_from(level) {
+                        self.updated_levels.insert(level_u32);
+                    }
+                    let remainder = vy % partition;
+                    if remainder + 1 == partition && level + 1 < sub_chunks {
+                        if let Ok(next_level_u32) = u32::try_from(level + 1) {
+                            self.updated_levels.insert(next_level_u32);
+                        }
+                    }
+                    if remainder == 0 && level > 0 {
+                        if let Ok(prev_level_u32) = u32::try_from(level - 1) {
+                            self.updated_levels.insert(prev_level_u32);
+                        }
+                    }
+                }
+            }
+            return;
+        }
+
         let max_height_u128 = max_height as u128;
         let sub_chunks_u128 = sub_chunks as u128;
         let level = ((vy as u128) * sub_chunks_u128) / max_height_u128;
