@@ -483,7 +483,7 @@ where
             return Vec::new();
         }
 
-        if let Ok(nodes) = serde_wasm_bindgen::from_value(value.clone()) {
+        if let Ok(nodes) = serde_wasm_bindgen::from_value(array.clone().into()) {
             return nodes;
         }
 
