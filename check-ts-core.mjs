@@ -68,24 +68,80 @@ const resolveFirstNonEmptyOutputLine = (output) => {
   const [firstNonEmptyLine] = nonEmptyLines;
   return firstNonEmptyLine ?? null;
 };
-const resolveExampleRuleMatched = (exampleOutput) => {
+const isNumberVec3 = (value) => {
+  return (
+    Array.isArray(value) &&
+    value.length === 3 &&
+    value.every((entry) => {
+      return typeof entry === "number";
+    })
+  );
+};
+const resolveExamplePayloadSummary = (exampleOutput) => {
   const parsedOutput = parseJsonOutput(exampleOutput);
   if (
     parsedOutput === null ||
     typeof parsedOutput !== "object" ||
-    Array.isArray(parsedOutput) ||
-    !("ruleMatched" in parsedOutput) ||
-    typeof parsedOutput.ruleMatched !== "boolean"
+    Array.isArray(parsedOutput)
   ) {
-    return null;
+    return {
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+    };
   }
 
-  return parsedOutput.ruleMatched;
+  const exampleRuleMatched =
+    "ruleMatched" in parsedOutput && typeof parsedOutput.ruleMatched === "boolean"
+      ? parsedOutput.ruleMatched
+      : null;
+  const voxelValue = "voxel" in parsedOutput ? parsedOutput.voxel : null;
+  const voxelValid =
+    voxelValue !== null &&
+    typeof voxelValue === "object" &&
+    !Array.isArray(voxelValue) &&
+    "id" in voxelValue &&
+    typeof voxelValue.id === "number" &&
+    "stage" in voxelValue &&
+    typeof voxelValue.stage === "number";
+  const lightValue = "light" in parsedOutput ? parsedOutput.light : null;
+  const lightValid =
+    lightValue !== null &&
+    typeof lightValue === "object" &&
+    !Array.isArray(lightValue) &&
+    "sunlight" in lightValue &&
+    typeof lightValue.sunlight === "number" &&
+    "red" in lightValue &&
+    typeof lightValue.red === "number" &&
+    "green" in lightValue &&
+    typeof lightValue.green === "number" &&
+    "blue" in lightValue &&
+    typeof lightValue.blue === "number";
+  const rotatedAabbValue =
+    "rotatedAabb" in parsedOutput ? parsedOutput.rotatedAabb : null;
+  const rotatedAabbValid =
+    rotatedAabbValue !== null &&
+    typeof rotatedAabbValue === "object" &&
+    !Array.isArray(rotatedAabbValue) &&
+    "min" in rotatedAabbValue &&
+    isNumberVec3(rotatedAabbValue.min) &&
+    "max" in rotatedAabbValue &&
+    isNumberVec3(rotatedAabbValue.max);
+  const examplePayloadValid =
+    exampleRuleMatched !== null &&
+    voxelValid &&
+    lightValid &&
+    rotatedAabbValid;
+
+  return {
+    exampleRuleMatched,
+    examplePayloadValid,
+  };
 };
 const isExampleCheckPassing = (exampleCheckResult) => {
   return (
     exampleCheckResult.exampleExitCode === 0 &&
-    exampleCheckResult.exampleRuleMatched === true
+    exampleCheckResult.exampleRuleMatched === true &&
+    exampleCheckResult.examplePayloadValid === true
   );
 };
 const deriveExampleFailureMessage = (exampleCheckResult) => {
@@ -95,6 +151,10 @@ const deriveExampleFailureMessage = (exampleCheckResult) => {
 
   if (exampleCheckResult.exampleRuleMatched === false) {
     return "TypeScript core end-to-end example reported ruleMatched=false.";
+  }
+
+  if (exampleCheckResult.examplePayloadValid === false) {
+    return "TypeScript core end-to-end example output is missing required payload fields.";
   }
 
   return "TypeScript core end-to-end example output was invalid.";
@@ -110,12 +170,14 @@ const runTsCoreExampleCheck = () => {
   const exampleExitCode = exampleResult.status ?? 1;
   const exampleOutput = `${exampleResult.stdout ?? ""}${exampleResult.stderr ?? ""}`.trim();
   const exampleOutputLine = resolveFirstNonEmptyOutputLine(exampleOutput);
-  const exampleRuleMatched = resolveExampleRuleMatched(exampleOutput);
+  const { exampleRuleMatched, examplePayloadValid } =
+    resolveExamplePayloadSummary(exampleOutput);
 
   return {
     exampleExitCode,
     exampleDurationMs,
     exampleRuleMatched,
+    examplePayloadValid,
     exampleOutputLine,
   };
 };
@@ -410,6 +472,10 @@ const withBaseReportFields = (report) => {
       : null;
   const exampleRuleMatched =
     typeof report.exampleRuleMatched === "boolean" ? report.exampleRuleMatched : null;
+  const examplePayloadValid =
+    typeof report.examplePayloadValid === "boolean"
+      ? report.examplePayloadValid
+      : null;
   const exampleOutputLine =
     typeof report.exampleOutputLine === "string" ? report.exampleOutputLine : null;
   const exampleAttempted =
@@ -420,7 +486,9 @@ const withBaseReportFields = (report) => {
     report.exampleStatus === "skipped"
       ? report.exampleStatus
       : exampleAttempted
-        ? exampleExitCode === 0 && exampleRuleMatched === true
+        ? exampleExitCode === 0 &&
+          exampleRuleMatched === true &&
+          examplePayloadValid === true
           ? "ok"
           : "failed"
         : "skipped";
@@ -455,10 +523,12 @@ const withBaseReportFields = (report) => {
             checkArgCount: exampleArgs.length,
             exitCode: exampleExitCode,
             ruleMatched: exampleRuleMatched,
+            payloadValid: examplePayloadValid,
             outputLine: exampleOutputLine,
             message: deriveExampleFailureMessage({
               exampleExitCode,
               exampleRuleMatched,
+              examplePayloadValid,
             }),
           },
         ];
@@ -635,6 +705,7 @@ const withBaseReportFields = (report) => {
     exampleAttempted,
     exampleStatus,
     exampleRuleMatched,
+    examplePayloadValid,
     exampleExitCode,
     exampleDurationMs,
     exampleOutputLine,

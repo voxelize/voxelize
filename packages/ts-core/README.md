@@ -126,11 +126,12 @@ The ts-core JSON report includes package/artifact diagnostics such as
 `requiredArtifactCount`, `presentArtifactCount`, `missingArtifactCount`, and
 `missingArtifactSummary`. It also includes end-to-end example verification
 metadata: `exampleCommand`, `exampleArgs`, `exampleArgCount`,
-`exampleAttempted`, `exampleStatus`, `exampleRuleMatched`, `exampleExitCode`,
-`exampleDurationMs`, and `exampleOutputLine`.
+`exampleAttempted`, `exampleStatus`, `exampleRuleMatched`,
+`examplePayloadValid`, `exampleExitCode`, `exampleDurationMs`, and
+`exampleOutputLine`.
 
 When failures occur, `failureSummaries[]` entries include `kind`:
 
 - `kind: "artifacts"` for missing artifact failures
 - `kind: "example"` for end-to-end example execution/output failures
-  (`exitCode`, `ruleMatched`, and `outputLine`)
+  (`exitCode`, `ruleMatched`, `payloadValid`, and `outputLine`)

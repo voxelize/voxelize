@@ -189,6 +189,7 @@ type TsCoreCheckReport = {
   exampleAttempted: boolean;
   exampleStatus: "ok" | "failed" | "skipped";
   exampleRuleMatched: boolean | null;
+  examplePayloadValid: boolean | null;
   exampleExitCode: number | null;
   exampleDurationMs: number | null;
   exampleOutputLine: string | null;
@@ -226,6 +227,7 @@ type TsCoreCheckReport = {
         checkArgCount: number;
         exitCode: number | null;
         ruleMatched: boolean | null;
+        payloadValid: boolean | null;
         outputLine: string | null;
         message: string;
       }
@@ -319,6 +321,7 @@ const expectedSuccessMessage =
 const deriveExpectedExampleFailureMessage = (report: {
   exampleExitCode: number | null;
   exampleRuleMatched: boolean | null;
+  examplePayloadValid: boolean | null;
 }) => {
   if (report.exampleExitCode !== 0) {
     return "TypeScript core end-to-end example failed.";
@@ -326,6 +329,10 @@ const deriveExpectedExampleFailureMessage = (report: {
 
   if (report.exampleRuleMatched === false) {
     return "TypeScript core end-to-end example reported ruleMatched=false.";
+  }
+
+  if (report.examplePayloadValid === false) {
+    return "TypeScript core end-to-end example output is missing required payload fields.";
   }
 
   return "TypeScript core end-to-end example output was invalid.";
@@ -840,6 +847,7 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
       checkArgCount: expectedExampleArgs.length,
       exitCode: report.exampleExitCode,
       ruleMatched: report.exampleRuleMatched,
+      payloadValid: report.examplePayloadValid,
       outputLine: report.exampleOutputLine,
       message: deriveExpectedExampleFailureMessage(report),
     });
@@ -898,6 +906,7 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
   } else {
     expect(report.exampleStatus).toBe("skipped");
     expect(report.exampleRuleMatched).toBeNull();
+    expect(report.examplePayloadValid).toBeNull();
     expect(report.exampleExitCode).toBeNull();
     expect(report.exampleDurationMs).toBeNull();
     expect(report.exampleOutputLine).toBeNull();
@@ -905,11 +914,13 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
   if (report.exampleStatus === "ok") {
     expect(report.exampleExitCode).toBe(0);
     expect(report.exampleRuleMatched).toBe(true);
+    expect(report.examplePayloadValid).toBe(true);
   }
   if (report.exampleStatus === "failed") {
     expect(
       (report.exampleExitCode === null || report.exampleExitCode !== 0) ||
-        report.exampleRuleMatched !== true
+        report.exampleRuleMatched !== true ||
+        report.examplePayloadValid !== true
     ).toBe(true);
   }
   if (report.exampleRuleMatched !== null && report.exampleOutputLine !== null) {
@@ -1059,6 +1070,7 @@ describe("check-ts-core script", () => {
       expect(report.exampleExitCode).not.toBeNull();
       expect(report.exampleExitCode).not.toBe(0);
       expect(report.exampleRuleMatched).toBeNull();
+      expect(report.examplePayloadValid).toBeNull();
       expect(report.failureSummaryCount).toBe(1);
       expect(report.failureSummaries).toEqual([
         {
@@ -1071,6 +1083,7 @@ describe("check-ts-core script", () => {
           checkArgCount: expectedExampleArgs.length,
           exitCode: report.exampleExitCode,
           ruleMatched: report.exampleRuleMatched,
+          payloadValid: report.examplePayloadValid,
           outputLine: report.exampleOutputLine,
           message: deriveExpectedExampleFailureMessage(report),
         },
@@ -1100,6 +1113,7 @@ describe("check-ts-core script", () => {
         expect(report.exampleStatus).toBe("failed");
         expect(report.exampleExitCode).toBe(0);
         expect(report.exampleRuleMatched).toBe(false);
+        expect(report.examplePayloadValid).toBe(false);
         expect(report.failureSummaryCount).toBe(1);
         expect(report.failureSummaries).toEqual([
           {
@@ -1112,12 +1126,57 @@ describe("check-ts-core script", () => {
             checkArgCount: expectedExampleArgs.length,
             exitCode: report.exampleExitCode,
             ruleMatched: report.exampleRuleMatched,
+            payloadValid: report.examplePayloadValid,
             outputLine: report.exampleOutputLine,
             message: deriveExpectedExampleFailureMessage(report),
           },
         ]);
         expect(report.message).toBe(
           "TypeScript core build artifacts are available, but TypeScript core end-to-end example reported ruleMatched=false."
+        );
+      }
+    );
+  });
+
+  it("fails when ts-core example reports ruleMatched=true without full payload", () => {
+    runWithTemporarilyRewrittenPath(
+      exampleScriptRelativePath,
+      'console.log(JSON.stringify({ ruleMatched: true }));\n',
+      () => {
+        const result = runScript(["--json"]);
+        const report = parseReport(result);
+
+        expect(result.status).toBe(1);
+        expect(report.schemaVersion).toBe(1);
+        expect(report.passed).toBe(false);
+        expect(report.exitCode).toBe(1);
+        expect(report.validationErrorCode).toBeNull();
+        expect(report.artifactsPresent).toBe(true);
+        expect(report.missingArtifacts).toEqual([]);
+        expect(report.exampleAttempted).toBe(true);
+        expect(report.exampleStatus).toBe("failed");
+        expect(report.exampleExitCode).toBe(0);
+        expect(report.exampleRuleMatched).toBe(true);
+        expect(report.examplePayloadValid).toBe(false);
+        expect(report.failureSummaryCount).toBe(1);
+        expect(report.failureSummaries).toEqual([
+          {
+            kind: "example",
+            packageName: report.checkedPackage,
+            packagePath: report.checkedPackagePath,
+            packageIndex: report.checkedPackageIndices[0],
+            checkCommand: process.execPath,
+            checkArgs: expectedExampleArgs,
+            checkArgCount: expectedExampleArgs.length,
+            exitCode: report.exampleExitCode,
+            ruleMatched: report.exampleRuleMatched,
+            payloadValid: report.examplePayloadValid,
+            outputLine: report.exampleOutputLine,
+            message: deriveExpectedExampleFailureMessage(report),
+          },
+        ]);
+        expect(report.message).toBe(
+          "TypeScript core build artifacts are available, but TypeScript core end-to-end example output is missing required payload fields."
         );
       }
     );

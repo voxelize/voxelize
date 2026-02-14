@@ -585,6 +585,7 @@ type TsCoreNestedReport = {
         checkArgCount: number;
         exitCode: number | null;
         ruleMatched: boolean | null;
+        payloadValid: boolean | null;
         outputLine: string | null;
         message: string;
       }
@@ -602,6 +603,7 @@ type TsCoreNestedReport = {
   exampleAttempted: boolean;
   exampleStatus: "ok" | "failed" | "skipped";
   exampleRuleMatched: boolean | null;
+  examplePayloadValid: boolean | null;
   exampleExitCode: number | null;
   exampleDurationMs: number | null;
   exampleOutputLine: string | null;
@@ -1016,6 +1018,7 @@ type PreflightReport = {
   tsCoreExampleAttempted: boolean | null;
   tsCoreExampleStatus: "ok" | "failed" | "skipped" | null;
   tsCoreExampleRuleMatched: boolean | null;
+  tsCoreExamplePayloadValid: boolean | null;
   tsCoreExampleExitCode: number | null;
   tsCoreExampleDurationMs: number | null;
   tsCoreExampleOutputLine: string | null;
@@ -1344,6 +1347,7 @@ const expectedTsCoreExampleArgs = [
 const deriveExpectedTsCoreExampleFailureMessage = (report: {
   exampleExitCode: number | null;
   exampleRuleMatched: boolean | null;
+  examplePayloadValid: boolean | null;
 }) => {
   if (report.exampleExitCode !== 0) {
     return "TypeScript core end-to-end example failed.";
@@ -1351,6 +1355,10 @@ const deriveExpectedTsCoreExampleFailureMessage = (report: {
 
   if (report.exampleRuleMatched === false) {
     return "TypeScript core end-to-end example reported ruleMatched=false.";
+  }
+
+  if (report.examplePayloadValid === false) {
+    return "TypeScript core end-to-end example output is missing required payload fields.";
   }
 
   return "TypeScript core end-to-end example output was invalid.";
@@ -2221,6 +2229,7 @@ const expectPreflightTsCoreExampleSummaryMetadata = (report: PreflightReport) =>
     expect(report.tsCoreExampleAttempted).toBeNull();
     expect(report.tsCoreExampleStatus).toBeNull();
     expect(report.tsCoreExampleRuleMatched).toBeNull();
+    expect(report.tsCoreExamplePayloadValid).toBeNull();
     expect(report.tsCoreExampleExitCode).toBeNull();
     expect(report.tsCoreExampleDurationMs).toBeNull();
     expect(report.tsCoreExampleOutputLine).toBeNull();
@@ -2234,6 +2243,7 @@ const expectPreflightTsCoreExampleSummaryMetadata = (report: PreflightReport) =>
   expect(report.tsCoreExampleAttempted).toBe(tsCoreCheckReport.exampleAttempted);
   expect(report.tsCoreExampleStatus).toBe(tsCoreCheckReport.exampleStatus);
   expect(report.tsCoreExampleRuleMatched).toBe(tsCoreCheckReport.exampleRuleMatched);
+  expect(report.tsCoreExamplePayloadValid).toBe(tsCoreCheckReport.examplePayloadValid);
   expect(report.tsCoreExampleExitCode).toBe(tsCoreCheckReport.exampleExitCode);
   expect(report.tsCoreExampleDurationMs).toBe(tsCoreCheckReport.exampleDurationMs);
   expect(report.tsCoreExampleOutputLine).toBe(tsCoreCheckReport.exampleOutputLine);
@@ -2246,6 +2256,7 @@ const expectPreflightTsCoreExampleSummaryMetadata = (report: PreflightReport) =>
   ) {
     expect(report.tsCoreExampleStatus).toBe("skipped");
     expect(report.tsCoreExampleRuleMatched).toBeNull();
+    expect(report.tsCoreExamplePayloadValid).toBeNull();
   }
 };
 const expectPreflightClientWasmSummaryMetadata = (report: PreflightReport) => {
@@ -3881,6 +3892,7 @@ const expectTsCoreNestedReport = (
       checkArgCount: expectedTsCoreExampleArgs.length,
       exitCode: report.exampleExitCode,
       ruleMatched: report.exampleRuleMatched,
+      payloadValid: report.examplePayloadValid,
       outputLine: report.exampleOutputLine,
       message: deriveExpectedTsCoreExampleFailureMessage(report),
     });
@@ -3940,6 +3952,7 @@ const expectTsCoreNestedReport = (
   } else {
     expect(report.exampleStatus).toBe("skipped");
     expect(report.exampleRuleMatched).toBeNull();
+    expect(report.examplePayloadValid).toBeNull();
     expect(report.exampleExitCode).toBeNull();
     expect(report.exampleDurationMs).toBeNull();
     expect(report.exampleOutputLine).toBeNull();
@@ -3947,11 +3960,13 @@ const expectTsCoreNestedReport = (
   if (report.exampleStatus === "ok") {
     expect(report.exampleExitCode).toBe(0);
     expect(report.exampleRuleMatched).toBe(true);
+    expect(report.examplePayloadValid).toBe(true);
   }
   if (report.exampleStatus === "failed") {
     expect(
       (report.exampleExitCode === null || report.exampleExitCode !== 0) ||
-        report.exampleRuleMatched !== true
+        report.exampleRuleMatched !== true ||
+        report.examplePayloadValid !== true
     ).toBe(true);
   }
   if (report.exampleRuleMatched !== null && report.exampleOutputLine !== null) {
