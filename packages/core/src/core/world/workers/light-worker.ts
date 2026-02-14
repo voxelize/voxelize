@@ -532,6 +532,11 @@ const hasPotentialRelevantDeltaBatches = (
     if (!Array.isArray(deltas) || deltas.length === 0) {
       continue;
     }
+    const deltasLength = deltas.length;
+    const startIndex = normalizeStartIndex(deltaBatch.startIndex);
+    if (startIndex >= deltasLength) {
+      continue;
+    }
     const cx = deltaBatch.cx;
     const cz = deltaBatch.cz;
     if (!isI32(cx) || !isI32(cz)) {
@@ -603,12 +608,6 @@ const hasPotentialRelevantDeltaBatches = (
         expectedChunkByteLength
       )
     ) {
-      continue;
-    }
-
-    const startIndex = normalizeStartIndex(deltaBatch.startIndex);
-    const deltasLength = deltas.length;
-    if (startIndex >= deltasLength) {
       continue;
     }
     for (let deltaIndex = startIndex; deltaIndex < deltasLength; deltaIndex++) {
