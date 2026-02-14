@@ -32,8 +32,11 @@ fn sync_position(tree: &mut KdTree, ent: specs::Entity, pos: &Vec3<f32>, is_play
                     tree.update_entity(ent, pos);
                 }
             }
+            return;
         }
-    } else if is_player {
+    }
+
+    if is_player {
         tree.add_player(ent, pos);
     } else {
         tree.add_entity(ent, pos);
