@@ -132,6 +132,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
    */
   private _commandSymbol = "";
   private _commandSymbolCode = "";
+  private _commandSymbolLength = 0;
   private _commandSymbolFirstCode = -1;
 
   private fallbackCommand: ((rest: string) => void) | null = null;
@@ -160,7 +161,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   public send(chat: T) {
     const body = chat.body;
     const commandSymbol = this._commandSymbol;
-    const commandBodyStart = commandSymbol.length;
+    const commandBodyStart = this._commandSymbolLength;
     const commandSymbolFirstCode = this._commandSymbolFirstCode;
     const isCommand =
       commandSymbolFirstCode >= 0
@@ -733,8 +734,9 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         const { commandSymbol } = message.json.options;
         this._commandSymbol = commandSymbol;
         this._commandSymbolCode = DOMUtils.mapKeyToCode(commandSymbol);
+        this._commandSymbolLength = commandSymbol.length;
         this._commandSymbolFirstCode =
-          commandSymbol.length === 1 ? commandSymbol.charCodeAt(0) : -1;
+          this._commandSymbolLength === 1 ? commandSymbol.charCodeAt(0) : -1;
         break;
       }
       case "CHAT": {
