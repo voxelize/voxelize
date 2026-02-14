@@ -108,7 +108,7 @@ impl<'a> System<'a> for EventsSystem {
             }
 
             // Checks if location is required, otherwise just sends.
-            let mut send_to_client = |id: &String, entity: Entity| {
+            let mut send_to_client = |id: &str, entity: Entity| {
                 if let Some(location) = &location {
                     if !is_interested(location, entity) {
                         return;
@@ -119,7 +119,7 @@ impl<'a> System<'a> for EventsSystem {
 
             let mut send_to_id = |id: &str| {
                 if let Some(client) = clients.get(id) {
-                    send_to_client(&client.id, client.entity);
+                    send_to_client(id, client.entity);
                 }
             };
 
