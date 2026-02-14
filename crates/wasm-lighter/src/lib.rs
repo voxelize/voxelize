@@ -64,6 +64,7 @@ struct BatchSpace {
     chunk_column_stride: usize,
     chunk_shift: Option<u32>,
     chunk_mask: Option<i32>,
+    max_height_i32: i32,
     max_height: u32,
     modified_chunks: Vec<bool>,
     modified_indices: Vec<usize>,
@@ -88,6 +89,7 @@ impl BatchSpace {
         let chunk_grid_depth_i32 = i32::try_from(chunk_grid_depth).unwrap_or(i32::MAX);
         let chunk_size_usize = chunk_size as usize;
         let chunk_height = max_height as usize;
+        let max_height_i32 = i32::try_from(max_height).unwrap_or(i32::MAX);
         let chunk_column_stride = chunk_size_usize.saturating_mul(chunk_height);
         let chunk_shift = if chunk_size > 0 && (chunk_size as u32).is_power_of_two() {
             Some(chunk_size.trailing_zeros())
@@ -106,6 +108,7 @@ impl BatchSpace {
             chunk_column_stride,
             chunk_shift,
             chunk_mask,
+            max_height_i32,
             max_height,
             modified_chunks,
             modified_indices: Vec::new(),
@@ -208,6 +211,9 @@ impl BatchSpace {
 
 impl LightVoxelAccess for BatchSpace {
     fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        if vy < 0 || vy >= self.max_height_i32 {
+            return 0;
+        }
         let (cx, cz) = self.map_voxel_to_chunk(vx, vz);
         let Some(chunk_index) = self.chunk_index_from_coords(cx, cz) else {
             return 0;
@@ -232,6 +238,9 @@ impl LightVoxelAccess for BatchSpace {
     }
 
     fn get_raw_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        if vy < 0 || vy >= self.max_height_i32 {
+            return 0;
+        }
         let (cx, cz) = self.map_voxel_to_chunk(vx, vz);
         let Some(chunk_index) = self.chunk_index_from_coords(cx, cz) else {
             return 0;
@@ -246,6 +255,9 @@ impl LightVoxelAccess for BatchSpace {
     }
 
     fn set_raw_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
+        if vy < 0 || vy >= self.max_height_i32 {
+            return false;
+        }
         let (cx, cz) = self.map_voxel_to_chunk(vx, vz);
         let Some(chunk_index) = self.chunk_index_from_coords(cx, cz) else {
             return false;
@@ -291,6 +303,9 @@ impl LightVoxelAccess for BatchSpace {
     }
 
     fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        if vy < 0 || vy >= self.max_height_i32 {
+            return false;
+        }
         let (cx, cz) = self.map_voxel_to_chunk(vx, vz);
         let Some(chunk_index) = self.chunk_index_from_coords(cx, cz) else {
             return false;
