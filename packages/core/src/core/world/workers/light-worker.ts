@@ -152,6 +152,9 @@ const hasPendingBatchMessages = () =>
 const pendingBatchMessageCount = () =>
   pendingBatchMessages.length - pendingBatchMessagesHead;
 
+const isInteger = (value: number) => Number.isInteger(value);
+const isPositiveInteger = (value: number) => isInteger(value) && value > 0;
+
 const getAppliedDeltasPayload = (lastSequenceId: number) => {
   if (lastSequenceId === 0) {
     return emptyAppliedDeltas;
@@ -428,12 +431,25 @@ const processBatchMessage = (message: LightBatchMessage) => {
 
   const [gridWidth, gridDepth] = chunkGridDimensions;
   const [gridOffsetX, gridOffsetZ] = chunkGridOffset;
-  if (options.chunkSize <= 0 || options.maxHeight <= 0) {
+  if (
+    !isPositiveInteger(options.chunkSize) ||
+    !isPositiveInteger(options.maxHeight) ||
+    !isInteger(options.maxLightLevel)
+  ) {
+    postEmptyBatchResult(jobId, lastRelevantSequenceId);
+    return;
+  }
+  if (
+    !isPositiveInteger(gridWidth) ||
+    !isPositiveInteger(gridDepth) ||
+    !isInteger(gridOffsetX) ||
+    !isInteger(gridOffsetZ)
+  ) {
     postEmptyBatchResult(jobId, lastRelevantSequenceId);
     return;
   }
   const cellCount = gridWidth * gridDepth;
-  if (cellCount === 0 || chunksData.length < cellCount) {
+  if (chunksData.length < cellCount) {
     postEmptyBatchResult(jobId, 0);
     return;
   }
