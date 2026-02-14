@@ -297,6 +297,67 @@ describe("BlockRuleEvaluator", () => {
     expect(BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access)).toBe(true);
   });
 
+  it("treats empty NOT combinations as true", () => {
+    const access = {
+      getVoxel: () => 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    const rule = {
+      type: "combination" as const,
+      logic: BlockRuleLogic.Not,
+      rules: [],
+    };
+
+    expect(BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access)).toBe(true);
+  });
+
+  it("evaluates OR combinations across multiple sub-rules", () => {
+    const access = {
+      getVoxel: () => 8,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 2,
+    };
+
+    const rule = {
+      type: "combination" as const,
+      logic: BlockRuleLogic.Or,
+      rules: [
+        {
+          type: "simple" as const,
+          offset: [0, 0, 0] as [number, number, number],
+          id: 4,
+        },
+        {
+          type: "simple" as const,
+          offset: [0, 0, 0] as [number, number, number],
+          id: 8,
+          stage: 2,
+        },
+      ],
+    };
+
+    expect(BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access)).toBe(true);
+  });
+
+  it("fails simple rule evaluation when stage constraint does not match", () => {
+    const access = {
+      getVoxel: () => 12,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 1,
+    };
+
+    const rule = {
+      type: "simple" as const,
+      offset: [0, 0, 0] as [number, number, number],
+      id: 12,
+      stage: 3,
+    };
+
+    expect(BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access)).toBe(false);
+  });
+
   it("rotates offsets for y-rotatable rules", () => {
     const rule = {
       type: "simple" as const,
