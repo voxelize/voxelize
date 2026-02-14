@@ -92,6 +92,9 @@ describe("script aliases", () => {
     expect(manifest.scripts["check:libraries:release"]).toBe(
       "pnpm run check:ts-core:release && pnpm run check:runtime-libraries:release"
     );
+    expect(manifest.scripts["check:preflight:libraries:release"]).toBe(
+      "pnpm run check:libraries:release && pnpm run check:preflight:libraries:verify:json"
+    );
     expect(manifest.scripts["check:preflight:json:compact"]).toBe(
       "node ./check-preflight.mjs --compact"
     );

@@ -201,6 +201,8 @@ pnpm run check:runtime-libraries:verify:json:compact
 pnpm run check:runtime-libraries:release
 # combined library release workflow (ts-core + runtime libraries)
 pnpm run check:libraries:release
+# combined aggregate preflight release workflow (library release workflows + aggregate libraries preflight verify report)
+pnpm run check:preflight:libraries:release
 # direct cli alias also works: node ./check-runtime-libraries.mjs --verify
 # runtime library checks verify these artifact paths:
 # - packages/aabb/dist/index.js
