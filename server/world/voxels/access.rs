@@ -28,7 +28,11 @@ pub trait VoxelAccess {
         if id > 0xFFFF {
             return false;
         }
+        let raw = self.get_raw_voxel(vx, vy, vz);
         let value = BlockUtils::insert_id(0, id);
+        if value == raw {
+            return self.contains(vx, vy, vz);
+        }
         self.set_raw_voxel(vx, vy, vz, value)
     }
 

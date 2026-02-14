@@ -381,7 +381,9 @@ fn test_voxel_access_no_op_setters_preserve_contains_semantics() {
     ));
 
     chunks.set_raw_voxel(0, 0, 0, 1);
+    assert!(chunks.set_voxel(0, 0, 0, 1));
     assert!(!chunks.set_voxel(0, 0, 0, 0x1_0000));
+    assert!(!chunks.set_voxel(0, -1, 0, 0));
     assert_eq!(
         chunks.get_voxel(0, 0, 0),
         1,
