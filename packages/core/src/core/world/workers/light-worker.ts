@@ -135,6 +135,7 @@ const reusableSerializedChunks: SerializedWasmChunk[] = [];
 const reusableChunkGrid: (RawChunk | null)[] = [];
 const emptyModifiedChunks: WorkerModifiedChunk[] = [];
 const emptyChunkGrid: (RawChunk | null)[] = [];
+const emptyDeltaBatches: DeltaBatch[] = [];
 const emptyAppliedDeltas = { lastSequenceId: 0 };
 const reusableAppliedDeltas = { lastSequenceId: 0 };
 const reusableBatchResultMessage = {
@@ -532,6 +533,22 @@ const processBatchMessage = (message: LightBatchMessage) => {
   const [gridWidth, gridDepth] = chunkGridDimensions;
   const [gridOffsetX, gridOffsetZ] = chunkGridOffset;
   const normalizedLastRelevantSequenceId = normalizeSequenceId(lastRelevantSequenceId);
+  const bounds = message.boundingBox;
+  const boundsMin = bounds?.min;
+  const boundsShape = bounds?.shape;
+  if (
+    boundsMin === undefined ||
+    boundsShape === undefined ||
+    !isInteger(boundsMin[0]) ||
+    !isInteger(boundsMin[1]) ||
+    !isInteger(boundsMin[2]) ||
+    !isPositiveInteger(boundsShape[0]) ||
+    !isPositiveInteger(boundsShape[1]) ||
+    !isPositiveInteger(boundsShape[2])
+  ) {
+    postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
+    return;
+  }
   const chunkSize = options.chunkSize;
   const maxHeight = options.maxHeight;
   const maxLightLevel = options.maxLightLevel;
@@ -575,7 +592,10 @@ const processBatchMessage = (message: LightBatchMessage) => {
 
   let lastSequenceId = 0;
   const serializedChunks = reusableSerializedChunks;
-  const hasPotentialRelevantDelta = relevantDeltas.length > 0;
+  const deltaBatches = Array.isArray(relevantDeltas)
+    ? relevantDeltas
+    : emptyDeltaBatches;
+  const hasPotentialRelevantDelta = deltaBatches.length > 0;
   const chunkGrid = hasPotentialRelevantDelta ? reusableChunkGrid : emptyChunkGrid;
 
   if (!hasPotentialRelevantDelta) {
@@ -612,7 +632,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
       gridDepth,
       gridOffsetX,
       gridOffsetZ,
-      relevantDeltas
+      deltaBatches
     );
     serializeChunkGrid(
       chunkGrid,
@@ -623,12 +643,12 @@ const processBatchMessage = (message: LightBatchMessage) => {
     chunkGrid.length = 0;
   }
 
-  reusableBoundsMin[0] = boundingBox.min[0];
-  reusableBoundsMin[1] = boundingBox.min[1];
-  reusableBoundsMin[2] = boundingBox.min[2];
-  reusableBoundsShape[0] = boundingBox.shape[0];
-  reusableBoundsShape[1] = boundingBox.shape[1];
-  reusableBoundsShape[2] = boundingBox.shape[2];
+  reusableBoundsMin[0] = boundsMin[0];
+  reusableBoundsMin[1] = boundsMin[1];
+  reusableBoundsMin[2] = boundsMin[2];
+  reusableBoundsShape[0] = boundsShape[0];
+  reusableBoundsShape[1] = boundsShape[1];
+  reusableBoundsShape[2] = boundsShape[2];
   const colorIndex = colorToIndex(color);
   if (colorIndex === null) {
     postEmptyBatchResult(jobId, lastSequenceId);
