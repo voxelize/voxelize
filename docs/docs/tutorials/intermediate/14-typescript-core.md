@@ -320,6 +320,12 @@ partitions such as `availableSteps`, `passedSteps`, `failedSteps`,
 `failureSummaries`, and `failureSummaryCount`.
 Each step entry in `steps[]` includes `scriptName`, `supportsNoBuild`, and
 `stepIndex`.
+Developer-environment JSON reports include check inventory and partition
+metadata such as `availableChecks`, `availableCheckIndexMap`,
+`availableCheckRequiredMap`, `availableCheckHintMap`,
+`availableCheckMinimumVersionMap`, `checkLabels`, `checkStatusMap`,
+`passedChecks`, `failedChecks`, `requiredFailureLabels`,
+`optionalFailureLabels`, `failureSummaries`, and associated `*Count` fields.
 
 ## API reference
 

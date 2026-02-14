@@ -10,6 +10,7 @@ import {
   parseSemver,
 } from "./scripts/dev-env-utils.mjs";
 import {
+  countRecordEntries,
   createCliDiagnostics,
   deriveCliValidationFailureMessage,
   createTimedReportBuilder,
@@ -112,6 +113,133 @@ const checks = [
     hint: "Install cargo-watch: https://crates.io/crates/cargo-watch",
   },
 ];
+const mapChecksToIndexMap = (checkEntries) => {
+  return Object.fromEntries(
+    checkEntries.map((check, index) => {
+      return [check.label, index];
+    })
+  );
+};
+const mapChecksToRecord = (checkEntries, resolveValue) => {
+  return Object.fromEntries(
+    checkEntries.map((check, index) => {
+      return [check.label, resolveValue(check, index)];
+    })
+  );
+};
+const availableChecks = checks.map((check) => {
+  return check.label;
+});
+const availableCheckIndexMap = mapChecksToIndexMap(checks);
+const availableCheckRequiredMap = mapChecksToRecord(checks, (check) => {
+  return check.required;
+});
+const availableCheckHintMap = mapChecksToRecord(checks, (check) => {
+  return check.hint;
+});
+const availableCheckMinimumVersionMap = mapChecksToRecord(checks, (check) => {
+  if (check.minVersion === undefined) {
+    return null;
+  }
+  return formatSemver(check.minVersion);
+});
+const summarizeCheckResults = (results) => {
+  const checkLabels = results.map((check) => {
+    return check.label;
+  });
+  const checkIndexMap = mapChecksToIndexMap(results);
+  const checkStatusMap = mapChecksToRecord(results, (check) => {
+    return check.status;
+  });
+  const checkDetectedVersionMap = mapChecksToRecord(results, (check) => {
+    return check.detectedVersion;
+  });
+  const checkMinimumVersionMap = mapChecksToRecord(results, (check) => {
+    return check.minimumVersion;
+  });
+  const requiredCheckLabels = results
+    .filter((check) => {
+      return check.required;
+    })
+    .map((check) => {
+      return check.label;
+    });
+  const optionalCheckLabels = results
+    .filter((check) => {
+      return check.required === false;
+    })
+    .map((check) => {
+      return check.label;
+    });
+  const passedChecks = results
+    .filter((check) => {
+      return check.status === "ok";
+    })
+    .map((check) => {
+      return check.label;
+    });
+  const failedChecks = results
+    .filter((check) => {
+      return check.status !== "ok";
+    })
+    .map((check) => {
+      return check.label;
+    });
+  const requiredFailureLabels = results
+    .filter((check) => {
+      return check.required && check.status !== "ok";
+    })
+    .map((check) => {
+      return check.label;
+    });
+  const optionalFailureLabels = results
+    .filter((check) => {
+      return check.required === false && check.status !== "ok";
+    })
+    .map((check) => {
+      return check.label;
+    });
+  const failureSummaries = results
+    .filter((check) => {
+      return check.status !== "ok";
+    })
+    .map((check) => {
+      return {
+        label: check.label,
+        required: check.required,
+        status: check.status,
+        message: check.message,
+        hint: check.hint,
+      };
+    });
+
+  return {
+    checkLabels,
+    checkCount: checkLabels.length,
+    checkIndexMap,
+    checkIndexMapCount: countRecordEntries(checkIndexMap),
+    checkStatusMap,
+    checkStatusMapCount: countRecordEntries(checkStatusMap),
+    checkDetectedVersionMap,
+    checkDetectedVersionMapCount: countRecordEntries(checkDetectedVersionMap),
+    checkMinimumVersionMap,
+    checkMinimumVersionMapCount: countRecordEntries(checkMinimumVersionMap),
+    requiredCheckLabels,
+    requiredCheckCount: requiredCheckLabels.length,
+    optionalCheckLabels,
+    optionalCheckCount: optionalCheckLabels.length,
+    passedChecks,
+    passedCheckCount: passedChecks.length,
+    failedChecks,
+    failedCheckCount: failedChecks.length,
+    requiredFailureLabels,
+    requiredFailureCount: requiredFailureLabels.length,
+    optionalFailureLabels,
+    optionalFailureCount: optionalFailureLabels.length,
+    failureSummaries,
+    failureSummaryCount: failureSummaries.length,
+  };
+};
 
 let requiredFailures = 0;
 const checkResults = [];
@@ -124,7 +252,20 @@ if (isJson && validationFailureMessage !== null) {
     positionalArgs,
     positionalArgCount,
     requiredFailures: 0,
+    availableChecks,
+    availableCheckCount: availableChecks.length,
+    availableCheckIndexMap,
+    availableCheckIndexMapCount: countRecordEntries(availableCheckIndexMap),
+    availableCheckRequiredMap,
+    availableCheckRequiredMapCount: countRecordEntries(availableCheckRequiredMap),
+    availableCheckHintMap,
+    availableCheckHintMapCount: countRecordEntries(availableCheckHintMap),
+    availableCheckMinimumVersionMap,
+    availableCheckMinimumVersionMapCount: countRecordEntries(
+      availableCheckMinimumVersionMap
+    ),
     checks: [],
+    ...summarizeCheckResults([]),
     outputPath: outputPathError === null ? outputPath : null,
     activeCliOptions,
     activeCliOptionCount,
@@ -240,7 +381,20 @@ if (isJson) {
     positionalArgs,
     positionalArgCount,
     requiredFailures,
+    availableChecks,
+    availableCheckCount: availableChecks.length,
+    availableCheckIndexMap,
+    availableCheckIndexMapCount: countRecordEntries(availableCheckIndexMap),
+    availableCheckRequiredMap,
+    availableCheckRequiredMapCount: countRecordEntries(availableCheckRequiredMap),
+    availableCheckHintMap,
+    availableCheckHintMapCount: countRecordEntries(availableCheckHintMap),
+    availableCheckMinimumVersionMap,
+    availableCheckMinimumVersionMapCount: countRecordEntries(
+      availableCheckMinimumVersionMap
+    ),
     checks: checkResults,
+    ...summarizeCheckResults(checkResults),
     outputPath,
     activeCliOptions,
     activeCliOptionCount,

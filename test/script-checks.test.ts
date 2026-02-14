@@ -81,7 +81,47 @@ type DevEnvJsonReport = OptionTerminatorMetadata &
   passed: boolean;
   exitCode: number;
   requiredFailures: number;
+  availableChecks: string[];
+  availableCheckCount: number;
+  availableCheckIndexMap: Record<string, number>;
+  availableCheckIndexMapCount: number;
+  availableCheckRequiredMap: Record<string, boolean>;
+  availableCheckRequiredMapCount: number;
+  availableCheckHintMap: Record<string, string>;
+  availableCheckHintMapCount: number;
+  availableCheckMinimumVersionMap: Record<string, string | null>;
+  availableCheckMinimumVersionMapCount: number;
   checks: DevEnvJsonCheck[];
+  checkLabels: string[];
+  checkCount: number;
+  checkIndexMap: Record<string, number>;
+  checkIndexMapCount: number;
+  checkStatusMap: Record<string, string>;
+  checkStatusMapCount: number;
+  checkDetectedVersionMap: Record<string, string | null>;
+  checkDetectedVersionMapCount: number;
+  checkMinimumVersionMap: Record<string, string | null>;
+  checkMinimumVersionMapCount: number;
+  requiredCheckLabels: string[];
+  requiredCheckCount: number;
+  optionalCheckLabels: string[];
+  optionalCheckCount: number;
+  passedChecks: string[];
+  passedCheckCount: number;
+  failedChecks: string[];
+  failedCheckCount: number;
+  requiredFailureLabels: string[];
+  requiredFailureCount: number;
+  optionalFailureLabels: string[];
+  optionalFailureCount: number;
+  failureSummaries: Array<{
+    label: string;
+    required: boolean;
+    status: string;
+    message: string;
+    hint: string;
+  }>;
+  failureSummaryCount: number;
   outputPath: string | null;
   unknownOptions: string[];
   unknownOptionCount: number;
@@ -972,6 +1012,148 @@ const expectAvailableStepMetadata = (
     Object.keys(report.availableStepMetadata).length
   );
 };
+const expectDevEnvCheckMetadata = (report: DevEnvJsonReport) => {
+  const expectedAvailableCheckIndexMap = Object.fromEntries(
+    expectedDevEnvAvailableChecks.map((checkLabel, index) => {
+      return [checkLabel, index];
+    })
+  );
+
+  expect(report.availableChecks).toEqual(expectedDevEnvAvailableChecks);
+  expect(report.availableCheckCount).toBe(report.availableChecks.length);
+  expect(report.availableCheckIndexMap).toEqual(expectedAvailableCheckIndexMap);
+  expect(report.availableCheckIndexMapCount).toBe(
+    Object.keys(report.availableCheckIndexMap).length
+  );
+  expect(report.availableCheckRequiredMapCount).toBe(
+    Object.keys(report.availableCheckRequiredMap).length
+  );
+  expect(report.availableCheckHintMapCount).toBe(
+    Object.keys(report.availableCheckHintMap).length
+  );
+  expect(report.availableCheckMinimumVersionMapCount).toBe(
+    Object.keys(report.availableCheckMinimumVersionMap).length
+  );
+  for (const checkLabel of report.availableChecks) {
+    expect(typeof report.availableCheckRequiredMap[checkLabel]).toBe("boolean");
+    expect(report.availableCheckHintMap[checkLabel]?.length).toBeGreaterThan(0);
+    const minimumVersion = report.availableCheckMinimumVersionMap[checkLabel];
+    if (minimumVersion !== null) {
+      expect(minimumVersion.length).toBeGreaterThan(0);
+    }
+  }
+
+  const expectedCheckLabels = report.checks.map((check) => {
+    return check.label;
+  });
+  const expectedCheckIndexMap = Object.fromEntries(
+    expectedCheckLabels.map((checkLabel, index) => {
+      return [checkLabel, index];
+    })
+  );
+  const expectedCheckStatusMap = Object.fromEntries(
+    report.checks.map((check) => {
+      return [check.label, check.status];
+    })
+  );
+  const expectedCheckDetectedVersionMap = Object.fromEntries(
+    report.checks.map((check) => {
+      return [check.label, check.detectedVersion];
+    })
+  );
+  const expectedCheckMinimumVersionMap = Object.fromEntries(
+    report.checks.map((check) => {
+      return [check.label, check.minimumVersion];
+    })
+  );
+  const expectedRequiredCheckLabels = report.checks
+    .filter((check) => {
+      return check.required;
+    })
+    .map((check) => {
+      return check.label;
+    });
+  const expectedOptionalCheckLabels = report.checks
+    .filter((check) => {
+      return check.required === false;
+    })
+    .map((check) => {
+      return check.label;
+    });
+  const expectedPassedChecks = report.checks
+    .filter((check) => {
+      return check.status === "ok";
+    })
+    .map((check) => {
+      return check.label;
+    });
+  const expectedFailedChecks = report.checks
+    .filter((check) => {
+      return check.status !== "ok";
+    })
+    .map((check) => {
+      return check.label;
+    });
+  const expectedRequiredFailureLabels = report.checks
+    .filter((check) => {
+      return check.required && check.status !== "ok";
+    })
+    .map((check) => {
+      return check.label;
+    });
+  const expectedOptionalFailureLabels = report.checks
+    .filter((check) => {
+      return check.required === false && check.status !== "ok";
+    })
+    .map((check) => {
+      return check.label;
+    });
+  const expectedFailureSummaries = report.checks
+    .filter((check) => {
+      return check.status !== "ok";
+    })
+    .map((check) => {
+      return {
+        label: check.label,
+        required: check.required,
+        status: check.status,
+        message: check.message,
+        hint: check.hint,
+      };
+    });
+
+  expect(report.checkLabels).toEqual(expectedCheckLabels);
+  expect(report.checkCount).toBe(report.checkLabels.length);
+  expect(report.checkIndexMap).toEqual(expectedCheckIndexMap);
+  expect(report.checkIndexMapCount).toBe(Object.keys(report.checkIndexMap).length);
+  expect(report.checkStatusMap).toEqual(expectedCheckStatusMap);
+  expect(report.checkStatusMapCount).toBe(
+    Object.keys(report.checkStatusMap).length
+  );
+  expect(report.checkDetectedVersionMap).toEqual(expectedCheckDetectedVersionMap);
+  expect(report.checkDetectedVersionMapCount).toBe(
+    Object.keys(report.checkDetectedVersionMap).length
+  );
+  expect(report.checkMinimumVersionMap).toEqual(expectedCheckMinimumVersionMap);
+  expect(report.checkMinimumVersionMapCount).toBe(
+    Object.keys(report.checkMinimumVersionMap).length
+  );
+  expect(report.requiredCheckLabels).toEqual(expectedRequiredCheckLabels);
+  expect(report.requiredCheckCount).toBe(report.requiredCheckLabels.length);
+  expect(report.optionalCheckLabels).toEqual(expectedOptionalCheckLabels);
+  expect(report.optionalCheckCount).toBe(report.optionalCheckLabels.length);
+  expect(report.passedChecks).toEqual(expectedPassedChecks);
+  expect(report.passedCheckCount).toBe(report.passedChecks.length);
+  expect(report.failedChecks).toEqual(expectedFailedChecks);
+  expect(report.failedCheckCount).toBe(report.failedChecks.length);
+  expect(report.requiredFailureLabels).toEqual(expectedRequiredFailureLabels);
+  expect(report.requiredFailureCount).toBe(report.requiredFailureLabels.length);
+  expect(report.optionalFailureLabels).toEqual(expectedOptionalFailureLabels);
+  expect(report.optionalFailureCount).toBe(report.optionalFailureLabels.length);
+  expect(report.failureSummaries).toEqual(expectedFailureSummaries);
+  expect(report.failureSummaryCount).toBe(report.failureSummaries.length);
+  expect(report.requiredFailures).toBe(report.requiredFailureCount);
+};
 
 const expectedCanonicalOptionForToken = (token: string) => {
   if (token === "--verify") {
@@ -1090,6 +1272,14 @@ const expectedOnboardingAvailableStepMetadata = {
     supportsNoBuild: true,
   },
 };
+const expectedDevEnvAvailableChecks = [
+  "node",
+  "pnpm",
+  "cargo",
+  "wasm-pack",
+  "protoc",
+  "cargo watch",
+];
 const expectedTsCoreRequiredArtifacts = [
   "packages/ts-core/dist/index.js",
   "packages/ts-core/dist/index.mjs",
@@ -2792,6 +2982,7 @@ describe("root preflight scripts", () => {
     expect(report.checks.length).toBeGreaterThan(0);
     expect(report.checks.map((check) => check.label)).toContain("node");
     expect(report.checks.map((check) => check.label)).toContain("pnpm");
+    expectDevEnvCheckMetadata(report);
     expect(result.status).toBe(report.passed ? 0 : 1);
     expect(result.output).not.toContain("Environment check failed:");
   });
@@ -2941,6 +3132,7 @@ describe("root preflight scripts", () => {
         },
       ]
     );
+    expectDevEnvCheckMetadata(report);
     expect(result.status).toBe(1);
   });
 
