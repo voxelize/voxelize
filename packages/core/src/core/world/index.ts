@@ -7428,8 +7428,9 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
   }
 
   private getTextureGroupFirstFace(groupName: string) {
-    if (this.textureGroupFirstFaceCache.has(groupName)) {
-      return this.textureGroupFirstFaceCache.get(groupName) ?? null;
+    const cachedFirstFace = this.textureGroupFirstFaceCache.get(groupName);
+    if (cachedFirstFace !== undefined) {
+      return cachedFirstFace;
     }
 
     let result: { blockId: number; face: Block["faces"][number] } | null = null;
