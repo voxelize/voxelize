@@ -65,6 +65,7 @@ struct BatchSpace {
     chunk_shift: Option<u32>,
     chunk_mask: Option<i32>,
     max_height_i32: i32,
+    max_height_usize: usize,
     max_height: u32,
     modified_chunks: Vec<bool>,
     modified_indices: Vec<usize>,
@@ -109,6 +110,7 @@ impl BatchSpace {
             chunk_shift,
             chunk_mask,
             max_height_i32,
+            max_height_usize: chunk_height,
             max_height,
             modified_chunks,
             modified_indices: Vec::new(),
@@ -149,7 +151,7 @@ impl BatchSpace {
             self.chunk_size,
             self.chunk_mask,
             self.chunk_size_usize,
-            self.max_height as usize,
+            self.max_height_usize,
             self.chunk_column_stride,
         )
     }
@@ -261,7 +263,7 @@ impl LightVoxelAccess for BatchSpace {
         let chunk_size = self.chunk_size;
         let chunk_mask = self.chunk_mask;
         let chunk_size_usize = self.chunk_size_usize;
-        let chunk_height = self.max_height as usize;
+        let chunk_height = self.max_height_usize;
         let chunk_column_stride = self.chunk_column_stride;
 
         if let Some(Some(chunk)) = self.chunks.get_mut(chunk_index) {
