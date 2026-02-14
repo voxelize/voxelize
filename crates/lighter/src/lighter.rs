@@ -269,14 +269,35 @@ pub fn remove_light(
         return;
     }
 
-    let mut fill = Vec::<LightNode>::new();
-    let mut remove = vec![LightNode {
+    let remove = vec![LightNode {
         voxel,
         level: source_level,
     }];
-    let mut head = 0usize;
 
     set_light_level(space, vx, vy, vz, 0, color, is_sunlight);
+
+    let fill = collect_refill_nodes_after_removals(
+        space,
+        remove,
+        color,
+        config,
+        registry,
+        is_sunlight,
+    );
+
+    flood_light_from_nodes(space, fill, color, config, None, registry);
+}
+
+fn collect_refill_nodes_after_removals(
+    space: &mut dyn LightVoxelAccess,
+    mut remove: Vec<LightNode>,
+    color: &LightColor,
+    config: &LightConfig,
+    registry: &LightRegistry,
+    is_sunlight: bool,
+) -> Vec<LightNode> {
+    let mut fill = Vec::<LightNode>::with_capacity(remove.len());
+    let mut head = 0usize;
 
     while head < remove.len() {
         let LightNode { voxel, level } = remove[head];
@@ -332,7 +353,7 @@ pub fn remove_light(
         }
     }
 
-    flood_light_from_nodes(space, fill, color, config, None, registry);
+    fill
 }
 
 pub fn remove_lights<I>(
@@ -347,7 +368,6 @@ pub fn remove_lights<I>(
     let is_sunlight = *color == LightColor::Sunlight;
     let voxels = voxels.into_iter();
     let (voxel_count, _) = voxels.size_hint();
-    let mut fill = Vec::<LightNode>::with_capacity(voxel_count);
     let mut remove = Vec::<LightNode>::with_capacity(voxel_count);
 
     for voxel in voxels {
@@ -368,61 +388,8 @@ pub fn remove_lights<I>(
         return;
     }
 
-    let mut head = 0usize;
-    while head < remove.len() {
-        let LightNode { voxel, level } = remove[head];
-        head += 1;
-
-        let [svx, svy, svz] = voxel;
-
-        for (direction_index, [ox, oy, oz]) in VOXEL_NEIGHBORS.iter().copied().enumerate() {
-            let nvx = svx + ox;
-            let nvy = svy + oy;
-            let nvz = svz + oz;
-
-            if nvy < 0 || nvy >= config.max_height {
-                continue;
-            }
-
-            let (n_block, n_rotation) = block_and_rotation_at(registry, space, nvx, nvy, nvz);
-            let n_transparency = n_block.get_rotated_transparency(&n_rotation);
-
-            if (is_sunlight
-                || !block_emits_torch_at(n_block, nvx, nvy, nvz, space, color))
-                && !can_enter_into_direction(&n_transparency, direction_index)
-            {
-                continue;
-            }
-
-            let n_level = get_light_level(space, nvx, nvy, nvz, color, is_sunlight);
-            if n_level == 0 {
-                continue;
-            }
-
-            if n_level < level
-                || (is_sunlight
-                    && oy == -1
-                    && level == config.max_light_level
-                    && n_level == config.max_light_level)
-            {
-                remove.push(LightNode {
-                    voxel: [nvx, nvy, nvz],
-                    level: n_level,
-                });
-                set_light_level(space, nvx, nvy, nvz, 0, color, is_sunlight);
-            } else if if is_sunlight && oy == -1 {
-                n_level > level
-            } else {
-                n_level >= level
-            } {
-                fill.push(LightNode {
-                    voxel: [nvx, nvy, nvz],
-                    level: n_level,
-                });
-            }
-        }
-    }
-
+    let fill =
+        collect_refill_nodes_after_removals(space, remove, color, config, registry, is_sunlight);
     flood_light_from_nodes(space, fill, color, config, None, registry);
 }
 
