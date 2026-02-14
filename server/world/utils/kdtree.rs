@@ -52,7 +52,11 @@ impl EntityTree {
         if self.tree.size() == 0 {
             return Vec::new();
         }
-        let nearest = self.tree.nearest_n::<SquaredEuclidean>(point, count);
+        let query_count = count.min(self.tree.size() as usize);
+        if query_count == 0 {
+            return Vec::new();
+        }
+        let nearest = self.tree.nearest_n::<SquaredEuclidean>(point, query_count);
         let mut results = Vec::with_capacity(nearest.len());
         for entry in nearest {
             results.push((entry.distance, entry.item));
