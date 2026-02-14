@@ -48,6 +48,82 @@ fn schedule_active_tick(current_tick: u64, delay: u64) -> u64 {
     current_tick.saturating_add(delay)
 }
 
+#[inline]
+fn clamp_i64_to_i32(value: i64) -> i32 {
+    value.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
+}
+
+#[inline]
+fn clamp_i64_to_usize(value: i64) -> usize {
+    if value <= 0 {
+        0
+    } else if value as u128 > usize::MAX as u128 {
+        usize::MAX
+    } else {
+        value as usize
+    }
+}
+
+fn compute_flood_bounds(
+    queue: &VecDeque<LightNode>,
+    max_light_level: u32,
+) -> Option<(Vec3<i32>, Vec3<usize>)> {
+    if queue.is_empty() {
+        return None;
+    }
+
+    let mut min_x = i64::from(queue[0].voxel[0]);
+    let mut min_y = i64::from(queue[0].voxel[1]);
+    let mut min_z = i64::from(queue[0].voxel[2]);
+    let mut max_x = min_x;
+    let mut max_y = min_y;
+    let mut max_z = min_z;
+
+    for node in queue.iter() {
+        let [x, y, z] = node.voxel;
+        let x = i64::from(x);
+        let y = i64::from(y);
+        let z = i64::from(z);
+        if x < min_x {
+            min_x = x;
+        }
+        if y < min_y {
+            min_y = y;
+        }
+        if z < min_z {
+            min_z = z;
+        }
+        if x > max_x {
+            max_x = x;
+        }
+        if y > max_y {
+            max_y = y;
+        }
+        if z > max_z {
+            max_z = z;
+        }
+    }
+
+    let expand = i64::from(max_light_level);
+    min_x = min_x.saturating_sub(expand);
+    min_z = min_z.saturating_sub(expand);
+    max_x = max_x.saturating_add(expand);
+    max_z = max_z.saturating_add(expand);
+
+    let shape_x = clamp_i64_to_usize(max_x.saturating_sub(min_x).saturating_add(1));
+    let shape_y = clamp_i64_to_usize(max_y.saturating_sub(min_y).saturating_add(1));
+    let shape_z = clamp_i64_to_usize(max_z.saturating_sub(min_z).saturating_add(1));
+
+    Some((
+        Vec3(
+            clamp_i64_to_i32(min_x),
+            clamp_i64_to_i32(min_y),
+            clamp_i64_to_i32(min_z),
+        ),
+        Vec3(shape_x, shape_y, shape_z),
+    ))
+}
+
 fn process_pending_updates(
     chunks: &mut Chunks,
     mesher: &mut Mesher,
@@ -500,55 +576,8 @@ fn process_pending_updates(
         }
     }
 
-    let compute_bounds = |queue: &VecDeque<LightNode>| -> Option<(Vec3<i32>, Vec3<usize>)> {
-        if queue.is_empty() {
-            return None;
-        }
-
-        let mut min_x = queue[0].voxel[0];
-        let mut min_y = queue[0].voxel[1];
-        let mut min_z = queue[0].voxel[2];
-        let mut max_x = min_x;
-        let mut max_y = min_y;
-        let mut max_z = min_z;
-
-        for node in queue.iter() {
-            let [x, y, z] = node.voxel;
-            if x < min_x {
-                min_x = x;
-            }
-            if y < min_y {
-                min_y = y;
-            }
-            if z < min_z {
-                min_z = z;
-            }
-            if x > max_x {
-                max_x = x;
-            }
-            if y > max_y {
-                max_y = y;
-            }
-            if z > max_z {
-                max_z = z;
-            }
-        }
-
-        let expand = max_light_level as i32;
-        min_x -= expand;
-        min_z -= expand;
-        max_x += expand;
-        max_z += expand;
-
-        let shape_x = (max_x - min_x + 1) as usize;
-        let shape_y = (max_y - min_y + 1) as usize;
-        let shape_z = (max_z - min_z + 1) as usize;
-
-        Some((Vec3(min_x, min_y, min_z), Vec3(shape_x, shape_y, shape_z)))
-    };
-
     if !red_flood.is_empty() {
-        let bounds = compute_bounds(&red_flood);
+        let bounds = compute_flood_bounds(&red_flood, max_light_level);
         Lights::flood_light(
             &mut *chunks,
             red_flood,
@@ -561,7 +590,7 @@ fn process_pending_updates(
     }
 
     if !green_flood.is_empty() {
-        let bounds = compute_bounds(&green_flood);
+        let bounds = compute_flood_bounds(&green_flood, max_light_level);
         Lights::flood_light(
             &mut *chunks,
             green_flood,
@@ -574,7 +603,7 @@ fn process_pending_updates(
     }
 
     if !blue_flood.is_empty() {
-        let bounds = compute_bounds(&blue_flood);
+        let bounds = compute_flood_bounds(&blue_flood, max_light_level);
         Lights::flood_light(
             &mut *chunks,
             blue_flood,
@@ -587,7 +616,7 @@ fn process_pending_updates(
     }
 
     if !sun_flood.is_empty() {
-        let bounds = compute_bounds(&sun_flood);
+        let bounds = compute_flood_bounds(&sun_flood, max_light_level);
         Lights::flood_light(
             &mut *chunks,
             sun_flood,
@@ -742,7 +771,10 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
 #[cfg(test)]
 mod tests {
-    use super::schedule_active_tick;
+    use std::collections::VecDeque;
+
+    use super::{compute_flood_bounds, schedule_active_tick};
+    use crate::{LightNode, Vec3};
 
     #[test]
     fn schedule_active_tick_saturates_on_overflow() {
@@ -752,5 +784,25 @@ mod tests {
     #[test]
     fn schedule_active_tick_preserves_non_overflow_sum() {
         assert_eq!(schedule_active_tick(100, 25), 125);
+    }
+
+    #[test]
+    fn compute_flood_bounds_returns_none_for_empty_queues() {
+        let queue = VecDeque::new();
+        assert_eq!(compute_flood_bounds(&queue, 15), None);
+    }
+
+    #[test]
+    fn compute_flood_bounds_clamps_extreme_expansion_without_wrapping() {
+        let queue = VecDeque::from([LightNode {
+            voxel: [i32::MAX, i32::MAX, i32::MAX],
+            level: 15,
+        }]);
+
+        let bounds = compute_flood_bounds(&queue, u32::MAX).expect("bounds should exist");
+        assert_eq!(bounds.0, Vec3(i32::MIN, i32::MAX, i32::MIN));
+        assert!(bounds.1.0 > i32::MAX as usize);
+        assert_eq!(bounds.1.1, 1);
+        assert!(bounds.1.2 > i32::MAX as usize);
     }
 }
