@@ -763,6 +763,7 @@ type TsCoreJsonReport = OptionTerminatorMetadata &
         checkArgs: string[];
         checkArgCount: number;
         exitCode: number | null;
+        ruleMatched: boolean | null;
         outputLine: string | null;
         message: string;
       }
@@ -778,6 +779,7 @@ type TsCoreJsonReport = OptionTerminatorMetadata &
   exampleArgCount: number;
   exampleAttempted: boolean;
   exampleStatus: "ok" | "failed" | "skipped";
+  exampleRuleMatched: boolean | null;
   exampleExitCode: number | null;
   exampleDurationMs: number | null;
   exampleOutputLine: string | null;
@@ -1197,6 +1199,7 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
   tsCoreExampleArgCount: number | null;
   tsCoreExampleAttempted: boolean | null;
   tsCoreExampleStatus: "ok" | "failed" | "skipped" | null;
+  tsCoreExampleRuleMatched: boolean | null;
   tsCoreExampleExitCode: number | null;
   tsCoreExampleDurationMs: number | null;
   tsCoreExampleOutputLine: string | null;
@@ -1679,6 +1682,7 @@ const expectOnboardingTsCoreExampleSummaryMetadata = (
     expect(report.tsCoreExampleArgCount).toBeNull();
     expect(report.tsCoreExampleAttempted).toBeNull();
     expect(report.tsCoreExampleStatus).toBeNull();
+    expect(report.tsCoreExampleRuleMatched).toBeNull();
     expect(report.tsCoreExampleExitCode).toBeNull();
     expect(report.tsCoreExampleDurationMs).toBeNull();
     expect(report.tsCoreExampleOutputLine).toBeNull();
@@ -1691,6 +1695,7 @@ const expectOnboardingTsCoreExampleSummaryMetadata = (
   expect(report.tsCoreExampleArgCount).toBe(tsCoreReport.exampleArgCount);
   expect(report.tsCoreExampleAttempted).toBe(tsCoreReport.exampleAttempted);
   expect(report.tsCoreExampleStatus).toBe(tsCoreReport.exampleStatus);
+  expect(report.tsCoreExampleRuleMatched).toBe(tsCoreReport.exampleRuleMatched);
   expect(report.tsCoreExampleExitCode).toBe(tsCoreReport.exampleExitCode);
   expect(report.tsCoreExampleDurationMs).toBe(tsCoreReport.exampleDurationMs);
   expect(report.tsCoreExampleOutputLine).toBe(tsCoreReport.exampleOutputLine);
@@ -1702,6 +1707,7 @@ const expectOnboardingTsCoreExampleSummaryMetadata = (
     report.tsCoreExampleAttempted === false
   ) {
     expect(report.tsCoreExampleStatus).toBe("skipped");
+    expect(report.tsCoreExampleRuleMatched).toBeNull();
   }
 };
 const expectStepSummaryMetadata = (
@@ -3000,6 +3006,20 @@ const expectedTsCoreBuildArgs = [
 const expectedTsCoreExampleArgs = [
   path.resolve(rootDir, "packages/ts-core/examples/end-to-end.mjs"),
 ];
+const deriveExpectedTsCoreExampleFailureMessage = (report: {
+  exampleExitCode: number | null;
+  exampleRuleMatched: boolean | null;
+}) => {
+  if (report.exampleExitCode !== 0) {
+    return "TypeScript core end-to-end example failed.";
+  }
+
+  if (report.exampleRuleMatched === false) {
+    return "TypeScript core end-to-end example reported ruleMatched=false.";
+  }
+
+  return "TypeScript core end-to-end example output was invalid.";
+};
 const expectedRuntimeLibrariesCheckedPackages = [
   "@voxelize/aabb",
   "@voxelize/raycast",
@@ -3511,8 +3531,9 @@ const expectTsCoreReportMetadata = (report: TsCoreJsonReport) => {
       checkArgs: expectedTsCoreExampleArgs,
       checkArgCount: expectedTsCoreExampleArgs.length,
       exitCode: report.exampleExitCode,
+      ruleMatched: report.exampleRuleMatched,
       outputLine: report.exampleOutputLine,
-      message: "TypeScript core end-to-end example failed.",
+      message: deriveExpectedTsCoreExampleFailureMessage(report),
     });
   }
   expect(report.failureSummaries).toEqual(expectedFailureSummaries);
@@ -3568,17 +3589,20 @@ const expectTsCoreReportMetadata = (report: TsCoreJsonReport) => {
     }
   } else {
     expect(report.exampleStatus).toBe("skipped");
+    expect(report.exampleRuleMatched).toBeNull();
     expect(report.exampleExitCode).toBeNull();
     expect(report.exampleDurationMs).toBeNull();
     expect(report.exampleOutputLine).toBeNull();
   }
   if (report.exampleStatus === "ok") {
     expect(report.exampleExitCode).toBe(0);
+    expect(report.exampleRuleMatched).toBe(true);
   }
   if (report.exampleStatus === "failed") {
-    expect(report.exampleExitCode === null || report.exampleExitCode !== 0).toBe(
-      true
-    );
+    expect(
+      (report.exampleExitCode === null || report.exampleExitCode !== 0) ||
+        report.exampleRuleMatched !== true
+    ).toBe(true);
   }
   expectTimingMetadata(report);
   expectOptionTerminatorMetadata(report);

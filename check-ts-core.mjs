@@ -11,6 +11,7 @@ import {
   createTimedReportBuilder,
   deriveCliValidationFailureMessage,
   hasCliOption,
+  parseJsonOutput,
   resolveOutputPath,
   serializeReportWithOptionalWrite,
   splitCliArgs,
@@ -55,6 +56,37 @@ const resolveFirstNonEmptyOutputLine = (output) => {
   });
   return firstNonEmptyLine ?? null;
 };
+const resolveExampleRuleMatched = (exampleOutput) => {
+  const parsedOutput = parseJsonOutput(exampleOutput);
+  if (
+    parsedOutput === null ||
+    typeof parsedOutput !== "object" ||
+    Array.isArray(parsedOutput) ||
+    !("ruleMatched" in parsedOutput) ||
+    typeof parsedOutput.ruleMatched !== "boolean"
+  ) {
+    return null;
+  }
+
+  return parsedOutput.ruleMatched;
+};
+const isExampleCheckPassing = (exampleCheckResult) => {
+  return (
+    exampleCheckResult.exampleExitCode === 0 &&
+    exampleCheckResult.exampleRuleMatched === true
+  );
+};
+const deriveExampleFailureMessage = (exampleCheckResult) => {
+  if (exampleCheckResult.exampleExitCode !== 0) {
+    return "TypeScript core end-to-end example failed.";
+  }
+
+  if (exampleCheckResult.exampleRuleMatched === false) {
+    return "TypeScript core end-to-end example reported ruleMatched=false.";
+  }
+
+  return "TypeScript core end-to-end example output was invalid.";
+};
 const runTsCoreExampleCheck = () => {
   const exampleStartedAt = Date.now();
   const exampleResult = spawnSync(exampleCommand, exampleArgs, {
@@ -66,10 +98,12 @@ const runTsCoreExampleCheck = () => {
   const exampleExitCode = exampleResult.status ?? 1;
   const exampleOutput = `${exampleResult.stdout ?? ""}${exampleResult.stderr ?? ""}`.trim();
   const exampleOutputLine = resolveFirstNonEmptyOutputLine(exampleOutput);
+  const exampleRuleMatched = resolveExampleRuleMatched(exampleOutput);
 
   return {
     exampleExitCode,
     exampleDurationMs,
+    exampleRuleMatched,
     exampleOutputLine,
   };
 };
@@ -362,6 +396,8 @@ const withBaseReportFields = (report) => {
     typeof report.exampleDurationMs === "number"
       ? report.exampleDurationMs
       : null;
+  const exampleRuleMatched =
+    typeof report.exampleRuleMatched === "boolean" ? report.exampleRuleMatched : null;
   const exampleOutputLine =
     typeof report.exampleOutputLine === "string" ? report.exampleOutputLine : null;
   const exampleAttempted =
@@ -372,7 +408,7 @@ const withBaseReportFields = (report) => {
     report.exampleStatus === "skipped"
       ? report.exampleStatus
       : exampleAttempted
-        ? exampleExitCode === 0
+        ? exampleExitCode === 0 && exampleRuleMatched === true
           ? "ok"
           : "failed"
         : "skipped";
@@ -406,8 +442,12 @@ const withBaseReportFields = (report) => {
             checkArgs: exampleArgs,
             checkArgCount: exampleArgs.length,
             exitCode: exampleExitCode,
+            ruleMatched: exampleRuleMatched,
             outputLine: exampleOutputLine,
-            message: "TypeScript core end-to-end example failed.",
+            message: deriveExampleFailureMessage({
+              exampleExitCode,
+              exampleRuleMatched,
+            }),
           },
         ];
   const failureSummaries = [
@@ -582,6 +622,7 @@ const withBaseReportFields = (report) => {
     exampleArgCount: exampleArgs.length,
     exampleAttempted,
     exampleStatus,
+    exampleRuleMatched,
     exampleExitCode,
     exampleDurationMs,
     exampleOutputLine,
@@ -652,7 +693,7 @@ if (!isJson && validationFailureMessage !== null) {
 const initialMissingArtifacts = resolveMissingArtifacts();
 if (initialMissingArtifacts.length === 0) {
   const exampleCheckResult = runTsCoreExampleCheck();
-  if (exampleCheckResult.exampleExitCode === 0) {
+  if (isExampleCheckPassing(exampleCheckResult)) {
     finish({
       passed: true,
       exitCode: 0,
@@ -669,9 +710,13 @@ if (initialMissingArtifacts.length === 0) {
     });
   }
 
+  const exampleFailureMessage = deriveExampleFailureMessage(exampleCheckResult);
   finish({
     passed: false,
-    exitCode: exampleCheckResult.exampleExitCode,
+    exitCode:
+      exampleCheckResult.exampleExitCode === 0
+        ? 1
+        : exampleCheckResult.exampleExitCode,
     artifactsPresent: true,
     missingArtifacts: [],
     attemptedBuild: false,
@@ -680,8 +725,7 @@ if (initialMissingArtifacts.length === 0) {
     buildOutput: null,
     exampleAttempted: true,
     ...exampleCheckResult,
-    message:
-      "TypeScript core build artifacts are available, but the end-to-end example failed.",
+    message: `TypeScript core build artifacts are available, but ${exampleFailureMessage}`,
   });
 }
 
@@ -721,7 +765,7 @@ const buildOutput = `${buildResult.stdout ?? ""}${buildResult.stderr ?? ""}`.tri
 const missingArtifactsAfterBuild = resolveMissingArtifacts();
 if (buildExitCode === 0 && missingArtifactsAfterBuild.length === 0) {
   const exampleCheckResult = runTsCoreExampleCheck();
-  if (exampleCheckResult.exampleExitCode === 0) {
+  if (isExampleCheckPassing(exampleCheckResult)) {
     finish({
       passed: true,
       exitCode: 0,
@@ -740,9 +784,13 @@ if (buildExitCode === 0 && missingArtifactsAfterBuild.length === 0) {
     });
   }
 
+  const exampleFailureMessage = deriveExampleFailureMessage(exampleCheckResult);
   finish({
     passed: false,
-    exitCode: exampleCheckResult.exampleExitCode,
+    exitCode:
+      exampleCheckResult.exampleExitCode === 0
+        ? 1
+        : exampleCheckResult.exampleExitCode,
     artifactsPresent: true,
     missingArtifacts: [],
     attemptedBuild: true,
@@ -753,8 +801,7 @@ if (buildExitCode === 0 && missingArtifactsAfterBuild.length === 0) {
     buildDurationMs,
     exampleAttempted: true,
     ...exampleCheckResult,
-    message:
-      "TypeScript core build artifacts are available, but the end-to-end example failed.",
+    message: `TypeScript core build artifacts are available, but ${exampleFailureMessage}`,
   });
 }
 

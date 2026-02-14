@@ -366,6 +366,7 @@ export const extractTsCoreExampleSummaryFromReport = (report) => {
       exampleArgCount: null,
       exampleAttempted: null,
       exampleStatus: null,
+      exampleRuleMatched: null,
       exampleExitCode: null,
       exampleDurationMs: null,
       exampleOutputLine: null,
@@ -387,6 +388,8 @@ export const extractTsCoreExampleSummaryFromReport = (report) => {
     typeof report.exampleDurationMs === "number" ? report.exampleDurationMs : null;
   const exampleOutputLine =
     typeof report.exampleOutputLine === "string" ? report.exampleOutputLine : null;
+  const exampleRuleMatched =
+    typeof report.exampleRuleMatched === "boolean" ? report.exampleRuleMatched : null;
   const exampleStatus =
     report.exampleStatus === "ok" ||
     report.exampleStatus === "failed" ||
@@ -395,7 +398,7 @@ export const extractTsCoreExampleSummaryFromReport = (report) => {
       : exampleAttempted === null
         ? null
         : exampleAttempted
-          ? exampleExitCode === 0
+          ? exampleExitCode === 0 && exampleRuleMatched === true
             ? "ok"
             : "failed"
           : "skipped";
@@ -406,6 +409,7 @@ export const extractTsCoreExampleSummaryFromReport = (report) => {
     exampleArgCount,
     exampleAttempted,
     exampleStatus,
+    exampleRuleMatched,
     exampleExitCode,
     exampleDurationMs,
     exampleOutputLine,
@@ -429,6 +433,7 @@ export const createPrefixedTsCoreExampleSummary = (report, prefix = "") => {
     [createKey("ArgCount")]: summary.exampleArgCount,
     [createKey("Attempted")]: summary.exampleAttempted,
     [createKey("Status")]: summary.exampleStatus,
+    [createKey("RuleMatched")]: summary.exampleRuleMatched,
     [createKey("ExitCode")]: summary.exampleExitCode,
     [createKey("DurationMs")]: summary.exampleDurationMs,
     [createKey("OutputLine")]: summary.exampleOutputLine,

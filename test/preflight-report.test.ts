@@ -584,6 +584,7 @@ type TsCoreNestedReport = {
         checkArgs: string[];
         checkArgCount: number;
         exitCode: number | null;
+        ruleMatched: boolean | null;
         outputLine: string | null;
         message: string;
       }
@@ -600,6 +601,7 @@ type TsCoreNestedReport = {
   exampleArgCount: number;
   exampleAttempted: boolean;
   exampleStatus: "ok" | "failed" | "skipped";
+  exampleRuleMatched: boolean | null;
   exampleExitCode: number | null;
   exampleDurationMs: number | null;
   exampleOutputLine: string | null;
@@ -1012,6 +1014,7 @@ type PreflightReport = {
   tsCoreExampleArgCount: number | null;
   tsCoreExampleAttempted: boolean | null;
   tsCoreExampleStatus: "ok" | "failed" | "skipped" | null;
+  tsCoreExampleRuleMatched: boolean | null;
   tsCoreExampleExitCode: number | null;
   tsCoreExampleDurationMs: number | null;
   tsCoreExampleOutputLine: string | null;
@@ -1337,6 +1340,20 @@ const expectedTsCoreBuildArgs = [
 const expectedTsCoreExampleArgs = [
   path.resolve(rootDir, "packages/ts-core/examples/end-to-end.mjs"),
 ];
+const deriveExpectedTsCoreExampleFailureMessage = (report: {
+  exampleExitCode: number | null;
+  exampleRuleMatched: boolean | null;
+}) => {
+  if (report.exampleExitCode !== 0) {
+    return "TypeScript core end-to-end example failed.";
+  }
+
+  if (report.exampleRuleMatched === false) {
+    return "TypeScript core end-to-end example reported ruleMatched=false.";
+  }
+
+  return "TypeScript core end-to-end example output was invalid.";
+};
 const expectedRuntimeLibrariesCheckedPackages = [
   "@voxelize/aabb",
   "@voxelize/raycast",
@@ -2202,6 +2219,7 @@ const expectPreflightTsCoreExampleSummaryMetadata = (report: PreflightReport) =>
     expect(report.tsCoreExampleArgCount).toBeNull();
     expect(report.tsCoreExampleAttempted).toBeNull();
     expect(report.tsCoreExampleStatus).toBeNull();
+    expect(report.tsCoreExampleRuleMatched).toBeNull();
     expect(report.tsCoreExampleExitCode).toBeNull();
     expect(report.tsCoreExampleDurationMs).toBeNull();
     expect(report.tsCoreExampleOutputLine).toBeNull();
@@ -2214,6 +2232,7 @@ const expectPreflightTsCoreExampleSummaryMetadata = (report: PreflightReport) =>
   expect(report.tsCoreExampleArgCount).toBe(tsCoreCheckReport.exampleArgCount);
   expect(report.tsCoreExampleAttempted).toBe(tsCoreCheckReport.exampleAttempted);
   expect(report.tsCoreExampleStatus).toBe(tsCoreCheckReport.exampleStatus);
+  expect(report.tsCoreExampleRuleMatched).toBe(tsCoreCheckReport.exampleRuleMatched);
   expect(report.tsCoreExampleExitCode).toBe(tsCoreCheckReport.exampleExitCode);
   expect(report.tsCoreExampleDurationMs).toBe(tsCoreCheckReport.exampleDurationMs);
   expect(report.tsCoreExampleOutputLine).toBe(tsCoreCheckReport.exampleOutputLine);
@@ -2225,6 +2244,7 @@ const expectPreflightTsCoreExampleSummaryMetadata = (report: PreflightReport) =>
     report.tsCoreExampleAttempted === false
   ) {
     expect(report.tsCoreExampleStatus).toBe("skipped");
+    expect(report.tsCoreExampleRuleMatched).toBeNull();
   }
 };
 const expectPreflightClientWasmSummaryMetadata = (report: PreflightReport) => {
@@ -3859,8 +3879,9 @@ const expectTsCoreNestedReport = (
       checkArgs: expectedTsCoreExampleArgs,
       checkArgCount: expectedTsCoreExampleArgs.length,
       exitCode: report.exampleExitCode,
+      ruleMatched: report.exampleRuleMatched,
       outputLine: report.exampleOutputLine,
-      message: "TypeScript core end-to-end example failed.",
+      message: deriveExpectedTsCoreExampleFailureMessage(report),
     });
   }
   expect(report.failureSummaries).toEqual(expectedFailureSummaries);
@@ -3917,17 +3938,20 @@ const expectTsCoreNestedReport = (
     }
   } else {
     expect(report.exampleStatus).toBe("skipped");
+    expect(report.exampleRuleMatched).toBeNull();
     expect(report.exampleExitCode).toBeNull();
     expect(report.exampleDurationMs).toBeNull();
     expect(report.exampleOutputLine).toBeNull();
   }
   if (report.exampleStatus === "ok") {
     expect(report.exampleExitCode).toBe(0);
+    expect(report.exampleRuleMatched).toBe(true);
   }
   if (report.exampleStatus === "failed") {
-    expect(report.exampleExitCode === null || report.exampleExitCode !== 0).toBe(
-      true
-    );
+    expect(
+      (report.exampleExitCode === null || report.exampleExitCode !== 0) ||
+        report.exampleRuleMatched !== true
+    ).toBe(true);
   }
 };
 const expectRuntimeLibrariesNestedReport = (

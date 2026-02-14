@@ -212,13 +212,13 @@ The JSON report includes artifact/build diagnostics such as `checkedPackage`,
 `missingArtifactSummary`, `buildCommand`, `buildArgs`, `buildExitCode`,
 `buildDurationMs`, `attemptedBuild`, `buildSkipped`, and
 `buildSkippedReason`, `exampleCommand`, `exampleArgs`, `exampleArgCount`,
-`exampleAttempted`, `exampleStatus`, `exampleExitCode`,
+`exampleAttempted`, `exampleStatus`, `exampleRuleMatched`, `exampleExitCode`,
 `exampleDurationMs`, and `exampleOutputLine`.
 Each ts-core `failureSummaries` entry includes `kind`, `packageIndex`,
 `checkCommand`, `checkArgs`, and `checkArgCount` for deterministic
 failure-to-check correlation. ts-core uses `kind: "artifacts"` for missing
 artifact failures and `kind: "example"` for end-to-end example failures
-(including `exitCode` and `outputLine`).
+(including `exitCode`, `ruleMatched`, and `outputLine`).
 
 If your project also depends on runtime utility packages (`@voxelize/aabb`,
 `@voxelize/raycast`, and `@voxelize/physics-engine`), you can validate all of
@@ -304,10 +304,7 @@ Runtime-library JSON reports include package/build diagnostics such as
 `missingPackageArtifactCountByPackageCount`, `failureSummaries`,
 `failureSummaryCount`, `missingArtifactSummary`,
 `buildCommand`, `buildArgs`, `buildExitCode`, `buildDurationMs`,
-`attemptedBuild`, `buildSkipped`, `buildSkippedReason`,
-`exampleCommand`, `exampleArgs`, `exampleArgCount`, `exampleAttempted`,
-`exampleStatus`, `exampleExitCode`, `exampleDurationMs`, and
-`exampleOutputLine`.
+`attemptedBuild`, `buildSkipped`, and `buildSkippedReason`.
 Each `packageReports` entry includes `packageIndex`, `checkCommand`,
 `checkArgs`, `checkArgCount`, `requiredArtifacts`, `presentArtifacts`, and
 `missingArtifacts` for package-level artifact diagnostics.
@@ -378,7 +375,8 @@ For release automation and CI routing, aggregate preflight JSON reports include:
 - nested ts-core example summary fields:
   `tsCoreExampleCommand`, `tsCoreExampleArgs`,
   `tsCoreExampleArgCount`, `tsCoreExampleAttempted`,
-  `tsCoreExampleStatus`, `tsCoreExampleExitCode`,
+  `tsCoreExampleStatus`, `tsCoreExampleRuleMatched`,
+  `tsCoreExampleExitCode`,
   `tsCoreExampleDurationMs`, `tsCoreExampleOutputLine`
 - nested client wasm summary fields:
   `clientWasmPackCheckStatus`, `clientWasmPackCheckCommand`,
@@ -464,7 +462,8 @@ and `wasmPackCheckOutputLine`.
 Onboarding JSON reports additionally expose ts-core example summary
 fields `tsCoreExampleCommand`, `tsCoreExampleArgs`,
 `tsCoreExampleArgCount`, `tsCoreExampleAttempted`,
-`tsCoreExampleStatus`, `tsCoreExampleExitCode`,
+`tsCoreExampleStatus`, `tsCoreExampleRuleMatched`,
+`tsCoreExampleExitCode`,
 `tsCoreExampleDurationMs`, `tsCoreExampleOutputLine`, plus
 client-step wasm preflight summary fields `clientWasmPackCheckStatus`,
 `clientWasmPackCheckCommand`, `clientWasmPackCheckArgs`,

@@ -188,6 +188,7 @@ type TsCoreCheckReport = {
   exampleArgCount: number;
   exampleAttempted: boolean;
   exampleStatus: "ok" | "failed" | "skipped";
+  exampleRuleMatched: boolean | null;
   exampleExitCode: number | null;
   exampleDurationMs: number | null;
   exampleOutputLine: string | null;
@@ -224,6 +225,7 @@ type TsCoreCheckReport = {
         checkArgs: string[];
         checkArgCount: number;
         exitCode: number | null;
+        ruleMatched: boolean | null;
         outputLine: string | null;
         message: string;
       }
@@ -314,6 +316,20 @@ const expectedExampleArgs = [
 const exampleScriptRelativePath = "packages/ts-core/examples/end-to-end.mjs";
 const expectedSuccessMessage =
   "TypeScript core build artifacts are available and the end-to-end example succeeded.";
+const deriveExpectedExampleFailureMessage = (report: {
+  exampleExitCode: number | null;
+  exampleRuleMatched: boolean | null;
+}) => {
+  if (report.exampleExitCode !== 0) {
+    return "TypeScript core end-to-end example failed.";
+  }
+
+  if (report.exampleRuleMatched === false) {
+    return "TypeScript core end-to-end example reported ruleMatched=false.";
+  }
+
+  return "TypeScript core end-to-end example output was invalid.";
+};
 const resolveArtifactPath = (artifactPath: string) => {
   return path.resolve(rootDir, artifactPath);
 };
@@ -350,6 +366,25 @@ const runWithTemporarilyMovedArtifact = (
   run: () => void
 ) => {
   runWithTemporarilyMovedPath(artifactPath, run);
+};
+const runWithTemporarilyRewrittenPath = (
+  relativePath: string,
+  replacementContent: string,
+  run: () => void
+) => {
+  const absolutePath = resolveArtifactPath(relativePath);
+  if (!fs.existsSync(absolutePath)) {
+    throw new Error(`Path does not exist for test setup: ${relativePath}`);
+  }
+
+  const originalContent = fs.readFileSync(absolutePath, "utf8");
+  fs.writeFileSync(absolutePath, replacementContent);
+
+  try {
+    run();
+  } finally {
+    fs.writeFileSync(absolutePath, originalContent);
+  }
 };
 
 const runScript = (args: string[] = []): ScriptResult => {
@@ -804,8 +839,9 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
       checkArgs: expectedExampleArgs,
       checkArgCount: expectedExampleArgs.length,
       exitCode: report.exampleExitCode,
+      ruleMatched: report.exampleRuleMatched,
       outputLine: report.exampleOutputLine,
-      message: "TypeScript core end-to-end example failed.",
+      message: deriveExpectedExampleFailureMessage(report),
     });
   }
   expect(report.failureSummaries).toEqual(expectedFailureSummaries);
@@ -861,17 +897,20 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
     }
   } else {
     expect(report.exampleStatus).toBe("skipped");
+    expect(report.exampleRuleMatched).toBeNull();
     expect(report.exampleExitCode).toBeNull();
     expect(report.exampleDurationMs).toBeNull();
     expect(report.exampleOutputLine).toBeNull();
   }
   if (report.exampleStatus === "ok") {
     expect(report.exampleExitCode).toBe(0);
+    expect(report.exampleRuleMatched).toBe(true);
   }
   if (report.exampleStatus === "failed") {
-    expect(report.exampleExitCode === null || report.exampleExitCode !== 0).toBe(
-      true
-    );
+    expect(
+      (report.exampleExitCode === null || report.exampleExitCode !== 0) ||
+        report.exampleRuleMatched !== true
+    ).toBe(true);
   }
   return report;
 };
@@ -1016,6 +1055,7 @@ describe("check-ts-core script", () => {
       expect(report.exampleStatus).toBe("failed");
       expect(report.exampleExitCode).not.toBeNull();
       expect(report.exampleExitCode).not.toBe(0);
+      expect(report.exampleRuleMatched).toBeNull();
       expect(report.failureSummaryCount).toBe(1);
       expect(report.failureSummaries).toEqual([
         {
@@ -1027,14 +1067,57 @@ describe("check-ts-core script", () => {
           checkArgs: expectedExampleArgs,
           checkArgCount: expectedExampleArgs.length,
           exitCode: report.exampleExitCode,
+          ruleMatched: report.exampleRuleMatched,
           outputLine: report.exampleOutputLine,
-          message: "TypeScript core end-to-end example failed.",
+          message: deriveExpectedExampleFailureMessage(report),
         },
       ]);
       expect(report.message).toBe(
-        "TypeScript core build artifacts are available, but the end-to-end example failed."
+        "TypeScript core build artifacts are available, but TypeScript core end-to-end example failed."
       );
     });
+  });
+
+  it("fails when ts-core example exits successfully but reports rule mismatch", () => {
+    runWithTemporarilyRewrittenPath(
+      exampleScriptRelativePath,
+      'console.log(JSON.stringify({ ruleMatched: false }));\n',
+      () => {
+        const result = runScript(["--json"]);
+        const report = parseReport(result);
+
+        expect(result.status).toBe(1);
+        expect(report.schemaVersion).toBe(1);
+        expect(report.passed).toBe(false);
+        expect(report.exitCode).toBe(1);
+        expect(report.validationErrorCode).toBeNull();
+        expect(report.artifactsPresent).toBe(true);
+        expect(report.missingArtifacts).toEqual([]);
+        expect(report.exampleAttempted).toBe(true);
+        expect(report.exampleStatus).toBe("failed");
+        expect(report.exampleExitCode).toBe(0);
+        expect(report.exampleRuleMatched).toBe(false);
+        expect(report.failureSummaryCount).toBe(1);
+        expect(report.failureSummaries).toEqual([
+          {
+            kind: "example",
+            packageName: report.checkedPackage,
+            packagePath: report.checkedPackagePath,
+            packageIndex: report.checkedPackageIndices[0],
+            checkCommand: process.execPath,
+            checkArgs: expectedExampleArgs,
+            checkArgCount: expectedExampleArgs.length,
+            exitCode: report.exampleExitCode,
+            ruleMatched: report.exampleRuleMatched,
+            outputLine: report.exampleOutputLine,
+            message: deriveExpectedExampleFailureMessage(report),
+          },
+        ]);
+        expect(report.message).toBe(
+          "TypeScript core build artifacts are available, but TypeScript core end-to-end example reported ruleMatched=false."
+        );
+      }
+    );
   });
 
   it("writes unsupported-option validation report to trailing output path", () => {
