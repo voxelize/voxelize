@@ -356,12 +356,16 @@ impl VoxelAccess for Space {
             }
             let sub_chunks = self.options.sub_chunks;
             if sub_chunks > 0 {
-                let max_level = sub_chunks as u32 - 1;
+                let representable_level_count = (sub_chunks as u128).min(u128::from(u32::MAX) + 1);
+                let max_level = representable_level_count.saturating_sub(1) as u32;
                 let max_height = self.options.max_height as u128;
                 let chunk_level = if max_height == 0 {
                     0
                 } else {
-                    ((vy as u128 * sub_chunks as u128) / max_height).min(max_level as u128) as u32
+                    (u128::from(vy as u32)
+                        .saturating_mul(representable_level_count)
+                        / max_height)
+                        .min(max_level as u128) as u32
                 };
                 self.updated_levels.insert(chunk_level);
             }
@@ -495,6 +499,55 @@ impl voxelize_core::VoxelAccess for Space {
 
     fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
         VoxelAccess::contains(self, vx, vy, vz)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use hashbrown::HashMap;
+
+    use super::{Space, SpaceOptions};
+    use crate::{ndarray, Vec2, Vec3, VoxelAccess};
+
+    fn test_space_with_sub_chunks(sub_chunks: usize) -> Space {
+        let mut lights = HashMap::new();
+        lights.insert(Vec2(0, 0), ndarray(&[16, 16, 16], 0));
+        Space {
+            coords: Vec2(0, 0),
+            width: 16,
+            shape: Vec3(16, 16, 16),
+            min: Vec3(0, 0, 0),
+            options: SpaceOptions {
+                margin: 1,
+                chunk_size: 16,
+                sub_chunks,
+                max_height: 16,
+                max_light_level: 15,
+            },
+            lights,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn set_raw_light_handles_sub_chunk_count_above_u32_range() {
+        let mut space = test_space_with_sub_chunks(u32::MAX as usize + 1);
+
+        assert!(space.set_raw_light(0, 0, 0, 1));
+        assert!(space.updated_levels.contains(&0));
+    }
+
+    #[test]
+    fn set_raw_light_clamps_dense_sub_chunk_levels_to_u32_range() {
+        let mut space = test_space_with_sub_chunks(usize::MAX);
+
+        assert!(space.set_raw_light(0, 15, 0, 1));
+        let level = *space
+            .updated_levels
+            .iter()
+            .next()
+            .expect("expected updated level");
+        assert_eq!(level, 4_026_531_840);
     }
 }
 
