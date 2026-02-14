@@ -16,6 +16,9 @@ const normalizeFiniteNonNegativeLimit = (value: number): number => {
   if (value === Number.POSITIVE_INFINITY) {
     return Number.POSITIVE_INFINITY;
   }
+  if (Number.isSafeInteger(value)) {
+    return value > 0 ? value : 0;
+  }
   if (!Number.isFinite(value)) {
     return 0;
   }
