@@ -155,7 +155,7 @@ impl SpaceBuilder<'_> {
             panic!("Margin of 0 on Space is wasteful.");
         }
 
-        let width = chunk_size + margin * 2;
+        let width = chunk_size.saturating_add(margin.saturating_mul(2));
 
         let (voxels, lights, height_maps): (HashMap<_, _>, HashMap<_, _>, HashMap<_, _>) = self
             .chunks

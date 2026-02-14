@@ -348,6 +348,40 @@ fn test_space_builder_handles_large_chunk_size_without_i32_overflow() {
 }
 
 #[test]
+fn test_space_builder_handles_large_margin_without_usize_overflow() {
+    let config = WorldConfig {
+        chunk_size: 16,
+        max_height: 16,
+        max_light_level: 15,
+        min_chunk: [0, 0],
+        max_chunk: [0, 0],
+        saving: false,
+        ..Default::default()
+    };
+    let mut chunks = Chunks::new(&config);
+    chunks.add(Chunk::new(
+        "chunk-0-0",
+        0,
+        0,
+        &ChunkOptions {
+            size: 16,
+            max_height: 16,
+            sub_chunks: 1,
+        },
+    ));
+
+    let space = chunks
+        .make_space(&Vec2(0, 0), usize::MAX)
+        .needs_voxels()
+        .build();
+    assert_eq!(space.width, usize::MAX);
+    assert_eq!(space.shape.0, usize::MAX);
+    assert_eq!(space.shape.2, usize::MAX);
+    assert_eq!(space.min.0, i32::MIN);
+    assert_eq!(space.min.2, i32::MIN);
+}
+
+#[test]
 fn test_space_get_raw_voxel_ignores_out_of_range_y() {
     let config = WorldConfig {
         chunk_size: 16,
