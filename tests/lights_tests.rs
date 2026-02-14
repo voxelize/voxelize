@@ -362,6 +362,7 @@ fn test_space_contains_and_no_op_setters_reject_coords_outside_loaded_chunk_shap
     space.updated_levels.clear();
 
     assert!(!space.contains(12, 0, 0));
+    assert_eq!(space.get_sunlight(12, 0, 0), config.max_light_level);
     assert_eq!(space.get_max_height(12, 0), 0);
     assert!(!space.set_sunlight(12, 0, 0, 0));
     assert!(!space.set_red_light(12, 0, 0, 0));

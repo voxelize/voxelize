@@ -340,15 +340,26 @@ impl VoxelAccess for Space {
 
     /// Get the sunlight level at the voxel position. Zero is returned if chunk doesn't exist.
     fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        if !self.contains(vx, vy, vz) {
-            return if vy < 0 {
-                0
-            } else {
-                self.options.max_light_level
-            };
+        if self.lights.is_empty() {
+            panic!("Space does not contain light data.");
+        }
+        if vy < 0 {
+            return 0;
+        }
+        if vy >= self.options.max_height as i32 {
+            return self.options.max_light_level;
         }
 
-        LightUtils::extract_sunlight(self.get_raw_light(vx, vy, vz))
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, self.options.chunk_size);
+        if let Some(lights) = self.lights.get(&coords) {
+            let Vec3(lx, ly, lz) =
+                ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, self.options.chunk_size);
+            if lights.contains(&[lx, ly, lz]) {
+                return LightUtils::extract_sunlight(lights[&[lx, ly, lz]]);
+            }
+        }
+
+        self.options.max_light_level
     }
 
     /// Get the max height at the voxel column. Zero is returned if column doesn't exist.
