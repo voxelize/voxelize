@@ -813,7 +813,9 @@ onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
     if (pendingBatchMessageCount() >= MAX_PENDING_BATCH_MESSAGES) {
       const dropped = pendingBatchMessages[pendingBatchMessagesHead];
       pendingBatchMessagesHead++;
-      postEmptyBatchResult(dropped.jobId, dropped.lastRelevantSequenceId);
+      if (dropped) {
+        postEmptyBatchResult(dropped.jobId, dropped.lastRelevantSequenceId);
+      }
       normalizePendingBatchMessages();
     }
     pendingBatchMessages.push(message);
