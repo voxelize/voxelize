@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { MeshPipeline } from "../src/core/world/pipelines";
+import { ChunkPipeline, MeshPipeline } from "../src/core/world/pipelines";
+import { ChunkUtils } from "../src/utils/chunk-utils";
 
 describe("MeshPipeline.hasInFlightJob", () => {
   it("returns false for unknown mesh keys", () => {
@@ -110,5 +111,27 @@ describe("MeshPipeline.getDirtyKeysAndHasMore", () => {
     const result = pipeline.getDirtyKeysAndHasMore(1.8);
     expect(result.keys).toHaveLength(1);
     expect(result.hasMore).toBe(true);
+  });
+});
+
+describe("ChunkPipeline.shouldRequestAt", () => {
+  it("treats non-finite retry intervals as immediate re-request", () => {
+    const pipeline = new ChunkPipeline();
+    pipeline.markRequestedAt(3, 4);
+    const name = ChunkUtils.getChunkNameAt(3, 4);
+
+    expect(pipeline.shouldRequestAt(3, 4, Number.NaN)).toBe(true);
+    expect(pipeline.getStage(name)).toBeNull();
+  });
+
+  it("floors fractional retry intervals", () => {
+    const pipeline = new ChunkPipeline();
+    pipeline.markRequestedAt(5, 6);
+    const name = ChunkUtils.getChunkNameAt(5, 6);
+
+    expect(pipeline.shouldRequestAt(5, 6, 1.8)).toBe(false);
+    expect(pipeline.getRetryCount(name)).toBe(1);
+    expect(pipeline.shouldRequestAt(5, 6, 1.8)).toBe(true);
+    expect(pipeline.getStage(name)).toBeNull();
   });
 });

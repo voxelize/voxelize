@@ -84,6 +84,15 @@ export class ChunkPipeline {
   }
 
   shouldRequestAt(cx: number, cz: number, chunkRerequestInterval: number) {
+    let rerequestLimit: number;
+    if (chunkRerequestInterval === Number.POSITIVE_INFINITY) {
+      rerequestLimit = Number.POSITIVE_INFINITY;
+    } else if (!Number.isFinite(chunkRerequestInterval)) {
+      rerequestLimit = 0;
+    } else {
+      rerequestLimit = Math.max(0, Math.floor(chunkRerequestInterval));
+    }
+
     const name = ChunkUtils.getChunkNameAt(cx, cz);
     const state = this.states.get(name);
 
@@ -96,7 +105,7 @@ export class ChunkPipeline {
     }
 
     state.retryCount++;
-    if (state.retryCount > chunkRerequestInterval) {
+    if (state.retryCount > rerequestLimit) {
       this.indices.requested.delete(name);
       this.states.delete(name);
       return true;
