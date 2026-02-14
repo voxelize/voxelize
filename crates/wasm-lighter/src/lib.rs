@@ -332,6 +332,7 @@ fn parse_chunks(
         if expected_chunk_count == 0 {
             return (Vec::new(), false);
         }
+        let expected_chunk_len_u32 = expected_chunk_len as u32;
 
         let mut chunks: Vec<Option<ChunkData>> = Vec::new();
         let mut has_any_chunk = false;
@@ -375,9 +376,9 @@ fn parse_chunks(
                 }
                 continue;
             };
-            let voxels_len = voxels_array.length() as usize;
-            let lights_len = lights_array.length() as usize;
-            if voxels_len != expected_chunk_len || lights_len != expected_chunk_len {
+            if voxels_array.length() != expected_chunk_len_u32
+                || lights_array.length() != expected_chunk_len_u32
+            {
                 if has_any_chunk {
                     chunks.push(None);
                 }
