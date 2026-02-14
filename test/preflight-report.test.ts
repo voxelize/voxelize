@@ -1014,6 +1014,95 @@ describe("preflight aggregate report", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("writes ts-core validation reports to trailing output paths with inline no-build misuse", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "preflight-ts-core-validation-last-output-inline-")
+    );
+    const firstOutputPath = path.join(tempDirectory, "first-report.json");
+    const secondOutputPath = path.join(tempDirectory, "second-report.json");
+    const commandArgs = [
+      preflightScript,
+      "--only",
+      "ts-core",
+      "--output",
+      firstOutputPath,
+      "--verify=1",
+      "--output",
+      secondOutputPath,
+    ] as const;
+    const result = spawnSync(process.execPath, [...commandArgs], {
+      cwd: rootDir,
+      encoding: "utf8",
+      shell: false,
+    });
+    const output = `${result.stdout}${result.stderr}`;
+    const stdoutReport = JSON.parse(output) as PreflightReport;
+    const fileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as PreflightReport;
+
+    expect(stdoutReport.schemaVersion).toBe(1);
+    expect(stdoutReport.listChecksOnly).toBe(false);
+    expect(stdoutReport.passed).toBe(false);
+    expect(stdoutReport.exitCode).toBe(1);
+    expect(stdoutReport.noBuild).toBe(false);
+    expect(stdoutReport.validationErrorCode).toBe("unsupported_options");
+    expect(stdoutReport.message).toBe(
+      expectedUnsupportedOptionsMessage(["--no-build=<value>"])
+    );
+    expect(stdoutReport.selectionMode).toBe("only");
+    expect(stdoutReport.specialSelectorsUsed).toEqual([]);
+    expect(stdoutReport.selectedChecks).toEqual([]);
+    expect(stdoutReport.selectedCheckCount).toBe(0);
+    expect(stdoutReport.requestedChecks).toEqual(["ts-core"]);
+    expect(stdoutReport.requestedCheckCount).toBe(1);
+    expect(stdoutReport.requestedCheckResolutions).toEqual([
+      {
+        token: "ts-core",
+        normalizedToken: "tscore",
+        kind: "check",
+        resolvedTo: ["tsCore"],
+      },
+    ]);
+    expect(stdoutReport.requestedCheckResolutionCounts).toEqual({
+      check: 1,
+      specialSelector: 0,
+      invalid: 0,
+    });
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(stdoutReport.unknownOptions).toEqual(["--no-build=<value>"]);
+    expect(stdoutReport.unknownOptionCount).toBe(1);
+    expect(stdoutReport.activeCliOptions).toEqual(["--only", "--output"]);
+    expect(stdoutReport.activeCliOptionCount).toBe(
+      stdoutReport.activeCliOptions.length
+    );
+    expect(stdoutReport.activeCliOptionTokens).toEqual(["--only", "--output"]);
+    expect(stdoutReport.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions(["--only", "--output"])
+    );
+    expect(stdoutReport.activeCliOptionResolutionCount).toBe(
+      stdoutReport.activeCliOptionResolutions.length
+    );
+    expect(stdoutReport.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences([...commandArgs.slice(1)])
+    );
+    expect(stdoutReport.activeCliOptionOccurrenceCount).toBe(
+      stdoutReport.activeCliOptionOccurrences.length
+    );
+    expect(stdoutReport.skippedChecks).toEqual([
+      "devEnvironment",
+      "wasmPack",
+      "tsCore",
+      "client",
+    ]);
+    expect(stdoutReport.skippedCheckCount).toBe(stdoutReport.skippedChecks.length);
+    expect(fileReport).toEqual(stdoutReport);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("supports ts shorthand aliases in only selection", () => {
     const result = spawnSync(
       process.execPath,
