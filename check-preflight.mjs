@@ -99,6 +99,11 @@ const availableCheckScriptMap = Object.fromEntries(
     return [check.name, check.scriptName];
   })
 );
+const availableCheckSupportsNoBuildMap = Object.fromEntries(
+  availableChecks.map((check) => {
+    return [check.name, check.supportsNoBuild];
+  })
+);
 const availableCheckIndexMap = Object.fromEntries(
   availableCheckNames.map((checkName, index) => {
     return [checkName, index];
@@ -617,6 +622,7 @@ if (
     availableCheckScripts,
     availableCheckScriptCount: availableCheckScripts.length,
     availableCheckScriptMap,
+    availableCheckSupportsNoBuildMap,
     availableCheckIndices,
     availableCheckIndexCount: availableCheckIndices.length,
     availableCheckIndexMap,
@@ -730,6 +736,7 @@ if (isListChecks) {
     availableCheckScripts,
     availableCheckScriptCount: availableCheckScripts.length,
     availableCheckScriptMap,
+    availableCheckSupportsNoBuildMap,
     availableCheckIndices,
     availableCheckIndexCount: availableCheckIndices.length,
     availableCheckIndexMap,
@@ -852,6 +859,7 @@ const report = buildTimedReport({
   availableCheckScripts,
   availableCheckScriptCount: availableCheckScripts.length,
   availableCheckScriptMap,
+  availableCheckSupportsNoBuildMap,
   availableCheckIndices,
   availableCheckIndexCount: availableCheckIndices.length,
   availableCheckIndexMap,

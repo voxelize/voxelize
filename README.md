@@ -426,7 +426,7 @@ Aggregate preflight reports include `availableCliOptionCanonicalMap` so automati
 Aggregate preflight reports include `optionTerminatorUsed`, `positionalArgs`, and `positionalArgCount` to describe positional arguments supplied after `--`.
 Aggregate preflight reports include `availableCheckAliases` so automation can map user-facing aliases to canonical check names.
 Aggregate preflight reports include `availableCheckMetadata` with script mapping and no-build support per canonical check.
-Aggregate preflight reports include `availableCheckScripts`/`availableCheckScriptCount`, `availableCheckScriptMap`, `availableCheckIndices`/`availableCheckIndexCount`, and `availableCheckIndexMap` for direct canonical check-to-script/index lookup.
+Aggregate preflight reports include `availableCheckScripts`/`availableCheckScriptCount`, `availableCheckScriptMap`, `availableCheckSupportsNoBuildMap`, `availableCheckIndices`/`availableCheckIndexCount`, and `availableCheckIndexMap` for direct canonical check-to-script/index lookup.
 Aggregate preflight reports include `availableSpecialCheckSelectors` for quick checks against supported special selector names.
 Aggregate preflight reports include `availableSpecialCheckAliases` for non-check selectors such as `all`.
 Aggregate preflight reports include `requestedChecks` so CI logs can capture the exact `--only` inputs after tokenization.
