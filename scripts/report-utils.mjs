@@ -368,6 +368,8 @@ export const extractTsCoreExampleSummaryFromReport = (report) => {
       exampleStatus: null,
       exampleRuleMatched: null,
       examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
       exampleExitCode: null,
       exampleDurationMs: null,
       exampleOutputLine: null,
@@ -395,6 +397,15 @@ export const extractTsCoreExampleSummaryFromReport = (report) => {
     typeof report.examplePayloadValid === "boolean"
       ? report.examplePayloadValid
       : null;
+  const examplePayloadIssues = Array.isArray(report.examplePayloadIssues)
+    ? report.examplePayloadIssues.filter((issue) => {
+        return typeof issue === "string";
+      })
+    : null;
+  const examplePayloadIssueCount =
+    typeof report.examplePayloadIssueCount === "number"
+      ? report.examplePayloadIssueCount
+      : examplePayloadIssues?.length ?? null;
   const exampleStatus =
     report.exampleStatus === "ok" ||
     report.exampleStatus === "failed" ||
@@ -418,6 +429,8 @@ export const extractTsCoreExampleSummaryFromReport = (report) => {
     exampleStatus,
     exampleRuleMatched,
     examplePayloadValid,
+    examplePayloadIssues,
+    examplePayloadIssueCount,
     exampleExitCode,
     exampleDurationMs,
     exampleOutputLine,
@@ -443,6 +456,8 @@ export const createPrefixedTsCoreExampleSummary = (report, prefix = "") => {
     [createKey("Status")]: summary.exampleStatus,
     [createKey("RuleMatched")]: summary.exampleRuleMatched,
     [createKey("PayloadValid")]: summary.examplePayloadValid,
+    [createKey("PayloadIssues")]: summary.examplePayloadIssues,
+    [createKey("PayloadIssueCount")]: summary.examplePayloadIssueCount,
     [createKey("ExitCode")]: summary.exampleExitCode,
     [createKey("DurationMs")]: summary.exampleDurationMs,
     [createKey("OutputLine")]: summary.exampleOutputLine,
@@ -487,6 +502,7 @@ export const summarizeTsCoreExampleOutput = (output) => {
     return {
       exampleRuleMatched: null,
       examplePayloadValid: null,
+      examplePayloadIssues: null,
       exampleOutputLine: resolveFirstNonEmptyOutputLine(output),
     };
   }
@@ -495,62 +511,135 @@ export const summarizeTsCoreExampleOutput = (output) => {
     "ruleMatched" in parsedOutput && typeof parsedOutput.ruleMatched === "boolean"
       ? parsedOutput.ruleMatched
       : null;
+  const examplePayloadIssues = [];
   const voxelValue = "voxel" in parsedOutput ? parsedOutput.voxel : null;
-  const voxelRotationValue =
+  const voxelObjectValid =
     voxelValue !== null &&
     typeof voxelValue === "object" &&
-    !Array.isArray(voxelValue) &&
-    "rotation" in voxelValue
-      ? voxelValue.rotation
-      : null;
-  const voxelRotationValid =
-    voxelRotationValue !== null &&
-    typeof voxelRotationValue === "object" &&
-    !Array.isArray(voxelRotationValue) &&
-    "value" in voxelRotationValue &&
-    isIntegerInRange(voxelRotationValue.value, 0, 5) &&
-    "yRotation" in voxelRotationValue &&
-    typeof voxelRotationValue.yRotation === "number" &&
-    Number.isFinite(voxelRotationValue.yRotation);
-  const voxelValid =
-    voxelValue !== null &&
-    typeof voxelValue === "object" &&
-    !Array.isArray(voxelValue) &&
-    "id" in voxelValue &&
-    isIntegerInRange(voxelValue.id, 0, 0xffff) &&
-    "stage" in voxelValue &&
-    isIntegerInRange(voxelValue.stage, 0, 15) &&
-    voxelRotationValid;
+    !Array.isArray(voxelValue);
+  let voxelValid = false;
+  if (!voxelObjectValid) {
+    examplePayloadIssues.push("voxel");
+  } else {
+    const voxelIdValid = "id" in voxelValue && isIntegerInRange(voxelValue.id, 0, 0xffff);
+    if (!voxelIdValid) {
+      examplePayloadIssues.push("voxel.id");
+    }
+
+    const voxelStageValid =
+      "stage" in voxelValue && isIntegerInRange(voxelValue.stage, 0, 15);
+    if (!voxelStageValid) {
+      examplePayloadIssues.push("voxel.stage");
+    }
+
+    const voxelRotationValue = "rotation" in voxelValue ? voxelValue.rotation : null;
+    const voxelRotationObjectValid =
+      voxelRotationValue !== null &&
+      typeof voxelRotationValue === "object" &&
+      !Array.isArray(voxelRotationValue);
+    if (!voxelRotationObjectValid) {
+      examplePayloadIssues.push("voxel.rotation");
+    }
+
+    let voxelRotationValueValid = false;
+    let voxelRotationYRotationValid = false;
+    if (voxelRotationObjectValid) {
+      voxelRotationValueValid =
+        "value" in voxelRotationValue &&
+        isIntegerInRange(voxelRotationValue.value, 0, 5);
+      if (!voxelRotationValueValid) {
+        examplePayloadIssues.push("voxel.rotation.value");
+      }
+
+      voxelRotationYRotationValid =
+        "yRotation" in voxelRotationValue &&
+        typeof voxelRotationValue.yRotation === "number" &&
+        Number.isFinite(voxelRotationValue.yRotation);
+      if (!voxelRotationYRotationValid) {
+        examplePayloadIssues.push("voxel.rotation.yRotation");
+      }
+    }
+
+    voxelValid =
+      voxelIdValid &&
+      voxelStageValid &&
+      voxelRotationObjectValid &&
+      voxelRotationValueValid &&
+      voxelRotationYRotationValid;
+  }
+
   const lightValue = "light" in parsedOutput ? parsedOutput.light : null;
-  const lightValid =
+  const lightObjectValid =
     lightValue !== null &&
     typeof lightValue === "object" &&
-    !Array.isArray(lightValue) &&
-    "sunlight" in lightValue &&
-    isIntegerInRange(lightValue.sunlight, 0, 15) &&
-    "red" in lightValue &&
-    isIntegerInRange(lightValue.red, 0, 15) &&
-    "green" in lightValue &&
-    isIntegerInRange(lightValue.green, 0, 15) &&
-    "blue" in lightValue &&
-    isIntegerInRange(lightValue.blue, 0, 15);
+    !Array.isArray(lightValue);
+  let lightValid = false;
+  if (!lightObjectValid) {
+    examplePayloadIssues.push("light");
+  } else {
+    const sunlightValid =
+      "sunlight" in lightValue && isIntegerInRange(lightValue.sunlight, 0, 15);
+    if (!sunlightValid) {
+      examplePayloadIssues.push("light.sunlight");
+    }
+
+    const redValid = "red" in lightValue && isIntegerInRange(lightValue.red, 0, 15);
+    if (!redValid) {
+      examplePayloadIssues.push("light.red");
+    }
+
+    const greenValid =
+      "green" in lightValue && isIntegerInRange(lightValue.green, 0, 15);
+    if (!greenValid) {
+      examplePayloadIssues.push("light.green");
+    }
+
+    const blueValid =
+      "blue" in lightValue && isIntegerInRange(lightValue.blue, 0, 15);
+    if (!blueValid) {
+      examplePayloadIssues.push("light.blue");
+    }
+
+    lightValid = sunlightValid && redValid && greenValid && blueValid;
+  }
+
   const rotatedAabbValue =
     "rotatedAabb" in parsedOutput ? parsedOutput.rotatedAabb : null;
-  const rotatedAabbValid =
+  const rotatedAabbObjectValid =
     rotatedAabbValue !== null &&
     typeof rotatedAabbValue === "object" &&
-    !Array.isArray(rotatedAabbValue) &&
-    "min" in rotatedAabbValue &&
-    isNumberVec3(rotatedAabbValue.min) &&
-    "max" in rotatedAabbValue &&
-    isNumberVec3(rotatedAabbValue.max);
-  const rotatedAabbBoundsOrdered =
-    rotatedAabbValid &&
-    rotatedAabbValue.min.every((minValue, index) => {
-      return minValue <= rotatedAabbValue.max[index];
-    });
+    !Array.isArray(rotatedAabbValue);
+  let rotatedAabbValid = false;
+  if (!rotatedAabbObjectValid) {
+    examplePayloadIssues.push("rotatedAabb");
+  } else {
+    const rotatedAabbMinValid =
+      "min" in rotatedAabbValue && isNumberVec3(rotatedAabbValue.min);
+    if (!rotatedAabbMinValid) {
+      examplePayloadIssues.push("rotatedAabb.min");
+    }
+
+    const rotatedAabbMaxValid =
+      "max" in rotatedAabbValue && isNumberVec3(rotatedAabbValue.max);
+    if (!rotatedAabbMaxValid) {
+      examplePayloadIssues.push("rotatedAabb.max");
+    }
+
+    const rotatedAabbBoundsOrdered =
+      rotatedAabbMinValid &&
+      rotatedAabbMaxValid &&
+      rotatedAabbValue.min.every((minValue, index) => {
+        return minValue <= rotatedAabbValue.max[index];
+      });
+    if (!rotatedAabbBoundsOrdered && rotatedAabbMinValid && rotatedAabbMaxValid) {
+      examplePayloadIssues.push("rotatedAabb.bounds");
+    }
+
+    rotatedAabbValid =
+      rotatedAabbMinValid && rotatedAabbMaxValid && rotatedAabbBoundsOrdered;
+  }
   const examplePayloadValid =
-    voxelValid && lightValid && rotatedAabbValid && rotatedAabbBoundsOrdered;
+    voxelValid && lightValid && rotatedAabbValid && examplePayloadIssues.length === 0;
   const exampleOutputLine =
     typeof exampleRuleMatched === "boolean"
       ? `ruleMatched=${exampleRuleMatched ? "true" : "false"}`
@@ -559,6 +648,7 @@ export const summarizeTsCoreExampleOutput = (output) => {
   return {
     exampleRuleMatched,
     examplePayloadValid,
+    examplePayloadIssues,
     exampleOutputLine,
   };
 };

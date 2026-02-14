@@ -213,7 +213,8 @@ The JSON report includes artifact/build diagnostics such as `checkedPackage`,
 `buildDurationMs`, `attemptedBuild`, `buildSkipped`, and
 `buildSkippedReason`, `exampleCommand`, `exampleArgs`, `exampleArgCount`,
 `exampleAttempted`, `exampleStatus`, `exampleRuleMatched`,
-`examplePayloadValid`, `exampleExitCode`, `exampleDurationMs`, and
+`examplePayloadValid`, `examplePayloadIssues`,
+`examplePayloadIssueCount`, `exampleExitCode`, `exampleDurationMs`, and
 `exampleOutputLine`.
 Each ts-core `failureSummaries` entry includes `kind`, `packageIndex`,
 `checkCommand`, `checkArgs`, and `checkArgCount` for deterministic
@@ -225,6 +226,8 @@ expected payload shape (`voxel.id`, `voxel.stage`, `voxel.rotation.value`,
 `voxel.rotation.yRotation`, `light`, `rotatedAabb`) with valid value domains
 (`voxel.id` in `0..65535`, `voxel.stage`/light channels in `0..15`, rotation
 axis in `0..5`) and ordered AABB bounds (`min <= max` on each axis).
+When `examplePayloadValid` is `false`, `examplePayloadIssues` and
+`examplePayloadIssueCount` identify the failing payload paths.
 
 If your project also depends on runtime utility packages (`@voxelize/aabb`,
 `@voxelize/raycast`, and `@voxelize/physics-engine`), you can validate all of
@@ -383,6 +386,8 @@ For release automation and CI routing, aggregate preflight JSON reports include:
   `tsCoreExampleArgCount`, `tsCoreExampleAttempted`,
   `tsCoreExampleStatus`, `tsCoreExampleRuleMatched`,
   `tsCoreExamplePayloadValid`,
+  `tsCoreExamplePayloadIssues`,
+  `tsCoreExamplePayloadIssueCount`,
   `tsCoreExampleExitCode`,
   `tsCoreExampleDurationMs`, `tsCoreExampleOutputLine`
 - nested client wasm summary fields:
@@ -471,6 +476,8 @@ fields `tsCoreExampleCommand`, `tsCoreExampleArgs`,
 `tsCoreExampleArgCount`, `tsCoreExampleAttempted`,
 `tsCoreExampleStatus`, `tsCoreExampleRuleMatched`,
 `tsCoreExamplePayloadValid`,
+`tsCoreExamplePayloadIssues`,
+`tsCoreExamplePayloadIssueCount`,
 `tsCoreExampleExitCode`,
 `tsCoreExampleDurationMs`, `tsCoreExampleOutputLine`, plus
 client-step wasm preflight summary fields `clientWasmPackCheckStatus`,

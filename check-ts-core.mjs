@@ -81,7 +81,12 @@ const runTsCoreExampleCheck = () => {
   const exampleDurationMs = Date.now() - exampleStartedAt;
   const exampleExitCode = exampleResult.status ?? 1;
   const exampleOutput = `${exampleResult.stdout ?? ""}${exampleResult.stderr ?? ""}`.trim();
-  const { exampleRuleMatched, examplePayloadValid, exampleOutputLine } =
+  const {
+    exampleRuleMatched,
+    examplePayloadValid,
+    examplePayloadIssues,
+    exampleOutputLine,
+  } =
     summarizeTsCoreExampleOutput(exampleOutput);
 
   return {
@@ -89,6 +94,7 @@ const runTsCoreExampleCheck = () => {
     exampleDurationMs,
     exampleRuleMatched,
     examplePayloadValid,
+    examplePayloadIssues,
     exampleOutputLine,
   };
 };
@@ -387,6 +393,15 @@ const withBaseReportFields = (report) => {
     typeof report.examplePayloadValid === "boolean"
       ? report.examplePayloadValid
       : null;
+  const examplePayloadIssues = Array.isArray(report.examplePayloadIssues)
+    ? report.examplePayloadIssues.filter((issue) => {
+        return typeof issue === "string";
+      })
+    : null;
+  const examplePayloadIssueCount =
+    typeof report.examplePayloadIssueCount === "number"
+      ? report.examplePayloadIssueCount
+      : examplePayloadIssues?.length ?? null;
   const exampleOutputLine =
     typeof report.exampleOutputLine === "string" ? report.exampleOutputLine : null;
   const exampleAttempted =
@@ -435,6 +450,8 @@ const withBaseReportFields = (report) => {
             exitCode: exampleExitCode,
             ruleMatched: exampleRuleMatched,
             payloadValid: examplePayloadValid,
+            payloadIssues: examplePayloadIssues,
+            payloadIssueCount: examplePayloadIssueCount,
             outputLine: exampleOutputLine,
             message: deriveExampleFailureMessage({
               exampleExitCode,
@@ -617,6 +634,8 @@ const withBaseReportFields = (report) => {
     exampleStatus,
     exampleRuleMatched,
     examplePayloadValid,
+    examplePayloadIssues,
+    examplePayloadIssueCount,
     exampleExitCode,
     exampleDurationMs,
     exampleOutputLine,

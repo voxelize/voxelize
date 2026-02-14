@@ -3203,6 +3203,8 @@ describe("report-utils", () => {
         exampleStatus: "ok",
         exampleRuleMatched: true,
         examplePayloadValid: true,
+        examplePayloadIssues: [],
+        examplePayloadIssueCount: 0,
         exampleExitCode: 0,
         exampleDurationMs: 125,
         exampleOutputLine: "{\"ruleMatched\":true}",
@@ -3215,6 +3217,8 @@ describe("report-utils", () => {
       exampleStatus: "ok",
       exampleRuleMatched: true,
       examplePayloadValid: true,
+      examplePayloadIssues: [],
+      examplePayloadIssueCount: 0,
       exampleExitCode: 0,
       exampleDurationMs: 125,
       exampleOutputLine: "{\"ruleMatched\":true}",
@@ -3233,6 +3237,8 @@ describe("report-utils", () => {
       exampleStatus: "failed",
       exampleRuleMatched: null,
       examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
       exampleExitCode: 1,
       exampleDurationMs: null,
       exampleOutputLine: null,
@@ -3251,6 +3257,8 @@ describe("report-utils", () => {
       exampleStatus: "failed",
       exampleRuleMatched: null,
       examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
       exampleExitCode: 0,
       exampleDurationMs: null,
       exampleOutputLine: null,
@@ -3261,6 +3269,7 @@ describe("report-utils", () => {
         exampleAttempted: true,
         exampleRuleMatched: true,
         examplePayloadValid: false,
+        examplePayloadIssues: ["voxel.rotation"],
         exampleExitCode: 0,
       })
     ).toEqual({
@@ -3271,6 +3280,8 @@ describe("report-utils", () => {
       exampleStatus: "failed",
       exampleRuleMatched: true,
       examplePayloadValid: false,
+      examplePayloadIssues: ["voxel.rotation"],
+      examplePayloadIssueCount: 1,
       exampleExitCode: 0,
       exampleDurationMs: null,
       exampleOutputLine: null,
@@ -3283,6 +3294,8 @@ describe("report-utils", () => {
       exampleStatus: null,
       exampleRuleMatched: null,
       examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
       exampleExitCode: null,
       exampleDurationMs: null,
       exampleOutputLine: null,
@@ -3299,6 +3312,8 @@ describe("report-utils", () => {
           exampleStatus: "ok",
           exampleRuleMatched: true,
           examplePayloadValid: true,
+          examplePayloadIssues: [],
+          examplePayloadIssueCount: 0,
           exampleExitCode: 0,
           exampleDurationMs: 125,
           exampleOutputLine: "{\"ruleMatched\":true}",
@@ -3313,6 +3328,8 @@ describe("report-utils", () => {
       tsCoreExampleStatus: "ok",
       tsCoreExampleRuleMatched: true,
       tsCoreExamplePayloadValid: true,
+      tsCoreExamplePayloadIssues: [],
+      tsCoreExamplePayloadIssueCount: 0,
       tsCoreExampleExitCode: 0,
       tsCoreExampleDurationMs: 125,
       tsCoreExampleOutputLine: "{\"ruleMatched\":true}",
@@ -3325,6 +3342,8 @@ describe("report-utils", () => {
       exampleStatus: null,
       exampleRuleMatched: null,
       examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
       exampleExitCode: null,
       exampleDurationMs: null,
       exampleOutputLine: null,
@@ -3371,6 +3390,7 @@ describe("report-utils", () => {
     ).toEqual({
       exampleRuleMatched: true,
       examplePayloadValid: true,
+      examplePayloadIssues: [],
       exampleOutputLine: "ruleMatched=true",
     });
     expect(
@@ -3378,6 +3398,11 @@ describe("report-utils", () => {
     ).toEqual({
       exampleRuleMatched: false,
       examplePayloadValid: false,
+      examplePayloadIssues: [
+        "voxel",
+        "light",
+        "rotatedAabb",
+      ],
       exampleOutputLine: "ruleMatched=false",
     });
     expect(
@@ -3395,6 +3420,7 @@ describe("report-utils", () => {
     ).toEqual({
       exampleRuleMatched: true,
       examplePayloadValid: false,
+      examplePayloadIssues: ["rotatedAabb.bounds"],
       exampleOutputLine: "ruleMatched=true",
     });
     const payloadWithoutRuleMatched = JSON.stringify({
@@ -3408,6 +3434,7 @@ describe("report-utils", () => {
     expect(summarizeTsCoreExampleOutput(payloadWithoutRuleMatched)).toEqual({
       exampleRuleMatched: null,
       examplePayloadValid: true,
+      examplePayloadIssues: [],
       exampleOutputLine: payloadWithoutRuleMatched,
     });
     expect(
@@ -3425,6 +3452,7 @@ describe("report-utils", () => {
     ).toEqual({
       exampleRuleMatched: true,
       examplePayloadValid: false,
+      examplePayloadIssues: ["voxel.rotation"],
       exampleOutputLine: "ruleMatched=true",
     });
     expect(
@@ -3442,6 +3470,7 @@ describe("report-utils", () => {
     ).toEqual({
       exampleRuleMatched: true,
       examplePayloadValid: false,
+      examplePayloadIssues: ["voxel.stage"],
       exampleOutputLine: "ruleMatched=true",
     });
     expect(
@@ -3459,11 +3488,13 @@ describe("report-utils", () => {
     ).toEqual({
       exampleRuleMatched: true,
       examplePayloadValid: false,
+      examplePayloadIssues: ["voxel.rotation.value"],
       exampleOutputLine: "ruleMatched=true",
     });
     expect(summarizeTsCoreExampleOutput("warning: no json")).toEqual({
       exampleRuleMatched: null,
       examplePayloadValid: null,
+      examplePayloadIssues: null,
       exampleOutputLine: "warning: no json",
     });
   });

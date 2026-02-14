@@ -586,6 +586,8 @@ type TsCoreNestedReport = {
         exitCode: number | null;
         ruleMatched: boolean | null;
         payloadValid: boolean | null;
+        payloadIssues: string[] | null;
+        payloadIssueCount: number | null;
         outputLine: string | null;
         message: string;
       }
@@ -604,6 +606,8 @@ type TsCoreNestedReport = {
   exampleStatus: "ok" | "failed" | "skipped";
   exampleRuleMatched: boolean | null;
   examplePayloadValid: boolean | null;
+  examplePayloadIssues: string[] | null;
+  examplePayloadIssueCount: number | null;
   exampleExitCode: number | null;
   exampleDurationMs: number | null;
   exampleOutputLine: string | null;
@@ -1019,6 +1023,8 @@ type PreflightReport = {
   tsCoreExampleStatus: "ok" | "failed" | "skipped" | null;
   tsCoreExampleRuleMatched: boolean | null;
   tsCoreExamplePayloadValid: boolean | null;
+  tsCoreExamplePayloadIssues: string[] | null;
+  tsCoreExamplePayloadIssueCount: number | null;
   tsCoreExampleExitCode: number | null;
   tsCoreExampleDurationMs: number | null;
   tsCoreExampleOutputLine: string | null;
@@ -2234,6 +2240,8 @@ const expectPreflightTsCoreExampleSummaryMetadata = (report: PreflightReport) =>
     expect(report.tsCoreExampleStatus).toBeNull();
     expect(report.tsCoreExampleRuleMatched).toBeNull();
     expect(report.tsCoreExamplePayloadValid).toBeNull();
+    expect(report.tsCoreExamplePayloadIssues).toBeNull();
+    expect(report.tsCoreExamplePayloadIssueCount).toBeNull();
     expect(report.tsCoreExampleExitCode).toBeNull();
     expect(report.tsCoreExampleDurationMs).toBeNull();
     expect(report.tsCoreExampleOutputLine).toBeNull();
@@ -2248,11 +2256,25 @@ const expectPreflightTsCoreExampleSummaryMetadata = (report: PreflightReport) =>
   expect(report.tsCoreExampleStatus).toBe(tsCoreCheckReport.exampleStatus);
   expect(report.tsCoreExampleRuleMatched).toBe(tsCoreCheckReport.exampleRuleMatched);
   expect(report.tsCoreExamplePayloadValid).toBe(tsCoreCheckReport.examplePayloadValid);
+  expect(report.tsCoreExamplePayloadIssues).toEqual(
+    tsCoreCheckReport.examplePayloadIssues
+  );
+  expect(report.tsCoreExamplePayloadIssueCount).toBe(
+    tsCoreCheckReport.examplePayloadIssueCount
+  );
   expect(report.tsCoreExampleExitCode).toBe(tsCoreCheckReport.exampleExitCode);
   expect(report.tsCoreExampleDurationMs).toBe(tsCoreCheckReport.exampleDurationMs);
   expect(report.tsCoreExampleOutputLine).toBe(tsCoreCheckReport.exampleOutputLine);
   if (report.tsCoreExampleArgs !== null && report.tsCoreExampleArgCount !== null) {
     expect(report.tsCoreExampleArgCount).toBe(report.tsCoreExampleArgs.length);
+  }
+  if (
+    report.tsCoreExamplePayloadIssues !== null &&
+    report.tsCoreExamplePayloadIssueCount !== null
+  ) {
+    expect(report.tsCoreExamplePayloadIssueCount).toBe(
+      report.tsCoreExamplePayloadIssues.length
+    );
   }
   if (
     report.tsCoreExampleAttempted !== null &&
@@ -2261,6 +2283,8 @@ const expectPreflightTsCoreExampleSummaryMetadata = (report: PreflightReport) =>
     expect(report.tsCoreExampleStatus).toBe("skipped");
     expect(report.tsCoreExampleRuleMatched).toBeNull();
     expect(report.tsCoreExamplePayloadValid).toBeNull();
+    expect(report.tsCoreExamplePayloadIssues).toBeNull();
+    expect(report.tsCoreExamplePayloadIssueCount).toBeNull();
   }
 };
 const expectPreflightClientWasmSummaryMetadata = (report: PreflightReport) => {
@@ -3897,6 +3921,8 @@ const expectTsCoreNestedReport = (
       exitCode: report.exampleExitCode,
       ruleMatched: report.exampleRuleMatched,
       payloadValid: report.examplePayloadValid,
+      payloadIssues: report.examplePayloadIssues,
+      payloadIssueCount: report.examplePayloadIssueCount,
       outputLine: report.exampleOutputLine,
       message: deriveExpectedTsCoreExampleFailureMessage(report),
     });
@@ -3957,14 +3983,21 @@ const expectTsCoreNestedReport = (
     expect(report.exampleStatus).toBe("skipped");
     expect(report.exampleRuleMatched).toBeNull();
     expect(report.examplePayloadValid).toBeNull();
+    expect(report.examplePayloadIssues).toBeNull();
+    expect(report.examplePayloadIssueCount).toBeNull();
     expect(report.exampleExitCode).toBeNull();
     expect(report.exampleDurationMs).toBeNull();
     expect(report.exampleOutputLine).toBeNull();
+  }
+  if (report.examplePayloadIssues !== null && report.examplePayloadIssueCount !== null) {
+    expect(report.examplePayloadIssueCount).toBe(report.examplePayloadIssues.length);
   }
   if (report.exampleStatus === "ok") {
     expect(report.exampleExitCode).toBe(0);
     expect(report.exampleRuleMatched).toBe(true);
     expect(report.examplePayloadValid).toBe(true);
+    expect(report.examplePayloadIssues).toEqual([]);
+    expect(report.examplePayloadIssueCount).toBe(0);
   }
   if (report.exampleStatus === "failed") {
     expect(
@@ -3972,6 +4005,19 @@ const expectTsCoreNestedReport = (
         report.exampleRuleMatched !== true ||
         report.examplePayloadValid !== true
     ).toBe(true);
+    if (report.examplePayloadValid === false) {
+      expect(report.examplePayloadIssues).not.toBeNull();
+      expect(report.examplePayloadIssueCount).not.toBeNull();
+      if (
+        report.examplePayloadIssues !== null &&
+        report.examplePayloadIssueCount !== null
+      ) {
+        expect(report.examplePayloadIssueCount).toBeGreaterThan(0);
+        expect(report.examplePayloadIssueCount).toBe(
+          report.examplePayloadIssues.length
+        );
+      }
+    }
   }
   if (report.exampleRuleMatched !== null && report.exampleOutputLine !== null) {
     expect(report.exampleOutputLine).toBe(

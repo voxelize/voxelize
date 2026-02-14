@@ -190,6 +190,8 @@ type TsCoreCheckReport = {
   exampleStatus: "ok" | "failed" | "skipped";
   exampleRuleMatched: boolean | null;
   examplePayloadValid: boolean | null;
+  examplePayloadIssues: string[] | null;
+  examplePayloadIssueCount: number | null;
   exampleExitCode: number | null;
   exampleDurationMs: number | null;
   exampleOutputLine: string | null;
@@ -228,6 +230,8 @@ type TsCoreCheckReport = {
         exitCode: number | null;
         ruleMatched: boolean | null;
         payloadValid: boolean | null;
+        payloadIssues: string[] | null;
+        payloadIssueCount: number | null;
         outputLine: string | null;
         message: string;
       }
@@ -852,6 +856,8 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
       exitCode: report.exampleExitCode,
       ruleMatched: report.exampleRuleMatched,
       payloadValid: report.examplePayloadValid,
+      payloadIssues: report.examplePayloadIssues,
+      payloadIssueCount: report.examplePayloadIssueCount,
       outputLine: report.exampleOutputLine,
       message: deriveExpectedExampleFailureMessage(report),
     });
@@ -911,14 +917,21 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
     expect(report.exampleStatus).toBe("skipped");
     expect(report.exampleRuleMatched).toBeNull();
     expect(report.examplePayloadValid).toBeNull();
+    expect(report.examplePayloadIssues).toBeNull();
+    expect(report.examplePayloadIssueCount).toBeNull();
     expect(report.exampleExitCode).toBeNull();
     expect(report.exampleDurationMs).toBeNull();
     expect(report.exampleOutputLine).toBeNull();
+  }
+  if (report.examplePayloadIssues !== null && report.examplePayloadIssueCount !== null) {
+    expect(report.examplePayloadIssueCount).toBe(report.examplePayloadIssues.length);
   }
   if (report.exampleStatus === "ok") {
     expect(report.exampleExitCode).toBe(0);
     expect(report.exampleRuleMatched).toBe(true);
     expect(report.examplePayloadValid).toBe(true);
+    expect(report.examplePayloadIssues).toEqual([]);
+    expect(report.examplePayloadIssueCount).toBe(0);
   }
   if (report.exampleStatus === "failed") {
     expect(
@@ -926,6 +939,19 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
         report.exampleRuleMatched !== true ||
         report.examplePayloadValid !== true
     ).toBe(true);
+    if (report.examplePayloadValid === false) {
+      expect(report.examplePayloadIssues).not.toBeNull();
+      expect(report.examplePayloadIssueCount).not.toBeNull();
+      if (
+        report.examplePayloadIssues !== null &&
+        report.examplePayloadIssueCount !== null
+      ) {
+        expect(report.examplePayloadIssueCount).toBeGreaterThan(0);
+        expect(report.examplePayloadIssueCount).toBe(
+          report.examplePayloadIssues.length
+        );
+      }
+    }
   }
   if (report.exampleRuleMatched !== null && report.exampleOutputLine !== null) {
     expect(report.exampleOutputLine).toBe(
@@ -1090,6 +1116,8 @@ describe("check-ts-core script", () => {
           exitCode: report.exampleExitCode,
           ruleMatched: report.exampleRuleMatched,
           payloadValid: report.examplePayloadValid,
+          payloadIssues: report.examplePayloadIssues,
+          payloadIssueCount: report.examplePayloadIssueCount,
           outputLine: report.exampleOutputLine,
           message: deriveExpectedExampleFailureMessage(report),
         },
@@ -1120,6 +1148,12 @@ describe("check-ts-core script", () => {
         expect(report.exampleExitCode).toBe(0);
         expect(report.exampleRuleMatched).toBe(false);
         expect(report.examplePayloadValid).toBe(false);
+        expect(report.examplePayloadIssues).toEqual([
+          "voxel",
+          "light",
+          "rotatedAabb",
+        ]);
+        expect(report.examplePayloadIssueCount).toBe(3);
         expect(report.failureSummaryCount).toBe(1);
         expect(report.failureSummaries).toEqual([
           {
@@ -1133,6 +1167,8 @@ describe("check-ts-core script", () => {
             exitCode: report.exampleExitCode,
             ruleMatched: report.exampleRuleMatched,
             payloadValid: report.examplePayloadValid,
+          payloadIssues: report.examplePayloadIssues,
+          payloadIssueCount: report.examplePayloadIssueCount,
             outputLine: report.exampleOutputLine,
             message: deriveExpectedExampleFailureMessage(report),
           },
@@ -1164,6 +1200,12 @@ describe("check-ts-core script", () => {
         expect(report.exampleExitCode).toBe(0);
         expect(report.exampleRuleMatched).toBe(true);
         expect(report.examplePayloadValid).toBe(false);
+        expect(report.examplePayloadIssues).toEqual([
+          "voxel",
+          "light",
+          "rotatedAabb",
+        ]);
+        expect(report.examplePayloadIssueCount).toBe(3);
         expect(report.failureSummaryCount).toBe(1);
         expect(report.failureSummaries).toEqual([
           {
@@ -1177,6 +1219,8 @@ describe("check-ts-core script", () => {
             exitCode: report.exampleExitCode,
             ruleMatched: report.exampleRuleMatched,
             payloadValid: report.examplePayloadValid,
+          payloadIssues: report.examplePayloadIssues,
+          payloadIssueCount: report.examplePayloadIssueCount,
             outputLine: report.exampleOutputLine,
             message: deriveExpectedExampleFailureMessage(report),
           },
@@ -1227,6 +1271,8 @@ describe("check-ts-core script", () => {
             exitCode: report.exampleExitCode,
             ruleMatched: report.exampleRuleMatched,
             payloadValid: report.examplePayloadValid,
+          payloadIssues: report.examplePayloadIssues,
+          payloadIssueCount: report.examplePayloadIssueCount,
             outputLine: report.exampleOutputLine,
             message: deriveExpectedExampleFailureMessage(report),
           },
@@ -1265,6 +1311,8 @@ describe("check-ts-core script", () => {
         expect(report.exampleExitCode).toBe(0);
         expect(report.exampleRuleMatched).toBe(true);
         expect(report.examplePayloadValid).toBe(false);
+        expect(report.examplePayloadIssues).toEqual(["voxel.rotation"]);
+        expect(report.examplePayloadIssueCount).toBe(1);
         expect(report.failureSummaryCount).toBe(1);
         expect(report.failureSummaries).toEqual([
           {
@@ -1278,6 +1326,8 @@ describe("check-ts-core script", () => {
             exitCode: report.exampleExitCode,
             ruleMatched: report.exampleRuleMatched,
             payloadValid: report.examplePayloadValid,
+          payloadIssues: report.examplePayloadIssues,
+          payloadIssueCount: report.examplePayloadIssueCount,
             outputLine: report.exampleOutputLine,
             message: deriveExpectedExampleFailureMessage(report),
           },
@@ -1316,6 +1366,8 @@ describe("check-ts-core script", () => {
         expect(report.exampleExitCode).toBe(0);
         expect(report.exampleRuleMatched).toBe(true);
         expect(report.examplePayloadValid).toBe(false);
+        expect(report.examplePayloadIssues).toEqual(["voxel.stage"]);
+        expect(report.examplePayloadIssueCount).toBe(1);
         expect(report.failureSummaryCount).toBe(1);
         expect(report.failureSummaries).toEqual([
           {
@@ -1329,6 +1381,8 @@ describe("check-ts-core script", () => {
             exitCode: report.exampleExitCode,
             ruleMatched: report.exampleRuleMatched,
             payloadValid: report.examplePayloadValid,
+          payloadIssues: report.examplePayloadIssues,
+          payloadIssueCount: report.examplePayloadIssueCount,
             outputLine: report.exampleOutputLine,
             message: deriveExpectedExampleFailureMessage(report),
           },
@@ -1367,6 +1421,8 @@ describe("check-ts-core script", () => {
         expect(report.exampleExitCode).toBe(0);
         expect(report.exampleRuleMatched).toBe(true);
         expect(report.examplePayloadValid).toBe(false);
+        expect(report.examplePayloadIssues).toEqual(["rotatedAabb.bounds"]);
+        expect(report.examplePayloadIssueCount).toBe(1);
         expect(report.failureSummaryCount).toBe(1);
         expect(report.failureSummaries).toEqual([
           {
@@ -1380,6 +1436,8 @@ describe("check-ts-core script", () => {
             exitCode: report.exampleExitCode,
             ruleMatched: report.exampleRuleMatched,
             payloadValid: report.examplePayloadValid,
+          payloadIssues: report.examplePayloadIssues,
+          payloadIssueCount: report.examplePayloadIssueCount,
             outputLine: report.exampleOutputLine,
             message: deriveExpectedExampleFailureMessage(report),
           },

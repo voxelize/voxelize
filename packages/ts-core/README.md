@@ -127,13 +127,15 @@ The ts-core JSON report includes package/artifact diagnostics such as
 `missingArtifactSummary`. It also includes end-to-end example verification
 metadata: `exampleCommand`, `exampleArgs`, `exampleArgCount`,
 `exampleAttempted`, `exampleStatus`, `exampleRuleMatched`,
-`examplePayloadValid`, `exampleExitCode`, `exampleDurationMs`, and
-`exampleOutputLine`.
+`examplePayloadValid`, `examplePayloadIssues`, `examplePayloadIssueCount`,
+`exampleExitCode`, `exampleDurationMs`, and `exampleOutputLine`.
 `examplePayloadValid` is `true` only when the example emits the full payload
 shape (`voxel.id`, `voxel.stage`, `voxel.rotation.value`,
 `voxel.rotation.yRotation`, `light`, `rotatedAabb`) with valid value domains
 (`voxel.id` in `0..65535`, `voxel.stage`/light channels in `0..15`, rotation
 axis in `0..5`) and ordered AABB bounds (`min <= max` per axis).
+`examplePayloadIssues` lists each invalid payload path whenever
+`examplePayloadValid` is `false`.
 
 When failures occur, `failureSummaries[]` entries include `kind`:
 
