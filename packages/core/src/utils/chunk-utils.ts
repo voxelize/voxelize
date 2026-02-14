@@ -35,6 +35,7 @@ const mapVoxelToChunkCoordinate = (
 
 const normalizeChunkSize = (chunkSize: number) =>
   Number.isFinite(chunkSize) && chunkSize > 0 ? chunkSize : 1;
+const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER;
 
 /**
  * A utility class for all things related to chunks and chunk coordinates.
@@ -227,7 +228,20 @@ export class ChunkUtils {
         break;
       }
       hasDigit = true;
-      parsed = parsed * 10 + digit;
+      const next = parsed * 10 + digit;
+      if (!Number.isSafeInteger(next)) {
+        parsed = MAX_SAFE_INTEGER;
+        index++;
+        while (index < end) {
+          const trailingDigit = value.charCodeAt(index) - 48;
+          if (trailingDigit < 0 || trailingDigit > 9) {
+            break;
+          }
+          index++;
+        }
+        break;
+      }
+      parsed = next;
       index++;
     }
 

@@ -60,4 +60,11 @@ describe("ChunkUtils.parseChunkNameAt", () => {
     expect(cx).toBe(123);
     expect(Number.isNaN(cz)).toBe(true);
   });
+
+  it("saturates oversized numeric segments to safe integer bounds", () => {
+    const [positiveX] = ChunkUtils.parseChunkNameAt("999999999999999999999999|1");
+    const [negativeX] = ChunkUtils.parseChunkNameAt("-999999999999999999999999|1");
+    expect(positiveX).toBe(Number.MAX_SAFE_INTEGER);
+    expect(negativeX).toBe(-Number.MAX_SAFE_INTEGER);
+  });
 });
