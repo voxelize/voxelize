@@ -55,8 +55,9 @@ struct ChunkData {
 #[derive(Clone)]
 struct BatchSpace {
     chunks: Vec<Option<ChunkData>>,
-    chunk_grid_width: usize,
     chunk_grid_depth: usize,
+    chunk_grid_width_i32: i32,
+    chunk_grid_depth_i32: i32,
     chunk_grid_offset: [i32; 2],
     chunk_size: i32,
     chunk_size_usize: usize,
@@ -83,6 +84,8 @@ impl BatchSpace {
         max_height: u32,
     ) -> Self {
         let modified_chunks = vec![false; chunks.len()];
+        let chunk_grid_width_i32 = i32::try_from(chunk_grid_width).unwrap_or(i32::MAX);
+        let chunk_grid_depth_i32 = i32::try_from(chunk_grid_depth).unwrap_or(i32::MAX);
         let chunk_size_usize = chunk_size.max(0) as usize;
         let chunk_height = max_height as usize;
         let chunk_column_stride = chunk_size_usize.saturating_mul(chunk_height);
@@ -94,8 +97,9 @@ impl BatchSpace {
         let chunk_mask = chunk_shift.map(|_| chunk_size - 1);
         Self {
             chunks,
-            chunk_grid_width,
             chunk_grid_depth,
+            chunk_grid_width_i32,
+            chunk_grid_depth_i32,
             chunk_grid_offset,
             chunk_size,
             chunk_size_usize,
@@ -115,8 +119,8 @@ impl BatchSpace {
 
         if local_x < 0
             || local_z < 0
-            || local_x >= self.chunk_grid_width as i32
-            || local_z >= self.chunk_grid_depth as i32
+            || local_x >= self.chunk_grid_width_i32
+            || local_z >= self.chunk_grid_depth_i32
         {
             return None;
         }
