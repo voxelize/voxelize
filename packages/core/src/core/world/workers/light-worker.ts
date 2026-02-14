@@ -282,6 +282,13 @@ const deserializeChunkGrid = (
       chunkGrid[index] = null;
       continue;
     }
+    if (
+      (chunkData.voxels.byteLength & 3) !== 0 ||
+      (chunkData.lights.byteLength & 3) !== 0
+    ) {
+      chunkGrid[index] = null;
+      continue;
+    }
 
     hasAnyChunk = true;
     chunkGrid[index] = RawChunk.deserialize(chunkData);
