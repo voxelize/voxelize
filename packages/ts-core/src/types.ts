@@ -228,8 +228,12 @@ export const createBlockConditionalPart = (
 export const createBlockDynamicPattern = (
   pattern: BlockDynamicPatternInput = {}
 ): BlockDynamicPattern => {
-  const parts = Array.isArray(pattern.parts)
-    ? pattern.parts.map((part) => createBlockConditionalPart(part))
+  const normalizedPattern =
+    pattern !== null && typeof pattern === "object" && !Array.isArray(pattern)
+      ? pattern
+      : {};
+  const parts = Array.isArray(normalizedPattern.parts)
+    ? normalizedPattern.parts.map((part) => createBlockConditionalPart(part))
     : [];
 
   return {

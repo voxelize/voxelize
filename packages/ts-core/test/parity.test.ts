@@ -933,6 +933,28 @@ describe("Type builders", () => {
     expect(part.worldSpace).toBe(false);
   });
 
+  it("builds conditional parts with deterministic defaults for non-object inputs", () => {
+    const partFromNull = createBlockConditionalPart(null as never);
+    const partFromNumber = createBlockConditionalPart(42 as never);
+
+    expect(partFromNull).toEqual({
+      rule: BLOCK_RULE_NONE,
+      faces: [],
+      aabbs: [],
+      isTransparent: [false, false, false, false, false, false],
+      worldSpace: false,
+    });
+    expect(partFromNull.rule).not.toBe(BLOCK_RULE_NONE);
+    expect(partFromNumber).toEqual({
+      rule: BLOCK_RULE_NONE,
+      faces: [],
+      aabbs: [],
+      isTransparent: [false, false, false, false, false, false],
+      worldSpace: false,
+    });
+    expect(partFromNumber.rule).not.toBe(BLOCK_RULE_NONE);
+  });
+
   it("preserves provided conditional part fields", () => {
     const face = new BlockFace({ name: "CustomFace" });
     const aabb = AABB.create(0, 0, 0, 1, 1, 1);
@@ -1026,6 +1048,14 @@ describe("Type builders", () => {
   it("builds dynamic patterns with deterministic defaults", () => {
     const pattern = createBlockDynamicPattern();
     expect(pattern.parts).toEqual([]);
+  });
+
+  it("builds dynamic patterns with deterministic defaults for non-object inputs", () => {
+    const patternFromNull = createBlockDynamicPattern(null as never);
+    const patternFromNumber = createBlockDynamicPattern(42 as never);
+
+    expect(patternFromNull.parts).toEqual([]);
+    expect(patternFromNumber.parts).toEqual([]);
   });
 
   it("accepts partial dynamic pattern part inputs", () => {
