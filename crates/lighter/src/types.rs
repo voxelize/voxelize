@@ -701,7 +701,12 @@ impl LightRegistry {
             return sparse.contains_key(&id);
         }
 
-        self.blocks_by_id.iter().any(|(block_id, _)| *block_id == id)
+        for (block_id, _) in &self.blocks_by_id {
+            if *block_id == id {
+                return true;
+            }
+        }
+        false
     }
 }
 
