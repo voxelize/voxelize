@@ -49,7 +49,9 @@ When making changes to meshing algorithms:
 9. Compare baseline/candidate run sets with per-lane spread:
    - `python3 crates/mesher/scripts/compare_bench_sets.py --baseline <baseline_run1.txt> --baseline <baseline_run2.txt> --candidate <candidate_run1.txt> --candidate <candidate_run2.txt> --include '^greedy_mesher/'`
    - optional regression gate: `--max-regression-pct 1.0`
-10. Rebuild WASM wrapper when needed:
+10. Gate run-set stability by lane variance:
+   - `python3 crates/mesher/scripts/bench_stability_gate.py --input <run1.txt> --input <run2.txt> --input <run3.txt> --include '^greedy_mesher/optimized/' --max-cv-pct 1.5`
+11. Rebuild WASM wrapper when needed:
    - `cd crates/wasm-mesher && wasm-pack build --target web`
 
 ## Structure
@@ -62,3 +64,4 @@ When making changes to meshing algorithms:
 - `scripts/bench_regression_gate.py` - Threshold-based benchmark regression gate
 - `scripts/aggregate_bench_medians.py` - Multi-run benchmark median aggregation tool
 - `scripts/compare_bench_sets.py` - Multi-run baseline/candidate comparison with spread and optional gate
+- `scripts/bench_stability_gate.py` - Run-set coefficient-of-variation stability gate
