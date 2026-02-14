@@ -86,6 +86,10 @@ describe("ChunkUtils.parseChunkNameAt", () => {
     expect(ChunkUtils.parseChunkNameAt("  +12| -3")).toEqual([12, -3]);
   });
 
+  it("supports multi-character separators while preserving first two segments", () => {
+    expect(ChunkUtils.parseChunkNameAt("10::20::30", "::")).toEqual([10, 20]);
+  });
+
   it("saturates oversized numeric segments to safe integer bounds", () => {
     const [positiveX] = ChunkUtils.parseChunkNameAt("999999999999999999999999|1");
     const [negativeX] = ChunkUtils.parseChunkNameAt("-999999999999999999999999|1");
