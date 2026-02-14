@@ -179,18 +179,24 @@ type ClientJsonReport = OptionTerminatorMetadata &
   skippedSteps: string[];
   passedStepScripts: string[];
   passedStepScriptCount: number;
+  passedStepScriptMap: Record<string, string>;
+  passedStepScriptMapCount: number;
   passedStepIndices: number[];
   passedStepIndexCount: number;
   passedStepIndexMap: Record<string, number>;
   passedStepIndexMapCount: number;
   failedStepScripts: string[];
   failedStepScriptCount: number;
+  failedStepScriptMap: Record<string, string>;
+  failedStepScriptMapCount: number;
   failedStepIndices: number[];
   failedStepIndexCount: number;
   failedStepIndexMap: Record<string, number>;
   failedStepIndexMapCount: number;
   skippedStepScripts: string[];
   skippedStepScriptCount: number;
+  skippedStepScriptMap: Record<string, string>;
+  skippedStepScriptMapCount: number;
   skippedStepIndices: number[];
   skippedStepIndexCount: number;
   skippedStepIndexMap: Record<string, number>;
@@ -506,18 +512,24 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
   skippedSteps: string[];
   passedStepScripts: string[];
   passedStepScriptCount: number;
+  passedStepScriptMap: Record<string, string>;
+  passedStepScriptMapCount: number;
   passedStepIndices: number[];
   passedStepIndexCount: number;
   passedStepIndexMap: Record<string, number>;
   passedStepIndexMapCount: number;
   failedStepScripts: string[];
   failedStepScriptCount: number;
+  failedStepScriptMap: Record<string, string>;
+  failedStepScriptMapCount: number;
   failedStepIndices: number[];
   failedStepIndexCount: number;
   failedStepIndexMap: Record<string, number>;
   failedStepIndexMapCount: number;
   skippedStepScripts: string[];
   skippedStepScriptCount: number;
+  skippedStepScriptMap: Record<string, string>;
+  skippedStepScriptMapCount: number;
   skippedStepIndices: number[];
   skippedStepIndexCount: number;
   skippedStepIndexMap: Record<string, number>;
@@ -620,18 +632,24 @@ const expectStepSummaryMetadata = (
     skippedSteps: string[];
     passedStepScripts: string[];
     passedStepScriptCount: number;
+    passedStepScriptMap: Record<string, string>;
+    passedStepScriptMapCount: number;
     passedStepIndices: number[];
     passedStepIndexCount: number;
     passedStepIndexMap: Record<string, number>;
     passedStepIndexMapCount: number;
     failedStepScripts: string[];
     failedStepScriptCount: number;
+    failedStepScriptMap: Record<string, string>;
+    failedStepScriptMapCount: number;
     failedStepIndices: number[];
     failedStepIndexCount: number;
     failedStepIndexMap: Record<string, number>;
     failedStepIndexMapCount: number;
     skippedStepScripts: string[];
     skippedStepScriptCount: number;
+    skippedStepScriptMap: Record<string, string>;
+    skippedStepScriptMapCount: number;
     skippedStepIndices: number[];
     skippedStepIndexCount: number;
     skippedStepIndexMap: Record<string, number>;
@@ -697,6 +715,16 @@ const expectStepSummaryMetadata = (
   const skippedStepScripts = skippedSteps.map((stepName) => {
     return expectedStepMetadata[stepName].scriptName;
   });
+  const mapStepNamesToScriptMap = (stepNames: string[]) => {
+    return Object.fromEntries(
+      stepNames.map((stepName) => {
+        return [stepName, expectedStepMetadata[stepName].scriptName];
+      })
+    );
+  };
+  const passedStepScriptMap = mapStepNamesToScriptMap(passedSteps);
+  const failedStepScriptMap = mapStepNamesToScriptMap(failedSteps);
+  const skippedStepScriptMap = mapStepNamesToScriptMap(skippedSteps);
   const stepIndexMap = new Map(
     report.availableSteps.map((stepName, index) => {
       return [stepName, index];
@@ -766,6 +794,10 @@ const expectStepSummaryMetadata = (
   expect(report.skippedSteps).toEqual(skippedSteps);
   expect(report.passedStepScripts).toEqual(passedStepScripts);
   expect(report.passedStepScriptCount).toBe(report.passedStepScripts.length);
+  expect(report.passedStepScriptMap).toEqual(passedStepScriptMap);
+  expect(report.passedStepScriptMapCount).toBe(
+    Object.keys(report.passedStepScriptMap).length
+  );
   expect(report.passedStepIndices).toEqual(passedStepIndices);
   expect(report.passedStepIndexCount).toBe(report.passedStepIndices.length);
   expect(report.passedStepIndexMap).toEqual(passedStepIndexMap);
@@ -774,6 +806,10 @@ const expectStepSummaryMetadata = (
   );
   expect(report.failedStepScripts).toEqual(failedStepScripts);
   expect(report.failedStepScriptCount).toBe(report.failedStepScripts.length);
+  expect(report.failedStepScriptMap).toEqual(failedStepScriptMap);
+  expect(report.failedStepScriptMapCount).toBe(
+    Object.keys(report.failedStepScriptMap).length
+  );
   expect(report.failedStepIndices).toEqual(failedStepIndices);
   expect(report.failedStepIndexCount).toBe(report.failedStepIndices.length);
   expect(report.failedStepIndexMap).toEqual(failedStepIndexMap);
@@ -782,6 +818,10 @@ const expectStepSummaryMetadata = (
   );
   expect(report.skippedStepScripts).toEqual(skippedStepScripts);
   expect(report.skippedStepScriptCount).toBe(report.skippedStepScripts.length);
+  expect(report.skippedStepScriptMap).toEqual(skippedStepScriptMap);
+  expect(report.skippedStepScriptMapCount).toBe(
+    Object.keys(report.skippedStepScriptMap).length
+  );
   expect(report.skippedStepIndices).toEqual(skippedStepIndices);
   expect(report.skippedStepIndexCount).toBe(report.skippedStepIndices.length);
   expect(report.skippedStepIndexMap).toEqual(skippedStepIndexMap);
