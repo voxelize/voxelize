@@ -50,6 +50,11 @@ const resolveFirstNonEmptyOutputLine = (output) => {
     return null;
   }
 
+  const ruleMatchedMatch = output.match(/"ruleMatched"\s*:\s*(true|false)/);
+  if (ruleMatchedMatch !== null) {
+    return `ruleMatched=${ruleMatchedMatch[1]}`;
+  }
+
   const nonEmptyLines = output
     .split(/\r?\n/)
     .map((line) => {
@@ -58,13 +63,6 @@ const resolveFirstNonEmptyOutputLine = (output) => {
     .filter((line) => {
       return line.length > 0;
     });
-  const ruleMatchedLine = nonEmptyLines.find((line) => {
-    return line.includes("ruleMatched");
-  });
-  if (ruleMatchedLine !== undefined) {
-    return ruleMatchedLine;
-  }
-
   const [firstNonEmptyLine] = nonEmptyLines;
   return firstNonEmptyLine ?? null;
 };
