@@ -115,6 +115,15 @@ type PreflightReport = {
   specialSelectorsUsed: string[];
   selectedChecks: string[];
   selectedCheckCount: number;
+  selectedCheckMetadata: Record<
+    string,
+    {
+      scriptName: string;
+      supportsNoBuild: boolean;
+    }
+  >;
+  selectedCheckScripts: string[];
+  selectedCheckScriptCount: number;
   requestedChecks: string[];
   requestedCheckCount: number;
   requestedCheckResolutions: RequestedCheckResolution[];
@@ -432,6 +441,27 @@ const expectedEmptyRequestedCheckResolutionCounts = {
 };
 const expectedUsedAllSpecialSelector = ["all"];
 const expectedUsedLibrariesSpecialSelector = ["libraries"];
+const expectSelectedCheckMetadata = (report: PreflightReport) => {
+  const expectedMetadata = Object.fromEntries(
+    report.selectedChecks.map((checkName) => {
+      return [
+        checkName,
+        expectedAvailableCheckMetadata[
+          checkName as keyof typeof expectedAvailableCheckMetadata
+        ],
+      ];
+    })
+  );
+  const expectedScripts = report.selectedChecks.map((checkName) => {
+    return expectedAvailableCheckMetadata[
+      checkName as keyof typeof expectedAvailableCheckMetadata
+    ].scriptName;
+  });
+
+  expect(report.selectedCheckMetadata).toEqual(expectedMetadata);
+  expect(report.selectedCheckScripts).toEqual(expectedScripts);
+  expect(report.selectedCheckScriptCount).toBe(report.selectedCheckScripts.length);
+};
 const expectTsCoreNestedReport = (
   checkReport: object | null,
   expectedNoBuild: boolean
@@ -687,6 +717,7 @@ describe("preflight aggregate report", () => {
     expect(report.specialSelectorsUsed).toEqual([]);
     expect(report.selectedChecks).toEqual(report.availableChecks);
     expect(report.selectedCheckCount).toBe(report.selectedChecks.length);
+    expectSelectedCheckMetadata(report);
     expect(report.requestedChecks).toEqual([]);
     expect(report.requestedCheckCount).toBe(report.requestedChecks.length);
     expect(report.requestedCheckResolutions).toEqual([]);
@@ -797,6 +828,7 @@ describe("preflight aggregate report", () => {
     );
     expect(report.selectedChecks).toEqual(["devEnvironment", "client"]);
     expect(report.selectedCheckCount).toBe(2);
+    expectSelectedCheckMetadata(report);
     expect(report.requestedChecks).toEqual(["devEnvironment", "client"]);
     expect(report.requestedCheckCount).toBe(2);
     expect(report.requestedCheckResolutions).toEqual([
@@ -2430,6 +2462,7 @@ describe("preflight aggregate report", () => {
     expect(report.specialSelectorsUsed).toEqual(expectedUsedLibrariesSpecialSelector);
     expect(report.selectedChecks).toEqual(["tsCore", "runtimeLibraries"]);
     expect(report.selectedCheckCount).toBe(2);
+    expectSelectedCheckMetadata(report);
     expect(report.requestedChecks).toEqual(["libraries"]);
     expect(report.requestedCheckCount).toBe(1);
     expect(report.requestedCheckResolutions).toEqual([
@@ -2491,6 +2524,7 @@ describe("preflight aggregate report", () => {
     expect(report.specialSelectorsUsed).toEqual(expectedUsedLibrariesSpecialSelector);
     expect(report.selectedChecks).toEqual(["tsCore", "runtimeLibraries"]);
     expect(report.selectedCheckCount).toBe(2);
+    expectSelectedCheckMetadata(report);
     expect(report.requestedChecks).toEqual(["libraries"]);
     expect(report.requestedCheckCount).toBe(1);
     expect(report.requestedCheckResolutions).toEqual([

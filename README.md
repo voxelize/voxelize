@@ -429,6 +429,7 @@ Aggregate preflight reports include `requestedChecks` so CI logs can capture the
 Aggregate preflight reports include `selectionMode` (`default` or `only`) to show whether selection came from defaults or an explicit `--only` filter.
 Aggregate preflight reports include `specialSelectorsUsed` to show which special selector names (for example `all`) were used in `--only`.
 Aggregate preflight reports include `selectedCheckCount`, `requestedCheckCount`, and `skippedCheckCount` for quick summary metrics.
+Aggregate preflight reports include `selectedCheckMetadata`, `selectedCheckScripts`, and `selectedCheckScriptCount` so automation can map selected checks directly to executable scripts.
 Aggregate preflight reports include `requestedCheckResolutions` to map each `--only` token to its resolved check, special selector, or invalid status.
 Aggregate preflight reports include `requestedCheckResolutionKinds` to enumerate supported resolution kinds for `requestedCheckResolutions`.
 Aggregate preflight reports include `listChecksOnly` to indicate metadata-only check listing mode (`--list-checks`) where no checks are executed.

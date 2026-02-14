@@ -436,6 +436,9 @@ if (
     positionalArgCount,
     selectedChecks: [],
     selectedCheckCount: 0,
+    selectedCheckMetadata: {},
+    selectedCheckScripts: [],
+    selectedCheckScriptCount: 0,
     requestedChecks,
     requestedCheckCount: requestedChecks.length,
     requestedCheckResolutions,
@@ -486,6 +489,16 @@ const selectedCheckSet = new Set(selectedChecks);
 const skippedChecks = availableCheckNames.filter((checkName) => {
   return !selectedCheckSet.has(checkName);
 });
+const selectedCheckMetadata = Object.fromEntries(
+  selectedChecks.map((checkName) => {
+    const metadata = availableCheckMetadata[checkName];
+    return [checkName, metadata];
+  })
+);
+const selectedCheckScripts = selectedChecks.map((checkName) => {
+  return availableCheckMetadata[checkName].scriptName;
+});
+const selectedCheckScriptCount = selectedCheckScripts.length;
 
 if (isListChecks) {
   const invalidCheckCount = 0;
@@ -501,6 +514,9 @@ if (isListChecks) {
     positionalArgCount,
     selectedChecks,
     selectedCheckCount: selectedChecks.length,
+    selectedCheckMetadata,
+    selectedCheckScripts,
+    selectedCheckScriptCount,
     requestedChecks,
     requestedCheckCount: requestedChecks.length,
     requestedCheckResolutions,
@@ -583,6 +599,9 @@ const report = buildTimedReport({
   positionalArgCount,
   selectedChecks,
   selectedCheckCount: selectedChecks.length,
+  selectedCheckMetadata,
+  selectedCheckScripts,
+  selectedCheckScriptCount,
   requestedChecks,
   requestedCheckCount: requestedChecks.length,
   requestedCheckResolutions,
