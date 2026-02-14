@@ -154,6 +154,10 @@ const hasPendingBatchMessages = () =>
 const pendingBatchMessageCount = () =>
   pendingBatchMessages.length - pendingBatchMessagesHead;
 
+const isArrayBuffer = (
+  value: ArrayBuffer | null | undefined
+): value is ArrayBuffer => value instanceof ArrayBuffer;
+
 const isInteger = (value: number) => Number.isSafeInteger(value);
 const isPositiveInteger = (value: number) => isInteger(value) && value > 0;
 const isValidVoxelId = (value: number) =>
@@ -303,9 +307,15 @@ const deserializeChunkGrid = (
       chunkGrid[index] = null;
       continue;
     }
+    const voxelsBuffer = chunkData.voxels;
+    const lightsBuffer = chunkData.lights;
+    if (!isArrayBuffer(voxelsBuffer) || !isArrayBuffer(lightsBuffer)) {
+      chunkGrid[index] = null;
+      continue;
+    }
     if (
-      chunkData.voxels.byteLength !== expectedChunkByteLength ||
-      chunkData.lights.byteLength !== expectedChunkByteLength
+      voxelsBuffer.byteLength !== expectedChunkByteLength ||
+      lightsBuffer.byteLength !== expectedChunkByteLength
     ) {
       chunkGrid[index] = null;
       continue;
@@ -522,6 +532,10 @@ const serializeChunksData = (
     }
     const voxelsBuffer = chunkData.voxels;
     const lightsBuffer = chunkData.lights;
+    if (!isArrayBuffer(voxelsBuffer) || !isArrayBuffer(lightsBuffer)) {
+      serialized[index] = null;
+      continue;
+    }
     if (
       voxelsBuffer.byteLength !== expectedChunkByteLength ||
       lightsBuffer.byteLength !== expectedChunkByteLength
