@@ -151,6 +151,7 @@ const reusableBatchResultMessage = {
 const reusablePostMessageOptions: StructuredSerializeOptions = {
   transfer: emptyTransferList,
 };
+const MAX_ARRAY_LENGTH = 0xffffffff;
 
 const hasPendingBatchMessages = () =>
   pendingBatchMessagesHead < pendingBatchMessages.length;
@@ -1021,7 +1022,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
     return;
   }
   const cellCount = gridWidth * gridDepth;
-  if (!Number.isSafeInteger(cellCount) || cellCount > MAX_UINT32) {
+  if (!Number.isSafeInteger(cellCount) || cellCount > MAX_ARRAY_LENGTH) {
     postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
     return;
   }
