@@ -797,6 +797,28 @@ const applyRelevantDeltas = (
       continue;
     }
 
+    const deltasLength = deltas.length;
+    if (deltasLength === 0) {
+      continue;
+    }
+    for (let tailIndex = deltasLength - 1; tailIndex >= 0; tailIndex--) {
+      const tailDelta = deltas[tailIndex];
+      if (!tailDelta || typeof tailDelta !== "object") {
+        continue;
+      }
+      const chunkLastSequenceId = tailDelta.sequenceId;
+      if (!isInteger(chunkLastSequenceId)) {
+        continue;
+      }
+      if (chunkLastSequenceId > lastSequenceId) {
+        lastSequenceId = chunkLastSequenceId;
+      }
+      break;
+    }
+    if (startIndex >= deltasLength) {
+      continue;
+    }
+
     const chunk = chunkGrid[localX * gridDepth + localZ];
     if (!chunk) {
       continue;
@@ -815,28 +837,6 @@ const applyRelevantDeltas = (
     const voxelStrideY = voxelStride[1];
     const voxelStrideZ = voxelStride[2];
     const voxelOffset = voxelData.offset;
-
-    const deltasLength = deltas.length;
-    if (deltasLength > 0) {
-      for (let tailIndex = deltasLength - 1; tailIndex >= 0; tailIndex--) {
-        const tailDelta = deltas[tailIndex];
-        if (!tailDelta || typeof tailDelta !== "object") {
-          continue;
-        }
-        const chunkLastSequenceId = tailDelta.sequenceId;
-        if (!isInteger(chunkLastSequenceId)) {
-          continue;
-        }
-        if (chunkLastSequenceId > lastSequenceId) {
-          lastSequenceId = chunkLastSequenceId;
-        }
-        break;
-      }
-    }
-
-    if (startIndex >= deltasLength) {
-      continue;
-    }
 
     for (let deltaIndex = startIndex; deltaIndex < deltasLength; deltaIndex++) {
       const delta = deltas[deltaIndex];
