@@ -1,10 +1,12 @@
 import { VoxelAccess } from "./access";
+import { Y_ROT_SEGMENTS } from "./constants";
 import { BlockRotation } from "./rotation";
 import { BlockRule, BlockRuleLogic } from "./types";
 import { Vec3 } from "./vectors";
 
 const TWO_PI = Math.PI * 2.0;
 const ANGLE_EPSILON = 1e-12;
+const SEGMENT_ANGLE = TWO_PI / Y_ROT_SEGMENTS;
 
 const normalizeRuleYRotation = (rotation: number): number => {
   if (!Number.isFinite(rotation)) {
@@ -12,9 +14,31 @@ const normalizeRuleYRotation = (rotation: number): number => {
   }
 
   const wrappedRotation = ((rotation % TWO_PI) + TWO_PI) % TWO_PI;
+  const precisionEpsilon = Math.max(
+    ANGLE_EPSILON,
+    Math.abs(rotation) * Number.EPSILON * 4
+  );
+  const snappedSegment = Math.round(wrappedRotation / SEGMENT_ANGLE);
+  const snappedRotation = snappedSegment * SEGMENT_ANGLE;
+  const normalizedSnappedRotation =
+    ((snappedRotation % TWO_PI) + TWO_PI) % TWO_PI;
   if (
-    wrappedRotation <= ANGLE_EPSILON ||
-    Math.abs(wrappedRotation - TWO_PI) <= ANGLE_EPSILON
+    Math.abs(wrappedRotation - normalizedSnappedRotation) <=
+    precisionEpsilon
+  ) {
+    if (
+      normalizedSnappedRotation <= ANGLE_EPSILON ||
+      Math.abs(normalizedSnappedRotation - TWO_PI) <= ANGLE_EPSILON
+    ) {
+      return 0;
+    }
+
+    return normalizedSnappedRotation;
+  }
+
+  if (
+    wrappedRotation <= precisionEpsilon ||
+    Math.abs(wrappedRotation - TWO_PI) <= precisionEpsilon
   ) {
     return 0;
   }

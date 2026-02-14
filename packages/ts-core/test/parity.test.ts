@@ -1179,6 +1179,29 @@ describe("BlockRuleEvaluator", () => {
     expect(matched).toBe(true);
   });
 
+  it("normalizes large partial-turn y-rotations for y-rotatable offsets", () => {
+    const rule = {
+      type: "simple" as const,
+      offset: [1000, 0, 0] as [number, number, number],
+      id: 18,
+    };
+
+    const access = {
+      getVoxel: (x: number, y: number, z: number) =>
+        x === 0 && y === 0 && z === 1000 ? 18 : 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    const matched = BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access, {
+      rotation: BlockRotation.py(Math.PI / 2 + Math.PI * 2 * 1_000_000_000_000),
+      yRotatable: true,
+      worldSpace: false,
+    });
+
+    expect(matched).toBe(true);
+  });
+
   it("applies rotated offsets relative to non-origin positions", () => {
     const rule = {
       type: "simple" as const,
