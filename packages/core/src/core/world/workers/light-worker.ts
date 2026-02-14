@@ -345,7 +345,10 @@ const applyRelevantDeltas = (
     const deltasLength = deltas.length;
     if (deltasLength > 0) {
       const chunkLastSequenceId = deltas[deltasLength - 1].sequenceId;
-      if (chunkLastSequenceId > lastSequenceId) {
+      if (
+        isInteger(chunkLastSequenceId) &&
+        chunkLastSequenceId > lastSequenceId
+      ) {
         lastSequenceId = chunkLastSequenceId;
       }
     }
