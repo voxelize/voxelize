@@ -78,6 +78,10 @@ const deriveExampleFailureMessage = (exampleCheckResult) => {
   }
 
   if (exampleCheckResult.exampleRuleMatched !== true) {
+    if (exampleCheckResult.exampleOutputLine === null) {
+      return "TypeScript core end-to-end example produced no parseable JSON output.";
+    }
+
     return "TypeScript core end-to-end example output was invalid.";
   }
 
@@ -483,6 +487,7 @@ const withBaseReportFields = (report) => {
               exampleRuleMatched,
               examplePayloadValid,
               examplePayloadIssues,
+              exampleOutputLine,
             }),
           },
         ];

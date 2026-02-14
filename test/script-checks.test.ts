@@ -3057,6 +3057,7 @@ const deriveExpectedTsCoreExampleFailureMessage = (report: {
   exampleRuleMatched: boolean | null;
   examplePayloadValid: boolean | null;
   examplePayloadIssues: string[] | null;
+  exampleOutputLine: string | null;
 }) => {
   if (report.exampleExitCode !== 0) {
     return "TypeScript core end-to-end example failed.";
@@ -3079,6 +3080,10 @@ const deriveExpectedTsCoreExampleFailureMessage = (report: {
   }
 
   if (report.exampleRuleMatched !== true) {
+    if (report.exampleOutputLine === null) {
+      return "TypeScript core end-to-end example produced no parseable JSON output.";
+    }
+
     return "TypeScript core end-to-end example output was invalid.";
   }
 

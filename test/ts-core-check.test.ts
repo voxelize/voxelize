@@ -329,6 +329,7 @@ const deriveExpectedExampleFailureMessage = (report: {
   exampleRuleMatched: boolean | null;
   examplePayloadValid: boolean | null;
   examplePayloadIssues: string[] | null;
+  exampleOutputLine: string | null;
 }) => {
   if (report.exampleExitCode !== 0) {
     return "TypeScript core end-to-end example failed.";
@@ -351,6 +352,10 @@ const deriveExpectedExampleFailureMessage = (report: {
   }
 
   if (report.exampleRuleMatched !== true) {
+    if (report.exampleOutputLine === null) {
+      return "TypeScript core end-to-end example produced no parseable JSON output.";
+    }
+
     return "TypeScript core end-to-end example output was invalid.";
   }
 
@@ -1752,7 +1757,7 @@ process.exit(2);\n`,
         },
       ]);
       expect(report.message).toBe(
-        "TypeScript core build artifacts are available, but TypeScript core end-to-end example output was invalid."
+        "TypeScript core build artifacts are available, but TypeScript core end-to-end example produced no parseable JSON output."
       );
     });
   });
