@@ -88,7 +88,7 @@ impl EncodedMessageQueue {
     }
 
     pub fn process(&mut self) {
-        let all_pending: Vec<(Message, ClientFilter)> = self.pending.drain(..).collect();
+        let all_pending = std::mem::take(&mut self.pending);
         if all_pending.is_empty() {
             return;
         }
