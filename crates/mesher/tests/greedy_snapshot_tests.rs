@@ -876,3 +876,46 @@ fn greedy_legacy_parity_rotation_heavy_volume() {
 
     assert_greedy_parity(&space, &registry);
 }
+
+#[test]
+fn greedy_legacy_parity_transparency_fluid_boundary_volume() {
+    let registry = build_registry();
+    let mut space = TestSpace::new([12, 10, 12]);
+
+    for x in 0..12 {
+        for z in 0..12 {
+            space.set_voxel_id(x, 0, z, 1);
+
+            if (x + z) % 2 == 0 {
+                space.set_voxel_id(x, 1, z, 3);
+            } else {
+                space.set_voxel_id(x, 1, z, 2);
+            }
+
+            if (x + z) % 3 == 0 {
+                let stage = ((x * 5 + z * 7) % 8) as u32;
+                space.set_voxel_stage(x, 2, z, 4, stage);
+            }
+
+            if (x + z) % 4 == 0 {
+                space.set_voxel_id(x, 2, z, 6);
+            }
+
+            if (x + z) % 5 == 0 {
+                space.set_voxel_id(x, 3, z, 11);
+                if z < 11 {
+                    space.set_voxel_id(x, 4, z, 1);
+                }
+            }
+
+            if x > 0 && z > 0 && x < 11 && z < 11 && (x + z) % 6 == 0 {
+                space.set_voxel_id(x, 3, z, 10);
+            }
+
+            let wave = ((x * 11 + z * 13) % 16) as u32;
+            space.set_light(x, 6, z, wave, (wave + 3) & 0xF, (wave + 7) & 0xF, (wave + 11) & 0xF);
+        }
+    }
+
+    assert_greedy_parity(&space, &registry);
+}
