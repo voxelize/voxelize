@@ -645,6 +645,20 @@ const expectCheckResultScriptMetadata = (report: PreflightReport) => {
   expect(report.failedCheckMetadata).toEqual(expectedFailedMetadata);
   expect(report.failedCheckIndices).toEqual(expectedFailedIndices);
   expect(report.failedCheckIndexCount).toBe(report.failedCheckIndices.length);
+  expect(report.failureSummaryCount).toBe(report.failureSummaries.length);
+  expect(report.failureSummaries.map((entry) => entry.name).sort()).toEqual(
+    report.failedChecks.slice().sort()
+  );
+  for (const entry of report.failureSummaries) {
+    expect(entry.scriptName).toBe(
+      expectedAvailableCheckMetadata[
+        entry.name as keyof typeof expectedAvailableCheckMetadata
+      ].scriptName
+    );
+    expect(entry.checkIndex).toBe(expectedAvailableChecks.indexOf(entry.name));
+    expect(entry.exitCode).toBeGreaterThanOrEqual(1);
+    expect(entry.message.length).toBeGreaterThan(0);
+  }
 };
 const expectTsCoreNestedReport = (
   checkReport: object | null,
