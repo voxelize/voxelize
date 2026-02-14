@@ -145,6 +145,20 @@ const withBaseReportFields = (report) => {
   const missingArtifactCountByPackage = {
     [tsCorePackageName]: missingArtifacts.length,
   };
+  const packageReport = {
+    packageName: tsCorePackageName,
+    packagePath: tsCorePackagePath,
+    requiredArtifacts,
+    requiredArtifactCount: requiredArtifacts.length,
+    presentArtifacts,
+    presentArtifactCount,
+    missingArtifacts,
+    missingArtifactCount: missingArtifacts.length,
+    artifactsPresent,
+  };
+  const packageReportMap = {
+    [tsCorePackageName]: packageReport,
+  };
   const buildExitCode =
     typeof report.buildExitCode === "number" ? report.buildExitCode : null;
   const buildDurationMs =
@@ -197,6 +211,10 @@ const withBaseReportFields = (report) => {
     missingPackageIndexCount: missingPackageIndices.length,
     presentPackagePathCount,
     missingPackagePathCount,
+    packageReport,
+    packageReportCount: 1,
+    packageReportMap,
+    packageReportMapCount: countRecordEntries(packageReportMap),
     packagePath: tsCorePackagePath,
     requiredArtifacts,
     requiredArtifactCountByPackage,

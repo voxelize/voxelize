@@ -37,6 +37,33 @@ type TsCoreCheckReport = {
   missingPackageIndexCount: number;
   presentPackagePathCount: number;
   missingPackagePathCount: number;
+  packageReport: {
+    packageName: string;
+    packagePath: string;
+    requiredArtifacts: string[];
+    requiredArtifactCount: number;
+    presentArtifacts: string[];
+    presentArtifactCount: number;
+    missingArtifacts: string[];
+    missingArtifactCount: number;
+    artifactsPresent: boolean;
+  };
+  packageReportCount: number;
+  packageReportMap: Record<
+    string,
+    {
+      packageName: string;
+      packagePath: string;
+      requiredArtifacts: string[];
+      requiredArtifactCount: number;
+      presentArtifacts: string[];
+      presentArtifactCount: number;
+      missingArtifacts: string[];
+      missingArtifactCount: number;
+      artifactsPresent: boolean;
+    }
+  >;
+  packageReportMapCount: number;
   packagePath: string;
   requiredArtifacts: string[];
   requiredArtifactCountByPackage: Record<string, number>;
@@ -224,6 +251,25 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
   expect(report.checkedPackageIndexMap).toEqual({
     [report.checkedPackage]: report.checkedPackageIndices[0],
   });
+  const expectedPackageReport = {
+    packageName: report.checkedPackage,
+    packagePath: report.checkedPackagePath,
+    requiredArtifacts: report.requiredArtifacts,
+    requiredArtifactCount: report.requiredArtifactCount,
+    presentArtifacts: report.presentArtifacts,
+    presentArtifactCount: report.presentArtifactCount,
+    missingArtifacts: report.missingArtifacts,
+    missingArtifactCount: report.missingArtifactCount,
+    artifactsPresent: report.artifactsPresent,
+  };
+  expect(report.packageReport).toEqual(expectedPackageReport);
+  expect(report.packageReportCount).toBe(1);
+  expect(report.packageReportMap).toEqual({
+    [report.checkedPackage]: expectedPackageReport,
+  });
+  expect(report.packageReportMapCount).toBe(
+    Object.keys(report.packageReportMap).length
+  );
   expect(report.checkedPackagePathMap).toEqual({
     [report.checkedPackage]: report.checkedPackagePath,
   });
