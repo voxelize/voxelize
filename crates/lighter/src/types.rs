@@ -701,16 +701,14 @@ mod tests {
 
     #[test]
     fn recompute_flags_tracks_dynamic_torch_color_masks() {
-        let mut block = LightBlock {
-            id: 10,
-            is_transparent: [true, true, true, true, true, true],
-            is_opaque: false,
-            is_light: false,
-            light_reduce: false,
-            red_light_level: 0,
-            green_light_level: 0,
-            blue_light_level: 0,
-            dynamic_patterns: Some(vec![LightDynamicPattern {
+        let block = LightBlock::new(
+            10,
+            [true, true, true, true, true, true],
+            false,
+            0,
+            0,
+            0,
+            Some(vec![LightDynamicPattern {
                 parts: vec![LightConditionalPart {
                     rule: BlockRule::None,
                     red_light_level: None,
@@ -718,12 +716,7 @@ mod tests {
                     blue_light_level: None,
                 }],
             }]),
-            static_torch_mask: 0,
-            dynamic_torch_mask: 0,
-            has_uniform_transparency: true,
-        };
-
-        block.recompute_flags();
+        );
         assert!(!block.has_static_torch_color(&LightColor::Green));
         assert!(block.has_dynamic_torch_color(&LightColor::Green));
         assert!(!block.has_dynamic_torch_color(&LightColor::Red));
