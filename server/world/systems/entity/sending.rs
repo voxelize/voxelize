@@ -206,12 +206,13 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     Some(id) => id,
                     None => continue,
                 };
-
-                let client_known = bookkeeping
+                let client_id_key = client_id.clone();
+                let known_entities = bookkeeping
                     .client_known_entities
-                    .get(client_id)
-                    .map(|set| set.contains(entity_id))
-                    .unwrap_or(false);
+                    .entry(client_id_key.clone())
+                    .or_default();
+
+                let client_known = known_entities.contains(entity_id);
 
                 let operation = if !client_known {
                     EntityOperation::Create
@@ -222,7 +223,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 };
 
                 client_updates
-                    .entry(client_id.clone())
+                    .entry(client_id_key)
                     .or_default()
                     .push(EntityProtocol {
                         operation,
@@ -231,23 +232,17 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                         metadata: Some(metadata_str.clone()),
                     });
 
-                bookkeeping
-                    .client_known_entities
-                    .entry(client_id.clone())
-                    .or_default()
-                    .insert(entity_id.clone());
+                known_entities.insert(entity_id.clone());
             }
         }
 
         for (entity_id, etype, metadata_str) in &deleted_entities {
             for client_id in clients.keys() {
-                let client_knew = bookkeeping
-                    .client_known_entities
-                    .get(client_id)
-                    .map(|set| set.contains(entity_id))
-                    .unwrap_or(false);
-
-                if client_knew {
+                if let Some(known_entities) = bookkeeping.client_known_entities.get_mut(client_id)
+                {
+                    if !known_entities.contains(entity_id) {
+                        continue;
+                    }
                     client_updates
                         .entry(client_id.clone())
                         .or_default()
@@ -257,10 +252,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                             r#type: etype.clone(),
                             metadata: Some(metadata_str.clone()),
                         });
-
-                    if let Some(known) = bookkeeping.client_known_entities.get_mut(client_id) {
-                        known.remove(entity_id);
-                    }
+                    known_entities.remove(entity_id);
                 }
             }
         }
