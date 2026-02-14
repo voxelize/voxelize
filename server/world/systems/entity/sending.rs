@@ -166,15 +166,14 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             }
         }
 
-        let all_client_ids: Vec<String> = clients.keys().cloned().collect();
-
-        let entity_to_client_id: HashMap<Entity, String> = clients
-            .iter()
-            .map(|(client_id, client)| (client.entity, client_id.clone()))
-            .collect();
+        let mut entity_to_client_id: HashMap<Entity, String> =
+            HashMap::with_capacity(clients.len());
+        for (client_id, client) in clients.iter() {
+            entity_to_client_id.insert(client.entity, client_id.clone());
+        }
 
         let mut client_updates: HashMap<String, Vec<EntityProtocol>> =
-            HashMap::with_capacity(all_client_ids.len());
+            HashMap::with_capacity(clients.len());
 
         for (entity_id, (etype, metadata_str, is_new)) in &entity_metadata_map {
             let pos = entity_positions
@@ -222,7 +221,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         }
 
         for (entity_id, etype, metadata_str) in &deleted_entities {
-            for client_id in &all_client_ids {
+            for client_id in clients.keys() {
                 let client_knew = bookkeeping
                     .client_known_entities
                     .get(client_id)
