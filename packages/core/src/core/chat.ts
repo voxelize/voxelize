@@ -805,15 +805,15 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
   private hasDefault(schema: ZodTypeAny): boolean {
     const def = schema._def as {
-      defaultValue?: string | number | (() => string | number);
+      defaultValue?: string | number | boolean | (() => string | number | boolean);
     };
     return def.defaultValue !== undefined;
   }
 
-  private getDefaultValue(schema: ZodTypeAny): string | number | undefined {
+  private getDefaultValue(schema: ZodTypeAny): string | number | boolean | undefined {
     if (!this.hasDefault(schema)) return undefined;
     const def = schema._def as {
-      defaultValue?: string | number | (() => string | number);
+      defaultValue?: string | number | boolean | (() => string | number | boolean);
     };
     if (typeof def.defaultValue === "function") {
       return def.defaultValue();
@@ -840,7 +840,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       const zodType = shape[name];
       let innerType = zodType as ZodTypeAny;
       let required = true;
-      let defaultValue: string | number | undefined;
+      let defaultValue: string | number | boolean | undefined;
 
       if (this.hasDefault(innerType)) {
         required = false;
