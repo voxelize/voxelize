@@ -210,6 +210,8 @@ pnpm run check:preflight:list:ts-core:json
 pnpm run check:preflight:list:ts-core:verify:json
 pnpm run check:preflight:list:ts:json
 pnpm run check:preflight:list:ts:verify:json
+pnpm run check:preflight:list:typescript:json
+pnpm run check:preflight:list:typescript:verify:json
 pnpm run check:preflight:list:client:json
 # list-mode aliases for all checks
 pnpm run check:preflight:list:all:json
@@ -224,6 +226,8 @@ pnpm run check:preflight:list:ts-core:json:compact
 pnpm run check:preflight:list:ts-core:verify:json:compact
 pnpm run check:preflight:list:ts:json:compact
 pnpm run check:preflight:list:ts:verify:json:compact
+pnpm run check:preflight:list:typescript:json:compact
+pnpm run check:preflight:list:typescript:verify:json:compact
 pnpm run check:preflight:list:client:json:compact
 # compact list-mode aliases for all checks
 pnpm run check:preflight:list:all:json:compact
@@ -252,6 +256,8 @@ pnpm run check:preflight:dev:json
 pnpm run check:preflight:wasm:json
 pnpm run check:preflight:ts:json
 pnpm run check:preflight:ts:verify:json
+pnpm run check:preflight:typescript:json
+pnpm run check:preflight:typescript:verify:json
 # single client check without auto-build
 pnpm run check:preflight:client:verify:json
 # compact single-check aggregate reports
@@ -266,6 +272,8 @@ pnpm run check:preflight:dev:json:compact
 pnpm run check:preflight:wasm:json:compact
 pnpm run check:preflight:ts:json:compact
 pnpm run check:preflight:ts:verify:json:compact
+pnpm run check:preflight:typescript:json:compact
+pnpm run check:preflight:typescript:verify:json:compact
 # compact all-check aliases
 pnpm run check:preflight:all:json:compact
 pnpm run check:preflight:all:verify:json:compact

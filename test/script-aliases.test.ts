@@ -122,6 +122,18 @@ describe("script aliases", () => {
     expect(manifest.scripts["check:preflight:list:ts:verify:json:compact"]).toBe(
       "node ./check-preflight.mjs --list-checks --verify --only tsCore --compact"
     );
+    expect(manifest.scripts["check:preflight:list:typescript:json"]).toBe(
+      "node ./check-preflight.mjs --list-checks --only tsCore"
+    );
+    expect(manifest.scripts["check:preflight:list:typescript:verify:json"]).toBe(
+      "node ./check-preflight.mjs --list-checks --verify --only tsCore"
+    );
+    expect(manifest.scripts["check:preflight:list:typescript:json:compact"]).toBe(
+      "node ./check-preflight.mjs --list-checks --only tsCore --compact"
+    );
+    expect(
+      manifest.scripts["check:preflight:list:typescript:verify:json:compact"]
+    ).toBe("node ./check-preflight.mjs --list-checks --verify --only tsCore --compact");
     expect(manifest.scripts["check:preflight:list:client:json"]).toBe(
       "node ./check-preflight.mjs --list-checks --only client"
     );
@@ -218,6 +230,18 @@ describe("script aliases", () => {
       "node ./check-preflight.mjs --only tsCore --compact"
     );
     expect(manifest.scripts["check:preflight:ts:verify:json:compact"]).toBe(
+      "node ./check-preflight.mjs --verify --only tsCore --compact"
+    );
+    expect(manifest.scripts["check:preflight:typescript:json"]).toBe(
+      "node ./check-preflight.mjs --only tsCore"
+    );
+    expect(manifest.scripts["check:preflight:typescript:verify:json"]).toBe(
+      "node ./check-preflight.mjs --verify --only tsCore"
+    );
+    expect(manifest.scripts["check:preflight:typescript:json:compact"]).toBe(
+      "node ./check-preflight.mjs --only tsCore --compact"
+    );
+    expect(manifest.scripts["check:preflight:typescript:verify:json:compact"]).toBe(
       "node ./check-preflight.mjs --verify --only tsCore --compact"
     );
     expect(manifest.scripts["check:preflight:client:json:compact"]).toBe(
