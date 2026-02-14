@@ -635,35 +635,41 @@ fn build_neighbor_opaque_mask(neighbors: &NeighborCache, registry: &Registry) ->
     if let Some(dense) = &registry.dense_lookup {
         let blocks = &registry.blocks_by_id;
         let dense_len = dense.len();
-        for (idx, entry) in neighbors.data.iter().enumerate() {
-            let voxel_id = (entry[0] & 0xFFFF) as usize;
+        let mut idx = 0usize;
+        while idx < 27 {
+            let voxel_id = (neighbors.data[idx][0] & 0xFFFF) as usize;
             if voxel_id < dense_len {
                 let dense_index = dense[voxel_id];
                 mask[idx] = dense_index != usize::MAX && blocks[dense_index].1.is_opaque;
             }
+            idx += 1;
         }
         return mask;
     }
 
     if let Some(cache) = &registry.lookup_cache {
         let blocks = &registry.blocks_by_id;
-        for (idx, entry) in neighbors.data.iter().enumerate() {
-            let voxel_id = entry[0] & 0xFFFF;
+        let mut idx = 0usize;
+        while idx < 27 {
+            let voxel_id = neighbors.data[idx][0] & 0xFFFF;
             if let Some(&lookup_index) = cache.get(&voxel_id) {
                 mask[idx] = blocks[lookup_index].1.is_opaque;
             }
+            idx += 1;
         }
         return mask;
     }
 
-    for (idx, entry) in neighbors.data.iter().enumerate() {
-        let voxel_id = entry[0] & 0xFFFF;
+    let mut idx = 0usize;
+    while idx < 27 {
+        let voxel_id = neighbors.data[idx][0] & 0xFFFF;
         mask[idx] = registry
             .blocks_by_id
             .iter()
             .find(|(block_id, _)| *block_id == voxel_id)
             .map(|(_, block)| block.is_opaque)
             .unwrap_or(false);
+        idx += 1;
     }
     mask
 }
