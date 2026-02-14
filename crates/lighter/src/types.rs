@@ -683,7 +683,9 @@ impl LightRegistry {
         }
 
         if let Some(index) = self.air_index {
-            return &self.blocks_by_id[index].1;
+            if index < self.blocks_by_id.len() {
+                return &self.blocks_by_id[index].1;
+            }
         }
 
         &self.default_block
@@ -764,6 +766,17 @@ mod tests {
 
         assert_eq!(registry.get_block_by_id(99).id, 0);
         assert!(!registry.has_type(0));
+    }
+
+    #[test]
+    fn get_block_by_id_ignores_out_of_bounds_air_index() {
+        let mut solid = LightBlock::default_air();
+        solid.id = 1;
+
+        let mut registry = LightRegistry::new(vec![(1, solid)]);
+        registry.air_index = Some(99);
+
+        assert_eq!(registry.get_block_by_id(99).id, 0);
     }
 
     #[test]
