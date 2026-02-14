@@ -476,6 +476,9 @@ where
     if value.is_null() || value.is_undefined() {
         return Vec::new();
     }
+    if !value.is_object() {
+        return Vec::new();
+    }
 
     if let Some(array) = value.dyn_ref::<Array>() {
         let length = array.length() as usize;
