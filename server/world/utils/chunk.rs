@@ -70,3 +70,24 @@ impl ChunkUtils {
         (dx * dx + dz * dz) as f32
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::ChunkUtils;
+    use crate::{Vec2, Vec3};
+
+    #[test]
+    fn map_voxel_to_chunk_handles_zero_chunk_size() {
+        let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(5, 0, -3, 0);
+        assert_eq!(cx, 5);
+        assert_eq!(cz, -3);
+    }
+
+    #[test]
+    fn map_voxel_to_chunk_local_handles_zero_chunk_size() {
+        let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(5, 7, -3, 0);
+        assert_eq!(lx, 0);
+        assert_eq!(ly, 7);
+        assert_eq!(lz, 0);
+    }
+}
