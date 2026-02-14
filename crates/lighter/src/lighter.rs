@@ -18,6 +18,7 @@ pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
 const ALL_TRANSPARENT: [bool; 6] = [true, true, true, true, true, true];
 const SOURCE_FACE_BY_DIR: [usize; 6] = [0, 3, 2, 5, 1, 4];
 const TARGET_FACE_BY_DIR: [usize; 6] = [3, 0, 5, 2, 4, 1];
+const MAX_I64_USIZE: usize = i64::MAX as usize;
 
 #[inline]
 fn direction_to_index(dx: i32, dy: i32, dz: i32) -> usize {
@@ -171,8 +172,16 @@ fn flood_light_from_nodes(
     let bounds_xz = bounds.map(|limit| {
         let start_x = i64::from(limit.min[0]);
         let start_z = i64::from(limit.min[2]);
-        let shape_x = limit.shape[0].min(i64::MAX as usize) as i64;
-        let shape_z = limit.shape[2].min(i64::MAX as usize) as i64;
+        let shape_x = if limit.shape[0] > MAX_I64_USIZE {
+            i64::MAX
+        } else {
+            limit.shape[0] as i64
+        };
+        let shape_z = if limit.shape[2] > MAX_I64_USIZE {
+            i64::MAX
+        } else {
+            limit.shape[2] as i64
+        };
         let end_x = start_x.saturating_add(shape_x);
         let end_z = start_z.saturating_add(shape_z);
         (start_x, start_z, end_x, end_z)
