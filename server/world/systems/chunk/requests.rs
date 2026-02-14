@@ -56,8 +56,8 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                         continue;
                     }
 
-                    clients_to_send.insert(coords.clone());
                     interests.add(&id.0, &coords);
+                    clients_to_send.insert(coords);
                 } else {
                     if !interests.has_interests(&coords) {
                         for coords in chunks.light_traversed_chunks(&coords) {
