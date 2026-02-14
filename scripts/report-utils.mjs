@@ -333,6 +333,53 @@ export const extractWasmPackCheckSummaryFromReport = (report) => {
   };
 };
 
+export const extractWasmPackStatusFromReport = (report) => {
+  if (
+    report === null ||
+    typeof report !== "object" ||
+    Array.isArray(report)
+  ) {
+    return null;
+  }
+
+  if (typeof report.wasmPackCheckStatus === "string") {
+    return report.wasmPackCheckStatus;
+  }
+
+  const checkStatusMap =
+    report.checkStatusMap !== null &&
+    typeof report.checkStatusMap === "object" &&
+    !Array.isArray(report.checkStatusMap)
+      ? report.checkStatusMap
+      : null;
+  if (checkStatusMap === null) {
+    return null;
+  }
+
+  const wasmPackStatus = checkStatusMap["wasm-pack"];
+  return typeof wasmPackStatus === "string" ? wasmPackStatus : null;
+};
+
+export const deriveWasmPackCheckStatus = ({
+  wasmPackCheckExitCode,
+  wasmPackCheckReport,
+}) => {
+  const reportStatus = extractWasmPackStatusFromReport(wasmPackCheckReport);
+  if (reportStatus !== null) {
+    return reportStatus;
+  }
+
+  if (wasmPackCheckExitCode === null) {
+    return "skipped";
+  }
+
+  if (wasmPackCheckExitCode === 0) {
+    return "ok";
+  }
+
+  return "unavailable";
+};
+
 export const summarizeStepFailureResults = (steps) => {
   return steps
     .filter((step) => {

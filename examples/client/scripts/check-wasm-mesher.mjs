@@ -7,6 +7,7 @@ import { resolvePnpmCommand } from "../../../scripts/command-utils.mjs";
 import {
   createCliOptionCatalog,
   createCliDiagnostics,
+  deriveWasmPackCheckStatus,
   deriveCliValidationFailureMessage,
   createTimedReportBuilder,
   hasCliOption,
@@ -85,34 +86,6 @@ const validationFailureMessage = deriveCliValidationFailureMessage({
   outputPathError,
   unsupportedOptionsError,
 });
-const deriveWasmPackCheckStatus = ({
-  wasmPackCheckExitCode,
-  wasmPackCheckReport,
-}) => {
-  if (wasmPackCheckExitCode === null) {
-    return "skipped";
-  }
-
-  const reportStatus =
-    wasmPackCheckReport !== null &&
-    typeof wasmPackCheckReport === "object" &&
-    "checkStatusMap" in wasmPackCheckReport &&
-    wasmPackCheckReport.checkStatusMap !== null &&
-    typeof wasmPackCheckReport.checkStatusMap === "object" &&
-    "wasm-pack" in wasmPackCheckReport.checkStatusMap
-      ? wasmPackCheckReport.checkStatusMap["wasm-pack"]
-      : null;
-
-  if (typeof reportStatus === "string" && reportStatus.length > 0) {
-    return reportStatus;
-  }
-
-  if (wasmPackCheckExitCode === 0) {
-    return "ok";
-  }
-
-  return "unavailable";
-};
 
 if (isJson && validationFailureMessage !== null) {
   const report = buildTimedReport({

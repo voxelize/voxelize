@@ -11,9 +11,11 @@ import {
   createCliDiagnostics,
   createTimedReportBuilder,
   createCliOptionValidation,
+  deriveWasmPackCheckStatus,
   deriveCliValidationFailureMessage,
   deriveFailureMessageFromReport,
   extractWasmPackCheckSummaryFromReport,
+  extractWasmPackStatusFromReport,
   hasCliOption,
   parseActiveCliOptionMetadata,
   parseJsonOutput,
@@ -3154,5 +3156,53 @@ describe("report-utils", () => {
       wasmPackCheckExitCode: null,
       wasmPackCheckOutputLine: null,
     });
+  });
+
+  it("extracts wasm pack status from nested summary or check map reports", () => {
+    expect(
+      extractWasmPackStatusFromReport({
+        wasmPackCheckStatus: "missing",
+      })
+    ).toBe("missing");
+    expect(
+      extractWasmPackStatusFromReport({
+        checkStatusMap: {
+          "wasm-pack": "ok",
+        },
+      })
+    ).toBe("ok");
+    expect(extractWasmPackStatusFromReport({ checkStatusMap: {} })).toBeNull();
+    expect(extractWasmPackStatusFromReport(null)).toBeNull();
+  });
+
+  it("derives wasm pack status with report and exit-code fallbacks", () => {
+    expect(
+      deriveWasmPackCheckStatus({
+        wasmPackCheckExitCode: null,
+        wasmPackCheckReport: null,
+      })
+    ).toBe("skipped");
+    expect(
+      deriveWasmPackCheckStatus({
+        wasmPackCheckExitCode: 0,
+        wasmPackCheckReport: null,
+      })
+    ).toBe("ok");
+    expect(
+      deriveWasmPackCheckStatus({
+        wasmPackCheckExitCode: 1,
+        wasmPackCheckReport: null,
+      })
+    ).toBe("unavailable");
+    expect(
+      deriveWasmPackCheckStatus({
+        wasmPackCheckExitCode: 1,
+        wasmPackCheckReport: {
+          checkStatusMap: {
+            "wasm-pack": "missing",
+          },
+        },
+      })
+    ).toBe("missing");
   });
 });
