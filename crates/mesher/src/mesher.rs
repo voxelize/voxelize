@@ -791,9 +791,9 @@ impl<'a> VoxelSpace<'a> {
 
     #[inline]
     fn get_chunk(&self, coords: [i32; 2]) -> Option<&ChunkData> {
-        let dx_offset = coords[0] - self.center_coords[0] + 1;
-        let dz_offset = coords[1] - self.center_coords[1] + 1;
-        if dx_offset as u32 > 2 || dz_offset as u32 > 2 {
+        let dx_offset = (coords[0] - self.center_coords[0] + 1) as u32;
+        let dz_offset = (coords[1] - self.center_coords[1] + 1) as u32;
+        if dx_offset > 2 || dz_offset > 2 {
             return None;
         }
         let index = CHUNK_GRID_INDEX[dz_offset as usize][dx_offset as usize];
