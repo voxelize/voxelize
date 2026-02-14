@@ -371,7 +371,7 @@ impl Pipeline {
                         chunk.calculate_max_height(&registry);
 
                         if !chunk.extra_changes.is_empty() {
-                            changes.append(&mut chunk.extra_changes.drain(..).collect());
+                            changes.append(&mut chunk.extra_changes);
                         }
 
                         sender.send((chunk, changes)).unwrap();
