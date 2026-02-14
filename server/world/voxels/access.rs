@@ -51,6 +51,9 @@ pub trait VoxelAccess {
     }
 
     fn set_voxel_stage(&mut self, vx: i32, vy: i32, vz: i32, stage: u32) -> bool {
+        if stage > 15 {
+            return false;
+        }
         let raw = self.get_raw_voxel(vx, vy, vz);
         let value = BlockUtils::insert_stage(raw, stage);
         if value == raw {
