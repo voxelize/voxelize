@@ -269,7 +269,7 @@ impl KdTree {
     }
 
     pub fn search(&self, point: &Vec3<f32>, count: usize) -> Vec<(f32, &Entity)> {
-        if !is_finite_point(point) {
+        if count == 0 || !is_finite_point(point) {
             return Vec::new();
         }
         let results = self
@@ -288,7 +288,7 @@ impl KdTree {
         count: usize,
         is_player: bool,
     ) -> Vec<(f32, &Entity)> {
-        if !is_finite_point(point) {
+        if count == 0 || !is_finite_point(point) {
             return Vec::new();
         }
         let skip = if is_player { 1 } else { 0 };
@@ -308,7 +308,7 @@ impl KdTree {
         count: usize,
         is_entity: bool,
     ) -> Vec<(f32, &Entity)> {
-        if !is_finite_point(point) {
+        if count == 0 || !is_finite_point(point) {
             return Vec::new();
         }
         let skip = if is_entity { 1 } else { 0 };
