@@ -109,12 +109,24 @@ const summarizeCheckResult = ({
       passedCheckIndexCount: 0,
       passedCheckIndexMap: {},
       passedCheckIndexMapCount: 0,
+      passedCheckCommandMap: {},
+      passedCheckCommandMapCount: 0,
+      passedCheckArgsMap: {},
+      passedCheckArgsMapCount: 0,
+      passedCheckArgCountMap: {},
+      passedCheckArgCountMapCount: 0,
       failedChecks: [],
       failedCheckCount: 0,
       failedCheckIndices: [],
       failedCheckIndexCount: 0,
       failedCheckIndexMap: {},
       failedCheckIndexMapCount: 0,
+      failedCheckCommandMap: {},
+      failedCheckCommandMapCount: 0,
+      failedCheckArgsMap: {},
+      failedCheckArgsMapCount: 0,
+      failedCheckArgCountMap: {},
+      failedCheckArgCountMapCount: 0,
       failureSummaries: [],
       failureSummaryCount: 0,
     };
@@ -157,6 +169,24 @@ const summarizeCheckResult = ({
           ...checkIndexMap,
         }
       : {};
+  const passedCheckCommandMap =
+    status === "ok"
+      ? {
+          ...checkCommandMap,
+        }
+      : {};
+  const passedCheckArgsMap =
+    status === "ok"
+      ? {
+          ...checkArgsMap,
+        }
+      : {};
+  const passedCheckArgCountMap =
+    status === "ok"
+      ? {
+          ...checkArgCountMap,
+        }
+      : {};
   const failedChecks = status === "ok" ? [] : [checkName];
   const failedCheckIndices = status === "ok" ? [] : [...checkIndices];
   const failedCheckIndexMap =
@@ -164,6 +194,24 @@ const summarizeCheckResult = ({
       ? {}
       : {
           ...checkIndexMap,
+        };
+  const failedCheckCommandMap =
+    status === "ok"
+      ? {}
+      : {
+          ...checkCommandMap,
+        };
+  const failedCheckArgsMap =
+    status === "ok"
+      ? {}
+      : {
+          ...checkArgsMap,
+        };
+  const failedCheckArgCountMap =
+    status === "ok"
+      ? {}
+      : {
+          ...checkArgCountMap,
         };
   const failureSummaries =
     status === "ok"
@@ -174,6 +222,7 @@ const summarizeCheckResult = ({
             checkIndex: availableCheckIndexMap[checkName],
             command: wasmPackCommand,
             args: [...checkArgs],
+            argCount: checkArgs.length,
             exitCode,
             status,
             message,
@@ -209,12 +258,24 @@ const summarizeCheckResult = ({
     passedCheckIndexCount: passedCheckIndices.length,
     passedCheckIndexMap,
     passedCheckIndexMapCount: countRecordEntries(passedCheckIndexMap),
+    passedCheckCommandMap,
+    passedCheckCommandMapCount: countRecordEntries(passedCheckCommandMap),
+    passedCheckArgsMap,
+    passedCheckArgsMapCount: countRecordEntries(passedCheckArgsMap),
+    passedCheckArgCountMap,
+    passedCheckArgCountMapCount: countRecordEntries(passedCheckArgCountMap),
     failedChecks,
     failedCheckCount: failedChecks.length,
     failedCheckIndices,
     failedCheckIndexCount: failedCheckIndices.length,
     failedCheckIndexMap,
     failedCheckIndexMapCount: countRecordEntries(failedCheckIndexMap),
+    failedCheckCommandMap,
+    failedCheckCommandMapCount: countRecordEntries(failedCheckCommandMap),
+    failedCheckArgsMap,
+    failedCheckArgsMapCount: countRecordEntries(failedCheckArgsMap),
+    failedCheckArgCountMap,
+    failedCheckArgCountMapCount: countRecordEntries(failedCheckArgCountMap),
     failureSummaries,
     failureSummaryCount: failureSummaries.length,
   };
