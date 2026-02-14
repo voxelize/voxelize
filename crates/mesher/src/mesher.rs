@@ -3307,6 +3307,9 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
 
             let mut cached_non_greedy_block_id = u32::MAX;
             let mut cached_non_greedy_block: Option<&Block> = None;
+            let mut cached_non_greedy_voxel_key: Option<(i32, i32, i32, u32, bool, bool)> = None;
+            let mut cached_non_greedy_neighbors: Option<NeighborCache> = None;
+            let mut cached_non_greedy_face_cache: Option<FaceProcessCache> = None;
             for (
                 vx,
                 vy,
@@ -3357,20 +3360,37 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                 });
 
                 let skip_opaque_checks = is_see_through || block.is_all_transparent;
-                let neighbors =
-                    populate_neighbors_for_face_processing(vx, vy, vz, space, skip_opaque_checks);
-                let face_cache = build_face_process_cache(
-                    block,
-                    is_see_through,
-                    is_fluid,
-                    &neighbors,
-                    registry,
-                    vx,
-                    vy,
-                    vz,
-                    voxel_id,
-                    space,
-                );
+                let voxel_key = (vx, vy, vz, voxel_id, is_see_through, is_fluid);
+                if cached_non_greedy_voxel_key != Some(voxel_key) {
+                    let neighbors = populate_neighbors_for_face_processing(
+                        vx,
+                        vy,
+                        vz,
+                        space,
+                        skip_opaque_checks,
+                    );
+                    let face_cache = build_face_process_cache(
+                        block,
+                        is_see_through,
+                        is_fluid,
+                        &neighbors,
+                        registry,
+                        vx,
+                        vy,
+                        vz,
+                        voxel_id,
+                        space,
+                    );
+                    cached_non_greedy_voxel_key = Some(voxel_key);
+                    cached_non_greedy_neighbors = Some(neighbors);
+                    cached_non_greedy_face_cache = Some(face_cache);
+                }
+                let neighbors = cached_non_greedy_neighbors
+                    .as_ref()
+                    .expect("non-greedy neighbors cache must exist");
+                let face_cache = cached_non_greedy_face_cache
+                    .as_ref()
+                    .expect("non-greedy face cache must exist");
                 process_face(
                     vx,
                     vy,
@@ -3382,8 +3402,8 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     block,
                     registry,
                     space,
-                    &neighbors,
-                    &face_cache,
+                    neighbors,
+                    face_cache,
                     is_see_through,
                     is_fluid,
                     &mut geometry.positions,
