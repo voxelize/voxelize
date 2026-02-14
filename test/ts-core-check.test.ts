@@ -299,6 +299,87 @@ describe("check-ts-core script", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("keeps trailing output paths when no-build aliases appear between output flags", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "ts-core-check-last-output-strict-no-build-alias-")
+    );
+    const firstOutputPath = path.join(tempDirectory, "first-report.json");
+    const secondOutputPath = path.join(tempDirectory, "second-report.json");
+    const result = runScript([
+      "--json",
+      "--output",
+      firstOutputPath,
+      "--verify",
+      "--output",
+      secondOutputPath,
+    ]);
+    const report = parseReport(result);
+    const fileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as TsCoreCheckReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.outputPath).toBe(secondOutputPath);
+    expect(report.validationErrorCode).toBeNull();
+    expect(report.noBuild).toBe(true);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--json", "--no-build", "--output"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual([
+      "--json",
+      "--output",
+      "--verify",
+    ]);
+    expect(report.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+    ]);
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 1,
+      },
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+        index: 3,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 4,
+      },
+    ]);
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(fileReport).toEqual(report);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("reports output write failures with details", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "ts-core-check-output-write-failure-")
@@ -518,6 +599,90 @@ describe("check-ts-core script", () => {
     }
   });
 
+  it("does not activate no-build aliases after option terminator", () => {
+    const result = runScript(["--json", "--", "--verify", "--no-build"]);
+    const report = parseReport(result);
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.optionTerminatorUsed).toBe(true);
+    expect(report.positionalArgs).toEqual(["--verify", "--no-build"]);
+    expect(report.positionalArgCount).toBe(report.positionalArgs.length);
+    expect(report.noBuild).toBe(false);
+    expect(report.validationErrorCode).toBeNull();
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--json"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--json"]);
+    expect(report.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+    ]);
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
+  it("prioritizes strict output validation while surfacing inline misuse in json mode", () => {
+    const result = runScript(["--json", "--output", "--json=1", "--verify=1"]);
+    const report = parseReport(result);
+
+    expect(result.status).toBe(1);
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.noBuild).toBe(false);
+    expect(report.outputPath).toBeNull();
+    expect(report.unknownOptions).toEqual(["--json=<value>", "--no-build=<value>"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.activeCliOptions).toEqual(["--json", "--output"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--json", "--output"]);
+    expect(report.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 1,
+      },
+    ]);
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+  });
+
   it("reports only pre-terminator unsupported options", () => {
     const result = runScript([
       "--json",
@@ -621,6 +786,16 @@ describe("check-ts-core script", () => {
     expect(result.status).toBe(1);
     expect(result.output).toContain("Missing value for --output option.");
     expect(result.output).not.toContain("Unsupported option(s):");
+    expect(result.output).not.toContain("--verify=1");
+  });
+
+  it("prioritizes missing output values over inline misuse in non-json mode", () => {
+    const result = runScript(["--output", "--json=1", "--verify=1"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("Missing value for --output option.");
+    expect(result.output).not.toContain("Unsupported option(s):");
+    expect(result.output).not.toContain("--json=1");
     expect(result.output).not.toContain("--verify=1");
   });
 
