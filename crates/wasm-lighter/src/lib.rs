@@ -593,10 +593,24 @@ pub fn process_light_batch_fast(
     if removal_nodes.is_empty() && flood_nodes.is_empty() {
         return empty_batch_result();
     }
-    flood_nodes.retain_mut(|node| {
-        node.level = clamp_light_level(node.level, max_light_level);
-        node.level > 0
-    });
+    let flood_nodes_len = flood_nodes.len();
+    if flood_nodes_len > 0 {
+        let mut write_index = 0usize;
+        for read_index in 0..flood_nodes_len {
+            let mut node = flood_nodes[read_index];
+            node.level = clamp_light_level(node.level, max_light_level);
+            if node.level == 0 {
+                continue;
+            }
+            if write_index != read_index {
+                flood_nodes[write_index] = node;
+            } else {
+                flood_nodes[read_index] = node;
+            }
+            write_index += 1;
+        }
+        flood_nodes.truncate(write_index);
+    }
     if removal_nodes.is_empty() && flood_nodes.is_empty() {
         return empty_batch_result();
     }
