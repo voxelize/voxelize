@@ -34,6 +34,12 @@ fn normalized_visible_radius(radius: f32) -> (f32, f32) {
     (radius, radius_sq as f32)
 }
 
+#[inline]
+fn is_outside_visible_radius_sq(dx: f32, dy: f32, dz: f32, radius_sq: f32) -> bool {
+    let dist_sq = dx * dx + dy * dy + dz * dz;
+    !dist_sq.is_finite() || dist_sq > radius_sq
+}
+
 impl<'a> System<'a> for EntitiesSendingSystem {
     type SystemData = (
         Entities<'a>,
@@ -281,8 +287,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                             let dx = entity_pos.0 - client_pos.0;
                             let dy = entity_pos.1 - client_pos.1;
                             let dz = entity_pos.2 - client_pos.2;
-                            let dist_sq = dx * dx + dy * dy + dz * dz;
-                            dist_sq > entity_visible_radius_sq
+                            is_outside_visible_radius_sq(dx, dy, dz, entity_visible_radius_sq)
                         } else {
                             true
                         }
@@ -327,7 +332,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
 #[cfg(test)]
 mod tests {
-    use super::normalized_visible_radius;
+    use super::{is_outside_visible_radius_sq, normalized_visible_radius};
 
     #[test]
     fn normalized_visible_radius_handles_invalid_values() {
@@ -349,5 +354,12 @@ mod tests {
             normalized_visible_radius(f32::MAX),
             (f32::MAX, f32::MAX)
         );
+    }
+
+    #[test]
+    fn is_outside_visible_radius_sq_rejects_non_finite_distance() {
+        assert!(!is_outside_visible_radius_sq(1.0, 2.0, 2.0, 9.0));
+        assert!(is_outside_visible_radius_sq(4.0, 0.0, 0.0, 9.0));
+        assert!(is_outside_visible_radius_sq(f32::NAN, 0.0, 0.0, 9.0));
     }
 }
