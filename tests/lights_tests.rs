@@ -250,6 +250,43 @@ fn test_chunks_handles_zero_chunk_size_without_underflow() {
 }
 
 #[test]
+fn test_chunks_and_space_handle_large_world_max_height_without_i32_wrap() {
+    let config = WorldConfig {
+        chunk_size: 16,
+        max_height: i32::MAX as usize + 1024,
+        max_light_level: 15,
+        min_chunk: [0, 0],
+        max_chunk: [0, 0],
+        saving: false,
+        ..Default::default()
+    };
+    let mut chunks = Chunks::new(&config);
+    chunks.add(Chunk::new(
+        "chunk-0-0",
+        0,
+        0,
+        &ChunkOptions {
+            size: 16,
+            max_height: 16,
+            sub_chunks: 1,
+        },
+    ));
+
+    assert!(chunks.set_raw_voxel(0, 0, 0, 7));
+    assert_eq!(chunks.get_raw_voxel(0, 0, 0), 7);
+    assert!(chunks.contains(0, 0, 0));
+
+    let space = chunks
+        .make_space(&Vec2(0, 0), 1)
+        .needs_voxels()
+        .needs_lights()
+        .needs_height_maps()
+        .build();
+    assert_eq!(space.get_raw_voxel(0, 0, 0), 7);
+    assert!(space.contains(0, 0, 0));
+}
+
+#[test]
 fn test_space_get_raw_voxel_ignores_out_of_range_y() {
     let config = WorldConfig {
         chunk_size: 16,

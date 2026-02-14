@@ -73,6 +73,27 @@ pub struct Space {
     height_maps: HashMap<Vec2<i32>, Arc<Ndarray<u32>>>,
 }
 
+impl Space {
+    #[inline]
+    fn max_height_i32(&self) -> Option<i32> {
+        if self.options.max_height > i32::MAX as usize {
+            None
+        } else {
+            Some(self.options.max_height as i32)
+        }
+    }
+
+    #[inline]
+    fn is_y_above_world_height(&self, vy: i32) -> bool {
+        self.max_height_i32().is_some_and(|max_height| vy >= max_height)
+    }
+
+    #[inline]
+    fn is_y_out_of_world_height(&self, vy: i32) -> bool {
+        vy < 0 || self.is_y_above_world_height(vy)
+    }
+}
+
 /// A data structure to build a space.
 pub struct SpaceBuilder<'a> {
     pub chunks: &'a Chunks,
@@ -230,7 +251,7 @@ impl VoxelAccess for Space {
         if self.voxels.is_empty() {
             panic!("Space does not contain voxel data.");
         }
-        if vy < 0 || vy >= self.options.max_height as i32 {
+        if self.is_y_out_of_world_height(vy) {
             return 0;
         }
 
@@ -278,7 +299,7 @@ impl VoxelAccess for Space {
             panic!("Space does not contain light data.");
         }
 
-        if vy >= self.options.max_height as i32 {
+        if self.is_y_above_world_height(vy) {
             return LightUtils::insert_sunlight(0, self.options.max_light_level);
         } else if vy < 0 {
             return 0;
@@ -305,7 +326,7 @@ impl VoxelAccess for Space {
             panic!("Space does not contain light data.");
         }
 
-        if vy < 0 || vy >= self.options.max_height as i32 {
+        if self.is_y_out_of_world_height(vy) {
             return false;
         }
 
@@ -346,7 +367,7 @@ impl VoxelAccess for Space {
         if vy < 0 {
             return 0;
         }
-        if vy >= self.options.max_height as i32 {
+        if self.is_y_above_world_height(vy) {
             return self.options.max_light_level;
         }
 
@@ -387,7 +408,7 @@ impl VoxelAccess for Space {
 
     /// Check if space contains this coordinate
     fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
-        if vy < 0 || vy >= self.options.max_height as i32 {
+        if self.is_y_out_of_world_height(vy) {
             return false;
         }
         let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, self.options.chunk_size);

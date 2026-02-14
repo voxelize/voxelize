@@ -521,8 +521,27 @@ impl Chunks {
         }
     }
 
+    #[inline]
+    fn max_height_i32(&self) -> Option<i32> {
+        if self.config.max_height > i32::MAX as usize {
+            None
+        } else {
+            Some(self.config.max_height as i32)
+        }
+    }
+
+    #[inline]
+    fn is_y_above_world_height(&self, vy: i32) -> bool {
+        self.max_height_i32().is_some_and(|max_height| vy >= max_height)
+    }
+
+    #[inline]
+    fn is_y_out_of_world_height(&self, vy: i32) -> bool {
+        vy < 0 || self.is_y_above_world_height(vy)
+    }
+
     fn add_updated_level_at(&mut self, vx: i32, vy: i32, vz: i32) {
-        if vy < 0 || vy >= self.config.max_height as i32 {
+        if self.is_y_out_of_world_height(vy) {
             return;
         }
         let chunk_size = self.config.chunk_size.max(1);
@@ -576,7 +595,7 @@ impl Chunks {
 impl VoxelAccess for Chunks {
     /// Get the raw voxel value at a voxel coordinate. If chunk not found, 0 is returned.
     fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        if vy < 0 || vy >= self.config.max_height as i32 {
+        if self.is_y_out_of_world_height(vy) {
             return 0;
         }
         let chunk_size = self.config.chunk_size;
@@ -594,7 +613,7 @@ impl VoxelAccess for Chunks {
 
     /// Set the raw voxel value at a voxel coordinate. Returns false couldn't set.
     fn set_raw_voxel(&mut self, vx: i32, vy: i32, vz: i32, id: u32) -> bool {
-        if vy < 0 || vy >= self.config.max_height as i32 {
+        if self.is_y_out_of_world_height(vy) {
             return false;
         }
         let chunk_size = self.config.chunk_size;
@@ -624,7 +643,7 @@ impl VoxelAccess for Chunks {
 
     /// Get the raw light value at a voxel coordinate. If chunk not found, 0 is returned.
     fn get_raw_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        if vy >= self.config.max_height as i32 {
+        if self.is_y_above_world_height(vy) {
             return LightUtils::insert_sunlight(0, self.config.max_light_level);
         }
         if vy < 0 {
@@ -645,7 +664,7 @@ impl VoxelAccess for Chunks {
 
     /// Set the raw light level at a voxel coordinate. Returns false couldn't set.
     fn set_raw_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
-        if vy < 0 || vy >= self.config.max_height as i32 {
+        if self.is_y_out_of_world_height(vy) {
             return false;
         }
         let chunk_size = self.config.chunk_size;
@@ -672,7 +691,7 @@ impl VoxelAccess for Chunks {
 
     /// Get the sunlight level at a voxel position. Returns 0 if chunk does not exist.
     fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        if vy >= self.config.max_height as i32 {
+        if self.is_y_above_world_height(vy) {
             return self.config.max_light_level;
         }
         if vy < 0 {
@@ -727,7 +746,7 @@ impl VoxelAccess for Chunks {
     }
 
     fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
-        if vy < 0 || vy >= self.config.max_height as i32 {
+        if self.is_y_out_of_world_height(vy) {
             return false;
         }
 
