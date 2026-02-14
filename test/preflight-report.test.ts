@@ -642,6 +642,18 @@ describe("preflight aggregate report", () => {
     expect(report.checks.map((check) => check.name)).toEqual(
       expectedAvailableChecks
     );
+    const tsCoreCheck = report.checks.find((check) => check.name === "tsCore");
+    expect(tsCoreCheck).toBeDefined();
+    if (tsCoreCheck !== undefined) {
+      expectTsCoreNestedReport(tsCoreCheck.report, true);
+    }
+    const runtimeLibrariesCheck = report.checks.find((check) => {
+      return check.name === "runtimeLibraries";
+    });
+    expect(runtimeLibrariesCheck).toBeDefined();
+    if (runtimeLibrariesCheck !== undefined) {
+      expectRuntimeLibrariesNestedReport(runtimeLibrariesCheck.report, true);
+    }
     for (const check of report.checks) {
       expect(check.durationMs).toBeGreaterThanOrEqual(0);
     }
