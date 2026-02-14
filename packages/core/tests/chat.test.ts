@@ -202,6 +202,12 @@ describe("Chat command registration", () => {
 
       expect(executions).toBe(2);
       expect(warnSpy).toHaveBeenCalledTimes(2);
+      expect(chat.getAllCommands()).toEqual([
+        expect.objectContaining({
+          trigger: "echo",
+          aliases: ["good"],
+        }),
+      ]);
     } finally {
       warnSpy.mockRestore();
     }

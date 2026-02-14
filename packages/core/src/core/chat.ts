@@ -628,11 +628,12 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       throw new Error("Command trigger must be one word.");
     }
 
+    const aliases = options.aliases || [];
     const commandInfo: CommandInfo<T> = {
       process,
       description: options.description,
       category: options.category,
-      aliases: options.aliases || [],
+      aliases: [],
       flags: options.flags || [],
       args: (options.args ?? Chat.emptySchema) as T,
       tabComplete:
@@ -644,8 +645,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       commandInfo as CommandInfo<ZodObject<Record<string, ZodTypeAny>>>
     );
 
-    for (let aliasIndex = 0; aliasIndex < commandInfo.aliases.length; aliasIndex++) {
-      const alias = commandInfo.aliases[aliasIndex];
+    for (let aliasIndex = 0; aliasIndex < aliases.length; aliasIndex++) {
+      const alias = aliases[aliasIndex];
       if (alias.length === 0 || containsWhitespace(alias)) {
         console.warn(
           `Command alias for "${trigger}", "${alias}" ignored as invalid.`
@@ -663,6 +664,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         alias,
         commandInfo as CommandInfo<ZodObject<Record<string, ZodTypeAny>>>
       );
+      commandInfo.aliases.push(alias);
     }
 
     return () => {
