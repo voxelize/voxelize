@@ -173,6 +173,7 @@ type PreflightReport = {
   requestedChecks: string[];
   requestedCheckCount: number;
   requestedCheckResolutions: RequestedCheckResolution[];
+  requestedCheckResolutionCount: number;
   requestedCheckResolutionCounts: {
     check: number;
     specialSelector: number;
@@ -947,6 +948,14 @@ const expectSelectorAndAliasMetadata = (report: PreflightReport) => {
   expect(report.requestedCheckResolutionKindCount).toBe(
     report.requestedCheckResolutionKinds.length
   );
+  expect(report.requestedCheckResolutionCount).toBe(
+    report.requestedCheckResolutions.length
+  );
+  expect(
+    report.requestedCheckResolutionCounts.check +
+      report.requestedCheckResolutionCounts.specialSelector +
+      report.requestedCheckResolutionCounts.invalid
+  ).toBe(report.requestedCheckResolutionCount);
 };
 const expectTsCoreNestedReport = (
   checkReport: object | null,

@@ -215,7 +215,8 @@ and `missingArtifacts` for package-level artifact diagnostics.
 For release automation and CI routing, aggregate preflight JSON reports include:
 
 - check-selection diagnostics: `selectionMode`, `requestedChecks`,
-  `requestedCheckResolutions`, `requestedCheckResolutionCounts`,
+  `requestedCheckResolutions`, `requestedCheckResolutionCount`,
+  `requestedCheckResolutionCounts`,
   `requestedCheckResolutionKinds`, `requestedCheckResolutionKindCount`,
   `requestedCheckResolvedChecks`, `requestedCheckResolvedScripts`,
   `requestedCheckResolvedScriptMap`,
