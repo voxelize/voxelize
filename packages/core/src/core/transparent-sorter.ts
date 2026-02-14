@@ -39,6 +39,25 @@ export interface TransparentMeshData {
 }
 
 const CAMERA_MOVE_THRESHOLD_SQ = 0.25;
+const hasTransparentMaterial = (mesh: Mesh) => {
+  const material = mesh.material;
+  if (Array.isArray(material)) {
+    const materialCount = material.length;
+    if (materialCount === 1) {
+      const firstMaterial = material[0];
+      return !!firstMaterial && firstMaterial.transparent;
+    }
+    for (let materialIndex = 0; materialIndex < materialCount; materialIndex++) {
+      const materialEntry = material[materialIndex];
+      if (materialEntry && materialEntry.transparent) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  return !!material && material.transparent;
+};
 
 export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
   const geometry = mesh.geometry;
@@ -179,27 +198,7 @@ export function setupTransparentSorting(object: Object3D): void {
       continue;
     }
 
-    const material = child.material;
-    let isTransparent = false;
-    if (Array.isArray(material)) {
-      const materialCount = material.length;
-      if (materialCount === 1) {
-        const firstMaterial = material[0];
-        isTransparent = !!firstMaterial && firstMaterial.transparent;
-      } else {
-        for (let materialIndex = 0; materialIndex < materialCount; materialIndex++) {
-          const materialEntry = material[materialIndex];
-          if (materialEntry && materialEntry.transparent) {
-            isTransparent = true;
-            break;
-          }
-        }
-      }
-    } else if (material && material.transparent) {
-      isTransparent = material.transparent;
-    }
-
-    if (!isTransparent) {
+    if (!hasTransparentMaterial(child)) {
       clearTransparentSortState(child);
       continue;
     }
@@ -359,6 +358,13 @@ export function sortTransparentMeshOnBeforeRender(
     | TransparentMeshData
     | undefined;
   if (!sortData) {
+    return;
+  }
+  if (
+    mesh.onBeforeRender === sortTransparentMeshOnBeforeRender &&
+    !hasTransparentMaterial(mesh)
+  ) {
+    clearTransparentSortState(mesh);
     return;
   }
   const geometry = mesh.geometry;

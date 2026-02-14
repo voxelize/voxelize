@@ -644,4 +644,24 @@ describe("transparent sorter", () => {
     expect(mesh.userData.transparentSortData).toBeUndefined();
     expect(mesh.onBeforeRender).toBe(Object3D.prototype.onBeforeRender);
   });
+
+  it("clears stale sort state when material becomes opaque at render-time", () => {
+    const mesh = new Mesh(createQuadGeometry(2), new MeshBasicMaterial({ transparent: true }));
+    setupTransparentSorting(mesh);
+    expect(mesh.userData.transparentSortData).toBeDefined();
+    expect(mesh.onBeforeRender).toBe(sortTransparentMeshOnBeforeRender);
+
+    mesh.material = new MeshBasicMaterial({ transparent: false });
+    const camera = new PerspectiveCamera();
+    camera.position.set(0, 0, 10);
+    sortTransparentMeshOnBeforeRender.call(
+      mesh,
+      {} as WebGLRenderer,
+      new Scene(),
+      camera
+    );
+
+    expect(mesh.userData.transparentSortData).toBeUndefined();
+    expect(mesh.onBeforeRender).toBe(Object3D.prototype.onBeforeRender);
+  });
 });
