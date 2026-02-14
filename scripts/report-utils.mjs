@@ -524,11 +524,17 @@ export const summarizeTsCoreExampleOutput = (output) => {
     isNumberVec3(rotatedAabbValue.min) &&
     "max" in rotatedAabbValue &&
     isNumberVec3(rotatedAabbValue.max);
+  const rotatedAabbBoundsOrdered =
+    rotatedAabbValid &&
+    rotatedAabbValue.min.every((minValue, index) => {
+      return minValue <= rotatedAabbValue.max[index];
+    });
   const examplePayloadValid =
     exampleRuleMatched !== null &&
     voxelValid &&
     lightValid &&
-    rotatedAabbValid;
+    rotatedAabbValid &&
+    rotatedAabbBoundsOrdered;
   const exampleOutputLine =
     typeof exampleRuleMatched === "boolean"
       ? `ruleMatched=${exampleRuleMatched ? "true" : "false"}`
