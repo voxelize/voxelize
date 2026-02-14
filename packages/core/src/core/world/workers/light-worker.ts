@@ -801,6 +801,14 @@ const applyRelevantDeltas = (
     if (deltasLength === 0) {
       continue;
     }
+    if (startIndex >= deltasLength) {
+      continue;
+    }
+
+    const chunk = chunkGrid[localX * gridDepth + localZ];
+    if (!chunk) {
+      continue;
+    }
     for (let tailIndex = deltasLength - 1; tailIndex >= 0; tailIndex--) {
       const tailDelta = deltas[tailIndex];
       if (!tailDelta || typeof tailDelta !== "object") {
@@ -814,14 +822,6 @@ const applyRelevantDeltas = (
         lastSequenceId = chunkLastSequenceId;
       }
       break;
-    }
-    if (startIndex >= deltasLength) {
-      continue;
-    }
-
-    const chunk = chunkGrid[localX * gridDepth + localZ];
-    if (!chunk) {
-      continue;
     }
     const chunkMin = chunk.min;
     const chunkMinX = chunkMin[0];
