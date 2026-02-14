@@ -773,30 +773,30 @@ const deserializeChunkGrid = (
   const cellCount = gridWidth * gridDepth;
   chunkGrid.length = cellCount;
   let hasAnyChunk = false;
-
-  for (let index = 0; index < cellCount; index++) {
-    const localX = Math.floor(index / gridDepth);
-    const localZ = index - localX * gridDepth;
+  let index = 0;
+  for (let localX = 0; localX < gridWidth; localX++) {
     const expectedChunkX = gridOffsetX + localX;
-    const expectedChunkZ = gridOffsetZ + localZ;
-    const chunkData = chunksData[index];
-    if (
-      !isCompatibleSerializedChunk(
-        chunkData,
-        expectedChunkX,
-        expectedChunkZ,
-        expectedChunkSize,
-        expectedMaxHeight,
-        expectedMaxLightLevel,
-        expectedChunkByteLength
-      )
-    ) {
-      chunkGrid[index] = null;
-      continue;
-    }
+    for (let localZ = 0; localZ < gridDepth; localZ++, index++) {
+      const expectedChunkZ = gridOffsetZ + localZ;
+      const chunkData = chunksData[index];
+      if (
+        !isCompatibleSerializedChunk(
+          chunkData,
+          expectedChunkX,
+          expectedChunkZ,
+          expectedChunkSize,
+          expectedMaxHeight,
+          expectedMaxLightLevel,
+          expectedChunkByteLength
+        )
+      ) {
+        chunkGrid[index] = null;
+        continue;
+      }
 
-    hasAnyChunk = true;
-    chunkGrid[index] = RawChunk.deserialize(chunkData);
+      hasAnyChunk = true;
+      chunkGrid[index] = RawChunk.deserialize(chunkData);
+    }
   }
 
   return hasAnyChunk;
@@ -976,33 +976,33 @@ const serializeChunksData = (
   const cellCount = gridWidth * gridDepth;
   serialized.length = cellCount;
   let hasAnyChunk = false;
-
-  for (let index = 0; index < cellCount; index++) {
-    const localX = Math.floor(index / gridDepth);
-    const localZ = index - localX * gridDepth;
+  let index = 0;
+  for (let localX = 0; localX < gridWidth; localX++) {
     const expectedChunkX = gridOffsetX + localX;
-    const expectedChunkZ = gridOffsetZ + localZ;
-    const chunkData = chunksData[index];
-    if (
-      !isCompatibleSerializedChunk(
-        chunkData,
-        expectedChunkX,
-        expectedChunkZ,
-        expectedChunkSize,
-        expectedMaxHeight,
-        expectedMaxLightLevel,
-        expectedChunkByteLength
-      )
-    ) {
-      serialized[index] = null;
-      continue;
-    }
+    for (let localZ = 0; localZ < gridDepth; localZ++, index++) {
+      const expectedChunkZ = gridOffsetZ + localZ;
+      const chunkData = chunksData[index];
+      if (
+        !isCompatibleSerializedChunk(
+          chunkData,
+          expectedChunkX,
+          expectedChunkZ,
+          expectedChunkSize,
+          expectedMaxHeight,
+          expectedMaxLightLevel,
+          expectedChunkByteLength
+        )
+      ) {
+        serialized[index] = null;
+        continue;
+      }
 
-    hasAnyChunk = true;
-    serialized[index] = {
-      voxels: new Uint32Array(chunkData.voxels),
-      lights: new Uint32Array(chunkData.lights),
-    };
+      hasAnyChunk = true;
+      serialized[index] = {
+        voxels: new Uint32Array(chunkData.voxels),
+        lights: new Uint32Array(chunkData.lights),
+      };
+    }
   }
 
   return hasAnyChunk;
