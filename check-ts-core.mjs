@@ -110,6 +110,14 @@ const withBaseReportFields = (report) => {
   const presentArtifacts = requiredArtifacts.filter((artifactPath) => {
     return !missingArtifactSet.has(artifactPath);
   });
+  const artifactsPresent =
+    typeof report.artifactsPresent === "boolean"
+      ? report.artifactsPresent
+      : missingArtifacts.length === 0;
+  const presentPackages = artifactsPresent ? [tsCorePackageName] : [];
+  const missingPackages = artifactsPresent ? [] : [tsCorePackageName];
+  const presentPackagePaths = artifactsPresent ? [tsCorePackagePath] : [];
+  const missingPackagePaths = artifactsPresent ? [] : [tsCorePackagePath];
   const presentArtifactCount = requiredArtifacts.length - missingArtifacts.length;
   const buildExitCode =
     typeof report.buildExitCode === "number" ? report.buildExitCode : null;
@@ -144,6 +152,13 @@ const withBaseReportFields = (report) => {
     checkedPackageCount: 1,
     checkedPackagePath: tsCorePackagePath,
     checkedPackagePathCount: 1,
+    presentPackages,
+    missingPackages,
+    presentPackagePaths,
+    missingPackagePaths,
+    requiredPackageCount: 1,
+    presentPackageCount: presentPackages.length,
+    missingPackageCount: missingPackages.length,
     packagePath: tsCorePackagePath,
     requiredArtifacts,
     requiredArtifactCount: requiredArtifacts.length,

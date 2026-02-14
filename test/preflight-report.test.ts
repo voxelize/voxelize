@@ -20,6 +20,13 @@ type TsCoreNestedReport = {
   checkedPackageCount: number;
   checkedPackagePath: string;
   checkedPackagePathCount: number;
+  presentPackages: string[];
+  missingPackages: string[];
+  presentPackagePaths: string[];
+  missingPackagePaths: string[];
+  requiredPackageCount: number;
+  presentPackageCount: number;
+  missingPackageCount: number;
   packagePath: string;
   requiredArtifacts: string[];
   requiredArtifactCount: number;
@@ -439,6 +446,20 @@ const expectTsCoreNestedReport = (
   expect(report.checkedPackageCount).toBe(1);
   expect(report.checkedPackagePath).toBe("packages/ts-core");
   expect(report.checkedPackagePathCount).toBe(1);
+  expect(report.requiredPackageCount).toBe(1);
+  expect(report.presentPackageCount + report.missingPackageCount).toBe(
+    report.requiredPackageCount
+  );
+  expect(report.presentPackages.length).toBe(report.presentPackageCount);
+  expect(report.missingPackages.length).toBe(report.missingPackageCount);
+  expect(report.presentPackagePaths.length).toBe(report.presentPackageCount);
+  expect(report.missingPackagePaths.length).toBe(report.missingPackageCount);
+  expect([...report.presentPackages, ...report.missingPackages]).toEqual([
+    report.checkedPackage,
+  ]);
+  expect([...report.presentPackagePaths, ...report.missingPackagePaths]).toEqual([
+    report.checkedPackagePath,
+  ]);
   expect(report.packagePath).toBe("packages/ts-core");
   expect(report.requiredArtifacts).toEqual(expectedTsCoreRequiredArtifacts);
   expect(report.artifactsPresent).toBe(report.missingArtifacts.length === 0);

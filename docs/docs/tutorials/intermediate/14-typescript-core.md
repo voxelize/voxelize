@@ -155,10 +155,12 @@ The checker validates:
 Use `--output <path>` for machine-readable report files in CI.
 The JSON report includes artifact/build diagnostics such as `checkedPackage`,
 `checkedPackageCount`, `checkedPackagePath`, `checkedPackagePathCount`,
-`requiredArtifacts`, `presentArtifacts`, `missingArtifacts`,
-`requiredArtifactCount`, `presentArtifactCount`, `missingArtifactCount`,
-`buildCommand`, `buildArgs`, `buildExitCode`, `buildDurationMs`,
-`attemptedBuild`, `buildSkipped`, and
+`presentPackages`, `missingPackages`, `presentPackagePaths`,
+`missingPackagePaths`, `requiredPackageCount`, `presentPackageCount`,
+`missingPackageCount`, `requiredArtifacts`, `presentArtifacts`,
+`missingArtifacts`, `requiredArtifactCount`, `presentArtifactCount`,
+`missingArtifactCount`, `buildCommand`, `buildArgs`, `buildExitCode`,
+`buildDurationMs`, `attemptedBuild`, `buildSkipped`, and
 `buildSkippedReason`.
 
 If your project also depends on runtime utility packages (`@voxelize/aabb`,
