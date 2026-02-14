@@ -1186,6 +1186,62 @@ console.log(
     });
   });
 
+  it("prioritizes non-zero example exit codes over otherwise valid payloads", () => {
+    runWithTemporarilyRewrittenPath(
+      exampleScriptRelativePath,
+      `console.log(
+  JSON.stringify({
+    voxel: { id: 42, stage: 7, rotation: { value: 0, yRotation: 2.356 } },
+    light: { sunlight: 15, red: 10, green: 5, blue: 3 },
+    rotatedAabb: { min: [0, 0, 0], max: [1, 1, 1] },
+    ruleMatched: true,
+  })
+);
+process.exit(2);\n`,
+      () => {
+        const result = runScript(["--json"]);
+        const report = parseReport(result);
+
+        expect(result.status).toBe(2);
+        expect(report.schemaVersion).toBe(1);
+        expect(report.passed).toBe(false);
+        expect(report.exitCode).toBe(2);
+        expect(report.validationErrorCode).toBeNull();
+        expect(report.artifactsPresent).toBe(true);
+        expect(report.missingArtifacts).toEqual([]);
+        expect(report.exampleAttempted).toBe(true);
+        expect(report.exampleStatus).toBe("failed");
+        expect(report.exampleExitCode).toBe(2);
+        expect(report.exampleRuleMatched).toBe(true);
+        expect(report.examplePayloadValid).toBe(true);
+        expect(report.examplePayloadIssues).toEqual([]);
+        expect(report.examplePayloadIssueCount).toBe(0);
+        expect(report.failureSummaryCount).toBe(1);
+        expect(report.failureSummaries).toEqual([
+          {
+            kind: "example",
+            packageName: report.checkedPackage,
+            packagePath: report.checkedPackagePath,
+            packageIndex: report.checkedPackageIndices[0],
+            checkCommand: process.execPath,
+            checkArgs: expectedExampleArgs,
+            checkArgCount: expectedExampleArgs.length,
+            exitCode: report.exampleExitCode,
+            ruleMatched: report.exampleRuleMatched,
+            payloadValid: report.examplePayloadValid,
+            payloadIssues: report.examplePayloadIssues,
+            payloadIssueCount: report.examplePayloadIssueCount,
+            outputLine: report.exampleOutputLine,
+            message: "TypeScript core end-to-end example failed.",
+          },
+        ]);
+        expect(report.message).toBe(
+          "TypeScript core build artifacts are available, but TypeScript core end-to-end example failed."
+        );
+      }
+    );
+  });
+
   it("fails when ts-core example exits successfully but reports rule mismatch", () => {
     runWithTemporarilyRewrittenPath(
       exampleScriptRelativePath,
