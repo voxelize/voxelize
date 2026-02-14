@@ -510,7 +510,13 @@ const processBatchMessage = (message: LightBatchMessage) => {
     return;
   }
 
-  if (lightOps.removals.length === 0 && lightOps.floods.length === 0) {
+  const removals = lightOps.removals;
+  const floods = lightOps.floods;
+  if (!Array.isArray(removals) || !Array.isArray(floods)) {
+    postEmptyBatchResult(jobId, lastRelevantSequenceId);
+    return;
+  }
+  if (removals.length === 0 && floods.length === 0) {
     postEmptyBatchResult(jobId, lastRelevantSequenceId);
     return;
   }
@@ -574,8 +580,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
     gridOffsetX,
     gridOffsetZ,
     colorToIndex(color),
-    lightOps.removals,
-    lightOps.floods,
+    removals,
+    floods,
     reusableBoundsMin,
     reusableBoundsShape,
     options.chunkSize,
