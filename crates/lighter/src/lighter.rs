@@ -86,6 +86,27 @@ fn block_at<'a>(
     registry.get_block_by_id(space.get_voxel(vx, vy, vz))
 }
 
+#[inline]
+fn block_emits_torch_at(
+    block: &LightBlock,
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    space: &dyn LightVoxelAccess,
+    color: &LightColor,
+) -> bool {
+    if !block.is_light
+        && block
+            .dynamic_patterns
+            .as_ref()
+            .is_none_or(|patterns| patterns.is_empty())
+    {
+        return false;
+    }
+
+    block.get_torch_light_level_at(&[vx, vy, vz], space, color) > 0
+}
+
 pub fn can_enter_into(target: &[bool; 6], dx: i32, dy: i32, dz: i32) -> bool {
     let index = direction_to_index(dx, dy, dz);
     can_enter_into_direction(target, index)
@@ -139,7 +160,7 @@ pub fn flood_light(
         let [vx, vy, vz] = voxel;
         let source_block = block_at(registry, space, vx, vy, vz);
         let source_transparency = if !is_sunlight
-            && source_block.get_torch_light_level_at(&voxel, space, color) > 0
+            && block_emits_torch_at(source_block, vx, vy, vz, space, color)
         {
             ALL_TRANSPARENT
         } else {
@@ -247,7 +268,7 @@ pub fn remove_light(
                 n_block.get_rotated_transparency(&space.get_voxel_rotation(nvx, nvy, nvz));
 
             if (is_sunlight
-                || n_block.get_torch_light_level_at(&[nvx, nvy, nvz], space, color) == 0)
+                || !block_emits_torch_at(n_block, nvx, nvy, nvz, space, color))
                 && !can_enter_into_direction(&n_transparency, direction_index)
             {
                 continue;
@@ -346,7 +367,7 @@ pub fn remove_lights<I>(
                 n_block.get_rotated_transparency(&space.get_voxel_rotation(nvx, nvy, nvz));
 
             if (is_sunlight
-                || n_block.get_torch_light_level_at(&[nvx, nvy, nvz], space, color) == 0)
+                || !block_emits_torch_at(n_block, nvx, nvy, nvz, space, color))
                 && !can_enter_into_direction(&n_transparency, direction_index)
             {
                 continue;
