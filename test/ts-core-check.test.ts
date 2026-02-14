@@ -123,6 +123,9 @@ type TsCoreCheckReport = {
     packageName: string;
     packagePath: string;
     packageIndex: number;
+    checkCommand: string;
+    checkArgs: string[];
+    checkArgCount: number;
     missingArtifacts: string[];
     missingArtifactCount: number;
     message: string;
@@ -462,6 +465,9 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
             packageName: report.checkedPackage,
             packagePath: report.checkedPackagePath,
             packageIndex: report.checkedPackageIndices[0],
+            checkCommand: expectedPackageCheckCommand,
+            checkArgs: report.requiredArtifacts,
+            checkArgCount: report.requiredArtifactCount,
             missingArtifacts: report.missingArtifacts,
             missingArtifactCount: report.missingArtifactCount,
             message: `Missing artifacts for ${report.checkedPackage}: ${report.missingArtifacts.join(", ")}.`,

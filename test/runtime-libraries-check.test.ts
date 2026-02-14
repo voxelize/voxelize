@@ -103,6 +103,9 @@ type RuntimeLibrariesCheckReport = {
     packageName: string;
     packagePath: string;
     packageIndex: number;
+    checkCommand: string;
+    checkArgs: string[];
+    checkArgCount: number;
     missingArtifacts: string[];
     missingArtifactCount: number;
     message: string;
@@ -580,6 +583,9 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
         packageName: packageReport.packageName,
         packagePath: packageReport.packagePath,
         packageIndex: packageReport.packageIndex,
+        checkCommand: packageReport.checkCommand,
+        checkArgs: packageReport.checkArgs,
+        checkArgCount: packageReport.checkArgCount,
         missingArtifacts: packageReport.missingArtifacts,
         missingArtifactCount: packageReport.missingArtifactCount,
         message: `Missing artifacts for ${packageReport.packageName}: ${packageReport.missingArtifacts.join(", ")}.`,

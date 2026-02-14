@@ -499,6 +499,9 @@ type TsCoreJsonReport = OptionTerminatorMetadata &
     packageName: string;
     packagePath: string;
     packageIndex: number;
+    checkCommand: string;
+    checkArgs: string[];
+    checkArgCount: number;
     missingArtifacts: string[];
     missingArtifactCount: number;
     message: string;
@@ -628,6 +631,9 @@ type RuntimeLibrariesJsonReport = OptionTerminatorMetadata &
     packageName: string;
     packagePath: string;
     packageIndex: number;
+    checkCommand: string;
+    checkArgs: string[];
+    checkArgCount: number;
     missingArtifacts: string[];
     missingArtifactCount: number;
     message: string;
@@ -2125,6 +2131,9 @@ const expectTsCoreReportMetadata = (report: TsCoreJsonReport) => {
             packageName: report.checkedPackage,
             packagePath: report.checkedPackagePath,
             packageIndex: report.checkedPackageIndices[0],
+            checkCommand: expectedTsCorePackageCheckCommand,
+            checkArgs: report.requiredArtifacts,
+            checkArgCount: report.requiredArtifactCount,
             missingArtifacts: report.missingArtifacts,
             missingArtifactCount: report.missingArtifactCount,
             message: `Missing artifacts for ${report.checkedPackage}: ${report.missingArtifacts.join(", ")}.`,
@@ -2480,6 +2489,9 @@ const expectRuntimeLibrariesReportMetadata = (
         packageName: packageReport.packageName,
         packagePath: packageReport.packagePath,
         packageIndex: packageReport.packageIndex,
+        checkCommand: packageReport.checkCommand,
+        checkArgs: packageReport.checkArgs,
+        checkArgCount: packageReport.checkArgCount,
         missingArtifacts: packageReport.missingArtifacts,
         missingArtifactCount: packageReport.missingArtifactCount,
         message: `Missing artifacts for ${packageReport.packageName}: ${packageReport.missingArtifacts.join(", ")}.`,
