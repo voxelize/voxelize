@@ -38,7 +38,8 @@ flowchart LR
   dynamic block-part definitions
 - `createBlockDynamicPattern`: defensive dynamic-pattern helper that clones part
   inputs via `createBlockConditionalPart` and skips malformed part entries
-- `createBlockFace`: ergonomic constructor helper for block faces
+- `createBlockFace`: ergonomic constructor helper for `BlockFaceInit` or
+  `BlockFace` input with deterministic default fallback for malformed values
 - `VoxelAccess`: shared access contract
 
 Both helper constructors use deterministic defaults when optional fields are

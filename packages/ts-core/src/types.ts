@@ -105,8 +105,20 @@ export class BlockFace {
   }
 }
 
-export const createBlockFace = (init: BlockFaceInit): BlockFace =>
-  new BlockFace(init);
+const DEFAULT_BLOCK_FACE_INIT: BlockFaceInit = {
+  name: "Face",
+};
+
+export const createBlockFace = (
+  init: BlockFaceInput | null | undefined = DEFAULT_BLOCK_FACE_INIT
+): BlockFace => {
+  if (init === null || init === undefined) {
+    return new BlockFace(DEFAULT_BLOCK_FACE_INIT);
+  }
+
+  const normalizedFace = toBlockFaceInit(init);
+  return new BlockFace(normalizedFace ?? DEFAULT_BLOCK_FACE_INIT);
+};
 
 export type OptionalRuleValue<T> = T | null | undefined;
 

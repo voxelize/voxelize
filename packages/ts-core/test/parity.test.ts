@@ -1779,6 +1779,38 @@ describe("Type builders", () => {
     expect(face.corners[0].pos[0]).toBe(0);
     expect(face.range.startU).toBe(0);
   });
+
+  it("builds deterministic default faces for malformed createBlockFace input", () => {
+    const defaultFace = createBlockFace();
+    const nullFace = createBlockFace(null);
+    const malformedFace = createBlockFace({
+      name: 42,
+    } as never);
+
+    expect(defaultFace).toEqual(new BlockFace({ name: "Face" }));
+    expect(nullFace).toEqual(new BlockFace({ name: "Face" }));
+    expect(malformedFace).toEqual(new BlockFace({ name: "Face" }));
+  });
+
+  it("accepts BlockFace instances in createBlockFace and clones values", () => {
+    const sourceFace = new BlockFace({
+      name: "SourceFace",
+      dir: [0, 1, 0],
+      range: createUV(1, 2, 3, 4),
+    });
+    const clonedFace = createBlockFace(sourceFace);
+
+    expect(clonedFace).toEqual(sourceFace);
+    expect(clonedFace).not.toBe(sourceFace);
+
+    sourceFace.name = "MutatedSourceFace";
+    sourceFace.dir[1] = 9;
+    sourceFace.range.endU = 9;
+
+    expect(clonedFace.name).toBe("SourceFace");
+    expect(clonedFace.dir).toEqual([0, 1, 0]);
+    expect(clonedFace.range.endU).toBe(2);
+  });
 });
 
 describe("BlockRuleEvaluator", () => {

@@ -98,7 +98,8 @@ const voxel = Voxel.pack({
   - accepts readonly `parts` input arrays
   - skips malformed part entries instead of materializing default placeholders
 - `createBlockFace`
-  - ergonomic constructor helper mirroring `new BlockFace(...)`
+  - ergonomic constructor helper for `BlockFaceInit` or `BlockFace` input
+  - malformed inputs fall back to a deterministic default face (`name: "Face"`)
 - `VoxelAccess`
   - interface contract for meshing/generation-style data access
 
