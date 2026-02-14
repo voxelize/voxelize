@@ -182,6 +182,39 @@ fn test_chunks_get_raw_light_handles_negative_and_above_height_queries() {
 }
 
 #[test]
+fn test_chunks_voxel_accessors_reject_coordinates_outside_chunk_shape() {
+    let config = WorldConfig {
+        chunk_size: 16,
+        max_height: 16,
+        max_light_level: 15,
+        min_chunk: [0, 0],
+        max_chunk: [0, 0],
+        saving: false,
+        ..Default::default()
+    };
+    let mut chunks = Chunks::new(&config);
+    chunks.add(Chunk::new(
+        "chunk-0-0",
+        0,
+        0,
+        &ChunkOptions {
+            size: 8,
+            max_height: 8,
+            sub_chunks: 1,
+        },
+    ));
+
+    assert!(!chunks.contains(12, 12, 0));
+    assert_eq!(chunks.get_raw_voxel(12, 12, 0), 0);
+    assert_eq!(chunks.get_raw_light(12, 12, 0), 0);
+    assert_eq!(chunks.get_sunlight(12, 12, 0), 0);
+    assert_eq!(chunks.get_max_height(12, 0), 0);
+    assert!(!chunks.set_raw_voxel(12, 12, 0, 1));
+    assert!(!chunks.set_raw_light(12, 12, 0, 1));
+    assert!(!chunks.set_max_height(12, 0, 1));
+}
+
+#[test]
 fn test_space_get_raw_voxel_ignores_out_of_range_y() {
     let config = WorldConfig {
         chunk_size: 16,

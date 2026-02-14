@@ -558,6 +558,16 @@ impl Chunks {
             self.add_updated_level_for_chunk(Vec2(cx + 1, cz + 1), vy);
         }
     }
+
+    #[inline]
+    fn local_is_within_chunk(chunk: &Chunk, lx: usize, ly: usize, lz: usize) -> bool {
+        lx < chunk.options.size && ly < chunk.options.max_height && lz < chunk.options.size
+    }
+
+    #[inline]
+    fn local_column_is_within_chunk(chunk: &Chunk, lx: usize, lz: usize) -> bool {
+        lx < chunk.options.size && lz < chunk.options.size
+    }
 }
 
 impl VoxelAccess for Chunks {
@@ -570,6 +580,9 @@ impl VoxelAccess for Chunks {
         let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
         if let Some(chunk) = self.raw(&coords) {
             let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            if !Self::local_is_within_chunk(chunk, lx, ly, lz) {
+                return 0;
+            }
             return chunk.voxels[&[lx, ly, lz]];
         }
 
@@ -589,6 +602,9 @@ impl VoxelAccess for Chunks {
             let Some(chunk) = self.raw_mut(&coords) else {
                 return false;
             };
+            if !Self::local_is_within_chunk(chunk, lx, ly, lz) {
+                return false;
+            }
             if chunk.voxels[&[lx, ly, lz]] == id {
                 return true;
             }
@@ -612,6 +628,9 @@ impl VoxelAccess for Chunks {
         let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
         if let Some(chunk) = self.raw(&coords) {
             let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            if !Self::local_is_within_chunk(chunk, lx, ly, lz) {
+                return 0;
+            }
             return chunk.lights[&[lx, ly, lz]];
         }
 
@@ -631,6 +650,9 @@ impl VoxelAccess for Chunks {
             let Some(chunk) = self.raw_mut(&coords) else {
                 return false;
             };
+            if !Self::local_is_within_chunk(chunk, lx, ly, lz) {
+                return false;
+            }
             if chunk.lights[&[lx, ly, lz]] == level {
                 return true;
             }
@@ -654,6 +676,9 @@ impl VoxelAccess for Chunks {
         let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
         if let Some(chunk) = self.raw(&coords) {
             let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            if !Self::local_is_within_chunk(chunk, lx, ly, lz) {
+                return 0;
+            }
             return LightUtils::extract_sunlight(chunk.lights[&[lx, ly, lz]]);
         }
 
@@ -666,6 +691,9 @@ impl VoxelAccess for Chunks {
         let coords = ChunkUtils::map_voxel_to_chunk(vx, 0, vz, chunk_size);
         if let Some(chunk) = self.raw(&coords) {
             let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, 0, vz, chunk_size);
+            if !Self::local_column_is_within_chunk(chunk, lx, lz) {
+                return 0;
+            }
             return chunk.height_map[&[lx, lz]];
         }
 
@@ -679,6 +707,9 @@ impl VoxelAccess for Chunks {
         let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, 0, vz, chunk_size);
 
         if let Some(chunk) = self.raw_mut(&coords) {
+            if !Self::local_column_is_within_chunk(chunk, lx, lz) {
+                return false;
+            }
             if chunk.height_map[&[lx, lz]] == height {
                 return true;
             }
@@ -690,9 +721,15 @@ impl VoxelAccess for Chunks {
     }
 
     fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
-        vy >= 0
-            && vy < self.config.max_height as i32
-            && self.raw_chunk_by_voxel(vx, vy, vz).is_some()
+        if vy < 0 || vy >= self.config.max_height as i32 {
+            return false;
+        }
+
+        if let Some(chunk) = self.raw_chunk_by_voxel(vx, vy, vz) {
+            return chunk.contains(vx, vy, vz);
+        }
+
+        false
     }
 }
 
