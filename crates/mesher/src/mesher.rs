@@ -790,10 +790,11 @@ impl<'a> VoxelSpace<'a> {
 
     #[inline(always)]
     fn get_chunk(&self, coords: [i32; 2]) -> Option<&ChunkData> {
+        let [chunk_x, chunk_z] = coords;
         let center_x = self.center_coords[0];
         let center_z = self.center_coords[1];
-        let dx_offset = (coords[0] - center_x + 1) as u32;
-        let dz_offset = (coords[1] - center_z + 1) as u32;
+        let dx_offset = (chunk_x - center_x + 1) as u32;
+        let dz_offset = (chunk_z - center_z + 1) as u32;
         if dx_offset < 3 && dz_offset < 3 {
             let index = (dz_offset * 3 + dx_offset) as usize;
             return self.chunks.get(index).and_then(|c| c.as_ref());
