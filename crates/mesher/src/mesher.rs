@@ -2035,19 +2035,18 @@ fn extract_greedy_quads_dense(
     let mut v_off = 0usize;
     'rows: while v_off < height {
         let row_start = v_off * width;
+        debug_assert!(row_start <= mask.len().saturating_sub(width));
+        let row_ptr = unsafe { mask_ptr.add(row_start) };
         let mut u_off = 0usize;
         while u_off < width {
-            let start_index = row_start + u_off;
-            debug_assert!(start_index < mask.len());
-            let start_cell = unsafe { &mut *mask_ptr.add(start_index) };
+            debug_assert!(u_off < width);
+            let start_cell = unsafe { &mut *row_ptr.add(u_off) };
             if let Some(data) = start_cell.take() {
                 let data_key = &data.key;
                 let mut quad_width = 1usize;
                 let mut next_u_off = u_off + 1;
                 while next_u_off < width {
-                    let neighbor_index = row_start + next_u_off;
-                    debug_assert!(neighbor_index < mask.len());
-                    let neighbor_cell = unsafe { &mut *mask_ptr.add(neighbor_index) };
+                    let neighbor_cell = unsafe { &mut *row_ptr.add(next_u_off) };
                     if let Some(neighbor) = neighbor_cell.as_ref() {
                         if neighbor.key == *data_key {
                             *neighbor_cell = None;
@@ -2062,16 +2061,14 @@ fn extract_greedy_quads_dense(
                 }
 
                 let mut quad_height = 1usize;
-                let mut next_row_start = start_index + width;
-                let mut next_row_end = next_row_start + quad_width;
+                let mut next_row_start = row_start + u_off + width;
                 let mut next_v_off = v_off + 1;
                 'height: while next_v_off < height {
-                    let row_start = next_row_start;
-                    let row_end = next_row_end;
-                    debug_assert!(row_end <= mask.len());
-                    let mut neighbor_index = row_start;
-                    while neighbor_index < row_end {
-                        let neighbor_cell = unsafe { &*mask_ptr.add(neighbor_index) };
+                    debug_assert!(next_row_start + quad_width <= mask.len());
+                    let next_row_ptr = unsafe { mask_ptr.add(next_row_start) };
+                    let mut row_offset = 0usize;
+                    while row_offset < quad_width {
+                        let neighbor_cell = unsafe { &*next_row_ptr.add(row_offset) };
                         if let Some(neighbor) = neighbor_cell.as_ref() {
                             if neighbor.key != *data_key {
                                 break 'height;
@@ -2079,19 +2076,18 @@ fn extract_greedy_quads_dense(
                         } else {
                             break 'height;
                         }
-                        neighbor_index += 1;
+                        row_offset += 1;
                     }
 
-                    let mut neighbor_index = row_start;
-                    while neighbor_index < row_end {
-                        let neighbor_cell = unsafe { &mut *mask_ptr.add(neighbor_index) };
+                    let mut row_offset = 0usize;
+                    while row_offset < quad_width {
+                        let neighbor_cell = unsafe { &mut *next_row_ptr.add(row_offset) };
                         *neighbor_cell = None;
-                        neighbor_index += 1;
+                        row_offset += 1;
                     }
                     quad_height += 1;
                     next_v_off += 1;
                     next_row_start += width;
-                    next_row_end += width;
                 }
 
                 quads.push(GreedyQuad {
