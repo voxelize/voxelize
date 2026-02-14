@@ -2031,6 +2031,7 @@ fn extract_greedy_quads_dense(
 ) -> Vec<GreedyQuad> {
     let estimated_cells = width * height;
     let mut quads = Vec::with_capacity((estimated_cells / 2).max(16));
+    let mask_ptr = mask.as_mut_ptr();
     let mut v_off = 0usize;
     'rows: while v_off < height {
         let row_start = v_off * width;
@@ -2038,7 +2039,7 @@ fn extract_greedy_quads_dense(
         while u_off < width {
             let start_index = row_start + u_off;
             debug_assert!(start_index < mask.len());
-            let start_cell = unsafe { mask.get_unchecked_mut(start_index) };
+            let start_cell = unsafe { &mut *mask_ptr.add(start_index) };
             if let Some(data) = start_cell.take() {
                 let data_key = &data.key;
                 let mut quad_width = 1usize;
@@ -2046,7 +2047,7 @@ fn extract_greedy_quads_dense(
                 while next_u_off < width {
                     let neighbor_index = row_start + next_u_off;
                     debug_assert!(neighbor_index < mask.len());
-                    let neighbor_cell = unsafe { mask.get_unchecked_mut(neighbor_index) };
+                    let neighbor_cell = unsafe { &mut *mask_ptr.add(neighbor_index) };
                     if let Some(neighbor) = neighbor_cell.as_ref() {
                         if neighbor.key == *data_key {
                             *neighbor_cell = None;
@@ -2070,7 +2071,7 @@ fn extract_greedy_quads_dense(
                     debug_assert!(row_end <= mask.len());
                     let mut neighbor_index = row_start;
                     while neighbor_index < row_end {
-                        let neighbor_cell = unsafe { mask.get_unchecked_mut(neighbor_index) };
+                        let neighbor_cell = unsafe { &*mask_ptr.add(neighbor_index) };
                         if let Some(neighbor) = neighbor_cell.as_ref() {
                             if neighbor.key != *data_key {
                                 break 'height;
@@ -2083,7 +2084,7 @@ fn extract_greedy_quads_dense(
 
                     let mut neighbor_index = row_start;
                     while neighbor_index < row_end {
-                        let neighbor_cell = unsafe { mask.get_unchecked_mut(neighbor_index) };
+                        let neighbor_cell = unsafe { &mut *mask_ptr.add(neighbor_index) };
                         *neighbor_cell = None;
                         neighbor_index += 1;
                     }
