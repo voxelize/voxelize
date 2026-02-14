@@ -595,15 +595,14 @@ impl VoxelAccess for Chunks {
         if vy >= self.config.max_height as i32 {
             return self.config.max_light_level;
         }
+        if vy < 0 {
+            return 0;
+        }
 
         if let Some(chunk) = self.raw_chunk_by_voxel(vx, vy, vz) {
             chunk.get_sunlight(vx, vy, vz)
         } else {
-            return if vy < 0 {
-                0
-            } else {
-                self.config.max_light_level
-            };
+            self.config.max_light_level
         }
     }
 
