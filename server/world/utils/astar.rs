@@ -4,11 +4,7 @@ use crate::Vec3;
 use pathfinding::prelude::astar;
 
 fn absdiff(a: i32, b: i32) -> u32 {
-    if a > b {
-        (a - b) as u32
-    } else {
-        (b - a) as u32
-    }
+    (i64::from(a) - i64::from(b)).unsigned_abs() as u32
 }
 
 #[derive(Debug, Clone, Serialize, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -20,7 +16,9 @@ impl PathNode {
     }
 
     pub fn distance(&self, other: &Self) -> u32 {
-        (absdiff(self.0, other.0) + absdiff(self.1, other.1) + absdiff(self.2, other.2)) as u32
+        absdiff(self.0, other.0)
+            .saturating_add(absdiff(self.1, other.1))
+            .saturating_add(absdiff(self.2, other.2))
     }
 }
 
@@ -51,5 +49,24 @@ impl AStar {
             heuristic,
             |p| *p == goal_node,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PathNode;
+
+    #[test]
+    fn distance_handles_i32_extreme_delta() {
+        let a = PathNode(i32::MIN, 0, 0);
+        let b = PathNode(i32::MAX, 0, 0);
+        assert_eq!(a.distance(&b), u32::MAX);
+    }
+
+    #[test]
+    fn distance_saturates_when_axis_deltas_overflow_sum() {
+        let a = PathNode(i32::MIN, i32::MIN, 0);
+        let b = PathNode(i32::MAX, i32::MAX, 0);
+        assert_eq!(a.distance(&b), u32::MAX);
     }
 }
