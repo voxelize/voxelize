@@ -158,8 +158,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
    */
   public send(chat: T) {
     const body = chat.body;
-    const commandBodyStart = this._commandSymbol.length;
     if (body.startsWith(this._commandSymbol)) {
+      const commandBodyStart = this._commandSymbol.length;
       this.parseCommandBody(body, commandBodyStart);
       const trigger = this.parsedCommandTrigger || undefined;
       const rest = this.parsedCommandRest;
