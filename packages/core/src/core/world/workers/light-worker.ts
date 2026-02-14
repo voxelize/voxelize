@@ -522,7 +522,11 @@ const hasPotentialRelevantDeltaBatches = (
       continue;
     }
     const startIndex = normalizeStartIndex(deltaBatch.startIndex);
-    for (let deltaIndex = startIndex; deltaIndex < deltas.length; deltaIndex++) {
+    const deltasLength = deltas.length;
+    if (startIndex >= deltasLength) {
+      continue;
+    }
+    for (let deltaIndex = startIndex; deltaIndex < deltasLength; deltaIndex++) {
       const delta = deltas[deltaIndex];
       if (!delta || typeof delta !== "object") {
         continue;
