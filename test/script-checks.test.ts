@@ -204,6 +204,7 @@ type RuntimeLibrariesJsonPackageReport = {
   packagePath: string;
   requiredArtifacts: string[];
   requiredArtifactCount: number;
+  presentArtifactCount: number;
   missingArtifacts: string[];
   missingArtifactCount: number;
   artifactsPresent: boolean;
@@ -223,6 +224,7 @@ type RuntimeLibrariesJsonReport = OptionTerminatorMetadata &
   presentPackageCount: number;
   packageReportCount: number;
   requiredArtifactCount: number;
+  presentArtifactCount: number;
   missingPackageCount: number;
   missingArtifactCount: number;
   buildCommand: string;
@@ -522,8 +524,15 @@ const expectRuntimeLibrariesReportMetadata = (
     },
     0
   );
+  const presentArtifactCount = report.packageReports.reduce(
+    (count, packageReport) => {
+      return count + packageReport.presentArtifactCount;
+    },
+    0
+  );
   const presentPackageCount = report.packageReports.length - missingPackageCount;
   expect(report.presentPackageCount).toBe(presentPackageCount);
+  expect(report.presentArtifactCount).toBe(presentArtifactCount);
   expect(report.missingPackageCount).toBe(missingPackageCount);
   expect(report.missingArtifactCount).toBe(missingArtifactCount);
   for (const packageReport of report.packageReports) {
@@ -534,6 +543,9 @@ const expectRuntimeLibrariesReportMetadata = (
     );
     expect(packageReport.requiredArtifactCount).toBe(
       packageReport.requiredArtifacts.length
+    );
+    expect(packageReport.presentArtifactCount).toBe(
+      packageReport.requiredArtifactCount - packageReport.missingArtifactCount
     );
     expect(packageReport.missingArtifactCount).toBe(
       packageReport.missingArtifacts.length

@@ -56,11 +56,13 @@ const resolvePackageReport = (library) => {
     const absoluteArtifactPath = path.resolve(repositoryRoot, artifactPath);
     return !fs.existsSync(absoluteArtifactPath);
   });
+  const presentArtifactCount = library.requiredArtifacts.length - missingArtifacts.length;
   return {
     packageName: library.packageName,
     packagePath: library.packagePath,
     requiredArtifacts: library.requiredArtifacts,
     requiredArtifactCount: library.requiredArtifacts.length,
+    presentArtifactCount,
     missingArtifacts,
     missingArtifactCount: missingArtifacts.length,
     artifactsPresent: missingArtifacts.length === 0,
@@ -73,6 +75,9 @@ const summarizePackageReports = (packageReports) => {
   const presentPackageCount = packageReports.filter((packageReport) => {
     return packageReport.artifactsPresent;
   }).length;
+  const presentArtifactCount = packageReports.reduce((count, packageReport) => {
+    return count + packageReport.presentArtifactCount;
+  }, 0);
   const missingPackageCount = packageReports.filter((packageReport) => {
     return packageReport.artifactsPresent === false;
   }).length;
@@ -81,6 +86,7 @@ const summarizePackageReports = (packageReports) => {
   }, 0);
   return {
     presentPackageCount,
+    presentArtifactCount,
     missingPackageCount,
     missingArtifactCount,
   };
@@ -172,8 +178,12 @@ const withBaseReportFields = (report) => {
   const packageReports = Array.isArray(report.packageReports)
     ? report.packageReports
     : [];
-  const { presentPackageCount, missingPackageCount, missingArtifactCount } =
-    summarizePackageReports(packageReports);
+  const {
+    presentPackageCount,
+    presentArtifactCount,
+    missingPackageCount,
+    missingArtifactCount,
+  } = summarizePackageReports(packageReports);
   const buildExitCode =
     typeof report.buildExitCode === "number" ? report.buildExitCode : null;
   const buildDurationMs =
@@ -209,6 +219,7 @@ const withBaseReportFields = (report) => {
     presentPackageCount,
     packageReportCount: packageReports.length,
     requiredArtifactCount,
+    presentArtifactCount,
     missingPackageCount,
     missingArtifactCount,
     buildCommand: pnpmCommand,

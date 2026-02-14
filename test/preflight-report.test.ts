@@ -36,6 +36,7 @@ type RuntimeLibrariesNestedPackageReport = {
   packagePath: string;
   requiredArtifacts: string[];
   requiredArtifactCount: number;
+  presentArtifactCount: number;
   missingArtifacts: string[];
   missingArtifactCount: number;
   artifactsPresent: boolean;
@@ -49,6 +50,7 @@ type RuntimeLibrariesNestedReport = {
   packageReportCount: number;
   packageReports: RuntimeLibrariesNestedPackageReport[];
   requiredArtifactCount: number;
+  presentArtifactCount: number;
   missingPackageCount: number;
   missingArtifactCount: number;
   buildCommand: string;
@@ -471,8 +473,15 @@ const expectRuntimeLibrariesNestedReport = (
     },
     0
   );
+  const presentArtifactCount = report.packageReports.reduce(
+    (count, packageReport) => {
+      return count + packageReport.presentArtifactCount;
+    },
+    0
+  );
   const presentPackageCount = report.packageReports.length - missingPackageCount;
   expect(report.presentPackageCount).toBe(presentPackageCount);
+  expect(report.presentArtifactCount).toBe(presentArtifactCount);
   expect(report.missingPackageCount).toBe(missingPackageCount);
   expect(report.missingArtifactCount).toBe(missingArtifactCount);
   for (const packageReport of report.packageReports) {
@@ -483,6 +492,9 @@ const expectRuntimeLibrariesNestedReport = (
     );
     expect(packageReport.requiredArtifactCount).toBe(
       packageReport.requiredArtifacts.length
+    );
+    expect(packageReport.presentArtifactCount).toBe(
+      packageReport.requiredArtifactCount - packageReport.missingArtifactCount
     );
     expect(packageReport.missingArtifactCount).toBe(
       packageReport.missingArtifacts.length
