@@ -1227,6 +1227,62 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
+  it("supports typescript aliases in execution-mode selection", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--no-build", "--only", "typescript,client"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.listChecksOnly).toBe(false);
+    expect(report.noBuild).toBe(true);
+    expect(report.selectionMode).toBe("only");
+    expect(report.specialSelectorsUsed).toEqual([]);
+    expect(report.selectedChecks).toEqual(["tsCore", "client"]);
+    expect(report.selectedCheckCount).toBe(2);
+    expect(report.requestedChecks).toEqual(["typescript", "client"]);
+    expect(report.requestedCheckCount).toBe(2);
+    expect(report.requestedCheckResolutions).toEqual([
+      {
+        token: "typescript",
+        normalizedToken: "typescript",
+        kind: "check",
+        resolvedTo: ["tsCore"],
+      },
+      {
+        token: "client",
+        normalizedToken: "client",
+        kind: "check",
+        resolvedTo: ["client"],
+      },
+    ]);
+    expect(report.requestedCheckResolutionCounts).toEqual({
+      check: 2,
+      specialSelector: 0,
+      invalid: 0,
+    });
+    expect(report.skippedChecks).toEqual(["devEnvironment", "wasmPack"]);
+    expect(report.skippedCheckCount).toBe(2);
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.checks.map((check) => check.name)).toEqual([
+      "tsCore",
+      "client",
+    ]);
+    expect(report.totalChecks).toBe(2);
+    expect(report.passedCheckCount + report.failedCheckCount).toBe(2);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
   it("supports selecting ts-core checks in execution mode with verify alias", () => {
     const result = spawnSync(
       process.execPath,
