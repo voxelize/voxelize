@@ -377,6 +377,32 @@ const hasMatchingChunkOptions = (
   chunkOptions.size === expectedChunkSize &&
   chunkOptions.maxHeight === expectedMaxHeight;
 
+type CompatibleSerializedChunk = SerializedRawChunk & {
+  voxels: ArrayBuffer;
+  lights: ArrayBuffer;
+};
+
+const isCompatibleSerializedChunk = (
+  chunkData: SerializedRawChunk | null | undefined,
+  expectedChunkSize: number,
+  expectedMaxHeight: number,
+  expectedChunkByteLength: number
+): chunkData is CompatibleSerializedChunk => {
+  if (!chunkData) {
+    return false;
+  }
+  const chunkOptions = chunkData.options;
+  const voxelsBuffer = chunkData.voxels;
+  const lightsBuffer = chunkData.lights;
+  return (
+    isArrayBuffer(voxelsBuffer) &&
+    isArrayBuffer(lightsBuffer) &&
+    voxelsBuffer.byteLength === expectedChunkByteLength &&
+    lightsBuffer.byteLength === expectedChunkByteLength &&
+    hasMatchingChunkOptions(chunkOptions, expectedChunkSize, expectedMaxHeight)
+  );
+};
+
 const drainPendingBatchMessagesAsEmptyResults = () => {
   if (!hasPendingBatchMessages()) {
     return;
@@ -432,18 +458,13 @@ const hasPotentialRelevantDeltaBatches = (
       continue;
     }
     const chunkData = chunksData[localX * gridDepth + localZ];
-    if (!chunkData) {
-      continue;
-    }
-    const chunkOptions = chunkData.options;
-    const voxelsBuffer = chunkData.voxels;
-    const lightsBuffer = chunkData.lights;
     if (
-      !isArrayBuffer(voxelsBuffer) ||
-      !isArrayBuffer(lightsBuffer) ||
-      voxelsBuffer.byteLength !== expectedChunkByteLength ||
-      lightsBuffer.byteLength !== expectedChunkByteLength ||
-      !hasMatchingChunkOptions(chunkOptions, chunkSize, maxHeight)
+      !isCompatibleSerializedChunk(
+        chunkData,
+        chunkSize,
+        maxHeight,
+        expectedChunkByteLength
+      )
     ) {
       continue;
     }
@@ -677,29 +698,12 @@ const deserializeChunkGrid = (
 
   for (let index = 0; index < cellCount; index++) {
     const chunkData = chunksData[index];
-    if (!chunkData) {
-      chunkGrid[index] = null;
-      continue;
-    }
-    const voxelsBuffer = chunkData.voxels;
-    const lightsBuffer = chunkData.lights;
-    if (!isArrayBuffer(voxelsBuffer) || !isArrayBuffer(lightsBuffer)) {
-      chunkGrid[index] = null;
-      continue;
-    }
     if (
-      voxelsBuffer.byteLength !== expectedChunkByteLength ||
-      lightsBuffer.byteLength !== expectedChunkByteLength
-    ) {
-      chunkGrid[index] = null;
-      continue;
-    }
-    const chunkOptions = chunkData.options;
-    if (
-      !hasMatchingChunkOptions(
-        chunkOptions,
+      !isCompatibleSerializedChunk(
+        chunkData,
         expectedChunkSize,
-        expectedMaxHeight
+        expectedMaxHeight,
+        expectedChunkByteLength
       )
     ) {
       chunkGrid[index] = null;
@@ -892,29 +896,12 @@ const serializeChunksData = (
 
   for (let index = 0; index < cellCount; index++) {
     const chunkData = chunksData[index];
-    if (!chunkData) {
-      serialized[index] = null;
-      continue;
-    }
-    const voxelsBuffer = chunkData.voxels;
-    const lightsBuffer = chunkData.lights;
-    if (!isArrayBuffer(voxelsBuffer) || !isArrayBuffer(lightsBuffer)) {
-      serialized[index] = null;
-      continue;
-    }
     if (
-      voxelsBuffer.byteLength !== expectedChunkByteLength ||
-      lightsBuffer.byteLength !== expectedChunkByteLength
-    ) {
-      serialized[index] = null;
-      continue;
-    }
-    const chunkOptions = chunkData.options;
-    if (
-      !hasMatchingChunkOptions(
-        chunkOptions,
+      !isCompatibleSerializedChunk(
+        chunkData,
         expectedChunkSize,
-        expectedMaxHeight
+        expectedMaxHeight,
+        expectedChunkByteLength
       )
     ) {
       serialized[index] = null;
@@ -923,8 +910,8 @@ const serializeChunksData = (
 
     hasAnyChunk = true;
     serialized[index] = {
-      voxels: new Uint32Array(voxelsBuffer),
-      lights: new Uint32Array(lightsBuffer),
+      voxels: new Uint32Array(chunkData.voxels),
+      lights: new Uint32Array(chunkData.lights),
     };
   }
 
