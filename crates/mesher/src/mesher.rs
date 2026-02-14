@@ -3032,7 +3032,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
 
         for slice in slice_range {
             non_greedy_faces.clear();
-            let mut faces: Vec<(BlockFace, bool)> = Vec::with_capacity(8);
+            let mut faces: Vec<(BlockFace, bool)> = Vec::new();
 
             for u in u_range.0..u_range.1 {
                 let u_mask_offset = (u - u_range.0) as usize;
@@ -3125,11 +3125,17 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     };
                     faces.clear();
                     if has_standard_six_faces {
+                        if faces.capacity() == 0 {
+                            faces.reserve(8);
+                        }
                         for face in create_fluid_faces(vx, vy, vz, block.id, space, block, registry)
                         {
                             faces.push((face, false));
                         }
                     } else if has_dynamic_patterns {
+                        if faces.capacity() == 0 {
+                            faces.reserve(8);
+                        }
                         visit_dynamic_faces(
                             block,
                             [vx, vy, vz],
