@@ -1,7 +1,7 @@
 use std::{cell::RefCell, sync::Arc};
 
 use js_sys::{Array, Object, Reflect, Uint32Array};
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::{prelude::*, JsCast};
 use voxelize_lighter::{
     flood_light_nodes, remove_lights, BlockRotation, LightBounds, LightColor, LightConfig,
@@ -468,6 +468,33 @@ fn clamp_light_level(level: u32, max_light_level: u32) -> u32 {
     level.min(max_light_level)
 }
 
+#[inline]
+fn parse_nodes_or_empty<T>(value: JsValue) -> Vec<T>
+where
+    T: DeserializeOwned,
+{
+    if let Some(array) = value.dyn_ref::<Array>() {
+        let length = array.length() as usize;
+        if length == 0 {
+            return Vec::new();
+        }
+
+        if let Ok(nodes) = serde_wasm_bindgen::from_value(value.clone()) {
+            return nodes;
+        }
+
+        let mut nodes = Vec::with_capacity(length);
+        for index in 0..length {
+            if let Ok(node) = serde_wasm_bindgen::from_value(array.get(index as u32)) {
+                nodes.push(node);
+            }
+        }
+        return nodes;
+    }
+
+    serde_wasm_bindgen::from_value(value).unwrap_or_default()
+}
+
 #[wasm_bindgen]
 pub fn init() {}
 
@@ -516,28 +543,8 @@ pub fn process_light_batch_fast(
     let Some(light_color) = light_color_from_index(color) else {
         return empty_batch_result();
     };
-    let removal_nodes: Vec<[i32; 3]> = if removals
-        .dyn_ref::<Array>()
-        .is_some_and(|removal_array| removal_array.length() == 0)
-    {
-        Vec::new()
-    } else {
-        match serde_wasm_bindgen::from_value(removals) {
-            Ok(nodes) => nodes,
-            Err(_) => Vec::new(),
-        }
-    };
-    let mut flood_nodes: Vec<LightNode> = if floods
-        .dyn_ref::<Array>()
-        .is_some_and(|flood_array| flood_array.length() == 0)
-    {
-        Vec::new()
-    } else {
-        match serde_wasm_bindgen::from_value(floods) {
-            Ok(nodes) => nodes,
-            Err(_) => Vec::new(),
-        }
-    };
+    let removal_nodes: Vec<[i32; 3]> = parse_nodes_or_empty(removals);
+    let mut flood_nodes: Vec<LightNode> = parse_nodes_or_empty(floods);
     if removal_nodes.is_empty() && flood_nodes.is_empty() {
         return empty_batch_result();
     }
