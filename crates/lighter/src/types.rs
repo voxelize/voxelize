@@ -534,15 +534,22 @@ impl LightBlock {
                 let vx = simple_rule.offset[0] + vx;
                 let vy = simple_rule.offset[1] + vy;
                 let vz = simple_rule.offset[2] + vz;
+                let expected_id = simple_rule.id;
+                let expected_rotation = simple_rule.rotation.as_ref();
+                let expected_stage = simple_rule.stage;
+                if expected_id.is_none() && expected_rotation.is_none() && expected_stage.is_none()
+                {
+                    return true;
+                }
                 let raw_voxel = space.get_raw_voxel(vx, vy, vz);
 
-                if let Some(expected_id) = simple_rule.id {
+                if let Some(expected_id) = expected_id {
                     if (raw_voxel & 0xFFFF) != expected_id {
                         return false;
                     }
                 }
 
-                if let Some(expected_rotation) = simple_rule.rotation.as_ref() {
+                if let Some(expected_rotation) = expected_rotation {
                     let (expected_rotation_value, expected_y_rotation) =
                         BlockRotation::decode(expected_rotation);
                     let actual_rotation_value = (raw_voxel >> 16) & 0xF;
@@ -554,7 +561,7 @@ impl LightBlock {
                     }
                 }
 
-                if let Some(expected_stage) = simple_rule.stage {
+                if let Some(expected_stage) = expected_stage {
                     return ((raw_voxel >> 24) & 0xF) == expected_stage;
                 }
 
