@@ -242,6 +242,9 @@ impl VoxelAccess for Space {
         if self.voxels.is_empty() {
             panic!("Space does not contain voxel data.");
         }
+        if vy < 0 || vy >= self.options.max_height as i32 {
+            return 0;
+        }
 
         let (coords, Vec3(lx, ly, lz)) = self.to_local(vx, vy, vz);
 

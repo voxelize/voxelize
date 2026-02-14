@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use voxelize::{
     Block, BlockConditionalPart, BlockDynamicPattern, BlockRule, BlockSimpleRule, Chunk,
-    ChunkOptions, Chunks, LightColor, Lights, Registry, Vec3, VoxelAccess, WorldConfig,
+    ChunkOptions, Chunks, LightColor, Lights, Registry, Vec2, Vec3, VoxelAccess, WorldConfig,
 };
 
 fn create_test_registry() -> Registry {
@@ -169,6 +169,44 @@ fn test_chunks_get_raw_light_handles_negative_and_above_height_queries() {
         voxelize::LightUtils::extract_sunlight(above_raw),
         config.max_light_level,
         "raw light above world height should preserve full sunlight"
+    );
+}
+
+#[test]
+fn test_space_get_raw_voxel_ignores_out_of_range_y() {
+    let config = WorldConfig {
+        chunk_size: 16,
+        max_height: 16,
+        max_light_level: 15,
+        min_chunk: [0, 0],
+        max_chunk: [0, 0],
+        saving: false,
+        ..Default::default()
+    };
+    let mut chunks = Chunks::new(&config);
+    chunks.add(Chunk::new(
+        "chunk-0-0",
+        0,
+        0,
+        &ChunkOptions {
+            size: 16,
+            max_height: 16,
+            sub_chunks: 1,
+        },
+    ));
+    chunks.set_raw_voxel(0, 0, 0, 1);
+
+    let space = chunks.make_space(&Vec2(0, 0), 1).needs_voxels().build();
+    assert_eq!(space.get_raw_voxel(0, 0, 0), 1);
+    assert_eq!(
+        space.get_raw_voxel(0, -1, 0),
+        0,
+        "space raw voxel reads below world height should stay empty"
+    );
+    assert_eq!(
+        space.get_raw_voxel(0, config.max_height as i32, 0),
+        0,
+        "space raw voxel reads at max height boundary should stay empty"
     );
 }
 
