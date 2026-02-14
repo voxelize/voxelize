@@ -500,7 +500,13 @@ export const createBlockDynamicPattern = (
       ? pattern
       : {};
   const parts = Array.isArray(normalizedPattern.parts)
-    ? normalizedPattern.parts.map((part) => createBlockConditionalPart(part))
+    ? normalizedPattern.parts.reduce<BlockConditionalPart[]>((clonedParts, part) => {
+        if (part !== null && typeof part === "object" && !Array.isArray(part)) {
+          clonedParts.push(createBlockConditionalPart(part));
+        }
+
+        return clonedParts;
+      }, [])
     : [];
 
   return {

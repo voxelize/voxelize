@@ -95,6 +95,7 @@ const voxel = Voxel.pack({
   - defensively clones dynamic-pattern part inputs using
     `createBlockConditionalPart`
   - accepts readonly `parts` input arrays
+  - skips malformed part entries instead of materializing default placeholders
 - `createBlockFace`
   - ergonomic constructor helper mirroring `new BlockFace(...)`
 - `VoxelAccess`

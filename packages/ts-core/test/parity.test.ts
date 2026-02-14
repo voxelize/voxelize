@@ -1475,6 +1475,23 @@ describe("Type builders", () => {
     expect(patternFromNumber.parts).toEqual([]);
   });
 
+  it("skips malformed dynamic pattern part entries", () => {
+    const pattern = createBlockDynamicPattern({
+      parts: [null as never, 42 as never, [] as never, { worldSpace: true }],
+    });
+
+    expect(pattern.parts).toEqual([
+      {
+        rule: BLOCK_RULE_NONE,
+        faces: [],
+        aabbs: [],
+        isTransparent: [false, false, false, false, false, false],
+        worldSpace: true,
+      },
+    ]);
+    expect(pattern.parts[0].rule).not.toBe(BLOCK_RULE_NONE);
+  });
+
   it("accepts partial dynamic pattern part inputs", () => {
     const sourceRule = {
       type: "simple" as const,
