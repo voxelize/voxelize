@@ -551,6 +551,35 @@ describe("BlockRotation", () => {
     expect(negative.maxZ).toBeCloseTo(source.maxZ, 10);
   });
 
+  it("treats near-full-turn y rotations within epsilon as identity", () => {
+    const input: [boolean, boolean, boolean, boolean, boolean, boolean] = [
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+    ];
+    const node: [number, number, number] = [0.25, 0.5, 0.75];
+    const source = AABB.create(0.1, 0.2, 0.3, 0.9, 0.8, 0.7);
+    const epsilonTurn = Math.PI * 2 + 1e-13;
+    const rotation = BlockRotation.py(epsilonTurn);
+
+    rotation.rotateNode(node, true, false);
+    const rotatedAabb = rotation.rotateAABB(source, true, true);
+
+    expect(node[0]).toBeCloseTo(0.25, 10);
+    expect(node[1]).toBeCloseTo(0.5, 10);
+    expect(node[2]).toBeCloseTo(0.75, 10);
+    expect(rotation.rotateTransparency(input)).toEqual(input);
+    expect(rotatedAabb.minX).toBeCloseTo(source.minX, 10);
+    expect(rotatedAabb.minY).toBeCloseTo(source.minY, 10);
+    expect(rotatedAabb.minZ).toBeCloseTo(source.minZ, 10);
+    expect(rotatedAabb.maxX).toBeCloseTo(source.maxX, 10);
+    expect(rotatedAabb.maxY).toBeCloseTo(source.maxY, 10);
+    expect(rotatedAabb.maxZ).toBeCloseTo(source.maxZ, 10);
+  });
+
   it("returns a boolean tuple for non-PY transparency rotations", () => {
     const rotation = BlockRotation.px(Math.PI / 2);
     const input: [boolean, boolean, boolean, boolean, boolean, boolean] = [
