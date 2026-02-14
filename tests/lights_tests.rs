@@ -219,6 +219,60 @@ fn test_space_get_raw_voxel_ignores_out_of_range_y() {
 }
 
 #[test]
+fn test_chunk_updated_levels_stay_in_bounds_for_irregular_partitions() {
+    let mut chunk = Chunk::new(
+        "chunk-irregular",
+        0,
+        0,
+        &ChunkOptions {
+            size: 16,
+            max_height: 10,
+            sub_chunks: 3,
+        },
+    );
+    chunk.updated_levels.clear();
+    for vy in 0..10 {
+        chunk.add_updated_level(vy);
+    }
+
+    assert!(
+        chunk.updated_levels.iter().all(|level| *level < 3),
+        "all updated levels should stay within sub-chunk bounds"
+    );
+    assert!(chunk.updated_levels.contains(&0));
+    assert!(chunk.updated_levels.contains(&1));
+    assert!(chunk.updated_levels.contains(&2));
+}
+
+#[test]
+fn test_chunk_updated_levels_ignore_out_of_range_y() {
+    let mut chunk = Chunk::new(
+        "chunk-bounds",
+        0,
+        0,
+        &ChunkOptions {
+            size: 16,
+            max_height: 3,
+            sub_chunks: 8,
+        },
+    );
+    chunk.updated_levels.clear();
+    chunk.add_updated_level(-1);
+    chunk.add_updated_level(3);
+    assert!(
+        chunk.updated_levels.is_empty(),
+        "out-of-range y updates should not mark sub-chunk levels"
+    );
+
+    chunk.add_updated_level(2);
+    assert!(
+        chunk.updated_levels.iter().all(|level| *level < 8),
+        "valid y updates should still produce in-range sub-chunk levels"
+    );
+    assert!(!chunk.updated_levels.is_empty());
+}
+
+#[test]
 fn test_flood_light_respects_min_without_shape() {
     let registry = create_test_registry();
     let config = WorldConfig {

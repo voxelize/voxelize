@@ -145,20 +145,34 @@ impl Chunk {
 
     /// Flag a level of sub-chunk as dirty, waiting to be remeshed.
     pub fn add_updated_level(&mut self, vy: i32) {
-        let partition = (self.options.max_height / self.options.sub_chunks) as i32;
-
-        let level = vy / partition;
-        let remainder = vy % partition;
-
-        if remainder == partition - 1 && (level) < (self.options.sub_chunks as i32) - 1 {
-            self.updated_levels.insert(level as u32 + 1);
+        let max_height = self.options.max_height as i32;
+        let sub_chunks = self.options.sub_chunks as i32;
+        if sub_chunks <= 0 || max_height <= 0 || vy < 0 || vy >= max_height {
+            return;
         }
 
-        if remainder == 0 && level > 0 {
-            self.updated_levels.insert(level as u32 - 1);
+        let max_height_i64 = i64::from(max_height);
+        let sub_chunks_i64 = i64::from(sub_chunks);
+        let level = ((i64::from(vy) * sub_chunks_i64) / max_height_i64) as i32;
+        if level < 0 || level >= sub_chunks {
+            return;
         }
 
         self.updated_levels.insert(level as u32);
+
+        if level > 0 {
+            let level_start = ((i64::from(level) * max_height_i64) / sub_chunks_i64) as i32;
+            if vy == level_start {
+                self.updated_levels.insert((level - 1) as u32);
+            }
+        }
+
+        if level + 1 < sub_chunks {
+            let next_level_start = ((i64::from(level + 1) * max_height_i64) / sub_chunks_i64) as i32;
+            if vy + 1 == next_level_start {
+                self.updated_levels.insert((level + 1) as u32);
+            }
+        }
     }
 
     /// Convert voxel coordinates to local chunk coordinates.
