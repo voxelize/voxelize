@@ -340,14 +340,16 @@ fn parse_chunks(
                 chunks.push(None);
                 continue;
             };
-            let mut voxels = vec![0; voxels_array.length() as usize];
-            let mut lights = vec![0; lights_array.length() as usize];
-            voxels_array.copy_to(&mut voxels);
-            lights_array.copy_to(&mut lights);
-            if voxels.len() != expected_chunk_len || lights.len() != expected_chunk_len {
+            let voxels_len = voxels_array.length() as usize;
+            let lights_len = lights_array.length() as usize;
+            if voxels_len != expected_chunk_len || lights_len != expected_chunk_len {
                 chunks.push(None);
                 continue;
             }
+            let mut voxels = vec![0; expected_chunk_len];
+            let mut lights = vec![0; expected_chunk_len];
+            voxels_array.copy_to(&mut voxels);
+            lights_array.copy_to(&mut lights);
 
             chunks.push(Some(ChunkData {
                 voxels,
