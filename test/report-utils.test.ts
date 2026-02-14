@@ -3644,6 +3644,12 @@ describe("report-utils", () => {
       examplePayloadIssues: null,
       exampleOutputLine: "warning: no json",
     });
+    expect(summarizeTsCoreExampleOutput("")).toEqual({
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      exampleOutputLine: null,
+    });
   });
 
   it("extracts wasm pack status from nested summary or check map reports", () => {
