@@ -115,6 +115,14 @@ fn is_finite_point(point: &Vec3<f32>) -> bool {
 }
 
 #[inline]
+fn point_array_if_finite(point: &Vec3<f32>) -> Option<[f32; 3]> {
+    if !is_finite_point(point) {
+        return None;
+    }
+    Some([point.0, point.1, point.2])
+}
+
+#[inline]
 fn nearest_query_count(count: usize, extra: usize) -> usize {
     count.saturating_add(extra)
 }
@@ -135,6 +143,23 @@ impl Default for KdTree {
 }
 
 impl KdTree {
+    #[inline]
+    fn remove_from_kind_tree(&mut self, ent_id: EntityId, kind: EntityKind) {
+        match kind {
+            EntityKind::Player => self.players.remove(ent_id),
+            EntityKind::Entity => self.entities.remove(ent_id),
+        }
+    }
+
+    #[inline]
+    fn remove_entity_by_id(&mut self, ent_id: EntityId) {
+        if let Some(kind) = self.kind_map.remove(&ent_id) {
+            self.remove_from_kind_tree(ent_id, kind);
+        }
+        self.all.remove(ent_id);
+        self.entity_map.remove(&ent_id);
+    }
+
     pub fn new() -> Self {
         Self {
             all: EntityTree::new(),
@@ -155,50 +180,56 @@ impl KdTree {
 
     pub fn add_player(&mut self, ent: Entity, point: Vec3<f32>) {
         let ent_id = ent.id();
-        let pos = [point.0, point.1, point.2];
-        self.players.add(ent_id, pos);
-        self.all.add(ent_id, pos);
+        let Some(pos) = point_array_if_finite(&point) else {
+            self.remove_entity_by_id(ent_id);
+            return;
+        };
+        match self.kind_map.get(&ent_id).copied() {
+            Some(EntityKind::Player) => self.players.update(ent_id, pos),
+            Some(EntityKind::Entity) => {
+                self.entities.remove(ent_id);
+                self.players.add(ent_id, pos);
+            }
+            None => self.players.add(ent_id, pos),
+        }
+        self.all.update(ent_id, pos);
         self.entity_map.insert(ent_id, ent);
         self.kind_map.insert(ent_id, EntityKind::Player);
     }
 
     pub fn add_entity(&mut self, ent: Entity, point: Vec3<f32>) {
         let ent_id = ent.id();
-        let pos = [point.0, point.1, point.2];
-        self.entities.add(ent_id, pos);
-        self.all.add(ent_id, pos);
+        let Some(pos) = point_array_if_finite(&point) else {
+            self.remove_entity_by_id(ent_id);
+            return;
+        };
+        match self.kind_map.get(&ent_id).copied() {
+            Some(EntityKind::Entity) => self.entities.update(ent_id, pos),
+            Some(EntityKind::Player) => {
+                self.players.remove(ent_id);
+                self.entities.add(ent_id, pos);
+            }
+            None => self.entities.add(ent_id, pos),
+        }
+        self.all.update(ent_id, pos);
         self.entity_map.insert(ent_id, ent);
         self.kind_map.insert(ent_id, EntityKind::Entity);
     }
 
     pub fn update_player(&mut self, ent: Entity, point: Vec3<f32>) {
-        let ent_id = ent.id();
-        let pos = [point.0, point.1, point.2];
-        self.players.update(ent_id, pos);
-        self.all.update(ent_id, pos);
+        self.add_player(ent, point);
     }
 
     pub fn update_entity(&mut self, ent: Entity, point: Vec3<f32>) {
-        let ent_id = ent.id();
-        let pos = [point.0, point.1, point.2];
-        self.entities.update(ent_id, pos);
-        self.all.update(ent_id, pos);
+        self.add_entity(ent, point);
     }
 
     pub fn remove_player(&mut self, ent: Entity) {
-        let ent_id = ent.id();
-        self.players.remove(ent_id);
-        self.all.remove(ent_id);
-        self.entity_map.remove(&ent_id);
-        self.kind_map.remove(&ent_id);
+        self.remove_entity_by_id(ent.id());
     }
 
     pub fn remove_entity(&mut self, ent: Entity) {
-        let ent_id = ent.id();
-        self.entities.remove(ent_id);
-        self.all.remove(ent_id);
-        self.entity_map.remove(&ent_id);
-        self.kind_map.remove(&ent_id);
+        self.remove_entity_by_id(ent.id());
     }
 
     pub fn contains(&self, ent: Entity) -> bool {
@@ -228,18 +259,8 @@ impl KdTree {
             .map(|(&id, &kind)| (id, kind))
             .collect();
 
-        for (ent_id, kind) in to_remove {
-            match kind {
-                EntityKind::Player => {
-                    self.players.remove(ent_id);
-                }
-                EntityKind::Entity => {
-                    self.entities.remove(ent_id);
-                }
-            }
-            self.all.remove(ent_id);
-            self.entity_map.remove(&ent_id);
-            self.kind_map.remove(&ent_id);
+        for (ent_id, _) in to_remove {
+            self.remove_entity_by_id(ent_id);
         }
     }
 
@@ -316,7 +337,9 @@ impl KdTree {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_finite_point, nearest_query_count, normalized_radius_squared};
+    use super::{
+        is_finite_point, nearest_query_count, normalized_radius_squared, point_array_if_finite,
+    };
     use crate::Vec3;
 
     #[test]
@@ -344,5 +367,11 @@ mod tests {
     fn nearest_query_count_saturates_at_usize_max() {
         assert_eq!(nearest_query_count(2, 1), 3);
         assert_eq!(nearest_query_count(usize::MAX, 1), usize::MAX);
+    }
+
+    #[test]
+    fn point_array_if_finite_requires_finite_coordinates() {
+        assert_eq!(point_array_if_finite(&Vec3(1.0, 2.0, 3.0)), Some([1.0, 2.0, 3.0]));
+        assert_eq!(point_array_if_finite(&Vec3(f32::NAN, 2.0, 3.0)), None);
     }
 }
