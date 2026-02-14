@@ -137,6 +137,7 @@ pnpm run check:client:verify:json -- --output ./client-verify-report.json
 # direct cli alias also works: node ./check-client.mjs --verify
 
 # run full onboarding checks (tooling + ts-core + runtime libraries + client)
+# onboarding execution order: developer environment preflight -> TypeScript core checks -> runtime library checks -> client checks
 pnpm run check:onboarding
 # quiet mode (errors only)
 pnpm run check:onboarding -- --quiet
@@ -146,7 +147,7 @@ pnpm run check:onboarding:json
 pnpm run check:onboarding:json:compact
 # json output written to file
 pnpm run check:onboarding:json -- --output ./onboarding-report.json
-# verify onboarding checks without auto-building wasm artifacts
+# verify onboarding checks without automatic ts-core/runtime/client artifact builds
 pnpm run check:onboarding:verify
 # verify + json output (for CI integrations)
 pnpm run check:onboarding:verify:json
