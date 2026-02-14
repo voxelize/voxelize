@@ -107,6 +107,11 @@ interface WasmLightBatchResult {
   modifiedChunks: WasmLightChunkResult[];
 }
 
+type WorkerModifiedChunk = {
+  coords: Coords2;
+  lights: Uint32Array;
+};
+
 let wasmInitialized = false;
 let registryInitialized = false;
 const pendingBatchMessages: LightBatchMessage[] = [];
@@ -116,6 +121,8 @@ const reusableBoundsMin = new Int32Array(3);
 const reusableBoundsShape = new Uint32Array(3);
 const emptyUint32Array = new Uint32Array(0);
 const emptyTransferList: Transferable[] = [];
+const reusableModifiedChunks: WorkerModifiedChunk[] = [];
+const reusableTransferBuffers: ArrayBuffer[] = [];
 const reusablePostMessageOptions: StructuredSerializeOptions = {
   transfer: emptyTransferList,
 };
@@ -488,19 +495,24 @@ const processBatchMessage = (message: LightBatchMessage) => {
   ) as WasmLightBatchResult;
 
   const modifiedChunkCount = wasmResult.modifiedChunks.length;
-  const modifiedChunks = new Array<{
-    coords: Coords2;
-    lights: Uint32Array;
-  }>(modifiedChunkCount);
-  const transferBuffers = new Array<ArrayBuffer>(modifiedChunkCount);
+  const modifiedChunks = reusableModifiedChunks;
+  modifiedChunks.length = modifiedChunkCount;
+  const transferBuffers = reusableTransferBuffers;
+  transferBuffers.length = modifiedChunkCount;
 
   for (let index = 0; index < modifiedChunkCount; index++) {
     const chunk = wasmResult.modifiedChunks[index];
     const lights = new Uint32Array(chunk.lights);
-    modifiedChunks[index] = {
-      coords: chunk.coords,
-      lights,
-    };
+    const existing = modifiedChunks[index];
+    if (existing) {
+      existing.coords = chunk.coords;
+      existing.lights = lights;
+    } else {
+      modifiedChunks[index] = {
+        coords: chunk.coords,
+        lights,
+      };
+    }
     transferBuffers[index] = lights.buffer;
   }
 
@@ -513,6 +525,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
     },
     reusablePostMessageOptions
   );
+  modifiedChunks.length = 0;
+  transferBuffers.length = 0;
   reusablePostMessageOptions.transfer = emptyTransferList;
 };
 
