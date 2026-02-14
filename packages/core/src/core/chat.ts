@@ -708,6 +708,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     for (let aliasIndex = 0; aliasIndex < aliasesLength; aliasIndex++) {
       this.commands.delete(aliases[aliasIndex]);
     }
+    aliases.length = 0;
     return true;
   }
 
