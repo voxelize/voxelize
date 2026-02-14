@@ -31,7 +31,7 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
   const indices = geometry.index.array as Uint16Array | Uint32Array;
   const faceCount = Math.floor(indices.length / 6);
 
-  if (faceCount === 0) return null;
+  if (faceCount <= 1) return null;
 
   const centroids = new Float32Array(faceCount * 3);
   const faceOrder = new Uint32Array(faceCount);
