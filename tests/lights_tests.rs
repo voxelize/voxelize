@@ -287,6 +287,36 @@ fn test_chunks_and_space_handle_large_world_max_height_without_i32_wrap() {
 }
 
 #[test]
+fn test_space_builder_handles_large_chunk_size_without_i32_overflow() {
+    let edge = i32::MAX;
+    let config = WorldConfig {
+        chunk_size: i32::MAX as usize + 1024,
+        max_height: 16,
+        max_light_level: 15,
+        min_chunk: [edge, edge],
+        max_chunk: [edge, edge],
+        saving: false,
+        ..Default::default()
+    };
+    let mut chunks = Chunks::new(&config);
+    chunks.add(Chunk::new(
+        "chunk-edge",
+        edge,
+        edge,
+        &ChunkOptions {
+            size: 1,
+            max_height: 16,
+            sub_chunks: 1,
+        },
+    ));
+
+    let space = chunks.make_space(&Vec2(edge, edge), 1).needs_voxels().build();
+    assert_eq!(space.coords, Vec2(edge, edge));
+    assert_eq!(space.min.0, i32::MAX);
+    assert_eq!(space.min.2, i32::MAX);
+}
+
+#[test]
 fn test_space_get_raw_voxel_ignores_out_of_range_y() {
     let config = WorldConfig {
         chunk_size: 16,

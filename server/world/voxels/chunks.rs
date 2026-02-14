@@ -379,7 +379,13 @@ impl Chunks {
 
         for x in -extended..=extended {
             for z in -extended..=extended {
-                let n_coords = Vec2(coords.0 + x, coords.1 + z);
+                let Some(nx) = coords.0.checked_add(x) else {
+                    continue;
+                };
+                let Some(nz) = coords.1.checked_add(z) else {
+                    continue;
+                };
+                let n_coords = Vec2(nx, nz);
 
                 if self.is_within_world(&n_coords) {
                     list.push(n_coords);

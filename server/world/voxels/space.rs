@@ -219,11 +219,25 @@ impl SpaceBuilder<'_> {
                 },
             );
 
-        let min = Vec3(
-            cx * chunk_size as i32 - margin as i32,
-            0,
-            cz * chunk_size as i32 - margin as i32,
-        );
+        let clamp_i64_to_i32 =
+            |value: i64| value.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
+        let chunk_size_i64 = if chunk_size > i64::MAX as usize {
+            i64::MAX
+        } else {
+            chunk_size as i64
+        };
+        let margin_i64 = if margin > i64::MAX as usize {
+            i64::MAX
+        } else {
+            margin as i64
+        };
+        let min_x = i64::from(cx)
+            .saturating_mul(chunk_size_i64)
+            .saturating_sub(margin_i64);
+        let min_z = i64::from(cz)
+            .saturating_mul(chunk_size_i64)
+            .saturating_sub(margin_i64);
+        let min = Vec3(clamp_i64_to_i32(min_x), 0, clamp_i64_to_i32(min_z));
 
         let shape = Vec3(width, max_height, width);
 
