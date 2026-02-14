@@ -76,3 +76,10 @@ describe("ChunkUtils.parseChunkNameAt", () => {
     expect(negativeX).toBe(-Number.MAX_SAFE_INTEGER);
   });
 });
+
+describe("ChunkUtils.mapChunkToVoxel", () => {
+  it("uses normalized chunk sizes for invalid and fractional inputs", () => {
+    expect(ChunkUtils.mapChunkToVoxel([3, -2], 0)).toEqual([3, 0, -2]);
+    expect(ChunkUtils.mapChunkToVoxel([3, -2], 15.8)).toEqual([45, 0, -30]);
+  });
+});

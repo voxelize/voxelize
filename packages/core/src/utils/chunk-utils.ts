@@ -292,7 +292,12 @@ export class ChunkUtils {
    * @returns The mapped coordinate.
    */
   static mapChunkToVoxel = (chunkPos: Coords2, chunkSize: number): Coords3 => {
-    return [chunkPos[0] * chunkSize, 0, chunkPos[1] * chunkSize];
+    const normalizedChunkSize = normalizeChunkSize(chunkSize);
+    return [
+      chunkPos[0] * normalizedChunkSize,
+      0,
+      chunkPos[1] * normalizedChunkSize,
+    ];
   };
 
   /**
