@@ -33,6 +33,8 @@ flowchart LR
 - `BlockRotation`: axis/y-rotation encoding and transforms
 - `AABB`: geometry math helpers
 - `BlockRuleEvaluator`: dynamic rule matching
+- `createBlockConditionalPart`: defensive rule/array copy helper for dynamic
+  block-part definitions
 - `VoxelAccess`: shared access contract
 
 ## Basic usage
