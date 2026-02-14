@@ -44,7 +44,7 @@ flowchart LR
 - `VoxelAccess`: shared access contract
 
 Both helper constructors use deterministic defaults when optional fields are
-omitted or the top-level helper input is `null`.
+omitted or the top-level helper input is `null`/non-plain.
 `createBlockConditionalPart` accepts either `BlockFace` instances or
 `BlockFaceInit` objects in `faces`.
 Both helpers also accept readonly input arrays/tuples.
@@ -52,6 +52,7 @@ Invalid face/AABB entries (including `null`/`undefined`) are skipped during
 helper cloning.
 Malformed dynamic-pattern part entries (including `null`/`undefined`) are
 skipped during helper cloning.
+Non-plain object part entries are also skipped during helper cloning.
 Malformed optional face fields fall back to default face values.
 Malformed rules fall back to `BLOCK_RULE_NONE`, and malformed transparency
 inputs (including `null`/non-array values) fall back to `false` defaults.

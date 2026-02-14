@@ -940,6 +940,7 @@ describe("Type builders", () => {
   it("builds conditional parts with deterministic defaults for non-object inputs", () => {
     const partFromNull = createBlockConditionalPart(null);
     const partFromNumber = createBlockConditionalPart(42 as never);
+    const partFromDate = createBlockConditionalPart(new Date() as never);
 
     expect(partFromNull).toEqual({
       rule: BLOCK_RULE_NONE,
@@ -957,6 +958,14 @@ describe("Type builders", () => {
       worldSpace: false,
     });
     expect(partFromNumber.rule).not.toBe(BLOCK_RULE_NONE);
+    expect(partFromDate).toEqual({
+      rule: BLOCK_RULE_NONE,
+      faces: [],
+      aabbs: [],
+      isTransparent: [false, false, false, false, false, false],
+      worldSpace: false,
+    });
+    expect(partFromDate.rule).not.toBe(BLOCK_RULE_NONE);
   });
 
   it("sanitizes malformed transparency entries to boolean defaults", () => {
@@ -1680,7 +1689,14 @@ describe("Type builders", () => {
 
   it("skips malformed dynamic pattern part entries", () => {
     const pattern = createBlockDynamicPattern({
-      parts: [undefined, null, 42 as never, [] as never, { worldSpace: true }],
+      parts: [
+        undefined,
+        null,
+        new Date() as never,
+        42 as never,
+        [] as never,
+        { worldSpace: true },
+      ],
     });
 
     expect(pattern.parts).toEqual([

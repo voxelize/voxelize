@@ -218,6 +218,11 @@ const isBooleanValue = (value: DynamicValue): value is boolean => {
   return typeof value === "boolean";
 };
 
+const hasPlainObjectPrototype = (value: object): boolean => {
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+};
+
 export const createFaceTransparency = (
   value: FaceTransparencyLike = null
 ): FaceTransparency => {
@@ -488,7 +493,10 @@ export const createBlockConditionalPart = (
   part: BlockConditionalPartInput | null = {}
 ): BlockConditionalPart => {
   const normalizedPart =
-    part !== null && typeof part === "object" && !Array.isArray(part)
+    part !== null &&
+    typeof part === "object" &&
+    !Array.isArray(part) &&
+    hasPlainObjectPrototype(part)
       ? part
       : {};
   const faces = Array.isArray(normalizedPart.faces)
@@ -528,12 +536,21 @@ export const createBlockDynamicPattern = (
   pattern: BlockDynamicPatternInput | null = {}
 ): BlockDynamicPattern => {
   const normalizedPattern =
-    pattern !== null && typeof pattern === "object" && !Array.isArray(pattern)
+    pattern !== null &&
+    typeof pattern === "object" &&
+    !Array.isArray(pattern) &&
+    hasPlainObjectPrototype(pattern)
       ? pattern
       : {};
   const parts = Array.isArray(normalizedPattern.parts)
     ? normalizedPattern.parts.reduce<BlockConditionalPart[]>((clonedParts, part) => {
-        if (part !== null && typeof part === "object" && !Array.isArray(part)) {
+        if (
+          part !== null &&
+          part !== undefined &&
+          typeof part === "object" &&
+          !Array.isArray(part) &&
+          hasPlainObjectPrototype(part)
+        ) {
           clonedParts.push(createBlockConditionalPart(part));
         }
 
