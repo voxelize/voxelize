@@ -530,11 +530,14 @@ impl VoxelAccess for Chunks {
         if vy < 0 || vy >= self.config.max_height as i32 {
             return 0;
         }
-        if let Some(chunk) = self.raw_chunk_by_voxel(vx, vy, vz) {
-            chunk.get_raw_voxel(vx, vy, vz)
-        } else {
-            0
+        let chunk_size = self.config.chunk_size;
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        if let Some(chunk) = self.raw(&coords) {
+            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            return chunk.voxels[&[lx, ly, lz]];
         }
+
+        0
     }
 
     /// Set the raw voxel value at a voxel coordinate. Returns false couldn't set.
@@ -542,19 +545,23 @@ impl VoxelAccess for Chunks {
         if vy < 0 || vy >= self.config.max_height as i32 {
             return false;
         }
-        if let Some(chunk) = self.raw_chunk_by_voxel_mut(vx, vy, vz) {
-            if chunk.get_raw_voxel(vx, vy, vz) == id {
+        let chunk_size = self.config.chunk_size;
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+
+        {
+            let Some(chunk) = self.raw_mut(&coords) else {
+                return false;
+            };
+            if chunk.voxels[&[lx, ly, lz]] == id {
                 return true;
             }
-            if !chunk.set_raw_voxel(vx, vy, vz, id) {
-                return false;
-            }
-            self.add_updated_level_at(vx, vy, vz);
 
-            return true;
+            Arc::make_mut(&mut chunk.voxels)[&[lx, ly, lz]] = id;
         }
+        self.add_updated_level_at(vx, vy, vz);
 
-        false
+        true
     }
 
     /// Get the raw light value at a voxel coordinate. If chunk not found, 0 is returned.
@@ -565,12 +572,14 @@ impl VoxelAccess for Chunks {
         if vy < 0 {
             return 0;
         }
-
-        if let Some(chunk) = self.raw_chunk_by_voxel(vx, vy, vz) {
-            chunk.get_raw_light(vx, vy, vz)
-        } else {
-            0
+        let chunk_size = self.config.chunk_size;
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        if let Some(chunk) = self.raw(&coords) {
+            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            return chunk.lights[&[lx, ly, lz]];
         }
+
+        0
     }
 
     /// Set the raw light level at a voxel coordinate. Returns false couldn't set.
@@ -578,19 +587,23 @@ impl VoxelAccess for Chunks {
         if vy < 0 || vy >= self.config.max_height as i32 {
             return false;
         }
-        if let Some(chunk) = self.raw_chunk_by_voxel_mut(vx, vy, vz) {
-            if chunk.get_raw_light(vx, vy, vz) == level {
+        let chunk_size = self.config.chunk_size;
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+
+        {
+            let Some(chunk) = self.raw_mut(&coords) else {
+                return false;
+            };
+            if chunk.lights[&[lx, ly, lz]] == level {
                 return true;
             }
-            if !chunk.set_raw_light(vx, vy, vz, level) {
-                return false;
-            }
-            self.add_updated_level_at(vx, vy, vz);
 
-            return true;
+            Arc::make_mut(&mut chunk.lights)[&[lx, ly, lz]] = level;
         }
+        self.add_updated_level_at(vx, vy, vz);
 
-        false
+        true
     }
 
     /// Get the sunlight level at a voxel position. Returns 0 if chunk does not exist.
@@ -601,27 +614,39 @@ impl VoxelAccess for Chunks {
         if vy < 0 {
             return 0;
         }
-
-        if let Some(chunk) = self.raw_chunk_by_voxel(vx, vy, vz) {
-            chunk.get_sunlight(vx, vy, vz)
-        } else {
-            self.config.max_light_level
+        let chunk_size = self.config.chunk_size;
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        if let Some(chunk) = self.raw(&coords) {
+            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            return LightUtils::extract_sunlight(chunk.lights[&[lx, ly, lz]]);
         }
+
+        self.config.max_light_level
     }
 
     /// Get the max height at a voxel column. Returns 0 if column does not exist.
     fn get_max_height(&self, vx: i32, vz: i32) -> u32 {
-        if let Some(chunk) = self.raw_chunk_by_voxel(vx, 0, vz) {
-            chunk.get_max_height(vx, vz)
-        } else {
-            0
+        let chunk_size = self.config.chunk_size;
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, 0, vz, chunk_size);
+        if let Some(chunk) = self.raw(&coords) {
+            let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, 0, vz, chunk_size);
+            return chunk.height_map[&[lx, lz]];
         }
+
+        0
     }
 
     /// Set the max height at a voxel column. Does nothing if column does not exist.
     fn set_max_height(&mut self, vx: i32, vz: i32, height: u32) -> bool {
-        if let Some(chunk) = self.raw_chunk_by_voxel_mut(vx, 0, vz) {
-            chunk.set_max_height(vx, vz, height);
+        let chunk_size = self.config.chunk_size;
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, 0, vz, chunk_size);
+        let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, 0, vz, chunk_size);
+
+        if let Some(chunk) = self.raw_mut(&coords) {
+            if chunk.height_map[&[lx, lz]] == height {
+                return true;
+            }
+            Arc::make_mut(&mut chunk.height_map)[&[lx, lz]] = height;
             return true;
         }
 
