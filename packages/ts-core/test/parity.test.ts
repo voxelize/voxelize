@@ -469,6 +469,23 @@ describe("BlockRotation", () => {
     expect(yRotation).toBe(15);
   });
 
+  it("decodes large negative y-rotation angles via modulo-normalized segments", () => {
+    const largeNegativeAngle = -7087903122387371;
+    const [axis, yRotation] = BlockRotation.decode(
+      new BlockRotation(PY_ROTATION, largeNegativeAngle)
+    );
+    const normalizedAngle =
+      ((largeNegativeAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    const expectedSegment = Math.round((normalizedAngle * 16) / (Math.PI * 2)) % 16;
+
+    expect(axis).toBe(PY_ROTATION);
+    expect(yRotation).toBe(expectedSegment);
+    expect(yRotation).toBe(11);
+    expect(BlockRotation.py(largeNegativeAngle).equals(BlockRotation.encode(PY_ROTATION, 11))).toBe(
+      true
+    );
+  });
+
   it("normalizes non-finite y-rotation values in decode and transforms", () => {
     const input: [boolean, boolean, boolean, boolean, boolean, boolean] = [
       true,
