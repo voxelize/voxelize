@@ -138,6 +138,12 @@ pnpm run check:ts-core:json
 
 # verify-only mode (no auto-build)
 pnpm run check:ts-core:verify:json
+
+# full ts-core release readiness workflow
+pnpm run check:ts-core:release
+
+# aggregate ts-core release readiness workflow
+pnpm run check:preflight:ts-core:release
 ```
 
 The checker validates:
@@ -164,6 +170,13 @@ pnpm run check:runtime-libraries:verify:json
 
 # full runtime-library release readiness workflow
 pnpm run check:runtime-libraries:release
+
+# aggregate runtime-library release readiness workflow
+pnpm run check:preflight:runtime-libraries:release
+
+# combined library release readiness workflow
+pnpm run check:libraries:release
+pnpm run check:preflight:libraries:release
 ```
 
 Runtime-library JSON reports include package/build diagnostics such as
