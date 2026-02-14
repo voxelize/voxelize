@@ -269,6 +269,46 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                         known_entities.remove(entity_id);
                     }
                 }
+            } else if self.deleted_entities_buffer.len() <= 4 {
+                for client_id in clients.keys() {
+                    if let Some(known_entities) =
+                        bookkeeping.client_known_entities.get_mut(client_id)
+                    {
+                        let entities_to_delete = &mut self.known_entities_to_delete_buffer;
+                        entities_to_delete.clear();
+
+                        for entity_id in known_entities.iter() {
+                            let mut deleted_match: Option<(&String, &String)> = None;
+                            for (deleted_entity_id, etype, metadata_str) in
+                                &self.deleted_entities_buffer
+                            {
+                                if deleted_entity_id == entity_id {
+                                    deleted_match = Some((etype, metadata_str));
+                                    break;
+                                }
+                            }
+                            let Some((etype, metadata_str)) = deleted_match else {
+                                continue;
+                            };
+                            push_client_update(
+                                &mut client_updates,
+                                &mut self.clients_with_updates_buffer,
+                                client_id,
+                                EntityProtocol {
+                                    operation: EntityOperation::Delete,
+                                    id: entity_id.clone(),
+                                    r#type: etype.clone(),
+                                    metadata: Some(metadata_str.clone()),
+                                },
+                            );
+                            entities_to_delete.push(entity_id.clone());
+                        }
+
+                        for entity_id in entities_to_delete.iter() {
+                            known_entities.remove(entity_id);
+                        }
+                    }
+                }
             } else {
                 let mut deleted_entities_lookup: HashMap<&str, (&String, &String)> =
                     HashMap::with_capacity(self.deleted_entities_buffer.len());
