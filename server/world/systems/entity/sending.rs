@@ -177,6 +177,13 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             }
         }
 
+        if clients.is_empty() {
+            bookkeeping.client_known_entities.clear();
+            bookkeeping.entities = new_bookkeeping_records;
+            bookkeeping.entity_positions = entity_positions;
+            return;
+        }
+
         let mut entity_to_client_id: HashMap<Entity, &String> =
             HashMap::with_capacity(clients.len());
         for (client_id, client) in clients.iter() {
