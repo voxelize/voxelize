@@ -10,6 +10,7 @@ import { LightColor } from "./light-utils";
 
 const ROTATION_MASK = 0xfff0ffff;
 const Y_ROTATION_MASK = 0xff0fffff;
+const ROTATION_VALUES_MASK = ROTATION_MASK & Y_ROTATION_MASK;
 const STAGE_MASK = 0xf0ffffff;
 
 /**
@@ -75,8 +76,11 @@ export class BlockUtils {
    */
   static insertRotation = (voxel: number, rotation: BlockRotation) => {
     const [rot, yRot] = BlockRotation.decode(rotation);
-    const value = (voxel & ROTATION_MASK) | ((rot & 0xf) << 16);
-    return (value & Y_ROTATION_MASK) | ((yRot & 0xf) << 20);
+    return (
+      (voxel & ROTATION_VALUES_MASK) |
+      ((rot & 0xf) << 16) |
+      ((yRot & 0xf) << 20)
+    );
   };
 
   static insertRotationValues = (
@@ -84,8 +88,11 @@ export class BlockUtils {
     rotation: number,
     yRotation: number
   ) => {
-    const value = (voxel & ROTATION_MASK) | ((rotation & 0xf) << 16);
-    return (value & Y_ROTATION_MASK) | ((yRotation & 0xf) << 20);
+    return (
+      (voxel & ROTATION_VALUES_MASK) |
+      ((rotation & 0xf) << 16) |
+      ((yRotation & 0xf) << 20)
+    );
   };
 
   /**
