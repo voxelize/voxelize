@@ -36,6 +36,11 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         let _t = timing.timer("chunk-requests");
 
         let max_response_per_tick = config.max_response_per_tick;
+        let sub_chunks_u32 = if config.sub_chunks > u32::MAX as usize {
+            u32::MAX
+        } else {
+            config.sub_chunks as u32
+        };
 
         let mut to_send: HashMap<String, HashSet<Vec2<i32>>> = HashMap::new();
 
@@ -79,7 +84,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                 .filter_map(|coords| {
                     chunks
                         .get(&coords)
-                        .map(|chunk| chunk.to_model(true, true, 0..config.sub_chunks as u32))
+                        .map(|chunk| chunk.to_model(true, true, 0..sub_chunks_u32))
                 })
                 .collect();
 
