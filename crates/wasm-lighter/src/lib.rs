@@ -431,7 +431,7 @@ pub fn process_light_batch_fast(
     } else {
         match serde_wasm_bindgen::from_value(removals) {
             Ok(nodes) => nodes,
-            Err(_) => return empty_batch_result(),
+            Err(_) => Vec::new(),
         }
     };
     let flood_nodes: Vec<LightNode> = if floods
@@ -442,7 +442,7 @@ pub fn process_light_batch_fast(
     } else {
         match serde_wasm_bindgen::from_value(floods) {
             Ok(nodes) => nodes,
-            Err(_) => return empty_batch_result(),
+            Err(_) => Vec::new(),
         }
     };
     if removal_nodes.is_empty() && flood_nodes.is_empty() {
