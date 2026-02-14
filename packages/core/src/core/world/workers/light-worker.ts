@@ -410,6 +410,75 @@ const hasPotentialRelevantDeltaBatches = (
   return false;
 };
 
+const isStrictCoords3 = (
+  coords: Coords3 | readonly number[] | null | undefined
+): coords is Coords3 =>
+  Array.isArray(coords) &&
+  coords.length === 3 &&
+  isInteger(coords[0]) &&
+  isInteger(coords[1]) &&
+  isInteger(coords[2]);
+
+const isValidFloodNode = (
+  node: LightNode | null | undefined
+): node is LightNode =>
+  node !== undefined &&
+  node !== null &&
+  typeof node === "object" &&
+  isInteger(node.level) &&
+  node.level >= 0 &&
+  isStrictCoords3(node.voxel);
+
+const filterInvalidRemovalNodes = (removals: Coords3[]): Coords3[] => {
+  let sanitized: Coords3[] | null = null;
+
+  for (let index = 0; index < removals.length; index++) {
+    const node = removals[index];
+    if (!isStrictCoords3(node)) {
+      if (!sanitized) {
+        sanitized = [];
+        for (let copied = 0; copied < index; copied++) {
+          const candidate = removals[copied];
+          if (isStrictCoords3(candidate)) {
+            sanitized.push(candidate);
+          }
+        }
+      }
+      continue;
+    }
+    if (sanitized) {
+      sanitized.push(node);
+    }
+  }
+
+  return sanitized ?? removals;
+};
+
+const filterInvalidFloodNodes = (floods: LightNode[]): LightNode[] => {
+  let sanitized: LightNode[] | null = null;
+
+  for (let index = 0; index < floods.length; index++) {
+    const node = floods[index];
+    if (!isValidFloodNode(node)) {
+      if (!sanitized) {
+        sanitized = [];
+        for (let copied = 0; copied < index; copied++) {
+          const candidate = floods[copied];
+          if (isValidFloodNode(candidate)) {
+            sanitized.push(candidate);
+          }
+        }
+      }
+      continue;
+    }
+    if (sanitized) {
+      sanitized.push(node);
+    }
+  }
+
+  return sanitized ?? floods;
+};
+
 const postEmptyBatchResult = (jobId: string, lastSequenceId = 0) => {
   const appliedDeltas = getAppliedDeltasPayload(lastSequenceId);
   reusableBatchResultMessage.jobId = jobId;
@@ -902,11 +971,13 @@ const processBatchMessage = (message: LightBatchMessage) => {
     postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
     return;
   }
-  if (removals.length === 0 && floods.length === 0) {
+  const validRemovalNodes = filterInvalidRemovalNodes(removals);
+  const validFloodNodes = filterInvalidFloodNodes(floods);
+  if (validRemovalNodes.length === 0 && validFloodNodes.length === 0) {
     postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
     return;
   }
-  const hasFloods = floods.length > 0;
+  const hasFloods = validFloodNodes.length > 0;
   const bounds = boundingBox;
   const boundsMin = bounds?.min;
   const boundsShape = bounds?.shape;
@@ -1018,8 +1089,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
     gridOffsetX,
     gridOffsetZ,
     colorIndex,
-    removals,
-    floods,
+    validRemovalNodes,
+    validFloodNodes,
     boundsMinPayload,
     boundsShapePayload,
     chunkSize,
