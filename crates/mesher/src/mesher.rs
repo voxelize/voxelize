@@ -2245,21 +2245,25 @@ fn process_greedy_quad(
     let face_lights = quad.data.key.light;
     let ndx = (geometry.positions.len() / 3) as i32;
 
+    let mut positions_chunk = [0.0f32; 12];
+    let mut uv_chunk = [0.0f32; 8];
+    let mut light_chunk = [0i32; 4];
     for i in 0..4 {
         let pos = corners[i];
-        geometry.positions.push(pos[0] - pos_offset_x);
-        geometry.positions.push(pos[1] - pos_offset_y);
-        geometry.positions.push(pos[2] - pos_offset_z);
+        let pos_base = i * 3;
+        positions_chunk[pos_base] = pos[0] - pos_offset_x;
+        positions_chunk[pos_base + 1] = pos[1] - pos_offset_y;
+        positions_chunk[pos_base + 2] = pos[2] - pos_offset_z;
 
-        let u = uv_corners[i][0] * uv_span_u + start_u;
-        let v = uv_corners[i][1] * uv_span_v + start_v;
-        geometry.uvs.push(u);
-        geometry.uvs.push(v);
+        let uv_base = i * 2;
+        uv_chunk[uv_base] = uv_corners[i][0] * uv_span_u + start_u;
+        uv_chunk[uv_base + 1] = uv_corners[i][1] * uv_span_v + start_v;
 
-        let ao = face_aos[i];
-        let light = face_lights[i];
-        geometry.lights.push(light | (ao << 16) | light_flags);
+        light_chunk[i] = face_lights[i] | (face_aos[i] << 16) | light_flags;
     }
+    geometry.positions.extend_from_slice(&positions_chunk);
+    geometry.uvs.extend_from_slice(&uv_chunk);
+    geometry.lights.extend_from_slice(&light_chunk);
 
     if face_aos == [face_aos[0]; 4] && face_lights == [face_lights[0]; 4] {
         geometry.indices.push(ndx);
