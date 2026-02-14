@@ -162,6 +162,8 @@ fn flood_light_from_nodes(
 ) {
     let is_sunlight = *color == LightColor::Sunlight;
     let color_mask = if is_sunlight { 0 } else { torch_color_mask(color) };
+    let max_height = config.max_height;
+    let max_light_level = config.max_light_level;
     let chunk_size = config.chunk_size;
     let chunk_shift = resolve_chunk_shift(chunk_size);
     let [start_cx, start_cz] = config.min_chunk;
@@ -199,7 +201,7 @@ fn flood_light_from_nodes(
             let nvy = vy + oy;
             let nvz = vz + oz;
 
-            if nvy < 0 || nvy >= config.max_height {
+            if nvy < 0 || nvy >= max_height {
                 continue;
             }
 
@@ -224,7 +226,7 @@ fn flood_light_from_nodes(
             let reduce = if is_sunlight
                 && !n_block.light_reduce
                 && oy == -1
-                && level == config.max_light_level
+                && level == max_light_level
             {
                 0
             } else {
@@ -324,6 +326,7 @@ fn collect_refill_nodes_after_removals(
     let mut fill = Vec::<LightNode>::with_capacity(remove.len());
     let mut head = 0usize;
     let color_mask = if is_sunlight { 0 } else { torch_color_mask(color) };
+    let max_height = config.max_height;
     let max_light_level = config.max_light_level;
 
     while head < remove.len() {
@@ -337,7 +340,7 @@ fn collect_refill_nodes_after_removals(
             let nvy = svy + oy;
             let nvz = svz + oz;
 
-            if nvy < 0 || nvy >= config.max_height {
+            if nvy < 0 || nvy >= max_height {
                 continue;
             }
 
@@ -433,6 +436,7 @@ pub fn propagate(
 ) -> [VecDeque<LightNode>; 4] {
     let [start_x, _, start_z] = min;
     let [shape_x, _, shape_z] = shape;
+    let max_height = config.max_height;
 
     let mut red_light_queue = Vec::<LightNode>::new();
     let mut green_light_queue = Vec::<LightNode>::new();
@@ -441,7 +445,7 @@ pub fn propagate(
 
     let mut mask = vec![config.max_light_level; shape_x * shape_z];
 
-    for y in (0..config.max_height).rev() {
+    for y in (0..max_height).rev() {
         for x in 0..shape_x {
             let vx = start_x + x as i32;
             for z in 0..shape_z {
