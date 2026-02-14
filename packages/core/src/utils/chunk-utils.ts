@@ -36,6 +36,8 @@ const mapVoxelToChunkCoordinate = (
 const normalizeChunkSize = (chunkSize: number) =>
   Number.isFinite(chunkSize) && chunkSize > 0 ? chunkSize : 1;
 const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER;
+const isAsciiWhitespaceCode = (code: number) =>
+  code === 32 || (code >= 9 && code <= 13);
 
 /**
  * A utility class for all things related to chunks and chunk coordinates.
@@ -195,14 +197,7 @@ export class ChunkUtils {
 
     while (index < end) {
       const code = value.charCodeAt(index);
-      if (
-        code === 32 ||
-        code === 9 ||
-        code === 10 ||
-        code === 11 ||
-        code === 12 ||
-        code === 13
-      ) {
+      if (isAsciiWhitespaceCode(code)) {
         index++;
       } else {
         break;
