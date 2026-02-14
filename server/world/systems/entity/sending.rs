@@ -270,7 +270,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     if let Some(known_entities) =
                         bookkeeping.client_known_entities.get_mut(client_id)
                     {
-                        if !known_entities.contains(entity_id) {
+                        if !known_entities.remove(entity_id) {
                             continue;
                         }
                         push_client_update(
@@ -284,7 +284,6 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                                 metadata: Some(metadata_str.clone()),
                             },
                         );
-                        known_entities.remove(entity_id);
                     }
                 }
             } else if self.deleted_entities_buffer.len() <= 4 {
