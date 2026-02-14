@@ -37,35 +37,34 @@ impl SystemTimings {
     }
 
     pub fn get_summary(&self) -> HashMap<String, SystemStats> {
-        self.samples
-            .iter()
-            .filter_map(|(name, samples)| {
-                if samples.is_empty() {
-                    return None;
-                }
+        let mut summary = HashMap::with_capacity(self.samples.len());
+        for (name, samples) in self.samples.iter() {
+            if samples.is_empty() {
+                continue;
+            }
 
-                let mut sum = 0.0;
-                let mut max = f64::NEG_INFINITY;
-                let mut min = f64::INFINITY;
-                for sample in samples {
-                    let duration = sample.duration_ms;
-                    sum += duration;
-                    max = max.max(duration);
-                    min = min.min(duration);
-                }
-                let sample_count = samples.len();
-                let avg = sum / sample_count as f64;
-                Some((
-                    name.clone(),
-                    SystemStats {
-                        avg,
-                        max,
-                        min,
-                        samples: sample_count,
-                    },
-                ))
-            })
-            .collect()
+            let mut sum = 0.0;
+            let mut max = f64::NEG_INFINITY;
+            let mut min = f64::INFINITY;
+            for sample in samples {
+                let duration = sample.duration_ms;
+                sum += duration;
+                max = max.max(duration);
+                min = min.min(duration);
+            }
+            let sample_count = samples.len();
+            let avg = sum / sample_count as f64;
+            summary.insert(
+                name.clone(),
+                SystemStats {
+                    avg,
+                    max,
+                    min,
+                    samples: sample_count,
+                },
+            );
+        }
+        summary
     }
 
     pub fn clear(&mut self) {
