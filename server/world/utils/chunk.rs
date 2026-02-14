@@ -1,12 +1,9 @@
 use crate::{Vec2, Vec3};
 
-fn get_concat() -> &'static str {
-    if cfg!(target_os = "windows") {
-        "_"
-    } else {
-        "|"
-    }
-}
+#[cfg(target_os = "windows")]
+const CHUNK_NAME_SEPARATOR: &str = "_";
+#[cfg(not(target_os = "windows"))]
+const CHUNK_NAME_SEPARATOR: &str = "|";
 
 /// A set of utility functions for chunk operations.
 pub struct ChunkUtils;
@@ -14,12 +11,12 @@ pub struct ChunkUtils;
 impl ChunkUtils {
     /// Generate a chunk representation from a chunk coordinate.
     pub fn get_chunk_name(cx: i32, cz: i32) -> String {
-        format!("{}{}{}", cx, get_concat(), cz)
+        format!("{}{}{}", cx, CHUNK_NAME_SEPARATOR, cz)
     }
 
     /// Parse a chunk coordinate from a chunk representation.
     pub fn parse_chunk_name(name: &str) -> Vec2<i32> {
-        let mut segments = name.split(get_concat());
+        let mut segments = name.split(CHUNK_NAME_SEPARATOR);
         let raw_x = segments.next().expect("Invalid chunk name format");
         let raw_z = segments.next().expect("Invalid chunk name format");
         Vec2(raw_x.parse().unwrap(), raw_z.parse().unwrap())
@@ -27,14 +24,15 @@ impl ChunkUtils {
 
     /// Generate a voxel representation from a voxel coordinate.
     pub fn get_voxel_name(vx: i32, vy: i32, vz: i32) -> String {
-        let concat = get_concat();
-        format!("{}{}{}{}{}", vx, concat, vy, concat, vz)
+        format!(
+            "{}{}{}{}{}",
+            vx, CHUNK_NAME_SEPARATOR, vy, CHUNK_NAME_SEPARATOR, vz
+        )
     }
 
     /// Parse a voxel coordinate from a voxel representation.
     pub fn parse_voxel_name(name: &str) -> Vec3<i32> {
-        let concat = get_concat();
-        let mut segments = name.split(concat);
+        let mut segments = name.split(CHUNK_NAME_SEPARATOR);
         let raw_x = segments.next().expect("Invalid voxel name format");
         let raw_y = segments.next().expect("Invalid voxel name format");
         let raw_z = segments.next().expect("Invalid voxel name format");
@@ -73,7 +71,7 @@ impl ChunkUtils {
 
 #[cfg(test)]
 mod tests {
-    use super::{get_concat, ChunkUtils};
+    use super::{ChunkUtils, CHUNK_NAME_SEPARATOR};
     use crate::{Vec2, Vec3};
 
     #[test]
@@ -93,8 +91,10 @@ mod tests {
 
     #[test]
     fn parse_chunk_name_keeps_first_two_segments() {
-        let concat = get_concat();
-        let raw = format!("1{}2{}3", concat, concat);
+        let raw = format!(
+            "1{}2{}3",
+            CHUNK_NAME_SEPARATOR, CHUNK_NAME_SEPARATOR
+        );
         let Vec2(cx, cz) = ChunkUtils::parse_chunk_name(&raw);
         assert_eq!(cx, 1);
         assert_eq!(cz, 2);
@@ -102,8 +102,10 @@ mod tests {
 
     #[test]
     fn parse_voxel_name_keeps_first_three_segments() {
-        let concat = get_concat();
-        let raw = format!("1{}2{}3{}4", concat, concat, concat);
+        let raw = format!(
+            "1{}2{}3{}4",
+            CHUNK_NAME_SEPARATOR, CHUNK_NAME_SEPARATOR, CHUNK_NAME_SEPARATOR
+        );
         let Vec3(vx, vy, vz) = ChunkUtils::parse_voxel_name(&raw);
         assert_eq!(vx, 1);
         assert_eq!(vy, 2);
