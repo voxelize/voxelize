@@ -856,10 +856,6 @@ const applyRelevantDeltas = (
         continue;
       }
       const [vx, vy, vz] = coords;
-      const writeIntentMask = getDeltaWriteIntentMask(delta);
-      if (writeIntentMask === 0) {
-        continue;
-      }
       if (
         vx < chunkMinX ||
         vx >= chunkMaxX ||
@@ -868,6 +864,10 @@ const applyRelevantDeltas = (
         vz < chunkMinZ ||
         vz >= chunkMaxZ
       ) {
+        continue;
+      }
+      const writeIntentMask = getDeltaWriteIntentMask(delta);
+      if (writeIntentMask === 0) {
         continue;
       }
       const lx = vx - chunkMinX;
