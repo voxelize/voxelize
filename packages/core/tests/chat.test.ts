@@ -259,6 +259,12 @@ describe("Chat command registration", () => {
     );
 
     expect(chat.removeCommand("good")).toBe(true);
+    expect(chat.getAllCommands()).toEqual([
+      expect.objectContaining({
+        trigger: "echo",
+        aliases: ["alt"],
+      }),
+    ]);
 
     chat.send({ type: "CLIENT", body: "/good" });
     chat.send({ type: "CLIENT", body: "/alt" });
