@@ -400,13 +400,22 @@ const hasPotentialRelevantDeltaBatches = (
     }
     const chunkMinX = cx * chunkSize;
     const chunkMinZ = cz * chunkSize;
-    const hasFiniteChunkBounds =
+    let hasFiniteChunkBounds =
       Number.isSafeInteger(chunkMinX) && Number.isSafeInteger(chunkMinZ);
     let chunkMaxX = 0;
     let chunkMaxZ = 0;
     if (hasFiniteChunkBounds) {
-      chunkMaxX = chunkMinX + chunkSize;
-      chunkMaxZ = chunkMinZ + chunkSize;
+      const nextChunkMaxX = chunkMinX + chunkSize;
+      const nextChunkMaxZ = chunkMinZ + chunkSize;
+      if (
+        Number.isSafeInteger(nextChunkMaxX) &&
+        Number.isSafeInteger(nextChunkMaxZ)
+      ) {
+        chunkMaxX = nextChunkMaxX;
+        chunkMaxZ = nextChunkMaxZ;
+      } else {
+        hasFiniteChunkBounds = false;
+      }
     }
 
     const deltas = deltaBatch.deltas;
