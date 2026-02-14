@@ -3954,6 +3954,9 @@ const expectTsCoreNestedReport = (
         report.exampleRuleMatched !== true
     ).toBe(true);
   }
+  if (report.exampleRuleMatched !== null && report.exampleOutputLine !== null) {
+    expect(report.exampleOutputLine).toContain("ruleMatched");
+  }
 };
 const expectRuntimeLibrariesNestedReport = (
   checkReport: object | null,

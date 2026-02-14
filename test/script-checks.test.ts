@@ -3605,6 +3605,9 @@ const expectTsCoreReportMetadata = (report: TsCoreJsonReport) => {
         report.exampleRuleMatched !== true
     ).toBe(true);
   }
+  if (report.exampleRuleMatched !== null && report.exampleOutputLine !== null) {
+    expect(report.exampleOutputLine).toContain("ruleMatched");
+  }
   expectTimingMetadata(report);
   expectOptionTerminatorMetadata(report);
   expectCliOptionCatalogMetadata(
