@@ -86,7 +86,7 @@ impl BatchSpace {
         let modified_chunks = vec![false; chunks.len()];
         let chunk_grid_width_i32 = i32::try_from(chunk_grid_width).unwrap_or(i32::MAX);
         let chunk_grid_depth_i32 = i32::try_from(chunk_grid_depth).unwrap_or(i32::MAX);
-        let chunk_size_usize = chunk_size.max(0) as usize;
+        let chunk_size_usize = chunk_size as usize;
         let chunk_height = max_height as usize;
         let chunk_column_stride = chunk_size_usize.saturating_mul(chunk_height);
         let chunk_shift = if chunk_size > 0 && (chunk_size as u32).is_power_of_two() {
@@ -561,7 +561,7 @@ pub fn process_light_batch_fast(
         chunk_grid_depth,
         [grid_offset_x, grid_offset_z],
         chunk_size,
-        max_height.max(0) as u32,
+        max_height as u32,
     );
 
     let config = LightConfig {
