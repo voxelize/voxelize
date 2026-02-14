@@ -932,6 +932,29 @@ describe("BlockRuleEvaluator", () => {
     expect(matched).toBe(true);
   });
 
+  it("rotates offsets for negative y-rotation values", () => {
+    const rule = {
+      type: "simple" as const,
+      offset: [1, 0, 0] as [number, number, number],
+      id: 14,
+    };
+
+    const access = {
+      getVoxel: (x: number, y: number, z: number) =>
+        x === 0 && y === 0 && z === -1 ? 14 : 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    const matched = BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access, {
+      rotation: BlockRotation.py(-Math.PI / 2),
+      yRotatable: true,
+      worldSpace: false,
+    });
+
+    expect(matched).toBe(true);
+  });
+
   it("keeps offsets unrotated when yRotatable is false", () => {
     const rule = {
       type: "simple" as const,
