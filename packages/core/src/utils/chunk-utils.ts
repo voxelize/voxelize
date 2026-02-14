@@ -30,6 +30,8 @@ const normalizeChunkSize = (chunkSize: number) => {
   return normalized > 0 ? normalized : 1;
 };
 const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER;
+const MAX_SAFE_INTEGER_DIV_10 = 900719925474099;
+const MAX_SAFE_INTEGER_LAST_DIGIT = 1;
 const isAsciiWhitespaceCode = (code: number) =>
   code === 32 || (code >= 9 && code <= 13);
 
@@ -220,12 +222,14 @@ export class ChunkUtils {
         break;
       }
       hasDigit = true;
-      const next = parsed * 10 + digit;
-      if (!Number.isSafeInteger(next)) {
+      if (
+        parsed > MAX_SAFE_INTEGER_DIV_10 ||
+        (parsed === MAX_SAFE_INTEGER_DIV_10 && digit > MAX_SAFE_INTEGER_LAST_DIGIT)
+      ) {
         parsed = MAX_SAFE_INTEGER;
         break;
       }
-      parsed = next;
+      parsed = parsed * 10 + digit;
       index++;
     }
 
