@@ -591,6 +591,9 @@ impl LightBlock {
                     false
                 }
                 BlockRuleLogic::Not => {
+                    if rules.len() == 1 {
+                        return !Self::evaluate_rule(&rules[0], vx, vy, vz, space);
+                    }
                     for sub_rule in rules {
                         if Self::evaluate_rule(sub_rule, vx, vy, vz, space) {
                             return false;
@@ -1044,6 +1047,36 @@ mod tests {
     }
 
     #[test]
+    fn dynamic_not_rule_with_single_subrule_inverts_result() {
+        let mut block = LightBlock::default_air();
+        block.dynamic_patterns = Some(vec![LightDynamicPattern {
+            parts: vec![LightConditionalPart {
+                rule: BlockRule::Combination {
+                    logic: BlockRuleLogic::Not,
+                    rules: vec![BlockRule::Simple(BlockSimpleRule {
+                        offset: [0, 0, 0],
+                        id: Some(1),
+                        rotation: None,
+                        stage: None,
+                    })],
+                },
+                red_light_level: Some(9),
+                green_light_level: None,
+                blue_light_level: None,
+            }],
+        }]);
+        block.recompute_flags();
+
+        let matched_level =
+            block.get_torch_light_level_at_xyz(0, 0, 0, &SingleNotAccess, &LightColor::Red);
+        assert_eq!(matched_level, 0);
+
+        let unmatched_level =
+            block.get_torch_light_level_at_xyz(0, 0, 0, &NoopAccess, &LightColor::Red);
+        assert_eq!(unmatched_level, 9);
+    }
+
+    #[test]
     fn dynamic_simple_rule_overflow_offsets_return_false() {
         let mut block = LightBlock::default_air();
         block.dynamic_patterns = Some(vec![LightDynamicPattern {
@@ -1091,6 +1124,7 @@ mod tests {
 
     struct NoopAccess;
     struct NotRuleAccess;
+    struct SingleNotAccess;
 
     impl super::LightVoxelAccess for NoopAccess {
         fn get_raw_voxel(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
@@ -1126,6 +1160,39 @@ mod tests {
         fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
             if vx == 2 && vy == 0 && vz == 0 {
                 return 2;
+            }
+            0
+        }
+
+        fn get_voxel_rotation(&self, _vx: i32, _vy: i32, _vz: i32) -> voxelize_core::BlockRotation {
+            voxelize_core::BlockRotation::default()
+        }
+
+        fn get_voxel_stage(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+            0
+        }
+
+        fn get_raw_light(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+            0
+        }
+
+        fn set_raw_light(&mut self, _vx: i32, _vy: i32, _vz: i32, _level: u32) -> bool {
+            false
+        }
+
+        fn get_max_height(&self, _vx: i32, _vz: i32) -> u32 {
+            0
+        }
+
+        fn contains(&self, _vx: i32, _vy: i32, _vz: i32) -> bool {
+            true
+        }
+    }
+
+    impl super::LightVoxelAccess for SingleNotAccess {
+        fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+            if vx == 0 && vy == 0 && vz == 0 {
+                return 1;
             }
             0
         }
