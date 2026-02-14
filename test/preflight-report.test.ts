@@ -263,6 +263,9 @@ type WasmPackNestedReport = {
     command: string;
     args: string[];
     argCount: number;
+    checkCommand: string;
+    checkArgs: string[];
+    checkArgCount: number;
     exitCode: number;
     status: string;
     message: string | null;
@@ -2865,6 +2868,9 @@ const expectWasmPackNestedReport = (checkReport: object | null) => {
         command: report.command,
         args: ["--version"],
         argCount: 1,
+        checkCommand: report.command,
+        checkArgs: ["--version"],
+        checkArgCount: 1,
         exitCode: report.exitCode,
         status: checkStatus,
         message: report.message ?? null,
