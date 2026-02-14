@@ -676,8 +676,10 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
     return () => {
       this.commands.delete(trigger);
-      for (let aliasIndex = 0; aliasIndex < commandInfo.aliases.length; aliasIndex++) {
-        this.commands.delete(commandInfo.aliases[aliasIndex]);
+      const aliases = commandInfo.aliases;
+      const aliasesLength = aliases.length;
+      for (let aliasIndex = 0; aliasIndex < aliasesLength; aliasIndex++) {
+        this.commands.delete(aliases[aliasIndex]);
       }
     };
   }
@@ -692,15 +694,17 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     if (!commandInfo) {
       return false;
     }
-    const aliasIndex = commandInfo.aliases.indexOf(trigger);
+    const aliases = commandInfo.aliases;
+    const aliasIndex = aliases.indexOf(trigger);
     const isAliasTrigger = aliasIndex >= 0;
     this.commands.delete(trigger);
     if (isAliasTrigger) {
-      commandInfo.aliases.splice(aliasIndex, 1);
+      aliases.splice(aliasIndex, 1);
       return true;
     }
-    for (let aliasIndex = 0; aliasIndex < commandInfo.aliases.length; aliasIndex++) {
-      this.commands.delete(commandInfo.aliases[aliasIndex]);
+    const aliasesLength = aliases.length;
+    for (let aliasIndex = 0; aliasIndex < aliasesLength; aliasIndex++) {
+      this.commands.delete(aliases[aliasIndex]);
     }
     return true;
   }
