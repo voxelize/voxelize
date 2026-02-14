@@ -130,6 +130,7 @@ const availableCheckMetadata = Object.fromEntries(
     ];
   })
 );
+const availableCheckMetadataCount = Object.keys(availableCheckMetadata).length;
 const resolveCheckDetails = (checkName) => {
   const checkMetadata = availableCheckMetadata[checkName];
   const checkIndex = checkNameToIndex.get(checkName);
@@ -454,6 +455,9 @@ const requestedCheckResolvedMetadata = Object.fromEntries(
     return [checkName, { scriptName, supportsNoBuild }];
   })
 );
+const requestedCheckResolvedMetadataCount = Object.keys(
+  requestedCheckResolvedMetadata
+).length;
 const buildCheckSelectionMetadata = (checkNames) => {
   const checkMetadata = Object.fromEntries(
     checkNames.map((checkName) => {
@@ -600,6 +604,7 @@ if (
     requestedCheckResolvedIndexMap,
     requestedCheckResolvedIndexMapCount,
     requestedCheckResolvedMetadata,
+    requestedCheckResolvedMetadataCount,
     selectionMode,
     specialSelectorsUsed,
     skippedChecks: availableCheckNames,
@@ -653,6 +658,7 @@ if (
     availableCheckIndexMap,
     availableCheckIndexMapCount,
     availableCheckMetadata,
+    availableCheckMetadataCount,
     availableCheckAliases,
     availableSpecialCheckSelectors,
     availableSpecialCheckAliases,
@@ -722,6 +728,7 @@ if (isListChecks) {
     requestedCheckResolvedIndexMap,
     requestedCheckResolvedIndexMapCount,
     requestedCheckResolvedMetadata,
+    requestedCheckResolvedMetadataCount,
     selectionMode,
     specialSelectorsUsed,
     skippedChecks,
@@ -774,6 +781,7 @@ if (isListChecks) {
     availableCheckIndexMap,
     availableCheckIndexMapCount,
     availableCheckMetadata,
+    availableCheckMetadataCount,
     availableCheckAliases,
     availableSpecialCheckSelectors,
     availableSpecialCheckAliases,
@@ -852,6 +860,7 @@ const report = buildTimedReport({
   requestedCheckResolvedIndexMap,
   requestedCheckResolvedIndexMapCount,
   requestedCheckResolvedMetadata,
+  requestedCheckResolvedMetadataCount,
   selectionMode,
   specialSelectorsUsed,
   skippedChecks,
@@ -904,6 +913,7 @@ const report = buildTimedReport({
   availableCheckIndexMap,
   availableCheckIndexMapCount,
   availableCheckMetadata,
+  availableCheckMetadataCount,
   availableCheckAliases,
   availableSpecialCheckSelectors,
   availableSpecialCheckAliases,

@@ -170,6 +170,7 @@ type PreflightReport = {
       supportsNoBuild: boolean;
     }
   >;
+  requestedCheckResolvedMetadataCount: number;
   skippedChecks: string[];
   skippedCheckCount: number;
   skippedCheckIndices: number[];
@@ -233,6 +234,7 @@ type PreflightReport = {
       supportsNoBuild: boolean;
     };
   };
+  availableCheckMetadataCount: number;
   availableCheckAliases: {
     devEnvironment: string[];
     wasmPack: string[];
@@ -676,6 +678,9 @@ const expectSelectedCheckMetadata = (report: PreflightReport) => {
     Object.keys(report.requestedCheckResolvedIndexMap).length
   );
   expect(report.requestedCheckResolvedMetadata).toEqual(expectedResolvedMetadata);
+  expect(report.requestedCheckResolvedMetadataCount).toBe(
+    Object.keys(report.requestedCheckResolvedMetadata).length
+  );
 };
 const expectCheckResultScriptMetadata = (report: PreflightReport) => {
   const expectedPassedScripts = report.passedChecks.map((checkName) => {
@@ -810,6 +815,9 @@ const expectAvailableCheckInventoryMetadata = (report: PreflightReport) => {
   );
   expect(report.availableCheckMetadata).toEqual(metadataFromMaps);
   expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
+  expect(report.availableCheckMetadataCount).toBe(
+    Object.keys(report.availableCheckMetadata).length
+  );
 };
 const expectTsCoreNestedReport = (
   checkReport: object | null,
