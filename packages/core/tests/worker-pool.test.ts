@@ -1,23 +1,47 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { WorkerPool } from "../src/libs/worker-pool";
 
+type FakeWorkerPost = {
+  message: object | string | number | boolean | null;
+  transferOrOptions?: Transferable[] | StructuredSerializeOptions;
+};
+
 class FakeWorker extends EventTarget implements Worker {
+  static instances: FakeWorker[] = [];
   onerror: ((this: AbstractWorker, ev: ErrorEvent) => void) | null = null;
   onmessage: ((this: Worker, ev: MessageEvent) => void) | null = null;
   onmessageerror: ((this: Worker, ev: MessageEvent) => void) | null = null;
+  posts: FakeWorkerPost[] = [];
 
   constructor(_options?: WorkerOptions) {
     super();
+    FakeWorker.instances.push(this);
   }
 
   postMessage(
-    _message: object | string | number | boolean | null,
-    _transferOrOptions?: Transferable[] | StructuredSerializeOptions
-  ): void {}
+    message: object | string | number | boolean | null,
+    transferOrOptions?: Transferable[] | StructuredSerializeOptions
+  ): void {
+    const normalizedTransferOrOptions = Array.isArray(transferOrOptions)
+      ? [...transferOrOptions]
+      : transferOrOptions;
+    this.posts.push({
+      message,
+      transferOrOptions: normalizedTransferOrOptions,
+    });
+  }
 
   terminate(): void {}
 }
+
+const getTransferList = (
+  transferOrOptions: Transferable[] | StructuredSerializeOptions | undefined
+) => (Array.isArray(transferOrOptions) ? transferOrOptions : null);
+
+beforeEach(() => {
+  FakeWorker.instances.length = 0;
+});
 
 describe("WorkerPool constructor normalization", () => {
   it("falls back to default worker count for non-finite maxWorker", () => {
@@ -60,5 +84,66 @@ describe("WorkerPool constructor normalization", () => {
     const negativePool = new WorkerPool(FakeWorker, { maxWorker: -4 });
     expect(negativePool.availableCount).toBe(8);
     expect(negativePool.options.maxWorker).toBe(8);
+  });
+});
+
+describe("WorkerPool.postMessage transfer cloning", () => {
+  it("clones a single source buffer per worker", () => {
+    const pool = new WorkerPool(FakeWorker, { maxWorker: 3 });
+    const source = new Uint8Array([1, 2, 3]).buffer;
+    pool.postMessage({ type: "single-buffer" }, [source]);
+
+    expect(FakeWorker.instances).toHaveLength(3);
+    const sentBuffers: ArrayBuffer[] = [];
+    for (let index = 0; index < FakeWorker.instances.length; index++) {
+      const worker = FakeWorker.instances[index];
+      expect(worker.posts).toHaveLength(1);
+      const transferList = getTransferList(worker.posts[0].transferOrOptions);
+      if (!transferList) {
+        throw new Error("Expected transfer list for single-buffer broadcast");
+      }
+      expect(transferList).toHaveLength(1);
+      const sent = transferList[0];
+      if (!(sent instanceof ArrayBuffer)) {
+        throw new Error("Expected array buffer transfer for single-buffer broadcast");
+      }
+      expect(sent).not.toBe(source);
+      expect(Array.from(new Uint8Array(sent))).toEqual([1, 2, 3]);
+      sentBuffers.push(sent);
+    }
+    expect(new Set(sentBuffers).size).toBe(3);
+  });
+
+  it("clones each source buffer for every worker in multi-buffer broadcasts", () => {
+    const pool = new WorkerPool(FakeWorker, { maxWorker: 2 });
+    const sourceA = new Uint8Array([5, 6]).buffer;
+    const sourceB = new Uint8Array([7, 8]).buffer;
+    pool.postMessage({ type: "multi-buffer" }, [sourceA, sourceB]);
+
+    expect(FakeWorker.instances).toHaveLength(2);
+    const firstBuffers: ArrayBuffer[] = [];
+    const secondBuffers: ArrayBuffer[] = [];
+    for (let index = 0; index < FakeWorker.instances.length; index++) {
+      const worker = FakeWorker.instances[index];
+      expect(worker.posts).toHaveLength(1);
+      const transferList = getTransferList(worker.posts[0].transferOrOptions);
+      if (!transferList) {
+        throw new Error("Expected transfer list for multi-buffer broadcast");
+      }
+      expect(transferList).toHaveLength(2);
+      const first = transferList[0];
+      const second = transferList[1];
+      if (!(first instanceof ArrayBuffer) || !(second instanceof ArrayBuffer)) {
+        throw new Error("Expected array buffer transfers for multi-buffer broadcast");
+      }
+      expect(first).not.toBe(sourceA);
+      expect(second).not.toBe(sourceB);
+      expect(Array.from(new Uint8Array(first))).toEqual([5, 6]);
+      expect(Array.from(new Uint8Array(second))).toEqual([7, 8]);
+      firstBuffers.push(first);
+      secondBuffers.push(second);
+    }
+    expect(new Set(firstBuffers).size).toBe(2);
+    expect(new Set(secondBuffers).size).toBe(2);
   });
 });
