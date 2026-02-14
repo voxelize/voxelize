@@ -481,6 +481,10 @@ metadata such as `availableCheckCommandMap`, `availableCheckArgsMap`,
 `failedCheckIndices`, `failedCheckIndexMap`, `failedCheckCommandMap`,
 `failedCheckArgsMap`, `failedCheckArgCountMap`, `failedCheckMetadata`,
 `failureSummaries`, and companion `*Count` fields.
+WASM-pack metadata entries in `availableCheckMetadata`, `checkMetadata`,
+`passedCheckMetadata`, and `failedCheckMetadata` include `checkIndex`,
+`command`, `args`, `argCount`, `checkCommand`, `checkArgs`, and
+`checkArgCount`.
 WASM-pack `failureSummaries[]` entries include `checkIndex`, `command`,
 `args`, `argCount`, `checkCommand`, `checkArgs`, and `checkArgCount`
 for stable correlation with `availableChecks`.

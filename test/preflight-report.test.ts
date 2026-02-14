@@ -178,6 +178,9 @@ type WasmPackNestedReport = {
       command: string;
       args: string[];
       argCount: number;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
     }
   >;
   availableCheckMetadataCount: number;
@@ -200,6 +203,9 @@ type WasmPackNestedReport = {
       command: string;
       args: string[];
       argCount: number;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
     }
   >;
   checkMetadataCount: number;
@@ -232,6 +238,9 @@ type WasmPackNestedReport = {
       command: string;
       args: string[];
       argCount: number;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
     }
   >;
   passedCheckMetadataCount: number;
@@ -254,6 +263,9 @@ type WasmPackNestedReport = {
       command: string;
       args: string[];
       argCount: number;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
     }
   >;
   failedCheckMetadataCount: number;
@@ -2728,6 +2740,9 @@ const expectWasmPackNestedReport = (checkReport: object | null) => {
       command: report.command,
       args: ["--version"],
       argCount: 1,
+      checkCommand: report.command,
+      checkArgs: ["--version"],
+      checkArgCount: 1,
     },
   };
   const expectedCheckCommandMap = {
@@ -2748,6 +2763,9 @@ const expectWasmPackNestedReport = (checkReport: object | null) => {
       command: report.command,
       args: ["--version"],
       argCount: 1,
+      checkCommand: report.command,
+      checkArgs: ["--version"],
+      checkArgCount: 1,
     },
   };
 

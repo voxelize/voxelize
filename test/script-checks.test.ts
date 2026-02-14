@@ -69,6 +69,9 @@ type WasmPackJsonReport = OptionTerminatorMetadata &
       command: string;
       args: string[];
       argCount: number;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
     }
   >;
   availableCheckMetadataCount: number;
@@ -91,6 +94,9 @@ type WasmPackJsonReport = OptionTerminatorMetadata &
       command: string;
       args: string[];
       argCount: number;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
     }
   >;
   checkMetadataCount: number;
@@ -123,6 +129,9 @@ type WasmPackJsonReport = OptionTerminatorMetadata &
       command: string;
       args: string[];
       argCount: number;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
     }
   >;
   passedCheckMetadataCount: number;
@@ -145,6 +154,9 @@ type WasmPackJsonReport = OptionTerminatorMetadata &
       command: string;
       args: string[];
       argCount: number;
+      checkCommand: string;
+      checkArgs: string[];
+      checkArgCount: number;
     }
   >;
   failedCheckMetadataCount: number;
@@ -1202,6 +1214,9 @@ const expectWasmPackCheckMetadata = (report: WasmPackJsonReport) => {
       command: report.command,
       args: ["--version"],
       argCount: 1,
+      checkCommand: report.command,
+      checkArgs: ["--version"],
+      checkArgCount: 1,
     },
   };
   const expectedCheckIndexMap = {
@@ -1222,6 +1237,9 @@ const expectWasmPackCheckMetadata = (report: WasmPackJsonReport) => {
       command: report.command,
       args: ["--version"],
       argCount: 1,
+      checkCommand: report.command,
+      checkArgs: ["--version"],
+      checkArgCount: 1,
     },
   };
 

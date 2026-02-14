@@ -78,6 +78,9 @@ const availableCheckMetadata = {
     command: wasmPackCommand,
     args: [...checkArgs],
     argCount: checkArgs.length,
+    checkCommand: wasmPackCommand,
+    checkArgs: [...checkArgs],
+    checkArgCount: checkArgs.length,
   },
 };
 const summarizeCheckResult = ({
@@ -167,6 +170,9 @@ const summarizeCheckResult = ({
       command: wasmPackCommand,
       args: [...checkArgs],
       argCount: checkArgs.length,
+      checkCommand: wasmPackCommand,
+      checkArgs: [...checkArgs],
+      checkArgCount: checkArgs.length,
     },
   };
   const checkStatusMap = {
