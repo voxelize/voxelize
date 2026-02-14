@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, sync::Arc};
 
 use js_sys::{Array, Object, Reflect, Uint32Array};
 use serde::Serialize;
@@ -10,7 +10,7 @@ use voxelize_lighter::{
 };
 
 thread_local! {
-    static CACHED_REGISTRY: RefCell<Option<LightRegistry>> = const { RefCell::new(None) };
+    static CACHED_REGISTRY: RefCell<Option<Arc<LightRegistry>>> = const { RefCell::new(None) };
     static JS_KEYS: JsInteropKeys = JsInteropKeys::new();
     static EMPTY_BATCH_RESULT: JsValue = {
         let output = Object::new();
@@ -411,7 +411,7 @@ pub fn set_registry(registry: JsValue) {
         serde_wasm_bindgen::from_value(registry).expect("Unable to deserialize light registry");
     parsed.build_cache();
     CACHED_REGISTRY.with(|cached| {
-        *cached.borrow_mut() = Some(parsed);
+        *cached.borrow_mut() = Some(Arc::new(parsed));
     });
 }
 
@@ -464,9 +464,9 @@ pub fn process_light_batch_fast(
     if removal_nodes.is_empty() && flood_nodes.is_empty() {
         return empty_batch_result();
     }
-    if CACHED_REGISTRY.with(|cached| cached.borrow().is_none()) {
+    let Some(registry) = CACHED_REGISTRY.with(|cached| cached.borrow().clone()) else {
         return empty_batch_result();
-    }
+    };
 
     let chunk_size_usize = chunk_size as usize;
     let chunk_height = max_height as usize;
@@ -511,64 +511,57 @@ pub fn process_light_batch_fast(
         ],
     };
 
-    CACHED_REGISTRY.with(|cached| {
-        let registry_ref = cached.borrow();
-        let Some(registry) = registry_ref.as_ref() else {
-            return;
-        };
+    if !removal_nodes.is_empty() {
+        remove_lights(
+            &mut space,
+            removal_nodes.iter().copied(),
+            &light_color,
+            &config,
+            registry.as_ref(),
+        );
+    }
 
-        if !removal_nodes.is_empty() {
-            remove_lights(
-                &mut space,
-                removal_nodes.iter().copied(),
-                &light_color,
-                &config,
-                registry,
-            );
-        }
-
-        if !flood_nodes.is_empty() {
-            match light_color {
-                LightColor::Sunlight => {
-                    for node in &flood_nodes {
-                        let [vx, vy, vz] = node.voxel;
-                        let raw = space.get_raw_light(vx, vy, vz);
-                        space.set_raw_light(vx, vy, vz, LightUtils::insert_sunlight(raw, node.level));
-                    }
-                }
-                LightColor::Red => {
-                    for node in &flood_nodes {
-                        let [vx, vy, vz] = node.voxel;
-                        let raw = space.get_raw_light(vx, vy, vz);
-                        space.set_raw_light(vx, vy, vz, LightUtils::insert_red_light(raw, node.level));
-                    }
-                }
-                LightColor::Green => {
-                    for node in &flood_nodes {
-                        let [vx, vy, vz] = node.voxel;
-                        let raw = space.get_raw_light(vx, vy, vz);
-                        space.set_raw_light(vx, vy, vz, LightUtils::insert_green_light(raw, node.level));
-                    }
-                }
-                LightColor::Blue => {
-                    for node in &flood_nodes {
-                        let [vx, vy, vz] = node.voxel;
-                        let raw = space.get_raw_light(vx, vy, vz);
-                        space.set_raw_light(vx, vy, vz, LightUtils::insert_blue_light(raw, node.level));
-                    }
+    if !flood_nodes.is_empty() {
+        match light_color {
+            LightColor::Sunlight => {
+                for node in &flood_nodes {
+                    let [vx, vy, vz] = node.voxel;
+                    let raw = space.get_raw_light(vx, vy, vz);
+                    space.set_raw_light(vx, vy, vz, LightUtils::insert_sunlight(raw, node.level));
                 }
             }
-
-            flood_light_nodes(
-                &mut space,
-                flood_nodes,
-                &light_color,
-                &config,
-                bounds.as_ref(),
-                registry,
-            );
+            LightColor::Red => {
+                for node in &flood_nodes {
+                    let [vx, vy, vz] = node.voxel;
+                    let raw = space.get_raw_light(vx, vy, vz);
+                    space.set_raw_light(vx, vy, vz, LightUtils::insert_red_light(raw, node.level));
+                }
+            }
+            LightColor::Green => {
+                for node in &flood_nodes {
+                    let [vx, vy, vz] = node.voxel;
+                    let raw = space.get_raw_light(vx, vy, vz);
+                    space.set_raw_light(vx, vy, vz, LightUtils::insert_green_light(raw, node.level));
+                }
+            }
+            LightColor::Blue => {
+                for node in &flood_nodes {
+                    let [vx, vy, vz] = node.voxel;
+                    let raw = space.get_raw_light(vx, vy, vz);
+                    space.set_raw_light(vx, vy, vz, LightUtils::insert_blue_light(raw, node.level));
+                }
+            }
         }
-    });
+
+        flood_light_nodes(
+            &mut space,
+            flood_nodes,
+            &light_color,
+            &config,
+            bounds.as_ref(),
+            registry.as_ref(),
+        );
+    }
 
     let modified_chunks = space.take_modified_chunks();
     if modified_chunks.is_empty() {
