@@ -5,7 +5,10 @@ use crate::{
     MessageQueues, MessageType, MetadataComp, NameComp, PeerProtocol,
 };
 
-pub struct PeersSendingSystem;
+#[derive(Default)]
+pub struct PeersSendingSystem {
+    peers_buffer: Vec<PeerProtocol>,
+}
 
 impl<'a> System<'a> for PeersSendingSystem {
     type SystemData = (
@@ -23,7 +26,8 @@ impl<'a> System<'a> for PeersSendingSystem {
         let (mut queue, flag, ids, names, mut metadatas, timing) = data;
         let _t = timing.timer("peers-sending");
 
-        let mut peers = vec![];
+        let peers = &mut self.peers_buffer;
+        peers.clear();
         for (id, name, metadata, _) in (&ids, &names, &mut metadatas, &flag).join() {
             let (json_str, updated) = metadata.to_cached_str();
 
@@ -45,7 +49,7 @@ impl<'a> System<'a> for PeersSendingSystem {
         }
 
         queue.push((
-            Message::new(&MessageType::Peer).peers(&peers).build(),
+            Message::new(&MessageType::Peer).peers(peers).build(),
             ClientFilter::All,
         ));
     }

@@ -461,7 +461,7 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
             "entities-sending",
             &["entities-meta"],
         )
-        .with(PeersSendingSystem, "peers-sending", &["peers-meta"])
+        .with(PeersSendingSystem::default(), "peers-sending", &["peers-meta"])
         .with(
             BroadcastSystem,
             "broadcast",
