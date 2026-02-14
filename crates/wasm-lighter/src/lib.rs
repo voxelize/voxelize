@@ -502,6 +502,9 @@ pub fn process_light_batch_fast(
     });
 
     let modified_chunks = space.take_modified_chunks();
+    if modified_chunks.is_empty() {
+        return empty_batch_result();
+    }
     JS_KEYS.with(|keys| {
         let output = Object::new();
         let modified_chunks_js = Array::new_with_length(modified_chunks.len() as u32);
