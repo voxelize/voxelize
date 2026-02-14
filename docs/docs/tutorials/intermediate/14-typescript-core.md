@@ -151,6 +151,21 @@ The JSON report includes artifact/build diagnostics such as `requiredArtifactCou
 `missingArtifactCount`, `buildCommand`, `buildArgs`, `buildExitCode`,
 `buildDurationMs`, `attemptedBuild`, `buildSkipped`, and `buildSkippedReason`.
 
+If your project also depends on runtime utility packages (`@voxelize/aabb`,
+`@voxelize/raycast`, and `@voxelize/physics-engine`), you can validate all of
+their artifacts together from the root workspace:
+
+```bash
+# validate all runtime utility artifacts
+pnpm run check:runtime-libraries:json
+
+# verify-only mode (no auto-build)
+pnpm run check:runtime-libraries:verify:json
+
+# full runtime-library release readiness workflow
+pnpm run check:runtime-libraries:release
+```
+
 ## API reference
 
 Typed API docs are generated under:
