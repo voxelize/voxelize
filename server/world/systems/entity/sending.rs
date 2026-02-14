@@ -111,7 +111,6 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         }
 
         let old_entities = std::mem::take(&mut bookkeeping.entities);
-        let old_ids: HashSet<&String> = old_entities.keys().collect();
 
         let old_entity_handlers = std::mem::take(&mut physics.entity_to_handlers);
 
@@ -138,7 +137,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         physics.entity_to_handlers = new_entity_handlers;
 
         for (id, _) in &self.updated_entities_buffer {
-            if !old_ids.contains(id) {
+            if !old_entities.contains_key(id) {
                 self.new_entity_ids_buffer.insert(id.to_owned());
             }
         }
