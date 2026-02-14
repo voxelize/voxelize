@@ -183,7 +183,8 @@ pnpm run check:preflight:libraries:release
 ```
 
 Runtime-library JSON reports include package/build diagnostics such as
-`packagesPresent`, `checkedPackages`, `checkedPackageCount`, `packageReports`,
+`packagesPresent`, `checkedPackages`, `checkedPackagePaths`,
+`checkedPackageCount`, `checkedPackagePathCount`, `packageReports`,
 `requiredPackageCount`, `presentPackageCount`, `packageReportCount`,
 `requiredArtifactCount`, `presentArtifactCount`, `missingPackageCount`,
 `missingArtifactCount`,

@@ -48,6 +48,7 @@ const runtimeLibraries = [
   },
 ];
 const checkedPackages = runtimeLibraries.map((library) => library.packageName);
+const checkedPackagePaths = runtimeLibraries.map((library) => library.packagePath);
 const requiredArtifactCount = runtimeLibraries.reduce((count, library) => {
   return count + library.requiredArtifacts.length;
 }, 0);
@@ -219,7 +220,9 @@ const withBaseReportFields = (report) => {
     availableCliOptionAliases,
     availableCliOptionCanonicalMap,
     checkedPackages,
+    checkedPackagePaths,
     checkedPackageCount: checkedPackages.length,
+    checkedPackagePathCount: checkedPackagePaths.length,
     requiredPackageCount: runtimeLibraries.length,
     presentPackageCount,
     packageReportCount: packageReports.length,

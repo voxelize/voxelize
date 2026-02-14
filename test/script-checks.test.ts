@@ -224,7 +224,9 @@ type RuntimeLibrariesJsonReport = OptionTerminatorMetadata &
   packagesPresent: boolean;
   packageReports: RuntimeLibrariesJsonPackageReport[];
   checkedPackages: string[];
+  checkedPackagePaths: string[];
   checkedPackageCount: number;
+  checkedPackagePathCount: number;
   requiredPackageCount: number;
   presentPackageCount: number;
   packageReportCount: number;
@@ -437,6 +439,11 @@ const expectedRuntimeLibrariesCheckedPackages = [
   "@voxelize/raycast",
   "@voxelize/physics-engine",
 ];
+const expectedRuntimeLibrariesCheckedPackagePaths = [
+  "packages/aabb",
+  "packages/raycast",
+  "packages/physics-engine",
+];
 const expectedRuntimeLibrariesArtifactsByPackage = {
   "@voxelize/aabb": [
     "packages/aabb/dist/index.js",
@@ -526,7 +533,10 @@ const expectRuntimeLibrariesReportMetadata = (
 ) => {
   expect(report.packagesPresent).toBe(report.missingPackageCount === 0);
   expect(report.checkedPackages).toEqual(expectedRuntimeLibrariesCheckedPackages);
+  expect(report.checkedPackagePaths).toEqual(expectedRuntimeLibrariesCheckedPackagePaths);
   expect(report.checkedPackageCount).toBe(report.checkedPackages.length);
+  expect(report.checkedPackagePathCount).toBe(report.checkedPackagePaths.length);
+  expect(report.checkedPackagePathCount).toBe(report.requiredPackageCount);
   expect(report.requiredPackageCount).toBe(
     expectedRuntimeLibrariesCheckedPackages.length
   );

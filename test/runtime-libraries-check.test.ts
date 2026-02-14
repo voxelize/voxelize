@@ -29,7 +29,9 @@ type RuntimeLibrariesCheckReport = {
   packagesPresent: boolean;
   packageReports: RuntimePackageReport[];
   checkedPackages: string[];
+  checkedPackagePaths: string[];
   checkedPackageCount: number;
+  checkedPackagePathCount: number;
   requiredPackageCount: number;
   presentPackageCount: number;
   packageReportCount: number;
@@ -91,6 +93,11 @@ const expectedCheckedPackages = [
   "@voxelize/aabb",
   "@voxelize/raycast",
   "@voxelize/physics-engine",
+];
+const expectedCheckedPackagePaths = [
+  "packages/aabb",
+  "packages/raycast",
+  "packages/physics-engine",
 ];
 const expectedSupportedCliOptions = [
   "--compact",
@@ -179,7 +186,10 @@ const runScript = (args: string[] = []): ScriptResult => {
 const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   const report = JSON.parse(result.output) as RuntimeLibrariesCheckReport;
   expect(report.checkedPackages).toEqual(expectedCheckedPackages);
+  expect(report.checkedPackagePaths).toEqual(expectedCheckedPackagePaths);
   expect(report.checkedPackageCount).toBe(report.checkedPackages.length);
+  expect(report.checkedPackagePathCount).toBe(report.checkedPackagePaths.length);
+  expect(report.checkedPackagePathCount).toBe(report.requiredPackageCount);
   expect(report.requiredPackageCount).toBe(expectedCheckedPackages.length);
   expect(report.packageReportCount).toBe(report.packageReports.length);
   expect(report.requiredArtifactCount).toBe(expectedRequiredArtifactCount);
