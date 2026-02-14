@@ -202,6 +202,12 @@ describe("report-utils", () => {
     expect(parseJsonOutput(`progress\r\uFEFF{"ok":true}`)).toEqual({
       ok: true,
     });
+    expect(
+      parseJsonOutput(`\u001b[33m\uFEFF{"ok":true,"exitCode":0}\u001b[39m`)
+    ).toEqual({
+      ok: true,
+      exitCode: 0,
+    });
   });
 
   it("parses json output containing carriage-return progress updates", () => {
