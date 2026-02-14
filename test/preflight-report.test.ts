@@ -774,6 +774,7 @@ type RuntimeLibrariesNestedReport = {
   missingPackageArtifactCountByPackage: Record<string, number>;
   missingPackageArtifactCountByPackageCount: number;
   failureSummaries: Array<{
+    kind: "artifacts";
     packageName: string;
     packagePath: string;
     packageIndex: number;
@@ -4523,6 +4524,7 @@ const expectRuntimeLibrariesNestedReport = (
     .filter((packageReport) => packageReport.artifactsPresent === false)
     .map((packageReport) => {
       return {
+        kind: "artifacts",
         packageName: packageReport.packageName,
         packagePath: packageReport.packagePath,
         packageIndex: packageReport.packageIndex,

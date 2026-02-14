@@ -308,8 +308,8 @@ Runtime-library JSON reports include package/build diagnostics such as
 Each `packageReports` entry includes `packageIndex`, `checkCommand`,
 `checkArgs`, `checkArgCount`, `requiredArtifacts`, `presentArtifacts`, and
 `missingArtifacts` for package-level artifact diagnostics.
-Each runtime-library `failureSummaries` entry includes `packageIndex`,
-`checkCommand`, `checkArgs`, and `checkArgCount` for deterministic
+Each runtime-library `failureSummaries` entry includes `kind`,
+`packageIndex`, `checkCommand`, `checkArgs`, and `checkArgCount` for deterministic
 failure-to-check correlation.
 
 ## Aggregate preflight report metadata

@@ -411,6 +411,7 @@ const summarizePackageReports = (packageReports) => {
     .filter((packageReport) => packageReport.artifactsPresent === false)
     .map((packageReport) => {
       return {
+        kind: "artifacts",
         packageName: packageReport.packageName,
         packagePath: packageReport.packagePath,
         packageIndex: packageReport.packageIndex,
