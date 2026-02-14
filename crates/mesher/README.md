@@ -44,7 +44,9 @@ When making changes to meshing algorithms:
 7. Gate benchmark regressions by median delta threshold:
    - `python3 crates/mesher/scripts/bench_regression_gate.py --baseline <baseline_output.txt> --candidate <candidate_output.txt> --max-regression-pct 1.0`
    - optional lane selection: `--include '^greedy_mesher/' --exclude '/legacy/'`
-8. Rebuild WASM wrapper when needed:
+8. Aggregate lane medians over repeated runs:
+   - `python3 crates/mesher/scripts/aggregate_bench_medians.py --input <run1.txt> --input <run2.txt> --include '^greedy_mesher/'`
+9. Rebuild WASM wrapper when needed:
    - `cd crates/wasm-mesher && wasm-pack build --target web`
 
 ## Structure
@@ -55,3 +57,4 @@ When making changes to meshing algorithms:
 - `benches/greedy_mesher_bench.rs` - Criterion benchmarks for greedy/non-greedy performance
 - `scripts/compare_bench_medians.py` - Median-only benchmark output comparison tool
 - `scripts/bench_regression_gate.py` - Threshold-based benchmark regression gate
+- `scripts/aggregate_bench_medians.py` - Multi-run benchmark median aggregation tool
