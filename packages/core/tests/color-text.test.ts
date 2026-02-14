@@ -40,4 +40,22 @@ describe("ColorText.split", () => {
       ColorText.SPLITTER = previousSplitter;
     }
   });
+
+  it("treats unmatched splitter tokens as plain text", () => {
+    const previousSplitter = ColorText.SPLITTER;
+    ColorText.SPLITTER = "$";
+    try {
+      expect(ColorText.split("hello$red", "black")).toEqual([
+        { color: "black", text: "hello$red" },
+      ]);
+      expect(ColorText.split("$red", "black")).toEqual([
+        { color: "black", text: "$red" },
+      ]);
+      expect(ColorText.split("$red$hello$blue", "black")).toEqual([
+        { color: "red", text: "hello$blue" },
+      ]);
+    } finally {
+      ColorText.SPLITTER = previousSplitter;
+    }
+  });
 });
