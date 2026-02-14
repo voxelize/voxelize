@@ -27,6 +27,8 @@ const incrementRetryCountSafely = (retryCount: number) =>
     ? 1
     : retryCount >= Number.MAX_SAFE_INTEGER
     ? Number.MAX_SAFE_INTEGER
+    : Number.isSafeInteger(retryCount)
+    ? retryCount + 1
     : Math.floor(retryCount) + 1;
 
 export class ChunkPipeline {
