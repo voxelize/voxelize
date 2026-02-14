@@ -559,6 +559,9 @@ impl VoxelAccess for Chunks {
     /// Set the raw light level at a voxel coordinate. Returns false couldn't set.
     fn set_raw_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
         if let Some(chunk) = self.raw_chunk_by_voxel_mut(vx, vy, vz) {
+            if chunk.get_raw_light(vx, vy, vz) == level {
+                return true;
+            }
             chunk.set_raw_light(vx, vy, vz, level);
             self.add_updated_level_at(vx, vy, vz);
 

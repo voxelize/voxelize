@@ -326,6 +326,9 @@ impl VoxelAccess for Space {
         let (coords, Vec3(lx, ly, lz)) = self.to_local(vx, vy, vz);
 
         if let Some(lights) = self.lights.get_mut(&coords) {
+            if lights[&[lx, ly, lz]] == level {
+                return true;
+            }
             let chunk_level =
                 vy as u32 / (self.options.max_height / self.options.sub_chunks) as u32;
             self.updated_levels.insert(chunk_level);
