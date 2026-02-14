@@ -528,6 +528,54 @@ describe("Type builders", () => {
     expect(part.isTransparent).toEqual([false, false, false, false, false, false]);
     expect(part.worldSpace).toBe(false);
   });
+
+  it("preserves provided conditional part fields", () => {
+    const face = new BlockFace({ name: "CustomFace" });
+    const aabb = AABB.create(0, 0, 0, 1, 1, 1);
+    const part = createBlockConditionalPart({
+      rule: {
+        type: "simple",
+        offset: [1, 0, 0],
+        id: 99,
+      },
+      faces: [face],
+      aabbs: [aabb],
+      isTransparent: [true, false, true, false, true, false],
+      worldSpace: true,
+    });
+
+    expect(part.rule).toEqual({
+      type: "simple",
+      offset: [1, 0, 0],
+      id: 99,
+    });
+    expect(part.faces).toEqual([face]);
+    expect(part.aabbs).toEqual([aabb]);
+    expect(part.isTransparent).toEqual([true, false, true, false, true, false]);
+    expect(part.worldSpace).toBe(true);
+  });
+
+  it("keeps BlockFace constructor option fields", () => {
+    const face = new BlockFace({
+      name: "Decor",
+      independent: true,
+      isolated: true,
+      textureGroup: "decor",
+      dir: [1, 0, 0],
+      range: createUV(0, 1, 2, 3),
+    });
+
+    expect(face.independent).toBe(true);
+    expect(face.isolated).toBe(true);
+    expect(face.textureGroup).toBe("decor");
+    expect(face.dir).toEqual([1, 0, 0]);
+    expect(face.range).toEqual({
+      startU: 0,
+      endU: 1,
+      startV: 2,
+      endV: 3,
+    });
+  });
 });
 
 describe("BlockRuleEvaluator", () => {
