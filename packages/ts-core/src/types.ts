@@ -486,7 +486,9 @@ export const createBlockConditionalPart = (
     faces,
     aabbs,
     isTransparent,
-    worldSpace: normalizedPart.worldSpace ?? false,
+    worldSpace: isBooleanValue(normalizedPart.worldSpace)
+      ? normalizedPart.worldSpace
+      : false,
   };
 };
 

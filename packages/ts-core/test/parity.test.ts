@@ -981,6 +981,18 @@ describe("Type builders", () => {
     ]);
   });
 
+  it("sanitizes malformed worldSpace values to false", () => {
+    const malformedWorldSpacePart = createBlockConditionalPart({
+      worldSpace: "yes" as never,
+    });
+    const validWorldSpacePart = createBlockConditionalPart({
+      worldSpace: true,
+    });
+
+    expect(malformedWorldSpacePart.worldSpace).toBe(false);
+    expect(validWorldSpacePart.worldSpace).toBe(true);
+  });
+
   it("preserves provided conditional part fields", () => {
     const face = new BlockFace({ name: "CustomFace" });
     const aabb = AABB.create(0, 0, 0, 1, 1, 1);
