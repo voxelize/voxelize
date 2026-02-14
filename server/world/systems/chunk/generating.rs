@@ -31,6 +31,9 @@ fn chunk_interest_alignment(center: &Vec2<i32>, coords: &Vec2<i32>, direction: &
     if !dot.is_finite() || dot <= 0.0 {
         return 0.0;
     }
+    if dot >= f64::from(f32::MAX) {
+        return f32::MAX;
+    }
     dot as f32
 }
 
@@ -480,6 +483,14 @@ mod tests {
         let coords = Vec2(1, 1);
         let alignment = chunk_interest_alignment(&center, &coords, &Vec2(f32::NAN, 1.0));
         assert_eq!(alignment, 0.0);
+    }
+
+    #[test]
+    fn chunk_interest_alignment_clamps_large_finite_direction_vectors() {
+        let center = Vec2(0, 0);
+        let coords = Vec2(1, 0);
+        let alignment = chunk_interest_alignment(&center, &coords, &Vec2(f32::MAX, 0.0));
+        assert_eq!(alignment, f32::MAX);
     }
 
     #[test]
