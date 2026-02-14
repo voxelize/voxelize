@@ -106,7 +106,7 @@ export class BlockUtils {
    * @returns The inserted voxel value.
    */
   static insertStage = (voxel: number, stage: number) => {
-    return (voxel & STAGE_MASK) | (stage << 24);
+    return (voxel & STAGE_MASK) | ((stage & 0xf) << 24);
   };
 
   static insertAll = (id: number, rotation?: BlockRotation, stage?: number) => {
