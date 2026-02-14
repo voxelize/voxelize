@@ -46,14 +46,21 @@ fn is_outside_visible_radius_sq(dx: f32, dy: f32, dz: f32, radius_sq: f32) -> bo
 fn push_client_update(
     client_updates: &mut HashMap<String, Vec<EntityProtocol>>,
     touched_clients: &mut Vec<String>,
-    client_id: &String,
+    client_id: &str,
     update: EntityProtocol,
 ) {
-    if let Some(updates) = client_updates.get_mut(client_id) {
-        if updates.is_empty() {
-            touched_clients.push(client_id.clone());
+    match client_updates.raw_entry_mut().from_key(client_id) {
+        RawEntryMut::Occupied(mut entry) => {
+            let updates = entry.get_mut();
+            if updates.is_empty() {
+                touched_clients.push(client_id.to_owned());
+            }
+            updates.push(update);
         }
-        updates.push(update);
+        RawEntryMut::Vacant(entry) => {
+            touched_clients.push(client_id.to_owned());
+            entry.insert(client_id.to_owned(), vec![update]);
+        }
     }
 }
 
@@ -203,12 +210,6 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         }
 
         for client_id in clients.keys() {
-            match self.client_updates_buffer.raw_entry_mut().from_key(client_id) {
-                RawEntryMut::Occupied(_) => {}
-                RawEntryMut::Vacant(entry) => {
-                    entry.insert(client_id.clone(), Vec::new());
-                }
-            }
             match bookkeeping
                 .client_known_entities
                 .raw_entry_mut()
