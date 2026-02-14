@@ -214,6 +214,37 @@ describe("transparent sorter", () => {
     expect(refreshedSortData.indexVersion).toBeLessThanOrEqual(geometryIndex.version);
   });
 
+  it("does not refresh transparent sort data after sorter-owned index updates", () => {
+    const mesh = new Mesh(createQuadGeometry(2), new MeshBasicMaterial());
+    const sortData = prepareTransparentMesh(mesh);
+    expect(sortData).not.toBeNull();
+    if (!sortData) {
+      return;
+    }
+
+    mesh.userData.transparentSortData = sortData;
+    const camera = new PerspectiveCamera();
+    camera.position.set(0, 0, 10);
+
+    sortTransparentMeshOnBeforeRender.call(
+      mesh,
+      {} as WebGLRenderer,
+      new Scene(),
+      camera
+    );
+    const sortDataAfterFirstRender = mesh.userData.transparentSortData;
+    camera.position.set(0, 0, 11);
+
+    sortTransparentMeshOnBeforeRender.call(
+      mesh,
+      {} as WebGLRenderer,
+      new Scene(),
+      camera
+    );
+
+    expect(mesh.userData.transparentSortData).toBe(sortDataAfterFirstRender);
+  });
+
   it("refreshes transparent sort data when position attribute changes", () => {
     const mesh = new Mesh(createQuadGeometry(2), new MeshBasicMaterial());
     const sortData = prepareTransparentMesh(mesh);

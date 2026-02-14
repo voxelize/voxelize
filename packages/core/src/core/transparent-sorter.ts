@@ -273,6 +273,7 @@ export function sortTransparentMesh(
   }
 
   geometryIndex.needsUpdate = true;
+  data.indexVersion = getPositionVersion(geometryIndex);
 }
 
 export function sortTransparentMeshOnBeforeRender(
