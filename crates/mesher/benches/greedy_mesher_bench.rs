@@ -442,11 +442,44 @@ fn dynamic_scene() -> BenchSpace {
     space
 }
 
+fn transparency_scene() -> BenchSpace {
+    let mut space = BenchSpace::new([16, 16, 16]);
+
+    for x in 0..16 {
+        for z in 0..16 {
+            space.set_voxel_id(x, 0, z, 1);
+            if (x + z) % 2 == 0 {
+                space.set_voxel_id(x, 1, z, 2);
+            }
+            if (x + z) % 3 == 0 {
+                let stage = ((x * 5 + z * 3) % 8) as u32;
+                space.set_voxel_stage(x, 2, z, 3, stage);
+            }
+            if x > 0 && x < 15 && z > 0 && z < 15 && (x + z) % 5 == 0 {
+                space.set_voxel_id(x, 3, z, 4);
+                space.set_voxel_id(x + 1, 3, z, 1);
+            }
+            if (x + z) % 7 == 0 {
+                space.set_voxel_rotation(x, 4, z, 5, BlockRotation::PY(std::f32::consts::PI / 2.0));
+            }
+        }
+    }
+
+    for x in 0..16 {
+        for z in 0..16 {
+            space.set_light(x, 5, z, 13, 3, 5, 2);
+        }
+    }
+
+    space
+}
+
 fn greedy_mesher_benchmark(c: &mut Criterion) {
     let registry = build_registry();
     let scenes = vec![
         ("terrain_16x24x16", terrain_scene()),
         ("dynamic_16x20x16", dynamic_scene()),
+        ("transparency_16x16x16", transparency_scene()),
     ];
 
     let mut group = c.benchmark_group("greedy_mesher");
@@ -496,6 +529,7 @@ fn non_greedy_mesher_benchmark(c: &mut Criterion) {
     let scenes = vec![
         ("terrain_16x24x16", terrain_scene()),
         ("dynamic_16x20x16", dynamic_scene()),
+        ("transparency_16x16x16", transparency_scene()),
     ];
     let mut group = c.benchmark_group("non_greedy_mesher");
 
