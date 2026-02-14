@@ -53,7 +53,9 @@ When making changes to meshing algorithms:
    - `python3 crates/mesher/scripts/bench_stability_gate.py --input <run1.txt> --input <run2.txt> --input <run3.txt> --include '^greedy_mesher/optimized/' --max-cv-pct 1.5`
 11. Summarize grouped speedups between two runs:
    - `python3 crates/mesher/scripts/bench_speedup_summary.py --baseline <baseline_output.txt> --candidate <candidate_output.txt>`
-12. Rebuild WASM wrapper when needed:
+12. Summarize lane outcomes (improved/regressed/neutral):
+   - `python3 crates/mesher/scripts/bench_outcome_summary.py --baseline <baseline_output.txt> --candidate <candidate_output.txt> --neutral-band-pct 1.0`
+13. Rebuild WASM wrapper when needed:
    - `cd crates/wasm-mesher && wasm-pack build --target web`
 
 ## Structure
@@ -68,3 +70,4 @@ When making changes to meshing algorithms:
 - `scripts/compare_bench_sets.py` - Multi-run baseline/candidate comparison with spread and optional gate
 - `scripts/bench_stability_gate.py` - Run-set coefficient-of-variation stability gate
 - `scripts/bench_speedup_summary.py` - Grouped geomean/mean speedup summary tool
+- `scripts/bench_outcome_summary.py` - Per-lane improved/regressed/neutral outcome summary tool
