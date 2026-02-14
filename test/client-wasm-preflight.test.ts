@@ -164,6 +164,7 @@ type WasmMesherJsonReport = OptionTerminatorMetadata &
   wasmPackCheckArgCount: number;
   wasmPackCheckExitCode: number | null;
   wasmPackCheckOutputLine: string | null;
+  wasmPackCheckStatus: "ok" | "missing" | "unavailable" | "skipped";
   wasmPackCheckReport: WasmPackJsonReport | null;
   buildOutput: string | null;
   outputPath: string | null;
@@ -302,11 +303,21 @@ describe("client wasm preflight script", () => {
     expect(report.wasmPackCheckExitCode).toBe(expectedExitCode);
 
     if (expectedExitCode === null) {
+      expect(report.wasmPackCheckStatus).toBe("skipped");
       expect(report.wasmPackCheckOutputLine).toBeNull();
       expect(report.wasmPackCheckReport).toBeNull();
       return;
     }
 
+    if (report.wasmPackCheckReport !== null) {
+      expect(report.wasmPackCheckStatus).toBe(
+        report.wasmPackCheckReport.checkStatusMap["wasm-pack"]
+      );
+    } else {
+      expect(report.wasmPackCheckStatus).toBe(
+        expectedExitCode === 0 ? "ok" : "unavailable"
+      );
+    }
     if (report.wasmPackCheckOutputLine !== null) {
       expect(report.wasmPackCheckOutputLine.length).toBeGreaterThan(0);
     }

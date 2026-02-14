@@ -294,6 +294,7 @@ type WasmMesherNestedReport = {
   wasmPackCheckArgCount: number;
   wasmPackCheckExitCode: number | null;
   wasmPackCheckOutputLine: string | null;
+  wasmPackCheckStatus: "ok" | "missing" | "unavailable" | "skipped";
   wasmPackCheckReport: WasmPackNestedReport | null;
 };
 type ClientNestedStep = {
@@ -3099,9 +3100,19 @@ const expectClientNestedReport = (checkReport: object | null) => {
     );
     expect(wasmArtifactStep.report.wasmPackCheckArgCount).toBe(3);
     if (wasmArtifactStep.report.wasmPackCheckExitCode === null) {
+      expect(wasmArtifactStep.report.wasmPackCheckStatus).toBe("skipped");
       expect(wasmArtifactStep.report.wasmPackCheckOutputLine).toBeNull();
       expect(wasmArtifactStep.report.wasmPackCheckReport).toBeNull();
     } else {
+      if (wasmArtifactStep.report.wasmPackCheckReport !== null) {
+        expect(wasmArtifactStep.report.wasmPackCheckStatus).toBe(
+          wasmArtifactStep.report.wasmPackCheckReport.checkStatusMap["wasm-pack"]
+        );
+      } else {
+        expect(wasmArtifactStep.report.wasmPackCheckStatus).toBe(
+          wasmArtifactStep.report.wasmPackCheckExitCode === 0 ? "ok" : "unavailable"
+        );
+      }
       if (wasmArtifactStep.report.wasmPackCheckOutputLine !== null) {
         expect(wasmArtifactStep.report.wasmPackCheckOutputLine.length).toBeGreaterThan(0);
       }

@@ -443,8 +443,8 @@ Each step failure summary in `failureSummaries[]` includes `checkCommand`,
 `checkArgs`, and `checkArgCount` for deterministic command diagnostics.
 Nested client wasm artifact reports include `wasmPackCheckCommand`,
 `wasmPackCheckArgs`, `wasmPackCheckArgCount`, `wasmPackCheckExitCode`,
-and `wasmPackCheckOutputLine` for deterministic wasm-pack invocation
-tracing.
+`wasmPackCheckStatus`, and `wasmPackCheckOutputLine` for deterministic
+wasm-pack invocation tracing.
 Developer-environment JSON reports include check inventory and partition
 metadata such as `availableChecks`, `availableCheckIndexMap`,
 `availableCheckCommandMap`, `availableCheckArgsMap`,

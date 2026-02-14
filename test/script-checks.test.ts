@@ -360,6 +360,7 @@ type WasmMesherJsonReport = OptionTerminatorMetadata &
   wasmPackCheckArgCount: number;
   wasmPackCheckExitCode: number | null;
   wasmPackCheckOutputLine: string | null;
+  wasmPackCheckStatus: "ok" | "missing" | "unavailable" | "skipped";
   wasmPackCheckReport: WasmPackJsonReport | null;
   buildOutput: string | null;
   outputPath: string | null;
@@ -1496,6 +1497,7 @@ const expectWasmMesherNestedReportMetadata = (report: WasmMesherJsonReport) => {
 
   if (report.wasmPackCheckExitCode === null) {
     expect(report.wasmPackAvailable).toBeNull();
+    expect(report.wasmPackCheckStatus).toBe("skipped");
     expect(report.wasmPackCheckOutputLine).toBeNull();
     expect(report.wasmPackCheckReport).toBeNull();
     return;
@@ -1504,6 +1506,15 @@ const expectWasmMesherNestedReportMetadata = (report: WasmMesherJsonReport) => {
   expect(report.wasmPackAvailable === true || report.wasmPackAvailable === false).toBe(
     true
   );
+  if (report.wasmPackCheckReport !== null) {
+    expect(report.wasmPackCheckStatus).toBe(
+      report.wasmPackCheckReport.checkStatusMap["wasm-pack"]
+    );
+  } else {
+    expect(report.wasmPackCheckStatus).toBe(
+      report.wasmPackCheckExitCode === 0 ? "ok" : "unavailable"
+    );
+  }
   if (report.wasmPackCheckOutputLine !== null) {
     expect(report.wasmPackCheckOutputLine.length).toBeGreaterThan(0);
   }

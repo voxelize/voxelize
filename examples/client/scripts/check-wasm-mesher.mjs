@@ -85,6 +85,34 @@ const validationFailureMessage = deriveCliValidationFailureMessage({
   outputPathError,
   unsupportedOptionsError,
 });
+const deriveWasmPackCheckStatus = ({
+  wasmPackCheckExitCode,
+  wasmPackCheckReport,
+}) => {
+  if (wasmPackCheckExitCode === null) {
+    return "skipped";
+  }
+
+  const reportStatus =
+    wasmPackCheckReport !== null &&
+    typeof wasmPackCheckReport === "object" &&
+    "checkStatusMap" in wasmPackCheckReport &&
+    wasmPackCheckReport.checkStatusMap !== null &&
+    typeof wasmPackCheckReport.checkStatusMap === "object" &&
+    "wasm-pack" in wasmPackCheckReport.checkStatusMap
+      ? wasmPackCheckReport.checkStatusMap["wasm-pack"]
+      : null;
+
+  if (typeof reportStatus === "string" && reportStatus.length > 0) {
+    return reportStatus;
+  }
+
+  if (wasmPackCheckExitCode === 0) {
+    return "ok";
+  }
+
+  return "unavailable";
+};
 
 if (isJson && validationFailureMessage !== null) {
   const report = buildTimedReport({
@@ -103,6 +131,10 @@ if (isJson && validationFailureMessage !== null) {
     wasmPackCheckArgCount: resolvedWasmPackCheckArgs.length,
     wasmPackCheckExitCode: null,
     wasmPackCheckOutputLine: null,
+    wasmPackCheckStatus: deriveWasmPackCheckStatus({
+      wasmPackCheckExitCode: null,
+      wasmPackCheckReport: null,
+    }),
     wasmPackCheckReport: null,
     buildOutput: null,
     outputPath: outputPathError === null ? outputPath : null,
@@ -194,6 +226,10 @@ if (fs.existsSync(wasmMesherEntry)) {
     wasmPackCheckArgCount: resolvedWasmPackCheckArgs.length,
     wasmPackCheckExitCode: null,
     wasmPackCheckOutputLine: null,
+    wasmPackCheckStatus: deriveWasmPackCheckStatus({
+      wasmPackCheckExitCode: null,
+      wasmPackCheckReport: null,
+    }),
     wasmPackCheckReport: null,
     buildOutput: null,
     message: "WASM mesher artifact already exists.",
@@ -214,6 +250,10 @@ if (isNoBuild) {
     wasmPackCheckArgCount: resolvedWasmPackCheckArgs.length,
     wasmPackCheckExitCode: null,
     wasmPackCheckOutputLine: null,
+    wasmPackCheckStatus: deriveWasmPackCheckStatus({
+      wasmPackCheckExitCode: null,
+      wasmPackCheckReport: null,
+    }),
     wasmPackCheckReport: null,
     buildOutput: null,
     message:
@@ -253,6 +293,10 @@ if (wasmPackCheckStatus !== 0) {
     wasmPackCheckArgCount: resolvedWasmPackCheckArgs.length,
     wasmPackCheckExitCode: wasmPackCheckStatus,
     wasmPackCheckOutputLine,
+    wasmPackCheckStatus: deriveWasmPackCheckStatus({
+      wasmPackCheckExitCode: wasmPackCheckStatus,
+      wasmPackCheckReport,
+    }),
     wasmPackCheckReport,
     buildOutput: null,
     message:
@@ -286,6 +330,10 @@ if (buildStatus === 0 && fs.existsSync(wasmMesherEntry)) {
     wasmPackCheckArgCount: resolvedWasmPackCheckArgs.length,
     wasmPackCheckExitCode: wasmPackCheckStatus,
     wasmPackCheckOutputLine,
+    wasmPackCheckStatus: deriveWasmPackCheckStatus({
+      wasmPackCheckExitCode: wasmPackCheckStatus,
+      wasmPackCheckReport,
+    }),
     wasmPackCheckReport,
     buildOutput: isJson ? buildOutput : null,
     message: "WASM mesher artifact is available.",
@@ -305,6 +353,10 @@ finish({
   wasmPackCheckArgCount: resolvedWasmPackCheckArgs.length,
   wasmPackCheckExitCode: wasmPackCheckStatus,
   wasmPackCheckOutputLine,
+  wasmPackCheckStatus: deriveWasmPackCheckStatus({
+    wasmPackCheckExitCode: wasmPackCheckStatus,
+    wasmPackCheckReport,
+  }),
   wasmPackCheckReport,
   buildOutput: isJson ? buildOutput : null,
   message:
