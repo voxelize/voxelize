@@ -87,26 +87,14 @@ impl BatchSpace {
 
     #[inline]
     fn voxel_index_in_chunk(&self, chunk: &ChunkData, vx: i32, vy: i32, vz: i32) -> Option<usize> {
-        let (lx, lz) = if let Some(mask) = self.chunk_mask {
-            ((vx & mask) as usize, (vz & mask) as usize)
-        } else {
-            (
-                vx.rem_euclid(self.chunk_size) as usize,
-                vz.rem_euclid(self.chunk_size) as usize,
-            )
-        };
-        let ly = vy as usize;
-
-        if ly >= chunk.shape[1] {
-            return None;
-        }
-
-        let index = lx * chunk.shape[1] * chunk.shape[2] + ly * chunk.shape[2] + lz;
-        if index < chunk.voxels.len() && index < chunk.lights.len() {
-            Some(index)
-        } else {
-            None
-        }
+        Self::voxel_index_from_components(
+            chunk,
+            vx,
+            vy,
+            vz,
+            self.chunk_size,
+            self.chunk_mask,
+        )
     }
 
     fn get_chunk_and_voxel_index(&self, vx: i32, vy: i32, vz: i32) -> Option<(usize, usize)> {
@@ -117,17 +105,33 @@ impl BatchSpace {
         Some((chunk_index, voxel_index))
     }
 
-    fn get_chunk_and_voxel_index_mut(
-        &mut self,
+    fn voxel_index_from_components(
+        chunk: &ChunkData,
         vx: i32,
         vy: i32,
         vz: i32,
-    ) -> Option<(usize, usize)> {
-        let (cx, cz) = self.map_voxel_to_chunk(vx, vz);
-        let chunk_index = self.chunk_index_from_coords(cx, cz)?;
-        let chunk = self.chunks.get(chunk_index)?.as_ref()?;
-        let voxel_index = self.voxel_index_in_chunk(chunk, vx, vy, vz)?;
-        Some((chunk_index, voxel_index))
+        chunk_size: i32,
+        chunk_mask: Option<i32>,
+    ) -> Option<usize> {
+        let (lx, lz) = if let Some(mask) = chunk_mask {
+            ((vx & mask) as usize, (vz & mask) as usize)
+        } else {
+            (
+                vx.rem_euclid(chunk_size) as usize,
+                vz.rem_euclid(chunk_size) as usize,
+            )
+        };
+        let ly = vy as usize;
+        if ly >= chunk.shape[1] {
+            return None;
+        }
+
+        let index = lx * chunk.shape[1] * chunk.shape[2] + ly * chunk.shape[2] + lz;
+        if index < chunk.voxels.len() && index < chunk.lights.len() {
+            Some(index)
+        } else {
+            None
+        }
     }
 
     fn take_modified_chunks(&self) -> Vec<ModifiedChunkData> {
@@ -194,18 +198,29 @@ impl LightVoxelAccess for BatchSpace {
     }
 
     fn set_raw_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
-        if let Some((chunk_index, voxel_index)) = self.get_chunk_and_voxel_index_mut(vx, vy, vz) {
-            if let Some(Some(chunk)) = self.chunks.get_mut(chunk_index) {
-                if chunk.lights[voxel_index] == level {
-                    return true;
-                }
-                chunk.lights[voxel_index] = level;
-                if !self.modified_chunks[chunk_index] {
-                    self.modified_chunks[chunk_index] = true;
-                    self.modified_count += 1;
-                }
+        let (cx, cz) = self.map_voxel_to_chunk(vx, vz);
+        let Some(chunk_index) = self.chunk_index_from_coords(cx, cz) else {
+            return false;
+        };
+        let chunk_size = self.chunk_size;
+        let chunk_mask = self.chunk_mask;
+
+        if let Some(Some(chunk)) = self.chunks.get_mut(chunk_index) {
+            let Some(voxel_index) =
+                Self::voxel_index_from_components(chunk, vx, vy, vz, chunk_size, chunk_mask)
+            else {
+                return false;
+            };
+
+            if chunk.lights[voxel_index] == level {
                 return true;
             }
+            chunk.lights[voxel_index] = level;
+            if !self.modified_chunks[chunk_index] {
+                self.modified_chunks[chunk_index] = true;
+                self.modified_count += 1;
+            }
+            return true;
         }
 
         false
