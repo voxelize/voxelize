@@ -158,7 +158,9 @@ export function decodeMessage(
   const message = Message.toObject(Message.decode(buffer), {
     defaults: true,
   }) as DecodedMessage;
-  message.type = Message.Type[message.type as number];
+  if (typeof message.type === "number") {
+    message.type = Message.Type[message.type];
+  }
 
   if (typeof message.json === "string") {
     message.json = tryParseJSON(message.json);
@@ -175,7 +177,9 @@ export function decodeMessage(
           parsed.json = deepParseJSON(parsed.json);
         }
       }
-      entity.operation = Entity.Operation[entity.operation as number];
+      if (typeof entity.operation === "number") {
+        entity.operation = Entity.Operation[entity.operation];
+      }
     }
   }
 
