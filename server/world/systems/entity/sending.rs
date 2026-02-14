@@ -1,4 +1,4 @@
-use hashbrown::HashMap;
+use hashbrown::{hash_map::RawEntryMut, HashMap};
 use specs::{
     Entities, Join, LendJoin, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage,
 };
@@ -209,13 +209,21 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         }
 
         for client_id in clients.keys() {
-            if !self.client_updates_buffer.contains_key(client_id) {
-                self.client_updates_buffer.insert(client_id.clone(), Vec::new());
+            match self.client_updates_buffer.raw_entry_mut().from_key(client_id) {
+                RawEntryMut::Occupied(_) => {}
+                RawEntryMut::Vacant(entry) => {
+                    entry.insert(client_id.clone(), Vec::new());
+                }
             }
-            if !bookkeeping.client_known_entities.contains_key(client_id) {
-                bookkeeping
-                    .client_known_entities
-                    .insert(client_id.clone(), Default::default());
+            match bookkeeping
+                .client_known_entities
+                .raw_entry_mut()
+                .from_key(client_id)
+            {
+                RawEntryMut::Occupied(_) => {}
+                RawEntryMut::Vacant(entry) => {
+                    entry.insert(client_id.clone(), Default::default());
+                }
             }
         }
         let default_pos = Vec3(0.0, 0.0, 0.0);
