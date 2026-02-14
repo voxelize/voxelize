@@ -95,29 +95,17 @@ fn create_registry() -> LightRegistry {
     let mut air = LightBlock::default_air();
     air.id = 0;
 
-    let mut stone = LightBlock::default_air();
-    stone.id = 1;
-    stone.is_transparent = [false, false, false, false, false, false];
-    stone.is_opaque = true;
-    stone.is_light = false;
-    stone.light_reduce = true;
-    stone.red_light_level = 0;
-    stone.green_light_level = 0;
-    stone.blue_light_level = 0;
-    stone.dynamic_patterns = None;
-    stone.recompute_flags();
+    let stone = LightBlock::new(
+        1,
+        [false, false, false, false, false, false],
+        true,
+        0,
+        0,
+        0,
+        None,
+    );
 
-    let mut torch = LightBlock::default_air();
-    torch.id = 2;
-    torch.is_transparent = [true, true, true, true, true, true];
-    torch.is_opaque = false;
-    torch.is_light = true;
-    torch.light_reduce = false;
-    torch.red_light_level = 15;
-    torch.green_light_level = 0;
-    torch.blue_light_level = 0;
-    torch.dynamic_patterns = None;
-    torch.recompute_flags();
+    let torch = LightBlock::new(2, [true, true, true, true, true, true], false, 15, 0, 0, None);
 
     LightRegistry::new(vec![(0, air), (1, stone), (2, torch)])
 }
