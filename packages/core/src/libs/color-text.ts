@@ -92,6 +92,9 @@ export class ColorText {
     if (splitterLength === 0) {
       return [{ color: defaultColor, text }];
     }
+    if (splitterLength > textLength) {
+      return [{ color: defaultColor, text }];
+    }
     const singleSplitterCode =
       splitterLength === 1 ? splitter.charCodeAt(0) : -1;
     const firstSplitterIndex = ColorText.findSplitterIndex(
