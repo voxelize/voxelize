@@ -385,13 +385,12 @@ impl KdTree {
     }
 
     pub fn players_within_radius(&self, point: &Vec3<f32>, radius: f32) -> Vec<&Entity> {
-        let player_ids = self.player_ids_within_radius(point, radius);
-        let mut entities = Vec::with_capacity(player_ids.len());
-        for ent_id in player_ids {
+        let mut entities = Vec::new();
+        self.for_each_player_id_within_radius(point, radius, |ent_id| {
             if let Some(entity) = self.entity_map.get(&ent_id) {
                 entities.push(entity);
             }
-        }
+        });
         entities
     }
 }
