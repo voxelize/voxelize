@@ -396,7 +396,8 @@ const convertDynamicPatterns = (
 
 const convertRegistryToWasm = (registry: SerializedRegistry): WasmLightRegistry => {
   const blockCount = registry.blocksById.length;
-  const blocksById: [number, WasmLightBlock][] = [];
+  const blocksById = new Array<[number, WasmLightBlock]>(blockCount);
+  let mappedCount = 0;
   for (let blockIndex = 0; blockIndex < blockCount; blockIndex++) {
     const [id, block] = registry.blocksById[blockIndex];
     if (!block || !isValidVoxelId(id)) {
@@ -417,7 +418,7 @@ const convertRegistryToWasm = (registry: SerializedRegistry): WasmLightRegistry 
     const redLightLevel = normalizeRequiredLightLevel(block.redLightLevel);
     const greenLightLevel = normalizeRequiredLightLevel(block.greenLightLevel);
     const blueLightLevel = normalizeRequiredLightLevel(block.blueLightLevel);
-    blocksById.push([
+    blocksById[mappedCount] = [
       id,
       {
         id: blockId,
@@ -432,8 +433,10 @@ const convertRegistryToWasm = (registry: SerializedRegistry): WasmLightRegistry 
         blueLightLevel,
         dynamicPatterns: convertDynamicPatterns(block.dynamicPatterns),
       },
-    ]);
+    ];
+    mappedCount++;
   }
+  blocksById.length = mappedCount;
 
   return { blocksById };
 };
