@@ -124,6 +124,8 @@ type WasmMesherJsonReport = OptionTerminatorMetadata &
 
 type ClientJsonStep = {
   name: string;
+  scriptName: string;
+  stepIndex: number;
   passed: boolean;
   exitCode: number | null;
   skipped: boolean;
@@ -324,6 +326,8 @@ type RuntimeLibrariesJsonReport = OptionTerminatorMetadata &
 
 type OnboardingJsonStep = {
   name: string;
+  scriptName: string;
+  stepIndex: number;
   passed: boolean;
   exitCode: number | null;
   skipped: boolean;
@@ -450,8 +454,11 @@ const expectOptionTerminatorMetadata = (
 };
 const expectStepSummaryMetadata = (
   report: {
+    availableSteps: string[];
     steps: Array<{
       name: string;
+      scriptName: string;
+      stepIndex: number;
       passed: boolean;
       skipped: boolean;
     }>;
@@ -524,10 +531,20 @@ const expectStepSummaryMetadata = (
     return expectedStepMetadata[stepName].scriptName;
   });
   const stepIndexMap = new Map(
-    report.steps.map((step, index) => {
-      return [step.name, index];
+    report.availableSteps.map((stepName, index) => {
+      return [stepName, index];
     })
   );
+  const expectedStepNames = new Set(Object.keys(expectedStepMetadata));
+  for (const step of report.steps) {
+    expect(expectedStepNames.has(step.name)).toBe(true);
+    expect(step.scriptName).toBe(expectedStepMetadata[step.name].scriptName);
+    const expectedStepIndex = stepIndexMap.get(step.name);
+    if (expectedStepIndex === undefined) {
+      throw new Error(`Missing step index metadata for ${step.name}.`);
+    }
+    expect(step.stepIndex).toBe(expectedStepIndex);
+  }
   const mapStepNamesToIndices = (stepNames: string[]) => {
     return stepNames.map((stepName) => {
       const stepIndex = stepIndexMap.get(stepName);

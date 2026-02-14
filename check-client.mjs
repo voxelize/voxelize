@@ -120,6 +120,19 @@ const mapStepNamesToMetadata = (stepNames) => {
     })
   );
 };
+const resolveStepDetails = (stepName) => {
+  const stepMetadata = availableStepMetadata[stepName];
+  const stepIndex = availableStepIndexMap.get(stepName);
+
+  if (stepMetadata === undefined || stepIndex === undefined) {
+    throw new Error(`Missing step metadata for ${stepName}.`);
+  }
+
+  return {
+    scriptName: stepMetadata.scriptName,
+    stepIndex,
+  };
+};
 const stepResults = [];
 let exitCode = 0;
 
@@ -189,9 +202,12 @@ const addSkippedStep = (name, reason) => {
   if (!isJson) {
     return;
   }
+  const { scriptName, stepIndex } = resolveStepDetails(name);
 
   stepResults.push({
     name,
+    scriptName,
+    stepIndex,
     passed: false,
     exitCode: null,
     skipped: true,
@@ -220,10 +236,13 @@ const runStep = (name, command, args) => {
 
   const resolvedStatus = result.status ?? 1;
   if (isJson) {
+    const { scriptName, stepIndex } = resolveStepDetails(name);
     const output = `${result.stdout ?? ""}${result.stderr ?? ""}`.trim();
     const report = parseJsonOutput(output);
     stepResults.push({
       name,
+      scriptName,
+      stepIndex,
       passed: resolvedStatus === 0,
       exitCode: resolvedStatus,
       skipped: false,
