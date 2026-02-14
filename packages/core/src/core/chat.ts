@@ -370,7 +370,11 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       this.getParseSchemaInfo(schema);
 
     if (isRestOnly) {
-      return schema.parse({ rest: raw.trim() });
+      const rawLength = raw.length;
+      const shouldTrim =
+        rawLength > 0 &&
+        (raw.charCodeAt(0) === 32 || raw.charCodeAt(rawLength - 1) === 32);
+      return schema.parse({ rest: shouldTrim ? raw.trim() : raw });
     }
     if (keys.length === 0) {
       return schema.parse({});
