@@ -177,6 +177,7 @@ type TsCoreJsonReport = OptionTerminatorMetadata &
   buildDurationMs: number | null;
   attemptedBuild: boolean;
   buildSkipped: boolean;
+  buildSkippedReason: "no-build" | "artifacts-present" | null;
   buildOutput: string | null;
   outputPath: string | null;
   unknownOptions: string[];
@@ -382,6 +383,17 @@ const expectTsCoreReportMetadata = (report: TsCoreJsonReport) => {
   } else {
     expect(report.buildExitCode).toBeNull();
     expect(report.buildDurationMs).toBeNull();
+  }
+  if (report.buildSkipped) {
+    expect(report.buildSkippedReason === "no-build" || report.buildSkippedReason === "artifacts-present").toBe(true);
+  } else {
+    expect(report.buildSkippedReason).toBeNull();
+  }
+  if (report.buildSkippedReason === "no-build") {
+    expect(report.noBuild).toBe(true);
+  }
+  if (report.buildSkippedReason === "artifacts-present") {
+    expect(report.attemptedBuild).toBe(false);
   }
   expectTimingMetadata(report);
   expectOptionTerminatorMetadata(report);

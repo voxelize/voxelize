@@ -109,6 +109,11 @@ const withBaseReportFields = (report) => {
     typeof report.buildExitCode === "number" ? report.buildExitCode : null;
   const buildDurationMs =
     typeof report.buildDurationMs === "number" ? report.buildDurationMs : null;
+  const buildSkippedReason =
+    report.buildSkippedReason === "no-build" ||
+    report.buildSkippedReason === "artifacts-present"
+      ? report.buildSkippedReason
+      : null;
   return {
     ...report,
     optionTerminatorUsed,
@@ -137,6 +142,7 @@ const withBaseReportFields = (report) => {
     buildArgs: buildCommandArgs,
     buildExitCode,
     buildDurationMs,
+    buildSkippedReason,
   };
 };
 const finish = (report) => {
@@ -180,6 +186,7 @@ if (isJson && validationFailureMessage !== null) {
       missingArtifacts,
       attemptedBuild: false,
       buildSkipped: isNoBuild,
+      buildSkippedReason: isNoBuild ? "no-build" : null,
       buildOutput: null,
       validationErrorCode,
       message: validationFailureMessage,
@@ -208,7 +215,8 @@ if (initialMissingArtifacts.length === 0) {
     artifactsPresent: true,
     missingArtifacts: [],
     attemptedBuild: false,
-    buildSkipped: isNoBuild,
+    buildSkipped: true,
+    buildSkippedReason: "artifacts-present",
     buildOutput: null,
     message: "TypeScript core build artifacts are available.",
   });
@@ -222,6 +230,7 @@ if (isNoBuild) {
     missingArtifacts: initialMissingArtifacts,
     attemptedBuild: false,
     buildSkipped: true,
+    buildSkippedReason: "no-build",
     buildOutput: null,
     message: `Missing ${initialMissingArtifacts.join(", ")}. Build was skipped due to --no-build. Run \`pnpm --filter @voxelize/ts-core run build\` from the repository root.`,
   });
@@ -255,6 +264,7 @@ if (buildExitCode === 0 && missingArtifactsAfterBuild.length === 0) {
     missingArtifacts: [],
     attemptedBuild: true,
     buildSkipped: false,
+    buildSkippedReason: null,
     buildOutput: isJson ? buildOutput : null,
     buildExitCode,
     buildDurationMs,
@@ -269,6 +279,7 @@ finish({
   missingArtifacts: missingArtifactsAfterBuild,
   attemptedBuild: true,
   buildSkipped: false,
+  buildSkippedReason: null,
   buildOutput: isJson ? buildOutput : null,
   buildExitCode,
   buildDurationMs,
