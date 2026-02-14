@@ -393,12 +393,19 @@ const applyRelevantDeltas = (
 
     const deltasLength = deltas.length;
     if (deltasLength > 0) {
-      const chunkLastSequenceId = deltas[deltasLength - 1].sequenceId;
-      if (
-        isInteger(chunkLastSequenceId) &&
-        chunkLastSequenceId > lastSequenceId
-      ) {
-        lastSequenceId = chunkLastSequenceId;
+      for (let tailIndex = deltasLength - 1; tailIndex >= 0; tailIndex--) {
+        const tailDelta = deltas[tailIndex];
+        if (!tailDelta || typeof tailDelta !== "object") {
+          continue;
+        }
+        const chunkLastSequenceId = tailDelta.sequenceId;
+        if (
+          isInteger(chunkLastSequenceId) &&
+          chunkLastSequenceId > lastSequenceId
+        ) {
+          lastSequenceId = chunkLastSequenceId;
+        }
+        break;
       }
     }
 
