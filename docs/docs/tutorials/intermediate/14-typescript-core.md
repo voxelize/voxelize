@@ -68,6 +68,9 @@ const up = BlockRotation.PY(0);
 const side = BlockRotation.PX(Math.PI / 2);
 ```
 
+Y-rotation values that are full turns (`±2π` multiples) are normalized to
+identity for node/transparency transforms.
+
 You can also pass plain rotation-like objects when packing voxels:
 
 ```ts title="Rotation-like input"
