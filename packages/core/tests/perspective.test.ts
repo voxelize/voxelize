@@ -72,6 +72,42 @@ describe("Perspective state transitions", () => {
     expect(controls.camera.position.z).toBeCloseTo(-5);
   });
 
+  it("normalizes invalid block margin before raycasts", () => {
+    const controls = createControls();
+    const raycastOrigins: [number, number, number][] = [];
+    const perspective = new Perspective(
+      controls,
+      createWorld((origin) => {
+        raycastOrigins.push(origin);
+        return null;
+      }),
+      { blockMargin: Number.NaN, lerpFactor: 1 }
+    );
+    perspective.state = "second";
+
+    perspective.update();
+
+    expect(raycastOrigins.length).toBe(1);
+    const [x, y, z] = raycastOrigins[0];
+    expect(Number.isFinite(x)).toBe(true);
+    expect(Number.isFinite(y)).toBe(true);
+    expect(Number.isFinite(z)).toBe(true);
+  });
+
+  it("normalizes invalid lerp factor during update", () => {
+    const controls = createControls();
+    const perspective = new Perspective(controls, createWorld(), {
+      maxDistance: 8,
+      lerpFactor: Number.NaN,
+    });
+    perspective.state = "second";
+
+    perspective.update();
+
+    expect(controls.camera.position.z).toBeCloseTo(-4);
+    expect(Number.isFinite(controls.camera.position.z)).toBe(true);
+  });
+
   it("runs all unbind callbacks even when one throws", () => {
     const controls = createControls();
     const perspective = new Perspective(controls, createWorld());

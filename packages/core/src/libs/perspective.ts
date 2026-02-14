@@ -46,6 +46,10 @@ const defaultOptions: PerspectiveOptions = {
 
 const normalizeNonNegativeFinite = (value: number, fallback: number) =>
   Number.isFinite(value) && value >= 0 ? value : fallback;
+const normalizeFinite = (value: number, fallback: number) =>
+  Number.isFinite(value) ? value : fallback;
+const areFinite3 = (x: number, y: number, z: number) =>
+  Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z);
 
 /**
  * A class that allows you to switch between first, second and third person perspectives for
@@ -178,14 +182,14 @@ export class Perspective {
     });
 
     this.inputs = inputs;
-    const unbinds = [unbindKeyC, unbindF5];
 
     return () => {
-      for (let index = 0; index < unbinds.length; index++) {
-        try {
-          unbinds[index]();
-        } catch {}
-      }
+      try {
+        unbindKeyC();
+      } catch {}
+      try {
+        unbindF5();
+      } catch {}
     };
   };
 
@@ -235,10 +239,20 @@ export class Perspective {
     (this.state === "second" ? object : camera).getWorldDirection(dir);
     dir.normalize();
     dir.multiplyScalar(-1);
+    if (!areFinite3(dir.x, dir.y, dir.z)) {
+      return maxDistance;
+    }
 
     const pos = this.raycastOrigin;
     object.getWorldPosition(pos);
-    pos.addScaledVector(dir, this.options.blockMargin);
+    const blockMargin = normalizeFinite(
+      this.options.blockMargin,
+      defaultOptions.blockMargin
+    );
+    pos.addScaledVector(dir, blockMargin);
+    if (!areFinite3(pos.x, pos.y, pos.z)) {
+      return maxDistance;
+    }
 
     const raycastOrigin = this.raycastOriginCoords;
     raycastOrigin[0] = pos.x;
@@ -273,6 +287,10 @@ export class Perspective {
 
   update = () => {
     const { object, camera } = this.controls;
+    const lerpFactor = normalizeFinite(
+      this.options.lerpFactor,
+      defaultOptions.lerpFactor
+    );
 
     if (this.controls.character) {
       if (this.state === "first" && this.controls.character.visible) {
@@ -298,7 +316,7 @@ export class Perspective {
         const newPos = this.targetCameraPosition;
         newPos.copy(camera.position);
         newPos.z = -this.getDistance();
-        camera.position.lerp(newPos, this.options.lerpFactor);
+        camera.position.lerp(newPos, lerpFactor);
         camera.lookAt(object.position);
         break;
       }
@@ -306,7 +324,7 @@ export class Perspective {
         const newPos = this.targetCameraPosition;
         newPos.copy(camera.position);
         newPos.z = this.getDistance();
-        camera.position.lerp(newPos, this.options.lerpFactor);
+        camera.position.lerp(newPos, lerpFactor);
         break;
       }
     }
