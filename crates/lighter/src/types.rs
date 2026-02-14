@@ -269,31 +269,41 @@ impl LightBlock {
                 let vy = simple_rule.offset[1] + vy;
                 let vz = simple_rule.offset[2] + vz;
 
-                let id_match = simple_rule
-                    .id
-                    .is_none_or(|expected_id| space.get_voxel(vx, vy, vz) == expected_id);
-                if !id_match {
-                    return false;
+                if let Some(expected_id) = simple_rule.id {
+                    if space.get_voxel(vx, vy, vz) != expected_id {
+                        return false;
+                    }
                 }
 
-                let rotation_match = simple_rule.rotation.as_ref().is_none_or(|expected| {
-                    space.get_voxel_rotation(vx, vy, vz) == *expected
-                });
-                if !rotation_match {
-                    return false;
+                if let Some(expected_rotation) = simple_rule.rotation.as_ref() {
+                    if space.get_voxel_rotation(vx, vy, vz) != *expected_rotation {
+                        return false;
+                    }
                 }
 
-                simple_rule
-                    .stage
-                    .is_none_or(|expected_stage| space.get_voxel_stage(vx, vy, vz) == expected_stage)
+                if let Some(expected_stage) = simple_rule.stage {
+                    return space.get_voxel_stage(vx, vy, vz) == expected_stage;
+                }
+
+                true
             }
             BlockRule::Combination { logic, rules } => match logic {
-                BlockRuleLogic::And => rules
-                    .iter()
-                    .all(|r| Self::evaluate_rule(r, vx, vy, vz, space)),
-                BlockRuleLogic::Or => rules
-                    .iter()
-                    .any(|r| Self::evaluate_rule(r, vx, vy, vz, space)),
+                BlockRuleLogic::And => {
+                    for sub_rule in rules {
+                        if !Self::evaluate_rule(sub_rule, vx, vy, vz, space) {
+                            return false;
+                        }
+                    }
+                    true
+                }
+                BlockRuleLogic::Or => {
+                    for sub_rule in rules {
+                        if Self::evaluate_rule(sub_rule, vx, vy, vz, space) {
+                            return true;
+                        }
+                    }
+                    false
+                }
                 BlockRuleLogic::Not => {
                     if let Some(first_rule) = rules.first() {
                         !Self::evaluate_rule(first_rule, vx, vy, vz, space)
