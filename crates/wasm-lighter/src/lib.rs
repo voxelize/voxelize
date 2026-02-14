@@ -589,7 +589,7 @@ pub fn process_light_batch_fast(
     ) else {
         return empty_batch_result();
     };
-    if (chunks_data.length() as usize) < expected_chunk_count {
+    if chunks_data.length() < expected_chunk_count as u32 {
         return empty_batch_result();
     }
 
