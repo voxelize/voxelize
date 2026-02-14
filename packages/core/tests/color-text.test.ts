@@ -58,4 +58,21 @@ describe("ColorText.split", () => {
       ColorText.SPLITTER = previousSplitter;
     }
   });
+
+  it("parses alternating color tokens into ordered colored segments", () => {
+    const previousSplitter = ColorText.SPLITTER;
+    ColorText.SPLITTER = "$";
+    try {
+      expect(ColorText.split("$green$Hello$yellow$World", "black")).toEqual([
+        { color: "green", text: "Hello" },
+        { color: "yellow", text: "World" },
+      ]);
+      expect(ColorText.split("Lead$green$Trail", "black")).toEqual([
+        { color: "black", text: "Lead" },
+        { color: "green", text: "Trail" },
+      ]);
+    } finally {
+      ColorText.SPLITTER = previousSplitter;
+    }
+  });
 });

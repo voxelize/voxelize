@@ -59,69 +59,57 @@ export class ColorText {
     }
     const result: { color: string; text: string }[] = [];
     let currentColor = defaultColor;
-    let expectingColorToken = false;
-    let hasNonEmptySegment = false;
     let cursor = 0;
+    let endedOnColorToken = false;
+    const pushSegment = (segment: string) => {
+      if (segment.length === 0) {
+        return;
+      }
+      const lastIndex = result.length - 1;
+      if (lastIndex >= 0 && result[lastIndex].color === currentColor) {
+        result[lastIndex].text += segment;
+        return;
+      }
+      result.push({ color: currentColor, text: segment });
+    };
 
-    while (cursor <= textLength) {
+    while (cursor < textLength) {
       const openIndex = text.indexOf(splitter, cursor);
-      let segment = "";
-
       if (openIndex === -1) {
-        segment = text.substring(cursor);
-        cursor = textLength + 1;
-      } else {
-        const tokenStart = openIndex + splitterLength;
-        const closeIndex = text.indexOf(splitter, tokenStart);
-        if (closeIndex === -1) {
-          segment = text.substring(cursor);
-          cursor = textLength + 1;
-        } else {
-          segment = text.substring(cursor, openIndex);
-          const tokenEnd = closeIndex + splitterLength;
-          cursor = tokenEnd;
-          if (!hasNonEmptySegment) {
-            expectingColorToken = true;
-            hasNonEmptySegment = true;
-          }
-          if (expectingColorToken) {
-            currentColor = text.substring(tokenStart, closeIndex);
-            expectingColorToken = false;
-          } else {
-            result.push({
-              color: currentColor,
-              text: text.substring(openIndex, tokenEnd),
-            });
-            expectingColorToken = true;
-          }
-        }
+        pushSegment(text.substring(cursor));
+        endedOnColorToken = false;
+        break;
+      }
+      if (openIndex > cursor) {
+        pushSegment(text.substring(cursor, openIndex));
+        endedOnColorToken = false;
+      }
+      const tokenStart = openIndex + splitterLength;
+      const closeIndex = text.indexOf(splitter, tokenStart);
+      if (closeIndex === -1) {
+        pushSegment(text.substring(openIndex));
+        endedOnColorToken = false;
+        break;
       }
 
-      if (!segment) {
-        continue;
-      }
-      if (!hasNonEmptySegment) {
-        hasNonEmptySegment = true;
-      }
+      currentColor = text.substring(tokenStart, closeIndex);
+      cursor = closeIndex + splitterLength;
+      endedOnColorToken = cursor >= textLength;
+    }
 
-      if (expectingColorToken) {
-        currentColor = segment.substring(
-          splitterLength,
-          segment.length - splitterLength
-        );
-        expectingColorToken = false;
-      } else {
-        result.push({ color: currentColor, text: segment });
-        expectingColorToken = true;
+    if (endedOnColorToken) {
+      const lastSegment = result[result.length - 1];
+      if (!lastSegment || lastSegment.color !== currentColor) {
+        result.push({ color: currentColor, text: "" });
       }
     }
 
-    if (!hasNonEmptySegment) {
-      return result;
-    }
-
-    if (!expectingColorToken) {
-      result.push({ color: currentColor, text: "" });
+    if (result.length === 0) {
+      if (endedOnColorToken) {
+        return [{ color: currentColor, text: "" }];
+      } else {
+        return [{ color: defaultColor, text }];
+      }
     }
 
     return result;
