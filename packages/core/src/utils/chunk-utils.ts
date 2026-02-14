@@ -270,8 +270,10 @@ export class ChunkUtils {
     chunkSize: number
   ): Coords3 => {
     const normalizedChunkSize = normalizeChunkSize(chunkSize);
-    const [cx, cz] = ChunkUtils.mapVoxelToChunk(voxelPos, chunkSize);
     const [vx, vy, vz] = voxelPos;
+    const chunkShift = getChunkShiftIfPowerOfTwo(normalizedChunkSize);
+    const cx = mapVoxelToChunkCoordinate(vx, normalizedChunkSize, chunkShift);
+    const cz = mapVoxelToChunkCoordinate(vz, normalizedChunkSize, chunkShift);
 
     return [vx - cx * normalizedChunkSize, vy, vz - cz * normalizedChunkSize];
   };
