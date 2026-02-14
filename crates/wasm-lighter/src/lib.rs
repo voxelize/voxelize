@@ -423,6 +423,12 @@ fn has_invalid_flood_bounds(
     bounds_shape[0] == 0 || bounds_shape[1] == 0 || bounds_shape[2] == 0
 }
 
+#[inline]
+fn compute_max_chunk_coordinate(grid_offset: i32, grid_extent: usize) -> Option<i32> {
+    let extent_i32 = i32::try_from(grid_extent).ok()?;
+    grid_offset.checked_add(extent_i32 - 1)
+}
+
 #[wasm_bindgen]
 pub fn init() {}
 
@@ -506,6 +512,12 @@ pub fn process_light_batch_fast(
     let Some(expected_chunk_count) = chunk_grid_width.checked_mul(chunk_grid_depth) else {
         return empty_batch_result();
     };
+    let Some(max_chunk_x) = compute_max_chunk_coordinate(grid_offset_x, chunk_grid_width) else {
+        return empty_batch_result();
+    };
+    let Some(max_chunk_z) = compute_max_chunk_coordinate(grid_offset_z, chunk_grid_depth) else {
+        return empty_batch_result();
+    };
     if (chunks_data.length() as usize) < expected_chunk_count {
         return empty_batch_result();
     }
@@ -540,10 +552,7 @@ pub fn process_light_batch_fast(
         max_height,
         max_light_level,
         min_chunk: [grid_offset_x, grid_offset_z],
-        max_chunk: [
-            grid_offset_x + chunk_grid_width as i32 - 1,
-            grid_offset_z + chunk_grid_depth as i32 - 1,
-        ],
+        max_chunk: [max_chunk_x, max_chunk_z],
     };
 
     if !removal_nodes.is_empty() {
@@ -730,5 +739,13 @@ mod tests {
         assert!(super::has_invalid_flood_bounds(1, 3, &[0, 1, 1]));
         assert!(!super::has_invalid_flood_bounds(0, 0, &[]));
         assert!(!super::has_invalid_flood_bounds(2, 3, &[1, 1, 1]));
+    }
+
+    #[test]
+    fn compute_max_chunk_coordinate_rejects_overflow() {
+        assert_eq!(super::compute_max_chunk_coordinate(10, 1), Some(10));
+        assert_eq!(super::compute_max_chunk_coordinate(-4, 3), Some(-2));
+        assert_eq!(super::compute_max_chunk_coordinate(i32::MAX, 2), None);
+        assert_eq!(super::compute_max_chunk_coordinate(0, usize::MAX), None);
     }
 }
