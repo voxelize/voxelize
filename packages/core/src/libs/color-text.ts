@@ -71,7 +71,7 @@ export class ColorText {
           const token = text.substring(openIndex, cursor);
           if (token) {
             if (!hasNonEmptySegment) {
-              expectingColorToken = token.includes(splitter);
+              expectingColorToken = true;
               hasNonEmptySegment = true;
             }
             if (expectingColorToken) {
