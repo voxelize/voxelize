@@ -15,6 +15,7 @@ pub struct EntitiesSendingSystem {
     deleted_entities_buffer: Vec<(String, String, String)>,
     known_entities_to_delete_buffer: Vec<String>,
     clients_with_updates_buffer: Vec<String>,
+    client_updates_buffer: HashMap<String, Vec<EntityProtocol>>,
 }
 
 #[inline]
@@ -104,6 +105,14 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         self.deleted_entities_buffer.clear();
         self.known_entities_to_delete_buffer.clear();
         self.clients_with_updates_buffer.clear();
+        self.client_updates_buffer.retain(|client_id, updates| {
+            if clients.contains_key(client_id) {
+                updates.clear();
+                true
+            } else {
+                false
+            }
+        });
 
         let (entity_visible_radius, entity_visible_radius_sq) =
             normalized_visible_radius(config.entity_visible_radius);
@@ -194,10 +203,10 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             entity_to_client_id.insert(client.entity.id(), client_id);
         }
 
-        let mut client_updates: HashMap<String, Vec<EntityProtocol>> =
-            HashMap::with_capacity(clients.len());
         for client_id in clients.keys() {
-            client_updates.insert(client_id.clone(), Vec::new());
+            self.client_updates_buffer
+                .entry(client_id.clone())
+                .or_default();
             bookkeeping
                 .client_known_entities
                 .entry(client_id.clone())
@@ -230,7 +239,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 };
 
                 push_client_update(
-                    &mut client_updates,
+                    &mut self.client_updates_buffer,
                     &mut self.clients_with_updates_buffer,
                     client_id,
                     EntityProtocol {
@@ -256,7 +265,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                             continue;
                         }
                         push_client_update(
-                            &mut client_updates,
+                            &mut self.client_updates_buffer,
                             &mut self.clients_with_updates_buffer,
                             client_id,
                             EntityProtocol {
@@ -291,7 +300,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                                 continue;
                             };
                             push_client_update(
-                                &mut client_updates,
+                                &mut self.client_updates_buffer,
                                 &mut self.clients_with_updates_buffer,
                                 client_id,
                                 EntityProtocol {
@@ -330,7 +339,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                                 continue;
                             };
                             push_client_update(
-                                &mut client_updates,
+                                &mut self.client_updates_buffer,
                                 &mut self.clients_with_updates_buffer,
                                 client_id,
                                 EntityProtocol {
@@ -383,7 +392,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                         new_bookkeeping_records.get(entity_id)
                     {
                         push_client_update(
-                            &mut client_updates,
+                            &mut self.client_updates_buffer,
                             &mut self.clients_with_updates_buffer,
                             client_id,
                             EntityProtocol {
@@ -403,7 +412,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         bookkeeping.entity_positions = entity_positions;
 
         for client_id in self.clients_with_updates_buffer.drain(..) {
-            let updates = match client_updates.remove(&client_id) {
+            let updates = match self.client_updates_buffer.get(&client_id) {
                 Some(updates) => updates,
                 None => continue,
             };
