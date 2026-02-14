@@ -1,11 +1,30 @@
-// @ts-ignore
 import { Noise } from "noisejs";
 
-function set(arr, x, y, z, stride, value) {
+type CloudsWorkerMessage = {
+  data: Uint8Array;
+  configs: {
+    min: [number, number, number];
+    max: [number, number, number];
+    noiseScale: number;
+    threshold: number;
+    stride: [number, number, number];
+    octaves: number;
+    falloff: number;
+    seed: number;
+  };
+};
+
+function set(
+  arr: Uint8Array,
+  x: number,
+  y: number,
+  z: number,
+  stride: [number, number, number],
+  value: number
+) {
   arr[x * stride[0] + y * stride[1] + z * stride[2]] = value;
 }
 
-// @ts-ignore
 const instance = new Noise();
 
 function noise(
@@ -35,8 +54,7 @@ function noise(
   return total / maxVal;
 }
 
-// @ts-ignore
-onmessage = function (e) {
+self.onmessage = function (e: MessageEvent<CloudsWorkerMessage>) {
   const {
     data,
     configs: {
@@ -74,6 +92,10 @@ onmessage = function (e) {
     }
   }
 
-  // @ts-ignore
-  postMessage(data, [data.buffer]);
+  const transfer: Transferable[] = [];
+  const buffer = data.buffer;
+  if (buffer instanceof ArrayBuffer) {
+    transfer.push(buffer);
+  }
+  self.postMessage(data, { transfer });
 };
