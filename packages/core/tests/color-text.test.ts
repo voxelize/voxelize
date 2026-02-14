@@ -32,6 +32,7 @@ describe("ColorText.split", () => {
     const previousSplitter = ColorText.SPLITTER;
     ColorText.SPLITTER = "##";
     try {
+      expect(ColorText.split("", "white")).toEqual([]);
       expect(ColorText.split("just plain text", "white")).toEqual([
         { color: "white", text: "just plain text" },
       ]);
