@@ -934,9 +934,6 @@ const applyRelevantDeltas = (
     }
 
     const deltasLength = deltas.length;
-    if (deltasLength === 0) {
-      continue;
-    }
     if (startIndex >= deltasLength) {
       continue;
     }
