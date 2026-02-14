@@ -919,6 +919,10 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     flags: string[];
     args: ArgMetadata[];
   }> {
+    if (this.commands.size === 0) {
+      return [];
+    }
+
     const uniqueCommands = new Map<
       CommandInfo<ZodObject<Record<string, ZodTypeAny>>>,
       string
