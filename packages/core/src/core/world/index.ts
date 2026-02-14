@@ -2355,22 +2355,17 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
     this.checkIsInitialized("get material", false);
 
     const block = this.getBlockOf(idOrName);
+    let materialKey: string;
 
     if (voxel && faceName && block.isolatedFaces.has(faceName)) {
-      return this.chunkRenderer.materials.get(
-        this.makeChunkMaterialKey(block.id, faceName, voxel)
-      );
+      materialKey = this.makeChunkMaterialKey(block.id, faceName, voxel);
+    } else if (faceName && block.independentFaces.has(faceName)) {
+      materialKey = this.makeChunkMaterialKey(block.id, faceName);
+    } else {
+      materialKey = this.makeChunkMaterialKey(block.id);
     }
 
-    if (faceName && block.independentFaces.has(faceName)) {
-      return this.chunkRenderer.materials.get(
-        this.makeChunkMaterialKey(block.id, faceName)
-      );
-    }
-
-    return this.chunkRenderer.materials.get(
-      this.makeChunkMaterialKey(block.id)
-    );
+    return this.chunkRenderer.materials.get(materialKey);
   }
 
   getTextureInfo(): {
