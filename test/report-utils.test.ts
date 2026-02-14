@@ -2835,6 +2835,9 @@ describe("report-utils", () => {
       failedStepCount: 1,
       skippedStepCount: 1,
       firstFailedStep: "step-b",
+      passedSteps: ["step-a"],
+      failedSteps: ["step-b"],
+      skippedSteps: ["step-c"],
     });
   });
 

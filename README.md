@@ -381,7 +381,7 @@ pnpm run test:scripts
 
 In JSON mode, skipped steps are represented with `skipped: true` and `exitCode: null`.
 JSON preflight commands include `startedAt`, `endedAt`, and `durationMs`.
-Client and onboarding JSON reports also include `totalSteps`, `passedStepCount`, `failedStepCount`, `skippedStepCount`, and `firstFailedStep`.
+Client and onboarding JSON reports also include `totalSteps`, `passedStepCount`, `failedStepCount`, `skippedStepCount`, `firstFailedStep`, `passedSteps`, `failedSteps`, and `skippedSteps`.
 If `--output` is provided without a value, commands fail fast. JSON commands return a structured error report; non-JSON commands print a plain error message.
 When `--output` is valid, JSON validation-error reports are also written to that output path.
 If `--output` or `--only` is passed multiple times, the last value is used, even when recognized strict tokens appear between repeated flags.

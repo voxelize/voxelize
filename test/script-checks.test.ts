@@ -151,6 +151,9 @@ type ClientJsonReport = OptionTerminatorMetadata &
   passedStepCount: number;
   failedStepCount: number;
   skippedStepCount: number;
+  passedSteps: string[];
+  failedSteps: string[];
+  skippedSteps: string[];
   firstFailedStep: string | null;
   startedAt: string;
   endedAt: string;
@@ -307,6 +310,9 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
   passedStepCount: number;
   failedStepCount: number;
   skippedStepCount: number;
+  passedSteps: string[];
+  failedSteps: string[];
+  skippedSteps: string[];
   firstFailedStep: string | null;
   startedAt: string;
   endedAt: string;
@@ -351,6 +357,42 @@ const expectOptionTerminatorMetadata = (
   expect(report.optionTerminatorUsed).toBe(expectedOptionTerminatorUsed);
   expect(report.positionalArgs).toEqual(expectedPositionalArgs);
   expect(report.positionalArgCount).toBe(report.positionalArgs.length);
+};
+const expectStepSummaryMetadata = (
+  report: {
+    steps: Array<{
+      name: string;
+      passed: boolean;
+      skipped: boolean;
+    }>;
+    totalSteps: number;
+    passedStepCount: number;
+    failedStepCount: number;
+    skippedStepCount: number;
+    passedSteps: string[];
+    failedSteps: string[];
+    skippedSteps: string[];
+    firstFailedStep: string | null;
+  }
+) => {
+  const passedSteps = report.steps
+    .filter((step) => step.passed && step.skipped === false)
+    .map((step) => step.name);
+  const failedSteps = report.steps
+    .filter((step) => !step.passed && step.skipped === false)
+    .map((step) => step.name);
+  const skippedSteps = report.steps
+    .filter((step) => step.skipped === true)
+    .map((step) => step.name);
+
+  expect(report.totalSteps).toBe(report.steps.length);
+  expect(report.passedStepCount).toBe(passedSteps.length);
+  expect(report.failedStepCount).toBe(failedSteps.length);
+  expect(report.skippedStepCount).toBe(skippedSteps.length);
+  expect(report.passedSteps).toEqual(passedSteps);
+  expect(report.failedSteps).toEqual(failedSteps);
+  expect(report.skippedSteps).toEqual(skippedSteps);
+  expect(report.firstFailedStep).toBe(failedSteps[0] ?? null);
 };
 
 const expectedCanonicalOptionForToken = (token: string) => {
@@ -2810,10 +2852,7 @@ describe("root preflight scripts", () => {
     );
     expect(Array.isArray(report.steps)).toBe(true);
     expect(report.steps.length).toBeGreaterThan(0);
-    expect(report.totalSteps).toBe(report.steps.length);
-    expect(report.passedStepCount + report.failedStepCount + report.skippedStepCount).toBe(
-      report.totalSteps
-    );
+    expectStepSummaryMetadata(report);
     expect(report.steps[0].name).toBe("WASM artifact preflight");
     expect(typeof report.steps[0].skipped).toBe("boolean");
     expect(report.steps.some((step) => step.name === "TypeScript typecheck")).toBe(
@@ -2829,13 +2868,6 @@ describe("root preflight scripts", () => {
       expect(report.steps[0].report.buildSkipped).toBe(false);
       expectTimingMetadata(report.steps[0].report);
       expectOptionTerminatorMetadata(report.steps[0].report);
-    }
-    if (report.failedStepCount > 0) {
-      expect(report.firstFailedStep).toBe(
-        report.steps.find((step) => !step.passed && step.skipped === false)?.name
-      );
-    } else {
-      expect(report.firstFailedStep).toBeNull();
     }
     expect(result.status).toBe(report.passed ? 0 : 1);
     expect(result.output).not.toContain("Running client check step:");
@@ -2979,11 +3011,7 @@ describe("root preflight scripts", () => {
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
     expect(report.validationErrorCode).toBe("output_option_missing_value");
-    expect(report.totalSteps).toBe(0);
-    expect(report.passedStepCount).toBe(0);
-    expect(report.failedStepCount).toBe(0);
-    expect(report.skippedStepCount).toBe(0);
-    expect(report.firstFailedStep).toBeNull();
+    expectStepSummaryMetadata(report);
     expect(report.message).toBe("Missing value for --output option.");
     expectActiveCliOptionMetadata(
       report,
@@ -3077,11 +3105,7 @@ describe("root preflight scripts", () => {
     expect(report.unknownOptions).toEqual([]);
     expect(report.unknownOptionCount).toBe(0);
     expect(report.validationErrorCode).toBe("output_option_missing_value");
-    expect(report.totalSteps).toBe(0);
-    expect(report.passedStepCount).toBe(0);
-    expect(report.failedStepCount).toBe(0);
-    expect(report.skippedStepCount).toBe(0);
-    expect(report.firstFailedStep).toBeNull();
+    expectStepSummaryMetadata(report);
     expect(report.message).toBe("Missing value for --output option.");
     expectActiveCliOptionMetadata(
       report,
@@ -4460,10 +4484,7 @@ describe("root preflight scripts", () => {
     );
     expect(Array.isArray(report.steps)).toBe(true);
     expect(report.steps.length).toBeGreaterThan(0);
-    expect(report.totalSteps).toBe(report.steps.length);
-    expect(report.passedStepCount + report.failedStepCount + report.skippedStepCount).toBe(
-      report.totalSteps
-    );
+    expectStepSummaryMetadata(report);
     expect(report.steps[0].name).toBe("Developer environment preflight");
     const tsCoreStep = report.steps.find(
       (step) => step.name === "TypeScript core checks"

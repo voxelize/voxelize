@@ -174,19 +174,25 @@ export const createTimedReportBuilder = (
 };
 
 export const summarizeStepResults = (steps) => {
-  const passedStepCount = steps.filter((step) => {
-    return step.passed && step.skipped === false;
-  }).length;
-  const failedStepCount = steps.filter((step) => {
-    return !step.passed && step.skipped === false;
-  }).length;
-  const skippedStepCount = steps.filter((step) => {
-    return step.skipped === true;
-  }).length;
-  const firstFailedStep =
-    steps.find((step) => {
+  const passedSteps = steps
+    .filter((step) => {
+      return step.passed && step.skipped === false;
+    })
+    .map((step) => step.name);
+  const failedSteps = steps
+    .filter((step) => {
       return !step.passed && step.skipped === false;
-    })?.name ?? null;
+    })
+    .map((step) => step.name);
+  const skippedSteps = steps
+    .filter((step) => {
+      return step.skipped === true;
+    })
+    .map((step) => step.name);
+  const passedStepCount = passedSteps.length;
+  const failedStepCount = failedSteps.length;
+  const skippedStepCount = skippedSteps.length;
+  const firstFailedStep = failedSteps[0] ?? null;
 
   return {
     totalSteps: steps.length,
@@ -194,6 +200,9 @@ export const summarizeStepResults = (steps) => {
     failedStepCount,
     skippedStepCount,
     firstFailedStep,
+    passedSteps,
+    failedSteps,
+    skippedSteps,
   };
 };
 
