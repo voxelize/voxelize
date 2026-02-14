@@ -104,27 +104,6 @@ const availableStepIndexMap = new Map(
   })
 );
 const availableStepIndexMapReport = Object.fromEntries(availableStepIndexMap);
-const mapStepNamesToScripts = (stepNames) => {
-  return stepNames.map((stepName) => {
-    return availableStepMetadata[stepName].scriptName;
-  });
-};
-const mapStepNamesToIndices = (stepNames) => {
-  return stepNames.map((stepName) => {
-    const stepIndex = availableStepIndexMap.get(stepName);
-    if (stepIndex === undefined) {
-      throw new Error(`Missing step index metadata for ${stepName}.`);
-    }
-    return stepIndex;
-  });
-};
-const mapStepNamesToMetadata = (stepNames) => {
-  return Object.fromEntries(
-    stepNames.map((stepName) => {
-      return [stepName, availableStepMetadata[stepName]];
-    })
-  );
-};
 const resolveStepDetails = (stepName) => {
   const stepMetadata = availableStepMetadata[stepName];
   const stepIndex = availableStepIndexMap.get(stepName);
@@ -138,6 +117,24 @@ const resolveStepDetails = (stepName) => {
     supportsNoBuild: stepMetadata.supportsNoBuild,
     stepIndex,
   };
+};
+const mapStepNamesToScripts = (stepNames) => {
+  return stepNames.map((stepName) => {
+    return resolveStepDetails(stepName).scriptName;
+  });
+};
+const mapStepNamesToIndices = (stepNames) => {
+  return stepNames.map((stepName) => {
+    return resolveStepDetails(stepName).stepIndex;
+  });
+};
+const mapStepNamesToMetadata = (stepNames) => {
+  return Object.fromEntries(
+    stepNames.map((stepName) => {
+      const { scriptName, supportsNoBuild } = resolveStepDetails(stepName);
+      return [stepName, { scriptName, supportsNoBuild }];
+    })
+  );
 };
 const stepResults = [];
 let exitCode = 0;
