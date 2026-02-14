@@ -92,6 +92,16 @@ describe("MeshPipeline.getDirtyKeysAndHasMore", () => {
     expect(result.hasMore).toBe(false);
   });
 
+  it("returns empty keys for non-finite dirty-key limits", () => {
+    const pipeline = new MeshPipeline();
+    pipeline.onVoxelChange(1, 2, 0);
+
+    expect(pipeline.getDirtyKeysAndHasMore(Number.NaN).keys).toHaveLength(0);
+    expect(
+      pipeline.getDirtyKeysAndHasMore(Number.NEGATIVE_INFINITY).keys
+    ).toHaveLength(0);
+  });
+
   it("floors fractional limits when selecting dirty keys", () => {
     const pipeline = new MeshPipeline();
     pipeline.onVoxelChange(1, 2, 0);

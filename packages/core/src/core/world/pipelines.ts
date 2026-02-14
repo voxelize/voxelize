@@ -434,9 +434,14 @@ export class MeshPipeline {
     keys: string[];
     hasMore: boolean;
   } {
-    const normalizedMaxCount = Number.isFinite(maxCount)
-      ? Math.max(0, Math.floor(maxCount))
-      : Number.POSITIVE_INFINITY;
+    let normalizedMaxCount: number;
+    if (maxCount === Number.POSITIVE_INFINITY) {
+      normalizedMaxCount = Number.POSITIVE_INFINITY;
+    } else if (!Number.isFinite(maxCount)) {
+      normalizedMaxCount = 0;
+    } else {
+      normalizedMaxCount = Math.max(0, Math.floor(maxCount));
+    }
     if (normalizedMaxCount <= 0) {
       return { keys: [], hasMore: false };
     }
