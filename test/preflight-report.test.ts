@@ -157,6 +157,7 @@ type PreflightReport = {
   requestedCheckResolvedScriptCount: number;
   requestedCheckResolvedIndices: number[];
   requestedCheckResolvedIndexCount: number;
+  requestedCheckResolvedIndexMap: Record<string, number>;
   requestedCheckResolvedMetadata: Record<
     string,
     {
@@ -577,6 +578,11 @@ const expectSelectedCheckMetadata = (report: PreflightReport) => {
   const expectedResolvedIndices = expectedResolvedChecks.map((checkName) => {
     return expectedAvailableChecks.indexOf(checkName);
   });
+  const expectedResolvedIndexMap = Object.fromEntries(
+    expectedResolvedChecks.map((checkName, index) => {
+      return [checkName, expectedResolvedIndices[index]];
+    })
+  );
   const expectedResolvedMetadata = Object.fromEntries(
     expectedResolvedChecks.map((checkName) => {
       return [
@@ -610,6 +616,7 @@ const expectSelectedCheckMetadata = (report: PreflightReport) => {
   expect(report.requestedCheckResolvedIndexCount).toBe(
     report.requestedCheckResolvedIndices.length
   );
+  expect(report.requestedCheckResolvedIndexMap).toEqual(expectedResolvedIndexMap);
   expect(report.requestedCheckResolvedMetadata).toEqual(expectedResolvedMetadata);
 };
 const expectCheckResultScriptMetadata = (report: PreflightReport) => {

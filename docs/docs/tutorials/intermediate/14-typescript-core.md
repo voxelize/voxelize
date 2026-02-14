@@ -204,7 +204,8 @@ For release automation and CI routing, aggregate preflight JSON reports include:
 - check-selection diagnostics: `selectionMode`, `requestedChecks`,
   `requestedCheckResolutions`, `requestedCheckResolutionCounts`,
   `requestedCheckResolvedChecks`, `requestedCheckResolvedScripts`,
-  `requestedCheckResolvedIndices`, `requestedCheckResolvedMetadata`,
+  `requestedCheckResolvedIndices`, `requestedCheckResolvedIndexMap`,
+  `requestedCheckResolvedMetadata`,
   `selectedChecks`, `skippedChecks`
 - script/index projections: `selectedCheckScripts`,
   `skippedCheckScripts`, `passedCheckScripts`, `failedCheckScripts`,

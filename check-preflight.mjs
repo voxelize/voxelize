@@ -409,6 +409,11 @@ const requestedCheckResolvedScripts = createRequestedCheckResolvedScripts(
   requestedCheckResolvedChecks
 );
 const requestedCheckResolvedIndices = resolveCheckIndices(requestedCheckResolvedChecks);
+const requestedCheckResolvedIndexMap = Object.fromEntries(
+  requestedCheckResolvedChecks.map((checkName) => {
+    return [checkName, resolveCheckDetails(checkName).checkIndex];
+  })
+);
 const requestedCheckResolvedMetadata = Object.fromEntries(
   requestedCheckResolvedChecks.map((checkName) => {
     const { scriptName, supportsNoBuild } = resolveCheckDetails(checkName);
@@ -554,6 +559,7 @@ if (
     requestedCheckResolvedScriptCount: requestedCheckResolvedScripts.length,
     requestedCheckResolvedIndices,
     requestedCheckResolvedIndexCount: requestedCheckResolvedIndices.length,
+    requestedCheckResolvedIndexMap,
     requestedCheckResolvedMetadata,
     selectionMode,
     specialSelectorsUsed,
@@ -665,6 +671,7 @@ if (isListChecks) {
     requestedCheckResolvedScriptCount: requestedCheckResolvedScripts.length,
     requestedCheckResolvedIndices,
     requestedCheckResolvedIndexCount: requestedCheckResolvedIndices.length,
+    requestedCheckResolvedIndexMap,
     requestedCheckResolvedMetadata,
     selectionMode,
     specialSelectorsUsed,
@@ -784,6 +791,7 @@ const report = buildTimedReport({
   requestedCheckResolvedScriptCount: requestedCheckResolvedScripts.length,
   requestedCheckResolvedIndices,
   requestedCheckResolvedIndexCount: requestedCheckResolvedIndices.length,
+  requestedCheckResolvedIndexMap,
   requestedCheckResolvedMetadata,
   selectionMode,
   specialSelectorsUsed,
