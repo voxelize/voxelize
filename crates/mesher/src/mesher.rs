@@ -3296,7 +3296,12 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     let face_name = if let Some(face_name) = quad.data.key.face_name.as_ref() {
                         face_name.clone()
                     } else if quad_key.face_index >= 0 {
-                        face_name_owned(&block.faces[quad_key.face_index as usize])
+                        let face = &block.faces[quad_key.face_index as usize];
+                        if block.cache_ready {
+                            face.name_lower.clone()
+                        } else {
+                            face_name_owned(face)
+                        }
                     } else {
                         unreachable!("independent greedy quad must include a face identifier")
                     };
@@ -4101,7 +4106,12 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     let face_name = if let Some(face_name) = quad.data.key.face_name.as_ref() {
                         face_name.clone()
                     } else if quad_key.face_index >= 0 {
-                        face_name_owned(&block.faces[quad_key.face_index as usize])
+                        let face = &block.faces[quad_key.face_index as usize];
+                        if block.cache_ready {
+                            face.name_lower.clone()
+                        } else {
+                            face_name_owned(face)
+                        }
                     } else {
                         unreachable!("independent greedy quad must include a face identifier")
                     };
