@@ -110,6 +110,8 @@ const withBaseReportFields = (report) => {
   const presentArtifacts = requiredArtifacts.filter((artifactPath) => {
     return !missingArtifactSet.has(artifactPath);
   });
+  const missingArtifactSummary =
+    missingArtifacts.length === 0 ? null : missingArtifacts.join(", ");
   const artifactsPresent =
     typeof report.artifactsPresent === "boolean"
       ? report.artifactsPresent
@@ -165,6 +167,7 @@ const withBaseReportFields = (report) => {
     presentArtifacts,
     presentArtifactCount,
     missingArtifactCount: missingArtifacts.length,
+    missingArtifactSummary,
     buildCommand: pnpmCommand,
     buildArgs: buildCommandArgs,
     buildExitCode,

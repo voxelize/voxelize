@@ -41,6 +41,7 @@ type RuntimeLibrariesCheckReport = {
   presentArtifactCount: number;
   missingPackageCount: number;
   missingArtifactCount: number;
+  missingArtifactSummary: string | null;
   attemptedBuild: boolean;
   buildSkipped: boolean;
   buildSkippedReason: "no-build" | "artifacts-present" | null;
@@ -246,6 +247,17 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   expect(report.presentArtifactCount).toBe(presentArtifactCount);
   expect(report.missingPackageCount).toBe(missingPackageCount);
   expect(report.missingArtifactCount).toBe(missingArtifactCount);
+  if (report.missingArtifactCount === 0) {
+    expect(report.missingArtifactSummary).toBeNull();
+  } else {
+    expect(report.missingArtifactSummary).not.toBeNull();
+    if (report.missingArtifactSummary !== null) {
+      expect(report.missingArtifactSummary.length).toBeGreaterThan(0);
+      expect(report.missingPackages.some((packageName) => {
+        return report.missingArtifactSummary?.includes(packageName) ?? false;
+      })).toBe(true);
+    }
+  }
   for (const packageReport of report.packageReports) {
     expect(packageReport.requiredArtifacts).toEqual(
       expectedArtifactsByPackage[

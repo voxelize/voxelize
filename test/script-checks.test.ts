@@ -225,6 +225,7 @@ type TsCoreJsonReport = OptionTerminatorMetadata &
   artifactsPresent: boolean;
   missingArtifacts: string[];
   missingArtifactCount: number;
+  missingArtifactSummary: string | null;
   buildCommand: string;
   buildArgs: string[];
   buildExitCode: number | null;
@@ -286,6 +287,7 @@ type RuntimeLibrariesJsonReport = OptionTerminatorMetadata &
   presentArtifactCount: number;
   missingPackageCount: number;
   missingArtifactCount: number;
+  missingArtifactSummary: string | null;
   buildCommand: string;
   buildArgs: string[];
   buildExitCode: number | null;
@@ -779,6 +781,14 @@ const expectTsCoreReportMetadata = (report: TsCoreJsonReport) => {
     report.requiredArtifactCount - report.missingArtifactCount
   );
   expect(report.missingArtifactCount).toBe(report.missingArtifacts.length);
+  if (report.missingArtifactCount === 0) {
+    expect(report.missingArtifactSummary).toBeNull();
+  } else {
+    expect(report.missingArtifactSummary).not.toBeNull();
+    if (report.missingArtifactSummary !== null) {
+      expect(report.missingArtifactSummary.length).toBeGreaterThan(0);
+    }
+  }
   expect(typeof report.buildCommand).toBe("string");
   expect(report.buildCommand.length).toBeGreaterThan(0);
   expect(report.buildArgs).toEqual(expectedTsCoreBuildArgs);
@@ -870,6 +880,17 @@ const expectRuntimeLibrariesReportMetadata = (
   expect(report.presentArtifactCount).toBe(presentArtifactCount);
   expect(report.missingPackageCount).toBe(missingPackageCount);
   expect(report.missingArtifactCount).toBe(missingArtifactCount);
+  if (report.missingArtifactCount === 0) {
+    expect(report.missingArtifactSummary).toBeNull();
+  } else {
+    expect(report.missingArtifactSummary).not.toBeNull();
+    if (report.missingArtifactSummary !== null) {
+      expect(report.missingArtifactSummary.length).toBeGreaterThan(0);
+      expect(report.missingPackages.some((packageName) => {
+        return report.missingArtifactSummary?.includes(packageName) ?? false;
+      })).toBe(true);
+    }
+  }
   for (const packageReport of report.packageReports) {
     expect(packageReport.requiredArtifacts).toEqual(
       expectedRuntimeLibrariesArtifactsByPackage[

@@ -192,6 +192,9 @@ const withBaseReportFields = (report) => {
   const packageReports = Array.isArray(report.packageReports)
     ? report.packageReports
     : [];
+  const missingArtifactSummaryText = formatMissingArtifactSummary(packageReports);
+  const missingArtifactSummary =
+    missingArtifactSummaryText.length === 0 ? null : missingArtifactSummaryText;
   const {
     presentPackages,
     missingPackages,
@@ -242,6 +245,7 @@ const withBaseReportFields = (report) => {
     presentArtifactCount,
     missingPackageCount,
     missingArtifactCount,
+    missingArtifactSummary,
     buildCommand: pnpmCommand,
     buildArgs: buildCommandArgs,
     buildExitCode,
