@@ -21,9 +21,14 @@ impl ChunkUtils {
 
     /// Parse a chunk coordinate from a chunk representation.
     pub fn parse_chunk_name(name: &str) -> Vec2<i32> {
-        let mut segments = name.split(CHUNK_NAME_SEPARATOR);
-        let raw_x = segments.next().expect("Invalid chunk name format");
-        let raw_z = segments.next().expect("Invalid chunk name format");
+        let (raw_x, rest) = name
+            .split_once(CHUNK_NAME_SEPARATOR)
+            .expect("Invalid chunk name format");
+        let raw_z = if let Some((segment, _)) = rest.split_once(CHUNK_NAME_SEPARATOR) {
+            segment
+        } else {
+            rest
+        };
         Vec2(raw_x.parse().unwrap(), raw_z.parse().unwrap())
     }
 
@@ -37,10 +42,17 @@ impl ChunkUtils {
 
     /// Parse a voxel coordinate from a voxel representation.
     pub fn parse_voxel_name(name: &str) -> Vec3<i32> {
-        let mut segments = name.split(CHUNK_NAME_SEPARATOR);
-        let raw_x = segments.next().expect("Invalid voxel name format");
-        let raw_y = segments.next().expect("Invalid voxel name format");
-        let raw_z = segments.next().expect("Invalid voxel name format");
+        let (raw_x, rest) = name
+            .split_once(CHUNK_NAME_SEPARATOR)
+            .expect("Invalid voxel name format");
+        let (raw_y, rest) = rest
+            .split_once(CHUNK_NAME_SEPARATOR)
+            .expect("Invalid voxel name format");
+        let raw_z = if let Some((segment, _)) = rest.split_once(CHUNK_NAME_SEPARATOR) {
+            segment
+        } else {
+            rest
+        };
         Vec3(
             raw_x.parse().unwrap(),
             raw_y.parse().unwrap(),
