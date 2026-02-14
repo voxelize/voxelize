@@ -14,6 +14,15 @@ fn normalized_chunk_size(chunk_size: usize) -> i32 {
 }
 
 #[inline]
+fn chunk_shift_if_power_of_two(chunk_size: i32) -> Option<u32> {
+    if (chunk_size as u32).is_power_of_two() {
+        Some(chunk_size.trailing_zeros())
+    } else {
+        None
+    }
+}
+
+#[inline]
 fn first_segment(value: &str) -> &str {
     if let Some((segment, _)) = value.split_once(CHUNK_NAME_SEPARATOR) {
         segment
@@ -64,8 +73,7 @@ impl ChunkUtils {
     /// Map a voxel coordinate to a chunk coordinate.
     pub fn map_voxel_to_chunk(vx: i32, _vy: i32, vz: i32, chunk_size: usize) -> Vec2<i32> {
         let cs = normalized_chunk_size(chunk_size);
-        if (cs as u32).is_power_of_two() {
-            let shift = cs.trailing_zeros();
+        if let Some(shift) = chunk_shift_if_power_of_two(cs) {
             Vec2(vx >> shift, vz >> shift)
         } else {
             Vec2(vx.div_euclid(cs), vz.div_euclid(cs))
@@ -75,7 +83,7 @@ impl ChunkUtils {
     /// Map a voxel coordinate to a chunk local coordinate.
     pub fn map_voxel_to_chunk_local(vx: i32, vy: i32, vz: i32, chunk_size: usize) -> Vec3<usize> {
         let cs = normalized_chunk_size(chunk_size);
-        let (lx, lz) = if (cs as u32).is_power_of_two() {
+        let (lx, lz) = if chunk_shift_if_power_of_two(cs).is_some() {
             let mask = cs - 1;
             ((vx & mask) as usize, (vz & mask) as usize)
         } else {
