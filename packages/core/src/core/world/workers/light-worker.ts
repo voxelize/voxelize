@@ -1018,8 +1018,9 @@ const processBatchMessage = (message: LightBatchMessage) => {
     postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
     return;
   }
-  const hasValidRemovalNodes = hasAnyValidRemovalNode(removals);
-  const hasFloods = hasAnyValidFloodNode(floods);
+  const hasValidRemovalNodes =
+    removals.length > 0 && hasAnyValidRemovalNode(removals);
+  const hasFloods = floods.length > 0 && hasAnyValidFloodNode(floods);
   if (!hasValidRemovalNodes && !hasFloods) {
     postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
     return;
