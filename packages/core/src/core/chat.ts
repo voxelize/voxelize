@@ -9,6 +9,14 @@ import { NetIntercept } from "./network";
 type CommandErrorValue = Error | JsonValue | object;
 const isWhitespaceCode = (code: number) =>
   code === 32 || (code >= 9 && code <= 13);
+const containsWhitespace = (value: string) => {
+  for (let index = 0; index < value.length; index++) {
+    if (isWhitespaceCode(value.charCodeAt(index))) {
+      return true;
+    }
+  }
+  return false;
+};
 const getFirstEqualsIndex = (value: string) => {
   for (let index = 1; index < value.length; index++) {
     if (value.charCodeAt(index) === 61) {
@@ -616,10 +624,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       throw new Error(`Command trigger already taken: ${trigger}`);
     }
 
-    for (let index = 0; index < trigger.length; index++) {
-      if (isWhitespaceCode(trigger.charCodeAt(index))) {
-        throw new Error("Command trigger must be one word.");
-      }
+    if (containsWhitespace(trigger)) {
+      throw new Error("Command trigger must be one word.");
     }
 
     const commandInfo: CommandInfo<T> = {
@@ -640,6 +646,12 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
     for (let aliasIndex = 0; aliasIndex < commandInfo.aliases.length; aliasIndex++) {
       const alias = commandInfo.aliases[aliasIndex];
+      if (alias.length === 0 || containsWhitespace(alias)) {
+        console.warn(
+          `Command alias for "${trigger}", "${alias}" ignored as invalid.`
+        );
+        continue;
+      }
       if (this.commands.has(alias)) {
         console.warn(
           `Command alias for "${trigger}", "${alias}" ignored as already taken.`

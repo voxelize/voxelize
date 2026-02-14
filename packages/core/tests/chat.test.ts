@@ -1,5 +1,5 @@
 import { ChatProtocol, MessageProtocol } from "@voxelize/protocol";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { Chat } from "../src/core/chat";
@@ -173,5 +173,37 @@ describe("Chat command registration", () => {
         }
       )
     ).toThrow("Command trigger must be one word.");
+  });
+
+  it("ignores invalid aliases containing whitespace or empty strings", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {
+      return;
+    });
+    try {
+      const chat = new Chat();
+      initializeChat(chat);
+      let executions = 0;
+
+      chat.addCommand(
+        "echo",
+        () => {
+          executions++;
+        },
+        {
+          description: "Alias validation",
+          aliases: ["", "bad alias", "good"],
+          args: z.object({}),
+        }
+      );
+
+      chat.send({ type: "CLIENT", body: "/good" });
+      chat.send({ type: "CLIENT", body: "/bad" });
+      chat.send({ type: "CLIENT", body: "/echo" });
+
+      expect(executions).toBe(2);
+      expect(warnSpy).toHaveBeenCalledTimes(2);
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });
