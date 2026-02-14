@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   AABB,
   BLOCK_RULE_NONE,
-  type BlockConditionalPart,
+  type BlockConditionalPartInput,
   type BlockRule,
   BlockFace,
   BlockRotation,
@@ -923,6 +923,16 @@ describe("Type builders", () => {
     expect(part.worldSpace).toBe(false);
   });
 
+  it("builds conditional parts with deterministic defaults when no input is provided", () => {
+    const part = createBlockConditionalPart();
+    expect(part.rule).toEqual(BLOCK_RULE_NONE);
+    expect(part.rule).not.toBe(BLOCK_RULE_NONE);
+    expect(part.faces).toEqual([]);
+    expect(part.aabbs).toEqual([]);
+    expect(part.isTransparent).toEqual([false, false, false, false, false, false]);
+    expect(part.worldSpace).toBe(false);
+  });
+
   it("preserves provided conditional part fields", () => {
     const face = new BlockFace({ name: "CustomFace" });
     const aabb = AABB.create(0, 0, 0, 1, 1, 1);
@@ -1028,7 +1038,7 @@ describe("Type builders", () => {
       rule: sourceRule,
       worldSpace: true,
     };
-    const sourceParts: Partial<BlockConditionalPart>[] = [sourcePart];
+    const sourceParts: BlockConditionalPartInput[] = [sourcePart];
     const pattern = createBlockDynamicPattern({
       parts: sourceParts,
     });

@@ -139,8 +139,16 @@ export interface BlockDynamicPattern {
   parts: BlockConditionalPart[];
 }
 
+export interface BlockConditionalPartInput {
+  rule?: BlockRule;
+  faces?: BlockFace[];
+  aabbs?: AABB[];
+  isTransparent?: FaceTransparency;
+  worldSpace?: boolean;
+}
+
 export interface BlockDynamicPatternInput {
-  parts?: Partial<BlockConditionalPart>[];
+  parts?: BlockConditionalPartInput[];
 }
 
 const cloneBlockFace = (face: BlockFace): BlockFace => {
@@ -187,25 +195,33 @@ const cloneBlockRule = (rule: BlockRule): BlockRule => {
 };
 
 export const createBlockConditionalPart = (
-  part: Partial<BlockConditionalPart>
+  part: BlockConditionalPartInput = {}
 ): BlockConditionalPart => {
-  const faces = Array.isArray(part.faces) ? part.faces.map((face) => cloneBlockFace(face)) : [];
-  const aabbs = Array.isArray(part.aabbs) ? part.aabbs.map((aabb) => aabb.clone()) : [];
+  const normalizedPart =
+    part !== null && typeof part === "object" && !Array.isArray(part)
+      ? part
+      : {};
+  const faces = Array.isArray(normalizedPart.faces)
+    ? normalizedPart.faces.map((face) => cloneBlockFace(face))
+    : [];
+  const aabbs = Array.isArray(normalizedPart.aabbs)
+    ? normalizedPart.aabbs.map((aabb) => aabb.clone())
+    : [];
   const isTransparent: FaceTransparency =
-    part.isTransparent === undefined
+    normalizedPart.isTransparent === undefined
       ? [false, false, false, false, false, false]
-      : [...part.isTransparent];
+      : [...normalizedPart.isTransparent];
   const rule =
-    part.rule === undefined
+    normalizedPart.rule === undefined
       ? cloneBlockRule(BLOCK_RULE_NONE)
-      : cloneBlockRule(part.rule);
+      : cloneBlockRule(normalizedPart.rule);
 
   return {
     rule,
     faces,
     aabbs,
     isTransparent,
-    worldSpace: part.worldSpace ?? false,
+    worldSpace: normalizedPart.worldSpace ?? false,
   };
 };
 
