@@ -1610,14 +1610,11 @@ const FACE_CORNERS_BY_DIR_INDEX: [[[f32; 3]; 4]; 6] = [
 
 #[inline(always)]
 fn face_corner_positions(dir: [i32; 3]) -> Option<&'static [[f32; 3]; 4]> {
-    match dir {
-        [1, 0, 0] => Some(&FACE_CORNERS_PX),
-        [-1, 0, 0] => Some(&FACE_CORNERS_NX),
-        [0, 1, 0] => Some(&FACE_CORNERS_PY),
-        [0, -1, 0] => Some(&FACE_CORNERS_NY),
-        [0, 0, 1] => Some(&FACE_CORNERS_PZ),
-        [0, 0, -1] => Some(&FACE_CORNERS_NZ),
-        _ => None,
+    if let Some(dir_index) = cardinal_dir_index(dir) {
+        debug_assert!(dir_index < FACE_CORNERS_BY_DIR_INDEX.len());
+        Some(unsafe { FACE_CORNERS_BY_DIR_INDEX.get_unchecked(dir_index) })
+    } else {
+        None
     }
 }
 
