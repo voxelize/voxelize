@@ -87,6 +87,12 @@ Run the included end-to-end demo:
 pnpm --filter @voxelize/ts-core example:end-to-end
 ```
 
+If artifacts are already built and you only want to rerun the example payload:
+
+```bash
+pnpm --filter @voxelize/ts-core example:end-to-end:no-build
+```
+
 It executes the complete flow:
 
 1. Pack voxel + light values
