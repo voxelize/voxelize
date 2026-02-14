@@ -492,6 +492,20 @@ describe("BlockRotation", () => {
     expect(withYRotate.maxY).toBeCloseTo(withoutYRotate.maxY, 10);
     expect(withYRotate.maxZ).toBeCloseTo(withoutYRotate.maxZ, 10);
   });
+
+  it("keeps NY y-rotated xz envelope unchanged when translate=false", () => {
+    const source = AABB.create(0, 0, 0, 1, 1, 1);
+    const rotation = BlockRotation.ny(Math.PI / 2);
+    const translated = rotation.rotateAABB(source, true, true);
+    const untranslated = rotation.rotateAABB(source, true, false);
+
+    expect(untranslated.minX).toBeCloseTo(translated.minX, 10);
+    expect(untranslated.maxX).toBeCloseTo(translated.maxX, 10);
+    expect(untranslated.minZ).toBeCloseTo(translated.minZ, 10);
+    expect(untranslated.maxZ).toBeCloseTo(translated.maxZ, 10);
+    expect(untranslated.minY).toBeCloseTo(translated.minY - 1, 10);
+    expect(untranslated.maxY).toBeCloseTo(translated.maxY - 1, 10);
+  });
 });
 
 describe("Rotation maps", () => {
