@@ -528,6 +528,10 @@ const hasPotentialRelevantDeltaBatches = (
     if (!deltaBatch || typeof deltaBatch !== "object") {
       continue;
     }
+    const deltas = deltaBatch.deltas;
+    if (!Array.isArray(deltas) || deltas.length === 0) {
+      continue;
+    }
     const cx = deltaBatch.cx;
     const cz = deltaBatch.cz;
     if (!isI32(cx) || !isI32(cz)) {
@@ -602,10 +606,6 @@ const hasPotentialRelevantDeltaBatches = (
       continue;
     }
 
-    const deltas = deltaBatch.deltas;
-    if (!Array.isArray(deltas) || deltas.length === 0) {
-      continue;
-    }
     const startIndex = normalizeStartIndex(deltaBatch.startIndex);
     const deltasLength = deltas.length;
     if (startIndex >= deltasLength) {
