@@ -215,12 +215,14 @@ export class WorkerPool {
    * when a new job is added to the queue.
    */
   private process = () => {
-    while (this.hasQueuedJobs() && this.available.length > 0) {
-      const index = this.available.pop();
+    const available = this.available;
+    const workers = this.workers;
+    while (this.hasQueuedJobs() && available.length > 0) {
+      const index = available.pop();
       if (index === undefined) {
         break;
       }
-      const worker = this.workers[index];
+      const worker = workers[index];
 
       const job = this.queue[this.queueHead];
       const { message, buffers, resolve, reject } = job;
@@ -239,7 +241,7 @@ export class WorkerPool {
         worker.removeEventListener("message", workerCallback);
         worker.removeEventListener("error", workerErrorCallback);
         worker.removeEventListener("messageerror", workerMessageErrorCallback);
-        this.available.push(index);
+        available.push(index);
         try {
           resolve(data);
         } finally {
@@ -255,7 +257,7 @@ export class WorkerPool {
         worker.removeEventListener("message", workerCallback);
         worker.removeEventListener("error", workerErrorCallback);
         worker.removeEventListener("messageerror", workerMessageErrorCallback);
-        this.available.push(index);
+        available.push(index);
         try {
           rejectJob(
             new Error(
@@ -274,7 +276,7 @@ export class WorkerPool {
         worker.removeEventListener("message", workerCallback);
         worker.removeEventListener("error", workerErrorCallback);
         worker.removeEventListener("messageerror", workerMessageErrorCallback);
-        this.available.push(index);
+        available.push(index);
         try {
           rejectJob(
             new Error("Worker pool job failed due to response serialization.")
@@ -302,7 +304,7 @@ export class WorkerPool {
         worker.removeEventListener("message", workerCallback);
         worker.removeEventListener("error", workerErrorCallback);
         worker.removeEventListener("messageerror", workerMessageErrorCallback);
-        this.available.push(index);
+        available.push(index);
         this.queueHead++;
         this.normalizeQueue();
         try {
