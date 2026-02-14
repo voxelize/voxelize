@@ -820,6 +820,38 @@ describe("BlockRuleEvaluator", () => {
     expect(BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access)).toBe(true);
   });
 
+  it("treats empty AND combinations as true", () => {
+    const access = {
+      getVoxel: () => 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    const rule = {
+      type: "combination" as const,
+      logic: BlockRuleLogic.And,
+      rules: [],
+    };
+
+    expect(BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access)).toBe(true);
+  });
+
+  it("treats empty OR combinations as false", () => {
+    const access = {
+      getVoxel: () => 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    const rule = {
+      type: "combination" as const,
+      logic: BlockRuleLogic.Or,
+      rules: [],
+    };
+
+    expect(BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access)).toBe(false);
+  });
+
   it("evaluates OR combinations across multiple sub-rules", () => {
     const access = {
       getVoxel: () => 8,
