@@ -60,6 +60,8 @@ const voxel = Voxel.pack({
     handling for Y-facing rotations
 - `AABB`
   - union/intersection/translate/touches/intersects utilities
+  - `intersects` uses strict overlap semantics (face-touching boxes return
+    `false`; use `touches` for face-contact checks)
 - `BlockRuleEvaluator`
   - evaluate `BlockRule` trees against a voxel access implementation
 - `VoxelAccess`
