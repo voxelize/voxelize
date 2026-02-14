@@ -801,8 +801,10 @@ impl<'a> VoxelSpace<'a> {
         if vy < 0 {
             return None;
         }
+        let shape_y = chunk.shape[1];
+        let shape_z = chunk.shape[2];
         let ly = vy as usize;
-        if ly >= chunk.shape[1] {
+        if ly >= shape_y {
             return None;
         }
         let (lx, lz) = if self.chunk_size_is_pow2 {
@@ -817,7 +819,7 @@ impl<'a> VoxelSpace<'a> {
             )
         };
 
-        let index = lx * chunk.shape[1] * chunk.shape[2] + ly * chunk.shape[2] + lz;
+        let index = lx * shape_y * shape_z + ly * shape_z + lz;
         if index < chunk.voxels.len() {
             Some(index)
         } else {
