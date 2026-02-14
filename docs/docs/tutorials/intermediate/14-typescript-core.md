@@ -39,6 +39,9 @@ flowchart LR
   inputs via `createBlockConditionalPart`
 - `VoxelAccess`: shared access contract
 
+Both helper constructors use deterministic defaults when optional fields are
+omitted.
+
 ## Basic usage
 
 ```ts title="Packing voxel and light data"
