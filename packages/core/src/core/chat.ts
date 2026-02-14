@@ -274,6 +274,14 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   private splitUnquotedTokens(raw: string): string[] {
     const tokens = this.quotedTokensBuffer;
     tokens.length = 0;
+    const firstSpace = raw.indexOf(" ");
+    if (firstSpace === -1) {
+      if (raw.length > 0) {
+        tokens.push(raw);
+      }
+      return tokens;
+    }
+
     let segmentStart = -1;
     const length = raw.length;
 
