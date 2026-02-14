@@ -21,11 +21,18 @@ fn push_dispatch_event(
     client_id: &str,
     event: EventProtocol,
 ) {
-    if let Some(events) = dispatch_map.get_mut(client_id) {
-        if events.is_empty() {
-            touched_clients.push(client_id.to_owned());
+    match dispatch_map.raw_entry_mut().from_key(client_id) {
+        RawEntryMut::Occupied(mut entry) => {
+            let events = entry.get_mut();
+            if events.is_empty() {
+                touched_clients.push(client_id.to_owned());
+            }
+            events.push(event);
         }
-        events.push(event);
+        RawEntryMut::Vacant(entry) => {
+            touched_clients.push(client_id.to_owned());
+            entry.insert(client_id.to_owned(), vec![event]);
+        }
     }
 }
 
@@ -62,14 +69,6 @@ impl<'a> System<'a> for EventsSystem {
         let queued_events_count = events.queue.len();
         let dispatch_map = &mut self.dispatch_map_buffer;
         dispatch_map.retain(|id, _| clients.contains_key(id));
-        for (id, _) in clients.iter() {
-            match dispatch_map.raw_entry_mut().from_key(id) {
-                RawEntryMut::Occupied(_) => {}
-                RawEntryMut::Vacant(entry) => {
-                    entry.insert(id.to_owned(), Vec::new());
-                }
-            }
-        }
         let touched_clients = &mut self.touched_clients_buffer;
         touched_clients.clear();
         if touched_clients.capacity() < clients.len() {
