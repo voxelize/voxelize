@@ -470,7 +470,13 @@ fn compute_expected_chunk_sizes(
     let expected_chunk_len = chunk_size_usize
         .checked_mul(chunk_height)?
         .checked_mul(chunk_size_usize)?;
+    if expected_chunk_len > u32::MAX as usize {
+        return None;
+    }
     let expected_chunk_count = chunk_grid_width.checked_mul(chunk_grid_depth)?;
+    if expected_chunk_count > u32::MAX as usize {
+        return None;
+    }
     Some((expected_chunk_len, expected_chunk_count))
 }
 
@@ -855,7 +861,12 @@ mod tests {
         assert_eq!(super::compute_expected_chunk_sizes(16, -1, 1, 1), None);
         assert_eq!(super::compute_expected_chunk_sizes(16, 64, 0, 1), None);
         assert_eq!(super::compute_expected_chunk_sizes(16, 64, 1, 0), None);
+        assert_eq!(super::compute_expected_chunk_sizes(65_536, 2, 1, 1), None);
         assert_eq!(super::compute_expected_chunk_sizes(i32::MAX, i32::MAX, 2, 2), None);
+        assert_eq!(
+            super::compute_expected_chunk_sizes(16, 64, u32::MAX as usize + 1, 1),
+            None
+        );
         assert_eq!(super::compute_expected_chunk_sizes(16, 64, usize::MAX, 2), None);
     }
 
