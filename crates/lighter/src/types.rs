@@ -221,38 +221,66 @@ impl LightBlock {
         space: &dyn LightVoxelAccess,
         color: &LightColor,
     ) -> u32 {
-        if !self.has_dynamic_torch_color(color) {
-            return self.get_torch_light_level(color);
-        }
+        match color {
+            LightColor::Red => {
+                if !self.has_dynamic_torch_color(&LightColor::Red) {
+                    return self.red_light_level;
+                }
 
-        if let Some(patterns) = &self.dynamic_patterns {
-            for pattern in patterns {
-                for part in &pattern.parts {
-                    if Self::evaluate_rule(&part.rule, vx, vy, vz, space) {
-                        match color {
-                            LightColor::Red => {
-                                if let Some(level) = part.red_light_level {
+                if let Some(patterns) = &self.dynamic_patterns {
+                    for pattern in patterns {
+                        for part in &pattern.parts {
+                            if let Some(level) = part.red_light_level {
+                                if Self::evaluate_rule(&part.rule, vx, vy, vz, space) {
                                     return level;
                                 }
                             }
-                            LightColor::Green => {
-                                if let Some(level) = part.green_light_level {
-                                    return level;
-                                }
-                            }
-                            LightColor::Blue => {
-                                if let Some(level) = part.blue_light_level {
-                                    return level;
-                                }
-                            }
-                            LightColor::Sunlight => return 0,
                         }
                     }
                 }
-            }
-        }
 
-        self.get_torch_light_level(color)
+                self.red_light_level
+            }
+            LightColor::Green => {
+                if !self.has_dynamic_torch_color(&LightColor::Green) {
+                    return self.green_light_level;
+                }
+
+                if let Some(patterns) = &self.dynamic_patterns {
+                    for pattern in patterns {
+                        for part in &pattern.parts {
+                            if let Some(level) = part.green_light_level {
+                                if Self::evaluate_rule(&part.rule, vx, vy, vz, space) {
+                                    return level;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                self.green_light_level
+            }
+            LightColor::Blue => {
+                if !self.has_dynamic_torch_color(&LightColor::Blue) {
+                    return self.blue_light_level;
+                }
+
+                if let Some(patterns) = &self.dynamic_patterns {
+                    for pattern in patterns {
+                        for part in &pattern.parts {
+                            if let Some(level) = part.blue_light_level {
+                                if Self::evaluate_rule(&part.rule, vx, vy, vz, space) {
+                                    return level;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                self.blue_light_level
+            }
+            LightColor::Sunlight => 0,
+        }
     }
 
     fn evaluate_rule(
