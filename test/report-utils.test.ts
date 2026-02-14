@@ -3476,6 +3476,24 @@ describe("report-utils", () => {
           voxel: { id: 42, stage: 7, rotation: { value: 0, yRotation: 2.356 } },
           light: { sunlight: 15, red: 10, green: 5, blue: 3 },
           rotatedAabb: {
+            min: [0, 0, 0],
+            max: [1, 1, 1],
+          },
+          ruleMatched: false,
+        })
+      )
+    ).toEqual({
+      exampleRuleMatched: false,
+      examplePayloadValid: true,
+      examplePayloadIssues: [],
+      exampleOutputLine: "ruleMatched=false",
+    });
+    expect(
+      summarizeTsCoreExampleOutput(
+        JSON.stringify({
+          voxel: { id: 42, stage: 7, rotation: { value: 0, yRotation: 2.356 } },
+          light: { sunlight: 15, red: 10, green: 5, blue: 3 },
+          rotatedAabb: {
             min: [2, 0, 0],
             max: [1, 1, 1],
           },
