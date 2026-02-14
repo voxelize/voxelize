@@ -1,4 +1,4 @@
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use specs::{Entity, ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::{
@@ -67,7 +67,7 @@ impl<'a> System<'a> for EventsSystem {
             let serialized = serialize_payload(name, payload);
 
             if !transports.is_empty() {
-                transports_map.push(serialized.to_owned());
+                transports_map.push(serialized.clone());
             }
 
             // Checks if location is required, otherwise just sends.
@@ -91,23 +91,29 @@ impl<'a> System<'a> for EventsSystem {
                     return;
                 }
 
-                for (id, _) in clients.iter() {
-                    match &filter {
-                        ClientFilter::All => {}
-                        ClientFilter::Include(ids) => {
-                            if !ids.iter().any(|i| *i == *id) {
-                                continue;
+                match &filter {
+                    ClientFilter::All => {
+                        for (id, _) in clients.iter() {
+                            send_to_id(id);
+                        }
+                    }
+                    ClientFilter::Include(ids) => {
+                        let include_ids: HashSet<&str> = ids.iter().map(String::as_str).collect();
+                        for (id, _) in clients.iter() {
+                            if include_ids.contains(id.as_str()) {
+                                send_to_id(id);
                             }
                         }
-                        ClientFilter::Exclude(ids) => {
-                            if ids.iter().any(|i| *i == *id) {
-                                continue;
+                    }
+                    ClientFilter::Exclude(ids) => {
+                        let exclude_ids: HashSet<&str> = ids.iter().map(String::as_str).collect();
+                        for (id, _) in clients.iter() {
+                            if !exclude_ids.contains(id.as_str()) {
+                                send_to_id(id);
                             }
                         }
-                        _ => {}
-                    };
-
-                    send_to_id(id);
+                    }
+                    _ => {}
                 }
             }
             // No filter, but a location is set.
