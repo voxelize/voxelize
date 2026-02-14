@@ -5213,7 +5213,8 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
         geometriesByMaterial.push({ geometry, material, voxel });
       }
 
-      meshes = [];
+      meshes = new Array<Mesh>(materialGeometryGroups.length);
+      let mergedMeshWriteIndex = 0;
       for (
         let groupIndex = 0;
         groupIndex < materialGeometryGroups.length;
@@ -5265,10 +5266,13 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
         );
 
         chunk.group.add(mesh);
-        meshes.push(mesh);
+        meshes[mergedMeshWriteIndex] = mesh;
+        mergedMeshWriteIndex++;
       }
+      meshes.length = mergedMeshWriteIndex;
     } else {
-      meshes = [];
+      meshes = new Array<Mesh>(geometries.length);
+      let meshWriteIndex = 0;
       for (let i = 0; i < geometries.length; i++) {
         const geo = geometries[i];
         const { voxel, at, faceName, indices, lights, positions, uvs } = geo;
@@ -5335,8 +5339,10 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
         );
 
         chunk.group.add(mesh);
-        meshes.push(mesh);
+        meshes[meshWriteIndex] = mesh;
+        meshWriteIndex++;
       }
+      meshes.length = meshWriteIndex;
     }
 
     if (chunk.group.parent !== this) {
