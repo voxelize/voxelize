@@ -477,11 +477,16 @@ pub fn process_light_batch_fast(
         ],
     };
 
+    let has_registry = CACHED_REGISTRY.with(|cached| cached.borrow().is_some());
+    if !has_registry {
+        return empty_batch_result();
+    }
+
     CACHED_REGISTRY.with(|cached| {
         let registry_ref = cached.borrow();
-        let registry = registry_ref
-            .as_ref()
-            .expect("Registry not set. Call set_registry first.");
+        let Some(registry) = registry_ref.as_ref() else {
+            return;
+        };
 
         if !removal_nodes.is_empty() {
             remove_lights(
