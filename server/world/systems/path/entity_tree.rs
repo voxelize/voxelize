@@ -14,26 +14,18 @@ fn should_update_position(dx: f32, dy: f32, dz: f32) -> bool {
 
 #[inline]
 fn sync_position(tree: &mut KdTree, ent: specs::Entity, pos: &Vec3<f32>, is_player: bool) {
-    let contains = if is_player {
-        tree.contains_player(ent)
-    } else {
-        tree.contains_entity(ent)
-    };
-
-    if contains {
-        if let Some(old_pos) = tree.get_position(ent) {
-            let dx = pos.0 - old_pos[0];
-            let dy = pos.1 - old_pos[1];
-            let dz = pos.2 - old_pos[2];
-            if should_update_position(dx, dy, dz) {
-                if is_player {
-                    tree.update_player(ent, pos);
-                } else {
-                    tree.update_entity(ent, pos);
-                }
+    if let Some(old_pos) = tree.get_position_for_kind(ent, is_player) {
+        let dx = pos.0 - old_pos[0];
+        let dy = pos.1 - old_pos[1];
+        let dz = pos.2 - old_pos[2];
+        if should_update_position(dx, dy, dz) {
+            if is_player {
+                tree.update_player(ent, pos);
+            } else {
+                tree.update_entity(ent, pos);
             }
-            return;
         }
+        return;
     }
 
     if is_player {

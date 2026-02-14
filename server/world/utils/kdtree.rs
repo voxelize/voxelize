@@ -264,6 +264,18 @@ impl KdTree {
         self.kind_map.get(&ent.id()) == Some(&EntityKind::Entity)
     }
 
+    pub fn get_position_for_kind(&self, ent: Entity, is_player: bool) -> Option<[f32; 3]> {
+        let expected_kind = if is_player {
+            EntityKind::Player
+        } else {
+            EntityKind::Entity
+        };
+        if self.kind_map.get(&ent.id()) != Some(&expected_kind) {
+            return None;
+        }
+        self.all.positions.get(&ent.id()).copied()
+    }
+
     pub fn len(&self) -> usize {
         self.entity_map.len()
     }
