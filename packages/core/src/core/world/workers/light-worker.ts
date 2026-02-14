@@ -137,6 +137,7 @@ const reusableChunkShape: [number, number, number] = [0, 0, 0];
 const emptyModifiedChunks: WorkerModifiedChunk[] = [];
 const emptyChunkGrid: (RawChunk | null)[] = [];
 const emptyAppliedDeltas = { lastSequenceId: 0 };
+const reusableAppliedDeltas = { lastSequenceId: 0 };
 const reusablePostMessageOptions: StructuredSerializeOptions = {
   transfer: emptyTransferList,
 };
@@ -146,6 +147,14 @@ const hasPendingBatchMessages = () =>
 
 const pendingBatchMessageCount = () =>
   pendingBatchMessages.length - pendingBatchMessagesHead;
+
+const getAppliedDeltasPayload = (lastSequenceId: number) => {
+  if (lastSequenceId === 0) {
+    return emptyAppliedDeltas;
+  }
+  reusableAppliedDeltas.lastSequenceId = lastSequenceId;
+  return reusableAppliedDeltas;
+};
 
 const normalizePendingBatchMessages = () => {
   if (pendingBatchMessagesHead === 0) {
@@ -169,8 +178,7 @@ const normalizePendingBatchMessages = () => {
 };
 
 const postEmptyBatchResult = (jobId: string, lastSequenceId = 0) => {
-  const appliedDeltas =
-    lastSequenceId === 0 ? emptyAppliedDeltas : { lastSequenceId };
+  const appliedDeltas = getAppliedDeltasPayload(lastSequenceId);
   const modifiedChunks = emptyModifiedChunks;
   postMessage({
     jobId,
@@ -503,11 +511,11 @@ const processBatchMessage = (message: LightBatchMessage) => {
 
   const modifiedChunkCount = wasmResult.modifiedChunks.length;
   if (modifiedChunkCount === 0) {
-    chunkGrid.length = 0;
+    const appliedDeltas = getAppliedDeltasPayload(lastSequenceId);
     postMessage({
       jobId,
       modifiedChunks: emptyModifiedChunks,
-      appliedDeltas: { lastSequenceId },
+      appliedDeltas,
     });
     return;
   }
@@ -534,11 +542,12 @@ const processBatchMessage = (message: LightBatchMessage) => {
   }
 
   reusablePostMessageOptions.transfer = transferBuffers;
+  const appliedDeltas = getAppliedDeltasPayload(lastSequenceId);
   postMessage(
     {
       jobId,
       modifiedChunks,
-      appliedDeltas: { lastSequenceId },
+      appliedDeltas,
     },
     reusablePostMessageOptions
   );
