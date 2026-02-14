@@ -609,12 +609,17 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     process: (args: z.infer<T>) => void,
     options: CommandOptions<T>
   ): () => void {
+    if (trigger.length === 0) {
+      throw new Error("Command trigger must not be empty.");
+    }
     if (this.commands.has(trigger)) {
       throw new Error(`Command trigger already taken: ${trigger}`);
     }
 
-    if (trigger.indexOf(" ") !== -1) {
-      throw new Error("Command trigger must be one word.");
+    for (let index = 0; index < trigger.length; index++) {
+      if (isWhitespaceCode(trigger.charCodeAt(index))) {
+        throw new Error("Command trigger must be one word.");
+      }
     }
 
     const commandInfo: CommandInfo<T> = {

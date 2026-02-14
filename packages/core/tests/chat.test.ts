@@ -109,3 +109,41 @@ describe("Chat command parsing", () => {
     expect(parsed).toEqual({ verbose: true, dryRun: true });
   });
 });
+
+describe("Chat command registration", () => {
+  it("rejects empty command triggers", () => {
+    const chat = new Chat();
+    initializeChat(chat);
+
+    expect(() =>
+      chat.addCommand(
+        "",
+        () => {
+          return;
+        },
+        {
+          description: "Empty trigger",
+          args: z.object({}),
+        }
+      )
+    ).toThrow("Command trigger must not be empty.");
+  });
+
+  it("rejects command triggers containing non-space whitespace", () => {
+    const chat = new Chat();
+    initializeChat(chat);
+
+    expect(() =>
+      chat.addCommand(
+        "bad\ttrigger",
+        () => {
+          return;
+        },
+        {
+          description: "Invalid trigger",
+          args: z.object({}),
+        }
+      )
+    ).toThrow("Command trigger must be one word.");
+  });
+});
