@@ -3491,6 +3491,36 @@ describe("report-utils", () => {
       examplePayloadIssues: ["voxel.rotation.value"],
       exampleOutputLine: "ruleMatched=true",
     });
+    expect(
+      summarizeTsCoreExampleOutput(
+        JSON.stringify({
+          voxel: {
+            id: -1,
+            stage: 16,
+            rotation: { value: 7, yRotation: Number.POSITIVE_INFINITY },
+          },
+          light: { sunlight: 15, red: 16, green: 5, blue: -1 },
+          rotatedAabb: {
+            min: [0, 0],
+            max: [1, 1, 1],
+          },
+          ruleMatched: true,
+        })
+      )
+    ).toEqual({
+      exampleRuleMatched: true,
+      examplePayloadValid: false,
+      examplePayloadIssues: [
+        "voxel.id",
+        "voxel.stage",
+        "voxel.rotation.value",
+        "voxel.rotation.yRotation",
+        "light.red",
+        "light.blue",
+        "rotatedAabb.min",
+      ],
+      exampleOutputLine: "ruleMatched=true",
+    });
     expect(summarizeTsCoreExampleOutput("warning: no json")).toEqual({
       exampleRuleMatched: null,
       examplePayloadValid: null,
