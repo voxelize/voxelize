@@ -553,6 +553,10 @@ const processBatchMessage = (message: LightBatchMessage) => {
     return;
   }
   const cellCount = gridWidth * gridDepth;
+  if (!Number.isSafeInteger(cellCount)) {
+    postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
+    return;
+  }
   if (chunksData.length < cellCount) {
     postEmptyBatchResult(jobId, 0);
     return;
