@@ -301,6 +301,9 @@ const applyRelevantDeltas = (
   for (let batchIndex = 0; batchIndex < relevantDeltas.length; batchIndex++) {
     const deltaBatch = relevantDeltas[batchIndex];
     const { cx, cz, deltas } = deltaBatch;
+    if (!isInteger(cx) || !isInteger(cz)) {
+      continue;
+    }
     const startIndexValue = deltaBatch.startIndex;
     const startIndex =
       startIndexValue !== undefined &&
@@ -343,6 +346,9 @@ const applyRelevantDeltas = (
       const vx = coords[0];
       const vy = coords[1];
       const vz = coords[2];
+      if (!isInteger(vx) || !isInteger(vy) || !isInteger(vz)) {
+        continue;
+      }
       let nextRaw = chunk.getRawValue(vx, vy, vz);
       const currentRaw = nextRaw;
 
@@ -354,7 +360,7 @@ const applyRelevantDeltas = (
         nextRaw = BlockUtils.insertRotation(nextRaw, newRotation);
       }
       const newStage = delta.newStage;
-      if (newStage !== undefined) {
+      if (newStage !== undefined && isInteger(newStage)) {
         nextRaw = BlockUtils.insertStage(nextRaw, newStage);
       }
 
