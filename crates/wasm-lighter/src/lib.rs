@@ -319,36 +319,48 @@ fn parse_chunks(
             return (Vec::new(), false);
         }
 
-        let mut chunks = Vec::with_capacity(expected_chunk_count);
+        let mut chunks: Vec<Option<ChunkData>> = Vec::new();
         let mut has_any_chunk = false;
 
         for index in 0..expected_chunk_count {
             let chunk_value = chunks_data.get(index as u32);
             if chunk_value.is_null() || chunk_value.is_undefined() {
-                chunks.push(None);
+                if has_any_chunk {
+                    chunks.push(None);
+                }
                 continue;
             }
 
             let Ok(voxels_value) = Reflect::get(&chunk_value, &keys.voxels) else {
-                chunks.push(None);
+                if has_any_chunk {
+                    chunks.push(None);
+                }
                 continue;
             };
             let Ok(lights_value) = Reflect::get(&chunk_value, &keys.lights) else {
-                chunks.push(None);
+                if has_any_chunk {
+                    chunks.push(None);
+                }
                 continue;
             };
             let Ok(voxels_array) = voxels_value.dyn_into::<Uint32Array>() else {
-                chunks.push(None);
+                if has_any_chunk {
+                    chunks.push(None);
+                }
                 continue;
             };
             let Ok(lights_array) = lights_value.dyn_into::<Uint32Array>() else {
-                chunks.push(None);
+                if has_any_chunk {
+                    chunks.push(None);
+                }
                 continue;
             };
             let voxels_len = voxels_array.length() as usize;
             let lights_len = lights_array.length() as usize;
             if voxels_len != expected_chunk_len || lights_len != expected_chunk_len {
-                chunks.push(None);
+                if has_any_chunk {
+                    chunks.push(None);
+                }
                 continue;
             }
             let mut voxels = vec![0; expected_chunk_len];
@@ -356,15 +368,22 @@ fn parse_chunks(
             voxels_array.copy_to(&mut voxels);
             lights_array.copy_to(&mut lights);
 
+            if !has_any_chunk {
+                chunks = Vec::with_capacity(expected_chunk_count);
+                chunks.resize_with(index, || None);
+                has_any_chunk = true;
+            }
             chunks.push(Some(ChunkData {
                 voxels,
                 lights,
             }));
-            has_any_chunk = true;
         }
 
         if !has_any_chunk {
             return (Vec::new(), false);
+        }
+        if chunks.len() < expected_chunk_count {
+            chunks.resize_with(expected_chunk_count, || None);
         }
         (chunks, true)
     })
