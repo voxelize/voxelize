@@ -58,9 +58,10 @@ impl ChunkUtils {
     pub fn map_voxel_to_chunk_local(vx: i32, vy: i32, vz: i32, chunk_size: usize) -> Vec3<usize> {
         let cs = normalized_chunk_size(chunk_size);
         let lx = vx.rem_euclid(cs) as usize;
+        let ly = usize::try_from(vy).unwrap_or(0);
         let lz = vz.rem_euclid(cs) as usize;
 
-        Vec3(lx, vy as usize, lz)
+        Vec3(lx, ly, lz)
     }
 
     pub fn distance_squared(a: &Vec2<i32>, b: &Vec2<i32>) -> f32 {
@@ -119,6 +120,14 @@ mod tests {
         assert_eq!(lx, (i32::MIN.rem_euclid(i32::MAX)) as usize);
         assert_eq!(ly, 7);
         assert_eq!(lz, 0);
+    }
+
+    #[test]
+    fn map_voxel_to_chunk_local_clamps_negative_y_to_zero() {
+        let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(5, -2, -3, 16);
+        assert_eq!(lx, 5);
+        assert_eq!(ly, 0);
+        assert_eq!(lz, 13);
     }
 
     #[test]
