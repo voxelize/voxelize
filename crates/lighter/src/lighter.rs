@@ -853,4 +853,16 @@ mod tests {
         assert!(!empty_x_bounds.contains_xz(10, 20));
         assert!(!empty_z_bounds.contains_xz(10, 20));
     }
+
+    #[test]
+    fn light_bounds_contains_xz_handles_i32_edge_ranges() {
+        let bounds = LightBounds {
+            min: [i32::MAX - 2, 0, i32::MAX - 2],
+            shape: [3, 1, 3],
+        };
+
+        assert!(bounds.contains_xz(i32::MAX - 2, i32::MAX - 2));
+        assert!(bounds.contains_xz(i32::MAX - 1, i32::MAX - 1));
+        assert!(!bounds.contains_xz(i32::MAX, i32::MAX));
+    }
 }

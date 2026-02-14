@@ -85,6 +85,11 @@ impl LightBounds {
         if vx < start_x || vz < start_z {
             return false;
         }
+        if shape_x <= i32::MAX as usize && shape_z <= i32::MAX as usize {
+            let end_x = start_x.saturating_add(shape_x as i32);
+            let end_z = start_z.saturating_add(shape_z as i32);
+            return vx < end_x && vz < end_z;
+        }
 
         let start_x_i64 = i64::from(start_x);
         let start_z_i64 = i64::from(start_z);
