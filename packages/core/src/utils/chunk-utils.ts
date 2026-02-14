@@ -1,5 +1,38 @@
 import { Coords2, Coords3 } from "../types";
 
+const MIN_INT32 = -0x80000000;
+const MAX_INT32 = 0x7fffffff;
+
+const getChunkShiftIfPowerOfTwo = (chunkSize: number) => {
+  if (
+    !Number.isSafeInteger(chunkSize) ||
+    chunkSize <= 0 ||
+    chunkSize > MAX_INT32
+  ) {
+    return -1;
+  }
+  const chunkSizeInt = chunkSize | 0;
+  if (
+    chunkSizeInt !== chunkSize ||
+    (chunkSizeInt & (chunkSizeInt - 1)) !== 0
+  ) {
+    return -1;
+  }
+  return 31 - Math.clz32(chunkSizeInt);
+};
+
+const mapVoxelToChunkCoordinate = (
+  voxel: number,
+  chunkSize: number,
+  chunkShift: number
+) =>
+  chunkShift >= 0 &&
+  Number.isSafeInteger(voxel) &&
+  voxel >= MIN_INT32 &&
+  voxel <= MAX_INT32
+    ? voxel >> chunkShift
+    : Math.floor(voxel / chunkSize);
+
 /**
  * A utility class for all things related to chunks and chunk coordinates.
  *
@@ -48,7 +81,14 @@ export class ChunkUtils {
     vz: number,
     chunkSize: number
   ): Coords2 => {
-    return [Math.floor(vx / chunkSize), Math.floor(vz / chunkSize)];
+    if (!Number.isFinite(chunkSize) || chunkSize <= 0) {
+      return [Math.floor(vx), Math.floor(vz)];
+    }
+    const chunkShift = getChunkShiftIfPowerOfTwo(chunkSize);
+    return [
+      mapVoxelToChunkCoordinate(vx, chunkSize, chunkShift),
+      mapVoxelToChunkCoordinate(vz, chunkSize, chunkShift),
+    ];
   };
 
   /**
