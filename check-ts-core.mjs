@@ -11,6 +11,7 @@ import {
   createTimedReportBuilder,
   deriveCliValidationFailureMessage,
   hasCliOption,
+  normalizeTsCorePayloadIssues,
   resolveOutputPath,
   summarizeTsCoreExampleOutput,
   serializeReportWithOptionalWrite,
@@ -52,40 +53,13 @@ const isExampleCheckPassing = (exampleCheckResult) => {
     exampleCheckResult.examplePayloadValid === true
   );
 };
-const normalizeExamplePayloadIssues = (payloadIssues) => {
-  if (!Array.isArray(payloadIssues)) {
-    return null;
-  }
-
-  const seenPayloadIssues = new Set();
-  const normalizedPayloadIssues = [];
-  for (const payloadIssue of payloadIssues) {
-    if (typeof payloadIssue !== "string") {
-      continue;
-    }
-
-    const normalizedPayloadIssue = payloadIssue.trim();
-    if (normalizedPayloadIssue.length === 0) {
-      continue;
-    }
-
-    if (seenPayloadIssues.has(normalizedPayloadIssue)) {
-      continue;
-    }
-
-    seenPayloadIssues.add(normalizedPayloadIssue);
-    normalizedPayloadIssues.push(normalizedPayloadIssue);
-  }
-
-  return normalizedPayloadIssues;
-};
 const deriveExampleFailureMessage = (exampleCheckResult) => {
   if (exampleCheckResult.exampleExitCode !== 0) {
     return "TypeScript core end-to-end example failed.";
   }
 
   if (exampleCheckResult.exampleRuleMatched === false) {
-    const payloadIssues = normalizeExamplePayloadIssues(
+    const payloadIssues = normalizeTsCorePayloadIssues(
       exampleCheckResult.examplePayloadIssues
     );
     if (
@@ -108,7 +82,7 @@ const deriveExampleFailureMessage = (exampleCheckResult) => {
   }
 
   if (exampleCheckResult.examplePayloadValid === false) {
-    const payloadIssues = normalizeExamplePayloadIssues(
+    const payloadIssues = normalizeTsCorePayloadIssues(
       exampleCheckResult.examplePayloadIssues
     );
     if (payloadIssues !== null && payloadIssues.length > 0) {
@@ -442,7 +416,7 @@ const withBaseReportFields = (report) => {
     typeof report.examplePayloadValid === "boolean"
       ? report.examplePayloadValid
       : null;
-  const rawExamplePayloadIssues = normalizeExamplePayloadIssues(
+  const rawExamplePayloadIssues = normalizeTsCorePayloadIssues(
     report.examplePayloadIssues
   );
   const examplePayloadIssues =

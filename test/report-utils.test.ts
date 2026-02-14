@@ -23,6 +23,7 @@ import {
   parseActiveCliOptionMetadata,
   parseJsonOutput,
   parseUnknownCliOptions,
+  normalizeTsCorePayloadIssues,
   resolveLastOptionValue,
   resolveOutputPath,
   serializeReportWithOptionalWrite,
@@ -3191,6 +3192,21 @@ describe("report-utils", () => {
       wasmPackCheckExitCode: null,
       wasmPackCheckOutputLine: null,
     });
+  });
+
+  it("normalizes ts-core payload issue lists", () => {
+    expect(normalizeTsCorePayloadIssues(null)).toBeNull();
+    expect(normalizeTsCorePayloadIssues("voxel.id")).toBeNull();
+    expect(
+      normalizeTsCorePayloadIssues([
+        " voxel.id ",
+        "",
+        "light.red",
+        "light.red",
+        9,
+        "rotatedAabb.bounds",
+      ])
+    ).toEqual(["voxel.id", "light.red", "rotatedAabb.bounds"]);
   });
 
   it("extracts ts-core example summary fields from reports", () => {

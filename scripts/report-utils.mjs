@@ -354,7 +354,7 @@ export const createPrefixedWasmPackCheckSummary = (report, prefix = "") => {
   };
 };
 
-const normalizeExamplePayloadIssues = (payloadIssues) => {
+export const normalizeTsCorePayloadIssues = (payloadIssues) => {
   if (!Array.isArray(payloadIssues)) {
     return null;
   }
@@ -425,7 +425,7 @@ export const extractTsCoreExampleSummaryFromReport = (report) => {
     typeof report.examplePayloadValid === "boolean"
       ? report.examplePayloadValid
       : null;
-  const rawExamplePayloadIssues = normalizeExamplePayloadIssues(
+  const rawExamplePayloadIssues = normalizeTsCorePayloadIssues(
     report.examplePayloadIssues
   );
   const examplePayloadIssues =
@@ -671,7 +671,7 @@ export const summarizeTsCoreExampleOutput = (output) => {
   const examplePayloadValid =
     voxelValid && lightValid && rotatedAabbValid && examplePayloadIssues.length === 0;
   const normalizedExamplePayloadIssues =
-    normalizeExamplePayloadIssues(examplePayloadIssues) ?? [];
+    normalizeTsCorePayloadIssues(examplePayloadIssues) ?? [];
   const exampleOutputLine =
     typeof exampleRuleMatched === "boolean"
       ? `ruleMatched=${exampleRuleMatched ? "true" : "false"}`
