@@ -42,6 +42,11 @@ const BLUE: LightColor = LightColor::Blue;
 const SUNLIGHT: LightColor = LightColor::Sunlight;
 const ALL_TRANSPARENT: [bool; 6] = [true, true, true, true, true, true];
 
+#[inline]
+fn schedule_active_tick(current_tick: u64, delay: u64) -> u64 {
+    current_tick.saturating_add(delay)
+}
+
 fn process_pending_updates(
     chunks: &mut Chunks,
     mesher: &mut Mesher,
@@ -179,7 +184,7 @@ fn process_pending_updates(
                     &*chunks,
                     registry,
                 );
-                chunks.mark_voxel_active(&Vec3(vx, vy, vz), ticks + current_tick);
+                chunks.mark_voxel_active(&Vec3(vx, vy, vz), schedule_active_tick(current_tick, ticks));
             }
 
             for [ox, oy, oz] in VOXEL_NEIGHBORS_WITH_STAIRS {
@@ -205,7 +210,10 @@ fn process_pending_updates(
                         &*chunks,
                         registry,
                     );
-                    chunks.mark_voxel_active(&Vec3(nx, ny, nz), ticks + current_tick);
+                    chunks.mark_voxel_active(
+                        &Vec3(nx, ny, nz),
+                        schedule_active_tick(current_tick, ticks),
+                    );
                 }
             }
 
@@ -735,5 +743,20 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 .build();
             message_queue.push((new_message, ClientFilter::All));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::schedule_active_tick;
+
+    #[test]
+    fn schedule_active_tick_saturates_on_overflow() {
+        assert_eq!(schedule_active_tick(u64::MAX - 1, 10), u64::MAX);
+    }
+
+    #[test]
+    fn schedule_active_tick_preserves_non_overflow_sum() {
+        assert_eq!(schedule_active_tick(100, 25), 125);
     }
 }
