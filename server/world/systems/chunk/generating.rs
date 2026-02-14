@@ -210,7 +210,10 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             let margin = stage.neighbors(&config);
 
             if margin > 0 {
-                let r = (margin as f32 / chunk_size as f32).ceil() as i32;
+                let r = (margin
+                    .saturating_add(chunk_size.saturating_sub(1))
+                    / chunk_size)
+                    .min(i32::MAX as usize) as i32;
                 let radius_sq = i64::from(r) * i64::from(r);
                 let mut ready = true;
 
