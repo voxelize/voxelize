@@ -1983,15 +1983,22 @@ fn compute_face_ao_and_light_fast(
     (aos, lights)
 }
 
-fn extract_greedy_quads_dense(
+fn extract_greedy_quads_dense_into(
     mask: &mut [Option<FaceData>],
     min_u: i32,
     min_v: i32,
     width: usize,
     height: usize,
-) -> Vec<GreedyQuad> {
+    quads: &mut Vec<GreedyQuad>,
+) {
     let estimated_cells = width * height;
-    let mut quads = Vec::with_capacity((estimated_cells / 2).max(16));
+    if quads_capacity_hint(estimated_cells) > 0 {
+        let required = quads_capacity_hint(estimated_cells);
+        if quads.capacity() < required {
+            quads.reserve(required - quads.capacity());
+        }
+    }
+    quads.clear();
     let mask_ptr = mask.as_mut_ptr();
     let mut v_off = 0usize;
     'rows: while v_off < height {
@@ -2069,8 +2076,11 @@ fn extract_greedy_quads_dense(
         }
         v_off += 1;
     }
+}
 
-    quads
+#[inline(always)]
+fn quads_capacity_hint(estimated_cells: usize) -> usize {
+    (estimated_cells / 2).max(16)
 }
 
 #[inline(always)]
@@ -3030,6 +3040,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
         if greedy_mask.len() < mask_len {
             greedy_mask.resize(mask_len, None);
         }
+        let mut quads: Vec<GreedyQuad> = Vec::new();
 
         for slice in slice_range {
             non_greedy_faces.clear();
@@ -3450,17 +3461,18 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                 }
             }
 
-            let quads = extract_greedy_quads_dense(
+            extract_greedy_quads_dense_into(
                 &mut greedy_mask[..mask_len],
                 u_range.0,
                 v_range.0,
                 mask_width,
                 mask_height,
+                &mut quads,
             );
 
             let mut cached_quad_block_id = u32::MAX;
             let mut cached_quad_block: Option<&Block> = None;
-            for quad in quads {
+            for quad in quads.iter() {
                 let quad_key = &quad.data.key;
                 let block_id = quad_key.block_id;
                 let block = if cached_quad_block_id == block_id {
@@ -3516,7 +3528,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                 });
 
                 process_greedy_quad(
-                    &quad,
+                    quad,
                     slice,
                     slice_offset,
                     dir,
@@ -3730,6 +3742,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
         if greedy_mask.len() < mask_len {
             greedy_mask.resize(mask_len, None);
         }
+        let mut quads: Vec<GreedyQuad> = Vec::new();
 
         for slice in slice_range {
             for u in u_range.0..u_range.1 {
@@ -4312,17 +4325,18 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                 }
             }
 
-            let quads = extract_greedy_quads_dense(
+            extract_greedy_quads_dense_into(
                 &mut greedy_mask[..mask_len],
                 u_range.0,
                 v_range.0,
                 mask_width,
                 mask_height,
+                &mut quads,
             );
 
             let mut cached_quad_block_id = u32::MAX;
             let mut cached_quad_block: Option<&Block> = None;
-            for quad in quads {
+            for quad in quads.iter() {
                 let quad_key = &quad.data.key;
                 let block_id = quad_key.block_id;
                 let block = if cached_quad_block_id == block_id {
@@ -4378,7 +4392,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                 });
 
                 process_greedy_quad(
-                    &quad,
+                    quad,
                     slice,
                     slice_offset,
                     dir,
