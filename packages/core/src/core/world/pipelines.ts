@@ -456,8 +456,9 @@ export class MeshPipeline {
       return { keys: [], hasMore: false };
     }
 
+    const hasFiniteLimit = normalizedMaxCount !== Number.POSITIVE_INFINITY;
     const dirtyKeys = new Array<string>(
-      Number.isFinite(normalizedMaxCount)
+      hasFiniteLimit
         ? Math.min(this.dirty.size, normalizedMaxCount)
         : this.dirty.size
     );
