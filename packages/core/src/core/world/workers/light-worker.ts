@@ -419,8 +419,10 @@ const applyRelevantDeltas = (
       }
       const newRotation = delta.newRotation;
       const newStage = delta.newStage;
+      const oldVoxel = delta.oldVoxel;
+      const newVoxel = delta.newVoxel;
       const shouldWriteVoxel =
-        delta.oldVoxel !== delta.newVoxel && isInteger(delta.newVoxel);
+        isInteger(oldVoxel) && isInteger(newVoxel) && oldVoxel !== newVoxel;
       const shouldWriteRotation = hasFiniteRotation(newRotation);
       const shouldWriteStage = newStage !== undefined && isInteger(newStage);
       if (!shouldWriteVoxel && !shouldWriteRotation && !shouldWriteStage) {
@@ -445,7 +447,7 @@ const applyRelevantDeltas = (
       const currentRaw = nextRaw;
 
       if (shouldWriteVoxel) {
-        nextRaw = BlockUtils.insertID(nextRaw, delta.newVoxel);
+        nextRaw = BlockUtils.insertID(nextRaw, newVoxel);
       }
       if (shouldWriteRotation) {
         nextRaw = BlockUtils.insertRotation(nextRaw, newRotation);
