@@ -141,4 +141,5 @@ When failures occur, `failureSummaries[]` entries include `kind`:
 
 - `kind: "artifacts"` for missing artifact failures
 - `kind: "example"` for end-to-end example execution/output failures
-  (`exitCode`, `ruleMatched`, `payloadValid`, and `outputLine`)
+  (`exitCode`, `ruleMatched`, `payloadValid`, `payloadIssues`,
+  `payloadIssueCount`, and `outputLine`)

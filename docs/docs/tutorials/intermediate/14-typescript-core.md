@@ -220,7 +220,8 @@ Each ts-core `failureSummaries` entry includes `kind`, `packageIndex`,
 `checkCommand`, `checkArgs`, and `checkArgCount` for deterministic
 failure-to-check correlation. ts-core uses `kind: "artifacts"` for missing
 artifact failures and `kind: "example"` for end-to-end example failures
-(including `exitCode`, `ruleMatched`, `payloadValid`, and `outputLine`).
+(including `exitCode`, `ruleMatched`, `payloadValid`, `payloadIssues`,
+`payloadIssueCount`, and `outputLine`).
 `examplePayloadValid` is `true` only when the end-to-end example emits the
 expected payload shape (`voxel.id`, `voxel.stage`, `voxel.rotation.value`,
 `voxel.rotation.yRotation`, `light`, `rotatedAabb`) with valid value domains
