@@ -25,12 +25,13 @@ fn chunk_interest_alignment(center: &Vec2<i32>, coords: &Vec2<i32>, direction: &
     if mag <= f64::from(f32::EPSILON) {
         return 0.0;
     }
-    let normalized_direction_to_chunk = Vec2(
-        (direction_to_chunk_x / mag) as f32,
-        (direction_to_chunk_z / mag) as f32,
-    );
-    (direction.0 * normalized_direction_to_chunk.0 + direction.1 * normalized_direction_to_chunk.1)
-        .max(0.0)
+    let dot = (f64::from(direction.0) * direction_to_chunk_x
+        + f64::from(direction.1) * direction_to_chunk_z)
+        / mag;
+    if !dot.is_finite() || dot <= 0.0 {
+        return 0.0;
+    }
+    dot as f32
 }
 
 #[derive(Default)]
