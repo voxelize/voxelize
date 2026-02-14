@@ -175,6 +175,10 @@ const hasFiniteRotation = (
   Number.isFinite(rotation.yRotation);
 const normalizeSequenceId = (sequenceId: number) =>
   isPositiveInteger(sequenceId) ? sequenceId : 0;
+const isValidRuleType = (
+  type: BlockRule["type"] | string | undefined
+): type is BlockRule["type"] =>
+  type === "none" || type === "simple" || type === "combination";
 
 const getAppliedDeltasPayload = (lastSequenceId: number) => {
   const normalizedSequenceId = normalizeSequenceId(lastSequenceId);
@@ -228,25 +232,35 @@ const convertDynamicPatterns = (
     return null;
   }
 
+  const convertedPatterns: WasmLightDynamicPattern[] = [];
   const patternCount = patterns.length;
-  const convertedPatterns = new Array<WasmLightDynamicPattern>(patternCount);
   for (let patternIndex = 0; patternIndex < patternCount; patternIndex++) {
     const pattern = patterns[patternIndex];
-    const partCount = pattern.parts.length;
-    const convertedParts = new Array<WasmLightConditionalPart>(partCount);
+    const patternParts = pattern?.parts;
+    if (!Array.isArray(patternParts) || patternParts.length === 0) {
+      continue;
+    }
+    const convertedParts: WasmLightConditionalPart[] = [];
+    const partCount = patternParts.length;
     for (let partIndex = 0; partIndex < partCount; partIndex++) {
-      const part = pattern.parts[partIndex];
-      convertedParts[partIndex] = {
+      const part = patternParts[partIndex];
+      const rule = part?.rule;
+      if (!rule || !isValidRuleType(rule.type)) {
+        continue;
+      }
+      convertedParts.push({
         rule: part.rule,
         redLightLevel: part.redLightLevel,
         greenLightLevel: part.greenLightLevel,
         blueLightLevel: part.blueLightLevel,
-      };
+      });
     }
-    convertedPatterns[patternIndex] = { parts: convertedParts };
+    if (convertedParts.length > 0) {
+      convertedPatterns.push({ parts: convertedParts });
+    }
   }
 
-  return convertedPatterns;
+  return convertedPatterns.length > 0 ? convertedPatterns : null;
 };
 
 const convertRegistryToWasm = (registry: SerializedRegistry): WasmLightRegistry => {
