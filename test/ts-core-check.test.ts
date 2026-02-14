@@ -1849,6 +1849,55 @@ process.exit(2);\n`,
     );
   });
 
+  it("normalizes ansi and BOM escapes in non-json example output lines", () => {
+    runWithTemporarilyRewrittenPath(
+      exampleScriptRelativePath,
+      'process.stdout.write("\\u001b[33m\\uFEFFwarning: no json\\u001b[39m");\n',
+      () => {
+        const result = runScript(["--json"]);
+        const report = parseReport(result);
+
+        expect(result.status).toBe(1);
+        expect(report.schemaVersion).toBe(1);
+        expect(report.passed).toBe(false);
+        expect(report.exitCode).toBe(1);
+        expect(report.validationErrorCode).toBeNull();
+        expect(report.artifactsPresent).toBe(true);
+        expect(report.missingArtifacts).toEqual([]);
+        expect(report.exampleAttempted).toBe(true);
+        expect(report.exampleStatus).toBe("failed");
+        expect(report.exampleExitCode).toBe(0);
+        expect(report.exampleRuleMatched).toBeNull();
+        expect(report.examplePayloadValid).toBeNull();
+        expect(report.examplePayloadIssues).toBeNull();
+        expect(report.examplePayloadIssueCount).toBeNull();
+        expect(report.exampleOutputLine).toBe("warning: no json");
+        expect(report.failureSummaryCount).toBe(1);
+        expect(report.failureSummaries).toEqual([
+          {
+            kind: "example",
+            packageName: report.checkedPackage,
+            packagePath: report.checkedPackagePath,
+            packageIndex: report.checkedPackageIndices[0],
+            checkCommand: process.execPath,
+            checkArgs: expectedExampleArgs,
+            checkArgCount: expectedExampleArgs.length,
+            exitCode: report.exampleExitCode,
+            ruleMatched: report.exampleRuleMatched,
+            payloadValid: report.examplePayloadValid,
+            payloadIssues: report.examplePayloadIssues,
+            payloadIssueCount: report.examplePayloadIssueCount,
+            outputLine: report.exampleOutputLine,
+            message: deriveExpectedExampleFailureMessage(report),
+          },
+        ]);
+        expect(report.message).toBe(
+          "TypeScript core build artifacts are available, but TypeScript core end-to-end example output was invalid."
+        );
+      }
+    );
+  });
+
   it("fails with invalid output when ts-core example emits a json array payload", () => {
     runWithTemporarilyRewrittenPath(
       exampleScriptRelativePath,
