@@ -313,15 +313,17 @@ const applyRelevantDeltas = (
 
     for (let deltaIndex = startIndex; deltaIndex < deltasLength; deltaIndex++) {
       const delta = deltas[deltaIndex];
-      const { coords, newVoxel, newRotation, newStage } = delta;
+      const coords = delta.coords;
       const vx = coords[0];
       const vy = coords[1];
       const vz = coords[2];
 
-      chunk.setVoxel(vx, vy, vz, newVoxel);
+      chunk.setVoxel(vx, vy, vz, delta.newVoxel);
+      const newRotation = delta.newRotation;
       if (newRotation) {
         chunk.setVoxelRotation(vx, vy, vz, newRotation);
       }
+      const newStage = delta.newStage;
       if (newStage !== undefined) {
         chunk.setVoxelStage(vx, vy, vz, newStage);
       }
