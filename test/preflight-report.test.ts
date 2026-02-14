@@ -17,6 +17,97 @@ type PreflightCheckResult = {
   report: object | null;
   output: string | null;
 };
+type DevEnvironmentNestedCheck = {
+  label: string;
+  required: boolean;
+  status: string;
+  message: string;
+  hint: string;
+  detectedVersion: string | null;
+  minimumVersion: string | null;
+};
+type DevEnvironmentNestedReport = {
+  requiredFailures: number;
+  availableChecks: string[];
+  availableCheckCount: number;
+  availableCheckIndexMap: Record<string, number>;
+  availableCheckIndexMapCount: number;
+  availableCheckRequiredMap: Record<string, boolean>;
+  availableCheckRequiredMapCount: number;
+  availableCheckHintMap: Record<string, string>;
+  availableCheckHintMapCount: number;
+  availableCheckMinimumVersionMap: Record<string, string | null>;
+  availableCheckMinimumVersionMapCount: number;
+  checks: DevEnvironmentNestedCheck[];
+  checkLabels: string[];
+  checkCount: number;
+  checkIndexMap: Record<string, number>;
+  checkIndexMapCount: number;
+  checkStatusMap: Record<string, string>;
+  checkStatusMapCount: number;
+  checkDetectedVersionMap: Record<string, string | null>;
+  checkDetectedVersionMapCount: number;
+  checkMinimumVersionMap: Record<string, string | null>;
+  checkMinimumVersionMapCount: number;
+  requiredCheckLabels: string[];
+  requiredCheckCount: number;
+  optionalCheckLabels: string[];
+  optionalCheckCount: number;
+  passedChecks: string[];
+  passedCheckCount: number;
+  failedChecks: string[];
+  failedCheckCount: number;
+  requiredFailureLabels: string[];
+  requiredFailureCount: number;
+  optionalFailureLabels: string[];
+  optionalFailureCount: number;
+  failureSummaries: Array<{
+    label: string;
+    required: boolean;
+    status: string;
+    message: string;
+    hint: string;
+  }>;
+  failureSummaryCount: number;
+};
+type WasmPackNestedReport = {
+  command: string;
+  version: string | null;
+  availableChecks: string[];
+  availableCheckCount: number;
+  availableCheckCommandMap: Record<string, string>;
+  availableCheckCommandMapCount: number;
+  availableCheckArgsMap: Record<string, string[]>;
+  availableCheckArgsMapCount: number;
+  availableCheckArgCountMap: Record<string, number>;
+  availableCheckArgCountMapCount: number;
+  availableCheckIndexMap: Record<string, number>;
+  availableCheckIndexMapCount: number;
+  checkLabels: string[];
+  checkCount: number;
+  checkStatusMap: Record<string, string>;
+  checkStatusMapCount: number;
+  checkVersionMap: Record<string, string | null>;
+  checkVersionMapCount: number;
+  checkExitCodeMap: Record<string, number>;
+  checkExitCodeMapCount: number;
+  checkOutputLineMap: Record<string, string | null>;
+  checkOutputLineMapCount: number;
+  passedChecks: string[];
+  passedCheckCount: number;
+  failedChecks: string[];
+  failedCheckCount: number;
+  failureSummaries: Array<{
+    name: string;
+    command: string;
+    args: string[];
+    exitCode: number;
+    status: string;
+    message: string | null;
+  }>;
+  failureSummaryCount: number;
+  message?: string;
+};
 
 type TsCoreNestedReport = {
   checkedPackage: string;
@@ -517,6 +608,15 @@ const expectedAvailableChecks = [
   "runtimeLibraries",
   "client",
 ];
+const expectedDevEnvironmentAvailableChecks = [
+  "node",
+  "pnpm",
+  "cargo",
+  "wasm-pack",
+  "protoc",
+  "cargo watch",
+];
+const expectedWasmPackAvailableChecks = ["wasm-pack"];
 const expectedAvailableCheckScripts = expectedAvailableChecks.map((checkName) => {
   return expectedAvailableCheckMetadata[
     checkName as keyof typeof expectedAvailableCheckMetadata
@@ -1153,6 +1253,246 @@ const expectSelectorAndAliasMetadata = (report: PreflightReport) => {
       report.requestedCheckResolutionCounts.invalid
   ).toBe(report.requestedCheckResolutionCount);
 };
+const expectDevEnvironmentNestedReport = (checkReport: object | null) => {
+  expect(checkReport).not.toBeNull();
+  if (checkReport === null) {
+    return;
+  }
+
+  const report = checkReport as DevEnvironmentNestedReport;
+  const expectedAvailableCheckIndexMap = Object.fromEntries(
+    expectedDevEnvironmentAvailableChecks.map((checkLabel, index) => {
+      return [checkLabel, index];
+    })
+  );
+
+  expect(report.availableChecks).toEqual(expectedDevEnvironmentAvailableChecks);
+  expect(report.availableCheckCount).toBe(report.availableChecks.length);
+  expect(report.availableCheckIndexMap).toEqual(expectedAvailableCheckIndexMap);
+  expect(report.availableCheckIndexMapCount).toBe(
+    Object.keys(report.availableCheckIndexMap).length
+  );
+  expect(report.availableCheckRequiredMapCount).toBe(
+    Object.keys(report.availableCheckRequiredMap).length
+  );
+  expect(report.availableCheckHintMapCount).toBe(
+    Object.keys(report.availableCheckHintMap).length
+  );
+  expect(report.availableCheckMinimumVersionMapCount).toBe(
+    Object.keys(report.availableCheckMinimumVersionMap).length
+  );
+  for (const checkLabel of report.availableChecks) {
+    expect(typeof report.availableCheckRequiredMap[checkLabel]).toBe("boolean");
+    expect(report.availableCheckHintMap[checkLabel]?.length).toBeGreaterThan(0);
+    const minimumVersion = report.availableCheckMinimumVersionMap[checkLabel];
+    if (minimumVersion !== null) {
+      expect(minimumVersion.length).toBeGreaterThan(0);
+    }
+  }
+
+  const expectedCheckLabels = report.checks.map((check) => {
+    return check.label;
+  });
+  const expectedCheckIndexMap = Object.fromEntries(
+    expectedCheckLabels.map((checkLabel, index) => {
+      return [checkLabel, index];
+    })
+  );
+  const expectedCheckStatusMap = Object.fromEntries(
+    report.checks.map((check) => {
+      return [check.label, check.status];
+    })
+  );
+  const expectedCheckDetectedVersionMap = Object.fromEntries(
+    report.checks.map((check) => {
+      return [check.label, check.detectedVersion];
+    })
+  );
+  const expectedCheckMinimumVersionMap = Object.fromEntries(
+    report.checks.map((check) => {
+      return [check.label, check.minimumVersion];
+    })
+  );
+  const expectedRequiredCheckLabels = report.checks
+    .filter((check) => {
+      return check.required;
+    })
+    .map((check) => {
+      return check.label;
+    });
+  const expectedOptionalCheckLabels = report.checks
+    .filter((check) => {
+      return check.required === false;
+    })
+    .map((check) => {
+      return check.label;
+    });
+  const expectedPassedChecks = report.checks
+    .filter((check) => {
+      return check.status === "ok";
+    })
+    .map((check) => {
+      return check.label;
+    });
+  const expectedFailedChecks = report.checks
+    .filter((check) => {
+      return check.status !== "ok";
+    })
+    .map((check) => {
+      return check.label;
+    });
+  const expectedRequiredFailureLabels = report.checks
+    .filter((check) => {
+      return check.required && check.status !== "ok";
+    })
+    .map((check) => {
+      return check.label;
+    });
+  const expectedOptionalFailureLabels = report.checks
+    .filter((check) => {
+      return check.required === false && check.status !== "ok";
+    })
+    .map((check) => {
+      return check.label;
+    });
+  const expectedFailureSummaries = report.checks
+    .filter((check) => {
+      return check.status !== "ok";
+    })
+    .map((check) => {
+      return {
+        label: check.label,
+        required: check.required,
+        status: check.status,
+        message: check.message,
+        hint: check.hint,
+      };
+    });
+
+  expect(report.checkLabels).toEqual(expectedCheckLabels);
+  expect(report.checkCount).toBe(report.checkLabels.length);
+  expect(report.checkIndexMap).toEqual(expectedCheckIndexMap);
+  expect(report.checkIndexMapCount).toBe(Object.keys(report.checkIndexMap).length);
+  expect(report.checkStatusMap).toEqual(expectedCheckStatusMap);
+  expect(report.checkStatusMapCount).toBe(
+    Object.keys(report.checkStatusMap).length
+  );
+  expect(report.checkDetectedVersionMap).toEqual(expectedCheckDetectedVersionMap);
+  expect(report.checkDetectedVersionMapCount).toBe(
+    Object.keys(report.checkDetectedVersionMap).length
+  );
+  expect(report.checkMinimumVersionMap).toEqual(expectedCheckMinimumVersionMap);
+  expect(report.checkMinimumVersionMapCount).toBe(
+    Object.keys(report.checkMinimumVersionMap).length
+  );
+  expect(report.requiredCheckLabels).toEqual(expectedRequiredCheckLabels);
+  expect(report.requiredCheckCount).toBe(report.requiredCheckLabels.length);
+  expect(report.optionalCheckLabels).toEqual(expectedOptionalCheckLabels);
+  expect(report.optionalCheckCount).toBe(report.optionalCheckLabels.length);
+  expect(report.passedChecks).toEqual(expectedPassedChecks);
+  expect(report.passedCheckCount).toBe(report.passedChecks.length);
+  expect(report.failedChecks).toEqual(expectedFailedChecks);
+  expect(report.failedCheckCount).toBe(report.failedChecks.length);
+  expect(report.requiredFailureLabels).toEqual(expectedRequiredFailureLabels);
+  expect(report.requiredFailureCount).toBe(report.requiredFailureLabels.length);
+  expect(report.optionalFailureLabels).toEqual(expectedOptionalFailureLabels);
+  expect(report.optionalFailureCount).toBe(report.optionalFailureLabels.length);
+  expect(report.failureSummaries).toEqual(expectedFailureSummaries);
+  expect(report.failureSummaryCount).toBe(report.failureSummaries.length);
+  expect(report.requiredFailures).toBe(report.requiredFailureCount);
+};
+const expectWasmPackNestedReport = (checkReport: object | null) => {
+  expect(checkReport).not.toBeNull();
+  if (checkReport === null) {
+    return;
+  }
+
+  const report = checkReport as WasmPackNestedReport;
+  const expectedAvailableCheckCommandMap = {
+    "wasm-pack": report.command,
+  };
+  const expectedAvailableCheckArgsMap = {
+    "wasm-pack": ["--version"],
+  };
+  const expectedAvailableCheckArgCountMap = {
+    "wasm-pack": 1,
+  };
+  const expectedAvailableCheckIndexMap = {
+    "wasm-pack": 0,
+  };
+
+  expect(report.availableChecks).toEqual(expectedWasmPackAvailableChecks);
+  expect(report.availableCheckCount).toBe(report.availableChecks.length);
+  expect(report.availableCheckCommandMap).toEqual(expectedAvailableCheckCommandMap);
+  expect(report.availableCheckCommandMapCount).toBe(
+    Object.keys(report.availableCheckCommandMap).length
+  );
+  expect(report.availableCheckArgsMap).toEqual(expectedAvailableCheckArgsMap);
+  expect(report.availableCheckArgsMapCount).toBe(
+    Object.keys(report.availableCheckArgsMap).length
+  );
+  expect(report.availableCheckArgCountMap).toEqual(expectedAvailableCheckArgCountMap);
+  expect(report.availableCheckArgCountMapCount).toBe(
+    Object.keys(report.availableCheckArgCountMap).length
+  );
+  expect(report.availableCheckIndexMap).toEqual(expectedAvailableCheckIndexMap);
+  expect(report.availableCheckIndexMapCount).toBe(
+    Object.keys(report.availableCheckIndexMap).length
+  );
+  expect(report.checkLabels).toEqual(expectedWasmPackAvailableChecks);
+  expect(report.checkCount).toBe(report.checkLabels.length);
+  expect(report.checkStatusMapCount).toBe(Object.keys(report.checkStatusMap).length);
+  expect(report.checkVersionMapCount).toBe(
+    Object.keys(report.checkVersionMap).length
+  );
+  expect(report.checkExitCodeMapCount).toBe(
+    Object.keys(report.checkExitCodeMap).length
+  );
+  expect(report.checkOutputLineMapCount).toBe(
+    Object.keys(report.checkOutputLineMap).length
+  );
+
+  const checkStatus = report.checkStatusMap["wasm-pack"];
+  expect(
+    checkStatus === "ok" || checkStatus === "missing" || checkStatus === "unavailable"
+  ).toBe(true);
+  expect(report.checkStatusMap).toEqual({
+    "wasm-pack": checkStatus,
+  });
+  expect(report.checkVersionMap).toEqual({
+    "wasm-pack": report.version,
+  });
+  expect(report.checkExitCodeMap).toEqual({
+    "wasm-pack": report.exitCode,
+  });
+  const outputLine = report.checkOutputLineMap["wasm-pack"];
+  if (report.version !== null) {
+    expect(outputLine).toBe(report.version);
+  } else if (outputLine !== null) {
+    expect(outputLine.length).toBeGreaterThan(0);
+  }
+  if (checkStatus === "ok") {
+    expect(report.passedChecks).toEqual(expectedWasmPackAvailableChecks);
+    expect(report.failedChecks).toEqual([]);
+    expect(report.failureSummaries).toEqual([]);
+  } else {
+    expect(report.passedChecks).toEqual([]);
+    expect(report.failedChecks).toEqual(expectedWasmPackAvailableChecks);
+    expect(report.failureSummaries).toEqual([
+      {
+        name: "wasm-pack",
+        command: report.command,
+        args: ["--version"],
+        exitCode: report.exitCode,
+        status: checkStatus,
+        message: report.message ?? null,
+      },
+    ]);
+  }
+  expect(report.passedCheckCount).toBe(report.passedChecks.length);
+  expect(report.failedCheckCount).toBe(report.failedChecks.length);
+  expect(report.failureSummaryCount).toBe(report.failureSummaries.length);
+};
 const expectTsCoreNestedReport = (
   checkReport: object | null,
   expectedNoBuild: boolean
@@ -1787,6 +2127,20 @@ describe("preflight aggregate report", () => {
     expect(report.checks.map((check) => check.name)).toEqual(
       expectedAvailableChecks
     );
+    const devEnvironmentCheck = report.checks.find((check) => {
+      return check.name === "devEnvironment";
+    });
+    expect(devEnvironmentCheck).toBeDefined();
+    if (devEnvironmentCheck !== undefined) {
+      expectDevEnvironmentNestedReport(devEnvironmentCheck.report);
+    }
+    const wasmPackCheck = report.checks.find((check) => {
+      return check.name === "wasmPack";
+    });
+    expect(wasmPackCheck).toBeDefined();
+    if (wasmPackCheck !== undefined) {
+      expectWasmPackNestedReport(wasmPackCheck.report);
+    }
     const tsCoreCheck = report.checks.find((check) => check.name === "tsCore");
     expect(tsCoreCheck).toBeDefined();
     if (tsCoreCheck !== undefined) {
