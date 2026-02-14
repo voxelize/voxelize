@@ -187,15 +187,13 @@ impl BatchSpace {
         let mut chunks = self.chunks;
         let mut modified = Vec::with_capacity(self.modified_indices.len());
         for index in self.modified_indices {
-            if let Some(chunk_slot) = chunks.get_mut(index) {
-                if let Some(chunk) = chunk_slot.take() {
-                    let local_x = index / chunk_grid_depth;
-                    let local_z = index % chunk_grid_depth;
-                    modified.push(ModifiedChunkData {
-                        coords: [offset_x + local_x as i32, offset_z + local_z as i32],
-                        lights: chunk.lights,
-                    });
-                }
+            if let Some(chunk) = chunks[index].take() {
+                let local_x = index / chunk_grid_depth;
+                let local_z = index % chunk_grid_depth;
+                modified.push(ModifiedChunkData {
+                    coords: [offset_x + local_x as i32, offset_z + local_z as i32],
+                    lights: chunk.lights,
+                });
             }
         }
 
