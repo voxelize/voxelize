@@ -109,6 +109,16 @@ fn normalized_radius_squared(radius: f32) -> Option<f32> {
     Some(radius_sq as f32)
 }
 
+#[inline]
+fn is_finite_point(point: &Vec3<f32>) -> bool {
+    point.0.is_finite() && point.1.is_finite() && point.2.is_finite()
+}
+
+#[inline]
+fn nearest_query_count(count: usize, extra: usize) -> usize {
+    count.saturating_add(extra)
+}
+
 #[derive(Debug)]
 pub struct KdTree {
     all: EntityTree,
@@ -234,7 +244,12 @@ impl KdTree {
     }
 
     pub fn search(&self, point: &Vec3<f32>, count: usize) -> Vec<(f32, &Entity)> {
-        let results = self.all.nearest(&[point.0, point.1, point.2], count + 1);
+        if !is_finite_point(point) {
+            return Vec::new();
+        }
+        let results = self
+            .all
+            .nearest(&[point.0, point.1, point.2], nearest_query_count(count, 1));
         results
             .into_iter()
             .skip(1)
@@ -248,10 +263,13 @@ impl KdTree {
         count: usize,
         is_player: bool,
     ) -> Vec<(f32, &Entity)> {
+        if !is_finite_point(point) {
+            return Vec::new();
+        }
         let skip = if is_player { 1 } else { 0 };
         let results = self
             .players
-            .nearest(&[point.0, point.1, point.2], count + skip);
+            .nearest(&[point.0, point.1, point.2], nearest_query_count(count, skip));
         results
             .into_iter()
             .skip(skip)
@@ -265,10 +283,13 @@ impl KdTree {
         count: usize,
         is_entity: bool,
     ) -> Vec<(f32, &Entity)> {
+        if !is_finite_point(point) {
+            return Vec::new();
+        }
         let skip = if is_entity { 1 } else { 0 };
         let results = self
             .entities
-            .nearest(&[point.0, point.1, point.2], count + skip);
+            .nearest(&[point.0, point.1, point.2], nearest_query_count(count, skip));
         results
             .into_iter()
             .skip(skip)
@@ -277,6 +298,9 @@ impl KdTree {
     }
 
     pub fn players_within_radius(&self, point: &Vec3<f32>, radius: f32) -> Vec<&Entity> {
+        if !is_finite_point(point) {
+            return Vec::new();
+        }
         let Some(radius_squared) = normalized_radius_squared(radius) else {
             return Vec::new();
         };
@@ -292,7 +316,8 @@ impl KdTree {
 
 #[cfg(test)]
 mod tests {
-    use super::normalized_radius_squared;
+    use super::{is_finite_point, nearest_query_count, normalized_radius_squared};
+    use crate::Vec3;
 
     #[test]
     fn normalized_radius_squared_rejects_invalid_inputs() {
@@ -305,5 +330,19 @@ mod tests {
         assert_eq!(normalized_radius_squared(2.0), Some(4.0));
         assert_eq!(normalized_radius_squared(f32::MAX), Some(f32::MAX));
         assert_eq!(normalized_radius_squared(f32::INFINITY), None);
+    }
+
+    #[test]
+    fn is_finite_point_rejects_non_finite_coordinates() {
+        assert!(is_finite_point(&Vec3(1.0, 2.0, 3.0)));
+        assert!(!is_finite_point(&Vec3(f32::NAN, 2.0, 3.0)));
+        assert!(!is_finite_point(&Vec3(1.0, f32::INFINITY, 3.0)));
+        assert!(!is_finite_point(&Vec3(1.0, 2.0, f32::NEG_INFINITY)));
+    }
+
+    #[test]
+    fn nearest_query_count_saturates_at_usize_max() {
+        assert_eq!(nearest_query_count(2, 1), 3);
+        assert_eq!(nearest_query_count(usize::MAX, 1), usize::MAX);
     }
 }
