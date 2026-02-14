@@ -3,6 +3,7 @@ import {
   BlockRotation,
   BlockRuleEvaluator,
   BlockRuleLogic,
+  createBlockFace,
   createBlockRule,
   createBlockConditionalPart,
   createBlockDynamicPattern,
@@ -112,10 +113,15 @@ const main = () => {
 
   const matched = BlockRuleEvaluator.evaluate(connectionRule, [0, 0, 0], space);
   assert(matched, "Rule evaluation failed");
+  const topFace = createBlockFace({
+    name: "ConnectorTop",
+    dir: [0, 1, 0],
+  });
   const pattern = createBlockDynamicPattern({
     parts: [
       createBlockConditionalPart({
         rule: connectionRule,
+        faces: [topFace],
         worldSpace: false,
       }),
     ],
@@ -124,6 +130,12 @@ const main = () => {
   if (patternPart === undefined) {
     throw new Error("Dynamic pattern was not created.");
   }
+  topFace.name = "MutatedConnectorTop";
+  assert(patternPart.faces.length === 1, "Dynamic pattern face was not preserved");
+  assert(
+    patternPart.faces[0].name === "ConnectorTop",
+    "Dynamic pattern face was not defensively cloned"
+  );
   const patternMatched = BlockRuleEvaluator.evaluate(
     patternPart.rule,
     [0, 0, 0],
