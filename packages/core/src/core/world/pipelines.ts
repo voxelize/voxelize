@@ -281,6 +281,7 @@ export class MeshPipeline {
   private states = new Map<string, MeshState>();
   private dirty = new Set<string>();
   private keysByChunk = new Map<string, Set<string>>();
+  private inFlightCount = 0;
 
   private static makeChunkKey(cx: number, cz: number): string {
     return `${cx},${cz}`;
@@ -344,6 +345,9 @@ export class MeshPipeline {
       return null;
     }
 
+    if (state.inFlightGeneration === null) {
+      this.inFlightCount++;
+    }
     state.inFlightGeneration = state.generation;
     this.dirty.delete(key);
     return state;
@@ -355,6 +359,9 @@ export class MeshPipeline {
       return 0;
     }
 
+    if (state.inFlightGeneration !== null) {
+      this.inFlightCount--;
+    }
     state.inFlightGeneration = null;
     const needsRemesh = state.generation > state.displayedGeneration;
     if (needsRemesh) {
@@ -374,6 +381,9 @@ export class MeshPipeline {
       return 0;
     }
 
+    if (state.inFlightGeneration !== null) {
+      this.inFlightCount--;
+    }
     state.inFlightGeneration = null;
 
     let status = 0;
@@ -402,6 +412,9 @@ export class MeshPipeline {
   markFreshFromServer(cx: number, cz: number, level: number): void {
     const key = MeshPipeline.makeKey(cx, cz, level);
     const state = this.getOrCreate(key, cx, cz, level);
+    if (state.inFlightGeneration !== null) {
+      this.inFlightCount--;
+    }
     state.displayedGeneration = state.generation;
     state.inFlightGeneration = null;
     this.dirty.delete(key);
@@ -499,6 +512,10 @@ export class MeshPipeline {
     let keyEntry = keyEntries.next();
     while (!keyEntry.done) {
       const key = keyEntry.value;
+      const state = this.states.get(key);
+      if (state?.inFlightGeneration !== null) {
+        this.inFlightCount--;
+      }
       this.states.delete(key);
       this.dirty.delete(key);
       keyEntry = keyEntries.next();
@@ -512,13 +529,6 @@ export class MeshPipeline {
   }
 
   hasAnyInFlightJobs(): boolean {
-    let stateEntries = this.states.values();
-    let stateEntry = stateEntries.next();
-    while (!stateEntry.done) {
-      const state = stateEntry.value;
-      if (state.inFlightGeneration !== null) return true;
-      stateEntry = stateEntries.next();
-    }
-    return false;
+    return this.inFlightCount > 0;
   }
 }
