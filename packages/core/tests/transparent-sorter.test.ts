@@ -115,6 +115,74 @@ describe("transparent sorter", () => {
     expect(prepareTransparentMesh(mesh)).toBeNull();
   });
 
+  it("supports tightly packed vec4 position attributes by reading xyz", () => {
+    const geometry = new BufferGeometry();
+    geometry.setAttribute(
+      "position",
+      new BufferAttribute(
+        new Float32Array([
+          0, 0, 0, 99,
+          3, 0, 0, 98,
+          0, 3, 0, 97,
+          3, 3, 0, 96,
+          10, 0, 0, 95,
+          13, 0, 0, 94,
+          10, 3, 0, 93,
+          13, 3, 0, 92,
+        ]),
+        4
+      )
+    );
+    geometry.setIndex(
+      new BufferAttribute(
+        new Uint16Array([0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7]),
+        1
+      )
+    );
+
+    const sortData = prepareTransparentMesh(new Mesh(geometry, new MeshBasicMaterial()));
+    expect(sortData).not.toBeNull();
+    if (!sortData) {
+      return;
+    }
+    expect(sortData.centroids[0]).toBeCloseTo(1);
+    expect(sortData.centroids[1]).toBeCloseTo(1);
+    expect(sortData.centroids[2]).toBeCloseTo(0);
+  });
+
+  it("supports interleaved position attributes with non-zero offsets", () => {
+    const geometry = new BufferGeometry();
+    const interleaved = new InterleavedBuffer(
+      new Float32Array([
+        99, 0, 0, 0,
+        98, 3, 0, 0,
+        97, 0, 3, 0,
+        96, 3, 3, 0,
+        95, 10, 0, 0,
+        94, 13, 0, 0,
+        93, 10, 3, 0,
+        92, 13, 3, 0,
+      ]),
+      4
+    );
+    geometry.setAttribute("position", new InterleavedBufferAttribute(interleaved, 3, 1));
+    geometry.setIndex(
+      new BufferAttribute(
+        new Uint16Array([0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7]),
+        1
+      )
+    );
+
+    const sortData = prepareTransparentMesh(new Mesh(geometry, new MeshBasicMaterial()));
+    expect(sortData).not.toBeNull();
+    if (!sortData) {
+      return;
+    }
+    expect(sortData.centroids[0]).toBeCloseTo(1);
+    expect(sortData.centroids[1]).toBeCloseTo(1);
+    expect(sortData.centroids[2]).toBeCloseTo(0);
+  });
+
   it("returns null when geometry indices reference missing vertices", () => {
     const geometry = new BufferGeometry();
     geometry.setAttribute(

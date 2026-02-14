@@ -36,9 +36,16 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
   if (!positionAttr || positionAttr.itemSize < 3) return null;
 
   const positions = positionAttr.array as ArrayLike<number>;
-  const positionsLength = positions.length;
-  if (positionsLength % 3 !== 0) return null;
-  const vertexCount = positionsLength / 3;
+  const vertexCount = positionAttr.count;
+  if (!Number.isInteger(vertexCount) || vertexCount <= 0) return null;
+  const positionStride =
+    positionAttr instanceof InterleavedBufferAttribute
+      ? positionAttr.data.stride
+      : positionAttr.itemSize;
+  const positionOffset =
+    positionAttr instanceof InterleavedBufferAttribute ? positionAttr.offset : 0;
+  const requiredPositionLength = positionOffset + (vertexCount - 1) * positionStride + 3;
+  if (requiredPositionLength > positions.length) return null;
   const indices = geometry.index.array as Uint16Array | Uint32Array;
   const indicesLength = indices.length;
   if (indicesLength % 6 !== 0) return null;
@@ -70,9 +77,9 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
     ) {
       return null;
     }
-    const i0 = i0Index * 3;
-    const i1 = i1Index * 3;
-    const i2 = i2Index * 3;
+    const i0 = i0Index * positionStride + positionOffset;
+    const i1 = i1Index * positionStride + positionOffset;
+    const i2 = i2Index * positionStride + positionOffset;
 
     centroids[centroidOffset] =
       (positions[i0] + positions[i1] + positions[i2]) / 3;
