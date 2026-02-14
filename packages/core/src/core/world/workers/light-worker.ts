@@ -436,13 +436,7 @@ const filterInvalidRemovalNodes = (removals: Coords3[]): Coords3[] => {
     const node = removals[index];
     if (!isStrictCoords3(node)) {
       if (!sanitized) {
-        sanitized = [];
-        for (let copied = 0; copied < index; copied++) {
-          const candidate = removals[copied];
-          if (isStrictCoords3(candidate)) {
-            sanitized.push(candidate);
-          }
-        }
+        sanitized = removals.slice(0, index);
       }
       continue;
     }
@@ -461,13 +455,7 @@ const filterInvalidFloodNodes = (floods: LightNode[]): LightNode[] => {
     const node = floods[index];
     if (!isValidFloodNode(node)) {
       if (!sanitized) {
-        sanitized = [];
-        for (let copied = 0; copied < index; copied++) {
-          const candidate = floods[copied];
-          if (isValidFloodNode(candidate)) {
-            sanitized.push(candidate);
-          }
-        }
+        sanitized = floods.slice(0, index);
       }
       continue;
     }
