@@ -1182,6 +1182,10 @@ const processBatchMessage = (message: LightBatchMessage) => {
     postEmptyBatchResult(jobId, lastSequenceId);
     return;
   }
+  if (modifiedChunkCount > cellCount) {
+    postEmptyBatchResult(jobId, lastSequenceId);
+    return;
+  }
 
   const modifiedChunks = reusableModifiedChunks;
   modifiedChunks.length = modifiedChunkCount;
