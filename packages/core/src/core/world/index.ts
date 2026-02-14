@@ -5161,8 +5161,9 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
         geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
         geometry.setAttribute("light", new BufferAttribute(lights, 1));
         geometry.setIndex(new BufferAttribute(indices, 1));
-        if (geo.normals && geo.normals.length > 0) {
-          geometry.setAttribute("normal", new BufferAttribute(geo.normals, 3));
+        const normals = geo.normals;
+        if (normals && normals.length > 0) {
+          geometry.setAttribute("normal", new BufferAttribute(normals, 3));
         } else {
           computeFlatNormals(geometry);
         }
@@ -5266,8 +5267,9 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
         geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
         geometry.setAttribute("light", new BufferAttribute(lights, 1));
         geometry.setIndex(new BufferAttribute(indices, 1));
-        if (geo.normals && geo.normals.length > 0) {
-          geometry.setAttribute("normal", new BufferAttribute(geo.normals, 3));
+        const normals = geo.normals;
+        if (normals && normals.length > 0) {
+          geometry.setAttribute("normal", new BufferAttribute(normals, 3));
         } else {
           computeFlatNormals(geometry);
         }
