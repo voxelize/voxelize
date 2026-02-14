@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   AABB,
   BLOCK_RULE_NONE,
+  BlockFace,
   BlockRotation,
   BlockRuleEvaluator,
   BlockRuleLogic,
@@ -14,6 +15,9 @@ import {
   Y_ROT_MAP,
   Y_ROT_MAP_EIGHT,
   Y_ROT_MAP_FOUR,
+  createBlockConditionalPart,
+  createCornerData,
+  createUV,
   toSaturatedUint32,
   lightColorFromIndex,
   Voxel,
@@ -457,6 +461,72 @@ describe("Numeric helpers", () => {
     expect(toSaturatedUint32(-5)).toBe(0);
     expect(toSaturatedUint32(12.9)).toBe(12);
     expect(toSaturatedUint32(0xffffffff + 1)).toBe(0xffffffff);
+  });
+});
+
+describe("Type builders", () => {
+  it("creates UV ranges with defaults and explicit values", () => {
+    expect(createUV()).toEqual({
+      startU: 0,
+      endU: 0,
+      startV: 0,
+      endV: 0,
+    });
+    expect(createUV(1, 2, 3, 4)).toEqual({
+      startU: 1,
+      endU: 2,
+      startV: 3,
+      endV: 4,
+    });
+  });
+
+  it("clones corner vector inputs", () => {
+    const pos: [number, number, number] = [1, 2, 3];
+    const uv: [number, number] = [0.25, 0.75];
+    const corner = createCornerData(pos, uv);
+    pos[0] = 9;
+    uv[0] = 0;
+
+    expect(corner).toEqual({
+      pos: [1, 2, 3],
+      uv: [0.25, 0.75],
+    });
+  });
+
+  it("normalizes and recomputes BlockFace nameLower", () => {
+    const face = new BlockFace({ name: "TopFace" });
+    expect(face.nameLower).toBe("topface");
+    expect(face.getNameLower()).toBe("topface");
+
+    face.name = "NewFace";
+    face.computeNameLower();
+    expect(face.nameLower).toBe("newface");
+    expect(face.getNameLower()).toBe("newface");
+
+    face.nameLower = "";
+    expect(face.getNameLower()).toBe("NewFace");
+  });
+
+  it("clones block face corner arrays on construction", () => {
+    const firstCorner = createCornerData([0, 0, 0], [0, 0]);
+    const face = new BlockFace({
+      name: "Front",
+      corners: [firstCorner, firstCorner, firstCorner, firstCorner],
+    });
+    firstCorner.pos[0] = 10;
+    firstCorner.uv[0] = 1;
+
+    expect(face.corners[0].pos[0]).toBe(0);
+    expect(face.corners[0].uv[0]).toBe(0);
+  });
+
+  it("builds conditional parts with deterministic defaults", () => {
+    const part = createBlockConditionalPart({});
+    expect(part.rule).toEqual(BLOCK_RULE_NONE);
+    expect(part.faces).toEqual([]);
+    expect(part.aabbs).toEqual([]);
+    expect(part.isTransparent).toEqual([false, false, false, false, false, false]);
+    expect(part.worldSpace).toBe(false);
   });
 });
 
