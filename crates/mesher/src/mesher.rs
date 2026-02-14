@@ -2446,7 +2446,8 @@ where
             let mut matched_rule = false;
 
             for part in &pattern.parts {
-                let rotation_trig = if part.world_space {
+                let world_space = part.world_space;
+                let rotation_trig = if world_space {
                     None
                 } else {
                     if !local_rotation_trig_ready {
@@ -2469,7 +2470,7 @@ where
                 if rule_result {
                     matched_rule = true;
                     for face in &part.faces {
-                        visitor(face, part.world_space);
+                        visitor(face, world_space);
                     }
                 }
             }
