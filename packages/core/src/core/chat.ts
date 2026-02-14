@@ -474,6 +474,17 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     const hasBooleanKeys = booleanKeys.size > 0;
     const hasEquals = raw.indexOf("=") >= 0;
 
+    if (!hasBooleanKeys && !hasEquals) {
+      const assignCount =
+        wordsLength < positionalKeys.length ? wordsLength : positionalKeys.length;
+      for (let keyIndex = 0; keyIndex < assignCount; keyIndex++) {
+        const key = positionalKeys[keyIndex];
+        rawObjKeys.push(key);
+        rawObj[key] = words[keyIndex];
+      }
+      return schema.parse(rawObj);
+    }
+
     if (!hasBooleanKeys) {
       if (!hasEquals) {
         for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
