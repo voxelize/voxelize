@@ -16,26 +16,31 @@ fn should_update_position(dx: f32, dy: f32, dz: f32) -> bool {
 }
 
 #[inline]
-fn sync_position(tree: &mut KdTree, ent: specs::Entity, pos: &Vec3<f32>, is_player: bool) {
-    if let Some(old_pos) = tree.get_position_for_kind(ent, is_player) {
+fn sync_entity_position(tree: &mut KdTree, ent: specs::Entity, pos: &Vec3<f32>) {
+    if let Some(old_pos) = tree.get_entity_position(ent) {
         let dx = pos.0 - old_pos[0];
         let dy = pos.1 - old_pos[1];
         let dz = pos.2 - old_pos[2];
         if should_update_position(dx, dy, dz) {
-            if is_player {
-                tree.update_player(ent, pos);
-            } else {
-                tree.update_entity(ent, pos);
-            }
+            tree.update_entity(ent, pos);
         }
         return;
     }
+    tree.add_entity(ent, pos);
+}
 
-    if is_player {
-        tree.add_player(ent, pos);
-    } else {
-        tree.add_entity(ent, pos);
+#[inline]
+fn sync_player_position(tree: &mut KdTree, ent: specs::Entity, pos: &Vec3<f32>) {
+    if let Some(old_pos) = tree.get_player_position(ent) {
+        let dx = pos.0 - old_pos[0];
+        let dy = pos.1 - old_pos[1];
+        let dz = pos.2 - old_pos[2];
+        if should_update_position(dx, dy, dz) {
+            tree.update_player(ent, pos);
+        }
+        return;
     }
+    tree.add_player(ent, pos);
 }
 
 impl<'a> System<'a> for EntityTreeSystem {
@@ -72,10 +77,10 @@ impl<'a> System<'a> for EntityTreeSystem {
             current_ids.insert(ent.id());
 
             if entity_flag.is_some() {
-                sync_position(&mut tree, ent, &pos.0, false);
+                sync_entity_position(&mut tree, ent, &pos.0);
             }
             if client_flag.is_some() {
-                sync_position(&mut tree, ent, &pos.0, true);
+                sync_player_position(&mut tree, ent, &pos.0);
             }
         }
 

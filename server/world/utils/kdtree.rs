@@ -167,6 +167,14 @@ impl KdTree {
     }
 
     #[inline]
+    fn get_position_if_kind(&self, ent: Entity, kind: EntityKind) -> Option<[f32; 3]> {
+        if self.kind_map.get(&ent.id()) != Some(&kind) {
+            return None;
+        }
+        self.all.positions.get(&ent.id()).copied()
+    }
+
+    #[inline]
     fn collect_entities_with_distance<'a>(
         &'a self,
         results: &[(f32, EntityId)],
@@ -271,16 +279,12 @@ impl KdTree {
         self.kind_map.get(&ent.id()) == Some(&EntityKind::Entity)
     }
 
-    pub fn get_position_for_kind(&self, ent: Entity, is_player: bool) -> Option<[f32; 3]> {
-        let expected_kind = if is_player {
-            EntityKind::Player
-        } else {
-            EntityKind::Entity
-        };
-        if self.kind_map.get(&ent.id()) != Some(&expected_kind) {
-            return None;
-        }
-        self.all.positions.get(&ent.id()).copied()
+    pub fn get_player_position(&self, ent: Entity) -> Option<[f32; 3]> {
+        self.get_position_if_kind(ent, EntityKind::Player)
+    }
+
+    pub fn get_entity_position(&self, ent: Entity) -> Option<[f32; 3]> {
+        self.get_position_if_kind(ent, EntityKind::Entity)
     }
 
     pub fn len(&self) -> usize {
