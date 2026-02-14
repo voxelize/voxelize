@@ -667,34 +667,18 @@ pub fn process_light_batch_fast(
     }
 
     if !flood_nodes.is_empty() {
-        match light_color {
-            LightColor::Sunlight => {
-                for node in &flood_nodes {
-                    let [vx, vy, vz] = node.voxel;
-                    let raw = space.get_raw_light(vx, vy, vz);
-                    space.set_raw_light(vx, vy, vz, LightUtils::insert_sunlight(raw, node.level));
-                }
-            }
-            LightColor::Red => {
-                for node in &flood_nodes {
-                    let [vx, vy, vz] = node.voxel;
-                    let raw = space.get_raw_light(vx, vy, vz);
-                    space.set_raw_light(vx, vy, vz, LightUtils::insert_red_light(raw, node.level));
-                }
-            }
-            LightColor::Green => {
-                for node in &flood_nodes {
-                    let [vx, vy, vz] = node.voxel;
-                    let raw = space.get_raw_light(vx, vy, vz);
-                    space.set_raw_light(vx, vy, vz, LightUtils::insert_green_light(raw, node.level));
-                }
-            }
-            LightColor::Blue => {
-                for node in &flood_nodes {
-                    let [vx, vy, vz] = node.voxel;
-                    let raw = space.get_raw_light(vx, vy, vz);
-                    space.set_raw_light(vx, vy, vz, LightUtils::insert_blue_light(raw, node.level));
-                }
+        let insert_light: fn(u32, u32) -> u32 = match light_color {
+            LightColor::Sunlight => LightUtils::insert_sunlight,
+            LightColor::Red => LightUtils::insert_red_light,
+            LightColor::Green => LightUtils::insert_green_light,
+            LightColor::Blue => LightUtils::insert_blue_light,
+        };
+        for node in &flood_nodes {
+            let [vx, vy, vz] = node.voxel;
+            let raw = space.get_raw_light(vx, vy, vz);
+            let updated = insert_light(raw, node.level);
+            if updated != raw {
+                space.set_raw_light(vx, vy, vz, updated);
             }
         }
 
