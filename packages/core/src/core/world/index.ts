@@ -869,6 +869,7 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
   private meshJobKeys: string[] = [];
   private meshWorkerPromises: Array<Promise<GeometryProtocol[] | null>> = [];
   private meshJobArrayCapacity = 0;
+  private mergeGeometriesBuffer: BufferGeometry[] = [];
   private emitServerUpdateBlockCache = new Map<number, Block>();
   private applyServerUpdateBlockCache = new Map<number, Block>();
   private processLightUpdateBlockCache = new Map<number, Block>();
@@ -5221,7 +5222,8 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
           finalGeometry = geoMats[0].geometry;
         } else {
           const geoCount = geoMats.length;
-          const geos = new Array<BufferGeometry>(geoCount);
+          const geos = this.mergeGeometriesBuffer;
+          geos.length = geoCount;
           for (let i = 0; i < geoCount; i++) {
             geos[i] = geoMats[i].geometry;
           }
@@ -5230,11 +5232,13 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
             for (let i = 0; i < geoCount; i++) {
               geos[i].dispose();
             }
+            geos.length = 0;
             continue;
           }
           for (let i = 0; i < geoCount; i++) {
             geos[i].dispose();
           }
+          geos.length = 0;
           finalGeometry = merged;
         }
 
