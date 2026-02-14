@@ -136,6 +136,7 @@ const reusableModifiedChunks: WorkerModifiedChunk[] = [];
 const reusableTransferBuffers: ArrayBuffer[] = [];
 const reusableSerializedChunks: SerializedWasmChunk[] = [];
 const reusableChunkGrid: (RawChunk | null)[] = [];
+const reusableChunkValiditySparse = new Map<number, boolean>();
 const emptyModifiedChunks: WorkerModifiedChunk[] = [];
 const emptyChunkGrid: (RawChunk | null)[] = [];
 const emptyDeltaBatches: DeltaBatch[] = [];
@@ -502,8 +503,11 @@ const hasPotentialRelevantDeltaBatches = (
       : null;
   const chunkValiditySparse =
     chunkValidity === null && deltaBatches.length > 1
-      ? new Map<number, boolean>()
+      ? reusableChunkValiditySparse
       : null;
+  if (chunkValiditySparse) {
+    chunkValiditySparse.clear();
+  }
   for (let batchIndex = 0; batchIndex < deltaBatches.length; batchIndex++) {
     const deltaBatch = deltaBatches[batchIndex];
     if (!deltaBatch || typeof deltaBatch !== "object") {
@@ -609,10 +613,16 @@ const hasPotentialRelevantDeltaBatches = (
         const deltaChunkX = mapVoxelToChunkCoordinate(vx, chunkSize, chunkShift);
         const deltaChunkZ = mapVoxelToChunkCoordinate(vz, chunkSize, chunkShift);
         if (deltaChunkX === cx && deltaChunkZ === cz) {
+          if (chunkValiditySparse) {
+            chunkValiditySparse.clear();
+          }
           return true;
         }
       }
     }
+  }
+  if (chunkValiditySparse) {
+    chunkValiditySparse.clear();
   }
   return false;
 };
