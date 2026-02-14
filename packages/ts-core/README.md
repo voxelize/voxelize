@@ -76,8 +76,8 @@ const voxel = Voxel.pack({
     identity before offset checks and snaps large-angle precision drift near
     segment boundaries (with bounded snap tolerance to avoid over-rotation)
 - `createBlockConditionalPart`
-  - defensively clones rule and array inputs to avoid external mutation side
-    effects after construction
+  - defensively clones rule, face, AABB, and transparency-array inputs to
+    avoid external mutation side effects after construction
 - `VoxelAccess`
   - interface contract for meshing/generation-style data access
 
