@@ -344,6 +344,30 @@ const drainPendingBatchMessagesAsEmptyResults = () => {
   pendingBatchMessagesHead = 0;
 };
 
+const hasPotentialRelevantDeltaBatches = (deltaBatches: DeltaBatch[]) => {
+  for (let batchIndex = 0; batchIndex < deltaBatches.length; batchIndex++) {
+    const deltaBatch = deltaBatches[batchIndex];
+    if (!deltaBatch || typeof deltaBatch !== "object") {
+      continue;
+    }
+    const deltas = deltaBatch.deltas;
+    if (!Array.isArray(deltas) || deltas.length === 0) {
+      continue;
+    }
+    const startIndexValue = deltaBatch.startIndex;
+    const startIndex =
+      startIndexValue !== undefined &&
+      isInteger(startIndexValue) &&
+      startIndexValue > 0
+        ? startIndexValue
+        : 0;
+    if (startIndex < deltas.length) {
+      return true;
+    }
+  }
+  return false;
+};
+
 const postEmptyBatchResult = (jobId: string, lastSequenceId = 0) => {
   const appliedDeltas = getAppliedDeltasPayload(lastSequenceId);
   reusableBatchResultMessage.jobId = jobId;
@@ -866,7 +890,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
   const deltaBatches = Array.isArray(relevantDeltas)
     ? relevantDeltas
     : emptyDeltaBatches;
-  const hasPotentialRelevantDelta = deltaBatches.length > 0;
+  const hasPotentialRelevantDelta =
+    deltaBatches.length > 0 && hasPotentialRelevantDeltaBatches(deltaBatches);
   const chunkGrid = hasPotentialRelevantDelta ? reusableChunkGrid : emptyChunkGrid;
 
   if (!hasPotentialRelevantDelta) {
