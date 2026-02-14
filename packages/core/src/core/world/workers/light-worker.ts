@@ -389,8 +389,22 @@ const hasPotentialRelevantDeltaBatches = (
       startIndexValue > 0
         ? startIndexValue
         : 0;
-    if (startIndex < deltas.length) {
-      return true;
+    for (let deltaIndex = startIndex; deltaIndex < deltas.length; deltaIndex++) {
+      const delta = deltas[deltaIndex];
+      if (!delta || typeof delta !== "object") {
+        continue;
+      }
+      const coords = delta.coords;
+      if (!Array.isArray(coords) || coords.length < 3) {
+        continue;
+      }
+      if (
+        isInteger(coords[0]) &&
+        isInteger(coords[1]) &&
+        isInteger(coords[2])
+      ) {
+        return true;
+      }
     }
   }
   return false;
