@@ -65,9 +65,9 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                         let dist = ChunkUtils::distance_squared(&request.center, &coords);
                         let direction_to_chunk =
                             Vec2(coords.0 - request.center.0, coords.1 - request.center.1);
-                        let mag = (direction_to_chunk.0.pow(2) as f32
-                            + direction_to_chunk.1.pow(2) as f32)
-                            .sqrt();
+                        let dx = f64::from(direction_to_chunk.0);
+                        let dz = f64::from(direction_to_chunk.1);
+                        let mag = dx.mul_add(dx, dz * dz).sqrt() as f32;
                         if mag <= f32::EPSILON {
                             continue;
                         }
