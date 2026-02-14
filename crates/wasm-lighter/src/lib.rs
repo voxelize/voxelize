@@ -486,9 +486,6 @@ fn compute_expected_chunk_sizes(
     if expected_chunk_count > MAX_LIGHT_BATCH_CHUNK_COUNT {
         return None;
     }
-    if expected_chunk_count > MAX_JS_TYPED_ARRAY_LENGTH {
-        return None;
-    }
     Some((expected_chunk_len, expected_chunk_count))
 }
 
