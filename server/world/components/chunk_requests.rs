@@ -12,6 +12,13 @@ pub struct ChunkRequestsComp {
     pub requests: Vec<Vec2<i32>>,
 }
 
+#[inline]
+fn manhattan_distance(a: &Vec2<i32>, b: &Vec2<i32>) -> u64 {
+    (i64::from(a.0) - i64::from(b.0))
+        .unsigned_abs()
+        .saturating_add((i64::from(a.1) - i64::from(b.1)).unsigned_abs())
+}
+
 impl ChunkRequestsComp {
     /// Create a component of a new list of chunk requests.
     pub fn new() -> Self {
@@ -39,8 +46,8 @@ impl ChunkRequestsComp {
 
     pub fn sort(&mut self) {
         self.requests.sort_by(|a, b| {
-            let a_dist = (a.0 - self.center.0).abs() + (a.1 - self.center.1).abs();
-            let b_dist = (b.0 - self.center.0).abs() + (b.1 - self.center.1).abs();
+            let a_dist = manhattan_distance(a, &self.center);
+            let b_dist = manhattan_distance(b, &self.center);
 
             a_dist.cmp(&b_dist)
         });
@@ -49,5 +56,34 @@ impl ChunkRequestsComp {
     /// Remove a chunk from the list of chunks requested.
     pub fn remove(&mut self, coords: &Vec2<i32>) {
         self.requests.retain(|c| c != coords);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{manhattan_distance, ChunkRequestsComp};
+    use crate::Vec2;
+
+    #[test]
+    fn manhattan_distance_handles_i32_extremes() {
+        let dist = manhattan_distance(&Vec2(i32::MIN, i32::MIN), &Vec2(i32::MAX, i32::MAX));
+        assert_eq!(dist, 8_589_934_590);
+    }
+
+    #[test]
+    fn sort_orders_requests_with_extreme_coordinates() {
+        let mut requests = ChunkRequestsComp::new();
+        requests.center = Vec2(i32::MAX, i32::MAX);
+        requests.requests = vec![
+            Vec2(i32::MIN, i32::MIN),
+            Vec2(i32::MAX - 1, i32::MAX),
+            Vec2(i32::MAX, i32::MAX - 1),
+        ];
+
+        requests.sort();
+
+        assert_eq!(requests.requests[0], Vec2(i32::MAX - 1, i32::MAX));
+        assert_eq!(requests.requests[1], Vec2(i32::MAX, i32::MAX - 1));
+        assert_eq!(requests.requests[2], Vec2(i32::MIN, i32::MIN));
     }
 }
