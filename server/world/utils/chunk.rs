@@ -98,12 +98,15 @@ impl ChunkUtils {
     /// Map a voxel coordinate to a chunk local coordinate.
     pub fn map_voxel_to_chunk_local(vx: i32, vy: i32, vz: i32, chunk_size: usize) -> Vec3<usize> {
         let cs = normalized_chunk_size(chunk_size);
+        let ly = if vy < 0 { 0 } else { vy as usize };
+        if cs == 1 {
+            return Vec3(0, ly, 0);
+        }
         let (lx, lz) = if let Some(mask) = chunk_mask_if_power_of_two(cs) {
             ((vx & mask) as usize, (vz & mask) as usize)
         } else {
             (vx.rem_euclid(cs) as usize, vz.rem_euclid(cs) as usize)
         };
-        let ly = if vy < 0 { 0 } else { vy as usize };
 
         Vec3(lx, ly, lz)
     }
@@ -162,6 +165,14 @@ mod tests {
         assert_eq!(lx, 15);
         assert_eq!(ly, 7);
         assert_eq!(lz, 15);
+    }
+
+    #[test]
+    fn map_voxel_to_chunk_local_with_unit_chunks_is_always_zero_xz() {
+        let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(i32::MAX, 9, i32::MIN, 1);
+        assert_eq!(lx, 0);
+        assert_eq!(ly, 9);
+        assert_eq!(lz, 0);
     }
 
     #[test]
