@@ -387,34 +387,28 @@ impl VoxelAccess for Space {
             return false;
         }
         let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, self.options.chunk_size);
-        let has_lights = self.lights.contains_key(&coords);
-        let has_voxels = self.voxels.contains_key(&coords);
-        let has_height_maps = self.height_maps.contains_key(&coords);
-        if !has_lights && !has_voxels && !has_height_maps {
+        let lights = self.lights.get(&coords);
+        let voxels = self.voxels.get(&coords);
+        let height_map = self.height_maps.get(&coords);
+        if lights.is_none() && voxels.is_none() && height_map.is_none() {
             return false;
         }
 
         let Vec3(lx, ly, lz) =
             ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, self.options.chunk_size);
-        if has_lights {
-            if let Some(lights) = self.lights.get(&coords) {
-                if lights.contains(&[lx, ly, lz]) {
-                    return true;
-                }
+        if let Some(lights) = lights {
+            if lights.contains(&[lx, ly, lz]) {
+                return true;
             }
         }
-        if has_voxels {
-            if let Some(voxels) = self.voxels.get(&coords) {
-                if voxels.contains(&[lx, ly, lz]) {
-                    return true;
-                }
+        if let Some(voxels) = voxels {
+            if voxels.contains(&[lx, ly, lz]) {
+                return true;
             }
         }
-        if has_height_maps {
-            if let Some(height_map) = self.height_maps.get(&coords) {
-                if height_map.contains(&[lx, lz]) {
-                    return true;
-                }
+        if let Some(height_map) = height_map {
+            if height_map.contains(&[lx, lz]) {
+                return true;
             }
         }
         false
