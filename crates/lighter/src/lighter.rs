@@ -447,12 +447,25 @@ pub fn propagate(
                 let raw_voxel = space.get_raw_voxel(vx, y, vz);
                 let block = registry.get_block_by_id(raw_voxel & 0xFFFF);
                 if block.is_light {
-                    let red_level =
-                        block.get_torch_light_level_at_xyz(vx, y, vz, space, &LightColor::Red);
-                    let green_level =
-                        block.get_torch_light_level_at_xyz(vx, y, vz, space, &LightColor::Green);
-                    let blue_level =
-                        block.get_torch_light_level_at_xyz(vx, y, vz, space, &LightColor::Blue);
+                    let has_dynamic_red = block.has_dynamic_torch_color(&LightColor::Red);
+                    let has_dynamic_green = block.has_dynamic_torch_color(&LightColor::Green);
+                    let has_dynamic_blue = block.has_dynamic_torch_color(&LightColor::Blue);
+
+                    let red_level = if has_dynamic_red {
+                        block.get_torch_light_level_at_xyz(vx, y, vz, space, &LightColor::Red)
+                    } else {
+                        block.red_light_level
+                    };
+                    let green_level = if has_dynamic_green {
+                        block.get_torch_light_level_at_xyz(vx, y, vz, space, &LightColor::Green)
+                    } else {
+                        block.green_light_level
+                    };
+                    let blue_level = if has_dynamic_blue {
+                        block.get_torch_light_level_at_xyz(vx, y, vz, space, &LightColor::Blue)
+                    } else {
+                        block.blue_light_level
+                    };
 
                     if red_level > 0 {
                         space.set_red_light(vx, y, vz, red_level);
