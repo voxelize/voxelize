@@ -45,6 +45,16 @@ type DecodedEvent = {
   payload?: JsonValue;
 };
 
+const pushTransferableBuffer = (
+  transferables: ArrayBuffer[],
+  view: ArrayBufferView
+) => {
+  const { buffer } = view;
+  if (buffer instanceof ArrayBuffer) {
+    transferables.push(buffer);
+  }
+};
+
 export type DecodedMessage = Record<string, JsonValue | object | undefined> & {
   type: number | string;
   json?: JsonValue;
@@ -90,7 +100,7 @@ function decompressToUint32Array(
     bytes.byteOffset,
     bytes.byteLength / 4
   );
-  transferables.push(result.buffer as ArrayBuffer);
+  pushTransferableBuffer(transferables, result);
   return result;
 }
 
@@ -107,7 +117,7 @@ function decompressToInt32Array(
     bytes.byteLength / 4
   );
   if (transferables) {
-    transferables.push(result.buffer as ArrayBuffer);
+    pushTransferableBuffer(transferables, result);
   }
   return result;
 }
@@ -124,7 +134,7 @@ function decompressToFloat32Array(
     bytes.byteOffset,
     bytes.byteLength / 4
   );
-  transferables.push(result.buffer as ArrayBuffer);
+  pushTransferableBuffer(transferables, result);
   return result;
 }
 
@@ -237,7 +247,7 @@ export function decodeMessage(
                     indices[idx] = decompressedI32[idx];
                   }
                   geo.indices = indices;
-                  transferables.push(indices.buffer as ArrayBuffer);
+                  pushTransferableBuffer(transferables, indices);
                 }
                 if (geo.lights instanceof Uint8Array) {
                   geo.lights = decompressToInt32Array(
