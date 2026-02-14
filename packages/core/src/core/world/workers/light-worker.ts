@@ -132,6 +132,7 @@ const emptyTransferList: Transferable[] = [];
 const reusableModifiedChunks: WorkerModifiedChunk[] = [];
 const reusableTransferBuffers: ArrayBuffer[] = [];
 const reusableSerializedChunks: SerializedWasmChunk[] = [];
+const reusableChunkGrid: (RawChunk | null)[] = [];
 const reusableChunkShape: [number, number, number] = [0, 0, 0];
 const reusablePostMessageOptions: StructuredSerializeOptions = {
   transfer: emptyTransferList,
@@ -248,10 +249,11 @@ const colorToIndex = (color: LightColor): number => {
 const deserializeChunkGrid = (
   chunksData: (SerializedRawChunk | null)[],
   gridWidth: number,
-  gridDepth: number
-): { chunkGrid: (RawChunk | null)[]; hasAnyChunk: boolean } => {
+  gridDepth: number,
+  chunkGrid: (RawChunk | null)[]
+): boolean => {
   const cellCount = gridWidth * gridDepth;
-  const chunkGrid: (RawChunk | null)[] = new Array(cellCount);
+  chunkGrid.length = cellCount;
   let hasAnyChunk = false;
 
   for (let index = 0; index < cellCount; index++) {
@@ -265,7 +267,7 @@ const deserializeChunkGrid = (
     chunkGrid[index] = RawChunk.deserialize(chunkData);
   }
 
-  return { chunkGrid, hasAnyChunk };
+  return hasAnyChunk;
 };
 
 const applyRelevantDeltas = (
@@ -434,12 +436,17 @@ const processBatchMessage = (message: LightBatchMessage) => {
       return;
     }
   } else {
-    const result = deserializeChunkGrid(chunksData, gridWidth, gridDepth);
-    if (!result.hasAnyChunk) {
+    const chunkGrid = reusableChunkGrid;
+    const hasAnyChunk = deserializeChunkGrid(
+      chunksData,
+      gridWidth,
+      gridDepth,
+      chunkGrid
+    );
+    if (!hasAnyChunk) {
       postEmptyBatchResult(jobId, 0);
       return;
     }
-    const { chunkGrid } = result;
     lastSequenceId = applyRelevantDeltas(
       chunkGrid,
       gridWidth,
@@ -455,6 +462,7 @@ const processBatchMessage = (message: LightBatchMessage) => {
       chunkShape,
       serializedChunks
     );
+    chunkGrid.length = 0;
   }
 
   reusableBoundsMin[0] = boundingBox.min[0];
