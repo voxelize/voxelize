@@ -439,10 +439,12 @@ fn smooth_path(path: &mut Vec<Vec3<i32>>, chunks: &Chunks, registry: &Registry, 
     let simplified = rdp_simplify(path, EPSILON);
 
     let mut validated_path = vec![simplified[0].clone()];
+    let mut from_original_idx = 0usize;
 
     for i in 1..simplified.len() {
-        let from = validated_path[validated_path.len() - 1].clone();
         let to = simplified[i].clone();
+        let to_original_idx = find_path_index_from(path, from_original_idx, &to);
+        let from = path[from_original_idx].clone();
 
         let turn_angle = if validated_path.len() >= 2 {
             let prev = validated_path[validated_path.len() - 2].clone();
@@ -452,10 +454,7 @@ fn smooth_path(path: &mut Vec<Vec3<i32>>, chunks: &Chunks, registry: &Registry, 
         };
 
         if turn_angle > MAX_TURN_ANGLE {
-            let original_idx = path.iter().position(|p| *p == from).unwrap_or(0);
-            let next_original_idx = path.iter().position(|p| *p == to).unwrap_or(path.len() - 1);
-
-            for idx in (original_idx + 1)..next_original_idx {
+            for idx in (from_original_idx + 1)..to_original_idx {
                 if idx < path.len() {
                     validated_path.push(path[idx].clone());
                 }
@@ -465,20 +464,34 @@ fn smooth_path(path: &mut Vec<Vec3<i32>>, chunks: &Chunks, registry: &Registry, 
         if can_walk_directly_with_clearance(&from, &to, chunks, registry, height) {
             validated_path.push(to.clone());
         } else {
-            let original_idx = path.iter().position(|p| *p == from).unwrap_or(0);
-            let next_original_idx = path.iter().position(|p| *p == to).unwrap_or(path.len() - 1);
-
-            for idx in (original_idx + 1)..=next_original_idx {
+            for idx in (from_original_idx + 1)..=to_original_idx {
                 if idx < path.len() {
                     validated_path.push(path[idx].clone());
                 }
             }
         }
+
+        from_original_idx = to_original_idx;
     }
 
     if validated_path.len() >= 2 {
         *path = validated_path;
     }
+}
+
+#[inline]
+fn find_path_index_from(path: &[Vec3<i32>], start_idx: usize, point: &Vec3<i32>) -> usize {
+    if path.is_empty() {
+        return 0;
+    }
+    let mut index = start_idx.min(path.len() - 1);
+    while index < path.len() {
+        if path[index] == *point {
+            return index;
+        }
+        index += 1;
+    }
+    path.len() - 1
 }
 
 fn rdp_simplify(points: &[Vec3<i32>], epsilon: f32) -> Vec<Vec3<i32>> {
@@ -786,7 +799,8 @@ fn is_position_walkable(
 mod tests {
     use super::{
         axis_delta_i64, clamp_f64_to_i32, clamp_usize_to_u32, clamped_height_scan_steps,
-        floor_f32_to_i32, normalized_max_depth_search, squared_voxel_distance_f64,
+        find_path_index_from, floor_f32_to_i32, normalized_max_depth_search,
+        squared_voxel_distance_f64,
     };
     use crate::Vec3;
 
@@ -838,5 +852,13 @@ mod tests {
         assert_eq!(normalized_max_depth_search(-10), 0);
         assert_eq!(normalized_max_depth_search(0), 0);
         assert_eq!(normalized_max_depth_search(25), 25);
+    }
+
+    #[test]
+    fn find_path_index_from_scans_forward_and_falls_back_to_end() {
+        let path = vec![Vec3(0, 0, 0), Vec3(1, 0, 0), Vec3(2, 0, 0)];
+        assert_eq!(find_path_index_from(&path, 0, &Vec3(1, 0, 0)), 1);
+        assert_eq!(find_path_index_from(&path, 2, &Vec3(0, 0, 0)), 2);
+        assert_eq!(find_path_index_from(&path, usize::MAX, &Vec3(5, 0, 0)), 2);
     }
 }
