@@ -370,7 +370,7 @@ fn parse_chunks(
 
             if !has_any_chunk {
                 chunks = Vec::with_capacity(expected_chunk_count);
-                chunks.resize_with(index, || None);
+                chunks.resize(index, None);
                 has_any_chunk = true;
             }
             chunks.push(Some(ChunkData {
@@ -383,7 +383,7 @@ fn parse_chunks(
             return (Vec::new(), false);
         }
         if chunks.len() < expected_chunk_count {
-            chunks.resize_with(expected_chunk_count, || None);
+            chunks.resize(expected_chunk_count, None);
         }
         (chunks, true)
     })
