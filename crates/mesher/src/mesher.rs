@@ -2073,7 +2073,7 @@ fn extract_greedy_quads_dense_into(
 
 #[inline(always)]
 fn quads_capacity_hint(estimated_cells: usize) -> usize {
-    (estimated_cells / 2).max(16)
+    (estimated_cells / 4).max(16)
 }
 
 #[inline(always)]
