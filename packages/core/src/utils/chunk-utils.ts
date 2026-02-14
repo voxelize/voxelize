@@ -4,18 +4,11 @@ const MIN_INT32 = -0x80000000;
 const MAX_INT32 = 0x7fffffff;
 
 const getChunkShiftIfPowerOfTwo = (chunkSize: number) => {
-  if (
-    !Number.isSafeInteger(chunkSize) ||
-    chunkSize <= 0 ||
-    chunkSize > MAX_INT32
-  ) {
+  if (chunkSize <= 0 || chunkSize > MAX_INT32) {
     return -1;
   }
-  const chunkSizeInt = chunkSize | 0;
-  if (
-    chunkSizeInt !== chunkSize ||
-    (chunkSizeInt & (chunkSizeInt - 1)) !== 0
-  ) {
+  const chunkSizeInt = chunkSize as number;
+  if ((chunkSizeInt & (chunkSizeInt - 1)) !== 0) {
     return -1;
   }
   return 31 - Math.clz32(chunkSizeInt);
