@@ -88,6 +88,19 @@ describe("WorkerPool constructor normalization", () => {
 });
 
 describe("WorkerPool.postMessage transfer cloning", () => {
+  it("broadcasts plain messages to all workers without transfer lists", () => {
+    const pool = new WorkerPool(FakeWorker, { maxWorker: 2 });
+    pool.postMessage({ type: "plain" });
+
+    expect(FakeWorker.instances).toHaveLength(2);
+    for (let index = 0; index < FakeWorker.instances.length; index++) {
+      const worker = FakeWorker.instances[index];
+      expect(worker.posts).toHaveLength(1);
+      expect(worker.posts[0].message).toEqual({ type: "plain" });
+      expect(worker.posts[0].transferOrOptions).toBeUndefined();
+    }
+  });
+
   it("clones a single source buffer per worker", () => {
     const pool = new WorkerPool(FakeWorker, { maxWorker: 3 });
     const source = new Uint8Array([1, 2, 3]).buffer;
