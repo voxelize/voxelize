@@ -82,6 +82,21 @@ const deriveExampleFailureMessage = (exampleCheckResult) => {
       return "TypeScript core end-to-end example produced no parseable JSON output.";
     }
 
+    const payloadIssues = normalizeTsCorePayloadIssues(
+      exampleCheckResult.examplePayloadIssues
+    );
+    if (
+      exampleCheckResult.examplePayloadValid === false &&
+      payloadIssues !== null &&
+      payloadIssues.length > 0
+    ) {
+      return `TypeScript core end-to-end example output was invalid and has missing or invalid required payload fields: ${payloadIssues.join(", ")}.`;
+    }
+
+    if (exampleCheckResult.examplePayloadValid === false) {
+      return "TypeScript core end-to-end example output was invalid and has missing or invalid required payload fields.";
+    }
+
     return "TypeScript core end-to-end example output was invalid.";
   }
 

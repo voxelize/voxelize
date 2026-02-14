@@ -356,6 +356,18 @@ const deriveExpectedExampleFailureMessage = (report: {
       return "TypeScript core end-to-end example produced no parseable JSON output.";
     }
 
+    if (
+      report.examplePayloadValid === false &&
+      report.examplePayloadIssues !== null &&
+      report.examplePayloadIssues.length > 0
+    ) {
+      return `TypeScript core end-to-end example output was invalid and has missing or invalid required payload fields: ${report.examplePayloadIssues.join(", ")}.`;
+    }
+
+    if (report.examplePayloadValid === false) {
+      return "TypeScript core end-to-end example output was invalid and has missing or invalid required payload fields.";
+    }
+
     return "TypeScript core end-to-end example output was invalid.";
   }
 
@@ -1781,14 +1793,68 @@ process.exit(2);\n`,
             exitCode: report.exampleExitCode,
             ruleMatched: report.exampleRuleMatched,
             payloadValid: report.examplePayloadValid,
-          payloadIssues: report.examplePayloadIssues,
-          payloadIssueCount: report.examplePayloadIssueCount,
+            payloadIssues: report.examplePayloadIssues,
+            payloadIssueCount: report.examplePayloadIssueCount,
             outputLine: report.exampleOutputLine,
             message: deriveExpectedExampleFailureMessage(report),
           },
         ]);
         expect(report.message).toBe(
           "TypeScript core build artifacts are available, but TypeScript core end-to-end example output was invalid."
+        );
+      }
+    );
+  });
+
+  it("reports payload issues when ruleMatched is missing and payload is invalid", () => {
+    runWithTemporarilyRewrittenPath(
+      exampleScriptRelativePath,
+      `console.log(
+  JSON.stringify({
+    voxel: { id: 42, stage: 7, rotation: { value: 0, yRotation: 2.356 } },
+    light: { sunlight: 15, red: 16, green: 5, blue: 3 },
+    rotatedAabb: { min: [0, 0, 0], max: [1, 1, 1] },
+  })
+);\n`,
+      () => {
+        const result = runScript(["--json"]);
+        const report = parseReport(result);
+
+        expect(result.status).toBe(1);
+        expect(report.schemaVersion).toBe(1);
+        expect(report.passed).toBe(false);
+        expect(report.exitCode).toBe(1);
+        expect(report.validationErrorCode).toBeNull();
+        expect(report.artifactsPresent).toBe(true);
+        expect(report.missingArtifacts).toEqual([]);
+        expect(report.exampleAttempted).toBe(true);
+        expect(report.exampleStatus).toBe("failed");
+        expect(report.exampleExitCode).toBe(0);
+        expect(report.exampleRuleMatched).toBeNull();
+        expect(report.examplePayloadValid).toBe(false);
+        expect(report.examplePayloadIssues).toEqual(["light.red"]);
+        expect(report.examplePayloadIssueCount).toBe(1);
+        expect(report.failureSummaryCount).toBe(1);
+        expect(report.failureSummaries).toEqual([
+          {
+            kind: "example",
+            packageName: report.checkedPackage,
+            packagePath: report.checkedPackagePath,
+            packageIndex: report.checkedPackageIndices[0],
+            checkCommand: process.execPath,
+            checkArgs: expectedExampleArgs,
+            checkArgCount: expectedExampleArgs.length,
+            exitCode: report.exampleExitCode,
+            ruleMatched: report.exampleRuleMatched,
+            payloadValid: report.examplePayloadValid,
+            payloadIssues: report.examplePayloadIssues,
+            payloadIssueCount: report.examplePayloadIssueCount,
+            outputLine: report.exampleOutputLine,
+            message: deriveExpectedExampleFailureMessage(report),
+          },
+        ]);
+        expect(report.message).toBe(
+          `TypeScript core build artifacts are available, but ${deriveExpectedExampleFailureMessage(report)}`
         );
       }
     );

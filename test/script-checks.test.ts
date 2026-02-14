@@ -3084,6 +3084,18 @@ const deriveExpectedTsCoreExampleFailureMessage = (report: {
       return "TypeScript core end-to-end example produced no parseable JSON output.";
     }
 
+    if (
+      report.examplePayloadValid === false &&
+      report.examplePayloadIssues !== null &&
+      report.examplePayloadIssues.length > 0
+    ) {
+      return `TypeScript core end-to-end example output was invalid and has missing or invalid required payload fields: ${report.examplePayloadIssues.join(", ")}.`;
+    }
+
+    if (report.examplePayloadValid === false) {
+      return "TypeScript core end-to-end example output was invalid and has missing or invalid required payload fields.";
+    }
+
     return "TypeScript core end-to-end example output was invalid.";
   }
 

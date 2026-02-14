@@ -171,6 +171,8 @@ When failures occur, `failureSummaries[]` entries include `kind`:
 If an example reports both `ruleMatched=false` and payload validation issues,
 the failure message includes both conditions for clearer diagnostics. If payload
 fields are valid, the message remains a pure `ruleMatched=false` diagnostic.
+If `ruleMatched` is missing/invalid and payload validation also fails, the
+diagnostic includes the payload issue paths alongside the invalid-output signal.
 A non-zero example `exitCode` always takes precedence and is reported as an
 execution failure, even if the payload itself is otherwise valid.
 If the example exits successfully but no parseable JSON object payload is
