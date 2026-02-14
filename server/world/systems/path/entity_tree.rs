@@ -6,6 +6,12 @@ const POSITION_THRESHOLD_SQ: f32 = 0.01;
 
 pub struct EntityTreeSystem;
 
+#[inline]
+fn should_update_position(dx: f32, dy: f32, dz: f32) -> bool {
+    let dist_sq = dx * dx + dy * dy + dz * dz;
+    !dist_sq.is_finite() || dist_sq > POSITION_THRESHOLD_SQ
+}
+
 impl<'a> System<'a> for EntityTreeSystem {
     type SystemData = (
         Entities<'a>,
@@ -32,8 +38,7 @@ impl<'a> System<'a> for EntityTreeSystem {
                     let dx = pos.0 .0 - old_pos[0];
                     let dy = pos.0 .1 - old_pos[1];
                     let dz = pos.0 .2 - old_pos[2];
-                    let dist_sq = dx * dx + dy * dy + dz * dz;
-                    if dist_sq > POSITION_THRESHOLD_SQ {
+                    if should_update_position(dx, dy, dz) {
                         tree.update_entity(ent, pos.0.clone());
                     }
                 }
@@ -50,8 +55,7 @@ impl<'a> System<'a> for EntityTreeSystem {
                     let dx = pos.0 .0 - old_pos[0];
                     let dy = pos.0 .1 - old_pos[1];
                     let dz = pos.0 .2 - old_pos[2];
-                    let dist_sq = dx * dx + dy * dy + dz * dz;
-                    if dist_sq > POSITION_THRESHOLD_SQ {
+                    if should_update_position(dx, dy, dz) {
                         tree.update_player(ent, pos.0.clone());
                     }
                 }
@@ -61,5 +65,18 @@ impl<'a> System<'a> for EntityTreeSystem {
         }
 
         tree.retain(|ent_id| current_ids.contains(&ent_id));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_update_position;
+
+    #[test]
+    fn should_update_position_rejects_non_finite_distances() {
+        assert!(!should_update_position(0.05, 0.0, 0.0));
+        assert!(should_update_position(0.2, 0.0, 0.0));
+        assert!(should_update_position(f32::NAN, 0.0, 0.0));
+        assert!(should_update_position(f32::INFINITY, 0.0, 0.0));
     }
 }
