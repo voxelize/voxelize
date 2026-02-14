@@ -223,6 +223,47 @@ export class Perspective {
    * This updates the perspective. Internally, if the perspective isn't in first person, it raycasts to find the closest
    * block and then ensures that the camera is not clipping into any blocks.
    */
+  private getDistance() {
+    const { object, camera } = this.controls;
+    const dir = this.raycastDirection;
+    (this.state === "second" ? object : camera).getWorldDirection(dir);
+    dir.normalize();
+    dir.multiplyScalar(-1);
+
+    const pos = this.raycastOrigin;
+    object.getWorldPosition(pos);
+    pos.addScaledVector(dir, this.options.blockMargin);
+
+    const raycastOrigin = this.raycastOriginCoords;
+    raycastOrigin[0] = pos.x;
+    raycastOrigin[1] = pos.y;
+    raycastOrigin[2] = pos.z;
+
+    const raycastDirection = this.raycastDirectionCoords;
+    raycastDirection[0] = dir.x;
+    raycastDirection[1] = dir.y;
+    raycastDirection[2] = dir.z;
+
+    const result = this.world.raycastVoxels(
+      raycastOrigin,
+      raycastDirection,
+      this.options.maxDistance,
+      {
+        ignoreFluids: this.options.ignoreFluids,
+        ignoreSeeThrough: this.options.ignoreSeeThrough,
+      }
+    );
+
+    if (!result) {
+      return this.options.maxDistance;
+    }
+
+    const dx = pos.x - result.point[0];
+    const dy = pos.y - result.point[1];
+    const dz = pos.z - result.point[2];
+    return Math.sqrt(dx * dx + dy * dy + dz * dz);
+  }
+
   update = () => {
     const { object, camera } = this.controls;
 
@@ -242,46 +283,6 @@ export class Perspective {
       }
     }
 
-    const getDistance = () => {
-      const dir = this.raycastDirection;
-      (this.state === "second" ? object : camera).getWorldDirection(dir);
-      dir.normalize();
-      dir.multiplyScalar(-1);
-
-      const pos = this.raycastOrigin;
-      object.getWorldPosition(pos);
-      pos.addScaledVector(dir, this.options.blockMargin);
-
-      const raycastOrigin = this.raycastOriginCoords;
-      raycastOrigin[0] = pos.x;
-      raycastOrigin[1] = pos.y;
-      raycastOrigin[2] = pos.z;
-
-      const raycastDirection = this.raycastDirectionCoords;
-      raycastDirection[0] = dir.x;
-      raycastDirection[1] = dir.y;
-      raycastDirection[2] = dir.z;
-
-      const result = this.world.raycastVoxels(
-        raycastOrigin,
-        raycastDirection,
-        this.options.maxDistance,
-        {
-          ignoreFluids: this.options.ignoreFluids,
-          ignoreSeeThrough: this.options.ignoreSeeThrough,
-        }
-      );
-
-      if (!result) {
-        return this.options.maxDistance;
-      }
-
-      const dx = pos.x - result.point[0];
-      const dy = pos.y - result.point[1];
-      const dz = pos.z - result.point[2];
-      return Math.sqrt(dx * dx + dy * dy + dz * dz);
-    };
-
     switch (this.state) {
       case "first": {
         break;
@@ -289,7 +290,7 @@ export class Perspective {
       case "second": {
         const newPos = this.targetCameraPosition;
         newPos.copy(camera.position);
-        newPos.z = -getDistance();
+        newPos.z = -this.getDistance();
         camera.position.lerp(newPos, this.options.lerpFactor);
         camera.lookAt(object.position);
         break;
@@ -297,7 +298,7 @@ export class Perspective {
       case "third": {
         const newPos = this.targetCameraPosition;
         newPos.copy(camera.position);
-        newPos.z = getDistance();
+        newPos.z = this.getDistance();
         camera.position.lerp(newPos, this.options.lerpFactor);
         break;
       }
