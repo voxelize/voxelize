@@ -58,6 +58,8 @@ inputs (including `null`/non-array values) fall back to `false` defaults.
 `createFaceTransparency` exposes this transparency normalization directly.
 `createBlockRule` normalizes `null` simple-rule optional fields (`id`,
 `rotation`, `stage`) to omitted constraints.
+`createBlockRule` also accepts readonly rule-tree arrays/tuples for literal
+authoring ergonomics.
 Malformed `worldSpace` values fall back to `false`.
 Cyclic rule graphs are sanitized by replacing recursive edges with `none`.
 

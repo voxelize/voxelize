@@ -1370,6 +1370,33 @@ describe("Type builders", () => {
     expect(clonedRule).not.toBe(sourceRule);
   });
 
+  it("accepts readonly rule-tree inputs with createBlockRule", () => {
+    const readonlyRuleTree = {
+      type: "combination" as const,
+      logic: BlockRuleLogic.And,
+      rules: [
+        {
+          type: "simple" as const,
+          offset: [1, 0, 0] as const,
+          id: 5,
+        },
+      ] as const,
+    };
+    const clonedRule = createBlockRule(readonlyRuleTree);
+
+    expect(clonedRule).toEqual({
+      type: "combination",
+      logic: BlockRuleLogic.And,
+      rules: [
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 5,
+        },
+      ],
+    });
+  });
+
   it("sanitizes malformed createBlockRule inputs to none rules", () => {
     const malformedRule = createBlockRule({
       type: "simple",

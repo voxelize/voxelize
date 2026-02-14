@@ -140,6 +140,28 @@ export type BlockRule =
   | ({ type: "simple" } & BlockSimpleRule)
   | { type: "combination"; logic: BlockRuleLogic; rules: BlockRule[] };
 
+export interface BlockRotationInput {
+  value: number;
+  yRotation: number;
+}
+
+export type BlockSimpleRuleInput = {
+  type: "simple";
+  offset: readonly [number, number, number];
+  id?: OptionalRuleValue<number>;
+  rotation?: OptionalRuleValue<BlockRotation | BlockRotationInput>;
+  stage?: OptionalRuleValue<number>;
+};
+
+export type BlockRuleInput =
+  | { type: "none" }
+  | BlockSimpleRuleInput
+  | {
+      type: "combination";
+      logic: BlockRuleLogic;
+      rules: readonly BlockRuleInput[];
+    };
+
 export const BLOCK_RULE_NONE: BlockRule = { type: "none" };
 
 export interface BlockConditionalPart {
@@ -169,7 +191,7 @@ export type FaceTransparencyLike =
   | null;
 
 export interface BlockConditionalPartInput {
-  rule?: BlockRule | null;
+  rule?: BlockRuleInput | null;
   faces?: readonly (BlockFaceInput | null | undefined)[];
   aabbs?: readonly (AABB | null | undefined)[];
   isTransparent?: FaceTransparencyLike;
@@ -395,7 +417,7 @@ const toBlockRule = (
 };
 
 export const createBlockRule = (
-  rule: BlockRule | null | undefined = BLOCK_RULE_NONE
+  rule: BlockRuleInput | null | undefined = BLOCK_RULE_NONE
 ): BlockRule => {
   return toBlockRule(rule);
 };
