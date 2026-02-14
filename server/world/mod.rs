@@ -136,6 +136,35 @@ impl<T> UnsafeSendSync<T> {
     }
 }
 
+#[inline]
+fn clamp_usize_to_i32(value: usize) -> i32 {
+    if value > i32::MAX as usize {
+        i32::MAX
+    } else {
+        value as i32
+    }
+}
+
+#[inline]
+fn preload_light_padding(max_light_level: u32, chunk_size: usize) -> usize {
+    let normalized_chunk_size = chunk_size.max(1);
+    (max_light_level as usize)
+        .saturating_add(normalized_chunk_size.saturating_sub(1))
+        / normalized_chunk_size
+}
+
+#[inline]
+fn preload_check_radius(preload_radius: usize, max_light_level: u32, chunk_size: usize) -> i32 {
+    let light_padding = preload_light_padding(max_light_level, chunk_size);
+    clamp_usize_to_i32(preload_radius.saturating_sub(light_padding))
+}
+
+#[inline]
+fn preload_expected_chunk_count(check_radius: i32) -> i64 {
+    let diameter = i64::from(check_radius).saturating_mul(2).saturating_add(1);
+    diameter.saturating_mul(diameter)
+}
+
 /// A voxelize world.
 pub struct World {
     /// ID of the world, generated from `nanoid!()`.
@@ -1399,7 +1428,7 @@ impl World {
 
     /// Preload the chunks in the world.
     pub(crate) fn preload(&mut self) {
-        let radius = self.config().preload_radius as i32;
+        let radius = clamp_usize_to_i32(self.config().preload_radius);
 
         {
             for x in -radius..=radius {
@@ -1432,13 +1461,14 @@ impl World {
         }
 
         if self.preloading {
-            let light_padding = (self.config().max_light_level as f32
-                / self.config().chunk_size as f32)
-                .ceil() as usize;
-            let check_radius = (self.config().preload_radius - light_padding) as i32;
+            let check_radius = preload_check_radius(
+                self.config().preload_radius,
+                self.config().max_light_level,
+                self.config().chunk_size,
+            );
 
-            let mut total = 0;
-            let supposed = (check_radius * 2).pow(2);
+            let mut total = 0_i64;
+            let supposed = preload_expected_chunk_count(check_radius);
 
             for x in -check_radius..=check_radius {
                 for z in -check_radius..=check_radius {
@@ -1461,7 +1491,11 @@ impl World {
                 }
             }
 
-            self.preload_progress = (total as f32 / supposed as f32).min(1.0);
+            self.preload_progress = if supposed == 0 {
+                1.0
+            } else {
+                (total as f32 / supposed as f32).min(1.0)
+            };
 
             if total >= supposed {
                 self.preloading = false;
@@ -1874,5 +1908,33 @@ impl World {
                 .build(),
             entity_ids,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        preload_check_radius, preload_expected_chunk_count, preload_light_padding,
+    };
+
+    #[test]
+    fn preload_light_padding_uses_integer_ceil_and_zero_chunk_guard() {
+        assert_eq!(preload_light_padding(15, 16), 1);
+        assert_eq!(preload_light_padding(16, 16), 1);
+        assert_eq!(preload_light_padding(15, 0), 15);
+    }
+
+    #[test]
+    fn preload_check_radius_saturates_and_clamps() {
+        assert_eq!(preload_check_radius(0, 15, 16), 0);
+        assert_eq!(preload_check_radius(10, 15, 16), 9);
+        assert_eq!(preload_check_radius(usize::MAX, 0, 1), i32::MAX);
+    }
+
+    #[test]
+    fn preload_expected_chunk_count_matches_inclusive_radius_grid() {
+        assert_eq!(preload_expected_chunk_count(0), 1);
+        assert_eq!(preload_expected_chunk_count(1), 9);
+        assert_eq!(preload_expected_chunk_count(2), 25);
     }
 }
