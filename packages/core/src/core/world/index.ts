@@ -2249,6 +2249,9 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
       if (code >= 65 && code <= 90) {
         return name.toLowerCase();
       }
+      if (code > 127) {
+        return name.toLowerCase();
+      }
     }
     return name;
   }
