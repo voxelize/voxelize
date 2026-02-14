@@ -70,6 +70,8 @@ const side = BlockRotation.PX(Math.PI / 2);
 
 Y-rotation values that are full turns (`±2π` multiples) are normalized to
 identity for node/transparency transforms.
+Non-finite y-rotation values (`NaN`, `Infinity`, `-Infinity`) are also
+normalized to identity for safer runtime behavior.
 
 You can also pass plain rotation-like objects when packing voxels:
 
