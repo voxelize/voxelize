@@ -21,6 +21,13 @@ describe("ChunkUtils.mapVoxelToChunkAt", () => {
     }
   });
 
+  it("keeps floor-division semantics for fractional voxel coordinates", () => {
+    expect(ChunkUtils.mapVoxelToChunkAt(-0.5, 15.9, 16)).toEqual([
+      Math.floor(-0.5 / 16),
+      Math.floor(15.9 / 16),
+    ]);
+  });
+
   it("falls back to floored voxel coords for invalid chunk sizes", () => {
     expect(ChunkUtils.mapVoxelToChunkAt(3.7, -8.2, 0)).toEqual([3, -9]);
     expect(ChunkUtils.mapVoxelToChunkAt(3.7, -8.2, Number.NaN)).toEqual([3, -9]);
