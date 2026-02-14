@@ -83,8 +83,14 @@ const summarizeCheckResult = ({
     return {
       checkLabels: [],
       checkCount: 0,
+      checkIndices: [],
+      checkIndexCount: 0,
+      checkIndexMap: {},
+      checkIndexMapCount: 0,
       checkStatusMap: {},
       checkStatusMapCount: 0,
+      checkStatusCountMap: {},
+      checkStatusCountMapCount: 0,
       checkVersionMap: {},
       checkVersionMapCount: 0,
       checkExitCodeMap: {},
@@ -93,16 +99,31 @@ const summarizeCheckResult = ({
       checkOutputLineMapCount: 0,
       passedChecks: [],
       passedCheckCount: 0,
+      passedCheckIndices: [],
+      passedCheckIndexCount: 0,
+      passedCheckIndexMap: {},
+      passedCheckIndexMapCount: 0,
       failedChecks: [],
       failedCheckCount: 0,
+      failedCheckIndices: [],
+      failedCheckIndexCount: 0,
+      failedCheckIndexMap: {},
+      failedCheckIndexMapCount: 0,
       failureSummaries: [],
       failureSummaryCount: 0,
     };
   }
 
   const checkLabels = [checkName];
+  const checkIndices = [availableCheckIndexMap[checkName]];
+  const checkIndexMap = {
+    [checkName]: availableCheckIndexMap[checkName],
+  };
   const checkStatusMap = {
     [checkName]: status,
+  };
+  const checkStatusCountMap = {
+    [status]: 1,
   };
   const checkVersionMap = {
     [checkName]: version,
@@ -114,7 +135,21 @@ const summarizeCheckResult = ({
     [checkName]: outputLine,
   };
   const passedChecks = status === "ok" ? [checkName] : [];
+  const passedCheckIndices = status === "ok" ? [...checkIndices] : [];
+  const passedCheckIndexMap =
+    status === "ok"
+      ? {
+          ...checkIndexMap,
+        }
+      : {};
   const failedChecks = status === "ok" ? [] : [checkName];
+  const failedCheckIndices = status === "ok" ? [] : [...checkIndices];
+  const failedCheckIndexMap =
+    status === "ok"
+      ? {}
+      : {
+          ...checkIndexMap,
+        };
   const failureSummaries =
     status === "ok"
       ? []
@@ -132,8 +167,14 @@ const summarizeCheckResult = ({
   return {
     checkLabels,
     checkCount: checkLabels.length,
+    checkIndices,
+    checkIndexCount: checkIndices.length,
+    checkIndexMap,
+    checkIndexMapCount: countRecordEntries(checkIndexMap),
     checkStatusMap,
     checkStatusMapCount: countRecordEntries(checkStatusMap),
+    checkStatusCountMap,
+    checkStatusCountMapCount: countRecordEntries(checkStatusCountMap),
     checkVersionMap,
     checkVersionMapCount: countRecordEntries(checkVersionMap),
     checkExitCodeMap,
@@ -142,8 +183,16 @@ const summarizeCheckResult = ({
     checkOutputLineMapCount: countRecordEntries(checkOutputLineMap),
     passedChecks,
     passedCheckCount: passedChecks.length,
+    passedCheckIndices,
+    passedCheckIndexCount: passedCheckIndices.length,
+    passedCheckIndexMap,
+    passedCheckIndexMapCount: countRecordEntries(passedCheckIndexMap),
     failedChecks,
     failedCheckCount: failedChecks.length,
+    failedCheckIndices,
+    failedCheckIndexCount: failedCheckIndices.length,
+    failedCheckIndexMap,
+    failedCheckIndexMapCount: countRecordEntries(failedCheckIndexMap),
     failureSummaries,
     failureSummaryCount: failureSummaries.length,
   };

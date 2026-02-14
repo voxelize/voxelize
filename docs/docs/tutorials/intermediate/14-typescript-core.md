@@ -323,14 +323,22 @@ Each step entry in `steps[]` includes `scriptName`, `supportsNoBuild`, and
 Developer-environment JSON reports include check inventory and partition
 metadata such as `availableChecks`, `availableCheckIndexMap`,
 `availableCheckRequiredMap`, `availableCheckHintMap`,
-`availableCheckMinimumVersionMap`, `checkLabels`, `checkStatusMap`,
-`passedChecks`, `failedChecks`, `requiredFailureLabels`,
-`optionalFailureLabels`, `failureSummaries`, and associated `*Count` fields.
+`availableCheckMinimumVersionMap`, `checkLabels`, `checkIndices`,
+`checkIndexMap`, `checkStatusMap`, `checkStatusCountMap`, `passedChecks`,
+`passedCheckIndices`, `passedCheckIndexMap`, `failedChecks`,
+`failedCheckIndices`, `failedCheckIndexMap`, `requiredFailureLabels`,
+`requiredFailureIndices`, `requiredFailureIndexMap`,
+`optionalFailureLabels`, `optionalFailureIndices`,
+`optionalFailureIndexMap`, `failureSummaries`, and associated `*Count`
+fields.
 WASM-pack JSON reports similarly expose single-check inventory and execution
 metadata such as `availableCheckCommandMap`, `availableCheckArgsMap`,
-`availableCheckArgCountMap`, `checkStatusMap`, `checkVersionMap`,
-`checkExitCodeMap`, `checkOutputLineMap`, `passedChecks`, `failedChecks`,
-`failureSummaries`, and companion `*Count` fields.
+`availableCheckArgCountMap`, `checkIndices`, `checkIndexMap`,
+`checkStatusMap`, `checkStatusCountMap`, `checkVersionMap`,
+`checkExitCodeMap`, `checkOutputLineMap`, `passedChecks`,
+`passedCheckIndices`, `passedCheckIndexMap`, `failedChecks`,
+`failedCheckIndices`, `failedCheckIndexMap`, `failureSummaries`, and
+companion `*Count` fields.
 
 ## API reference
 

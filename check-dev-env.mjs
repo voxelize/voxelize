@@ -127,6 +127,33 @@ const mapChecksToRecord = (checkEntries, resolveValue) => {
     })
   );
 };
+const mapCheckLabelsToIndices = (checkLabels, checkIndexMap) => {
+  return checkLabels.map((checkLabel) => {
+    const checkIndex = checkIndexMap[checkLabel];
+    if (checkIndex === undefined) {
+      throw new Error(`Missing check index metadata for ${checkLabel}.`);
+    }
+    return checkIndex;
+  });
+};
+const mapCheckLabelsToIndexMap = (checkLabels, checkIndexMap) => {
+  return Object.fromEntries(
+    checkLabels.map((checkLabel) => {
+      const checkIndex = checkIndexMap[checkLabel];
+      if (checkIndex === undefined) {
+        throw new Error(`Missing check index metadata for ${checkLabel}.`);
+      }
+      return [checkLabel, checkIndex];
+    })
+  );
+};
+const countChecksByStatus = (checkEntries) => {
+  return checkEntries.reduce((statusCounts, check) => {
+    const currentCount = statusCounts[check.status] ?? 0;
+    statusCounts[check.status] = currentCount + 1;
+    return statusCounts;
+  }, {});
+};
 const availableChecks = checks.map((check) => {
   return check.label;
 });
@@ -151,6 +178,7 @@ const summarizeCheckResults = (results) => {
   const checkStatusMap = mapChecksToRecord(results, (check) => {
     return check.status;
   });
+  const checkStatusCountMap = countChecksByStatus(results);
   const checkDetectedVersionMap = mapChecksToRecord(results, (check) => {
     return check.detectedVersion;
   });
@@ -212,30 +240,101 @@ const summarizeCheckResults = (results) => {
         hint: check.hint,
       };
     });
+  const checkIndices = mapCheckLabelsToIndices(checkLabels, checkIndexMap);
+  const requiredCheckIndices = mapCheckLabelsToIndices(
+    requiredCheckLabels,
+    checkIndexMap
+  );
+  const optionalCheckIndices = mapCheckLabelsToIndices(
+    optionalCheckLabels,
+    checkIndexMap
+  );
+  const passedCheckIndices = mapCheckLabelsToIndices(passedChecks, checkIndexMap);
+  const failedCheckIndices = mapCheckLabelsToIndices(failedChecks, checkIndexMap);
+  const requiredFailureIndices = mapCheckLabelsToIndices(
+    requiredFailureLabels,
+    checkIndexMap
+  );
+  const optionalFailureIndices = mapCheckLabelsToIndices(
+    optionalFailureLabels,
+    checkIndexMap
+  );
+  const requiredCheckIndexMap = mapCheckLabelsToIndexMap(
+    requiredCheckLabels,
+    checkIndexMap
+  );
+  const optionalCheckIndexMap = mapCheckLabelsToIndexMap(
+    optionalCheckLabels,
+    checkIndexMap
+  );
+  const passedCheckIndexMap = mapCheckLabelsToIndexMap(
+    passedChecks,
+    checkIndexMap
+  );
+  const failedCheckIndexMap = mapCheckLabelsToIndexMap(
+    failedChecks,
+    checkIndexMap
+  );
+  const requiredFailureIndexMap = mapCheckLabelsToIndexMap(
+    requiredFailureLabels,
+    checkIndexMap
+  );
+  const optionalFailureIndexMap = mapCheckLabelsToIndexMap(
+    optionalFailureLabels,
+    checkIndexMap
+  );
 
   return {
     checkLabels,
     checkCount: checkLabels.length,
+    checkIndices,
+    checkIndexCount: checkIndices.length,
     checkIndexMap,
     checkIndexMapCount: countRecordEntries(checkIndexMap),
     checkStatusMap,
     checkStatusMapCount: countRecordEntries(checkStatusMap),
+    checkStatusCountMap,
+    checkStatusCountMapCount: countRecordEntries(checkStatusCountMap),
     checkDetectedVersionMap,
     checkDetectedVersionMapCount: countRecordEntries(checkDetectedVersionMap),
     checkMinimumVersionMap,
     checkMinimumVersionMapCount: countRecordEntries(checkMinimumVersionMap),
     requiredCheckLabels,
     requiredCheckCount: requiredCheckLabels.length,
+    requiredCheckIndices,
+    requiredCheckIndexCount: requiredCheckIndices.length,
+    requiredCheckIndexMap,
+    requiredCheckIndexMapCount: countRecordEntries(requiredCheckIndexMap),
     optionalCheckLabels,
     optionalCheckCount: optionalCheckLabels.length,
+    optionalCheckIndices,
+    optionalCheckIndexCount: optionalCheckIndices.length,
+    optionalCheckIndexMap,
+    optionalCheckIndexMapCount: countRecordEntries(optionalCheckIndexMap),
     passedChecks,
     passedCheckCount: passedChecks.length,
+    passedCheckIndices,
+    passedCheckIndexCount: passedCheckIndices.length,
+    passedCheckIndexMap,
+    passedCheckIndexMapCount: countRecordEntries(passedCheckIndexMap),
     failedChecks,
     failedCheckCount: failedChecks.length,
+    failedCheckIndices,
+    failedCheckIndexCount: failedCheckIndices.length,
+    failedCheckIndexMap,
+    failedCheckIndexMapCount: countRecordEntries(failedCheckIndexMap),
     requiredFailureLabels,
     requiredFailureCount: requiredFailureLabels.length,
+    requiredFailureIndices,
+    requiredFailureIndexCount: requiredFailureIndices.length,
+    requiredFailureIndexMap,
+    requiredFailureIndexMapCount: countRecordEntries(requiredFailureIndexMap),
     optionalFailureLabels,
     optionalFailureCount: optionalFailureLabels.length,
+    optionalFailureIndices,
+    optionalFailureIndexCount: optionalFailureIndices.length,
+    optionalFailureIndexMap,
+    optionalFailureIndexMapCount: countRecordEntries(optionalFailureIndexMap),
     failureSummaries,
     failureSummaryCount: failureSummaries.length,
   };
