@@ -100,11 +100,15 @@ const availableStepScriptMap = Object.fromEntries(
     return [stepName, availableStepMetadata[stepName].scriptName];
   })
 );
+const availableStepScriptMapCount = Object.keys(availableStepScriptMap).length;
 const availableStepSupportsNoBuildMap = Object.fromEntries(
   availableSteps.map((stepName) => {
     return [stepName, availableStepMetadata[stepName].supportsNoBuild];
   })
 );
+const availableStepSupportsNoBuildMapCount = Object.keys(
+  availableStepSupportsNoBuildMap
+).length;
 const availableStepIndices = availableSteps.map((_, index) => {
   return index;
 });
@@ -114,6 +118,7 @@ const availableStepIndexMap = new Map(
   })
 );
 const availableStepIndexMapReport = Object.fromEntries(availableStepIndexMap);
+const availableStepIndexMapCount = Object.keys(availableStepIndexMapReport).length;
 const resolveStepDetails = (stepName) => {
   const stepMetadata = availableStepMetadata[stepName];
   const stepIndex = availableStepIndexMap.get(stepName);
@@ -177,10 +182,13 @@ if (isJson && validationFailureMessage !== null) {
     availableStepScripts,
     availableStepScriptCount: availableStepScripts.length,
     availableStepScriptMap,
+    availableStepScriptMapCount,
     availableStepSupportsNoBuildMap,
+    availableStepSupportsNoBuildMapCount,
     availableStepIndices,
     availableStepIndexCount: availableStepIndices.length,
     availableStepIndexMap: availableStepIndexMapReport,
+    availableStepIndexMapCount,
     availableStepMetadata,
     steps: [],
     passedStepScripts: [],
@@ -347,10 +355,13 @@ if (isJson) {
     availableStepScripts,
     availableStepScriptCount: availableStepScripts.length,
     availableStepScriptMap,
+    availableStepScriptMapCount,
     availableStepSupportsNoBuildMap,
+    availableStepSupportsNoBuildMapCount,
     availableStepIndices,
     availableStepIndexCount: availableStepIndices.length,
     availableStepIndexMap: availableStepIndexMapReport,
+    availableStepIndexMapCount,
     availableStepMetadata,
     steps: stepResults,
     passedStepScripts,

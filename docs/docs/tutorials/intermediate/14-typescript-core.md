@@ -235,6 +235,8 @@ partitions such as `availableSteps`, `passedSteps`, `failedSteps`,
 `availableStepSupportsNoBuildMap`,
 `availableStepIndices`,
 `availableStepIndexMap`,
+`availableStepScriptMapCount`, `availableStepSupportsNoBuildMapCount`,
+`availableStepIndexMapCount`,
 `passedStepScripts`, `failedStepScripts`,
 `skippedStepScripts`, `passedStepIndices`, `failedStepIndices`,
 `skippedStepIndices`, `failureSummaries`, and `failureSummaryCount`.

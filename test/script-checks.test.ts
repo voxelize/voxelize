@@ -154,10 +154,13 @@ type ClientJsonReport = OptionTerminatorMetadata &
   availableStepScripts: string[];
   availableStepScriptCount: number;
   availableStepScriptMap: Record<string, string>;
+  availableStepScriptMapCount: number;
   availableStepSupportsNoBuildMap: Record<string, boolean>;
+  availableStepSupportsNoBuildMapCount: number;
   availableStepIndices: number[];
   availableStepIndexCount: number;
   availableStepIndexMap: Record<string, number>;
+  availableStepIndexMapCount: number;
   availableStepMetadata: Record<
     string,
     {
@@ -376,10 +379,13 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
   availableStepScripts: string[];
   availableStepScriptCount: number;
   availableStepScriptMap: Record<string, string>;
+  availableStepScriptMapCount: number;
   availableStepSupportsNoBuildMap: Record<string, boolean>;
+  availableStepSupportsNoBuildMapCount: number;
   availableStepIndices: number[];
   availableStepIndexCount: number;
   availableStepIndexMap: Record<string, number>;
+  availableStepIndexMapCount: number;
   availableStepMetadata: Record<
     string,
     {
@@ -686,10 +692,13 @@ const expectAvailableStepMetadata = (
     availableStepScripts: string[];
     availableStepScriptCount: number;
     availableStepScriptMap: Record<string, string>;
+    availableStepScriptMapCount: number;
     availableStepSupportsNoBuildMap: Record<string, boolean>;
+    availableStepSupportsNoBuildMapCount: number;
     availableStepIndices: number[];
     availableStepIndexCount: number;
     availableStepIndexMap: Record<string, number>;
+    availableStepIndexMapCount: number;
     availableStepMetadata: Record<
       string,
       {
@@ -734,12 +743,21 @@ const expectAvailableStepMetadata = (
   expect(report.availableStepScripts).toEqual(expectedScripts);
   expect(report.availableStepScriptCount).toBe(report.availableStepScripts.length);
   expect(report.availableStepScriptMap).toEqual(expectedScriptMap);
+  expect(report.availableStepScriptMapCount).toBe(
+    Object.keys(report.availableStepScriptMap).length
+  );
   expect(report.availableStepSupportsNoBuildMap).toEqual(
     expectedSupportsNoBuildMap
+  );
+  expect(report.availableStepSupportsNoBuildMapCount).toBe(
+    Object.keys(report.availableStepSupportsNoBuildMap).length
   );
   expect(report.availableStepIndices).toEqual(expectedIndices);
   expect(report.availableStepIndexCount).toBe(report.availableStepIndices.length);
   expect(report.availableStepIndexMap).toEqual(expectedIndexMap);
+  expect(report.availableStepIndexMapCount).toBe(
+    Object.keys(report.availableStepIndexMap).length
+  );
   const metadataFromMaps = Object.fromEntries(
     expectedSteps.map((stepName) => {
       return [
