@@ -840,9 +840,15 @@ fn non_greedy_mesher_benchmark(c: &mut Criterion) {
 fn uncached_mesher_benchmark(c: &mut Criterion) {
     let registry = build_registry_uncached();
     let scenes = vec![
+        ("terrain_16x24x16", terrain_scene()),
         ("dynamic_16x20x16", dynamic_scene()),
         ("transparency_16x16x16", transparency_scene()),
+        ("standalone_transparency_16x12x16", standalone_transparency_scene()),
+        ("fluid_occlusion_16x12x16", fluid_occlusion_scene()),
+        ("isolated_independent_16x10x16", isolated_independent_scene()),
         ("seeded_mix_16x12x16", seeded_mix_scene()),
+        ("dynamic_world_16x10x16", dynamic_world_scene()),
+        ("rotation_heavy_16x16x16", rotation_heavy_scene()),
     ];
     let mut group = c.benchmark_group("uncached_mesher");
 
