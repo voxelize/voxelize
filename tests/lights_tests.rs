@@ -273,6 +273,28 @@ fn test_chunk_updated_levels_ignore_out_of_range_y() {
 }
 
 #[test]
+fn test_chunk_updated_levels_handle_large_max_height_without_i32_overflow() {
+    let mut chunk = Chunk::default();
+    chunk.options = ChunkOptions {
+        size: 16,
+        max_height: i32::MAX as usize + 1024,
+        sub_chunks: 8,
+    };
+    chunk.updated_levels.clear();
+
+    chunk.add_updated_level(1);
+
+    assert!(
+        !chunk.updated_levels.is_empty(),
+        "small y updates should still map to valid levels even when max_height exceeds i32 range"
+    );
+    assert!(
+        chunk.updated_levels.iter().all(|level| *level < 8),
+        "all dirty levels should remain within configured sub-chunk range"
+    );
+}
+
+#[test]
 fn test_out_of_range_voxel_rotation_defaults_to_py() {
     let config = WorldConfig {
         chunk_size: 16,

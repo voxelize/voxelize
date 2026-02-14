@@ -145,32 +145,44 @@ impl Chunk {
 
     /// Flag a level of sub-chunk as dirty, waiting to be remeshed.
     pub fn add_updated_level(&mut self, vy: i32) {
-        let max_height = self.options.max_height as i32;
-        let sub_chunks = self.options.sub_chunks as i32;
-        if sub_chunks <= 0 || max_height <= 0 || vy < 0 || vy >= max_height {
+        let max_height = self.options.max_height;
+        let sub_chunks = self.options.sub_chunks;
+        if sub_chunks == 0 || max_height == 0 || vy < 0 {
+            return;
+        }
+        let vy = vy as usize;
+        if vy >= max_height {
             return;
         }
 
-        let max_height_i64 = i64::from(max_height);
-        let sub_chunks_i64 = i64::from(sub_chunks);
-        let level = ((i64::from(vy) * sub_chunks_i64) / max_height_i64) as i32;
-        if level < 0 || level >= sub_chunks {
+        let max_height_u128 = max_height as u128;
+        let sub_chunks_u128 = sub_chunks as u128;
+        let level = ((vy as u128) * sub_chunks_u128) / max_height_u128;
+        if level >= sub_chunks_u128 {
             return;
         }
-
-        self.updated_levels.insert(level as u32);
+        let Ok(level_u32) = u32::try_from(level) else {
+            return;
+        };
+        self.updated_levels.insert(level_u32);
 
         if level > 0 {
-            let level_start = ((i64::from(level) * max_height_i64) / sub_chunks_i64) as i32;
-            if vy == level_start {
-                self.updated_levels.insert((level - 1) as u32);
+            let level_start = (level * max_height_u128) / sub_chunks_u128;
+            if (vy as u128) == level_start {
+                let prev_level = level - 1;
+                if let Ok(prev_level_u32) = u32::try_from(prev_level) {
+                    self.updated_levels.insert(prev_level_u32);
+                }
             }
         }
 
-        if level + 1 < sub_chunks {
-            let next_level_start = ((i64::from(level + 1) * max_height_i64) / sub_chunks_i64) as i32;
-            if vy + 1 == next_level_start {
-                self.updated_levels.insert((level + 1) as u32);
+        let next_level = level + 1;
+        if next_level < sub_chunks_u128 {
+            let next_level_start = (next_level * max_height_u128) / sub_chunks_u128;
+            if (vy as u128).saturating_add(1) == next_level_start {
+                if let Ok(next_level_u32) = u32::try_from(next_level) {
+                    self.updated_levels.insert(next_level_u32);
+                }
             }
         }
     }
