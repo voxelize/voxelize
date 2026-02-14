@@ -456,14 +456,20 @@ const serializeChunksData = (
       serialized[index] = null;
       continue;
     }
+    const voxelsBuffer = chunkData.voxels;
+    const lightsBuffer = chunkData.lights;
+    if ((voxelsBuffer.byteLength & 3) !== 0 || (lightsBuffer.byteLength & 3) !== 0) {
+      serialized[index] = null;
+      continue;
+    }
 
     hasAnyChunk = true;
     serialized[index] = {
-      voxels: chunkData.voxels.byteLength
-        ? new Uint32Array(chunkData.voxels)
+      voxels: voxelsBuffer.byteLength
+        ? new Uint32Array(voxelsBuffer)
         : emptyUint32Array,
-      lights: chunkData.lights.byteLength
-        ? new Uint32Array(chunkData.lights)
+      lights: lightsBuffer.byteLength
+        ? new Uint32Array(lightsBuffer)
         : emptyUint32Array,
     };
   }
