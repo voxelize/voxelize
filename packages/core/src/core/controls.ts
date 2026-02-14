@@ -718,9 +718,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
         const unbind = unbinds[unbindIndex];
         try {
           unbind();
-        } catch (e) {
-          /// Ignore
-        }
+        } catch {}
       }
     };
   };

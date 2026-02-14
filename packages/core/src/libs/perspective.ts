@@ -169,7 +169,6 @@ export class Perspective {
       }
     );
 
-    // no clue why but this seems to work, f5 seems to be reversed
     const unbindF5 = inputs.bind("F5", () => this.toggle(true), namespace, {
       identifier: Perspective.INPUT_IDENTIFIER,
       checkType: "code",
@@ -181,9 +180,7 @@ export class Perspective {
       try {
         unbindKeyC();
         unbindF5();
-      } catch (e) {
-        // Ignore.
-      }
+      } catch {}
     };
   };
 
