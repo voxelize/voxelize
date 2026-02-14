@@ -193,9 +193,12 @@ impl VoxelAccess for Chunk {
             return false;
         }
 
-        self.add_updated_level(vy);
-
         let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
+        if self.voxels[&[lx, ly, lz]] == val {
+            return true;
+        }
+
+        self.add_updated_level(vy);
         Arc::make_mut(&mut self.voxels)[&[lx, ly, lz]] = val;
 
         true
