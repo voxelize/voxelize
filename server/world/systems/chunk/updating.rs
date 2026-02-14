@@ -84,10 +84,7 @@ fn process_pending_updates(
         }
 
         let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, config.chunk_size);
-        updates_by_chunk
-            .entry(coords)
-            .or_insert_with(Vec::new)
-            .push((voxel, raw));
+        updates_by_chunk.entry(coords).or_default().push((voxel, raw));
     }
 
     let mut removed_light_sources = Vec::new();
