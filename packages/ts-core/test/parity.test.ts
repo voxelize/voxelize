@@ -478,6 +478,20 @@ describe("BlockRotation", () => {
     expect(rotatedB.maxY).toBeCloseTo(rotatedA.maxY, 10);
     expect(rotatedB.maxZ).toBeCloseTo(rotatedA.maxZ, 10);
   });
+
+  it("keeps non-Y rotateAABB results stable across yRotate toggles", () => {
+    const source = AABB.create(0.1, 0.2, 0.3, 0.7, 0.9, 0.8);
+    const rotation = BlockRotation.px(Math.PI / 2);
+    const withYRotate = rotation.rotateAABB(source, true, true);
+    const withoutYRotate = rotation.rotateAABB(source, false, true);
+
+    expect(withYRotate.minX).toBeCloseTo(withoutYRotate.minX, 10);
+    expect(withYRotate.minY).toBeCloseTo(withoutYRotate.minY, 10);
+    expect(withYRotate.minZ).toBeCloseTo(withoutYRotate.minZ, 10);
+    expect(withYRotate.maxX).toBeCloseTo(withoutYRotate.maxX, 10);
+    expect(withYRotate.maxY).toBeCloseTo(withoutYRotate.maxY, 10);
+    expect(withYRotate.maxZ).toBeCloseTo(withoutYRotate.maxZ, 10);
+  });
 });
 
 describe("Rotation maps", () => {
