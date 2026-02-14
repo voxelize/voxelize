@@ -13,6 +13,15 @@ fn normalized_chunk_size(chunk_size: usize) -> i32 {
     i32::try_from(chunk_size).unwrap_or(i32::MAX).max(1)
 }
 
+#[inline]
+fn first_segment(value: &str) -> &str {
+    if let Some((segment, _)) = value.split_once(CHUNK_NAME_SEPARATOR) {
+        segment
+    } else {
+        value
+    }
+}
+
 impl ChunkUtils {
     /// Generate a chunk representation from a chunk coordinate.
     pub fn get_chunk_name(cx: i32, cz: i32) -> String {
@@ -24,11 +33,7 @@ impl ChunkUtils {
         let (raw_x, rest) = name
             .split_once(CHUNK_NAME_SEPARATOR)
             .expect("Invalid chunk name format");
-        let raw_z = if let Some((segment, _)) = rest.split_once(CHUNK_NAME_SEPARATOR) {
-            segment
-        } else {
-            rest
-        };
+        let raw_z = first_segment(rest);
         Vec2(raw_x.parse().unwrap(), raw_z.parse().unwrap())
     }
 
@@ -48,11 +53,7 @@ impl ChunkUtils {
         let (raw_y, rest) = rest
             .split_once(CHUNK_NAME_SEPARATOR)
             .expect("Invalid voxel name format");
-        let raw_z = if let Some((segment, _)) = rest.split_once(CHUNK_NAME_SEPARATOR) {
-            segment
-        } else {
-            rest
-        };
+        let raw_z = first_segment(rest);
         Vec3(
             raw_x.parse().unwrap(),
             raw_y.parse().unwrap(),
