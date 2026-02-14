@@ -74,7 +74,7 @@ const voxel = Voxel.pack({
   - y-rotated rule offsets use rounded integer voxel positions after rotation
   - rule-offset y-rotation also normalizes full turns/non-finite values to
     identity before offset checks and snaps large-angle precision drift near
-    segment boundaries
+    segment boundaries (with bounded snap tolerance to avoid over-rotation)
 - `VoxelAccess`
   - interface contract for meshing/generation-style data access
 

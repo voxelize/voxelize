@@ -7,6 +7,7 @@ import { Vec3 } from "./vectors";
 const TWO_PI = Math.PI * 2.0;
 const ANGLE_EPSILON = 1e-12;
 const SEGMENT_ANGLE = TWO_PI / Y_ROT_SEGMENTS;
+const MAX_PRECISION_SNAP_EPSILON = SEGMENT_ANGLE / 8;
 
 const normalizeRuleYRotation = (rotation: number): number => {
   if (!Number.isFinite(rotation)) {
@@ -18,13 +19,17 @@ const normalizeRuleYRotation = (rotation: number): number => {
     ANGLE_EPSILON,
     Math.abs(rotation) * Number.EPSILON * 4
   );
+  const stabilizedPrecisionEpsilon = Math.min(
+    precisionEpsilon,
+    MAX_PRECISION_SNAP_EPSILON
+  );
   const snappedSegment = Math.round(wrappedRotation / SEGMENT_ANGLE);
   const snappedRotation = snappedSegment * SEGMENT_ANGLE;
   const normalizedSnappedRotation =
     ((snappedRotation % TWO_PI) + TWO_PI) % TWO_PI;
   if (
     Math.abs(wrappedRotation - normalizedSnappedRotation) <=
-    precisionEpsilon
+    stabilizedPrecisionEpsilon
   ) {
     if (
       normalizedSnappedRotation <= ANGLE_EPSILON ||
@@ -37,8 +42,8 @@ const normalizeRuleYRotation = (rotation: number): number => {
   }
 
   if (
-    wrappedRotation <= precisionEpsilon ||
-    Math.abs(wrappedRotation - TWO_PI) <= precisionEpsilon
+    wrappedRotation <= stabilizedPrecisionEpsilon ||
+    Math.abs(wrappedRotation - TWO_PI) <= stabilizedPrecisionEpsilon
   ) {
     return 0;
   }

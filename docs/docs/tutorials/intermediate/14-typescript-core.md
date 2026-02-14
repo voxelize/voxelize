@@ -76,7 +76,8 @@ Finite y-rotation values are normalized modulo full turns before decode
 segment quantization, which keeps large-angle decoding stable.
 The same normalization semantics are applied when `BlockRuleEvaluator` rotates
 rule offsets in y-rotatable matching mode, including stabilization of
-large-angle precision drift near segment boundaries.
+large-angle precision drift near segment boundaries with bounded snap
+tolerance.
 
 You can also pass plain rotation-like objects when packing voxels:
 
