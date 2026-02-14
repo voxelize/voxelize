@@ -21,22 +21,14 @@ const TARGET_FACE_BY_DIR: [usize; 6] = [3, 0, 5, 2, 4, 1];
 
 #[inline]
 fn direction_to_index(dx: i32, dy: i32, dz: i32) -> usize {
-    if dx.abs() + dy.abs() + dz.abs() != 1 {
-        panic!("Light neighboring direction should be on exactly one axis.");
-    }
-
-    if dx == 1 {
-        0
-    } else if dx == -1 {
-        1
-    } else if dz == 1 {
-        2
-    } else if dz == -1 {
-        3
-    } else if dy == 1 {
-        4
-    } else {
-        5
+    match (dx, dy, dz) {
+        (1, 0, 0) => 0,
+        (-1, 0, 0) => 1,
+        (0, 0, 1) => 2,
+        (0, 0, -1) => 3,
+        (0, 1, 0) => 4,
+        (0, -1, 0) => 5,
+        _ => panic!("Light neighboring direction should be on exactly one axis."),
     }
 }
 
@@ -91,12 +83,22 @@ fn block_at<'a>(
 
 pub fn can_enter_into(target: &[bool; 6], dx: i32, dy: i32, dz: i32) -> bool {
     let index = direction_to_index(dx, dy, dz);
-    target[TARGET_FACE_BY_DIR[index]]
+    can_enter_into_direction(target, index)
 }
 
 pub fn can_enter(source: &[bool; 6], target: &[bool; 6], dx: i32, dy: i32, dz: i32) -> bool {
     let index = direction_to_index(dx, dy, dz);
-    source[SOURCE_FACE_BY_DIR[index]] && target[TARGET_FACE_BY_DIR[index]]
+    can_enter_direction(source, target, index)
+}
+
+#[inline]
+fn can_enter_into_direction(target: &[bool; 6], direction_index: usize) -> bool {
+    target[TARGET_FACE_BY_DIR[direction_index]]
+}
+
+#[inline]
+fn can_enter_direction(source: &[bool; 6], target: &[bool; 6], direction_index: usize) -> bool {
+    source[SOURCE_FACE_BY_DIR[direction_index]] && target[TARGET_FACE_BY_DIR[direction_index]]
 }
 
 pub fn flood_light(
@@ -132,7 +134,7 @@ pub fn flood_light(
             source_block.get_rotated_transparency(&space.get_voxel_rotation(vx, vy, vz))
         };
 
-        for [ox, oy, oz] in VOXEL_NEIGHBORS {
+        for (direction_index, [ox, oy, oz]) in VOXEL_NEIGHBORS.iter().copied().enumerate() {
             let nvx = vx + ox;
             let nvy = vy + oy;
             let nvz = vz + oz;
@@ -167,7 +169,9 @@ pub fn flood_light(
             };
             let next_level = level.saturating_sub(reduce);
 
-            if next_level == 0 || !can_enter(&source_transparency, &n_transparency, ox, oy, oz) {
+            if next_level == 0
+                || !can_enter_direction(&source_transparency, &n_transparency, direction_index)
+            {
                 continue;
             }
 
@@ -210,7 +214,7 @@ pub fn remove_light(
 
         let [svx, svy, svz] = voxel;
 
-        for [ox, oy, oz] in VOXEL_NEIGHBORS {
+        for (direction_index, [ox, oy, oz]) in VOXEL_NEIGHBORS.iter().copied().enumerate() {
             let nvx = svx + ox;
             let nvy = svy + oy;
             let nvz = svz + oz;
@@ -225,7 +229,7 @@ pub fn remove_light(
 
             if (is_sunlight
                 || n_block.get_torch_light_level_at(&[nvx, nvy, nvz], space, color) == 0)
-                && !can_enter_into(&n_transparency, ox, oy, oz)
+                && !can_enter_into_direction(&n_transparency, direction_index)
             {
                 continue;
             }
@@ -305,7 +309,7 @@ pub fn remove_lights(
 
         let [svx, svy, svz] = voxel;
 
-        for [ox, oy, oz] in VOXEL_NEIGHBORS {
+        for (direction_index, [ox, oy, oz]) in VOXEL_NEIGHBORS.iter().copied().enumerate() {
             let nvx = svx + ox;
             let nvy = svy + oy;
             let nvz = svz + oz;
@@ -320,7 +324,7 @@ pub fn remove_lights(
 
             if (is_sunlight
                 || n_block.get_torch_light_level_at(&[nvx, nvy, nvz], space, color) == 0)
-                && !can_enter_into(&n_transparency, ox, oy, oz)
+                && !can_enter_into_direction(&n_transparency, direction_index)
             {
                 continue;
             }
