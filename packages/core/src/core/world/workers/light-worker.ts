@@ -327,6 +327,14 @@ const applyRelevantDeltas = (
     if (!chunk) {
       continue;
     }
+    const chunkMin = chunk.min;
+    const chunkMinX = chunkMin[0];
+    const chunkMinY = chunkMin[1];
+    const chunkMinZ = chunkMin[2];
+    const chunkMaxX = chunkMinX + chunk.options.size;
+    const chunkMaxY = chunkMinY + chunk.options.maxHeight;
+    const chunkMaxZ = chunkMinZ + chunk.options.size;
+    const voxelData = chunk.voxels;
 
     const deltasLength = deltas.length;
     if (deltasLength > 0) {
@@ -349,7 +357,20 @@ const applyRelevantDeltas = (
       if (!isInteger(vx) || !isInteger(vy) || !isInteger(vz)) {
         continue;
       }
-      let nextRaw = chunk.getRawValue(vx, vy, vz);
+      if (
+        vx < chunkMinX ||
+        vx >= chunkMaxX ||
+        vy < chunkMinY ||
+        vy >= chunkMaxY ||
+        vz < chunkMinZ ||
+        vz >= chunkMaxZ
+      ) {
+        continue;
+      }
+      const lx = vx - chunkMinX;
+      const ly = vy - chunkMinY;
+      const lz = vz - chunkMinZ;
+      let nextRaw = voxelData.get(lx, ly, lz);
       const currentRaw = nextRaw;
 
       if (delta.oldVoxel !== delta.newVoxel) {
@@ -365,7 +386,7 @@ const applyRelevantDeltas = (
       }
 
       if (nextRaw !== currentRaw) {
-        chunk.setRawValue(vx, vy, vz, nextRaw);
+        voxelData.set(lx, ly, lz, nextRaw);
       }
     }
   }
