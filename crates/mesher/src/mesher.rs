@@ -2328,7 +2328,8 @@ fn evaluate_block_rule_with_trig<S: VoxelAccess>(
     match rule {
         BlockRule::None => true,
         BlockRule::Simple(simple) => {
-            if simple.id.is_none() && simple.rotation.is_none() && simple.stage.is_none() {
+            let has_no_rotation_or_stage = simple.rotation.is_none() && simple.stage.is_none();
+            if simple.id.is_none() && has_no_rotation_or_stage {
                 return true;
             }
             let [pos_x, pos_y, pos_z] = pos;
@@ -2349,7 +2350,6 @@ fn evaluate_block_rule_with_trig<S: VoxelAccess>(
             } else {
                 (pos_x + offset_x, pos_y + offset_y, pos_z + offset_z)
             };
-            let has_no_rotation_or_stage = simple.rotation.is_none() && simple.stage.is_none();
             let raw_voxel = space.get_raw_voxel(check_x, check_y, check_z);
 
             if let Some(expected_id) = simple.id {
