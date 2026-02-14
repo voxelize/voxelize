@@ -66,6 +66,7 @@ const voxel = Voxel.pack({
   - evaluate `BlockRule` trees against a voxel access implementation
   - combination rule edge cases mirror core semantics (`NOT []` / `AND []`
     evaluate to `true`, `OR []` evaluates to `false`)
+  - y-rotated rule offsets use rounded integer voxel positions after rotation
 - `VoxelAccess`
   - interface contract for meshing/generation-style data access
 
