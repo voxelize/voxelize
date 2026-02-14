@@ -198,11 +198,15 @@ pub fn remove_light(
 ) {
     let is_sunlight = *color == LightColor::Sunlight;
     let [vx, vy, vz] = voxel;
+    let source_level = get_light_level(space, vx, vy, vz, color, is_sunlight);
+    if source_level == 0 {
+        return;
+    }
 
     let mut fill = Vec::<LightNode>::new();
     let mut remove = vec![LightNode {
         voxel,
-        level: get_light_level(space, vx, vy, vz, color, is_sunlight),
+        level: source_level,
     }];
     let mut head = 0usize;
 
@@ -282,10 +286,11 @@ pub fn remove_lights<I>(
 ) where
     I: IntoIterator<Item = [i32; 3]>,
 {
-
     let is_sunlight = *color == LightColor::Sunlight;
-    let mut fill = Vec::<LightNode>::new();
-    let mut remove = Vec::<LightNode>::new();
+    let voxels = voxels.into_iter();
+    let (voxel_count, _) = voxels.size_hint();
+    let mut fill = Vec::<LightNode>::with_capacity(voxel_count);
+    let mut remove = Vec::<LightNode>::with_capacity(voxel_count);
 
     for voxel in voxels {
         let [vx, vy, vz] = voxel;
@@ -299,6 +304,10 @@ pub fn remove_lights<I>(
             level,
         });
         set_light_level(space, vx, vy, vz, 0, color, is_sunlight);
+    }
+
+    if remove.is_empty() {
+        return;
     }
 
     let mut head = 0usize;
