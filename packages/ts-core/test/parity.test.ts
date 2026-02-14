@@ -1054,6 +1054,45 @@ describe("Type builders", () => {
     expect(part.faces[0].range.startU).toBe(1);
   });
 
+  it("accepts readonly conditional part arrays and transparency tuples", () => {
+    const sourceFace = new BlockFace({ name: "ReadonlyFace" });
+    const sourceAabb = AABB.create(0, 0, 0, 1, 1, 1);
+    const readonlyFaces = [sourceFace] as const;
+    const readonlyAabbs = [sourceAabb] as const;
+    const readonlyTransparency = [
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+    ] as const;
+    const part = createBlockConditionalPart({
+      faces: readonlyFaces,
+      aabbs: readonlyAabbs,
+      isTransparent: readonlyTransparency,
+      worldSpace: true,
+    });
+
+    expect(part.faces).toHaveLength(1);
+    expect(part.aabbs).toHaveLength(1);
+    expect(part.isTransparent).toEqual([
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+    ]);
+    expect(part.faces[0]).not.toBe(sourceFace);
+    expect(part.aabbs[0]).not.toBe(sourceAabb);
+
+    sourceFace.name = "MutatedReadonlyFace";
+    sourceAabb.maxX = 9;
+    expect(part.faces[0].name).toBe("ReadonlyFace");
+    expect(part.aabbs[0].maxX).toBe(1);
+  });
+
   it("clones provided conditional part rules", () => {
     const inputRule: BlockRule = {
       type: "combination",
@@ -1180,6 +1219,35 @@ describe("Type builders", () => {
 
     expect(pattern.parts[0].faces[0].name).toBe("PatternInitFace");
     expect(pattern.parts[0].faces[0].dir).toEqual([1, 0, 0]);
+  });
+
+  it("accepts readonly dynamic pattern part arrays", () => {
+    const patternParts = [
+      {
+        rule: {
+          type: "simple" as const,
+          offset: [1, 0, 0] as [number, number, number],
+          id: 60,
+        },
+      },
+    ] as const;
+    const pattern = createBlockDynamicPattern({
+      parts: patternParts,
+    });
+
+    expect(pattern.parts).toEqual([
+      {
+        rule: {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 60,
+        },
+        faces: [],
+        aabbs: [],
+        isTransparent: [false, false, false, false, false, false],
+        worldSpace: false,
+      },
+    ]);
   });
 
   it("clones dynamic pattern parts to avoid external mutation", () => {

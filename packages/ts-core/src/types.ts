@@ -143,17 +143,25 @@ export interface BlockDynamicPattern {
 }
 
 export type BlockFaceInput = BlockFace | BlockFaceInit;
+export type FaceTransparencyInput = readonly [
+  boolean,
+  boolean,
+  boolean,
+  boolean,
+  boolean,
+  boolean
+];
 
 export interface BlockConditionalPartInput {
   rule?: BlockRule;
-  faces?: BlockFaceInput[];
-  aabbs?: AABB[];
-  isTransparent?: FaceTransparency;
+  faces?: readonly BlockFaceInput[];
+  aabbs?: readonly AABB[];
+  isTransparent?: FaceTransparencyInput;
   worldSpace?: boolean;
 }
 
 export interface BlockDynamicPatternInput {
-  parts?: BlockConditionalPartInput[];
+  parts?: readonly BlockConditionalPartInput[];
 }
 
 const cloneBlockFace = (face: BlockFaceInput): BlockFace => {
@@ -220,7 +228,14 @@ export const createBlockConditionalPart = (
   const isTransparent: FaceTransparency =
     normalizedPart.isTransparent === undefined
       ? [false, false, false, false, false, false]
-      : [...normalizedPart.isTransparent];
+      : [
+          normalizedPart.isTransparent[0],
+          normalizedPart.isTransparent[1],
+          normalizedPart.isTransparent[2],
+          normalizedPart.isTransparent[3],
+          normalizedPart.isTransparent[4],
+          normalizedPart.isTransparent[5],
+        ];
   const rule =
     normalizedPart.rule === undefined
       ? cloneBlockRule(BLOCK_RULE_NONE)

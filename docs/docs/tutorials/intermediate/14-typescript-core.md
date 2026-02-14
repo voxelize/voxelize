@@ -44,6 +44,7 @@ Both helper constructors use deterministic defaults when optional fields are
 omitted.
 `createBlockConditionalPart` accepts either `BlockFace` instances or
 `BlockFaceInit` objects in `faces`.
+Both helpers also accept readonly input arrays/tuples.
 
 ## Basic usage
 

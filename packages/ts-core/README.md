@@ -80,9 +80,12 @@ const voxel = Voxel.pack({
     avoid external mutation side effects after construction
   - accepts omitted input and applies deterministic defaults
   - accepts either `BlockFace` instances or `BlockFaceInit` objects in `faces`
+  - accepts readonly input arrays/tuples for `faces`, `aabbs`, and
+    `isTransparent`
 - `createBlockDynamicPattern`
   - defensively clones dynamic-pattern part inputs using
     `createBlockConditionalPart`
+  - accepts readonly `parts` input arrays
 - `createBlockFace`
   - ergonomic constructor helper mirroring `new BlockFace(...)`
 - `VoxelAccess`
