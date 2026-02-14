@@ -382,6 +382,30 @@ describe("BlockRotation", () => {
     expect(BlockRotation.NZ(0).axis).toBe(5);
   });
 
+  it("applies non-PY translation offsets only when translate=true", () => {
+    const withTranslate: [number, number, number] = [0, 0, 0];
+    const withoutTranslate: [number, number, number] = [0, 0, 0];
+    const rotation = BlockRotation.px(0);
+    rotation.rotateNode(withTranslate, false, true);
+    rotation.rotateNode(withoutTranslate, false, false);
+
+    expect(withTranslate).toEqual([0, 1, 0]);
+    expect(withoutTranslate).toEqual([0, 0, 0]);
+  });
+
+  it("shifts rotated AABBs by axis translation offsets when enabled", () => {
+    const source = AABB.create(0, 0, 0, 1, 1, 1);
+    const rotation = BlockRotation.px(0);
+    const translated = rotation.rotateAABB(source, false, true);
+    const untranslated = rotation.rotateAABB(source, false, false);
+
+    expect(translated.minY).toBeCloseTo(untranslated.minY + 1, 10);
+    expect(translated.maxY).toBeCloseTo(untranslated.maxY + 1, 10);
+    expect(translated.width()).toBeCloseTo(untranslated.width(), 10);
+    expect(translated.height()).toBeCloseTo(untranslated.height(), 10);
+    expect(translated.depth()).toBeCloseTo(untranslated.depth(), 10);
+  });
+
   it("falls back to PY axis when encoding invalid axis values", () => {
     const rotation = BlockRotation.encode(99, 3);
     expect(rotation.axis).toBe(PY_ROTATION);
