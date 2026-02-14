@@ -930,8 +930,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         trigger: primaryTrigger,
         description: commandInfo.description,
         category: commandInfo.category,
-        aliases: commandInfo.aliases,
-        flags: commandInfo.flags,
+        aliases: commandInfo.aliases.slice(),
+        flags: commandInfo.flags.slice(),
         args: commandInfo.args
           ? this.extractArgMetadata(commandInfo.args, commandInfo.tabComplete)
           : [],
