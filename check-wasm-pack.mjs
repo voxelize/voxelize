@@ -171,6 +171,7 @@ const summarizeCheckResult = ({
       : [
           {
             name: checkName,
+            checkIndex: availableCheckIndexMap[checkName],
             command: wasmPackCommand,
             args: [...checkArgs],
             exitCode,

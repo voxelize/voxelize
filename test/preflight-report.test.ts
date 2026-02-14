@@ -163,6 +163,7 @@ type WasmPackNestedReport = {
   failedCheckIndexMapCount: number;
   failureSummaries: Array<{
     name: string;
+    checkIndex: number;
     command: string;
     args: string[];
     exitCode: number;
@@ -1856,6 +1857,7 @@ const expectWasmPackNestedReport = (checkReport: object | null) => {
     expect(report.failureSummaries).toEqual([
       {
         name: "wasm-pack",
+        checkIndex: expectedCheckIndexMap["wasm-pack"],
         command: report.command,
         args: ["--version"],
         exitCode: report.exitCode,

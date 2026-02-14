@@ -348,6 +348,8 @@ metadata such as `availableCheckCommandMap`, `availableCheckArgsMap`,
 `passedCheckIndices`, `passedCheckIndexMap`, `failedChecks`,
 `failedCheckIndices`, `failedCheckIndexMap`, `failureSummaries`, and
 companion `*Count` fields.
+WASM-pack `failureSummaries[]` entries include `checkIndex` for stable
+correlation with `availableChecks`.
 
 ## API reference
 
