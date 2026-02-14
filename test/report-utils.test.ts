@@ -20,6 +20,7 @@ import {
   resolveOutputPath,
   serializeReportWithOptionalWrite,
   splitCliArgs,
+  summarizeCheckFailureResults,
   summarizeCheckResults,
   summarizeStepFailureResults,
   summarizeStepResults,
@@ -2925,6 +2926,78 @@ describe("report-utils", () => {
         stepIndex: 3,
         exitCode: 1,
         message: "Step failed.",
+      },
+    ]);
+  });
+
+  it("summarizes failed check entries with message fallbacks", () => {
+    const failureSummaries = summarizeCheckFailureResults([
+      {
+        name: "devEnvironment",
+        scriptName: "check-dev-env.mjs",
+        supportsNoBuild: false,
+        checkIndex: 0,
+        passed: true,
+        exitCode: 0,
+        report: null,
+        output: null,
+      },
+      {
+        name: "tsCore",
+        scriptName: "check-ts-core.mjs",
+        supportsNoBuild: true,
+        checkIndex: 2,
+        passed: false,
+        exitCode: 2,
+        report: { message: "ts core failed" },
+        output: "output failure",
+      },
+      {
+        name: "client",
+        scriptName: "check-client.mjs",
+        supportsNoBuild: true,
+        checkIndex: 4,
+        passed: false,
+        exitCode: 3,
+        report: null,
+        output: "output failure",
+      },
+      {
+        name: "wasmPack",
+        scriptName: "check-wasm-pack.mjs",
+        supportsNoBuild: false,
+        checkIndex: null,
+        passed: false,
+        exitCode: null,
+        report: null,
+        output: "",
+      },
+    ]);
+
+    expect(failureSummaries).toEqual([
+      {
+        name: "tsCore",
+        scriptName: "check-ts-core.mjs",
+        supportsNoBuild: true,
+        checkIndex: 2,
+        exitCode: 2,
+        message: "ts core failed",
+      },
+      {
+        name: "client",
+        scriptName: "check-client.mjs",
+        supportsNoBuild: true,
+        checkIndex: 4,
+        exitCode: 3,
+        message: "output failure",
+      },
+      {
+        name: "wasmPack",
+        scriptName: "check-wasm-pack.mjs",
+        supportsNoBuild: false,
+        checkIndex: null,
+        exitCode: 1,
+        message: "Preflight check failed.",
       },
     ]);
   });

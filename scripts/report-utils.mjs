@@ -302,6 +302,31 @@ export const summarizeStepFailureResults = (steps) => {
     });
 };
 
+export const summarizeCheckFailureResults = (checks) => {
+  return checks
+    .filter((check) => !check.passed)
+    .map((check) => {
+      const reportMessage = deriveFailureMessageFromReport(check.report);
+      const outputMessage =
+        typeof check.output === "string" && check.output.length > 0
+          ? check.output
+          : null;
+      const defaultMessage =
+        typeof check.exitCode === "number"
+          ? `Preflight check failed with exit code ${check.exitCode}.`
+          : "Preflight check failed.";
+
+      return {
+        name: check.name,
+        scriptName: check.scriptName,
+        supportsNoBuild: check.supportsNoBuild === true,
+        checkIndex: typeof check.checkIndex === "number" ? check.checkIndex : null,
+        exitCode: typeof check.exitCode === "number" ? check.exitCode : 1,
+        message: reportMessage ?? outputMessage ?? defaultMessage,
+      };
+    });
+};
+
 export const splitCliArgs = (args) => {
   const optionTerminatorIndex = args.indexOf("--");
   if (optionTerminatorIndex === -1) {

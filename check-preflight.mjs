@@ -5,13 +5,13 @@ import { fileURLToPath } from "node:url";
 import {
   createCliDiagnostics,
   createTimedReportBuilder,
-  deriveFailureMessageFromReport,
   hasCliOption as hasCliOptionInArgs,
   parseJsonOutput,
   resolveLastOptionValue,
   resolveOutputPath,
   serializeReportWithOptionalWrite,
   splitCliArgs,
+  summarizeCheckFailureResults,
   summarizeCheckResults,
 } from "./scripts/report-utils.mjs";
 
@@ -728,23 +728,7 @@ const {
 const passedCheckIndices = resolveCheckIndices(checkSummary.passedChecks);
 const failedCheckIndices = resolveCheckIndices(checkSummary.failedChecks);
 const invalidCheckCount = 0;
-const failureSummaries = checks
-  .filter((check) => !check.passed)
-  .map((check) => {
-    const reportMessage = deriveFailureMessageFromReport(check.report);
-
-    return {
-      name: check.name,
-      scriptName: check.scriptName,
-      supportsNoBuild: check.supportsNoBuild,
-      checkIndex: check.checkIndex,
-      exitCode: check.exitCode,
-      message:
-        reportMessage ??
-        check.output ??
-        `Preflight check failed with exit code ${check.exitCode}.`,
-    };
-  });
+const failureSummaries = summarizeCheckFailureResults(checks);
 const report = buildTimedReport({
   passed,
   exitCode,
