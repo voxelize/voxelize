@@ -63,17 +63,19 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 if let Some(client) = clients.get(id) {
                     if let Some(request) = requests.get(client.entity) {
                         let dist = ChunkUtils::distance_squared(&request.center, &coords);
-                        let direction_to_chunk =
-                            Vec2(coords.0 - request.center.0, coords.1 - request.center.1);
-                        let dx = f64::from(direction_to_chunk.0);
-                        let dz = f64::from(direction_to_chunk.1);
-                        let mag = dx.mul_add(dx, dz * dz).sqrt() as f32;
-                        if mag <= f32::EPSILON {
+                        let direction_to_chunk_x =
+                            f64::from(coords.0) - f64::from(request.center.0);
+                        let direction_to_chunk_z =
+                            f64::from(coords.1) - f64::from(request.center.1);
+                        let mag = direction_to_chunk_x
+                            .mul_add(direction_to_chunk_x, direction_to_chunk_z * direction_to_chunk_z)
+                            .sqrt();
+                        if mag <= f64::from(f32::EPSILON) {
                             continue;
                         }
                         let normalized_direction_to_chunk = Vec2(
-                            direction_to_chunk.0 as f32 / mag,
-                            direction_to_chunk.1 as f32 / mag,
+                            (direction_to_chunk_x / mag) as f32,
+                            (direction_to_chunk_z / mag) as f32,
                         );
                         let dot_product = request.direction.0 * normalized_direction_to_chunk.0
                             + request.direction.1 * normalized_direction_to_chunk.1;
