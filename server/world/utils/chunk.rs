@@ -10,7 +10,13 @@ pub struct ChunkUtils;
 
 #[inline]
 fn normalized_chunk_size(chunk_size: usize) -> i32 {
-    i32::try_from(chunk_size).unwrap_or(i32::MAX).max(1)
+    if chunk_size == 0 {
+        1
+    } else if chunk_size > i32::MAX as usize {
+        i32::MAX
+    } else {
+        chunk_size as i32
+    }
 }
 
 #[inline]
