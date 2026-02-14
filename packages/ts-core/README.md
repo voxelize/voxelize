@@ -107,6 +107,7 @@ const voxel = Voxel.pack({
 - `createFaceTransparency`
   - builds normalized 6-face transparency tuples from optional/null/partial
     boolean arrays
+  - ignores extra entries beyond the six face slots
 - `VoxelAccess`
   - interface contract for meshing/generation-style data access
 

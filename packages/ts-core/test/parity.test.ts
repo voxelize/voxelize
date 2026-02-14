@@ -995,6 +995,15 @@ describe("Type builders", () => {
     const nullTransparency = createFaceTransparency(null);
     const undefinedTransparency = createFaceTransparency(undefined);
     const shortTransparency = createFaceTransparency([true]);
+    const longTransparency = createFaceTransparency([
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+    ]);
 
     expect(createdTransparency).toEqual([
       true,
@@ -1027,6 +1036,14 @@ describe("Type builders", () => {
       false,
       false,
       false,
+      false,
+    ]);
+    expect(longTransparency).toEqual([
+      true,
+      false,
+      true,
+      false,
+      true,
       false,
     ]);
 

@@ -56,6 +56,7 @@ Malformed optional face fields fall back to default face values.
 Malformed rules fall back to `BLOCK_RULE_NONE`, and malformed transparency
 inputs (including `null`/non-array values) fall back to `false` defaults.
 `createFaceTransparency` exposes this transparency normalization directly.
+Extra transparency entries beyond six face slots are ignored.
 `createBlockRule` normalizes `null` simple-rule optional fields (`id`,
 `rotation`, `stage`) to omitted constraints.
 `createBlockRule` also accepts readonly rule-tree arrays/tuples for literal
