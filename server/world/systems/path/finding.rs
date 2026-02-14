@@ -242,6 +242,9 @@ impl<'a> System<'a> for PathFindingSystem {
                             {
                                 return successors;
                             }
+                            if !can_expand_successors(vx, vy, vz) {
+                                return successors;
+                            }
 
                             // emptiness
                             let py = !walkable(vx, vy + 1, vz, height);
@@ -652,6 +655,16 @@ fn normalized_max_depth_search(value: i32) -> i32 {
     value.max(0)
 }
 
+#[inline]
+fn can_expand_successors(vx: i32, vy: i32, vz: i32) -> bool {
+    vx > i32::MIN + 1
+        && vx < i32::MAX - 1
+        && vy > i32::MIN + 2
+        && vy < i32::MAX - 1
+        && vz > i32::MIN + 1
+        && vz < i32::MAX - 1
+}
+
 /// Calculate the angle change in degrees between three points
 fn calculate_angle_change(p1: &Vec3<i32>, p2: &Vec3<i32>, p3: &Vec3<i32>) -> f32 {
     // Vector from p1 to p2
@@ -798,9 +811,9 @@ fn is_position_walkable(
 #[cfg(test)]
 mod tests {
     use super::{
-        axis_delta_i64, clamp_f64_to_i32, clamp_usize_to_u32, clamped_height_scan_steps,
-        find_path_index_from, floor_f32_to_i32, normalized_max_depth_search,
-        squared_voxel_distance_f64,
+        axis_delta_i64, can_expand_successors, clamp_f64_to_i32, clamp_usize_to_u32,
+        clamped_height_scan_steps, find_path_index_from, floor_f32_to_i32,
+        normalized_max_depth_search, squared_voxel_distance_f64,
     };
     use crate::Vec3;
 
@@ -860,5 +873,15 @@ mod tests {
         assert_eq!(find_path_index_from(&path, 0, &Vec3(1, 0, 0)), 1);
         assert_eq!(find_path_index_from(&path, 2, &Vec3(0, 0, 0)), 2);
         assert_eq!(find_path_index_from(&path, usize::MAX, &Vec3(5, 0, 0)), 2);
+    }
+
+    #[test]
+    fn can_expand_successors_rejects_values_near_overflow_boundaries() {
+        assert!(can_expand_successors(0, 0, 0));
+        assert!(!can_expand_successors(i32::MAX, 0, 0));
+        assert!(!can_expand_successors(i32::MIN, 0, 0));
+        assert!(!can_expand_successors(0, i32::MAX, 0));
+        assert!(!can_expand_successors(0, i32::MIN, 0));
+        assert!(!can_expand_successors(0, i32::MIN + 2, 0));
     }
 }
