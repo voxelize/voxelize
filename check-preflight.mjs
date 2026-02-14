@@ -355,16 +355,6 @@ const buildCheckSelectionMetadata = (checkNames) => {
     checkScriptCount: checkScripts.length,
   };
 };
-const buildCheckScriptSummary = (checkNames) => {
-  const checkScripts = checkNames.map((checkName) => {
-    return availableCheckMetadata[checkName].scriptName;
-  });
-
-  return {
-    checkScripts,
-    checkScriptCount: checkScripts.length,
-  };
-};
 const {
   availableCliOptionCanonicalMap,
   unknownOptions,
@@ -484,8 +474,10 @@ if (
     skippedCheckScriptCount: allCheckScriptCount,
     passedCheckScripts: [],
     passedCheckScriptCount: 0,
+    passedCheckMetadata: {},
     failedCheckScripts: [],
     failedCheckScriptCount: 0,
+    failedCheckMetadata: {},
     ...summarizeCheckResults([]),
     checks: [],
     outputPath: outputPathError === null ? resolvedOutputPath : null,
@@ -571,8 +563,10 @@ if (isListChecks) {
     skippedCheckScriptCount,
     passedCheckScripts: [],
     passedCheckScriptCount: 0,
+    passedCheckMetadata: {},
     failedCheckScripts: [],
     failedCheckScriptCount: 0,
+    failedCheckMetadata: {},
     ...summarizeCheckResults([]),
     failureSummaries: [],
     checks: [],
@@ -622,10 +616,16 @@ const checks = availableChecks
 const passed = checks.every((check) => check.passed);
 const exitCode = passed ? 0 : 1;
 const checkSummary = summarizeCheckResults(checks);
-const { checkScripts: passedCheckScripts, checkScriptCount: passedCheckScriptCount } =
-  buildCheckScriptSummary(checkSummary.passedChecks);
-const { checkScripts: failedCheckScripts, checkScriptCount: failedCheckScriptCount } =
-  buildCheckScriptSummary(checkSummary.failedChecks);
+const {
+  checkMetadata: passedCheckMetadata,
+  checkScripts: passedCheckScripts,
+  checkScriptCount: passedCheckScriptCount,
+} = buildCheckSelectionMetadata(checkSummary.passedChecks);
+const {
+  checkMetadata: failedCheckMetadata,
+  checkScripts: failedCheckScripts,
+  checkScriptCount: failedCheckScriptCount,
+} = buildCheckSelectionMetadata(checkSummary.failedChecks);
 const invalidCheckCount = 0;
 const failureSummaries = checks
   .filter((check) => !check.passed)
@@ -669,8 +669,10 @@ const report = buildTimedReport({
   skippedCheckScriptCount,
   passedCheckScripts,
   passedCheckScriptCount,
+  passedCheckMetadata,
   failedCheckScripts,
   failedCheckScriptCount,
+  failedCheckMetadata,
   ...checkSummary,
   failureSummaries,
   checks,
