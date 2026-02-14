@@ -222,8 +222,9 @@ artifact failures and `kind: "example"` for end-to-end example failures
 (including `exitCode`, `ruleMatched`, `payloadValid`, and `outputLine`).
 `examplePayloadValid` is `true` only when the end-to-end example emits the
 expected payload shape (`voxel.id`, `voxel.stage`, `voxel.rotation.value`,
-`voxel.rotation.yRotation`, `light`, `rotatedAabb`) and ordered AABB bounds
-(`min <= max` on each axis).
+`voxel.rotation.yRotation`, `light`, `rotatedAabb`) with valid value domains
+(`voxel.id` in `0..65535`, `voxel.stage`/light channels in `0..15`, rotation
+axis in `0..5`) and ordered AABB bounds (`min <= max` on each axis).
 
 If your project also depends on runtime utility packages (`@voxelize/aabb`,
 `@voxelize/raycast`, and `@voxelize/physics-engine`), you can validate all of

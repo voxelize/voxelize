@@ -131,8 +131,9 @@ metadata: `exampleCommand`, `exampleArgs`, `exampleArgCount`,
 `exampleOutputLine`.
 `examplePayloadValid` is `true` only when the example emits the full payload
 shape (`voxel.id`, `voxel.stage`, `voxel.rotation.value`,
-`voxel.rotation.yRotation`, `light`, `rotatedAabb`) with ordered AABB bounds
-(`min <= max` per axis).
+`voxel.rotation.yRotation`, `light`, `rotatedAabb`) with valid value domains
+(`voxel.id` in `0..65535`, `voxel.stage`/light channels in `0..15`, rotation
+axis in `0..5`) and ordered AABB bounds (`min <= max` per axis).
 
 When failures occur, `failureSummaries[]` entries include `kind`:
 

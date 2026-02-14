@@ -3031,7 +3031,7 @@ const deriveExpectedTsCoreExampleFailureMessage = (report: {
   }
 
   if (report.examplePayloadValid === false) {
-    return "TypeScript core end-to-end example output is missing required payload fields.";
+    return "TypeScript core end-to-end example output has missing or invalid required payload fields.";
   }
 
   return "TypeScript core end-to-end example output was invalid.";

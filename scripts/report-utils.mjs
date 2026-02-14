@@ -470,9 +470,12 @@ const isNumberVec3 = (value) => {
     Array.isArray(value) &&
     value.length === 3 &&
     value.every((entry) => {
-      return typeof entry === "number";
+      return typeof entry === "number" && Number.isFinite(entry);
     })
   );
+};
+const isIntegerInRange = (value, min, max) => {
+  return Number.isInteger(value) && value >= min && value <= max;
 };
 export const summarizeTsCoreExampleOutput = (output) => {
   const parsedOutput = parseJsonOutput(output);
@@ -505,17 +508,18 @@ export const summarizeTsCoreExampleOutput = (output) => {
     typeof voxelRotationValue === "object" &&
     !Array.isArray(voxelRotationValue) &&
     "value" in voxelRotationValue &&
-    typeof voxelRotationValue.value === "number" &&
+    isIntegerInRange(voxelRotationValue.value, 0, 5) &&
     "yRotation" in voxelRotationValue &&
-    typeof voxelRotationValue.yRotation === "number";
+    typeof voxelRotationValue.yRotation === "number" &&
+    Number.isFinite(voxelRotationValue.yRotation);
   const voxelValid =
     voxelValue !== null &&
     typeof voxelValue === "object" &&
     !Array.isArray(voxelValue) &&
     "id" in voxelValue &&
-    typeof voxelValue.id === "number" &&
+    isIntegerInRange(voxelValue.id, 0, 0xffff) &&
     "stage" in voxelValue &&
-    typeof voxelValue.stage === "number" &&
+    isIntegerInRange(voxelValue.stage, 0, 15) &&
     voxelRotationValid;
   const lightValue = "light" in parsedOutput ? parsedOutput.light : null;
   const lightValid =
@@ -523,13 +527,13 @@ export const summarizeTsCoreExampleOutput = (output) => {
     typeof lightValue === "object" &&
     !Array.isArray(lightValue) &&
     "sunlight" in lightValue &&
-    typeof lightValue.sunlight === "number" &&
+    isIntegerInRange(lightValue.sunlight, 0, 15) &&
     "red" in lightValue &&
-    typeof lightValue.red === "number" &&
+    isIntegerInRange(lightValue.red, 0, 15) &&
     "green" in lightValue &&
-    typeof lightValue.green === "number" &&
+    isIntegerInRange(lightValue.green, 0, 15) &&
     "blue" in lightValue &&
-    typeof lightValue.blue === "number";
+    isIntegerInRange(lightValue.blue, 0, 15);
   const rotatedAabbValue =
     "rotatedAabb" in parsedOutput ? parsedOutput.rotatedAabb : null;
   const rotatedAabbValid =
