@@ -49,8 +49,7 @@ impl<'a> System<'a> for WalkTowardsSystem {
                     let vpos = body.0.get_voxel_position();
                     let current_pos = body.0.get_position();
 
-                    let mut i = 0;
-                    let mut target = nodes[i].clone();
+                    let mut target_index = 0;
 
                     // Find the current and next target nodes
                     for (index, node) in nodes.iter().enumerate() {
@@ -59,20 +58,18 @@ impl<'a> System<'a> for WalkTowardsSystem {
 
                         if dx < NODE_ADVANCE_THRESHOLD && dz < NODE_ADVANCE_THRESHOLD {
                             if index < nodes.len() - 1 {
-                                i = index + 1;
-                                target = nodes[i].clone();
+                                target_index = index + 1;
                             } else {
-                                i = index;
-                                target = node.clone();
+                                target_index = index;
                             }
                         } else if index > 0 {
-                            i = index;
-                            target = node.clone();
+                            target_index = index;
                             break;
                         }
                     }
+                    let target = &nodes[target_index];
 
-                    if i == nodes.len() - 1 {
+                    if target_index == nodes.len() - 1 {
                         let dx = (current_pos.0 - (target.0 as f32 + 0.5)).abs();
                         let dz = (current_pos.2 - (target.2 as f32 + 0.5)).abs();
                         if dx < FINAL_NODE_THRESHOLD && dz < FINAL_NODE_THRESHOLD {
@@ -82,7 +79,7 @@ impl<'a> System<'a> for WalkTowardsSystem {
                     }
 
                     // jumping
-                    if vpos.1 < nodes[i].1 {
+                    if vpos.1 < target.1 {
                         brain.jump();
                         brain.sprint();
                     } else {
@@ -98,8 +95,8 @@ impl<'a> System<'a> for WalkTowardsSystem {
                         target.2 as f32 + offset,
                     );
 
-                    if i < nodes.len() - 1 {
-                        let next_node = &nodes[i + 1];
+                    if target_index < nodes.len() - 1 {
+                        let next_node = &nodes[target_index + 1];
                         let current_target = Vec3(
                             target.0 as f32 + offset,
                             target.1 as f32,
@@ -115,8 +112,8 @@ impl<'a> System<'a> for WalkTowardsSystem {
                             + (current_pos.2 - current_target.2).powi(2))
                         .sqrt();
 
-                        let (is_turning, turn_angle) = if i > 0 {
-                            let prev_node = &nodes[i - 1];
+                        let (is_turning, turn_angle) = if target_index > 0 {
+                            let prev_node = &nodes[target_index - 1];
                             let dir1_x = axis_delta_f64(target.0, prev_node.0);
                             let dir1_z = axis_delta_f64(target.2, prev_node.2);
                             let dir2_x = axis_delta_f64(next_node.0, target.0);
@@ -175,9 +172,9 @@ impl<'a> System<'a> for WalkTowardsSystem {
                         }
                     }
 
-                    if i > 0 && i < nodes.len() {
-                        let prev_node = &nodes[i - 1];
-                        let curr_node = &nodes[i];
+                    if target_index > 0 && target_index < nodes.len() {
+                        let prev_node = &nodes[target_index - 1];
+                        let curr_node = &nodes[target_index];
 
                         let dy = i64::from(curr_node.1) - i64::from(prev_node.1);
                         let dx = axis_abs_delta_u64(curr_node.0, prev_node.0);
