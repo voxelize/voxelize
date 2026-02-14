@@ -179,7 +179,8 @@ export function decodeMessage(
 
   const entities = message.entities;
   if (entities && entities.length > 0) {
-    for (let i = 0; i < entities.length; i++) {
+    const entityCount = entities.length;
+    for (let i = 0; i < entityCount; i++) {
       const entity = entities[i];
       if (typeof entity.metadata === "string") {
         const parsed = tryParseJSON(entity.metadata);
@@ -196,7 +197,8 @@ export function decodeMessage(
 
   const peers = message.peers;
   if (peers && peers.length > 0) {
-    for (let i = 0; i < peers.length; i++) {
+    const peerCount = peers.length;
+    for (let i = 0; i < peerCount; i++) {
       const peer = peers[i];
       if (typeof peer.metadata === "string") {
         peer.metadata = tryParseJSON(peer.metadata);
@@ -206,7 +208,8 @@ export function decodeMessage(
 
   const events = message.events;
   if (events && events.length > 0) {
-    for (let i = 0; i < events.length; i++) {
+    const eventCount = events.length;
+    for (let i = 0; i < eventCount; i++) {
       const event = events[i];
       if (typeof event.payload === "string") {
         event.payload = deepParseJSON(event.payload);
@@ -216,7 +219,8 @@ export function decodeMessage(
 
   const chunks = message.chunks;
   if (chunks && chunks.length > 0) {
-    for (let i = 0; i < chunks.length; i++) {
+    const chunkCount = chunks.length;
+    for (let i = 0; i < chunkCount; i++) {
       const chunk = chunks[i];
 
       if (chunk.lights instanceof Uint8Array) {
@@ -228,10 +232,12 @@ export function decodeMessage(
 
       const meshes = chunk.meshes;
       if (meshes) {
-        for (let j = 0; j < meshes.length; j++) {
+        const meshCount = meshes.length;
+        for (let j = 0; j < meshCount; j++) {
           const geometries = meshes[j].geometries;
           if (geometries) {
-            for (let k = 0; k < geometries.length; k++) {
+            const geometryCount = geometries.length;
+            for (let k = 0; k < geometryCount; k++) {
               const geo = geometries[k];
               if (geo) {
                 if (geo.indices instanceof Uint8Array) {
@@ -242,8 +248,9 @@ export function decodeMessage(
                     geo.indices = EMPTY_U16;
                     continue;
                   }
-                  const indices = new Uint16Array(decompressedI32.length);
-                  for (let idx = 0; idx < decompressedI32.length; idx++) {
+                  const decodedIndexCount = decompressedI32.length;
+                  const indices = new Uint16Array(decodedIndexCount);
+                  for (let idx = 0; idx < decodedIndexCount; idx++) {
                     indices[idx] = decompressedI32[idx];
                   }
                   geo.indices = indices;
