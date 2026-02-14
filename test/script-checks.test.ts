@@ -205,6 +205,7 @@ type ClientJsonReport = OptionTerminatorMetadata &
       supportsNoBuild: boolean;
     }
   >;
+  passedStepMetadataCount: number;
   failedStepMetadata: Record<
     string,
     {
@@ -212,6 +213,7 @@ type ClientJsonReport = OptionTerminatorMetadata &
       supportsNoBuild: boolean;
     }
   >;
+  failedStepMetadataCount: number;
   skippedStepMetadata: Record<
     string,
     {
@@ -219,6 +221,7 @@ type ClientJsonReport = OptionTerminatorMetadata &
       supportsNoBuild: boolean;
     }
   >;
+  skippedStepMetadataCount: number;
   firstFailedStep: string | null;
   startedAt: string;
   endedAt: string;
@@ -431,6 +434,7 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
       supportsNoBuild: boolean;
     }
   >;
+  passedStepMetadataCount: number;
   failedStepMetadata: Record<
     string,
     {
@@ -438,6 +442,7 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
       supportsNoBuild: boolean;
     }
   >;
+  failedStepMetadataCount: number;
   skippedStepMetadata: Record<
     string,
     {
@@ -445,6 +450,7 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
       supportsNoBuild: boolean;
     }
   >;
+  skippedStepMetadataCount: number;
   firstFailedStep: string | null;
   startedAt: string;
   endedAt: string;
@@ -536,6 +542,7 @@ const expectStepSummaryMetadata = (
         supportsNoBuild: boolean;
       }
     >;
+    passedStepMetadataCount: number;
     failedStepMetadata: Record<
       string,
       {
@@ -543,6 +550,7 @@ const expectStepSummaryMetadata = (
         supportsNoBuild: boolean;
       }
     >;
+    failedStepMetadataCount: number;
     skippedStepMetadata: Record<
       string,
       {
@@ -550,6 +558,7 @@ const expectStepSummaryMetadata = (
         supportsNoBuild: boolean;
       }
     >;
+    skippedStepMetadataCount: number;
     firstFailedStep: string | null;
   },
   expectedStepMetadata: Record<
@@ -683,8 +692,17 @@ const expectStepSummaryMetadata = (
     expect(report.failureSummaries[0]?.name).toBe(report.firstFailedStep);
   }
   expect(report.passedStepMetadata).toEqual(passedStepMetadata);
+  expect(report.passedStepMetadataCount).toBe(
+    Object.keys(report.passedStepMetadata).length
+  );
   expect(report.failedStepMetadata).toEqual(failedStepMetadata);
+  expect(report.failedStepMetadataCount).toBe(
+    Object.keys(report.failedStepMetadata).length
+  );
   expect(report.skippedStepMetadata).toEqual(skippedStepMetadata);
+  expect(report.skippedStepMetadataCount).toBe(
+    Object.keys(report.skippedStepMetadata).length
+  );
   expect(report.firstFailedStep).toBe(failedSteps[0] ?? null);
 };
 const expectAvailableStepMetadata = (

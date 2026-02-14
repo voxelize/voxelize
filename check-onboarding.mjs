@@ -218,8 +218,11 @@ if (isJson && validationFailureMessage !== null) {
     failureSummaries: [],
     failureSummaryCount: 0,
     passedStepMetadata: {},
+    passedStepMetadataCount: 0,
     failedStepMetadata: {},
+    failedStepMetadataCount: 0,
     skippedStepMetadata: {},
+    skippedStepMetadataCount: 0,
     ...summarizeStepResults([]),
     message: validationFailureMessage,
   });
@@ -417,8 +420,11 @@ if (isJson) {
     failureSummaries,
     failureSummaryCount: failureSummaries.length,
     passedStepMetadata,
+    passedStepMetadataCount: Object.keys(passedStepMetadata).length,
     failedStepMetadata,
+    failedStepMetadataCount: Object.keys(failedStepMetadata).length,
     skippedStepMetadata,
+    skippedStepMetadataCount: Object.keys(skippedStepMetadata).length,
     ...stepSummary,
   });
   const { reportJson, writeError } = serializeReportWithOptionalWrite(report, {

@@ -249,7 +249,10 @@ partitions such as `availableSteps`, `passedSteps`, `failedSteps`,
 `availableStepMetadata`, `availableStepMetadataCount`,
 `passedStepScripts`, `failedStepScripts`,
 `skippedStepScripts`, `passedStepIndices`, `failedStepIndices`,
-`skippedStepIndices`, `failureSummaries`, and `failureSummaryCount`.
+`skippedStepIndices`, `passedStepMetadata`, `passedStepMetadataCount`,
+`failedStepMetadata`, `failedStepMetadataCount`,
+`skippedStepMetadata`, `skippedStepMetadataCount`,
+`failureSummaries`, and `failureSummaryCount`.
 Each step entry in `steps[]` includes `scriptName`, `supportsNoBuild`, and
 `stepIndex`.
 
