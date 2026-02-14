@@ -193,12 +193,6 @@ const getChunkShiftIfPowerOfTwo = (chunkSize: number) => {
   }
   return 31 - Math.clz32(chunkSize);
 };
-const mapVoxelToChunkCoordinate = (
-  voxel: number,
-  chunkSize: number,
-  chunkShift: number
-) =>
-  chunkShift >= 0 ? voxel >> chunkShift : Math.floor(voxel / chunkSize);
 const getChunkValidityMemo = (cellCount: number) => {
   if (reusableChunkValidityDense.length < cellCount) {
     reusableChunkValidityDense = new Int8Array(cellCount);
@@ -632,8 +626,10 @@ const hasPotentialRelevantDeltaBatches = (
       }
       const writeIntentMask = getDeltaWriteIntentMask(delta);
       if (writeIntentMask !== 0) {
-        const deltaChunkX = mapVoxelToChunkCoordinate(vx, chunkSize, chunkShift);
-        const deltaChunkZ = mapVoxelToChunkCoordinate(vz, chunkSize, chunkShift);
+        const deltaChunkX =
+          chunkShift >= 0 ? vx >> chunkShift : Math.floor(vx / chunkSize);
+        const deltaChunkZ =
+          chunkShift >= 0 ? vz >> chunkShift : Math.floor(vz / chunkSize);
         if (deltaChunkX === cx && deltaChunkZ === cz) {
           resetChunkValidityMemo(chunkValidity, chunkValidityTouched);
           if (chunkValiditySparse) {
