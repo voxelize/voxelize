@@ -186,6 +186,21 @@ describe("report-utils", () => {
     ).toEqual({ ok: true, exitCode: 0 });
   });
 
+  it("parses json output containing UTF-8 BOM prefixes", () => {
+    expect(parseJsonOutput(`\uFEFF{"ok":true,"exitCode":0}`)).toEqual({
+      ok: true,
+      exitCode: 0,
+    });
+    expect(
+      parseJsonOutput(
+        `warning: before\n\uFEFF{"ok":false,"exitCode":2}\nwarning: after`
+      )
+    ).toEqual({
+      ok: false,
+      exitCode: 2,
+    });
+  });
+
   it("parses json output containing carriage-return progress updates", () => {
     expect(parseJsonOutput(`progress: checking\r{"ok":true}`)).toEqual({
       ok: true,

@@ -7,9 +7,13 @@ const ANSI_CSI_ESCAPE_SEQUENCE_REGEX =
 const ANSI_OSC_ESCAPE_SEQUENCE_REGEX =
   /(?:\u001b\]|\u009d)[^\u0007\u001b\u009c]*(?:\u0007|\u001b\\|\u009c)/g;
 const NON_JSON_CONTROL_CHAR_REGEX = /[\u0000-\u0008\u000B\u000C\u000E-\u001A\u001C-\u001F\u007F-\u009F]/g;
+const UTF8_BOM_PREFIX_REGEX = /^\uFEFF+/;
+const UTF8_BOM_LINE_PREFIX_REGEX = /\n\uFEFF+/g;
 
 const sanitizeOutputForJsonParsing = (value) => {
   return value
+    .replace(UTF8_BOM_PREFIX_REGEX, "")
+    .replace(UTF8_BOM_LINE_PREFIX_REGEX, "\n")
     .replace(ANSI_OSC_ESCAPE_SEQUENCE_REGEX, "")
     .replace(ANSI_CSI_ESCAPE_SEQUENCE_REGEX, "")
     .replace(/\r/g, "\n")
