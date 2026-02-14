@@ -228,6 +228,41 @@ fn test_space_get_raw_voxel_ignores_out_of_range_y() {
 }
 
 #[test]
+fn test_space_set_raw_light_handles_dense_sub_chunk_partitions() {
+    let config = WorldConfig {
+        chunk_size: 16,
+        max_height: 3,
+        max_light_level: 15,
+        min_chunk: [0, 0],
+        max_chunk: [0, 0],
+        saving: false,
+        ..Default::default()
+    };
+    let mut chunks = Chunks::new(&config);
+    chunks.add(Chunk::new(
+        "chunk-0-0",
+        0,
+        0,
+        &ChunkOptions {
+            size: 16,
+            max_height: 3,
+            sub_chunks: 8,
+        },
+    ));
+
+    let mut space = chunks.make_space(&Vec2(0, 0), 1).needs_lights().build();
+    space.updated_levels.clear();
+
+    assert!(space.set_raw_light(0, 2, 0, 1));
+    assert_eq!(space.get_raw_light(0, 2, 0), 1);
+    assert!(
+        space.updated_levels.iter().all(|level| *level < 8),
+        "space dirty-level tracking should stay in-range when sub-chunks outnumber world height"
+    );
+    assert!(space.updated_levels.contains(&5));
+}
+
+#[test]
 fn test_chunk_updated_levels_stay_in_bounds_for_irregular_partitions() {
     let mut chunk = Chunk::new(
         "chunk-irregular",

@@ -323,9 +323,17 @@ impl VoxelAccess for Space {
             if lights[&[lx, ly, lz]] == level {
                 return true;
             }
-            let chunk_level =
-                vy as u32 / (self.options.max_height / self.options.sub_chunks) as u32;
-            self.updated_levels.insert(chunk_level);
+            let sub_chunks = self.options.sub_chunks;
+            if sub_chunks > 0 {
+                let max_level = sub_chunks as u32 - 1;
+                let max_height = self.options.max_height as u128;
+                let chunk_level = if max_height == 0 {
+                    0
+                } else {
+                    ((vy as u128 * sub_chunks as u128) / max_height).min(max_level as u128) as u32
+                };
+                self.updated_levels.insert(chunk_level);
+            }
 
             lights[&[lx, ly, lz]] = level;
             return true;
