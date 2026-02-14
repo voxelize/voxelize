@@ -183,6 +183,22 @@ describe("LightUtils", () => {
     });
   });
 
+  it("keeps channel updates unsigned for signed input words", () => {
+    const withSunlight = Light.withSunlight(-1, 0);
+    const withRed = Light.withRed(-1, 0);
+    const withGreen = Light.withGreen(-1, 0);
+    const withBlue = Light.withBlue(-1, 0);
+
+    expect(withSunlight).toBe(withSunlight >>> 0);
+    expect(withRed).toBe(withRed >>> 0);
+    expect(withGreen).toBe(withGreen >>> 0);
+    expect(withBlue).toBe(withBlue >>> 0);
+    expect(Light.unpack(withSunlight).sunlight).toBe(0);
+    expect(Light.unpack(withRed).red).toBe(0);
+    expect(Light.unpack(withGreen).green).toBe(0);
+    expect(Light.unpack(withBlue).blue).toBe(0);
+  });
+
   it("preserves untouched channels when updating one channel", () => {
     const base = Light.pack({
       sunlight: 9,
