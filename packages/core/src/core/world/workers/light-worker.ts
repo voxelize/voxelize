@@ -177,6 +177,7 @@ const MAX_TYPED_ARRAY_LENGTH = 0x7fffffff;
 const MAX_UINT32 = 0xffffffff;
 const isI32 = (value: number) =>
   isInteger(value) && value >= MIN_INT32 && value <= MAX_INT32;
+const isPositiveI32 = (value: number) => isI32(value) && value > 0;
 const isPositiveU32 = (value: number) =>
   isInteger(value) && value > 0 && value <= MAX_UINT32;
 const getChunkShiftIfPowerOfTwo = (chunkSize: number) => {
@@ -398,8 +399,8 @@ const hasMatchingChunkOptions = (
 ) =>
   chunkOptions !== null &&
   chunkOptions !== undefined &&
-  isPositiveInteger(chunkOptions.size) &&
-  isPositiveInteger(chunkOptions.maxHeight) &&
+  isPositiveI32(chunkOptions.size) &&
+  isPositiveI32(chunkOptions.maxHeight) &&
   chunkOptions.size === expectedChunkSize &&
   chunkOptions.maxHeight === expectedMaxHeight;
 
@@ -1003,8 +1004,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
   const maxHeight = options.maxHeight;
   const maxLightLevel = options.maxLightLevel;
   if (
-    !isPositiveInteger(chunkSize) ||
-    !isPositiveInteger(maxHeight) ||
+    !isPositiveI32(chunkSize) ||
+    !isPositiveI32(maxHeight) ||
     !isValidMaxLightLevel(maxLightLevel)
   ) {
     postEmptyBatchResult(jobId, normalizedLastRelevantSequenceId);
