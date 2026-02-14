@@ -640,4 +640,22 @@ describe("BlockRuleEvaluator", () => {
 
     expect(matched).toBe(true);
   });
+
+  it("returns false for unsupported combination logic values", () => {
+    const access = {
+      getVoxel: () => 1,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    const invalidLogicRule = {
+      type: "combination" as const,
+      logic: "xor" as BlockRuleLogic,
+      rules: [BLOCK_RULE_NONE],
+    };
+
+    expect(BlockRuleEvaluator.evaluate(invalidLogicRule, [0, 0, 0], access)).toBe(
+      false
+    );
+  });
 });
