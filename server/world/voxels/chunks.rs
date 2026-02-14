@@ -725,8 +725,11 @@ impl VoxelAccess for Chunks {
             return false;
         }
 
-        if let Some(chunk) = self.raw_chunk_by_voxel(vx, vy, vz) {
-            return chunk.contains(vx, vy, vz);
+        let chunk_size = self.config.chunk_size;
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        if let Some(chunk) = self.raw(&coords) {
+            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            return Self::local_is_within_chunk(chunk, lx, ly, lz);
         }
 
         false
