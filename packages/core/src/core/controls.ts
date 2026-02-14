@@ -738,13 +738,14 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
   getPositionVector = (target?: Vector3) => {
     const bodyPosition = this.body.getPosition();
-    const position = target ?? new Vector3();
-    position.set(
-      bodyPosition[0],
-      bodyPosition[1] - this.options.bodyHeight * 0.5,
-      bodyPosition[2]
-    );
-    return position;
+    const x = bodyPosition[0];
+    const y = bodyPosition[1] - this.options.bodyHeight * 0.5;
+    const z = bodyPosition[2];
+    if (!target) {
+      return new Vector3(x, y, z);
+    }
+    target.set(x, y, z);
+    return target;
   };
 
   /**
@@ -1044,7 +1045,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    * The 3D world coordinates that the client is at. This is where the bottom of the client's body is located.
    */
   get position() {
-    return this.getPositionVector(new Vector3());
+    return this.getPositionVector();
   }
 
   /**
