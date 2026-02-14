@@ -509,7 +509,7 @@ where
             return Vec::new();
         }
 
-        if array.get(0).is_object() {
+        if array.get(0).is_object() && array.get(length_u32 - 1).is_object() {
             if let Ok(nodes) = serde_wasm_bindgen::from_value(array.clone().into()) {
                 return nodes;
             }
