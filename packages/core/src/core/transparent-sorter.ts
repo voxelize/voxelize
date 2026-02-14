@@ -165,10 +165,6 @@ export function sortTransparentMesh(
   data: TransparentMeshData,
   camera: Camera
 ): void {
-  if (data.faceCount <= 1) {
-    return;
-  }
-
   mesh.getWorldPosition(_worldPos);
   camera.getWorldPosition(_camWorldPos);
   const camX = _camWorldPos.x - _worldPos.x;
