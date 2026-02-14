@@ -333,10 +333,11 @@ export class MeshPipeline {
 
   shouldStartJob(key: string): boolean {
     const state = this.states.get(key);
-    if (!state) return false;
-    if (state.inFlightGeneration !== null) return false;
-    if (state.generation === state.displayedGeneration) return false;
-    return true;
+    return (
+      state !== undefined &&
+      state.inFlightGeneration === null &&
+      state.generation !== state.displayedGeneration
+    );
   }
 
   startJob(key: string): MeshState | null {
@@ -385,10 +386,11 @@ export class MeshPipeline {
       this.inFlightCount--;
     }
     state.inFlightGeneration = null;
+    const displayedGeneration = state.displayedGeneration;
 
     let status = 0;
-    if (jobGeneration < state.displayedGeneration) {
-      if (state.generation > state.displayedGeneration) {
+    if (jobGeneration < displayedGeneration) {
+      if (state.generation > displayedGeneration) {
         status |= MESH_JOB_NEEDS_REMESH;
       }
       return status;
