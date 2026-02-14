@@ -91,7 +91,7 @@ export class WorkerPool {
    * The list of available workers' indices.
    */
   private available: number[] = [];
-  private singleTransferBufferList: ArrayBuffer[] = [new ArrayBuffer(0)];
+  private singleTransferBufferList: ArrayBuffer[] = [];
 
   /**
    * Create a new worker pool.
