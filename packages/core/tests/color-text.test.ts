@@ -27,4 +27,16 @@ describe("ColorText.split", () => {
       ColorText.SPLITTER = previousSplitter;
     }
   });
+
+  it("short-circuits plain text when splitter does not appear", () => {
+    const previousSplitter = ColorText.SPLITTER;
+    ColorText.SPLITTER = "##";
+    try {
+      expect(ColorText.split("just plain text", "white")).toEqual([
+        { color: "white", text: "just plain text" },
+      ]);
+    } finally {
+      ColorText.SPLITTER = previousSplitter;
+    }
+  });
 });
