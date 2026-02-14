@@ -139,6 +139,24 @@ export interface BlockDynamicPattern {
   parts: BlockConditionalPart[];
 }
 
+const cloneBlockFace = (face: BlockFace): BlockFace => {
+  const [corner0, corner1, corner2, corner3] = face.corners;
+  return new BlockFace({
+    name: face.name,
+    independent: face.independent,
+    isolated: face.isolated,
+    textureGroup: face.textureGroup,
+    dir: [...face.dir],
+    corners: [
+      createCornerData(corner0.pos, corner0.uv),
+      createCornerData(corner1.pos, corner1.uv),
+      createCornerData(corner2.pos, corner2.uv),
+      createCornerData(corner3.pos, corner3.uv),
+    ],
+    range: { ...face.range },
+  });
+};
+
 const cloneBlockRule = (rule: BlockRule): BlockRule => {
   if (rule.type === "none") {
     return { type: "none" };
@@ -167,13 +185,16 @@ const cloneBlockRule = (rule: BlockRule): BlockRule => {
 export const createBlockConditionalPart = (
   part: Partial<BlockConditionalPart>
 ): BlockConditionalPart => {
-  const faces = Array.isArray(part.faces) ? [...part.faces] : [];
-  const aabbs = Array.isArray(part.aabbs) ? [...part.aabbs] : [];
+  const faces = Array.isArray(part.faces) ? part.faces.map((face) => cloneBlockFace(face)) : [];
+  const aabbs = Array.isArray(part.aabbs) ? part.aabbs.map((aabb) => aabb.clone()) : [];
   const isTransparent: FaceTransparency =
     part.isTransparent === undefined
       ? [false, false, false, false, false, false]
       : [...part.isTransparent];
-  const rule = part.rule === undefined ? cloneBlockRule(BLOCK_RULE_NONE) : cloneBlockRule(part.rule);
+  const rule =
+    part.rule === undefined
+      ? cloneBlockRule(BLOCK_RULE_NONE)
+      : cloneBlockRule(part.rule);
 
   return {
     rule,

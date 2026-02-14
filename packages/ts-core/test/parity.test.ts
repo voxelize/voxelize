@@ -953,15 +953,21 @@ describe("Type builders", () => {
     });
     expect(part.faces).toEqual(faces);
     expect(part.aabbs).toEqual(aabbs);
+    expect(part.faces[0]).not.toBe(face);
+    expect(part.aabbs[0]).not.toBe(aabb);
     expect(part.isTransparent).toEqual(isTransparent);
     expect(part.worldSpace).toBe(true);
 
     faces.push(new BlockFace({ name: "Mutated" }));
     aabbs.push(AABB.create(0, 0, 0, 2, 2, 2));
+    face.name = "MutatedFace";
+    aabb.maxX = 9;
     isTransparent[0] = false;
 
     expect(part.faces).toHaveLength(1);
+    expect(part.faces[0].name).toBe("CustomFace");
     expect(part.aabbs).toHaveLength(1);
+    expect(part.aabbs[0].maxX).toBe(1);
     expect(part.isTransparent).toEqual([true, false, true, false, true, false]);
   });
 
