@@ -608,18 +608,15 @@ impl NeighborCache {
                 let sample_y = vy + y;
                 for x in -1..=1 {
                     let sample_x = vx + x;
-                    if x == 0 && y == 0 && z == 0 {
-                        let (raw_voxel, raw_light) =
-                            space.get_raw_voxel_and_raw_light(sample_x, sample_y, sample_z);
-                        data[idx][0] = raw_voxel;
-                        data[idx][1] = raw_light;
-                    } else {
-                        data[idx][0] = space.get_raw_voxel(sample_x, sample_y, sample_z);
-                    }
+                    data[idx][0] = space.get_raw_voxel(sample_x, sample_y, sample_z);
                     idx += 1;
                 }
             }
         }
+        let center_index = Self::offset_to_index(0, 0, 0);
+        let (center_voxel, center_light) = space.get_raw_voxel_and_raw_light(vx, vy, vz);
+        data[center_index][0] = center_voxel;
+        data[center_index][1] = center_light;
 
         Self { data }
     }
