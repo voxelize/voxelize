@@ -136,7 +136,7 @@ pnpm run check:client:verify:json:compact
 pnpm run check:client:verify:json -- --output ./client-verify-report.json
 # direct cli alias also works: node ./check-client.mjs --verify
 
-# run full onboarding checks (tooling + ts-core + client)
+# run full onboarding checks (tooling + ts-core + runtime libraries + client)
 pnpm run check:onboarding
 # quiet mode (errors only)
 pnpm run check:onboarding -- --quiet

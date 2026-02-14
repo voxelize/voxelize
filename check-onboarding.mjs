@@ -195,6 +195,10 @@ const devEnvPassed = runStep(
 
 if (!devEnvPassed) {
   addSkippedStep("TypeScript core checks", "Developer environment preflight failed");
+  addSkippedStep(
+    "Runtime library checks",
+    "Developer environment preflight failed"
+  );
   addSkippedStep("Client checks", "Developer environment preflight failed");
 } else {
   const tsCorePassed = runStep(
@@ -205,10 +209,22 @@ if (!devEnvPassed) {
     ]
   );
   if (tsCorePassed) {
-    runStep("Client checks", path.resolve(__dirname, "check-client.mjs"), [
-      ...(isNoBuild ? ["--no-build"] : []),
-    ]);
+    const runtimeLibrariesPassed = runStep(
+      "Runtime library checks",
+      path.resolve(__dirname, "check-runtime-libraries.mjs"),
+      [
+        ...(isNoBuild ? ["--no-build"] : []),
+      ]
+    );
+    if (runtimeLibrariesPassed) {
+      runStep("Client checks", path.resolve(__dirname, "check-client.mjs"), [
+        ...(isNoBuild ? ["--no-build"] : []),
+      ]);
+    } else {
+      addSkippedStep("Client checks", "Runtime library checks failed");
+    }
   } else {
+    addSkippedStep("Runtime library checks", "TypeScript core checks failed");
     addSkippedStep("Client checks", "TypeScript core checks failed");
   }
 }

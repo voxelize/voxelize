@@ -199,13 +199,70 @@ type TsCoreJsonReport = OptionTerminatorMetadata &
   writeError?: string;
 };
 
+type RuntimeLibrariesJsonPackageReport = {
+  packageName: string;
+  packagePath: string;
+  requiredArtifacts: string[];
+  requiredArtifactCount: number;
+  missingArtifacts: string[];
+  missingArtifactCount: number;
+  artifactsPresent: boolean;
+};
+
+type RuntimeLibrariesJsonReport = OptionTerminatorMetadata &
+  ActiveCliOptionMetadata & {
+  schemaVersion: number;
+  passed: boolean;
+  exitCode: number;
+  noBuild: boolean;
+  packagesPresent: boolean;
+  packageReports: RuntimeLibrariesJsonPackageReport[];
+  checkedPackages: string[];
+  requiredPackageCount: number;
+  packageReportCount: number;
+  requiredArtifactCount: number;
+  missingPackageCount: number;
+  missingArtifactCount: number;
+  buildCommand: string;
+  buildArgs: string[];
+  buildExitCode: number | null;
+  buildDurationMs: number | null;
+  attemptedBuild: boolean;
+  buildSkipped: boolean;
+  buildSkippedReason: "no-build" | "artifacts-present" | null;
+  buildOutput: string | null;
+  outputPath: string | null;
+  unknownOptions: string[];
+  unknownOptionCount: number;
+  supportedCliOptions: string[];
+  supportedCliOptionCount: number;
+  availableCliOptionAliases: {
+    "--no-build": string[];
+  };
+  availableCliOptionCanonicalMap: Record<string, string>;
+  validationErrorCode:
+    | "output_option_missing_value"
+    | "unsupported_options"
+    | null;
+  startedAt: string;
+  endedAt: string;
+  durationMs: number;
+  message: string;
+  writeError?: string;
+};
+
 type OnboardingJsonStep = {
   name: string;
   passed: boolean;
   exitCode: number | null;
   skipped: boolean;
   reason: string | null;
-  report: DevEnvJsonReport | TsCoreJsonReport | ClientJsonReport | null;
+  report:
+    | DevEnvJsonReport
+    | TsCoreJsonReport
+    | RuntimeLibrariesJsonReport
+    | ClientJsonReport
+    | null;
   output: string | null;
 };
 
@@ -366,6 +423,45 @@ const expectedTsCoreBuildArgs = [
   "run",
   "build",
 ];
+const expectedRuntimeLibrariesCheckedPackages = [
+  "@voxelize/aabb",
+  "@voxelize/raycast",
+  "@voxelize/physics-engine",
+];
+const expectedRuntimeLibrariesArtifactsByPackage = {
+  "@voxelize/aabb": [
+    "packages/aabb/dist/index.js",
+    "packages/aabb/dist/index.mjs",
+    "packages/aabb/dist/index.d.ts",
+  ],
+  "@voxelize/raycast": [
+    "packages/raycast/dist/index.js",
+    "packages/raycast/dist/index.mjs",
+    "packages/raycast/dist/index.d.ts",
+  ],
+  "@voxelize/physics-engine": [
+    "packages/physics-engine/dist/index.cjs",
+    "packages/physics-engine/dist/index.js",
+    "packages/physics-engine/dist/index.d.ts",
+  ],
+};
+const expectedRuntimeLibrariesRequiredArtifactCount = Object.values(
+  expectedRuntimeLibrariesArtifactsByPackage
+).reduce((count, artifacts) => {
+  return count + artifacts.length;
+}, 0);
+const expectedRuntimeLibrariesBuildArgs = [
+  "--dir",
+  rootDir,
+  "--filter",
+  "@voxelize/aabb",
+  "--filter",
+  "@voxelize/raycast",
+  "--filter",
+  "@voxelize/physics-engine",
+  "run",
+  "build",
+];
 const expectTsCoreReportMetadata = (report: TsCoreJsonReport) => {
   expect(report.packagePath).toBe("packages/ts-core");
   expect(report.requiredArtifacts).toEqual(expectedTsCoreRequiredArtifacts);
@@ -386,6 +482,76 @@ const expectTsCoreReportMetadata = (report: TsCoreJsonReport) => {
   }
   if (report.buildSkipped) {
     expect(report.buildSkippedReason === "no-build" || report.buildSkippedReason === "artifacts-present").toBe(true);
+  } else {
+    expect(report.buildSkippedReason).toBeNull();
+  }
+  if (report.buildSkippedReason === "no-build") {
+    expect(report.noBuild).toBe(true);
+  }
+  if (report.buildSkippedReason === "artifacts-present") {
+    expect(report.attemptedBuild).toBe(false);
+  }
+  expectTimingMetadata(report);
+  expectOptionTerminatorMetadata(report);
+  expectCliOptionCatalogMetadata(
+    report,
+    expectedNoBuildCliOptionAliases,
+    expectedNoBuildCliOptions
+  );
+};
+const expectRuntimeLibrariesReportMetadata = (
+  report: RuntimeLibrariesJsonReport
+) => {
+  expect(report.checkedPackages).toEqual(expectedRuntimeLibrariesCheckedPackages);
+  expect(report.requiredPackageCount).toBe(
+    expectedRuntimeLibrariesCheckedPackages.length
+  );
+  expect(report.packageReportCount).toBe(report.packageReports.length);
+  expect(report.requiredArtifactCount).toBe(
+    expectedRuntimeLibrariesRequiredArtifactCount
+  );
+  const missingPackageCount = report.packageReports.filter((packageReport) => {
+    return packageReport.artifactsPresent === false;
+  }).length;
+  const missingArtifactCount = report.packageReports.reduce(
+    (count, packageReport) => {
+      return count + packageReport.missingArtifactCount;
+    },
+    0
+  );
+  expect(report.missingPackageCount).toBe(missingPackageCount);
+  expect(report.missingArtifactCount).toBe(missingArtifactCount);
+  for (const packageReport of report.packageReports) {
+    expect(packageReport.requiredArtifacts).toEqual(
+      expectedRuntimeLibrariesArtifactsByPackage[
+        packageReport.packageName as keyof typeof expectedRuntimeLibrariesArtifactsByPackage
+      ]
+    );
+    expect(packageReport.requiredArtifactCount).toBe(
+      packageReport.requiredArtifacts.length
+    );
+    expect(packageReport.missingArtifactCount).toBe(
+      packageReport.missingArtifacts.length
+    );
+  }
+  expect(typeof report.buildCommand).toBe("string");
+  expect(report.buildCommand.length).toBeGreaterThan(0);
+  expect(report.buildArgs).toEqual(expectedRuntimeLibrariesBuildArgs);
+  if (report.buildExitCode !== null) {
+    expect(Number.isInteger(report.buildExitCode)).toBe(true);
+  }
+  if (report.attemptedBuild) {
+    expect(typeof report.buildDurationMs).toBe("number");
+    expect(report.buildDurationMs).toBeGreaterThanOrEqual(0);
+  } else {
+    expect(report.buildExitCode).toBeNull();
+    expect(report.buildDurationMs).toBeNull();
+  }
+  if (report.buildSkipped) {
+    expect(
+      report.buildSkippedReason === "no-build" ||
+        report.buildSkippedReason === "artifacts-present"
+    ).toBe(true);
   } else {
     expect(report.buildSkippedReason).toBeNull();
   }
@@ -4201,6 +4367,10 @@ describe("root preflight scripts", () => {
       (step) => step.name === "TypeScript core checks"
     );
     expect(tsCoreStep).toBeDefined();
+    const runtimeLibrariesStep = report.steps.find(
+      (step) => step.name === "Runtime library checks"
+    );
+    expect(runtimeLibrariesStep).toBeDefined();
     expect(
       report.steps.some((step) => step.name === "Client checks")
     ).toBe(true);
@@ -4209,11 +4379,17 @@ describe("root preflight scripts", () => {
     const tsCoreStepIndex = report.steps.findIndex((step) => {
       return step.name === "TypeScript core checks";
     });
+    const runtimeLibrariesStepIndex = report.steps.findIndex((step) => {
+      return step.name === "Runtime library checks";
+    });
     const clientStepIndex = report.steps.findIndex((step) => {
       return step.name === "Client checks";
     });
     expect(tsCoreStepIndex).toBeGreaterThan(-1);
+    expect(runtimeLibrariesStepIndex).toBeGreaterThan(-1);
     expect(clientStepIndex).toBeGreaterThan(-1);
+    expect(tsCoreStepIndex).toBeLessThan(runtimeLibrariesStepIndex);
+    expect(runtimeLibrariesStepIndex).toBeLessThan(clientStepIndex);
     expect(tsCoreStepIndex).toBeLessThan(clientStepIndex);
     expect(report.steps[0].report).not.toBeNull();
     if (report.steps[0].report !== null) {
@@ -4228,6 +4404,16 @@ describe("root preflight scripts", () => {
       expect(tsCoreStep.reason).toBe("Developer environment preflight failed");
     }
     if (
+      runtimeLibrariesStep !== undefined &&
+      report.steps[0].passed === false
+    ) {
+      expect(runtimeLibrariesStep.skipped).toBe(true);
+      expect(runtimeLibrariesStep.exitCode).toBeNull();
+      expect(runtimeLibrariesStep.reason).toBe(
+        "Developer environment preflight failed"
+      );
+    }
+    if (
       tsCoreStep !== undefined &&
       report.steps[0].passed &&
       tsCoreStep.report !== null
@@ -4236,8 +4422,31 @@ describe("root preflight scripts", () => {
       expectTsCoreReportMetadata(tsCoreStep.report);
     }
     if (
+      runtimeLibrariesStep !== undefined &&
+      tsCoreStep !== undefined &&
+      report.steps[0].passed &&
+      tsCoreStep.skipped === false &&
+      tsCoreStep.passed &&
+      runtimeLibrariesStep.report !== null
+    ) {
+      expect(runtimeLibrariesStep.skipped).toBe(false);
+      expectRuntimeLibrariesReportMetadata(runtimeLibrariesStep.report);
+    }
+    if (
+      runtimeLibrariesStep !== undefined &&
+      tsCoreStep !== undefined &&
+      report.steps[0].passed &&
+      tsCoreStep.skipped === false &&
+      tsCoreStep.passed === false
+    ) {
+      expect(runtimeLibrariesStep.skipped).toBe(true);
+      expect(runtimeLibrariesStep.exitCode).toBeNull();
+      expect(runtimeLibrariesStep.reason).toBe("TypeScript core checks failed");
+    }
+    if (
       clientStep !== undefined &&
       tsCoreStep !== undefined &&
+      runtimeLibrariesStep !== undefined &&
       report.steps[0].passed === false
     ) {
       expect(clientStep.skipped).toBe(true);
@@ -4247,6 +4456,7 @@ describe("root preflight scripts", () => {
     if (
       clientStep !== undefined &&
       tsCoreStep !== undefined &&
+      runtimeLibrariesStep !== undefined &&
       report.steps[0].passed &&
       tsCoreStep.skipped === false &&
       tsCoreStep.passed === false
@@ -4254,6 +4464,20 @@ describe("root preflight scripts", () => {
       expect(clientStep.skipped).toBe(true);
       expect(clientStep.exitCode).toBeNull();
       expect(clientStep.reason).toBe("TypeScript core checks failed");
+    }
+    if (
+      clientStep !== undefined &&
+      tsCoreStep !== undefined &&
+      runtimeLibrariesStep !== undefined &&
+      report.steps[0].passed &&
+      tsCoreStep.skipped === false &&
+      tsCoreStep.passed &&
+      runtimeLibrariesStep.skipped === false &&
+      runtimeLibrariesStep.passed === false
+    ) {
+      expect(clientStep.skipped).toBe(true);
+      expect(clientStep.exitCode).toBeNull();
+      expect(clientStep.reason).toBe("Runtime library checks failed");
     }
     if (report.failedStepCount > 0) {
       expect(report.firstFailedStep).toBe(
@@ -5770,21 +5994,41 @@ describe("root preflight scripts", () => {
       (step) => step.name === "TypeScript core checks"
     );
     expect(tsCoreStep).toBeDefined();
+    const runtimeLibrariesStep = report.steps.find(
+      (step) => step.name === "Runtime library checks"
+    );
+    expect(runtimeLibrariesStep).toBeDefined();
     const clientStep = report.steps.find((step) => step.name === "Client checks");
     expect(clientStep).toBeDefined();
     const tsCoreStepIndex = report.steps.findIndex((step) => {
       return step.name === "TypeScript core checks";
     });
+    const runtimeLibrariesStepIndex = report.steps.findIndex((step) => {
+      return step.name === "Runtime library checks";
+    });
     const clientStepIndex = report.steps.findIndex((step) => {
       return step.name === "Client checks";
     });
     expect(tsCoreStepIndex).toBeGreaterThan(-1);
+    expect(runtimeLibrariesStepIndex).toBeGreaterThan(-1);
     expect(clientStepIndex).toBeGreaterThan(-1);
+    expect(tsCoreStepIndex).toBeLessThan(runtimeLibrariesStepIndex);
+    expect(runtimeLibrariesStepIndex).toBeLessThan(clientStepIndex);
     expect(tsCoreStepIndex).toBeLessThan(clientStepIndex);
     if (tsCoreStep !== undefined && report.steps[0].passed === false) {
       expect(tsCoreStep.skipped).toBe(true);
       expect(tsCoreStep.exitCode).toBeNull();
       expect(tsCoreStep.reason).toBe("Developer environment preflight failed");
+    }
+    if (
+      runtimeLibrariesStep !== undefined &&
+      report.steps[0].passed === false
+    ) {
+      expect(runtimeLibrariesStep.skipped).toBe(true);
+      expect(runtimeLibrariesStep.exitCode).toBeNull();
+      expect(runtimeLibrariesStep.reason).toBe(
+        "Developer environment preflight failed"
+      );
     }
     if (
       tsCoreStep !== undefined &&
@@ -5797,8 +6041,33 @@ describe("root preflight scripts", () => {
       expect(tsCoreStep.report.buildSkipped).toBe(true);
     }
     if (
+      runtimeLibrariesStep !== undefined &&
+      tsCoreStep !== undefined &&
+      report.steps[0].passed &&
+      tsCoreStep.skipped === false &&
+      tsCoreStep.passed &&
+      runtimeLibrariesStep.report !== null
+    ) {
+      expect(runtimeLibrariesStep.skipped).toBe(false);
+      expectRuntimeLibrariesReportMetadata(runtimeLibrariesStep.report);
+      expect(runtimeLibrariesStep.report.noBuild).toBe(true);
+      expect(runtimeLibrariesStep.report.buildSkipped).toBe(true);
+    }
+    if (
+      runtimeLibrariesStep !== undefined &&
+      tsCoreStep !== undefined &&
+      report.steps[0].passed &&
+      tsCoreStep.skipped === false &&
+      tsCoreStep.passed === false
+    ) {
+      expect(runtimeLibrariesStep.skipped).toBe(true);
+      expect(runtimeLibrariesStep.exitCode).toBeNull();
+      expect(runtimeLibrariesStep.reason).toBe("TypeScript core checks failed");
+    }
+    if (
       clientStep !== undefined &&
       tsCoreStep !== undefined &&
+      runtimeLibrariesStep !== undefined &&
       report.steps[0].passed === false
     ) {
       expect(clientStep.skipped).toBe(true);
@@ -5810,6 +6079,7 @@ describe("root preflight scripts", () => {
     if (
       clientStep !== undefined &&
       tsCoreStep !== undefined &&
+      runtimeLibrariesStep !== undefined &&
       report.steps[0].passed &&
       tsCoreStep.skipped === false &&
       tsCoreStep.passed === false
@@ -5817,6 +6087,20 @@ describe("root preflight scripts", () => {
       expect(clientStep.skipped).toBe(true);
       expect(clientStep.exitCode).toBeNull();
       expect(clientStep.reason).toBe("TypeScript core checks failed");
+    }
+    if (
+      clientStep !== undefined &&
+      tsCoreStep !== undefined &&
+      runtimeLibrariesStep !== undefined &&
+      report.steps[0].passed &&
+      tsCoreStep.skipped === false &&
+      tsCoreStep.passed &&
+      runtimeLibrariesStep.skipped === false &&
+      runtimeLibrariesStep.passed === false
+    ) {
+      expect(clientStep.skipped).toBe(true);
+      expect(clientStep.exitCode).toBeNull();
+      expect(clientStep.reason).toBe("Runtime library checks failed");
     }
     expectActiveCliOptionMetadata(
       report,
@@ -5855,21 +6139,41 @@ describe("root preflight scripts", () => {
       (step) => step.name === "TypeScript core checks"
     );
     expect(tsCoreStep).toBeDefined();
+    const runtimeLibrariesStep = report.steps.find(
+      (step) => step.name === "Runtime library checks"
+    );
+    expect(runtimeLibrariesStep).toBeDefined();
     const clientStep = report.steps.find((step) => step.name === "Client checks");
     expect(clientStep).toBeDefined();
     const tsCoreStepIndex = report.steps.findIndex((step) => {
       return step.name === "TypeScript core checks";
     });
+    const runtimeLibrariesStepIndex = report.steps.findIndex((step) => {
+      return step.name === "Runtime library checks";
+    });
     const clientStepIndex = report.steps.findIndex((step) => {
       return step.name === "Client checks";
     });
     expect(tsCoreStepIndex).toBeGreaterThan(-1);
+    expect(runtimeLibrariesStepIndex).toBeGreaterThan(-1);
     expect(clientStepIndex).toBeGreaterThan(-1);
+    expect(tsCoreStepIndex).toBeLessThan(runtimeLibrariesStepIndex);
+    expect(runtimeLibrariesStepIndex).toBeLessThan(clientStepIndex);
     expect(tsCoreStepIndex).toBeLessThan(clientStepIndex);
     if (tsCoreStep !== undefined && report.steps[0].passed === false) {
       expect(tsCoreStep.skipped).toBe(true);
       expect(tsCoreStep.exitCode).toBeNull();
       expect(tsCoreStep.reason).toBe("Developer environment preflight failed");
+    }
+    if (
+      runtimeLibrariesStep !== undefined &&
+      report.steps[0].passed === false
+    ) {
+      expect(runtimeLibrariesStep.skipped).toBe(true);
+      expect(runtimeLibrariesStep.exitCode).toBeNull();
+      expect(runtimeLibrariesStep.reason).toBe(
+        "Developer environment preflight failed"
+      );
     }
     if (
       tsCoreStep !== undefined &&
@@ -5882,8 +6186,33 @@ describe("root preflight scripts", () => {
       expect(tsCoreStep.report.buildSkipped).toBe(true);
     }
     if (
+      runtimeLibrariesStep !== undefined &&
+      tsCoreStep !== undefined &&
+      report.steps[0].passed &&
+      tsCoreStep.skipped === false &&
+      tsCoreStep.passed &&
+      runtimeLibrariesStep.report !== null
+    ) {
+      expect(runtimeLibrariesStep.skipped).toBe(false);
+      expectRuntimeLibrariesReportMetadata(runtimeLibrariesStep.report);
+      expect(runtimeLibrariesStep.report.noBuild).toBe(true);
+      expect(runtimeLibrariesStep.report.buildSkipped).toBe(true);
+    }
+    if (
+      runtimeLibrariesStep !== undefined &&
+      tsCoreStep !== undefined &&
+      report.steps[0].passed &&
+      tsCoreStep.skipped === false &&
+      tsCoreStep.passed === false
+    ) {
+      expect(runtimeLibrariesStep.skipped).toBe(true);
+      expect(runtimeLibrariesStep.exitCode).toBeNull();
+      expect(runtimeLibrariesStep.reason).toBe("TypeScript core checks failed");
+    }
+    if (
       clientStep !== undefined &&
       tsCoreStep !== undefined &&
+      runtimeLibrariesStep !== undefined &&
       report.steps[0].passed === false
     ) {
       expect(clientStep.skipped).toBe(true);
@@ -5893,6 +6222,7 @@ describe("root preflight scripts", () => {
     if (
       clientStep !== undefined &&
       tsCoreStep !== undefined &&
+      runtimeLibrariesStep !== undefined &&
       report.steps[0].passed &&
       tsCoreStep.skipped === false &&
       tsCoreStep.passed === false
@@ -5900,6 +6230,20 @@ describe("root preflight scripts", () => {
       expect(clientStep.skipped).toBe(true);
       expect(clientStep.exitCode).toBeNull();
       expect(clientStep.reason).toBe("TypeScript core checks failed");
+    }
+    if (
+      clientStep !== undefined &&
+      tsCoreStep !== undefined &&
+      runtimeLibrariesStep !== undefined &&
+      report.steps[0].passed &&
+      tsCoreStep.skipped === false &&
+      tsCoreStep.passed &&
+      runtimeLibrariesStep.skipped === false &&
+      runtimeLibrariesStep.passed === false
+    ) {
+      expect(clientStep.skipped).toBe(true);
+      expect(clientStep.exitCode).toBeNull();
+      expect(clientStep.reason).toBe("Runtime library checks failed");
     }
     expectActiveCliOptionMetadata(
       report,
