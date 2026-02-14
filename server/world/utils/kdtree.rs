@@ -45,10 +45,6 @@ impl EntityTree {
         self.positions.clear();
     }
 
-    fn contains(&self, ent_id: EntityId) -> bool {
-        self.positions.contains_key(&ent_id)
-    }
-
     fn nearest(&self, point: &[f32; 3], count: usize) -> Vec<(f32, EntityId)> {
         if self.tree.size() == 0 {
             return Vec::new();
