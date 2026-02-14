@@ -145,4 +145,20 @@ describe("ChunkPipeline.shouldRequestAt", () => {
     expect(pipeline.getStage(name)).toBe("requested");
     expect(pipeline.getRetryCount(name)).toBe(2);
   });
+
+  it("saturates retry counters at max safe integer", () => {
+    const pipeline = new ChunkPipeline();
+    pipeline.markRequestedAt(9, 10);
+    const name = ChunkUtils.getChunkNameAt(9, 10);
+    const requested = pipeline.getRequestedCoords(name);
+    if (!requested) {
+      throw new Error("Expected requested stage for retry saturation test");
+    }
+
+    requested.retryCount = Number.MAX_SAFE_INTEGER;
+    expect(pipeline.incrementRetry(name)).toBe(Number.MAX_SAFE_INTEGER);
+    expect(pipeline.getRetryCount(name)).toBe(Number.MAX_SAFE_INTEGER);
+    expect(pipeline.shouldRequestAt(9, 10, Number.POSITIVE_INFINITY)).toBe(false);
+    expect(pipeline.getRetryCount(name)).toBe(Number.MAX_SAFE_INTEGER);
+  });
 });
