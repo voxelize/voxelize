@@ -15,6 +15,7 @@ pub struct EntitiesSendingSystem {
     new_entity_ids_buffer: HashSet<String>,
     deleted_entities_buffer: Vec<(String, String, String)>,
     known_entities_to_delete_buffer: Vec<String>,
+    clients_with_updates_buffer: Vec<String>,
 }
 
 #[inline]
@@ -39,6 +40,21 @@ fn normalized_visible_radius(radius: f32) -> (f32, f32) {
 fn is_outside_visible_radius_sq(dx: f32, dy: f32, dz: f32, radius_sq: f32) -> bool {
     let dist_sq = dx * dx + dy * dy + dz * dz;
     !dist_sq.is_finite() || dist_sq > radius_sq
+}
+
+#[inline]
+fn push_client_update(
+    client_updates: &mut HashMap<String, Vec<EntityProtocol>>,
+    touched_clients: &mut Vec<String>,
+    client_id: &String,
+    update: EntityProtocol,
+) {
+    if let Some(updates) = client_updates.get_mut(client_id) {
+        if updates.is_empty() {
+            touched_clients.push(client_id.clone());
+        }
+        updates.push(update);
+    }
 }
 
 impl<'a> System<'a> for EntitiesSendingSystem {
@@ -89,6 +105,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         self.new_entity_ids_buffer.clear();
         self.deleted_entities_buffer.clear();
         self.known_entities_to_delete_buffer.clear();
+        self.clients_with_updates_buffer.clear();
 
         let (entity_visible_radius, entity_visible_radius_sq) =
             normalized_visible_radius(config.entity_visible_radius);
@@ -225,14 +242,17 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     EntityOperation::Update
                 };
 
-                if let Some(updates) = client_updates.get_mut(client_id) {
-                    updates.push(EntityProtocol {
+                push_client_update(
+                    &mut client_updates,
+                    &mut self.clients_with_updates_buffer,
+                    client_id,
+                    EntityProtocol {
                         operation,
                         id: entity_id.clone(),
                         r#type: etype.clone(),
                         metadata: Some(metadata_str.clone()),
-                    });
-                }
+                    },
+                );
 
                 known_entities.insert(entity_id.clone());
             }
@@ -248,14 +268,17 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                         if !known_entities.contains(entity_id) {
                             continue;
                         }
-                        if let Some(updates) = client_updates.get_mut(client_id) {
-                            updates.push(EntityProtocol {
+                        push_client_update(
+                            &mut client_updates,
+                            &mut self.clients_with_updates_buffer,
+                            client_id,
+                            EntityProtocol {
                                 operation: EntityOperation::Delete,
                                 id: entity_id.clone(),
                                 r#type: etype.clone(),
                                 metadata: Some(metadata_str.clone()),
-                            });
-                        }
+                            },
+                        );
                         known_entities.remove(entity_id);
                     }
                 }
@@ -279,14 +302,17 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                             else {
                                 continue;
                             };
-                            if let Some(updates) = client_updates.get_mut(client_id) {
-                                updates.push(EntityProtocol {
+                            push_client_update(
+                                &mut client_updates,
+                                &mut self.clients_with_updates_buffer,
+                                client_id,
+                                EntityProtocol {
                                     operation: EntityOperation::Delete,
                                     id: entity_id.clone(),
                                     r#type: (*etype).clone(),
                                     metadata: Some((*metadata_str).clone()),
-                                });
-                            }
+                                },
+                            );
                             entities_to_delete.push(entity_id.clone());
                         }
 
@@ -329,14 +355,17 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     if let Some((etype, _ent, metadata, _persisted)) =
                         new_bookkeeping_records.get(entity_id)
                     {
-                        if let Some(updates) = client_updates.get_mut(client_id) {
-                            updates.push(EntityProtocol {
+                        push_client_update(
+                            &mut client_updates,
+                            &mut self.clients_with_updates_buffer,
+                            client_id,
+                            EntityProtocol {
                                 operation: EntityOperation::Delete,
                                 id: entity_id.clone(),
                                 r#type: etype.clone(),
                                 metadata: Some(metadata.to_string()),
-                            });
-                        }
+                            },
+                        );
                     }
                     known_entities.remove(entity_id);
                 }
@@ -346,15 +375,20 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         bookkeeping.entities = new_bookkeeping_records;
         bookkeeping.entity_positions = entity_positions;
 
-        for (client_id, updates) in client_updates {
-            if !updates.is_empty() {
-                queue.push((
-                    Message::new(&MessageType::Entity)
-                        .entities(&updates)
-                        .build(),
-                    ClientFilter::Direct(client_id),
-                ));
+        for client_id in self.clients_with_updates_buffer.drain(..) {
+            let updates = match client_updates.remove(&client_id) {
+                Some(updates) => updates,
+                None => continue,
+            };
+            if updates.is_empty() {
+                continue;
             }
+            queue.push((
+                Message::new(&MessageType::Entity)
+                    .entities(&updates)
+                    .build(),
+                ClientFilter::Direct(client_id),
+            ));
         }
     }
 }
