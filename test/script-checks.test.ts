@@ -155,6 +155,7 @@ type ClientJsonReport = OptionTerminatorMetadata &
   availableStepScriptCount: number;
   availableStepIndices: number[];
   availableStepIndexCount: number;
+  availableStepIndexMap: Record<string, number>;
   availableStepMetadata: Record<
     string,
     {
@@ -374,6 +375,7 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
   availableStepScriptCount: number;
   availableStepIndices: number[];
   availableStepIndexCount: number;
+  availableStepIndexMap: Record<string, number>;
   availableStepMetadata: Record<
     string,
     {
@@ -681,6 +683,7 @@ const expectAvailableStepMetadata = (
     availableStepScriptCount: number;
     availableStepIndices: number[];
     availableStepIndexCount: number;
+    availableStepIndexMap: Record<string, number>;
     availableStepMetadata: Record<
       string,
       {
@@ -704,6 +707,11 @@ const expectAvailableStepMetadata = (
   const expectedIndices = expectedSteps.map((_, index) => {
     return index;
   });
+  const expectedIndexMap = Object.fromEntries(
+    expectedSteps.map((stepName, index) => {
+      return [stepName, index];
+    })
+  );
 
   expect(report.availableSteps).toEqual(expectedSteps);
   expect(report.availableStepCount).toBe(report.availableSteps.length);
@@ -711,6 +719,7 @@ const expectAvailableStepMetadata = (
   expect(report.availableStepScriptCount).toBe(report.availableStepScripts.length);
   expect(report.availableStepIndices).toEqual(expectedIndices);
   expect(report.availableStepIndexCount).toBe(report.availableStepIndices.length);
+  expect(report.availableStepIndexMap).toEqual(expectedIndexMap);
   expect(report.availableStepMetadata).toEqual(expectedMetadata);
 };
 
