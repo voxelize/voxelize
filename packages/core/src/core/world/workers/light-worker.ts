@@ -851,20 +851,6 @@ const applyRelevantDeltas = (
     if (!chunk) {
       continue;
     }
-    for (let tailIndex = deltasLength - 1; tailIndex >= 0; tailIndex--) {
-      const tailDelta = deltas[tailIndex];
-      if (!tailDelta || typeof tailDelta !== "object") {
-        continue;
-      }
-      const chunkLastSequenceId = tailDelta.sequenceId;
-      if (!isInteger(chunkLastSequenceId)) {
-        continue;
-      }
-      if (chunkLastSequenceId > lastSequenceId) {
-        lastSequenceId = chunkLastSequenceId;
-      }
-      break;
-    }
     const chunkMin = chunk.min;
     const chunkMinX = chunkMin[0];
     const chunkMinY = chunkMin[1];
@@ -879,11 +865,16 @@ const applyRelevantDeltas = (
     const voxelStrideY = voxelStride[1];
     const voxelStrideZ = voxelStride[2];
     const voxelOffset = voxelData.offset;
+    let chunkLastSequenceId = 0;
 
     for (let deltaIndex = startIndex; deltaIndex < deltasLength; deltaIndex++) {
       const delta = deltas[deltaIndex];
       if (!delta || typeof delta !== "object") {
         continue;
+      }
+      const sequenceId = delta.sequenceId;
+      if (isInteger(sequenceId) && sequenceId > chunkLastSequenceId) {
+        chunkLastSequenceId = sequenceId;
       }
       const coords = delta.coords;
       if (!isStrictCoords3(coords)) {
@@ -931,6 +922,9 @@ const applyRelevantDeltas = (
       if (nextRaw !== currentRaw) {
         voxelValues[voxelIndex] = nextRaw;
       }
+    }
+    if (chunkLastSequenceId > lastSequenceId) {
+      lastSequenceId = chunkLastSequenceId;
     }
   }
 
