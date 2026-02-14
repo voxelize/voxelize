@@ -510,17 +510,51 @@ impl Chunks {
         path
     }
 
+    fn add_updated_level_for_chunk(&mut self, coords: Vec2<i32>, vy: i32) {
+        if let Some(neighbor) = self.raw_mut(&coords) {
+            neighbor.add_updated_level(vy);
+        }
+    }
+
     fn add_updated_level_at(&mut self, vx: i32, vy: i32, vz: i32) {
         if vy < 0 || vy >= self.config.max_height as i32 {
             return;
         }
-        self.voxel_affected_chunks(vx, vy, vz)
-            .into_iter()
-            .for_each(|coords| {
-                if let Some(neighbor) = self.raw_mut(&coords) {
-                    neighbor.add_updated_level(vy);
-                }
-            });
+        let chunk_size = self.config.chunk_size;
+        let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+
+        self.add_updated_level_for_chunk(Vec2(cx, cz), vy);
+
+        let touches_min_x = lx == 0;
+        let touches_min_z = lz == 0;
+        let touches_max_x = lx == chunk_size - 1;
+        let touches_max_z = lz == chunk_size - 1;
+
+        if touches_min_x {
+            self.add_updated_level_for_chunk(Vec2(cx - 1, cz), vy);
+        }
+        if touches_min_z {
+            self.add_updated_level_for_chunk(Vec2(cx, cz - 1), vy);
+        }
+        if touches_max_x {
+            self.add_updated_level_for_chunk(Vec2(cx + 1, cz), vy);
+        }
+        if touches_max_z {
+            self.add_updated_level_for_chunk(Vec2(cx, cz + 1), vy);
+        }
+        if touches_min_x && touches_min_z {
+            self.add_updated_level_for_chunk(Vec2(cx - 1, cz - 1), vy);
+        }
+        if touches_min_x && touches_max_z {
+            self.add_updated_level_for_chunk(Vec2(cx - 1, cz + 1), vy);
+        }
+        if touches_max_x && touches_min_z {
+            self.add_updated_level_for_chunk(Vec2(cx + 1, cz - 1), vy);
+        }
+        if touches_max_x && touches_max_z {
+            self.add_updated_level_for_chunk(Vec2(cx + 1, cz + 1), vy);
+        }
     }
 }
 
