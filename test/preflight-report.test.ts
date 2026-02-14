@@ -378,6 +378,12 @@ type ClientNestedReport = {
     skipped: number;
   };
   stepStatusCountMapCount: number;
+  wasmPackCheckStatus: "ok" | "missing" | "unavailable" | "skipped" | null;
+  wasmPackCheckCommand: string | null;
+  wasmPackCheckArgs: string[] | null;
+  wasmPackCheckArgCount: number | null;
+  wasmPackCheckExitCode: number | null;
+  wasmPackCheckOutputLine: string | null;
 };
 
 type TsCoreNestedReport = {
@@ -3083,7 +3089,30 @@ const expectClientNestedReport = (checkReport: object | null) => {
     return step.name === "WASM artifact preflight";
   });
   expect(wasmArtifactStep).toBeDefined();
-  if (wasmArtifactStep !== undefined && wasmArtifactStep.report !== null) {
+  if (
+    wasmArtifactStep === undefined ||
+    wasmArtifactStep.report === null ||
+    typeof wasmArtifactStep.report !== "object"
+  ) {
+    expect(report.wasmPackCheckStatus).toBeNull();
+    expect(report.wasmPackCheckCommand).toBeNull();
+    expect(report.wasmPackCheckArgs).toBeNull();
+    expect(report.wasmPackCheckArgCount).toBeNull();
+    expect(report.wasmPackCheckExitCode).toBeNull();
+    expect(report.wasmPackCheckOutputLine).toBeNull();
+  } else {
+    expect(report.wasmPackCheckStatus).toBe(wasmArtifactStep.report.wasmPackCheckStatus);
+    expect(report.wasmPackCheckCommand).toBe(wasmArtifactStep.report.wasmPackCheckCommand);
+    expect(report.wasmPackCheckArgs).toEqual(wasmArtifactStep.report.wasmPackCheckArgs);
+    expect(report.wasmPackCheckArgCount).toBe(wasmArtifactStep.report.wasmPackCheckArgCount);
+    expect(report.wasmPackCheckExitCode).toBe(wasmArtifactStep.report.wasmPackCheckExitCode);
+    expect(report.wasmPackCheckOutputLine).toBe(
+      wasmArtifactStep.report.wasmPackCheckOutputLine
+    );
+    if (report.wasmPackCheckArgs !== null && report.wasmPackCheckArgCount !== null) {
+      expect(report.wasmPackCheckArgCount).toBe(report.wasmPackCheckArgs.length);
+    }
+
     expect(wasmArtifactStep.report.schemaVersion).toBe(1);
     expect(wasmArtifactStep.report.artifactPath).toBe(
       "crates/wasm-mesher/pkg/voxelize_wasm_mesher.js"

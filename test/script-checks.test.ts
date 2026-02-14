@@ -545,6 +545,12 @@ type ClientJsonReport = OptionTerminatorMetadata &
     }
   >;
   skippedStepMetadataCount: number;
+  wasmPackCheckStatus: "ok" | "missing" | "unavailable" | "skipped" | null;
+  wasmPackCheckCommand: string | null;
+  wasmPackCheckArgs: string[] | null;
+  wasmPackCheckArgCount: number | null;
+  wasmPackCheckExitCode: number | null;
+  wasmPackCheckOutputLine: string | null;
   firstFailedStep: string | null;
   startedAt: string;
   endedAt: string;
@@ -1521,6 +1527,43 @@ const expectWasmMesherNestedReportMetadata = (report: WasmMesherJsonReport) => {
   if (report.wasmPackCheckReport !== null) {
     expect(report.wasmPackCheckExitCode).toBe(report.wasmPackCheckReport.exitCode);
     expectWasmPackCheckMetadata(report.wasmPackCheckReport);
+  }
+};
+const expectClientWasmPackCheckSummaryMetadata = (report: ClientJsonReport) => {
+  const wasmArtifactStep = report.steps.find((step) => {
+    return step.name === "WASM artifact preflight";
+  });
+
+  if (
+    wasmArtifactStep === undefined ||
+    wasmArtifactStep.report === null ||
+    typeof wasmArtifactStep.report !== "object"
+  ) {
+    expect(report.wasmPackCheckStatus).toBeNull();
+    expect(report.wasmPackCheckCommand).toBeNull();
+    expect(report.wasmPackCheckArgs).toBeNull();
+    expect(report.wasmPackCheckArgCount).toBeNull();
+    expect(report.wasmPackCheckExitCode).toBeNull();
+    expect(report.wasmPackCheckOutputLine).toBeNull();
+    return;
+  }
+
+  expect(report.wasmPackCheckStatus).toBe(wasmArtifactStep.report.wasmPackCheckStatus);
+  expect(report.wasmPackCheckCommand).toBe(
+    wasmArtifactStep.report.wasmPackCheckCommand
+  );
+  expect(report.wasmPackCheckArgs).toEqual(wasmArtifactStep.report.wasmPackCheckArgs);
+  expect(report.wasmPackCheckArgCount).toBe(
+    wasmArtifactStep.report.wasmPackCheckArgCount
+  );
+  expect(report.wasmPackCheckExitCode).toBe(
+    wasmArtifactStep.report.wasmPackCheckExitCode
+  );
+  expect(report.wasmPackCheckOutputLine).toBe(
+    wasmArtifactStep.report.wasmPackCheckOutputLine
+  );
+  if (report.wasmPackCheckArgs !== null && report.wasmPackCheckArgCount !== null) {
+    expect(report.wasmPackCheckArgCount).toBe(report.wasmPackCheckArgs.length);
   }
 };
 const expectOnboardingClientNestedWasmMetadata = (step: OnboardingJsonStep) => {
@@ -6186,6 +6229,7 @@ describe("root preflight scripts", () => {
       expectTimingMetadata(report.steps[0].report);
       expectOptionTerminatorMetadata(report.steps[0].report);
     }
+    expectClientWasmPackCheckSummaryMetadata(report);
     expect(result.status).toBe(report.passed ? 0 : 1);
     expect(result.output).not.toContain("Running client check step:");
     expect(result.output).not.toContain("Client check failed:");
@@ -6334,6 +6378,7 @@ describe("root preflight scripts", () => {
       expectedClientAvailableStepMetadata
     );
     expectStepSummaryMetadata(report, expectedClientAvailableStepMetadata);
+    expectClientWasmPackCheckSummaryMetadata(report);
     expect(report.message).toBe("Missing value for --output option.");
     expectActiveCliOptionMetadata(
       report,
@@ -7705,6 +7750,7 @@ describe("root preflight scripts", () => {
       expect(typecheckStep.exitCode).toBeNull();
       expect(typecheckStep.reason).toBe("WASM artifact preflight failed");
     }
+    expectClientWasmPackCheckSummaryMetadata(report);
     expectActiveCliOptionMetadata(
       report,
       ["--json", "--no-build"],
@@ -7744,6 +7790,7 @@ describe("root preflight scripts", () => {
       expect(report.steps[0].report.attemptedBuild).toBe(false);
       expectTimingMetadata(report.steps[0].report);
     }
+    expectClientWasmPackCheckSummaryMetadata(report);
     expectActiveCliOptionMetadata(
       report,
       ["--json", "--no-build"],

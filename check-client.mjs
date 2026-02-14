@@ -282,6 +282,60 @@ const createStepStatusCountMap = (stepSummary) => {
     skipped: stepSummary.skippedStepCount,
   };
 };
+const resolveWasmPackCheckMetadataFromStepResults = (results) => {
+  const wasmArtifactStepResult = results.find((stepResult) => {
+    return stepResult.name === "WASM artifact preflight";
+  });
+
+  if (
+    wasmArtifactStepResult === undefined ||
+    wasmArtifactStepResult.report === null ||
+    typeof wasmArtifactStepResult.report !== "object"
+  ) {
+    return {
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: null,
+      wasmPackCheckArgCount: null,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    };
+  }
+
+  const nestedReport = wasmArtifactStepResult.report;
+  const wasmPackCheckStatus =
+    typeof nestedReport.wasmPackCheckStatus === "string"
+      ? nestedReport.wasmPackCheckStatus
+      : null;
+  const wasmPackCheckCommand =
+    typeof nestedReport.wasmPackCheckCommand === "string"
+      ? nestedReport.wasmPackCheckCommand
+      : null;
+  const wasmPackCheckArgs = Array.isArray(nestedReport.wasmPackCheckArgs)
+    ? [...nestedReport.wasmPackCheckArgs]
+    : null;
+  const wasmPackCheckArgCount =
+    typeof nestedReport.wasmPackCheckArgCount === "number"
+      ? nestedReport.wasmPackCheckArgCount
+      : wasmPackCheckArgs?.length ?? null;
+  const wasmPackCheckExitCode =
+    typeof nestedReport.wasmPackCheckExitCode === "number"
+      ? nestedReport.wasmPackCheckExitCode
+      : null;
+  const wasmPackCheckOutputLine =
+    typeof nestedReport.wasmPackCheckOutputLine === "string"
+      ? nestedReport.wasmPackCheckOutputLine
+      : null;
+
+  return {
+    wasmPackCheckStatus,
+    wasmPackCheckCommand,
+    wasmPackCheckArgs,
+    wasmPackCheckArgCount,
+    wasmPackCheckExitCode,
+    wasmPackCheckOutputLine,
+  };
+};
 const stepResults = [];
 let exitCode = 0;
 
@@ -393,6 +447,12 @@ if (isJson && validationFailureMessage !== null) {
     failedStepMetadataCount: 0,
     skippedStepMetadata: {},
     skippedStepMetadataCount: 0,
+    wasmPackCheckStatus: null,
+    wasmPackCheckCommand: null,
+    wasmPackCheckArgs: null,
+    wasmPackCheckArgCount: null,
+    wasmPackCheckExitCode: null,
+    wasmPackCheckOutputLine: null,
     ...validationStepSummary,
     message: validationFailureMessage,
   });
@@ -555,6 +615,14 @@ if (isJson) {
   const stepCheckArgCountMap = mapStepResultsToCheckArgCountMap(stepResults);
   const stepStatusCountMap = createStepStatusCountMap(stepSummary);
   const failureSummaries = summarizeStepFailureResults(stepResults);
+  const {
+    wasmPackCheckStatus,
+    wasmPackCheckCommand,
+    wasmPackCheckArgs,
+    wasmPackCheckArgCount,
+    wasmPackCheckExitCode,
+    wasmPackCheckOutputLine,
+  } = resolveWasmPackCheckMetadataFromStepResults(stepResults);
   const report = buildTimedReport({
     passed: exitCode === 0,
     exitCode,
@@ -670,6 +738,12 @@ if (isJson) {
     failedStepMetadataCount: countRecordEntries(failedStepMetadata),
     skippedStepMetadata,
     skippedStepMetadataCount: countRecordEntries(skippedStepMetadata),
+    wasmPackCheckStatus,
+    wasmPackCheckCommand,
+    wasmPackCheckArgs,
+    wasmPackCheckArgCount,
+    wasmPackCheckExitCode,
+    wasmPackCheckOutputLine,
     ...stepSummary,
   });
   const { reportJson, writeError } = serializeReportWithOptionalWrite(report, {

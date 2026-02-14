@@ -441,6 +441,10 @@ Each step entry in `steps[]` includes `scriptName`, `supportsNoBuild`,
 `checkCommand`, `checkArgs`, `checkArgCount`, and `stepIndex`.
 Each step failure summary in `failureSummaries[]` includes `checkCommand`,
 `checkArgs`, and `checkArgCount` for deterministic command diagnostics.
+Client JSON reports additionally expose top-level wasm preflight summary
+fields `wasmPackCheckStatus`, `wasmPackCheckCommand`,
+`wasmPackCheckArgs`, `wasmPackCheckArgCount`, `wasmPackCheckExitCode`,
+and `wasmPackCheckOutputLine`.
 Nested client wasm artifact reports include `wasmPackCheckCommand`,
 `wasmPackCheckArgs`, `wasmPackCheckArgCount`, `wasmPackCheckExitCode`,
 `wasmPackCheckStatus`, and `wasmPackCheckOutputLine` for deterministic
