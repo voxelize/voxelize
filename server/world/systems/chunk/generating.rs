@@ -3,6 +3,7 @@ use nanoid::nanoid;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use specs::{ReadExpect, ReadStorage, System, WriteExpect};
 
+use super::height_updates::update_chunk_column_height_for_voxel_update;
 use crate::world::profiler::Profiler;
 use crate::world::system_profiler::WorldTimingContext;
 use crate::{
@@ -30,36 +31,6 @@ fn chunk_interest_alignment(center: &Vec2<i32>, coords: &Vec2<i32>, direction: &
     );
     (direction.0 * normalized_direction_to_chunk.0 + direction.1 * normalized_direction_to_chunk.1)
         .max(0.0)
-}
-
-#[inline]
-fn apply_leftover_height_update(
-    chunks: &mut Chunks,
-    registry: &Registry,
-    vx: i32,
-    vy: i32,
-    vz: i32,
-    updated_id: u32,
-) {
-    let height = chunks.get_max_height(vx, vz);
-    if registry.is_air(updated_id) {
-        let Ok(vy_u32) = u32::try_from(vy) else {
-            return;
-        };
-        if vy_u32 != height {
-            return;
-        }
-        for y in (0..vy).rev() {
-            if y == 0 || registry.check_height(chunks.get_voxel(vx, y, vz)) {
-                chunks.set_max_height(vx, vz, y as u32);
-                break;
-            }
-        }
-    } else if let Ok(vy_u32) = u32::try_from(vy) {
-        if height < vy_u32 {
-            chunks.set_max_height(vx, vz, vy_u32);
-        }
-    }
 }
 
 #[derive(Default)]
@@ -430,7 +401,14 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                         chunks.set_raw_voxel(vx, vy, vz, *val);
 
                         let id = BlockUtils::extract_id(*val);
-                        apply_leftover_height_update(&mut chunks, &registry, vx, vy, vz, id);
+                        update_chunk_column_height_for_voxel_update(
+                            &mut chunks,
+                            &registry,
+                            vx,
+                            vy,
+                            vz,
+                            id,
+                        );
                     }
                 }
             }
@@ -477,14 +455,8 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_leftover_height_update, chunk_interest_alignment};
-    use crate::{Block, Chunk, ChunkOptions, Chunks, Registry, Vec2, VoxelAccess, WorldConfig};
-
-    fn create_chunk_registry() -> Registry {
-        let mut registry = Registry::new();
-        registry.register_block(&Block::new("stone").id(1).build());
-        registry
-    }
+    use super::chunk_interest_alignment;
+    use crate::Vec2;
 
     #[test]
     fn chunk_interest_alignment_is_zero_for_identical_coords() {
@@ -516,69 +488,5 @@ mod tests {
         let alignment = chunk_interest_alignment(&center, &coords, &Vec2(0.0, 1.0));
         assert!(alignment.is_finite());
         assert!(alignment > 0.0);
-    }
-
-    #[test]
-    fn apply_leftover_height_update_scans_from_previous_voxel_level() {
-        let registry = create_chunk_registry();
-        let config = WorldConfig {
-            chunk_size: 16,
-            max_height: 16,
-            max_light_level: 15,
-            min_chunk: [0, 0],
-            max_chunk: [0, 0],
-            saving: false,
-            ..Default::default()
-        };
-        let mut chunks = Chunks::new(&config);
-        chunks.add(Chunk::new(
-            "chunk-0-0",
-            0,
-            0,
-            &ChunkOptions {
-                size: 16,
-                max_height: 16,
-                sub_chunks: 1,
-            },
-        ));
-
-        chunks.set_raw_voxel(0, 4, 0, 1);
-        chunks.set_raw_voxel(0, 5, 0, 1);
-        chunks.set_max_height(0, 0, 5);
-
-        chunks.set_raw_voxel(0, 5, 0, 0);
-        apply_leftover_height_update(&mut chunks, &registry, 0, 5, 0, 0);
-
-        assert_eq!(chunks.get_max_height(0, 0), 4);
-    }
-
-    #[test]
-    fn apply_leftover_height_update_ignores_negative_voxel_y_for_solid_blocks() {
-        let registry = create_chunk_registry();
-        let config = WorldConfig {
-            chunk_size: 16,
-            max_height: 16,
-            max_light_level: 15,
-            min_chunk: [0, 0],
-            max_chunk: [0, 0],
-            saving: false,
-            ..Default::default()
-        };
-        let mut chunks = Chunks::new(&config);
-        chunks.add(Chunk::new(
-            "chunk-0-0",
-            0,
-            0,
-            &ChunkOptions {
-                size: 16,
-                max_height: 16,
-                sub_chunks: 1,
-            },
-        ));
-        chunks.set_max_height(0, 0, 2);
-
-        apply_leftover_height_update(&mut chunks, &registry, 0, -1, 0, 1);
-
-        assert_eq!(chunks.get_max_height(0, 0), 2);
     }
 }
