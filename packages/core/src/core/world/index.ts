@@ -5381,9 +5381,12 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
     mesh.position.set(chunkBaseX, chunkBaseY, chunkBaseZ);
     mesh.updateMatrix();
     mesh.matrixAutoUpdate = false;
-    mesh.userData = merged
-      ? { isChunk: true, merged: true, voxel }
-      : { isChunk: true, voxel };
+    const userData = mesh.userData;
+    userData.isChunk = true;
+    userData.voxel = voxel;
+    if (merged) {
+      userData.merged = true;
+    }
 
     if (!transparent) {
       return;
@@ -5401,7 +5404,7 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
     if (!depthWrite) {
       const sortData = prepareTransparentMesh(mesh);
       if (sortData) {
-        mesh.userData.transparentSortData = sortData;
+        userData.transparentSortData = sortData;
         mesh.onBeforeRender = sortTransparentMeshOnBeforeRender;
       }
     }
