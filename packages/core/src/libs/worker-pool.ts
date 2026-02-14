@@ -203,7 +203,10 @@ export class WorkerPool {
    */
   private process = () => {
     while (this.hasQueuedJobs() && this.available.length > 0) {
-      const index = this.available.pop() as number;
+      const index = this.available.pop();
+      if (index === undefined) {
+        break;
+      }
       const worker = this.workers[index];
 
       const job = this.queue[this.queueHead];
@@ -308,7 +311,7 @@ export class WorkerPool {
    * Whether or not are there no available workers.
    */
   get isBusy() {
-    return this.available.length <= 0;
+    return this.available.length === 0;
   }
 
   /**
