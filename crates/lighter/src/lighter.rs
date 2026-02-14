@@ -342,8 +342,11 @@ fn collect_refill_nodes_after_removals(
             let (n_block, n_rotation) = block_and_rotation_at(registry, space, nvx, nvy, nvz);
             let n_transparency = n_block.get_rotated_transparency(&n_rotation);
 
-            if (is_sunlight
-                || !block_emits_torch_at(n_block, nvx, nvy, nvz, space, color))
+            if is_sunlight {
+                if !can_enter_into_direction(&n_transparency, direction_index) {
+                    continue;
+                }
+            } else if !block_emits_torch_at(n_block, nvx, nvy, nvz, space, color)
                 && !can_enter_into_direction(&n_transparency, direction_index)
             {
                 continue;
