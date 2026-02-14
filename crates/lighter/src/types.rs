@@ -398,14 +398,17 @@ impl LightBlock {
         if let Some(patterns) = &self.dynamic_patterns {
             'patterns: for pattern in patterns {
                 for part in &pattern.parts {
+                    let red_level = part.red_light_level;
+                    let green_level = part.green_light_level;
+                    let blue_level = part.blue_light_level;
                     let mut part_mask = 0;
-                    if unresolved & RED_TORCH_MASK != 0 && part.red_light_level.is_some() {
+                    if unresolved & RED_TORCH_MASK != 0 && red_level.is_some() {
                         part_mask |= RED_TORCH_MASK;
                     }
-                    if unresolved & GREEN_TORCH_MASK != 0 && part.green_light_level.is_some() {
+                    if unresolved & GREEN_TORCH_MASK != 0 && green_level.is_some() {
                         part_mask |= GREEN_TORCH_MASK;
                     }
-                    if unresolved & BLUE_TORCH_MASK != 0 && part.blue_light_level.is_some() {
+                    if unresolved & BLUE_TORCH_MASK != 0 && blue_level.is_some() {
                         part_mask |= BLUE_TORCH_MASK;
                     }
                     if part_mask == 0 {
@@ -415,19 +418,19 @@ impl LightBlock {
                         continue;
                     }
                     if part_mask & RED_TORCH_MASK != 0 {
-                        if let Some(level) = part.red_light_level {
+                        if let Some(level) = red_level {
                             red = level;
                             unresolved &= !RED_TORCH_MASK;
                         }
                     }
                     if part_mask & GREEN_TORCH_MASK != 0 {
-                        if let Some(level) = part.green_light_level {
+                        if let Some(level) = green_level {
                             green = level;
                             unresolved &= !GREEN_TORCH_MASK;
                         }
                     }
                     if part_mask & BLUE_TORCH_MASK != 0 {
-                        if let Some(level) = part.blue_light_level {
+                        if let Some(level) = blue_level {
                             blue = level;
                             unresolved &= !BLUE_TORCH_MASK;
                         }
