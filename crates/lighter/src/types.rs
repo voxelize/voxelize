@@ -96,7 +96,7 @@ impl LightBounds {
         let vx = i64::from(vx);
         let vz = i64::from(vz);
 
-        vx >= start_x_i64 && vz >= start_z_i64 && vx < end_x && vz < end_z
+        vx < end_x && vz < end_z
     }
 }
 
