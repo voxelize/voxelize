@@ -483,6 +483,8 @@ export class MeshPipeline {
           state.generation !== state.displayedGeneration
         ) {
           dirtyKeys.push(key);
+        } else if (state.inFlightGeneration === null) {
+          this.dirty.delete(key);
         }
         dirtyEntry = dirtyEntries.next();
       }
@@ -513,6 +515,7 @@ export class MeshPipeline {
         continue;
       }
       if (state.generation === state.displayedGeneration) {
+        this.dirty.delete(key);
         dirtyEntry = dirtyEntries.next();
         continue;
       }
@@ -553,6 +556,7 @@ export class MeshPipeline {
         continue;
       }
       if (state.generation === state.displayedGeneration) {
+        this.dirty.delete(key);
         dirtyEntry = dirtyEntries.next();
         continue;
       }
