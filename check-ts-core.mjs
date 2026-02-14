@@ -94,6 +94,9 @@ const validationFailureMessage = deriveCliValidationFailureMessage({
 });
 const withBaseReportFields = (report) => {
   const hasOutputPath = Object.prototype.hasOwnProperty.call(report, "outputPath");
+  const missingArtifacts = Array.isArray(report.missingArtifacts)
+    ? report.missingArtifacts
+    : [];
   return {
     ...report,
     optionTerminatorUsed,
@@ -116,6 +119,8 @@ const withBaseReportFields = (report) => {
     availableCliOptionCanonicalMap,
     packagePath: tsCorePackagePath,
     requiredArtifacts,
+    requiredArtifactCount: requiredArtifacts.length,
+    missingArtifactCount: missingArtifacts.length,
   };
 };
 const finish = (report) => {

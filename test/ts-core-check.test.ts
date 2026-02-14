@@ -16,8 +16,10 @@ type TsCoreCheckReport = {
   noBuild: boolean;
   packagePath: string;
   requiredArtifacts: string[];
+  requiredArtifactCount: number;
   artifactsPresent: boolean;
   missingArtifacts: string[];
+  missingArtifactCount: number;
   attemptedBuild: boolean;
   buildSkipped: boolean;
   buildOutput: string | null;
@@ -122,7 +124,10 @@ const runScript = (args: string[] = []): ScriptResult => {
 };
 
 const parseReport = (result: ScriptResult): TsCoreCheckReport => {
-  return JSON.parse(result.output) as TsCoreCheckReport;
+  const report = JSON.parse(result.output) as TsCoreCheckReport;
+  expect(report.requiredArtifactCount).toBe(report.requiredArtifacts.length);
+  expect(report.missingArtifactCount).toBe(report.missingArtifacts.length);
+  return report;
 };
 
 describe("check-ts-core script", () => {
