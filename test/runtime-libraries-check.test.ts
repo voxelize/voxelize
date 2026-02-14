@@ -50,6 +50,8 @@ type RuntimeLibrariesCheckReport = {
   presentPackageCount: number;
   presentPackagePathCount: number;
   packageReportCount: number;
+  packageReportMap: Record<string, RuntimePackageReport>;
+  packageReportMapCount: number;
   requiredArtifactsByPackage: Record<string, string[]>;
   requiredArtifacts: string[];
   requiredArtifactsByPackageCount: number;
@@ -283,6 +285,16 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   expect(report.checkedPackagePathCount).toBe(report.requiredPackageCount);
   expect(report.requiredPackageCount).toBe(expectedCheckedPackages.length);
   expect(report.packageReportCount).toBe(report.packageReports.length);
+  expect(report.packageReportMap).toEqual(
+    Object.fromEntries(
+      report.packageReports.map((packageReport) => {
+        return [packageReport.packageName, packageReport];
+      })
+    )
+  );
+  expect(report.packageReportMapCount).toBe(
+    Object.keys(report.packageReportMap).length
+  );
   expect(report.requiredArtifactCount).toBe(expectedRequiredArtifactCount);
   expect(report.requiredArtifacts).toEqual(expectedRequiredArtifacts);
   expect(report.requiredArtifacts.length).toBe(report.requiredArtifactCount);

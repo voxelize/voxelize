@@ -204,6 +204,7 @@ Runtime-library JSON reports include package/build diagnostics such as
 `missingPackages`, `missingPackagePaths`, `missingPackageIndices`,
 `requiredPackageCount`, `presentPackageCount`,
 `presentPackagePathCount`, `presentPackageIndexCount`, `packageReportCount`,
+`packageReportMap`, `packageReportMapCount`,
 `requiredArtifactsByPackage`, `requiredArtifacts`,
 `requiredArtifactsByPackageCount`,
 `requiredArtifactCountByPackage`, `requiredArtifactCount`,

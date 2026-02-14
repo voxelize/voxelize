@@ -103,6 +103,8 @@ type RuntimeLibrariesNestedReport = {
   presentPackageCount: number;
   presentPackagePathCount: number;
   packageReportCount: number;
+  packageReportMap: Record<string, RuntimeLibrariesNestedPackageReport>;
+  packageReportMapCount: number;
   requiredArtifactsByPackage: Record<string, string[]>;
   requiredArtifacts: string[];
   requiredArtifactsByPackageCount: number;
@@ -1283,6 +1285,16 @@ const expectRuntimeLibrariesNestedReport = (
     expectedRuntimeLibrariesCheckedPackages.length
   );
   expect(report.packageReportCount).toBe(report.packageReports.length);
+  expect(report.packageReportMap).toEqual(
+    Object.fromEntries(
+      report.packageReports.map((packageReport) => {
+        return [packageReport.packageName, packageReport];
+      })
+    )
+  );
+  expect(report.packageReportMapCount).toBe(
+    Object.keys(report.packageReportMap).length
+  );
   expect(report.requiredArtifactsByPackage).toEqual(
     expectedRuntimeLibrariesArtifactsByPackage
   );

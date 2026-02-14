@@ -292,6 +292,12 @@ const withBaseReportFields = (report) => {
   const packageReports = Array.isArray(report.packageReports)
     ? report.packageReports
     : [];
+  const packageReportMap = Object.fromEntries(
+    packageReports.map((packageReport) => {
+      return [packageReport.packageName, packageReport];
+    })
+  );
+  const packageReportMapCount = countRecordEntries(packageReportMap);
   const missingArtifactSummaryText = formatMissingArtifactSummary(packageReports);
   const missingArtifactSummary =
     missingArtifactSummaryText.length === 0 ? null : missingArtifactSummaryText;
@@ -367,6 +373,8 @@ const withBaseReportFields = (report) => {
     presentPackagePathCount,
     presentPackageIndexCount,
     packageReportCount: packageReports.length,
+    packageReportMap,
+    packageReportMapCount,
     requiredArtifactsByPackage,
     requiredArtifacts,
     requiredArtifactsByPackageCount,
