@@ -538,14 +538,20 @@ impl LightBlock {
                 {
                     return true;
                 }
-                let Some(vx) = vx.checked_add(simple_rule.offset[0]) else {
-                    return false;
-                };
-                let Some(vy) = vy.checked_add(simple_rule.offset[1]) else {
-                    return false;
-                };
-                let Some(vz) = vz.checked_add(simple_rule.offset[2]) else {
-                    return false;
+                let [offset_x, offset_y, offset_z] = simple_rule.offset;
+                let (vx, vy, vz) = if offset_x == 0 && offset_y == 0 && offset_z == 0 {
+                    (vx, vy, vz)
+                } else {
+                    let Some(vx) = vx.checked_add(offset_x) else {
+                        return false;
+                    };
+                    let Some(vy) = vy.checked_add(offset_y) else {
+                        return false;
+                    };
+                    let Some(vz) = vz.checked_add(offset_z) else {
+                        return false;
+                    };
+                    (vx, vy, vz)
                 };
                 let raw_voxel = space.get_raw_voxel(vx, vy, vz);
 
