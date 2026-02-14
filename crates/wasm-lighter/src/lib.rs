@@ -141,9 +141,8 @@ impl BatchSpace {
     }
 
     #[inline]
-    fn voxel_index_in_chunk(&self, chunk: &ChunkData, vx: i32, vy: i32, vz: i32) -> Option<usize> {
+    fn voxel_index_in_chunk(&self, vx: i32, vy: i32, vz: i32) -> Option<usize> {
         Self::voxel_index_from_components(
-            chunk,
             vx,
             vy,
             vz,
@@ -156,7 +155,6 @@ impl BatchSpace {
     }
 
     fn voxel_index_from_components(
-        chunk: &ChunkData,
         vx: i32,
         vy: i32,
         vz: i32,
@@ -179,9 +177,7 @@ impl BatchSpace {
             return None;
         }
 
-        let index = lx * chunk_column_stride + ly * chunk_size_usize + lz;
-        debug_assert!(index < chunk.voxels.len() && index < chunk.lights.len());
-        Some(index)
+        Some(lx * chunk_column_stride + ly * chunk_size_usize + lz)
     }
 
     fn take_modified_chunks(self) -> Vec<ModifiedChunkData> {
@@ -221,7 +217,7 @@ impl LightVoxelAccess for BatchSpace {
         let Some(Some(chunk)) = self.chunks.get(chunk_index) else {
             return 0;
         };
-        let Some(voxel_index) = self.voxel_index_in_chunk(chunk, vx, vy, vz) else {
+        let Some(voxel_index) = self.voxel_index_in_chunk(vx, vy, vz) else {
             return 0;
         };
         chunk.voxels[voxel_index]
@@ -248,7 +244,7 @@ impl LightVoxelAccess for BatchSpace {
         let Some(Some(chunk)) = self.chunks.get(chunk_index) else {
             return 0;
         };
-        let Some(voxel_index) = self.voxel_index_in_chunk(chunk, vx, vy, vz) else {
+        let Some(voxel_index) = self.voxel_index_in_chunk(vx, vy, vz) else {
             return 0;
         };
         chunk.lights[voxel_index]
@@ -270,7 +266,6 @@ impl LightVoxelAccess for BatchSpace {
 
         if let Some(Some(chunk)) = self.chunks.get_mut(chunk_index) {
             let Some(voxel_index) = Self::voxel_index_from_components(
-                chunk,
                 vx,
                 vy,
                 vz,
@@ -310,10 +305,10 @@ impl LightVoxelAccess for BatchSpace {
         let Some(chunk_index) = self.chunk_index_from_coords(cx, cz) else {
             return false;
         };
-        let Some(Some(chunk)) = self.chunks.get(chunk_index) else {
+        let Some(Some(_)) = self.chunks.get(chunk_index) else {
             return false;
         };
-        self.voxel_index_in_chunk(chunk, vx, vy, vz).is_some()
+        self.voxel_index_in_chunk(vx, vy, vz).is_some()
     }
 }
 
@@ -762,10 +757,6 @@ mod tests {
 
     #[test]
     fn voxel_index_fast_path_matches_rem_euclid() {
-        let chunk = ChunkData {
-            voxels: vec![0; 16 * 4 * 16],
-            lights: vec![0; 16 * 4 * 16],
-        };
         let space = BatchSpace::new(Vec::new(), 1, 1, [0, 0], 16, 4);
 
         for (vx, vz) in [
@@ -781,7 +772,7 @@ mod tests {
             let lz = vz.rem_euclid(16) as usize;
             let expected = lx * 4 * 16 + ly * 16 + lz;
             assert_eq!(
-                space.voxel_index_in_chunk(&chunk, vx, ly as i32, vz),
+                space.voxel_index_in_chunk(vx, ly as i32, vz),
                 Some(expected)
             );
         }
