@@ -170,14 +170,14 @@ export type FaceTransparencyLike =
 
 export interface BlockConditionalPartInput {
   rule?: BlockRule | null;
-  faces?: readonly (BlockFaceInput | null)[];
-  aabbs?: readonly (AABB | null)[];
+  faces?: readonly (BlockFaceInput | null | undefined)[];
+  aabbs?: readonly (AABB | null | undefined)[];
   isTransparent?: FaceTransparencyLike;
   worldSpace?: boolean | null;
 }
 
 export interface BlockDynamicPatternInput {
-  parts?: readonly (BlockConditionalPartInput | null)[];
+  parts?: readonly (BlockConditionalPartInput | null | undefined)[];
 }
 
 type DynamicValue =
@@ -447,8 +447,10 @@ const toBlockFaceInit = (face: BlockFaceInput): BlockFaceInit | null => {
   };
 };
 
-const cloneBlockFace = (face: BlockFaceInput | null): BlockFace | null => {
-  if (face === null) {
+const cloneBlockFace = (
+  face: BlockFaceInput | null | undefined
+): BlockFace | null => {
+  if (face === null || face === undefined) {
     return null;
   }
 

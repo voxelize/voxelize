@@ -81,7 +81,7 @@ const voxel = Voxel.pack({
   - accepts omitted or `null` input and applies deterministic defaults
   - accepts either `BlockFace` instances or `BlockFaceInit` objects in `faces`
   - accepts readonly input arrays/tuples for `faces`, `aabbs`, and
-    `isTransparent`
+    `isTransparent`, including nullable entry values
   - ignores invalid `faces`/`aabbs` entries instead of throwing
   - malformed optional face fields (such as invalid `dir`/`corners`/`range`)
     fall back to default face values
@@ -98,7 +98,7 @@ const voxel = Voxel.pack({
   - defensively clones dynamic-pattern part inputs using
     `createBlockConditionalPart`
   - accepts omitted or `null` input and applies deterministic defaults
-  - accepts readonly `parts` input arrays
+  - accepts readonly `parts` input arrays, including nullable entries
   - skips malformed part entries instead of materializing default placeholders
 - `createBlockFace`
   - ergonomic constructor helper for `BlockFaceInit` or `BlockFace` input
