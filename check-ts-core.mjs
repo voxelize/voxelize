@@ -347,22 +347,6 @@ const withBaseReportFields = (report) => {
       requiredArtifactCount: requiredArtifacts.length,
     },
   };
-  const failureSummaries =
-    missingArtifacts.length === 0
-      ? []
-      : [
-          {
-            packageName: tsCorePackageName,
-            packagePath: tsCorePackagePath,
-            packageIndex: 0,
-            checkCommand: packageCheckCommand,
-            checkArgs: packageCheckArgs,
-            checkArgCount: packageCheckArgCount,
-            missingArtifacts,
-            missingArtifactCount: missingArtifacts.length,
-            message: `Missing artifacts for ${tsCorePackageName}: ${missingArtifacts.join(", ")}.`,
-          },
-        ];
   const buildExitCode =
     typeof report.buildExitCode === "number" ? report.buildExitCode : null;
   const buildDurationMs =
@@ -392,6 +376,44 @@ const withBaseReportFields = (report) => {
           ? "ok"
           : "failed"
         : "skipped";
+  const artifactFailureSummaries =
+    missingArtifacts.length === 0
+      ? []
+      : [
+          {
+            kind: "artifacts",
+            packageName: tsCorePackageName,
+            packagePath: tsCorePackagePath,
+            packageIndex: 0,
+            checkCommand: packageCheckCommand,
+            checkArgs: packageCheckArgs,
+            checkArgCount: packageCheckArgCount,
+            missingArtifacts,
+            missingArtifactCount: missingArtifacts.length,
+            message: `Missing artifacts for ${tsCorePackageName}: ${missingArtifacts.join(", ")}.`,
+          },
+        ];
+  const exampleFailureSummaries =
+    exampleStatus !== "failed"
+      ? []
+      : [
+          {
+            kind: "example",
+            packageName: tsCorePackageName,
+            packagePath: tsCorePackagePath,
+            packageIndex: 0,
+            checkCommand: exampleCommand,
+            checkArgs: exampleArgs,
+            checkArgCount: exampleArgs.length,
+            exitCode: exampleExitCode,
+            outputLine: exampleOutputLine,
+            message: "TypeScript core end-to-end example failed.",
+          },
+        ];
+  const failureSummaries = [
+    ...artifactFailureSummaries,
+    ...exampleFailureSummaries,
+  ];
   return {
     ...report,
     optionTerminatorUsed,

@@ -202,17 +202,32 @@ type TsCoreCheckReport = {
   missingPackageArtifactsByPackageCount: number;
   missingPackageArtifactCountByPackage: Record<string, number>;
   missingPackageArtifactCountByPackageCount: number;
-  failureSummaries: Array<{
-    packageName: string;
-    packagePath: string;
-    packageIndex: number;
-    checkCommand: string;
-    checkArgs: string[];
-    checkArgCount: number;
-    missingArtifacts: string[];
-    missingArtifactCount: number;
-    message: string;
-  }>;
+  failureSummaries: Array<
+    | {
+        kind: "artifacts";
+        packageName: string;
+        packagePath: string;
+        packageIndex: number;
+        checkCommand: string;
+        checkArgs: string[];
+        checkArgCount: number;
+        missingArtifacts: string[];
+        missingArtifactCount: number;
+        message: string;
+      }
+    | {
+        kind: "example";
+        packageName: string;
+        packagePath: string;
+        packageIndex: number;
+        checkCommand: string;
+        checkArgs: string[];
+        checkArgCount: number;
+        exitCode: number | null;
+        outputLine: string | null;
+        message: string;
+      }
+  >;
   failureSummaryCount: number;
   missingArtifactSummary: string | null;
   attemptedBuild: boolean;
@@ -764,22 +779,35 @@ const parseReport = (result: ScriptResult): TsCoreCheckReport => {
   expect(report.missingPackageArtifactCountByPackageCount).toBe(
     Object.keys(report.missingPackageArtifactCountByPackage).length
   );
-  const expectedFailureSummaries =
-    report.missingArtifactCount === 0
-      ? []
-      : [
-          {
-            packageName: report.checkedPackage,
-            packagePath: report.checkedPackagePath,
-            packageIndex: report.checkedPackageIndices[0],
-            checkCommand: expectedPackageCheckCommand,
-            checkArgs: report.requiredArtifacts,
-            checkArgCount: report.requiredArtifactCount,
-            missingArtifacts: report.missingArtifacts,
-            missingArtifactCount: report.missingArtifactCount,
-            message: `Missing artifacts for ${report.checkedPackage}: ${report.missingArtifacts.join(", ")}.`,
-          },
-        ];
+  const expectedFailureSummaries: TsCoreCheckReport["failureSummaries"] = [];
+  if (report.missingArtifactCount > 0) {
+    expectedFailureSummaries.push({
+      kind: "artifacts",
+      packageName: report.checkedPackage,
+      packagePath: report.checkedPackagePath,
+      packageIndex: report.checkedPackageIndices[0],
+      checkCommand: expectedPackageCheckCommand,
+      checkArgs: report.requiredArtifacts,
+      checkArgCount: report.requiredArtifactCount,
+      missingArtifacts: report.missingArtifacts,
+      missingArtifactCount: report.missingArtifactCount,
+      message: `Missing artifacts for ${report.checkedPackage}: ${report.missingArtifacts.join(", ")}.`,
+    });
+  }
+  if (report.exampleStatus === "failed") {
+    expectedFailureSummaries.push({
+      kind: "example",
+      packageName: report.checkedPackage,
+      packagePath: report.checkedPackagePath,
+      packageIndex: report.checkedPackageIndices[0],
+      checkCommand: process.execPath,
+      checkArgs: expectedExampleArgs,
+      checkArgCount: expectedExampleArgs.length,
+      exitCode: report.exampleExitCode,
+      outputLine: report.exampleOutputLine,
+      message: "TypeScript core end-to-end example failed.",
+    });
+  }
   expect(report.failureSummaries).toEqual(expectedFailureSummaries);
   expect(report.failureSummaryCount).toBe(report.failureSummaries.length);
   if (report.missingArtifactCount === 0) {
@@ -988,6 +1016,21 @@ describe("check-ts-core script", () => {
       expect(report.exampleStatus).toBe("failed");
       expect(report.exampleExitCode).not.toBeNull();
       expect(report.exampleExitCode).not.toBe(0);
+      expect(report.failureSummaryCount).toBe(1);
+      expect(report.failureSummaries).toEqual([
+        {
+          kind: "example",
+          packageName: report.checkedPackage,
+          packagePath: report.checkedPackagePath,
+          packageIndex: report.checkedPackageIndices[0],
+          checkCommand: process.execPath,
+          checkArgs: expectedExampleArgs,
+          checkArgCount: expectedExampleArgs.length,
+          exitCode: report.exampleExitCode,
+          outputLine: report.exampleOutputLine,
+          message: "TypeScript core end-to-end example failed.",
+        },
+      ]);
       expect(report.message).toBe(
         "TypeScript core build artifacts are available, but the end-to-end example failed."
       );
