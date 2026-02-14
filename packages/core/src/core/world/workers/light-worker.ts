@@ -202,6 +202,34 @@ const normalizeOptionalLightLevel = (
   }
   return value;
 };
+const normalizeRequiredLightLevel = (value: number): number =>
+  normalizeOptionalLightLevel(value) ?? 0;
+const isBoolean = (value: boolean | null | undefined): value is boolean =>
+  value === true || value === false;
+const normalizeTransparencyFaces = (
+  faces: SerializedBlock["isTransparent"] | boolean[] | null | undefined
+): [boolean, boolean, boolean, boolean, boolean, boolean] | null => {
+  if (!Array.isArray(faces) || faces.length < 6) {
+    return null;
+  }
+  const f0 = faces[0];
+  const f1 = faces[1];
+  const f2 = faces[2];
+  const f3 = faces[3];
+  const f4 = faces[4];
+  const f5 = faces[5];
+  if (
+    !isBoolean(f0) ||
+    !isBoolean(f1) ||
+    !isBoolean(f2) ||
+    !isBoolean(f3) ||
+    !isBoolean(f4) ||
+    !isBoolean(f5)
+  ) {
+    return null;
+  }
+  return [f0, f1, f2, f3, f4, f5];
+};
 const MAX_RULE_SANITIZE_DEPTH = 32;
 const normalizeRule = (
   rule: BlockRule,
@@ -368,23 +396,43 @@ const convertDynamicPatterns = (
 
 const convertRegistryToWasm = (registry: SerializedRegistry): WasmLightRegistry => {
   const blockCount = registry.blocksById.length;
-  const blocksById = new Array<[number, WasmLightBlock]>(blockCount);
+  const blocksById: [number, WasmLightBlock][] = [];
   for (let blockIndex = 0; blockIndex < blockCount; blockIndex++) {
     const [id, block] = registry.blocksById[blockIndex];
-    blocksById[blockIndex] = [
+    if (!block || !isValidVoxelId(id)) {
+      continue;
+    }
+    const isTransparent = normalizeTransparencyFaces(block.isTransparent);
+    if (!isTransparent) {
+      continue;
+    }
+    const blockId = isValidVoxelId(block.id) ? block.id : id;
+    const isOpaque =
+      !isTransparent[0] &&
+      !isTransparent[1] &&
+      !isTransparent[2] &&
+      !isTransparent[3] &&
+      !isTransparent[4] &&
+      !isTransparent[5];
+    const redLightLevel = normalizeRequiredLightLevel(block.redLightLevel);
+    const greenLightLevel = normalizeRequiredLightLevel(block.greenLightLevel);
+    const blueLightLevel = normalizeRequiredLightLevel(block.blueLightLevel);
+    blocksById.push([
       id,
       {
-        id: block.id,
-        isTransparent: block.isTransparent,
-        isOpaque: block.isOpaque,
-        isLight: block.isLight,
-        lightReduce: block.lightReduce,
-        redLightLevel: block.redLightLevel,
-        greenLightLevel: block.greenLightLevel,
-        blueLightLevel: block.blueLightLevel,
+        id: blockId,
+        isTransparent,
+        isOpaque,
+        isLight: isBoolean(block.isLight)
+          ? block.isLight
+          : redLightLevel > 0 || greenLightLevel > 0 || blueLightLevel > 0,
+        lightReduce: isBoolean(block.lightReduce) ? block.lightReduce : true,
+        redLightLevel,
+        greenLightLevel,
+        blueLightLevel,
         dynamicPatterns: convertDynamicPatterns(block.dynamicPatterns),
       },
-    ];
+    ]);
   }
 
   return { blocksById };
