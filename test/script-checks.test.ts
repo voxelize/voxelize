@@ -316,14 +316,22 @@ type RuntimeLibrariesJsonReport = OptionTerminatorMetadata &
   packageReports: RuntimeLibrariesJsonPackageReport[];
   checkedPackages: string[];
   checkedPackagePaths: string[];
+  checkedPackageIndices: number[];
+  checkedPackageIndexCount: number;
+  checkedPackageIndexMap: Record<string, number>;
+  checkedPackageIndexMapCount: number;
   checkedPackagePathMap: Record<string, string>;
   checkedPackageCount: number;
   checkedPackagePathCount: number;
   checkedPackagePathMapCount: number;
   presentPackages: string[];
   presentPackagePaths: string[];
+  presentPackageIndices: number[];
+  presentPackageIndexCount: number;
   missingPackages: string[];
   missingPackagePaths: string[];
+  missingPackageIndices: number[];
+  missingPackageIndexCount: number;
   requiredPackageCount: number;
   presentPackageCount: number;
   presentPackagePathCount: number;
@@ -974,6 +982,15 @@ const expectedRuntimeLibrariesCheckedPackagePaths = [
   "packages/raycast",
   "packages/physics-engine",
 ];
+const expectedRuntimeLibrariesCheckedPackageIndices =
+  expectedRuntimeLibrariesCheckedPackages.map((_, index) => {
+    return index;
+  });
+const expectedRuntimeLibrariesCheckedPackageIndexMap = Object.fromEntries(
+  expectedRuntimeLibrariesCheckedPackages.map((packageName, index) => {
+    return [packageName, index];
+  })
+);
 const expectedRuntimeLibrariesCheckedPackagePathMap = Object.fromEntries(
   expectedRuntimeLibrariesCheckedPackages.map((packageName, index) => {
     return [packageName, expectedRuntimeLibrariesCheckedPackagePaths[index]];
@@ -1133,6 +1150,16 @@ const expectRuntimeLibrariesReportMetadata = (
   expect(report.packagesPresent).toBe(report.missingPackageCount === 0);
   expect(report.checkedPackages).toEqual(expectedRuntimeLibrariesCheckedPackages);
   expect(report.checkedPackagePaths).toEqual(expectedRuntimeLibrariesCheckedPackagePaths);
+  expect(report.checkedPackageIndices).toEqual(
+    expectedRuntimeLibrariesCheckedPackageIndices
+  );
+  expect(report.checkedPackageIndexCount).toBe(report.checkedPackageIndices.length);
+  expect(report.checkedPackageIndexMap).toEqual(
+    expectedRuntimeLibrariesCheckedPackageIndexMap
+  );
+  expect(report.checkedPackageIndexMapCount).toBe(
+    Object.keys(report.checkedPackageIndexMap).length
+  );
   expect(report.checkedPackagePathMap).toEqual(
     expectedRuntimeLibrariesCheckedPackagePathMap
   );
@@ -1144,6 +1171,18 @@ const expectRuntimeLibrariesReportMetadata = (
   );
   expect(report.checkedPackagePaths).toEqual(
     report.packageReports.map((packageReport) => packageReport.packagePath)
+  );
+  expect(report.checkedPackageIndices).toEqual(
+    report.packageReports.map((_, index) => {
+      return index;
+    })
+  );
+  expect(report.checkedPackageIndexMap).toEqual(
+    Object.fromEntries(
+      report.packageReports.map((packageReport, index) => {
+        return [packageReport.packageName, index];
+      })
+    )
   );
   expect(report.checkedPackagePathMap).toEqual(
     Object.fromEntries(
@@ -1158,12 +1197,22 @@ const expectRuntimeLibrariesReportMetadata = (
   const presentPackagePaths = report.packageReports
     .filter((packageReport) => packageReport.artifactsPresent)
     .map((packageReport) => packageReport.packagePath);
+  const presentPackageIndices = report.packageReports
+    .filter((packageReport) => packageReport.artifactsPresent)
+    .map((packageReport) => {
+      return report.checkedPackageIndexMap[packageReport.packageName];
+    });
   const missingPackages = report.packageReports
     .filter((packageReport) => packageReport.artifactsPresent === false)
     .map((packageReport) => packageReport.packageName);
   const missingPackagePaths = report.packageReports
     .filter((packageReport) => packageReport.artifactsPresent === false)
     .map((packageReport) => packageReport.packagePath);
+  const missingPackageIndices = report.packageReports
+    .filter((packageReport) => packageReport.artifactsPresent === false)
+    .map((packageReport) => {
+      return report.checkedPackageIndexMap[packageReport.packageName];
+    });
   expect(report.presentPackages).toEqual(presentPackages);
   expect(report.presentPackagePaths).toEqual(presentPackagePaths);
   expect(report.missingPackages).toEqual(missingPackages);
@@ -1240,6 +1289,9 @@ const expectRuntimeLibrariesReportMetadata = (
   expect(report.requiredPackageCount).toBe(
     report.presentPackageCount + report.missingPackageCount
   );
+  expect(report.checkedPackageIndexCount).toBe(
+    report.presentPackageIndexCount + report.missingPackageIndexCount
+  );
   expect(report.requiredArtifactCount).toBe(
     report.presentArtifactCount + report.missingArtifactCount
   );
@@ -1247,8 +1299,12 @@ const expectRuntimeLibrariesReportMetadata = (
   expect(report.presentPackageCount).toBe(presentPackageCount);
   expect(report.presentPackages.length).toBe(report.presentPackageCount);
   expect(report.presentPackagePaths.length).toBe(report.presentPackagePathCount);
+  expect(report.presentPackageIndices).toEqual(presentPackageIndices);
+  expect(report.presentPackageIndices.length).toBe(report.presentPackageIndexCount);
   expect(report.missingPackages.length).toBe(report.missingPackageCount);
   expect(report.missingPackagePaths.length).toBe(report.missingPackagePathCount);
+  expect(report.missingPackageIndices).toEqual(missingPackageIndices);
+  expect(report.missingPackageIndices.length).toBe(report.missingPackageIndexCount);
   expect(report.presentArtifactCount).toBe(presentArtifactCount);
   expect(report.presentArtifactCountByPackage).toEqual(
     presentArtifactCountByPackage
