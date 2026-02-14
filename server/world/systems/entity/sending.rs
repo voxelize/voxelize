@@ -1,6 +1,6 @@
 use hashbrown::{HashMap, HashSet};
 use specs::{
-    Entities, Entity, Join, LendJoin, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage,
+    Entities, Join, LendJoin, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage,
 };
 
 use crate::{
@@ -202,10 +202,10 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         }
         self.clients_with_updates_buffer.reserve(clients.len());
 
-        let mut entity_to_client_id: HashMap<Entity, &String> =
+        let mut entity_to_client_id: HashMap<u32, &String> =
             HashMap::with_capacity(clients.len());
         for (client_id, client) in clients.iter() {
-            entity_to_client_id.insert(client.entity, client_id);
+            entity_to_client_id.insert(client.entity.id(), client_id);
         }
 
         let mut client_updates: HashMap<String, Vec<EntityProtocol>> =
@@ -221,10 +221,10 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         for (entity_id, (etype, metadata_str, is_new)) in &entity_metadata_map {
             let pos = entity_positions.get(entity_id).unwrap_or(&default_pos);
-            let nearby_players = kdtree.players_within_radius(pos, entity_visible_radius);
+            let nearby_player_ids = kdtree.player_ids_within_radius(pos, entity_visible_radius);
 
-            for player_entity in nearby_players {
-                let client_id = match entity_to_client_id.get(player_entity) {
+            for player_entity_id in nearby_player_ids {
+                let client_id = match entity_to_client_id.get(&player_entity_id) {
                     Some(id) => *id,
                     None => continue,
                 };
