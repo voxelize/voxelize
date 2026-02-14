@@ -270,7 +270,9 @@ const deserializeChunkGrid = (
   chunksData: (SerializedRawChunk | null)[],
   gridWidth: number,
   gridDepth: number,
-  chunkGrid: (RawChunk | null)[]
+  chunkGrid: (RawChunk | null)[],
+  expectedChunkSize: number,
+  expectedMaxHeight: number
 ): boolean => {
   const cellCount = gridWidth * gridDepth;
   chunkGrid.length = cellCount;
@@ -285,6 +287,16 @@ const deserializeChunkGrid = (
     if (
       (chunkData.voxels.byteLength & 3) !== 0 ||
       (chunkData.lights.byteLength & 3) !== 0
+    ) {
+      chunkGrid[index] = null;
+      continue;
+    }
+    const chunkOptions = chunkData.options;
+    if (
+      !isPositiveInteger(chunkOptions.size) ||
+      !isPositiveInteger(chunkOptions.maxHeight) ||
+      chunkOptions.size !== expectedChunkSize ||
+      chunkOptions.maxHeight !== expectedMaxHeight
     ) {
       chunkGrid[index] = null;
       continue;
@@ -451,7 +463,9 @@ const serializeChunksData = (
   chunksData: (SerializedRawChunk | null)[],
   gridWidth: number,
   gridDepth: number,
-  serialized: SerializedWasmChunk[]
+  serialized: SerializedWasmChunk[],
+  expectedChunkSize: number,
+  expectedMaxHeight: number
 ): boolean => {
   const cellCount = gridWidth * gridDepth;
   serialized.length = cellCount;
@@ -466,6 +480,16 @@ const serializeChunksData = (
     const voxelsBuffer = chunkData.voxels;
     const lightsBuffer = chunkData.lights;
     if ((voxelsBuffer.byteLength & 3) !== 0 || (lightsBuffer.byteLength & 3) !== 0) {
+      serialized[index] = null;
+      continue;
+    }
+    const chunkOptions = chunkData.options;
+    if (
+      !isPositiveInteger(chunkOptions.size) ||
+      !isPositiveInteger(chunkOptions.maxHeight) ||
+      chunkOptions.size !== expectedChunkSize ||
+      chunkOptions.maxHeight !== expectedMaxHeight
+    ) {
       serialized[index] = null;
       continue;
     }
@@ -544,7 +568,9 @@ const processBatchMessage = (message: LightBatchMessage) => {
       chunksData,
       gridWidth,
       gridDepth,
-      serializedChunks
+      serializedChunks,
+      options.chunkSize,
+      options.maxHeight
     );
     if (!hasAnyChunk) {
       serializedChunks.length = 0;
@@ -556,7 +582,9 @@ const processBatchMessage = (message: LightBatchMessage) => {
       chunksData,
       gridWidth,
       gridDepth,
-      chunkGrid
+      chunkGrid,
+      options.chunkSize,
+      options.maxHeight
     );
     if (!hasAnyChunk) {
       chunkGrid.length = 0;
