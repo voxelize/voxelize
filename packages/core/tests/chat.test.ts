@@ -41,6 +41,22 @@ describe("Chat command parsing", () => {
     ]);
   });
 
+  it("does not treat command-like input as command before init", () => {
+    const chat = new Chat();
+    const message: ChatProtocol = {
+      type: "CLIENT",
+      body: "/echo before init",
+    };
+
+    expect(() => chat.send(message)).not.toThrow();
+    expect(chat.packets).toEqual([
+      {
+        type: "CHAT",
+        chat: message,
+      },
+    ]);
+  });
+
   it("parses unquoted positional arguments with repeated spaces", () => {
     const chat = new Chat();
     initializeChat(chat);
