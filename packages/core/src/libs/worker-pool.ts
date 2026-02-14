@@ -146,8 +146,8 @@ export class WorkerPool {
       return;
     }
 
+    const transferBuffers = new Array<ArrayBuffer>(bufferCount);
     for (let workerIndex = 0; workerIndex < workerCount; workerIndex++) {
-      const transferBuffers = new Array<ArrayBuffer>(bufferCount);
       for (let index = 0; index < bufferCount; index++) {
         transferBuffers[index] = buffers[index].slice(0);
       }
