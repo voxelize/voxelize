@@ -1055,3 +1055,78 @@ fn parity_matches_with_uncached_registry_across_randomized_seeds() {
         assert_greedy_parity(&space, &registry_uncached);
     }
 }
+
+#[test]
+fn parity_matches_with_uncached_rotation_heavy_volume() {
+    let registry_cached = build_registry();
+    let registry_uncached = build_registry_uncached();
+    let mut space = TestSpace::new([12, 10, 12]);
+
+    for x in 0..12 {
+        for z in 0..12 {
+            space.set_voxel_id(x, 0, z, 1);
+            for y in 1..7 {
+                if (x + y + z) % 2 == 0 {
+                    let rotation = match (x + y + z) % 4 {
+                        0 => BlockRotation::PY(0.0),
+                        1 => BlockRotation::PY(std::f32::consts::FRAC_PI_2),
+                        2 => BlockRotation::PY(std::f32::consts::PI),
+                        _ => BlockRotation::PY(std::f32::consts::PI * 1.5),
+                    };
+                    space.set_voxel_rotation(x, y, z, 8, rotation);
+                } else {
+                    space.set_voxel_id(x, y, z, 2);
+                }
+            }
+            space.set_light(x, 8, z, 12, 3, 1, 4);
+        }
+    }
+
+    assert_cached_uncached_parity(&space, &registry_cached, &registry_uncached);
+    assert_greedy_parity(&space, &registry_uncached);
+}
+
+#[test]
+fn parity_matches_with_uncached_transparency_fluid_boundary_volume() {
+    let registry_cached = build_registry();
+    let registry_uncached = build_registry_uncached();
+    let mut space = TestSpace::new([12, 10, 12]);
+
+    for x in 0..12 {
+        for z in 0..12 {
+            space.set_voxel_id(x, 0, z, 1);
+
+            if (x + z) % 2 == 0 {
+                space.set_voxel_id(x, 1, z, 3);
+            } else {
+                space.set_voxel_id(x, 1, z, 2);
+            }
+
+            if (x + z) % 3 == 0 {
+                let stage = ((x * 5 + z * 7) % 8) as u32;
+                space.set_voxel_stage(x, 2, z, 4, stage);
+            }
+
+            if (x + z) % 4 == 0 {
+                space.set_voxel_id(x, 2, z, 6);
+            }
+
+            if (x + z) % 5 == 0 {
+                space.set_voxel_id(x, 3, z, 11);
+                if z < 11 {
+                    space.set_voxel_id(x, 4, z, 1);
+                }
+            }
+
+            if x > 0 && z > 0 && x < 11 && z < 11 && (x + z) % 6 == 0 {
+                space.set_voxel_id(x, 3, z, 10);
+            }
+
+            let wave = ((x * 11 + z * 13) % 16) as u32;
+            space.set_light(x, 6, z, wave, (wave + 3) & 0xF, (wave + 7) & 0xF, (wave + 11) & 0xF);
+        }
+    }
+
+    assert_cached_uncached_parity(&space, &registry_cached, &registry_uncached);
+    assert_greedy_parity(&space, &registry_uncached);
+}
