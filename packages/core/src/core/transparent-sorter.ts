@@ -215,8 +215,7 @@ export function sortTransparentMesh(
     targetIndices[dstOffset + 5] = sourceIndices[srcOffset + 5];
   }
 
-  const indexAttr = mesh.geometry.index!;
-  indexAttr.needsUpdate = true;
+  mesh.geometry.index!.needsUpdate = true;
 }
 
 export function sortTransparentMeshOnBeforeRender(
