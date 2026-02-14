@@ -504,17 +504,19 @@ pub fn init() {}
 
 #[wasm_bindgen]
 pub fn set_registry(registry: JsValue) -> bool {
+    let parsed_registry = serde_wasm_bindgen::from_value(registry)
+        .ok()
+        .map(|mut parsed: LightRegistry| {
+            parsed.build_cache();
+            Arc::new(parsed)
+        });
+    let is_initialized = parsed_registry.is_some();
+
     CACHED_REGISTRY.with(|cached| {
-        let parsed_registry = serde_wasm_bindgen::from_value(registry)
-            .ok()
-            .map(|mut parsed: LightRegistry| {
-                parsed.build_cache();
-                Arc::new(parsed)
-            });
-        let is_initialized = parsed_registry.is_some();
         *cached.borrow_mut() = parsed_registry;
-        is_initialized
-    })
+    });
+
+    is_initialized
 }
 
 #[wasm_bindgen]
