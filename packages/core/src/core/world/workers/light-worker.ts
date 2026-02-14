@@ -1200,7 +1200,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
     }
     const existing = modifiedChunks[validModifiedChunkCount];
     if (existing) {
-      existing.coords = [coords[0], coords[1]];
+      existing.coords[0] = coords[0];
+      existing.coords[1] = coords[1];
       existing.lights = lights;
     } else {
       modifiedChunks[validModifiedChunkCount] = {
