@@ -240,7 +240,15 @@ const hasFiniteRotation = (
   hasFiniteRotationValues(rotation);
 const normalizeSequenceId = (sequenceId: number) =>
   isPositiveInteger(sequenceId) ? sequenceId : 0;
-type RuntimeJobId = string | number | boolean | null | undefined | object;
+type RuntimeJobId =
+  | string
+  | number
+  | boolean
+  | bigint
+  | symbol
+  | null
+  | undefined
+  | object;
 const sanitizeJobId = (jobId: RuntimeJobId) =>
   typeof jobId === "string" ? jobId : "";
 const isValidRuleType = (
