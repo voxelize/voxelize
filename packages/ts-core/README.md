@@ -89,20 +89,19 @@ const voxel = Voxel.pack({
 ```ts
 import {
   BlockRuleLogic,
-  createBlockConditionalPart,
   createBlockDynamicPattern,
 } from "@voxelize/ts-core";
 
 const pattern = createBlockDynamicPattern({
   parts: [
-    createBlockConditionalPart({
+    {
       rule: {
         type: "combination",
         logic: BlockRuleLogic.And,
         rules: [{ type: "simple", offset: [0, 0, 0], id: 42 }],
       },
       worldSpace: false,
-    }),
+    },
   ],
 });
 ```

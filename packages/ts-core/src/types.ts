@@ -139,6 +139,10 @@ export interface BlockDynamicPattern {
   parts: BlockConditionalPart[];
 }
 
+export interface BlockDynamicPatternInput {
+  parts?: Partial<BlockConditionalPart>[];
+}
+
 const cloneBlockFace = (face: BlockFace): BlockFace => {
   const [corner0, corner1, corner2, corner3] = face.corners;
   return new BlockFace({
@@ -206,7 +210,7 @@ export const createBlockConditionalPart = (
 };
 
 export const createBlockDynamicPattern = (
-  pattern: Partial<BlockDynamicPattern> = {}
+  pattern: BlockDynamicPatternInput = {}
 ): BlockDynamicPattern => {
   const parts = Array.isArray(pattern.parts)
     ? pattern.parts.map((part) => createBlockConditionalPart(part))

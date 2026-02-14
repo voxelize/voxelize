@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   AABB,
   BLOCK_RULE_NONE,
+  type BlockConditionalPart,
   type BlockRule,
   BlockFace,
   BlockRotation,
@@ -1015,6 +1016,54 @@ describe("Type builders", () => {
   it("builds dynamic patterns with deterministic defaults", () => {
     const pattern = createBlockDynamicPattern();
     expect(pattern.parts).toEqual([]);
+  });
+
+  it("accepts partial dynamic pattern part inputs", () => {
+    const sourceRule = {
+      type: "simple" as const,
+      offset: [2, 0, 0] as [number, number, number],
+      id: 51,
+    };
+    const sourcePart = {
+      rule: sourceRule,
+      worldSpace: true,
+    };
+    const sourceParts: Partial<BlockConditionalPart>[] = [sourcePart];
+    const pattern = createBlockDynamicPattern({
+      parts: sourceParts,
+    });
+
+    expect(pattern.parts).toEqual([
+      {
+        rule: {
+          type: "simple",
+          offset: [2, 0, 0],
+          id: 51,
+        },
+        faces: [],
+        aabbs: [],
+        isTransparent: [false, false, false, false, false, false],
+        worldSpace: true,
+      },
+    ]);
+
+    sourceRule.offset[0] = 9;
+    sourceRule.id = 99;
+    sourcePart.worldSpace = false;
+    sourceParts.push({});
+
+    expect(pattern.parts).toHaveLength(1);
+    expect(pattern.parts[0]).toEqual({
+      rule: {
+        type: "simple",
+        offset: [2, 0, 0],
+        id: 51,
+      },
+      faces: [],
+      aabbs: [],
+      isTransparent: [false, false, false, false, false, false],
+      worldSpace: true,
+    });
   });
 
   it("clones dynamic pattern parts to avoid external mutation", () => {

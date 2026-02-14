@@ -132,20 +132,19 @@ You can build cloned dynamic part definitions with helper constructors:
 ```ts title="Dynamic pattern helper"
 import {
   BlockRuleLogic,
-  createBlockConditionalPart,
   createBlockDynamicPattern,
 } from "@voxelize/ts-core";
 
 const pattern = createBlockDynamicPattern({
   parts: [
-    createBlockConditionalPart({
+    {
       rule: {
         type: "combination",
         logic: BlockRuleLogic.And,
         rules: [{ type: "simple", offset: [0, 0, 0], id: 12 }],
       },
       worldSpace: false,
-    }),
+    },
   ],
 });
 ```
