@@ -201,7 +201,19 @@ export class ChunkUtils {
     if (concat.length === 0) {
       return [ChunkUtils.parseSignedIntegerSegment(name, 0, name.length), Number.NaN];
     }
-    const separatorIndex = name.indexOf(concat);
+    let separatorIndex = -1;
+    if (concat.length === 1) {
+      const separatorCode = concat.charCodeAt(0);
+      const nameLength = name.length;
+      for (let index = 0; index < nameLength; index++) {
+        if (name.charCodeAt(index) === separatorCode) {
+          separatorIndex = index;
+          break;
+        }
+      }
+    } else {
+      separatorIndex = name.indexOf(concat);
+    }
     if (separatorIndex < 0) {
       return [ChunkUtils.parseSignedIntegerSegment(name, 0, name.length), Number.NaN];
     }
