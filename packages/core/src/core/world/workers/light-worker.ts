@@ -234,7 +234,7 @@ const hasFiniteRotationValues = (
   rotation !== undefined &&
   rotation !== null &&
   isValidRotationValue(rotation.value) &&
-  Number.isFinite(rotation.yRotation);
+  isValidRotationValue(rotation.yRotation);
 const hasFiniteRotation = (
   rotation: VoxelDelta["newRotation"] | null | undefined
 ): rotation is NonNullable<VoxelDelta["newRotation"]> =>
