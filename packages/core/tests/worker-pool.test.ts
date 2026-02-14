@@ -37,4 +37,14 @@ describe("WorkerPool constructor normalization", () => {
     expect(pool.availableCount).toBe(3);
     expect(pool.options.maxWorker).toBe(3);
   });
+
+  it("falls back to default worker count for non-positive maxWorker", () => {
+    const zeroPool = new WorkerPool(FakeWorker, { maxWorker: 0 });
+    expect(zeroPool.availableCount).toBe(8);
+    expect(zeroPool.options.maxWorker).toBe(8);
+
+    const negativePool = new WorkerPool(FakeWorker, { maxWorker: -4 });
+    expect(negativePool.availableCount).toBe(8);
+    expect(negativePool.options.maxWorker).toBe(8);
+  });
 });
