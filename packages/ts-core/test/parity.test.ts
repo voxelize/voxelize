@@ -1246,6 +1246,61 @@ describe("Type builders", () => {
     expect(malformedCombination.rule).toEqual(BLOCK_RULE_NONE);
   });
 
+  it("sanitizes malformed nested combination rule entries to none rules", () => {
+    const part = createBlockConditionalPart({
+      rule: {
+        type: "combination",
+        logic: BlockRuleLogic.And,
+        rules: [
+          {
+            type: "simple",
+            offset: [1, 0, 0],
+            id: 1,
+          },
+          {
+            type: "simple",
+            offset: ["x", 0, 0],
+            id: 2,
+          },
+        ],
+      } as never,
+    });
+
+    expect(part.rule).toEqual({
+      type: "combination",
+      logic: BlockRuleLogic.And,
+      rules: [
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 1,
+        },
+        {
+          type: "none",
+        },
+      ],
+    });
+  });
+
+  it("accepts rotation-like plain objects in rule sanitization", () => {
+    const part = createBlockConditionalPart({
+      rule: {
+        type: "simple",
+        offset: [0, 0, 0],
+        rotation: {
+          value: 0,
+          yRotation: Math.PI / 2,
+        },
+      } as never,
+    });
+
+    expect(part.rule).toEqual({
+      type: "simple",
+      offset: [0, 0, 0],
+      rotation: BlockRotation.py(Math.PI / 2),
+    });
+  });
+
   it("builds dynamic patterns with deterministic defaults", () => {
     const pattern = createBlockDynamicPattern();
     expect(pattern.parts).toEqual([]);
