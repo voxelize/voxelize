@@ -199,6 +199,7 @@ type PreflightReport = {
   availableCheckScriptCount: number;
   availableCheckIndices: number[];
   availableCheckIndexCount: number;
+  availableCheckIndexMap: Record<string, number>;
   availableCheckMetadata: {
     devEnvironment: {
       scriptName: string;
@@ -366,6 +367,11 @@ const expectedAvailableCheckScripts = expectedAvailableChecks.map((checkName) =>
 const expectedAvailableCheckIndices = expectedAvailableChecks.map((_, index) => {
   return index;
 });
+const expectedAvailableCheckIndexMap = Object.fromEntries(
+  expectedAvailableChecks.map((checkName, index) => {
+    return [checkName, index];
+  })
+);
 const expectedTsCoreRequiredArtifacts = [
   "packages/ts-core/dist/index.js",
   "packages/ts-core/dist/index.mjs",
@@ -941,6 +947,7 @@ describe("preflight aggregate report", () => {
     expect(report.availableCheckIndexCount).toBe(
       report.availableCheckIndices.length
     );
+    expect(report.availableCheckIndexMap).toEqual(expectedAvailableCheckIndexMap);
     expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(report.availableSpecialCheckSelectors).toEqual(
@@ -6755,6 +6762,7 @@ describe("preflight aggregate report", () => {
     expect(report.availableCheckIndexCount).toBe(
       report.availableCheckIndices.length
     );
+    expect(report.availableCheckIndexMap).toEqual(expectedAvailableCheckIndexMap);
     expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(report.availableSpecialCheckAliases).toEqual(
