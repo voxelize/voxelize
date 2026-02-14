@@ -342,6 +342,7 @@ fn collect_refill_nodes_after_removals(
     let mut fill = Vec::<LightNode>::with_capacity(remove.len());
     let mut head = 0usize;
     let color_mask = if is_sunlight { 0 } else { torch_color_mask(color) };
+    let max_light_level = config.max_light_level;
 
     while head < remove.len() {
         let LightNode { voxel, level } = remove[head];
@@ -379,8 +380,8 @@ fn collect_refill_nodes_after_removals(
             if n_level < level
                 || (is_sunlight
                     && oy == -1
-                    && level == config.max_light_level
-                    && n_level == config.max_light_level)
+                    && level == max_light_level
+                    && n_level == max_light_level)
             {
                 remove.push(LightNode {
                     voxel: [nvx, nvy, nvz],
