@@ -124,6 +124,12 @@ describe("report-utils", () => {
     ).toEqual([{ phase: "second", ok: false }]);
   });
 
+  it("parses the latest object from concatenated json payloads", () => {
+    expect(parseJsonOutput(`{"step":"first"}{"step":"second"}`)).toEqual({
+      step: "second",
+    });
+  });
+
   it("parses json output containing ansi color sequences", () => {
     expect(
       parseJsonOutput(
