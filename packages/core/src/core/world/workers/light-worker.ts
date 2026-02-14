@@ -1193,10 +1193,11 @@ const processBatchMessage = (message: LightBatchMessage) => {
     const lights = chunk.lights;
     if (
       !Array.isArray(coords) ||
-      coords.length < 2 ||
+      coords.length !== 2 ||
       !isI32(coords[0]) ||
       !isI32(coords[1]) ||
       !(lights instanceof Uint32Array) ||
+      lights.length !== expectedVoxelCount ||
       !isArrayBuffer(lights.buffer)
     ) {
       continue;
