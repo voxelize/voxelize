@@ -437,7 +437,8 @@ const hasPotentialRelevantDeltaBatches = (
   chunkSize: number,
   expectedChunkByteLength: number
 ) => {
-  const chunkValidity = new Int8Array(gridWidth * gridDepth);
+  const chunkValidity =
+    deltaBatches.length > 1 ? new Int8Array(gridWidth * gridDepth) : null;
   for (let batchIndex = 0; batchIndex < deltaBatches.length; batchIndex++) {
     const deltaBatch = deltaBatches[batchIndex];
     if (!deltaBatch || typeof deltaBatch !== "object") {
@@ -459,23 +460,34 @@ const hasPotentialRelevantDeltaBatches = (
       continue;
     }
     const chunkIndex = localX * gridDepth + localZ;
-    let chunkValidityState = chunkValidity[chunkIndex];
-    if (chunkValidityState === -1) {
-      continue;
-    }
-    if (chunkValidityState === 0) {
-      const chunkData = chunksData[chunkIndex];
-      chunkValidityState = isCompatibleSerializedChunk(
-        chunkData,
+    if (chunkValidity) {
+      let chunkValidityState = chunkValidity[chunkIndex];
+      if (chunkValidityState === -1) {
+        continue;
+      }
+      if (chunkValidityState === 0) {
+        const chunkData = chunksData[chunkIndex];
+        chunkValidityState = isCompatibleSerializedChunk(
+          chunkData,
+          chunkSize,
+          maxHeight,
+          expectedChunkByteLength
+        )
+          ? 1
+          : -1;
+        chunkValidity[chunkIndex] = chunkValidityState;
+      }
+      if (chunkValidityState === -1) {
+        continue;
+      }
+    } else if (
+      !isCompatibleSerializedChunk(
+        chunksData[chunkIndex],
         chunkSize,
         maxHeight,
         expectedChunkByteLength
       )
-        ? 1
-        : -1;
-      chunkValidity[chunkIndex] = chunkValidityState;
-    }
-    if (chunkValidityState === -1) {
+    ) {
       continue;
     }
 
