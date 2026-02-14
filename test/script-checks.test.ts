@@ -168,6 +168,7 @@ type TsCoreJsonReport = OptionTerminatorMetadata &
   packagePath: string;
   requiredArtifacts: string[];
   requiredArtifactCount: number;
+  presentArtifactCount: number;
   artifactsPresent: boolean;
   missingArtifacts: string[];
   missingArtifactCount: number;
@@ -470,6 +471,9 @@ const expectTsCoreReportMetadata = (report: TsCoreJsonReport) => {
   expect(report.packagePath).toBe("packages/ts-core");
   expect(report.requiredArtifacts).toEqual(expectedTsCoreRequiredArtifacts);
   expect(report.requiredArtifactCount).toBe(report.requiredArtifacts.length);
+  expect(report.presentArtifactCount).toBe(
+    report.requiredArtifactCount - report.missingArtifactCount
+  );
   expect(report.missingArtifactCount).toBe(report.missingArtifacts.length);
   expect(typeof report.buildCommand).toBe("string");
   expect(report.buildCommand.length).toBeGreaterThan(0);

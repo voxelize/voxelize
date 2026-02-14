@@ -17,6 +17,7 @@ type TsCoreCheckReport = {
   packagePath: string;
   requiredArtifacts: string[];
   requiredArtifactCount: number;
+  presentArtifactCount: number;
   buildCommand: string;
   buildArgs: string[];
   buildExitCode: number | null;
@@ -139,6 +140,9 @@ const runScript = (args: string[] = []): ScriptResult => {
 const parseReport = (result: ScriptResult): TsCoreCheckReport => {
   const report = JSON.parse(result.output) as TsCoreCheckReport;
   expect(report.requiredArtifactCount).toBe(report.requiredArtifacts.length);
+  expect(report.presentArtifactCount).toBe(
+    report.requiredArtifactCount - report.missingArtifactCount
+  );
   expect(report.missingArtifactCount).toBe(report.missingArtifacts.length);
   expect(typeof report.buildCommand).toBe("string");
   expect(report.buildCommand.length).toBeGreaterThan(0);
@@ -258,6 +262,7 @@ describe("check-ts-core script", () => {
       expect(report.noBuild).toBe(true);
       expect(report.validationErrorCode).toBeNull();
       expect(report.artifactsPresent).toBe(false);
+      expect(report.presentArtifactCount).toBeLessThan(report.requiredArtifactCount);
       expect(report.missingArtifacts).toContain(missingArtifactPath);
       expect(report.attemptedBuild).toBe(false);
       expect(report.buildSkipped).toBe(true);
@@ -281,6 +286,7 @@ describe("check-ts-core script", () => {
       expect(report.noBuild).toBe(false);
       expect(report.validationErrorCode).toBeNull();
       expect(report.artifactsPresent).toBe(true);
+      expect(report.presentArtifactCount).toBe(report.requiredArtifactCount);
       expect(report.missingArtifacts).toEqual([]);
       expect(report.attemptedBuild).toBe(true);
       expect(report.buildSkipped).toBe(false);

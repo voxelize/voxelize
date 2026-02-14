@@ -105,6 +105,7 @@ const withBaseReportFields = (report) => {
   const missingArtifacts = Array.isArray(report.missingArtifacts)
     ? report.missingArtifacts
     : [];
+  const presentArtifactCount = requiredArtifacts.length - missingArtifacts.length;
   const buildExitCode =
     typeof report.buildExitCode === "number" ? report.buildExitCode : null;
   const buildDurationMs =
@@ -137,6 +138,7 @@ const withBaseReportFields = (report) => {
     packagePath: tsCorePackagePath,
     requiredArtifacts,
     requiredArtifactCount: requiredArtifacts.length,
+    presentArtifactCount,
     missingArtifactCount: missingArtifacts.length,
     buildCommand: pnpmCommand,
     buildArgs: buildCommandArgs,
