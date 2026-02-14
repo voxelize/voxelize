@@ -109,6 +109,32 @@ impl Default for LightBlock {
 }
 
 impl LightBlock {
+    pub fn new(
+        id: u32,
+        is_transparent: [bool; 6],
+        light_reduce: bool,
+        red_light_level: u32,
+        green_light_level: u32,
+        blue_light_level: u32,
+        dynamic_patterns: Option<Vec<LightDynamicPattern>>,
+    ) -> Self {
+        let mut block = Self {
+            id,
+            is_transparent,
+            is_opaque: false,
+            is_light: false,
+            light_reduce,
+            red_light_level,
+            green_light_level,
+            blue_light_level,
+            dynamic_patterns,
+            static_torch_mask: 0,
+            dynamic_torch_mask: 0,
+        };
+        block.recompute_flags();
+        block
+    }
+
     pub fn default_air() -> Self {
         Self {
             id: 0,
@@ -644,6 +670,14 @@ mod tests {
             ),
             7
         );
+    }
+
+    #[test]
+    fn constructor_recomputes_opaque_and_light_flags() {
+        let block = LightBlock::new(9, [false, false, false, false, false, false], true, 0, 0, 3, None);
+        assert!(block.is_opaque);
+        assert!(block.is_light);
+        assert!(block.has_static_torch_color(&LightColor::Blue));
     }
 
     #[test]
