@@ -6,7 +6,7 @@ import init, {
 import { Coords2, Coords3 } from "../../../types";
 import { BlockUtils } from "../../../utils/block-utils";
 import { LightColor } from "../../../utils/light-utils";
-import { BlockRule } from "../block";
+import { BlockRule, BlockRuleLogic } from "../block";
 import type { LightNode, VoxelDelta, WorldOptions } from "../index";
 import { RawChunk } from "../raw-chunk";
 import type { SerializedRawChunk } from "../raw-chunk";
@@ -180,6 +180,19 @@ const isValidRuleType = (
   type: BlockRule["type"] | string | undefined
 ): type is BlockRule["type"] =>
   type === "none" || type === "simple" || type === "combination";
+const isValidRuleLogic = (
+  logic: BlockRuleLogic | string | undefined
+): logic is BlockRuleLogic =>
+  logic === BlockRuleLogic.And ||
+  logic === BlockRuleLogic.Or ||
+  logic === BlockRuleLogic.Not;
+const hasFiniteRuleRotation = (
+  rotation: { value: number; yRotation: number } | null | undefined
+): rotation is { value: number; yRotation: number } =>
+  rotation !== undefined &&
+  rotation !== null &&
+  isInteger(rotation.value) &&
+  Number.isFinite(rotation.yRotation);
 const normalizeOptionalLightLevel = (
   value: number | null | undefined
 ): number | undefined => {
@@ -187,6 +200,72 @@ const normalizeOptionalLightLevel = (
     return undefined;
   }
   return value;
+};
+const MAX_RULE_SANITIZE_DEPTH = 32;
+const normalizeRule = (
+  rule: BlockRule,
+  depth = 0
+): BlockRule | null => {
+  if (!rule || !isValidRuleType(rule.type)) {
+    return null;
+  }
+  if (depth > MAX_RULE_SANITIZE_DEPTH) {
+    return null;
+  }
+
+  if (rule.type === "none") {
+    return rule;
+  }
+  if (rule.type === "simple") {
+    const offset = rule.offset;
+    if (
+      !Array.isArray(offset) ||
+      offset.length < 3 ||
+      !isInteger(offset[0]) ||
+      !isInteger(offset[1]) ||
+      !isInteger(offset[2])
+    ) {
+      return null;
+    }
+
+    const normalized: BlockRule = {
+      type: "simple",
+      offset: [offset[0], offset[1], offset[2]],
+    };
+    if (rule.id !== undefined && rule.id !== null && isValidVoxelId(rule.id)) {
+      normalized.id = rule.id;
+    }
+    if (hasFiniteRuleRotation(rule.rotation)) {
+      normalized.rotation = rule.rotation;
+    }
+    if (
+      rule.stage !== undefined &&
+      rule.stage !== null &&
+      isValidStage(rule.stage)
+    ) {
+      normalized.stage = rule.stage;
+    }
+    return normalized;
+  }
+
+  if (!isValidRuleLogic(rule.logic) || !Array.isArray(rule.rules)) {
+    return null;
+  }
+  const normalizedRules: BlockRule[] = [];
+  for (let index = 0; index < rule.rules.length; index++) {
+    const normalized = normalizeRule(rule.rules[index], depth + 1);
+    if (normalized) {
+      normalizedRules.push(normalized);
+    }
+  }
+  if (normalizedRules.length === 0) {
+    return null;
+  }
+  return {
+    type: "combination",
+    logic: rule.logic,
+    rules: normalizedRules,
+  };
 };
 
 const getAppliedDeltasPayload = (lastSequenceId: number) => {
@@ -264,11 +343,15 @@ const convertDynamicPatterns = (
     for (let partIndex = 0; partIndex < partCount; partIndex++) {
       const part = patternParts[partIndex];
       const rule = part?.rule;
-      if (!rule || !isValidRuleType(rule.type)) {
+      if (!rule) {
+        continue;
+      }
+      const normalizedRule = normalizeRule(rule);
+      if (!normalizedRule) {
         continue;
       }
       convertedParts.push({
-        rule: part.rule,
+        rule: normalizedRule,
         redLightLevel: normalizeOptionalLightLevel(part.redLightLevel),
         greenLightLevel: normalizeOptionalLightLevel(part.greenLightLevel),
         blueLightLevel: normalizeOptionalLightLevel(part.blueLightLevel),
