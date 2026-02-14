@@ -33,6 +33,23 @@ fn take_updated_level_range(updated_levels: &mut HashSet<u32>) -> Option<(u32, u
     Some((min_level, max_level_exclusive))
 }
 
+#[inline]
+fn flush_chunk_batches(
+    queue: &mut MessageQueues,
+    message_type: &MessageType,
+    batches: HashMap<String, Vec<ChunkProtocol>>,
+) {
+    for (client_id, chunk_models) in batches {
+        if chunk_models.is_empty() {
+            continue;
+        }
+        queue.push((
+            Message::new(message_type).chunks(&chunk_models).build(),
+            ClientFilter::Direct(client_id),
+        ));
+    }
+}
+
 impl<'a> System<'a> for ChunkSendingSystem {
     type SystemData = (
         ReadExpect<'a, WorldConfig>,
@@ -113,57 +130,21 @@ impl<'a> System<'a> for ChunkSendingSystem {
             }
         }
 
-        for (client_id, chunk_models) in client_load_mesh {
-            if !chunk_models.is_empty() {
-                queue.push((
-                    Message::new(&MessageType::Load)
-                        .chunks(&chunk_models)
-                        .build(),
-                    ClientFilter::Direct(client_id),
-                ));
-            }
-        }
-
-        for (client_id, chunk_models) in client_load_data {
-            if !chunk_models.is_empty() {
-                queue.push((
-                    Message::new(&MessageType::Load)
-                        .chunks(&chunk_models)
-                        .build(),
-                    ClientFilter::Direct(client_id),
-                ));
-            }
-        }
-
-        for (client_id, chunk_models) in client_update_mesh {
-            if !chunk_models.is_empty() {
-                queue.push((
-                    Message::new(&MessageType::Update)
-                        .chunks(&chunk_models)
-                        .build(),
-                    ClientFilter::Direct(client_id),
-                ));
-            }
-        }
-
-        for (client_id, chunk_models) in client_update_data {
-            if !chunk_models.is_empty() {
-                queue.push((
-                    Message::new(&MessageType::Update)
-                        .chunks(&chunk_models)
-                        .build(),
-                    ClientFilter::Direct(client_id),
-                ));
-            }
-        }
+        flush_chunk_batches(&mut queue, &MessageType::Load, client_load_mesh);
+        flush_chunk_batches(&mut queue, &MessageType::Load, client_load_data);
+        flush_chunk_batches(&mut queue, &MessageType::Update, client_update_mesh);
+        flush_chunk_batches(&mut queue, &MessageType::Update, client_update_data);
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use hashbrown::HashMap;
     use hashbrown::HashSet;
 
-    use super::take_updated_level_range;
+    use crate::{ChunkProtocol, ClientFilter, MessageQueues, MessageType};
+
+    use super::{flush_chunk_batches, take_updated_level_range};
 
     #[test]
     fn take_updated_level_range_returns_none_for_empty_sets() {
@@ -187,5 +168,34 @@ mod tests {
         let mut levels = HashSet::new();
         levels.insert(u32::MAX);
         assert_eq!(take_updated_level_range(&mut levels), None);
+    }
+
+    #[test]
+    fn flush_chunk_batches_emits_only_non_empty_payloads() {
+        let mut queue = MessageQueues::new();
+        let mut batches = HashMap::new();
+        batches.insert("a".to_string(), Vec::new());
+        batches.insert(
+            "b".to_string(),
+            vec![ChunkProtocol {
+                x: 0,
+                z: 0,
+                id: "chunk-0-0".to_string(),
+                meshes: Vec::new(),
+                voxels: None,
+                lights: None,
+            }],
+        );
+
+        flush_chunk_batches(&mut queue, &MessageType::Load, batches);
+
+        assert_eq!(queue.queue_stats(), (0, 0, 1));
+        let mut drained = queue.drain_prioritized();
+        assert_eq!(drained.len(), 1);
+        let (_, filter) = drained.pop().expect("expected one queued message");
+        match filter {
+            ClientFilter::Direct(id) => assert_eq!(id, "b"),
+            _ => panic!("expected direct client filter"),
+        }
     }
 }
