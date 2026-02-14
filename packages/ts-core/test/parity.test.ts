@@ -324,6 +324,29 @@ describe("Rotation maps", () => {
     expect(Y_ROT_MAP_EIGHT.length).toBe(16);
     expect(Y_ROT_MAP_FOUR.length).toBe(8);
   });
+
+  it("keeps canonical first-segment mappings", () => {
+    expect(Y_ROT_MAP[0]).toEqual([0, 0]);
+    expect(Y_ROT_MAP[1]).toEqual([-(Math.PI * 2), 0]);
+    expect(Y_ROT_MAP_EIGHT[0]).toEqual([0, 0]);
+    expect(Y_ROT_MAP_FOUR[0]).toEqual([0, 0]);
+  });
+
+  it("uses expected segment indices for reduced maps", () => {
+    const eightSegmentIndices = Y_ROT_MAP_EIGHT.map(([, index]) => index);
+    const fourSegmentIndices = Y_ROT_MAP_FOUR.map(([, index]) => index);
+
+    expect(
+      eightSegmentIndices.every((index) => {
+        return index % 2 === 0;
+      })
+    ).toBe(true);
+    expect(
+      fourSegmentIndices.every((index) => {
+        return index % 4 === 0;
+      })
+    ).toBe(true);
+  });
 });
 
 describe("BlockRuleEvaluator", () => {
