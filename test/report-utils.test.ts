@@ -3686,6 +3686,20 @@ describe("report-utils", () => {
       exampleOutputLine: "warning: no json",
     });
     expect(
+      summarizeTsCoreExampleOutput("\u001b[33mwarning: no json\u001b[39m")
+    ).toEqual({
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      exampleOutputLine: "warning: no json",
+    });
+    expect(summarizeTsCoreExampleOutput("\u001b[33m\u001b[39m")).toEqual({
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      exampleOutputLine: null,
+    });
+    expect(
       summarizeTsCoreExampleOutput(
         JSON.stringify([
           {

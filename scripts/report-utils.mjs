@@ -499,7 +499,7 @@ const resolveFirstNonEmptyOutputLine = (output) => {
     return null;
   }
 
-  const nonEmptyLines = output
+  const nonEmptyLines = sanitizeOutputForJsonParsing(output)
     .split(/\r?\n/)
     .map((line) => {
       return line.trim();
