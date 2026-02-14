@@ -64,8 +64,8 @@ impl ChunkUtils {
     }
 
     pub fn distance_squared(a: &Vec2<i32>, b: &Vec2<i32>) -> f32 {
-        let dx = a.0 - b.0;
-        let dz = a.1 - b.1;
+        let dx = i128::from(a.0) - i128::from(b.0);
+        let dz = i128::from(a.1) - i128::from(b.1);
         (dx * dx + dz * dz) as f32
     }
 }
@@ -142,5 +142,14 @@ mod tests {
         assert_eq!(vx, 1);
         assert_eq!(vy, 2);
         assert_eq!(vz, 3);
+    }
+
+    #[test]
+    fn distance_squared_handles_extreme_coordinates_without_overflow() {
+        let a = Vec2(i32::MAX, i32::MAX);
+        let b = Vec2(i32::MIN, i32::MIN);
+        let distance = ChunkUtils::distance_squared(&a, &b);
+        assert!(distance.is_finite());
+        assert!(distance > 0.0);
     }
 }
