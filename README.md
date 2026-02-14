@@ -421,6 +421,7 @@ When payload validation fails, ts-core reports also include `examplePayloadIssue
 When `ruleMatched=false` is reported together with payload invalidity, ts-core failure messages include both signals (rule mismatch + payload issue paths) for faster triage. When payload fields are otherwise valid, the message remains a pure `ruleMatched=false` diagnostic.
 If the example exits successfully but emits no parseable JSON object payload, ts-core reports a dedicated "produced no parseable JSON output" diagnostic.
 When fallback non-JSON output is reported, `exampleOutputLine` is normalized to a readable line by stripping ANSI/control escape sequences.
+Example JSON parsing also tolerates UTF-8 BOM-prefixed output lines.
 Misused inline option forms (for example `--json=secret` or `--verify=secret`) are excluded from `activeCliOption*` metadata and are instead reported via redacted `unknownOptions`.
 Recognized options in the same invocation are still preserved in `activeCliOption*` metadata even when misused inline options are also present.
 Root/client/onboarding/wasm/ts-core/runtime-library JSON preflight reports include `availableCliOptionAliases` and `availableCliOptionCanonicalMap` so automation can resolve option aliases to canonical names.

@@ -250,6 +250,7 @@ If the example exits with code `0` but emits no parseable JSON object payload,
 diagnostics report a dedicated "produced no parseable JSON output" failure.
 When fallback non-JSON output is reported, `exampleOutputLine` is normalized to
 a readable line by stripping ANSI/control escape sequences.
+Example JSON parsing also tolerates UTF-8 BOM-prefixed output lines.
 
 Example `kind: "example"` failure payload (truncated):
 

@@ -173,6 +173,7 @@ produced, ts-core reports a dedicated "produced no parseable JSON output"
 diagnostic.
 When non-JSON output fallback is used, `exampleOutputLine` is normalized to a
 clean printable line (ANSI/control escapes are stripped).
+Example JSON parsing is also resilient to UTF-8 BOM-prefixed output lines.
 
 Example `kind: "example"` failure payload (truncated):
 
