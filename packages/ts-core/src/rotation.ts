@@ -16,7 +16,7 @@ const ANGLE_EPSILON = 1e-12;
 
 const normalizeYRotation = (rotation: number): number => {
   if (!Number.isFinite(rotation)) {
-    return rotation;
+    return 0;
   }
 
   const wrappedRotation = ((rotation % TWO_PI) + TWO_PI) % TWO_PI;
@@ -141,9 +141,9 @@ export class BlockRotation {
   }
 
   static decode(rotation: BlockRotation): [number, number] {
-    const converted = Math.round(
-      (rotation.yRotation * Y_ROT_SEGMENTS) / TWO_PI
-    );
+    const converted = Number.isFinite(rotation.yRotation)
+      ? Math.round((rotation.yRotation * Y_ROT_SEGMENTS) / TWO_PI)
+      : 0;
     const yRotation =
       ((converted % Y_ROT_SEGMENTS) + Y_ROT_SEGMENTS) % Y_ROT_SEGMENTS;
 

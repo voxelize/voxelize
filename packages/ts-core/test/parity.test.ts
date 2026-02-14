@@ -404,6 +404,37 @@ describe("BlockRotation", () => {
     expect(yRotation).toBe(4);
   });
 
+  it("normalizes non-finite y-rotation values in decode and transforms", () => {
+    const input: [boolean, boolean, boolean, boolean, boolean, boolean] = [
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+    ];
+    const baseNode: [number, number, number] = [0.25, 0.5, 0.75];
+    const nonFiniteAngles = [
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+    ];
+
+    for (const angle of nonFiniteAngles) {
+      const [axis, yRotation] = BlockRotation.decode(new BlockRotation(PY_ROTATION, angle));
+      expect(axis).toBe(PY_ROTATION);
+      expect(yRotation).toBe(0);
+
+      const node: [number, number, number] = [...baseNode];
+      BlockRotation.py(angle).rotateNode(node, true, false);
+
+      expect(node[0]).toBeCloseTo(baseNode[0], 10);
+      expect(node[1]).toBeCloseTo(baseNode[1], 10);
+      expect(node[2]).toBeCloseTo(baseNode[2], 10);
+      expect(BlockRotation.py(angle).rotateTransparency(input)).toEqual(input);
+    }
+  });
+
   it("rotates transparency for non-zero y rotation on PY axis", () => {
     const rotation = BlockRotation.encode(PY_ROTATION, 4);
     const input: [boolean, boolean, boolean, boolean, boolean, boolean] = [
