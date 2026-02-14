@@ -513,7 +513,7 @@ export class MeshPipeline {
     while (!keyEntry.done) {
       const key = keyEntry.value;
       const state = this.states.get(key);
-      if (state?.inFlightGeneration !== null) {
+      if (state !== undefined && state.inFlightGeneration !== null) {
         this.inFlightCount--;
       }
       this.states.delete(key);
