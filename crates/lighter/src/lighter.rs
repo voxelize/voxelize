@@ -138,7 +138,7 @@ fn block_emits_torch_at(
         return false;
     }
 
-    block.get_torch_light_level_at(&[vx, vy, vz], space, color) > 0
+    block.get_torch_light_level_at_xyz(vx, vy, vz, space, color) > 0
 }
 
 pub fn can_enter_into(target: &[bool; 6], dx: i32, dy: i32, dz: i32) -> bool {
@@ -429,14 +429,13 @@ pub fn propagate(
             let vx = start_x + x as i32;
             for z in 0..shape_z {
                 let vz = start_z + z as i32;
-                let voxel_pos = [vx, y, vz];
 
                 let raw_voxel = space.get_raw_voxel(vx, y, vz);
                 let block = registry.get_block_by_id(raw_voxel & 0xFFFF);
-                let red_level = block.get_torch_light_level_at(&voxel_pos, space, &LightColor::Red);
+                let red_level = block.get_torch_light_level_at_xyz(vx, y, vz, space, &LightColor::Red);
                 let green_level =
-                    block.get_torch_light_level_at(&voxel_pos, space, &LightColor::Green);
-                let blue_level = block.get_torch_light_level_at(&voxel_pos, space, &LightColor::Blue);
+                    block.get_torch_light_level_at_xyz(vx, y, vz, space, &LightColor::Green);
+                let blue_level = block.get_torch_light_level_at_xyz(vx, y, vz, space, &LightColor::Blue);
 
                 if red_level > 0 {
                     space.set_red_light(vx, y, vz, red_level);

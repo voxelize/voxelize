@@ -210,6 +210,17 @@ impl LightBlock {
         space: &dyn LightVoxelAccess,
         color: &LightColor,
     ) -> u32 {
+        self.get_torch_light_level_at_xyz(pos[0], pos[1], pos[2], space, color)
+    }
+
+    pub fn get_torch_light_level_at_xyz(
+        &self,
+        vx: i32,
+        vy: i32,
+        vz: i32,
+        space: &dyn LightVoxelAccess,
+        color: &LightColor,
+    ) -> u32 {
         if !self.has_dynamic_torch_color(color) {
             return self.get_torch_light_level(color);
         }
@@ -217,7 +228,7 @@ impl LightBlock {
         if let Some(patterns) = &self.dynamic_patterns {
             for pattern in patterns {
                 for part in &pattern.parts {
-                    if Self::evaluate_rule(&part.rule, pos, space) {
+                    if Self::evaluate_rule(&part.rule, vx, vy, vz, space) {
                         match color {
                             LightColor::Red => {
                                 if let Some(level) = part.red_light_level {
@@ -244,13 +255,19 @@ impl LightBlock {
         self.get_torch_light_level(color)
     }
 
-    fn evaluate_rule(rule: &BlockRule, pos: &[i32; 3], space: &dyn LightVoxelAccess) -> bool {
+    fn evaluate_rule(
+        rule: &BlockRule,
+        vx: i32,
+        vy: i32,
+        vz: i32,
+        space: &dyn LightVoxelAccess,
+    ) -> bool {
         match rule {
             BlockRule::None => true,
             BlockRule::Simple(simple_rule) => {
-                let vx = simple_rule.offset[0] + pos[0];
-                let vy = simple_rule.offset[1] + pos[1];
-                let vz = simple_rule.offset[2] + pos[2];
+                let vx = simple_rule.offset[0] + vx;
+                let vy = simple_rule.offset[1] + vy;
+                let vz = simple_rule.offset[2] + vz;
 
                 let id_match = simple_rule
                     .id
@@ -271,11 +288,15 @@ impl LightBlock {
                     .is_none_or(|expected_stage| space.get_voxel_stage(vx, vy, vz) == expected_stage)
             }
             BlockRule::Combination { logic, rules } => match logic {
-                BlockRuleLogic::And => rules.iter().all(|r| Self::evaluate_rule(r, pos, space)),
-                BlockRuleLogic::Or => rules.iter().any(|r| Self::evaluate_rule(r, pos, space)),
+                BlockRuleLogic::And => rules
+                    .iter()
+                    .all(|r| Self::evaluate_rule(r, vx, vy, vz, space)),
+                BlockRuleLogic::Or => rules
+                    .iter()
+                    .any(|r| Self::evaluate_rule(r, vx, vy, vz, space)),
                 BlockRuleLogic::Not => {
                     if let Some(first_rule) = rules.first() {
-                        !Self::evaluate_rule(first_rule, pos, space)
+                        !Self::evaluate_rule(first_rule, vx, vy, vz, space)
                     } else {
                         true
                     }
