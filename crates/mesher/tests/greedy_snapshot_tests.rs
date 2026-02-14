@@ -812,3 +812,31 @@ fn greedy_legacy_parity_across_randomized_seeds() {
         assert_greedy_parity(&space, &registry);
     }
 }
+
+#[test]
+fn greedy_legacy_parity_rotation_heavy_volume() {
+    let registry = build_registry();
+    let mut space = TestSpace::new([12, 10, 12]);
+
+    for x in 0..12 {
+        for z in 0..12 {
+            space.set_voxel_id(x, 0, z, 1);
+            for y in 1..7 {
+                if (x + y + z) % 2 == 0 {
+                    let rotation = match (x + y + z) % 4 {
+                        0 => BlockRotation::PY(0.0),
+                        1 => BlockRotation::PY(std::f32::consts::FRAC_PI_2),
+                        2 => BlockRotation::PY(std::f32::consts::PI),
+                        _ => BlockRotation::PY(std::f32::consts::PI * 1.5),
+                    };
+                    space.set_voxel_rotation(x, y, z, 8, rotation);
+                } else {
+                    space.set_voxel_id(x, y, z, 2);
+                }
+            }
+            space.set_light(x, 8, z, 12, 3, 1, 4);
+        }
+    }
+
+    assert_greedy_parity(&space, &registry);
+}
