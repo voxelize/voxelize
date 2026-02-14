@@ -3159,10 +3159,8 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     if is_non_greedy_block {
                         let non_greedy_voxel_key = non_greedy_voxel_key
                             .expect("non-greedy voxel key must exist for non-greedy blocks");
-
-                        let mut queue_non_greedy_face =
-                            |face: &BlockFace, face_index: Option<i16>, world_space: bool| {
-                                let uv_range = face.range;
+                        if use_static_faces {
+                            for (face_index, face) in block.faces.iter().enumerate() {
                                 non_greedy_faces.push((
                                     vx,
                                     vy,
@@ -3170,25 +3168,30 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                     non_greedy_voxel_key,
                                     voxel_id,
                                     rotation.clone(),
-                                    face_index.unwrap_or(-1),
-                                    if face_index.is_some() {
-                                        None
-                                    } else {
-                                        Some(face.clone())
-                                    },
-                                    uv_range,
+                                    face_index as i16,
+                                    None,
+                                    face.range,
                                     is_see_through,
                                     is_fluid,
-                                    world_space,
+                                    false,
                                 ));
-                            };
-                        if use_static_faces {
-                            for (face_index, face) in block.faces.iter().enumerate() {
-                                queue_non_greedy_face(face, Some(face_index as i16), false);
                             }
                         } else {
                             for (face, world_space) in faces.iter() {
-                                queue_non_greedy_face(face, None, *world_space);
+                                non_greedy_faces.push((
+                                    vx,
+                                    vy,
+                                    vz,
+                                    non_greedy_voxel_key,
+                                    voxel_id,
+                                    rotation.clone(),
+                                    -1,
+                                    Some(face.clone()),
+                                    face.range,
+                                    is_see_through,
+                                    is_fluid,
+                                    *world_space,
+                                ));
                             }
                         }
                         continue;
