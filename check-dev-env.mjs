@@ -147,6 +147,17 @@ const mapCheckLabelsToIndexMap = (checkLabels, checkIndexMap) => {
     })
   );
 };
+const mapCheckLabelsToValueMap = (checkLabels, checkValueMap, valueLabel) => {
+  return Object.fromEntries(
+    checkLabels.map((checkLabel) => {
+      const checkValue = checkValueMap[checkLabel];
+      if (checkValue === undefined) {
+        throw new Error(`Missing ${valueLabel} metadata for ${checkLabel}.`);
+      }
+      return [checkLabel, checkValue];
+    })
+  );
+};
 const countChecksByStatus = (checkEntries) => {
   return checkEntries.reduce((statusCounts, check) => {
     const currentCount = statusCounts[check.status] ?? 0;
@@ -285,25 +296,115 @@ const summarizeCheckResults = (results) => {
     requiredCheckLabels,
     checkIndexMap
   );
+  const requiredCheckCommandMap = mapCheckLabelsToValueMap(
+    requiredCheckLabels,
+    checkCommandMap,
+    "check command"
+  );
+  const requiredCheckArgsMap = mapCheckLabelsToValueMap(
+    requiredCheckLabels,
+    checkArgsMap,
+    "check args"
+  );
+  const requiredCheckArgCountMap = mapCheckLabelsToValueMap(
+    requiredCheckLabels,
+    checkArgCountMap,
+    "check argument count"
+  );
   const optionalCheckIndexMap = mapCheckLabelsToIndexMap(
     optionalCheckLabels,
     checkIndexMap
+  );
+  const optionalCheckCommandMap = mapCheckLabelsToValueMap(
+    optionalCheckLabels,
+    checkCommandMap,
+    "check command"
+  );
+  const optionalCheckArgsMap = mapCheckLabelsToValueMap(
+    optionalCheckLabels,
+    checkArgsMap,
+    "check args"
+  );
+  const optionalCheckArgCountMap = mapCheckLabelsToValueMap(
+    optionalCheckLabels,
+    checkArgCountMap,
+    "check argument count"
   );
   const passedCheckIndexMap = mapCheckLabelsToIndexMap(
     passedChecks,
     checkIndexMap
   );
+  const passedCheckCommandMap = mapCheckLabelsToValueMap(
+    passedChecks,
+    checkCommandMap,
+    "check command"
+  );
+  const passedCheckArgsMap = mapCheckLabelsToValueMap(
+    passedChecks,
+    checkArgsMap,
+    "check args"
+  );
+  const passedCheckArgCountMap = mapCheckLabelsToValueMap(
+    passedChecks,
+    checkArgCountMap,
+    "check argument count"
+  );
   const failedCheckIndexMap = mapCheckLabelsToIndexMap(
     failedChecks,
     checkIndexMap
+  );
+  const failedCheckCommandMap = mapCheckLabelsToValueMap(
+    failedChecks,
+    checkCommandMap,
+    "check command"
+  );
+  const failedCheckArgsMap = mapCheckLabelsToValueMap(
+    failedChecks,
+    checkArgsMap,
+    "check args"
+  );
+  const failedCheckArgCountMap = mapCheckLabelsToValueMap(
+    failedChecks,
+    checkArgCountMap,
+    "check argument count"
   );
   const requiredFailureIndexMap = mapCheckLabelsToIndexMap(
     requiredFailureLabels,
     checkIndexMap
   );
+  const requiredFailureCommandMap = mapCheckLabelsToValueMap(
+    requiredFailureLabels,
+    checkCommandMap,
+    "check command"
+  );
+  const requiredFailureArgsMap = mapCheckLabelsToValueMap(
+    requiredFailureLabels,
+    checkArgsMap,
+    "check args"
+  );
+  const requiredFailureArgCountMap = mapCheckLabelsToValueMap(
+    requiredFailureLabels,
+    checkArgCountMap,
+    "check argument count"
+  );
   const optionalFailureIndexMap = mapCheckLabelsToIndexMap(
     optionalFailureLabels,
     checkIndexMap
+  );
+  const optionalFailureCommandMap = mapCheckLabelsToValueMap(
+    optionalFailureLabels,
+    checkCommandMap,
+    "check command"
+  );
+  const optionalFailureArgsMap = mapCheckLabelsToValueMap(
+    optionalFailureLabels,
+    checkArgsMap,
+    "check args"
+  );
+  const optionalFailureArgCountMap = mapCheckLabelsToValueMap(
+    optionalFailureLabels,
+    checkArgCountMap,
+    "check argument count"
   );
 
   return {
@@ -333,36 +434,76 @@ const summarizeCheckResults = (results) => {
     requiredCheckIndexCount: requiredCheckIndices.length,
     requiredCheckIndexMap,
     requiredCheckIndexMapCount: countRecordEntries(requiredCheckIndexMap),
+    requiredCheckCommandMap,
+    requiredCheckCommandMapCount: countRecordEntries(requiredCheckCommandMap),
+    requiredCheckArgsMap,
+    requiredCheckArgsMapCount: countRecordEntries(requiredCheckArgsMap),
+    requiredCheckArgCountMap,
+    requiredCheckArgCountMapCount: countRecordEntries(requiredCheckArgCountMap),
     optionalCheckLabels,
     optionalCheckCount: optionalCheckLabels.length,
     optionalCheckIndices,
     optionalCheckIndexCount: optionalCheckIndices.length,
     optionalCheckIndexMap,
     optionalCheckIndexMapCount: countRecordEntries(optionalCheckIndexMap),
+    optionalCheckCommandMap,
+    optionalCheckCommandMapCount: countRecordEntries(optionalCheckCommandMap),
+    optionalCheckArgsMap,
+    optionalCheckArgsMapCount: countRecordEntries(optionalCheckArgsMap),
+    optionalCheckArgCountMap,
+    optionalCheckArgCountMapCount: countRecordEntries(optionalCheckArgCountMap),
     passedChecks,
     passedCheckCount: passedChecks.length,
     passedCheckIndices,
     passedCheckIndexCount: passedCheckIndices.length,
     passedCheckIndexMap,
     passedCheckIndexMapCount: countRecordEntries(passedCheckIndexMap),
+    passedCheckCommandMap,
+    passedCheckCommandMapCount: countRecordEntries(passedCheckCommandMap),
+    passedCheckArgsMap,
+    passedCheckArgsMapCount: countRecordEntries(passedCheckArgsMap),
+    passedCheckArgCountMap,
+    passedCheckArgCountMapCount: countRecordEntries(passedCheckArgCountMap),
     failedChecks,
     failedCheckCount: failedChecks.length,
     failedCheckIndices,
     failedCheckIndexCount: failedCheckIndices.length,
     failedCheckIndexMap,
     failedCheckIndexMapCount: countRecordEntries(failedCheckIndexMap),
+    failedCheckCommandMap,
+    failedCheckCommandMapCount: countRecordEntries(failedCheckCommandMap),
+    failedCheckArgsMap,
+    failedCheckArgsMapCount: countRecordEntries(failedCheckArgsMap),
+    failedCheckArgCountMap,
+    failedCheckArgCountMapCount: countRecordEntries(failedCheckArgCountMap),
     requiredFailureLabels,
     requiredFailureCount: requiredFailureLabels.length,
     requiredFailureIndices,
     requiredFailureIndexCount: requiredFailureIndices.length,
     requiredFailureIndexMap,
     requiredFailureIndexMapCount: countRecordEntries(requiredFailureIndexMap),
+    requiredFailureCommandMap,
+    requiredFailureCommandMapCount: countRecordEntries(requiredFailureCommandMap),
+    requiredFailureArgsMap,
+    requiredFailureArgsMapCount: countRecordEntries(requiredFailureArgsMap),
+    requiredFailureArgCountMap,
+    requiredFailureArgCountMapCount: countRecordEntries(
+      requiredFailureArgCountMap
+    ),
     optionalFailureLabels,
     optionalFailureCount: optionalFailureLabels.length,
     optionalFailureIndices,
     optionalFailureIndexCount: optionalFailureIndices.length,
     optionalFailureIndexMap,
     optionalFailureIndexMapCount: countRecordEntries(optionalFailureIndexMap),
+    optionalFailureCommandMap,
+    optionalFailureCommandMapCount: countRecordEntries(optionalFailureCommandMap),
+    optionalFailureArgsMap,
+    optionalFailureArgsMapCount: countRecordEntries(optionalFailureArgsMap),
+    optionalFailureArgCountMap,
+    optionalFailureArgCountMapCount: countRecordEntries(
+      optionalFailureArgCountMap
+    ),
     failureSummaries,
     failureSummaryCount: failureSummaries.length,
   };

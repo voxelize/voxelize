@@ -449,11 +449,20 @@ metadata such as `availableChecks`, `availableCheckIndexMap`,
 `availableCheckMinimumVersionMap`, `checkLabels`, `checkIndices`,
 `checkIndexMap`, `checkCommandMap`, `checkArgsMap`,
 `checkArgCountMap`, `checkStatusMap`, `checkStatusCountMap`, `passedChecks`,
-`passedCheckIndices`, `passedCheckIndexMap`, `failedChecks`,
-`failedCheckIndices`, `failedCheckIndexMap`, `requiredFailureLabels`,
+`passedCheckIndices`, `passedCheckIndexMap`, `passedCheckCommandMap`,
+`passedCheckArgsMap`, `passedCheckArgCountMap`, `failedChecks`,
+`failedCheckIndices`, `failedCheckIndexMap`, `failedCheckCommandMap`,
+`failedCheckArgsMap`, `failedCheckArgCountMap`, `requiredCheckLabels`,
+`requiredCheckIndices`, `requiredCheckIndexMap`, `requiredCheckCommandMap`,
+`requiredCheckArgsMap`, `requiredCheckArgCountMap`, `optionalCheckLabels`,
+`optionalCheckIndices`, `optionalCheckIndexMap`, `optionalCheckCommandMap`,
+`optionalCheckArgsMap`, `optionalCheckArgCountMap`, `requiredFailureLabels`,
 `requiredFailureIndices`, `requiredFailureIndexMap`,
-`optionalFailureLabels`, `optionalFailureIndices`,
-`optionalFailureIndexMap`, `failureSummaries`, and associated `*Count`
+`requiredFailureCommandMap`, `requiredFailureArgsMap`,
+`requiredFailureArgCountMap`, `optionalFailureLabels`,
+`optionalFailureIndices`, `optionalFailureIndexMap`,
+`optionalFailureCommandMap`, `optionalFailureArgsMap`,
+`optionalFailureArgCountMap`, `failureSummaries`, and associated `*Count`
 fields.
 Developer-environment `checks[]` and `failureSummaries[]` entries include
 `checkIndex`, `checkCommand`, `checkArgs`, and `checkArgCount` for stable

@@ -181,36 +181,72 @@ type DevEnvJsonReport = OptionTerminatorMetadata &
   requiredCheckIndexCount: number;
   requiredCheckIndexMap: Record<string, number>;
   requiredCheckIndexMapCount: number;
+  requiredCheckCommandMap: Record<string, string>;
+  requiredCheckCommandMapCount: number;
+  requiredCheckArgsMap: Record<string, string[]>;
+  requiredCheckArgsMapCount: number;
+  requiredCheckArgCountMap: Record<string, number>;
+  requiredCheckArgCountMapCount: number;
   optionalCheckLabels: string[];
   optionalCheckCount: number;
   optionalCheckIndices: number[];
   optionalCheckIndexCount: number;
   optionalCheckIndexMap: Record<string, number>;
   optionalCheckIndexMapCount: number;
+  optionalCheckCommandMap: Record<string, string>;
+  optionalCheckCommandMapCount: number;
+  optionalCheckArgsMap: Record<string, string[]>;
+  optionalCheckArgsMapCount: number;
+  optionalCheckArgCountMap: Record<string, number>;
+  optionalCheckArgCountMapCount: number;
   passedChecks: string[];
   passedCheckCount: number;
   passedCheckIndices: number[];
   passedCheckIndexCount: number;
   passedCheckIndexMap: Record<string, number>;
   passedCheckIndexMapCount: number;
+  passedCheckCommandMap: Record<string, string>;
+  passedCheckCommandMapCount: number;
+  passedCheckArgsMap: Record<string, string[]>;
+  passedCheckArgsMapCount: number;
+  passedCheckArgCountMap: Record<string, number>;
+  passedCheckArgCountMapCount: number;
   failedChecks: string[];
   failedCheckCount: number;
   failedCheckIndices: number[];
   failedCheckIndexCount: number;
   failedCheckIndexMap: Record<string, number>;
   failedCheckIndexMapCount: number;
+  failedCheckCommandMap: Record<string, string>;
+  failedCheckCommandMapCount: number;
+  failedCheckArgsMap: Record<string, string[]>;
+  failedCheckArgsMapCount: number;
+  failedCheckArgCountMap: Record<string, number>;
+  failedCheckArgCountMapCount: number;
   requiredFailureLabels: string[];
   requiredFailureCount: number;
   requiredFailureIndices: number[];
   requiredFailureIndexCount: number;
   requiredFailureIndexMap: Record<string, number>;
   requiredFailureIndexMapCount: number;
+  requiredFailureCommandMap: Record<string, string>;
+  requiredFailureCommandMapCount: number;
+  requiredFailureArgsMap: Record<string, string[]>;
+  requiredFailureArgsMapCount: number;
+  requiredFailureArgCountMap: Record<string, number>;
+  requiredFailureArgCountMapCount: number;
   optionalFailureLabels: string[];
   optionalFailureCount: number;
   optionalFailureIndices: number[];
   optionalFailureIndexCount: number;
   optionalFailureIndexMap: Record<string, number>;
   optionalFailureIndexMapCount: number;
+  optionalFailureCommandMap: Record<string, string>;
+  optionalFailureCommandMapCount: number;
+  optionalFailureArgsMap: Record<string, string[]>;
+  optionalFailureArgsMapCount: number;
+  optionalFailureArgCountMap: Record<string, number>;
+  optionalFailureArgCountMapCount: number;
   failureSummaries: Array<{
     label: string;
     checkIndex: number;
@@ -1960,6 +1996,21 @@ const expectDevEnvCheckMetadata = (report: DevEnvJsonReport) => {
       })
     );
   };
+  const mapCheckLabelsToValueMap = <T>(
+    checkLabels: string[],
+    checkValueMap: Record<string, T>,
+    valueLabel: string
+  ) => {
+    return Object.fromEntries(
+      checkLabels.map((checkLabel) => {
+        const checkValue = checkValueMap[checkLabel];
+        if (checkValue === undefined) {
+          throw new Error(`Missing ${valueLabel} metadata for ${checkLabel}.`);
+        }
+        return [checkLabel, checkValue];
+      })
+    );
+  };
   const expectedCheckIndices = mapCheckLabelsToIndices(expectedCheckLabels);
   const expectedCheckCommandMap = Object.fromEntries(
     report.checks.map((check) => {
@@ -2073,6 +2124,96 @@ const expectDevEnvCheckMetadata = (report: DevEnvJsonReport) => {
   const expectedOptionalFailureIndexMap = mapCheckLabelsToIndexMap(
     expectedOptionalFailureLabels
   );
+  const expectedRequiredCheckCommandMap = mapCheckLabelsToValueMap(
+    expectedRequiredCheckLabels,
+    expectedCheckCommandMap,
+    "check command"
+  );
+  const expectedRequiredCheckArgsMap = mapCheckLabelsToValueMap(
+    expectedRequiredCheckLabels,
+    expectedCheckArgsMap,
+    "check args"
+  );
+  const expectedRequiredCheckArgCountMap = mapCheckLabelsToValueMap(
+    expectedRequiredCheckLabels,
+    expectedCheckArgCountMap,
+    "check argument count"
+  );
+  const expectedOptionalCheckCommandMap = mapCheckLabelsToValueMap(
+    expectedOptionalCheckLabels,
+    expectedCheckCommandMap,
+    "check command"
+  );
+  const expectedOptionalCheckArgsMap = mapCheckLabelsToValueMap(
+    expectedOptionalCheckLabels,
+    expectedCheckArgsMap,
+    "check args"
+  );
+  const expectedOptionalCheckArgCountMap = mapCheckLabelsToValueMap(
+    expectedOptionalCheckLabels,
+    expectedCheckArgCountMap,
+    "check argument count"
+  );
+  const expectedPassedCheckCommandMap = mapCheckLabelsToValueMap(
+    expectedPassedChecks,
+    expectedCheckCommandMap,
+    "check command"
+  );
+  const expectedPassedCheckArgsMap = mapCheckLabelsToValueMap(
+    expectedPassedChecks,
+    expectedCheckArgsMap,
+    "check args"
+  );
+  const expectedPassedCheckArgCountMap = mapCheckLabelsToValueMap(
+    expectedPassedChecks,
+    expectedCheckArgCountMap,
+    "check argument count"
+  );
+  const expectedFailedCheckCommandMap = mapCheckLabelsToValueMap(
+    expectedFailedChecks,
+    expectedCheckCommandMap,
+    "check command"
+  );
+  const expectedFailedCheckArgsMap = mapCheckLabelsToValueMap(
+    expectedFailedChecks,
+    expectedCheckArgsMap,
+    "check args"
+  );
+  const expectedFailedCheckArgCountMap = mapCheckLabelsToValueMap(
+    expectedFailedChecks,
+    expectedCheckArgCountMap,
+    "check argument count"
+  );
+  const expectedRequiredFailureCommandMap = mapCheckLabelsToValueMap(
+    expectedRequiredFailureLabels,
+    expectedCheckCommandMap,
+    "check command"
+  );
+  const expectedRequiredFailureArgsMap = mapCheckLabelsToValueMap(
+    expectedRequiredFailureLabels,
+    expectedCheckArgsMap,
+    "check args"
+  );
+  const expectedRequiredFailureArgCountMap = mapCheckLabelsToValueMap(
+    expectedRequiredFailureLabels,
+    expectedCheckArgCountMap,
+    "check argument count"
+  );
+  const expectedOptionalFailureCommandMap = mapCheckLabelsToValueMap(
+    expectedOptionalFailureLabels,
+    expectedCheckCommandMap,
+    "check command"
+  );
+  const expectedOptionalFailureArgsMap = mapCheckLabelsToValueMap(
+    expectedOptionalFailureLabels,
+    expectedCheckArgsMap,
+    "check args"
+  );
+  const expectedOptionalFailureArgCountMap = mapCheckLabelsToValueMap(
+    expectedOptionalFailureLabels,
+    expectedCheckArgCountMap,
+    "check argument count"
+  );
   const expectedFailureSummaries = report.checks
     .filter((check) => {
       return check.status !== "ok";
@@ -2133,6 +2274,20 @@ const expectDevEnvCheckMetadata = (report: DevEnvJsonReport) => {
   expect(report.requiredCheckIndexMapCount).toBe(
     Object.keys(report.requiredCheckIndexMap).length
   );
+  expect(report.requiredCheckCommandMap).toEqual(expectedRequiredCheckCommandMap);
+  expect(report.requiredCheckCommandMapCount).toBe(
+    Object.keys(report.requiredCheckCommandMap).length
+  );
+  expect(report.requiredCheckArgsMap).toEqual(expectedRequiredCheckArgsMap);
+  expect(report.requiredCheckArgsMapCount).toBe(
+    Object.keys(report.requiredCheckArgsMap).length
+  );
+  expect(report.requiredCheckArgCountMap).toEqual(
+    expectedRequiredCheckArgCountMap
+  );
+  expect(report.requiredCheckArgCountMapCount).toBe(
+    Object.keys(report.requiredCheckArgCountMap).length
+  );
   expect(report.optionalCheckLabels).toEqual(expectedOptionalCheckLabels);
   expect(report.optionalCheckCount).toBe(report.optionalCheckLabels.length);
   expect(report.optionalCheckIndices).toEqual(expectedOptionalCheckIndices);
@@ -2143,6 +2298,20 @@ const expectDevEnvCheckMetadata = (report: DevEnvJsonReport) => {
   expect(report.optionalCheckIndexMapCount).toBe(
     Object.keys(report.optionalCheckIndexMap).length
   );
+  expect(report.optionalCheckCommandMap).toEqual(expectedOptionalCheckCommandMap);
+  expect(report.optionalCheckCommandMapCount).toBe(
+    Object.keys(report.optionalCheckCommandMap).length
+  );
+  expect(report.optionalCheckArgsMap).toEqual(expectedOptionalCheckArgsMap);
+  expect(report.optionalCheckArgsMapCount).toBe(
+    Object.keys(report.optionalCheckArgsMap).length
+  );
+  expect(report.optionalCheckArgCountMap).toEqual(
+    expectedOptionalCheckArgCountMap
+  );
+  expect(report.optionalCheckArgCountMapCount).toBe(
+    Object.keys(report.optionalCheckArgCountMap).length
+  );
   expect(report.passedChecks).toEqual(expectedPassedChecks);
   expect(report.passedCheckCount).toBe(report.passedChecks.length);
   expect(report.passedCheckIndices).toEqual(expectedPassedCheckIndices);
@@ -2151,6 +2320,18 @@ const expectDevEnvCheckMetadata = (report: DevEnvJsonReport) => {
   expect(report.passedCheckIndexMapCount).toBe(
     Object.keys(report.passedCheckIndexMap).length
   );
+  expect(report.passedCheckCommandMap).toEqual(expectedPassedCheckCommandMap);
+  expect(report.passedCheckCommandMapCount).toBe(
+    Object.keys(report.passedCheckCommandMap).length
+  );
+  expect(report.passedCheckArgsMap).toEqual(expectedPassedCheckArgsMap);
+  expect(report.passedCheckArgsMapCount).toBe(
+    Object.keys(report.passedCheckArgsMap).length
+  );
+  expect(report.passedCheckArgCountMap).toEqual(expectedPassedCheckArgCountMap);
+  expect(report.passedCheckArgCountMapCount).toBe(
+    Object.keys(report.passedCheckArgCountMap).length
+  );
   expect(report.failedChecks).toEqual(expectedFailedChecks);
   expect(report.failedCheckCount).toBe(report.failedChecks.length);
   expect(report.failedCheckIndices).toEqual(expectedFailedCheckIndices);
@@ -2158,6 +2339,18 @@ const expectDevEnvCheckMetadata = (report: DevEnvJsonReport) => {
   expect(report.failedCheckIndexMap).toEqual(expectedFailedCheckIndexMap);
   expect(report.failedCheckIndexMapCount).toBe(
     Object.keys(report.failedCheckIndexMap).length
+  );
+  expect(report.failedCheckCommandMap).toEqual(expectedFailedCheckCommandMap);
+  expect(report.failedCheckCommandMapCount).toBe(
+    Object.keys(report.failedCheckCommandMap).length
+  );
+  expect(report.failedCheckArgsMap).toEqual(expectedFailedCheckArgsMap);
+  expect(report.failedCheckArgsMapCount).toBe(
+    Object.keys(report.failedCheckArgsMap).length
+  );
+  expect(report.failedCheckArgCountMap).toEqual(expectedFailedCheckArgCountMap);
+  expect(report.failedCheckArgCountMapCount).toBe(
+    Object.keys(report.failedCheckArgCountMap).length
   );
   expect(report.requiredFailureLabels).toEqual(expectedRequiredFailureLabels);
   expect(report.requiredFailureCount).toBe(report.requiredFailureLabels.length);
@@ -2169,6 +2362,22 @@ const expectDevEnvCheckMetadata = (report: DevEnvJsonReport) => {
   expect(report.requiredFailureIndexMapCount).toBe(
     Object.keys(report.requiredFailureIndexMap).length
   );
+  expect(report.requiredFailureCommandMap).toEqual(
+    expectedRequiredFailureCommandMap
+  );
+  expect(report.requiredFailureCommandMapCount).toBe(
+    Object.keys(report.requiredFailureCommandMap).length
+  );
+  expect(report.requiredFailureArgsMap).toEqual(expectedRequiredFailureArgsMap);
+  expect(report.requiredFailureArgsMapCount).toBe(
+    Object.keys(report.requiredFailureArgsMap).length
+  );
+  expect(report.requiredFailureArgCountMap).toEqual(
+    expectedRequiredFailureArgCountMap
+  );
+  expect(report.requiredFailureArgCountMapCount).toBe(
+    Object.keys(report.requiredFailureArgCountMap).length
+  );
   expect(report.optionalFailureLabels).toEqual(expectedOptionalFailureLabels);
   expect(report.optionalFailureCount).toBe(report.optionalFailureLabels.length);
   expect(report.optionalFailureIndices).toEqual(expectedOptionalFailureIndices);
@@ -2178,6 +2387,49 @@ const expectDevEnvCheckMetadata = (report: DevEnvJsonReport) => {
   expect(report.optionalFailureIndexMap).toEqual(expectedOptionalFailureIndexMap);
   expect(report.optionalFailureIndexMapCount).toBe(
     Object.keys(report.optionalFailureIndexMap).length
+  );
+  expect(report.optionalFailureCommandMap).toEqual(
+    expectedOptionalFailureCommandMap
+  );
+  expect(report.optionalFailureCommandMapCount).toBe(
+    Object.keys(report.optionalFailureCommandMap).length
+  );
+  expect(report.optionalFailureArgsMap).toEqual(expectedOptionalFailureArgsMap);
+  expect(report.optionalFailureArgsMapCount).toBe(
+    Object.keys(report.optionalFailureArgsMap).length
+  );
+  expect(report.optionalFailureArgCountMap).toEqual(
+    expectedOptionalFailureArgCountMap
+  );
+  expect(report.optionalFailureArgCountMapCount).toBe(
+    Object.keys(report.optionalFailureArgCountMap).length
+  );
+  expect(report.checkCommandMapCount).toBe(
+    report.passedCheckCommandMapCount + report.failedCheckCommandMapCount
+  );
+  expect(report.checkArgsMapCount).toBe(
+    report.passedCheckArgsMapCount + report.failedCheckArgsMapCount
+  );
+  expect(report.checkArgCountMapCount).toBe(
+    report.passedCheckArgCountMapCount + report.failedCheckArgCountMapCount
+  );
+  expect(report.checkCommandMapCount).toBe(
+    report.requiredCheckCommandMapCount + report.optionalCheckCommandMapCount
+  );
+  expect(report.checkArgsMapCount).toBe(
+    report.requiredCheckArgsMapCount + report.optionalCheckArgsMapCount
+  );
+  expect(report.checkArgCountMapCount).toBe(
+    report.requiredCheckArgCountMapCount + report.optionalCheckArgCountMapCount
+  );
+  expect(report.failedCheckCommandMapCount).toBe(
+    report.requiredFailureCommandMapCount + report.optionalFailureCommandMapCount
+  );
+  expect(report.failedCheckArgsMapCount).toBe(
+    report.requiredFailureArgsMapCount + report.optionalFailureArgsMapCount
+  );
+  expect(report.failedCheckArgCountMapCount).toBe(
+    report.requiredFailureArgCountMapCount + report.optionalFailureArgCountMapCount
   );
   expect(report.failureSummaries).toEqual(expectedFailureSummaries);
   expect(report.failureSummaryCount).toBe(report.failureSummaries.length);
