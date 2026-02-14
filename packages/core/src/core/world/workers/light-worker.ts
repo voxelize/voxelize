@@ -298,14 +298,19 @@ const applyRelevantDeltas = (
       continue;
     }
 
-    if (deltas.length > 0) {
-      const chunkLastSequenceId = deltas[deltas.length - 1].sequenceId;
+    const deltasLength = deltas.length;
+    if (deltasLength > 0) {
+      const chunkLastSequenceId = deltas[deltasLength - 1].sequenceId;
       if (chunkLastSequenceId > lastSequenceId) {
         lastSequenceId = chunkLastSequenceId;
       }
     }
 
-    for (let deltaIndex = startIndex; deltaIndex < deltas.length; deltaIndex++) {
+    if (startIndex >= deltasLength) {
+      continue;
+    }
+
+    for (let deltaIndex = startIndex; deltaIndex < deltasLength; deltaIndex++) {
       const delta = deltas[deltaIndex];
       const { coords, newVoxel, newRotation, newStage } = delta;
       const vx = coords[0];
