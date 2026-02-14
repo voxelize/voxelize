@@ -3,6 +3,8 @@ import { Euler, PerspectiveCamera } from "three";
 import { RigidControls, RigidControlsOptions } from "./controls";
 import { World } from "./world";
 
+const PI_2 = Math.PI / 2;
+
 /**
  * Mobile-specific rigid body controls for touch-based input.
  * Extends RigidControls but removes pointer lock and keyboard bindings,
@@ -68,7 +70,6 @@ export class MobileRigidControls extends RigidControls {
   setLookDirection = (deltaX: number, deltaY: number) => {
     if (!this.isLocked) return;
 
-    const PI_2 = Math.PI / 2;
     const sensitivity = (this.options.sensitivity * 0.012) / 100;
 
     this.mobileEuler.setFromQuaternion(this.quaternion);
