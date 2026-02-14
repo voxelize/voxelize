@@ -322,11 +322,21 @@ impl VoxelAccess for Chunk {
 
     /// Check if chunk contains this voxel coordinate.
     fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
-        let ChunkOptions {
-            size, max_height, ..
-        } = self.options;
-        let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
+        let size = if self.options.size > i64::MAX as usize {
+            i64::MAX
+        } else {
+            self.options.size as i64
+        };
+        let max_height = if self.options.max_height > i64::MAX as usize {
+            i64::MAX
+        } else {
+            self.options.max_height as i64
+        };
+        let Vec3(mx, my, mz) = self.min;
+        let lx = i64::from(vx) - i64::from(mx);
+        let ly = i64::from(vy) - i64::from(my);
+        let lz = i64::from(vz) - i64::from(mz);
 
-        lx < size && ly < max_height && lz < size
+        lx >= 0 && ly >= 0 && lz >= 0 && lx < size && ly < max_height && lz < size
     }
 }

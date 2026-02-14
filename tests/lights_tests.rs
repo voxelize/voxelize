@@ -304,6 +304,30 @@ fn test_chunk_updated_levels_handle_large_max_height_without_i32_overflow() {
 }
 
 #[test]
+fn test_chunk_contains_handles_extreme_coordinate_deltas_without_overflow() {
+    let edge_chunk_x = i32::MIN / 16;
+    let edge_chunk_z = i32::MIN / 16;
+    let chunk = Chunk::new(
+        "chunk-edge",
+        edge_chunk_x,
+        edge_chunk_z,
+        &ChunkOptions {
+            size: 16,
+            max_height: 16,
+            sub_chunks: 1,
+        },
+    );
+
+    assert!(chunk.contains(i32::MIN, 0, i32::MIN));
+    assert!(!chunk.contains(i32::MAX, 0, i32::MAX));
+    assert_eq!(
+        chunk.get_raw_voxel(i32::MAX, 0, i32::MAX),
+        0,
+        "extreme out-of-range voxel reads should remain empty instead of overflowing local coordinate math"
+    );
+}
+
+#[test]
 fn test_out_of_range_voxel_rotation_defaults_to_py() {
     let config = WorldConfig {
         chunk_size: 16,
