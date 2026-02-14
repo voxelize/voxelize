@@ -343,6 +343,21 @@ fn build_registry() -> Registry {
     let mut fluid_occluder = base_block(8, "fluid_occluder");
     fluid_occluder.occludes_fluid = true;
 
+    let mut mixed_transparency = base_block(9, "mixed_transparency");
+    mixed_transparency.is_opaque = false;
+    mixed_transparency.is_see_through = true;
+    mixed_transparency.is_transparent = [true, false, true, false, true, false];
+
+    let mut isolated_independent = base_block(10, "isolated_independent");
+    for face in &mut isolated_independent.faces {
+        if face.name == "py" {
+            face.independent = true;
+        }
+        if face.name == "nz" {
+            face.isolated = true;
+        }
+    }
+
     let mut registry = Registry::new(vec![
         (0, air),
         (1, stone),
@@ -353,6 +368,8 @@ fn build_registry() -> Registry {
         (6, glass_standalone),
         (7, waterlogged_solid),
         (8, fluid_occluder),
+        (9, mixed_transparency),
+        (10, isolated_independent),
     ]);
     registry.build_cache();
     registry
@@ -551,6 +568,34 @@ fn fluid_occlusion_scene() -> BenchSpace {
     space
 }
 
+fn isolated_independent_scene() -> BenchSpace {
+    let mut space = BenchSpace::new([16, 10, 16]);
+
+    for x in 0..16 {
+        for z in 0..16 {
+            space.set_voxel_id(x, 0, z, 1);
+            if (x + z) % 3 == 0 {
+                space.set_voxel_id(x, 1, z, 10);
+            } else if (x + z) % 2 == 0 {
+                space.set_voxel_id(x, 1, z, 9);
+            } else {
+                space.set_voxel_id(x, 1, z, 2);
+            }
+            if (x + z) % 5 == 0 {
+                space.set_voxel_rotation(x, 2, z, 5, BlockRotation::PY(std::f32::consts::PI));
+            }
+        }
+    }
+
+    for x in 0..16 {
+        for z in 0..16 {
+            space.set_light(x, 3, z, 10, 5, 2, 1);
+        }
+    }
+
+    space
+}
+
 fn greedy_mesher_benchmark(c: &mut Criterion) {
     let registry = build_registry();
     let scenes = vec![
@@ -559,6 +604,7 @@ fn greedy_mesher_benchmark(c: &mut Criterion) {
         ("transparency_16x16x16", transparency_scene()),
         ("standalone_transparency_16x12x16", standalone_transparency_scene()),
         ("fluid_occlusion_16x12x16", fluid_occlusion_scene()),
+        ("isolated_independent_16x10x16", isolated_independent_scene()),
     ];
 
     let mut group = c.benchmark_group("greedy_mesher");
@@ -611,6 +657,7 @@ fn non_greedy_mesher_benchmark(c: &mut Criterion) {
         ("transparency_16x16x16", transparency_scene()),
         ("standalone_transparency_16x12x16", standalone_transparency_scene()),
         ("fluid_occlusion_16x12x16", fluid_occlusion_scene()),
+        ("isolated_independent_16x10x16", isolated_independent_scene()),
     ];
     let mut group = c.benchmark_group("non_greedy_mesher");
 
