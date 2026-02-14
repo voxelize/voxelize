@@ -196,6 +196,9 @@ impl LightVoxelAccess for BatchSpace {
     fn set_raw_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
         if let Some((chunk_index, voxel_index)) = self.get_chunk_and_voxel_index_mut(vx, vy, vz) {
             if let Some(Some(chunk)) = self.chunks.get_mut(chunk_index) {
+                if chunk.lights[voxel_index] == level {
+                    return true;
+                }
                 chunk.lights[voxel_index] = level;
                 if !self.modified_chunks[chunk_index] {
                     self.modified_chunks[chunk_index] = true;
@@ -479,6 +482,8 @@ mod tests {
         };
         let mut space = BatchSpace::new(vec![Some(chunk)], 1, 1, [0, 0], 16);
 
+        assert_eq!(space.modified_count, 0);
+        assert!(space.set_raw_light(0, 0, 0, 0));
         assert_eq!(space.modified_count, 0);
         assert!(space.set_raw_light(0, 0, 0, 1));
         assert_eq!(space.modified_count, 1);
