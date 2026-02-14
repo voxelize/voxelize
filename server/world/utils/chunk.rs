@@ -23,6 +23,15 @@ fn chunk_shift_if_power_of_two(chunk_size: i32) -> Option<u32> {
 }
 
 #[inline]
+fn chunk_mask_if_power_of_two(chunk_size: i32) -> Option<i32> {
+    if (chunk_size as u32).is_power_of_two() {
+        Some(chunk_size - 1)
+    } else {
+        None
+    }
+}
+
+#[inline]
 fn first_segment(value: &str) -> &str {
     if let Some((segment, _)) = value.split_once(CHUNK_NAME_SEPARATOR) {
         segment
@@ -83,8 +92,7 @@ impl ChunkUtils {
     /// Map a voxel coordinate to a chunk local coordinate.
     pub fn map_voxel_to_chunk_local(vx: i32, vy: i32, vz: i32, chunk_size: usize) -> Vec3<usize> {
         let cs = normalized_chunk_size(chunk_size);
-        let (lx, lz) = if chunk_shift_if_power_of_two(cs).is_some() {
-            let mask = cs - 1;
+        let (lx, lz) = if let Some(mask) = chunk_mask_if_power_of_two(cs) {
             ((vx & mask) as usize, (vz & mask) as usize)
         } else {
             (vx.rem_euclid(cs) as usize, vz.rem_euclid(cs) as usize)
