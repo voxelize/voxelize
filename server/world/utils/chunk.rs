@@ -8,6 +8,11 @@ const CHUNK_NAME_SEPARATOR: &str = "|";
 /// A set of utility functions for chunk operations.
 pub struct ChunkUtils;
 
+#[inline]
+fn normalized_chunk_size(chunk_size: usize) -> i32 {
+    i32::try_from(chunk_size).unwrap_or(i32::MAX).max(1)
+}
+
 impl ChunkUtils {
     /// Generate a chunk representation from a chunk coordinate.
     pub fn get_chunk_name(cx: i32, cz: i32) -> String {
@@ -45,13 +50,13 @@ impl ChunkUtils {
 
     /// Map a voxel coordinate to a chunk coordinate.
     pub fn map_voxel_to_chunk(vx: i32, _vy: i32, vz: i32, chunk_size: usize) -> Vec2<i32> {
-        let cs = i32::try_from(chunk_size).unwrap_or(i32::MAX).max(1);
+        let cs = normalized_chunk_size(chunk_size);
         Vec2(vx.div_euclid(cs), vz.div_euclid(cs))
     }
 
     /// Map a voxel coordinate to a chunk local coordinate.
     pub fn map_voxel_to_chunk_local(vx: i32, vy: i32, vz: i32, chunk_size: usize) -> Vec3<usize> {
-        let cs = i32::try_from(chunk_size).unwrap_or(i32::MAX).max(1);
+        let cs = normalized_chunk_size(chunk_size);
         let lx = vx.rem_euclid(cs) as usize;
         let lz = vz.rem_euclid(cs) as usize;
 
