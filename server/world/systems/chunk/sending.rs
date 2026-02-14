@@ -65,11 +65,9 @@ impl<'a> System<'a> for ChunkSendingSystem {
                 None => panic!("Something went wrong with sending chunks..."),
             };
 
-            let interested_clients: Vec<String> = interests
-                .get_interests(&coords)
-                .map(|set| set.iter().cloned().collect())
-                .unwrap_or_default();
-
+            let Some(interested_clients) = interests.get_interests(&coords) else {
+                continue;
+            };
             if interested_clients.is_empty() {
                 continue;
             }
@@ -78,13 +76,13 @@ impl<'a> System<'a> for ChunkSendingSystem {
                 let mesh_model = chunk.to_model(true, false, 0..sub_chunks_u32);
                 let data_model = chunk.to_model(false, true, 0..sub_chunks_u32);
 
-                for client_id in &interested_clients {
+                for client_id in interested_clients {
                     client_load_mesh
-                        .entry(client_id.clone())
+                        .entry(client_id.to_owned())
                         .or_default()
                         .push(mesh_model.clone());
                     client_load_data
-                        .entry(client_id.clone())
+                        .entry(client_id.to_owned())
                         .or_default()
                         .push(data_model.clone());
                 }
@@ -94,18 +92,18 @@ impl<'a> System<'a> for ChunkSendingSystem {
                 {
                     let mesh_model = chunk.to_model(true, false, min_level..max_level_exclusive);
 
-                    for client_id in &interested_clients {
+                    for client_id in interested_clients {
                         client_update_mesh
-                            .entry(client_id.clone())
+                            .entry(client_id.to_owned())
                             .or_default()
                             .push(mesh_model.clone());
                     }
                 }
 
                 let data_model = chunk.to_model(false, true, 0..0);
-                for client_id in &interested_clients {
+                for client_id in interested_clients {
                     client_update_data
-                        .entry(client_id.clone())
+                        .entry(client_id.to_owned())
                         .or_default()
                         .push(data_model.clone());
                 }
