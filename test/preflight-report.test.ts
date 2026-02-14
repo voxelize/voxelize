@@ -18,6 +18,8 @@ type PreflightCheckResult = {
 type TsCoreNestedReport = {
   checkedPackage: string;
   checkedPackageCount: number;
+  checkedPackagePath: string;
+  checkedPackagePathCount: number;
   packagePath: string;
   requiredArtifacts: string[];
   requiredArtifactCount: number;
@@ -433,6 +435,8 @@ const expectTsCoreNestedReport = (
   const report = checkReport as TsCoreNestedReport;
   expect(report.checkedPackage).toBe("@voxelize/ts-core");
   expect(report.checkedPackageCount).toBe(1);
+  expect(report.checkedPackagePath).toBe("packages/ts-core");
+  expect(report.checkedPackagePathCount).toBe(1);
   expect(report.packagePath).toBe("packages/ts-core");
   expect(report.requiredArtifacts).toEqual(expectedTsCoreRequiredArtifacts);
   expect(report.artifactsPresent).toBe(report.missingArtifacts.length === 0);

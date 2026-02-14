@@ -142,6 +142,8 @@ const withBaseReportFields = (report) => {
     availableCliOptionCanonicalMap,
     checkedPackage: tsCorePackageName,
     checkedPackageCount: 1,
+    checkedPackagePath: tsCorePackagePath,
+    checkedPackagePathCount: 1,
     packagePath: tsCorePackagePath,
     requiredArtifacts,
     requiredArtifactCount: requiredArtifacts.length,
