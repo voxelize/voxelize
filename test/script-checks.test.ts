@@ -398,6 +398,22 @@ type TsCoreJsonReport = OptionTerminatorMetadata &
   checkedPackageCount: number;
   checkedPackagePath: string;
   checkedPackagePathCount: number;
+  availablePackages: string[];
+  availablePackageCount: number;
+  availablePackagePaths: string[];
+  availablePackagePathCount: number;
+  availablePackageIndices: number[];
+  availablePackageIndexCount: number;
+  availablePackageIndexMap: Record<string, number>;
+  availablePackageIndexMapCount: number;
+  availablePackagePathMap: Record<string, string>;
+  availablePackagePathMapCount: number;
+  availablePackageCheckCommandMap: Record<string, string>;
+  availablePackageCheckCommandMapCount: number;
+  availablePackageCheckArgsMap: Record<string, string[]>;
+  availablePackageCheckArgsMapCount: number;
+  availablePackageCheckArgCountMap: Record<string, number>;
+  availablePackageCheckArgCountMapCount: number;
   checkedPackageIndices: number[];
   checkedPackageIndexCount: number;
   checkedPackageIndexMap: Record<string, number>;
@@ -567,6 +583,22 @@ type RuntimeLibrariesJsonReport = OptionTerminatorMetadata &
   checkedPackageIndexMap: Record<string, number>;
   checkedPackageIndexMapCount: number;
   checkedPackagePathMap: Record<string, string>;
+  availablePackages: string[];
+  availablePackageCount: number;
+  availablePackagePaths: string[];
+  availablePackagePathCount: number;
+  availablePackageIndices: number[];
+  availablePackageIndexCount: number;
+  availablePackageIndexMap: Record<string, number>;
+  availablePackageIndexMapCount: number;
+  availablePackagePathMap: Record<string, string>;
+  availablePackagePathMapCount: number;
+  availablePackageCheckCommandMap: Record<string, string>;
+  availablePackageCheckCommandMapCount: number;
+  availablePackageCheckArgsMap: Record<string, string[]>;
+  availablePackageCheckArgsMapCount: number;
+  availablePackageCheckArgCountMap: Record<string, number>;
+  availablePackageCheckArgCountMapCount: number;
   checkedPackageCount: number;
   checkedPackagePathCount: number;
   checkedPackagePathMapCount: number;
@@ -1925,6 +1957,40 @@ const expectTsCoreReportMetadata = (report: TsCoreJsonReport) => {
   expect(report.checkedPackageCount).toBe(1);
   expect(report.checkedPackagePath).toBe("packages/ts-core");
   expect(report.checkedPackagePathCount).toBe(1);
+  expect(report.availablePackages).toEqual([report.checkedPackage]);
+  expect(report.availablePackageCount).toBe(report.availablePackages.length);
+  expect(report.availablePackagePaths).toEqual([report.checkedPackagePath]);
+  expect(report.availablePackagePathCount).toBe(report.availablePackagePaths.length);
+  expect(report.availablePackageIndices).toEqual(report.checkedPackageIndices);
+  expect(report.availablePackageIndexCount).toBe(
+    report.availablePackageIndices.length
+  );
+  expect(report.availablePackageIndexMap).toEqual(report.checkedPackageIndexMap);
+  expect(report.availablePackageIndexMapCount).toBe(
+    Object.keys(report.availablePackageIndexMap).length
+  );
+  expect(report.availablePackagePathMap).toEqual(report.checkedPackagePathMap);
+  expect(report.availablePackagePathMapCount).toBe(
+    Object.keys(report.availablePackagePathMap).length
+  );
+  expect(report.availablePackageCheckCommandMap).toEqual({
+    [report.checkedPackage]: expectedTsCorePackageCheckCommand,
+  });
+  expect(report.availablePackageCheckCommandMapCount).toBe(
+    Object.keys(report.availablePackageCheckCommandMap).length
+  );
+  expect(report.availablePackageCheckArgsMap).toEqual({
+    [report.checkedPackage]: report.requiredArtifacts,
+  });
+  expect(report.availablePackageCheckArgsMapCount).toBe(
+    Object.keys(report.availablePackageCheckArgsMap).length
+  );
+  expect(report.availablePackageCheckArgCountMap).toEqual({
+    [report.checkedPackage]: report.requiredArtifactCount,
+  });
+  expect(report.availablePackageCheckArgCountMapCount).toBe(
+    Object.keys(report.availablePackageCheckArgCountMap).length
+  );
   expect(report.checkedPackageIndices).toEqual(expectedTsCoreCheckedPackageIndices);
   expect(report.checkedPackageIndexCount).toBe(report.checkedPackageIndices.length);
   expect(report.checkedPackageIndexMap).toEqual(expectedTsCoreCheckedPackageIndexMap);
@@ -2202,6 +2268,46 @@ const expectRuntimeLibrariesReportMetadata = (
   );
   expect(report.checkedPackagePathMapCount).toBe(
     Object.keys(report.checkedPackagePathMap).length
+  );
+  expect(report.availablePackages).toEqual(report.checkedPackages);
+  expect(report.availablePackageCount).toBe(report.availablePackages.length);
+  expect(report.availablePackagePaths).toEqual(report.checkedPackagePaths);
+  expect(report.availablePackagePathCount).toBe(
+    report.availablePackagePaths.length
+  );
+  expect(report.availablePackageIndices).toEqual(report.checkedPackageIndices);
+  expect(report.availablePackageIndexCount).toBe(
+    report.availablePackageIndices.length
+  );
+  expect(report.availablePackageIndexMap).toEqual(report.checkedPackageIndexMap);
+  expect(report.availablePackageIndexMapCount).toBe(
+    Object.keys(report.availablePackageIndexMap).length
+  );
+  expect(report.availablePackagePathMap).toEqual(report.checkedPackagePathMap);
+  expect(report.availablePackagePathMapCount).toBe(
+    Object.keys(report.availablePackagePathMap).length
+  );
+  expect(report.availablePackageCheckCommandMap).toEqual(
+    Object.fromEntries(
+      report.checkedPackages.map((packageName) => {
+        return [packageName, expectedRuntimeLibrariesPackageCheckCommand];
+      })
+    )
+  );
+  expect(report.availablePackageCheckCommandMapCount).toBe(
+    Object.keys(report.availablePackageCheckCommandMap).length
+  );
+  expect(report.availablePackageCheckArgsMap).toEqual(
+    report.requiredArtifactsByPackage
+  );
+  expect(report.availablePackageCheckArgsMapCount).toBe(
+    Object.keys(report.availablePackageCheckArgsMap).length
+  );
+  expect(report.availablePackageCheckArgCountMap).toEqual(
+    report.requiredArtifactCountByPackage
+  );
+  expect(report.availablePackageCheckArgCountMapCount).toBe(
+    Object.keys(report.availablePackageCheckArgCountMap).length
   );
   expect(report.checkedPackages).toEqual(
     report.packageReports.map((packageReport) => packageReport.packageName)

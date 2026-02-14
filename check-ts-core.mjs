@@ -123,6 +123,13 @@ const withBaseReportFields = (report) => {
   const checkedPackageIndexMap = {
     [tsCorePackageName]: 0,
   };
+  const availablePackageIndices = [0];
+  const availablePackageIndexMap = {
+    [tsCorePackageName]: 0,
+  };
+  const availablePackagePathMap = {
+    [tsCorePackageName]: tsCorePackagePath,
+  };
   const presentPackagePaths = artifactsPresent ? [tsCorePackagePath] : [];
   const missingPackagePaths = artifactsPresent ? [] : [tsCorePackagePath];
   const presentPackageIndices = artifactsPresent ? [0] : [];
@@ -211,6 +218,15 @@ const withBaseReportFields = (report) => {
   const packageCheckArgCountMap = {
     [tsCorePackageName]: packageCheckArgCount,
   };
+  const availablePackageCheckCommandMap = {
+    [tsCorePackageName]: packageCheckCommand,
+  };
+  const availablePackageCheckArgsMap = {
+    [tsCorePackageName]: packageCheckArgs,
+  };
+  const availablePackageCheckArgCountMap = {
+    [tsCorePackageName]: packageCheckArgCount,
+  };
   const failureSummaries =
     missingArtifacts.length === 0
       ? []
@@ -260,6 +276,28 @@ const withBaseReportFields = (report) => {
     checkedPackageCount: 1,
     checkedPackagePath: tsCorePackagePath,
     checkedPackagePathCount: 1,
+    availablePackages: [tsCorePackageName],
+    availablePackageCount: 1,
+    availablePackagePaths: [tsCorePackagePath],
+    availablePackagePathCount: 1,
+    availablePackageIndices,
+    availablePackageIndexCount: availablePackageIndices.length,
+    availablePackageIndexMap,
+    availablePackageIndexMapCount: countRecordEntries(availablePackageIndexMap),
+    availablePackagePathMap,
+    availablePackagePathMapCount: countRecordEntries(availablePackagePathMap),
+    availablePackageCheckCommandMap,
+    availablePackageCheckCommandMapCount: countRecordEntries(
+      availablePackageCheckCommandMap
+    ),
+    availablePackageCheckArgsMap,
+    availablePackageCheckArgsMapCount: countRecordEntries(
+      availablePackageCheckArgsMap
+    ),
+    availablePackageCheckArgCountMap,
+    availablePackageCheckArgCountMapCount: countRecordEntries(
+      availablePackageCheckArgCountMap
+    ),
     checkedPackageIndices,
     checkedPackageIndexCount: checkedPackageIndices.length,
     checkedPackageIndexMap,

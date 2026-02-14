@@ -39,6 +39,22 @@ type RuntimeLibrariesCheckReport = {
   checkedPackageIndexMap: Record<string, number>;
   checkedPackageIndexMapCount: number;
   checkedPackagePathMap: Record<string, string>;
+  availablePackages: string[];
+  availablePackageCount: number;
+  availablePackagePaths: string[];
+  availablePackagePathCount: number;
+  availablePackageIndices: number[];
+  availablePackageIndexCount: number;
+  availablePackageIndexMap: Record<string, number>;
+  availablePackageIndexMapCount: number;
+  availablePackagePathMap: Record<string, string>;
+  availablePackagePathMapCount: number;
+  availablePackageCheckCommandMap: Record<string, string>;
+  availablePackageCheckCommandMapCount: number;
+  availablePackageCheckArgsMap: Record<string, string[]>;
+  availablePackageCheckArgsMapCount: number;
+  availablePackageCheckArgCountMap: Record<string, number>;
+  availablePackageCheckArgCountMapCount: number;
   checkedPackageCount: number;
   checkedPackagePathCount: number;
   checkedPackagePathMapCount: number;
@@ -294,6 +310,46 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   expect(report.checkedPackagePathMap).toEqual(expectedCheckedPackagePathMap);
   expect(report.checkedPackagePathMapCount).toBe(
     Object.keys(report.checkedPackagePathMap).length
+  );
+  expect(report.availablePackages).toEqual(report.checkedPackages);
+  expect(report.availablePackageCount).toBe(report.availablePackages.length);
+  expect(report.availablePackagePaths).toEqual(report.checkedPackagePaths);
+  expect(report.availablePackagePathCount).toBe(
+    report.availablePackagePaths.length
+  );
+  expect(report.availablePackageIndices).toEqual(report.checkedPackageIndices);
+  expect(report.availablePackageIndexCount).toBe(
+    report.availablePackageIndices.length
+  );
+  expect(report.availablePackageIndexMap).toEqual(report.checkedPackageIndexMap);
+  expect(report.availablePackageIndexMapCount).toBe(
+    Object.keys(report.availablePackageIndexMap).length
+  );
+  expect(report.availablePackagePathMap).toEqual(report.checkedPackagePathMap);
+  expect(report.availablePackagePathMapCount).toBe(
+    Object.keys(report.availablePackagePathMap).length
+  );
+  expect(report.availablePackageCheckCommandMap).toEqual(
+    Object.fromEntries(
+      report.checkedPackages.map((packageName) => {
+        return [packageName, expectedPackageCheckCommand];
+      })
+    )
+  );
+  expect(report.availablePackageCheckCommandMapCount).toBe(
+    Object.keys(report.availablePackageCheckCommandMap).length
+  );
+  expect(report.availablePackageCheckArgsMap).toEqual(
+    report.requiredArtifactsByPackage
+  );
+  expect(report.availablePackageCheckArgsMapCount).toBe(
+    Object.keys(report.availablePackageCheckArgsMap).length
+  );
+  expect(report.availablePackageCheckArgCountMap).toEqual(
+    report.requiredArtifactCountByPackage
+  );
+  expect(report.availablePackageCheckArgCountMapCount).toBe(
+    Object.keys(report.availablePackageCheckArgCountMap).length
   );
   expect(report.checkedPackages).toEqual(
     report.packageReports.map((packageReport) => packageReport.packageName)

@@ -101,6 +101,45 @@ const requiredArtifactCount = runtimeLibraries.reduce((count, library) => {
   return count + library.requiredArtifacts.length;
 }, 0);
 const packageCheckCommand = "artifact-exists";
+const availablePackageIndices = runtimeLibraries.map((_, index) => {
+  return index;
+});
+const availablePackageIndexMap = Object.fromEntries(
+  runtimeLibraries.map((library, index) => {
+    return [library.packageName, index];
+  })
+);
+const availablePackageIndexMapCount = countRecordEntries(availablePackageIndexMap);
+const availablePackagePathMap = Object.fromEntries(
+  runtimeLibraries.map((library) => {
+    return [library.packageName, library.packagePath];
+  })
+);
+const availablePackagePathMapCount = countRecordEntries(availablePackagePathMap);
+const availablePackageCheckCommandMap = Object.fromEntries(
+  runtimeLibraries.map((library) => {
+    return [library.packageName, packageCheckCommand];
+  })
+);
+const availablePackageCheckCommandMapCount = countRecordEntries(
+  availablePackageCheckCommandMap
+);
+const availablePackageCheckArgsMap = Object.fromEntries(
+  runtimeLibraries.map((library) => {
+    return [library.packageName, library.requiredArtifacts];
+  })
+);
+const availablePackageCheckArgsMapCount = countRecordEntries(
+  availablePackageCheckArgsMap
+);
+const availablePackageCheckArgCountMap = Object.fromEntries(
+  runtimeLibraries.map((library) => {
+    return [library.packageName, library.requiredArtifacts.length];
+  })
+);
+const availablePackageCheckArgCountMapCount = countRecordEntries(
+  availablePackageCheckArgCountMap
+);
 const resolvePackageReport = (library) => {
   const missingArtifacts = library.requiredArtifacts.filter((artifactPath) => {
     const absoluteArtifactPath = path.resolve(repositoryRoot, artifactPath);
@@ -481,6 +520,22 @@ const withBaseReportFields = (report) => {
     checkedPackagePathCount: checkedPackagePaths.length,
     checkedPackageIndexMapCount,
     checkedPackagePathMapCount,
+    availablePackages: checkedPackages,
+    availablePackageCount: checkedPackages.length,
+    availablePackagePaths: checkedPackagePaths,
+    availablePackagePathCount: checkedPackagePaths.length,
+    availablePackageIndices,
+    availablePackageIndexCount: availablePackageIndices.length,
+    availablePackageIndexMap,
+    availablePackageIndexMapCount,
+    availablePackagePathMap,
+    availablePackagePathMapCount,
+    availablePackageCheckCommandMap,
+    availablePackageCheckCommandMapCount,
+    availablePackageCheckArgsMap,
+    availablePackageCheckArgsMapCount,
+    availablePackageCheckArgCountMap,
+    availablePackageCheckArgCountMapCount,
     presentPackages,
     presentPackagePaths,
     presentPackagePathMap,
