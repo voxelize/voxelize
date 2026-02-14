@@ -3066,6 +3066,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
         for slice in slice_range {
             greedy_mask.clear();
             non_greedy_faces.clear();
+            let mut faces: Vec<(BlockFace, bool)> = Vec::with_capacity(8);
 
             for u in u_range.0..u_range.1 {
                 for v in v_range.0..v_range.1 {
@@ -3128,11 +3129,12 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         } else {
                             block.has_standard_six_faces_cached()
                         };
-                    let faces: Vec<(BlockFace, bool)> = if has_standard_six_faces {
-                        create_fluid_faces(vx, vy, vz, block.id, space, block, registry)
-                            .into_iter()
-                            .map(|f| (f, false))
-                            .collect()
+                    faces.clear();
+                    if has_standard_six_faces {
+                        for face in create_fluid_faces(vx, vy, vz, block.id, space, block, registry)
+                        {
+                            faces.push((face, false));
+                        }
                     } else {
                         let has_dynamic_patterns = if cache_ready {
                             block.has_dynamic_patterns
@@ -3140,7 +3142,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                             block.has_dynamic_patterns_cached()
                         };
                         if has_dynamic_patterns {
-                            let mut faces = Vec::with_capacity(8);
                             visit_dynamic_faces(
                                 block,
                                 [vx, vy, vz],
@@ -3150,11 +3151,12 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                     faces.push((face.clone(), world_space));
                                 },
                             );
-                            faces
                         } else {
-                            block.faces.iter().cloned().map(|f| (f, false)).collect()
+                            for face in &block.faces {
+                                faces.push((face.clone(), false));
+                            }
                         }
-                    };
+                    }
 
                     if is_non_greedy_block {
                         processed_non_greedy.insert((vx, vy, vz));
