@@ -587,6 +587,10 @@ pub fn process_light_batch_fast(
     for node in &mut flood_nodes {
         node.level = clamp_light_level(node.level, max_light_level);
     }
+    flood_nodes.retain(|node| node.level > 0);
+    if removal_nodes.is_empty() && flood_nodes.is_empty() {
+        return empty_batch_result();
+    }
 
     if !removal_nodes.is_empty() {
         remove_lights(
