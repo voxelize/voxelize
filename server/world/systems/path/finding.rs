@@ -82,8 +82,12 @@ impl<'a> System<'a> for PathFindingSystem {
             ];
 
             for (dx, dz) in check_points {
-                let check_x = pos.0 + dx;
-                let check_z = pos.2 + dz;
+                let Some(check_x) = pos.0.checked_add(dx) else {
+                    continue;
+                };
+                let Some(check_z) = pos.2.checked_add(dz) else {
+                    continue;
+                };
 
                 // Check if there's a solid block below this point
                 let Some(below_y) = pos.1.checked_sub(1) else {
@@ -101,11 +105,17 @@ impl<'a> System<'a> for PathFindingSystem {
 
         let has_wall_nearby = |vx: i32, vy: i32, vz: i32| -> bool {
             for dx in -1..=1 {
+                let Some(nx) = vx.checked_add(dx) else {
+                    continue;
+                };
                 for dz in -1..=1 {
                     if dx == 0 && dz == 0 {
                         continue;
                     }
-                    if !get_is_voxel_passable(vx + dx, vy, vz + dz) {
+                    let Some(nz) = vz.checked_add(dz) else {
+                        continue;
+                    };
+                    if !get_is_voxel_passable(nx, vy, nz) {
                         return true;
                     }
                 }
