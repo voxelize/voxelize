@@ -187,6 +187,12 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   const report = JSON.parse(result.output) as RuntimeLibrariesCheckReport;
   expect(report.checkedPackages).toEqual(expectedCheckedPackages);
   expect(report.checkedPackagePaths).toEqual(expectedCheckedPackagePaths);
+  expect(report.checkedPackages).toEqual(
+    report.packageReports.map((packageReport) => packageReport.packageName)
+  );
+  expect(report.checkedPackagePaths).toEqual(
+    report.packageReports.map((packageReport) => packageReport.packagePath)
+  );
   expect(report.checkedPackageCount).toBe(report.checkedPackages.length);
   expect(report.checkedPackagePathCount).toBe(report.checkedPackagePaths.length);
   expect(report.checkedPackagePathCount).toBe(report.requiredPackageCount);

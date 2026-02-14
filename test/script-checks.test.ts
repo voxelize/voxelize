@@ -538,6 +538,12 @@ const expectRuntimeLibrariesReportMetadata = (
   expect(report.packagesPresent).toBe(report.missingPackageCount === 0);
   expect(report.checkedPackages).toEqual(expectedRuntimeLibrariesCheckedPackages);
   expect(report.checkedPackagePaths).toEqual(expectedRuntimeLibrariesCheckedPackagePaths);
+  expect(report.checkedPackages).toEqual(
+    report.packageReports.map((packageReport) => packageReport.packageName)
+  );
+  expect(report.checkedPackagePaths).toEqual(
+    report.packageReports.map((packageReport) => packageReport.packagePath)
+  );
   expect(report.checkedPackageCount).toBe(report.checkedPackages.length);
   expect(report.checkedPackagePathCount).toBe(report.checkedPackagePaths.length);
   expect(report.checkedPackagePathCount).toBe(report.requiredPackageCount);
