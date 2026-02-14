@@ -453,11 +453,10 @@ fn has_invalid_flood_bounds(bounds_min_len: usize, bounds_shape: &[u32]) -> bool
 
 #[inline]
 fn compute_max_chunk_coordinate(grid_offset: i32, grid_extent: usize) -> Option<i32> {
-    if grid_extent == 0 {
+    if grid_extent == 0 || grid_extent > i32::MAX as usize {
         return None;
     }
-    let extent_i32 = i32::try_from(grid_extent).ok()?;
-    grid_offset.checked_add(extent_i32 - 1)
+    grid_offset.checked_add(grid_extent as i32 - 1)
 }
 
 #[inline]
