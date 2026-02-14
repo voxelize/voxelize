@@ -4,7 +4,7 @@ import init, {
 } from "@voxelize/wasm-lighter";
 
 import { Coords2, Coords3 } from "../../../types";
-import { BlockUtils } from "../../../utils";
+import { BlockUtils } from "../../../utils/block-utils";
 import { LightColor } from "../../../utils/light-utils";
 import { BlockRule } from "../block";
 import type { LightNode, VoxelDelta, WorldOptions } from "../index";
