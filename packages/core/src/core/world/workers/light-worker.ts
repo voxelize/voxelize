@@ -132,6 +132,7 @@ const emptyTransferList: Transferable[] = [];
 const reusableModifiedChunks: WorkerModifiedChunk[] = [];
 const reusableTransferBuffers: ArrayBuffer[] = [];
 const reusableSerializedChunks: SerializedWasmChunk[] = [];
+const reusableChunkShape: [number, number, number] = [0, 0, 0];
 const reusablePostMessageOptions: StructuredSerializeOptions = {
   transfer: emptyTransferList,
 };
@@ -404,11 +405,10 @@ const processBatchMessage = (message: LightBatchMessage) => {
 
   const [gridWidth, gridDepth] = chunkGridDimensions;
   const [gridOffsetX, gridOffsetZ] = chunkGridOffset;
-  const chunkShape: [number, number, number] = [
-    options.chunkSize,
-    options.maxHeight,
-    options.chunkSize,
-  ];
+  reusableChunkShape[0] = options.chunkSize;
+  reusableChunkShape[1] = options.maxHeight;
+  reusableChunkShape[2] = options.chunkSize;
+  const chunkShape = reusableChunkShape;
 
   if (lightOps.removals.length === 0 && lightOps.floods.length === 0) {
     postEmptyBatchResult(jobId, lastRelevantSequenceId);
