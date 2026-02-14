@@ -112,6 +112,14 @@ type WorkerModifiedChunk = {
   lights: Uint32Array;
 };
 
+type SerializedWasmChunk =
+  | {
+      voxels: Uint32Array;
+      lights: Uint32Array;
+      shape: [number, number, number];
+    }
+  | null;
+
 let wasmInitialized = false;
 let registryInitialized = false;
 const pendingBatchMessages: LightBatchMessage[] = [];
@@ -123,6 +131,7 @@ const emptyUint32Array = new Uint32Array(0);
 const emptyTransferList: Transferable[] = [];
 const reusableModifiedChunks: WorkerModifiedChunk[] = [];
 const reusableTransferBuffers: ArrayBuffer[] = [];
+const reusableSerializedChunks: SerializedWasmChunk[] = [];
 const reusablePostMessageOptions: StructuredSerializeOptions = {
   transfer: emptyTransferList,
 };
@@ -320,17 +329,11 @@ const serializeChunkGrid = (
   chunkGrid: (RawChunk | null)[],
   gridWidth: number,
   gridDepth: number,
-  chunkShape: [number, number, number]
+  chunkShape: [number, number, number],
+  serialized: SerializedWasmChunk[]
 ) => {
   const cellCount = gridWidth * gridDepth;
-  const serialized: (
-    | {
-        voxels: Uint32Array;
-        lights: Uint32Array;
-        shape: [number, number, number];
-      }
-    | null
-  )[] = new Array(cellCount);
+  serialized.length = cellCount;
 
   for (let index = 0; index < cellCount; index++) {
     const chunk = chunkGrid[index];
@@ -345,35 +348,17 @@ const serializeChunkGrid = (
       shape: chunkShape,
     };
   }
-
-  return serialized;
 };
 
 const serializeChunksData = (
   chunksData: (SerializedRawChunk | null)[],
   gridWidth: number,
   gridDepth: number,
-  chunkShape: [number, number, number]
-): {
-  serialized: (
-    | {
-        voxels: Uint32Array;
-        lights: Uint32Array;
-        shape: [number, number, number];
-      }
-    | null
-  )[];
-  hasAnyChunk: boolean;
-} => {
+  chunkShape: [number, number, number],
+  serialized: SerializedWasmChunk[]
+): boolean => {
   const cellCount = gridWidth * gridDepth;
-  const serialized: (
-    | {
-        voxels: Uint32Array;
-        lights: Uint32Array;
-        shape: [number, number, number];
-      }
-    | null
-  )[] = new Array(cellCount);
+  serialized.length = cellCount;
   let hasAnyChunk = false;
 
   for (let index = 0; index < cellCount; index++) {
@@ -395,7 +380,7 @@ const serializeChunksData = (
     };
   }
 
-  return { serialized, hasAnyChunk };
+  return hasAnyChunk;
 };
 
 const processBatchMessage = (message: LightBatchMessage) => {
@@ -426,29 +411,21 @@ const processBatchMessage = (message: LightBatchMessage) => {
   }
 
   let lastSequenceId = 0;
-  let serializedChunks:
-    | (
-        | {
-            voxels: Uint32Array;
-            lights: Uint32Array;
-            shape: [number, number, number];
-          }
-        | null
-      )[];
+  const serializedChunks = reusableSerializedChunks;
   const hasPotentialRelevantDelta = relevantDeltas.length > 0;
 
   if (!hasPotentialRelevantDelta) {
-    const result = serializeChunksData(
+    const hasAnyChunk = serializeChunksData(
       chunksData,
       gridWidth,
       gridDepth,
-      chunkShape
+      chunkShape,
+      serializedChunks
     );
-    if (!result.hasAnyChunk) {
+    if (!hasAnyChunk) {
       postEmptyBatchResult(jobId, 0);
       return;
     }
-    serializedChunks = result.serialized;
   } else {
     const result = deserializeChunkGrid(chunksData, gridWidth, gridDepth);
     if (!result.hasAnyChunk) {
@@ -464,11 +441,12 @@ const processBatchMessage = (message: LightBatchMessage) => {
       gridOffsetZ,
       relevantDeltas
     );
-    serializedChunks = serializeChunkGrid(
+    serializeChunkGrid(
       chunkGrid,
       gridWidth,
       gridDepth,
-      chunkShape
+      chunkShape,
+      serializedChunks
     );
   }
 
