@@ -305,7 +305,9 @@ impl Pipeline {
             self.queue.pop_back();
             return;
         }
-        self.queue.retain(|c| c != coords);
+        if let Some(index) = self.queue.iter().position(|c| c == coords) {
+            self.queue.remove(index);
+        }
     }
 
     /// Check to see if a chunk coordinate is in the pipeline.
