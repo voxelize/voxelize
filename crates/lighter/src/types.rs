@@ -80,17 +80,17 @@ impl LightBounds {
         let [start_x, _, start_z] = self.min;
         let [shape_x, _, shape_z] = self.shape;
 
-        let end_x = i64::from(start_x).saturating_add(
-            i64::try_from(shape_x).unwrap_or(i64::MAX),
-        );
-        let end_z = i64::from(start_z).saturating_add(
-            i64::try_from(shape_z).unwrap_or(i64::MAX),
-        );
+        let start_x_i64 = i64::from(start_x);
+        let start_z_i64 = i64::from(start_z);
+        let shape_x_i64 = shape_x.min(i64::MAX as usize) as i64;
+        let shape_z_i64 = shape_z.min(i64::MAX as usize) as i64;
+        let end_x = start_x_i64.saturating_add(shape_x_i64);
+        let end_z = start_z_i64.saturating_add(shape_z_i64);
 
         let vx = i64::from(vx);
         let vz = i64::from(vz);
 
-        vx >= i64::from(start_x) && vz >= i64::from(start_z) && vx < end_x && vz < end_z
+        vx >= start_x_i64 && vz >= start_z_i64 && vx < end_x && vz < end_z
     }
 }
 
