@@ -27,6 +27,17 @@ const getFirstEqualsIndex = (value: string) => {
   }
   return -1;
 };
+const assignParsedArg = (
+  rawObj: Record<string, string>,
+  rawObjKeys: string[],
+  key: string,
+  value: string
+) => {
+  if (rawObj[key] === undefined) {
+    rawObjKeys.push(key);
+  }
+  rawObj[key] = value;
+};
 
 /**
  * Options for adding a command.
@@ -479,8 +490,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         wordsLength < positionalKeys.length ? wordsLength : positionalKeys.length;
       for (let keyIndex = 0; keyIndex < assignCount; keyIndex++) {
         const key = positionalKeys[keyIndex];
-        rawObjKeys.push(key);
-        rawObj[key] = words[keyIndex];
+        assignParsedArg(rawObj, rawObjKeys, key, words[keyIndex]);
       }
       return schema.parse(rawObj);
     }
@@ -493,10 +503,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
           const key = word.substring(0, eqIndex);
           if (keySet.has(key)) {
             const value = word.substring(eqIndex + 1);
-            if (rawObj[key] === undefined) {
-              rawObjKeys.push(key);
-            }
-            rawObj[key] = value;
+            assignParsedArg(rawObj, rawObjKeys, key, value);
             continue;
           }
         }
@@ -507,20 +514,14 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
           const word = words[wordIndex];
           if (booleanKeys.has(word)) {
-            if (rawObj[word] === undefined) {
-              rawObjKeys.push(word);
-            }
-            rawObj[word] = "true";
+            assignParsedArg(rawObj, rawObjKeys, word, "true");
           }
         }
       } else {
         for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
           const word = words[wordIndex];
           if (booleanKeys.has(word)) {
-            if (rawObj[word] === undefined) {
-              rawObjKeys.push(word);
-            }
-            rawObj[word] = "true";
+            assignParsedArg(rawObj, rawObjKeys, word, "true");
             continue;
           }
           const eqIndex = getFirstEqualsIndex(word);
@@ -528,10 +529,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
             const key = word.substring(0, eqIndex);
             if (keySet.has(key)) {
               const value = word.substring(eqIndex + 1);
-              if (rawObj[key] === undefined) {
-                rawObjKeys.push(key);
-              }
-              rawObj[key] = value;
+              assignParsedArg(rawObj, rawObjKeys, key, value);
               continue;
             }
           }
@@ -542,10 +540,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
           const word = words[wordIndex];
           if (booleanKeys.has(word)) {
-            if (rawObj[word] === undefined) {
-              rawObjKeys.push(word);
-            }
-            rawObj[word] = "true";
+            assignParsedArg(rawObj, rawObjKeys, word, "true");
             continue;
           }
 
@@ -555,10 +550,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
           const word = words[wordIndex];
           if (booleanKeys.has(word)) {
-            if (rawObj[word] === undefined) {
-              rawObjKeys.push(word);
-            }
-            rawObj[word] = "true";
+            assignParsedArg(rawObj, rawObjKeys, word, "true");
             continue;
           }
           const eqIndex = getFirstEqualsIndex(word);
@@ -566,10 +558,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
             const key = word.substring(0, eqIndex);
             if (keySet.has(key)) {
               const value = word.substring(eqIndex + 1);
-              if (rawObj[key] === undefined) {
-                rawObjKeys.push(key);
-              }
-              rawObj[key] = value;
+              assignParsedArg(rawObj, rawObjKeys, key, value);
               continue;
             }
           }
@@ -584,8 +573,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       const key = positionalKeys[keyIndex];
       if (rawObj[key] !== undefined) continue;
       if (posIndex < positionalValues.length) {
-        rawObjKeys.push(key);
-        rawObj[key] = positionalValues[posIndex];
+        assignParsedArg(rawObj, rawObjKeys, key, positionalValues[posIndex]);
         posIndex++;
       }
     }
