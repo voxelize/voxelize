@@ -164,27 +164,146 @@ export interface BlockDynamicPatternInput {
   parts?: readonly BlockConditionalPartInput[];
 }
 
-const cloneBlockFace = (face: BlockFaceInput): BlockFace => {
-  const corners:
-    | [CornerData, CornerData, CornerData, CornerData]
-    | undefined =
-    face.corners === undefined
-      ? undefined
-      : [
-          createCornerData(face.corners[0].pos, face.corners[0].uv),
-          createCornerData(face.corners[1].pos, face.corners[1].uv),
-          createCornerData(face.corners[2].pos, face.corners[2].uv),
-          createCornerData(face.corners[3].pos, face.corners[3].uv),
-        ];
-  return new BlockFace({
-    name: face.name,
-    independent: face.independent,
-    isolated: face.isolated,
-    textureGroup: face.textureGroup,
-    dir: face.dir === undefined ? undefined : [...face.dir],
-    corners,
-    range: face.range === undefined ? undefined : { ...face.range },
-  });
+type DynamicValue =
+  | object
+  | string
+  | number
+  | boolean
+  | null
+  | undefined;
+
+const isFiniteNumberValue = (value: DynamicValue): value is number => {
+  return typeof value === "number" && Number.isFinite(value);
+};
+
+const isVec2Value = (value: DynamicValue): value is Vec2 => {
+  return (
+    Array.isArray(value) &&
+    value.length === 2 &&
+    isFiniteNumberValue(value[0]) &&
+    isFiniteNumberValue(value[1])
+  );
+};
+
+const isVec3Value = (value: DynamicValue): value is Vec3 => {
+  return (
+    Array.isArray(value) &&
+    value.length === 3 &&
+    isFiniteNumberValue(value[0]) &&
+    isFiniteNumberValue(value[1]) &&
+    isFiniteNumberValue(value[2])
+  );
+};
+
+const isUvValue = (value: DynamicValue): value is UV => {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const maybeUv = value as {
+    startU?: DynamicValue;
+    endU?: DynamicValue;
+    startV?: DynamicValue;
+    endV?: DynamicValue;
+  };
+  return (
+    isFiniteNumberValue(maybeUv.startU) &&
+    isFiniteNumberValue(maybeUv.endU) &&
+    isFiniteNumberValue(maybeUv.startV) &&
+    isFiniteNumberValue(maybeUv.endV)
+  );
+};
+
+const isCornerDataValue = (value: DynamicValue): value is CornerData => {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const maybeCorner = value as {
+    pos?: DynamicValue;
+    uv?: DynamicValue;
+  };
+  return isVec3Value(maybeCorner.pos) && isVec2Value(maybeCorner.uv);
+};
+
+const toCornerTuple = (
+  value: DynamicValue
+): [CornerData, CornerData, CornerData, CornerData] | undefined => {
+  if (!Array.isArray(value) || value.length !== 4) {
+    return undefined;
+  }
+
+  if (
+    !isCornerDataValue(value[0]) ||
+    !isCornerDataValue(value[1]) ||
+    !isCornerDataValue(value[2]) ||
+    !isCornerDataValue(value[3])
+  ) {
+    return undefined;
+  }
+
+  return [
+    createCornerData(value[0].pos, value[0].uv),
+    createCornerData(value[1].pos, value[1].uv),
+    createCornerData(value[2].pos, value[2].uv),
+    createCornerData(value[3].pos, value[3].uv),
+  ];
+};
+
+const toBlockFaceInit = (face: BlockFaceInput): BlockFaceInit | null => {
+  if (face === null || typeof face !== "object" || Array.isArray(face)) {
+    return null;
+  }
+
+  const maybeFace = face as {
+    name?: DynamicValue;
+    independent?: DynamicValue;
+    isolated?: DynamicValue;
+    textureGroup?: DynamicValue;
+    dir?: DynamicValue;
+    corners?: DynamicValue;
+    range?: DynamicValue;
+  };
+  if (typeof maybeFace.name !== "string") {
+    return null;
+  }
+
+  const textureGroup =
+    maybeFace.textureGroup === undefined ||
+    maybeFace.textureGroup === null ||
+    typeof maybeFace.textureGroup === "string"
+      ? maybeFace.textureGroup
+      : undefined;
+
+  return {
+    name: maybeFace.name,
+    independent:
+      typeof maybeFace.independent === "boolean"
+        ? maybeFace.independent
+        : undefined,
+    isolated:
+      typeof maybeFace.isolated === "boolean" ? maybeFace.isolated : undefined,
+    textureGroup,
+    dir: isVec3Value(maybeFace.dir) ? [...maybeFace.dir] : undefined,
+    corners: toCornerTuple(maybeFace.corners),
+    range: isUvValue(maybeFace.range)
+      ? {
+          startU: maybeFace.range.startU,
+          endU: maybeFace.range.endU,
+          startV: maybeFace.range.startV,
+          endV: maybeFace.range.endV,
+        }
+      : undefined,
+  };
+};
+
+const cloneBlockFace = (face: BlockFaceInput): BlockFace | null => {
+  const faceInit = toBlockFaceInit(face);
+  if (faceInit === null) {
+    return null;
+  }
+
+  return new BlockFace(faceInit);
 };
 
 const cloneBlockRule = (rule: BlockRule): BlockRule => {
@@ -221,18 +340,19 @@ export const createBlockConditionalPart = (
       : {};
   const faces = Array.isArray(normalizedPart.faces)
     ? normalizedPart.faces.reduce<BlockFace[]>((clonedFaces, face) => {
-        try {
-          clonedFaces.push(cloneBlockFace(face));
-        } catch {}
+        const clonedFace = cloneBlockFace(face);
+        if (clonedFace !== null) {
+          clonedFaces.push(clonedFace);
+        }
 
         return clonedFaces;
       }, [])
     : [];
   const aabbs = Array.isArray(normalizedPart.aabbs)
     ? normalizedPart.aabbs.reduce<AABB[]>((clonedAabbs, aabb) => {
-        try {
+        if (aabb instanceof AABB) {
           clonedAabbs.push(aabb.clone());
-        } catch {}
+        }
 
         return clonedAabbs;
       }, [])

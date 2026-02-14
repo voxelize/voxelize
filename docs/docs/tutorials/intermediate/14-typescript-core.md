@@ -46,6 +46,7 @@ omitted.
 `BlockFaceInit` objects in `faces`.
 Both helpers also accept readonly input arrays/tuples.
 Invalid face/AABB entries are skipped during helper cloning.
+Malformed optional face fields fall back to default face values.
 
 ## Basic usage
 

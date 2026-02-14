@@ -1100,8 +1100,8 @@ describe("Type builders", () => {
     };
     const validAabb = AABB.create(0, 0, 0, 1, 1, 1);
     const part = createBlockConditionalPart({
-      faces: [null as never, validFaceInit],
-      aabbs: [null as never, validAabb],
+      faces: [null as never, { name: 42 } as never, validFaceInit],
+      aabbs: [null as never, { clone: "not-a-function" } as never, validAabb],
     });
 
     expect(part.faces).toHaveLength(1);
@@ -1109,6 +1109,37 @@ describe("Type builders", () => {
     expect(part.aabbs).toHaveLength(1);
     expect(part.aabbs[0]).toEqual(validAabb);
     expect(part.aabbs[0]).not.toBe(validAabb);
+  });
+
+  it("sanitizes malformed optional BlockFaceInit fields to defaults", () => {
+    const malformedFace = {
+      name: "MalformedFace",
+      dir: ["x", 0, 0],
+      corners: [
+        createCornerData([0, 0, 0], [0, 0]),
+        createCornerData([0, 0, 0], [0, 0]),
+      ],
+      range: {
+        startU: 0,
+        endU: 1,
+        startV: "2",
+        endV: 3,
+      },
+    };
+    const part = createBlockConditionalPart({
+      faces: [malformedFace as never],
+    });
+
+    expect(part.faces).toHaveLength(1);
+    expect(part.faces[0].name).toBe("MalformedFace");
+    expect(part.faces[0].dir).toEqual([0, 0, 0]);
+    expect(part.faces[0].corners).toEqual([
+      createCornerData([0, 0, 0], [0, 0]),
+      createCornerData([0, 0, 0], [0, 0]),
+      createCornerData([0, 0, 0], [0, 0]),
+      createCornerData([0, 0, 0], [0, 0]),
+    ]);
+    expect(part.faces[0].range).toEqual(createUV());
   });
 
   it("clones provided conditional part rules", () => {
@@ -1276,8 +1307,8 @@ describe("Type builders", () => {
     const pattern = createBlockDynamicPattern({
       parts: [
         {
-          faces: [null as never, validFaceInit],
-          aabbs: [null as never, validAabb],
+          faces: [null as never, { name: 42 } as never, validFaceInit],
+          aabbs: [null as never, { clone: "not-a-function" } as never, validAabb],
         },
       ],
     });
