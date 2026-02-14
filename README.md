@@ -247,6 +247,9 @@ pnpm run check:preflight:list:runtime:json
 pnpm run check:preflight:list:runtime:verify:json
 pnpm run check:preflight:list:libraries:json
 pnpm run check:preflight:list:libraries:verify:json
+pnpm run check:preflight:list:library:json
+pnpm run check:preflight:list:libs:json
+pnpm run check:preflight:list:lib:json
 pnpm run check:preflight:list:ts:json
 pnpm run check:preflight:list:ts:verify:json
 pnpm run check:preflight:list:typescript:json
@@ -301,6 +304,9 @@ pnpm run check:preflight:runtime:json
 pnpm run check:preflight:runtime:verify:json
 pnpm run check:preflight:libraries:json
 pnpm run check:preflight:libraries:verify:json
+pnpm run check:preflight:library:json
+pnpm run check:preflight:libs:json
+pnpm run check:preflight:lib:json
 pnpm run check:preflight:client:json
 # shorthand aliases for single-check aggregate reports
 pnpm run check:preflight:dev:json

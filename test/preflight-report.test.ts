@@ -2437,6 +2437,150 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
+  it("supports library selector aliases in list mode", () => {
+    const selectorTokens = ["library", "libs", "lib", "LIBS"] as const;
+
+    for (const selectorToken of selectorTokens) {
+      const result = spawnSync(
+        process.execPath,
+        [preflightScript, "--list-checks", "--only", selectorToken],
+        {
+          cwd: rootDir,
+          encoding: "utf8",
+          shell: false,
+        }
+      );
+      const output = `${result.stdout}${result.stderr}`;
+      const report = JSON.parse(output) as PreflightReport;
+
+      expect(report.schemaVersion).toBe(1);
+      expect(report.listChecksOnly).toBe(true);
+      expect(report.passed).toBe(true);
+      expect(report.exitCode).toBe(0);
+      expect(report.noBuild).toBe(false);
+      expect(report.selectionMode).toBe("only");
+      expect(report.specialSelectorsUsed).toEqual(expectedUsedLibrariesSpecialSelector);
+      expect(report.selectedChecks).toEqual(["tsCore", "runtimeLibraries"]);
+      expect(report.selectedCheckCount).toBe(2);
+      expect(report.requestedChecks).toEqual([selectorToken]);
+      expect(report.requestedCheckCount).toBe(1);
+      expect(report.requestedCheckResolutions).toEqual([
+        {
+          token: selectorToken,
+          normalizedToken: selectorToken.toLowerCase(),
+          kind: "specialSelector",
+          selector: "libraries",
+          resolvedTo: ["tsCore", "runtimeLibraries"],
+        },
+      ]);
+      expect(report.requestedCheckResolutionCounts).toEqual({
+        check: 0,
+        specialSelector: 1,
+        invalid: 0,
+      });
+      expect(report.skippedChecks).toEqual(["devEnvironment", "wasmPack", "client"]);
+      expect(report.skippedCheckCount).toBe(3);
+      expect(report.invalidChecks).toEqual([]);
+      expect(report.invalidCheckCount).toBe(0);
+      expect(report.unknownOptions).toEqual([]);
+      expect(report.unknownOptionCount).toBe(0);
+      expect(report.activeCliOptions).toEqual(["--list-checks", "--only"]);
+      expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+      expect(report.activeCliOptionTokens).toEqual(["--list-checks", "--only"]);
+      expect(report.activeCliOptionResolutions).toEqual(
+        expectedActiveCliOptionResolutions(["--list-checks", "--only"])
+      );
+      expect(report.activeCliOptionResolutionCount).toBe(
+        report.activeCliOptionResolutions.length
+      );
+      expect(report.activeCliOptionOccurrences).toEqual(
+        expectedActiveCliOptionOccurrences(["--list-checks", "--only", selectorToken])
+      );
+      expect(report.activeCliOptionOccurrenceCount).toBe(
+        report.activeCliOptionOccurrences.length
+      );
+      expect(report.checks).toEqual([]);
+      expect(result.status).toBe(0);
+    }
+  });
+
+  it("supports library selector aliases in execution mode", () => {
+    const selectorTokens = ["library", "libs", "lib", "LIBRARY"] as const;
+
+    for (const selectorToken of selectorTokens) {
+      const result = spawnSync(
+        process.execPath,
+        [preflightScript, "--no-build", "--only", selectorToken],
+        {
+          cwd: rootDir,
+          encoding: "utf8",
+          shell: false,
+        }
+      );
+      const output = `${result.stdout}${result.stderr}`;
+      const report = JSON.parse(output) as PreflightReport;
+
+      expect(report.schemaVersion).toBe(1);
+      expect(report.listChecksOnly).toBe(false);
+      expect(report.noBuild).toBe(true);
+      expect(report.selectionMode).toBe("only");
+      expect(report.specialSelectorsUsed).toEqual(expectedUsedLibrariesSpecialSelector);
+      expect(report.selectedChecks).toEqual(["tsCore", "runtimeLibraries"]);
+      expect(report.selectedCheckCount).toBe(2);
+      expect(report.requestedChecks).toEqual([selectorToken]);
+      expect(report.requestedCheckCount).toBe(1);
+      expect(report.requestedCheckResolutions).toEqual([
+        {
+          token: selectorToken,
+          normalizedToken: selectorToken.toLowerCase(),
+          kind: "specialSelector",
+          selector: "libraries",
+          resolvedTo: ["tsCore", "runtimeLibraries"],
+        },
+      ]);
+      expect(report.requestedCheckResolutionCounts).toEqual({
+        check: 0,
+        specialSelector: 1,
+        invalid: 0,
+      });
+      expect(report.skippedChecks).toEqual(["devEnvironment", "wasmPack", "client"]);
+      expect(report.skippedCheckCount).toBe(3);
+      expect(report.invalidChecks).toEqual([]);
+      expect(report.invalidCheckCount).toBe(0);
+      expect(report.unknownOptions).toEqual([]);
+      expect(report.unknownOptionCount).toBe(0);
+      expect(report.activeCliOptions).toEqual(["--no-build", "--only"]);
+      expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+      expect(report.activeCliOptionTokens).toEqual(["--no-build", "--only"]);
+      expect(report.activeCliOptionResolutions).toEqual(
+        expectedActiveCliOptionResolutions(["--no-build", "--only"])
+      );
+      expect(report.activeCliOptionResolutionCount).toBe(
+        report.activeCliOptionResolutions.length
+      );
+      expect(report.activeCliOptionOccurrences).toEqual(
+        expectedActiveCliOptionOccurrences(["--no-build", "--only", selectorToken])
+      );
+      expect(report.activeCliOptionOccurrenceCount).toBe(
+        report.activeCliOptionOccurrences.length
+      );
+      expect(report.totalChecks).toBe(2);
+      expect(report.checks.length).toBe(2);
+      expect(report.checks.map((check) => check.name)).toEqual([
+        "tsCore",
+        "runtimeLibraries",
+      ]);
+      expectTsCoreNestedReport(report.checks[0].report, true);
+      expectRuntimeLibrariesNestedReport(report.checks[1].report, true);
+      expect(report.passedCheckCount + report.failedCheckCount).toBe(2);
+      expect([...report.passedChecks, ...report.failedChecks].sort()).toEqual([
+        "runtimeLibraries",
+        "tsCore",
+      ]);
+      expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+    }
+  });
+
   it("supports selecting all checks with the all alias", () => {
     const result = spawnSync(
       process.execPath,
