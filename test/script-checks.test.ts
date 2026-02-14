@@ -181,14 +181,20 @@ type ClientJsonReport = OptionTerminatorMetadata &
   passedStepScriptCount: number;
   passedStepIndices: number[];
   passedStepIndexCount: number;
+  passedStepIndexMap: Record<string, number>;
+  passedStepIndexMapCount: number;
   failedStepScripts: string[];
   failedStepScriptCount: number;
   failedStepIndices: number[];
   failedStepIndexCount: number;
+  failedStepIndexMap: Record<string, number>;
+  failedStepIndexMapCount: number;
   skippedStepScripts: string[];
   skippedStepScriptCount: number;
   skippedStepIndices: number[];
   skippedStepIndexCount: number;
+  skippedStepIndexMap: Record<string, number>;
+  skippedStepIndexMapCount: number;
   failureSummaries: Array<{
     name: string;
     scriptName: string;
@@ -457,14 +463,20 @@ type OnboardingJsonReport = OptionTerminatorMetadata &
   passedStepScriptCount: number;
   passedStepIndices: number[];
   passedStepIndexCount: number;
+  passedStepIndexMap: Record<string, number>;
+  passedStepIndexMapCount: number;
   failedStepScripts: string[];
   failedStepScriptCount: number;
   failedStepIndices: number[];
   failedStepIndexCount: number;
+  failedStepIndexMap: Record<string, number>;
+  failedStepIndexMapCount: number;
   skippedStepScripts: string[];
   skippedStepScriptCount: number;
   skippedStepIndices: number[];
   skippedStepIndexCount: number;
+  skippedStepIndexMap: Record<string, number>;
+  skippedStepIndexMapCount: number;
   failureSummaries: Array<{
     name: string;
     scriptName: string;
@@ -565,14 +577,20 @@ const expectStepSummaryMetadata = (
     passedStepScriptCount: number;
     passedStepIndices: number[];
     passedStepIndexCount: number;
+    passedStepIndexMap: Record<string, number>;
+    passedStepIndexMapCount: number;
     failedStepScripts: string[];
     failedStepScriptCount: number;
     failedStepIndices: number[];
     failedStepIndexCount: number;
+    failedStepIndexMap: Record<string, number>;
+    failedStepIndexMapCount: number;
     skippedStepScripts: string[];
     skippedStepScriptCount: number;
     skippedStepIndices: number[];
     skippedStepIndexCount: number;
+    skippedStepIndexMap: Record<string, number>;
+    skippedStepIndexMapCount: number;
     failureSummaries: Array<{
       name: string;
       scriptName: string;
@@ -664,6 +682,20 @@ const expectStepSummaryMetadata = (
   const passedStepIndices = mapStepNamesToIndices(passedSteps);
   const failedStepIndices = mapStepNamesToIndices(failedSteps);
   const skippedStepIndices = mapStepNamesToIndices(skippedSteps);
+  const mapStepNamesToIndexMap = (stepNames: string[]) => {
+    return Object.fromEntries(
+      stepNames.map((stepName) => {
+        const stepIndex = stepIndexMap.get(stepName);
+        if (stepIndex === undefined) {
+          throw new Error(`Missing step index metadata for ${stepName}.`);
+        }
+        return [stepName, stepIndex];
+      })
+    );
+  };
+  const passedStepIndexMap = mapStepNamesToIndexMap(passedSteps);
+  const failedStepIndexMap = mapStepNamesToIndexMap(failedSteps);
+  const skippedStepIndexMap = mapStepNamesToIndexMap(skippedSteps);
   const passedStepMetadata = Object.fromEntries(
     passedSteps.map((stepName) => {
       return [stepName, expectedStepMetadata[stepName]];
@@ -691,14 +723,26 @@ const expectStepSummaryMetadata = (
   expect(report.passedStepScriptCount).toBe(report.passedStepScripts.length);
   expect(report.passedStepIndices).toEqual(passedStepIndices);
   expect(report.passedStepIndexCount).toBe(report.passedStepIndices.length);
+  expect(report.passedStepIndexMap).toEqual(passedStepIndexMap);
+  expect(report.passedStepIndexMapCount).toBe(
+    Object.keys(report.passedStepIndexMap).length
+  );
   expect(report.failedStepScripts).toEqual(failedStepScripts);
   expect(report.failedStepScriptCount).toBe(report.failedStepScripts.length);
   expect(report.failedStepIndices).toEqual(failedStepIndices);
   expect(report.failedStepIndexCount).toBe(report.failedStepIndices.length);
+  expect(report.failedStepIndexMap).toEqual(failedStepIndexMap);
+  expect(report.failedStepIndexMapCount).toBe(
+    Object.keys(report.failedStepIndexMap).length
+  );
   expect(report.skippedStepScripts).toEqual(skippedStepScripts);
   expect(report.skippedStepScriptCount).toBe(report.skippedStepScripts.length);
   expect(report.skippedStepIndices).toEqual(skippedStepIndices);
   expect(report.skippedStepIndexCount).toBe(report.skippedStepIndices.length);
+  expect(report.skippedStepIndexMap).toEqual(skippedStepIndexMap);
+  expect(report.skippedStepIndexMapCount).toBe(
+    Object.keys(report.skippedStepIndexMap).length
+  );
   expect(report.failureSummaryCount).toBe(report.failureSummaries.length);
   expect(report.failureSummaries.map((summary) => summary.name)).toEqual(
     failedSteps

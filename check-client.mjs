@@ -145,6 +145,13 @@ const mapStepNamesToIndices = (stepNames) => {
     return resolveStepDetails(stepName).stepIndex;
   });
 };
+const mapStepNamesToIndexMap = (stepNames) => {
+  return Object.fromEntries(
+    stepNames.map((stepName) => {
+      return [stepName, resolveStepDetails(stepName).stepIndex];
+    })
+  );
+};
 const mapStepNamesToMetadata = (stepNames) => {
   return Object.fromEntries(
     stepNames.map((stepName) => {
@@ -198,14 +205,20 @@ if (isJson && validationFailureMessage !== null) {
     passedStepScriptCount: 0,
     passedStepIndices: [],
     passedStepIndexCount: 0,
+    passedStepIndexMap: {},
+    passedStepIndexMapCount: 0,
     failedStepScripts: [],
     failedStepScriptCount: 0,
     failedStepIndices: [],
     failedStepIndexCount: 0,
+    failedStepIndexMap: {},
+    failedStepIndexMapCount: 0,
     skippedStepScripts: [],
     skippedStepScriptCount: 0,
     skippedStepIndices: [],
     skippedStepIndexCount: 0,
+    skippedStepIndexMap: {},
+    skippedStepIndexMapCount: 0,
     failureSummaries: [],
     failureSummaryCount: 0,
     passedStepMetadata: {},
@@ -330,6 +343,9 @@ if (isJson) {
   const passedStepIndices = mapStepNamesToIndices(stepSummary.passedSteps);
   const failedStepIndices = mapStepNamesToIndices(stepSummary.failedSteps);
   const skippedStepIndices = mapStepNamesToIndices(stepSummary.skippedSteps);
+  const passedStepIndexMap = mapStepNamesToIndexMap(stepSummary.passedSteps);
+  const failedStepIndexMap = mapStepNamesToIndexMap(stepSummary.failedSteps);
+  const skippedStepIndexMap = mapStepNamesToIndexMap(stepSummary.skippedSteps);
   const passedStepMetadata = mapStepNamesToMetadata(stepSummary.passedSteps);
   const failedStepMetadata = mapStepNamesToMetadata(stepSummary.failedSteps);
   const skippedStepMetadata = mapStepNamesToMetadata(stepSummary.skippedSteps);
@@ -375,14 +391,20 @@ if (isJson) {
     passedStepScriptCount: passedStepScripts.length,
     passedStepIndices,
     passedStepIndexCount: passedStepIndices.length,
+    passedStepIndexMap,
+    passedStepIndexMapCount: countRecordEntries(passedStepIndexMap),
     failedStepScripts,
     failedStepScriptCount: failedStepScripts.length,
     failedStepIndices,
     failedStepIndexCount: failedStepIndices.length,
+    failedStepIndexMap,
+    failedStepIndexMapCount: countRecordEntries(failedStepIndexMap),
     skippedStepScripts,
     skippedStepScriptCount: skippedStepScripts.length,
     skippedStepIndices,
     skippedStepIndexCount: skippedStepIndices.length,
+    skippedStepIndexMap,
+    skippedStepIndexMapCount: countRecordEntries(skippedStepIndexMap),
     failureSummaries,
     failureSummaryCount: failureSummaries.length,
     passedStepMetadata,
