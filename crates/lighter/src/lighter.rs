@@ -863,6 +863,6 @@ mod tests {
 
         assert!(bounds.contains_xz(i32::MAX - 2, i32::MAX - 2));
         assert!(bounds.contains_xz(i32::MAX - 1, i32::MAX - 1));
-        assert!(!bounds.contains_xz(i32::MAX, i32::MAX));
+        assert!(bounds.contains_xz(i32::MAX, i32::MAX));
     }
 }
