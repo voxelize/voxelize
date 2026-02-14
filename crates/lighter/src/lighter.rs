@@ -33,9 +33,22 @@ fn direction_to_index(dx: i32, dy: i32, dz: i32) -> usize {
 }
 
 #[inline]
-fn map_voxel_to_chunk(vx: i32, vz: i32, chunk_size: i32) -> [i32; 2] {
+fn resolve_chunk_shift(chunk_size: i32) -> Option<u32> {
     if chunk_size > 0 && (chunk_size as u32).is_power_of_two() {
-        let shift = chunk_size.trailing_zeros();
+        Some(chunk_size.trailing_zeros())
+    } else {
+        None
+    }
+}
+
+#[inline]
+fn map_voxel_to_chunk_with_shift(
+    vx: i32,
+    vz: i32,
+    chunk_size: i32,
+    chunk_shift: Option<u32>,
+) -> [i32; 2] {
+    if let Some(shift) = chunk_shift {
         [vx >> shift, vz >> shift]
     } else {
         [vx.div_euclid(chunk_size), vz.div_euclid(chunk_size)]
@@ -176,6 +189,8 @@ fn flood_light_from_nodes(
     registry: &LightRegistry,
 ) {
     let is_sunlight = *color == LightColor::Sunlight;
+    let chunk_size = config.chunk_size;
+    let chunk_shift = resolve_chunk_shift(chunk_size);
     let [start_cx, start_cz] = config.min_chunk;
     let [end_cx, end_cz] = config.max_chunk;
     let bounds_xz = bounds.map(|limit| {
@@ -214,7 +229,7 @@ fn flood_light_from_nodes(
                 continue;
             }
 
-            let [ncx, ncz] = map_voxel_to_chunk(nvx, nvz, config.chunk_size);
+            let [ncx, ncz] = map_voxel_to_chunk_with_shift(nvx, nvz, chunk_size, chunk_shift);
             if ncx < start_cx || ncz < start_cz || ncx > end_cx || ncz > end_cz {
                 continue;
             }
@@ -687,11 +702,11 @@ mod tests {
 
         for (vx, vz) in samples {
             assert_eq!(
-                map_voxel_to_chunk(vx, vz, 16),
+                map_voxel_to_chunk_with_shift(vx, vz, 16, resolve_chunk_shift(16)),
                 [vx.div_euclid(16), vz.div_euclid(16)]
             );
             assert_eq!(
-                map_voxel_to_chunk(vx, vz, 18),
+                map_voxel_to_chunk_with_shift(vx, vz, 18, resolve_chunk_shift(18)),
                 [vx.div_euclid(18), vz.div_euclid(18)]
             );
         }
