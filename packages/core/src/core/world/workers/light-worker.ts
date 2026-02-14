@@ -511,9 +511,11 @@ const hasPotentialRelevantDeltaBatches = (
   chunkShift: number,
   expectedChunkByteLength: number
 ) => {
+  const deltaBatchesLength = deltaBatches.length;
   const cellCount = gridWidth * gridDepth;
+  const hasMultipleDeltaBatches = deltaBatchesLength > 1;
   const chunkValidity =
-    deltaBatches.length > 1 && cellCount <= MAX_CHUNK_VALIDITY_MEMO_LENGTH
+    hasMultipleDeltaBatches && cellCount <= MAX_CHUNK_VALIDITY_MEMO_LENGTH
       ? getChunkValidityMemo(cellCount)
       : null;
   const chunkValidityTouched = reusableChunkValidityTouched;
@@ -521,13 +523,13 @@ const hasPotentialRelevantDeltaBatches = (
     chunkValidityTouched.length = 0;
   }
   const chunkValiditySparse =
-    chunkValidity === null && deltaBatches.length > 1
+    chunkValidity === null && hasMultipleDeltaBatches
       ? reusableChunkValiditySparse
       : null;
   if (chunkValiditySparse) {
     chunkValiditySparse.clear();
   }
-  for (let batchIndex = 0; batchIndex < deltaBatches.length; batchIndex++) {
+  for (let batchIndex = 0; batchIndex < deltaBatchesLength; batchIndex++) {
     const deltaBatch = deltaBatches[batchIndex];
     if (!deltaBatch || typeof deltaBatch !== "object") {
       continue;
