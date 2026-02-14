@@ -460,13 +460,14 @@ pub fn propagate(
     let [start_x, _, start_z] = min;
     let [shape_x, _, shape_z] = shape;
     let max_height = config.max_height;
+    let max_light_level = config.max_light_level;
 
     let mut red_light_queue = Vec::<LightNode>::new();
     let mut green_light_queue = Vec::<LightNode>::new();
     let mut blue_light_queue = Vec::<LightNode>::new();
     let mut sunlight_queue = Vec::<LightNode>::new();
 
-    let mut mask = vec![config.max_light_level; shape_x * shape_z];
+    let mut mask = vec![max_light_level; shape_x * shape_z];
 
     for y in (0..max_height).rev() {
         for x in 0..shape_x {
@@ -547,7 +548,7 @@ pub fn propagate(
 
                 space.set_sunlight(vx, y, vz, current_mask);
 
-                if current_mask == config.max_light_level {
+                if current_mask == max_light_level {
                     let should_add_max =
                         (x + 1 < shape_x && mask[current_mask_index + 1] == 0 && px)
                             || (x > 0 && mask[current_mask_index - 1] == 0 && nx)
@@ -559,7 +560,7 @@ pub fn propagate(
                     if should_add_max {
                         sunlight_queue.push(LightNode {
                             voxel: [vx, y, vz],
-                            level: config.max_light_level,
+                            level: max_light_level,
                         });
                     }
                 }
