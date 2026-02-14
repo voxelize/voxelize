@@ -3040,6 +3040,9 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
         if greedy_mask.len() < mask_len {
             greedy_mask.resize(mask_len, None);
         }
+        if non_greedy_faces.capacity() < mask_len {
+            non_greedy_faces.reserve(mask_len - non_greedy_faces.capacity());
+        }
         let mut quads: Vec<GreedyQuad> = Vec::new();
 
         for slice in slice_range {
