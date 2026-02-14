@@ -313,7 +313,7 @@ impl LightVoxelAccess for BatchSpace {
         let Some(Some(_)) = self.chunks.get(chunk_index) else {
             return false;
         };
-        self.voxel_index_in_chunk(vx, vy, vz).is_some()
+        true
     }
 }
 
