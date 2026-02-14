@@ -72,6 +72,8 @@ Y-rotation values that are full turns (`±2π` multiples) are normalized to
 identity for node/transparency transforms.
 Non-finite y-rotation values (`NaN`, `Infinity`, `-Infinity`) are also
 normalized to identity for safer runtime behavior.
+Finite y-rotation values are normalized modulo full turns before decode
+segment quantization, which keeps large-angle decoding stable.
 
 You can also pass plain rotation-like objects when packing voxels:
 

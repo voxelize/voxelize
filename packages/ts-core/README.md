@@ -59,6 +59,8 @@ const voxel = Voxel.pack({
   - rotate nodes, AABBs, and transparency masks
   - full-turn y-rotations (`±2π` multiples) normalize to identity transforms
   - non-finite y-rotation inputs are safely normalized to identity transforms
+  - `decode` normalizes finite y-rotation values modulo full turns before
+    segment quantization for stable large-angle behavior
   - `rotateAABB` mirrors Rust core behavior, including axis-specific `yRotate`
     handling for Y-facing rotations
 - `AABB`
