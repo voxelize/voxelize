@@ -64,9 +64,9 @@ impl ChunkUtils {
     }
 
     pub fn distance_squared(a: &Vec2<i32>, b: &Vec2<i32>) -> f32 {
-        let dx = i128::from(a.0) - i128::from(b.0);
-        let dz = i128::from(a.1) - i128::from(b.1);
-        (dx * dx + dz * dz) as f32
+        let dx = f64::from(a.0) - f64::from(b.0);
+        let dz = f64::from(a.1) - f64::from(b.1);
+        dx.mul_add(dx, dz * dz) as f32
     }
 }
 
