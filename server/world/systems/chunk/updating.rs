@@ -133,14 +133,19 @@ fn process_pending_updates(
             let current_is_light = current_type.is_light_at(&voxel_pos, &*chunks);
             let updated_is_light = updated_type.is_light_at(&voxel_pos, &*chunks);
 
+            let rotation = BlockUtils::extract_rotation(raw);
+            let stage = BlockUtils::extract_stage(raw);
+
+            if !chunks.set_voxel(vx, vy, vz, updated_id) {
+                continue;
+            }
+            chunks.set_voxel_stage(vx, vy, vz, stage);
+
             if current_is_light && !updated_is_light {
                 removed_light_sources.push((voxel.clone(), current_type.clone()));
             }
 
             processed_updates.push((voxel.clone(), raw, current_id, updated_id));
-
-            let rotation = BlockUtils::extract_rotation(raw);
-            let stage = BlockUtils::extract_stage(raw);
 
             let existing_entity = chunks.block_entities.remove(&Vec3(vx, vy, vz));
             if let Some(existing_entity) = existing_entity {
@@ -175,9 +180,6 @@ fn process_pending_updates(
                 let default_json = updated_type.default_entity_json.as_deref().unwrap_or("{}");
                 lazy.insert(entity, JsonComp::new(default_json));
             }
-
-            chunks.set_voxel(vx, vy, vz, updated_id);
-            chunks.set_voxel_stage(vx, vy, vz, stage);
 
             if updated_type.is_active {
                 let ticks = (&updated_type.active_ticker.as_ref().unwrap())(
