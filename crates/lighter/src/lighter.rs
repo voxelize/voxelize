@@ -171,8 +171,8 @@ fn flood_light_from_nodes(
     let bounds_xz = bounds.map(|limit| {
         let start_x = i64::from(limit.min[0]);
         let start_z = i64::from(limit.min[2]);
-        let end_x = start_x.saturating_add(i64::try_from(limit.shape[0]).unwrap_or(i64::MAX));
-        let end_z = start_z.saturating_add(i64::try_from(limit.shape[2]).unwrap_or(i64::MAX));
+        let end_x = start_x.saturating_add(limit.shape[0] as i64);
+        let end_z = start_z.saturating_add(limit.shape[2] as i64);
         (start_x, start_z, end_x, end_z)
     });
     let mut head = 0usize;
