@@ -197,6 +197,8 @@ type PreflightReport = {
   availableChecks: string[];
   availableCheckScripts: string[];
   availableCheckScriptCount: number;
+  availableCheckIndices: number[];
+  availableCheckIndexCount: number;
   availableCheckMetadata: {
     devEnvironment: {
       scriptName: string;
@@ -360,6 +362,9 @@ const expectedAvailableCheckScripts = expectedAvailableChecks.map((checkName) =>
   return expectedAvailableCheckMetadata[
     checkName as keyof typeof expectedAvailableCheckMetadata
   ].scriptName;
+});
+const expectedAvailableCheckIndices = expectedAvailableChecks.map((_, index) => {
+  return index;
 });
 const expectedTsCoreRequiredArtifacts = [
   "packages/ts-core/dist/index.js",
@@ -932,6 +937,10 @@ describe("preflight aggregate report", () => {
     expect(report.availableChecks).toEqual(expectedAvailableChecks);
     expect(report.availableCheckScripts).toEqual(expectedAvailableCheckScripts);
     expect(report.availableCheckScriptCount).toBe(report.availableCheckScripts.length);
+    expect(report.availableCheckIndices).toEqual(expectedAvailableCheckIndices);
+    expect(report.availableCheckIndexCount).toBe(
+      report.availableCheckIndices.length
+    );
     expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(report.availableSpecialCheckSelectors).toEqual(
@@ -6742,6 +6751,10 @@ describe("preflight aggregate report", () => {
       expectedEmptyRequestedCheckResolutionCounts
     );
     expect(report.availableChecks).toEqual(expectedAvailableChecks);
+    expect(report.availableCheckIndices).toEqual(expectedAvailableCheckIndices);
+    expect(report.availableCheckIndexCount).toBe(
+      report.availableCheckIndices.length
+    );
     expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(report.availableSpecialCheckAliases).toEqual(
