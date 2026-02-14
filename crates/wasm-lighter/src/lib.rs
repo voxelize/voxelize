@@ -313,21 +313,22 @@ fn parse_chunks(
     chunks_data: &Array,
     expected_chunk_count: usize,
     expected_chunk_len: usize,
-) -> Vec<Option<ChunkData>> {
+) -> (Vec<Option<ChunkData>>, bool) {
     JS_KEYS.with(|keys| {
         if expected_chunk_count == 0 {
-            return Vec::new();
+            return (Vec::new(), false);
         }
 
         let provided_chunk_count = chunks_data.length() as usize;
         if provided_chunk_count == 0 {
             let mut chunks = Vec::with_capacity(expected_chunk_count);
             chunks.resize_with(expected_chunk_count, || None);
-            return chunks;
+            return (chunks, false);
         }
 
         let parse_count = provided_chunk_count.min(expected_chunk_count);
         let mut chunks = Vec::with_capacity(expected_chunk_count);
+        let mut has_any_chunk = false;
 
         for index in 0..parse_count {
             let chunk_value = chunks_data.get(index as u32);
@@ -367,13 +368,14 @@ fn parse_chunks(
                 voxels,
                 lights,
             }));
+            has_any_chunk = true;
         }
 
         if parse_count < expected_chunk_count {
             chunks.resize_with(expected_chunk_count, || None);
         }
 
-        chunks
+        (chunks, has_any_chunk)
     })
 }
 
@@ -527,7 +529,10 @@ pub fn process_light_batch_fast(
     if (chunks_data.length() as usize) < expected_chunk_count {
         return empty_batch_result();
     }
-    let chunks = parse_chunks(chunks_data, expected_chunk_count, expected_chunk_len);
+    let (chunks, has_any_chunk) = parse_chunks(chunks_data, expected_chunk_count, expected_chunk_len);
+    if !has_any_chunk {
+        return empty_batch_result();
+    }
     let mut space = BatchSpace::new(
         chunks,
         chunk_grid_width,
