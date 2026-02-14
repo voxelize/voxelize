@@ -11,14 +11,6 @@ fn get_concat() -> &'static str {
 /// A set of utility functions for chunk operations.
 pub struct ChunkUtils;
 
-fn floor_scale_coords(x: f32, y: f32, z: f32, factor: f32) -> Vec3<f32> {
-    Vec3(
-        (x * factor).floor(),
-        (y * factor).floor(),
-        (z * factor).floor(),
-    )
-}
-
 impl ChunkUtils {
     /// Generate a chunk representation from a chunk coordinate.
     pub fn get_chunk_name(cx: i32, cz: i32) -> String {
@@ -49,14 +41,9 @@ impl ChunkUtils {
     }
 
     /// Map a voxel coordinate to a chunk coordinate.
-    pub fn map_voxel_to_chunk(vx: i32, vy: i32, vz: i32, chunk_size: usize) -> Vec2<i32> {
-        let scaled = Vec3::<i32>::from(&floor_scale_coords(
-            vx as f32,
-            vy as f32,
-            vz as f32,
-            1.0 / (chunk_size as f32),
-        ));
-        Vec2(scaled.0, scaled.2)
+    pub fn map_voxel_to_chunk(vx: i32, _vy: i32, vz: i32, chunk_size: usize) -> Vec2<i32> {
+        let cs = i32::try_from(chunk_size).unwrap_or(i32::MAX);
+        Vec2(vx.div_euclid(cs), vz.div_euclid(cs))
     }
 
     /// Map a voxel coordinate to a chunk local coordinate.
