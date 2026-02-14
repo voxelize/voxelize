@@ -173,16 +173,18 @@ export function setupTransparentSorting(object: Object3D): void {
     if (Array.isArray(material)) {
       const materialCount = material.length;
       if (materialCount === 1) {
-        isTransparent = material[0].transparent;
+        const firstMaterial = material[0];
+        isTransparent = !!firstMaterial && firstMaterial.transparent;
       } else {
         for (let materialIndex = 0; materialIndex < materialCount; materialIndex++) {
-          if (material[materialIndex].transparent) {
+          const materialEntry = material[materialIndex];
+          if (materialEntry && materialEntry.transparent) {
             isTransparent = true;
             break;
           }
         }
       }
-    } else {
+    } else if (material && material.transparent) {
       isTransparent = material.transparent;
     }
 

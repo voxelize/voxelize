@@ -14,6 +14,7 @@ import {
 
 import {
   prepareTransparentMesh,
+  setupTransparentSorting,
   sortTransparentMesh,
   sortTransparentMeshOnBeforeRender,
 } from "../src/core/transparent-sorter";
@@ -592,5 +593,29 @@ describe("transparent sorter", () => {
 
     expect(mesh.userData.transparentSortData).toBeUndefined();
     expect(mesh.onBeforeRender).toBe(Object3D.prototype.onBeforeRender);
+  });
+
+  it("ignores malformed single-entry material arrays during setup", () => {
+    const mesh = new Mesh(createQuadGeometry(2), new MeshBasicMaterial());
+    const malformedMaterials: (MeshBasicMaterial | undefined)[] = [undefined];
+    mesh.material = malformedMaterials as MeshBasicMaterial[];
+
+    expect(() => setupTransparentSorting(mesh)).not.toThrow();
+    expect(mesh.userData.transparentSortData).toBeUndefined();
+    expect(mesh.onBeforeRender).toBe(Object3D.prototype.onBeforeRender);
+  });
+
+  it("accepts transparent material arrays with sparse entries during setup", () => {
+    const mesh = new Mesh(createQuadGeometry(2), new MeshBasicMaterial());
+    const sparseMaterials: (MeshBasicMaterial | undefined)[] = [
+      undefined,
+      new MeshBasicMaterial({ transparent: true }),
+    ];
+    mesh.material = sparseMaterials as MeshBasicMaterial[];
+
+    setupTransparentSorting(mesh);
+
+    expect(mesh.userData.transparentSortData).toBeDefined();
+    expect(mesh.onBeforeRender).toBe(sortTransparentMeshOnBeforeRender);
   });
 });
