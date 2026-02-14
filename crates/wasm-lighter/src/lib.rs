@@ -607,7 +607,9 @@ pub fn process_light_batch_fast(
             flood_nodes[write_index] = node;
             write_index += 1;
         }
-        flood_nodes.truncate(write_index);
+        if write_index < flood_nodes_len {
+            flood_nodes.truncate(write_index);
+        }
     }
     if removal_nodes.is_empty() && flood_nodes.is_empty() {
         return empty_batch_result();
