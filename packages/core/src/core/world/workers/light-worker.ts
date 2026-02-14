@@ -178,12 +178,17 @@ const isI32 = (value: number) =>
 const isPositiveU32 = (value: number) =>
   isInteger(value) && value > 0 && value <= MAX_UINT32;
 const getChunkShiftIfPowerOfTwo = (chunkSize: number) => {
-  const log2ChunkSize = Math.log2(chunkSize);
-  return Number.isInteger(log2ChunkSize) &&
-    log2ChunkSize >= 0 &&
-    log2ChunkSize <= 30
-    ? log2ChunkSize
-    : -1;
+  if (chunkSize <= 0 || chunkSize > MAX_INT32) {
+    return -1;
+  }
+  const chunkSizeInt = chunkSize | 0;
+  if (
+    chunkSizeInt !== chunkSize ||
+    (chunkSizeInt & (chunkSizeInt - 1)) !== 0
+  ) {
+    return -1;
+  }
+  return 31 - Math.clz32(chunkSizeInt);
 };
 const mapVoxelToChunkCoordinate = (
   voxel: number,
