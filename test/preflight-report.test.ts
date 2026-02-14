@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 type PreflightCheckResult = {
   name: string;
   scriptName: string;
+  supportsNoBuild: boolean;
   checkIndex: number | null;
   passed: boolean;
   exitCode: number;
@@ -652,6 +653,11 @@ const expectCheckResultScriptMetadata = (report: PreflightReport) => {
       expectedAvailableCheckMetadata[
         check.name as keyof typeof expectedAvailableCheckMetadata
       ].scriptName
+    );
+    expect(check.supportsNoBuild).toBe(
+      expectedAvailableCheckMetadata[
+        check.name as keyof typeof expectedAvailableCheckMetadata
+      ].supportsNoBuild
     );
     expect(check.checkIndex).toBe(expectedAvailableChecks.indexOf(check.name));
   }

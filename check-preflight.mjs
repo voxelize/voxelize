@@ -464,7 +464,7 @@ const {
   checkScriptCount: allCheckScriptCount,
 } = buildCheckSelectionMetadata(availableCheckNames);
 
-const runCheck = (name, scriptName, extraArgs = []) => {
+const runCheck = (name, scriptName, supportsNoBuild, extraArgs = []) => {
   const checkStartMs = Date.now();
   const scriptPath = path.resolve(__dirname, scriptName);
   const result = spawnSync(
@@ -485,6 +485,7 @@ const runCheck = (name, scriptName, extraArgs = []) => {
   return {
     name,
     scriptName,
+    supportsNoBuild,
     checkIndex: typeof checkIndex === "number" ? checkIndex : null,
     passed: exitCode === 0,
     exitCode,
@@ -703,7 +704,12 @@ if (isListChecks) {
 const checks = availableChecks
   .filter((check) => selectedCheckSet.has(check.name))
   .map((check) => {
-    return runCheck(check.name, check.scriptName, check.extraArgs);
+    return runCheck(
+      check.name,
+      check.scriptName,
+      check.supportsNoBuild,
+      check.extraArgs
+    );
   });
 
 const passed = checks.every((check) => check.passed);
