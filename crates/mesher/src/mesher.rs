@@ -783,9 +783,10 @@ impl<'a> VoxelSpace<'a> {
 
     #[inline]
     fn map_voxel_to_chunk(&self, vx: i32, vz: i32) -> [i32; 2] {
+        let chunk_size = self.chunk_size;
         [
-            vx.div_euclid(self.chunk_size),
-            vz.div_euclid(self.chunk_size),
+            vx.div_euclid(chunk_size),
+            vz.div_euclid(chunk_size),
         ]
     }
 
