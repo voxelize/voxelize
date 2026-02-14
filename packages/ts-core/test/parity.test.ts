@@ -532,15 +532,25 @@ describe("Type builders", () => {
   it("preserves provided conditional part fields", () => {
     const face = new BlockFace({ name: "CustomFace" });
     const aabb = AABB.create(0, 0, 0, 1, 1, 1);
+    const faces = [face];
+    const aabbs = [aabb];
+    const isTransparent: [boolean, boolean, boolean, boolean, boolean, boolean] = [
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+    ];
     const part = createBlockConditionalPart({
       rule: {
         type: "simple",
         offset: [1, 0, 0],
         id: 99,
       },
-      faces: [face],
-      aabbs: [aabb],
-      isTransparent: [true, false, true, false, true, false],
+      faces,
+      aabbs,
+      isTransparent,
       worldSpace: true,
     });
 
@@ -549,10 +559,18 @@ describe("Type builders", () => {
       offset: [1, 0, 0],
       id: 99,
     });
-    expect(part.faces).toEqual([face]);
-    expect(part.aabbs).toEqual([aabb]);
-    expect(part.isTransparent).toEqual([true, false, true, false, true, false]);
+    expect(part.faces).toEqual(faces);
+    expect(part.aabbs).toEqual(aabbs);
+    expect(part.isTransparent).toEqual(isTransparent);
     expect(part.worldSpace).toBe(true);
+
+    faces.push(new BlockFace({ name: "Mutated" }));
+    aabbs.push(AABB.create(0, 0, 0, 2, 2, 2));
+    isTransparent[0] = false;
+
+    expect(part.faces).toHaveLength(1);
+    expect(part.aabbs).toHaveLength(1);
+    expect(part.isTransparent).toEqual([true, false, true, false, true, false]);
   });
 
   it("keeps BlockFace constructor option fields", () => {

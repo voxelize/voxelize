@@ -141,10 +141,19 @@ export interface BlockDynamicPattern {
 
 export const createBlockConditionalPart = (
   part: Partial<BlockConditionalPart>
-): BlockConditionalPart => ({
-  rule: part.rule ?? BLOCK_RULE_NONE,
-  faces: part.faces ?? [],
-  aabbs: part.aabbs ?? [],
-  isTransparent: part.isTransparent ?? [false, false, false, false, false, false],
-  worldSpace: part.worldSpace ?? false,
-});
+): BlockConditionalPart => {
+  const faces = Array.isArray(part.faces) ? [...part.faces] : [];
+  const aabbs = Array.isArray(part.aabbs) ? [...part.aabbs] : [];
+  const isTransparent: FaceTransparency =
+    part.isTransparent === undefined
+      ? [false, false, false, false, false, false]
+      : [...part.isTransparent];
+
+  return {
+    rule: part.rule ?? BLOCK_RULE_NONE,
+    faces,
+    aabbs,
+    isTransparent,
+    worldSpace: part.worldSpace ?? false,
+  };
+};
