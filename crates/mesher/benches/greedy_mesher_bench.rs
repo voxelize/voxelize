@@ -413,6 +413,11 @@ fn geometry_fingerprint(geometries: &[GeometryProtocol]) -> Vec<String> {
     fingerprints
 }
 
+fn seeded_next(seed: &mut u32) -> u32 {
+    *seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
+    *seed
+}
+
 fn assert_parity(min: &[i32; 3], max: &[i32; 3], space: &BenchSpace, registry: &Registry) {
     let legacy = mesh_space_greedy_legacy(min, max, space, registry);
     let optimized = mesh_space_greedy(min, max, space, registry);
@@ -596,6 +601,54 @@ fn isolated_independent_scene() -> BenchSpace {
     space
 }
 
+fn seeded_mix_scene() -> BenchSpace {
+    let mut space = BenchSpace::new([16, 12, 16]);
+    let mut seed = 0xD1CE_BA5Eu32;
+
+    for x in 0..16 {
+        for z in 0..16 {
+            for y in 0..6 {
+                let value = seeded_next(&mut seed) % 11;
+                match value {
+                    0 => {}
+                    3 => {
+                        let stage = seeded_next(&mut seed) % 8;
+                        space.set_voxel_stage(x, y, z, 3, stage);
+                    }
+                    5 => {
+                        let rotation = match seeded_next(&mut seed) % 4 {
+                            0 => BlockRotation::PY(0.0),
+                            1 => BlockRotation::PY(std::f32::consts::FRAC_PI_2),
+                            2 => BlockRotation::PY(std::f32::consts::PI),
+                            _ => BlockRotation::PY(std::f32::consts::PI * 1.5),
+                        };
+                        space.set_voxel_rotation(x, y, z, 5, rotation);
+                    }
+                    10 => {
+                        space.set_voxel_id(x, y, z, 10);
+                    }
+                    id => {
+                        space.set_voxel_id(x, y, z, id);
+                    }
+                }
+            }
+        }
+    }
+
+    for x in 0..16 {
+        for z in 0..16 {
+            let wave = seeded_next(&mut seed) & 0xF;
+            let sunlight = wave;
+            let red = (wave + 3) & 0xF;
+            let green = (wave + 7) & 0xF;
+            let blue = (wave + 11) & 0xF;
+            space.set_light(x, 7, z, sunlight, red, green, blue);
+        }
+    }
+
+    space
+}
+
 fn greedy_mesher_benchmark(c: &mut Criterion) {
     let registry = build_registry();
     let scenes = vec![
@@ -605,6 +658,7 @@ fn greedy_mesher_benchmark(c: &mut Criterion) {
         ("standalone_transparency_16x12x16", standalone_transparency_scene()),
         ("fluid_occlusion_16x12x16", fluid_occlusion_scene()),
         ("isolated_independent_16x10x16", isolated_independent_scene()),
+        ("seeded_mix_16x12x16", seeded_mix_scene()),
     ];
 
     let mut group = c.benchmark_group("greedy_mesher");
@@ -658,6 +712,7 @@ fn non_greedy_mesher_benchmark(c: &mut Criterion) {
         ("standalone_transparency_16x12x16", standalone_transparency_scene()),
         ("fluid_occlusion_16x12x16", fluid_occlusion_scene()),
         ("isolated_independent_16x10x16", isolated_independent_scene()),
+        ("seeded_mix_16x12x16", seeded_mix_scene()),
     ];
     let mut group = c.benchmark_group("non_greedy_mesher");
 
