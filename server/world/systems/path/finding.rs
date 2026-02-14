@@ -557,21 +557,43 @@ fn can_walk_directly_with_clearance(
     true
 }
 
+#[inline]
+fn axis_delta_i64(to: i32, from: i32) -> i64 {
+    i64::from(to) - i64::from(from)
+}
+
+#[inline]
+fn clamped_height_scan_steps(height: f32) -> Option<i32> {
+    if !height.is_finite() || height < 0.0 {
+        return None;
+    }
+    let ceil_height = height.ceil();
+    if ceil_height > i32::MAX as f32 {
+        return None;
+    }
+    Some(ceil_height as i32)
+}
+
+#[inline]
+fn clamp_f64_to_i32(value: f64) -> i32 {
+    value.clamp(f64::from(i32::MIN), f64::from(i32::MAX)) as i32
+}
+
 /// Calculate the angle change in degrees between three points
 fn calculate_angle_change(p1: &Vec3<i32>, p2: &Vec3<i32>, p3: &Vec3<i32>) -> f32 {
     // Vector from p1 to p2
-    let v1_x = (p2.0 - p1.0) as f32;
-    let v1_z = (p2.2 - p1.2) as f32;
+    let v1_x = axis_delta_i64(p2.0, p1.0) as f64;
+    let v1_z = axis_delta_i64(p2.2, p1.2) as f64;
 
     // Vector from p2 to p3
-    let v2_x = (p3.0 - p2.0) as f32;
-    let v2_z = (p3.2 - p2.2) as f32;
+    let v2_x = axis_delta_i64(p3.0, p2.0) as f64;
+    let v2_z = axis_delta_i64(p3.2, p2.2) as f64;
 
     // Calculate magnitudes
     let mag1 = (v1_x * v1_x + v1_z * v1_z).sqrt();
     let mag2 = (v2_x * v2_x + v2_z * v2_z).sqrt();
 
-    if mag1 == 0.0 || mag2 == 0.0 {
+    if mag1 <= f64::EPSILON || mag2 <= f64::EPSILON {
         return 0.0;
     }
 
@@ -588,7 +610,7 @@ fn calculate_angle_change(p1: &Vec3<i32>, p2: &Vec3<i32>, p3: &Vec3<i32>) -> f32
     let dot = dot.clamp(-1.0, 1.0);
 
     // Calculate angle in degrees
-    dot.acos().to_degrees()
+    dot.acos().to_degrees() as f32
 }
 
 /// Check if we can walk directly between two points
@@ -599,30 +621,36 @@ fn can_walk_directly(
     registry: &Registry,
     height: f32,
 ) -> bool {
-    let dx = to.0 - from.0;
-    let dy = to.1 - from.1;
-    let dz = to.2 - from.2;
+    let dx = axis_delta_i64(to.0, from.0);
+    let dy = axis_delta_i64(to.1, from.1);
+    let dz = axis_delta_i64(to.2, from.2);
 
     // Don't try to smooth if there's significant height change
-    if dy.abs() > 1 {
+    if dy.unsigned_abs() > 1 {
         return false;
     }
 
     // Use Bresenham-like line algorithm with proper corner checking
-    let steps = dx.abs().max(dz.abs());
+    let steps = dx.unsigned_abs().max(dz.unsigned_abs());
 
     if steps == 0 {
         return true;
     }
+    if steps > i32::MAX as u64 {
+        return false;
+    }
+    let steps_i32 = steps as i32;
 
-    let step_x = dx as f32 / steps as f32;
-    let step_z = dz as f32 / steps as f32;
+    let step_x = dx as f64 / steps as f64;
+    let step_z = dz as f64 / steps as f64;
+    let step_y = dy as f64 / steps as f64;
 
     // Check each position along the line
-    for i in 0..=steps {
-        let x = (from.0 as f32 + step_x * i as f32).round() as i32;
-        let z = (from.2 as f32 + step_z * i as f32).round() as i32;
-        let y = from.1 + ((dy as f32 * i as f32 / steps as f32).round() as i32);
+    for i in 0..=steps_i32 {
+        let step = i as f64;
+        let x = clamp_f64_to_i32((f64::from(from.0) + step_x * step).round());
+        let z = clamp_f64_to_i32((f64::from(from.2) + step_z * step).round());
+        let y = clamp_f64_to_i32((f64::from(from.1) + step_y * step).round());
 
         // Check if position is walkable
         if !is_position_walkable(x, y, z, chunks, registry, height) {
@@ -631,9 +659,10 @@ fn can_walk_directly(
 
         // Also check adjacent positions to avoid corner clipping
         // This is important when moving diagonally
-        if i > 0 && i < steps {
-            let prev_x = (from.0 as f32 + step_x * (i - 1) as f32).round() as i32;
-            let prev_z = (from.2 as f32 + step_z * (i - 1) as f32).round() as i32;
+        if i > 0 && i < steps_i32 {
+            let prev_step = (i - 1) as f64;
+            let prev_x = clamp_f64_to_i32((f64::from(from.0) + step_x * prev_step).round());
+            let prev_z = clamp_f64_to_i32((f64::from(from.2) + step_z * prev_step).round());
 
             // Check the two cells that form the "corner" when moving diagonally
             if x != prev_x && z != prev_z {
@@ -662,7 +691,10 @@ fn is_position_walkable(
     height: f32,
 ) -> bool {
     // Check ground below
-    let below_voxel = chunks.get_voxel(x, y - 1, z);
+    let Some(y_below) = y.checked_sub(1) else {
+        return false;
+    };
+    let below_voxel = chunks.get_voxel(x, y_below, z);
     let below_block = registry.get_block_by_id(below_voxel);
 
     // Must have solid ground below
@@ -671,8 +703,14 @@ fn is_position_walkable(
     }
 
     // Check space for bot height
-    for h in 0..(height.ceil() as i32 + 1) {
-        let check_voxel = chunks.get_voxel(x, y + h, z);
+    let Some(height_steps) = clamped_height_scan_steps(height) else {
+        return false;
+    };
+    for h in 0..=height_steps {
+        let Some(check_y) = y.checked_add(h) else {
+            return false;
+        };
+        let check_voxel = chunks.get_voxel(x, check_y, z);
         let check_block = registry.get_block_by_id(check_voxel);
 
         // Space must be passable
@@ -682,4 +720,29 @@ fn is_position_walkable(
     }
 
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{axis_delta_i64, clamp_f64_to_i32, clamped_height_scan_steps};
+
+    #[test]
+    fn axis_delta_i64_handles_i32_extreme_values() {
+        assert_eq!(axis_delta_i64(i32::MAX, i32::MIN), 4_294_967_295);
+        assert_eq!(axis_delta_i64(i32::MIN, i32::MAX), -4_294_967_295);
+    }
+
+    #[test]
+    fn clamped_height_scan_steps_rejects_invalid_values() {
+        assert_eq!(clamped_height_scan_steps(-1.0), None);
+        assert_eq!(clamped_height_scan_steps(f32::NAN), None);
+        assert_eq!(clamped_height_scan_steps(f32::INFINITY), None);
+    }
+
+    #[test]
+    fn clamp_f64_to_i32_saturates_extreme_values() {
+        assert_eq!(clamp_f64_to_i32(f64::from(i32::MAX) + 10_000.0), i32::MAX);
+        assert_eq!(clamp_f64_to_i32(f64::from(i32::MIN) - 10_000.0), i32::MIN);
+        assert_eq!(clamp_f64_to_i32(42.0), 42);
+    }
 }
