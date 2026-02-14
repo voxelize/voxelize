@@ -121,6 +121,7 @@ type SerializedWasmChunk =
   | null;
 
 let wasmInitialized = false;
+let wasmInitializationPromise: Promise<void> | null = null;
 let registryInitialized = false;
 const pendingBatchMessages: LightBatchMessage[] = [];
 let pendingBatchMessagesHead = 0;
@@ -218,11 +219,21 @@ const postEmptyBatchResult = (jobId: string, lastSequenceId = 0) => {
   postMessage(reusableBatchResultMessage);
 };
 
-const ensureWasmInitialized = async () => {
-  if (!wasmInitialized) {
-    await init();
-    wasmInitialized = true;
+const ensureWasmInitialized = () => {
+  if (wasmInitialized) {
+    return Promise.resolve();
   }
+  if (!wasmInitializationPromise) {
+    wasmInitializationPromise = init()
+      .then(() => {
+        wasmInitialized = true;
+      })
+      .catch((error) => {
+        wasmInitializationPromise = null;
+        throw error;
+      });
+  }
+  return wasmInitializationPromise;
 };
 
 const convertDynamicPatterns = (
@@ -826,7 +837,9 @@ onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
   const message = event.data;
 
   if (message.type === "init") {
-    await ensureWasmInitialized();
+    if (!wasmInitialized) {
+      await ensureWasmInitialized();
+    }
 
     const wasmRegistry = convertRegistryToWasm(message.registryData);
     set_registry(wasmRegistry);
@@ -845,7 +858,9 @@ onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
     return;
   }
 
-  await ensureWasmInitialized();
+  if (!wasmInitialized) {
+    await ensureWasmInitialized();
+  }
 
   if (!registryInitialized) {
     if (pendingBatchMessageCount() >= MAX_PENDING_BATCH_MESSAGES) {
