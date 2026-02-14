@@ -115,12 +115,9 @@ export class ChunkUtils {
     concat = "|"
   ) => {
     const [normalizedChunkSize, chunkShift] = normalizeChunkMapping(chunkSize);
-    const [cx, cz] = mapVoxelToChunkCoordinates(
-      vx,
-      vz,
-      normalizedChunkSize,
-      chunkShift
-    );
+    const useShift = chunkShift >= 0 && (vx | 0) === vx && (vz | 0) === vz;
+    const cx = useShift ? vx >> chunkShift : Math.floor(vx / normalizedChunkSize);
+    const cz = useShift ? vz >> chunkShift : Math.floor(vz / normalizedChunkSize);
     return ChunkUtils.getChunkNameAt(cx, cz, concat);
   };
 
@@ -279,12 +276,8 @@ export class ChunkUtils {
       const mask = normalizedChunkSize - 1;
       return [vx & mask, vy, vz & mask];
     }
-    const [cx, cz] = mapVoxelToChunkCoordinates(
-      vx,
-      vz,
-      normalizedChunkSize,
-      chunkShift
-    );
+    const cx = Math.floor(vx / normalizedChunkSize);
+    const cz = Math.floor(vz / normalizedChunkSize);
 
     return [vx - cx * normalizedChunkSize, vy, vz - cz * normalizedChunkSize];
   };
