@@ -195,9 +195,7 @@ const mapVoxelToChunkCoordinate = (
   chunkSize: number,
   chunkShift: number
 ) =>
-  chunkShift >= 0 && voxel >= MIN_INT32 && voxel <= MAX_INT32
-    ? voxel >> chunkShift
-    : Math.floor(voxel / chunkSize);
+  chunkShift >= 0 ? voxel >> chunkShift : Math.floor(voxel / chunkSize);
 const isValidVoxelId = (value: number) =>
   isInteger(value) && value >= 0 && value <= 0xffff;
 const isValidRotationValue = (value: number) =>
