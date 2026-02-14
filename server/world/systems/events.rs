@@ -113,14 +113,18 @@ impl<'a> System<'a> for EventsSystem {
             }
 
             // Checks if location is required, otherwise just sends.
+            let mut send_to_client = |id: &String, entity: Entity| {
+                if let Some(location) = &location {
+                    if !is_interested(location, entity) {
+                        return;
+                    }
+                }
+                push_dispatch_event(dispatch_map, touched_clients, id, serialized.clone());
+            };
+
             let mut send_to_id = |id: &str| {
                 if let Some(client) = clients.get(id) {
-                    if let Some(location) = &location {
-                        if !is_interested(location, client.entity) {
-                            return;
-                        }
-                    }
-                    push_dispatch_event(dispatch_map, touched_clients, id, serialized.clone());
+                    send_to_client(&client.id, client.entity);
                 }
             };
 
@@ -132,40 +136,40 @@ impl<'a> System<'a> for EventsSystem {
 
                 match &filter {
                     ClientFilter::All => {
-                        for (id, _) in clients.iter() {
-                            send_to_id(id);
+                        for (id, client) in clients.iter() {
+                            send_to_client(id, client.entity);
                         }
                     }
                     ClientFilter::Include(ids) => {
                         if ids.len() <= 4 {
-                            for (id, _) in clients.iter() {
+                            for (id, client) in clients.iter() {
                                 if ids.iter().any(|included_id| included_id == id) {
-                                    send_to_id(id);
+                                    send_to_client(id, client.entity);
                                 }
                             }
                         } else {
                             let include_ids: HashSet<&str> =
                                 ids.iter().map(String::as_str).collect();
-                            for (id, _) in clients.iter() {
+                            for (id, client) in clients.iter() {
                                 if include_ids.contains(id.as_str()) {
-                                    send_to_id(id);
+                                    send_to_client(id, client.entity);
                                 }
                             }
                         }
                     }
                     ClientFilter::Exclude(ids) => {
                         if ids.len() <= 4 {
-                            for (id, _) in clients.iter() {
+                            for (id, client) in clients.iter() {
                                 if !ids.iter().any(|excluded_id| excluded_id == id) {
-                                    send_to_id(id);
+                                    send_to_client(id, client.entity);
                                 }
                             }
                         } else {
                             let exclude_ids: HashSet<&str> =
                                 ids.iter().map(String::as_str).collect();
-                            for (id, _) in clients.iter() {
+                            for (id, client) in clients.iter() {
                                 if !exclude_ids.contains(id.as_str()) {
-                                    send_to_id(id);
+                                    send_to_client(id, client.entity);
                                 }
                             }
                         }
@@ -175,14 +179,14 @@ impl<'a> System<'a> for EventsSystem {
             }
             // No filter, but a location is set.
             else if let Some(location) = &location {
-                for (id, _) in clients.iter() {
+                for (id, client) in clients.iter() {
                     if interests.is_interested(id, location) {
-                        push_dispatch_event(dispatch_map, touched_clients, id, serialized.clone());
+                        send_to_client(id, client.entity);
                     }
                 }
             } else {
-                clients.iter().for_each(|(id, _)| {
-                    push_dispatch_event(dispatch_map, touched_clients, id, serialized.clone());
+                clients.iter().for_each(|(id, client)| {
+                    send_to_client(id, client.entity);
                 });
             }
         }
