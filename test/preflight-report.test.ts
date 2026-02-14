@@ -91,6 +91,7 @@ type RuntimeLibrariesNestedReport = {
 type PreflightFailureSummary = {
   name: string;
   scriptName: string;
+  supportsNoBuild: boolean;
   checkIndex: number | null;
   exitCode: number;
   message: string;
@@ -671,6 +672,11 @@ const expectCheckResultScriptMetadata = (report: PreflightReport) => {
         entry.name as keyof typeof expectedAvailableCheckMetadata
       ].scriptName
     );
+    expect(entry.supportsNoBuild).toBe(
+      expectedAvailableCheckMetadata[
+        entry.name as keyof typeof expectedAvailableCheckMetadata
+      ].supportsNoBuild
+    );
     expect(entry.checkIndex).toBe(expectedAvailableChecks.indexOf(entry.name));
     expect(entry.exitCode).toBeGreaterThanOrEqual(1);
     expect(entry.message.length).toBeGreaterThan(0);
@@ -1002,6 +1008,11 @@ describe("preflight aggregate report", () => {
         expectedAvailableCheckMetadata[
           entry.name as keyof typeof expectedAvailableCheckMetadata
         ].scriptName
+      );
+      expect(entry.supportsNoBuild).toBe(
+        expectedAvailableCheckMetadata[
+          entry.name as keyof typeof expectedAvailableCheckMetadata
+        ].supportsNoBuild
       );
       expect(entry.checkIndex).toBe(expectedAvailableChecks.indexOf(entry.name));
       expect(entry.exitCode).toBeGreaterThanOrEqual(1);
@@ -2225,6 +2236,7 @@ describe("preflight aggregate report", () => {
       expect(report.failureSummaryCount).toBe(1);
       expect(report.failureSummaries[0].name).toBe("tsCore");
       expect(report.failureSummaries[0].scriptName).toBe("check-ts-core.mjs");
+      expect(report.failureSummaries[0].supportsNoBuild).toBe(true);
       expect(report.failureSummaries[0].checkIndex).toBe(
         expectedAvailableChecks.indexOf("tsCore")
       );

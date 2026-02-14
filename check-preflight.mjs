@@ -732,12 +732,12 @@ const failureSummaries = checks
   .filter((check) => !check.passed)
   .map((check) => {
     const reportMessage = deriveFailureMessageFromReport(check.report);
-    const checkIndex = checkNameToIndex.get(check.name);
 
     return {
       name: check.name,
-      scriptName: availableCheckMetadata[check.name].scriptName,
-      checkIndex: typeof checkIndex === "number" ? checkIndex : null,
+      scriptName: check.scriptName,
+      supportsNoBuild: check.supportsNoBuild,
+      checkIndex: check.checkIndex,
       exitCode: check.exitCode,
       message:
         reportMessage ??
