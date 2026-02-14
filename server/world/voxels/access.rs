@@ -25,6 +25,9 @@ pub trait VoxelAccess {
     }
 
     fn set_voxel(&mut self, vx: i32, vy: i32, vz: i32, id: u32) -> bool {
+        if id > 0xFFFF {
+            return false;
+        }
         let value = BlockUtils::insert_id(0, id);
         self.set_raw_voxel(vx, vy, vz, value)
     }

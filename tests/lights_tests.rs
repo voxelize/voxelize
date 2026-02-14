@@ -357,6 +357,12 @@ fn test_voxel_access_no_op_setters_preserve_contains_semantics() {
     ));
 
     chunks.set_raw_voxel(0, 0, 0, 1);
+    assert!(!chunks.set_voxel(0, 0, 0, 0x1_0000));
+    assert_eq!(
+        chunks.get_voxel(0, 0, 0),
+        1,
+        "invalid voxel ids should be rejected without mutating voxel data"
+    );
     assert!(chunks.set_voxel_rotation(0, 0, 0, &BlockRotation::PY(0.0)));
     assert!(chunks.set_voxel_stage(0, 0, 0, 0));
     assert!(!chunks.set_voxel_stage(0, 0, 0, 16));
