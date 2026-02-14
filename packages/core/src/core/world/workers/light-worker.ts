@@ -500,6 +500,10 @@ const hasPotentialRelevantDeltaBatches = (
     deltaBatches.length > 1 && cellCount <= MAX_CHUNK_VALIDITY_MEMO_LENGTH
       ? new Int8Array(cellCount)
       : null;
+  const chunkValiditySparse =
+    chunkValidity === null && deltaBatches.length > 1
+      ? new Map<number, boolean>()
+      : null;
   for (let batchIndex = 0; batchIndex < deltaBatches.length; batchIndex++) {
     const deltaBatch = deltaBatches[batchIndex];
     if (!deltaBatch || typeof deltaBatch !== "object") {
@@ -543,6 +547,26 @@ const hasPotentialRelevantDeltaBatches = (
       }
       if (chunkValidityState === -1) {
         continue;
+      }
+    } else if (chunkValiditySparse) {
+      const cachedCompatibility = chunkValiditySparse.get(chunkIndex);
+      if (cachedCompatibility === false) {
+        continue;
+      }
+      if (cachedCompatibility !== true) {
+        const isCompatible = isCompatibleSerializedChunk(
+          chunksData[chunkIndex],
+          cx,
+          cz,
+          chunkSize,
+          maxHeight,
+          maxLightLevel,
+          expectedChunkByteLength
+        );
+        chunkValiditySparse.set(chunkIndex, isCompatible);
+        if (!isCompatible) {
+          continue;
+        }
       }
     } else if (
       !isCompatibleSerializedChunk(
