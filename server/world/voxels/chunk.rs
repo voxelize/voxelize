@@ -3,7 +3,10 @@ use std::sync::Arc;
 
 use hashbrown::{HashMap, HashSet};
 
-use crate::{ChunkProtocol, ChunkUtils, MeshProtocol, Ndarray, Registry, Vec2, Vec3, VoxelUpdate};
+use crate::{
+    BlockUtils, ChunkProtocol, ChunkUtils, MeshProtocol, Ndarray, Registry, Vec2, Vec3,
+    VoxelUpdate,
+};
 
 use super::access::VoxelAccess;
 
@@ -92,21 +95,24 @@ impl Chunk {
 
     /// Calculate the height map of this chunk.
     pub fn calculate_max_height(&mut self, registry: &Registry) {
-        let Vec3(min_x, _, min_z) = self.min;
-        let Vec3(max_x, _, max_z) = self.max;
+        let ChunkOptions {
+            size, max_height, ..
+        } = self.options;
+        let height_map = Arc::make_mut(&mut self.height_map);
 
-        let max_height = self.options.max_height as i32;
+        for lx in 0..size {
+            for lz in 0..size {
+                let mut column_height = 0;
 
-        for vx in min_x..max_x {
-            for vz in min_z..max_z {
-                for vy in (0..max_height).rev() {
-                    let id = self.get_voxel(vx, vy, vz);
-
-                    if vy == 0 || registry.check_height(id) {
-                        self.set_max_height(vx, vz, vy as u32);
+                for ly in (0..max_height).rev() {
+                    let id = BlockUtils::extract_id(self.voxels[&[lx, ly, lz]]);
+                    if ly == 0 || registry.check_height(id) {
+                        column_height = ly as u32;
                         break;
                     }
                 }
+
+                height_map[&[lx, lz]] = column_height;
             }
         }
     }
