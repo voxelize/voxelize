@@ -3043,7 +3043,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
         if non_greedy_faces.capacity() < mask_len {
             non_greedy_faces.reserve(mask_len - non_greedy_faces.capacity());
         }
-        let mut quads: Vec<GreedyQuad> = Vec::new();
+        let mut quads: Vec<GreedyQuad> = Vec::with_capacity(quads_capacity_hint(mask_len));
 
         for slice in slice_range {
             non_greedy_faces.clear();
@@ -3745,7 +3745,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
         if greedy_mask.len() < mask_len {
             greedy_mask.resize(mask_len, None);
         }
-        let mut quads: Vec<GreedyQuad> = Vec::new();
+        let mut quads: Vec<GreedyQuad> = Vec::with_capacity(quads_capacity_hint(mask_len));
 
         for slice in slice_range {
             for u in u_range.0..u_range.1 {
