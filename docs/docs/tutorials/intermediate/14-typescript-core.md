@@ -191,8 +191,9 @@ Runtime-library JSON reports include package/build diagnostics such as
 `checkedPackageCount`, `checkedPackagePathCount`, `packageReports`,
 `presentPackages`, `presentPackagePaths`, `missingPackages`,
 `missingPackagePaths`, `requiredPackageCount`, `presentPackageCount`,
-`presentPackagePathCount`, `packageReportCount`, `requiredArtifactCount`,
-`presentArtifactCount`, `missingPackageCount`, `missingPackagePathCount`,
+`presentPackagePathCount`, `packageReportCount`, `requiredArtifacts`,
+`requiredArtifactCount`, `presentArtifacts`, `presentArtifactCount`,
+`missingPackageCount`, `missingPackagePathCount`, `missingArtifacts`,
 `missingArtifactCount`, `missingArtifactSummary`,
 `buildCommand`, `buildArgs`, `buildExitCode`, `buildDurationMs`,
 `attemptedBuild`, `buildSkipped`, and `buildSkippedReason`.

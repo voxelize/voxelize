@@ -40,10 +40,13 @@ type RuntimeLibrariesCheckReport = {
   presentPackageCount: number;
   presentPackagePathCount: number;
   packageReportCount: number;
+  requiredArtifacts: string[];
   requiredArtifactCount: number;
+  presentArtifacts: string[];
   presentArtifactCount: number;
   missingPackageCount: number;
   missingPackagePathCount: number;
+  missingArtifacts: string[];
   missingArtifactCount: number;
   missingArtifactSummary: string | null;
   attemptedBuild: boolean;
@@ -148,6 +151,12 @@ const expectedRequiredArtifactCount = Object.values(
 ).reduce((count, artifacts) => {
   return count + artifacts.length;
 }, 0);
+const expectedRequiredArtifacts = Object.values(expectedArtifactsByPackage).reduce(
+  (artifacts, packageArtifacts) => {
+    return [...artifacts, ...packageArtifacts];
+  },
+  [] as string[]
+);
 const resolveArtifactPath = (artifactPath: string) => {
   return path.resolve(rootDir, artifactPath);
 };
@@ -206,6 +215,8 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   expect(report.requiredPackageCount).toBe(expectedCheckedPackages.length);
   expect(report.packageReportCount).toBe(report.packageReports.length);
   expect(report.requiredArtifactCount).toBe(expectedRequiredArtifactCount);
+  expect(report.requiredArtifacts).toEqual(expectedRequiredArtifacts);
+  expect(report.requiredArtifacts.length).toBe(report.requiredArtifactCount);
   expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
   expect(report.supportedCliOptionCount).toBe(expectedSupportedCliOptions.length);
   expect(report.availableCliOptionAliases).toEqual({
@@ -242,6 +253,12 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   const presentArtifactCount = report.packageReports.reduce((count, packageReport) => {
     return count + packageReport.presentArtifactCount;
   }, 0);
+  const presentArtifacts = report.packageReports.reduce((artifacts, packageReport) => {
+    return [...artifacts, ...packageReport.presentArtifacts];
+  }, [] as string[]);
+  const missingArtifacts = report.packageReports.reduce((artifacts, packageReport) => {
+    return [...artifacts, ...packageReport.missingArtifacts];
+  }, [] as string[]);
   expect(report.packagesPresent).toBe(missingPackageCount === 0);
   expect(report.requiredPackageCount).toBe(
     report.presentPackageCount + report.missingPackageCount
@@ -262,8 +279,15 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   expect(report.missingPackagePaths).toEqual(missingPackagePaths);
   expect(report.missingPackagePaths.length).toBe(report.missingPackagePathCount);
   expect(report.presentArtifactCount).toBe(presentArtifactCount);
+  expect(report.presentArtifacts).toEqual(presentArtifacts);
+  expect(report.presentArtifacts.length).toBe(report.presentArtifactCount);
   expect(report.missingPackageCount).toBe(missingPackageCount);
   expect(report.missingArtifactCount).toBe(missingArtifactCount);
+  expect(report.missingArtifacts).toEqual(missingArtifacts);
+  expect(report.missingArtifacts.length).toBe(report.missingArtifactCount);
+  expect([...report.presentArtifacts, ...report.missingArtifacts].sort()).toEqual(
+    [...report.requiredArtifacts].sort()
+  );
   if (report.missingArtifactCount === 0) {
     expect(report.missingArtifactSummary).toBeNull();
   } else {

@@ -49,6 +49,9 @@ const runtimeLibraries = [
 ];
 const checkedPackages = runtimeLibraries.map((library) => library.packageName);
 const checkedPackagePaths = runtimeLibraries.map((library) => library.packagePath);
+const requiredArtifacts = runtimeLibraries.reduce((artifacts, library) => {
+  return [...artifacts, ...library.requiredArtifacts];
+}, []);
 const requiredArtifactCount = runtimeLibraries.reduce((count, library) => {
   return count + library.requiredArtifacts.length;
 }, 0);
@@ -96,12 +99,18 @@ const summarizePackageReports = (packageReports) => {
   const presentArtifactCount = packageReports.reduce((count, packageReport) => {
     return count + packageReport.presentArtifactCount;
   }, 0);
+  const presentArtifacts = packageReports.reduce((artifacts, packageReport) => {
+    return [...artifacts, ...packageReport.presentArtifacts];
+  }, []);
   const missingPackageCount = packageReports.filter((packageReport) => {
     return packageReport.artifactsPresent === false;
   }).length;
   const missingArtifactCount = packageReports.reduce((count, packageReport) => {
     return count + packageReport.missingArtifactCount;
   }, 0);
+  const missingArtifacts = packageReports.reduce((artifacts, packageReport) => {
+    return [...artifacts, ...packageReport.missingArtifacts];
+  }, []);
   return {
     presentPackages,
     presentPackagePaths,
@@ -110,9 +119,11 @@ const summarizePackageReports = (packageReports) => {
     presentPackageCount,
     presentPackagePathCount: presentPackagePaths.length,
     presentArtifactCount,
+    presentArtifacts,
     missingPackageCount,
     missingPackagePathCount: missingPackagePaths.length,
     missingArtifactCount,
+    missingArtifacts,
   };
 };
 const formatMissingArtifactSummary = (packageReports) => {
@@ -213,9 +224,11 @@ const withBaseReportFields = (report) => {
     presentPackageCount,
     presentPackagePathCount,
     presentArtifactCount,
+    presentArtifacts,
     missingPackageCount,
     missingPackagePathCount,
     missingArtifactCount,
+    missingArtifacts,
   } = summarizePackageReports(packageReports);
   const buildExitCode =
     typeof report.buildExitCode === "number" ? report.buildExitCode : null;
@@ -258,11 +271,14 @@ const withBaseReportFields = (report) => {
     presentPackageCount,
     presentPackagePathCount,
     packageReportCount: packageReports.length,
+    requiredArtifacts,
     requiredArtifactCount,
     presentArtifactCount,
+    presentArtifacts,
     missingPackageCount,
     missingPackagePathCount,
     missingArtifactCount,
+    missingArtifacts,
     missingArtifactSummary,
     buildCommand: pnpmCommand,
     buildArgs: buildCommandArgs,
