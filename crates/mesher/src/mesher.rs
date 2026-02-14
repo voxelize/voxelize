@@ -1645,7 +1645,7 @@ fn compute_face_ao_and_light(
     let mut aos = [0i32; 4];
     let mut lights = [0i32; 4];
     let dir_is_x = dir_index <= 1;
-    let dir_is_y = (2..=3).contains(&dir_index);
+    let dir_is_y = (dir_index & !1) == 2;
     let block_min_x_eps = block_min_x + 0.01;
     let block_min_y_eps = block_min_y + 0.01;
     let block_min_z_eps = block_min_z + 0.01;
@@ -1812,7 +1812,7 @@ fn compute_face_ao_and_light_fast(
     };
     let opaque_mask = build_neighbor_opaque_mask(neighbors, registry);
     let dir_is_x = dir_index <= 1;
-    let dir_is_y = (2..=3).contains(&dir_index);
+    let dir_is_y = (dir_index & !1) == 2;
     let block_min_x_eps = block_min_x + 0.01;
     let block_min_y_eps = block_min_y + 0.01;
     let block_min_z_eps = block_min_z + 0.01;
