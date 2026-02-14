@@ -212,6 +212,56 @@ describe("transparent sorter", () => {
     );
   });
 
+  it("refreshes transparent sort data when position attribute version changes", () => {
+    const mesh = new Mesh(createQuadGeometry(2), new MeshBasicMaterial());
+    const sortData = prepareTransparentMesh(mesh);
+    expect(sortData).not.toBeNull();
+    if (!sortData) {
+      return;
+    }
+
+    mesh.userData.transparentSortData = sortData;
+    const positionAttr = mesh.geometry.getAttribute("position");
+    positionAttr.needsUpdate = true;
+    const camera = new PerspectiveCamera();
+    camera.position.set(0, 0, 10);
+
+    sortTransparentMeshOnBeforeRender.call(
+      mesh,
+      {} as WebGLRenderer,
+      new Scene(),
+      camera
+    );
+
+    const refreshedSortData = mesh.userData.transparentSortData;
+    expect(refreshedSortData).not.toBe(sortData);
+    expect(refreshedSortData.positionVersion).toBe(positionAttr.version);
+  });
+
+  it("skips direct transparent sort when cached position version is stale", () => {
+    const mesh = new Mesh(createQuadGeometry(2), new MeshBasicMaterial());
+    const sortData = prepareTransparentMesh(mesh);
+    expect(sortData).not.toBeNull();
+    if (!sortData) {
+      return;
+    }
+
+    const geometryIndex = mesh.geometry.index;
+    expect(geometryIndex).not.toBeNull();
+    if (!geometryIndex) {
+      return;
+    }
+    const before = Array.from(geometryIndex.array);
+    const positionAttr = mesh.geometry.getAttribute("position");
+    positionAttr.needsUpdate = true;
+    const camera = new PerspectiveCamera();
+    camera.position.set(0, 0, 10);
+
+    sortTransparentMesh(mesh, sortData, camera);
+
+    expect(Array.from(geometryIndex.array)).toEqual(before);
+  });
+
   it("clears sorting callback when refreshed geometry no longer needs sorting", () => {
     const mesh = new Mesh(createQuadGeometry(2), new MeshBasicMaterial());
     const sortData = prepareTransparentMesh(mesh);

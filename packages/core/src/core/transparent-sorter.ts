@@ -1,5 +1,7 @@
 import {
+  BufferAttribute,
   Camera,
+  InterleavedBufferAttribute,
   Mesh,
   Object3D,
   Scene,
@@ -15,6 +17,7 @@ export interface TransparentMeshData {
   centroids: Float32Array;
   faceCount: number;
   positionArray: ArrayLike<number>;
+  positionVersion: number;
   originalIndices: Uint16Array | Uint32Array;
   sortedIndices: Uint16Array | Uint32Array;
   faceOrder: Uint32Array;
@@ -86,6 +89,7 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
     centroids,
     faceCount,
     positionArray: positions,
+    positionVersion: getPositionVersion(positionAttr),
     originalIndices,
     sortedIndices,
     faceOrder,
@@ -152,6 +156,9 @@ export function setupTransparentSorting(object: Object3D): void {
 const _floatView = new Float32Array(1);
 const _intView = new Uint32Array(_floatView.buffer);
 const _counts = new Uint32Array(256);
+const getPositionVersion = (
+  attribute: BufferAttribute | InterleavedBufferAttribute
+) => ("version" in attribute ? attribute.version : attribute.data.version);
 
 function radixSortDescending(
   faceOrder: Uint32Array,
@@ -199,7 +206,8 @@ export function sortTransparentMesh(
   if (
     !positionAttr ||
     positionAttr.itemSize < 3 ||
-    positionAttr.array !== data.positionArray
+    positionAttr.array !== data.positionArray ||
+    getPositionVersion(positionAttr) !== data.positionVersion
   ) {
     return;
   }
@@ -282,7 +290,8 @@ export function sortTransparentMeshOnBeforeRender(
     geometryIndex.array !== sortData.sortedIndices ||
     !positionAttr ||
     positionAttr.itemSize < 3 ||
-    positionAttr.array !== sortData.positionArray
+    positionAttr.array !== sortData.positionArray ||
+    getPositionVersion(positionAttr) !== sortData.positionVersion
   ) {
     const refreshedSortData = prepareTransparentMesh(mesh);
     if (!refreshedSortData) {
