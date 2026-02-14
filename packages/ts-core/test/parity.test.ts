@@ -448,7 +448,18 @@ describe("BlockRotation", () => {
       expect(node[1]).toBeCloseTo(baseNode[1], 10);
       expect(node[2]).toBeCloseTo(baseNode[2], 10);
       expect(BlockRotation.py(angle).rotateTransparency(input)).toEqual(input);
+      expect(BlockRotation.py(angle).equals(BlockRotation.py(0))).toBe(true);
     }
+
+    const source = AABB.create(0, 0, 0, 1, 1, 1);
+    const pxBaseline = BlockRotation.px(0).rotateAABB(source, true, true);
+    const pxWithNaN = BlockRotation.px(Number.NaN).rotateAABB(source, true, true);
+    expect(pxWithNaN.minX).toBeCloseTo(pxBaseline.minX, 10);
+    expect(pxWithNaN.minY).toBeCloseTo(pxBaseline.minY, 10);
+    expect(pxWithNaN.minZ).toBeCloseTo(pxBaseline.minZ, 10);
+    expect(pxWithNaN.maxX).toBeCloseTo(pxBaseline.maxX, 10);
+    expect(pxWithNaN.maxY).toBeCloseTo(pxBaseline.maxY, 10);
+    expect(pxWithNaN.maxZ).toBeCloseTo(pxBaseline.maxZ, 10);
   });
 
   it("rotates transparency for non-zero y rotation on PY axis", () => {
