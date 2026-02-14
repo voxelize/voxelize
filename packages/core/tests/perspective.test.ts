@@ -94,6 +94,28 @@ describe("Perspective state transitions", () => {
     expect(Number.isFinite(z)).toBe(true);
   });
 
+  it("normalizes negative block margin before raycasts", () => {
+    const controls = createControls();
+    const raycastOrigins: [number, number, number][] = [];
+    const perspective = new Perspective(
+      controls,
+      createWorld((origin) => {
+        raycastOrigins.push(origin);
+        return null;
+      }),
+      { blockMargin: -2, lerpFactor: 1 }
+    );
+    perspective.state = "second";
+
+    perspective.update();
+
+    expect(raycastOrigins.length).toBe(1);
+    const [x, y, z] = raycastOrigins[0];
+    expect(x).toBeCloseTo(0);
+    expect(y).toBeCloseTo(0);
+    expect(Math.abs(z)).toBeCloseTo(0.3);
+  });
+
   it("normalizes invalid lerp factor during update", () => {
     const controls = createControls();
     const perspective = new Perspective(controls, createWorld(), {

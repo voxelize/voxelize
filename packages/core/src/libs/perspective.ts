@@ -245,7 +245,7 @@ export class Perspective {
 
     const pos = this.raycastOrigin;
     object.getWorldPosition(pos);
-    const blockMargin = normalizeFinite(
+    const blockMargin = normalizeNonNegativeFinite(
       this.options.blockMargin,
       defaultOptions.blockMargin
     );
