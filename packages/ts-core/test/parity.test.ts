@@ -374,10 +374,22 @@ describe("BlockRotation", () => {
     expect(base.equals(equivalent)).toBe(true);
   });
 
+  it("treats full-turn y-rotation offsets as equal", () => {
+    const base = BlockRotation.py(Math.PI / 2);
+    const equivalent = BlockRotation.py(Math.PI / 2 + Math.PI * 2);
+    expect(base.equals(equivalent)).toBe(true);
+  });
+
   it("normalizes negative y-rotation segments", () => {
     const rotation = BlockRotation.py(-(Math.PI * 2.0) / 16.0);
     const [, yRotation] = BlockRotation.decode(rotation);
     expect(yRotation).toBe(15);
+  });
+
+  it("falls back to PY axis when decoding invalid axis values", () => {
+    const [axis, yRotation] = BlockRotation.decode(new BlockRotation(99, Math.PI / 2));
+    expect(axis).toBe(PY_ROTATION);
+    expect(yRotation).toBe(4);
   });
 
   it("rotates transparency for non-zero y rotation on PY axis", () => {
