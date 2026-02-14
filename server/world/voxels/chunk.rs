@@ -217,120 +217,8 @@ impl Chunk {
         }
     }
 
-    /// Convert voxel coordinates to local chunk coordinates.
-    fn to_local(&self, vx: i32, vy: i32, vz: i32) -> Vec3<usize> {
-        let Vec3(mx, my, mz) = self.min;
-        Vec3((vx - mx) as usize, (vy - my) as usize, (vz - mz) as usize)
-    }
-}
-
-impl VoxelAccess for Chunk {
-    /// Get the raw value of voxel.
-    ///
-    /// Returns 0 if it's outside of the chunk.
-    fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        if !self.contains(vx, vy, vz) {
-            return 0;
-        }
-
-        let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
-        self.voxels[&[lx, ly, lz]]
-    }
-
-    /// Set the raw value of voxel.
-    ///
-    /// Panics if the coordinates are outside of chunk.
-    fn set_raw_voxel(&mut self, vx: i32, vy: i32, vz: i32, val: u32) -> bool {
-        if !self.contains(vx, vy, vz) {
-            if vy >= 0 && vy < self.options.max_height as i32 {
-                self.extra_changes.push((Vec3(vx, vy, vz), val));
-            }
-
-            return false;
-        }
-
-        let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
-        if self.voxels[&[lx, ly, lz]] == val {
-            return true;
-        }
-
-        self.add_updated_level(vy);
-        Arc::make_mut(&mut self.voxels)[&[lx, ly, lz]] = val;
-
-        true
-    }
-
-    /// Get the raw light of voxel.
-    ///
-    /// Returns 0 if it's outside of the chunk.
-    fn get_raw_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        if !self.contains(vx, vy, vz) {
-            return 0;
-        }
-
-        let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
-        self.lights[&[lx, ly, lz]]
-    }
-
-    /// Set the raw light of voxel.
-    ///
-    /// Panics if the coordinates are outside of chunk.
-    fn set_raw_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
-        if !self.contains(vx, vy, vz) {
-            return false;
-        }
-
-        let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
-        if self.lights[&[lx, ly, lz]] == level {
-            return true;
-        }
-
-        self.add_updated_level(vy);
-
-        Arc::make_mut(&mut self.lights)[&[lx, ly, lz]] = level;
-
-        true
-    }
-
-    /// Get the max height of a voxel column.
-    ///
-    /// Returns `0` if it's not within the chunk.
-    fn get_max_height(&self, vx: i32, vz: i32) -> u32 {
-        if !self.contains(vx, 0, vz) {
-            return 0;
-        }
-
-        let Vec3(lx, _, lz) = self.to_local(vx, 0, vz);
-        self.height_map[&[lx as usize, lz as usize]]
-    }
-
-    /// Set the max height of a voxel column.
-    ///
-    /// Panics if it's not within the chunk.
-    fn set_max_height(&mut self, vx: i32, vz: i32, height: u32) -> bool {
-        if !self.contains(vx, 0, vz) {
-            return false;
-        }
-
-        let Vec3(lx, _, lz) = self.to_local(vx, 0, vz);
-        if self.height_map[&[lx as usize, lz as usize]] == height {
-            return true;
-        }
-        Arc::make_mut(&mut self.height_map)[&[lx as usize, lz as usize]] = height;
-
-        true
-    }
-
-    fn get_lights(&self, _: i32, _: i32) -> Option<&Ndarray<u32>> {
-        Some(&self.lights)
-    }
-
-    fn get_voxels(&self, _: i32, _: i32) -> Option<&Ndarray<u32>> {
-        Some(&self.voxels)
-    }
-
-    /// Check if chunk contains this voxel coordinate.
-    fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
+    #[inline]
+    fn local_voxel_if_contains(&self, vx: i32, vy: i32, vz: i32) -> Option<Vec3<usize>> {
         let size = if self.options.size > i64::MAX as usize {
             i64::MAX
         } else {
@@ -346,6 +234,115 @@ impl VoxelAccess for Chunk {
         let ly = i64::from(vy) - i64::from(my);
         let lz = i64::from(vz) - i64::from(mz);
 
-        lx >= 0 && ly >= 0 && lz >= 0 && lx < size && ly < max_height && lz < size
+        if lx < 0 || ly < 0 || lz < 0 || lx >= size || ly >= max_height || lz >= size {
+            return None;
+        }
+
+        Some(Vec3(lx as usize, ly as usize, lz as usize))
+    }
+
+    #[inline]
+    fn local_column_if_contains(&self, vx: i32, vz: i32) -> Option<(usize, usize)> {
+        let Vec3(lx, _, lz) = self.local_voxel_if_contains(vx, 0, vz)?;
+        Some((lx, lz))
+    }
+}
+
+impl VoxelAccess for Chunk {
+    /// Get the raw value of voxel.
+    ///
+    /// Returns 0 if it's outside of the chunk.
+    fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        let Some(Vec3(lx, ly, lz)) = self.local_voxel_if_contains(vx, vy, vz) else {
+            return 0;
+        };
+        self.voxels[&[lx, ly, lz]]
+    }
+
+    /// Set the raw value of voxel.
+    ///
+    /// Panics if the coordinates are outside of chunk.
+    fn set_raw_voxel(&mut self, vx: i32, vy: i32, vz: i32, val: u32) -> bool {
+        let Some(Vec3(lx, ly, lz)) = self.local_voxel_if_contains(vx, vy, vz) else {
+            if vy >= 0 && (vy as usize) < self.options.max_height {
+                self.extra_changes.push((Vec3(vx, vy, vz), val));
+            }
+
+            return false;
+        };
+        if self.voxels[&[lx, ly, lz]] == val {
+            return true;
+        }
+
+        self.add_updated_level(vy);
+        Arc::make_mut(&mut self.voxels)[&[lx, ly, lz]] = val;
+
+        true
+    }
+
+    /// Get the raw light of voxel.
+    ///
+    /// Returns 0 if it's outside of the chunk.
+    fn get_raw_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        let Some(Vec3(lx, ly, lz)) = self.local_voxel_if_contains(vx, vy, vz) else {
+            return 0;
+        };
+        self.lights[&[lx, ly, lz]]
+    }
+
+    /// Set the raw light of voxel.
+    ///
+    /// Panics if the coordinates are outside of chunk.
+    fn set_raw_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
+        let Some(Vec3(lx, ly, lz)) = self.local_voxel_if_contains(vx, vy, vz) else {
+            return false;
+        };
+        if self.lights[&[lx, ly, lz]] == level {
+            return true;
+        }
+
+        self.add_updated_level(vy);
+
+        Arc::make_mut(&mut self.lights)[&[lx, ly, lz]] = level;
+
+        true
+    }
+
+    /// Get the max height of a voxel column.
+    ///
+    /// Returns `0` if it's not within the chunk.
+    fn get_max_height(&self, vx: i32, vz: i32) -> u32 {
+        let Some((lx, lz)) = self.local_column_if_contains(vx, vz) else {
+            return 0;
+        };
+        self.height_map[&[lx, lz]]
+    }
+
+    /// Set the max height of a voxel column.
+    ///
+    /// Panics if it's not within the chunk.
+    fn set_max_height(&mut self, vx: i32, vz: i32, height: u32) -> bool {
+        let Some((lx, lz)) = self.local_column_if_contains(vx, vz) else {
+            return false;
+        };
+        if self.height_map[&[lx, lz]] == height {
+            return true;
+        }
+        Arc::make_mut(&mut self.height_map)[&[lx, lz]] = height;
+
+        true
+    }
+
+    fn get_lights(&self, _: i32, _: i32) -> Option<&Ndarray<u32>> {
+        Some(&self.lights)
+    }
+
+    fn get_voxels(&self, _: i32, _: i32) -> Option<&Ndarray<u32>> {
+        Some(&self.voxels)
+    }
+
+    /// Check if chunk contains this voxel coordinate.
+    fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        self.local_voxel_if_contains(vx, vy, vz).is_some()
     }
 }
