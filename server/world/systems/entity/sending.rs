@@ -1,4 +1,4 @@
-use hashbrown::{hash_map::RawEntryMut, HashMap};
+use hashbrown::{hash_map::RawEntryMut, HashMap, HashSet};
 use specs::{
     Entities, Join, LendJoin, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage,
 };
@@ -61,6 +61,17 @@ fn push_client_update(
             touched_clients.push(client_id.to_owned());
             entry.insert(client_id.to_owned(), vec![update]);
         }
+    }
+}
+
+#[inline]
+fn get_or_insert_client_known_entities<'a>(
+    client_known_entities: &'a mut HashMap<String, HashSet<String>>,
+    client_id: &str,
+) -> &'a mut HashSet<String> {
+    match client_known_entities.raw_entry_mut().from_key(client_id) {
+        RawEntryMut::Occupied(entry) => entry.into_mut(),
+        RawEntryMut::Vacant(entry) => entry.insert(client_id.to_owned(), HashSet::new()).1,
     }
 }
 
@@ -209,51 +220,40 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             entity_to_client_id.insert(client.entity.id(), client_id);
         }
 
-        for client_id in clients.keys() {
-            match bookkeeping
-                .client_known_entities
-                .raw_entry_mut()
-                .from_key(client_id)
-            {
-                RawEntryMut::Occupied(_) => {}
-                RawEntryMut::Vacant(entry) => {
-                    entry.insert(client_id.clone(), Default::default());
-                }
-            }
-        }
         let default_pos = Vec3(0.0, 0.0, 0.0);
 
         for (entity_id, (etype, metadata_str, is_new)) in &entity_metadata_map {
             let pos = entity_positions.get(entity_id).unwrap_or(&default_pos);
             kdtree.for_each_player_id_within_radius(pos, entity_visible_radius, |player_entity_id| {
                 if let Some(client_id) = entity_to_client_id.get(&player_entity_id) {
-                    if let Some(known_entities) =
-                        bookkeeping.client_known_entities.get_mut(*client_id)
-                    {
-                        let client_known = known_entities.contains(entity_id);
+                    let client_id = (*client_id).as_str();
+                    let known_entities = get_or_insert_client_known_entities(
+                        &mut bookkeeping.client_known_entities,
+                        client_id,
+                    );
+                    let client_known = known_entities.contains(entity_id);
 
-                        let operation = if !client_known {
-                            EntityOperation::Create
-                        } else if *is_new {
-                            EntityOperation::Create
-                        } else {
-                            EntityOperation::Update
-                        };
+                    let operation = if !client_known {
+                        EntityOperation::Create
+                    } else if *is_new {
+                        EntityOperation::Create
+                    } else {
+                        EntityOperation::Update
+                    };
 
-                        push_client_update(
-                            &mut self.client_updates_buffer,
-                            &mut self.clients_with_updates_buffer,
-                            client_id,
-                            EntityProtocol {
-                                operation,
-                                id: entity_id.clone(),
-                                r#type: etype.clone(),
-                                metadata: Some(metadata_str.clone()),
-                            },
-                        );
+                    push_client_update(
+                        &mut self.client_updates_buffer,
+                        &mut self.clients_with_updates_buffer,
+                        client_id,
+                        EntityProtocol {
+                            operation,
+                            id: entity_id.clone(),
+                            r#type: etype.clone(),
+                            metadata: Some(metadata_str.clone()),
+                        },
+                    );
 
-                        known_entities.insert(entity_id.clone());
-                    }
+                    known_entities.insert(entity_id.clone());
                 }
             });
         }
@@ -262,12 +262,49 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             if self.deleted_entities_buffer.len() == 1 {
                 let (entity_id, etype, metadata_str) = &self.deleted_entities_buffer[0];
                 for client_id in clients.keys() {
-                    if let Some(known_entities) =
-                        bookkeeping.client_known_entities.get_mut(client_id)
-                    {
-                        if !known_entities.remove(entity_id) {
-                            continue;
+                    let client_id = client_id.as_str();
+                    let known_entities = get_or_insert_client_known_entities(
+                        &mut bookkeeping.client_known_entities,
+                        client_id,
+                    );
+                    if !known_entities.remove(entity_id) {
+                        continue;
+                    }
+                    push_client_update(
+                        &mut self.client_updates_buffer,
+                        &mut self.clients_with_updates_buffer,
+                        client_id,
+                        EntityProtocol {
+                            operation: EntityOperation::Delete,
+                            id: entity_id.clone(),
+                            r#type: etype.clone(),
+                            metadata: Some(metadata_str.clone()),
+                        },
+                    );
+                }
+            } else if self.deleted_entities_buffer.len() <= 4 {
+                for client_id in clients.keys() {
+                    let client_id = client_id.as_str();
+                    let known_entities = get_or_insert_client_known_entities(
+                        &mut bookkeeping.client_known_entities,
+                        client_id,
+                    );
+                    let entities_to_delete = &mut self.known_entities_to_delete_buffer;
+                    entities_to_delete.clear();
+
+                    for entity_id in known_entities.iter() {
+                        let mut deleted_match: Option<(&String, &String)> = None;
+                        for (deleted_entity_id, etype, metadata_str) in
+                            &self.deleted_entities_buffer
+                        {
+                            if deleted_entity_id == entity_id {
+                                deleted_match = Some((etype, metadata_str));
+                                break;
+                            }
                         }
+                        let Some((etype, metadata_str)) = deleted_match else {
+                            continue;
+                        };
                         push_client_update(
                             &mut self.client_updates_buffer,
                             &mut self.clients_with_updates_buffer,
@@ -279,46 +316,11 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                                 metadata: Some(metadata_str.clone()),
                             },
                         );
+                        entities_to_delete.push(entity_id.clone());
                     }
-                }
-            } else if self.deleted_entities_buffer.len() <= 4 {
-                for client_id in clients.keys() {
-                    if let Some(known_entities) =
-                        bookkeeping.client_known_entities.get_mut(client_id)
-                    {
-                        let entities_to_delete = &mut self.known_entities_to_delete_buffer;
-                        entities_to_delete.clear();
 
-                        for entity_id in known_entities.iter() {
-                            let mut deleted_match: Option<(&String, &String)> = None;
-                            for (deleted_entity_id, etype, metadata_str) in
-                                &self.deleted_entities_buffer
-                            {
-                                if deleted_entity_id == entity_id {
-                                    deleted_match = Some((etype, metadata_str));
-                                    break;
-                                }
-                            }
-                            let Some((etype, metadata_str)) = deleted_match else {
-                                continue;
-                            };
-                            push_client_update(
-                                &mut self.client_updates_buffer,
-                                &mut self.clients_with_updates_buffer,
-                                client_id,
-                                EntityProtocol {
-                                    operation: EntityOperation::Delete,
-                                    id: entity_id.clone(),
-                                    r#type: etype.clone(),
-                                    metadata: Some(metadata_str.clone()),
-                                },
-                            );
-                            entities_to_delete.push(entity_id.clone());
-                        }
-
-                        for entity_id in entities_to_delete.iter() {
-                            known_entities.remove(entity_id);
-                        }
+                    for entity_id in entities_to_delete.iter() {
+                        known_entities.remove(entity_id);
                     }
                 }
             } else {
@@ -329,35 +331,36 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 }
 
                 for client_id in clients.keys() {
-                    if let Some(known_entities) =
-                        bookkeeping.client_known_entities.get_mut(client_id)
-                    {
-                        let entities_to_delete = &mut self.known_entities_to_delete_buffer;
-                        entities_to_delete.clear();
+                    let client_id = client_id.as_str();
+                    let known_entities = get_or_insert_client_known_entities(
+                        &mut bookkeeping.client_known_entities,
+                        client_id,
+                    );
+                    let entities_to_delete = &mut self.known_entities_to_delete_buffer;
+                    entities_to_delete.clear();
 
-                        for entity_id in known_entities.iter() {
-                            let Some((etype, metadata_str)) =
-                                deleted_entities_lookup.get(entity_id.as_str())
-                            else {
-                                continue;
-                            };
-                            push_client_update(
-                                &mut self.client_updates_buffer,
-                                &mut self.clients_with_updates_buffer,
-                                client_id,
-                                EntityProtocol {
-                                    operation: EntityOperation::Delete,
-                                    id: entity_id.clone(),
-                                    r#type: (*etype).clone(),
-                                    metadata: Some((*metadata_str).clone()),
-                                },
-                            );
-                            entities_to_delete.push(entity_id.clone());
-                        }
+                    for entity_id in known_entities.iter() {
+                        let Some((etype, metadata_str)) =
+                            deleted_entities_lookup.get(entity_id.as_str())
+                        else {
+                            continue;
+                        };
+                        push_client_update(
+                            &mut self.client_updates_buffer,
+                            &mut self.clients_with_updates_buffer,
+                            client_id,
+                            EntityProtocol {
+                                operation: EntityOperation::Delete,
+                                id: entity_id.clone(),
+                                r#type: (*etype).clone(),
+                                metadata: Some((*metadata_str).clone()),
+                            },
+                        );
+                        entities_to_delete.push(entity_id.clone());
+                    }
 
-                        for entity_id in entities_to_delete.iter() {
-                            known_entities.remove(entity_id);
-                        }
+                    for entity_id in entities_to_delete.iter() {
+                        known_entities.remove(entity_id);
                     }
                 }
             }
@@ -369,45 +372,47 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 None => continue,
             };
 
-            if let Some(known_entities) = bookkeeping.client_known_entities.get_mut(client_id) {
-                let entities_to_delete = &mut self.known_entities_to_delete_buffer;
-                entities_to_delete.clear();
-                for entity_id in known_entities.iter() {
-                    if let Some((etype, ..)) = new_bookkeeping_records.get(entity_id) {
-                        if etype.starts_with("block::") {
-                            continue;
-                        }
+            let known_entities = get_or_insert_client_known_entities(
+                &mut bookkeeping.client_known_entities,
+                client_id.as_str(),
+            );
+            let entities_to_delete = &mut self.known_entities_to_delete_buffer;
+            entities_to_delete.clear();
+            for entity_id in known_entities.iter() {
+                if let Some((etype, ..)) = new_bookkeeping_records.get(entity_id) {
+                    if etype.starts_with("block::") {
+                        continue;
                     }
-                    if let Some(entity_pos) = entity_positions.get(entity_id) {
-                        let dx = entity_pos.0 - client_x;
-                        let dy = entity_pos.1 - client_y;
-                        let dz = entity_pos.2 - client_z;
-                        if is_outside_visible_radius_sq(dx, dy, dz, entity_visible_radius_sq) {
-                            entities_to_delete.push(entity_id.clone());
-                        }
-                    } else {
+                }
+                if let Some(entity_pos) = entity_positions.get(entity_id) {
+                    let dx = entity_pos.0 - client_x;
+                    let dy = entity_pos.1 - client_y;
+                    let dz = entity_pos.2 - client_z;
+                    if is_outside_visible_radius_sq(dx, dy, dz, entity_visible_radius_sq) {
                         entities_to_delete.push(entity_id.clone());
                     }
+                } else {
+                    entities_to_delete.push(entity_id.clone());
                 }
+            }
 
-                for entity_id in entities_to_delete.iter() {
-                    if let Some((etype, _ent, metadata, _persisted)) =
-                        new_bookkeeping_records.get(entity_id)
-                    {
-                        push_client_update(
-                            &mut self.client_updates_buffer,
-                            &mut self.clients_with_updates_buffer,
-                            client_id,
-                            EntityProtocol {
-                                operation: EntityOperation::Delete,
-                                id: entity_id.clone(),
-                                r#type: etype.clone(),
-                                metadata: Some(metadata.to_string()),
-                            },
-                        );
-                    }
-                    known_entities.remove(entity_id);
+            for entity_id in entities_to_delete.iter() {
+                if let Some((etype, _ent, metadata, _persisted)) =
+                    new_bookkeeping_records.get(entity_id)
+                {
+                    push_client_update(
+                        &mut self.client_updates_buffer,
+                        &mut self.clients_with_updates_buffer,
+                        client_id,
+                        EntityProtocol {
+                            operation: EntityOperation::Delete,
+                            id: entity_id.clone(),
+                            r#type: etype.clone(),
+                            metadata: Some(metadata.to_string()),
+                        },
+                    );
                 }
+                known_entities.remove(entity_id);
             }
         }
 
