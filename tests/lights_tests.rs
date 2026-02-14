@@ -210,6 +210,12 @@ fn test_chunks_voxel_accessors_reject_coordinates_outside_chunk_shape() {
     assert_eq!(chunks.get_sunlight(12, 12, 0), 0);
     assert_eq!(chunks.get_max_height(12, 0), 0);
     assert!(!chunks.set_raw_voxel(12, 12, 0, 1));
+    assert!(!chunks.set_raw_voxel(12, 4, 0, 1));
+    if let Some(chunk) = chunks.raw(&Vec2(0, 0)) {
+        assert_eq!(chunk.extra_changes.len(), 1);
+        assert_eq!(chunk.extra_changes[0].0, Vec3(12, 4, 0));
+        assert_eq!(chunk.extra_changes[0].1, 1);
+    }
     assert!(!chunks.set_raw_light(12, 12, 0, 1));
     assert!(!chunks.set_max_height(12, 0, 1));
 }

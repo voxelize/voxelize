@@ -603,6 +603,9 @@ impl VoxelAccess for Chunks {
             };
             let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
             if !Self::local_is_within_chunk(chunk, lx, ly, lz) {
+                if vy >= 0 && (vy as usize) < chunk.options.max_height {
+                    chunk.extra_changes.push((Vec3(vx, vy, vz), id));
+                }
                 return false;
             }
             if chunk.voxels[&[lx, ly, lz]] == id {
