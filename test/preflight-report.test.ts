@@ -152,6 +152,8 @@ type PreflightReport = {
   failedCheckScriptCount: number;
   firstFailedCheck: string | null;
   availableChecks: string[];
+  availableCheckScripts: string[];
+  availableCheckScriptCount: number;
   availableCheckMetadata: {
     devEnvironment: {
       scriptName: string;
@@ -310,6 +312,11 @@ const expectedAvailableChecks = [
   "runtimeLibraries",
   "client",
 ];
+const expectedAvailableCheckScripts = expectedAvailableChecks.map((checkName) => {
+  return expectedAvailableCheckMetadata[
+    checkName as keyof typeof expectedAvailableCheckMetadata
+  ].scriptName;
+});
 const expectedTsCoreRequiredArtifacts = [
   "packages/ts-core/dist/index.js",
   "packages/ts-core/dist/index.mjs",
@@ -722,6 +729,8 @@ describe("preflight aggregate report", () => {
     expect(typeof report.endedAt).toBe("string");
     expect(report.durationMs).toBeGreaterThanOrEqual(0);
     expect(report.availableChecks).toEqual(expectedAvailableChecks);
+    expect(report.availableCheckScripts).toEqual(expectedAvailableCheckScripts);
+    expect(report.availableCheckScriptCount).toBe(report.availableCheckScripts.length);
     expect(report.availableCheckMetadata).toEqual(expectedAvailableCheckMetadata);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(report.availableSpecialCheckSelectors).toEqual(

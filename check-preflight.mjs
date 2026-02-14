@@ -92,6 +92,7 @@ const availableChecks = [
   },
 ];
 const availableCheckNames = availableChecks.map((check) => check.name);
+const availableCheckScripts = availableChecks.map((check) => check.scriptName);
 const availableCheckMetadata = Object.fromEntries(
   availableChecks.map((check) => {
     return [
@@ -506,6 +507,8 @@ if (
     availableCliOptionAliases,
     availableCliOptionCanonicalMap,
     availableChecks: availableCheckNames,
+    availableCheckScripts,
+    availableCheckScriptCount: availableCheckScripts.length,
     availableCheckMetadata,
     availableCheckAliases,
     availableSpecialCheckSelectors,
@@ -591,6 +594,8 @@ if (isListChecks) {
     availableCliOptionAliases,
     availableCliOptionCanonicalMap,
     availableChecks: availableCheckNames,
+    availableCheckScripts,
+    availableCheckScriptCount: availableCheckScripts.length,
     availableCheckMetadata,
     availableCheckAliases,
     availableSpecialCheckSelectors,
@@ -687,6 +692,8 @@ const report = buildTimedReport({
   availableCliOptionAliases,
   availableCliOptionCanonicalMap,
   availableChecks: availableCheckNames,
+  availableCheckScripts,
+  availableCheckScriptCount: availableCheckScripts.length,
   availableCheckMetadata,
   availableCheckAliases,
   availableSpecialCheckSelectors,
