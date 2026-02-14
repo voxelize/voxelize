@@ -508,8 +508,10 @@ where
             return Vec::new();
         }
 
-        if let Ok(nodes) = serde_wasm_bindgen::from_value(array.clone().into()) {
-            return nodes;
+        if array.get(0).is_object() {
+            if let Ok(nodes) = serde_wasm_bindgen::from_value(array.clone().into()) {
+                return nodes;
+            }
         }
 
         let mut nodes = Vec::with_capacity(length);
