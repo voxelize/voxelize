@@ -48,12 +48,18 @@ export type WorkerPoolOptions = {
 const defaultOptions: WorkerPoolOptions = {
   maxWorker: 8,
 };
+const MAX_WORKER_POOL_SIZE = 256;
 const normalizeMaxWorker = (maxWorker: number): number => {
   if (!Number.isFinite(maxWorker)) {
     return defaultOptions.maxWorker;
   }
   const normalized = Math.floor(maxWorker);
-  return normalized > 0 ? normalized : defaultOptions.maxWorker;
+  if (normalized <= 0) {
+    return defaultOptions.maxWorker;
+  }
+  return normalized > MAX_WORKER_POOL_SIZE
+    ? MAX_WORKER_POOL_SIZE
+    : normalized;
 };
 
 /**
