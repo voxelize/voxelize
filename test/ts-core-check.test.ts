@@ -381,6 +381,69 @@ describe("check-ts-core script", () => {
     );
   });
 
+  it("treats canonical no-build tokens after output as missing output value while keeping no-build active", () => {
+    const result = runScript(["--json", "--output", "--no-build"]);
+    const report = parseReport(result);
+
+    expect(result.status).toBe(1);
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.optionTerminatorUsed).toBe(false);
+    expect(report.positionalArgs).toEqual([]);
+    expect(report.positionalArgCount).toBe(0);
+    expect(report.noBuild).toBe(true);
+    expect(report.outputPath).toBeNull();
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--json", "--no-build", "--output"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual([
+      "--json",
+      "--output",
+      "--no-build",
+    ]);
+    expect(report.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+      {
+        token: "--no-build",
+        canonicalOption: "--no-build",
+      },
+    ]);
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 1,
+      },
+      {
+        token: "--no-build",
+        canonicalOption: "--no-build",
+        index: 2,
+      },
+    ]);
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+  });
+
   it("treats option-terminator tokens as positional args in compact json mode", () => {
     const result = runScript(["--json", "--compact", "--no-build", "--", "--verify=1"]);
     const report = parseReport(result);
@@ -545,6 +608,14 @@ describe("check-ts-core script", () => {
     expect(result.output).toContain("Missing value for --output option.");
     expect(result.output).not.toContain("Unsupported option(s):");
     expect(result.output).not.toContain("--verify=1");
+  });
+
+  it("prioritizes missing output values over canonical no-build tokens in non-json mode", () => {
+    const result = runScript(["--output", "--no-build"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("Missing value for --output option.");
+    expect(result.output).not.toContain("Unsupported option(s):");
   });
 
   it("redacts malformed inline option names in non-json mode", () => {
