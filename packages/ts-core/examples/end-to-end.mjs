@@ -7,6 +7,7 @@ import {
   createBlockRule,
   createBlockConditionalPart,
   createBlockDynamicPattern,
+  createFaceTransparency,
   Light,
   LightUtils,
   Voxel,
@@ -117,11 +118,13 @@ const main = () => {
     name: "ConnectorTop",
     dir: [0, 1, 0],
   });
+  const topFaceTransparency = createFaceTransparency([true]);
   const pattern = createBlockDynamicPattern({
     parts: [
       createBlockConditionalPart({
         rule: connectionRule,
         faces: [topFace],
+        isTransparent: topFaceTransparency,
         worldSpace: false,
       }),
     ],
@@ -135,6 +138,10 @@ const main = () => {
   assert(
     patternPart.faces[0].name === "ConnectorTop",
     "Dynamic pattern face was not defensively cloned"
+  );
+  assert(
+    patternPart.isTransparent[0] === true,
+    "Dynamic pattern transparency was not preserved"
   );
   const patternMatched = BlockRuleEvaluator.evaluate(
     patternPart.rule,

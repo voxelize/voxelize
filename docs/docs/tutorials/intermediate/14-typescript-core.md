@@ -40,6 +40,7 @@ flowchart LR
   inputs via `createBlockConditionalPart` and skips malformed part entries
 - `createBlockFace`: ergonomic constructor helper for `BlockFaceInit` or
   `BlockFace` input with deterministic default fallback for malformed values
+- `createFaceTransparency`: helper for normalized 6-face transparency tuples
 - `VoxelAccess`: shared access contract
 
 Both helper constructors use deterministic defaults when optional fields are
@@ -52,6 +53,7 @@ Malformed dynamic-pattern part entries are skipped during helper cloning.
 Malformed optional face fields fall back to default face values.
 Malformed rules fall back to `BLOCK_RULE_NONE`, and malformed transparency
 inputs (including `null`/non-array values) fall back to `false` defaults.
+`createFaceTransparency` exposes this transparency normalization directly.
 `createBlockRule` normalizes `null` simple-rule optional fields (`id`,
 `rotation`, `stage`) to omitted constraints.
 Malformed `worldSpace` values fall back to `false`.
@@ -152,6 +154,7 @@ import {
   BlockRuleLogic,
   createBlockRule,
   createBlockDynamicPattern,
+  createFaceTransparency,
 } from "@voxelize/ts-core";
 
 const pattern = createBlockDynamicPattern({
@@ -163,6 +166,7 @@ const pattern = createBlockDynamicPattern({
         rules: [{ type: "simple", offset: [0, 0, 0], id: 12 }],
       }),
       faces: [{ name: "Top", dir: [0, 1, 0] }],
+      isTransparent: createFaceTransparency([true]),
       worldSpace: false,
     },
   ],

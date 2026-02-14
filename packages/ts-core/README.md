@@ -103,6 +103,9 @@ const voxel = Voxel.pack({
 - `createBlockFace`
   - ergonomic constructor helper for `BlockFaceInit` or `BlockFace` input
   - malformed inputs fall back to a deterministic default face (`name: "Face"`)
+- `createFaceTransparency`
+  - builds normalized 6-face transparency tuples from optional/null/partial
+    boolean arrays
 - `VoxelAccess`
   - interface contract for meshing/generation-style data access
 
@@ -113,6 +116,7 @@ import {
   BlockRuleLogic,
   createBlockRule,
   createBlockDynamicPattern,
+  createFaceTransparency,
 } from "@voxelize/ts-core";
 
 const pattern = createBlockDynamicPattern({
@@ -124,6 +128,7 @@ const pattern = createBlockDynamicPattern({
         rules: [{ type: "simple", offset: [0, 0, 0], id: 42 }],
       }),
       faces: [{ name: "Top", dir: [0, 1, 0] }],
+      isTransparent: createFaceTransparency([true]),
       worldSpace: false,
     },
   ],

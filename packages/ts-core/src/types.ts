@@ -163,12 +163,16 @@ export type FaceTransparencyInput = readonly [
   boolean,
   boolean
 ];
+export type FaceTransparencyLike =
+  | FaceTransparencyInput
+  | readonly (boolean | null | undefined)[]
+  | null;
 
 export interface BlockConditionalPartInput {
   rule?: BlockRule | null;
   faces?: readonly (BlockFaceInput | null)[];
   aabbs?: readonly (AABB | null)[];
-  isTransparent?: FaceTransparencyInput | null;
+  isTransparent?: FaceTransparencyLike;
   worldSpace?: boolean | null;
 }
 
@@ -192,7 +196,9 @@ const isBooleanValue = (value: DynamicValue): value is boolean => {
   return typeof value === "boolean";
 };
 
-const toFaceTransparency = (value: DynamicValue): FaceTransparency => {
+export const createFaceTransparency = (
+  value: FaceTransparencyLike = null
+): FaceTransparency => {
   if (!Array.isArray(value)) {
     return [false, false, false, false, false, false];
   }
@@ -480,7 +486,7 @@ export const createBlockConditionalPart = (
         return clonedAabbs;
       }, [])
     : [];
-  const isTransparent = toFaceTransparency(normalizedPart.isTransparent);
+  const isTransparent = createFaceTransparency(normalizedPart.isTransparent);
   const rule = createBlockRule(normalizedPart.rule);
 
   return {

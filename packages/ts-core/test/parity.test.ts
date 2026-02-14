@@ -22,6 +22,7 @@ import {
   createBlockDynamicPattern,
   createBlockFace,
   createBlockRule,
+  createFaceTransparency,
   createCornerData,
   createUV,
   toSaturatedUint32,
@@ -981,6 +982,49 @@ describe("Type builders", () => {
     ]);
   });
 
+  it("creates sanitized transparency tuples with createFaceTransparency", () => {
+    const sourceTransparency: [boolean, boolean, boolean, boolean, boolean, boolean] = [
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+    ];
+    const createdTransparency = createFaceTransparency(sourceTransparency);
+    const nullTransparency = createFaceTransparency(null);
+    const shortTransparency = createFaceTransparency([true]);
+
+    expect(createdTransparency).toEqual([
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+    ]);
+    expect(createdTransparency).not.toBe(sourceTransparency);
+    expect(nullTransparency).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+    expect(shortTransparency).toEqual([
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+
+    sourceTransparency[0] = false;
+    expect(createdTransparency[0]).toBe(true);
+  });
+
   it("sanitizes null and non-array transparency inputs to defaults", () => {
     const nullTransparencyPart = createBlockConditionalPart({
       isTransparent: null,
@@ -989,7 +1033,7 @@ describe("Type builders", () => {
       isTransparent: 1 as never,
     });
     const shortTransparencyPart = createBlockConditionalPart({
-      isTransparent: [true] as never,
+      isTransparent: [true],
     });
 
     expect(nullTransparencyPart.isTransparent).toEqual([
