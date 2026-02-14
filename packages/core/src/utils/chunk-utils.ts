@@ -198,13 +198,13 @@ export class ChunkUtils {
    * @returns The parsed chunk coordinates as a tuple.
    */
   static parseChunkNameAt = (name: string, concat = "|"): Coords2 => {
+    const nameLength = name.length;
     if (concat.length === 0) {
-      return [ChunkUtils.parseSignedIntegerSegment(name, 0, name.length), Number.NaN];
+      return [ChunkUtils.parseSignedIntegerSegment(name, 0, nameLength), Number.NaN];
     }
     let separatorIndex = -1;
     if (concat.length === 1) {
       const separatorCode = concat.charCodeAt(0);
-      const nameLength = name.length;
       for (let index = 0; index < nameLength; index++) {
         if (name.charCodeAt(index) === separatorCode) {
           separatorIndex = index;
@@ -215,14 +215,14 @@ export class ChunkUtils {
       separatorIndex = name.indexOf(concat);
     }
     if (separatorIndex < 0) {
-      return [ChunkUtils.parseSignedIntegerSegment(name, 0, name.length), Number.NaN];
+      return [ChunkUtils.parseSignedIntegerSegment(name, 0, nameLength), Number.NaN];
     }
 
     const cx = ChunkUtils.parseSignedIntegerSegment(name, 0, separatorIndex);
     const cz = ChunkUtils.parseSignedIntegerSegment(
       name,
       separatorIndex + concat.length,
-      name.length
+      nameLength
     );
 
     return [cx, cz];
