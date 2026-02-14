@@ -226,14 +226,6 @@ export class ChunkUtils {
       const next = parsed * 10 + digit;
       if (!Number.isSafeInteger(next)) {
         parsed = MAX_SAFE_INTEGER;
-        index++;
-        while (index < end) {
-          const trailingDigit = value.charCodeAt(index) - 48;
-          if (trailingDigit < 0 || trailingDigit > 9) {
-            break;
-          }
-          index++;
-        }
         break;
       }
       parsed = next;
