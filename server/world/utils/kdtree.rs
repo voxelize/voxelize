@@ -53,22 +53,24 @@ impl EntityTree {
         if self.tree.size() == 0 {
             return Vec::new();
         }
-        self.tree
-            .nearest_n::<SquaredEuclidean>(point, count)
-            .into_iter()
-            .map(|n| (n.distance, n.item))
-            .collect()
+        let nearest = self.tree.nearest_n::<SquaredEuclidean>(point, count);
+        let mut results = Vec::with_capacity(nearest.len());
+        for entry in nearest {
+            results.push((entry.distance, entry.item));
+        }
+        results
     }
 
     fn within(&self, point: &[f32; 3], radius_squared: f32) -> Vec<(f32, EntityId)> {
         if self.tree.size() == 0 {
             return Vec::new();
         }
-        self.tree
-            .within::<SquaredEuclidean>(point, radius_squared)
-            .into_iter()
-            .map(|n| (n.distance, n.item))
-            .collect()
+        let within = self.tree.within::<SquaredEuclidean>(point, radius_squared);
+        let mut results = Vec::with_capacity(within.len());
+        for entry in within {
+            results.push((entry.distance, entry.item));
+        }
+        results
     }
 
     fn retain<F>(&mut self, mut f: F)
@@ -158,6 +160,25 @@ impl KdTree {
         }
         self.all.remove(ent_id);
         self.entity_map.remove(&ent_id);
+    }
+
+    #[inline]
+    fn collect_entities_with_distance<'a>(
+        &'a self,
+        results: &[(f32, EntityId)],
+        skip: usize,
+    ) -> Vec<(f32, &'a Entity)> {
+        if results.len() <= skip {
+            return Vec::new();
+        }
+        let mut entities = Vec::with_capacity(results.len() - skip);
+        for index in skip..results.len() {
+            let (dist, ent_id) = results[index];
+            if let Some(entity) = self.entity_map.get(&ent_id) {
+                entities.push((dist, entity));
+            }
+        }
+        entities
     }
 
     pub fn new() -> Self {
@@ -275,11 +296,7 @@ impl KdTree {
         let results = self
             .all
             .nearest(&[point.0, point.1, point.2], nearest_query_count(count, 1));
-        results
-            .into_iter()
-            .skip(1)
-            .filter_map(|(dist, ent_id)| self.entity_map.get(&ent_id).map(|e| (dist, e)))
-            .collect()
+        self.collect_entities_with_distance(&results, 1)
     }
 
     pub fn search_player(
@@ -295,11 +312,7 @@ impl KdTree {
         let results = self
             .players
             .nearest(&[point.0, point.1, point.2], nearest_query_count(count, skip));
-        results
-            .into_iter()
-            .skip(skip)
-            .filter_map(|(dist, ent_id)| self.entity_map.get(&ent_id).map(|e| (dist, e)))
-            .collect()
+        self.collect_entities_with_distance(&results, skip)
     }
 
     pub fn search_entity(
@@ -315,11 +328,7 @@ impl KdTree {
         let results = self
             .entities
             .nearest(&[point.0, point.1, point.2], nearest_query_count(count, skip));
-        results
-            .into_iter()
-            .skip(skip)
-            .filter_map(|(dist, ent_id)| self.entity_map.get(&ent_id).map(|e| (dist, e)))
-            .collect()
+        self.collect_entities_with_distance(&results, skip)
     }
 
     pub fn players_within_radius(&self, point: &Vec3<f32>, radius: f32) -> Vec<&Entity> {
@@ -332,10 +341,13 @@ impl KdTree {
         let results = self
             .players
             .within(&[point.0, point.1, point.2], radius_squared);
-        results
-            .into_iter()
-            .filter_map(|(_, ent_id)| self.entity_map.get(&ent_id))
-            .collect()
+        let mut entities = Vec::with_capacity(results.len());
+        for (_, ent_id) in results {
+            if let Some(entity) = self.entity_map.get(&ent_id) {
+                entities.push(entity);
+            }
+        }
+        entities
     }
 }
 
