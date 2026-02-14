@@ -12,6 +12,7 @@ const RED_TORCH_MASK: u8 = 1 << 0;
 const GREEN_TORCH_MASK: u8 = 1 << 1;
 const BLUE_TORCH_MASK: u8 = 1 << 2;
 const ALL_TORCH_MASKS: u8 = RED_TORCH_MASK | GREEN_TORCH_MASK | BLUE_TORCH_MASK;
+const MAX_I64_USIZE: usize = i64::MAX as usize;
 static TRANSPARENCY_ROTATION_MAPS: OnceLock<
     [[usize; 6]; TRANSPARENCY_ROTATION_MAP_COUNT],
 > = OnceLock::new();
@@ -97,8 +98,16 @@ impl LightBounds {
 
         let start_x_i64 = i64::from(start_x);
         let start_z_i64 = i64::from(start_z);
-        let shape_x_i64 = shape_x.min(i64::MAX as usize) as i64;
-        let shape_z_i64 = shape_z.min(i64::MAX as usize) as i64;
+        let shape_x_i64 = if shape_x > MAX_I64_USIZE {
+            i64::MAX
+        } else {
+            shape_x as i64
+        };
+        let shape_z_i64 = if shape_z > MAX_I64_USIZE {
+            i64::MAX
+        } else {
+            shape_z as i64
+        };
         let end_x = start_x_i64.saturating_add(shape_x_i64);
         let end_z = start_z_i64.saturating_add(shape_z_i64);
 
