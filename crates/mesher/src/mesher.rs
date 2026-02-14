@@ -488,9 +488,9 @@ fn new_geometry_protocol(
     let (positions_capacity, indices_capacity, uvs_capacity, lights_capacity) = if at.is_some() {
         (12, 6, 8, 4)
     } else if face_name.is_some() {
-        (384, 192, 256, 128)
+        (768, 384, 512, 256)
     } else {
-        (2048, 1024, 1536, 512)
+        (4096, 2048, 3072, 1024)
     };
     GeometryProtocol {
         voxel,
