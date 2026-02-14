@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { resolvePnpmCommand } from "./scripts/command-utils.mjs";
 import {
+  countRecordEntries,
   createCliOptionCatalog,
   createCliDiagnostics,
   createTimedReportBuilder,
@@ -49,6 +50,20 @@ const runtimeLibraries = [
 ];
 const checkedPackages = runtimeLibraries.map((library) => library.packageName);
 const checkedPackagePaths = runtimeLibraries.map((library) => library.packagePath);
+const checkedPackagePathMap = Object.fromEntries(
+  runtimeLibraries.map((library) => {
+    return [library.packageName, library.packagePath];
+  })
+);
+const checkedPackagePathMapCount = countRecordEntries(checkedPackagePathMap);
+const requiredArtifactCountByPackage = Object.fromEntries(
+  runtimeLibraries.map((library) => {
+    return [library.packageName, library.requiredArtifacts.length];
+  })
+);
+const requiredArtifactCountByPackageCount = countRecordEntries(
+  requiredArtifactCountByPackage
+);
 const requiredArtifacts = runtimeLibraries.reduce((artifacts, library) => {
   return [...artifacts, ...library.requiredArtifacts];
 }, []);
@@ -111,6 +126,16 @@ const summarizePackageReports = (packageReports) => {
   const missingArtifacts = packageReports.reduce((artifacts, packageReport) => {
     return [...artifacts, ...packageReport.missingArtifacts];
   }, []);
+  const presentArtifactCountByPackage = Object.fromEntries(
+    packageReports.map((packageReport) => {
+      return [packageReport.packageName, packageReport.presentArtifactCount];
+    })
+  );
+  const missingArtifactCountByPackage = Object.fromEntries(
+    packageReports.map((packageReport) => {
+      return [packageReport.packageName, packageReport.missingArtifactCount];
+    })
+  );
   return {
     presentPackages,
     presentPackagePaths,
@@ -120,10 +145,12 @@ const summarizePackageReports = (packageReports) => {
     presentPackagePathCount: presentPackagePaths.length,
     presentArtifactCount,
     presentArtifacts,
+    presentArtifactCountByPackage,
     missingPackageCount,
     missingPackagePathCount: missingPackagePaths.length,
     missingArtifactCount,
     missingArtifacts,
+    missingArtifactCountByPackage,
   };
 };
 const formatMissingArtifactSummary = (packageReports) => {
@@ -225,10 +252,12 @@ const withBaseReportFields = (report) => {
     presentPackagePathCount,
     presentArtifactCount,
     presentArtifacts,
+    presentArtifactCountByPackage,
     missingPackageCount,
     missingPackagePathCount,
     missingArtifactCount,
     missingArtifacts,
+    missingArtifactCountByPackage,
   } = summarizePackageReports(packageReports);
   const buildExitCode =
     typeof report.buildExitCode === "number" ? report.buildExitCode : null;
@@ -261,8 +290,10 @@ const withBaseReportFields = (report) => {
     availableCliOptionCanonicalMap,
     checkedPackages,
     checkedPackagePaths,
+    checkedPackagePathMap,
     checkedPackageCount: checkedPackages.length,
     checkedPackagePathCount: checkedPackagePaths.length,
+    checkedPackagePathMapCount,
     presentPackages,
     presentPackagePaths,
     missingPackages,
@@ -272,13 +303,23 @@ const withBaseReportFields = (report) => {
     presentPackagePathCount,
     packageReportCount: packageReports.length,
     requiredArtifacts,
+    requiredArtifactCountByPackage,
     requiredArtifactCount,
+    requiredArtifactCountByPackageCount,
     presentArtifactCount,
     presentArtifacts,
+    presentArtifactCountByPackage,
     missingPackageCount,
     missingPackagePathCount,
     missingArtifactCount,
     missingArtifacts,
+    missingArtifactCountByPackage,
+    presentArtifactCountByPackageCount: countRecordEntries(
+      presentArtifactCountByPackage
+    ),
+    missingArtifactCountByPackageCount: countRecordEntries(
+      missingArtifactCountByPackage
+    ),
     missingArtifactSummary,
     buildCommand: pnpmCommand,
     buildArgs: buildCommandArgs,

@@ -30,8 +30,10 @@ type RuntimeLibrariesCheckReport = {
   packageReports: RuntimePackageReport[];
   checkedPackages: string[];
   checkedPackagePaths: string[];
+  checkedPackagePathMap: Record<string, string>;
   checkedPackageCount: number;
   checkedPackagePathCount: number;
+  checkedPackagePathMapCount: number;
   presentPackages: string[];
   presentPackagePaths: string[];
   missingPackages: string[];
@@ -41,13 +43,19 @@ type RuntimeLibrariesCheckReport = {
   presentPackagePathCount: number;
   packageReportCount: number;
   requiredArtifacts: string[];
+  requiredArtifactCountByPackage: Record<string, number>;
   requiredArtifactCount: number;
+  requiredArtifactCountByPackageCount: number;
   presentArtifacts: string[];
   presentArtifactCount: number;
+  presentArtifactCountByPackage: Record<string, number>;
+  presentArtifactCountByPackageCount: number;
   missingPackageCount: number;
   missingPackagePathCount: number;
   missingArtifacts: string[];
   missingArtifactCount: number;
+  missingArtifactCountByPackage: Record<string, number>;
+  missingArtifactCountByPackageCount: number;
   missingArtifactSummary: string | null;
   attemptedBuild: boolean;
   buildSkipped: boolean;
@@ -109,6 +117,11 @@ const expectedCheckedPackagePaths = [
   "packages/raycast",
   "packages/physics-engine",
 ];
+const expectedCheckedPackagePathMap = Object.fromEntries(
+  expectedCheckedPackages.map((packageName, index) => {
+    return [packageName, expectedCheckedPackagePaths[index]];
+  })
+);
 const expectedSupportedCliOptions = [
   "--compact",
   "--json",
@@ -151,6 +164,11 @@ const expectedRequiredArtifactCount = Object.values(
 ).reduce((count, artifacts) => {
   return count + artifacts.length;
 }, 0);
+const expectedRequiredArtifactCountByPackage = Object.fromEntries(
+  Object.entries(expectedArtifactsByPackage).map(([packageName, artifacts]) => {
+    return [packageName, artifacts.length];
+  })
+);
 const expectedRequiredArtifacts = Object.values(expectedArtifactsByPackage).reduce(
   (artifacts, packageArtifacts) => {
     return [...artifacts, ...packageArtifacts];
@@ -203,11 +221,22 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   const report = JSON.parse(result.output) as RuntimeLibrariesCheckReport;
   expect(report.checkedPackages).toEqual(expectedCheckedPackages);
   expect(report.checkedPackagePaths).toEqual(expectedCheckedPackagePaths);
+  expect(report.checkedPackagePathMap).toEqual(expectedCheckedPackagePathMap);
+  expect(report.checkedPackagePathMapCount).toBe(
+    Object.keys(report.checkedPackagePathMap).length
+  );
   expect(report.checkedPackages).toEqual(
     report.packageReports.map((packageReport) => packageReport.packageName)
   );
   expect(report.checkedPackagePaths).toEqual(
     report.packageReports.map((packageReport) => packageReport.packagePath)
+  );
+  expect(report.checkedPackagePathMap).toEqual(
+    Object.fromEntries(
+      report.packageReports.map((packageReport) => {
+        return [packageReport.packageName, packageReport.packagePath];
+      })
+    )
   );
   expect(report.checkedPackageCount).toBe(report.checkedPackages.length);
   expect(report.checkedPackagePathCount).toBe(report.checkedPackagePaths.length);
@@ -217,6 +246,12 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   expect(report.requiredArtifactCount).toBe(expectedRequiredArtifactCount);
   expect(report.requiredArtifacts).toEqual(expectedRequiredArtifacts);
   expect(report.requiredArtifacts.length).toBe(report.requiredArtifactCount);
+  expect(report.requiredArtifactCountByPackage).toEqual(
+    expectedRequiredArtifactCountByPackage
+  );
+  expect(report.requiredArtifactCountByPackageCount).toBe(
+    Object.keys(report.requiredArtifactCountByPackage).length
+  );
   expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
   expect(report.supportedCliOptionCount).toBe(expectedSupportedCliOptions.length);
   expect(report.availableCliOptionAliases).toEqual({
@@ -253,9 +288,19 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   const presentArtifactCount = report.packageReports.reduce((count, packageReport) => {
     return count + packageReport.presentArtifactCount;
   }, 0);
+  const presentArtifactCountByPackage = Object.fromEntries(
+    report.packageReports.map((packageReport) => {
+      return [packageReport.packageName, packageReport.presentArtifactCount];
+    })
+  );
   const presentArtifacts = report.packageReports.reduce((artifacts, packageReport) => {
     return [...artifacts, ...packageReport.presentArtifacts];
   }, [] as string[]);
+  const missingArtifactCountByPackage = Object.fromEntries(
+    report.packageReports.map((packageReport) => {
+      return [packageReport.packageName, packageReport.missingArtifactCount];
+    })
+  );
   const missingArtifacts = report.packageReports.reduce((artifacts, packageReport) => {
     return [...artifacts, ...packageReport.missingArtifacts];
   }, [] as string[]);
@@ -279,10 +324,22 @@ const parseReport = (result: ScriptResult): RuntimeLibrariesCheckReport => {
   expect(report.missingPackagePaths).toEqual(missingPackagePaths);
   expect(report.missingPackagePaths.length).toBe(report.missingPackagePathCount);
   expect(report.presentArtifactCount).toBe(presentArtifactCount);
+  expect(report.presentArtifactCountByPackage).toEqual(
+    presentArtifactCountByPackage
+  );
+  expect(report.presentArtifactCountByPackageCount).toBe(
+    Object.keys(report.presentArtifactCountByPackage).length
+  );
   expect(report.presentArtifacts).toEqual(presentArtifacts);
   expect(report.presentArtifacts.length).toBe(report.presentArtifactCount);
   expect(report.missingPackageCount).toBe(missingPackageCount);
   expect(report.missingArtifactCount).toBe(missingArtifactCount);
+  expect(report.missingArtifactCountByPackage).toEqual(
+    missingArtifactCountByPackage
+  );
+  expect(report.missingArtifactCountByPackageCount).toBe(
+    Object.keys(report.missingArtifactCountByPackage).length
+  );
   expect(report.missingArtifacts).toEqual(missingArtifacts);
   expect(report.missingArtifacts.length).toBe(report.missingArtifactCount);
   expect([...report.presentArtifacts, ...report.missingArtifacts].sort()).toEqual(

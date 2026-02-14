@@ -188,13 +188,18 @@ pnpm run check:preflight:libraries:release
 
 Runtime-library JSON reports include package/build diagnostics such as
 `packagesPresent`, `checkedPackages`, `checkedPackagePaths`,
-`checkedPackageCount`, `checkedPackagePathCount`, `packageReports`,
+`checkedPackagePathMap`, `checkedPackageCount`, `checkedPackagePathCount`,
+`checkedPackagePathMapCount`, `packageReports`,
 `presentPackages`, `presentPackagePaths`, `missingPackages`,
 `missingPackagePaths`, `requiredPackageCount`, `presentPackageCount`,
 `presentPackagePathCount`, `packageReportCount`, `requiredArtifacts`,
-`requiredArtifactCount`, `presentArtifacts`, `presentArtifactCount`,
-`missingPackageCount`, `missingPackagePathCount`, `missingArtifacts`,
-`missingArtifactCount`, `missingArtifactSummary`,
+`requiredArtifactCountByPackage`, `requiredArtifactCount`,
+`requiredArtifactCountByPackageCount`, `presentArtifacts`,
+`presentArtifactCountByPackage`, `presentArtifactCount`,
+`presentArtifactCountByPackageCount`, `missingPackageCount`,
+`missingPackagePathCount`, `missingArtifacts`,
+`missingArtifactCountByPackage`, `missingArtifactCount`,
+`missingArtifactCountByPackageCount`, `missingArtifactSummary`,
 `buildCommand`, `buildArgs`, `buildExitCode`, `buildDurationMs`,
 `attemptedBuild`, `buildSkipped`, and `buildSkippedReason`.
 Each `packageReports` entry includes `requiredArtifacts`, `presentArtifacts`,
