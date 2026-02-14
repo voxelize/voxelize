@@ -5145,7 +5145,7 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
 
     if (mergeChunkGeometries) {
       const materialToGeometries = new Map<
-        string,
+        CustomChunkShaderMaterial,
         {
           geometry: BufferGeometry;
           material: CustomChunkShaderMaterial;
@@ -5199,15 +5199,10 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
             continue;
           }
         }
-        const matKey = this.makeChunkMaterialKey(
-          voxel,
-          faceName,
-          texturePosition
-        );
-        let geometriesByMaterial = materialToGeometries.get(matKey);
+        let geometriesByMaterial = materialToGeometries.get(material);
         if (!geometriesByMaterial) {
           geometriesByMaterial = [];
-          materialToGeometries.set(matKey, geometriesByMaterial);
+          materialToGeometries.set(material, geometriesByMaterial);
           materialGeometryGroups.push(geometriesByMaterial);
         }
         geometriesByMaterial.push({ geometry, material, voxel });
