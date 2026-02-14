@@ -192,6 +192,36 @@ describe("BlockRotation", () => {
     expect(rotation.rotateTransparency(input)).not.toEqual(input);
   });
 
+  it("keeps transparency unchanged for zero y rotation on PY axis", () => {
+    const rotation = BlockRotation.encode(PY_ROTATION, 0);
+    const input: [boolean, boolean, boolean, boolean, boolean, boolean] = [
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+    ];
+    expect(rotation.rotateTransparency(input)).toEqual(input);
+  });
+
+  it("returns a boolean tuple for non-PY transparency rotations", () => {
+    const rotation = BlockRotation.px(Math.PI / 2);
+    const input: [boolean, boolean, boolean, boolean, boolean, boolean] = [
+      true,
+      true,
+      false,
+      false,
+      true,
+      false,
+    ];
+    const rotated = rotation.rotateTransparency(input);
+
+    expect(rotated.length).toBe(6);
+    expect(rotated.every((value) => typeof value === "boolean")).toBe(true);
+    expect(rotated).not.toEqual(input);
+  });
+
   it("supports value and axis aliases", () => {
     const rotation = new BlockRotation();
     expect(rotation.value).toBe(rotation.axis);
@@ -208,6 +238,11 @@ describe("BlockRotation", () => {
     expect(BlockRotation.NY(0).axis).toBe(1);
     expect(BlockRotation.PZ(0).axis).toBe(4);
     expect(BlockRotation.NZ(0).axis).toBe(5);
+  });
+
+  it("falls back to PY axis when encoding invalid axis values", () => {
+    const rotation = BlockRotation.encode(99, 3);
+    expect(rotation.axis).toBe(PY_ROTATION);
   });
 
   it("produces ordered finite AABB bounds for all encoded rotations", () => {
