@@ -19,9 +19,9 @@ impl ChunkUtils {
 
     /// Parse a chunk coordinate from a chunk representation.
     pub fn parse_chunk_name(name: &str) -> Vec2<i32> {
-        let (raw_x, raw_z) = name
-            .split_once(get_concat())
-            .expect("Invalid chunk name format");
+        let mut segments = name.split(get_concat());
+        let raw_x = segments.next().expect("Invalid chunk name format");
+        let raw_z = segments.next().expect("Invalid chunk name format");
         Vec2(raw_x.parse().unwrap(), raw_z.parse().unwrap())
     }
 
@@ -73,7 +73,7 @@ impl ChunkUtils {
 
 #[cfg(test)]
 mod tests {
-    use super::ChunkUtils;
+    use super::{get_concat, ChunkUtils};
     use crate::{Vec2, Vec3};
 
     #[test]
@@ -89,5 +89,24 @@ mod tests {
         assert_eq!(lx, 0);
         assert_eq!(ly, 7);
         assert_eq!(lz, 0);
+    }
+
+    #[test]
+    fn parse_chunk_name_keeps_first_two_segments() {
+        let concat = get_concat();
+        let raw = format!("1{}2{}3", concat, concat);
+        let Vec2(cx, cz) = ChunkUtils::parse_chunk_name(&raw);
+        assert_eq!(cx, 1);
+        assert_eq!(cz, 2);
+    }
+
+    #[test]
+    fn parse_voxel_name_keeps_first_three_segments() {
+        let concat = get_concat();
+        let raw = format!("1{}2{}3{}4", concat, concat, concat);
+        let Vec3(vx, vy, vz) = ChunkUtils::parse_voxel_name(&raw);
+        assert_eq!(vx, 1);
+        assert_eq!(vy, 2);
+        assert_eq!(vz, 3);
     }
 }
