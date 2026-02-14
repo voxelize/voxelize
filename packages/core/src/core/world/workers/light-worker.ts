@@ -172,6 +172,29 @@ const isValidVoxelId = (value: number) =>
   isInteger(value) && value >= 0 && value <= 0xffff;
 const isValidStage = (value: number) =>
   isInteger(value) && value >= 0 && value <= 15;
+const DELTA_WRITE_VOXEL = 1;
+const DELTA_WRITE_ROTATION = 2;
+const DELTA_WRITE_STAGE = 4;
+const getDeltaWriteIntentMask = (delta: VoxelDelta) => {
+  let mask = 0;
+  const oldVoxel = delta.oldVoxel;
+  const newVoxel = delta.newVoxel;
+  if (
+    isValidVoxelId(oldVoxel) &&
+    isValidVoxelId(newVoxel) &&
+    oldVoxel !== newVoxel
+  ) {
+    mask |= DELTA_WRITE_VOXEL;
+  }
+  if (hasFiniteRotation(delta.newRotation)) {
+    mask |= DELTA_WRITE_ROTATION;
+  }
+  const newStage = delta.newStage;
+  if (newStage !== undefined && isValidStage(newStage)) {
+    mask |= DELTA_WRITE_STAGE;
+  }
+  return mask;
+};
 const isValidMaxLightLevel = (value: number) =>
   isValidStage(value);
 type RotationWithScalarFields = { value: number; yRotation: number };
@@ -443,16 +466,8 @@ const hasPotentialRelevantDeltaBatches = (
         if (vy < 0 || vy >= maxHeight) {
           continue;
         }
-        const oldVoxel = delta.oldVoxel;
-        const newVoxel = delta.newVoxel;
-        const shouldWriteVoxel =
-          isValidVoxelId(oldVoxel) &&
-          isValidVoxelId(newVoxel) &&
-          oldVoxel !== newVoxel;
-        const shouldWriteRotation = hasFiniteRotation(delta.newRotation);
-        const newStage = delta.newStage;
-        const shouldWriteStage = newStage !== undefined && isValidStage(newStage);
-        if (shouldWriteVoxel || shouldWriteRotation || shouldWriteStage) {
+        const writeIntentMask = getDeltaWriteIntentMask(delta);
+        if (writeIntentMask !== 0) {
           if (!hasFiniteChunkBounds) {
             return true;
           }
@@ -793,15 +808,9 @@ const applyRelevantDeltas = (
       }
       const newRotation = delta.newRotation;
       const newStage = delta.newStage;
-      const oldVoxel = delta.oldVoxel;
       const newVoxel = delta.newVoxel;
-      const shouldWriteVoxel =
-        isValidVoxelId(oldVoxel) &&
-        isValidVoxelId(newVoxel) &&
-        oldVoxel !== newVoxel;
-      const shouldWriteRotation = hasFiniteRotation(newRotation);
-      const shouldWriteStage = newStage !== undefined && isValidStage(newStage);
-      if (!shouldWriteVoxel && !shouldWriteRotation && !shouldWriteStage) {
+      const writeIntentMask = getDeltaWriteIntentMask(delta);
+      if (writeIntentMask === 0) {
         continue;
       }
       if (
@@ -822,14 +831,17 @@ const applyRelevantDeltas = (
       let nextRaw = voxelValues[voxelIndex];
       const currentRaw = nextRaw;
 
-      if (shouldWriteVoxel) {
+      if ((writeIntentMask & DELTA_WRITE_VOXEL) !== 0) {
         nextRaw = BlockUtils.insertID(nextRaw, newVoxel);
       }
-      if (shouldWriteRotation) {
-        nextRaw = BlockUtils.insertRotation(nextRaw, newRotation);
+      if ((writeIntentMask & DELTA_WRITE_ROTATION) !== 0) {
+        nextRaw = BlockUtils.insertRotation(
+          nextRaw,
+          newRotation as NonNullable<VoxelDelta["newRotation"]>
+        );
       }
-      if (shouldWriteStage) {
-        nextRaw = BlockUtils.insertStage(nextRaw, newStage);
+      if ((writeIntentMask & DELTA_WRITE_STAGE) !== 0) {
+        nextRaw = BlockUtils.insertStage(nextRaw, newStage as number);
       }
 
       if (nextRaw !== currentRaw) {
