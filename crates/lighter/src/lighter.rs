@@ -432,33 +432,37 @@ pub fn propagate(
 
                 let raw_voxel = space.get_raw_voxel(vx, y, vz);
                 let block = registry.get_block_by_id(raw_voxel & 0xFFFF);
-                let red_level = block.get_torch_light_level_at_xyz(vx, y, vz, space, &LightColor::Red);
-                let green_level =
-                    block.get_torch_light_level_at_xyz(vx, y, vz, space, &LightColor::Green);
-                let blue_level = block.get_torch_light_level_at_xyz(vx, y, vz, space, &LightColor::Blue);
+                if block.is_light {
+                    let red_level =
+                        block.get_torch_light_level_at_xyz(vx, y, vz, space, &LightColor::Red);
+                    let green_level =
+                        block.get_torch_light_level_at_xyz(vx, y, vz, space, &LightColor::Green);
+                    let blue_level =
+                        block.get_torch_light_level_at_xyz(vx, y, vz, space, &LightColor::Blue);
 
-                if red_level > 0 {
-                    space.set_red_light(vx, y, vz, red_level);
-                    red_light_queue.push(LightNode {
-                        voxel: [vx, y, vz],
-                        level: red_level,
-                    });
-                }
+                    if red_level > 0 {
+                        space.set_red_light(vx, y, vz, red_level);
+                        red_light_queue.push(LightNode {
+                            voxel: [vx, y, vz],
+                            level: red_level,
+                        });
+                    }
 
-                if green_level > 0 {
-                    space.set_green_light(vx, y, vz, green_level);
-                    green_light_queue.push(LightNode {
-                        voxel: [vx, y, vz],
-                        level: green_level,
-                    });
-                }
+                    if green_level > 0 {
+                        space.set_green_light(vx, y, vz, green_level);
+                        green_light_queue.push(LightNode {
+                            voxel: [vx, y, vz],
+                            level: green_level,
+                        });
+                    }
 
-                if blue_level > 0 {
-                    space.set_blue_light(vx, y, vz, blue_level);
-                    blue_light_queue.push(LightNode {
-                        voxel: [vx, y, vz],
-                        level: blue_level,
-                    });
+                    if blue_level > 0 {
+                        space.set_blue_light(vx, y, vz, blue_level);
+                        blue_light_queue.push(LightNode {
+                            voxel: [vx, y, vz],
+                            level: blue_level,
+                        });
+                    }
                 }
 
                 let mask_index = x + z * shape_x;
