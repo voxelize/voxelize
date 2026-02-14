@@ -279,14 +279,21 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   private splitUnquotedTokens(raw: string): string[] {
     const tokens = this.quotedTokensBuffer;
     tokens.length = 0;
-    const firstSpace = raw.indexOf(" ");
+    let firstSpace = -1;
+    const rawLength = raw.length;
+    for (let index = 0; index < rawLength; index++) {
+      if (raw.charCodeAt(index) === 32) {
+        firstSpace = index;
+        break;
+      }
+    }
     if (firstSpace === -1) {
-      if (raw.length > 0) {
+      if (rawLength > 0) {
         tokens.push(raw);
       }
       return tokens;
     }
-    if (firstSpace === raw.length - 1) {
+    if (firstSpace === rawLength - 1) {
       if (firstSpace > 0) {
         tokens.push(raw.substring(0, firstSpace));
       }
@@ -299,9 +306,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     }
 
     let segmentStart = -1;
-    const length = raw.length;
-    for (let index = scanStart; index < length; index++) {
-      if (raw[index] === " ") {
+    for (let index = scanStart; index < rawLength; index++) {
+      if (raw.charCodeAt(index) === 32) {
         if (segmentStart >= 0) {
           tokens.push(raw.substring(segmentStart, index));
           segmentStart = -1;
@@ -312,7 +318,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     }
 
     if (segmentStart >= 0) {
-      tokens.push(raw.substring(segmentStart, length));
+      tokens.push(raw.substring(segmentStart, rawLength));
     }
 
     return tokens;
