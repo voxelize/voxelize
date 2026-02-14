@@ -647,6 +647,53 @@ const finish = (report) => {
 
   process.exit(report.exitCode);
 };
+const finishWithExampleCheck = ({
+  attemptedBuild,
+  buildSkipped,
+  buildSkippedReason,
+  buildOutput,
+  buildExitCode,
+  buildDurationMs,
+}) => {
+  const exampleCheckResult = runTsCoreExampleCheck();
+  if (isExampleCheckPassing(exampleCheckResult)) {
+    finish({
+      passed: true,
+      exitCode: 0,
+      artifactsPresent: true,
+      missingArtifacts: [],
+      attemptedBuild,
+      buildSkipped,
+      buildSkippedReason,
+      buildOutput,
+      buildExitCode,
+      buildDurationMs,
+      exampleAttempted: true,
+      ...exampleCheckResult,
+      message:
+        "TypeScript core build artifacts are available and the end-to-end example succeeded.",
+    });
+    return;
+  }
+
+  const exampleFailureMessage = deriveExampleFailureMessage(exampleCheckResult);
+  finish({
+    passed: false,
+    exitCode:
+      exampleCheckResult.exampleExitCode === 0 ? 1 : exampleCheckResult.exampleExitCode,
+    artifactsPresent: true,
+    missingArtifacts: [],
+    attemptedBuild,
+    buildSkipped,
+    buildSkippedReason,
+    buildOutput,
+    buildExitCode,
+    buildDurationMs,
+    exampleAttempted: true,
+    ...exampleCheckResult,
+    message: `TypeScript core build artifacts are available, but ${exampleFailureMessage}`,
+  });
+};
 
 if (isJson && validationFailureMessage !== null) {
   const missingArtifacts = resolveMissingArtifacts();
@@ -682,40 +729,13 @@ if (!isJson && validationFailureMessage !== null) {
 
 const initialMissingArtifacts = resolveMissingArtifacts();
 if (initialMissingArtifacts.length === 0) {
-  const exampleCheckResult = runTsCoreExampleCheck();
-  if (isExampleCheckPassing(exampleCheckResult)) {
-    finish({
-      passed: true,
-      exitCode: 0,
-      artifactsPresent: true,
-      missingArtifacts: [],
-      attemptedBuild: false,
-      buildSkipped: true,
-      buildSkippedReason: "artifacts-present",
-      buildOutput: null,
-      exampleAttempted: true,
-      ...exampleCheckResult,
-      message:
-        "TypeScript core build artifacts are available and the end-to-end example succeeded.",
-    });
-  }
-
-  const exampleFailureMessage = deriveExampleFailureMessage(exampleCheckResult);
-  finish({
-    passed: false,
-    exitCode:
-      exampleCheckResult.exampleExitCode === 0
-        ? 1
-        : exampleCheckResult.exampleExitCode,
-    artifactsPresent: true,
-    missingArtifacts: [],
+  finishWithExampleCheck({
     attemptedBuild: false,
     buildSkipped: true,
     buildSkippedReason: "artifacts-present",
     buildOutput: null,
-    exampleAttempted: true,
-    ...exampleCheckResult,
-    message: `TypeScript core build artifacts are available, but ${exampleFailureMessage}`,
+    buildExitCode: null,
+    buildDurationMs: null,
   });
 }
 
@@ -754,44 +774,13 @@ const buildExitCode = buildResult.status ?? 1;
 const buildOutput = `${buildResult.stdout ?? ""}${buildResult.stderr ?? ""}`.trim();
 const missingArtifactsAfterBuild = resolveMissingArtifacts();
 if (buildExitCode === 0 && missingArtifactsAfterBuild.length === 0) {
-  const exampleCheckResult = runTsCoreExampleCheck();
-  if (isExampleCheckPassing(exampleCheckResult)) {
-    finish({
-      passed: true,
-      exitCode: 0,
-      artifactsPresent: true,
-      missingArtifacts: [],
-      attemptedBuild: true,
-      buildSkipped: false,
-      buildSkippedReason: null,
-      buildOutput: isJson ? buildOutput : null,
-      buildExitCode,
-      buildDurationMs,
-      exampleAttempted: true,
-      ...exampleCheckResult,
-      message:
-        "TypeScript core build artifacts are available and the end-to-end example succeeded.",
-    });
-  }
-
-  const exampleFailureMessage = deriveExampleFailureMessage(exampleCheckResult);
-  finish({
-    passed: false,
-    exitCode:
-      exampleCheckResult.exampleExitCode === 0
-        ? 1
-        : exampleCheckResult.exampleExitCode,
-    artifactsPresent: true,
-    missingArtifacts: [],
+  finishWithExampleCheck({
     attemptedBuild: true,
     buildSkipped: false,
     buildSkippedReason: null,
     buildOutput: isJson ? buildOutput : null,
     buildExitCode,
     buildDurationMs,
-    exampleAttempted: true,
-    ...exampleCheckResult,
-    message: `TypeScript core build artifacts are available, but ${exampleFailureMessage}`,
   });
 }
 
