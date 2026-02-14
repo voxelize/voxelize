@@ -425,6 +425,9 @@ fn has_invalid_flood_bounds(
 
 #[inline]
 fn compute_max_chunk_coordinate(grid_offset: i32, grid_extent: usize) -> Option<i32> {
+    if grid_extent == 0 {
+        return None;
+    }
     let extent_i32 = i32::try_from(grid_extent).ok()?;
     grid_offset.checked_add(extent_i32 - 1)
 }
@@ -745,6 +748,7 @@ mod tests {
     fn compute_max_chunk_coordinate_rejects_overflow() {
         assert_eq!(super::compute_max_chunk_coordinate(10, 1), Some(10));
         assert_eq!(super::compute_max_chunk_coordinate(-4, 3), Some(-2));
+        assert_eq!(super::compute_max_chunk_coordinate(0, 0), None);
         assert_eq!(super::compute_max_chunk_coordinate(i32::MAX, 2), None);
         assert_eq!(super::compute_max_chunk_coordinate(0, usize::MAX), None);
     }
