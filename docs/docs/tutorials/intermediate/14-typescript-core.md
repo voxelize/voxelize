@@ -273,7 +273,8 @@ artifact failures and `kind: "example"` for end-to-end example failures
 expected payload shape (`voxel.id`, `voxel.stage`, `voxel.rotation.value`,
 `voxel.rotation.yRotation`, `light`, `rotatedAabb`) with valid value domains
 (`voxel.id` in `0..65535`, `voxel.stage`/light channels in `0..15`, rotation
-axis in `0..5`) and ordered AABB bounds (`min <= max` on each axis).
+axis in `0..5`) and ordered AABB bounds (`min <= max` on each axis). If the
+payload includes `patternMatched`, it must be `true`.
 Payload validation requires object-shaped JSON output; array/primitive JSON
 outputs are treated as invalid example output.
 When `examplePayloadValid` is `false`, `examplePayloadIssues` and

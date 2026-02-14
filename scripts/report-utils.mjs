@@ -676,8 +676,19 @@ export const summarizeTsCoreExampleOutput = (output) => {
     rotatedAabbValid =
       rotatedAabbMinValid && rotatedAabbMaxValid && rotatedAabbBoundsOrdered;
   }
+  let patternMatchedValid = true;
+  if ("patternMatched" in parsedOutput) {
+    patternMatchedValid = parsedOutput.patternMatched === true;
+    if (!patternMatchedValid) {
+      examplePayloadIssues.push("patternMatched");
+    }
+  }
   const examplePayloadValid =
-    voxelValid && lightValid && rotatedAabbValid && examplePayloadIssues.length === 0;
+    voxelValid &&
+    lightValid &&
+    rotatedAabbValid &&
+    patternMatchedValid &&
+    examplePayloadIssues.length === 0;
   const normalizedExamplePayloadIssues =
     normalizeTsCorePayloadIssues(examplePayloadIssues) ?? [];
   const exampleOutputLine =
