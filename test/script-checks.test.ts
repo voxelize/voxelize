@@ -1512,6 +1512,22 @@ const expectWasmMesherNestedReportMetadata = (report: WasmMesherJsonReport) => {
     expectWasmPackCheckMetadata(report.wasmPackCheckReport);
   }
 };
+const expectOnboardingClientNestedWasmMetadata = (step: OnboardingJsonStep) => {
+  if (step.report === null) {
+    return;
+  }
+
+  const clientReport = step.report as ClientJsonReport;
+  expect(clientReport.schemaVersion).toBe(1);
+  expect(clientReport.steps.length).toBeGreaterThan(0);
+  const wasmArtifactStep = clientReport.steps.find((clientStep) => {
+    return clientStep.name === "WASM artifact preflight";
+  });
+  expect(wasmArtifactStep).toBeDefined();
+  if (wasmArtifactStep !== undefined && wasmArtifactStep.report !== null) {
+    expectWasmMesherNestedReportMetadata(wasmArtifactStep.report);
+  }
+};
 const expectStepSummaryMetadata = (
   report: {
     availableSteps: string[];
@@ -7914,6 +7930,20 @@ describe("root preflight scripts", () => {
       expect(clientStep.exitCode).toBeNull();
       expect(clientStep.reason).toBe("Runtime library checks failed");
     }
+    if (
+      clientStep !== undefined &&
+      tsCoreStep !== undefined &&
+      runtimeLibrariesStep !== undefined &&
+      report.steps[0].passed &&
+      tsCoreStep.skipped === false &&
+      tsCoreStep.passed &&
+      runtimeLibrariesStep.skipped === false &&
+      runtimeLibrariesStep.passed &&
+      clientStep.report !== null
+    ) {
+      expect(clientStep.skipped).toBe(false);
+      expectOnboardingClientNestedWasmMetadata(clientStep);
+    }
     if (report.failedStepCount > 0) {
       expect(report.firstFailedStep).toBe(
         report.steps.find((step) => !step.passed && step.skipped === false)?.name
@@ -9537,6 +9567,20 @@ describe("root preflight scripts", () => {
       expect(clientStep.exitCode).toBeNull();
       expect(clientStep.reason).toBe("Runtime library checks failed");
     }
+    if (
+      clientStep !== undefined &&
+      tsCoreStep !== undefined &&
+      runtimeLibrariesStep !== undefined &&
+      report.steps[0].passed &&
+      tsCoreStep.skipped === false &&
+      tsCoreStep.passed &&
+      runtimeLibrariesStep.skipped === false &&
+      runtimeLibrariesStep.passed &&
+      clientStep.report !== null
+    ) {
+      expect(clientStep.skipped).toBe(false);
+      expectOnboardingClientNestedWasmMetadata(clientStep);
+    }
     expectActiveCliOptionMetadata(
       report,
       ["--json", "--no-build"],
@@ -9679,6 +9723,20 @@ describe("root preflight scripts", () => {
       expect(clientStep.skipped).toBe(true);
       expect(clientStep.exitCode).toBeNull();
       expect(clientStep.reason).toBe("Runtime library checks failed");
+    }
+    if (
+      clientStep !== undefined &&
+      tsCoreStep !== undefined &&
+      runtimeLibrariesStep !== undefined &&
+      report.steps[0].passed &&
+      tsCoreStep.skipped === false &&
+      tsCoreStep.passed &&
+      runtimeLibrariesStep.skipped === false &&
+      runtimeLibrariesStep.passed &&
+      clientStep.report !== null
+    ) {
+      expect(clientStep.skipped).toBe(false);
+      expectOnboardingClientNestedWasmMetadata(clientStep);
     }
     expectActiveCliOptionMetadata(
       report,
