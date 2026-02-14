@@ -838,6 +838,66 @@ describe("check-ts-core script", () => {
     expect(result.output).toContain("Missing value for --output option.");
   });
 
+  it("validates empty split output values in json mode", () => {
+    const result = runScript(["--json", "--output", ""]);
+    const report = parseReport(result);
+
+    expect(result.status).toBe(1);
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.outputPath).toBeNull();
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+  });
+
+  it("validates whitespace split output values in json mode", () => {
+    const result = runScript(["--json", "--output", "   "]);
+    const report = parseReport(result);
+
+    expect(result.status).toBe(1);
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.outputPath).toBeNull();
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+  });
+
+  it("validates empty inline output values in json mode", () => {
+    const result = runScript(["--json", "--output="]);
+    const report = parseReport(result);
+
+    expect(result.status).toBe(1);
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.outputPath).toBeNull();
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+  });
+
+  it("validates whitespace inline output values in json mode", () => {
+    const result = runScript(["--json", "--output=   "]);
+    const report = parseReport(result);
+
+    expect(result.status).toBe(1);
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.outputPath).toBeNull();
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+  });
+
   it("suppresses success output in quiet non-json mode", () => {
     const result = runScript(["--quiet"]);
 
@@ -859,6 +919,20 @@ describe("check-ts-core script", () => {
     expect(result.output).toContain("Missing value for --output option.");
     expect(result.output).not.toContain("Unsupported option(s):");
     expect(result.output).not.toContain("--verify=1");
+  });
+
+  it("fails on empty inline output values in non-json mode", () => {
+    const result = runScript(["--output="]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("Missing value for --output option.");
+  });
+
+  it("fails on whitespace inline output values in non-json mode", () => {
+    const result = runScript(["--output=   "]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("Missing value for --output option.");
   });
 
   it("prioritizes missing output values over inline misuse in non-json mode", () => {
