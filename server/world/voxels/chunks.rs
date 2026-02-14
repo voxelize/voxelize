@@ -545,8 +545,11 @@ impl VoxelAccess for Chunks {
 
     /// Get the raw light value at a voxel coordinate. If chunk not found, 0 is returned.
     fn get_raw_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        if vy as usize >= self.config.max_height {
+        if vy >= self.config.max_height as i32 {
             return LightUtils::insert_sunlight(0, self.config.max_light_level);
+        }
+        if vy < 0 {
+            return 0;
         }
 
         if let Some(chunk) = self.raw_chunk_by_voxel(vx, vy, vz) {

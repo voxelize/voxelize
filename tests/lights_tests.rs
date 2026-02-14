@@ -103,6 +103,42 @@ fn test_can_enter_into() {
 }
 
 #[test]
+fn test_chunks_get_raw_light_handles_negative_and_above_height_queries() {
+    let config = WorldConfig {
+        chunk_size: 16,
+        max_height: 16,
+        max_light_level: 15,
+        min_chunk: [0, 0],
+        max_chunk: [0, 0],
+        saving: false,
+        ..Default::default()
+    };
+    let mut chunks = Chunks::new(&config);
+    chunks.add(Chunk::new(
+        "chunk-0-0",
+        0,
+        0,
+        &ChunkOptions {
+            size: 16,
+            max_height: 16,
+            sub_chunks: 1,
+        },
+    ));
+
+    assert_eq!(
+        chunks.get_raw_light(0, -1, 0),
+        0,
+        "raw light below world height should stay dark"
+    );
+    let above_raw = chunks.get_raw_light(0, config.max_height as i32, 0);
+    assert_eq!(
+        voxelize::LightUtils::extract_sunlight(above_raw),
+        config.max_light_level,
+        "raw light above world height should preserve full sunlight"
+    );
+}
+
+#[test]
 fn test_flood_light_respects_min_without_shape() {
     let registry = create_test_registry();
     let config = WorldConfig {
