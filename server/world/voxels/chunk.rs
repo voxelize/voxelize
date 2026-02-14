@@ -10,6 +10,36 @@ use crate::{
 
 use super::access::VoxelAccess;
 
+const MAX_REPRESENTABLE_LEVEL_COUNT: u128 = u32::MAX as u128 + 1;
+
+#[inline]
+fn representable_level_count(sub_chunks: usize) -> u128 {
+    (sub_chunks as u128).min(MAX_REPRESENTABLE_LEVEL_COUNT)
+}
+
+#[inline]
+fn map_y_to_level(vy: usize, max_height: usize, level_count: u128) -> u32 {
+    if level_count == 0 || max_height == 0 {
+        return 0;
+    }
+    let max_level = level_count.saturating_sub(1);
+    ((vy as u128).saturating_mul(level_count) / max_height as u128).min(max_level) as u32
+}
+
+fn initial_updated_levels(sub_chunks: usize, max_height: usize) -> HashSet<u32> {
+    if sub_chunks == 0 || max_height == 0 {
+        return HashSet::new();
+    }
+
+    let level_count = representable_level_count(sub_chunks);
+    let mut levels = HashSet::with_capacity(max_height.min(level_count as usize));
+    for y in 0..max_height {
+        levels.insert(map_y_to_level(y, max_height, level_count));
+    }
+
+    levels
+}
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ChunkStatus {
     Generating(usize),
@@ -103,7 +133,7 @@ impl Chunk {
             max,
 
             options: options.to_owned(),
-            updated_levels: (0..sub_chunks as u32).collect(),
+            updated_levels: initial_updated_levels(sub_chunks, max_height),
 
             ..Default::default()
         }
@@ -180,58 +210,25 @@ impl Chunk {
             return;
         }
 
-        if max_height % sub_chunks == 0 {
-            let partition = max_height / sub_chunks;
-            if partition > 0 {
-                let level = vy / partition;
-                if level < sub_chunks {
-                    if let Ok(level_u32) = u32::try_from(level) {
-                        self.updated_levels.insert(level_u32);
-                    }
-                    let remainder = vy % partition;
-                    if remainder + 1 == partition && level + 1 < sub_chunks {
-                        if let Ok(next_level_u32) = u32::try_from(level + 1) {
-                            self.updated_levels.insert(next_level_u32);
-                        }
-                    }
-                    if remainder == 0 && level > 0 {
-                        if let Ok(prev_level_u32) = u32::try_from(level - 1) {
-                            self.updated_levels.insert(prev_level_u32);
-                        }
-                    }
-                }
-            }
-            return;
-        }
-
+        let level_count = representable_level_count(sub_chunks);
         let max_height_u128 = max_height as u128;
-        let sub_chunks_u128 = sub_chunks as u128;
-        let level = ((vy as u128) * sub_chunks_u128) / max_height_u128;
-        if level >= sub_chunks_u128 {
-            return;
-        }
-        let Ok(level_u32) = u32::try_from(level) else {
-            return;
-        };
-        self.updated_levels.insert(level_u32);
+        let vy_u128 = vy as u128;
+        let max_level = level_count.saturating_sub(1);
+        let level = ((vy_u128 * level_count) / max_height_u128).min(max_level);
+        self.updated_levels.insert(level as u32);
 
         if level > 0 {
-            let level_start = (level * max_height_u128) / sub_chunks_u128;
-            if (vy as u128) == level_start {
-                let prev_level = level - 1;
-                if let Ok(prev_level_u32) = u32::try_from(prev_level) {
-                    self.updated_levels.insert(prev_level_u32);
-                }
+            let level_start = (level * max_height_u128) / level_count;
+            if vy_u128 == level_start {
+                self.updated_levels.insert((level - 1) as u32);
             }
         }
 
         let next_level = level + 1;
-        if next_level < sub_chunks_u128 {
-            let next_level_start = (next_level * max_height_u128) / sub_chunks_u128;
-            if (vy as u128).saturating_add(1) == next_level_start {
-                if let Ok(next_level_u32) = u32::try_from(next_level) {
-                    self.updated_levels.insert(next_level_u32);
-                }
+        if next_level < level_count {
+            let next_level_start = (next_level * max_height_u128) / level_count;
+            if vy_u128.saturating_add(1) == next_level_start {
+                self.updated_levels.insert(next_level as u32);
             }
         }
     }
@@ -363,5 +360,52 @@ impl VoxelAccess for Chunk {
     /// Check if chunk contains this voxel coordinate.
     fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
         self.local_voxel_if_contains(vx, vy, vz).is_some()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use hashbrown::HashSet;
+
+    use super::{initial_updated_levels, map_y_to_level, representable_level_count, Chunk, ChunkOptions};
+
+    #[test]
+    fn initial_updated_levels_only_tracks_non_empty_dense_partitions() {
+        let levels = initial_updated_levels(8, 4);
+        let expected: HashSet<u32> = [0, 2, 4, 6].into_iter().collect();
+        assert_eq!(levels, expected);
+    }
+
+    #[test]
+    fn add_updated_level_clamps_oversized_sub_chunk_indices() {
+        let mut chunk = Chunk::default();
+        chunk.options = ChunkOptions {
+            size: 16,
+            max_height: 16,
+            sub_chunks: u32::MAX as usize + 1,
+        };
+
+        chunk.add_updated_level(15);
+
+        let expected_level = map_y_to_level(
+            15,
+            16,
+            representable_level_count(u32::MAX as usize + 1),
+        );
+        assert!(chunk.updated_levels.contains(&expected_level));
+    }
+
+    #[test]
+    fn add_updated_level_marks_adjacent_partitions_at_boundaries() {
+        let mut chunk = Chunk::default();
+        chunk.options = ChunkOptions {
+            size: 16,
+            max_height: 8,
+            sub_chunks: 4,
+        };
+
+        chunk.add_updated_level(1);
+        assert!(chunk.updated_levels.contains(&0));
+        assert!(chunk.updated_levels.contains(&1));
     }
 }
