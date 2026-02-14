@@ -147,6 +147,9 @@ The checker validates:
 - `packages/ts-core/dist/index.d.ts`
 
 Use `--output <path>` for machine-readable report files in CI.
+The JSON report includes artifact/build diagnostics such as `requiredArtifactCount`,
+`missingArtifactCount`, `buildCommand`, `buildArgs`, `buildExitCode`,
+`buildDurationMs`, `attemptedBuild`, and `buildSkipped`.
 
 ## API reference
 

@@ -15,6 +15,21 @@ type PreflightCheckResult = {
   output: string | null;
 };
 
+type TsCoreNestedReport = {
+  packagePath: string;
+  requiredArtifacts: string[];
+  requiredArtifactCount: number;
+  missingArtifacts: string[];
+  missingArtifactCount: number;
+  buildCommand: string;
+  buildArgs: string[];
+  buildExitCode: number | null;
+  buildDurationMs: number | null;
+  attemptedBuild: boolean;
+  buildSkipped: boolean;
+  noBuild: boolean;
+};
+
 type PreflightFailureSummary = {
   name: string;
   exitCode: number;
@@ -193,6 +208,19 @@ const expectedAvailableChecks = [
   "tsCore",
   "client",
 ];
+const expectedTsCoreRequiredArtifacts = [
+  "packages/ts-core/dist/index.js",
+  "packages/ts-core/dist/index.mjs",
+  "packages/ts-core/dist/index.d.ts",
+];
+const expectedTsCoreBuildArgs = [
+  "--dir",
+  rootDir,
+  "--filter",
+  "@voxelize/ts-core",
+  "run",
+  "build",
+];
 const expectedRequestedCheckResolutionKinds: Array<
   RequestedCheckResolution["kind"]
 > = ["check", "specialSelector", "invalid"];
@@ -279,6 +307,35 @@ const expectedEmptyRequestedCheckResolutionCounts = {
   invalid: 0,
 };
 const expectedUsedAllSpecialSelector = ["all"];
+const expectTsCoreNestedReport = (
+  checkReport: object | null,
+  expectedNoBuild: boolean
+) => {
+  expect(checkReport).not.toBeNull();
+  if (checkReport === null) {
+    return;
+  }
+
+  const report = checkReport as TsCoreNestedReport;
+  expect(report.packagePath).toBe("packages/ts-core");
+  expect(report.requiredArtifacts).toEqual(expectedTsCoreRequiredArtifacts);
+  expect(report.requiredArtifactCount).toBe(report.requiredArtifacts.length);
+  expect(report.missingArtifactCount).toBe(report.missingArtifacts.length);
+  expect(typeof report.buildCommand).toBe("string");
+  expect(report.buildCommand.length).toBeGreaterThan(0);
+  expect(report.buildArgs).toEqual(expectedTsCoreBuildArgs);
+  expect(report.noBuild).toBe(expectedNoBuild);
+  if (report.buildExitCode !== null) {
+    expect(Number.isInteger(report.buildExitCode)).toBe(true);
+  }
+  if (report.attemptedBuild) {
+    expect(typeof report.buildDurationMs).toBe("number");
+    expect(report.buildDurationMs).toBeGreaterThanOrEqual(0);
+  } else {
+    expect(report.buildExitCode).toBeNull();
+    expect(report.buildDurationMs).toBeNull();
+  }
+};
 
 describe("preflight aggregate report", () => {
   it("emits machine-readable aggregate JSON", () => {
@@ -1397,6 +1454,7 @@ describe("preflight aggregate report", () => {
     expect(report.totalChecks).toBe(1);
     expect(report.checks.length).toBe(1);
     expect(report.checks[0].name).toBe("tsCore");
+    expectTsCoreNestedReport(report.checks[0].report, true);
     expect(report.passedCheckCount + report.failedCheckCount).toBe(1);
     expect([...report.passedChecks, ...report.failedChecks]).toEqual(["tsCore"]);
     if (report.passed) {
@@ -1477,6 +1535,7 @@ describe("preflight aggregate report", () => {
     expect(report.totalChecks).toBe(1);
     expect(report.checks.length).toBe(1);
     expect(report.checks[0].name).toBe("tsCore");
+    expectTsCoreNestedReport(report.checks[0].report, true);
     expect(report.passedCheckCount + report.failedCheckCount).toBe(1);
     expect([...report.passedChecks, ...report.failedChecks]).toEqual(["tsCore"]);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
