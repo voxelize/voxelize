@@ -65,6 +65,28 @@ describe("BlockUtils", () => {
     expect(Voxel.id(packed)).toBe(1);
     expect(Voxel.stage(packed)).toBe(15);
   });
+
+  it("packs defaults when rotation and stage are omitted", () => {
+    const packed = BlockUtils.insertAll(9);
+    const unpacked = Voxel.unpack(packed);
+
+    expect(unpacked.id).toBe(9);
+    expect(unpacked.stage).toBe(0);
+    expect(unpacked.rotation.equals(BlockRotation.py(0))).toBe(true);
+  });
+
+  it("supports chained voxel field updates", () => {
+    const base = Voxel.pack({ id: 1 });
+    const rotation = BlockRotation.nx(Math.PI / 2);
+    const updated = Voxel.withStage(Voxel.withRotation(Voxel.withId(base, 5), rotation), 12);
+
+    expect(Voxel.unpack(updated)).toEqual({
+      id: 5,
+      rotation: Voxel.rotation(updated),
+      stage: 12,
+    });
+    expect(Voxel.rotation(updated).equals(rotation)).toBe(true);
+  });
 });
 
 describe("LightUtils", () => {
