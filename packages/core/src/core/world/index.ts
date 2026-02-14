@@ -887,6 +887,8 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
     number,
     Map<string, Block["faces"][number]>
   >();
+  private chunkMaterialBaseKeyById = new Map<number, string>();
+  private chunkMaterialIndependentKeyById = new Map<number, Map<string, string>>();
   private transparentRenderOrderById = new Map<number, number>();
   private textureGroupFirstFaceCache = new Map<
     string,
@@ -2381,9 +2383,16 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
     if (voxel && faceName && block.isolatedFaces.has(faceName)) {
       materialKey = this.makeChunkMaterialKey(block.id, faceName, voxel);
     } else if (faceName && block.independentFaces.has(faceName)) {
-      materialKey = this.makeChunkMaterialKey(block.id, faceName);
+      const independentMaterialKeys = this.chunkMaterialIndependentKeyById.get(
+        block.id
+      );
+      materialKey =
+        independentMaterialKeys?.get(faceName) ??
+        this.makeChunkMaterialKey(block.id, faceName);
     } else {
-      materialKey = this.makeChunkMaterialKey(block.id);
+      materialKey =
+        this.chunkMaterialBaseKeyById.get(block.id) ??
+        this.makeChunkMaterialKey(block.id);
     }
 
     return this.chunkRenderer.materials.get(materialKey);
@@ -3885,6 +3894,8 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
     // Loading the block registry
     this.blockEntityTypeBlockCache.clear();
     this.blockFaceNameCache.clear();
+    this.chunkMaterialBaseKeyById.clear();
+    this.chunkMaterialIndependentKeyById.clear();
     this.transparentRenderOrderById.clear();
     this.textureGroupFirstFaceCache.clear();
     const hasOwnBlock = Object.prototype.hasOwnProperty;
@@ -7422,6 +7433,8 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
     const atlas = new AtlasTexture(countPerSide, textureUnitDimension);
 
     this.chunkRenderer.uniforms.atlasSize.value = countPerSide;
+    this.chunkMaterialBaseKeyById.clear();
+    this.chunkMaterialIndependentKeyById.clear();
 
     for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
       const block = blocks[blockIndex];
@@ -7434,8 +7447,10 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
       );
       const key = this.makeChunkMaterialKey(block.id);
       this.chunkRenderer.materials.set(key, mat);
+      this.chunkMaterialBaseKeyById.set(block.id, key);
 
       const blockFaces = block.faces;
+      let independentMaterialKeys: Map<string, string> | undefined;
       for (let faceIndex = 0; faceIndex < blockFaces.length; faceIndex++) {
         const face = blockFaces[faceIndex];
         if (!face.independent || face.isolated) continue;
@@ -7449,6 +7464,14 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
         );
         const independentKey = this.makeChunkMaterialKey(block.id, face.name);
         this.chunkRenderer.materials.set(independentKey, independentMat);
+        if (!independentMaterialKeys) {
+          independentMaterialKeys = new Map<string, string>();
+          this.chunkMaterialIndependentKeyById.set(
+            block.id,
+            independentMaterialKeys
+          );
+        }
+        independentMaterialKeys.set(face.name, independentKey);
       }
     }
   }
