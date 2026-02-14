@@ -86,10 +86,11 @@ impl LightBounds {
             return false;
         }
         if shape_x <= i32::MAX as usize && shape_z <= i32::MAX as usize {
-            if let (Some(end_x), Some(end_z)) = (
-                start_x.checked_add(shape_x as i32),
-                start_z.checked_add(shape_z as i32),
-            ) {
+            let shape_x_i32 = shape_x as i32;
+            let shape_z_i32 = shape_z as i32;
+            if start_x <= i32::MAX - shape_x_i32 && start_z <= i32::MAX - shape_z_i32 {
+                let end_x = start_x + shape_x_i32;
+                let end_z = start_z + shape_z_i32;
                 return vx < end_x && vz < end_z;
             }
         }
