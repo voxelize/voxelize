@@ -664,10 +664,7 @@ impl LightRegistry {
         if max_id <= dense_limit {
             let mut dense = vec![usize::MAX; max_id.saturating_add(1)];
             for (index, (id, _)) in self.blocks_by_id.iter().enumerate() {
-                let id_usize = *id as usize;
-                if id_usize < dense.len() {
-                    dense[id_usize] = index;
-                }
+                dense[*id as usize] = index;
             }
             self.lookup_dense = Some(dense);
             self.lookup_sparse = None;
