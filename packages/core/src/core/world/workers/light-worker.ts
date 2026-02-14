@@ -1187,6 +1187,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
   modifiedChunks.length = modifiedChunkCount;
   const transferBuffers = reusableTransferBuffers;
   transferBuffers.length = modifiedChunkCount;
+  const gridMaxChunkXExclusive = gridOffsetX + gridWidth;
+  const gridMaxChunkZExclusive = gridOffsetZ + gridDepth;
   let validModifiedChunkCount = 0;
 
   for (let index = 0; index < modifiedChunkCount; index++) {
@@ -1201,6 +1203,10 @@ const processBatchMessage = (message: LightBatchMessage) => {
       coords.length !== 2 ||
       !isI32(coords[0]) ||
       !isI32(coords[1]) ||
+      coords[0] < gridOffsetX ||
+      coords[0] >= gridMaxChunkXExclusive ||
+      coords[1] < gridOffsetZ ||
+      coords[1] >= gridMaxChunkZExclusive ||
       !(lights instanceof Uint32Array) ||
       lights.length !== expectedVoxelCount ||
       !isArrayBuffer(lights.buffer)
