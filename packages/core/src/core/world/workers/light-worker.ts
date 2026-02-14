@@ -1174,22 +1174,47 @@ const processBatchMessage = (message: LightBatchMessage) => {
   modifiedChunks.length = modifiedChunkCount;
   const transferBuffers = reusableTransferBuffers;
   transferBuffers.length = modifiedChunkCount;
+  let validModifiedChunkCount = 0;
 
   for (let index = 0; index < modifiedChunkCount; index++) {
     const chunk = wasmResult.modifiedChunks[index];
+    if (!chunk || typeof chunk !== "object") {
+      continue;
+    }
+    const coords = chunk.coords;
     const lights = chunk.lights;
-    const existing = modifiedChunks[index];
+    if (
+      !Array.isArray(coords) ||
+      coords.length < 2 ||
+      !isI32(coords[0]) ||
+      !isI32(coords[1]) ||
+      !(lights instanceof Uint32Array) ||
+      !isArrayBuffer(lights.buffer)
+    ) {
+      continue;
+    }
+    const existing = modifiedChunks[validModifiedChunkCount];
     if (existing) {
-      existing.coords = chunk.coords;
+      existing.coords = [coords[0], coords[1]];
       existing.lights = lights;
     } else {
-      modifiedChunks[index] = {
-        coords: chunk.coords,
+      modifiedChunks[validModifiedChunkCount] = {
+        coords: [coords[0], coords[1]],
         lights,
       };
     }
-    transferBuffers[index] = lights.buffer;
+    transferBuffers[validModifiedChunkCount] = lights.buffer;
+    validModifiedChunkCount++;
   }
+
+  if (validModifiedChunkCount === 0) {
+    modifiedChunks.length = 0;
+    transferBuffers.length = 0;
+    postEmptyBatchResult(jobId, lastSequenceId);
+    return;
+  }
+  modifiedChunks.length = validModifiedChunkCount;
+  transferBuffers.length = validModifiedChunkCount;
 
   reusablePostMessageOptions.transfer = transferBuffers;
   const appliedDeltas = getAppliedDeltasPayload(lastSequenceId);
