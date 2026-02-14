@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { resolvePnpmCommand } from "./scripts/command-utils.mjs";
 import {
+  countRecordEntries,
   createCliOptionCatalog,
   createCliDiagnostics,
   createTimedReportBuilder,
@@ -169,7 +170,7 @@ const withBaseReportFields = (report) => {
     checkedPackagePath: tsCorePackagePath,
     checkedPackagePathCount: 1,
     checkedPackagePathMap,
-    checkedPackagePathMapCount: 1,
+    checkedPackagePathMapCount: countRecordEntries(checkedPackagePathMap),
     presentPackages,
     missingPackages,
     presentPackagePaths,
@@ -183,14 +184,20 @@ const withBaseReportFields = (report) => {
     requiredArtifacts,
     requiredArtifactCountByPackage,
     requiredArtifactCount: requiredArtifacts.length,
-    requiredArtifactCountByPackageCount: 1,
+    requiredArtifactCountByPackageCount: countRecordEntries(
+      requiredArtifactCountByPackage
+    ),
     presentArtifacts,
     presentArtifactCount,
     presentArtifactCountByPackage,
-    presentArtifactCountByPackageCount: 1,
+    presentArtifactCountByPackageCount: countRecordEntries(
+      presentArtifactCountByPackage
+    ),
     missingArtifactCount: missingArtifacts.length,
     missingArtifactCountByPackage,
-    missingArtifactCountByPackageCount: 1,
+    missingArtifactCountByPackageCount: countRecordEntries(
+      missingArtifactCountByPackage
+    ),
     missingArtifactSummary,
     buildCommand: pnpmCommand,
     buildArgs: buildCommandArgs,
