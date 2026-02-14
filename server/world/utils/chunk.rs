@@ -52,14 +52,10 @@ impl ChunkUtils {
     /// Map a voxel coordinate to a chunk local coordinate.
     pub fn map_voxel_to_chunk_local(vx: i32, vy: i32, vz: i32, chunk_size: usize) -> Vec3<usize> {
         let cs = i32::try_from(chunk_size).unwrap_or(i32::MAX).max(1);
-        let cx = vx.div_euclid(cs);
-        let cz = vz.div_euclid(cs);
+        let lx = vx.rem_euclid(cs) as usize;
+        let lz = vz.rem_euclid(cs) as usize;
 
-        Vec3(
-            (vx - cx * cs) as usize,
-            vy as usize,
-            (vz - cz * cs) as usize,
-        )
+        Vec3(lx, vy as usize, lz)
     }
 
     pub fn distance_squared(a: &Vec2<i32>, b: &Vec2<i32>) -> f32 {
