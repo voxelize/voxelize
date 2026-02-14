@@ -89,7 +89,10 @@ lazy_static! {
 
 pub fn record_timing(world_name: &str, system_name: &str, duration_ms: f64) {
     if let Ok(mut world_timings) = WORLD_TIMINGS.write() {
-        let timings = world_timings.entry(world_name.to_string()).or_default();
+        let timings = match world_timings.raw_entry_mut().from_key(world_name) {
+            RawEntryMut::Occupied(entry) => entry.into_mut(),
+            RawEntryMut::Vacant(entry) => entry.insert(world_name.to_owned(), SystemTimings::default()).1,
+        };
         timings.record(system_name, duration_ms);
     }
 }
