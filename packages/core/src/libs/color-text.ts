@@ -54,13 +54,15 @@ export class ColorText {
     if (splitterLength === 0) {
       return [{ color: defaultColor, text }];
     }
-    if (text.indexOf(splitter) === -1) {
+    const firstSplitterIndex = text.indexOf(splitter);
+    if (firstSplitterIndex === -1) {
       return [{ color: defaultColor, text }];
     }
     const result: { color: string; text: string }[] = [];
     let currentColor = defaultColor;
     let cursor = 0;
     let endedOnColorToken = false;
+    let openIndex = firstSplitterIndex;
     const pushSegment = (segment: string) => {
       if (segment.length === 0) {
         return;
@@ -74,7 +76,6 @@ export class ColorText {
     };
 
     while (cursor < textLength) {
-      const openIndex = text.indexOf(splitter, cursor);
       if (openIndex === -1) {
         pushSegment(text.substring(cursor));
         endedOnColorToken = false;
@@ -95,6 +96,7 @@ export class ColorText {
       currentColor = text.substring(tokenStart, closeIndex);
       cursor = closeIndex + splitterLength;
       endedOnColorToken = cursor >= textLength;
+      openIndex = text.indexOf(splitter, cursor);
     }
 
     if (endedOnColorToken) {
