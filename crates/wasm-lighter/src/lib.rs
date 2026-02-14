@@ -453,7 +453,7 @@ pub fn process_light_batch_fast(
         max_height.max(0) as u32,
     );
 
-    let bounds = if bounds_min.len() >= 3 && bounds_shape.len() >= 3 {
+    let bounds = if !flood_nodes.is_empty() && bounds_min.len() >= 3 && bounds_shape.len() >= 3 {
         Some(LightBounds {
             min: [bounds_min[0], bounds_min[1], bounds_min[2]],
             shape: [
