@@ -762,7 +762,7 @@ impl World {
                 }
 
                 // Convert back to string
-                match serde_json::to_string(&serde_json::Value::Object(current_map)) {
+                match serde_json::to_string(&current_map) {
                     Ok(merged) => {
                         if let Err(e) = storage.insert(entity, JsonComp::new_owned(merged)) {
                             log::error!("Failed to serialize merged JSON: {}", e);
