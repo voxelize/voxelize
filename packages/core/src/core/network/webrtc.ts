@@ -1,4 +1,5 @@
 const FRAGMENT_HEADER_SIZE = 9;
+const MAX_FRAGMENT_COUNT = 4096;
 const MAX_PENDING_MESSAGES = 64;
 const FRAGMENT_MARKER = 0xff;
 const LEGACY_FRAGMENT_MARKER = 0x01;
@@ -122,7 +123,7 @@ export class WebRTCConnection {
     const total = view.getUint32(1, true);
     const index = view.getUint32(5, true);
     const payload = new Uint8Array(data, FRAGMENT_HEADER_SIZE);
-    if (total === 0 || index >= total) {
+    if (total === 0 || total > MAX_FRAGMENT_COUNT || index >= total) {
       if (isLegacyFragment) {
         this.onMessage?.(data);
       }
