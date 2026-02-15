@@ -1803,9 +1803,19 @@ const toNormalizedCliOptionTokenMetadata = (
       "unavailable"
     );
     if (Array.isArray(metadataTokens) && typeof metadataUnavailable === "boolean") {
+      const normalizedMetadataTokensWithAvailability =
+        normalizeCliOptionTokenListWithAvailability(metadataTokens);
+      const metadataOverrideIsInconsistent =
+        metadataUnavailable === false &&
+        normalizedMetadataTokensWithAvailability.unavailable;
+      if (metadataOverrideIsInconsistent) {
+        return normalizeCliOptionTokenListWithAvailability(fallbackTokens);
+      }
+
       return {
-        tokens: normalizeCliOptionTokenList(metadataTokens),
-        unavailable: metadataUnavailable,
+        tokens: normalizedMetadataTokensWithAvailability.tokens,
+        unavailable:
+          metadataUnavailable || normalizedMetadataTokensWithAvailability.unavailable,
       };
     }
   }
