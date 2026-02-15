@@ -1,3 +1,4 @@
+use hashbrown::hash_map::RawEntryMut;
 use nanoid::nanoid;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use specs::{ReadExpect, ReadStorage, System, WriteExpect};
@@ -124,10 +125,13 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 }
             }
 
-            if let Some(existing_weight) = weights.get_mut(coords) {
-                *existing_weight = weight;
-            } else {
-                weights.insert(coords.clone(), weight);
+            match weights.raw_entry_mut().from_key(coords) {
+                RawEntryMut::Occupied(mut entry) => {
+                    *entry.get_mut() = weight;
+                }
+                RawEntryMut::Vacant(entry) => {
+                    entry.insert(coords.clone(), weight);
+                }
             }
         }
 
