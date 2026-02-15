@@ -115,7 +115,7 @@ export class DOMUtils {
       // Handle regular a-z keys
       for (let i = 65; i <= 90; i++) {
         const char = String.fromCharCode(i);
-        DOMUtils.keyMap[char.toLowerCase()] = `Key${char}`;
+        DOMUtils.keyMap[String.fromCharCode(i + 32)] = `Key${char}`;
       }
 
       // Handle number keys
