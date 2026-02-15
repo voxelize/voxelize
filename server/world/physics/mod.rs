@@ -625,7 +625,6 @@ impl Physics {
         );
 
         let y = body.aabb.min_y;
-        // TODO: AUTO_STEPPING HAPPENS HERE
         let y_dist = (y + 1.001).floor() - y;
         let up_vec = Vec3(0.0, y_dist, 0.0);
         let mut collided = false;

@@ -68,7 +68,6 @@ pub struct WorldConfig {
     pub fluid_drag: f32,
 
     /// Fluid density of the voxelize world.
-    /// TODO: move this to registry.
     pub fluid_density: f32,
 
     /// The repulsion factor when a collision is detected between entities.
