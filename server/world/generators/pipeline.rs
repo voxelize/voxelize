@@ -278,7 +278,7 @@ impl Pipeline {
 
     pub fn mark_for_regenerate(&mut self, coords: &Vec2<i32>) {
         if self.chunks.contains(coords) {
-            self.pending_regenerate.insert(coords.to_owned());
+            self.pending_regenerate.insert(*coords);
         }
     }
 
@@ -294,9 +294,9 @@ impl Pipeline {
         }
         if self.queue.is_empty() {
             if prioritized {
-                self.queue.push_front(coords.to_owned());
+                self.queue.push_front(*coords);
             } else {
-                self.queue.push_back(coords.to_owned());
+                self.queue.push_back(*coords);
             }
             return;
         }
@@ -311,9 +311,9 @@ impl Pipeline {
         self.remove_queued_chunk(coords);
 
         if prioritized {
-            self.queue.push_front(coords.to_owned());
+            self.queue.push_front(*coords);
         } else {
-            self.queue.push_back(coords.to_owned());
+            self.queue.push_back(*coords);
         }
     }
 
@@ -358,7 +358,7 @@ impl Pipeline {
         let mut processes_with_stages: Vec<(Chunk, Option<Space>, Arc<dyn ChunkStage + Send + Sync>)> =
             Vec::with_capacity(processes.len());
         for (chunk, space) in processes {
-            self.chunks.insert(chunk.coords.to_owned());
+            self.chunks.insert(chunk.coords);
             let index = if let ChunkStatus::Generating(index) = chunk.status {
                 index
             } else {
