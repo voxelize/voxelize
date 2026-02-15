@@ -194,6 +194,24 @@ impl KdTree {
     }
 
     #[inline]
+    fn first_entity_with_skip<'a>(
+        &'a self,
+        results: &[(f32, EntityId)],
+        skip: usize,
+    ) -> Option<&'a Entity> {
+        if results.len() <= skip {
+            return None;
+        }
+        for index in skip..results.len() {
+            let (_, ent_id) = results[index];
+            if let Some(entity) = self.entity_map.get(&ent_id) {
+                return Some(entity);
+            }
+        }
+        None
+    }
+
+    #[inline]
     fn player_results_within_radius(
         &self,
         point: &Vec3<f32>,
@@ -340,6 +358,16 @@ impl KdTree {
         self.collect_entities_with_distance(&results, 1)
     }
 
+    pub fn search_first(&self, point: &Vec3<f32>) -> Option<&Entity> {
+        let Some(query_point) = point_array_if_finite(point) else {
+            return None;
+        };
+        let results = self
+            .all
+            .nearest(&query_point, nearest_query_count(1, 1));
+        self.first_entity_with_skip(&results, 1)
+    }
+
     pub fn search_player(
         &self,
         point: &Vec3<f32>,
@@ -359,6 +387,17 @@ impl KdTree {
         self.collect_entities_with_distance(&results, skip)
     }
 
+    pub fn search_first_player(&self, point: &Vec3<f32>, is_player: bool) -> Option<&Entity> {
+        let Some(query_point) = point_array_if_finite(point) else {
+            return None;
+        };
+        let skip = if is_player { 1 } else { 0 };
+        let results = self
+            .players
+            .nearest(&query_point, nearest_query_count(1, skip));
+        self.first_entity_with_skip(&results, skip)
+    }
+
     pub fn search_entity(
         &self,
         point: &Vec3<f32>,
@@ -376,6 +415,17 @@ impl KdTree {
             .entities
             .nearest(&query_point, nearest_query_count(count, skip));
         self.collect_entities_with_distance(&results, skip)
+    }
+
+    pub fn search_first_entity(&self, point: &Vec3<f32>, is_entity: bool) -> Option<&Entity> {
+        let Some(query_point) = point_array_if_finite(point) else {
+            return None;
+        };
+        let skip = if is_entity { 1 } else { 0 };
+        let results = self
+            .entities
+            .nearest(&query_point, nearest_query_count(1, skip));
+        self.first_entity_with_skip(&results, skip)
     }
 
     pub fn for_each_player_id_within_radius<F>(&self, point: &Vec3<f32>, radius: f32, mut f: F)

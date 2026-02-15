@@ -23,15 +23,15 @@ impl<'a> System<'a> for EntityObserveSystem {
         (&positions, &mut targets)
             .par_join()
             .for_each(|(position, target)| {
-                let closest_arr = if target.target_type == TargetType::All {
-                    tree.search(&position.0, 1)
+                let closest_entity = if target.target_type == TargetType::All {
+                    tree.search_first(&position.0)
                 } else if target.target_type == TargetType::Players {
-                    tree.search_player(&position.0, 1, false)
+                    tree.search_first_player(&position.0, false)
                 } else {
-                    tree.search_entity(&position.0, 1, true)
+                    tree.search_first_entity(&position.0, true)
                 };
 
-                if let Some((_, entity)) = closest_arr.into_iter().next() {
+                if let Some(entity) = closest_entity {
                     if let (Some(target_position), Some(id)) = (positions.get(*entity), ids.get(*entity))
                     {
                         target.position = Some(target_position.0.clone());
