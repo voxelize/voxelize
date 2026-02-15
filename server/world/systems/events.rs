@@ -21,8 +21,8 @@ fn ids_are_strictly_sorted(ids: &[String]) -> bool {
         return true;
     }
     let mut prev = ids[0].as_str();
-    for id in ids.iter().skip(1) {
-        let id = id.as_str();
+    for index in 1..ids.len() {
+        let id = ids[index].as_str();
         if id <= prev {
             return false;
         }
@@ -43,7 +43,14 @@ fn ids_contains_target(ids: &[String], target: &str) -> bool {
         0 => false,
         1 => ids[0] == target,
         2 => ids[0] == target || ids[1] == target,
-        _ => ids.iter().any(|id| id.as_str() == target),
+        _ => {
+            for id in ids.iter() {
+                if id.as_str() == target {
+                    return true;
+                }
+            }
+            false
+        }
     }
 }
 
