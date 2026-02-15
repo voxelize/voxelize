@@ -391,6 +391,7 @@ pnpm run check:preflight:all-checks:verify:json:compact
 # sparse trap fallbacks can recover high-index entries even when bounded prefixes contain only undefined values
 # report count/index metadata accepts only non-negative safe integers before fallback coercion
 # wasm status extraction accepts only known status values (ok/missing/unavailable/skipped) before fallback derivation
+# string-array extraction can fall through to bounded key scans when trapped bounded prefixes contain only non-string noise
 # optionally write the same report to disk
 pnpm run check:preflight:verify:json -- --output ./preflight-report.json
 

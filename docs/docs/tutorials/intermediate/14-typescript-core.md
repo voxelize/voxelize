@@ -636,6 +636,8 @@ non-negative safe integers before fallback coercion is applied.
 Wasm status extraction accepts only known status values
 (`ok`/`missing`/`unavailable`/`skipped`) before fallback derivation is
 applied.
+String-array extraction can fall through to bounded key scans when
+trapped bounded prefixes contain only non-string noise.
 Client JSON reports additionally expose top-level wasm preflight summary
 fields `wasmPackCheckStatus`, `wasmPackCheckCommand`,
 `wasmPackCheckArgs`, `wasmPackCheckArgCount`, `wasmPackCheckExitCode`,
