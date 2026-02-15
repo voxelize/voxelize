@@ -1,5 +1,5 @@
 use std::cell::Cell;
-use std::sync::{Arc, RwLock};
+use std::sync::RwLock;
 use std::time::Instant;
 
 use hashbrown::HashMap;
@@ -37,7 +37,7 @@ impl<'a> System<'a> for PathFindingSystem {
         if voxel_cache_map.capacity() < 256 {
             voxel_cache_map.reserve(256 - voxel_cache_map.capacity());
         }
-        let voxel_cache = Arc::new(RwLock::new(voxel_cache_map));
+        let voxel_cache = RwLock::new(voxel_cache_map);
 
         let get_is_voxel_passable = |vx: i32, vy: i32, vz: i32| {
             let key = (vx, vy, vz);
@@ -474,11 +474,9 @@ impl<'a> System<'a> for PathFindingSystem {
                 }
             });
 
-        if let Ok(cache_lock) = Arc::try_unwrap(voxel_cache) {
-            if let Ok(mut cache_map) = cache_lock.into_inner() {
-                cache_map.clear();
-                self.voxel_cache_buffer = cache_map;
-            }
+        if let Ok(mut cache_map) = voxel_cache.into_inner() {
+            cache_map.clear();
+            self.voxel_cache_buffer = cache_map;
         }
     }
 }
