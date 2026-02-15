@@ -48,7 +48,7 @@ export type EventHandler = (payload: JsonValue | null) => void;
  * @noInheritDoc
  */
 export class Events extends Map<string, EventHandler> implements NetIntercept {
-  private static readonly EMPTY_PAYLOAD: JsonValue = {};
+  private static readonly EMPTY_PAYLOAD_JSON = "{}";
   /**
    * A list of packets that will be sent to the server.
    *
@@ -119,14 +119,16 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
    * @param payload The payload to send with the event.
    */
   emit = (name: string, payload?: JsonValue) => {
-    const resolvedPayload =
-      payload === undefined ? Events.EMPTY_PAYLOAD : payload;
+    const payloadJson =
+      payload === undefined
+        ? Events.EMPTY_PAYLOAD_JSON
+        : JSON.stringify(payload);
     this.packets.push({
       type: "EVENT",
       events: [
         {
           name,
-          payload: JSON.stringify(resolvedPayload),
+          payload: payloadJson,
         },
       ],
     });
