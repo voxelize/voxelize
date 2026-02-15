@@ -331,9 +331,16 @@ impl<'a> System<'a> for BroadcastSystem {
             }
 
             if has_transports && should_send_to_transport(encoded.msg_type) {
-                transports.values().for_each(|sender| {
-                    let _ = sender.send(encoded.data.clone());
-                });
+                if transports.len() == 1 {
+                    if let Some(sender) = transports.values().next() {
+                        let _ = sender.send(encoded.data);
+                    }
+                } else {
+                    let payload = &encoded.data;
+                    transports.values().for_each(|sender| {
+                        let _ = sender.send(payload.clone());
+                    });
+                }
             }
         }
     }
