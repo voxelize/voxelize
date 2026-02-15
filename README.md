@@ -378,7 +378,7 @@ pnpm run check:preflight:all-checks:verify:json:compact
 # includes failureSummaryCount for stable failure partition sizing
 # failureSummaries are derived from nested step/check report messages when available
 # failureSummaries also include scriptName, supportsNoBuild, checkIndex, checkCommand, checkArgs, and checkArgCount for deterministic CI routing
-# checkArgs/exampleArgs/wasmPackCheckArgs are normalized to string arrays; malformed/trap values fall back to deterministic null/empty defaults
+# checkArgs/exampleArgs/wasmPackCheckArgs are normalized to string arrays; malformed/trap values salvage readable indexed entries when possible and otherwise fall back to deterministic null/empty defaults
 # CLI option token/arg arrays also salvage readable indexed entries when iterator access traps
 # optionally write the same report to disk
 pnpm run check:preflight:verify:json -- --output ./preflight-report.json
