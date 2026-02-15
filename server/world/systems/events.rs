@@ -78,7 +78,7 @@ impl<'a> System<'a> for EventsSystem {
         }
         if client_count == 0 {
             dispatch_map.clear();
-        } else {
+        } else if !dispatch_map.is_empty() {
             dispatch_map.retain(|id, _| clients.contains_key(id));
         }
         let touched_clients = &mut self.touched_clients_buffer;

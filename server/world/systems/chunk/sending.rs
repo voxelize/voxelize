@@ -1,6 +1,5 @@
 use hashbrown::{hash_map::RawEntryMut, HashMap, HashSet};
 use specs::{ReadExpect, System, WriteExpect};
-use std::collections::VecDeque;
 
 use crate::{
     ChunkInterests, ChunkProtocol, Chunks, ClientFilter, Message, MessageQueues, MessageType,
@@ -8,11 +7,16 @@ use crate::{
 };
 
 #[derive(Default)]
-pub struct ChunkSendingSystem;
+pub struct ChunkSendingSystem {
+    client_load_mesh_buffer: HashMap<String, Vec<ChunkProtocol>>,
+    client_load_data_buffer: HashMap<String, Vec<ChunkProtocol>>,
+    client_update_mesh_buffer: HashMap<String, Vec<ChunkProtocol>>,
+    client_update_data_buffer: HashMap<String, Vec<ChunkProtocol>>,
+}
 
 impl ChunkSendingSystem {
     pub fn new() -> Self {
-        ChunkSendingSystem
+        Self::default()
     }
 }
 
@@ -34,19 +38,20 @@ fn take_updated_level_range(updated_levels: &mut HashSet<u32>) -> Option<(u32, u
 }
 
 #[inline]
-fn flush_chunk_batches(
+fn flush_chunk_batches_in_place(
     queue: &mut MessageQueues,
     message_type: &MessageType,
-    batches: HashMap<String, Vec<ChunkProtocol>>,
+    batches: &mut HashMap<String, Vec<ChunkProtocol>>,
 ) {
-    for (client_id, chunk_models) in batches {
+    for (client_id, chunk_models) in batches.iter_mut() {
         if chunk_models.is_empty() {
             continue;
         }
         queue.push((
-            Message::new(message_type).chunks(&chunk_models).build(),
-            ClientFilter::Direct(client_id),
+            Message::new(message_type).chunks(chunk_models).build(),
+            ClientFilter::Direct(client_id.clone()),
         ));
+        chunk_models.clear();
     }
 }
 
@@ -64,6 +69,28 @@ fn push_chunk_batch(
             entry.insert(client_id.to_owned(), vec![chunk_model.clone()]);
         }
     }
+}
+
+#[inline]
+fn clear_chunk_batch_buffer(
+    batches: &mut HashMap<String, Vec<ChunkProtocol>>,
+    capacity_hint: usize,
+) {
+    if batches.capacity() < capacity_hint {
+        batches.reserve(capacity_hint - batches.capacity());
+    }
+    for chunk_models in batches.values_mut() {
+        chunk_models.clear();
+    }
+}
+
+#[inline]
+fn flush_chunk_batches(
+    queue: &mut MessageQueues,
+    message_type: &MessageType,
+    mut batches: HashMap<String, Vec<ChunkProtocol>>,
+) {
+    flush_chunk_batches_in_place(queue, message_type, &mut batches);
 }
 
 impl<'a> System<'a> for ChunkSendingSystem {
@@ -91,14 +118,14 @@ impl<'a> System<'a> for ChunkSendingSystem {
         let mut to_send = std::mem::take(&mut chunks.to_send);
         let send_batch_estimate = to_send.len();
 
-        let mut client_load_mesh: HashMap<String, Vec<ChunkProtocol>> =
-            HashMap::with_capacity(send_batch_estimate);
-        let mut client_load_data: HashMap<String, Vec<ChunkProtocol>> =
-            HashMap::with_capacity(send_batch_estimate);
-        let mut client_update_mesh: HashMap<String, Vec<ChunkProtocol>> =
-            HashMap::with_capacity(send_batch_estimate);
-        let mut client_update_data: HashMap<String, Vec<ChunkProtocol>> =
-            HashMap::with_capacity(send_batch_estimate);
+        let client_load_mesh = &mut self.client_load_mesh_buffer;
+        let client_load_data = &mut self.client_load_data_buffer;
+        let client_update_mesh = &mut self.client_update_mesh_buffer;
+        let client_update_data = &mut self.client_update_data_buffer;
+        clear_chunk_batch_buffer(client_load_mesh, send_batch_estimate);
+        clear_chunk_batch_buffer(client_load_data, send_batch_estimate);
+        clear_chunk_batch_buffer(client_update_mesh, send_batch_estimate);
+        clear_chunk_batch_buffer(client_update_data, send_batch_estimate);
 
         while let Some((coords, msg_type)) = to_send.pop_front() {
             let Some(chunk) = chunks.get_mut(&coords) else {
@@ -117,8 +144,8 @@ impl<'a> System<'a> for ChunkSendingSystem {
                 let data_model = chunk.to_model(false, true, 0..sub_chunks_u32);
 
                 for client_id in interested_clients {
-                    push_chunk_batch(&mut client_load_mesh, client_id, &mesh_model);
-                    push_chunk_batch(&mut client_load_data, client_id, &data_model);
+                    push_chunk_batch(client_load_mesh, client_id, &mesh_model);
+                    push_chunk_batch(client_load_data, client_id, &data_model);
                 }
             } else {
                 if let Some((min_level, max_level_exclusive)) =
@@ -127,21 +154,21 @@ impl<'a> System<'a> for ChunkSendingSystem {
                     let mesh_model = chunk.to_model(true, false, min_level..max_level_exclusive);
 
                     for client_id in interested_clients {
-                        push_chunk_batch(&mut client_update_mesh, client_id, &mesh_model);
+                        push_chunk_batch(client_update_mesh, client_id, &mesh_model);
                     }
                 }
 
                 let data_model = chunk.to_model(false, true, 0..0);
                 for client_id in interested_clients {
-                    push_chunk_batch(&mut client_update_data, client_id, &data_model);
+                    push_chunk_batch(client_update_data, client_id, &data_model);
                 }
             }
         }
 
-        flush_chunk_batches(&mut queue, &MessageType::Load, client_load_mesh);
-        flush_chunk_batches(&mut queue, &MessageType::Load, client_load_data);
-        flush_chunk_batches(&mut queue, &MessageType::Update, client_update_mesh);
-        flush_chunk_batches(&mut queue, &MessageType::Update, client_update_data);
+        flush_chunk_batches_in_place(&mut queue, &MessageType::Load, client_load_mesh);
+        flush_chunk_batches_in_place(&mut queue, &MessageType::Load, client_load_data);
+        flush_chunk_batches_in_place(&mut queue, &MessageType::Update, client_update_mesh);
+        flush_chunk_batches_in_place(&mut queue, &MessageType::Update, client_update_data);
     }
 }
 

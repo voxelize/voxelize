@@ -448,7 +448,11 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
             "chunk-generation",
             &["chunk-requests"],
         )
-        .with(ChunkSendingSystem, "chunk-sending", &["chunk-generation"])
+        .with(
+            ChunkSendingSystem::default(),
+            "chunk-sending",
+            &["chunk-generation"],
+        )
         .with(ChunkSavingSystem, "chunk-saving", &["chunk-generation"])
         .with(
             PhysicsSystem,
