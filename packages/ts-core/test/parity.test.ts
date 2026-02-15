@@ -973,7 +973,9 @@ describe("Type builders", () => {
 
   it("accepts null-prototype conditional part inputs", () => {
     const nullPrototypePart = Object.create(null) as BlockConditionalPartInput;
-    const nullPrototypeAabb = Object.create(null) as AABBInit;
+    const nullPrototypeAabb = Object.create(null) as {
+      [Key in keyof AABBInit]: number;
+    };
     nullPrototypeAabb.minX = 0;
     nullPrototypeAabb.minY = 0;
     nullPrototypeAabb.minZ = 0;
@@ -1312,7 +1314,7 @@ describe("Type builders", () => {
   });
 
   it("accepts plain AABB init objects during conditional part cloning", () => {
-    const sourceAabb: AABBInit = {
+    const sourceAabb = {
       minX: 0,
       minY: 0,
       minZ: 0,
@@ -2106,7 +2108,7 @@ describe("Type builders", () => {
   });
 
   it("accepts plain AABB init objects in dynamic pattern parts", () => {
-    const sourceAabb: AABBInit = {
+    const sourceAabb = {
       minX: 0,
       minY: 0,
       minZ: 0,
@@ -2309,7 +2311,7 @@ describe("Type builders", () => {
   });
 
   it("supports createAABB helper with plain and null-prototype init objects", () => {
-    const initAabb: AABBInit = {
+    const initAabb = {
       minX: 0,
       minY: 0,
       minZ: 0,
@@ -2317,7 +2319,9 @@ describe("Type builders", () => {
       maxY: 1,
       maxZ: 1,
     };
-    const nullPrototypeInit = Object.create(null) as AABBInit;
+    const nullPrototypeInit = Object.create(null) as {
+      [Key in keyof AABBInit]: number;
+    };
     nullPrototypeInit.minX = 1;
     nullPrototypeInit.minY = 2;
     nullPrototypeInit.minZ = 3;
@@ -2336,6 +2340,19 @@ describe("Type builders", () => {
 
     expect(fromPlainInit.maxX).toBe(1);
     expect(fromNullPrototypeInit.maxX).toBe(4);
+  });
+
+  it("supports readonly AABB init literals in createAABB", () => {
+    const readonlyInit = {
+      minX: 0,
+      minY: 0,
+      minZ: 0,
+      maxX: 1,
+      maxY: 1,
+      maxZ: 1,
+    } as const;
+
+    expect(createAABB(readonlyInit)).toEqual(AABB.create(0, 0, 0, 1, 1, 1));
   });
 
   it("falls back to empty AABB for malformed createAABB inputs", () => {

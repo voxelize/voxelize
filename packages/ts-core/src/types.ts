@@ -177,12 +177,12 @@ export interface BlockDynamicPattern {
 }
 
 export interface AABBInit {
-  minX: number;
-  minY: number;
-  minZ: number;
-  maxX: number;
-  maxY: number;
-  maxZ: number;
+  readonly minX: number;
+  readonly minY: number;
+  readonly minZ: number;
+  readonly maxX: number;
+  readonly maxY: number;
+  readonly maxZ: number;
 }
 
 export type BlockFaceInput = BlockFace | BlockFaceInit;
