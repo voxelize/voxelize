@@ -1082,7 +1082,13 @@ impl World {
 
     /// Handler for protobuf requests from clients.
     pub(crate) fn on_request(&mut self, client_id: &str, data: Message) {
-        let msg_type = MessageType::from_i32(data.r#type).unwrap();
+        let Ok(msg_type) = MessageType::try_from(data.r#type) else {
+            warn!(
+                "Unknown message type {} from client {}",
+                data.r#type, client_id
+            );
+            return;
+        };
 
         match msg_type {
             MessageType::Peer => self.on_peer(client_id, data),
