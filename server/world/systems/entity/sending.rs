@@ -307,8 +307,9 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     single_client_id,
                 );
                 let client_known = known_entities.contains(entity_id);
+                let entity_id_owned = entity_id.to_owned();
                 if !client_known {
-                    known_entities.insert(entity_id.to_owned());
+                    known_entities.insert(entity_id_owned.clone());
                 }
                 let operation = if !client_known || *is_new {
                     EntityOperation::Create
@@ -321,7 +322,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     single_client_id,
                     EntityProtocol {
                         operation,
-                        id: entity_id.to_owned(),
+                        id: entity_id_owned,
                         r#type: (*etype).to_owned(),
                         metadata: Some(metadata_str.clone()),
                     },
@@ -336,8 +337,9 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                         client_id,
                     );
                     let client_known = known_entities.contains(entity_id);
+                    let entity_id_owned = entity_id.to_owned();
                     if !client_known {
-                        known_entities.insert(entity_id.to_owned());
+                        known_entities.insert(entity_id_owned.clone());
                     }
                     let operation = if !client_known || *is_new {
                         EntityOperation::Create
@@ -351,7 +353,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                         client_id,
                         EntityProtocol {
                             operation,
-                            id: entity_id.to_owned(),
+                            id: entity_id_owned,
                             r#type: (*etype).to_owned(),
                             metadata: Some(metadata_str.clone()),
                         },
