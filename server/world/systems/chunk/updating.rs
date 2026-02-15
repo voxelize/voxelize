@@ -256,18 +256,14 @@ fn process_pending_updates(
                 chunks.block_entities.insert(Vec3(vx, vy, vz), entity);
                 lazy.insert(entity, IDComp::new(&nanoid!()));
                 lazy.insert(entity, EntityFlag::default());
+                let block_name = registry.get_name_by_id(updated_id);
+                let normalized_block_name = block_name.strip_prefix("block::").unwrap_or(block_name);
+                let mut entity_type = String::with_capacity(7 + normalized_block_name.len());
+                entity_type.push_str("block::");
+                entity_type.push_str(normalized_block_name);
                 lazy.insert(
                     entity,
-                    ETypeComp::new(
-                        &format!(
-                            "block::{}",
-                            &updated_type
-                                .name
-                                .to_lowercase()
-                                .trim_start_matches("block::")
-                        ),
-                        true,
-                    ),
+                    ETypeComp::new(&entity_type, true),
                 );
                 lazy.insert(entity, MetadataComp::new());
                 lazy.insert(entity, VoxelComp::new(voxel.0, voxel.1, voxel.2));

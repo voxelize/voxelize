@@ -316,6 +316,15 @@ impl Registry {
         &self.get_block_by_name(name).faces
     }
 
+    /// Get normalized block name by id.
+    pub fn get_name_by_id(&self, id: u32) -> &str {
+        self.name_map
+            .get(&id)
+            .or_else(|| self.name_map.get(&0))
+            .map(|name| name.as_str())
+            .unwrap_or("air")
+    }
+
     /// Check if block is air by id.
     pub fn is_air(&self, id: u32) -> bool {
         self.get_block_by_id(id).name == "Air"
