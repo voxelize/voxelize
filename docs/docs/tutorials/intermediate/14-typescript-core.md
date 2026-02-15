@@ -627,6 +627,8 @@ Key-scan fallback keeps the lowest bounded index set in ascending order
 for deterministic output.
 Malformed `requiredFailures` counters are sanitized before fallback
 failure messages are derived.
+Fallback required-failure messages are emitted only for positive integer
+counts.
 Client JSON reports additionally expose top-level wasm preflight summary
 fields `wasmPackCheckStatus`, `wasmPackCheckCommand`,
 `wasmPackCheckArgs`, `wasmPackCheckArgCount`, `wasmPackCheckExitCode`,
