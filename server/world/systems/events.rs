@@ -16,6 +16,22 @@ pub struct EventsSystem {
 const SMALL_FILTER_LINEAR_SCAN_LIMIT: usize = 8;
 
 #[inline]
+fn ids_are_strictly_sorted(ids: &[String]) -> bool {
+    if ids.len() < 2 {
+        return true;
+    }
+    let mut prev = ids[0].as_str();
+    for id in ids.iter().skip(1) {
+        let id = id.as_str();
+        if id <= prev {
+            return false;
+        }
+        prev = id;
+    }
+    true
+}
+
+#[inline]
 fn push_dispatch_event(
     dispatch_map: &mut HashMap<String, Vec<EventProtocol>>,
     touched_clients: &mut Vec<String>,
@@ -297,11 +313,18 @@ impl<'a> System<'a> for EventsSystem {
                                 send_to_id(include_id);
                             }
                         } else if ids.len() < client_count {
-                            let mut seen_ids: HashSet<&str> = HashSet::with_capacity(ids.len());
-                            for include_id in ids.iter() {
-                                let include_id = include_id.as_str();
-                                if seen_ids.insert(include_id) {
+                            if ids_are_strictly_sorted(ids) {
+                                for include_id in ids.iter() {
                                     send_to_id(include_id);
+                                }
+                            } else {
+                                let mut seen_ids: HashSet<&str> =
+                                    HashSet::with_capacity(ids.len());
+                                for include_id in ids.iter() {
+                                    let include_id = include_id.as_str();
+                                    if seen_ids.insert(include_id) {
+                                        send_to_id(include_id);
+                                    }
                                 }
                             }
                         } else {

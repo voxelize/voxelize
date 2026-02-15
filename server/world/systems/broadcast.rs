@@ -437,11 +437,17 @@ impl<'a> System<'a> for BroadcastSystem {
                             send_to_id(include_id);
                         }
                     } else if ids.len() < client_count {
-                        let mut seen_ids: HashSet<&str> = HashSet::with_capacity(ids.len());
-                        for include_id in ids.iter() {
-                            let include_id = include_id.as_str();
-                            if seen_ids.insert(include_id) {
+                        if ids_are_strictly_sorted(ids) {
+                            for include_id in ids.iter() {
                                 send_to_id(include_id);
+                            }
+                        } else {
+                            let mut seen_ids: HashSet<&str> = HashSet::with_capacity(ids.len());
+                            for include_id in ids.iter() {
+                                let include_id = include_id.as_str();
+                                if seen_ids.insert(include_id) {
+                                    send_to_id(include_id);
+                                }
                             }
                         }
                     } else {
