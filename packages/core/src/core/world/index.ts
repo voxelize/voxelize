@@ -5239,9 +5239,13 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
           const block = this.getBlockById(voxel);
           const face = this.findBlockFaceByName(block, faceName);
           if (!face) {
+            geometry.dispose();
             continue;
           }
-          if (!face.isolated || !texturePosition) continue;
+          if (!face.isolated || !texturePosition) {
+            geometry.dispose();
+            continue;
+          }
           try {
             material = this.getOrCreateIsolatedBlockMaterial(
               voxel,
@@ -5249,6 +5253,7 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
               faceName
             );
           } catch {
+            geometry.dispose();
             continue;
           }
         }
@@ -5371,11 +5376,13 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
           const block = this.getBlockById(voxel);
           const face = this.findBlockFaceByName(block, faceName);
           if (!face) {
+            geometry.dispose();
             continue;
           }
 
           if (!face.isolated || !texturePosition) {
             console.warn("Unlikely situation happened...");
+            geometry.dispose();
             continue;
           }
 
@@ -5387,6 +5394,7 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
             );
           } catch (e) {
             console.error(e);
+            geometry.dispose();
             continue;
           }
         }
