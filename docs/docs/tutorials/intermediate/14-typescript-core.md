@@ -616,7 +616,7 @@ iterator access traps.
 Iterator-trapped step/check collections and ts-core payload-issue arrays
 also salvage readable indexed entries for deterministic diagnostics.
 When key enumeration traps, fallback index scans salvage a bounded prefix
-of entries to avoid pathological loops.
+of present entries to avoid pathological loops.
 Client JSON reports additionally expose top-level wasm preflight summary
 fields `wasmPackCheckStatus`, `wasmPackCheckCommand`,
 `wasmPackCheckArgs`, `wasmPackCheckArgCount`, `wasmPackCheckExitCode`,
