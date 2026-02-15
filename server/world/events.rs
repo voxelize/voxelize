@@ -14,6 +14,10 @@ impl Event {
     pub fn new(name: &str) -> EventBuilder {
         EventBuilder::new(name)
     }
+
+    pub fn new_owned(name: String) -> EventBuilder {
+        EventBuilder::new_owned(name)
+    }
 }
 
 #[derive(Default)]
@@ -28,6 +32,14 @@ impl EventBuilder {
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_owned(),
+            payload: None,
+            ..Default::default()
+        }
+    }
+
+    pub fn new_owned(name: String) -> Self {
+        Self {
+            name,
             payload: None,
             ..Default::default()
         }
@@ -103,5 +115,11 @@ mod tests {
             .payload_raw(raw_payload.clone())
             .build();
         assert_eq!(event.payload, Some(raw_payload));
+    }
+
+    #[test]
+    fn event_builder_new_owned_keeps_name_without_copying() {
+        let event = Event::new_owned(String::from("vox-builtin:test")).build();
+        assert_eq!(event.name, "vox-builtin:test");
     }
 }
