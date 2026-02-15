@@ -1863,8 +1863,6 @@ impl World {
     /// Load existing entities.
     fn load_entities(&mut self) {
         if self.config().saving {
-            // TODO: THIS FEELS HACKY
-
             let folder = self
                 .read_resource::<BackgroundEntitiesSaver>()
                 .folder()
@@ -1933,12 +1931,10 @@ impl World {
                 if let Some(ent) = self.revive_entity(&id, &etype, metadata.to_owned()) {
                     loaded_entities.insert(id, (etype, ent, metadata, true));
                 } else {
-                    // Use error! instead of info! for better visibility
                     error!(
                         "Failed to revive entity {:?} of type {}. Metadata: {:?}. File will be removed.",
                         id, etype, metadata
                     );
-                    // remove the file
                     if let Err(e) = fs::remove_file(path) {
                         warn!("Failed to remove file {:?}", e);
                     }
