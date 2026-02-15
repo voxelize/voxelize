@@ -1,4 +1,4 @@
-use noise::{HybridMulti, MultiFractal, NoiseFn, Perlin, RidgedMulti, Seedable};
+use noise::{HybridMulti, MultiFractal, NoiseFn, Perlin, RidgedMulti};
 use serde::Serialize;
 use std::f64;
 
