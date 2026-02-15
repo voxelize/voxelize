@@ -1,5 +1,4 @@
 use serde::Serialize;
-use serde_json::json;
 
 use crate::{ClientFilter, Vec2};
 
@@ -35,7 +34,7 @@ impl EventBuilder {
     }
 
     pub fn payload<T: Serialize>(mut self, payload: T) -> Self {
-        self.payload = Some(json!(payload).to_string());
+        self.payload = serde_json::to_string(&payload).ok();
         self
     }
 
