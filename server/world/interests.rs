@@ -81,7 +81,26 @@ impl ChunkInterests {
             return HashSet::new();
         }
 
-        let mut clients = HashSet::with_capacity(self.map.len().min(16));
+        let mut expected_clients = 0usize;
+        for dx in -1..=1 {
+            let Some(nx) = center.0.checked_add(dx) else {
+                continue;
+            };
+            for dz in -1..=1 {
+                let Some(nz) = center.1.checked_add(dz) else {
+                    continue;
+                };
+                let coords = Vec2(nx, nz);
+                if let Some(interested) = self.get_interests(&coords) {
+                    expected_clients = expected_clients.saturating_add(interested.len());
+                }
+            }
+        }
+        if expected_clients == 0 {
+            return HashSet::new();
+        }
+
+        let mut clients = HashSet::with_capacity(expected_clients);
         for dx in -1..=1 {
             let Some(nx) = center.0.checked_add(dx) else {
                 continue;
@@ -174,6 +193,20 @@ mod tests {
         let clients = interests.get_interested_clients_in_region(&Vec2(i32::MAX, i32::MAX));
         assert!(clients.contains("center"));
         assert!(clients.contains("left"));
+    }
+
+    #[test]
+    fn get_interested_clients_in_region_dedupes_shared_client_ids() {
+        let mut interests = ChunkInterests::new();
+        let center = Vec2(0, 0);
+        interests.add("shared", &Vec2(0, 0));
+        interests.add("shared", &Vec2(1, 0));
+        interests.add("other", &Vec2(0, 1));
+
+        let clients = interests.get_interested_clients_in_region(&center);
+        assert_eq!(clients.len(), 2);
+        assert!(clients.contains("shared"));
+        assert!(clients.contains("other"));
     }
 
     #[test]
