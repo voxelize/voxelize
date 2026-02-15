@@ -183,9 +183,14 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             if chunk_models_buffer.is_empty() {
                 continue;
             }
+            let next_chunk_buffer_capacity = chunk_models_buffer.len();
+            let chunk_models_to_send = std::mem::replace(
+                chunk_models_buffer,
+                Vec::with_capacity(next_chunk_buffer_capacity),
+            );
 
             let message = Message::new(&MessageType::Load)
-                .chunks_owned(chunk_models_buffer.split_off(0))
+                .chunks_owned(chunk_models_to_send)
                 .build();
             queue.push((message, ClientFilter::Direct(id)));
         }
