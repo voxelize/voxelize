@@ -191,7 +191,7 @@ impl EncodedMessageQueue {
                     (encoded, filter)
                 })
                 .collect();
-            sender.send(encoded).unwrap();
+            let _ = sender.send(encoded);
         });
     }
 
