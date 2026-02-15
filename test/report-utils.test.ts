@@ -6312,6 +6312,44 @@ describe("report-utils", () => {
     ).toBe("unavailable");
     expect(
       extractWasmPackStatusFromReport({
+        checkStatusMap: {
+          " WASM-PACK ": " OK ",
+        },
+      })
+    ).toBe("ok");
+    const reportWithTrimmedWasmPackMapKey = Object.create(null) as {
+      readonly checkStatusMap: Record<string, string>;
+    };
+    Object.defineProperty(reportWithTrimmedWasmPackMapKey, "checkStatusMap", {
+      configurable: true,
+      enumerable: true,
+      value: Object.create(null),
+    });
+    Object.defineProperty(
+      reportWithTrimmedWasmPackMapKey.checkStatusMap,
+      " WASM-PACK ",
+      {
+        configurable: true,
+        enumerable: true,
+        value: " missing ",
+      }
+    );
+    Object.defineProperty(
+      reportWithTrimmedWasmPackMapKey.checkStatusMap,
+      " bad-key ",
+      {
+        configurable: true,
+        enumerable: true,
+        get: () => {
+          throw new Error("status trap");
+        },
+      }
+    );
+    expect(extractWasmPackStatusFromReport(reportWithTrimmedWasmPackMapKey)).toBe(
+      "missing"
+    );
+    expect(
+      extractWasmPackStatusFromReport({
         wasmPackCheckStatus: "mystery",
       })
     ).toBeNull();
@@ -6362,6 +6400,16 @@ describe("report-utils", () => {
         },
       })
     ).toBe("missing");
+    expect(
+      deriveWasmPackCheckStatus({
+        wasmPackCheckExitCode: 1,
+        wasmPackCheckReport: {
+          checkStatusMap: {
+            " WASM-PACK ": " OK ",
+          },
+        },
+      })
+    ).toBe("ok");
     expect(
       deriveWasmPackCheckStatus({
         wasmPackCheckExitCode: 0,

@@ -1112,7 +1112,25 @@ export const extractWasmPackStatusFromReport = (report) => {
   }
 
   const wasmPackStatus = safeReadProperty(checkStatusMap, "wasm-pack");
-  return toKnownWasmPackStatus(wasmPackStatus);
+  const normalizedWasmPackStatus = toKnownWasmPackStatus(wasmPackStatus);
+  if (normalizedWasmPackStatus !== null) {
+    return normalizedWasmPackStatus;
+  }
+
+  for (const checkName of safeObjectKeys(checkStatusMap)) {
+    if (checkName.trim().toLowerCase() !== "wasm-pack") {
+      continue;
+    }
+
+    const mappedStatus = toKnownWasmPackStatus(
+      safeReadProperty(checkStatusMap, checkName)
+    );
+    if (mappedStatus !== null) {
+      return mappedStatus;
+    }
+  }
+
+  return null;
 };
 
 export const deriveWasmPackCheckStatus = ({
