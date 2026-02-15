@@ -75,6 +75,9 @@ const voxel = Voxel.pack({
   - rule-offset y-rotation also normalizes full turns/non-finite values to
     identity before offset checks and snaps large-angle precision drift near
     segment boundaries (with bounded snap tolerance to avoid over-rotation)
+  - malformed option payloads (including proxy/getter traps) sanitize to
+    deterministic defaults (`rotation.yRotation=0`, `yRotatable=false`,
+    `worldSpace=false`)
 - `createBlockConditionalPart`
   - defensively clones rule, face, AABB, and transparency-array inputs to
     avoid external mutation side effects after construction
