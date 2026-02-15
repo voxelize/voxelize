@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use hashbrown::{hash_map::Entry, HashMap};
 
 const MAX_FRAGMENT_SIZE: usize = 16000;
 const FRAGMENT_HEADER_SIZE: usize = 9;
@@ -126,8 +126,8 @@ impl FragmentAssembler {
 
         let is_complete = {
             let state = match self.fragments.entry(message_id) {
-                std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
-                std::collections::hash_map::Entry::Vacant(entry) => {
+                Entry::Occupied(entry) => entry.into_mut(),
+                Entry::Vacant(entry) => {
                     if index != 0 {
                         return None;
                     }
