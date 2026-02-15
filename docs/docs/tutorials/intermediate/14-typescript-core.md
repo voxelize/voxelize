@@ -99,6 +99,9 @@ Frozen rule-tree literals are also accepted during helper sanitization.
 Non-plain rule nodes/rotation-like objects are normalized away during
 sanitization.
 Malformed `worldSpace` values fall back to `false`.
+`BlockRuleEvaluator` evaluation options accept either `BlockRotation`
+instances or plain `{ yRotation }` objects, with nullable
+`yRotatable`/`worldSpace` flags.
 Malformed `BlockRuleEvaluator` option payloads (including getter/proxy traps)
 sanitize to deterministic defaults (`rotation.yRotation=0`,
 `yRotatable=false`, `worldSpace=false`).

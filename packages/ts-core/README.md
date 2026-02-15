@@ -69,6 +69,9 @@ const voxel = Voxel.pack({
     `false`; use `touches` for face-contact checks)
 - `BlockRuleEvaluator`
   - evaluate `BlockRule` trees against a voxel access implementation
+  - evaluation options accept `BlockRotation` instances or plain
+    `{ yRotation }` objects, with nullable boolean flags for
+    `yRotatable`/`worldSpace`
   - combination rule edge cases mirror core semantics (`NOT []` / `AND []`
     evaluate to `true`, `OR []` evaluates to `false`)
   - y-rotated rule offsets use rounded integer voxel positions after rotation
