@@ -111,12 +111,32 @@ pub fn default_client_parser(world: &mut World, metadata: &str, client_ent: Enti
             d.0.set(direction.0, direction.1, direction.2);
         }
     }
+
+    if let Some(crouching) = metadata.is_crouching {
+        let mut bodies = world.write_component::<RigidBodyComp>();
+        if let Some(b) = bodies.get_mut(client_ent) {
+            let standing_height = 1.8_f32;
+            let crouch_height = standing_height * 0.83;
+            let target_height = if crouching {
+                crouch_height
+            } else {
+                standing_height
+            };
+            let current_height = b.0.aabb.height();
+            if (current_height - target_height).abs() > 0.01 {
+                let min_y = b.0.aabb.min_y;
+                b.0.aabb.max_y = min_y + target_height;
+            }
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PeerUpdate {
     position: Option<Vec3<f32>>,
     direction: Option<Vec3<f32>>,
+    is_crouching: Option<bool>,
 }
 
 /// Wrapper to make a non-Send/Sync type safely usable in contexts that require it.

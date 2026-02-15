@@ -255,6 +255,11 @@ export type RigidControlsOptions = {
    * How tall a client can step up. Defaults to `0.5`.
    */
   stepHeight: number;
+
+  /**
+   * The height of the client's avatar when crouching. Defaults to `bodyHeight * 0.83`.
+   */
+  crouchBodyHeight: number;
 };
 
 const defaultOptions: RigidControlsOptions = {
@@ -294,6 +299,8 @@ const defaultOptions: RigidControlsOptions = {
   airJumps: 0,
 
   stepHeight: 0.5,
+
+  crouchBodyHeight: 1.29,
 };
 
 /**
@@ -431,6 +438,10 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    * movementX and movementY becomes 60+ on the first movement back.
    */
   private justUnlocked = false;
+
+  private _crouching = false;
+
+  private _smoothedBodyHeight = -1;
 
   /**
    * An internal clock instance for calculating delta time.
@@ -594,6 +605,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       const cameraPosition = this.object.position.toArray();
 
       this.character.set(cameraPosition, [dx, dy, dz]);
+      this.character.setCrouching(this._crouching);
       this.character.update();
     }
 
@@ -831,6 +843,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     const [px, py, pz] = this.body.getPosition();
     const { bodyWidth, bodyHeight, bodyDepth } = this.options;
 
+    this._crouching = false;
+
     if (this.ghostMode) {
       aabb.minX = px - bodyWidth / 2;
       aabb.minY = py - bodyHeight / 2;
@@ -929,19 +943,21 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       return;
     }
 
-    // Change lerp factors to one.
     character.options.positionLerp = newLerpFactor;
-    // character.options.rotationLerp = newLerpFactor;
+
+    const crouchRatio = this.options.crouchBodyHeight / this.options.bodyHeight;
 
     this.options.bodyHeight = character.totalHeight;
     this.options.bodyWidth = character.body.width;
     this.options.bodyDepth = character.body.depth;
     this.options.eyeHeight = character.eyeHeight / character.totalHeight;
+    this.options.crouchBodyHeight = character.totalHeight * crouchRatio;
 
     this.body.aabb.maxX = this.body.aabb.minX + this.options.bodyWidth;
     this.body.aabb.maxY = this.body.aabb.minY + this.options.bodyHeight;
     this.body.aabb.maxZ = this.body.aabb.minZ + this.options.bodyDepth;
 
+    this._crouching = false;
     this.character = character;
   };
 
@@ -982,6 +998,10 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    */
   get flyMode() {
     return this.body.gravityMultiplier === 0 && !this.ghostMode;
+  }
+
+  get isCrouching() {
+    return this._crouching;
   }
 
   /**
@@ -1298,9 +1318,82 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       }
     }
 
+    this.updateCrouchAABB();
+
     const [x, y, z] = this.body.getPosition();
-    const { eyeHeight, bodyHeight } = this.options;
-    this.newPosition.set(x, y + bodyHeight * (eyeHeight - 0.5), z);
+    const effectiveHeight = this.body.aabb.maxY - this.body.aabb.minY;
+    if (this._smoothedBodyHeight < 0) {
+      this._smoothedBodyHeight = effectiveHeight;
+    } else {
+      this._smoothedBodyHeight +=
+        (effectiveHeight - this._smoothedBodyHeight) * 0.25;
+    }
+    const { eyeHeight } = this.options;
+    this.newPosition.set(
+      x,
+      y + this._smoothedBodyHeight * (eyeHeight - 0.5),
+      z
+    );
+  };
+
+  private updateCrouchAABB = () => {
+    if (this.ghostMode) {
+      this._crouching = false;
+      return;
+    }
+
+    if (this.body.gravityMultiplier === 0) {
+      if (this._crouching) {
+        const heightDiff =
+          this.options.bodyHeight - this.options.crouchBodyHeight;
+        this.body.aabb.maxY += heightDiff;
+        this._crouching = false;
+      }
+      return;
+    }
+
+    const wantsCrouch = this.state.crouching;
+
+    if (wantsCrouch && !this._crouching) {
+      const heightDiff =
+        this.options.bodyHeight - this.options.crouchBodyHeight;
+      this.body.aabb.maxY -= heightDiff;
+      this._crouching = true;
+    } else if (!wantsCrouch && this._crouching) {
+      if (this.canUncrouch()) {
+        const heightDiff =
+          this.options.bodyHeight - this.options.crouchBodyHeight;
+        this.body.aabb.maxY += heightDiff;
+        this._crouching = false;
+      }
+    }
+  };
+
+  private canUncrouch = (): boolean => {
+    const { aabb } = this.body;
+    const { bodyHeight } = this.options;
+    const currentHeight = aabb.maxY - aabb.minY;
+    if (currentHeight >= bodyHeight) return true;
+
+    const newMaxY = aabb.minY + bodyHeight;
+    const minVx = Math.floor(aabb.minX + 0.001);
+    const maxVx = Math.floor(aabb.maxX - 0.001);
+    const minVz = Math.floor(aabb.minZ + 0.001);
+    const maxVz = Math.floor(aabb.maxZ - 0.001);
+    const startVy = Math.floor(aabb.maxY);
+    const endVy = Math.floor(newMaxY - 0.001);
+
+    for (let vy = startVy; vy <= endVy; vy++) {
+      for (let vx = minVx; vx <= maxVx; vx++) {
+        for (let vz = minVz; vz <= maxVz; vz++) {
+          const block = this.world.getBlockAt(vx, vy, vz);
+          if (block && !block.isEmpty && !block.isPassable) {
+            return false;
+          }
+        }
+      }
+    }
+    return true;
   };
 
   /**

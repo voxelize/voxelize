@@ -403,10 +403,9 @@ export class Character extends Group {
    */
   public extraData: any = null;
 
-  /**
-   * Whether the character is in a sitting pose.
-   */
   private _isSitting = false;
+
+  private _isCrouching = false;
 
   /**
    * A listener called when a character starts moving.
@@ -686,6 +685,14 @@ export class Character extends Group {
       this.leftArmGroup.rotation.x = 0;
       this.rightArmGroup.rotation.x = 0;
     }
+  }
+
+  get isCrouching() {
+    return this._isCrouching;
+  }
+
+  setCrouching(crouching: boolean) {
+    this._isCrouching = crouching;
   }
 
   /**
