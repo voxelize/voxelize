@@ -1,4 +1,4 @@
-use hashbrown::{hash_map::EntryRef, Equivalent, HashMap, HashSet};
+use hashbrown::{hash_map::EntryRef, Equivalent, HashMap};
 use serde::{Deserialize, Serialize};
 
 use voxelize_core::{
@@ -3066,7 +3066,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
         .get_block_by_id(0)
         .map(|block| block.is_empty)
         .unwrap_or(true);
-    let mut processed_non_greedy: HashSet<usize> = HashSet::new();
 
     let [min_x, min_y, min_z] = *min;
     let [max_x, max_y, max_z] = *max;
@@ -3074,6 +3073,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
     let y_span = (max_y - min_y).max(0) as usize;
     let z_span = (max_z - min_z).max(0) as usize;
     let yz_span = y_span * z_span;
+    let mut processed_non_greedy = vec![false; x_span * y_span * z_span];
     const OCCLUSION_UNKNOWN: u8 = 2;
     let mut fully_occluded_opaque = vec![OCCLUSION_UNKNOWN; x_span * y_span * z_span];
 
@@ -3189,9 +3189,10 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         let voxel_key = ((vx - min_x) as usize) * yz_span
                             + ((vy - min_y) as usize) * z_span
                             + (vz - min_z) as usize;
-                        if !processed_non_greedy.insert(voxel_key) {
+                        if processed_non_greedy[voxel_key] {
                             continue;
                         }
+                        processed_non_greedy[voxel_key] = true;
                         Some(voxel_key)
                     } else {
                         None
