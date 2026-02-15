@@ -3034,10 +3034,10 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
             non_greedy_faces.reserve(mask_len - non_greedy_faces.capacity());
         }
         let mut quads: Vec<GreedyQuad> = Vec::with_capacity(quads_capacity_hint(mask_len));
+        let mut faces: Vec<(BlockFace, bool)> = Vec::new();
 
         for slice in slice_range {
             non_greedy_faces.clear();
-            let mut faces: Vec<(BlockFace, bool)> = Vec::new();
 
             for u in u_range.0..u_range.1 {
                 let u_mask_offset = (u - u_range.0) as usize;
