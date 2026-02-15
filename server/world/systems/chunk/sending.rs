@@ -90,11 +90,16 @@ impl<'a> System<'a> for ChunkSendingSystem {
 
         let mut to_send = VecDeque::new();
         std::mem::swap(&mut chunks.to_send, &mut to_send);
+        let send_batch_estimate = to_send.len();
 
-        let mut client_load_mesh: HashMap<String, Vec<ChunkProtocol>> = HashMap::new();
-        let mut client_load_data: HashMap<String, Vec<ChunkProtocol>> = HashMap::new();
-        let mut client_update_mesh: HashMap<String, Vec<ChunkProtocol>> = HashMap::new();
-        let mut client_update_data: HashMap<String, Vec<ChunkProtocol>> = HashMap::new();
+        let mut client_load_mesh: HashMap<String, Vec<ChunkProtocol>> =
+            HashMap::with_capacity(send_batch_estimate);
+        let mut client_load_data: HashMap<String, Vec<ChunkProtocol>> =
+            HashMap::with_capacity(send_batch_estimate);
+        let mut client_update_mesh: HashMap<String, Vec<ChunkProtocol>> =
+            HashMap::with_capacity(send_batch_estimate);
+        let mut client_update_data: HashMap<String, Vec<ChunkProtocol>> =
+            HashMap::with_capacity(send_batch_estimate);
 
         while let Some((coords, msg_type)) = to_send.pop_front() {
             let Some(chunk) = chunks.get_mut(&coords) else {
