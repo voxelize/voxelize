@@ -4,6 +4,17 @@ import { Group, Vector3 } from "three";
 import { JsonValue } from "../types";
 import { NetIntercept } from "./network";
 
+const normalizeEntityType = (type: string): string => {
+  const length = type.length;
+  for (let index = 0; index < length; index++) {
+    const code = type.charCodeAt(index);
+    if ((code >= 65 && code <= 90) || code > 127) {
+      return type.toLowerCase();
+    }
+  }
+  return type;
+};
+
 export class Entity<T = JsonValue> extends Group {
   public entId: string;
 
@@ -62,7 +73,7 @@ export class Entities extends Group implements NetIntercept {
     type: string,
     entity: (new (id: string) => Entity) | ((id: string) => Entity)
   ) => {
-    this.types.set(type.toLowerCase(), entity);
+    this.types.set(normalizeEntityType(type), entity);
   };
 
   /**
@@ -169,7 +180,7 @@ export class Entities extends Group implements NetIntercept {
   };
 
   private createEntityOfType = (type: string, id: string) => {
-    const normalizedType = type.toLowerCase();
+    const normalizedType = normalizeEntityType(type);
     const EntityType = this.types.get(normalizedType);
     if (!EntityType) {
       console.warn(`Entity type ${type} is not registered.`);
