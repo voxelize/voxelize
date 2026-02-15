@@ -459,6 +459,26 @@ const toOrderedValuesFromEntryMap = (entryMap, capToFallbackWindow = false) => {
   });
 };
 
+const mergeIndexedEntriesByFirstSeen = (
+  primaryEntries,
+  supplementalEntries,
+  capToFallbackWindow = false
+) => {
+  const mergedEntryMap = new Map();
+  for (const entry of primaryEntries) {
+    if (!mergedEntryMap.has(entry.index)) {
+      mergedEntryMap.set(entry.index, entry.value);
+    }
+  }
+  for (const entry of supplementalEntries) {
+    if (!mergedEntryMap.has(entry.index)) {
+      mergedEntryMap.set(entry.index, entry.value);
+    }
+  }
+
+  return toOrderedValuesFromEntryMap(mergedEntryMap, capToFallbackWindow);
+};
+
 const mergeIndexedFallbackEntries = (primaryEntries, supplementalEntries) => {
   const isEmptyPlaceholderEntry = (entryValue) => {
     return entryValue === undefined || entryValue === null;
@@ -860,27 +880,14 @@ const toStringArrayOrNull = (value) => {
 
   const keyFallbackStringEntries = cloneStringEntriesFromIndexedKeys(value);
   if (keyFallbackStringEntries !== null && keyFallbackStringEntries.length > 0) {
-    const mergedStringEntries = new Map();
-    for (const entry of normalizedStringEntries) {
-      if (!mergedStringEntries.has(entry.index)) {
-        mergedStringEntries.set(entry.index, entry.value);
-      }
-    }
-    for (const entry of keyFallbackStringEntries) {
-      if (!mergedStringEntries.has(entry.index)) {
-        mergedStringEntries.set(entry.index, entry.value);
-      }
-    }
-
-    if (mergedStringEntries.size > 0) {
-      const capMergedStringEntries =
-        indexedEntries.length <= MAX_ARRAY_LENGTH_FALLBACK_SCAN &&
-        keyFallbackStringEntries.length <= MAX_ARRAY_LENGTH_FALLBACK_SCAN;
-      return toOrderedValuesFromEntryMap(
-        mergedStringEntries,
-        capMergedStringEntries
-      );
-    }
+    const capMergedStringEntries =
+      indexedEntries.length <= MAX_ARRAY_LENGTH_FALLBACK_SCAN &&
+      keyFallbackStringEntries.length <= MAX_ARRAY_LENGTH_FALLBACK_SCAN;
+    return mergeIndexedEntriesByFirstSeen(
+      normalizedStringEntries,
+      keyFallbackStringEntries,
+      capMergedStringEntries
+    );
   }
 
   return toValuesFromIndexedArrayEntries(normalizedStringEntries);
@@ -896,27 +903,14 @@ const toObjectRecordEntriesOrEmpty = (sourceValue, indexedEntries) => {
 
   const keyFallbackRecordEntries = cloneObjectEntriesFromIndexedKeys(sourceValue);
   if (keyFallbackRecordEntries !== null && keyFallbackRecordEntries.length > 0) {
-    const mergedRecordEntries = new Map();
-    for (const entry of normalizedRecordEntries) {
-      if (!mergedRecordEntries.has(entry.index)) {
-        mergedRecordEntries.set(entry.index, entry.value);
-      }
-    }
-    for (const entry of keyFallbackRecordEntries) {
-      if (!mergedRecordEntries.has(entry.index)) {
-        mergedRecordEntries.set(entry.index, entry.value);
-      }
-    }
-
-    if (mergedRecordEntries.size > 0) {
-      const capMergedRecordEntries =
-        indexedEntries.length <= MAX_ARRAY_LENGTH_FALLBACK_SCAN &&
-        keyFallbackRecordEntries.length <= MAX_ARRAY_LENGTH_FALLBACK_SCAN;
-      return toOrderedValuesFromEntryMap(
-        mergedRecordEntries,
-        capMergedRecordEntries
-      );
-    }
+    const capMergedRecordEntries =
+      indexedEntries.length <= MAX_ARRAY_LENGTH_FALLBACK_SCAN &&
+      keyFallbackRecordEntries.length <= MAX_ARRAY_LENGTH_FALLBACK_SCAN;
+    return mergeIndexedEntriesByFirstSeen(
+      normalizedRecordEntries,
+      keyFallbackRecordEntries,
+      capMergedRecordEntries
+    );
   }
 
   return toValuesFromIndexedArrayEntries(normalizedRecordEntries);
