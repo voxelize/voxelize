@@ -4,6 +4,8 @@ const MAX_FRAGMENT_SIZE: usize = 16000;
 const FRAGMENT_HEADER_SIZE: usize = 9;
 const MAX_PAYLOAD_SIZE: usize = MAX_FRAGMENT_SIZE - FRAGMENT_HEADER_SIZE;
 const MAX_PENDING_MESSAGES: usize = 64;
+const FRAGMENT_MARKER: u8 = 0xFF;
+const LEGACY_FRAGMENT_MARKER: u8 = 0x01;
 
 struct FragmentState {
     parts: Vec<Option<Vec<u8>>>,
@@ -32,7 +34,7 @@ pub fn fragment_message(data: &[u8]) -> Vec<Vec<u8>> {
     for (i, chunk) in data.chunks(MAX_PAYLOAD_SIZE).enumerate() {
         let mut fragment = Vec::with_capacity(FRAGMENT_HEADER_SIZE + chunk.len());
 
-        fragment.push(1);
+        fragment.push(FRAGMENT_MARKER);
 
         fragment.extend_from_slice(&(total_fragments as u32).to_le_bytes());
 
@@ -44,6 +46,19 @@ pub fn fragment_message(data: &[u8]) -> Vec<Vec<u8>> {
     }
 
     fragments
+}
+
+#[inline]
+fn parse_fragment_header(data: &[u8]) -> Option<(usize, usize, &[u8])> {
+    if data.len() < FRAGMENT_HEADER_SIZE {
+        return None;
+    }
+    let total = u32::from_le_bytes([data[1], data[2], data[3], data[4]]) as usize;
+    let index = u32::from_le_bytes([data[5], data[6], data[7], data[8]]) as usize;
+    if total == 0 || index >= total {
+        return None;
+    }
+    Some((total, index, &data[FRAGMENT_HEADER_SIZE..]))
 }
 
 pub struct FragmentAssembler {
@@ -69,25 +84,23 @@ impl FragmentAssembler {
         if data.is_empty() {
             return None;
         }
-
-        let is_fragment = data[0] == 1;
-
-        if !is_fragment {
+        let marker = data[0];
+        let (total, index, payload, is_legacy_marker) = if marker == FRAGMENT_MARKER {
+            let (total, index, payload) = parse_fragment_header(data)?;
+            (total, index, payload, false)
+        } else if marker == LEGACY_FRAGMENT_MARKER {
+            let Some((total, index, payload)) = parse_fragment_header(data) else {
+                return Some(data.to_vec());
+            };
+            (total, index, payload, true)
+        } else {
             return Some(data.to_vec());
-        }
-
-        if data.len() < FRAGMENT_HEADER_SIZE {
-            return None;
-        }
-
-        let total = u32::from_le_bytes([data[1], data[2], data[3], data[4]]) as usize;
-        let index = u32::from_le_bytes([data[5], data[6], data[7], data[8]]) as usize;
-        let payload = &data[FRAGMENT_HEADER_SIZE..];
-        if total == 0 || index >= total {
-            return None;
-        }
+        };
         if total == 1 {
             if index == 0 {
+                if is_legacy_marker {
+                    return Some(data.to_vec());
+                }
                 return Some(payload.to_vec());
             }
             return None;
@@ -162,12 +175,14 @@ impl FragmentAssembler {
 
 #[cfg(test)]
 mod tests {
-    use super::{fragment_message, FragmentAssembler};
+    use super::{
+        fragment_message, FragmentAssembler, FRAGMENT_MARKER, LEGACY_FRAGMENT_MARKER,
+    };
 
     #[test]
     fn process_accepts_single_fragment_header_without_buffering() {
         let payload = vec![7, 8, 9];
-        let mut framed = vec![1];
+        let mut framed = vec![FRAGMENT_MARKER];
         framed.extend_from_slice(&(1u32).to_le_bytes());
         framed.extend_from_slice(&(0u32).to_le_bytes());
         framed.extend_from_slice(&payload);
@@ -207,7 +222,7 @@ mod tests {
     fn process_resets_pending_state_when_too_many_messages_accumulate() {
         let mut assembler = FragmentAssembler::new();
         for marker in 0u8..=64u8 {
-            let mut framed = vec![1];
+            let mut framed = vec![FRAGMENT_MARKER];
             framed.extend_from_slice(&(2u32).to_le_bytes());
             framed.extend_from_slice(&(0u32).to_le_bytes());
             framed.push(marker);
@@ -216,5 +231,12 @@ mod tests {
 
         assert_eq!(assembler.fragments.len(), 1);
         assert_eq!(assembler.next_message_id, 1);
+    }
+
+    #[test]
+    fn process_treats_legacy_marker_with_invalid_header_as_raw_message() {
+        let payload = vec![LEGACY_FRAGMENT_MARKER, 9, 8, 7, 6];
+        let mut assembler = FragmentAssembler::new();
+        assert_eq!(assembler.process(&payload), Some(payload));
     }
 }

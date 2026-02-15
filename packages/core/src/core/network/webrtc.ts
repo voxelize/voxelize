@@ -1,5 +1,7 @@
 const FRAGMENT_HEADER_SIZE = 9;
 const MAX_PENDING_MESSAGES = 64;
+const FRAGMENT_MARKER = 0xff;
+const LEGACY_FRAGMENT_MARKER = 0x01;
 const toHttpProtocol = (protocol: string) => {
   if (protocol.startsWith("wss")) {
     return "https:";
@@ -101,14 +103,19 @@ export class WebRTCConnection {
       return;
     }
 
-    const isFragment = view.getUint8(0) === 1;
+    const marker = view.getUint8(0);
+    const isFragment = marker === FRAGMENT_MARKER;
+    const isLegacyFragment = marker === LEGACY_FRAGMENT_MARKER;
 
-    if (!isFragment) {
+    if (!isFragment && !isLegacyFragment) {
       this.onMessage?.(data);
       return;
     }
 
     if (data.byteLength < FRAGMENT_HEADER_SIZE) {
+      if (isLegacyFragment) {
+        this.onMessage?.(data);
+      }
       return;
     }
 
@@ -116,13 +123,23 @@ export class WebRTCConnection {
     const index = view.getUint32(5, true);
     const payload = new Uint8Array(data, FRAGMENT_HEADER_SIZE);
     if (total === 0 || index >= total) {
+      if (isLegacyFragment) {
+        this.onMessage?.(data);
+      }
       return;
     }
     if (total === 1) {
-      this.onMessage?.(data.slice(FRAGMENT_HEADER_SIZE));
+      if (isLegacyFragment) {
+        this.onMessage?.(data);
+      } else {
+        this.onMessage?.(data.slice(FRAGMENT_HEADER_SIZE));
+      }
       return;
     }
     if (index !== 0 && this.nextMessageId === 0) {
+      if (isLegacyFragment) {
+        this.onMessage?.(data);
+      }
       return;
     }
     if (index === 0 && this.fragments.size >= MAX_PENDING_MESSAGES) {
@@ -135,6 +152,9 @@ export class WebRTCConnection {
     let fragmentState = this.fragments.get(messageId);
     if (!fragmentState) {
       if (index !== 0) {
+        if (isLegacyFragment) {
+          this.onMessage?.(data);
+        }
         return;
       }
       fragmentState = {
@@ -144,6 +164,9 @@ export class WebRTCConnection {
       };
       this.fragments.set(messageId, fragmentState);
     } else if (fragmentState.total !== total || index >= fragmentState.total) {
+      if (isLegacyFragment) {
+        this.onMessage?.(data);
+      }
       return;
     }
     if (fragmentState.parts[index] === null) {
