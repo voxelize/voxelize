@@ -167,16 +167,25 @@ impl<'a> System<'a> for ChunkSendingSystem {
         let client_load_data = &mut self.client_load_data_buffer;
         let client_update_mesh = &mut self.client_update_mesh_buffer;
         let client_update_data = &mut self.client_update_data_buffer;
+        let client_count = clients.len();
         if clients.is_empty() {
             client_load_mesh.clear();
             client_load_data.clear();
             client_update_mesh.clear();
             client_update_data.clear();
         } else {
-            client_load_mesh.retain(|client_id, _| clients.contains_key(client_id));
-            client_load_data.retain(|client_id, _| clients.contains_key(client_id));
-            client_update_mesh.retain(|client_id, _| clients.contains_key(client_id));
-            client_update_data.retain(|client_id, _| clients.contains_key(client_id));
+            if client_load_mesh.len() > client_count {
+                client_load_mesh.retain(|client_id, _| clients.contains_key(client_id));
+            }
+            if client_load_data.len() > client_count {
+                client_load_data.retain(|client_id, _| clients.contains_key(client_id));
+            }
+            if client_update_mesh.len() > client_count {
+                client_update_mesh.retain(|client_id, _| clients.contains_key(client_id));
+            }
+            if client_update_data.len() > client_count {
+                client_update_data.retain(|client_id, _| clients.contains_key(client_id));
+            }
         }
         let client_load_mesh_touched = &mut self.client_load_mesh_touched;
         let client_load_data_touched = &mut self.client_load_data_touched;
