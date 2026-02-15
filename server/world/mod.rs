@@ -658,8 +658,9 @@ impl World {
                     return;
                 }
             };
+            let payload_json = payload.json.as_str();
 
-            let payload_obj: serde_json::Value = match serde_json::from_str(&payload.json) {
+            let payload_obj: serde_json::Value = match serde_json::from_str(payload_json) {
                 Ok(obj) => obj,
                 Err(e) => {
                     log::error!("Payload JSON is invalid: {}", e);
@@ -716,7 +717,7 @@ impl World {
             // Check if this is a partial update
             if !payload.is_partial.unwrap_or(false) {
                 // For full updates, just use the new JSON directly
-                if let Err(e) = storage.insert(entity, JsonComp::new(&payload.json)) {
+                if let Err(e) = storage.insert(entity, JsonComp::new(payload_json)) {
                     log::error!("Failed to update block entity JSON: {}", e);
                 }
                 return;
@@ -727,7 +728,7 @@ impl World {
                 Some(comp) => &comp.0,
                 None => {
                     // If there's no current JSON, just use the new JSON
-                    if let Err(e) = storage.insert(entity, JsonComp::new(&payload.json)) {
+                    if let Err(e) = storage.insert(entity, JsonComp::new(payload_json)) {
                         log::error!("Failed to update block entity JSON: {}", e);
                     }
                     return;
@@ -743,7 +744,7 @@ impl World {
                         "Failed to parse current JSON: {} - using payload JSON only",
                         e
                     );
-                    if let Err(e) = storage.insert(entity, JsonComp::new(&payload.json)) {
+                    if let Err(e) = storage.insert(entity, JsonComp::new(payload_json)) {
                         log::error!("Failed to update block entity JSON: {}", e);
                     }
                     return;
@@ -770,14 +771,14 @@ impl World {
                     }
                     Err(e) => {
                         log::error!("Failed to serialize merged JSON: {}", e);
-                        if let Err(e) = storage.insert(entity, JsonComp::new(&payload.json)) {
+                        if let Err(e) = storage.insert(entity, JsonComp::new(payload_json)) {
                             log::error!("Failed to update block entity JSON: {}", e);
                         }
                     }
                 }
             } else {
                 // If either isn't an object, fall back to payload
-                if let Err(e) = storage.insert(entity, JsonComp::new(&payload.json)) {
+                if let Err(e) = storage.insert(entity, JsonComp::new(payload_json)) {
                     log::error!("Failed to update block entity JSON: {}", e);
                 }
             }
