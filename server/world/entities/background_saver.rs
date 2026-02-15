@@ -196,7 +196,6 @@ impl BackgroundEntitiesSaver {
 impl Drop for BackgroundEntitiesSaver {
     fn drop(&mut self) {
         self.shutdown.store(true, Ordering::Relaxed);
-        drop(self.sender.clone());
         if let Some(handle) = self.handle.take() {
             let _ = handle.join();
         }
