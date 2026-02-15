@@ -399,6 +399,7 @@ pnpm run check:preflight:all-checks:verify:json:compact
 # wasm status-map key lookup normalizes key tokens (trim + lowercase) before known-status extraction
 # command metadata fields sanitize whitespace-only strings to null before summary emission
 # failure-message derivation trims whitespace-only message/name/reason fields before fallback composition
+# summary helper name/command fields trim whitespace and skip empty-name entries before count/list aggregation
 # sparse trap fallbacks can supplement bounded-prefix entries with bounded key-scan recovery when high-index readable entries exist
 # bounded fallback scans use own-property checks so inherited numeric prototype entries are ignored
 # when own-property descriptor probes trap, bounded fallback switches to guarded direct reads without repeated probe failures
