@@ -1127,6 +1127,43 @@ describe("report-utils", () => {
     expect(statefulNumericPrefixResult.positionalArgs).toEqual([]);
     expect(statefulNumericPrefixResult.optionTerminatorUsed).toBe(false);
 
+    let equalLengthIndexZeroReadCount = 0;
+    let equalLengthIndexOneReadCount = 0;
+    const equalLengthReplacementArgsTarget: string[] = [];
+    equalLengthReplacementArgsTarget[0] = "--json";
+    equalLengthReplacementArgsTarget[1] = "--mystery";
+    const equalLengthReplacementArgs = new Proxy(equalLengthReplacementArgsTarget, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 2;
+        }
+        if (propertyKey === "0") {
+          equalLengthIndexZeroReadCount += 1;
+          if (equalLengthIndexZeroReadCount === 1) {
+            return 1;
+          }
+        }
+        if (propertyKey === "1") {
+          equalLengthIndexOneReadCount += 1;
+          if (equalLengthIndexOneReadCount > 1) {
+            return 1;
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const equalLengthReplacementResult = splitCliArgs(
+      equalLengthReplacementArgs as never
+    );
+    expect(equalLengthReplacementResult.optionArgs).toEqual(["--json"]);
+    expect(equalLengthReplacementResult.positionalArgs).toEqual([]);
+    expect(equalLengthReplacementResult.optionTerminatorUsed).toBe(false);
+
     const cappedMergedFallbackArgsTarget: string[] = [];
     cappedMergedFallbackArgsTarget[0] = "--json";
     for (let index = 0; index < 1_024; index += 1) {
@@ -4273,6 +4310,49 @@ describe("report-utils", () => {
       failedSteps: ["step-b"],
       skippedSteps: [],
     });
+    let equalLengthIndexZeroReadCount = 0;
+    let equalLengthIndexOneReadCount = 0;
+    const equalLengthReplacementSteps = new Proxy(
+      [
+        { name: "step-a", passed: true, skipped: false },
+        { name: "step-b", passed: false, skipped: false },
+      ],
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (propertyKey === "0") {
+            equalLengthIndexZeroReadCount += 1;
+            if (equalLengthIndexZeroReadCount === 1) {
+              return 1;
+            }
+          }
+          if (propertyKey === "1") {
+            equalLengthIndexOneReadCount += 1;
+            if (equalLengthIndexOneReadCount > 1) {
+              return 1;
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(summarizeStepResults(equalLengthReplacementSteps as never)).toEqual({
+      totalSteps: 2,
+      passedStepCount: 1,
+      failedStepCount: 0,
+      skippedStepCount: 0,
+      firstFailedStep: null,
+      passedSteps: ["step-a"],
+      failedSteps: [],
+      skippedSteps: [],
+    });
 
     const ownKeysTrapSteps = new Proxy(
       [{ name: "step-a", passed: true, skipped: false }],
@@ -5295,6 +5375,70 @@ describe("report-utils", () => {
         message: "Step failed with exit code 2.",
       },
     ]);
+    let equalLengthIndexZeroReadCount = 0;
+    let equalLengthIndexOneReadCount = 0;
+    const equalLengthReplacementFailureSteps = new Proxy(
+      [
+        {
+          name: "step-preferred",
+          scriptName: "check-preferred.mjs",
+          supportsNoBuild: true,
+          stepIndex: 0,
+          passed: false,
+          skipped: false,
+          exitCode: 2,
+        },
+        {
+          name: "step-secondary",
+          scriptName: "check-secondary.mjs",
+          supportsNoBuild: true,
+          stepIndex: 1,
+          passed: false,
+          skipped: false,
+          exitCode: 3,
+        },
+      ],
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (propertyKey === "0") {
+            equalLengthIndexZeroReadCount += 1;
+            if (equalLengthIndexZeroReadCount === 1) {
+              return 1;
+            }
+          }
+          if (propertyKey === "1") {
+            equalLengthIndexOneReadCount += 1;
+            if (equalLengthIndexOneReadCount > 1) {
+              return 1;
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      summarizeStepFailureResults(equalLengthReplacementFailureSteps as never)
+    ).toEqual([
+      {
+        name: "step-preferred",
+        scriptName: "check-preferred.mjs",
+        supportsNoBuild: true,
+        stepIndex: 0,
+        checkCommand: "",
+        checkArgs: [],
+        checkArgCount: 0,
+        exitCode: 2,
+        message: "Step failed with exit code 2.",
+      },
+    ]);
 
     const checkWithTrapPassed = Object.create(null) as {
       readonly name: string;
@@ -6046,6 +6190,54 @@ describe("report-utils", () => {
         steps: statefulNumericPrefixFailureSteps,
       })
     ).toBe("WASM artifact preflight: artifact missing");
+    let equalLengthIndexZeroReadCount = 0;
+    let equalLengthIndexOneReadCount = 0;
+    const equalLengthReplacementFailureSteps = new Proxy(
+      [
+        {
+          name: "Preferred step",
+          passed: false,
+          skipped: false,
+          reason: "preferred reason",
+        },
+        {
+          name: "Secondary step",
+          passed: false,
+          skipped: false,
+          reason: "secondary reason",
+        },
+      ],
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (propertyKey === "0") {
+            equalLengthIndexZeroReadCount += 1;
+            if (equalLengthIndexZeroReadCount === 1) {
+              return 1;
+            }
+          }
+          if (propertyKey === "1") {
+            equalLengthIndexOneReadCount += 1;
+            if (equalLengthIndexOneReadCount > 1) {
+              return 1;
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      deriveFailureMessageFromReport({
+        steps: equalLengthReplacementFailureSteps,
+      })
+    ).toBe("Preferred step: preferred reason");
   });
 
   it("extracts wasm pack summary fields from nested reports", () => {
