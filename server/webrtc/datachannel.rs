@@ -80,11 +80,17 @@ impl FragmentAssembler {
 
         let message_id = if index == 0 {
             let id = self.next_message_id;
-            self.next_message_id += 1;
+            self.next_message_id = self.next_message_id.saturating_add(1);
             self.expected_counts.insert(id, total);
             id
         } else {
-            self.next_message_id.saturating_sub(1)
+            let Some(id) = self.next_message_id.checked_sub(1) else {
+                return None;
+            };
+            if !self.expected_counts.contains_key(&id) {
+                return None;
+            }
+            id
         };
 
         let entry = self
@@ -153,5 +159,17 @@ mod tests {
         }
 
         assert_eq!(reconstructed, Some(payload));
+    }
+
+    #[test]
+    fn process_ignores_non_initial_fragment_without_tracking_state() {
+        let payload = vec![7u8, 8, 9];
+        let mut framed = vec![1];
+        framed.extend_from_slice(&(2u32).to_le_bytes());
+        framed.extend_from_slice(&(1u32).to_le_bytes());
+        framed.extend_from_slice(&payload);
+
+        let mut assembler = FragmentAssembler::new();
+        assert_eq!(assembler.process(&framed), None);
     }
 }
