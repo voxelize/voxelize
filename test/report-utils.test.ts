@@ -6793,6 +6793,48 @@ describe("report-utils", () => {
     expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(2);
   });
 
+  it("preserves recoverable strict subsets for active metadata when value metadata is unavailable", () => {
+    const activeMetadata = parseActiveCliOptionMetadata(
+      ["--only", "-l", "--output", "-s"],
+      {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: ["--output", "--only", 1] as never,
+        optionsWithStrictValues: ["--only"],
+      }
+    );
+
+    expect(activeMetadata.activeCliOptions).toEqual(["--output", "--only"]);
+    expect(activeMetadata.activeCliOptionCount).toBe(2);
+    expect(activeMetadata.activeCliOptionTokens).toEqual([
+      "--only",
+      "--output",
+    ]);
+    expect(activeMetadata.activeCliOptionResolutions).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionResolutionCount).toBe(2);
+    expect(activeMetadata.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+        index: 0,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 2,
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(2);
+  });
+
   it("treats recognized option tokens as active with primitive strict metadata in metadata parsing", () => {
     const activeMetadata = parseActiveCliOptionMetadata(["--report-path", "-j"], {
       canonicalOptions: ["--json"],
