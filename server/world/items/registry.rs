@@ -7,6 +7,7 @@ use super::def::{ItemDef, ItemDefBuilder};
 pub struct ItemRegistry {
     items_by_id: HashMap<u32, ItemDef>,
     items_by_name: HashMap<String, u32>,
+    next_auto_id: u32,
 }
 
 impl ItemRegistry {
@@ -58,6 +59,7 @@ impl ItemRegistry {
 
         self.items_by_name.insert(lower_name, id);
         self.items_by_id.insert(id, def);
+        self.next_auto_id = self.next_auto_id.max(id.saturating_add(1));
         self
     }
 
@@ -103,8 +105,22 @@ impl ItemRegistry {
         serde_json::json!(items)
     }
 
-    fn next_id(&self) -> u32 {
-        self.items_by_id.keys().max().map_or(1, |max| max + 1)
+    fn next_id(&mut self) -> u32 {
+        if self.next_auto_id == 0 {
+            self.next_auto_id = self
+                .items_by_id
+                .keys()
+                .max()
+                .map_or(1, |max| max.saturating_add(1));
+        }
+
+        while self.items_by_id.contains_key(&self.next_auto_id) {
+            self.next_auto_id = self.next_auto_id.saturating_add(1);
+        }
+
+        let id = self.next_auto_id;
+        self.next_auto_id = self.next_auto_id.saturating_add(1);
+        id
     }
 }
 
@@ -114,5 +130,32 @@ impl std::fmt::Debug for ItemRegistry {
             .field("count", &self.count())
             .field("items", &self.items_by_id.keys().collect::<Vec<_>>())
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ItemRegistry;
+
+    #[test]
+    fn register_assigns_sequential_auto_ids() {
+        let mut registry = ItemRegistry::new();
+        registry.register("wood", |builder| builder);
+        registry.register("stone", |builder| builder);
+
+        assert_eq!(registry.get_id_by_name("wood"), Some(1));
+        assert_eq!(registry.get_id_by_name("stone"), Some(2));
+    }
+
+    #[test]
+    fn register_skips_explicitly_reserved_ids() {
+        let mut registry = ItemRegistry::new();
+        registry.register("wood", |builder| builder);
+        registry.register_with_id(10, "gem", |builder| builder);
+        registry.register("stone", |builder| builder);
+
+        assert_eq!(registry.get_id_by_name("wood"), Some(1));
+        assert_eq!(registry.get_id_by_name("gem"), Some(10));
+        assert_eq!(registry.get_id_by_name("stone"), Some(11));
     }
 }
