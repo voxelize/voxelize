@@ -629,6 +629,8 @@ Malformed `requiredFailures` counters are sanitized before fallback
 failure messages are derived.
 Fallback required-failure messages are emitted only for positive integer
 counts.
+Sparse trap fallbacks can recover high-index entries even when bounded
+prefix scans contain only `undefined` values.
 Client JSON reports additionally expose top-level wasm preflight summary
 fields `wasmPackCheckStatus`, `wasmPackCheckCommand`,
 `wasmPackCheckArgs`, `wasmPackCheckArgCount`, `wasmPackCheckExitCode`,
