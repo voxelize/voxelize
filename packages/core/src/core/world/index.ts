@@ -2403,6 +2403,24 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
     faceName?: string,
     voxel?: Coords3
   ) {
+    const materials = this.chunkRenderer.materials;
+    if (faceName) {
+      const independentMaterialKey =
+        this.chunkMaterialIndependentKeyById.get(id)?.get(faceName);
+      if (independentMaterialKey !== undefined) {
+        return materials.get(independentMaterialKey);
+      }
+      if (voxel) {
+        const cachedFace = this.blockFaceNameCache.get(id)?.get(faceName);
+        if (cachedFace?.isolated) {
+          return materials.get(this.makeChunkMaterialKey(id, faceName, voxel));
+        }
+      }
+    }
+    const baseMaterialKey = this.chunkMaterialBaseKeyById.get(id);
+    if (baseMaterialKey !== undefined) {
+      return materials.get(baseMaterialKey);
+    }
     const block = this.registry.blocksById.get(id);
     if (!block) {
       return undefined;
