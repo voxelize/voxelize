@@ -175,12 +175,11 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             if chunk_models_buffer.capacity() < coords_to_send.len() {
                 chunk_models_buffer.reserve(coords_to_send.len() - chunk_models_buffer.capacity());
             }
-            for coords in coords_to_send.iter() {
-                if let Some(chunk) = chunks.get(coords) {
+            for coords in coords_to_send.drain() {
+                if let Some(chunk) = chunks.get(&coords) {
                     chunk_models_buffer.push(chunk.to_model(true, true, 0..sub_chunks_u32));
                 }
             }
-            coords_to_send.clear();
             if chunk_models_buffer.is_empty() {
                 continue;
             }
