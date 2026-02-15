@@ -52,7 +52,7 @@ impl EventBuilder {
     pub fn build(self) -> Event {
         Event {
             name: self.name,
-            payload: Some(self.payload.unwrap_or_else(|| json!("{}").to_string())),
+            payload: Some(self.payload.unwrap_or_else(|| String::from("{}"))),
             filter: self.filter,
             location: self.location,
         }
