@@ -160,6 +160,11 @@ impl SpaceBuilder<'_> {
             panic!("Margin of 0 on Space is wasteful.");
         }
 
+        let needs_voxels = self.needs_voxels;
+        let needs_lights = self.needs_lights;
+        let needs_height_maps = self.needs_height_maps;
+        let strict = self.strict;
+
         let width = chunk_size.saturating_add(margin.saturating_mul(2));
         let (voxels, lights, height_maps): (HashMap<_, _>, HashMap<_, _>, HashMap<_, _>) =
             if let Some((min_x, max_x, min_z, max_z)) = self.chunks.light_traversed_bounds(&self.coords)
@@ -168,13 +173,13 @@ impl SpaceBuilder<'_> {
                 let width_z = (i64::from(max_z) - i64::from(min_z) + 1) as usize;
                 let traversed_count = width_x.saturating_mul(width_z);
                 if traversed_count <= SMALL_SPACE_CHUNK_LOAD_LIMIT {
-                    let mut voxels = if self.needs_voxels {
+                    let mut voxels = if needs_voxels {
                         HashMap::with_capacity(traversed_count)
                     } else {
                         HashMap::new()
                     };
                     let mut lights = HashMap::with_capacity(traversed_count);
-                    let mut height_maps = if self.needs_height_maps {
+                    let mut height_maps = if needs_height_maps {
                         HashMap::with_capacity(traversed_count)
                     } else {
                         HashMap::new()
@@ -183,18 +188,18 @@ impl SpaceBuilder<'_> {
                         for z in min_z..=max_z {
                             let n_coords = Vec2(x, z);
                             if let Some(chunk) = self.chunks.raw(&n_coords) {
-                                if self.needs_voxels {
+                                if needs_voxels {
                                     voxels.insert(n_coords, Arc::clone(&chunk.voxels));
                                 }
-                                if self.needs_lights {
+                                if needs_lights {
                                     lights.insert(n_coords, (*chunk.lights).clone());
                                 } else {
                                     lights.insert(n_coords, ndarray(&chunk.lights.shape, 0));
                                 }
-                                if self.needs_height_maps {
+                                if needs_height_maps {
                                     height_maps.insert(n_coords, Arc::clone(&chunk.height_map));
                                 }
-                            } else if self.strict {
+                            } else if strict {
                                 panic!("Space incomplete in strict mode: {:?}", n_coords);
                             }
                         }
@@ -204,13 +209,13 @@ impl SpaceBuilder<'_> {
                     (min_x..=max_x)
                         .into_par_iter()
                         .map(|x| {
-                            let mut voxels = if self.needs_voxels {
+                            let mut voxels = if needs_voxels {
                                 HashMap::with_capacity(width_z)
                             } else {
                                 HashMap::new()
                             };
                             let mut lights = HashMap::with_capacity(width_z);
-                            let mut height_maps = if self.needs_height_maps {
+                            let mut height_maps = if needs_height_maps {
                                 HashMap::with_capacity(width_z)
                             } else {
                                 HashMap::new()
@@ -219,18 +224,18 @@ impl SpaceBuilder<'_> {
                             for z in min_z..=max_z {
                                 let n_coords = Vec2(x, z);
                                 if let Some(chunk) = self.chunks.raw(&n_coords) {
-                                    if self.needs_voxels {
+                                    if needs_voxels {
                                         voxels.insert(n_coords, Arc::clone(&chunk.voxels));
                                     }
-                                    if self.needs_lights {
+                                    if needs_lights {
                                         lights.insert(n_coords, (*chunk.lights).clone());
                                     } else {
                                         lights.insert(n_coords, ndarray(&chunk.lights.shape, 0));
                                     }
-                                    if self.needs_height_maps {
+                                    if needs_height_maps {
                                         height_maps.insert(n_coords, Arc::clone(&chunk.height_map));
                                     }
-                                } else if self.strict {
+                                } else if strict {
                                     panic!("Space incomplete in strict mode: {:?}", n_coords);
                                 }
                             }
@@ -240,13 +245,13 @@ impl SpaceBuilder<'_> {
                         .reduce(
                             || {
                                 (
-                                    if self.needs_voxels {
+                                    if needs_voxels {
                                         HashMap::with_capacity(traversed_count)
                                     } else {
                                         HashMap::new()
                                     },
                                     HashMap::with_capacity(traversed_count),
-                                    if self.needs_height_maps {
+                                    if needs_height_maps {
                                         HashMap::with_capacity(traversed_count)
                                     } else {
                                         HashMap::new()
