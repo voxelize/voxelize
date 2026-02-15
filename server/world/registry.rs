@@ -158,7 +158,7 @@ impl Registry {
         let count_per_side = count_per_side as usize;
         let offset = 1.0 / (count_per_side as f32 * 4.0);
 
-        let mut group_uvs: HashMap<String, UV> = HashMap::new();
+        let mut group_uvs: HashMap<String, UV> = HashMap::with_capacity(texture_groups.len());
         let mut row = 0;
         let mut col = 0;
 
