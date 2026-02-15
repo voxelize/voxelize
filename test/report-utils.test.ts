@@ -4440,6 +4440,7 @@ describe("report-utils", () => {
     expect(
       deriveFailureMessageFromReport({ requiredFailures: 2 })
     ).toBe("2 required check(s) failed.");
+    expect(deriveFailureMessageFromReport({ requiredFailures: 0 })).toBeNull();
     expect(
       deriveFailureMessageFromReport({ requiredFailures: Number.NaN })
     ).toBeNull();
@@ -4456,6 +4457,19 @@ describe("report-utils", () => {
         ],
       })
     ).toBe("TypeScript typecheck: previous step failed");
+    expect(
+      deriveFailureMessageFromReport({
+        requiredFailures: 0,
+        steps: [
+          {
+            name: "Client checks",
+            passed: false,
+            skipped: false,
+            reason: "artifact missing",
+          },
+        ],
+      })
+    ).toBe("Client checks: artifact missing");
     expect(
       deriveFailureMessageFromReport({ requiredFailures: 1.5 })
     ).toBeNull();

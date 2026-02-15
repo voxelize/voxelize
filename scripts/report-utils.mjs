@@ -468,7 +468,7 @@ export const deriveFailureMessageFromReport = (report) => {
 
   const requiredFailures = safeReadProperty(report, "requiredFailures");
   const normalizedRequiredFailures = toNonNegativeIntegerOrNull(requiredFailures);
-  if (normalizedRequiredFailures !== null) {
+  if (normalizedRequiredFailures !== null && normalizedRequiredFailures > 0) {
     return `${normalizedRequiredFailures} required check(s) failed.`;
   }
 
