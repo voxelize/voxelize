@@ -76,7 +76,7 @@ impl Trees {
             ..
         } = tree;
 
-        let mut base = at.clone();
+        let mut base = *at;
         let mut length = branch_initial_length as f64;
         let mut radius = branch_initial_radius as f64;
         let mut leaf_scale = 1.0;
@@ -146,7 +146,7 @@ impl Trees {
             // Save the state
             else if symbol == '[' {
                 stack.push(TreeState {
-                    base: base.clone(),
+                    base,
                     length,
                     radius,
                     y_angle,
