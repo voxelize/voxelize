@@ -30,6 +30,13 @@ fn mesh_protocol_level(level: u32) -> i32 {
     i32::try_from(level).unwrap_or(i32::MAX)
 }
 
+const LIGHT_COLORS: [LightColor; 4] = [
+    LightColor::Sunlight,
+    LightColor::Red,
+    LightColor::Green,
+    LightColor::Blue,
+];
+
 #[inline]
 fn sub_chunk_y_bounds(min_y: i32, max_height: usize, sub_chunks: usize, level: u32) -> Option<(i32, i32)> {
     if max_height == 0 || sub_chunks == 0 {
@@ -184,32 +191,26 @@ impl Mesher {
         }
 
         let sender = Arc::clone(&self.sender);
-        let r#type = r#type.clone();
+        let msg_type = *r#type;
         let registry = Arc::new(registry.clone());
         let config = Arc::new(config.clone());
+        let chunk_size = if config.chunk_size == 0 {
+            1
+        } else if config.chunk_size > i32::MAX as usize {
+            i32::MAX
+        } else {
+            config.chunk_size as i32
+        };
+        let chunk_size_usize = chunk_size as usize;
+        let mesher_registry = registry.mesher_registry();
 
         self.pool.spawn(move || {
             processes
                 .into_par_iter()
                 .for_each(|(mut chunk, mut space)| {
-                    let chunk_size = if config.chunk_size == 0 {
-                        1
-                    } else if config.chunk_size > i32::MAX as usize {
-                        i32::MAX
-                    } else {
-                        config.chunk_size as i32
-                    };
-                    let chunk_size_usize = chunk_size as usize;
                     let coords = space.coords;
                     let min = space.min;
                     let shape = space.shape;
-
-                    let light_colors = [
-                        LightColor::Sunlight,
-                        LightColor::Red,
-                        LightColor::Green,
-                        LightColor::Blue,
-                    ];
 
                     let Vec3(min_x, min_y, min_z) = chunk.min;
                     let Vec3(max_x, _, max_z) = chunk.max;
@@ -252,7 +253,7 @@ impl Mesher {
                             }
                         }
 
-                        for (queue, color) in light_queues.into_iter().zip(light_colors.iter()) {
+                        for (queue, color) in light_queues.into_iter().zip(LIGHT_COLORS.iter()) {
                             if !queue.is_empty() {
                                 Lights::flood_light(
                                     &mut space,
@@ -269,8 +270,6 @@ impl Mesher {
                         chunk.lights =
                             Arc::new(space.get_lights(coords.0, coords.1).unwrap().clone());
                     }
-
-                    let mesher_registry = registry.mesher_registry();
 
                     let chunk_meshes = chunk.meshes.get_or_insert_with(HashMap::new);
                     for &level_u32 in chunk.updated_levels.iter() {
@@ -305,9 +304,9 @@ impl Mesher {
                             )
                         };
 
-                        let geometries: Vec<GeometryProtocol> = mesher_geometries
-                            .into_iter()
-                            .map(|g| GeometryProtocol {
+                        let mut geometries = Vec::with_capacity(mesher_geometries.len());
+                        for g in mesher_geometries {
+                            geometries.push(GeometryProtocol {
                                 voxel: g.voxel,
                                 at: g.at.map(|[x, y, z]| vec![x, y, z]).unwrap_or_default(),
                                 face_name: g.face_name,
@@ -315,13 +314,13 @@ impl Mesher {
                                 indices: g.indices,
                                 uvs: g.uvs,
                                 lights: g.lights,
-                            })
-                            .collect();
+                            });
+                        }
 
                         chunk_meshes.insert(level_u32, MeshProtocol { level, geometries });
                     }
 
-                    sender.send((chunk, r#type.clone())).unwrap();
+                    sender.send((chunk, msg_type)).unwrap();
                 });
         });
     }
