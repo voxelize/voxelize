@@ -115,6 +115,9 @@ export class WebRTCConnection {
       this.onMessage?.(data.slice(FRAGMENT_HEADER_SIZE));
       return;
     }
+    if (index !== 0 && this.nextMessageId === 0) {
+      return;
+    }
 
     const messageId =
       index === 0 ? this.nextMessageId++ : this.nextMessageId - 1;
