@@ -1813,9 +1813,11 @@ const createValueOptionMetadata = (
     normalizedOptionsWithStrictValues,
     canonicalOptionMap
   );
+  const hasRecoverableStrictValueOptions =
+    resolvedCanonicalStrictValueOptions.length > 0;
   if (
     canonicalValueOptions.size === 0 &&
-    resolvedCanonicalStrictValueOptions.length > 0
+    hasRecoverableStrictValueOptions
   ) {
     canonicalValueOptions = new Set(resolvedCanonicalStrictValueOptions);
   }
@@ -1826,21 +1828,20 @@ const createValueOptionMetadata = (
   );
   const strictValueMetadataUnresolved =
     normalizedOptionsWithStrictValues.length > 0 &&
-    resolvedCanonicalStrictValueOptions.length === 0;
+    !hasRecoverableStrictValueOptions;
   const strictMetadataUnavailableWithoutRecoverableTokens =
-    strictValueOptionsUnavailable &&
-    resolvedCanonicalStrictValueOptions.length === 0;
-  if (
+    strictValueOptionsUnavailable && !hasRecoverableStrictValueOptions;
+  const strictFallbackRequiresAllValueOptions =
     (strictMetadataUnavailableWithoutRecoverableTokens ||
       strictValueMetadataUnresolved) &&
-    canonicalValueOptions.size > 0
-  ) {
-    canonicalStrictValueOptions = new Set(canonicalValueOptions);
-  }
-  if (
+    canonicalValueOptions.size > 0;
+  const unavailableValueMetadataRequiresStrictFallback =
     canonicalStrictValueOptions.size === 0 &&
     valueOptionsUnavailable &&
-    canonicalValueOptions.size > 0
+    canonicalValueOptions.size > 0;
+  if (
+    strictFallbackRequiresAllValueOptions ||
+    unavailableValueMetadataRequiresStrictFallback
   ) {
     canonicalStrictValueOptions = new Set(canonicalValueOptions);
   }
