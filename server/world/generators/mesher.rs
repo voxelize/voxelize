@@ -165,7 +165,19 @@ impl Mesher {
     }
 
     pub fn drain_pending_remesh(&mut self) -> Vec<Vec2<i32>> {
-        self.pending_remesh.drain().collect()
+        let pending_len = self.pending_remesh.len();
+        if pending_len == 0 {
+            return Vec::new();
+        }
+        if pending_len == 1 {
+            let coords = *self.pending_remesh.iter().next().unwrap();
+            self.pending_remesh.clear();
+            return vec![coords];
+        }
+
+        let mut drained = Vec::with_capacity(pending_len);
+        drained.extend(self.pending_remesh.drain());
+        drained
     }
 
     pub fn process(
@@ -365,7 +377,11 @@ impl Default for Mesher {
 
 #[cfg(test)]
 mod tests {
-    use super::{mesh_protocol_level, sub_chunk_y_bounds};
+    use hashbrown::HashSet;
+
+    use crate::Vec2;
+
+    use super::{mesh_protocol_level, sub_chunk_y_bounds, Mesher};
 
     #[test]
     fn sub_chunk_y_bounds_cover_full_height_for_irregular_partitions() {
@@ -402,5 +418,29 @@ mod tests {
         assert_eq!(mesh_protocol_level(0), 0);
         assert_eq!(mesh_protocol_level(i32::MAX as u32), i32::MAX);
         assert_eq!(mesh_protocol_level(u32::MAX), i32::MAX);
+    }
+
+    #[test]
+    fn drain_pending_remesh_single_entry_clears_set() {
+        let mut mesher = Mesher::new();
+        let coords = Vec2(3, -7);
+        mesher.pending_remesh.insert(coords);
+
+        assert_eq!(mesher.drain_pending_remesh(), vec![coords]);
+        assert!(mesher.pending_remesh.is_empty());
+    }
+
+    #[test]
+    fn drain_pending_remesh_collects_multiple_entries() {
+        let mut mesher = Mesher::new();
+        let first = Vec2(1, 2);
+        let second = Vec2(-4, 9);
+        mesher.pending_remesh.insert(first);
+        mesher.pending_remesh.insert(second);
+
+        let drained: HashSet<_> = mesher.drain_pending_remesh().into_iter().collect();
+        let expected: HashSet<_> = [first, second].into_iter().collect();
+        assert_eq!(drained, expected);
+        assert!(mesher.pending_remesh.is_empty());
     }
 }
