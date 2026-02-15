@@ -3309,6 +3309,43 @@ describe("Type builders", () => {
     ]);
   });
 
+  it("caps merged part fallback recovery to the bounded scan window", () => {
+    const sparseParts: BlockConditionalPartInput[] = [];
+    sparseParts[0] = { worldSpace: false };
+    for (let index = 0; index < 1_024; index += 1) {
+      sparseParts[5_000 + index] = { worldSpace: true };
+    }
+    const fallbackKeyList = Array.from({ length: 1_024 }, (_, index) => {
+      return String(5_000 + index);
+    });
+    const trappedParts = new Proxy(sparseParts, {
+      ownKeys() {
+        return [...fallbackKeyList, "length"];
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const pattern = createBlockDynamicPattern({
+      parts: trappedParts as never,
+    });
+
+    expect(pattern.parts).toHaveLength(1_024);
+    expect(pattern.parts[0].worldSpace).toBe(false);
+    expect(
+      pattern.parts.some((part) => {
+        return part.worldSpace;
+      })
+    ).toBe(true);
+    expect(pattern.parts[1_023].worldSpace).toBe(true);
+  });
+
   it("recovers key-based part entries when bounded direct reads throw", () => {
     const sparseParts: BlockConditionalPartInput[] = [];
     sparseParts[5_000] = { worldSpace: true };
@@ -4878,6 +4915,61 @@ describe("BlockRuleEvaluator", () => {
       )
     ).toBe(false);
     expect(voxelReadCount).toBe(2);
+  });
+
+  it("caps merged rule fallback recovery to the bounded scan window", () => {
+    const sparseRules: BlockRule[] = [];
+    sparseRules[0] = {
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 55,
+    };
+    for (let index = 0; index < 1_024; index += 1) {
+      sparseRules[5_000 + index] = {
+        type: "simple",
+        offset: [0, 0, 0],
+        id: 55,
+      };
+    }
+    const fallbackKeyList = Array.from({ length: 1_024 }, (_, index) => {
+      return String(5_000 + index);
+    });
+    const trappedRules = new Proxy(sparseRules, {
+      ownKeys() {
+        return [...fallbackKeyList, "length"];
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    let voxelReadCount = 0;
+    const access = {
+      getVoxel: () => {
+        voxelReadCount += 1;
+        return 0;
+      },
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.Or,
+          rules: trappedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(false);
+    expect(voxelReadCount).toBe(1_024);
   });
 
   it("skips sparse hole placeholders during combination length fallback", () => {

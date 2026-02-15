@@ -112,6 +112,8 @@ const voxel = Voxel.pack({
     stateful low-index read traps), bounded-prefix and key-fallback recoveries
     are merged by numeric index before evaluation, preserving duplicate-value
     rule entries that originate from distinct indices
+  - merged bounded/key recoveries remain capped to the smallest 1024 numeric
+    indices to keep fallback evaluation bounded
   - throwing bounded direct reads are skipped during fallback scans so key
     recovery can still salvage readable high-index rules
   - throwing key-fallback reads are skipped so malformed low-index entries do
@@ -140,7 +142,9 @@ const voxel = Voxel.pack({
     scans can still supplement readable high-index face/AABB entries
   - if key-fallback recovery omits readable prefix entries (for example due
     stateful low-index read traps), bounded-prefix and key-fallback
-    recoveries are merged with index-based de-duplication
+    recoveries are merged by numeric index
+  - merged bounded/key helper recoveries remain capped to the smallest 1024
+    numeric indices to keep fallback cloning bounded
   - throwing bounded direct reads are skipped during helper fallback scans so
     key recovery can still salvage readable high-index entries
   - throwing key-fallback reads are skipped so malformed low-index entries do
@@ -200,7 +204,9 @@ const voxel = Voxel.pack({
     scans can still supplement readable high-index part entries
   - if key-fallback recovery omits readable prefix entries (for example due
     stateful low-index read traps), bounded-prefix and key-fallback
-    recoveries are merged with index-based de-duplication
+    recoveries are merged by numeric index
+  - merged bounded/key helper recoveries remain capped to the smallest 1024
+    numeric indices to keep fallback cloning bounded
   - throwing bounded direct reads are skipped during helper fallback scans so
     key recovery can still salvage readable high-index part entries
   - throwing key-fallback reads are skipped so malformed low-index entries do

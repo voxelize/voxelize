@@ -384,6 +384,7 @@ const mergeIndexedRuleEntries = (
     .sort((left, right) => {
       return left[0] - right[0];
     })
+    .slice(0, MAX_RULE_ENTRY_FALLBACK_SCAN)
     .map(([index, rule]) => {
       return {
         index,

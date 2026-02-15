@@ -436,6 +436,7 @@ const mergeIndexedFallbackEntries = (
     .sort((left, right) => {
       return left[0] - right[0];
     })
+    .slice(0, MAX_ARRAY_ENTRY_FALLBACK_SCAN)
     .map(([index, entryValue]) => {
       return {
         index,

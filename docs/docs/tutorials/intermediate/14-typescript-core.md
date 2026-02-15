@@ -73,7 +73,9 @@ When bounded prefixes contain only malformed/noisy entries, key-fallback
 scans can still supplement readable high-index face/AABB entries.
 If key-fallback recovery omits readable prefix entries (for example due
 stateful low-index read traps), bounded-prefix and key-fallback recoveries
-are merged with index-based de-duplication.
+are merged by numeric index.
+Merged bounded/key helper recoveries remain capped to the smallest 1024
+numeric indices to keep fallback cloning bounded.
 Throwing bounded direct reads are skipped during helper fallback scans so
 key recovery can still salvage readable high-index face/AABB entries.
 Throwing key-fallback reads are skipped so malformed low-index entries do
@@ -93,7 +95,9 @@ When bounded prefixes contain only malformed/noisy entries, key-fallback
 scans can still supplement readable high-index part entries.
 If key-fallback recovery omits readable prefix entries (for example due
 stateful low-index read traps), bounded-prefix and key-fallback recoveries
-are merged with index-based de-duplication.
+are merged by numeric index.
+Merged bounded/key helper recoveries remain capped to the smallest 1024
+numeric indices to keep fallback cloning bounded.
 Throwing bounded direct reads are skipped during helper fallback scans so
 key recovery can still salvage readable high-index part entries.
 Throwing key-fallback reads are skipped so malformed low-index entries do
@@ -129,6 +133,8 @@ If key-fallback recovery omits readable prefix rules (for example due
 stateful low-index read traps), bounded-prefix and key-fallback recoveries
 are merged by numeric index before evaluation, preserving duplicate-value
 rules that originate from distinct indices.
+Merged bounded/key rule recoveries remain capped to the smallest 1024
+numeric indices to keep fallback evaluation bounded.
 Throwing bounded direct reads are skipped during fallback scans so key
 recovery can still salvage readable high-index rules.
 Throwing key-fallback reads are skipped so malformed low-index entries do not
@@ -746,6 +752,8 @@ key-scan recovery when high-index readable entries exist.
 If key-fallback reads drop readable prefix entries under stateful
 low-index traps, bounded-prefix and key-fallback recoveries are merged
 by index before summary emission.
+Merged bounded/key trap recoveries remain capped to the smallest 1024
+numeric indices for deterministic bounded output.
 Bounded fallback scans use own-property checks so inherited numeric
 prototype entries are ignored.
 When own-property descriptor probes trap, bounded fallback switches to

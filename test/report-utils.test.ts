@@ -1027,6 +1027,38 @@ describe("report-utils", () => {
     expect(statefulSparseResult.positionalArgs).toEqual([]);
     expect(statefulSparseResult.optionTerminatorUsed).toBe(false);
 
+    const cappedMergedFallbackArgsTarget: string[] = [];
+    cappedMergedFallbackArgsTarget[0] = "--json";
+    for (let index = 0; index < 1_024; index += 1) {
+      cappedMergedFallbackArgsTarget[5_000 + index] = `--k${index}`;
+    }
+    const cappedFallbackKeyList = Array.from({ length: 1_024 }, (_, index) => {
+      return String(5_000 + index);
+    });
+    const cappedMergedFallbackArgs = new Proxy(cappedMergedFallbackArgsTarget, {
+      ownKeys() {
+        return [...cappedFallbackKeyList, "length"];
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const cappedMergedFallbackResult = splitCliArgs(
+      cappedMergedFallbackArgs as never
+    );
+    expect(cappedMergedFallbackResult.optionArgs).toHaveLength(1_024);
+    expect(cappedMergedFallbackResult.optionArgs[0]).toBe("--json");
+    expect(cappedMergedFallbackResult.optionArgs.includes("--k1022")).toBe(true);
+    expect(cappedMergedFallbackResult.optionArgs.includes("--k1023")).toBe(false);
+    expect(cappedMergedFallbackResult.positionalArgs).toEqual([]);
+    expect(cappedMergedFallbackResult.optionTerminatorUsed).toBe(false);
+
     const sparseHighIndexWithUndefinedPrefixArgs: Array<string | undefined> = [];
     sparseHighIndexWithUndefinedPrefixArgs[0] = undefined;
     sparseHighIndexWithUndefinedPrefixArgs[5_000] = "--json";

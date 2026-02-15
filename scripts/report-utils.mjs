@@ -467,6 +467,7 @@ const mergeIndexedFallbackEntries = (primaryEntries, supplementalEntries) => {
     .sort((leftEntry, rightEntry) => {
       return leftEntry[0] - rightEntry[0];
     })
+    .slice(0, MAX_ARRAY_LENGTH_FALLBACK_SCAN)
     .map(([index, value]) => {
       return toIndexedArrayEntry(index, value);
     });
