@@ -399,6 +399,7 @@ pnpm run check:preflight:all-checks:verify:json:compact
 # sparse trap fallbacks can supplement bounded-prefix entries with bounded key-scan recovery when high-index readable entries exist
 # bounded fallback scans use own-property checks so inherited numeric prototype entries are ignored
 # when own-property descriptor probes trap, bounded fallback switches to guarded direct reads without repeated probe failures
+# string-array fallbacks can supplement dense non-string bounded prefixes with bounded key-scan string recovery
 # optionally write the same report to disk
 pnpm run check:preflight:verify:json -- --output ./preflight-report.json
 
