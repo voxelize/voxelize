@@ -5206,10 +5206,14 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
     if (material) {
       return material;
     }
+    if (!texturePosition) {
+      geometry.dispose();
+      return null;
+    }
 
     const block = this.getBlockById(voxel);
     const face = this.findBlockFaceByName(block, faceName);
-    if (!face || !face.isolated || !texturePosition) {
+    if (!face || !face.isolated) {
       geometry.dispose();
       return null;
     }
