@@ -924,6 +924,20 @@ describe("report-utils", () => {
     expect(hasTrapFallbackResult.optionTerminatorUsed).toBe(false);
     expect(hasTrapFallbackReadCount).toBe(1_024);
 
+    const sparseHighIndexArgs: string[] = [];
+    sparseHighIndexArgs[5_000] = "--json";
+    Object.defineProperty(sparseHighIndexArgs, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    const sparseHighIndexResult = splitCliArgs(sparseHighIndexArgs as never);
+    expect(sparseHighIndexResult.optionArgs).toEqual(["--json"]);
+    expect(sparseHighIndexResult.positionalArgs).toEqual([]);
+    expect(sparseHighIndexResult.optionTerminatorUsed).toBe(false);
+
     const partiallyTrappedArgs = ["--json", "--output", "report.json"];
     Object.defineProperty(partiallyTrappedArgs, 1, {
       configurable: true,
@@ -4691,6 +4705,18 @@ describe("report-utils", () => {
       },
     });
     expect(normalizeTsCorePayloadIssues(ownKeysTrapIssues)).toEqual([
+      "voxel.id",
+    ]);
+    const sparseHighIndexIssues: string[] = [];
+    sparseHighIndexIssues[5_000] = " voxel.id ";
+    Object.defineProperty(sparseHighIndexIssues, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    expect(normalizeTsCorePayloadIssues(sparseHighIndexIssues)).toEqual([
       "voxel.id",
     ]);
   });

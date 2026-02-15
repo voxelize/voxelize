@@ -352,7 +352,7 @@ const cloneArrayFromIndexedAccess = (value) => {
   }
 
   const lengthFallbackClone = cloneArrayFromLengthFallback(value);
-  if (lengthFallbackClone !== null) {
+  if (lengthFallbackClone !== null && lengthFallbackClone.length > 0) {
     return lengthFallbackClone;
   }
 
@@ -360,7 +360,7 @@ const cloneArrayFromIndexedAccess = (value) => {
   try {
     indexKeys = Object.keys(value);
   } catch {
-    return null;
+    return lengthFallbackClone;
   }
 
   const orderedIndices = indexKeys
@@ -378,7 +378,8 @@ const cloneArrayFromIndexedAccess = (value) => {
     .sort((leftIndex, rightIndex) => leftIndex - rightIndex);
 
   const clonedArray = [];
-  for (const arrayIndex of orderedIndices) {
+  const boundedIndices = orderedIndices.slice(0, MAX_ARRAY_LENGTH_FALLBACK_SCAN);
+  for (const arrayIndex of boundedIndices) {
     try {
       clonedArray.push(value[arrayIndex]);
     } catch {
@@ -386,7 +387,11 @@ const cloneArrayFromIndexedAccess = (value) => {
     }
   }
 
-  return clonedArray;
+  if (clonedArray.length > 0) {
+    return clonedArray;
+  }
+
+  return lengthFallbackClone;
 };
 
 const cloneArraySafely = (value) => {
