@@ -118,14 +118,6 @@ impl BackgroundChunkSaver {
             height_map: Self::to_base_64(&data.height_map),
         };
 
-        let json_data = match serde_json::to_string(&file_data) {
-            Ok(j) => j,
-            Err(e) => {
-                warn!("Failed to serialize chunk data: {}", e);
-                return;
-            }
-        };
-
         let mut path = folder.clone();
         path.push(&data.chunk_name);
         path.set_extension("json");
@@ -139,7 +131,8 @@ impl BackgroundChunkSaver {
             }
         };
 
-        if file.write_all(json_data.as_bytes()).is_err() {
+        if let Err(e) = serde_json::to_writer(&mut file, &file_data) {
+            warn!("Failed to serialize chunk data: {}", e);
             let _ = fs::remove_file(&tmp_path);
             return;
         }
