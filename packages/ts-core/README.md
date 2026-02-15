@@ -132,6 +132,8 @@ const voxel = Voxel.pack({
     key-enumeration fallback is skipped to avoid redundant overhead
   - when bounded prefixes only contain malformed/noisy entries, key-fallback
     scans can still supplement readable high-index face/AABB entries
+  - throwing bounded direct reads are skipped during helper fallback scans so
+    key recovery can still salvage readable high-index entries
   - fallback scans ignore inherited numeric prototype entries while recovering
     readable indexed face/AABB values
   - malformed optional face fields (such as invalid `dir`/`corners`/`range`)
@@ -175,6 +177,8 @@ const voxel = Voxel.pack({
     key-enumeration fallback is skipped to avoid redundant overhead
   - when bounded prefixes only contain malformed/noisy entries, key-fallback
     scans can still supplement readable high-index part entries
+  - throwing bounded direct reads are skipped during helper fallback scans so
+    key recovery can still salvage readable high-index part entries
   - fallback scans ignore inherited numeric prototype entries while recovering
     readable indexed part entries
 - `createBlockFace`

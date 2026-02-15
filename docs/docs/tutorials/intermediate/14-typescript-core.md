@@ -71,6 +71,8 @@ When bounded length recovery already fills the scan window, helper
 key-enumeration fallback is skipped to avoid redundant overhead.
 When bounded prefixes contain only malformed/noisy entries, key-fallback
 scans can still supplement readable high-index face/AABB entries.
+Throwing bounded direct reads are skipped during helper fallback scans so
+key recovery can still salvage readable high-index face/AABB entries.
 Fallback scans ignore inherited numeric prototype entries while recovering
 readable indexed face/AABB values.
 Malformed dynamic-pattern part entries (including `null`/`undefined`) are
@@ -84,6 +86,8 @@ When bounded length recovery already fills the scan window, helper
 key-enumeration fallback is skipped to avoid redundant overhead.
 When bounded prefixes contain only malformed/noisy entries, key-fallback
 scans can still supplement readable high-index part entries.
+Throwing bounded direct reads are skipped during helper fallback scans so
+key recovery can still salvage readable high-index part entries.
 Fallback scans ignore inherited numeric prototype entries while recovering
 readable indexed part entries.
 Malformed optional face fields fall back to default face values.
