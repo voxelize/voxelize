@@ -1810,6 +1810,12 @@ const createValueOptionMetadata = (
       .filter((canonicalOption) => {
         return canonicalOption !== undefined;
       });
+  if (
+    canonicalValueOptions.size === 0 &&
+    resolvedCanonicalStrictValueOptions.length > 0
+  ) {
+    canonicalValueOptions = new Set(resolvedCanonicalStrictValueOptions);
+  }
   let canonicalStrictValueOptions = new Set(
     resolvedCanonicalStrictValueOptions.filter((strictValueOption) => {
       return canonicalValueOptions.has(strictValueOption);
