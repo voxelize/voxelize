@@ -1144,11 +1144,13 @@ export const deriveWasmPackCheckStatus = ({
     return reportStatus;
   }
 
-  if (wasmPackCheckExitCode === null) {
+  const normalizedExitCode =
+    toNonNegativeIntegerOrNull(wasmPackCheckExitCode);
+  if (normalizedExitCode === null) {
     return "skipped";
   }
 
-  if (wasmPackCheckExitCode === 0) {
+  if (normalizedExitCode === 0) {
     return "ok";
   }
 

@@ -6851,5 +6851,29 @@ describe("report-utils", () => {
         },
       })
     ).toBe("ok");
+    expect(
+      deriveWasmPackCheckStatus({
+        wasmPackCheckExitCode: Number.NaN,
+        wasmPackCheckReport: null,
+      })
+    ).toBe("skipped");
+    expect(
+      deriveWasmPackCheckStatus({
+        wasmPackCheckExitCode: -1,
+        wasmPackCheckReport: null,
+      })
+    ).toBe("skipped");
+    expect(
+      deriveWasmPackCheckStatus({
+        wasmPackCheckExitCode: Number.MAX_SAFE_INTEGER + 1,
+        wasmPackCheckReport: null,
+      })
+    ).toBe("skipped");
+    expect(
+      deriveWasmPackCheckStatus({
+        wasmPackCheckExitCode: "0",
+        wasmPackCheckReport: null,
+      })
+    ).toBe("skipped");
   });
 });
