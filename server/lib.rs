@@ -65,11 +65,7 @@ async fn ws_route(
         }
     }
 
-    let id = if let Some(id) = options.get("client_id") {
-        id.to_owned()
-    } else {
-        "".to_owned()
-    };
+    let id = options.get("client_id").cloned().unwrap_or_default();
 
     let is_transport = options.contains_key("is_transport");
 
