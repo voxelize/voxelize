@@ -29,6 +29,9 @@ impl<'a> System<'a> for PeersSendingSystem {
 
         let peers = &mut self.peers_buffer;
         peers.clear();
+        if clients.is_empty() {
+            return;
+        }
         if peers.capacity() < clients.len() {
             peers.reserve(clients.len() - peers.capacity());
         }
