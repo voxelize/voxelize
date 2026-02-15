@@ -89,62 +89,64 @@ export class Entities extends Group implements NetIntercept {
    * @param message The message to intercept.
    */
   onMessage = (message: MessageProtocol) => {
-    const { entities } = message;
+    const entityUpdates = message.entities;
+    const entityCount = entityUpdates?.length ?? 0;
+    if (entityCount === 0) {
+      return;
+    }
 
-    if (entities && entities.length) {
-      for (let entityIndex = 0; entityIndex < entities.length; entityIndex++) {
-        const entity = entities[entityIndex];
-        const { id, type, metadata, operation } = entity;
+    for (let entityIndex = 0; entityIndex < entityCount; entityIndex++) {
+      const entity = entityUpdates[entityIndex];
+      const { id, type, metadata, operation } = entity;
 
-        // ignore all block entities as they are handled by world
-        if (type.startsWith("block::")) {
-          continue;
+      // ignore all block entities as they are handled by world
+      if (type.startsWith("block::")) {
+        continue;
+      }
+
+      let object = this.map.get(id);
+
+      switch (operation) {
+        case "CREATE": {
+          if (object) {
+            continue;
+          }
+
+          const createdObject = this.createEntityOfType(type, id);
+          if (!createdObject) {
+            continue;
+          }
+          object = createdObject;
+          object.onCreate?.(metadata);
+
+          break;
         }
-
-        let object = this.map.get(id);
-
-        switch (operation) {
-          case "CREATE": {
-            if (object) {
-              continue;
-            }
-
+        case "UPDATE": {
+          if (!object) {
             const createdObject = this.createEntityOfType(type, id);
             if (!createdObject) {
               continue;
             }
             object = createdObject;
             object.onCreate?.(metadata);
-
-            break;
           }
-          case "UPDATE": {
-            if (!object) {
-              const createdObject = this.createEntityOfType(type, id);
-              if (!createdObject) {
-                continue;
-              }
-              object = createdObject;
-              object.onCreate?.(metadata);
-            }
 
-            object.onUpdate?.(metadata);
+          object.onUpdate?.(metadata);
 
-            break;
+          break;
+        }
+        case "DELETE": {
+          if (!object) {
+            console.warn(`Entity ${id} does not exist.`);
+            continue;
           }
-          case "DELETE": {
-            if (!object) {
-              console.warn(`Entity ${id} does not exist.`);
-              continue;
-            }
 
-            this.map.delete(id);
+          this.map.delete(id);
 
-            object.parent?.remove(object);
-            object.onDelete?.(metadata);
+          object.parent?.remove(object);
+          object.onDelete?.(metadata);
 
-            break;
-          }
+          break;
         }
       }
     }
