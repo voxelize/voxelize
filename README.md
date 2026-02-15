@@ -408,7 +408,7 @@ pnpm run check:preflight:all-checks:verify:json:compact
 # failure-message derivation now normalizes top-level and nested report/reason text via first-line ansi/control sanitization
 # sparse trap fallbacks can supplement bounded-prefix entries with bounded key-scan recovery when high-index readable entries exist
 # if key-fallback reads drop readable prefix entries under stateful low-index traps, bounded-prefix and key-fallback recoveries are merged by index before emission
-# when bounded-prefix recovery yields same-index null/undefined/primitive placeholders, same-index defined key-fallback entries are preferred during merge
+# when bounded-prefix recovery yields same-index null/undefined/non-string primitive placeholders, same-index defined key-fallback entries are preferred during merge
 # same-index fallback rescans preserve first-seen recovered string/object entries and only upgrade placeholder values
 # merged bounded/key trap recoveries remain capped to the smallest 1024 numeric indices for deterministic bounded output
 # typed string/object supplementation unions also keep the same bounded 1024 index window when both merged sources come from bounded fallback scans

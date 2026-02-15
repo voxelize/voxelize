@@ -763,7 +763,7 @@ If key-fallback reads drop readable prefix entries under stateful
 low-index traps, bounded-prefix and key-fallback recoveries are merged
 by index before summary emission.
 When bounded-prefix recovery yields same-index
-`null`/`undefined`/primitive placeholders,
+`null`/`undefined`/non-string primitive placeholders,
 same-index defined key-fallback entries are preferred during merge.
 Same-index fallback rescans preserve first-seen recovered string/object
 entries and only upgrade placeholder values.
