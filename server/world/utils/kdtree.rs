@@ -48,20 +48,20 @@ impl EntityTree {
         self.positions.clear();
     }
 
-    fn nearest(&self, point: &[f32; 3], count: usize) -> Vec<(f32, EntityId)> {
+    fn for_each_nearest<F>(&self, point: &[f32; 3], count: usize, mut f: F)
+    where
+        F: FnMut(f32, EntityId),
+    {
         if self.tree.size() == 0 {
-            return Vec::new();
+            return;
         }
         let query_count = count.min(self.tree.size() as usize);
         if query_count == 0 {
-            return Vec::new();
+            return;
         }
-        let nearest = self.tree.nearest_n::<SquaredEuclidean>(point, query_count);
-        let mut results = Vec::with_capacity(nearest.len());
-        for entry in nearest {
-            results.push((entry.distance, entry.item));
+        for entry in self.tree.nearest_n::<SquaredEuclidean>(point, query_count) {
+            f(entry.distance, entry.item);
         }
-        results
     }
 
     fn for_each_within_id<F>(&self, point: &[f32; 3], radius_squared: f32, mut f: F)
@@ -194,25 +194,6 @@ impl KdTree {
         self.all.positions.get(&ent.id()).copied()
     }
 
-    #[inline]
-    fn collect_entities_with_distance<'a>(
-        &'a self,
-        results: &[(f32, EntityId)],
-        skip: usize,
-    ) -> Vec<(f32, &'a Entity)> {
-        if results.len() <= skip {
-            return Vec::new();
-        }
-        let mut entities = Vec::with_capacity(results.len() - skip);
-        for index in skip..results.len() {
-            let (dist, ent_id) = results[index];
-            if let Some(entity) = self.entity_map.get(&ent_id) {
-                entities.push((dist, entity));
-            }
-        }
-        entities
-    }
-
     pub fn new() -> Self {
         Self {
             all: EntityTree::new(),
@@ -343,10 +324,19 @@ impl KdTree {
         let Some(query_point) = point_array_if_finite(point) else {
             return Vec::new();
         };
-        let results = self
-            .all
-            .nearest(&query_point, nearest_query_count(count, 1));
-        self.collect_entities_with_distance(&results, 1)
+        let mut entities = Vec::with_capacity(count);
+        let mut skipped = 0usize;
+        self.all
+            .for_each_nearest(&query_point, nearest_query_count(count, 1), |dist, ent_id| {
+                if skipped < 1 {
+                    skipped += 1;
+                    return;
+                }
+                if let Some(entity) = self.entity_map.get(&ent_id) {
+                    entities.push((dist, entity));
+                }
+            });
+        entities
     }
 
     pub fn search_first(&self, point: &Vec3<f32>) -> Option<&Entity> {
@@ -371,10 +361,19 @@ impl KdTree {
             return Vec::new();
         };
         let skip = if is_player { 1 } else { 0 };
-        let results = self
-            .players
-            .nearest(&query_point, nearest_query_count(count, skip));
-        self.collect_entities_with_distance(&results, skip)
+        let mut entities = Vec::with_capacity(count);
+        let mut skipped = 0usize;
+        self.players
+            .for_each_nearest(&query_point, nearest_query_count(count, skip), |dist, ent_id| {
+                if skipped < skip {
+                    skipped += 1;
+                    return;
+                }
+                if let Some(entity) = self.entity_map.get(&ent_id) {
+                    entities.push((dist, entity));
+                }
+            });
+        entities
     }
 
     pub fn search_first_player(&self, point: &Vec3<f32>, is_player: bool) -> Option<&Entity> {
@@ -402,10 +401,19 @@ impl KdTree {
             return Vec::new();
         };
         let skip = if is_entity { 1 } else { 0 };
-        let results = self
-            .entities
-            .nearest(&query_point, nearest_query_count(count, skip));
-        self.collect_entities_with_distance(&results, skip)
+        let mut entities = Vec::with_capacity(count);
+        let mut skipped = 0usize;
+        self.entities
+            .for_each_nearest(&query_point, nearest_query_count(count, skip), |dist, ent_id| {
+                if skipped < skip {
+                    skipped += 1;
+                    return;
+                }
+                if let Some(entity) = self.entity_map.get(&ent_id) {
+                    entities.push((dist, entity));
+                }
+            });
+        entities
     }
 
     pub fn search_first_entity(&self, point: &Vec3<f32>, is_entity: bool) -> Option<&Entity> {
