@@ -17,6 +17,8 @@ impl<'a> System<'a> for ChunkSavingSystem {
         let _t = timing.timer("chunk-saving");
 
         if !config.saving {
+            chunks.to_save.clear();
+            chunks.to_save_lookup.clear();
             return;
         }
 
@@ -29,6 +31,7 @@ impl<'a> System<'a> for ChunkSavingSystem {
             let Some(coords) = chunks.to_save.pop_front() else {
                 break;
             };
+            chunks.to_save_lookup.remove(&coords);
             if let Some((chunk_name, chunk_id, voxels, height_map)) = chunks.prepare_save_data(&coords)
             {
                 bg_saver.queue_save(coords, chunk_name, chunk_id, voxels, height_map);

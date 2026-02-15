@@ -69,6 +69,7 @@ pub struct Chunks {
 
     /// A list of chunks that are done meshing and ready to be saved, if `config.save` is true.
     pub(crate) to_save: VecDeque<Vec2<i32>>,
+    pub(crate) to_save_lookup: HashSet<Vec2<i32>>,
 
     pub(crate) active_voxel_heap: BinaryHeap<Reverse<ActiveVoxel>>,
     pub(crate) active_voxel_set: HashMap<Vec3<i32>, u64>,
@@ -486,10 +487,7 @@ impl Chunks {
 
     /// Add a chunk to be saved.
     pub fn add_chunk_to_save(&mut self, coords: &Vec2<i32>, prioritized: bool) {
-        if self.to_save.front().is_some_and(|front| front == coords)
-            || self.to_save.back().is_some_and(|back| back == coords)
-            || self.to_save.contains(coords)
-        {
+        if !self.config.saving || !self.to_save_lookup.insert(*coords) {
             return;
         }
         if prioritized {
