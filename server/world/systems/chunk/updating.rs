@@ -1,6 +1,6 @@
 use std::{cmp::Reverse, collections::VecDeque};
 
-use hashbrown::HashMap;
+use hashbrown::{hash_map::RawEntryMut, HashMap};
 use nanoid::nanoid;
 use specs::{Entities, LazyUpdate, ReadExpect, System, WorldExt, WriteExpect};
 
@@ -62,6 +62,11 @@ fn clamp_i64_to_usize(value: i64) -> usize {
     } else {
         value as usize
     }
+}
+
+#[inline]
+fn normalized_chunk_size(chunk_size: usize) -> usize {
+    chunk_size.max(1)
 }
 
 fn compute_flood_bounds(
@@ -153,6 +158,7 @@ fn process_pending_updates(
 
     let mut updates_by_chunk: HashMap<Vec2<i32>, Vec<(Vec3<i32>, u32)>> =
         HashMap::with_capacity(num_to_process);
+    let chunk_size = normalized_chunk_size(config.chunk_size);
 
     for _ in 0..num_to_process {
         let (voxel, raw) = chunks.updates.pop_front().unwrap();
@@ -166,8 +172,15 @@ fn process_pending_updates(
             continue;
         }
 
-        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, config.chunk_size);
-        updates_by_chunk.entry(coords).or_default().push((voxel, raw));
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        match updates_by_chunk.raw_entry_mut().from_key(&coords) {
+            RawEntryMut::Occupied(mut entry) => entry.get_mut().push((voxel, raw)),
+            RawEntryMut::Vacant(entry) => {
+                let mut chunk_updates = Vec::with_capacity(1);
+                chunk_updates.push((voxel, raw));
+                entry.insert(coords, chunk_updates);
+            }
+        }
     }
 
     let mut removed_light_sources = Vec::with_capacity(num_to_process);
@@ -775,7 +788,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 mod tests {
     use std::collections::VecDeque;
 
-    use super::{compute_flood_bounds, schedule_active_tick};
+    use super::{compute_flood_bounds, normalized_chunk_size, schedule_active_tick};
     use crate::{LightNode, Vec3};
 
     #[test]
@@ -806,5 +819,11 @@ mod tests {
         assert!(bounds.1.0 > i32::MAX as usize);
         assert_eq!(bounds.1.1, 1);
         assert!(bounds.1.2 > i32::MAX as usize);
+    }
+
+    #[test]
+    fn normalized_chunk_size_guards_zero() {
+        assert_eq!(normalized_chunk_size(0), 1);
+        assert_eq!(normalized_chunk_size(32), 32);
     }
 }
