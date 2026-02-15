@@ -1784,7 +1784,12 @@ const createValueOptionMetadata = (
         return canonicalOption !== undefined;
       })
   );
-  if (valueOptionsUnavailable && normalizedOptionsWithStrictValues.length > 0) {
+  const valueOptionMetadataUnresolved =
+    normalizedOptionsWithValues.length > 0 && canonicalValueOptions.size === 0;
+  if (
+    (valueOptionsUnavailable || valueOptionMetadataUnresolved) &&
+    normalizedOptionsWithStrictValues.length > 0
+  ) {
     canonicalValueOptions = new Set(
       normalizedOptionsWithStrictValues.map((strictValueOption) => {
         return canonicalOptionMap.get(strictValueOption);
