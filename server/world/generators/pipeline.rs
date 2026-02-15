@@ -281,6 +281,13 @@ impl Pipeline {
             self.mark_for_regenerate(coords);
             return;
         }
+        if prioritized {
+            if self.queue.front().is_some_and(|front| front == coords) {
+                return;
+            }
+        } else if self.queue.back().is_some_and(|back| back == coords) {
+            return;
+        }
 
         self.remove_chunk(coords);
 
