@@ -172,7 +172,8 @@ impl<'a> System<'a> for BroadcastSystem {
             return;
         }
         let pending_messages_count = pending_messages.len();
-        let mut immediate_encoded: Vec<(EncodedMessage, ClientFilter)> = Vec::new();
+        let mut immediate_encoded: Vec<(EncodedMessage, ClientFilter)> =
+            Vec::with_capacity(pending_messages_count);
         let mut deferred_messages = Vec::with_capacity(pending_messages_count);
         for (mut message, filter) in pending_messages {
             message.world_name = world_name.clone();
