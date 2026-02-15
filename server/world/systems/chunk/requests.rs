@@ -79,16 +79,17 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         }
 
         for (id, coords) in to_send {
-            let chunks: Vec<ChunkProtocol> = coords
-                .into_iter()
-                .filter_map(|coords| {
-                    chunks
-                        .get(&coords)
-                        .map(|chunk| chunk.to_model(true, true, 0..sub_chunks_u32))
-                })
-                .collect();
+            let mut chunk_models = Vec::with_capacity(coords.len());
+            for coords in coords {
+                if let Some(chunk) = chunks.get(&coords) {
+                    chunk_models.push(chunk.to_model(true, true, 0..sub_chunks_u32));
+                }
+            }
+            if chunk_models.is_empty() {
+                continue;
+            }
 
-            let message = Message::new(&MessageType::Load).chunks(&chunks).build();
+            let message = Message::new(&MessageType::Load).chunks(&chunk_models).build();
             queue.push((message, ClientFilter::Direct(id)));
         }
     }
