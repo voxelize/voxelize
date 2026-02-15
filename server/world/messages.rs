@@ -204,6 +204,7 @@ impl EncodedMessageQueue {
             }
             if pending_batches == 2 {
                 if let Ok(mut second_batch) = self.receiver.try_recv() {
+                    reserve_for_append(&mut first_batch, second_batch.len());
                     first_batch.append(&mut second_batch);
                 }
                 return first_batch;
