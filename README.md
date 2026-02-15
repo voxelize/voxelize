@@ -396,6 +396,7 @@ pnpm run check:preflight:all-checks:verify:json:compact
 # status token extraction trims surrounding whitespace before known-status validation
 # canonical alias keys and alias token lists are whitespace-normalized before cli catalog/diagnostic resolution
 # known status token extraction is case-insensitive and normalizes to lowercase canonical values
+# sparse trap fallbacks can supplement bounded-prefix entries with bounded key-scan recovery when high-index readable entries exist
 # optionally write the same report to disk
 pnpm run check:preflight:verify:json -- --output ./preflight-report.json
 
