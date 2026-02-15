@@ -20,7 +20,8 @@ impl<'a> System<'a> for PathMetadataSystem {
         (&mut paths, &mut metadatas)
             .par_join()
             .for_each(|(path, metadata)| {
-                if !path.dirty && metadata.map.contains_key("path") {
+                if !path.dirty {
+                    metadata.set_once("path", path);
                     return;
                 }
                 metadata.set("path", path);

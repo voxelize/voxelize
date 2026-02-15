@@ -20,7 +20,8 @@ impl<'a> System<'a> for TargetMetadataSystem {
         (&mut targets, &mut metadatas)
             .par_join()
             .for_each(|(target, metadata)| {
-                if !target.dirty && metadata.map.contains_key("target") {
+                if !target.dirty {
+                    metadata.set_once("target", target);
                     return;
                 }
                 metadata.set("target", target);
