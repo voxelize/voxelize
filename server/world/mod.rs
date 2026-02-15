@@ -166,26 +166,11 @@ fn preload_expected_chunk_count(check_radius: i32) -> i64 {
 }
 
 fn collect_preload_targets(chunks: &Chunks, radius: i32) -> Vec<Vec2<i32>> {
-    let mut found = false;
-    let mut min_x = i32::MAX;
-    let mut max_x = i32::MIN;
-    let mut min_z = i32::MAX;
-    let mut max_z = i32::MIN;
-    for x in -radius..=radius {
-        for z in -radius..=radius {
-            let coords = Vec2(x, z);
-            if let Some((x0, x1, z0, z1)) = chunks.light_traversed_bounds(&coords) {
-                min_x = min_x.min(x0);
-                max_x = max_x.max(x1);
-                min_z = min_z.min(z0);
-                max_z = max_z.max(z1);
-                found = true;
-            }
-        }
-    }
-    if !found || min_x > max_x || min_z > max_z {
+    let Some((min_x, max_x, min_z, max_z)) =
+        chunks.light_traversed_bounds_for_center_radius(radius)
+    else {
         return Vec::new();
-    }
+    };
     let width_x = (i64::from(max_x) - i64::from(min_x) + 1) as usize;
     let width_z = (i64::from(max_z) - i64::from(min_z) + 1) as usize;
     let mut targets = Vec::with_capacity(width_x.saturating_mul(width_z));

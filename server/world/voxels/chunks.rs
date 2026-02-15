@@ -425,6 +425,37 @@ impl Chunks {
         Some((min_x, max_x, min_z, max_z))
     }
 
+    #[inline]
+    pub(crate) fn light_traversed_bounds_for_center_radius(
+        &self,
+        radius: i32,
+    ) -> Option<(i32, i32, i32, i32)> {
+        let clamped_radius = radius.max(0);
+        let chunk_size = self.config.chunk_size.max(1);
+        let extended = ((self.config.max_light_level as usize)
+            .saturating_add(chunk_size.saturating_sub(1))
+            / chunk_size)
+            .min(i32::MAX as usize) as i32;
+        let min_center = clamped_radius.saturating_neg();
+        let max_center = clamped_radius;
+        let min_x = min_center
+            .saturating_sub(extended)
+            .max(self.config.min_chunk[0]);
+        let max_x = max_center
+            .saturating_add(extended)
+            .min(self.config.max_chunk[0]);
+        let min_z = min_center
+            .saturating_sub(extended)
+            .max(self.config.min_chunk[1]);
+        let max_z = max_center
+            .saturating_add(extended)
+            .min(self.config.max_chunk[1]);
+        if min_x > max_x || min_z > max_z {
+            return None;
+        }
+        Some((min_x, max_x, min_z, max_z))
+    }
+
     /// Create a voxel querying space around a chunk coordinate.
     pub fn make_space<'a>(&'a self, coords: &Vec2<i32>, margin: usize) -> SpaceBuilder<'a> {
         SpaceBuilder {
