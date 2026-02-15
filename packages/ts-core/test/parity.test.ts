@@ -1730,6 +1730,22 @@ describe("Type builders", () => {
     });
   });
 
+  it("sanitizes negative or fractional optional rule numbers", () => {
+    const part = createBlockConditionalPart({
+      rule: {
+        type: "simple",
+        offset: [1, 0, 0],
+        id: -1,
+        stage: 2.5,
+      },
+    });
+
+    expect(part.rule).toEqual({
+      type: "simple",
+      offset: [1, 0, 0],
+    });
+  });
+
   it("omits null optional simple-rule fields during sanitization", () => {
     const part = createBlockConditionalPart({
       rule: {

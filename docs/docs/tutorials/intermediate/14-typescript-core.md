@@ -64,6 +64,8 @@ Extra transparency entries beyond six face slots are ignored.
 `createBlockRule` normalizes `null` simple-rule optional fields (`id`,
 `rotation`, `stage`) to omitted constraints.
 Nullable combination sub-rules are normalized to deterministic `none` entries.
+Optional simple-rule `id`/`stage` values are kept only for non-negative
+integers.
 `createBlockRule` also accepts readonly rule-tree arrays/tuples for literal
 authoring ergonomics.
 Non-plain rule nodes/rotation-like objects are normalized away during

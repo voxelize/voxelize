@@ -224,6 +224,10 @@ const isFiniteNumberValue = (value: DynamicValue): value is number => {
   return typeof value === "number" && Number.isFinite(value);
 };
 
+const isNonNegativeIntegerValue = (value: DynamicValue): value is number => {
+  return isFiniteNumberValue(value) && Number.isInteger(value) && value >= 0;
+};
+
 const isBooleanValue = (value: DynamicValue): value is boolean => {
   return typeof value === "boolean";
 };
@@ -337,7 +341,7 @@ const toCornerTuple = (
 const toOptionalRuleNumber = (
   value: DynamicValue
 ): number | undefined => {
-  return isFiniteNumberValue(value) ? value : undefined;
+  return isNonNegativeIntegerValue(value) ? value : undefined;
 };
 
 const toOptionalRuleRotation = (
