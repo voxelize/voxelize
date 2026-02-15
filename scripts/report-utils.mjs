@@ -1793,16 +1793,26 @@ const createValueOptionMetadata = (
       })
     );
   }
-  let canonicalStrictValueOptions = new Set(
+  const resolvedCanonicalStrictValueOptions =
     normalizedOptionsWithStrictValues
       .map((strictValueOption) => {
-        return canonicalOptionMap.get(strictValueOption) ?? strictValueOption;
+        return canonicalOptionMap.get(strictValueOption);
       })
-      .filter((strictValueOption) => {
-        return canonicalValueOptions.has(strictValueOption);
-      })
+      .filter((canonicalOption) => {
+        return canonicalOption !== undefined;
+      });
+  let canonicalStrictValueOptions = new Set(
+    resolvedCanonicalStrictValueOptions.filter((strictValueOption) => {
+      return canonicalValueOptions.has(strictValueOption);
+    })
   );
-  if (strictValueOptionsUnavailable && canonicalValueOptions.size > 0) {
+  const strictValueMetadataUnresolved =
+    normalizedOptionsWithStrictValues.length > 0 &&
+    resolvedCanonicalStrictValueOptions.length === 0;
+  if (
+    (strictValueOptionsUnavailable || strictValueMetadataUnresolved) &&
+    canonicalValueOptions.size > 0
+  ) {
     canonicalStrictValueOptions = new Set(canonicalValueOptions);
   }
   const inlineValueTokenCanonicalMap = new Map(
