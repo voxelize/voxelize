@@ -2254,10 +2254,22 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
   }
 
   private normalizeBlockNameLookup(name: string) {
+    let hasNonAscii = false;
     const length = name.length;
     for (let index = 0; index < length; index++) {
       const code = name.charCodeAt(index);
-      if ((code >= 65 && code <= 90) || code > 127) {
+      if (code >= 65 && code <= 90) {
+        return name.toLowerCase();
+      }
+      if (code > 127) {
+        hasNonAscii = true;
+      }
+    }
+    if (!hasNonAscii) {
+      return name;
+    }
+    for (const char of name) {
+      if (char.toLowerCase() !== char.toUpperCase() && char === char.toUpperCase()) {
         return name.toLowerCase();
       }
     }
