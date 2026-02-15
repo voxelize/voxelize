@@ -13,7 +13,7 @@ use webrtc::ice_transport::ice_gatherer_state::RTCIceGathererState;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 use webrtc::peer_connection::RTCPeerConnection;
 
-use super::datachannel::{fragment_message, FragmentAssembler};
+use super::datachannel::FragmentAssembler;
 use crate::{decode_message, ClientMessage, RtcSenders, Server};
 
 use actix::Addr;
@@ -100,10 +100,8 @@ pub async fn rtc_offer(
                 let dc_send = dc.clone();
                 tokio::spawn(async move {
                     while let Some(data) = rtc_rx.recv().await {
-                        for fragment in fragment_message(&data) {
-                            if dc_send.send(&Bytes::from(fragment)).await.is_err() {
-                                break;
-                            }
+                        if dc_send.send(&Bytes::from(data)).await.is_err() {
+                            break;
                         }
                     }
                 });
