@@ -2248,11 +2248,11 @@ export const createCliOptionValidation = (
     });
   const shouldFallbackToCatalogSupportedCliOptions =
     normalizedPrecomputedSupportedCliOptionMetadata !== null &&
-    filteredPrecomputedSupportedCliOptions.length === 0 &&
     catalogSupportedCliOptions.length > 0 &&
     (normalizedPrecomputedSupportedCliOptionMetadata.unavailable ||
-      normalizedPrecomputedSupportedCliOptions.length > 0 ||
-      precomputedSupportedCliOptionsHasReadableEntries);
+      (filteredPrecomputedSupportedCliOptions.length === 0 &&
+        (normalizedPrecomputedSupportedCliOptions.length > 0 ||
+          precomputedSupportedCliOptionsHasReadableEntries)));
   const supportedCliOptions =
     normalizedPrecomputedSupportedCliOptionMetadata === null
       ? catalogSupportedCliOptions

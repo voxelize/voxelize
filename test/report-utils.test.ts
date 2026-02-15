@@ -5026,9 +5026,11 @@ describe("report-utils", () => {
     );
     expect(malformedPrecomputedSupportedTokens.supportedCliOptions).toEqual([
       "--json",
+      "--output",
     ]);
+    expect(malformedPrecomputedSupportedTokens.supportedCliOptionCount).toBe(2);
     expect(malformedPrecomputedSupportedTokens.unsupportedOptionsError).toBe(
-      "Unsupported option(s): --mystery. Supported options: --json."
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
     );
     const setPrecomputedSupportedTokens = createCliOptionValidation(
       ["--mystery"],
@@ -5337,13 +5339,37 @@ describe("report-utils", () => {
       });
     expect(
       partiallyRecoverableLengthTrappedPrecomputedSupportedTokens.supportedCliOptions
-    ).toEqual(["--json"]);
+    ).toEqual(["--json", "--output"]);
     expect(
       partiallyRecoverableLengthTrappedPrecomputedSupportedTokens.supportedCliOptionCount
-    ).toBe(1);
+    ).toBe(2);
     expect(
       partiallyRecoverableLengthTrappedPrecomputedSupportedTokens.unsupportedOptionsError
-    ).toBe("Unsupported option(s): --mystery. Supported options: --json.");
+    ).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
+    const partiallyRecoverableLengthTrappedAliasPrecomputedSupportedTokens =
+      createLengthTrappedPartiallyRecoveredStringArray(["--verify", "--json"]);
+    const partiallyRecoverableLengthTrappedAliasPrecomputedValidation =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions: ["--json"],
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+        supportedCliOptions:
+          partiallyRecoverableLengthTrappedAliasPrecomputedSupportedTokens as never,
+      });
+    expect(
+      partiallyRecoverableLengthTrappedAliasPrecomputedValidation.supportedCliOptions
+    ).toEqual(["--json", "--no-build", "--verify"]);
+    expect(
+      partiallyRecoverableLengthTrappedAliasPrecomputedValidation.supportedCliOptionCount
+    ).toBe(3);
+    expect(
+      partiallyRecoverableLengthTrappedAliasPrecomputedValidation.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --no-build, --verify."
+    );
     const fullyRecoverableLengthTrappedCanonicalOptions =
       createLengthTrappedPartiallyRecoveredStringArray(
         ["--json", "--output"],
