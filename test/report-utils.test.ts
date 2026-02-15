@@ -4386,6 +4386,39 @@ describe("report-utils", () => {
       failedSteps: ["step-b"],
       skippedSteps: [],
     });
+    let statefulObjectReplacementStepReadCount = 0;
+    const statefulObjectReplacementSteps = new Proxy(
+      [{ name: "step-a", passed: true, skipped: false }],
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (propertyKey === "0") {
+            statefulObjectReplacementStepReadCount += 1;
+            if (statefulObjectReplacementStepReadCount > 1) {
+              return { name: "step-b", passed: false, skipped: false };
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(summarizeStepResults(statefulObjectReplacementSteps as never)).toEqual({
+      totalSteps: 1,
+      passedStepCount: 1,
+      failedStepCount: 0,
+      skippedStepCount: 0,
+      firstFailedStep: null,
+      passedSteps: ["step-a"],
+      failedSteps: [],
+      skippedSteps: [],
+    });
     let equalLengthStepFailureIndexZeroReadCount = 0;
     let equalLengthStepFailureIndexOneReadCount = 0;
     const equalLengthReplacementSteps = new Proxy(
@@ -5727,6 +5760,62 @@ describe("report-utils", () => {
         message: "Step failed with exit code 3.",
       },
     ]);
+    let statefulObjectReplacementStepFailureReadCount = 0;
+    const statefulObjectReplacementStepFailureEntries = new Proxy(
+      [
+        {
+          name: "step-primary",
+          scriptName: "check-step-primary.mjs",
+          supportsNoBuild: true,
+          stepIndex: 0,
+          passed: false,
+          skipped: false,
+          exitCode: 2,
+        },
+      ],
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (propertyKey === "0") {
+            statefulObjectReplacementStepFailureReadCount += 1;
+            if (statefulObjectReplacementStepFailureReadCount > 1) {
+              return {
+                name: "step-secondary",
+                scriptName: "check-step-secondary.mjs",
+                supportsNoBuild: true,
+                stepIndex: 1,
+                passed: false,
+                skipped: false,
+                exitCode: 3,
+              };
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      summarizeStepFailureResults(statefulObjectReplacementStepFailureEntries as never)
+    ).toEqual([
+      {
+        name: "step-primary",
+        scriptName: "check-step-primary.mjs",
+        supportsNoBuild: true,
+        stepIndex: 0,
+        checkCommand: "",
+        checkArgs: [],
+        checkArgCount: 0,
+        exitCode: 2,
+        message: "Step failed with exit code 2.",
+      },
+    ]);
     const cappedSupplementedFailureStepsTarget: Array<
       | number
       | {
@@ -6012,6 +6101,60 @@ describe("report-utils", () => {
         checkArgCount: 0,
         exitCode: 3,
         message: "Preflight check failed with exit code 3.",
+      },
+    ]);
+    let statefulObjectReplacementCheckFailureReadCount = 0;
+    const statefulObjectReplacementCheckFailureEntries = new Proxy(
+      [
+        {
+          name: "check-primary",
+          scriptName: "check-primary.mjs",
+          supportsNoBuild: true,
+          checkIndex: 0,
+          passed: false,
+          exitCode: 2,
+        },
+      ],
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (propertyKey === "0") {
+            statefulObjectReplacementCheckFailureReadCount += 1;
+            if (statefulObjectReplacementCheckFailureReadCount > 1) {
+              return {
+                name: "check-secondary",
+                scriptName: "check-secondary.mjs",
+                supportsNoBuild: true,
+                checkIndex: 1,
+                passed: false,
+                exitCode: 3,
+              };
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      summarizeCheckFailureResults(statefulObjectReplacementCheckFailureEntries as never)
+    ).toEqual([
+      {
+        name: "check-primary",
+        scriptName: "check-primary.mjs",
+        supportsNoBuild: true,
+        checkIndex: 0,
+        checkCommand: "",
+        checkArgs: [],
+        checkArgCount: 0,
+        exitCode: 2,
+        message: "Preflight check failed with exit code 2.",
       },
     ]);
     const cappedSupplementedFailureChecksTarget: Array<
