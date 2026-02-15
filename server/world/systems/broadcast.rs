@@ -68,6 +68,9 @@ fn merge_messages(base: &mut Message, other: Message) {
 }
 
 fn batch_messages(messages: Vec<(Message, ClientFilter)>) -> Vec<(Message, ClientFilter)> {
+    if messages.len() <= 1 {
+        return messages;
+    }
     let total_messages = messages.len();
     let mut batched: HashMap<(i32, BatchFilterKey), (Message, ClientFilter)> =
         HashMap::with_capacity(total_messages);
