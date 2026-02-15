@@ -15,8 +15,8 @@ impl AABBServerExt for AABB {
         let mut max_y = std::f32::MIN;
         let mut max_z = std::f32::MIN;
 
-        faces.iter().for_each(|face| {
-            face.corners.iter().for_each(|corner| {
+        for face in faces.iter() {
+            for corner in face.corners.iter() {
                 let [px, py, pz] = corner.pos;
                 if px < min_x {
                     min_x = px;
@@ -36,8 +36,8 @@ impl AABBServerExt for AABB {
                 if pz > max_z {
                     max_z = pz;
                 }
-            })
-        });
+            }
+        }
 
         AABB::create(min_x, min_y, min_z, max_x, max_y, max_z)
     }
