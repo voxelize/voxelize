@@ -1667,13 +1667,14 @@ export const createCliOptionCatalog = ({
   canonicalOptions = [],
   optionAliases = {},
 } = {}) => {
+  const normalizedCanonicalOptions = normalizeCliOptionTokenList(canonicalOptions);
   const normalizedOptionAliases = normalizeCliOptionAliases(optionAliases);
   const supportedCliOptions = createSupportedCliOptions(
-    canonicalOptions,
+    normalizedCanonicalOptions,
     normalizedOptionAliases
   );
   const canonicalOptionMap = createCanonicalOptionMap(
-    canonicalOptions,
+    normalizedCanonicalOptions,
     normalizedOptionAliases
   );
   const availableCliOptionCanonicalMap = Object.fromEntries(

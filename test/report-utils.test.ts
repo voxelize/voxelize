@@ -5913,6 +5913,31 @@ describe("report-utils", () => {
       "--json": "--json",
       "--output": "--output",
     });
+    let canonicalCatalogReadCount = 0;
+    const statefulCanonicalOptionsForCatalog = new Proxy(["--json"], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (property === "0") {
+          canonicalCatalogReadCount += 1;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const statefulCanonicalCatalog = createCliOptionCatalog({
+      canonicalOptions: statefulCanonicalOptionsForCatalog as never,
+    });
+    expect(statefulCanonicalCatalog.supportedCliOptions).toEqual(["--json"]);
+    expect(statefulCanonicalCatalog.supportedCliOptionCount).toBe(1);
+    expect(statefulCanonicalCatalog.availableCliOptionAliases).toEqual({});
+    expect(statefulCanonicalCatalog.availableCliOptionCanonicalMap).toEqual({
+      "--json": "--json",
+    });
+    expect(canonicalCatalogReadCount).toBe(2);
     const fullyTrappedCanonicalOptions = createFullyTrappedStringArray([
       "--json",
       "--output",
