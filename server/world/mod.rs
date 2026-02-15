@@ -1993,12 +1993,28 @@ impl World {
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Cow;
+
     use hashbrown::HashSet;
 
     use super::{
         collect_preload_targets, preload_check_radius, preload_expected_chunk_count,
-        preload_light_padding, Chunks, Vec2, WorldConfig,
+        preload_light_padding, normalized_lookup_name, Chunks, Vec2, WorldConfig,
     };
+
+    #[test]
+    fn normalized_lookup_name_keeps_lowercase_borrowed() {
+        assert!(matches!(
+            normalized_lookup_name("method"),
+            Cow::Borrowed("method")
+        ));
+    }
+
+    #[test]
+    fn normalized_lookup_name_lowercases_ascii_and_unicode_uppercase() {
+        assert_eq!(normalized_lookup_name("MeThOd").as_ref(), "method");
+        assert_eq!(normalized_lookup_name("Äction").as_ref(), "äction");
+    }
 
     #[test]
     fn preload_light_padding_uses_integer_ceil_and_zero_chunk_guard() {
