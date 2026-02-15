@@ -64,6 +64,27 @@ fn normalized_action_name<'a>(action: &'a str) -> Cow<'a, str> {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use std::borrow::Cow;
+
+    use super::normalized_action_name;
+
+    #[test]
+    fn normalized_action_name_borrows_lowercase_ascii() {
+        assert!(matches!(
+            normalized_action_name("action"),
+            Cow::Borrowed("action")
+        ));
+    }
+
+    #[test]
+    fn normalized_action_name_lowercases_ascii_and_unicode_uppercase() {
+        assert_eq!(normalized_action_name("AcTiOn").as_ref(), "action");
+        assert_eq!(normalized_action_name("Äction").as_ref(), "äction");
+    }
+}
+
 fn default_info_handle(server: &Server) -> Value {
     let mut info = HashMap::with_capacity(3);
 
