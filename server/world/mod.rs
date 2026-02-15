@@ -1580,6 +1580,11 @@ impl World {
                 metadata, username, ..
             } = peer;
 
+            client_parser(self, &metadata, client_ent);
+            latest_username = Some(username);
+        }
+
+        if let Some(username) = latest_username {
             {
                 let mut names = self.write_component::<NameComp>();
                 if let Some(n) = names.get_mut(client_ent) {
@@ -1588,12 +1593,6 @@ impl World {
                     }
                 }
             }
-
-            client_parser(self, &metadata, client_ent);
-            latest_username = Some(username);
-        }
-
-        if let Some(username) = latest_username {
             if let Some(client) = self.clients_mut().get_mut(client_id) {
                 if client.username != username {
                     client.username = username;
