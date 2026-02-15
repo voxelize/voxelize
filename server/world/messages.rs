@@ -265,6 +265,10 @@ impl EncodedMessageQueue {
             if entities.len() == 1 {
                 return entities[0].operation == ENTITY_OPERATION_UPDATE;
             }
+            if entities.len() == 2 {
+                return entities[0].operation == ENTITY_OPERATION_UPDATE
+                    && entities[1].operation == ENTITY_OPERATION_UPDATE;
+            }
             for entity in entities {
                 if entity.operation != ENTITY_OPERATION_UPDATE {
                     return false;
@@ -357,12 +361,18 @@ mod tests {
         let update_message = Message::new(&MessageType::Entity)
             .entities(&[update_entity.clone()])
             .build();
+        let double_update_message = Message::new(&MessageType::Entity)
+            .entities(&[update_entity.clone(), update_entity.clone()])
+            .build();
         let mixed_message = Message::new(&MessageType::Entity)
             .entities(&[update_entity, delete_entity])
             .build();
         let empty_message = Message::new(&MessageType::Entity).build();
 
         assert!(EncodedMessageQueue::compute_rtc_eligibility(&update_message));
+        assert!(EncodedMessageQueue::compute_rtc_eligibility(
+            &double_update_message
+        ));
         assert!(!EncodedMessageQueue::compute_rtc_eligibility(&mixed_message));
         assert!(!EncodedMessageQueue::compute_rtc_eligibility(&empty_message));
     }
