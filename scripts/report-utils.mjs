@@ -1674,13 +1674,6 @@ const createCanonicalOptionMapFromNormalizedMetadata = (
   return canonicalMap;
 };
 
-const createCanonicalOptionMap = (canonicalOptions, optionAliases = {}) => {
-  return createCanonicalOptionMapFromNormalizedMetadata(
-    normalizeCliOptionTokenList(canonicalOptions),
-    normalizeCliOptionAliases(optionAliases)
-  );
-};
-
 const createSupportedCliOptionsFromNormalizedMetadata = (
   normalizedCanonicalOptions,
   normalizedOptionAliases
@@ -1690,13 +1683,6 @@ const createSupportedCliOptionsFromNormalizedMetadata = (
     ...Object.keys(normalizedOptionAliases),
     ...Object.values(normalizedOptionAliases).flat(),
   ]);
-};
-
-const createSupportedCliOptions = (canonicalOptions, optionAliases = {}) => {
-  return createSupportedCliOptionsFromNormalizedMetadata(
-    normalizeCliOptionTokenList(canonicalOptions),
-    normalizeCliOptionAliases(optionAliases)
-  );
 };
 
 export const createCliOptionCatalog = ({
