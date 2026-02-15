@@ -237,8 +237,12 @@ const isBooleanValue = (value: DynamicValue): value is boolean => {
 };
 
 const hasPlainObjectPrototype = (value: object): boolean => {
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
+  try {
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
+  } catch {
+    return false;
+  }
 };
 
 const isPlainObjectValue = (
@@ -249,6 +253,32 @@ const isPlainObjectValue = (
   }
 
   return hasPlainObjectPrototype(value);
+};
+
+const isBlockRotationInstance = (
+  value: DynamicValue
+): value is BlockRotation => {
+  try {
+    return value instanceof BlockRotation;
+  } catch {
+    return false;
+  }
+};
+
+const isBlockFaceInstance = (value: DynamicValue): value is BlockFace => {
+  try {
+    return value instanceof BlockFace;
+  } catch {
+    return false;
+  }
+};
+
+const isAabbInstance = (value: DynamicValue): value is AABB => {
+  try {
+    return value instanceof AABB;
+  } catch {
+    return false;
+  }
 };
 
 export const createFaceTransparency = (
@@ -352,7 +382,7 @@ const toOptionalRuleNumber = (
 };
 
 const toBlockRotation = (value: DynamicValue): BlockRotation | null => {
-  if (value instanceof BlockRotation) {
+  if (isBlockRotationInstance(value)) {
     if (!isRotationValue(value.value) || !isFiniteNumberValue(value.yRotation)) {
       return null;
     }
@@ -480,7 +510,7 @@ const toBlockFaceInit = (face: BlockFaceInput): BlockFaceInit | null => {
     dir?: DynamicValue;
     corners?: DynamicValue;
     range?: DynamicValue;
-  } | null = face instanceof BlockFace
+  } | null = isBlockFaceInstance(face)
     ? {
         name: face.name,
         independent: face.independent,
@@ -577,7 +607,7 @@ const toFiniteAabbInit = (aabb: AabbLikeValue): AABBInit | null => {
 };
 
 const cloneAabb = (aabb: AABBInput | null | undefined): AABB | null => {
-  if (aabb instanceof AABB) {
+  if (isAabbInstance(aabb)) {
     const finiteAabb = toFiniteAabbInit(aabb);
     if (finiteAabb === null) {
       return null;

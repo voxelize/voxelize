@@ -946,6 +946,16 @@ describe("Type builders", () => {
     const partFromNull = createBlockConditionalPart(null);
     const partFromNumber = createBlockConditionalPart(42 as never);
     const partFromDate = createBlockConditionalPart(new Date() as never);
+    const partFromThrowingProxy = createBlockConditionalPart(
+      new Proxy(
+        {},
+        {
+          getPrototypeOf: () => {
+            throw new Error("prototype trap");
+          },
+        }
+      ) as never
+    );
 
     expect(partFromNull).toEqual({
       rule: BLOCK_RULE_NONE,
@@ -971,6 +981,14 @@ describe("Type builders", () => {
       worldSpace: false,
     });
     expect(partFromDate.rule).not.toBe(BLOCK_RULE_NONE);
+    expect(partFromThrowingProxy).toEqual({
+      rule: BLOCK_RULE_NONE,
+      faces: [],
+      aabbs: [],
+      isTransparent: [false, false, false, false, false, false],
+      worldSpace: false,
+    });
+    expect(partFromThrowingProxy.rule).not.toBe(BLOCK_RULE_NONE);
   });
 
   it("accepts null-prototype conditional part inputs", () => {
@@ -1819,10 +1837,21 @@ describe("Type builders", () => {
     const dateRule = createBlockRule(new Date() as never);
     const mapRule = createBlockRule(new Map() as never);
     const classRule = createBlockRule(new RuleLike());
+    const throwingProxyRule = createBlockRule(
+      new Proxy(
+        {},
+        {
+          getPrototypeOf: () => {
+            throw new Error("prototype trap");
+          },
+        }
+      ) as never
+    );
 
     expect(dateRule).toEqual(BLOCK_RULE_NONE);
     expect(mapRule).toEqual(BLOCK_RULE_NONE);
     expect(classRule).toEqual(BLOCK_RULE_NONE);
+    expect(throwingProxyRule).toEqual(BLOCK_RULE_NONE);
   });
 
   it("sanitizes cyclic createBlockRule inputs without throwing", () => {
@@ -2280,6 +2309,14 @@ describe("Type builders", () => {
   });
 
   it("skips malformed dynamic pattern part entries", () => {
+    const throwingPrototypeProxy = new Proxy(
+      {},
+      {
+        getPrototypeOf: () => {
+          throw new Error("prototype trap");
+        },
+      }
+    );
     const pattern = createBlockDynamicPattern({
       parts: [
         undefined,
@@ -2287,6 +2324,7 @@ describe("Type builders", () => {
         new Date() as never,
         42 as never,
         [] as never,
+        throwingPrototypeProxy as never,
         { worldSpace: true },
       ],
     });
@@ -2684,6 +2722,21 @@ describe("Type builders", () => {
     );
   });
 
+  it("falls back to default when createBlockFace receives prototype-throwing proxies", () => {
+    const throwingPrototypeProxy = new Proxy(
+      {},
+      {
+        getPrototypeOf: () => {
+          throw new Error("prototype trap");
+        },
+      }
+    );
+
+    expect(createBlockFace(throwingPrototypeProxy as never)).toEqual(
+      new BlockFace({ name: "Face" })
+    );
+  });
+
   it("builds deterministic default faces for malformed createBlockFace input", () => {
     const defaultFace = createBlockFace();
     const nullFace = createBlockFace(null);
@@ -2807,11 +2860,20 @@ describe("Type builders", () => {
     }
     const malformedAabbInstance = AABB.create(0, 0, 0, 1, 1, 1);
     malformedAabbInstance.minZ = Number.NaN;
+    const throwingPrototypeProxy = new Proxy(
+      {},
+      {
+        getPrototypeOf: () => {
+          throw new Error("prototype trap");
+        },
+      }
+    );
 
     expect(createAABB()).toEqual(AABB.empty());
     expect(createAABB(null)).toEqual(AABB.empty());
     expect(createAABB(new AabbLike() as never)).toEqual(AABB.empty());
     expect(createAABB(malformedAabbInstance)).toEqual(AABB.empty());
+    expect(createAABB(throwingPrototypeProxy as never)).toEqual(AABB.empty());
     expect(
       createAABB({
         minX: 0,
@@ -2885,6 +2947,14 @@ describe("Type builders", () => {
     malformedInstance.axis = 16;
     const malformedYRotationInstance = BlockRotation.py(Math.PI / 2);
     malformedYRotationInstance.yRotation = Number.POSITIVE_INFINITY;
+    const throwingPrototypeProxy = new Proxy(
+      {},
+      {
+        getPrototypeOf: () => {
+          throw new Error("prototype trap");
+        },
+      }
+    );
 
     expect(createBlockRotation()).toEqual(BlockRotation.py(0));
     expect(createBlockRotation(null)).toEqual(BlockRotation.py(0));
@@ -2917,6 +2987,9 @@ describe("Type builders", () => {
     ).toEqual(BlockRotation.py(0));
     expect(createBlockRotation(malformedInstance)).toEqual(BlockRotation.py(0));
     expect(createBlockRotation(malformedYRotationInstance)).toEqual(
+      BlockRotation.py(0)
+    );
+    expect(createBlockRotation(throwingPrototypeProxy as never)).toEqual(
       BlockRotation.py(0)
     );
   });
