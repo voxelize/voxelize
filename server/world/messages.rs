@@ -6,6 +6,14 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use crate::{common::ClientFilter, encode_message, server::Message, EntityOperation, MessageType};
 const SYNC_ENCODE_BATCH_LIMIT: usize = 8;
 
+#[inline]
+fn reserve_for_append<T>(buffer: &mut Vec<T>, additional: usize) {
+    let remaining_capacity = buffer.capacity() - buffer.len();
+    if remaining_capacity < additional {
+        buffer.reserve(additional - remaining_capacity);
+    }
+}
+
 #[derive(Clone)]
 pub struct EncodedMessage {
     pub data: Vec<u8>,
@@ -61,9 +69,7 @@ impl MessageQueues {
                 return std::mem::take(&mut self.bulk);
             }
             let mut result = std::mem::take(&mut self.critical);
-            if result.capacity() - result.len() < self.bulk.len() {
-                result.reserve(self.bulk.len() - (result.capacity() - result.len()));
-            }
+            reserve_for_append(&mut result, self.bulk.len());
             result.append(&mut self.bulk);
             return result;
         }
@@ -72,17 +78,13 @@ impl MessageQueues {
                 return std::mem::take(&mut self.normal);
             }
             let mut result = std::mem::take(&mut self.critical);
-            if result.capacity() - result.len() < self.normal.len() {
-                result.reserve(self.normal.len() - (result.capacity() - result.len()));
-            }
+            reserve_for_append(&mut result, self.normal.len());
             result.append(&mut self.normal);
             return result;
         }
         if self.critical.is_empty() {
             let mut result = std::mem::take(&mut self.normal);
-            if result.capacity() - result.len() < self.bulk.len() {
-                result.reserve(self.bulk.len() - (result.capacity() - result.len()));
-            }
+            reserve_for_append(&mut result, self.bulk.len());
             result.append(&mut self.bulk);
             return result;
         }
@@ -125,10 +127,7 @@ impl EncodedMessageQueue {
             self.pending = list;
             return;
         }
-        if self.pending.capacity() - self.pending.len() < list.len() {
-            self.pending
-                .reserve(list.len() - (self.pending.capacity() - self.pending.len()));
-        }
+        reserve_for_append(&mut self.pending, list.len());
         self.pending.append(&mut list);
     }
 
@@ -154,10 +153,7 @@ impl EncodedMessageQueue {
             return;
         }
         if pending_len <= SYNC_ENCODE_BATCH_LIMIT {
-            if self.processed.capacity() - self.processed.len() < pending_len {
-                self.processed
-                    .reserve(pending_len - (self.processed.capacity() - self.processed.len()));
-            }
+            reserve_for_append(&mut self.processed, pending_len);
             for (message, filter) in self.pending.drain(..) {
                 let msg_type = message.r#type;
                 let is_rtc_eligible = Self::compute_rtc_eligibility(&message);
@@ -234,9 +230,7 @@ impl EncodedMessageQueue {
             pending_message_count = pending_message_count.saturating_add(messages.len());
             pending_message_batches.push(messages);
         }
-        if pending_message_count > 0 && result.capacity() - result.len() < pending_message_count {
-            result.reserve(pending_message_count - (result.capacity() - result.len()));
-        }
+        reserve_for_append(&mut result, pending_message_count);
         for mut messages in pending_message_batches {
             result.append(&mut messages);
         }
