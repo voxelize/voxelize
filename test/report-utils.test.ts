@@ -3290,6 +3290,45 @@ describe("report-utils", () => {
     expect(unknownDashPathFromPrimitiveValueOptionsWithStrictFallback).toEqual([]);
   });
 
+  it("salvages length-trapped alias token lists in unknown option parsing", () => {
+    const fullyRecoverableAliasTokens =
+      createLengthTrappedPartiallyRecoveredStringArray(["-o", "--only-long"], 2);
+    const unknownFromRecoverableLengthTrappedAliasTokens = parseUnknownCliOptions(
+      ["--only-long", "--mystery"],
+      {
+        canonicalOptions: ["--output"],
+        optionAliases: {
+          "--only": fullyRecoverableAliasTokens as never,
+        },
+      }
+    );
+    expect(unknownFromRecoverableLengthTrappedAliasTokens).toEqual(["--mystery"]);
+
+    const partiallyRecoverableAliasTokens =
+      createLengthTrappedPartiallyRecoveredStringArray(["-o", "--only-long"]);
+    const unknownFromPartiallyRecoverableLengthTrappedAliasTokens =
+      parseUnknownCliOptions(["--only-long", "--mystery"], {
+        canonicalOptions: ["--output"],
+        optionAliases: {
+          "--only": partiallyRecoverableAliasTokens as never,
+        },
+      });
+    expect(unknownFromPartiallyRecoverableLengthTrappedAliasTokens).toEqual([
+      "--only-long",
+      "--mystery",
+    ]);
+    const unknownFromPartiallyRecoverableShortAliasToken = parseUnknownCliOptions(
+      ["-o", "--mystery"],
+      {
+        canonicalOptions: ["--output"],
+        optionAliases: {
+          "--only": partiallyRecoverableAliasTokens as never,
+        },
+      }
+    );
+    expect(unknownFromPartiallyRecoverableShortAliasToken).toEqual(["--mystery"]);
+  });
+
   it("applies set value metadata strict-subset fallback across sibling options in unknown parsing", () => {
     const setValueMetadata = new Set(["--output"]);
     const unknownOnlyShortOption = parseUnknownCliOptions(["--only", "-l"], {
@@ -4791,6 +4830,58 @@ describe("report-utils", () => {
     });
   });
 
+  it("salvages length-trapped alias token lists in cli option catalogs", () => {
+    const fullyRecoverableAliasTokens =
+      createLengthTrappedPartiallyRecoveredStringArray(["-o", "--only-long"], 2);
+    const fullyRecoverableCatalog = createCliOptionCatalog({
+      canonicalOptions: ["--output"],
+      optionAliases: {
+        "--only": fullyRecoverableAliasTokens as never,
+      },
+    });
+
+    expect(fullyRecoverableCatalog.supportedCliOptions).toEqual([
+      "--output",
+      "--only",
+      "-o",
+      "--only-long",
+    ]);
+    expect(fullyRecoverableCatalog.supportedCliOptionCount).toBe(4);
+    expect(fullyRecoverableCatalog.availableCliOptionAliases).toEqual({
+      "--only": ["-o", "--only-long"],
+    });
+    expect(fullyRecoverableCatalog.availableCliOptionCanonicalMap).toEqual({
+      "--output": "--output",
+      "--only": "--only",
+      "-o": "--only",
+      "--only-long": "--only",
+    });
+
+    const partiallyRecoverableAliasTokens =
+      createLengthTrappedPartiallyRecoveredStringArray(["-o", "--only-long"]);
+    const partiallyRecoverableCatalog = createCliOptionCatalog({
+      canonicalOptions: ["--output"],
+      optionAliases: {
+        "--only": partiallyRecoverableAliasTokens as never,
+      },
+    });
+
+    expect(partiallyRecoverableCatalog.supportedCliOptions).toEqual([
+      "--output",
+      "--only",
+      "-o",
+    ]);
+    expect(partiallyRecoverableCatalog.supportedCliOptionCount).toBe(3);
+    expect(partiallyRecoverableCatalog.availableCliOptionAliases).toEqual({
+      "--only": ["-o"],
+    });
+    expect(partiallyRecoverableCatalog.availableCliOptionCanonicalMap).toEqual({
+      "--output": "--output",
+      "--only": "--only",
+      "-o": "--only",
+    });
+  });
+
   it("preserves non-trapping alias entries when others are malformed", () => {
     const optionAliases = Object.create(null) as {
       readonly "--no-build": string[];
@@ -5083,6 +5174,108 @@ describe("report-utils", () => {
       },
     ]);
     expect(diagnostics.activeCliOptionOccurrenceCount).toBe(2);
+  });
+
+  it("tracks length-trapped alias token recovery in unified cli diagnostics", () => {
+    const fullyRecoverableAliasTokens =
+      createLengthTrappedPartiallyRecoveredStringArray(["-o", "--only-long"], 2);
+    const recoverableDiagnostics = createCliDiagnostics(
+      ["--only-long", "--mystery"],
+      {
+        canonicalOptions: ["--output"],
+        optionAliases: {
+          "--only": fullyRecoverableAliasTokens as never,
+        },
+      }
+    );
+
+    expect(recoverableDiagnostics.supportedCliOptions).toEqual([
+      "--output",
+      "--only",
+      "-o",
+      "--only-long",
+    ]);
+    expect(recoverableDiagnostics.supportedCliOptionCount).toBe(4);
+    expect(recoverableDiagnostics.availableCliOptionAliases).toEqual({
+      "--only": ["-o", "--only-long"],
+    });
+    expect(recoverableDiagnostics.availableCliOptionCanonicalMap).toEqual({
+      "--output": "--output",
+      "--only": "--only",
+      "-o": "--only",
+      "--only-long": "--only",
+    });
+    expect(recoverableDiagnostics.unknownOptions).toEqual(["--mystery"]);
+    expect(recoverableDiagnostics.unknownOptionCount).toBe(1);
+    expect(recoverableDiagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --output, --only, -o, --only-long."
+    );
+    expect(recoverableDiagnostics.validationErrorCode).toBe("unsupported_options");
+    expect(recoverableDiagnostics.activeCliOptions).toEqual(["--only"]);
+    expect(recoverableDiagnostics.activeCliOptionCount).toBe(1);
+    expect(recoverableDiagnostics.activeCliOptionTokens).toEqual(["--only-long"]);
+    expect(recoverableDiagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--only-long",
+        canonicalOption: "--only",
+      },
+    ]);
+    expect(recoverableDiagnostics.activeCliOptionResolutionCount).toBe(1);
+    expect(recoverableDiagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--only-long",
+        canonicalOption: "--only",
+        index: 0,
+      },
+    ]);
+    expect(recoverableDiagnostics.activeCliOptionOccurrenceCount).toBe(1);
+
+    const partiallyRecoverableAliasTokens =
+      createLengthTrappedPartiallyRecoveredStringArray(["-o", "--only-long"]);
+    const partiallyRecoverableDiagnostics = createCliDiagnostics(
+      ["--only-long", "--mystery"],
+      {
+        canonicalOptions: ["--output"],
+        optionAliases: {
+          "--only": partiallyRecoverableAliasTokens as never,
+        },
+      }
+    );
+
+    expect(partiallyRecoverableDiagnostics.supportedCliOptions).toEqual([
+      "--output",
+      "--only",
+      "-o",
+    ]);
+    expect(partiallyRecoverableDiagnostics.supportedCliOptionCount).toBe(3);
+    expect(partiallyRecoverableDiagnostics.availableCliOptionAliases).toEqual({
+      "--only": ["-o"],
+    });
+    expect(partiallyRecoverableDiagnostics.availableCliOptionCanonicalMap).toEqual({
+      "--output": "--output",
+      "--only": "--only",
+      "-o": "--only",
+    });
+    expect(partiallyRecoverableDiagnostics.unknownOptions).toEqual([
+      "--only-long",
+      "--mystery",
+    ]);
+    expect(partiallyRecoverableDiagnostics.unknownOptionCount).toBe(2);
+    expect(partiallyRecoverableDiagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --only-long, --mystery. Supported options: --output, --only, -o."
+    );
+    expect(partiallyRecoverableDiagnostics.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    expect(partiallyRecoverableDiagnostics.activeCliOptions).toEqual([]);
+    expect(partiallyRecoverableDiagnostics.activeCliOptionCount).toBe(0);
+    expect(partiallyRecoverableDiagnostics.activeCliOptionTokens).toEqual([]);
+    expect(partiallyRecoverableDiagnostics.activeCliOptionResolutions).toEqual(
+      []
+    );
+    expect(partiallyRecoverableDiagnostics.activeCliOptionResolutionCount).toBe(0);
+    expect(partiallyRecoverableDiagnostics.activeCliOptionOccurrences).toEqual([]);
+    expect(partiallyRecoverableDiagnostics.activeCliOptionOccurrenceCount).toBe(0);
   });
 
   it("keeps pre-terminator aliases active while ignoring post-terminator misuse", () => {
