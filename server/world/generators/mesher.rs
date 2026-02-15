@@ -211,11 +211,12 @@ impl Mesher {
                     let coords = space.coords;
                     let min = space.min;
                     let shape = space.shape;
+                    let should_store_lights = chunk.meshes.is_none();
 
                     let Vec3(min_x, min_y, min_z) = chunk.min;
                     let Vec3(max_x, _, max_z) = chunk.max;
 
-                    if chunk.meshes.is_none() {
+                    if should_store_lights {
                         let mut light_queues = vec![VecDeque::new(); 4];
 
                         for dx in -1..=1 {
@@ -267,8 +268,6 @@ impl Mesher {
                             }
                         }
 
-                        chunk.lights =
-                            Arc::new(space.get_lights(coords.0, coords.1).unwrap().clone());
                     }
 
                     let chunk_meshes = chunk.meshes.get_or_insert_with(HashMap::new);
@@ -318,6 +317,11 @@ impl Mesher {
                         }
 
                         chunk_meshes.insert(level_u32, MeshProtocol { level, geometries });
+                    }
+
+                    if should_store_lights {
+                        let lights = space.take_lights(coords.0, coords.1).unwrap();
+                        chunk.lights = Arc::new(lights);
                     }
 
                     sender.send((chunk, msg_type)).unwrap();

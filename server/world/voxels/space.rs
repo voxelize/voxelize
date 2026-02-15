@@ -98,6 +98,11 @@ impl Space {
     fn is_y_out_of_world_height(&self, vy: i32) -> bool {
         vy < 0 || self.is_y_above_world_height(vy)
     }
+
+    #[inline]
+    pub(crate) fn take_lights(&mut self, cx: i32, cz: i32) -> Option<Ndarray<u32>> {
+        self.lights.remove(&Vec2(cx, cz))
+    }
 }
 
 /// A data structure to build a space.
@@ -608,6 +613,15 @@ mod tests {
         space.options.chunk_size = 0;
 
         assert!(space.set_raw_light(0, 0, 0, 1));
+    }
+
+    #[test]
+    fn take_lights_moves_light_array_out_of_space() {
+        let mut space = test_space_with_sub_chunks(1);
+
+        let lights = space.take_lights(0, 0).expect("missing test lights");
+        assert_eq!(lights.shape, vec![16, 16, 16]);
+        assert!(space.get_lights(0, 0).is_none());
     }
 }
 
