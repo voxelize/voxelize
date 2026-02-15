@@ -67,7 +67,8 @@ impl<'a> System<'a> for EventsSystem {
             return;
         }
         let client_count = clients.len();
-        let has_transports = !transports.is_empty();
+        let transport_count = transports.len();
+        let has_transports = transport_count > 0;
         let queued_events_count = events.queue.len();
         let dispatch_map = &mut self.dispatch_map_buffer;
         if client_count == 0 && !has_transports {
@@ -272,7 +273,7 @@ impl<'a> System<'a> for EventsSystem {
                 .events(&transports_map)
                 .build();
             let encoded = encode_message(&message);
-            if transports.len() == 1 {
+            if transport_count == 1 {
                 if let Some(sender) = transports.values().next() {
                     let _ = sender.send(encoded);
                 }
