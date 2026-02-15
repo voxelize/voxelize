@@ -217,14 +217,6 @@ impl<'a> System<'a> for PathFindingSystem {
                         return;
                     }
 
-                    // Before starting the A* search, check if goal position is valid
-                    // Note: We don't check the start position here because the bot might be
-                    // in a valid but unconventional position (on edge, in fence, etc.)
-                    if !get_is_voxel_passable(goal.0, goal.1, goal.2) {
-                        entity_path.path = None;
-                        return;
-                    }
-
                     let start_time = Instant::now();
                     let count = AtomicI32::new(0);
                     let max_depth_search = normalized_max_depth_search(entity_path.max_depth_search);
