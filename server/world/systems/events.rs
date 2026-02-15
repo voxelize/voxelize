@@ -39,30 +39,6 @@ fn push_dispatch_event(
     }
 }
 
-#[inline]
-fn push_dispatch_event_owned(
-    dispatch_map: &mut HashMap<String, Vec<EventProtocol>>,
-    touched_clients: &mut Vec<String>,
-    client_id: &str,
-    event: EventProtocol,
-) {
-    match dispatch_map.raw_entry_mut().from_key(client_id) {
-        RawEntryMut::Occupied(mut entry) => {
-            let events = entry.get_mut();
-            if events.is_empty() {
-                touched_clients.push(client_id.to_owned());
-            }
-            events.push(event);
-        }
-        RawEntryMut::Vacant(entry) => {
-            touched_clients.push(client_id.to_owned());
-            let mut events = Vec::with_capacity(1);
-            events.push(event);
-            entry.insert(client_id.to_owned(), events);
-        }
-    }
-}
-
 impl<'a> System<'a> for EventsSystem {
     type SystemData = (
         ReadExpect<'a, Transports>,
@@ -177,7 +153,7 @@ impl<'a> System<'a> for EventsSystem {
                         None => true,
                     };
                     if should_send {
-                        push_dispatch_event_owned(dispatch_map, touched_clients, id, serialized);
+                        push_dispatch_event(dispatch_map, touched_clients, id, serialized);
                     }
                 }
                 continue;
