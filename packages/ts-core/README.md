@@ -152,6 +152,10 @@ const voxel = Voxel.pack({
   - iterator-trapped combination-rule collections recover readable indexed
     entries via bounded fallback scans; irrecoverable trap combinations
     sanitize to deterministic `none`
+  - bounded key-fallback scans can supplement readable high-index rules when
+    bounded prefixes contain malformed/noisy entries
+  - bounded direct-read traps are skipped during fallback scans so key
+    recovery can still salvage readable high-index rules
   - accepts readonly/frozen rule-tree arrays/tuples for ergonomic literal input
   - normalizes nullable combination sub-rules to deterministic `none` entries
   - keeps optional `id`/`stage` only when values match voxel ranges
