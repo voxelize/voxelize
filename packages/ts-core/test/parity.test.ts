@@ -1528,6 +1528,37 @@ describe("Type builders", () => {
     expect(part.aabbs).toEqual([AABB.create(0, 0, 0, 1, 1, 1)]);
   });
 
+  it("supplements noisy prefix face/aabb entries with key fallback recovery", () => {
+    const noisyFaces: Array<BlockFaceInit | number> = [];
+    noisyFaces[0] = 1;
+    noisyFaces[5_000] = { name: "SparseFace" };
+    const noisyAabbs: Array<AABB | number> = [];
+    noisyAabbs[0] = 1;
+    noisyAabbs[5_000] = AABB.create(0, 0, 0, 1, 1, 1);
+    Object.defineProperty(noisyFaces, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    Object.defineProperty(noisyAabbs, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+
+    const part = createBlockConditionalPart({
+      faces: noisyFaces as never,
+      aabbs: noisyAabbs as never,
+    });
+
+    expect(part.faces).toEqual([new BlockFace({ name: "SparseFace" })]);
+    expect(part.aabbs).toEqual([AABB.create(0, 0, 0, 1, 1, 1)]);
+  });
+
   it("caps bounded face-entry fallback scans when iterator access traps", () => {
     let boundedReadCount = 0;
     const oversizedFaces = new Proxy([] as Array<BlockFaceInit | undefined>, {
@@ -2783,6 +2814,32 @@ describe("Type builders", () => {
     } finally {
       delete (Array.prototype as Record<string, BlockConditionalPartInput>)["0"];
     }
+  });
+
+  it("supplements noisy prefix part entries with key fallback recovery", () => {
+    const noisyParts: Array<BlockConditionalPartInput | number> = [];
+    noisyParts[0] = 1;
+    noisyParts[5_000] = { worldSpace: true };
+    Object.defineProperty(noisyParts, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    const pattern = createBlockDynamicPattern({
+      parts: noisyParts as never,
+    });
+
+    expect(pattern.parts).toEqual([
+      {
+        rule: BLOCK_RULE_NONE,
+        faces: [],
+        aabbs: [],
+        isTransparent: [false, false, false, false, false, false],
+        worldSpace: true,
+      },
+    ]);
   });
 
   it("accepts partial dynamic pattern part inputs", () => {
