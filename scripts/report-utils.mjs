@@ -1594,7 +1594,11 @@ const normalizeCliOptionTokenListWithAvailability = (tokens) => {
     tokens: dedupeStringList(
       toStringArrayFromClonedIndexedEntries(tokens, clonedIndexedTokens)
     ),
-    unavailable: clonedIndexedTokens.fromIndexedFallback,
+    unavailable:
+      clonedIndexedTokens.fromIndexedFallback ||
+      clonedIndexedTokens.entries.some((entry) => {
+        return typeof entry.value !== "string";
+      }),
   };
 };
 

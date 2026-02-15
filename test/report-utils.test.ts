@@ -479,6 +479,25 @@ describe("report-utils", () => {
     expect(malformedPrimitiveRecognizedOutputDashValueResult.outputPath).toBe(
       "/workspace/-artifact-report.json"
     );
+    const malformedArrayRecognizedOutputTokens = ["--list-checks", 1];
+    const malformedArrayRecognizedOutputTokenResult = resolveOutputPath(
+      ["--output", "-l"],
+      "/workspace",
+      malformedArrayRecognizedOutputTokens as never
+    );
+    expect(malformedArrayRecognizedOutputTokenResult.error).toBe(
+      "Missing value for --output option."
+    );
+    expect(malformedArrayRecognizedOutputTokenResult.outputPath).toBeNull();
+    const malformedArrayRecognizedOutputDashValueResult = resolveOutputPath(
+      ["--output", "-artifact-report.json"],
+      "/workspace",
+      malformedArrayRecognizedOutputTokens as never
+    );
+    expect(malformedArrayRecognizedOutputDashValueResult.error).toBeNull();
+    expect(malformedArrayRecognizedOutputDashValueResult.outputPath).toBe(
+      "/workspace/-artifact-report.json"
+    );
 
     const malformedRecognizedOutputTokens = new Proxy(
       ["--list-checks", "-l"],
@@ -1009,6 +1028,32 @@ describe("report-utils", () => {
     ).toBe("-artifact-report.json");
     expect(
       resolvedUnknownDashValueFromMalformedPrimitiveRecognizedOptionTokens.error
+    ).toBeNull();
+    const malformedArrayRecognizedOptionTokens = ["--list-checks", 1];
+    const resolvedFromMalformedArrayRecognizedOptionTokens = resolveLastOptionValue(
+      ["--output", "-l"],
+      "--output",
+      malformedArrayRecognizedOptionTokens as never
+    );
+    expect(resolvedFromMalformedArrayRecognizedOptionTokens.hasOption).toBe(true);
+    expect(resolvedFromMalformedArrayRecognizedOptionTokens.value).toBeNull();
+    expect(resolvedFromMalformedArrayRecognizedOptionTokens.error).toBe(
+      "Missing value for --output option."
+    );
+    const resolvedUnknownDashValueFromMalformedArrayRecognizedOptionTokens =
+      resolveLastOptionValue(
+        ["--output", "-artifact-report.json"],
+        "--output",
+        malformedArrayRecognizedOptionTokens as never
+      );
+    expect(
+      resolvedUnknownDashValueFromMalformedArrayRecognizedOptionTokens.hasOption
+    ).toBe(true);
+    expect(
+      resolvedUnknownDashValueFromMalformedArrayRecognizedOptionTokens.value
+    ).toBe("-artifact-report.json");
+    expect(
+      resolvedUnknownDashValueFromMalformedArrayRecognizedOptionTokens.error
     ).toBeNull();
 
     const lengthAndOwnKeysTrapOptionArgs = new Proxy(
