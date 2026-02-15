@@ -228,6 +228,7 @@ impl<'a> System<'a> for PathFindingSystem {
                     let start_time = Instant::now();
                     let count = AtomicI32::new(0);
                     let max_depth_search = normalized_max_depth_search(entity_path.max_depth_search);
+                    let goal_node = PathNode(goal.0, goal.1, goal.2);
 
                     let path = AStar::calculate(
                         &start,
@@ -399,16 +400,18 @@ impl<'a> System<'a> for PathFindingSystem {
 
                             successors
                         },
-                        &|p| p.distance(&PathNode(goal.0, goal.1, goal.2)) / 3,
+                        &|p| p.distance(&goal_node) / 3,
                     );
 
                     if let Some((nodes, count)) = path {
                         if count > clamp_usize_to_u32(entity_path.max_nodes) {
                             entity_path.path = None;
                         } else {
-                            entity_path.path = Some(
-                                nodes.into_iter().map(|p| Vec3(p.0, p.1, p.2)).collect(),
-                            );
+                            let mut path_nodes = Vec::with_capacity(nodes.len());
+                            for PathNode(nx, ny, nz) in nodes {
+                                path_nodes.push(Vec3(nx, ny, nz));
+                            }
+                            entity_path.path = Some(path_nodes);
 
                             // Apply path smoothing to the first few nodes
                             if let Some(ref mut path_nodes) = entity_path.path {
