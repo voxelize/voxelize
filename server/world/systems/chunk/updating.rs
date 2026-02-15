@@ -632,7 +632,7 @@ fn process_pending_updates(
             chunks.add_chunk_to_save(coords, true);
         });
 
-        let mut processes = Vec::new();
+        let mut processes = Vec::with_capacity(cache.len());
         for coords in cache {
             if !chunks.is_chunk_ready(&coords) {
                 continue;
