@@ -4819,6 +4819,58 @@ describe("report-utils", () => {
         message: "Step failed with exit code 2.",
       },
     ]);
+    let statefulNullPrefixStepArgReadCount = 0;
+    const statefulNullPrefixStepArgsTarget: string[] = [];
+    statefulNullPrefixStepArgsTarget[0] = "check-stateful-null-step.mjs";
+    statefulNullPrefixStepArgsTarget[1] = "--json";
+    const statefulNullPrefixStepArgs = new Proxy(statefulNullPrefixStepArgsTarget, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 2;
+        }
+        if (propertyKey === "0") {
+          statefulNullPrefixStepArgReadCount += 1;
+          if (statefulNullPrefixStepArgReadCount === 1) {
+            return null;
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    expect(
+      summarizeStepFailureResults([
+        {
+          name: "step-stateful-null-args",
+          scriptName: "check-stateful-null-step.mjs",
+          supportsNoBuild: false,
+          checkCommand: "node",
+          checkArgs: statefulNullPrefixStepArgs,
+          stepIndex: 3,
+          passed: false,
+          skipped: false,
+          exitCode: 2,
+          report: null,
+          output: null,
+        },
+      ])
+    ).toEqual([
+      {
+        name: "step-stateful-null-args",
+        scriptName: "check-stateful-null-step.mjs",
+        supportsNoBuild: false,
+        stepIndex: 3,
+        checkCommand: "node",
+        checkArgs: ["check-stateful-null-step.mjs", "--json"],
+        checkArgCount: 2,
+        exitCode: 2,
+        message: "Step failed with exit code 2.",
+      },
+    ]);
 
     expect(
       summarizeCheckFailureResults([
@@ -4957,6 +5009,60 @@ describe("report-utils", () => {
         checkIndex: 0,
         checkCommand: "node",
         checkArgs: ["check-overflow-count.mjs", "--json"],
+        checkArgCount: 2,
+        exitCode: 2,
+        message: "Preflight check failed with exit code 2.",
+      },
+    ]);
+    let statefulNullPrefixCheckArgReadCount = 0;
+    const statefulNullPrefixCheckArgsTarget: string[] = [];
+    statefulNullPrefixCheckArgsTarget[0] = "check-stateful-null-check.mjs";
+    statefulNullPrefixCheckArgsTarget[1] = "--json";
+    const statefulNullPrefixCheckArgs = new Proxy(
+      statefulNullPrefixCheckArgsTarget,
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (propertyKey === "0") {
+            statefulNullPrefixCheckArgReadCount += 1;
+            if (statefulNullPrefixCheckArgReadCount === 1) {
+              return null;
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      summarizeCheckFailureResults([
+        {
+          name: "check-stateful-null-args",
+          scriptName: "check-stateful-null-check.mjs",
+          supportsNoBuild: false,
+          checkCommand: "node",
+          checkArgs: statefulNullPrefixCheckArgs,
+          checkIndex: 4,
+          passed: false,
+          exitCode: 2,
+          report: null,
+          output: null,
+        },
+      ])
+    ).toEqual([
+      {
+        name: "check-stateful-null-args",
+        scriptName: "check-stateful-null-check.mjs",
+        supportsNoBuild: false,
+        checkIndex: 4,
+        checkCommand: "node",
+        checkArgs: ["check-stateful-null-check.mjs", "--json"],
         checkArgCount: 2,
         exitCode: 2,
         message: "Preflight check failed with exit code 2.",
