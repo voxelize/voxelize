@@ -31,14 +31,11 @@ impl<'a> System<'a> for EntityObserveSystem {
                     tree.search_entity(&position.0, 1, true)
                 };
 
-                if closest_arr.len() > 0 {
-                    let entity = closest_arr[0].1;
-
-                    if let Some(target_position) = positions.get(entity.to_owned()) {
-                        let id = ids.get(*entity).unwrap().0.clone();
-
+                if let Some((_, entity)) = closest_arr.into_iter().next() {
+                    if let (Some(target_position), Some(id)) = (positions.get(*entity), ids.get(*entity))
+                    {
                         target.position = Some(target_position.0.clone());
-                        target.id = Some(id);
+                        target.id = Some(id.0.clone());
                     } else {
                         target.position = None;
                         target.id = None;
