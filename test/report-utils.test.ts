@@ -7737,6 +7737,41 @@ describe("report-utils", () => {
       wasmPackCheckExitCode: null,
       wasmPackCheckOutputLine: null,
     });
+    let statefulStringReplacementReadCount = 0;
+    const statefulStringReplacementWasmArgs = new Proxy(
+      ["check-wasm-pack.mjs"],
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (propertyKey === "0") {
+            statefulStringReplacementReadCount += 1;
+            if (statefulStringReplacementReadCount > 1) {
+              return "check-wasm-pack-replaced.mjs";
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckArgs: statefulStringReplacementWasmArgs,
+      })
+    ).toEqual({
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: ["check-wasm-pack.mjs"],
+      wasmPackCheckArgCount: 1,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
     const ownKeysHasTrapArgs = new Proxy(
       ["check-wasm-pack.mjs", "--json"],
       {
@@ -8157,6 +8192,29 @@ describe("report-utils", () => {
       },
     });
     expect(normalizeTsCorePayloadIssues(statefulObjectReplacementIssues)).toEqual([
+      "voxel.id",
+    ]);
+    let statefulStringReplacementReadCount = 0;
+    const statefulStringReplacementIssues = new Proxy([" voxel.id "], {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (propertyKey === "0") {
+          statefulStringReplacementReadCount += 1;
+          if (statefulStringReplacementReadCount > 1) {
+            return " light.red ";
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    expect(normalizeTsCorePayloadIssues(statefulStringReplacementIssues)).toEqual([
       "voxel.id",
     ]);
     const cappedSupplementedIssuesTarget: Array<string | number> = [];
@@ -8877,6 +8935,49 @@ describe("report-utils", () => {
     expect(
       extractTsCoreExampleSummaryFromReport({
         exampleArgs: statefulObjectReplacementExampleArgs,
+        exampleAttempted: true,
+        exampleExitCode: 1,
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: ["packages/ts-core/examples/end-to-end.mjs"],
+      exampleArgCount: 1,
+      exampleAttempted: true,
+      exampleStatus: "failed",
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: 1,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    let statefulStringReplacementReadCount = 0;
+    const statefulStringReplacementExampleArgs = new Proxy(
+      ["packages/ts-core/examples/end-to-end.mjs"],
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (propertyKey === "0") {
+            statefulStringReplacementReadCount += 1;
+            if (statefulStringReplacementReadCount > 1) {
+              return "packages/ts-core/examples/replaced.mjs";
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleArgs: statefulStringReplacementExampleArgs,
         exampleAttempted: true,
         exampleExitCode: 1,
       })
