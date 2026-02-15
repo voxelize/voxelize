@@ -116,9 +116,7 @@ impl FlatlandStage {
     }
 
     pub fn add_soiling(mut self, block: u32, height: usize) -> Self {
-        for _ in 0..height {
-            self.soiling.push(block);
-        }
+        self.soiling.extend(std::iter::repeat_n(block, height));
 
         let height_u32 = if height > u32::MAX as usize {
             u32::MAX
