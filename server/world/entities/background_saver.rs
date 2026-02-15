@@ -79,8 +79,13 @@ impl BackgroundEntitiesSaver {
                     pending.insert(id, data);
                 }
                 Err(TryRecvError::Empty) => {
-                    if shutdown.load(Ordering::Relaxed) && pending.is_empty() {
-                        break;
+                    if shutdown.load(Ordering::Relaxed) {
+                        if pending.is_empty() {
+                            break;
+                        }
+                        Self::flush_pending(&mut pending, &folder);
+                        last_flush = Instant::now();
+                        continue;
                     }
                     thread::sleep(Duration::from_millis(10));
                 }
