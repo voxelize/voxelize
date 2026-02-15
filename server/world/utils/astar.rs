@@ -42,10 +42,9 @@ impl AStar {
         astar(
             &start_node,
             |p| {
-                successors(p)
-                    .into_iter()
-                    .filter(|(s, _)| visited.insert(*s))
-                    .collect::<Vec<_>>()
+                let mut next = successors(p);
+                next.retain(|(s, _)| visited.insert(*s));
+                next
             },
             heuristic,
             |p| *p == goal_node,
