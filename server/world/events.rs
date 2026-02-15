@@ -34,7 +34,9 @@ impl EventBuilder {
     }
 
     pub fn payload<T: Serialize>(mut self, payload: T) -> Self {
-        self.payload = serde_json::to_string(&payload).ok();
+        self.payload = Some(
+            serde_json::to_string(&payload).expect("Failed to serialize event payload"),
+        );
         self
     }
 
