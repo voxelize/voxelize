@@ -131,7 +131,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                     *entry.get_mut() = weight;
                 }
                 RawEntryMut::Vacant(entry) => {
-                    entry.insert(coords.clone(), weight);
+                    entry.insert(*coords, weight);
                 }
             }
         }

@@ -125,7 +125,7 @@ impl<'a> System<'a> for PhysicsSystem {
             .join()
             .for_each(|(ent, interactor, position)| {
                 physics.move_rapier_body(interactor.body_handle(), &position.0);
-                collision_map.insert(interactor.collider_handle().clone(), ent);
+                collision_map.insert(*interactor.collider_handle(), ent);
             });
 
         // Tick the rapier physics engine, and add the collisions to individual entities.
