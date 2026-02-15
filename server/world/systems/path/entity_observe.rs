@@ -23,6 +23,12 @@ impl<'a> System<'a> for EntityObserveSystem {
         (&positions, &mut targets)
             .par_join()
             .for_each(|(position, target)| {
+                let clear_target = |target: &mut TargetComp| {
+                    if target.position.is_some() || target.id.is_some() {
+                        target.position = None;
+                        target.id = None;
+                    }
+                };
                 let closest_entity = match target.target_type {
                     TargetType::All => tree.search_first(&position.0),
                     TargetType::Players => tree.search_first_player(&position.0, false),
@@ -43,12 +49,10 @@ impl<'a> System<'a> for EntityObserveSystem {
                             target.id = Some(id.0.clone());
                         }
                     } else {
-                        target.position = None;
-                        target.id = None;
+                        clear_target(target);
                     }
                 } else {
-                    target.position = None;
-                    target.id = None;
+                    clear_target(target);
                 }
             });
     }
