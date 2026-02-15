@@ -102,6 +102,11 @@ Malformed `worldSpace` values fall back to `false`.
 Malformed `BlockRuleEvaluator` option payloads (including getter/proxy traps)
 sanitize to deterministic defaults (`rotation.yRotation=0`,
 `yRotatable=false`, `worldSpace=false`).
+Option normalization is computed once per rule evaluation and reused across
+nested combination traversal.
+Malformed voxel-access reads/comparisons (including throwing `getVoxel*`
+accessors and rotation equality traps) now resolve to deterministic
+non-matches instead of throwing.
 Cyclic rule graphs are sanitized by replacing recursive edges with `none`.
 
 ## Basic usage
