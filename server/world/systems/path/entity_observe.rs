@@ -32,8 +32,16 @@ impl<'a> System<'a> for EntityObserveSystem {
                 if let Some(entity) = closest_entity {
                     if let (Some(target_position), Some(id)) = (positions.get(*entity), ids.get(*entity))
                     {
-                        target.position = Some(target_position.0.clone());
-                        target.id = Some(id.0.clone());
+                        let next_position = &target_position.0;
+                        let next_id = id.0.as_str();
+                        let position_changed = match target.position.as_ref() {
+                            Some(current_position) => current_position != next_position,
+                            None => true,
+                        };
+                        if target.id.as_deref() != Some(next_id) || position_changed {
+                            target.position = Some(next_position.clone());
+                            target.id = Some(id.0.clone());
+                        }
                     } else {
                         target.position = None;
                         target.id = None;
