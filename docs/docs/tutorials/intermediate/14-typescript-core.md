@@ -116,6 +116,9 @@ Cyclic combination edges are guarded during evaluation to avoid recursion
 overflow and follow deterministic `none`-edge semantics.
 Malformed combination-rule child collections sanitize to empty-list logic
 semantics (`AND` => `true`, `OR` => `false`, `NOT` => `true`).
+Iterator-trapped combination-rule child collections can still recover
+readable indexed entries through bounded length fallback (up to 1024
+entries).
 Cyclic rule graphs are sanitized by replacing recursive edges with `none`.
 
 ## Basic usage

@@ -92,6 +92,8 @@ const voxel = Voxel.pack({
     recursion overflows and follow deterministic `none`-edge semantics
   - malformed combination-rule child collections sanitize to empty-list logic
     semantics (`AND` => `true`, `OR` => `false`, `NOT` => `true`)
+  - iterator-trapped combination-rule child collections can still recover
+    readable indexed entries via bounded length fallback (up to 1024 entries)
 - `createBlockConditionalPart`
   - defensively clones rule, face, AABB, and transparency-array inputs to
     avoid external mutation side effects after construction
