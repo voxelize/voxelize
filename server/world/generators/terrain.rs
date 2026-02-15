@@ -146,7 +146,7 @@ impl Terrain {
         let mut offset = 0.0;
         let mut total_weight = 0.0;
 
-        self.layers.iter().for_each(|(layer, weight)| {
+        for (layer, weight) in &self.layers {
             let value = if layer.options.dimension == 2 {
                 layer.noise.get2d(vx, vz)
             } else {
@@ -155,9 +155,9 @@ impl Terrain {
             bias += layer.sample_bias(value) * weight;
             offset += layer.sample_offset(value) * weight;
             total_weight += weight;
-        });
+        }
 
-        self.noise_layers.iter().for_each(|(layer, weight)| {
+        for (layer, weight) in &self.noise_layers {
             let value = if layer.options.dimension == 2 {
                 layer.noise.get2d(vx, vz)
             } else {
@@ -166,7 +166,7 @@ impl Terrain {
             bias += layer.sample_bias(value) * weight;
             offset += layer.sample_offset(value) * weight;
             total_weight += weight;
-        });
+        }
 
         if total_weight <= f64::EPSILON {
             return (0.0, 0.0);
