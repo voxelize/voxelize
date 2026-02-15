@@ -290,6 +290,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 }
             }
 
+            let chunk = chunks.raw(&coords).unwrap().clone();
             if let Some(data) = stage.needs_space() {
                 let mut space = chunks.make_space(&coords, margin);
 
@@ -306,10 +307,8 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 }
 
                 let space = space.build();
-                let chunk = chunks.raw(&coords).unwrap().clone();
                 processes.push((chunk, Some(space)));
             } else {
-                let chunk = chunks.raw(&coords).unwrap().clone();
                 processes.push((chunk, None));
             }
         }
