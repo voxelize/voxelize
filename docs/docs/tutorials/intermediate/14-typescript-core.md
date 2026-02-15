@@ -621,6 +621,8 @@ Bounded fallback salvage remains active even when proxy has-check traps
 throw.
 When length reads trap, fallback key scans still salvage readable
 entries.
+If bounded prefix scans find no entries, bounded key scans can still
+recover sparse high-index entries.
 Client JSON reports additionally expose top-level wasm preflight summary
 fields `wasmPackCheckStatus`, `wasmPackCheckCommand`,
 `wasmPackCheckArgs`, `wasmPackCheckArgCount`, `wasmPackCheckExitCode`,

@@ -384,6 +384,7 @@ pnpm run check:preflight:all-checks:verify:json:compact
 # if key enumeration traps, fallback index scans salvage a bounded prefix of present entries to avoid pathological loops
 # bounded fallback salvage remains active even when proxy has-check traps throw
 # when length reads trap, fallback key scans still salvage readable entries
+# if bounded prefix scans find no entries, bounded key scans can still recover sparse high-index entries
 # optionally write the same report to disk
 pnpm run check:preflight:verify:json -- --output ./preflight-report.json
 
