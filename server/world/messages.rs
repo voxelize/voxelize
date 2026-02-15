@@ -52,6 +52,15 @@ impl MessageQueues {
     }
 
     pub fn drain_prioritized(&mut self) -> Vec<(Message, ClientFilter)> {
+        if self.normal.is_empty() && self.bulk.is_empty() {
+            return std::mem::take(&mut self.critical);
+        }
+        if self.critical.is_empty() && self.bulk.is_empty() {
+            return std::mem::take(&mut self.normal);
+        }
+        if self.critical.is_empty() && self.normal.is_empty() {
+            return std::mem::take(&mut self.bulk);
+        }
         let mut result =
             Vec::with_capacity(self.critical.len() + self.normal.len() + self.bulk.len());
         result.append(&mut self.critical);
