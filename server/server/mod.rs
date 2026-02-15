@@ -435,17 +435,16 @@ impl Server {
         info!("{:?}", &self.action_handles.keys());
         info!("{:?}", &action);
 
-        if !self.action_handles.contains_key(&action) {
-            warn!(
-                "`Action` type messages received of type {}, but no action handler set.",
-                action
-            );
+        if let Some(handle) = self.action_handles.get(&action) {
+            let handle = Arc::clone(handle);
+            handle(json.data, self);
             return;
         }
 
-        let handle = self.action_handles.get(&action).unwrap().to_owned();
-
-        handle(json.data, self);
+        warn!(
+            "`Action` type messages received of type {}, but no action handler set.",
+            action
+        );
     }
 }
 
