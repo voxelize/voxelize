@@ -9,7 +9,10 @@ use crate::{
 };
 use specs::{ReadExpect, ReadStorage, System, WriteStorage};
 
-pub struct PathFindingSystem;
+#[derive(Default)]
+pub struct PathFindingSystem {
+    voxel_cache_buffer: HashMap<(i32, i32, i32), bool>,
+}
 
 impl<'a> System<'a> for PathFindingSystem {
     type SystemData = (
@@ -29,7 +32,12 @@ impl<'a> System<'a> for PathFindingSystem {
         let (chunks, registry, _config, timing, bodies, targets, mut paths) = data;
         let _t = timing.timer("path-finding");
 
-        let voxel_cache = Arc::new(RwLock::new(HashMap::with_capacity(256)));
+        let mut voxel_cache_map = std::mem::take(&mut self.voxel_cache_buffer);
+        voxel_cache_map.clear();
+        if voxel_cache_map.capacity() < 256 {
+            voxel_cache_map.reserve(256 - voxel_cache_map.capacity());
+        }
+        let voxel_cache = Arc::new(RwLock::new(voxel_cache_map));
 
         let get_is_voxel_passable = |vx: i32, vy: i32, vz: i32| {
             let key = (vx, vy, vz);
@@ -434,6 +442,13 @@ impl<'a> System<'a> for PathFindingSystem {
                     // }
                 }
             });
+
+        if let Ok(cache_lock) = Arc::try_unwrap(voxel_cache) {
+            if let Ok(mut cache_map) = cache_lock.into_inner() {
+                cache_map.clear();
+                self.voxel_cache_buffer = cache_map;
+            }
+        }
     }
 }
 

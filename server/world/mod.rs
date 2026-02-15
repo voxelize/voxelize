@@ -479,7 +479,7 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
         )
         .with(EventsSystem::default(), "events", &["broadcast"])
         .with(EntityObserveSystem, "entity-observe", &[])
-        .with(PathFindingSystem, "path-finding", &["entity-observe"])
+        .with(PathFindingSystem::default(), "path-finding", &["entity-observe"])
         .with(TargetMetadataSystem, "target-meta", &[])
         .with(PathMetadataSystem, "path-meta", &[])
         .with(EntityTreeSystem::default(), "entity-tree", &[])
