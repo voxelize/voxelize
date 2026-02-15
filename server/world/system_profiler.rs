@@ -22,7 +22,11 @@ impl SystemTimings {
     pub fn record(&mut self, name: &str, duration_ms: f64) {
         let samples = match self.samples.raw_entry_mut().from_key(name) {
             RawEntryMut::Occupied(entry) => entry.into_mut(),
-            RawEntryMut::Vacant(entry) => entry.insert(name.to_owned(), VecDeque::new()).1,
+            RawEntryMut::Vacant(entry) => {
+                entry
+                    .insert(name.to_owned(), VecDeque::with_capacity(MAX_SAMPLES))
+                    .1
+            }
         };
         if samples.len() >= MAX_SAMPLES {
             samples.pop_front();
