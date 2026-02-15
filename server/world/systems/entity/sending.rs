@@ -625,9 +625,11 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             if updates.is_empty() {
                 continue;
             }
+            let next_update_capacity = updates.len();
+            let updates_to_send = std::mem::replace(updates, Vec::with_capacity(next_update_capacity));
             queue.push((
                 Message::new(&MessageType::Entity)
-                    .entities_owned(updates.split_off(0))
+                    .entities_owned(updates_to_send)
                     .build(),
                 ClientFilter::Direct(client_id),
             ));
