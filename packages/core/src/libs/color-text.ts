@@ -29,26 +29,21 @@
  * @category Effects
  */
 export class ColorText {
-  private static findSplitterIndex(
+  private static findSingleSplitterIndex(
     text: string,
     textLength: number,
-    splitter: string,
-    splitterLength: number,
     start: number,
-    singleSplitterCode: number
+    splitterCode: number
   ) {
     if (start >= textLength) {
       return -1;
     }
-    if (splitterLength === 1) {
-      for (let index = start; index < textLength; index++) {
-        if (text.charCodeAt(index) === singleSplitterCode) {
-          return index;
-        }
+    for (let index = start; index < textLength; index++) {
+      if (text.charCodeAt(index) === splitterCode) {
+        return index;
       }
-      return -1;
     }
-    return text.indexOf(splitter, start);
+    return -1;
   }
 
   private static pushSegment(
@@ -95,65 +90,93 @@ export class ColorText {
     if (splitterLength > textLength) {
       return [{ color: defaultColor, text }];
     }
-    const singleSplitterCode =
-      splitterLength === 1 ? splitter.charCodeAt(0) : -1;
-    const firstSplitterIndex = ColorText.findSplitterIndex(
-      text,
-      textLength,
-      splitter,
-      splitterLength,
-      0,
-      singleSplitterCode
-    );
-    if (firstSplitterIndex === -1) {
-      return [{ color: defaultColor, text }];
-    }
     const result: { color: string; text: string }[] = [];
     let currentColor = defaultColor;
     let cursor = 0;
     let endedOnColorToken = false;
-    let openIndex = firstSplitterIndex;
 
-    while (cursor < textLength) {
+    if (splitterLength === 1) {
+      const splitterCode = splitter.charCodeAt(0);
+      let openIndex = ColorText.findSingleSplitterIndex(
+        text,
+        textLength,
+        0,
+        splitterCode
+      );
       if (openIndex === -1) {
-        ColorText.pushSegment(result, currentColor, text.substring(cursor));
-        endedOnColorToken = false;
-        break;
-      }
-      if (openIndex > cursor) {
-        ColorText.pushSegment(
-          result,
-          currentColor,
-          text.substring(cursor, openIndex)
-        );
-        endedOnColorToken = false;
-      }
-      const tokenStart = openIndex + splitterLength;
-      const closeIndex = ColorText.findSplitterIndex(
-        text,
-        textLength,
-        splitter,
-        splitterLength,
-        tokenStart,
-        singleSplitterCode
-      );
-      if (closeIndex === -1) {
-        ColorText.pushSegment(result, currentColor, text.substring(openIndex));
-        endedOnColorToken = false;
-        break;
+        return [{ color: defaultColor, text }];
       }
 
-      currentColor = text.substring(tokenStart, closeIndex);
-      cursor = closeIndex + splitterLength;
-      endedOnColorToken = cursor >= textLength;
-      openIndex = ColorText.findSplitterIndex(
-        text,
-        textLength,
-        splitter,
-        splitterLength,
-        cursor,
-        singleSplitterCode
-      );
+      while (cursor < textLength) {
+        if (openIndex === -1) {
+          ColorText.pushSegment(result, currentColor, text.substring(cursor));
+          endedOnColorToken = false;
+          break;
+        }
+        if (openIndex > cursor) {
+          ColorText.pushSegment(
+            result,
+            currentColor,
+            text.substring(cursor, openIndex)
+          );
+          endedOnColorToken = false;
+        }
+        const tokenStart = openIndex + 1;
+        const closeIndex = ColorText.findSingleSplitterIndex(
+          text,
+          textLength,
+          tokenStart,
+          splitterCode
+        );
+        if (closeIndex === -1) {
+          ColorText.pushSegment(result, currentColor, text.substring(openIndex));
+          endedOnColorToken = false;
+          break;
+        }
+
+        currentColor = text.substring(tokenStart, closeIndex);
+        cursor = closeIndex + 1;
+        endedOnColorToken = cursor >= textLength;
+        openIndex = ColorText.findSingleSplitterIndex(
+          text,
+          textLength,
+          cursor,
+          splitterCode
+        );
+      }
+    } else {
+      let openIndex = text.indexOf(splitter, 0);
+      if (openIndex === -1) {
+        return [{ color: defaultColor, text }];
+      }
+
+      while (cursor < textLength) {
+        if (openIndex === -1) {
+          ColorText.pushSegment(result, currentColor, text.substring(cursor));
+          endedOnColorToken = false;
+          break;
+        }
+        if (openIndex > cursor) {
+          ColorText.pushSegment(
+            result,
+            currentColor,
+            text.substring(cursor, openIndex)
+          );
+          endedOnColorToken = false;
+        }
+        const tokenStart = openIndex + splitterLength;
+        const closeIndex = text.indexOf(splitter, tokenStart);
+        if (closeIndex === -1) {
+          ColorText.pushSegment(result, currentColor, text.substring(openIndex));
+          endedOnColorToken = false;
+          break;
+        }
+
+        currentColor = text.substring(tokenStart, closeIndex);
+        cursor = closeIndex + splitterLength;
+        endedOnColorToken = cursor >= textLength;
+        openIndex = text.indexOf(splitter, cursor);
+      }
     }
 
     if (endedOnColorToken) {
