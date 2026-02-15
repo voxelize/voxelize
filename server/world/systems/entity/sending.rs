@@ -214,10 +214,12 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         }
         self.clients_with_updates_buffer.reserve(clients.len());
 
-        let mut entity_to_client_id: HashMap<u32, &String> =
-            HashMap::with_capacity(clients.len());
-        for (client_id, client) in clients.iter() {
-            entity_to_client_id.insert(client.entity.id(), client_id);
+        let mut entity_to_client_id: HashMap<u32, &String> = HashMap::new();
+        if !entity_metadata_map.is_empty() {
+            entity_to_client_id.reserve(clients.len());
+            for (client_id, client) in clients.iter() {
+                entity_to_client_id.insert(client.entity.id(), client_id);
+            }
         }
 
         let default_pos = Vec3(0.0, 0.0, 0.0);
