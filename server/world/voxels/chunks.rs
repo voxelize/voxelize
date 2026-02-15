@@ -205,17 +205,12 @@ impl Chunks {
             height_map: to_base_64(&chunk.height_map.data),
         };
 
-        let j = match serde_json::to_string(&data) {
-            Ok(j) => j,
-            Err(_) => return false,
-        };
-
         let mut file = match File::create(&tmp_path) {
             Ok(f) => f,
             Err(_) => return false,
         };
 
-        if file.write_all(j.as_bytes()).is_err() {
+        if serde_json::to_writer(&mut file, &data).is_err() {
             let _ = fs::remove_file(&tmp_path);
             return false;
         }
