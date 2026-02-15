@@ -115,9 +115,9 @@ impl Mesher {
 
         if self.queue.is_empty() {
             if prioritized {
-                self.queue.push_front(coords.to_owned());
+                self.queue.push_front(*coords);
             } else {
-                self.queue.push_back(coords.to_owned());
+                self.queue.push_back(*coords);
             }
             return;
         }
@@ -132,9 +132,9 @@ impl Mesher {
         self.remove_queued_chunk(coords);
 
         if prioritized {
-            self.queue.push_front(coords.to_owned());
+            self.queue.push_front(*coords);
         } else {
-            self.queue.push_back(coords.to_owned());
+            self.queue.push_back(*coords);
         }
     }
 
@@ -153,7 +153,7 @@ impl Mesher {
 
     pub fn mark_for_remesh(&mut self, coords: &Vec2<i32>) {
         if self.map.contains(coords) {
-            self.pending_remesh.insert(coords.to_owned());
+            self.pending_remesh.insert(*coords);
         }
     }
 
@@ -171,13 +171,13 @@ impl Mesher {
         let mut processes = processes;
         if processes.len() == 1 {
             let (chunk, space) = processes.pop().unwrap();
-            if self.map.insert(chunk.coords.to_owned()) {
+            if self.map.insert(chunk.coords) {
                 processes.push((chunk, space));
             } else {
                 return;
             }
         } else {
-            processes.retain(|(chunk, _)| self.map.insert(chunk.coords.to_owned()));
+            processes.retain(|(chunk, _)| self.map.insert(chunk.coords));
             if processes.is_empty() {
                 return;
             }
@@ -200,9 +200,9 @@ impl Mesher {
                         config.chunk_size as i32
                     };
                     let chunk_size_usize = chunk_size as usize;
-                    let coords = space.coords.to_owned();
-                    let min = space.min.to_owned();
-                    let shape = space.shape.to_owned();
+                    let coords = space.coords;
+                    let min = space.min;
+                    let shape = space.shape;
 
                     let light_colors = [
                         LightColor::Sunlight,
