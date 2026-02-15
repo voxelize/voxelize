@@ -440,9 +440,9 @@ impl<'a> System<'a> for EventsSystem {
                     }
                 }
             } else {
-                clients.iter().for_each(|(id, client)| {
+                for (id, client) in clients.iter() {
                     send_to_client(id, client.entity);
-                });
+                }
             }
         }
 
