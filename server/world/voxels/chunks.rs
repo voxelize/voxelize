@@ -491,12 +491,16 @@ impl Chunks {
 
     /// Add a chunk to be saved.
     pub fn add_chunk_to_save(&mut self, coords: &Vec2<i32>, prioritized: bool) {
-        if !self.to_save.contains(coords) {
-            if prioritized {
-                self.to_save.push_front(*coords);
-            } else {
-                self.to_save.push_back(*coords);
-            }
+        if self.to_save.front().is_some_and(|front| front == coords)
+            || self.to_save.back().is_some_and(|back| back == coords)
+            || self.to_save.contains(coords)
+        {
+            return;
+        }
+        if prioritized {
+            self.to_save.push_front(*coords);
+        } else {
+            self.to_save.push_back(*coords);
         }
     }
 
@@ -507,7 +511,10 @@ impl Chunks {
         r#type: &MessageType,
         prioritized: bool,
     ) {
-        if self.to_send.iter().any(|(c, _)| c == coords) {
+        if self.to_send.front().is_some_and(|(front, _)| front == coords)
+            || self.to_send.back().is_some_and(|(back, _)| back == coords)
+            || self.to_send.iter().any(|(c, _)| c == coords)
+        {
             return;
         }
         if prioritized {
