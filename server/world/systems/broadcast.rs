@@ -32,7 +32,7 @@ fn filter_key(filter: &ClientFilter) -> BatchFilterKey {
                 return BatchFilterKey::Include(vec![ids[0].clone()]);
             }
             let mut sorted = ids.clone();
-            sorted.sort();
+            sorted.sort_unstable();
             sorted.dedup();
             BatchFilterKey::Include(sorted)
         }
@@ -44,7 +44,7 @@ fn filter_key(filter: &ClientFilter) -> BatchFilterKey {
                 return BatchFilterKey::Exclude(vec![ids[0].clone()]);
             }
             let mut sorted = ids.clone();
-            sorted.sort();
+            sorted.sort_unstable();
             sorted.dedup();
             BatchFilterKey::Exclude(sorted)
         }
