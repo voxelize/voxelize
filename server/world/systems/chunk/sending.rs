@@ -116,6 +116,10 @@ fn fanout_chunk_model(
     let Some(first_client_id) = interested_clients.iter().next() else {
         return;
     };
+    if interested_clients.len() == 1 {
+        push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+        return;
+    }
 
     for client_id in interested_clients {
         if client_id != first_client_id {
