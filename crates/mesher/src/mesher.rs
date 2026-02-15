@@ -750,6 +750,21 @@ struct GreedyQuad {
     data: FaceData,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct DeferredNonGreedyFace {
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    voxel_key: usize,
+    voxel_id: u32,
+    rotation_bits: u8,
+    face_index: i16,
+    owned_face_index: u32,
+    world_space: bool,
+}
+
+const NO_OWNED_FACE_INDEX: u32 = u32::MAX;
+
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 enum GeometryMapKey {
     Block(u32),
@@ -3064,8 +3079,8 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
 
     let slice_size = (max_x - min_x).max(max_y - min_y).max(max_z - min_z) as usize;
     let mut greedy_mask: Vec<Option<FaceData>> = vec![None; slice_size * slice_size];
-    let mut non_greedy_faces: Vec<(i32, i32, i32, usize, u32, u8, i16, Option<BlockFace>, bool)> =
-        Vec::new();
+    let mut non_greedy_faces: Vec<DeferredNonGreedyFace> = Vec::new();
+    let mut non_greedy_owned_faces: Vec<BlockFace> = Vec::new();
     let mut uncached_greedy_face_indices_by_block: HashMap<u32, [i16; 6]> = HashMap::new();
 
     for (dir, dir_index) in GREEDY_DIRECTIONS_WITH_INDEX {
@@ -3106,11 +3121,15 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
         if non_greedy_faces.capacity() < mask_len {
             non_greedy_faces.reserve(mask_len - non_greedy_faces.capacity());
         }
+        if non_greedy_owned_faces.capacity() < mask_len {
+            non_greedy_owned_faces.reserve(mask_len - non_greedy_owned_faces.capacity());
+        }
         let mut quads: Vec<GreedyQuad> = Vec::with_capacity(quads_capacity_hint(mask_len));
         let mut faces: Vec<(BlockFace, bool)> = Vec::new();
 
         for slice in slice_range {
             non_greedy_faces.clear();
+            non_greedy_owned_faces.clear();
 
             for u in u_range.0..u_range.1 {
                 let u_mask_offset = (u - u_range.0) as usize;
@@ -3239,31 +3258,33 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                             .expect("non-greedy voxel key must exist for non-greedy blocks");
                         if use_static_faces {
                             for (face_index, _) in block.faces.iter().enumerate() {
-                                non_greedy_faces.push((
+                                non_greedy_faces.push(DeferredNonGreedyFace {
                                     vx,
                                     vy,
                                     vz,
-                                    non_greedy_voxel_key,
+                                    voxel_key: non_greedy_voxel_key,
                                     voxel_id,
                                     rotation_bits,
-                                    face_index as i16,
-                                    None,
-                                    false,
-                                ));
+                                    face_index: face_index as i16,
+                                    owned_face_index: NO_OWNED_FACE_INDEX,
+                                    world_space: false,
+                                });
                             }
                         } else {
                             for (face, world_space) in faces.iter() {
-                                non_greedy_faces.push((
+                                let owned_face_index = non_greedy_owned_faces.len() as u32;
+                                non_greedy_owned_faces.push(face.clone());
+                                non_greedy_faces.push(DeferredNonGreedyFace {
                                     vx,
                                     vy,
                                     vz,
-                                    non_greedy_voxel_key,
+                                    voxel_key: non_greedy_voxel_key,
                                     voxel_id,
                                     rotation_bits,
-                                    -1,
-                                    Some(face.clone()),
-                                    *world_space,
-                                ));
+                                    face_index: -1,
+                                    owned_face_index,
+                                    world_space: *world_space,
+                                });
                             }
                         }
                         continue;
@@ -3353,17 +3374,17 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         if face_matches_direction(face, false) {
                             let uv_range = face.range;
                             if face.isolated {
-                                non_greedy_faces.push((
+                                non_greedy_faces.push(DeferredNonGreedyFace {
                                     vx,
                                     vy,
                                     vz,
-                                    deferred_voxel_key,
+                                    voxel_key: deferred_voxel_key,
                                     voxel_id,
                                     rotation_bits,
                                     face_index,
-                                    None,
-                                    false,
-                                ));
+                                    owned_face_index: NO_OWNED_FACE_INDEX,
+                                    world_space: false,
+                                });
                             } else {
                                 let (aos, lights) = *cached_ao_light.get_or_insert_with(|| {
                                     let neighbors = cached_neighbors.get_or_insert_with(|| {
@@ -3406,17 +3427,17 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                             }
                             let uv_range = face.range;
                             if face.isolated {
-                                non_greedy_faces.push((
+                                non_greedy_faces.push(DeferredNonGreedyFace {
                                     vx,
                                     vy,
                                     vz,
-                                    deferred_voxel_key,
+                                    voxel_key: deferred_voxel_key,
                                     voxel_id,
                                     rotation_bits,
-                                    face_index as i16,
-                                    None,
-                                    false,
-                                ));
+                                    face_index: face_index as i16,
+                                    owned_face_index: NO_OWNED_FACE_INDEX,
+                                    world_space: false,
+                                });
                                 continue;
                             }
                             let (aos, lights) = *cached_ao_light.get_or_insert_with(|| {
@@ -3459,17 +3480,19 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                             }
                             let uv_range = face.range;
                             if face.isolated {
-                                non_greedy_faces.push((
+                                let owned_face_index = non_greedy_owned_faces.len() as u32;
+                                non_greedy_owned_faces.push(face.clone());
+                                non_greedy_faces.push(DeferredNonGreedyFace {
                                     vx,
                                     vy,
                                     vz,
-                                    deferred_voxel_key,
+                                    voxel_key: deferred_voxel_key,
                                     voxel_id,
                                     rotation_bits,
-                                    -1,
-                                    Some(face.clone()),
-                                    *world_space,
-                                ));
+                                    face_index: -1,
+                                    owned_face_index,
+                                    world_space: *world_space,
+                                });
                                 continue;
                             }
                             let (aos, lights) = *cached_ao_light.get_or_insert_with(|| {
@@ -3597,18 +3620,18 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
             let mut cached_non_greedy_rotation = BlockRotation::PY(0.0);
             let mut cached_non_greedy_neighbors: Option<NeighborCache> = None;
             let mut cached_non_greedy_face_cache: Option<FaceProcessCache> = None;
-            for (
-                vx,
-                vy,
-                vz,
-                voxel_key,
-                voxel_id,
-                rotation_bits,
-                face_index,
-                face_owned,
-                world_space,
-            ) in non_greedy_faces.drain(..)
-            {
+            for deferred_face in non_greedy_faces.drain(..) {
+                let DeferredNonGreedyFace {
+                    vx,
+                    vy,
+                    vz,
+                    voxel_key,
+                    voxel_id,
+                    rotation_bits,
+                    face_index,
+                    owned_face_index,
+                    world_space,
+                } = deferred_face;
                 let block = if cached_non_greedy_block_id == voxel_id {
                     match cached_non_greedy_block {
                         Some(block) => block,
@@ -3634,11 +3657,13 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         Some(face) => face,
                         None => continue,
                     }
-                } else {
-                    match face_owned.as_ref() {
+                } else if owned_face_index != NO_OWNED_FACE_INDEX {
+                    match non_greedy_owned_faces.get(owned_face_index as usize) {
                         Some(face) => face,
                         None => continue,
                     }
+                } else {
+                    continue;
                 };
                 let geometry_lookup = geometry_lookup_for_face(block, face, vx, vy, vz);
                 let geometry = match map.entry_ref(&geometry_lookup) {
