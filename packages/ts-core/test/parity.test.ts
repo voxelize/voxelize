@@ -1460,6 +1460,23 @@ describe("Type builders", () => {
     });
   });
 
+  it("accepts null-prototype rule inputs with createBlockRule", () => {
+    const nullPrototypeRule = Object.create(null) as {
+      type: "simple";
+      offset: [number, number, number];
+      id: number;
+    };
+    nullPrototypeRule.type = "simple";
+    nullPrototypeRule.offset = [1, 0, 0];
+    nullPrototypeRule.id = 7;
+
+    expect(createBlockRule(nullPrototypeRule)).toEqual({
+      type: "simple",
+      offset: [1, 0, 0],
+      id: 7,
+    });
+  });
+
   it("sanitizes nullable combination sub-rules to none rules", () => {
     const sanitizedRule = createBlockRule({
       type: "combination",
@@ -1751,6 +1768,28 @@ describe("Type builders", () => {
           value: 0,
           yRotation: Math.PI / 2,
         },
+      },
+    });
+
+    expect(part.rule).toEqual({
+      type: "simple",
+      offset: [0, 0, 0],
+      rotation: BlockRotation.py(Math.PI / 2),
+    });
+  });
+
+  it("accepts null-prototype rotation-like objects in rule sanitization", () => {
+    const nullPrototypeRotation = Object.create(null) as {
+      value: number;
+      yRotation: number;
+    };
+    nullPrototypeRotation.value = 0;
+    nullPrototypeRotation.yRotation = Math.PI / 2;
+    const part = createBlockConditionalPart({
+      rule: {
+        type: "simple",
+        offset: [0, 0, 0],
+        rotation: nullPrototypeRotation,
       },
     });
 
