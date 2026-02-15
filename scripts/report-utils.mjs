@@ -320,18 +320,24 @@ const cloneArrayFromLengthFallback = (value) => {
   const clonedArray = [];
   for (let arrayIndex = 0; arrayIndex < boundedLength; arrayIndex += 1) {
     let indexPresent = false;
+    let hasProbeFailed = false;
     try {
       indexPresent = arrayIndex in value;
     } catch {
-      continue;
+      hasProbeFailed = true;
     }
 
-    if (!indexPresent) {
+    if (!indexPresent && !hasProbeFailed) {
       continue;
     }
 
     try {
-      clonedArray.push(value[arrayIndex]);
+      const arrayEntry = value[arrayIndex];
+      if (hasProbeFailed && arrayEntry === undefined) {
+        continue;
+      }
+
+      clonedArray.push(arrayEntry);
     } catch {
       continue;
     }

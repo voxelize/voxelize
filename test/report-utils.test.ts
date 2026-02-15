@@ -874,6 +874,36 @@ describe("report-utils", () => {
     expect(oversizedOwnKeysIndexProbeCount).toBe(1_024);
     expect(oversizedOwnKeysIndexReadCount).toBe(2);
 
+    let hasTrapFallbackReadCount = 0;
+    const hasTrapFallbackArgs = new Proxy(["--json", "--mystery"], {
+      ownKeys() {
+        throw new Error("ownKeys trap");
+      },
+      has(target, property) {
+        if (typeof property === "string" && /^(0|[1-9]\d*)$/.test(property)) {
+          throw new Error("has trap");
+        }
+        return Reflect.has(target, property);
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1_000_000_000;
+        }
+        if (typeof property === "string" && /^(0|[1-9]\d*)$/.test(property)) {
+          hasTrapFallbackReadCount += 1;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const hasTrapFallbackResult = splitCliArgs(hasTrapFallbackArgs as never);
+    expect(hasTrapFallbackResult.optionArgs).toEqual(["--json", "--mystery"]);
+    expect(hasTrapFallbackResult.positionalArgs).toEqual([]);
+    expect(hasTrapFallbackResult.optionTerminatorUsed).toBe(false);
+    expect(hasTrapFallbackReadCount).toBe(1_024);
+
     const partiallyTrappedArgs = ["--json", "--output", "report.json"];
     Object.defineProperty(partiallyTrappedArgs, 1, {
       configurable: true,
