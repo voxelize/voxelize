@@ -158,7 +158,7 @@ impl<'a> System<'a> for EventsSystem {
             }
             let message = Message::new(&MessageType::Event)
                 .world_name(&world_metadata.world_name)
-                .events(&transports_map)
+                .events_owned(transports_map.split_off(0))
                 .build();
             let encoded = encode_message(&message);
             send_to_transports(&transports, encoded);
@@ -454,18 +454,17 @@ impl<'a> System<'a> for EventsSystem {
             };
             if let Some(client) = clients.get(&id) {
                 let message = Message::new(&MessageType::Event)
-                    .events(client_events)
+                    .events_owned(client_events.split_off(0))
                     .build();
                 let encoded = encode_message(&message);
                 let _ = client.sender.send(encoded);
             }
-            client_events.clear();
         }
 
         if has_transports {
             let message = Message::new(&MessageType::Event)
                 .world_name(&world_metadata.world_name)
-                .events(&transports_map)
+                .events_owned(transports_map.split_off(0))
                 .build();
             let encoded = encode_message(&message);
             send_to_transports(&transports, encoded);

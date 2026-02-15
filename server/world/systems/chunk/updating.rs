@@ -777,7 +777,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
         if !all_results.is_empty() {
             let new_message = Message::new(&MessageType::Update)
-                .updates(&all_results)
+                .updates_owned(all_results)
                 .build();
             message_queue.push((new_message, ClientFilter::All));
         }

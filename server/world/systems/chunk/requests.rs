@@ -185,7 +185,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             }
 
             let message = Message::new(&MessageType::Load)
-                .chunks(chunk_models_buffer)
+                .chunks_owned(chunk_models_buffer.split_off(0))
                 .build();
             queue.push((message, ClientFilter::Direct(id)));
         }

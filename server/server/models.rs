@@ -224,6 +224,12 @@ impl MessageBuilder {
         self
     }
 
+    /// Configure owned events data of the protocol.
+    pub fn events_owned(mut self, events: Vec<EventProtocol>) -> Self {
+        self.events = Some(events);
+        self
+    }
+
     /// Configure the chunks data of the protocol.
     pub fn chunks(mut self, chunks: &[ChunkProtocol]) -> Self {
         self.chunks = Some(chunks.to_vec());
@@ -239,6 +245,12 @@ impl MessageBuilder {
     /// Configure the voxel update data of the protocol.
     pub fn updates(mut self, updates: &[UpdateProtocol]) -> Self {
         self.updates = Some(updates.to_vec());
+        self
+    }
+
+    /// Configure owned voxel update data of the protocol.
+    pub fn updates_owned(mut self, updates: Vec<UpdateProtocol>) -> Self {
+        self.updates = Some(updates);
         self
     }
 

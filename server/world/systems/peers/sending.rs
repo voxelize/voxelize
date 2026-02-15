@@ -57,7 +57,9 @@ impl<'a> System<'a> for PeersSendingSystem {
         }
 
         queue.push((
-            Message::new(&MessageType::Peer).peers(peers).build(),
+            Message::new(&MessageType::Peer)
+                .peers_owned(peers.split_off(0))
+                .build(),
             ClientFilter::All,
         ));
     }
