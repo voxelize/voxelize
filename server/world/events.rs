@@ -53,7 +53,7 @@ impl EventBuilder {
     pub fn build(self) -> Event {
         Event {
             name: self.name,
-            payload: Some(self.payload.unwrap_or_else(|| String::from("{}"))),
+            payload: self.payload,
             filter: self.filter,
             location: self.location,
         }
@@ -72,5 +72,22 @@ impl Events {
 
     pub fn dispatch(&mut self, event: Event) {
         self.queue.push(event);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Event;
+
+    #[test]
+    fn event_builder_without_payload_keeps_payload_empty() {
+        let event = Event::new("vox-builtin:test").build();
+        assert!(event.payload.is_none());
+    }
+
+    #[test]
+    fn event_builder_serializes_payload_when_provided() {
+        let event = Event::new("vox-builtin:test").payload(42).build();
+        assert_eq!(event.payload.as_deref(), Some("42"));
     }
 }
