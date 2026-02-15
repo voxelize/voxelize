@@ -17,14 +17,17 @@
     "watch": "cross-env NODE_ENV=development npm-run-all --parallel \"compile -w\" \"types -w --preserveWatchOutput\"",
     "clean": "rimraf ./dist ./tsconfig.tsbuildinfo",
     "test": "pnpm vitest",
+    "precompile": "pnpm run proto:generate",
     "compile": "vite build",
     "build": "pnpm run clean && pnpm run compile && pnpm run types && pnpm run copyproto",
+    "pretypes": "pnpm run proto:generate",
     "types": "tsc --emitDeclarationOnly --outDir ./dist -p ./tsconfig.json --declaration",
     "copyproto": "cp ./src/protocol.* ./dist",
     "prepublishOnly": "pnpm run build",
+    "proto:generate": "pnpm run proto:js && pnpm run proto:ts",
     "proto:ts": "pbts -o ./src/protocol.d.ts ./src/protocol.js",
     "proto:js": "pbjs -t static-module --dependency protobufjs/minimal.js -w es6 -o ./src/protocol.js ../../messages.proto",
-    "proto": "pnpm run proto:js && pnpm run proto:ts && mkdirp dist && cp src/protocol.* dist/",
+    "proto": "pnpm run proto:generate && mkdirp dist && cp src/protocol.* dist/",
     "preinstall": "npx only-allow pnpm"
   },
   "dependencies": {

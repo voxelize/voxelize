@@ -34,3 +34,34 @@ declare module "*.glsl?raw" {
 }
 
 declare module "postprocessing";
+
+declare module "@voxelize/wasm-mesher" {
+  type ChunkData = {
+    voxels: Uint32Array | number[];
+    lights: Uint32Array | number[];
+    shape: [number, number, number];
+    min: [number, number, number];
+  };
+
+  type GeometryData = {
+    voxel: number;
+    at: [number, number, number] | null;
+    faceName: string | null;
+    positions: number[];
+    indices: number[];
+    uvs: number[];
+    lights: number[];
+  };
+
+  export const set_registry: (registry: object) => void;
+  export const mesh_chunk_fast: (
+    chunks: (ChunkData | null)[],
+    min: Int32Array,
+    max: Int32Array,
+    chunkSize: number,
+    greedyMeshing: boolean
+  ) => { geometries: GeometryData[] };
+
+  const init: () => Promise<void>;
+  export default init;
+}

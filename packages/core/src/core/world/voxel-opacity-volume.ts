@@ -23,7 +23,7 @@ const defaultConfig: VoxelOpacityVolumeConfig = {
 export class VoxelOpacityVolume {
   private config: VoxelOpacityVolumeConfig;
   private texture: Data3DTexture;
-  private data: Uint8Array;
+  private data = new Uint8Array(new ArrayBuffer(0));
   private volumeMin = new Vector3();
   private volumeSize = new Vector3();
   private gridRes = new Vector3();
@@ -43,7 +43,9 @@ export class VoxelOpacityVolume {
     const texHeight = Math.ceil(height / res);
     const texDepth = Math.ceil(depth / res);
 
-    this.data = new Uint8Array(texWidth * texHeight * texDepth);
+    this.data = new Uint8Array(
+      new ArrayBuffer(texWidth * texHeight * texDepth)
+    );
     this.data.fill(0);
 
     this.texture = new Data3DTexture(this.data, texWidth, texHeight, texDepth);

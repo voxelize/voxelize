@@ -127,10 +127,10 @@ export class RawChunk {
    * @param value The raw voxel value to set at the given voxel coordinate.
    * @returns The raw voxel value at the given voxel coordinate.
    */
-  setRawValue(vx: number, vy: number, vz: number, val: number) {
+  setRawValue(vx: number, vy: number, vz: number, value: number) {
     if (!this.contains(vx, vy, vz)) return 0;
     const [lx, ly, lz] = this.toLocal(vx, vy, vz);
-    return this.voxels.set(lx, ly, lz, val);
+    return this.voxels.set(lx, ly, lz, value);
   }
 
   /**

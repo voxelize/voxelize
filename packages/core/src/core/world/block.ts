@@ -324,6 +324,26 @@ export class BlockRotation {
     this.yRotation = yRotation;
   }
 
+  static PX = (yRotation = 0) => new BlockRotation(PX_ROTATION, yRotation);
+
+  static NX = (yRotation = 0) => new BlockRotation(NX_ROTATION, yRotation);
+
+  static PY = (yRotation = 0) => new BlockRotation(PY_ROTATION, yRotation);
+
+  static NY = (yRotation = 0) => new BlockRotation(NY_ROTATION, yRotation);
+
+  static PZ = (yRotation = 0) => new BlockRotation(PZ_ROTATION, yRotation);
+
+  static NZ = (yRotation = 0) => new BlockRotation(NZ_ROTATION, yRotation);
+
+  get axis() {
+    return this.value;
+  }
+
+  set axis(axis: number) {
+    this.value = axis;
+  }
+
   /**
    * Encode two rotations into a new block rotation instance.
    *
@@ -345,11 +365,18 @@ export class BlockRotation {
    */
   static decode = (rotation: BlockRotation) => {
     const value = rotation.value;
-    const yDecoded =
-      Math.round((rotation.yRotation * Y_ROT_SEGMENTS) / (Math.PI * 2.0)) %
-      Y_ROT_SEGMENTS;
+    const converted = Math.round(
+      (rotation.yRotation * Y_ROT_SEGMENTS) / (Math.PI * 2.0)
+    );
+    const yDecoded = ((converted % Y_ROT_SEGMENTS) + Y_ROT_SEGMENTS) % Y_ROT_SEGMENTS;
 
     return [value, yDecoded];
+  };
+
+  equals = (other: BlockRotation) => {
+    const [value, yRotation] = BlockRotation.decode(this);
+    const [otherValue, otherYRotation] = BlockRotation.decode(other);
+    return value === otherValue && yRotation === otherYRotation;
   };
 
   /**
@@ -492,9 +519,7 @@ export class BlockRotation {
     boolean,
     boolean
   ]) {
-    const rot = this.value;
-
-    if (Math.abs(rot) < Number.EPSILON) {
+    if (this.value === PY_ROTATION && Math.abs(this.yRotation) < Number.EPSILON) {
       return [px, py, pz, nx, ny, nz];
     }
 

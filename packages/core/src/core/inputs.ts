@@ -203,7 +203,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
    *
    * @param key The key to listen for. This checks the `event.key` or the `event.code` property.
    * @param callback The callback to call when the key is pressed.
-   * @param namespace The namespace to bind the key to. Defaults to "*", which means that the key will be fired regardless of the namespace.
+   * @param namespaces The namespace to bind the key to. Defaults to "*", which means that the key will be fired regardless of the namespace.
    * @param specifics The specific options of the key to listen for.
    * @returns A function to unbind the key.
    */

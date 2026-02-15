@@ -37,7 +37,7 @@ let block = Block::new("Custom Block")
     .green_light_level(12)
     .blue_light_level(8)
     // Rotation
-    .rotatable(true)          // Can face any direction
+    .rotatable(true)          // Can face all directions
     .y_rotatable(true)        // Only rotates around Y axis
     .y_rotatable_segments(YRotatableSegments::Four)  // 90° increments
     .build();
@@ -334,7 +334,7 @@ Blocks with `is_entity(true)` create an entity when placed, storing arbitrary JS
 
 Block entities are required for isolated faces because the system needs to track each instance. They're also useful for storing custom data even without isolated faces (e.g., chest contents, redstone state).
 
-See [Block Textures](./block-textures.md#per-instance-textures-isolated-faces) for the client-side implementation.
+See [Block Textures](./block-textures.md#per-instance-texturing-isolated-faces) for the client-side implementation.
 
 ## Dynamic Blocks (Conditional Geometry)
 
