@@ -324,7 +324,8 @@ impl KdTree {
         let Some(query_point) = point_array_if_finite(point) else {
             return Vec::new();
         };
-        let mut entities = Vec::with_capacity(count);
+        let max_results = count.min((self.all.tree.size() as usize).saturating_sub(1));
+        let mut entities = Vec::with_capacity(max_results);
         let mut skipped = 0usize;
         self.all
             .for_each_nearest(&query_point, nearest_query_count(count, 1), |dist, ent_id| {
@@ -361,7 +362,8 @@ impl KdTree {
             return Vec::new();
         };
         let skip = if is_player { 1 } else { 0 };
-        let mut entities = Vec::with_capacity(count);
+        let max_results = count.min((self.players.tree.size() as usize).saturating_sub(skip));
+        let mut entities = Vec::with_capacity(max_results);
         let mut skipped = 0usize;
         self.players
             .for_each_nearest(&query_point, nearest_query_count(count, skip), |dist, ent_id| {
@@ -401,7 +403,8 @@ impl KdTree {
             return Vec::new();
         };
         let skip = if is_entity { 1 } else { 0 };
-        let mut entities = Vec::with_capacity(count);
+        let max_results = count.min((self.entities.tree.size() as usize).saturating_sub(skip));
+        let mut entities = Vec::with_capacity(max_results);
         let mut skipped = 0usize;
         self.entities
             .for_each_nearest(&query_point, nearest_query_count(count, skip), |dist, ent_id| {
@@ -428,7 +431,7 @@ impl KdTree {
         self.entity_map.get(&ent_id)
     }
 
-    pub fn for_each_player_id_within_radius<F>(&self, point: &Vec3<f32>, radius: f32, mut f: F)
+    pub fn for_each_player_id_within_radius<F>(&self, point: &Vec3<f32>, radius: f32, f: F)
     where
         F: FnMut(u32),
     {
@@ -438,7 +441,8 @@ impl KdTree {
         let Some(radius_squared) = normalized_radius_squared(radius) else {
             return;
         };
-        self.players.for_each_within_id(&query_point, radius_squared, |ent_id| f(ent_id));
+        self.players
+            .for_each_within_id(&query_point, radius_squared, f);
     }
 
     pub fn player_ids_within_radius(&self, point: &Vec3<f32>, radius: f32) -> Vec<u32> {
