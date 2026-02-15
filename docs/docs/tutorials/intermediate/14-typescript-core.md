@@ -661,6 +661,8 @@ the first non-empty trimmed line, and sanitizes blank values to `null`
 before summary emission.
 Timed report builders clamp regressed clock durations to zero before
 emission.
+Failure-summary output-message fallbacks normalize ANSI/control-heavy
+multiline output to the first non-empty sanitized line.
 Sparse trap fallbacks can supplement bounded-prefix entries with bounded
 key-scan recovery when high-index readable entries exist.
 Bounded fallback scans use own-property checks so inherited numeric

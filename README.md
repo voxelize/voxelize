@@ -403,6 +403,7 @@ pnpm run check:preflight:all-checks:verify:json:compact
 # exampleDurationMs metadata accepts only non-negative finite numbers before fallback coercion
 # report output-line metadata strips ansi/control escapes, normalizes to the first non-empty trimmed line, and sanitizes blank values to null before summary emission
 # timed report builders clamp regressed clock durations to zero before emission
+# failure-summary output-message fallbacks normalize ansi/control-heavy multiline output to the first non-empty sanitized line
 # sparse trap fallbacks can supplement bounded-prefix entries with bounded key-scan recovery when high-index readable entries exist
 # bounded fallback scans use own-property checks so inherited numeric prototype entries are ignored
 # when own-property descriptor probes trap, bounded fallback switches to guarded direct reads without repeated probe failures
