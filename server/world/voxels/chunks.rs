@@ -1,6 +1,6 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
 use byteorder::{ByteOrder, LittleEndian};
-use hashbrown::{HashMap, HashSet};
+use hashbrown::{hash_map::Entry, HashMap, HashSet};
 use libflate::zlib::{Decoder, Encoder};
 use serde::{Deserialize, Serialize};
 use specs::Entity;
@@ -476,13 +476,16 @@ impl Chunks {
     }
 
     pub fn mark_voxel_active(&mut self, voxel: &Vec3<i32>, active_at: u64) {
-        if self.active_voxel_set.contains_key(voxel) {
-            return;
+        let voxel = *voxel;
+        match self.active_voxel_set.entry(voxel) {
+            Entry::Occupied(_) => return,
+            Entry::Vacant(entry) => {
+                entry.insert(active_at);
+            }
         }
-        self.active_voxel_set.insert(*voxel, active_at);
         self.active_voxel_heap.push(Reverse(ActiveVoxel {
             tick: active_at,
-            voxel: *voxel,
+            voxel,
         }));
     }
 
