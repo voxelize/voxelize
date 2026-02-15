@@ -768,6 +768,7 @@ const NO_OWNED_FACE_INDEX: u32 = u32::MAX;
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 enum GeometryMapKey {
     Block(u32),
+    CardinalFace(u32, u8),
     Face(u32, String),
     Isolated(u32, String, i32, i32, i32),
 }
@@ -775,6 +776,7 @@ enum GeometryMapKey {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum GeometryMapLookup<'a> {
     Block(u32),
+    CardinalFace(u32, u8),
     Face(u32, &'a str),
     Isolated(u32, &'a str, i32, i32, i32),
 }
@@ -785,6 +787,10 @@ impl Equivalent<GeometryMapKey> for GeometryMapLookup<'_> {
             (GeometryMapLookup::Block(block_id), GeometryMapKey::Block(key_block_id)) => {
                 block_id == key_block_id
             }
+            (
+                GeometryMapLookup::CardinalFace(block_id, dir_index),
+                GeometryMapKey::CardinalFace(key_block_id, key_dir_index),
+            ) => block_id == key_block_id && dir_index == key_dir_index,
             (
                 GeometryMapLookup::Face(block_id, face_name),
                 GeometryMapKey::Face(key_block_id, key_face_name),
@@ -808,6 +814,9 @@ impl From<&GeometryMapLookup<'_>> for GeometryMapKey {
     fn from(lookup: &GeometryMapLookup<'_>) -> Self {
         match lookup {
             GeometryMapLookup::Block(block_id) => GeometryMapKey::Block(*block_id),
+            GeometryMapLookup::CardinalFace(block_id, dir_index) => {
+                GeometryMapKey::CardinalFace(*block_id, *dir_index)
+            }
             GeometryMapLookup::Face(block_id, face_name) => {
                 GeometryMapKey::Face(*block_id, (*face_name).to_owned())
             }
@@ -1583,7 +1592,15 @@ fn geometry_lookup_for_face<'a>(
     if face.isolated {
         GeometryMapLookup::Isolated(block.id, face_name_ref(face), vx, vy, vz)
     } else if face.independent {
-        GeometryMapLookup::Face(block.id, face_name_ref(face))
+        if face.name.is_empty() {
+            if let Some(dir_index) = cardinal_dir_index(face.dir) {
+                GeometryMapLookup::CardinalFace(block.id, dir_index as u8)
+            } else {
+                GeometryMapLookup::Face(block.id, face_name_ref(face))
+            }
+        } else {
+            GeometryMapLookup::Face(block.id, face_name_ref(face))
+        }
     } else {
         GeometryMapLookup::Block(block.id)
     }
@@ -1600,7 +1617,15 @@ fn geometry_key_for_face(
     if face.isolated {
         GeometryMapKey::Isolated(block.id, face_name_owned(face), vx, vy, vz)
     } else if face.independent {
-        GeometryMapKey::Face(block.id, face_name_owned(face))
+        if face.name.is_empty() {
+            if let Some(dir_index) = cardinal_dir_index(face.dir) {
+                GeometryMapKey::CardinalFace(block.id, dir_index as u8)
+            } else {
+                GeometryMapKey::Face(block.id, face_name_owned(face))
+            }
+        } else {
+            GeometryMapKey::Face(block.id, face_name_owned(face))
+        }
     } else {
         GeometryMapKey::Block(block.id)
     }
