@@ -86,7 +86,7 @@ pub fn default_client_parser(world: &mut World, metadata: &str, client_ent: Enti
     let metadata: PeerUpdate = match serde_json::from_str(metadata) {
         Ok(metadata) => metadata,
         Err(e) => {
-            warn!("Could not parse peer update: {}", metadata);
+            warn!("Could not parse peer update: {} ({})", metadata, e);
             return;
         }
     };
@@ -783,7 +783,7 @@ impl World {
         world
     }
 
-    pub fn start(mut self) -> Addr<SyncWorld> {
+    pub fn start(self) -> Addr<SyncWorld> {
         // self.prepare();
         // self.preload();
 
@@ -816,22 +816,22 @@ impl World {
     }
 
     /// Read an ECS resource generically.
-    pub fn read_resource<T: Resource>(&self) -> Fetch<T> {
+    pub fn read_resource<T: Resource>(&self) -> Fetch<'_, T> {
         self.ecs.read_resource::<T>()
     }
 
     /// Write an ECS resource generically.
-    pub fn write_resource<T: Resource>(&mut self) -> FetchMut<T> {
+    pub fn write_resource<T: Resource>(&mut self) -> FetchMut<'_, T> {
         self.ecs.write_resource::<T>()
     }
 
     /// Read an ECS component storage.
-    pub fn read_component<T: Component>(&self) -> ReadStorage<T> {
+    pub fn read_component<T: Component>(&self) -> ReadStorage<'_, T> {
         self.ecs.read_component::<T>()
     }
 
     /// Write an ECS component storage.
-    pub fn write_component<T: Component>(&mut self) -> WriteStorage<T> {
+    pub fn write_component<T: Component>(&mut self) -> WriteStorage<'_, T> {
         self.ecs.write_component::<T>()
     }
 
@@ -1137,17 +1137,17 @@ impl World {
     }
 
     /// Access to the world's config.
-    pub fn config(&self) -> Fetch<WorldConfig> {
+    pub fn config(&self) -> Fetch<'_, WorldConfig> {
         self.read_resource::<WorldConfig>()
     }
 
     /// Access all clients in the ECS world.
-    pub fn clients(&self) -> Fetch<Clients> {
+    pub fn clients(&self) -> Fetch<'_, Clients> {
         self.read_resource::<Clients>()
     }
 
     /// Access a mutable clients map in the ECS world.
-    pub fn clients_mut(&mut self) -> FetchMut<Clients> {
+    pub fn clients_mut(&mut self) -> FetchMut<'_, Clients> {
         self.write_resource::<Clients>()
     }
 
@@ -1174,102 +1174,102 @@ impl World {
     }
 
     /// Access all entity IDs in the ECS world.
-    pub fn entity_ids(&self) -> Fetch<EntityIDs> {
+    pub fn entity_ids(&self) -> Fetch<'_, EntityIDs> {
         self.read_resource::<EntityIDs>()
     }
 
     /// Access a mutable entity IDs map in the ECS world.
-    pub fn entity_ids_mut(&mut self) -> FetchMut<EntityIDs> {
+    pub fn entity_ids_mut(&mut self) -> FetchMut<'_, EntityIDs> {
         self.write_resource::<EntityIDs>()
     }
 
     /// Access the registry in the ECS world.
-    pub fn registry(&self) -> Fetch<Registry> {
+    pub fn registry(&self) -> Fetch<'_, Registry> {
         self.read_resource::<Registry>()
     }
 
     /// Access chunks management in the ECS world.
-    pub fn chunks(&self) -> Fetch<Chunks> {
+    pub fn chunks(&self) -> Fetch<'_, Chunks> {
         self.read_resource::<Chunks>()
     }
 
     /// Access a mutable chunk manager in the ECS world.
-    pub fn chunks_mut(&mut self) -> FetchMut<Chunks> {
+    pub fn chunks_mut(&mut self) -> FetchMut<'_, Chunks> {
         self.write_resource::<Chunks>()
     }
 
     /// Access physics management in the ECS world.
-    pub fn physics(&self) -> Fetch<Physics> {
+    pub fn physics(&self) -> Fetch<'_, Physics> {
         self.read_resource::<Physics>()
     }
 
     /// Access a mutable physics manager in the ECS world.
-    pub fn physics_mut(&mut self) -> FetchMut<Physics> {
+    pub fn physics_mut(&mut self) -> FetchMut<'_, Physics> {
         self.write_resource::<Physics>()
     }
 
     /// Access the chunk interests manager in the ECS world.
-    pub fn chunk_interest(&self) -> Fetch<ChunkInterests> {
+    pub fn chunk_interest(&self) -> Fetch<'_, ChunkInterests> {
         self.read_resource::<ChunkInterests>()
     }
 
     /// Access the mutable chunk interest manager in the ECS world.
-    pub fn chunk_interest_mut(&mut self) -> FetchMut<ChunkInterests> {
+    pub fn chunk_interest_mut(&mut self) -> FetchMut<'_, ChunkInterests> {
         self.write_resource::<ChunkInterests>()
     }
 
     /// Access the bookkeeping in the ECS world.
-    pub fn bookkeeping(&self) -> Fetch<Bookkeeping> {
+    pub fn bookkeeping(&self) -> Fetch<'_, Bookkeeping> {
         self.read_resource::<Bookkeeping>()
     }
 
     /// Access the mutable bookkeeping in the ECS world.
-    pub fn bookkeeping_mut(&mut self) -> FetchMut<Bookkeeping> {
+    pub fn bookkeeping_mut(&mut self) -> FetchMut<'_, Bookkeeping> {
         self.write_resource::<Bookkeeping>()
     }
 
     /// Access the event queue in the ECS world.
-    pub fn events(&self) -> Fetch<Events> {
+    pub fn events(&self) -> Fetch<'_, Events> {
         self.read_resource::<Events>()
     }
 
     /// Access the mutable events queue in the ECS world.
-    pub fn events_mut(&mut self) -> FetchMut<Events> {
+    pub fn events_mut(&mut self) -> FetchMut<'_, Events> {
         self.write_resource::<Events>()
     }
 
     /// Access the stats manager in the ECS world.
-    pub fn stats(&self) -> Fetch<Stats> {
+    pub fn stats(&self) -> Fetch<'_, Stats> {
         self.read_resource::<Stats>()
     }
 
     /// Access the mutable stats manager in the ECS world.
-    pub fn stats_mut(&mut self) -> FetchMut<Stats> {
+    pub fn stats_mut(&mut self) -> FetchMut<'_, Stats> {
         self.write_resource::<Stats>()
     }
 
     /// Access pipeline management in the ECS world.
-    pub fn pipeline(&self) -> Fetch<Pipeline> {
+    pub fn pipeline(&self) -> Fetch<'_, Pipeline> {
         self.read_resource::<Pipeline>()
     }
 
     /// Access a mutable pipeline management in the ECS world.
-    pub fn pipeline_mut(&mut self) -> FetchMut<Pipeline> {
+    pub fn pipeline_mut(&mut self) -> FetchMut<'_, Pipeline> {
         self.write_resource::<Pipeline>()
     }
 
     /// Access the mesher in the ECS world.
-    pub fn mesher(&self) -> Fetch<Mesher> {
+    pub fn mesher(&self) -> Fetch<'_, Mesher> {
         self.read_resource::<Mesher>()
     }
 
     /// Access a mutable mesher in the ECS world.
-    pub fn mesher_mut(&mut self) -> FetchMut<Mesher> {
+    pub fn mesher_mut(&mut self) -> FetchMut<'_, Mesher> {
         self.write_resource::<Mesher>()
     }
 
     /// Create a basic entity ready to be added more.
-    pub fn create_base_entity(&mut self, id: &str, etype: &str) -> EntityBuilder {
+    pub fn create_base_entity(&mut self, id: &str) -> EntityBuilder<'_> {
         self.ecs_mut()
             .create_entity()
             .with(IDComp::new(id))
@@ -1278,16 +1278,16 @@ impl World {
     }
 
     /// Create a basic entity ready to be added more.
-    pub fn create_entity(&mut self, id: &str, etype: &str) -> EntityBuilder {
-        self.create_base_entity(id, etype)
+    pub fn create_entity(&mut self, id: &str, etype: &str) -> EntityBuilder<'_> {
+        self.create_base_entity(id)
             .with(ETypeComp::new(etype, false))
             .with(MetadataComp::new())
             .with(CollisionsComp::new())
     }
 
     /// Create a basic entity ready to be added more.
-    pub fn create_block_entity(&mut self, id: &str, etype: &str) -> EntityBuilder {
-        self.create_base_entity(id, etype)
+    pub fn create_block_entity(&mut self, id: &str, etype: &str) -> EntityBuilder<'_> {
+        self.create_base_entity(id)
             .with(ETypeComp::new(etype, true))
     }
 
@@ -1614,7 +1614,10 @@ impl World {
         let json: OnLoadRequest = match serde_json::from_str(&data.json) {
             Ok(json) => json,
             Err(e) => {
-                warn!("`on_load` error. Could not read JSON string: {}", data.json);
+                warn!(
+                    "`on_load` error. Could not read JSON string: {} ({})",
+                    data.json, e
+                );
                 return;
             }
         };
@@ -1658,8 +1661,8 @@ impl World {
             Ok(json) => json,
             Err(e) => {
                 warn!(
-                    "`on_unload` error. Could not read JSON string: {}",
-                    data.json
+                    "`on_unload` error. Could not read JSON string: {} ({})",
+                    data.json, e
                 );
                 return;
             }
