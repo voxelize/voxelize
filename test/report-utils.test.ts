@@ -2284,6 +2284,41 @@ describe("report-utils", () => {
       }
     );
     expect(unknownWithStrictUnknownInlineShortValue).toEqual(["-l"]);
+    const partiallyRecoveredStrictValueOptions = new Proxy(
+      ["--output", "--only"],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (property === "1") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const unknownWithPartiallyRecoveredStrictMetadataForStrictOption =
+      parseUnknownCliOptions(["--output", "-l"], {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: ["--output", "--only"],
+        optionsWithStrictValues: partiallyRecoveredStrictValueOptions as never,
+      });
+    expect(unknownWithPartiallyRecoveredStrictMetadataForStrictOption).toEqual([
+      "-l",
+    ]);
+    const unknownWithPartiallyRecoveredStrictMetadataForNonStrictOption =
+      parseUnknownCliOptions(["--only", "-l"], {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: ["--output", "--only"],
+        optionsWithStrictValues: partiallyRecoveredStrictValueOptions as never,
+      });
+    expect(unknownWithPartiallyRecoveredStrictMetadataForNonStrictOption).toEqual(
+      []
+    );
     const unknownWithStrictDashPrefixedPathValue = parseUnknownCliOptions(
       ["--output", "-artifact-report.json"],
       {
@@ -4517,6 +4552,87 @@ describe("report-utils", () => {
     expect(nonStrictOptionDiagnostics.validationErrorCode).toBeNull();
   });
 
+  it("preserves strict subsets when strict metadata is partially recovered from traps", () => {
+    const partiallyRecoveredStrictValueOptions = new Proxy(
+      ["--output", "--only"],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (property === "1") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const strictOptionDiagnostics = createCliDiagnostics(["--output", "-l"], {
+      canonicalOptions: ["--output", "--only"],
+      optionsWithValues: ["--output", "--only"],
+      optionsWithStrictValues: partiallyRecoveredStrictValueOptions as never,
+    });
+
+    expect(strictOptionDiagnostics.activeCliOptions).toEqual(["--output"]);
+    expect(strictOptionDiagnostics.activeCliOptionCount).toBe(1);
+    expect(strictOptionDiagnostics.activeCliOptionTokens).toEqual(["--output"]);
+    expect(strictOptionDiagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(strictOptionDiagnostics.activeCliOptionResolutionCount).toBe(1);
+    expect(strictOptionDiagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+    ]);
+    expect(strictOptionDiagnostics.activeCliOptionOccurrenceCount).toBe(1);
+    expect(strictOptionDiagnostics.unknownOptions).toEqual(["-l"]);
+    expect(strictOptionDiagnostics.unknownOptionCount).toBe(1);
+    expect(strictOptionDiagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): -l. Supported options: --output, --only."
+    );
+    expect(strictOptionDiagnostics.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+
+    const nonStrictOptionDiagnostics = createCliDiagnostics(["--only", "-l"], {
+      canonicalOptions: ["--output", "--only"],
+      optionsWithValues: ["--output", "--only"],
+      optionsWithStrictValues: partiallyRecoveredStrictValueOptions as never,
+    });
+
+    expect(nonStrictOptionDiagnostics.activeCliOptions).toEqual(["--only"]);
+    expect(nonStrictOptionDiagnostics.activeCliOptionCount).toBe(1);
+    expect(nonStrictOptionDiagnostics.activeCliOptionTokens).toEqual(["--only"]);
+    expect(nonStrictOptionDiagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+      },
+    ]);
+    expect(nonStrictOptionDiagnostics.activeCliOptionResolutionCount).toBe(1);
+    expect(nonStrictOptionDiagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+        index: 0,
+      },
+    ]);
+    expect(nonStrictOptionDiagnostics.activeCliOptionOccurrenceCount).toBe(1);
+    expect(nonStrictOptionDiagnostics.unknownOptions).toEqual([]);
+    expect(nonStrictOptionDiagnostics.unknownOptionCount).toBe(0);
+    expect(nonStrictOptionDiagnostics.unsupportedOptionsError).toBeNull();
+    expect(nonStrictOptionDiagnostics.validationErrorCode).toBeNull();
+  });
+
   it("reports unknown short tokens with mixed value metadata and unsupported strict metadata", () => {
     const diagnostics = createCliDiagnostics(["--output", "-l"], {
       canonicalOptions: ["--output"],
@@ -6150,6 +6266,65 @@ describe("report-utils", () => {
         canonicalOptions: ["--output", "--only"],
         optionsWithValues: ["--output", "--only"],
         optionsWithStrictValues: ["--output", 1] as never,
+      }
+    );
+
+    expect(activeMetadata.activeCliOptions).toEqual(["--output", "--only"]);
+    expect(activeMetadata.activeCliOptionCount).toBe(2);
+    expect(activeMetadata.activeCliOptionTokens).toEqual([
+      "--only",
+      "--output",
+    ]);
+    expect(activeMetadata.activeCliOptionResolutions).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionResolutionCount).toBe(2);
+    expect(activeMetadata.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+        index: 0,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 2,
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(2);
+  });
+
+  it("preserves strict subsets for active metadata when strict token lists are partially recovered from traps", () => {
+    const partiallyRecoveredStrictValueOptions = new Proxy(
+      ["--output", "--only"],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (property === "1") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const activeMetadata = parseActiveCliOptionMetadata(
+      ["--only", "-l", "--output", "-s"],
+      {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: ["--output", "--only"],
+        optionsWithStrictValues: partiallyRecoveredStrictValueOptions as never,
       }
     );
 
