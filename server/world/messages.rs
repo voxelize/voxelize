@@ -109,7 +109,7 @@ impl EncodedMessageQueue {
                     msg_type,
                     is_rtc_eligible,
                 };
-                self.sender.send(vec![(encoded, filter)]).unwrap();
+                self.processed.push((encoded, filter));
             }
             return;
         }
@@ -137,13 +137,22 @@ impl EncodedMessageQueue {
 
     pub fn receive(&mut self) -> Vec<(EncodedMessage, ClientFilter)> {
         let pending_batches = self.receiver.len();
-        if pending_batches == 0 {
+        if self.processed.is_empty() && pending_batches == 0 {
             return Vec::new();
         }
-        if pending_batches == 1 {
-            return self.receiver.try_recv().unwrap_or_default();
+        let mut result = std::mem::take(&mut self.processed);
+        if pending_batches == 0 {
+            return result;
         }
-        let mut result = Vec::with_capacity(pending_batches);
+        if pending_batches == 1 {
+            if let Ok(mut messages) = self.receiver.try_recv() {
+                result.append(&mut messages);
+            }
+            return result;
+        }
+        if result.capacity() - result.len() < pending_batches {
+            result.reserve(pending_batches - (result.capacity() - result.len()));
+        }
         while let Ok(mut messages) = self.receiver.try_recv() {
             result.append(&mut messages);
         }
