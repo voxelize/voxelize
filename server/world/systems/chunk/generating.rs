@@ -201,121 +201,122 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         }
 
         let mut to_load = Vec::with_capacity(pipeline.queue.len());
-        while !pipeline.stages.is_empty() {
-            let Some(coords) = pipeline.get() else {
-                break;
-            };
-            let chunk = chunks.raw(&coords);
+        if !pipeline.stages.is_empty() {
+            while let Some(coords) = pipeline.get() {
+                let chunk = chunks.raw(&coords);
 
-            if chunk.is_none() {
-                let can_load = chunks.test_load(&coords);
-                if can_load {
-                    pipeline.remove_chunk_tracking(&coords);
-                    mesher.add_chunk(&coords, false);
-                    to_load.push(coords);
-                    continue;
+                if chunk.is_none() {
+                    let can_load = chunks.test_load(&coords);
+                    if can_load {
+                        pipeline.remove_chunk_tracking(&coords);
+                        mesher.add_chunk(&coords, false);
+                        to_load.push(coords);
+                        continue;
+                    }
+
+                    let new_chunk = Chunk::new(
+                        &nanoid!(),
+                        coords.0,
+                        coords.1,
+                        &ChunkOptions {
+                            max_height: config.max_height,
+                            sub_chunks: config.sub_chunks,
+                            size: config.chunk_size,
+                        },
+                    );
+
+                    chunks.freshly_created.insert(coords.to_owned());
+                    chunks.renew(new_chunk, false);
                 }
 
-                let new_chunk = Chunk::new(
-                    &nanoid!(),
-                    coords.0,
-                    coords.1,
-                    &ChunkOptions {
-                        max_height: config.max_height,
-                        sub_chunks: config.sub_chunks,
-                        size: config.chunk_size,
-                    },
-                );
-
-                chunks.freshly_created.insert(coords.to_owned());
-                chunks.renew(new_chunk, false);
-            }
-
-            let index = match chunks.raw(&coords) {
-                Some(chunk) => {
-                    if let ChunkStatus::Generating(index) = chunk.status {
-                        index
-                    } else {
+                let index = match chunks.raw(&coords) {
+                    Some(chunk) => {
+                        if let ChunkStatus::Generating(index) = chunk.status {
+                            index
+                        } else {
+                            pipeline.remove_chunk_tracking(&coords);
+                            continue;
+                        }
+                    }
+                    None => {
                         pipeline.remove_chunk_tracking(&coords);
                         continue;
                     }
-                }
-                None => {
-                    pipeline.remove_chunk_tracking(&coords);
-                    continue;
-                }
-            };
-            let stage = &pipeline.stages[index];
-            let margin = stage.neighbors(&config);
+                };
+                let stage = &pipeline.stages[index];
+                let margin = stage.neighbors(&config);
 
-            if margin > 0 {
-                let r = (margin
-                    .saturating_add(chunk_size.saturating_sub(1))
-                    / chunk_size)
-                    .min(i32::MAX as usize) as i32;
-                let radius_sq = i64::from(r) * i64::from(r);
-                let mut ready = true;
+                if margin > 0 {
+                    let r = (margin
+                        .saturating_add(chunk_size.saturating_sub(1))
+                        / chunk_size)
+                        .min(i32::MAX as usize) as i32;
+                    let radius_sq = i64::from(r) * i64::from(r);
+                    let mut ready = true;
 
-                'outer: for x in -r..=r {
-                    for z in -r..=r {
-                        if (x == 0 && z == 0)
-                            || (i64::from(x) * i64::from(x) + i64::from(z) * i64::from(z)
-                                > radius_sq)
-                        {
-                            continue;
-                        }
+                    'outer: for x in -r..=r {
+                        for z in -r..=r {
+                            if (x == 0 && z == 0)
+                                || (i64::from(x) * i64::from(x) + i64::from(z) * i64::from(z)
+                                    > radius_sq)
+                            {
+                                continue;
+                            }
 
-                        let Some(nx) = coords.0.checked_add(x) else {
-                            continue;
-                        };
-                        let Some(nz) = coords.1.checked_add(z) else {
-                            continue;
-                        };
-                        let n_coords = Vec2(nx, nz);
+                            let Some(nx) = coords.0.checked_add(x) else {
+                                continue;
+                            };
+                            let Some(nz) = coords.1.checked_add(z) else {
+                                continue;
+                            };
+                            let n_coords = Vec2(nx, nz);
 
-                        if !chunks.is_within_world(&n_coords) || chunks.is_chunk_ready(&n_coords) {
-                            continue;
-                        }
+                            if !chunks.is_within_world(&n_coords)
+                                || chunks.is_chunk_ready(&n_coords)
+                            {
+                                continue;
+                            }
 
-                        if let Some(neighbor) = chunks.raw(&n_coords) {
-                            if let ChunkStatus::Generating(n_stage) = neighbor.status {
-                                if n_stage >= index {
-                                    continue;
+                            if let Some(neighbor) = chunks.raw(&n_coords) {
+                                if let ChunkStatus::Generating(n_stage) = neighbor.status {
+                                    if n_stage >= index {
+                                        continue;
+                                    }
                                 }
                             }
-                        }
 
-                        chunks.add_listener(&n_coords, &coords);
-                        ready = false;
-                        break 'outer;
+                            chunks.add_listener(&n_coords, &coords);
+                            ready = false;
+                            break 'outer;
+                        }
+                    }
+
+                    if !ready {
+                        continue;
                     }
                 }
 
-                if !ready {
-                    continue;
+                let chunk = chunks.raw(&coords).unwrap().clone();
+                if let Some(data) = stage.needs_space() {
+                    let mut space = chunks.make_space(&coords, margin);
+
+                    if data.needs_voxels {
+                        space = space.needs_voxels();
+                    }
+
+                    if data.needs_lights {
+                        space = space.needs_lights();
+                    }
+
+                    if data.needs_height_maps {
+                        space = space.needs_height_maps();
+                    }
+
+                    let space = space.build();
+                    processes.push((chunk, Some(space)));
+                } else {
+                    processes.push((chunk, None));
                 }
-            }
-
-            let chunk = chunks.raw(&coords).unwrap().clone();
-            if let Some(data) = stage.needs_space() {
-                let mut space = chunks.make_space(&coords, margin);
-
-                if data.needs_voxels {
-                    space = space.needs_voxels();
-                }
-
-                if data.needs_lights {
-                    space = space.needs_lights();
-                }
-
-                if data.needs_height_maps {
-                    space = space.needs_height_maps();
-                }
-
-                let space = space.build();
-                processes.push((chunk, Some(space)));
-            } else {
-                processes.push((chunk, None));
             }
         }
 
