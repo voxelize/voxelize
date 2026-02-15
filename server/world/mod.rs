@@ -1612,7 +1612,7 @@ impl World {
                 let mut names = self.write_component::<NameComp>();
                 if let Some(n) = names.get_mut(client_ent) {
                     if n.0 != username {
-                        n.0 = username.clone();
+                        n.0.clone_from(&username);
                     }
                 }
             }
