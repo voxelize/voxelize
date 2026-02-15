@@ -1556,8 +1556,9 @@ impl World {
         } else {
             return;
         };
+        let client_parser = self.client_parser.clone();
 
-        data.peers.into_iter().for_each(|peer| {
+        for peer in data.peers {
             let Peer {
                 metadata, username, ..
             } = peer;
@@ -1569,12 +1570,12 @@ impl World {
                 }
             }
 
-            self.client_parser.clone()(self, &metadata, client_ent);
+            client_parser(self, &metadata, client_ent);
 
             if let Some(client) = self.clients_mut().get_mut(client_id) {
                 client.username = username;
             }
-        })
+        }
     }
 
     /// Handler for `Load` type messages.
