@@ -168,19 +168,19 @@ impl SpaceBuilder<'_> {
 
                 if let Some(chunk) = self.chunks.raw(&n_coords) {
                     let voxels = if self.needs_voxels {
-                        Some((n_coords.clone(), Arc::clone(&chunk.voxels)))
+                        Some((n_coords, Arc::clone(&chunk.voxels)))
                     } else {
                         None
                     };
 
                     let lights = if self.needs_lights {
-                        Some((n_coords.clone(), (*chunk.lights).clone()))
+                        Some((n_coords, (*chunk.lights).clone()))
                     } else {
-                        Some((n_coords.clone(), ndarray(&chunk.lights.shape, 0)))
+                        Some((n_coords, ndarray(&chunk.lights.shape, 0)))
                     };
 
                     let height_maps = if self.needs_height_maps {
-                        Some((n_coords.clone(), Arc::clone(&chunk.height_map)))
+                        Some((n_coords, Arc::clone(&chunk.height_map)))
                     } else {
                         None
                     };
