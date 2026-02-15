@@ -4112,6 +4112,35 @@ describe("report-utils", () => {
         message: "Step failed with exit code 2.",
       },
     ]);
+    expect(
+      summarizeStepFailureResults([
+        {
+          name: "step-overflow-index",
+          scriptName: "check-overflow-index.mjs",
+          supportsNoBuild: false,
+          checkCommand: "node",
+          checkArgs: ["check-overflow-index.mjs", "--json"],
+          stepIndex: Number.MAX_SAFE_INTEGER + 1,
+          passed: false,
+          skipped: false,
+          exitCode: 2,
+          report: null,
+          output: null,
+        },
+      ])
+    ).toEqual([
+      {
+        name: "step-overflow-index",
+        scriptName: "check-overflow-index.mjs",
+        supportsNoBuild: false,
+        stepIndex: null,
+        checkCommand: "node",
+        checkArgs: ["check-overflow-index.mjs", "--json"],
+        checkArgCount: 2,
+        exitCode: 2,
+        message: "Step failed with exit code 2.",
+      },
+    ]);
 
     expect(
       summarizeCheckFailureResults([
@@ -4137,6 +4166,34 @@ describe("report-utils", () => {
         checkCommand: "node",
         checkArgs: ["check-proxy.mjs"],
         checkArgCount: 1,
+        exitCode: 2,
+        message: "Preflight check failed with exit code 2.",
+      },
+    ]);
+    expect(
+      summarizeCheckFailureResults([
+        {
+          name: "check-overflow-index",
+          scriptName: "check-overflow-index.mjs",
+          supportsNoBuild: false,
+          checkCommand: "node",
+          checkArgs: ["check-overflow-index.mjs", "--json"],
+          checkIndex: Number.MAX_SAFE_INTEGER + 1,
+          passed: false,
+          exitCode: 2,
+          report: null,
+          output: null,
+        },
+      ])
+    ).toEqual([
+      {
+        name: "check-overflow-index",
+        scriptName: "check-overflow-index.mjs",
+        supportsNoBuild: false,
+        checkIndex: null,
+        checkCommand: "node",
+        checkArgs: ["check-overflow-index.mjs", "--json"],
+        checkArgCount: 2,
         exitCode: 2,
         message: "Preflight check failed with exit code 2.",
       },
