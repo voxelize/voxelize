@@ -39,8 +39,8 @@ flowchart LR
 - `createBlockDynamicPattern`: defensive dynamic-pattern helper that clones part
   inputs via `createBlockConditionalPart` and skips malformed part entries
 - `createBlockFace`: ergonomic constructor helper for `BlockFaceInit` or
-  `BlockFace` input (plain-object init only) with deterministic default fallback
-  for malformed values
+  `BlockFace` input (plain/readonly/frozen init support) with deterministic
+  default fallback for malformed values
 - `createAABB`: ergonomic constructor helper for `AABB` or plain `AABB` init
   input (including readonly/frozen literals) with deterministic empty fallback
   for malformed values

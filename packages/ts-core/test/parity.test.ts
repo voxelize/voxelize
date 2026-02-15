@@ -2491,6 +2491,18 @@ describe("Type builders", () => {
     expect(face.range.startU).toBe(0);
   });
 
+  it("supports createBlockFace helper with frozen init objects", () => {
+    const frozenInit = Object.freeze({
+      name: "FrozenFace",
+      dir: [1, 0, 0] as const,
+    });
+    const face = createBlockFace(frozenInit);
+
+    expect(face).toBeInstanceOf(BlockFace);
+    expect(face.name).toBe("FrozenFace");
+    expect(face.dir).toEqual([1, 0, 0]);
+  });
+
   it("builds deterministic default faces for malformed createBlockFace input", () => {
     const defaultFace = createBlockFace();
     const nullFace = createBlockFace(null);

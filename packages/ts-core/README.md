@@ -116,8 +116,8 @@ const voxel = Voxel.pack({
   - skips malformed part entries (including non-plain objects) instead of
     materializing default placeholders
 - `createBlockFace`
-  - ergonomic constructor helper for `BlockFaceInit` (plain object) or
-    `BlockFace` input
+  - ergonomic constructor helper for `BlockFaceInit`
+    (plain/readonly/frozen object) or `BlockFace` input
   - malformed inputs fall back to a deterministic default face (`name: "Face"`)
 - `createAABB`
   - ergonomic constructor helper for `AABB` or plain/readonly/frozen `AABB`
