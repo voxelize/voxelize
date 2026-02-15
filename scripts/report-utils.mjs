@@ -969,6 +969,44 @@ const hasReadableArrayEntries = (value) => {
   }
 };
 
+const resolveSupportedCliOptionsForValidation = (
+  catalogSupportedCliOptions,
+  precomputedSupportedCliOptions
+) => {
+  if (precomputedSupportedCliOptions === null) {
+    return catalogSupportedCliOptions;
+  }
+
+  const normalizedPrecomputedSupportedCliOptionMetadata =
+    normalizeCliOptionTokenListWithAvailability(precomputedSupportedCliOptions);
+  const normalizedPrecomputedSupportedCliOptions =
+    normalizedPrecomputedSupportedCliOptionMetadata.tokens;
+  if (catalogSupportedCliOptions.length === 0) {
+    return normalizedPrecomputedSupportedCliOptions;
+  }
+
+  const catalogSupportedCliOptionSet = new Set(catalogSupportedCliOptions);
+  const filteredPrecomputedSupportedCliOptions =
+    normalizedPrecomputedSupportedCliOptions.filter((optionToken) => {
+      return catalogSupportedCliOptionSet.has(optionToken);
+    });
+  const precomputedSupportedCliOptionsContainUnknownTokens =
+    filteredPrecomputedSupportedCliOptions.length <
+    normalizedPrecomputedSupportedCliOptions.length;
+  const precomputedSupportedCliOptionsHasReadableEntries =
+    hasReadableArrayEntries(precomputedSupportedCliOptions);
+  const shouldFallbackToCatalogSupportedCliOptions =
+    normalizedPrecomputedSupportedCliOptionMetadata.unavailable ||
+    precomputedSupportedCliOptionsContainUnknownTokens ||
+    (filteredPrecomputedSupportedCliOptions.length === 0 &&
+      (normalizedPrecomputedSupportedCliOptions.length > 0 ||
+        precomputedSupportedCliOptionsHasReadableEntries));
+
+  return shouldFallbackToCatalogSupportedCliOptions
+    ? catalogSupportedCliOptions
+    : filteredPrecomputedSupportedCliOptions;
+};
+
 export const extractWasmPackCheckSummaryFromReport = (report) => {
   if (!isObjectRecord(report)) {
     return {
@@ -2231,40 +2269,10 @@ export const createCliOptionValidation = (
     normalizedOptionCatalogOverride === null
       ? resolvedOptionCatalog.supportedCliOptions
       : normalizedOptionCatalogOverride.supportedCliOptions;
-  const catalogSupportedCliOptionSet = new Set(catalogSupportedCliOptions);
-  const normalizedPrecomputedSupportedCliOptionMetadata =
-    precomputedSupportedCliOptions === null
-      ? null
-      : normalizeCliOptionTokenListWithAvailability(precomputedSupportedCliOptions);
-  const normalizedPrecomputedSupportedCliOptions =
-    normalizedPrecomputedSupportedCliOptionMetadata?.tokens ?? [];
-  const precomputedSupportedCliOptionsHasReadableEntries =
-    normalizedPrecomputedSupportedCliOptionMetadata === null
-      ? false
-      : hasReadableArrayEntries(precomputedSupportedCliOptions);
-  const filteredPrecomputedSupportedCliOptions =
-    normalizedPrecomputedSupportedCliOptions.filter((optionToken) => {
-      return catalogSupportedCliOptionSet.has(optionToken);
-    });
-  const precomputedSupportedCliOptionsContainUnknownTokens =
-    filteredPrecomputedSupportedCliOptions.length <
-    normalizedPrecomputedSupportedCliOptions.length;
-  const shouldFallbackToCatalogSupportedCliOptions =
-    normalizedPrecomputedSupportedCliOptionMetadata !== null &&
-    catalogSupportedCliOptions.length > 0 &&
-    (normalizedPrecomputedSupportedCliOptionMetadata.unavailable ||
-      precomputedSupportedCliOptionsContainUnknownTokens ||
-      (filteredPrecomputedSupportedCliOptions.length === 0 &&
-        (normalizedPrecomputedSupportedCliOptions.length > 0 ||
-          precomputedSupportedCliOptionsHasReadableEntries)));
-  const supportedCliOptions =
-    normalizedPrecomputedSupportedCliOptionMetadata === null
-      ? catalogSupportedCliOptions
-      : catalogSupportedCliOptions.length === 0
-        ? normalizedPrecomputedSupportedCliOptions
-      : shouldFallbackToCatalogSupportedCliOptions
-        ? catalogSupportedCliOptions
-        : filteredPrecomputedSupportedCliOptions;
+  const supportedCliOptions = resolveSupportedCliOptionsForValidation(
+    catalogSupportedCliOptions,
+    precomputedSupportedCliOptions
+  );
   const unknownOptions = parseUnknownCliOptions(args, {
     canonicalOptions: catalogCanonicalOptions,
     optionAliases: catalogOptionAliases,
