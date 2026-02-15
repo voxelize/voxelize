@@ -1362,6 +1362,27 @@ describe("Type builders", () => {
     expect(part.aabbs[0]).not.toBe(validAabb);
   });
 
+  it("accepts null-prototype face init objects during conditional part cloning", () => {
+    const nullPrototypeFace = Object.create(null) as {
+      name: string;
+      dir: [number, number, number];
+    };
+    nullPrototypeFace.name = "NullPrototypeFace";
+    nullPrototypeFace.dir = [0, 1, 0];
+
+    const part = createBlockConditionalPart({
+      faces: [nullPrototypeFace],
+    });
+
+    expect(part.faces).toHaveLength(1);
+    expect(part.faces[0]).toEqual(
+      new BlockFace({
+        name: "NullPrototypeFace",
+        dir: [0, 1, 0],
+      })
+    );
+  });
+
   it("accepts plain AABB init objects during conditional part cloning", () => {
     const sourceAabb = {
       minX: 0,
@@ -2440,6 +2461,30 @@ describe("Type builders", () => {
     expect(pattern.parts[0].aabbs).toEqual([AABB.create(0, 0, 0, 1, 1, 1)]);
   });
 
+  it("accepts null-prototype face init objects in dynamic pattern parts", () => {
+    const nullPrototypeFace = Object.create(null) as {
+      name: string;
+      dir: [number, number, number];
+    };
+    nullPrototypeFace.name = "NullPrototypePatternFace";
+    nullPrototypeFace.dir = [0, 1, 0];
+    const pattern = createBlockDynamicPattern({
+      parts: [
+        {
+          faces: [nullPrototypeFace],
+        },
+      ],
+    });
+
+    expect(pattern.parts).toHaveLength(1);
+    expect(pattern.parts[0].faces).toEqual([
+      new BlockFace({
+        name: "NullPrototypePatternFace",
+        dir: [0, 1, 0],
+      }),
+    ]);
+  });
+
   it("accepts readonly AABB init literals in dynamic pattern parts", () => {
     const readonlyAabb = {
       minX: 0,
@@ -2613,6 +2658,21 @@ describe("Type builders", () => {
     expect(face).toBeInstanceOf(BlockFace);
     expect(face.name).toBe("FrozenFace");
     expect(face.dir).toEqual([1, 0, 0]);
+  });
+
+  it("supports createBlockFace helper with null-prototype init objects", () => {
+    const nullPrototypeInit = Object.create(null) as {
+      name: string;
+      dir: [number, number, number];
+    };
+    nullPrototypeInit.name = "NullPrototypeFace";
+    nullPrototypeInit.dir = [0, 1, 0];
+
+    const face = createBlockFace(nullPrototypeInit);
+
+    expect(face).toBeInstanceOf(BlockFace);
+    expect(face.name).toBe("NullPrototypeFace");
+    expect(face.dir).toEqual([0, 1, 0]);
   });
 
   it("falls back to default when createBlockFace receives malformed BlockFace instances", () => {

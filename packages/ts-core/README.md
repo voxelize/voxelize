@@ -80,7 +80,8 @@ const voxel = Voxel.pack({
     avoid external mutation side effects after construction
   - accepts omitted/`null` input and applies deterministic defaults for
     malformed non-plain input (plain frozen objects are supported)
-  - accepts either `BlockFace` instances or `BlockFaceInit` objects in `faces`
+  - accepts either `BlockFace` instances or plain/null-prototype `BlockFaceInit`
+    objects in `faces`
   - accepts either `AABB` instances or plain/readonly `AABB` init objects in
     `aabbs`
   - accepts readonly input arrays/tuples for `faces`, `aabbs`, and
@@ -119,7 +120,7 @@ const voxel = Voxel.pack({
     materializing default placeholders
 - `createBlockFace`
   - ergonomic constructor helper for `BlockFaceInit`
-    (plain/readonly/frozen object) or `BlockFace` input
+    (plain/null-prototype/readonly/frozen object) or `BlockFace` input
   - malformed inputs (including malformed `BlockFace` instances) fall back to a
     deterministic default face (`name: "Face"`)
 - `createAABB`
