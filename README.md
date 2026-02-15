@@ -381,7 +381,7 @@ pnpm run check:preflight:all-checks:verify:json:compact
 # checkArgs/exampleArgs/wasmPackCheckArgs are normalized to string arrays; malformed/trap values salvage readable indexed entries when possible and otherwise fall back to deterministic null/empty defaults
 # CLI option token/arg arrays also salvage readable indexed entries when iterator access traps
 # iterator-trapped step/check collections and ts-core payload-issue arrays also salvage readable indexed entries for deterministic diagnostics
-# if key enumeration traps, fallback index scans are length-bounded to avoid pathological loops
+# if key enumeration traps, fallback index scans salvage a bounded prefix of entries to avoid pathological loops
 # optionally write the same report to disk
 pnpm run check:preflight:verify:json -- --output ./preflight-report.json
 
