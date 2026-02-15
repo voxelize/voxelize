@@ -246,13 +246,13 @@ impl<'a> System<'a> for PathFindingSystem {
                         &|node| {
                             let &PathNode(vx, vy, vz) = node;
                             let current_count = count.get();
-                            count.set(current_count.saturating_add(1));
 
                             if current_count >= max_depth_search
                                 || start_time.elapsed() > entity_path.max_pathfinding_time
                             {
                                 return Vec::new();
                             }
+                            count.set(current_count + 1);
                             if !can_expand_successors(vx, vy, vz) {
                                 return Vec::new();
                             }
