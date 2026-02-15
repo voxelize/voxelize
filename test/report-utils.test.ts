@@ -4633,6 +4633,53 @@ describe("report-utils", () => {
     expect(uncappedSupplementedStepSummary.failedSteps).toEqual([]);
     expect(uncappedSupplementedStepSummary.skippedSteps).toEqual([]);
 
+    const uncappedDisjointSupplementedStepsTarget: Array<
+      { readonly name: string; readonly passed: boolean; readonly skipped: boolean }
+    > = [];
+    for (let index = 0; index < 900; index += 1) {
+      uncappedDisjointSupplementedStepsTarget[5_000 + index] = {
+        name: `step-high${index}`,
+        passed: true,
+        skipped: false,
+      };
+    }
+    Object.defineProperty(
+      uncappedDisjointSupplementedStepsTarget,
+      Symbol.iterator,
+      {
+        configurable: true,
+        enumerable: false,
+        value: function* () {
+          for (let index = 0; index < 450; index += 1) {
+            yield index;
+          }
+          for (let index = 0; index < 450; index += 1) {
+            yield {
+              name: `step-iter${index}`,
+              passed: true,
+              skipped: false,
+            };
+          }
+        },
+      }
+    );
+    const uncappedDisjointSupplementedStepSummary = summarizeStepResults(
+      uncappedDisjointSupplementedStepsTarget as never
+    );
+    expect(uncappedDisjointSupplementedStepSummary.totalSteps).toBe(1_350);
+    expect(uncappedDisjointSupplementedStepSummary.passedStepCount).toBe(1_350);
+    expect(uncappedDisjointSupplementedStepSummary.failedStepCount).toBe(0);
+    expect(uncappedDisjointSupplementedStepSummary.skippedStepCount).toBe(0);
+    expect(uncappedDisjointSupplementedStepSummary.firstFailedStep).toBeNull();
+    expect(
+      uncappedDisjointSupplementedStepSummary.passedSteps.includes("step-iter0")
+    ).toBe(true);
+    expect(
+      uncappedDisjointSupplementedStepSummary.passedSteps.includes("step-high899")
+    ).toBe(true);
+    expect(uncappedDisjointSupplementedStepSummary.failedSteps).toEqual([]);
+    expect(uncappedDisjointSupplementedStepSummary.skippedSteps).toEqual([]);
+
     const ownKeysTrapSteps = new Proxy(
       [{ name: "step-a", passed: true, skipped: false }],
       {
@@ -6877,6 +6924,49 @@ describe("report-utils", () => {
       true
     );
     expect(uncappedSupplementedCheckSummary.failedChecks).toEqual([]);
+
+    const uncappedDisjointSupplementedChecksTarget: Array<
+      { readonly name: string; readonly passed: boolean }
+    > = [];
+    for (let index = 0; index < 900; index += 1) {
+      uncappedDisjointSupplementedChecksTarget[5_000 + index] = {
+        name: `check-high${index}`,
+        passed: true,
+      };
+    }
+    Object.defineProperty(
+      uncappedDisjointSupplementedChecksTarget,
+      Symbol.iterator,
+      {
+        configurable: true,
+        enumerable: false,
+        value: function* () {
+          for (let index = 0; index < 450; index += 1) {
+            yield index;
+          }
+          for (let index = 0; index < 450; index += 1) {
+            yield {
+              name: `check-iter${index}`,
+              passed: true,
+            };
+          }
+        },
+      }
+    );
+    const uncappedDisjointSupplementedCheckSummary = summarizeCheckResults(
+      uncappedDisjointSupplementedChecksTarget as never
+    );
+    expect(uncappedDisjointSupplementedCheckSummary.totalChecks).toBe(1_350);
+    expect(uncappedDisjointSupplementedCheckSummary.passedCheckCount).toBe(1_350);
+    expect(uncappedDisjointSupplementedCheckSummary.failedCheckCount).toBe(0);
+    expect(uncappedDisjointSupplementedCheckSummary.firstFailedCheck).toBeNull();
+    expect(
+      uncappedDisjointSupplementedCheckSummary.passedChecks.includes("check-iter0")
+    ).toBe(true);
+    expect(
+      uncappedDisjointSupplementedCheckSummary.passedChecks.includes("check-high899")
+    ).toBe(true);
+    expect(uncappedDisjointSupplementedCheckSummary.failedChecks).toEqual([]);
 
     const ownKeysTrapChecks = new Proxy(
       [{ name: "devEnvironment", passed: true }],
