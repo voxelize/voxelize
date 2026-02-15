@@ -386,7 +386,11 @@ impl Chunks {
         let width_x = (i64::from(max_x) - i64::from(min_x) + 1) as usize;
         let width_z = (i64::from(max_z) - i64::from(min_z) + 1) as usize;
         let mut list = Vec::with_capacity(width_x.saturating_mul(width_z));
-        self.for_each_light_traversed_chunk(coords, |n_coords| list.push(n_coords));
+        for x in min_x..=max_x {
+            for z in min_z..=max_z {
+                list.push(Vec2(x, z));
+            }
+        }
         list
     }
 
