@@ -10,6 +10,7 @@ use super::{
     block::{BlockRotation, PY_ROTATION},
     chunks::Chunks,
 };
+const SMALL_SPACE_CHUNK_LOAD_LIMIT: usize = 4;
 
 /// What kind of data does this space have/need?
 #[derive(Default)]
@@ -156,64 +157,112 @@ impl SpaceBuilder<'_> {
         }
 
         let width = chunk_size.saturating_add(margin.saturating_mul(2));
-
-        let (voxels, lights, height_maps): (HashMap<_, _>, HashMap<_, _>, HashMap<_, _>) = self
-            .chunks
-            .light_traversed_chunks(&self.coords)
-            .into_par_iter()
-            .filter_map(|n_coords| {
-                if let Some(chunk) = self.chunks.raw(&n_coords) {
-                    let voxels = if self.needs_voxels {
-                        Some((n_coords, Arc::clone(&chunk.voxels)))
+        let (voxels, lights, height_maps): (HashMap<_, _>, HashMap<_, _>, HashMap<_, _>) =
+            if let Some((min_x, max_x, min_z, max_z)) = self.chunks.light_traversed_bounds(&self.coords)
+            {
+                let width_x = (i64::from(max_x) - i64::from(min_x) + 1) as usize;
+                let width_z = (i64::from(max_z) - i64::from(min_z) + 1) as usize;
+                let traversed_count = width_x.saturating_mul(width_z);
+                if traversed_count <= SMALL_SPACE_CHUNK_LOAD_LIMIT {
+                    let mut voxels = if self.needs_voxels {
+                        HashMap::with_capacity(traversed_count)
                     } else {
-                        None
+                        HashMap::new()
                     };
-
-                    let lights = if self.needs_lights {
-                        Some((n_coords, (*chunk.lights).clone()))
+                    let mut lights = HashMap::with_capacity(traversed_count);
+                    let mut height_maps = if self.needs_height_maps {
+                        HashMap::with_capacity(traversed_count)
                     } else {
-                        Some((n_coords, ndarray(&chunk.lights.shape, 0)))
+                        HashMap::new()
                     };
-
-                    let height_maps = if self.needs_height_maps {
-                        Some((n_coords, Arc::clone(&chunk.height_map)))
-                    } else {
-                        None
-                    };
-
-                    Some((voxels, lights, height_maps))
-                } else if self.strict {
-                    panic!("Space incomplete in strict mode: {:?}", n_coords);
+                    for x in min_x..=max_x {
+                        for z in min_z..=max_z {
+                            let n_coords = Vec2(x, z);
+                            if let Some(chunk) = self.chunks.raw(&n_coords) {
+                                if self.needs_voxels {
+                                    voxels.insert(n_coords, Arc::clone(&chunk.voxels));
+                                }
+                                if self.needs_lights {
+                                    lights.insert(n_coords, (*chunk.lights).clone());
+                                } else {
+                                    lights.insert(n_coords, ndarray(&chunk.lights.shape, 0));
+                                }
+                                if self.needs_height_maps {
+                                    height_maps.insert(n_coords, Arc::clone(&chunk.height_map));
+                                }
+                            } else if self.strict {
+                                panic!("Space incomplete in strict mode: {:?}", n_coords);
+                            }
+                        }
+                    }
+                    (voxels, lights, height_maps)
                 } else {
-                    None
+                    let mut traversed_coords = Vec::with_capacity(traversed_count);
+                    for x in min_x..=max_x {
+                        for z in min_z..=max_z {
+                            traversed_coords.push(Vec2(x, z));
+                        }
+                    }
+
+                    traversed_coords
+                        .into_par_iter()
+                        .filter_map(|n_coords| {
+                            if let Some(chunk) = self.chunks.raw(&n_coords) {
+                                let voxels = if self.needs_voxels {
+                                    Some((n_coords, Arc::clone(&chunk.voxels)))
+                                } else {
+                                    None
+                                };
+
+                                let lights = if self.needs_lights {
+                                    Some((n_coords, (*chunk.lights).clone()))
+                                } else {
+                                    Some((n_coords, ndarray(&chunk.lights.shape, 0)))
+                                };
+
+                                let height_maps = if self.needs_height_maps {
+                                    Some((n_coords, Arc::clone(&chunk.height_map)))
+                                } else {
+                                    None
+                                };
+
+                                Some((voxels, lights, height_maps))
+                            } else if self.strict {
+                                panic!("Space incomplete in strict mode: {:?}", n_coords);
+                            } else {
+                                None
+                            }
+                        })
+                        .fold(
+                            || (HashMap::new(), HashMap::new(), HashMap::new()),
+                            |(mut voxels_acc, mut lights_acc, mut height_maps_acc),
+                             (voxels, lights, height_maps)| {
+                                if let Some(voxel) = voxels {
+                                    voxels_acc.insert(voxel.0, voxel.1);
+                                }
+                                if let Some(light) = lights {
+                                    lights_acc.insert(light.0, light.1);
+                                }
+                                if let Some(height_map) = height_maps {
+                                    height_maps_acc.insert(height_map.0, height_map.1);
+                                }
+                                (voxels_acc, lights_acc, height_maps_acc)
+                            },
+                        )
+                        .reduce(
+                            || (HashMap::new(), HashMap::new(), HashMap::new()),
+                            |(mut voxels_acc, mut lights_acc, mut height_maps_acc),
+                             (voxels, lights, height_maps)| {
+                                voxels_acc.extend(voxels);
+                                lights_acc.extend(lights);
+                                height_maps_acc.extend(height_maps);
+                                (voxels_acc, lights_acc, height_maps_acc)
+                            },
+                        )
                 }
-            })
-            .fold(
-                || (HashMap::new(), HashMap::new(), HashMap::new()),
-                |(mut voxels_acc, mut lights_acc, mut height_maps_acc),
-                 (voxels, lights, height_maps)| {
-                    if let Some(voxel) = voxels {
-                        voxels_acc.insert(voxel.0, voxel.1);
-                    }
-                    if let Some(light) = lights {
-                        lights_acc.insert(light.0, light.1);
-                    }
-                    if let Some(height_map) = height_maps {
-                        height_maps_acc.insert(height_map.0, height_map.1);
-                    }
-                    (voxels_acc, lights_acc, height_maps_acc)
-                },
-            )
-            .reduce(
-                || (HashMap::new(), HashMap::new(), HashMap::new()),
-                |(mut voxels_acc, mut lights_acc, mut height_maps_acc),
-                 (voxels, lights, height_maps)| {
-                    voxels_acc.extend(voxels);
-                    lights_acc.extend(lights);
-                    height_maps_acc.extend(height_maps);
-                    (voxels_acc, lights_acc, height_maps_acc)
-                },
-            );
+            } else {
+                (HashMap::new(), HashMap::new(), HashMap::new())
+            };
 
         let clamp_i64_to_i32 =
             |value: i64| value.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
