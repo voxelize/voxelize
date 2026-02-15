@@ -94,6 +94,17 @@ pub struct Chunks {
 
 impl Chunks {
     #[inline]
+    fn encode_base64_u32(data: &[u32]) -> String {
+        let mut bytes = vec![0; data.len() * 4];
+        LittleEndian::write_u32_into(data, &mut bytes);
+
+        let mut encoder = Encoder::new(vec![]).unwrap();
+        encoder.write_all(bytes.as_slice()).unwrap();
+        let encoded = encoder.finish().into_result().unwrap();
+        STANDARD.encode(encoded)
+    }
+
+    #[inline]
     fn decode_base64_u32(base: &str, expected_u32_len: usize) -> Vec<u32> {
         if base.is_empty() {
             return Vec::new();
@@ -203,20 +214,10 @@ impl Chunks {
         let path = self.get_chunk_file_path(&chunk.name);
         let tmp_path = path.with_extension("json.tmp");
 
-        let to_base_64 = |data: &[u32]| {
-            let mut bytes = vec![0; data.len() * 4];
-            LittleEndian::write_u32_into(data, &mut bytes);
-
-            let mut encoder = Encoder::new(vec![]).unwrap();
-            encoder.write_all(bytes.as_slice()).unwrap();
-            let encoded = encoder.finish().into_result().unwrap();
-            STANDARD.encode(encoded)
-        };
-
         let data = ChunkFileData {
             id: chunk.id.clone(),
-            voxels: to_base_64(&chunk.voxels.data),
-            height_map: to_base_64(&chunk.height_map.data),
+            voxels: Self::encode_base64_u32(&chunk.voxels.data),
+            height_map: Self::encode_base64_u32(&chunk.height_map.data),
         };
 
         let mut file = match File::create(&tmp_path) {
