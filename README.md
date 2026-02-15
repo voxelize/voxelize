@@ -390,6 +390,7 @@ pnpm run check:preflight:all-checks:verify:json:compact
 # requiredFailures fallback messages are emitted only for positive integer counts
 # sparse trap fallbacks can recover high-index entries even when bounded prefixes contain only undefined values
 # report count/index metadata accepts only non-negative safe integers before fallback coercion
+# wasm status extraction accepts only known status values (ok/missing/unavailable/skipped) before fallback derivation
 # optionally write the same report to disk
 pnpm run check:preflight:verify:json -- --output ./preflight-report.json
 

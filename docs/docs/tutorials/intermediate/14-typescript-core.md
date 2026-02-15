@@ -633,6 +633,9 @@ Sparse trap fallbacks can recover high-index entries even when bounded
 prefix scans contain only `undefined` values.
 Report count/index metadata is accepted only when values are
 non-negative safe integers before fallback coercion is applied.
+Wasm status extraction accepts only known status values
+(`ok`/`missing`/`unavailable`/`skipped`) before fallback derivation is
+applied.
 Client JSON reports additionally expose top-level wasm preflight summary
 fields `wasmPackCheckStatus`, `wasmPackCheckCommand`,
 `wasmPackCheckArgs`, `wasmPackCheckArgCount`, `wasmPackCheckExitCode`,
