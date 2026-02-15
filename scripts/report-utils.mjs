@@ -302,7 +302,7 @@ const safeReadProperty = (value, key) => {
   }
 };
 
-const MAX_ARRAY_LENGTH_FALLBACK_SCAN = 10_000;
+const MAX_ARRAY_LENGTH_FALLBACK_SCAN = 1_024;
 
 const cloneArrayFromLengthFallback = (value) => {
   let lengthValue = 0;

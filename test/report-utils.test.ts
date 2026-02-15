@@ -864,7 +864,7 @@ describe("report-utils", () => {
     ]);
     expect(oversizedOwnKeysTrapResult.positionalArgs).toEqual([]);
     expect(oversizedOwnKeysTrapResult.optionTerminatorUsed).toBe(false);
-    expect(oversizedOwnKeysIndexReadCount).toBe(10_000);
+    expect(oversizedOwnKeysIndexReadCount).toBe(1_024);
 
     const partiallyTrappedArgs = ["--json", "--output", "report.json"];
     Object.defineProperty(partiallyTrappedArgs, 1, {
