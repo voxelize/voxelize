@@ -69,6 +69,10 @@ impl<'a> System<'a> for ChunkRequestsSystem {
 
         for (id, requests) in (&ids, &mut requests).join() {
             to_add_back_to_requested.clear();
+            if to_add_back_to_requested.capacity() < requests.requests.len() {
+                to_add_back_to_requested
+                    .reserve(requests.requests.len() - to_add_back_to_requested.capacity());
+            }
 
             for coords in requests.requests.drain(..) {
                 if chunks.is_chunk_ready(&coords) {
