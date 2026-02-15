@@ -3381,6 +3381,123 @@ describe("report-utils", () => {
     );
 
     expect(unknownOptions).toEqual(["--mystery"]);
+    let canonicalUnknownReadCount = 0;
+    const canonicalOptionsForUnknownReadCount = new Proxy(["--json"], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (property === "0") {
+          canonicalUnknownReadCount += 1;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const unknownFromCanonicalReadCountMetadata = parseUnknownCliOptions(
+      ["--json"],
+      {
+        canonicalOptions: canonicalOptionsForUnknownReadCount as never,
+      }
+    );
+    expect(unknownFromCanonicalReadCountMetadata).toEqual([]);
+    expect(canonicalUnknownReadCount).toBe(2);
+    let aliasUnknownReadCount = 0;
+    const unknownFromAliasReadCountMetadata = parseUnknownCliOptions(
+      ["--verify"],
+      {
+        canonicalOptions: ["--json"],
+        optionAliases: {
+          "--no-build": new Proxy(["--verify"], {
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                throw new Error("iterator trap");
+              }
+              if (property === "length") {
+                return 1;
+              }
+              if (property === "0") {
+                aliasUnknownReadCount += 1;
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+        },
+      }
+    );
+    expect(unknownFromAliasReadCountMetadata).toEqual([]);
+    expect(aliasUnknownReadCount).toBe(2);
+    let optionArgsUnknownReadCount = 0;
+    const unknownFromOptionArgsReadCountMetadata = parseUnknownCliOptions(
+      new Proxy(["--json"], {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (property === "0") {
+            optionArgsUnknownReadCount += 1;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }) as never,
+      {
+        canonicalOptions: ["--json"],
+      }
+    );
+    expect(unknownFromOptionArgsReadCountMetadata).toEqual([]);
+    expect(optionArgsUnknownReadCount).toBe(2);
+    let valueMetadataUnknownReadCount = 0;
+    const unknownFromValueMetadataReadCount = parseUnknownCliOptions(
+      ["--output", "-j"],
+      {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-j"],
+        },
+        optionsWithValues: new Proxy(["--output"], {
+          get(target, property, receiver) {
+            if (property === "0") {
+              valueMetadataUnknownReadCount += 1;
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      }
+    );
+    expect(unknownFromValueMetadataReadCount).toEqual([]);
+    expect(valueMetadataUnknownReadCount).toBe(1);
+    let strictMetadataUnknownReadCount = 0;
+    const unknownFromStrictMetadataReadCount = parseUnknownCliOptions(
+      ["--output", "-j"],
+      {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-j"],
+        },
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: new Proxy(["--output"], {
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              throw new Error("iterator trap");
+            }
+            if (property === "length") {
+              return 1;
+            }
+            if (property === "0") {
+              strictMetadataUnknownReadCount += 1;
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      }
+    );
+    expect(unknownFromStrictMetadataReadCount).toEqual([]);
+    expect(strictMetadataUnknownReadCount).toBe(2);
     const fullyTrappedCanonicalOptions = createFullyTrappedStringArray([
       "--json",
       "--output",
