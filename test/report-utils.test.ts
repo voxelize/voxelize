@@ -1127,8 +1127,8 @@ describe("report-utils", () => {
     expect(statefulNumericPrefixResult.positionalArgs).toEqual([]);
     expect(statefulNumericPrefixResult.optionTerminatorUsed).toBe(false);
 
-    let equalLengthIndexZeroReadCount = 0;
-    let equalLengthIndexOneReadCount = 0;
+    let equalLengthArgIndexZeroReadCount = 0;
+    let equalLengthArgIndexOneReadCount = 0;
     const equalLengthReplacementArgsTarget: string[] = [];
     equalLengthReplacementArgsTarget[0] = "--json";
     equalLengthReplacementArgsTarget[1] = "--mystery";
@@ -1143,14 +1143,14 @@ describe("report-utils", () => {
           return 2;
         }
         if (propertyKey === "0") {
-          equalLengthIndexZeroReadCount += 1;
-          if (equalLengthIndexZeroReadCount === 1) {
+          equalLengthArgIndexZeroReadCount += 1;
+          if (equalLengthArgIndexZeroReadCount === 1) {
             return 1;
           }
         }
         if (propertyKey === "1") {
-          equalLengthIndexOneReadCount += 1;
-          if (equalLengthIndexOneReadCount > 1) {
+          equalLengthArgIndexOneReadCount += 1;
+          if (equalLengthArgIndexOneReadCount > 1) {
             return 1;
           }
         }
@@ -4310,8 +4310,8 @@ describe("report-utils", () => {
       failedSteps: ["step-b"],
       skippedSteps: [],
     });
-    let equalLengthIndexZeroReadCount = 0;
-    let equalLengthIndexOneReadCount = 0;
+    let equalLengthStepFailureIndexZeroReadCount = 0;
+    let equalLengthStepFailureIndexOneReadCount = 0;
     const equalLengthReplacementSteps = new Proxy(
       [
         { name: "step-a", passed: true, skipped: false },
@@ -4328,14 +4328,14 @@ describe("report-utils", () => {
             return 2;
           }
           if (propertyKey === "0") {
-            equalLengthIndexZeroReadCount += 1;
-            if (equalLengthIndexZeroReadCount === 1) {
+            equalLengthStepFailureIndexZeroReadCount += 1;
+            if (equalLengthStepFailureIndexZeroReadCount === 1) {
               return 1;
             }
           }
           if (propertyKey === "1") {
-            equalLengthIndexOneReadCount += 1;
-            if (equalLengthIndexOneReadCount > 1) {
+            equalLengthStepFailureIndexOneReadCount += 1;
+            if (equalLengthStepFailureIndexOneReadCount > 1) {
               return 1;
             }
           }
@@ -5375,8 +5375,8 @@ describe("report-utils", () => {
         message: "Step failed with exit code 2.",
       },
     ]);
-    let equalLengthIndexZeroReadCount = 0;
-    let equalLengthIndexOneReadCount = 0;
+    let equalLengthStepFailureIndexZeroReadCount = 0;
+    let equalLengthStepFailureIndexOneReadCount = 0;
     const equalLengthReplacementFailureSteps = new Proxy(
       [
         {
@@ -5409,14 +5409,14 @@ describe("report-utils", () => {
             return 2;
           }
           if (propertyKey === "0") {
-            equalLengthIndexZeroReadCount += 1;
-            if (equalLengthIndexZeroReadCount === 1) {
+            equalLengthStepFailureIndexZeroReadCount += 1;
+            if (equalLengthStepFailureIndexZeroReadCount === 1) {
               return 1;
             }
           }
           if (propertyKey === "1") {
-            equalLengthIndexOneReadCount += 1;
-            if (equalLengthIndexOneReadCount > 1) {
+            equalLengthStepFailureIndexOneReadCount += 1;
+            if (equalLengthStepFailureIndexOneReadCount > 1) {
               return 1;
             }
           }
@@ -5573,6 +5573,68 @@ describe("report-utils", () => {
         scriptName: "check-valid.mjs",
         supportsNoBuild: true,
         checkIndex: 1,
+        checkCommand: "",
+        checkArgs: [],
+        checkArgCount: 0,
+        exitCode: 2,
+        message: "Preflight check failed with exit code 2.",
+      },
+    ]);
+    let equalLengthCheckFailureIndexZeroReadCount = 0;
+    let equalLengthCheckFailureIndexOneReadCount = 0;
+    const equalLengthReplacementChecks = new Proxy(
+      [
+        {
+          name: "check-preferred",
+          scriptName: "check-preferred.mjs",
+          supportsNoBuild: true,
+          checkIndex: 0,
+          passed: false,
+          exitCode: 2,
+        },
+        {
+          name: "check-secondary",
+          scriptName: "check-secondary.mjs",
+          supportsNoBuild: true,
+          checkIndex: 1,
+          passed: false,
+          exitCode: 3,
+        },
+      ],
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (propertyKey === "0") {
+            equalLengthCheckFailureIndexZeroReadCount += 1;
+            if (equalLengthCheckFailureIndexZeroReadCount === 1) {
+              return 1;
+            }
+          }
+          if (propertyKey === "1") {
+            equalLengthCheckFailureIndexOneReadCount += 1;
+            if (equalLengthCheckFailureIndexOneReadCount > 1) {
+              return 1;
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      summarizeCheckFailureResults(equalLengthReplacementChecks as never)
+    ).toEqual([
+      {
+        name: "check-preferred",
+        scriptName: "check-preferred.mjs",
+        supportsNoBuild: true,
+        checkIndex: 0,
         checkCommand: "",
         checkArgs: [],
         checkArgCount: 0,
@@ -5747,6 +5809,47 @@ describe("report-utils", () => {
       failedCheckCount: 1,
       firstFailedCheck: "devEnvironment",
       passedChecks: ["client"],
+      failedChecks: ["devEnvironment"],
+    });
+    let equalLengthCheckSummaryIndexZeroReadCount = 0;
+    let equalLengthCheckSummaryIndexOneReadCount = 0;
+    const equalLengthReplacementChecks = new Proxy(
+      [
+        { name: "devEnvironment", passed: false },
+        { name: "client", passed: true },
+      ],
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (propertyKey === "0") {
+            equalLengthCheckSummaryIndexZeroReadCount += 1;
+            if (equalLengthCheckSummaryIndexZeroReadCount === 1) {
+              return 1;
+            }
+          }
+          if (propertyKey === "1") {
+            equalLengthCheckSummaryIndexOneReadCount += 1;
+            if (equalLengthCheckSummaryIndexOneReadCount > 1) {
+              return 1;
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(summarizeCheckResults(equalLengthReplacementChecks as never)).toEqual({
+      totalChecks: 2,
+      passedCheckCount: 0,
+      failedCheckCount: 1,
+      firstFailedCheck: "devEnvironment",
+      passedChecks: [],
       failedChecks: ["devEnvironment"],
     });
 
@@ -6190,8 +6293,8 @@ describe("report-utils", () => {
         steps: statefulNumericPrefixFailureSteps,
       })
     ).toBe("WASM artifact preflight: artifact missing");
-    let equalLengthIndexZeroReadCount = 0;
-    let equalLengthIndexOneReadCount = 0;
+    let equalLengthFailureMessageIndexZeroReadCount = 0;
+    let equalLengthFailureMessageIndexOneReadCount = 0;
     const equalLengthReplacementFailureSteps = new Proxy(
       [
         {
@@ -6218,14 +6321,14 @@ describe("report-utils", () => {
             return 2;
           }
           if (propertyKey === "0") {
-            equalLengthIndexZeroReadCount += 1;
-            if (equalLengthIndexZeroReadCount === 1) {
+            equalLengthFailureMessageIndexZeroReadCount += 1;
+            if (equalLengthFailureMessageIndexZeroReadCount === 1) {
               return 1;
             }
           }
           if (propertyKey === "1") {
-            equalLengthIndexOneReadCount += 1;
-            if (equalLengthIndexOneReadCount > 1) {
+            equalLengthFailureMessageIndexOneReadCount += 1;
+            if (equalLengthFailureMessageIndexOneReadCount > 1) {
               return 1;
             }
           }
