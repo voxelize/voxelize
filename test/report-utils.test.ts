@@ -3944,6 +3944,36 @@ describe("report-utils", () => {
     expect(primitivePrecomputedSupportedTokens.unsupportedOptionsError).toBe(
       "Unsupported option(s): --mystery. Supported options: (none)."
     );
+    let canonicalValidationReadCount = 0;
+    const canonicalOptionsForValidationReadCount = new Proxy(["--json"], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (property === "0") {
+          canonicalValidationReadCount += 1;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const canonicalValidationReadCountResult = createCliOptionValidation(
+      ["--json"],
+      {
+        canonicalOptions: canonicalOptionsForValidationReadCount as never,
+      }
+    );
+    expect(canonicalValidationReadCountResult.supportedCliOptions).toEqual([
+      "--json",
+    ]);
+    expect(canonicalValidationReadCountResult.supportedCliOptionCount).toBe(1);
+    expect(canonicalValidationReadCountResult.unknownOptions).toEqual([]);
+    expect(canonicalValidationReadCountResult.unknownOptionCount).toBe(0);
+    expect(canonicalValidationReadCountResult.unsupportedOptionsError).toBeNull();
+    expect(canonicalValidationReadCountResult.validationErrorCode).toBeNull();
+    expect(canonicalValidationReadCount).toBe(2);
     let statefulCanonicalOptionReadCount = 0;
     const statefulCanonicalOptions = new Proxy(["--json"], {
       get(target, property, receiver) {
@@ -6551,6 +6581,74 @@ describe("report-utils", () => {
       },
     ]);
     expect(diagnostics.activeCliOptionOccurrenceCount).toBe(2);
+    let canonicalDiagnosticsReadCount = 0;
+    const canonicalOptionsForDiagnosticsReadCount = new Proxy(["--json"], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (property === "0") {
+          canonicalDiagnosticsReadCount += 1;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const canonicalDiagnosticsReadCountResult = createCliDiagnostics(
+      ["--json"],
+      {
+        canonicalOptions: canonicalOptionsForDiagnosticsReadCount as never,
+      }
+    );
+    expect(canonicalDiagnosticsReadCountResult.supportedCliOptions).toEqual([
+      "--json",
+    ]);
+    expect(canonicalDiagnosticsReadCountResult.supportedCliOptionCount).toBe(1);
+    expect(canonicalDiagnosticsReadCountResult.availableCliOptionAliases).toEqual(
+      {}
+    );
+    expect(
+      canonicalDiagnosticsReadCountResult.availableCliOptionCanonicalMap
+    ).toEqual({
+      "--json": "--json",
+    });
+    expect(canonicalDiagnosticsReadCountResult.unknownOptions).toEqual([]);
+    expect(canonicalDiagnosticsReadCountResult.unknownOptionCount).toBe(0);
+    expect(canonicalDiagnosticsReadCountResult.unsupportedOptionsError).toBeNull();
+    expect(canonicalDiagnosticsReadCountResult.validationErrorCode).toBeNull();
+    expect(canonicalDiagnosticsReadCountResult.activeCliOptions).toEqual([
+      "--json",
+    ]);
+    expect(canonicalDiagnosticsReadCountResult.activeCliOptionCount).toBe(1);
+    expect(canonicalDiagnosticsReadCountResult.activeCliOptionTokens).toEqual([
+      "--json",
+    ]);
+    expect(canonicalDiagnosticsReadCountResult.activeCliOptionResolutions).toEqual(
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+        },
+      ]
+    );
+    expect(
+      canonicalDiagnosticsReadCountResult.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(canonicalDiagnosticsReadCountResult.activeCliOptionOccurrences).toEqual(
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
+    expect(
+      canonicalDiagnosticsReadCountResult.activeCliOptionOccurrenceCount
+    ).toBe(1);
+    expect(canonicalDiagnosticsReadCount).toBe(2);
     let statefulCanonicalOptionReadCount = 0;
     const statefulCanonicalOptions = new Proxy(["--json"], {
       get(target, property, receiver) {
