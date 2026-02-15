@@ -242,6 +242,29 @@ mod tests {
     }
 
     #[test]
+    fn message_queues_drain_prioritized_orders_critical_then_bulk_without_normal() {
+        let mut queue = MessageQueues::new();
+        queue.push((
+            Message::new(&MessageType::Peer).build(),
+            ClientFilter::Direct("peer".to_string()),
+        ));
+        queue.push((
+            Message::new(&MessageType::Load).build(),
+            ClientFilter::Direct("load".to_string()),
+        ));
+        queue.push((
+            Message::new(&MessageType::Unload).build(),
+            ClientFilter::Direct("unload".to_string()),
+        ));
+
+        let drained = queue.drain_prioritized();
+        assert_eq!(drained.len(), 3);
+        assert_eq!(MessageType::try_from(drained[0].0.r#type), Ok(MessageType::Peer));
+        assert_eq!(MessageType::try_from(drained[1].0.r#type), Ok(MessageType::Load));
+        assert_eq!(MessageType::try_from(drained[2].0.r#type), Ok(MessageType::Unload));
+    }
+
+    #[test]
     fn compute_rtc_eligibility_for_entities_requires_only_updates() {
         let update_entity = EntityProtocol {
             operation: EntityOperation::Update,
