@@ -222,10 +222,32 @@ const toRuleEntriesFromLengthFallback = (value: RuleOptionValue): BlockRule[] =>
 
   const boundedLength = Math.min(lengthValue, MAX_RULE_ENTRY_FALLBACK_SCAN);
   const recoveredRules: BlockRule[] = [];
+  let canProbeOwnProperty = true;
   for (let index = 0; index < boundedLength; index += 1) {
+    let indexPresent = false;
+    let requiresDirectRead = false;
+
+    if (canProbeOwnProperty) {
+      try {
+        indexPresent = Object.prototype.hasOwnProperty.call(value, index);
+      } catch {
+        canProbeOwnProperty = false;
+        requiresDirectRead = true;
+      }
+    } else {
+      requiresDirectRead = true;
+    }
+
+    if (!indexPresent && !requiresDirectRead) {
+      continue;
+    }
+
     let entryValue: RuleOptionValue = undefined;
     try {
       entryValue = value[index] as RuleOptionValue;
+      if (requiresDirectRead && entryValue === undefined) {
+        continue;
+      }
     } catch {
       recoveredRules.push(BLOCK_RULE_NONE);
       continue;

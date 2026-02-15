@@ -3812,16 +3812,26 @@ describe("BlockRuleEvaluator", () => {
   it("caps combination length-fallback scans for iterator-trapped rule lists", () => {
     let indexedReadCount = 0;
     const oversizedRules = new Proxy([], {
+      getOwnPropertyDescriptor(target, property) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (typeof propertyKey === "string" && /^(0|[1-9]\d*)$/.test(propertyKey)) {
+          throw new Error("descriptor trap");
+        }
+        return Reflect.getOwnPropertyDescriptor(target, property);
+      },
       get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
         if (property === Symbol.iterator) {
           throw new Error("iterator trap");
         }
         if (property === "length") {
           return 1_000_000_000;
         }
-        if (typeof property === "string" && /^(0|[1-9]\d*)$/.test(property)) {
+        if (typeof propertyKey === "string" && /^(0|[1-9]\d*)$/.test(propertyKey)) {
           indexedReadCount += 1;
-          if (property === "0") {
+          if (propertyKey === "0") {
             return {
               type: "simple",
               offset: [0, 0, 0],
@@ -3852,6 +3862,92 @@ describe("BlockRuleEvaluator", () => {
       )
     ).toBe(true);
     expect(indexedReadCount).toBe(1024);
+  });
+
+  it("skips sparse hole placeholders during combination length fallback", () => {
+    const sparseRules: BlockRule[] = [];
+    sparseRules[1] = {
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 37,
+    };
+    const trappedRules = new Proxy(sparseRules, {
+      ownKeys() {
+        throw new Error("ownKeys trap");
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const access = {
+      getVoxel: () => 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.Or,
+          rules: trappedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(false);
+  });
+
+  it("ignores inherited numeric prototype entries in combination fallback scans", () => {
+    const inheritedRule: BlockRule = {
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 38,
+    };
+    Object.defineProperty(Array.prototype, "0", {
+      configurable: true,
+      enumerable: true,
+      value: inheritedRule,
+    });
+
+    try {
+      const trappedRules = new Proxy([] as BlockRule[], {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+      const access = {
+        getVoxel: () => 38,
+        getVoxelRotation: () => BlockRotation.py(0),
+        getVoxelStage: () => 0,
+      };
+
+      expect(
+        BlockRuleEvaluator.evaluate(
+          {
+            type: "combination",
+            logic: BlockRuleLogic.Or,
+            rules: trappedRules as never,
+          },
+          [0, 0, 0],
+          access
+        )
+      ).toBe(false);
+    } finally {
+      delete (Array.prototype as Record<string, BlockRule>)["0"];
+    }
   });
 
   it("prefers smallest bounded indices during key-based rule fallback", () => {
