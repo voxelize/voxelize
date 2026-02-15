@@ -1836,7 +1836,7 @@ impl World {
                 .clone();
             fs::create_dir_all(&folder).ok();
             let paths = fs::read_dir(folder).unwrap();
-            let mut loaded_entities = HashMap::new();
+            let mut loaded_entities = HashMap::with_capacity(64);
 
             for path in paths {
                 let path = path.unwrap().path();
