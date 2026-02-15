@@ -656,6 +656,8 @@ Summary helper name/command fields trim whitespace and skip
 empty-name entries before count/list aggregation.
 `exampleDurationMs` metadata accepts only non-negative finite numbers
 before fallback coercion.
+Report output-line metadata trims whitespace-only strings to `null`
+before summary emission.
 Sparse trap fallbacks can supplement bounded-prefix entries with bounded
 key-scan recovery when high-index readable entries exist.
 Bounded fallback scans use own-property checks so inherited numeric
