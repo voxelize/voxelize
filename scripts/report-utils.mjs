@@ -432,6 +432,14 @@ const cloneArrayFromIndexedAccess = (value) => {
   const hasNonUndefinedLengthFallbackEntry =
     lengthFallbackClone !== null &&
     lengthFallbackClone.some((entry) => entry !== undefined);
+  if (
+    hasNonUndefinedLengthFallbackEntry &&
+    lengthFallbackClone !== null &&
+    lengthFallbackClone.length >= MAX_ARRAY_LENGTH_FALLBACK_SCAN
+  ) {
+    return lengthFallbackClone;
+  }
+
   const keyFallbackClone = cloneArrayFromIndexedKeys(value);
   if (keyFallbackClone !== null && keyFallbackClone.length > 0) {
     if (

@@ -1057,6 +1057,31 @@ describe("report-utils", () => {
     expect(keyScanCapResult.positionalArgs).toEqual([]);
     expect(keyScanCapResult.optionTerminatorUsed).toBe(false);
 
+    let densePrefixOwnKeysCallCount = 0;
+    const densePrefixArgsTarget: string[] = [];
+    for (let index = 0; index < 2_000; index += 1) {
+      densePrefixArgsTarget[index] = `--dense${index}`;
+    }
+    const densePrefixArgs = new Proxy(densePrefixArgsTarget, {
+      ownKeys(target) {
+        densePrefixOwnKeysCallCount += 1;
+        return Reflect.ownKeys(target);
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const densePrefixResult = splitCliArgs(densePrefixArgs as never);
+    expect(densePrefixResult.optionArgs).toHaveLength(1_024);
+    expect(densePrefixResult.optionArgs[0]).toBe("--dense0");
+    expect(densePrefixResult.optionArgs[1_023]).toBe("--dense1023");
+    expect(densePrefixResult.positionalArgs).toEqual([]);
+    expect(densePrefixResult.optionTerminatorUsed).toBe(false);
+    expect(densePrefixOwnKeysCallCount).toBe(0);
+
     const partiallyTrappedArgs = ["--json", "--output", "report.json"];
     Object.defineProperty(partiallyTrappedArgs, 1, {
       configurable: true,
