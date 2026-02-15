@@ -325,8 +325,7 @@ export class Peers<
   packInfo(): PeerProtocol<T> | void {
     const direction = forwardDirection
       .set(0, 0, -1)
-      .applyQuaternion(this.object.getWorldQuaternion(emptyQ))
-      .normalize();
+      .applyQuaternion(this.object.getWorldQuaternion(emptyQ));
     const { x: px, y: py, z: pz } = this.object.getWorldPosition(emptyP);
 
     return {
