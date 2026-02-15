@@ -67,6 +67,8 @@ Iterator-trapped face/AABB collections can still recover readable indexed
 entries via bounded fallback scans (up to 1024 indexed reads);
 irrecoverable trap combinations sanitize to deterministic empty
 collections.
+When bounded length recovery already fills the scan window, helper
+key-enumeration fallback is skipped to avoid redundant overhead.
 When bounded prefixes contain only malformed/noisy entries, key-fallback
 scans can still supplement readable high-index face/AABB entries.
 Fallback scans ignore inherited numeric prototype entries while recovering
@@ -78,6 +80,8 @@ Iterator-trapped dynamic-pattern `parts` collections can still recover
 readable indexed entries via bounded fallback scans (up to 1024 indexed
 reads); irrecoverable trap combinations sanitize to deterministic empty
 collections.
+When bounded length recovery already fills the scan window, helper
+key-enumeration fallback is skipped to avoid redundant overhead.
 When bounded prefixes contain only malformed/noisy entries, key-fallback
 scans can still supplement readable high-index part entries.
 Fallback scans ignore inherited numeric prototype entries while recovering

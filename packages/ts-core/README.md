@@ -123,6 +123,8 @@ const voxel = Voxel.pack({
     indexed entries via bounded length/key fallback scans (up to 1024 indexed
     reads); irrecoverable trap combinations sanitize to deterministic empty
     collections
+  - when bounded length recovery already fills the scan window, helper
+    key-enumeration fallback is skipped to avoid redundant overhead
   - when bounded prefixes only contain malformed/noisy entries, key-fallback
     scans can still supplement readable high-index face/AABB entries
   - fallback scans ignore inherited numeric prototype entries while recovering
@@ -164,6 +166,8 @@ const voxel = Voxel.pack({
   - iterator-trapped `parts` collections can recover readable indexed entries
     via bounded fallback scans (up to 1024 indexed reads); irrecoverable trap
     combinations sanitize to deterministic empty collections
+  - when bounded length recovery already fills the scan window, helper
+    key-enumeration fallback is skipped to avoid redundant overhead
   - when bounded prefixes only contain malformed/noisy entries, key-fallback
     scans can still supplement readable high-index part entries
   - fallback scans ignore inherited numeric prototype entries while recovering
