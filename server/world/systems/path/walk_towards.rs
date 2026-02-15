@@ -41,7 +41,8 @@ impl<'a> System<'a> for WalkTowardsSystem {
             .par_join()
             .for_each(|(path, body, brain)| {
                 if let Some(nodes) = &path.path {
-                    if nodes.is_empty() {
+                    let node_count = nodes.len();
+                    if node_count == 0 {
                         brain.stop();
                         return;
                     }
@@ -57,7 +58,7 @@ impl<'a> System<'a> for WalkTowardsSystem {
                         let dz = (current_pos.2 - (node.2 as f32 + 0.5)).abs();
 
                         if dx < NODE_ADVANCE_THRESHOLD && dz < NODE_ADVANCE_THRESHOLD {
-                            if index < nodes.len() - 1 {
+                            if index < node_count - 1 {
                                 target_index = index + 1;
                             } else {
                                 target_index = index;
@@ -69,7 +70,7 @@ impl<'a> System<'a> for WalkTowardsSystem {
                     }
                     let target = &nodes[target_index];
 
-                    if target_index == nodes.len() - 1 {
+                    if target_index == node_count - 1 {
                         let dx = (current_pos.0 - (target.0 as f32 + 0.5)).abs();
                         let dz = (current_pos.2 - (target.2 as f32 + 0.5)).abs();
                         if dx < FINAL_NODE_THRESHOLD && dz < FINAL_NODE_THRESHOLD {
@@ -89,19 +90,15 @@ impl<'a> System<'a> for WalkTowardsSystem {
 
                     // Smooth target calculation
                     let offset = 0.5;
-                    let mut smooth_target = Vec3(
+                    let current_target = Vec3(
                         target.0 as f32 + offset,
                         target.1 as f32,
                         target.2 as f32 + offset,
                     );
+                    let mut smooth_target = current_target;
 
-                    if target_index < nodes.len() - 1 {
+                    if target_index < node_count - 1 {
                         let next_node = &nodes[target_index + 1];
-                        let current_target = Vec3(
-                            target.0 as f32 + offset,
-                            target.1 as f32,
-                            target.2 as f32 + offset,
-                        );
                         let next_target = Vec3(
                             next_node.0 as f32 + offset,
                             next_node.1 as f32,
@@ -173,7 +170,7 @@ impl<'a> System<'a> for WalkTowardsSystem {
                         }
                     }
 
-                    if target_index > 0 && target_index < nodes.len() {
+                    if target_index > 0 && target_index < node_count {
                         let prev_node = &nodes[target_index - 1];
                         let curr_node = &nodes[target_index];
 
