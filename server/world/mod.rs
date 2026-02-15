@@ -1819,7 +1819,7 @@ impl World {
                         );
 
                     if let Some(ent) = self.revive_entity(&id, &etype, metadata.to_owned()) {
-                        loaded_entities.insert(id.to_owned(), (etype, ent, metadata, true));
+                        loaded_entities.insert(id, (etype, ent, metadata, true));
                     } else {
                         // Use error! instead of info! for better visibility
                         error!(
