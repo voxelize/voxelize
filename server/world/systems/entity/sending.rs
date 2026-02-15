@@ -123,8 +123,12 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         self.deleted_entities_buffer.clear();
         self.known_entities_to_delete_buffer.clear();
         self.clients_with_updates_buffer.clear();
-        self.client_updates_buffer
-            .retain(|client_id, _| clients.contains_key(client_id));
+        if clients.is_empty() {
+            self.client_updates_buffer.clear();
+        } else {
+            self.client_updates_buffer
+                .retain(|client_id, _| clients.contains_key(client_id));
+        }
 
         let (entity_visible_radius, entity_visible_radius_sq) =
             normalized_visible_radius(config.entity_visible_radius);
