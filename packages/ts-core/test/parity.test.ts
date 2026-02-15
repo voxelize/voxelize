@@ -4249,6 +4249,54 @@ describe("BlockRuleEvaluator", () => {
     ).toBe(true);
   });
 
+  it("skips throwing key-fallback rule reads instead of forcing none entries", () => {
+    const sparseRules: BlockRule[] = [];
+    sparseRules[0] = {
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 46,
+    };
+    sparseRules[1] = {
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 47,
+    };
+    const trappedRules = new Proxy(sparseRules, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          throw new Error("length trap");
+        }
+        if (propertyKey === "0") {
+          throw new Error("read trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const access = {
+      getVoxel: (x: number, y: number, z: number) =>
+        x === 0 && y === 0 && z === 0 ? 47 : 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.And,
+          rules: trappedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(true);
+  });
+
   it("supplements none-only bounded prefixes with key-fallback recovery", () => {
     const noisyRules: Array<BlockRule | number> = [];
     noisyRules[0] = 1;

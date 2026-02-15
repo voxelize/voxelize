@@ -331,7 +331,6 @@ const toRuleEntriesFromKeyFallback = (value: RuleOptionValue): BlockRule[] => {
     try {
       entryValue = value[ruleIndex] as RuleOptionValue;
     } catch {
-      recoveredRules.push(BLOCK_RULE_NONE);
       continue;
     }
 
