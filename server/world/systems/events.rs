@@ -138,10 +138,19 @@ impl<'a> System<'a> for EventsSystem {
                             continue;
                         }
                         if ids.len() <= 4 {
-                            for (id, client) in clients.iter() {
-                                if ids.iter().any(|included_id| included_id == id) {
-                                    send_to_client(id, client.entity);
+                            for include_index in 0..ids.len() {
+                                let include_id = ids[include_index].as_str();
+                                let mut duplicate = false;
+                                for prev_index in 0..include_index {
+                                    if ids[prev_index].as_str() == include_id {
+                                        duplicate = true;
+                                        break;
+                                    }
                                 }
+                                if duplicate {
+                                    continue;
+                                }
+                                send_to_id(include_id);
                             }
                         } else if ids.len() < clients.len() {
                             let mut seen_ids: HashSet<&str> = HashSet::with_capacity(ids.len());
