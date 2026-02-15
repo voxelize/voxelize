@@ -725,6 +725,9 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     chunks.update_voxel(&pos, val);
                 }
             }
+            if chunks.updates_staging.is_empty() && chunks.updates.is_empty() {
+                continue;
+            }
 
             let results = process_pending_updates(
                 &mut chunks,
