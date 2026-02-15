@@ -5185,6 +5185,58 @@ describe("report-utils", () => {
         message: "Step failed with exit code 2.",
       },
     ]);
+    let statefulObjectReplacementStepArgReadCount = 0;
+    const statefulObjectReplacementStepArgs = new Proxy(
+      ["check-stateful-object-step.mjs"],
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (propertyKey === "0") {
+            statefulObjectReplacementStepArgReadCount += 1;
+            if (statefulObjectReplacementStepArgReadCount > 1) {
+              return { malformed: true };
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      summarizeStepFailureResults([
+        {
+          name: "step-stateful-object-args",
+          scriptName: "check-stateful-object-step.mjs",
+          supportsNoBuild: false,
+          checkCommand: "node",
+          checkArgs: statefulObjectReplacementStepArgs,
+          stepIndex: 7,
+          passed: false,
+          skipped: false,
+          exitCode: 2,
+          report: null,
+          output: null,
+        },
+      ])
+    ).toEqual([
+      {
+        name: "step-stateful-object-args",
+        scriptName: "check-stateful-object-step.mjs",
+        supportsNoBuild: false,
+        stepIndex: 7,
+        checkCommand: "node",
+        checkArgs: ["check-stateful-object-step.mjs"],
+        checkArgCount: 1,
+        exitCode: 2,
+        message: "Step failed with exit code 2.",
+      },
+    ]);
 
     expect(
       summarizeCheckFailureResults([
@@ -5378,6 +5430,57 @@ describe("report-utils", () => {
         checkCommand: "node",
         checkArgs: ["check-stateful-null-check.mjs", "--json"],
         checkArgCount: 2,
+        exitCode: 2,
+        message: "Preflight check failed with exit code 2.",
+      },
+    ]);
+    let statefulObjectReplacementCheckArgReadCount = 0;
+    const statefulObjectReplacementCheckArgs = new Proxy(
+      ["check-stateful-object-check.mjs"],
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (propertyKey === "0") {
+            statefulObjectReplacementCheckArgReadCount += 1;
+            if (statefulObjectReplacementCheckArgReadCount > 1) {
+              return { malformed: true };
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      summarizeCheckFailureResults([
+        {
+          name: "check-stateful-object-args",
+          scriptName: "check-stateful-object-check.mjs",
+          supportsNoBuild: false,
+          checkCommand: "node",
+          checkArgs: statefulObjectReplacementCheckArgs,
+          checkIndex: 8,
+          passed: false,
+          exitCode: 2,
+          report: null,
+          output: null,
+        },
+      ])
+    ).toEqual([
+      {
+        name: "check-stateful-object-args",
+        scriptName: "check-stateful-object-check.mjs",
+        supportsNoBuild: false,
+        checkIndex: 8,
+        checkCommand: "node",
+        checkArgs: ["check-stateful-object-check.mjs"],
+        checkArgCount: 1,
         exitCode: 2,
         message: "Preflight check failed with exit code 2.",
       },
