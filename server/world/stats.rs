@@ -5,7 +5,7 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
-use log::{info, warn};
+use log::warn;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -100,19 +100,14 @@ impl Stats {
             return;
         }
 
-        if let Ok(mut file) = fs::OpenOptions::new()
+        let mut file = fs::OpenOptions::new()
             .write(true)
             .truncate(true)
+            .create(true)
             .open(&self.path)
-        {
-            let j = serde_json::to_string(&self.get_stats()).unwrap();
-            file.write_all(j.as_bytes())
-                .expect("Unable to write stats file.");
-        } else {
-            let mut file = fs::File::create(&self.path).expect("Unable to create stats file...");
-            let j = serde_json::to_string(&self.get_stats()).unwrap();
-            file.write_all(j.as_bytes())
-                .expect("Unable to write stats file.");
-        }
+            .expect("Unable to open stats file for write...");
+        let j = serde_json::to_string(&self.get_stats()).unwrap();
+        file.write_all(j.as_bytes())
+            .expect("Unable to write stats file.");
     }
 }
