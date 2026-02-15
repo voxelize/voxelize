@@ -668,108 +668,105 @@ impl World {
             let entities = world.ecs().entities();
             let ids = world.ecs().read_storage::<IDComp>();
 
-            let mut to_update = vec![];
+            let mut to_update = None;
 
             for (entity, id_comp) in (&entities, &ids).join() {
                 if id_comp.0 == payload.id {
-                    to_update.push(entity);
+                    to_update = Some(entity);
                     break;
                 }
             }
 
             drop((entities, ids));
 
-            if to_update.is_empty() {
+            if to_update.is_none() {
                 if let Some(voxel) = payload.voxel {
                     let voxel_key = Vec3(voxel[0], voxel[1], voxel[2]);
                     if let Some(&entity) = world.chunks().block_entities.get(&voxel_key) {
-                        to_update.push(entity);
+                        to_update = Some(entity);
                     }
                 }
             }
 
-            if to_update.is_empty() {
+            let Some(entity) = to_update else {
                 log::warn!(
                     "No entity found with ID: {} or voxel: {:?}",
                     payload.id,
                     payload.voxel
                 );
                 return;
-            }
+            };
 
             let mut storage = world.ecs_mut().write_storage::<JsonComp>();
-            for entity in to_update {
+            // Check if this is a partial update
+            if !payload.is_partial.unwrap_or(false) {
+                // For full updates, just use the new JSON directly
+                if let Err(e) = storage.insert(entity, JsonComp::new(&payload.json)) {
+                    log::error!("Failed to update block entity JSON: {}", e);
+                }
+                return;
+            }
 
-                // Check if this is a partial update
-                if !payload.is_partial.unwrap_or(false) {
-                    // For full updates, just use the new JSON directly
+            // Handle partial updates with careful JSON merging
+            let current_json = match storage.get(entity) {
+                Some(comp) => &comp.0,
+                None => {
+                    // If there's no current JSON, just use the new JSON
                     if let Err(e) = storage.insert(entity, JsonComp::new(&payload.json)) {
                         log::error!("Failed to update block entity JSON: {}", e);
                     }
-                    continue;
+                    return;
+                }
+            };
+
+            // Try to parse current JSON
+            let current_obj: serde_json::Value = match serde_json::from_str(current_json) {
+                Ok(obj) => obj,
+                Err(e) => {
+                    // If current JSON is invalid, use payload JSON only
+                    log::error!(
+                        "Failed to parse current JSON: {} - using payload JSON only",
+                        e
+                    );
+                    if let Err(e) = storage.insert(entity, JsonComp::new(&payload.json)) {
+                        log::error!("Failed to update block entity JSON: {}", e);
+                    }
+                    return;
+                }
+            };
+
+            // Parse payload JSON (we already validated it above)
+            let payload_obj: serde_json::Value = serde_json::from_str(&payload.json).unwrap();
+
+            // Merge the objects if both are objects
+            if let (
+                serde_json::Value::Object(mut current_map),
+                serde_json::Value::Object(payload_map),
+            ) = (current_obj, payload_obj)
+            {
+                // Merge payload map into current map
+                for (key, value) in payload_map {
+                    current_map.insert(key, value);
                 }
 
-                // Handle partial updates with careful JSON merging
-                let current_json = match storage.get(entity) {
-                    Some(comp) => &comp.0,
-                    None => {
-                        // If there's no current JSON, just use the new JSON
-                        if let Err(e) = storage.insert(entity, JsonComp::new(&payload.json)) {
-                            log::error!("Failed to update block entity JSON: {}", e);
-                        }
-                        continue;
-                    }
-                };
-
-                // Try to parse current JSON
-                let current_obj: serde_json::Value = match serde_json::from_str(current_json) {
-                    Ok(obj) => obj,
-                    Err(e) => {
-                        // If current JSON is invalid, use payload JSON only
-                        log::error!(
-                            "Failed to parse current JSON: {} - using payload JSON only",
-                            e
-                        );
-                        if let Err(e) = storage.insert(entity, JsonComp::new(&payload.json)) {
-                            log::error!("Failed to update block entity JSON: {}", e);
-                        }
-                        continue;
-                    }
-                };
-
-                // Parse payload JSON (we already validated it above)
-                let payload_obj: serde_json::Value = serde_json::from_str(&payload.json).unwrap();
-
-                // Merge the objects if both are objects
-                if let (
-                    serde_json::Value::Object(mut current_map),
-                    serde_json::Value::Object(payload_map),
-                ) = (current_obj, payload_obj)
-                {
-                    // Merge payload map into current map
-                    for (key, value) in payload_map {
-                        current_map.insert(key, value);
-                    }
-
-                    // Convert back to string
-                    match serde_json::to_string(&serde_json::Value::Object(current_map)) {
-                        Ok(merged) => {
-                            if let Err(e) = storage.insert(entity, JsonComp::new_owned(merged)) {
-                                log::error!("Failed to serialize merged JSON: {}", e);
-                            }
-                        }
-                        Err(e) => {
+                // Convert back to string
+                match serde_json::to_string(&serde_json::Value::Object(current_map)) {
+                    Ok(merged) => {
+                        if let Err(e) = storage.insert(entity, JsonComp::new_owned(merged)) {
                             log::error!("Failed to serialize merged JSON: {}", e);
-                            if let Err(e) = storage.insert(entity, JsonComp::new(&payload.json)) {
-                                log::error!("Failed to update block entity JSON: {}", e);
-                            }
                         }
                     }
-                } else {
-                    // If either isn't an object, fall back to payload
-                    if let Err(e) = storage.insert(entity, JsonComp::new(&payload.json)) {
-                        log::error!("Failed to update block entity JSON: {}", e);
+                    Err(e) => {
+                        log::error!("Failed to serialize merged JSON: {}", e);
+                        if let Err(e) = storage.insert(entity, JsonComp::new(&payload.json)) {
+                            log::error!("Failed to update block entity JSON: {}", e);
+                        }
                     }
+                }
+            } else {
+                // If either isn't an object, fall back to payload
+                if let Err(e) = storage.insert(entity, JsonComp::new(&payload.json)) {
+                    log::error!("Failed to update block entity JSON: {}", e);
                 }
             }
         });
