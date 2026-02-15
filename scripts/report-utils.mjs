@@ -167,12 +167,15 @@ export const createTimedReportBuilder = (
 
   return (report) => {
     const endedAtMs = now();
+    const rawDurationMs = endedAtMs - startedAtMs;
+    const durationMs =
+      Number.isFinite(rawDurationMs) && rawDurationMs >= 0 ? rawDurationMs : 0;
 
     return {
       ...report,
       startedAt,
       endedAt: toIsoString(endedAtMs),
-      durationMs: endedAtMs - startedAtMs,
+      durationMs,
     };
   };
 };

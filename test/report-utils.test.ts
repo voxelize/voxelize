@@ -3884,6 +3884,28 @@ describe("report-utils", () => {
     expect(followUpReport.durationMs).toBe(2000);
   });
 
+  it("clamps timed report duration when clock regresses", () => {
+    const nowValues = [2_000, 1_000];
+    let nowIndex = 0;
+    const withTiming = createTimedReportBuilder(
+      () => {
+        const currentValue =
+          nowValues[nowIndex] ?? nowValues[nowValues.length - 1];
+        nowIndex += 1;
+        return currentValue;
+      },
+      (value) => `iso-${value}`
+    );
+
+    expect(withTiming({ passed: true, exitCode: 0 })).toEqual({
+      passed: true,
+      exitCode: 0,
+      startedAt: "iso-2000",
+      endedAt: "iso-1000",
+      durationMs: 0,
+    });
+  });
+
   it("counts record entries for map-style metadata", () => {
     expect(countRecordEntries({})).toBe(0);
     expect(countRecordEntries({ a: 1, b: 2 })).toBe(2);
