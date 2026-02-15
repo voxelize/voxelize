@@ -13,6 +13,8 @@ impl<'a> System<'a> for CleanupSystem {
     fn run(&mut self, data: Self::SystemData) {
         let (mut collisions, timing) = data;
         let _t = timing.timer("cleanup");
-        (&mut collisions).join().for_each(|col| col.0.clear());
+        for col in (&mut collisions).join() {
+            col.0.clear();
+        }
     }
 }
