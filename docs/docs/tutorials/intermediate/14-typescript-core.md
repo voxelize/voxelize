@@ -771,6 +771,8 @@ Merged bounded/key trap recoveries remain capped to the smallest 1024
 numeric indices for deterministic bounded output.
 Typed string/object supplementation unions keep the same bounded 1024
 index window when both merged sources come from bounded fallback scans.
+Step/check aggregate totals are clamped to at least partition counts
+when uncapped supplementation adds disjoint recovered entries.
 Bounded fallback scans use own-property checks so inherited numeric
 prototype entries are ignored.
 When own-property descriptor probes trap, bounded fallback switches to
