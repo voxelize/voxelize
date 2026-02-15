@@ -613,6 +613,8 @@ inputs salvage readable indexed entries when possible and otherwise fall
 back to deterministic null/empty defaults.
 CLI option token/arg arrays also salvage readable indexed entries when
 iterator access traps.
+Iterator-trapped step/check collections and ts-core payload-issue arrays
+also salvage readable indexed entries for deterministic diagnostics.
 Client JSON reports additionally expose top-level wasm preflight summary
 fields `wasmPackCheckStatus`, `wasmPackCheckCommand`,
 `wasmPackCheckArgs`, `wasmPackCheckArgCount`, `wasmPackCheckExitCode`,
