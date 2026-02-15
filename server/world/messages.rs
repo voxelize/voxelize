@@ -5,6 +5,15 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::{common::ClientFilter, encode_message, server::Message, EntityOperation, MessageType};
 const SYNC_ENCODE_BATCH_LIMIT: usize = 8;
+const MESSAGE_TYPE_PEER: i32 = MessageType::Peer as i32;
+const MESSAGE_TYPE_ENTITY: i32 = MessageType::Entity as i32;
+const MESSAGE_TYPE_EVENT: i32 = MessageType::Event as i32;
+const MESSAGE_TYPE_CHAT: i32 = MessageType::Chat as i32;
+const MESSAGE_TYPE_JOIN: i32 = MessageType::Join as i32;
+const MESSAGE_TYPE_LEAVE: i32 = MessageType::Leave as i32;
+const MESSAGE_TYPE_LOAD: i32 = MessageType::Load as i32;
+const MESSAGE_TYPE_UNLOAD: i32 = MessageType::Unload as i32;
+const ENTITY_OPERATION_UPDATE: i32 = EntityOperation::Update as i32;
 
 #[inline]
 fn reserve_for_append<T>(buffer: &mut Vec<T>, additional: usize) {
@@ -43,16 +52,16 @@ impl MessageQueues {
     pub fn push(&mut self, item: (Message, ClientFilter)) {
         let (message, filter) = item;
         let message_type = message.r#type;
-        if message_type == MessageType::Peer as i32
-            || message_type == MessageType::Entity as i32
-            || message_type == MessageType::Event as i32
-            || message_type == MessageType::Chat as i32
-            || message_type == MessageType::Join as i32
-            || message_type == MessageType::Leave as i32
+        if message_type == MESSAGE_TYPE_PEER
+            || message_type == MESSAGE_TYPE_ENTITY
+            || message_type == MESSAGE_TYPE_EVENT
+            || message_type == MESSAGE_TYPE_CHAT
+            || message_type == MESSAGE_TYPE_JOIN
+            || message_type == MESSAGE_TYPE_LEAVE
         {
             self.critical.push((message, filter));
-        } else if message_type == MessageType::Load as i32
-            || message_type == MessageType::Unload as i32
+        } else if message_type == MESSAGE_TYPE_LOAD
+            || message_type == MESSAGE_TYPE_UNLOAD
         {
             self.bulk.push((message, filter));
         } else {
@@ -255,19 +264,19 @@ impl EncodedMessageQueue {
 
     fn compute_rtc_eligibility(message: &Message) -> bool {
         let message_type = message.r#type;
-        if message_type == MessageType::Entity as i32 {
+        if message_type == MESSAGE_TYPE_ENTITY {
             if message.entities.is_empty() {
                 return false;
             }
             if message.entities.len() == 1 {
-                return message.entities[0].operation == EntityOperation::Update as i32;
+                return message.entities[0].operation == ENTITY_OPERATION_UPDATE;
             }
             message
                 .entities
                 .iter()
-                .all(|entity| entity.operation == EntityOperation::Update as i32)
+                .all(|entity| entity.operation == ENTITY_OPERATION_UPDATE)
         } else {
-            message_type == MessageType::Peer as i32
+            message_type == MESSAGE_TYPE_PEER
         }
     }
 }
