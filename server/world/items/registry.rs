@@ -78,7 +78,9 @@ impl ItemRegistry {
     }
 
     pub fn all_ids(&self) -> Vec<u32> {
-        self.items_by_id.keys().copied().collect()
+        let mut ids = Vec::with_capacity(self.items_by_id.len());
+        ids.extend(self.items_by_id.keys().copied());
+        ids
     }
 
     pub fn all_items(&self) -> impl Iterator<Item = &ItemDef> {
@@ -94,7 +96,10 @@ impl ItemRegistry {
     }
 
     pub fn to_client_json(&self) -> Value {
-        let items: Vec<Value> = self.items_by_id.values().map(|def| def.to_client_json()).collect();
+        let mut items = Vec::with_capacity(self.items_by_id.len());
+        for def in self.items_by_id.values() {
+            items.push(def.to_client_json());
+        }
         serde_json::json!(items)
     }
 
