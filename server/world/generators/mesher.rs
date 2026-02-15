@@ -69,6 +69,24 @@ pub struct Mesher {
 }
 
 impl Mesher {
+    #[inline]
+    fn remove_queued_chunk(&mut self, coords: &Vec2<i32>) {
+        if self.queue.is_empty() {
+            return;
+        }
+        if self.queue.front().is_some_and(|front| front == coords) {
+            self.queue.pop_front();
+            return;
+        }
+        if self.queue.back().is_some_and(|back| back == coords) {
+            self.queue.pop_back();
+            return;
+        }
+        if let Some(index) = self.queue.iter().position(|queued| queued == coords) {
+            self.queue.remove(index);
+        }
+    }
+
     pub fn new() -> Self {
         let (sender, receiver) = unbounded();
 
@@ -95,7 +113,23 @@ impl Mesher {
             return;
         }
 
-        self.remove_chunk(coords);
+        if self.queue.is_empty() {
+            if prioritized {
+                self.queue.push_front(coords.to_owned());
+            } else {
+                self.queue.push_back(coords.to_owned());
+            }
+            return;
+        }
+        if prioritized {
+            if self.queue.front().is_some_and(|front| front == coords) {
+                return;
+            }
+        } else if self.queue.back().is_some_and(|back| back == coords) {
+            return;
+        }
+
+        self.remove_queued_chunk(coords);
 
         if prioritized {
             self.queue.push_front(coords.to_owned());
@@ -106,7 +140,7 @@ impl Mesher {
 
     pub fn remove_chunk(&mut self, coords: &Vec2<i32>) {
         self.map.remove(coords);
-        self.queue.retain(|c| c != coords);
+        self.remove_queued_chunk(coords);
     }
 
     pub fn has_chunk(&self, coords: &Vec2<i32>) -> bool {
@@ -136,14 +170,7 @@ impl Mesher {
     ) {
         let processes: Vec<(Chunk, Space)> = processes
             .into_iter()
-            .filter(|(chunk, _)| {
-                if self.map.contains(&chunk.coords) {
-                    false
-                } else {
-                    self.map.insert(chunk.coords.to_owned());
-                    true
-                }
-            })
+            .filter(|(chunk, _)| self.map.insert(chunk.coords.to_owned()))
             .collect();
 
         if processes.is_empty() {
@@ -300,12 +327,9 @@ impl Mesher {
         let mut results = Vec::new();
 
         while let Ok(result) = self.receiver.try_recv() {
-            if !self.map.contains(&result.0.coords) {
-                continue;
+            if self.map.remove(&result.0.coords) {
+                results.push(result);
             }
-
-            self.remove_chunk(&result.0.coords);
-            results.push(result);
         }
 
         results
