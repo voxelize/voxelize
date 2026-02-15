@@ -1594,6 +1594,76 @@ describe("Type builders", () => {
     ]);
   });
 
+  it("prefers key-fallback defined face entries over bounded undefined placeholders", () => {
+    let prefixReadCount = 0;
+    const sparseFaces: BlockFaceInit[] = [];
+    sparseFaces[0] = { name: "PrefixFace" };
+    sparseFaces[1] = { name: "SecondFace" };
+    const trappedFaces = new Proxy(sparseFaces, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 2;
+        }
+        if (propertyKey === "0") {
+          prefixReadCount += 1;
+          if (prefixReadCount === 1) {
+            return undefined;
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    const part = createBlockConditionalPart({
+      faces: trappedFaces as never,
+    });
+
+    expect(part.faces).toEqual([
+      new BlockFace({ name: "PrefixFace" }),
+      new BlockFace({ name: "SecondFace" }),
+    ]);
+  });
+
+  it("prefers key-fallback defined aabb entries over bounded undefined placeholders", () => {
+    let prefixReadCount = 0;
+    const sparseAabbs: AABB[] = [];
+    sparseAabbs[0] = AABB.create(0, 0, 0, 1, 1, 1);
+    sparseAabbs[1] = AABB.create(1, 1, 1, 2, 2, 2);
+    const trappedAabbs = new Proxy(sparseAabbs, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 2;
+        }
+        if (propertyKey === "0") {
+          prefixReadCount += 1;
+          if (prefixReadCount === 1) {
+            return undefined;
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    const part = createBlockConditionalPart({
+      aabbs: trappedAabbs as never,
+    });
+
+    expect(part.aabbs).toEqual([
+      AABB.create(0, 0, 0, 1, 1, 1),
+      AABB.create(1, 1, 1, 2, 2, 2),
+    ]);
+  });
+
   it("recovers key-based face entries when bounded direct reads throw", () => {
     const sparseFaces: BlockFaceInit[] = [];
     sparseFaces[5_000] = { name: "SparseFace" };

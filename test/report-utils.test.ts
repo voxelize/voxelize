@@ -5989,6 +5989,36 @@ describe("report-utils", () => {
     expect(
       normalizeTsCorePayloadIssues(sparseMixedPrefixAndHighIndexIssues)
     ).toEqual(["voxel.id", "light.red"]);
+    let statefulUndefinedPrefixReadCount = 0;
+    const statefulUndefinedPrefixIssuesTarget: string[] = [];
+    statefulUndefinedPrefixIssuesTarget[0] = " voxel.id ";
+    statefulUndefinedPrefixIssuesTarget[1] = " light.red ";
+    const statefulUndefinedPrefixIssues = new Proxy(
+      statefulUndefinedPrefixIssuesTarget,
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (propertyKey === "0") {
+            statefulUndefinedPrefixReadCount += 1;
+            if (statefulUndefinedPrefixReadCount === 1) {
+              return undefined;
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(normalizeTsCorePayloadIssues(statefulUndefinedPrefixIssues)).toEqual([
+      "voxel.id",
+      "light.red",
+    ]);
     const sparseHighIndexWithUndefinedPrefixIssues: Array<string | undefined> = [];
     sparseHighIndexWithUndefinedPrefixIssues[0] = undefined;
     sparseHighIndexWithUndefinedPrefixIssues[5_000] = " voxel.id ";
