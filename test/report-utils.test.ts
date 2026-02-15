@@ -3873,6 +3873,48 @@ describe("report-utils", () => {
     expect(malformedPrecomputedSupportedTokens.unsupportedOptionsError).toBe(
       "Unsupported option(s): --mystery. Supported options: --json."
     );
+    const setPrecomputedSupportedTokens = createCliOptionValidation(
+      ["--mystery"],
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        supportedCliOptions: new Set(["--json", "--output"]) as never,
+      }
+    );
+    expect(setPrecomputedSupportedTokens.supportedCliOptions).toEqual([]);
+    expect(setPrecomputedSupportedTokens.supportedCliOptionCount).toBe(0);
+    expect(setPrecomputedSupportedTokens.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: (none)."
+    );
+    const mapPrecomputedSupportedTokens = createCliOptionValidation(
+      ["--mystery"],
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        supportedCliOptions: new Map<string, boolean>([
+          ["--json", true],
+          ["--output", true],
+        ]) as never,
+      }
+    );
+    expect(mapPrecomputedSupportedTokens.supportedCliOptions).toEqual([]);
+    expect(mapPrecomputedSupportedTokens.supportedCliOptionCount).toBe(0);
+    expect(mapPrecomputedSupportedTokens.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: (none)."
+    );
+    const primitivePrecomputedSupportedTokens = createCliOptionValidation(
+      ["--mystery"],
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        supportedCliOptions: "--json" as never,
+      }
+    );
+    expect(primitivePrecomputedSupportedTokens.supportedCliOptions).toEqual([]);
+    expect(primitivePrecomputedSupportedTokens.supportedCliOptionCount).toBe(0);
+    expect(primitivePrecomputedSupportedTokens.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: (none)."
+    );
 
     const iteratorTrapSupportedTokens = ["--json", "--output"];
     Object.defineProperty(iteratorTrapSupportedTokens, Symbol.iterator, {
