@@ -4258,6 +4258,117 @@ describe("report-utils", () => {
     ]);
   });
 
+  it("normalizes whitespace-only summary name and command fields", () => {
+    const stepSummary = summarizeStepResults([
+      { name: "  step-a  ", passed: true, skipped: false },
+      { name: "   ", passed: false, skipped: false },
+      { name: "  step-b  ", passed: false, skipped: false },
+      { name: "  step-c  ", passed: false, skipped: true },
+    ]);
+    expect(stepSummary).toEqual({
+      totalSteps: 4,
+      passedStepCount: 1,
+      failedStepCount: 1,
+      skippedStepCount: 1,
+      firstFailedStep: "step-b",
+      passedSteps: ["step-a"],
+      failedSteps: ["step-b"],
+      skippedSteps: ["step-c"],
+    });
+
+    const checkSummary = summarizeCheckResults([
+      { name: "  check-a  ", passed: true },
+      { name: "   ", passed: false },
+      { name: "  check-b  ", passed: false },
+    ]);
+    expect(checkSummary).toEqual({
+      totalChecks: 3,
+      passedCheckCount: 1,
+      failedCheckCount: 1,
+      firstFailedCheck: "check-b",
+      passedChecks: ["check-a"],
+      failedChecks: ["check-b"],
+    });
+
+    const stepFailures = summarizeStepFailureResults([
+      {
+        name: "  step-a  ",
+        scriptName: "  check-a.mjs  ",
+        supportsNoBuild: false,
+        checkCommand: "  node  ",
+        checkArgs: ["check-a.mjs"],
+        stepIndex: 0,
+        passed: false,
+        skipped: false,
+        exitCode: 2,
+        report: null,
+        output: "   ",
+      },
+      {
+        name: "   ",
+        scriptName: "check-b.mjs",
+        supportsNoBuild: false,
+        stepIndex: 1,
+        passed: false,
+        skipped: false,
+        exitCode: 2,
+        report: null,
+        output: "output failure",
+      },
+    ]);
+    expect(stepFailures).toEqual([
+      {
+        name: "step-a",
+        scriptName: "check-a.mjs",
+        supportsNoBuild: false,
+        stepIndex: 0,
+        checkCommand: "node",
+        checkArgs: ["check-a.mjs"],
+        checkArgCount: 1,
+        exitCode: 2,
+        message: "Step failed with exit code 2.",
+      },
+    ]);
+
+    const checkFailures = summarizeCheckFailureResults([
+      {
+        name: "  check-a  ",
+        scriptName: "  check-a.mjs  ",
+        supportsNoBuild: false,
+        checkCommand: "  node  ",
+        checkArgs: ["check-a.mjs"],
+        checkIndex: 0,
+        passed: false,
+        exitCode: 2,
+        report: null,
+        output: "   ",
+      },
+      {
+        name: "   ",
+        scriptName: "check-b.mjs",
+        supportsNoBuild: false,
+        checkIndex: 1,
+        passed: false,
+        exitCode: 2,
+        report: null,
+        output: "output failure",
+      },
+    ]);
+    expect(checkFailures).toEqual([
+      {
+        name: "check-a",
+        scriptName: "check-a.mjs",
+        supportsNoBuild: false,
+        checkIndex: 0,
+        checkCommand: "node",
+        checkArgs: ["check-a.mjs"],
+        checkArgCount: 1,
+        exitCode: 2,
+        message: "Preflight check failed with exit code 2.",
+      },
+    ]);
+  });
+
   it("sanitizes malformed check-args arrays in failure summaries", () => {
     const throwingIteratorArgs = ["check-proxy.mjs", "--json"];
     Object.defineProperty(throwingIteratorArgs, Symbol.iterator, {

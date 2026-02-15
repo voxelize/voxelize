@@ -200,8 +200,8 @@ export const summarizeStepResults = (steps) => {
       continue;
     }
 
-    const name = safeReadProperty(step, "name");
-    if (typeof name !== "string") {
+    const name = toTrimmedStringOrNull(safeReadProperty(step, "name"));
+    if (name === null) {
       continue;
     }
 
@@ -251,8 +251,8 @@ export const summarizeCheckResults = (checks) => {
       continue;
     }
 
-    const name = safeReadProperty(check, "name");
-    if (typeof name !== "string") {
+    const name = toTrimmedStringOrNull(safeReadProperty(check, "name"));
+    if (name === null) {
       continue;
     }
 
@@ -1167,17 +1167,15 @@ export const summarizeStepFailureResults = (steps) => {
       continue;
     }
 
-    const name = safeReadProperty(step, "name");
-    if (typeof name !== "string") {
+    const name = toTrimmedStringOrNull(safeReadProperty(step, "name"));
+    if (name === null) {
       continue;
     }
 
     const reportMessage = deriveFailureMessageFromReport(
       safeReadProperty(step, "report")
     );
-    const output = safeReadProperty(step, "output");
-    const outputMessage =
-      typeof output === "string" && output.length > 0 ? output : null;
+    const outputMessage = toTrimmedStringOrNull(safeReadProperty(step, "output"));
     const normalizedExitCode = toNonNegativeIntegerOrNull(
       safeReadProperty(step, "exitCode")
     );
@@ -1189,17 +1187,20 @@ export const summarizeStepFailureResults = (steps) => {
     const checkArgCount =
       toNonNegativeIntegerOrNull(safeReadProperty(step, "checkArgCount")) ??
       checkArgs.length;
-    const scriptNameValue = safeReadProperty(step, "scriptName");
+    const scriptNameValue = toTrimmedStringOrNull(
+      safeReadProperty(step, "scriptName")
+    );
     const stepIndexValue = safeReadProperty(step, "stepIndex");
-    const checkCommandValue = safeReadProperty(step, "checkCommand");
+    const checkCommandValue = toTrimmedStringOrNull(
+      safeReadProperty(step, "checkCommand")
+    );
 
     failureSummaries.push({
       name,
-      scriptName: typeof scriptNameValue === "string" ? scriptNameValue : "",
+      scriptName: scriptNameValue ?? "",
       supportsNoBuild: safeReadProperty(step, "supportsNoBuild") === true,
       stepIndex: toNonNegativeIntegerOrNull(stepIndexValue),
-      checkCommand:
-        typeof checkCommandValue === "string" ? checkCommandValue : "",
+      checkCommand: checkCommandValue ?? "",
       checkArgs,
       checkArgCount,
       exitCode: normalizedExitCode ?? 1,
@@ -1224,17 +1225,15 @@ export const summarizeCheckFailureResults = (checks) => {
       continue;
     }
 
-    const name = safeReadProperty(check, "name");
-    if (typeof name !== "string") {
+    const name = toTrimmedStringOrNull(safeReadProperty(check, "name"));
+    if (name === null) {
       continue;
     }
 
     const reportMessage = deriveFailureMessageFromReport(
       safeReadProperty(check, "report")
     );
-    const output = safeReadProperty(check, "output");
-    const outputMessage =
-      typeof output === "string" && output.length > 0 ? output : null;
+    const outputMessage = toTrimmedStringOrNull(safeReadProperty(check, "output"));
     const normalizedExitCode = toNonNegativeIntegerOrNull(
       safeReadProperty(check, "exitCode")
     );
@@ -1249,16 +1248,19 @@ export const summarizeCheckFailureResults = (checks) => {
     const checkIndex = toNonNegativeIntegerOrNull(
       safeReadProperty(check, "checkIndex")
     );
-    const scriptNameValue = safeReadProperty(check, "scriptName");
-    const checkCommandValue = safeReadProperty(check, "checkCommand");
+    const scriptNameValue = toTrimmedStringOrNull(
+      safeReadProperty(check, "scriptName")
+    );
+    const checkCommandValue = toTrimmedStringOrNull(
+      safeReadProperty(check, "checkCommand")
+    );
 
     failureSummaries.push({
       name,
-      scriptName: typeof scriptNameValue === "string" ? scriptNameValue : "",
+      scriptName: scriptNameValue ?? "",
       supportsNoBuild: safeReadProperty(check, "supportsNoBuild") === true,
       checkIndex,
-      checkCommand:
-        typeof checkCommandValue === "string" ? checkCommandValue : "",
+      checkCommand: checkCommandValue ?? "",
       checkArgs,
       checkArgCount,
       exitCode: normalizedExitCode ?? 1,
