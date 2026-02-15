@@ -1837,6 +1837,13 @@ const createValueOptionMetadata = (
   ) {
     canonicalStrictValueOptions = new Set(canonicalValueOptions);
   }
+  if (
+    canonicalStrictValueOptions.size === 0 &&
+    valueOptionsUnavailable &&
+    canonicalValueOptions.size > 0
+  ) {
+    canonicalStrictValueOptions = new Set(canonicalValueOptions);
+  }
   const inlineValueTokenCanonicalMap = new Map(
     Array.from(canonicalValueOptions).map((canonicalOption) => {
       return [canonicalOption, canonicalOption];
