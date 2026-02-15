@@ -172,27 +172,21 @@ impl<'a> System<'a> for BroadcastSystem {
             return;
         }
         let pending_messages_count = pending_messages.len();
-        let mut immediate_messages = Vec::with_capacity(pending_messages_count);
+        let mut immediate_encoded: Vec<(EncodedMessage, ClientFilter)> = Vec::new();
         let mut deferred_messages = Vec::with_capacity(pending_messages_count);
         for (mut message, filter) in pending_messages {
             message.world_name = world_name.clone();
             if is_immediate(message.r#type) {
-                immediate_messages.push((message, filter));
+                let msg_type = message.r#type;
+                let encoded = EncodedMessage {
+                    data: encode_message(&message),
+                    msg_type,
+                    is_rtc_eligible: false,
+                };
+                immediate_encoded.push((encoded, filter));
             } else {
                 deferred_messages.push((message, filter));
             }
-        }
-
-        let mut immediate_encoded: Vec<(EncodedMessage, ClientFilter)> =
-            Vec::with_capacity(immediate_messages.len());
-        for (message, filter) in immediate_messages {
-            let msg_type = message.r#type;
-            let encoded = EncodedMessage {
-                data: encode_message(&message),
-                msg_type,
-                is_rtc_eligible: false,
-            };
-            immediate_encoded.push((encoded, filter));
         }
 
         let batched_messages = batch_messages(deferred_messages);
