@@ -169,10 +169,18 @@ impl Mesher {
         config: &WorldConfig,
     ) {
         let mut processes = processes;
-        processes.retain(|(chunk, _)| self.map.insert(chunk.coords.to_owned()));
-
-        if processes.is_empty() {
-            return;
+        if processes.len() == 1 {
+            let (chunk, space) = processes.pop().unwrap();
+            if self.map.insert(chunk.coords.to_owned()) {
+                processes.push((chunk, space));
+            } else {
+                return;
+            }
+        } else {
+            processes.retain(|(chunk, _)| self.map.insert(chunk.coords.to_owned()));
+            if processes.is_empty() {
+                return;
+            }
         }
 
         let sender = Arc::clone(&self.sender);
