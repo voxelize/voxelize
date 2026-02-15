@@ -915,4 +915,22 @@ mod tests {
             vec![Vec2(0, 0), Vec2(0, 1), Vec2(1, 0), Vec2(1, 1)]
         );
     }
+
+    #[test]
+    fn light_traversed_bounds_for_center_radius_handles_disjoint_and_overlap() {
+        let config = WorldConfig::new()
+            .chunk_size(16)
+            .max_light_level(15)
+            .min_chunk([100, 100])
+            .max_chunk([101, 101])
+            .build();
+        let chunks = Chunks::new(&config);
+
+        assert_eq!(chunks.light_traversed_bounds_for_center_radius(0), None);
+        assert_eq!(
+            chunks.light_traversed_bounds_for_center_radius(100),
+            Some((100, 101, 100, 101))
+        );
+        assert_eq!(chunks.light_traversed_bounds_for_center_radius(-5), None);
+    }
 }
