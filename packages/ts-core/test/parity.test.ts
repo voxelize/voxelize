@@ -1006,6 +1006,30 @@ describe("Type builders", () => {
     });
   });
 
+  it("accepts frozen conditional part input objects", () => {
+    const frozenPart = Object.freeze({
+      rule: {
+        type: "simple" as const,
+        offset: [1, 0, 0] as const,
+        id: 33,
+      },
+      worldSpace: true,
+    });
+    const part = createBlockConditionalPart(frozenPart);
+
+    expect(part).toEqual({
+      rule: {
+        type: "simple",
+        offset: [1, 0, 0],
+        id: 33,
+      },
+      faces: [],
+      aabbs: [],
+      isTransparent: [false, false, false, false, false, false],
+      worldSpace: true,
+    });
+  });
+
   it("sanitizes malformed transparency entries to boolean defaults", () => {
     const malformedTransparency = [
       true,
@@ -2075,6 +2099,28 @@ describe("Type builders", () => {
     nullPrototypePattern.parts = [nullPrototypePart];
 
     const pattern = createBlockDynamicPattern(nullPrototypePattern);
+
+    expect(pattern.parts).toEqual([
+      {
+        rule: BLOCK_RULE_NONE,
+        faces: [],
+        aabbs: [],
+        isTransparent: [false, false, false, false, false, false],
+        worldSpace: true,
+      },
+    ]);
+    expect(pattern.parts[0].rule).not.toBe(BLOCK_RULE_NONE);
+  });
+
+  it("accepts frozen dynamic pattern inputs", () => {
+    const frozenPart = Object.freeze({
+      worldSpace: true,
+    });
+    const frozenPattern = Object.freeze({
+      parts: Object.freeze([frozenPart]),
+    });
+
+    const pattern = createBlockDynamicPattern(frozenPattern);
 
     expect(pattern.parts).toEqual([
       {

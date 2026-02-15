@@ -51,6 +51,7 @@ flowchart LR
 
 Both helper constructors use deterministic defaults when optional fields are
 omitted or the top-level helper input is `null`/non-plain.
+Plain frozen helper input objects are also accepted.
 `createBlockConditionalPart` accepts either `BlockFace` instances or
 `BlockFaceInit` objects in `faces`.
 `createBlockConditionalPart` accepts either `AABB` instances or

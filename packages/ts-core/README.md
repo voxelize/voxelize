@@ -78,7 +78,8 @@ const voxel = Voxel.pack({
 - `createBlockConditionalPart`
   - defensively clones rule, face, AABB, and transparency-array inputs to
     avoid external mutation side effects after construction
-  - accepts omitted/`null`/non-plain input and applies deterministic defaults
+  - accepts omitted/`null` input and applies deterministic defaults for
+    malformed non-plain input (plain frozen objects are supported)
   - accepts either `BlockFace` instances or `BlockFaceInit` objects in `faces`
   - accepts either `AABB` instances or plain/readonly `AABB` init objects in
     `aabbs`
@@ -111,6 +112,7 @@ const voxel = Voxel.pack({
     `createBlockConditionalPart`
   - accepts omitted or `null` input and applies deterministic defaults
   - accepts readonly `parts` input arrays, including nullable entries
+  - accepts plain frozen part/pattern input objects
   - skips malformed part entries (including non-plain objects) instead of
     materializing default placeholders
 - `createBlockFace`
