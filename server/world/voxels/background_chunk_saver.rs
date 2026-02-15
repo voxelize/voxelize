@@ -105,7 +105,7 @@ impl BackgroundChunkSaver {
         let mut bytes = vec![0; data.len() * 4];
         LittleEndian::write_u32_into(data, &mut bytes);
 
-        let mut encoder = Encoder::new(vec![]).unwrap();
+        let mut encoder = Encoder::new(Vec::with_capacity(bytes.len())).unwrap();
         encoder.write_all(bytes.as_slice()).unwrap();
         let encoded = encoder.finish().into_result().unwrap();
         STANDARD.encode(encoded)
