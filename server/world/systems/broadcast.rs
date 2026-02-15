@@ -1,4 +1,4 @@
-use hashbrown::{HashMap, HashSet};
+use hashbrown::{hash_map::Entry, HashMap, HashSet};
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
@@ -78,10 +78,14 @@ fn batch_messages(messages: Vec<(Message, ClientFilter)>) -> Vec<(Message, Clien
         if can_batch(msg_type) {
             let key = (msg_type, filter_key(&filter));
 
-            if let Some((existing, _)) = batched.get_mut(&key) {
-                merge_messages(existing, message);
-            } else {
-                batched.insert(key, (message, filter));
+            match batched.entry(key) {
+                Entry::Occupied(mut entry) => {
+                    let (existing, _) = entry.get_mut();
+                    merge_messages(existing, message);
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert((message, filter));
+                }
             }
         } else {
             unbatched.push((message, filter));
