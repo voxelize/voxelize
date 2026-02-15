@@ -1319,7 +1319,7 @@ impl World {
     ) -> Option<Entity> {
         if etype.starts_with("block::") {
             let voxel_meta = metadata.get::<VoxelComp>("voxel").unwrap_or_default();
-            let voxel = voxel_meta.0.clone();
+            let voxel = voxel_meta.0;
             if self.chunks_mut().block_entities.contains_key(&voxel) {
                 warn!("Block entity already exists at voxel: {:?}", voxel);
                 self.read_resource::<BackgroundEntitiesSaver>().remove(id);
