@@ -837,6 +837,7 @@ describe("report-utils", () => {
     expect(ownKeysTrapResult.positionalArgs).toEqual([]);
     expect(ownKeysTrapResult.optionTerminatorUsed).toBe(false);
 
+    let oversizedOwnKeysIndexReadCount = 0;
     const oversizedOwnKeysTrapArgs = new Proxy(["--json", "--mystery"], {
       ownKeys() {
         throw new Error("ownKeys trap");
@@ -848,15 +849,22 @@ describe("report-utils", () => {
         if (property === "length") {
           return 1_000_000_000;
         }
+        if (typeof property === "string" && /^(0|[1-9]\d*)$/.test(property)) {
+          oversizedOwnKeysIndexReadCount += 1;
+        }
         return Reflect.get(target, property, receiver);
       },
     });
     const oversizedOwnKeysTrapResult = splitCliArgs(
       oversizedOwnKeysTrapArgs as never
     );
-    expect(oversizedOwnKeysTrapResult.optionArgs).toEqual([]);
+    expect(oversizedOwnKeysTrapResult.optionArgs).toEqual([
+      "--json",
+      "--mystery",
+    ]);
     expect(oversizedOwnKeysTrapResult.positionalArgs).toEqual([]);
     expect(oversizedOwnKeysTrapResult.optionTerminatorUsed).toBe(false);
+    expect(oversizedOwnKeysIndexReadCount).toBe(10_000);
 
     const partiallyTrappedArgs = ["--json", "--output", "report.json"];
     Object.defineProperty(partiallyTrappedArgs, 1, {

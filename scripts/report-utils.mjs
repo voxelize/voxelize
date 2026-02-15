@@ -312,16 +312,13 @@ const cloneArrayFromLengthFallback = (value) => {
     return null;
   }
 
-  if (
-    !Number.isSafeInteger(lengthValue) ||
-    lengthValue < 0 ||
-    lengthValue > MAX_ARRAY_LENGTH_FALLBACK_SCAN
-  ) {
+  if (!Number.isSafeInteger(lengthValue) || lengthValue < 0) {
     return null;
   }
 
+  const boundedLength = Math.min(lengthValue, MAX_ARRAY_LENGTH_FALLBACK_SCAN);
   const clonedArray = [];
-  for (let arrayIndex = 0; arrayIndex < lengthValue; arrayIndex += 1) {
+  for (let arrayIndex = 0; arrayIndex < boundedLength; arrayIndex += 1) {
     try {
       clonedArray.push(value[arrayIndex]);
     } catch {
