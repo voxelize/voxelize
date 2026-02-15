@@ -400,6 +400,7 @@ pnpm run check:preflight:all-checks:verify:json:compact
 # command metadata fields sanitize whitespace-only strings to null before summary emission
 # failure-message derivation trims whitespace-only message/name/reason fields before fallback composition
 # summary helper name/command fields trim whitespace and skip empty-name entries before count/list aggregation
+# exampleDurationMs metadata accepts only non-negative finite numbers before fallback coercion
 # sparse trap fallbacks can supplement bounded-prefix entries with bounded key-scan recovery when high-index readable entries exist
 # bounded fallback scans use own-property checks so inherited numeric prototype entries are ignored
 # when own-property descriptor probes trap, bounded fallback switches to guarded direct reads without repeated probe failures

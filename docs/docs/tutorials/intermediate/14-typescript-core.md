@@ -654,6 +654,8 @@ Failure-message derivation trims whitespace-only
 message/name/reason fields before fallback composition.
 Summary helper name/command fields trim whitespace and skip
 empty-name entries before count/list aggregation.
+`exampleDurationMs` metadata accepts only non-negative finite numbers
+before fallback coercion.
 Sparse trap fallbacks can supplement bounded-prefix entries with bounded
 key-scan recovery when high-index readable entries exist.
 Bounded fallback scans use own-property checks so inherited numeric
