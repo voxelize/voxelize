@@ -53,6 +53,17 @@ type KeyBoundItem<T extends string> = {
   identifier: string;
 };
 
+const normalizeKeyIfNeeded = (key: string): string => {
+  const length = key.length;
+  for (let index = 0; index < length; index++) {
+    const code = key.charCodeAt(index);
+    if ((code >= 65 && code <= 90) || code > 127) {
+      return key.toLowerCase();
+    }
+  }
+  return key;
+};
+
 /**
  * A key and mouse binding manager for Voxelize.
  *
@@ -487,7 +498,7 @@ export class Inputs<T extends string = string> extends EventEmitter {
    */
   private modifyKey = (key: string) => {
     if (!key) return key;
-    return key.toLowerCase();
+    return normalizeKeyIfNeeded(key);
   };
 
   /**
