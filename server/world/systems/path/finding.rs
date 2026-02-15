@@ -229,6 +229,12 @@ impl<'a> System<'a> for PathFindingSystem {
                         entity_path.path = None;
                         return;
                     }
+                    if start == goal {
+                        let mut path_nodes = Vec::with_capacity(1);
+                        path_nodes.push(start);
+                        entity_path.path = Some(path_nodes);
+                        return;
+                    }
 
                     // Check if the start and goal are too far apart for pathfinding
                     let start_goal_distance_sq = squared_voxel_distance_f64(&start, &goal);
@@ -236,12 +242,6 @@ impl<'a> System<'a> for PathFindingSystem {
                         || start_goal_distance_sq > max_distance_sq
                     {
                         entity_path.path = None;
-                        return;
-                    }
-                    if start == goal {
-                        let mut path_nodes = Vec::with_capacity(1);
-                        path_nodes.push(start);
-                        entity_path.path = Some(path_nodes);
                         return;
                     }
 
