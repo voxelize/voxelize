@@ -112,6 +112,8 @@ const voxel = Voxel.pack({
     stateful low-index read traps), bounded-prefix and key-fallback recoveries
     are merged by numeric index before evaluation, preserving duplicate-value
     rule entries that originate from distinct indices
+  - when bounded recovery yields same-index `none` placeholders, same-index
+    non-`none` key-fallback rules are preferred during merge
   - merged bounded/key recoveries remain capped to the smallest 1024 numeric
     indices to keep fallback evaluation bounded
   - throwing bounded direct reads are skipped during fallback scans so key
@@ -143,6 +145,8 @@ const voxel = Voxel.pack({
   - if key-fallback recovery omits readable prefix entries (for example due
     stateful low-index read traps), bounded-prefix and key-fallback
     recoveries are merged by numeric index
+  - when bounded recovery yields same-index `undefined` placeholders,
+    same-index defined key-fallback entries are preferred during merge
   - merged bounded/key helper recoveries remain capped to the smallest 1024
     numeric indices to keep fallback cloning bounded
   - throwing bounded direct reads are skipped during helper fallback scans so
@@ -172,6 +176,8 @@ const voxel = Voxel.pack({
   - if key-fallback recovery omits readable prefix rules (for example due
     stateful low-index read traps), bounded-prefix and key-fallback
     recoveries are merged by numeric index
+  - when bounded recovery yields same-index `none` placeholders, same-index
+    non-`none` key-fallback rules are preferred during merge
   - bounded key-enumeration fallback is skipped when bounded length recovery
     already fills the scan window
   - merged bounded/key recoveries remain capped to the smallest 1024 numeric
@@ -210,6 +216,8 @@ const voxel = Voxel.pack({
   - if key-fallback recovery omits readable prefix entries (for example due
     stateful low-index read traps), bounded-prefix and key-fallback
     recoveries are merged by numeric index
+  - when bounded recovery yields same-index `undefined` placeholders,
+    same-index defined key-fallback entries are preferred during merge
   - merged bounded/key helper recoveries remain capped to the smallest 1024
     numeric indices to keep fallback cloning bounded
   - throwing bounded direct reads are skipped during helper fallback scans so

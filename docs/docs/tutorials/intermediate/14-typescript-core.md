@@ -74,6 +74,8 @@ scans can still supplement readable high-index face/AABB entries.
 If key-fallback recovery omits readable prefix entries (for example due
 stateful low-index read traps), bounded-prefix and key-fallback recoveries
 are merged by numeric index.
+When bounded recovery yields same-index `undefined` placeholders,
+same-index defined key-fallback entries are preferred during merge.
 Merged bounded/key helper recoveries remain capped to the smallest 1024
 numeric indices to keep fallback cloning bounded.
 Throwing bounded direct reads are skipped during helper fallback scans so
@@ -96,6 +98,8 @@ scans can still supplement readable high-index part entries.
 If key-fallback recovery omits readable prefix entries (for example due
 stateful low-index read traps), bounded-prefix and key-fallback recoveries
 are merged by numeric index.
+When bounded recovery yields same-index `undefined` placeholders,
+same-index defined key-fallback entries are preferred during merge.
 Merged bounded/key helper recoveries remain capped to the smallest 1024
 numeric indices to keep fallback cloning bounded.
 Throwing bounded direct reads are skipped during helper fallback scans so
@@ -133,6 +137,8 @@ If key-fallback recovery omits readable prefix rules (for example due
 stateful low-index read traps), bounded-prefix and key-fallback recoveries
 are merged by numeric index before evaluation, preserving duplicate-value
 rules that originate from distinct indices.
+When bounded recovery yields same-index `none` placeholders, same-index
+non-`none` key-fallback rules are preferred during merge.
 Merged bounded/key rule recoveries remain capped to the smallest 1024
 numeric indices to keep fallback evaluation bounded.
 Throwing bounded direct reads are skipped during fallback scans so key
@@ -752,6 +758,8 @@ key-scan recovery when high-index readable entries exist.
 If key-fallback reads drop readable prefix entries under stateful
 low-index traps, bounded-prefix and key-fallback recoveries are merged
 by index before summary emission.
+When bounded-prefix recovery yields same-index `undefined` placeholders,
+same-index defined key-fallback entries are preferred during merge.
 Merged bounded/key trap recoveries remain capped to the smallest 1024
 numeric indices for deterministic bounded output.
 Bounded fallback scans use own-property checks so inherited numeric

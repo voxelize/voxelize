@@ -2354,6 +2354,63 @@ describe("Type builders", () => {
     });
   });
 
+  it("prefers key-fallback non-none entries over bounded none placeholders in createBlockRule", () => {
+    let prefixReadCount = 0;
+    const sparseRules: BlockRuleInput[] = [];
+    sparseRules[0] = {
+      type: "simple",
+      offset: [1, 0, 0],
+      id: 5,
+    };
+    sparseRules[1] = {
+      type: "simple",
+      offset: [2, 0, 0],
+      id: 9,
+    };
+    const trappedRules = new Proxy(sparseRules, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 2;
+        }
+        if (propertyKey === "0") {
+          prefixReadCount += 1;
+          if (prefixReadCount === 1) {
+            return undefined;
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(
+      createBlockRule({
+        type: "combination",
+        logic: BlockRuleLogic.Or,
+        rules: trappedRules as never,
+      })
+    ).toEqual({
+      type: "combination",
+      logic: BlockRuleLogic.Or,
+      rules: [
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 5,
+        },
+        {
+          type: "simple",
+          offset: [2, 0, 0],
+          id: 9,
+        },
+      ],
+    });
+  });
+
   it("caps merged createBlockRule fallback recovery to the bounded scan window", () => {
     const sparseRules: BlockRuleInput[] = [];
     sparseRules[0] = {
@@ -3417,6 +3474,52 @@ describe("Type builders", () => {
         aabbs: [],
         isTransparent: [false, false, false, false, false, false],
         worldSpace: true,
+      },
+    ]);
+  });
+
+  it("prefers key-fallback defined part entries over bounded undefined placeholders", () => {
+    let prefixReadCount = 0;
+    const sparseParts: BlockConditionalPartInput[] = [];
+    sparseParts[0] = { worldSpace: true };
+    sparseParts[1] = { worldSpace: false };
+    const trappedParts = new Proxy(sparseParts, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 2;
+        }
+        if (propertyKey === "0") {
+          prefixReadCount += 1;
+          if (prefixReadCount === 1) {
+            return undefined;
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const pattern = createBlockDynamicPattern({
+      parts: trappedParts as never,
+    });
+
+    expect(pattern.parts).toEqual([
+      {
+        rule: BLOCK_RULE_NONE,
+        faces: [],
+        aabbs: [],
+        isTransparent: [false, false, false, false, false, false],
+        worldSpace: true,
+      },
+      {
+        rule: BLOCK_RULE_NONE,
+        faces: [],
+        aabbs: [],
+        isTransparent: [false, false, false, false, false, false],
+        worldSpace: false,
       },
     ]);
   });
@@ -4956,6 +5059,58 @@ describe("BlockRuleEvaluator", () => {
     const access = {
       getVoxel: (x: number, y: number, z: number) =>
         x === 0 && y === 0 && z === 0 ? 53 : 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.Or,
+          rules: trappedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(true);
+  });
+
+  it("prefers key-fallback non-none rules over bounded none placeholders during evaluation", () => {
+    let zeroReadCount = 0;
+    const sparseRules: BlockRule[] = [];
+    sparseRules[0] = {
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 57,
+    };
+    sparseRules[1] = {
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 58,
+    };
+    const trappedRules = new Proxy(sparseRules, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 2;
+        }
+        if (propertyKey === "0") {
+          zeroReadCount += 1;
+          if (zeroReadCount === 1) {
+            return undefined;
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const access = {
+      getVoxel: (x: number, y: number, z: number) =>
+        x === 0 && y === 0 && z === 0 ? 57 : 0,
       getVoxelRotation: () => BlockRotation.py(0),
       getVoxelStage: () => 0,
     };

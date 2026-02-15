@@ -377,6 +377,12 @@ const mergeIndexedRuleEntries = (
   for (const entry of supplementalEntries) {
     if (!mergedEntries.has(entry.index)) {
       mergedEntries.set(entry.index, entry.rule);
+      continue;
+    }
+
+    const existingRule = mergedEntries.get(entry.index);
+    if (existingRule?.type === "none" && entry.rule.type !== "none") {
+      mergedEntries.set(entry.index, entry.rule);
     }
   }
 

@@ -460,6 +460,12 @@ const mergeIndexedFallbackEntries = (primaryEntries, supplementalEntries) => {
   for (const entry of supplementalEntries) {
     if (!mergedEntryMap.has(entry.index)) {
       mergedEntryMap.set(entry.index, entry.value);
+      continue;
+    }
+
+    const existingValue = mergedEntryMap.get(entry.index);
+    if (existingValue === undefined && entry.value !== undefined) {
+      mergedEntryMap.set(entry.index, entry.value);
     }
   }
 
