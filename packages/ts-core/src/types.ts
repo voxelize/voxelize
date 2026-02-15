@@ -255,6 +255,28 @@ const isPlainObjectValue = (
   return hasPlainObjectPrototype(value);
 };
 
+const readArrayEntry = (
+  value: readonly DynamicValue[],
+  index: number
+): DynamicValue => {
+  try {
+    return value[index];
+  } catch {
+    return undefined;
+  }
+};
+
+const readObjectEntry = (
+  value: Record<string, DynamicValue>,
+  key: string
+): DynamicValue => {
+  try {
+    return value[key];
+  } catch {
+    return undefined;
+  }
+};
+
 const isBlockRotationInstance = (
   value: DynamicValue
 ): value is BlockRotation => {
@@ -288,13 +310,21 @@ export const createFaceTransparency = (
     return [false, false, false, false, false, false];
   }
 
+  const transparencyValues = value as readonly DynamicValue[];
+  const face0 = readArrayEntry(transparencyValues, 0);
+  const face1 = readArrayEntry(transparencyValues, 1);
+  const face2 = readArrayEntry(transparencyValues, 2);
+  const face3 = readArrayEntry(transparencyValues, 3);
+  const face4 = readArrayEntry(transparencyValues, 4);
+  const face5 = readArrayEntry(transparencyValues, 5);
+
   return [
-    isBooleanValue(value[0]) ? value[0] : false,
-    isBooleanValue(value[1]) ? value[1] : false,
-    isBooleanValue(value[2]) ? value[2] : false,
-    isBooleanValue(value[3]) ? value[3] : false,
-    isBooleanValue(value[4]) ? value[4] : false,
-    isBooleanValue(value[5]) ? value[5] : false,
+    isBooleanValue(face0) ? face0 : false,
+    isBooleanValue(face1) ? face1 : false,
+    isBooleanValue(face2) ? face2 : false,
+    isBooleanValue(face3) ? face3 : false,
+    isBooleanValue(face4) ? face4 : false,
+    isBooleanValue(face5) ? face5 : false,
   ];
 };
 
@@ -490,6 +520,8 @@ const toBlockRule = (
     }
 
     return { type: "none" };
+  } catch {
+    return { type: "none" };
   } finally {
     path.delete(value);
   }
@@ -502,62 +534,66 @@ export const createBlockRule = (
 };
 
 const toBlockFaceInit = (face: BlockFaceInput): BlockFaceInit | null => {
-  const maybeFace: {
-    name?: DynamicValue;
-    independent?: DynamicValue;
-    isolated?: DynamicValue;
-    textureGroup?: DynamicValue;
-    dir?: DynamicValue;
-    corners?: DynamicValue;
-    range?: DynamicValue;
-  } | null = isBlockFaceInstance(face)
-    ? {
-        name: face.name,
-        independent: face.independent,
-        isolated: face.isolated,
-        textureGroup: face.textureGroup,
-        dir: face.dir,
-        corners: face.corners,
-        range: face.range,
-      }
-    : isPlainObjectValue(face)
-      ? face
-      : null;
-  if (maybeFace === null) {
-    return null;
-  }
-
-  if (typeof maybeFace.name !== "string") {
-    return null;
-  }
-
-  const textureGroup =
-    maybeFace.textureGroup === undefined ||
-    maybeFace.textureGroup === null ||
-    typeof maybeFace.textureGroup === "string"
-      ? maybeFace.textureGroup
-      : undefined;
-
-  return {
-    name: maybeFace.name,
-    independent:
-      typeof maybeFace.independent === "boolean"
-        ? maybeFace.independent
-        : undefined,
-    isolated:
-      typeof maybeFace.isolated === "boolean" ? maybeFace.isolated : undefined,
-    textureGroup,
-    dir: isVec3Value(maybeFace.dir) ? [...maybeFace.dir] : undefined,
-    corners: toCornerTuple(maybeFace.corners),
-    range: isUvValue(maybeFace.range)
+  try {
+    const maybeFace: {
+      name?: DynamicValue;
+      independent?: DynamicValue;
+      isolated?: DynamicValue;
+      textureGroup?: DynamicValue;
+      dir?: DynamicValue;
+      corners?: DynamicValue;
+      range?: DynamicValue;
+    } | null = isBlockFaceInstance(face)
       ? {
-          startU: maybeFace.range.startU,
-          endU: maybeFace.range.endU,
-          startV: maybeFace.range.startV,
-          endV: maybeFace.range.endV,
+          name: face.name,
+          independent: face.independent,
+          isolated: face.isolated,
+          textureGroup: face.textureGroup,
+          dir: face.dir,
+          corners: face.corners,
+          range: face.range,
         }
-      : undefined,
-  };
+      : isPlainObjectValue(face)
+        ? face
+        : null;
+    if (maybeFace === null) {
+      return null;
+    }
+
+    if (typeof maybeFace.name !== "string") {
+      return null;
+    }
+
+    const textureGroup =
+      maybeFace.textureGroup === undefined ||
+      maybeFace.textureGroup === null ||
+      typeof maybeFace.textureGroup === "string"
+        ? maybeFace.textureGroup
+        : undefined;
+
+    return {
+      name: maybeFace.name,
+      independent:
+        typeof maybeFace.independent === "boolean"
+          ? maybeFace.independent
+          : undefined,
+      isolated:
+        typeof maybeFace.isolated === "boolean" ? maybeFace.isolated : undefined,
+      textureGroup,
+      dir: isVec3Value(maybeFace.dir) ? [...maybeFace.dir] : undefined,
+      corners: toCornerTuple(maybeFace.corners),
+      range: isUvValue(maybeFace.range)
+        ? {
+            startU: maybeFace.range.startU,
+            endU: maybeFace.range.endU,
+            startV: maybeFace.range.startV,
+            endV: maybeFace.range.endV,
+          }
+        : undefined,
+    };
+  } catch {
+    return null;
+  }
 };
 
 const cloneBlockFace = (
@@ -585,25 +621,29 @@ type AabbLikeValue = {
 };
 
 const toFiniteAabbInit = (aabb: AabbLikeValue): AABBInit | null => {
-  if (
-    !isFiniteNumberValue(aabb.minX) ||
-    !isFiniteNumberValue(aabb.minY) ||
-    !isFiniteNumberValue(aabb.minZ) ||
-    !isFiniteNumberValue(aabb.maxX) ||
-    !isFiniteNumberValue(aabb.maxY) ||
-    !isFiniteNumberValue(aabb.maxZ)
-  ) {
+  try {
+    if (
+      !isFiniteNumberValue(aabb.minX) ||
+      !isFiniteNumberValue(aabb.minY) ||
+      !isFiniteNumberValue(aabb.minZ) ||
+      !isFiniteNumberValue(aabb.maxX) ||
+      !isFiniteNumberValue(aabb.maxY) ||
+      !isFiniteNumberValue(aabb.maxZ)
+    ) {
+      return null;
+    }
+
+    return {
+      minX: aabb.minX,
+      minY: aabb.minY,
+      minZ: aabb.minZ,
+      maxX: aabb.maxX,
+      maxY: aabb.maxY,
+      maxZ: aabb.maxZ,
+    };
+  } catch {
     return null;
   }
-
-  return {
-    minX: aabb.minX,
-    minY: aabb.minY,
-    minZ: aabb.minZ,
-    maxX: aabb.maxX,
-    maxY: aabb.maxY,
-    maxZ: aabb.maxZ,
-  };
 };
 
 const cloneAabb = (aabb: AABBInput | null | undefined): AABB | null => {
@@ -650,11 +690,16 @@ export const createAABB = (aabb: AABBInput | null | undefined = null): AABB => {
 export const createBlockConditionalPart = (
   part: BlockConditionalPartInput | null = {}
 ): BlockConditionalPart => {
-  const normalizedPart: BlockConditionalPartInput = isPlainObjectValue(part)
+  const normalizedPart: Record<string, DynamicValue> = isPlainObjectValue(part)
     ? part
     : {};
-  const faces = Array.isArray(normalizedPart.faces)
-    ? normalizedPart.faces.reduce<BlockFace[]>((clonedFaces, face) => {
+  const facesValue = readObjectEntry(normalizedPart, "faces");
+  const aabbsValue = readObjectEntry(normalizedPart, "aabbs");
+  const isTransparentValue = readObjectEntry(normalizedPart, "isTransparent");
+  const ruleValue = readObjectEntry(normalizedPart, "rule");
+  const worldSpaceValue = readObjectEntry(normalizedPart, "worldSpace");
+  const faces = Array.isArray(facesValue)
+    ? facesValue.reduce<BlockFace[]>((clonedFaces, face) => {
         const clonedFace = cloneBlockFace(face);
         if (clonedFace !== null) {
           clonedFaces.push(clonedFace);
@@ -663,8 +708,8 @@ export const createBlockConditionalPart = (
         return clonedFaces;
       }, [])
     : [];
-  const aabbs = Array.isArray(normalizedPart.aabbs)
-    ? normalizedPart.aabbs.reduce<AABB[]>((clonedAabbs, aabb) => {
+  const aabbs = Array.isArray(aabbsValue)
+    ? aabbsValue.reduce<AABB[]>((clonedAabbs, aabb) => {
         const clonedAabb = cloneAabb(aabb);
         if (clonedAabb !== null) {
           clonedAabbs.push(clonedAabb);
@@ -673,16 +718,18 @@ export const createBlockConditionalPart = (
         return clonedAabbs;
       }, [])
     : [];
-  const isTransparent = createFaceTransparency(normalizedPart.isTransparent);
-  const rule = createBlockRule(normalizedPart.rule);
+  const isTransparent = createFaceTransparency(
+    isTransparentValue as FaceTransparencyLike
+  );
+  const rule = createBlockRule(ruleValue as BlockRuleInput | null | undefined);
 
   return {
     rule,
     faces,
     aabbs,
     isTransparent,
-    worldSpace: isBooleanValue(normalizedPart.worldSpace)
-      ? normalizedPart.worldSpace
+    worldSpace: isBooleanValue(worldSpaceValue)
+      ? worldSpaceValue
       : false,
   };
 };
@@ -690,13 +737,14 @@ export const createBlockConditionalPart = (
 export const createBlockDynamicPattern = (
   pattern: BlockDynamicPatternInput | null = {}
 ): BlockDynamicPattern => {
-  const normalizedPattern: BlockDynamicPatternInput = isPlainObjectValue(pattern)
+  const normalizedPattern: Record<string, DynamicValue> = isPlainObjectValue(pattern)
     ? pattern
     : {};
-  const parts = Array.isArray(normalizedPattern.parts)
-    ? normalizedPattern.parts.reduce<BlockConditionalPart[]>((clonedParts, part) => {
+  const partsValue = readObjectEntry(normalizedPattern, "parts");
+  const parts = Array.isArray(partsValue)
+    ? partsValue.reduce<BlockConditionalPart[]>((clonedParts, part) => {
         if (isPlainObjectValue(part)) {
-          clonedParts.push(createBlockConditionalPart(part));
+          clonedParts.push(createBlockConditionalPart(part as BlockConditionalPartInput));
         }
 
         return clonedParts;

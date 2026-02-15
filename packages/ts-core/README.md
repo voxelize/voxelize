@@ -95,6 +95,8 @@ const voxel = Voxel.pack({
     transparency inputs (including `null`/non-array values) fall back to
     `false` defaults
   - malformed `worldSpace` values fall back to `false`
+  - prototype/getter-trap failures in malformed helper inputs sanitize to
+    deterministic defaults instead of throwing
 - `createBlockRule`
   - clones and sanitizes rule definitions with deterministic `none` fallbacks
   - only plain-object rule nodes are interpreted; non-plain objects normalize
@@ -137,6 +139,7 @@ const voxel = Voxel.pack({
 - `createFaceTransparency`
   - builds normalized 6-face transparency tuples from
     optional/null/partial/readonly/frozen boolean arrays
+  - malformed index accessors sanitize to `false` defaults instead of throwing
   - ignores extra entries beyond the six face slots
 - `VoxelAccess`
   - interface contract for meshing/generation-style data access

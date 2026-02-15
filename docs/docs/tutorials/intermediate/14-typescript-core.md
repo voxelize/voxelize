@@ -68,8 +68,11 @@ Non-plain object part entries are also skipped during helper cloning.
 Malformed optional face fields fall back to default face values.
 Malformed rules fall back to `BLOCK_RULE_NONE`, and malformed transparency
 inputs (including `null`/non-array values) fall back to `false` defaults.
+Prototype/getter-trap failures in malformed helper inputs are sanitized to
+deterministic defaults instead of throwing.
 `createFaceTransparency` exposes this transparency normalization directly.
 Readonly/frozen transparency arrays are accepted during helper sanitization.
+Malformed transparency index accessors are sanitized to `false` defaults.
 Extra transparency entries beyond six face slots are ignored.
 `createBlockRule` normalizes `null` simple-rule optional fields (`id`,
 `rotation`, `stage`) to omitted constraints.

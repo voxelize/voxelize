@@ -9,6 +9,7 @@ import {
   type BlockFaceInit,
   type BlockRotationInput,
   type BlockRule,
+  type BlockRuleInput,
   BlockFace,
   BlockRotation,
   BlockRuleEvaluator,
@@ -946,6 +947,19 @@ describe("Type builders", () => {
     const partFromNull = createBlockConditionalPart(null);
     const partFromNumber = createBlockConditionalPart(42 as never);
     const partFromDate = createBlockConditionalPart(new Date() as never);
+    const partWithThrowingGetter = Object.create(null) as {
+      readonly rule: BlockRuleInput;
+    };
+    Object.defineProperty(partWithThrowingGetter, "rule", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("rule trap");
+      },
+    });
+    const partFromThrowingGetter = createBlockConditionalPart(
+      partWithThrowingGetter as never
+    );
     const partFromThrowingProxy = createBlockConditionalPart(
       new Proxy(
         {},
@@ -981,6 +995,14 @@ describe("Type builders", () => {
       worldSpace: false,
     });
     expect(partFromDate.rule).not.toBe(BLOCK_RULE_NONE);
+    expect(partFromThrowingGetter).toEqual({
+      rule: BLOCK_RULE_NONE,
+      faces: [],
+      aabbs: [],
+      isTransparent: [false, false, false, false, false, false],
+      worldSpace: false,
+    });
+    expect(partFromThrowingGetter.rule).not.toBe(BLOCK_RULE_NONE);
     expect(partFromThrowingProxy).toEqual({
       rule: BLOCK_RULE_NONE,
       faces: [],
@@ -1153,6 +1175,28 @@ describe("Type builders", () => {
       false,
     ]);
     expect(createdTransparency).not.toBe(frozenTransparency);
+  });
+
+  it("sanitizes transparency arrays with throwing index accessors", () => {
+    const throwingTransparency = [true, false, true, false, true, false] as (
+      boolean | undefined
+    )[];
+    Object.defineProperty(throwingTransparency, "0", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("index trap");
+      },
+    });
+
+    expect(createFaceTransparency(throwingTransparency as never)).toEqual([
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+    ]);
   });
 
   it("clones transparency helper outputs in conditional parts", () => {
@@ -1854,6 +1898,21 @@ describe("Type builders", () => {
     expect(throwingProxyRule).toEqual(BLOCK_RULE_NONE);
   });
 
+  it("sanitizes getter-trap createBlockRule inputs to none rules", () => {
+    const ruleWithThrowingType = Object.create(null) as {
+      readonly type: string;
+    };
+    Object.defineProperty(ruleWithThrowingType, "type", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("type trap");
+      },
+    });
+
+    expect(createBlockRule(ruleWithThrowingType as never)).toEqual(BLOCK_RULE_NONE);
+  });
+
   it("sanitizes cyclic createBlockRule inputs without throwing", () => {
     type CyclicCombinationRule = {
       type: "combination";
@@ -2261,9 +2320,23 @@ describe("Type builders", () => {
   it("builds dynamic patterns with deterministic defaults for non-object inputs", () => {
     const patternFromNull = createBlockDynamicPattern(null);
     const patternFromNumber = createBlockDynamicPattern(42 as never);
+    const patternWithThrowingParts = Object.create(null) as {
+      readonly parts: BlockConditionalPartInput[];
+    };
+    Object.defineProperty(patternWithThrowingParts, "parts", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("parts trap");
+      },
+    });
+    const patternFromThrowingParts = createBlockDynamicPattern(
+      patternWithThrowingParts as never
+    );
 
     expect(patternFromNull.parts).toEqual([]);
     expect(patternFromNumber.parts).toEqual([]);
+    expect(patternFromThrowingParts.parts).toEqual([]);
   });
 
   it("accepts null-prototype dynamic pattern inputs", () => {
@@ -2737,6 +2810,23 @@ describe("Type builders", () => {
     );
   });
 
+  it("falls back to default when createBlockFace receives getter-trap init objects", () => {
+    const faceWithThrowingName = Object.create(null) as {
+      readonly name: string;
+    };
+    Object.defineProperty(faceWithThrowingName, "name", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("name trap");
+      },
+    });
+
+    expect(createBlockFace(faceWithThrowingName as never)).toEqual(
+      new BlockFace({ name: "Face" })
+    );
+  });
+
   it("builds deterministic default faces for malformed createBlockFace input", () => {
     const defaultFace = createBlockFace();
     const nullFace = createBlockFace(null);
@@ -2868,12 +2958,53 @@ describe("Type builders", () => {
         },
       }
     );
+    const aabbWithThrowingMinX = Object.create(null) as {
+      readonly minX: number;
+      readonly minY: number;
+      readonly minZ: number;
+      readonly maxX: number;
+      readonly maxY: number;
+      readonly maxZ: number;
+    };
+    Object.defineProperty(aabbWithThrowingMinX, "minX", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("minX trap");
+      },
+    });
+    Object.defineProperty(aabbWithThrowingMinX, "minY", {
+      configurable: true,
+      enumerable: true,
+      value: 0,
+    });
+    Object.defineProperty(aabbWithThrowingMinX, "minZ", {
+      configurable: true,
+      enumerable: true,
+      value: 0,
+    });
+    Object.defineProperty(aabbWithThrowingMinX, "maxX", {
+      configurable: true,
+      enumerable: true,
+      value: 1,
+    });
+    Object.defineProperty(aabbWithThrowingMinX, "maxY", {
+      configurable: true,
+      enumerable: true,
+      value: 1,
+    });
+    Object.defineProperty(aabbWithThrowingMinX, "maxZ", {
+      configurable: true,
+      enumerable: true,
+      value: 1,
+    });
 
     expect(createAABB()).toEqual(AABB.empty());
     expect(createAABB(null)).toEqual(AABB.empty());
     expect(createAABB(new AabbLike() as never)).toEqual(AABB.empty());
     expect(createAABB(malformedAabbInstance)).toEqual(AABB.empty());
     expect(createAABB(throwingPrototypeProxy as never)).toEqual(AABB.empty());
+    expect(createAABB(aabbWithThrowingMinX as never)).toEqual(AABB.empty());
     expect(
       createAABB({
         minX: 0,
