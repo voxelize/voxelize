@@ -1,4 +1,4 @@
-use hashbrown::{HashMap, HashSet};
+use hashbrown::{hash_map::EntryRef, Equivalent, HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 
 use voxelize_core::{
@@ -757,6 +757,52 @@ enum GeometryMapKey {
     Isolated(u32, String, i32, i32, i32),
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+enum GeometryMapLookup<'a> {
+    Block(u32),
+    Face(u32, &'a str),
+    Isolated(u32, &'a str, i32, i32, i32),
+}
+
+impl Equivalent<GeometryMapKey> for GeometryMapLookup<'_> {
+    fn equivalent(&self, key: &GeometryMapKey) -> bool {
+        match (self, key) {
+            (GeometryMapLookup::Block(block_id), GeometryMapKey::Block(key_block_id)) => {
+                block_id == key_block_id
+            }
+            (
+                GeometryMapLookup::Face(block_id, face_name),
+                GeometryMapKey::Face(key_block_id, key_face_name),
+            ) => block_id == key_block_id && *face_name == key_face_name.as_str(),
+            (
+                GeometryMapLookup::Isolated(block_id, face_name, x, y, z),
+                GeometryMapKey::Isolated(key_block_id, key_face_name, key_x, key_y, key_z),
+            ) => {
+                block_id == key_block_id
+                    && *face_name == key_face_name.as_str()
+                    && x == key_x
+                    && y == key_y
+                    && z == key_z
+            }
+            _ => false,
+        }
+    }
+}
+
+impl From<&GeometryMapLookup<'_>> for GeometryMapKey {
+    fn from(lookup: &GeometryMapLookup<'_>) -> Self {
+        match lookup {
+            GeometryMapLookup::Block(block_id) => GeometryMapKey::Block(*block_id),
+            GeometryMapLookup::Face(block_id, face_name) => {
+                GeometryMapKey::Face(*block_id, (*face_name).to_owned())
+            }
+            GeometryMapLookup::Isolated(block_id, face_name, x, y, z) => {
+                GeometryMapKey::Isolated(*block_id, (*face_name).to_owned(), *x, *y, *z)
+            }
+        }
+    }
+}
+
 #[inline]
 fn estimate_geometry_capacity(min: &[i32; 3], max: &[i32; 3]) -> usize {
     let dx = (max[0] - min[0]).max(0) as usize;
@@ -1478,6 +1524,32 @@ fn face_name_owned(face: &BlockFace) -> String {
         face.name.clone()
     } else {
         face.name_lower.clone()
+    }
+}
+
+#[inline(always)]
+fn face_name_ref(face: &BlockFace) -> &str {
+    if face.name_lower.is_empty() {
+        face.name.as_str()
+    } else {
+        face.name_lower.as_str()
+    }
+}
+
+#[inline(always)]
+fn geometry_lookup_for_face<'a>(
+    block: &Block,
+    face: &'a BlockFace,
+    vx: i32,
+    vy: i32,
+    vz: i32,
+) -> GeometryMapLookup<'a> {
+    if face.isolated {
+        GeometryMapLookup::Isolated(block.id, face_name_ref(face), vx, vy, vz)
+    } else if face.independent {
+        GeometryMapLookup::Face(block.id, face_name_ref(face))
+    } else {
+        GeometryMapLookup::Block(block.id)
     }
 }
 
@@ -3568,21 +3640,23 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         None => continue,
                     }
                 };
-                let geo_key = geometry_key_for_face(block, face, vx, vy, vz);
-
-                let geometry = map.entry(geo_key).or_insert_with(|| {
-                    let face_name = if face.independent || face.isolated {
-                        Some(face.name.clone())
-                    } else {
-                        None
-                    };
-                    let at = if face.isolated {
-                        Some([vx, vy, vz])
-                    } else {
-                        None
-                    };
-                    new_geometry_protocol(voxel_id, face_name, at)
-                });
+                let geometry_lookup = geometry_lookup_for_face(block, face, vx, vy, vz);
+                let geometry = match map.entry_ref(&geometry_lookup) {
+                    EntryRef::Occupied(entry) => entry.into_mut(),
+                    EntryRef::Vacant(entry) => {
+                        let face_name = if face.independent || face.isolated {
+                            Some(face_name_owned(face))
+                        } else {
+                            None
+                        };
+                        let at = if face.isolated {
+                            Some([vx, vy, vz])
+                        } else {
+                            None
+                        };
+                        entry.insert(new_geometry_protocol(voxel_id, face_name, at))
+                    }
+                };
 
                 let is_see_through = block.is_see_through;
                 let is_fluid = block.is_fluid;
