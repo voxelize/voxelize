@@ -226,7 +226,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                         &ChunkOptions {
                             max_height: config.max_height,
                             sub_chunks: config.sub_chunks,
-                            size: config.chunk_size,
+                            size: chunk_size,
                         },
                     );
 
