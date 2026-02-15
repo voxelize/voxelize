@@ -52,27 +52,18 @@ fn filter_key(filter: &ClientFilter) -> String {
 }
 
 fn can_batch(msg_type: i32) -> bool {
-    matches!(
-        MessageType::try_from(msg_type),
-        Ok(MessageType::Peer)
-            | Ok(MessageType::Entity)
-            | Ok(MessageType::Update)
-            | Ok(MessageType::Event)
-    )
+    msg_type == MessageType::Peer as i32
+        || msg_type == MessageType::Entity as i32
+        || msg_type == MessageType::Update as i32
+        || msg_type == MessageType::Event as i32
 }
 
 fn is_immediate(msg_type: i32) -> bool {
-    matches!(
-        MessageType::try_from(msg_type),
-        Ok(MessageType::Chat) | Ok(MessageType::Method)
-    )
+    msg_type == MessageType::Chat as i32 || msg_type == MessageType::Method as i32
 }
 
 fn should_send_to_transport(msg_type: i32) -> bool {
-    matches!(
-        MessageType::try_from(msg_type),
-        Ok(MessageType::Entity) | Ok(MessageType::Peer)
-    )
+    msg_type == MessageType::Entity as i32 || msg_type == MessageType::Peer as i32
 }
 
 fn merge_messages(base: &mut Message, other: Message) {
