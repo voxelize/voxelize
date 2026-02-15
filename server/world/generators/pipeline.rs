@@ -418,7 +418,7 @@ impl Pipeline {
                 );
                 chunk.calculate_max_height(&registry);
                 let changes = std::mem::take(&mut chunk.extra_changes);
-                sender.send((chunk, changes)).unwrap();
+                let _ = sender.send((chunk, changes));
             });
             return;
         }
@@ -441,7 +441,7 @@ impl Pipeline {
 
                     let changes = std::mem::take(&mut chunk.extra_changes);
 
-                    sender.send((chunk, changes)).unwrap();
+                    let _ = sender.send((chunk, changes));
                 });
         });
     }
