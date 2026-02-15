@@ -217,6 +217,26 @@ impl<'a> System<'a> for EventsSystem {
                 }
                 continue;
             }
+            if location.is_none() && matches!(filter.as_ref(), None | Some(ClientFilter::All)) {
+                let mut client_ids = clients.keys();
+                if let Some(first_client_id) = client_ids.next() {
+                    for client_id in client_ids {
+                        push_dispatch_event(
+                            dispatch_map,
+                            touched_clients,
+                            client_id.as_str(),
+                            serialized.clone(),
+                        );
+                    }
+                    push_dispatch_event(
+                        dispatch_map,
+                        touched_clients,
+                        first_client_id.as_str(),
+                        serialized,
+                    );
+                }
+                continue;
+            }
 
             // Checks if location is required, otherwise just sends.
             let mut send_to_client = |id: &str, entity: Entity| {
