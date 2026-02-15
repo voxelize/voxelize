@@ -2337,6 +2337,14 @@ describe("report-utils", () => {
       }
     );
     expect(unknownWithTerminator).toEqual([]);
+    const unknownWithMalformedOptionArgsOverride = parseUnknownCliOptions(
+      ["--mystery"],
+      {
+        canonicalOptions: ["--json"],
+        optionArgs: "--json" as never,
+      }
+    );
+    expect(unknownWithMalformedOptionArgsOverride).toEqual(["--mystery"]);
 
     const unknownWithInlineMisuseAfterTerminator = parseUnknownCliOptions(
       ["--json", "--", "--json=1", "--verify=2", "--=secret", "--mystery=alpha"],
@@ -3754,6 +3762,27 @@ describe("report-utils", () => {
       "Unsupported option(s): --mystery. Supported options: --json, --output."
     );
     expect(unsupportedOnly.validationErrorCode).toBe("unsupported_options");
+    const malformedOptionArgsValidation = createCliOptionValidation(
+      ["--mystery"],
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        optionArgs: "--json" as never,
+      }
+    );
+    expect(malformedOptionArgsValidation.supportedCliOptions).toEqual([
+      "--json",
+      "--output",
+    ]);
+    expect(malformedOptionArgsValidation.supportedCliOptionCount).toBe(2);
+    expect(malformedOptionArgsValidation.unknownOptions).toEqual(["--mystery"]);
+    expect(malformedOptionArgsValidation.unknownOptionCount).toBe(1);
+    expect(malformedOptionArgsValidation.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
+    expect(malformedOptionArgsValidation.validationErrorCode).toBe(
+      "unsupported_options"
+    );
 
     const unsupportedInlineUnknownOption = createCliOptionValidation(
       ["--json", "--mystery=alpha", "--mystery=beta"],
@@ -11377,6 +11406,43 @@ describe("report-utils", () => {
       },
     ]);
     expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(5);
+    const activeMetadataWithMalformedOptionArgsOverride =
+      parseActiveCliOptionMetadata(["--json"], {
+        canonicalOptions: ["--json", "--output"],
+        optionArgs: "--output" as never,
+      });
+    expect(activeMetadataWithMalformedOptionArgsOverride.activeCliOptions).toEqual([
+      "--json",
+    ]);
+    expect(activeMetadataWithMalformedOptionArgsOverride.activeCliOptionCount).toBe(
+      1
+    );
+    expect(
+      activeMetadataWithMalformedOptionArgsOverride.activeCliOptionTokens
+    ).toEqual(["--json"]);
+    expect(
+      activeMetadataWithMalformedOptionArgsOverride.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(
+      activeMetadataWithMalformedOptionArgsOverride.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      activeMetadataWithMalformedOptionArgsOverride.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+    ]);
+    expect(
+      activeMetadataWithMalformedOptionArgsOverride.activeCliOptionOccurrenceCount
+    ).toBe(1);
 
     const iteratorTrapArgs = ["--json", "--output", "./report.json"];
     Object.defineProperty(iteratorTrapArgs, Symbol.iterator, {

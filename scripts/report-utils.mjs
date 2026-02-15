@@ -1945,7 +1945,7 @@ export const parseUnknownCliOptions = (
   } = {}
 ) => {
   const optionArgs =
-    normalizedOptionArgs === null
+    normalizedOptionArgs === null || !Array.isArray(normalizedOptionArgs)
       ? splitCliArgs(args).optionArgs
       : toStringArrayOrEmpty(normalizedOptionArgs);
   const canonicalOptionMap = createCanonicalOptionMap(
@@ -2111,7 +2111,7 @@ export const parseActiveCliOptionMetadata = (
   } = {}
 ) => {
   const optionArgs =
-    normalizedOptionArgs === null
+    normalizedOptionArgs === null || !Array.isArray(normalizedOptionArgs)
       ? splitCliArgs(args).optionArgs
       : toStringArrayOrEmpty(normalizedOptionArgs);
   const normalizedCanonicalOptions = normalizeCliOptionTokenList(canonicalOptions);
