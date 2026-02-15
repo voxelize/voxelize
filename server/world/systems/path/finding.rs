@@ -54,14 +54,10 @@ impl<'a> System<'a> for PathFindingSystem {
         };
 
         // Returns whether or not a block can be stepped on
-        let walkable = |vx: i32, vy: i32, vz: i32, h: f32| {
+        let walkable = |vx: i32, vy: i32, vz: i32, height_steps: i32| {
             if get_is_voxel_passable(vx, vy, vz) {
                 return false;
             }
-
-            let Some(height_steps) = clamped_height_scan_steps(h) else {
-                return false;
-            };
             for i in 1..=height_steps {
                 let Some(check_y) = vy.checked_add(i) else {
                     return false;
@@ -171,6 +167,10 @@ impl<'a> System<'a> for PathFindingSystem {
                     let body_vpos = body.0.get_voxel_position();
 
                     let height = body.0.aabb.height();
+                    let Some(height_steps) = clamped_height_scan_steps(height) else {
+                        entity_path.path = None;
+                        return;
+                    };
                     let max_distance_allowed = entity_path.max_distance;
                     if !max_distance_allowed.is_finite() || max_distance_allowed < 0.0 {
                         entity_path.path = None;
@@ -259,86 +259,86 @@ impl<'a> System<'a> for PathFindingSystem {
                             let mut successors = Vec::with_capacity(12);
 
                             // emptiness
-                            let py = !walkable(vx, vy + 1, vz, height);
-                            let px = !walkable(vx + 1, vy, vz, height);
-                            let pz = !walkable(vx, vy, vz + 1, height);
-                            let nx = !walkable(vx - 1, vy, vz, height);
-                            let nz = !walkable(vx, vy, vz - 1, height);
-                            let pxpy = !walkable(vx + 1, vy + 1, vz, height);
-                            let pzpy = !walkable(vx, vy + 1, vz + 1, height);
-                            let nxpy = !walkable(vx - 1, vy + 1, vz, height);
-                            let nzpy = !walkable(vx, vy + 1, vz - 1, height);
+                            let py = !walkable(vx, vy + 1, vz, height_steps);
+                            let px = !walkable(vx + 1, vy, vz, height_steps);
+                            let pz = !walkable(vx, vy, vz + 1, height_steps);
+                            let nx = !walkable(vx - 1, vy, vz, height_steps);
+                            let nz = !walkable(vx, vy, vz - 1, height_steps);
+                            let pxpy = !walkable(vx + 1, vy + 1, vz, height_steps);
+                            let pzpy = !walkable(vx, vy + 1, vz + 1, height_steps);
+                            let nxpy = !walkable(vx - 1, vy + 1, vz, height_steps);
+                            let nzpy = !walkable(vx, vy + 1, vz - 1, height_steps);
 
                             // +X direction
-                            if walkable(vx + 1, vy - 1, vz, height) {
+                            if walkable(vx + 1, vy - 1, vz, height_steps) {
                                 let mut cost = 1;
                                 if has_wall_nearby(vx + 1, vy, vz) {
                                     cost += 1;
                                 }
                                 successors.push((PathNode(vx + 1, vy, vz), cost));
-                            } else if walkable(vx + 1, vy, vz, height) && py {
+                            } else if walkable(vx + 1, vy, vz, height_steps) && py {
                                 let mut cost = 2;
                                 if has_wall_nearby(vx + 1, vy + 1, vz) {
                                     cost += 1;
                                 }
                                 successors.push((PathNode(vx + 1, vy + 1, vz), cost));
-                            } else if walkable(vx + 1, vy - 2, vz, height) && px {
+                            } else if walkable(vx + 1, vy - 2, vz, height_steps) && px {
                                 successors.push((PathNode(vx + 1, vy - 1, vz), 2));
                             }
 
                             // -X direction
-                            if walkable(vx - 1, vy - 1, vz, height) {
+                            if walkable(vx - 1, vy - 1, vz, height_steps) {
                                 let mut cost = 1;
                                 if has_wall_nearby(vx - 1, vy, vz) {
                                     cost += 1;
                                 }
                                 successors.push((PathNode(vx - 1, vy, vz), cost));
-                            } else if walkable(vx - 1, vy, vz, height) && py {
+                            } else if walkable(vx - 1, vy, vz, height_steps) && py {
                                 let mut cost = 2;
                                 if has_wall_nearby(vx - 1, vy + 1, vz) {
                                     cost += 1;
                                 }
                                 successors.push((PathNode(vx - 1, vy + 1, vz), cost));
-                            } else if walkable(vx - 1, vy - 2, vz, height) && nx {
+                            } else if walkable(vx - 1, vy - 2, vz, height_steps) && nx {
                                 successors.push((PathNode(vx - 1, vy - 1, vz), 2));
                             }
 
                             // +Z direction
-                            if walkable(vx, vy - 1, vz + 1, height) {
+                            if walkable(vx, vy - 1, vz + 1, height_steps) {
                                 let mut cost = 1;
                                 if has_wall_nearby(vx, vy, vz + 1) {
                                     cost += 1;
                                 }
                                 successors.push((PathNode(vx, vy, vz + 1), cost));
-                            } else if walkable(vx, vy, vz + 1, height) && py {
+                            } else if walkable(vx, vy, vz + 1, height_steps) && py {
                                 let mut cost = 2;
                                 if has_wall_nearby(vx, vy + 1, vz + 1) {
                                     cost += 1;
                                 }
                                 successors.push((PathNode(vx, vy + 1, vz + 1), cost));
-                            } else if walkable(vx, vy - 2, vz + 1, height) && pz {
+                            } else if walkable(vx, vy - 2, vz + 1, height_steps) && pz {
                                 successors.push((PathNode(vx, vy - 1, vz + 1), 2));
                             }
 
                             // -Z direction
-                            if walkable(vx, vy - 1, vz - 1, height) {
+                            if walkable(vx, vy - 1, vz - 1, height_steps) {
                                 let mut cost = 1;
                                 if has_wall_nearby(vx, vy, vz - 1) {
                                     cost += 1;
                                 }
                                 successors.push((PathNode(vx, vy, vz - 1), cost));
-                            } else if walkable(vx, vy, vz - 1, height) && py {
+                            } else if walkable(vx, vy, vz - 1, height_steps) && py {
                                 let mut cost = 2;
                                 if has_wall_nearby(vx, vy + 1, vz - 1) {
                                     cost += 1;
                                 }
                                 successors.push((PathNode(vx, vy + 1, vz - 1), cost));
-                            } else if walkable(vx, vy - 2, vz - 1, height) && nz {
+                            } else if walkable(vx, vy - 2, vz - 1, height_steps) && nz {
                                 successors.push((PathNode(vx, vy - 1, vz - 1), 2));
                             }
 
                             // +X+Z direction
-                            if walkable(vx + 1, vy - 1, vz + 1, height)
+                            if walkable(vx + 1, vy - 1, vz + 1, height_steps)
                                 && px
                                 && pz
                                 && get_is_voxel_passable(vx + 1, vy, vz)
@@ -349,14 +349,18 @@ impl<'a> System<'a> for PathFindingSystem {
                                     cost += 1;
                                 }
                                 successors.push((PathNode(vx + 1, vy, vz + 1), cost));
-                            } else if walkable(vx + 1, vy, vz + 1, height) && py && pxpy && pzpy {
+                            } else if walkable(vx + 1, vy, vz + 1, height_steps)
+                                && py
+                                && pxpy
+                                && pzpy
+                            {
                                 successors.push((PathNode(vx + 1, vy + 1, vz + 1), 3));
-                            } else if walkable(vx + 1, vy - 2, vz + 1, height) && px && pz {
+                            } else if walkable(vx + 1, vy - 2, vz + 1, height_steps) && px && pz {
                                 successors.push((PathNode(vx + 1, vy - 1, vz + 1), 3));
                             }
 
                             // +X-Z direction
-                            if walkable(vx + 1, vy - 1, vz - 1, height)
+                            if walkable(vx + 1, vy - 1, vz - 1, height_steps)
                                 && px
                                 && nz
                                 && get_is_voxel_passable(vx + 1, vy, vz)
@@ -367,14 +371,18 @@ impl<'a> System<'a> for PathFindingSystem {
                                     cost += 1;
                                 }
                                 successors.push((PathNode(vx + 1, vy, vz - 1), cost));
-                            } else if walkable(vx + 1, vy, vz - 1, height) && py && pxpy && nzpy {
+                            } else if walkable(vx + 1, vy, vz - 1, height_steps)
+                                && py
+                                && pxpy
+                                && nzpy
+                            {
                                 successors.push((PathNode(vx + 1, vy + 1, vz - 1), 3));
-                            } else if walkable(vx + 1, vy - 2, vz - 1, height) && px && nz {
+                            } else if walkable(vx + 1, vy - 2, vz - 1, height_steps) && px && nz {
                                 successors.push((PathNode(vx + 1, vy - 1, vz - 1), 3));
                             }
 
                             // -X+Z direction
-                            if walkable(vx - 1, vy - 1, vz + 1, height)
+                            if walkable(vx - 1, vy - 1, vz + 1, height_steps)
                                 && nx
                                 && pz
                                 && get_is_voxel_passable(vx - 1, vy, vz)
@@ -385,14 +393,18 @@ impl<'a> System<'a> for PathFindingSystem {
                                     cost += 1;
                                 }
                                 successors.push((PathNode(vx - 1, vy, vz + 1), cost));
-                            } else if walkable(vx - 1, vy, vz + 1, height) && py && nxpy && pzpy {
+                            } else if walkable(vx - 1, vy, vz + 1, height_steps)
+                                && py
+                                && nxpy
+                                && pzpy
+                            {
                                 successors.push((PathNode(vx - 1, vy + 1, vz + 1), 3));
-                            } else if walkable(vx - 1, vy - 2, vz + 1, height) && nx && pz {
+                            } else if walkable(vx - 1, vy - 2, vz + 1, height_steps) && nx && pz {
                                 successors.push((PathNode(vx - 1, vy - 1, vz + 1), 3));
                             }
 
                             // -X-Z direction
-                            if walkable(vx - 1, vy - 1, vz - 1, height)
+                            if walkable(vx - 1, vy - 1, vz - 1, height_steps)
                                 && nx
                                 && nz
                                 && get_is_voxel_passable(vx - 1, vy, vz)
@@ -403,9 +415,13 @@ impl<'a> System<'a> for PathFindingSystem {
                                     cost += 1;
                                 }
                                 successors.push((PathNode(vx - 1, vy, vz - 1), cost));
-                            } else if walkable(vx - 1, vy, vz - 1, height) && py && nxpy && nzpy {
+                            } else if walkable(vx - 1, vy, vz - 1, height_steps)
+                                && py
+                                && nxpy
+                                && nzpy
+                            {
                                 successors.push((PathNode(vx - 1, vy + 1, vz - 1), 3));
-                            } else if walkable(vx - 1, vy - 2, vz - 1, height) && nx && nz {
+                            } else if walkable(vx - 1, vy - 2, vz - 1, height_steps) && nx && nz {
                                 successors.push((PathNode(vx - 1, vy - 1, vz - 1), 3));
                             }
 
