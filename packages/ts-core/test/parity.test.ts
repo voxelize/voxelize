@@ -4691,6 +4691,58 @@ describe("BlockRuleEvaluator", () => {
     ).toBe(true);
   });
 
+  it("merges non-empty prefix and key-fallback rule recoveries", () => {
+    let zeroReadCount = 0;
+    const sparseRules: BlockRule[] = [];
+    sparseRules[0] = {
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 52,
+    };
+    sparseRules[5_000] = {
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 53,
+    };
+    const trappedRules = new Proxy(sparseRules, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (propertyKey === "0") {
+          zeroReadCount += 1;
+          if (zeroReadCount > 1) {
+            throw new Error("read trap");
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const access = {
+      getVoxel: (x: number, y: number, z: number) =>
+        x === 0 && y === 0 && z === 0 ? 53 : 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.Or,
+          rules: trappedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(true);
+  });
+
   it("skips sparse hole placeholders during combination length fallback", () => {
     const sparseRules: BlockRule[] = [];
     sparseRules[1] = {

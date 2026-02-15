@@ -108,6 +108,9 @@ const voxel = Voxel.pack({
   - when bounded length recovery preserves some readable prefix rules but does
     not fill the scan window, key-scan recovery can still supplement readable
     high-index rules
+  - if key-fallback recovery omits readable prefix rules (for example due
+    stateful low-index read traps), bounded-prefix and key-fallback recoveries
+    are merged before evaluation with equivalent sanitized rules de-duplicated
   - throwing bounded direct reads are skipped during fallback scans so key
     recovery can still salvage readable high-index rules
   - throwing key-fallback reads are skipped so malformed low-index entries do

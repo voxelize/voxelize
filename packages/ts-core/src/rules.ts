@@ -340,6 +340,42 @@ const toRuleEntriesFromKeyFallback = (value: RuleOptionValue): BlockRule[] => {
   return recoveredRules;
 };
 
+const toRuleEntryFallbackSignature = (rule: BlockRule): string => {
+  try {
+    return JSON.stringify(rule);
+  } catch {
+    return rule.type;
+  }
+};
+
+const mergeDistinctRuleEntries = (
+  primaryEntries: BlockRule[],
+  supplementalEntries: BlockRule[]
+): BlockRule[] => {
+  const mergedEntries: BlockRule[] = [];
+  const seenSignatures = new Set<string>();
+
+  const pushDistinctEntry = (entry: BlockRule): void => {
+    const signature = toRuleEntryFallbackSignature(entry);
+    if (seenSignatures.has(signature)) {
+      return;
+    }
+
+    seenSignatures.add(signature);
+    mergedEntries.push(entry);
+  };
+
+  for (const entry of primaryEntries) {
+    pushDistinctEntry(entry);
+  }
+
+  for (const entry of supplementalEntries) {
+    pushDistinctEntry(entry);
+  }
+
+  return mergedEntries;
+};
+
 const toRuleEntriesOrEmpty = (
   rule: Extract<BlockRule, { type: "combination" }>
 ): BlockRule[] => {
@@ -369,11 +405,8 @@ const toRuleEntriesOrEmpty = (
 
     const keyFallbackRules = toRuleEntriesFromKeyFallback(rawRules);
     if (keyFallbackRules.length > 0) {
-      if (
-        hasNonNoneLengthFallbackRule &&
-        keyFallbackRules.length <= lengthFallbackRules.length
-      ) {
-        return lengthFallbackRules;
+      if (hasNonNoneLengthFallbackRule) {
+        return mergeDistinctRuleEntries(lengthFallbackRules, keyFallbackRules);
       }
 
       return keyFallbackRules;
