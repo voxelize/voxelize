@@ -3,6 +3,16 @@ const MAX_FRAGMENT_COUNT = 4096;
 const MAX_PENDING_MESSAGES = 64;
 const FRAGMENT_MARKER = 0xff;
 const LEGACY_FRAGMENT_MARKER = 0x01;
+
+const readUint32LE = (bytes: Uint8Array, offset: number): number => {
+  return (
+    bytes[offset] |
+    (bytes[offset + 1] << 8) |
+    (bytes[offset + 2] << 16) |
+    (bytes[offset + 3] << 24)
+  ) >>> 0;
+};
+
 const toHttpProtocol = (protocol: string) => {
   if (protocol.startsWith("wss")) {
     return "https:";
@@ -98,13 +108,12 @@ export class WebRTCConnection {
   }
 
   private handleMessage(data: ArrayBuffer): void {
-    const view = new DataView(data);
-
     if (data.byteLength < 1) {
       return;
     }
 
-    const marker = view.getUint8(0);
+    const bytes = new Uint8Array(data);
+    const marker = bytes[0];
     const isFragment = marker === FRAGMENT_MARKER;
     const isLegacyFragment = marker === LEGACY_FRAGMENT_MARKER;
 
@@ -120,9 +129,9 @@ export class WebRTCConnection {
       return;
     }
 
-    const total = view.getUint32(1, true);
-    const index = view.getUint32(5, true);
-    const payload = new Uint8Array(data, FRAGMENT_HEADER_SIZE);
+    const total = readUint32LE(bytes, 1);
+    const index = readUint32LE(bytes, 5);
+    const payload = bytes.subarray(FRAGMENT_HEADER_SIZE);
     if (total === 0 || total > MAX_FRAGMENT_COUNT || index >= total) {
       if (isLegacyFragment) {
         this.onMessage?.(data);
