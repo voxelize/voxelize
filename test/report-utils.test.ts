@@ -2345,6 +2345,14 @@ describe("report-utils", () => {
       }
     );
     expect(unknownWithMalformedOptionArgsOverride).toEqual(["--mystery"]);
+    const unknownWithMalformedArrayOptionArgsOverride = parseUnknownCliOptions(
+      ["--mystery"],
+      {
+        canonicalOptions: ["--json"],
+        optionArgs: createFullyTrappedStringArray(["--json"]) as never,
+      }
+    );
+    expect(unknownWithMalformedArrayOptionArgsOverride).toEqual(["--mystery"]);
 
     const unknownWithInlineMisuseAfterTerminator = parseUnknownCliOptions(
       ["--json", "--", "--json=1", "--verify=2", "--=secret", "--mystery=alpha"],
@@ -3781,6 +3789,29 @@ describe("report-utils", () => {
       "Unsupported option(s): --mystery. Supported options: --json, --output."
     );
     expect(malformedOptionArgsValidation.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    const malformedArrayOptionArgsValidation = createCliOptionValidation(
+      ["--mystery"],
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        optionArgs: createFullyTrappedStringArray(["--json"]) as never,
+      }
+    );
+    expect(malformedArrayOptionArgsValidation.supportedCliOptions).toEqual([
+      "--json",
+      "--output",
+    ]);
+    expect(malformedArrayOptionArgsValidation.supportedCliOptionCount).toBe(2);
+    expect(malformedArrayOptionArgsValidation.unknownOptions).toEqual([
+      "--mystery",
+    ]);
+    expect(malformedArrayOptionArgsValidation.unknownOptionCount).toBe(1);
+    expect(malformedArrayOptionArgsValidation.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
+    expect(malformedArrayOptionArgsValidation.validationErrorCode).toBe(
       "unsupported_options"
     );
 
@@ -11540,6 +11571,43 @@ describe("report-utils", () => {
     ]);
     expect(
       activeMetadataWithMalformedOptionArgsOverride.activeCliOptionOccurrenceCount
+    ).toBe(1);
+    const activeMetadataWithMalformedArrayOptionArgsOverride =
+      parseActiveCliOptionMetadata(["--json"], {
+        canonicalOptions: ["--json", "--output"],
+        optionArgs: createFullyTrappedStringArray(["--output"]) as never,
+      });
+    expect(
+      activeMetadataWithMalformedArrayOptionArgsOverride.activeCliOptions
+    ).toEqual(["--json"]);
+    expect(
+      activeMetadataWithMalformedArrayOptionArgsOverride.activeCliOptionCount
+    ).toBe(1);
+    expect(
+      activeMetadataWithMalformedArrayOptionArgsOverride.activeCliOptionTokens
+    ).toEqual(["--json"]);
+    expect(
+      activeMetadataWithMalformedArrayOptionArgsOverride.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(
+      activeMetadataWithMalformedArrayOptionArgsOverride.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      activeMetadataWithMalformedArrayOptionArgsOverride.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+    ]);
+    expect(
+      activeMetadataWithMalformedArrayOptionArgsOverride.activeCliOptionOccurrenceCount
     ).toBe(1);
 
     const iteratorTrapArgs = ["--json", "--output", "./report.json"];
