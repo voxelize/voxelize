@@ -1898,6 +1898,25 @@ describe("Type builders", () => {
     });
   });
 
+  it("accepts readonly rotation-like objects in rule sanitization", () => {
+    const part = createBlockConditionalPart({
+      rule: {
+        type: "simple",
+        offset: [0, 0, 0],
+        rotation: {
+          value: 0,
+          yRotation: Math.PI / 2,
+        } as const,
+      },
+    });
+
+    expect(part.rule).toEqual({
+      type: "simple",
+      offset: [0, 0, 0],
+      rotation: BlockRotation.py(Math.PI / 2),
+    });
+  });
+
   it("sanitizes malformed rotation-like values in rule sanitization", () => {
     const part = createBlockConditionalPart({
       rule: {

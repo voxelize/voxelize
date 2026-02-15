@@ -103,6 +103,7 @@ const voxel = Voxel.pack({
     (`id`: 0..65535, `stage`: 0..15)
   - keeps plain rotation-like values only when `value` is an encoded
     non-negative byte (`0..255`) and `yRotation` is finite
+  - accepts readonly rotation-like literals in helper input objects
   - normalizes `null` optional simple-rule fields (`id`/`rotation`/`stage`) to
     omitted constraints
 - `createBlockDynamicPattern`

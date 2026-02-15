@@ -141,8 +141,8 @@ export type BlockRule =
   | { type: "combination"; logic: BlockRuleLogic; rules: BlockRule[] };
 
 export interface BlockRotationInput {
-  value: number;
-  yRotation: number;
+  readonly value: number;
+  readonly yRotation: number;
 }
 
 export type BlockSimpleRuleInput = {
