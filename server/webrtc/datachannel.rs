@@ -32,6 +32,12 @@ pub fn fragment_message(data: &[u8]) -> Vec<Vec<u8>> {
         fragment.extend_from_slice(&(0u32).to_le_bytes());
         return vec![fragment];
     }
+    if data.len() <= MAX_PAYLOAD_SIZE {
+        let marker = data[0];
+        if marker != FRAGMENT_MARKER && marker != LEGACY_FRAGMENT_MARKER {
+            return vec![data.to_vec()];
+        }
+    }
 
     let total_fragments = data.len().div_ceil(MAX_PAYLOAD_SIZE).max(1);
     let mut fragments = Vec::with_capacity(total_fragments);
@@ -198,8 +204,15 @@ mod tests {
     }
 
     #[test]
-    fn fragment_message_frames_single_payload_with_header() {
+    fn fragment_message_returns_raw_payload_for_small_non_marker_messages() {
         let payload = vec![9u8, 8, 7, 6];
+        let fragments = fragment_message(&payload);
+        assert_eq!(fragments, vec![payload]);
+    }
+
+    #[test]
+    fn fragment_message_frames_small_payload_when_marker_collides() {
+        let payload = vec![FRAGMENT_MARKER, 8, 7, 6];
         let fragments = fragment_message(&payload);
         assert_eq!(fragments.len(), 1);
         let fragment = &fragments[0];
