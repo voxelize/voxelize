@@ -16,6 +16,16 @@ const captureSingleMessage = (connection: WebRTCConnection) => {
 };
 
 describe("WebRTCConnection fragment handling", () => {
+  it("passes through raw non-fragment payloads", () => {
+    const connection = new WebRTCConnection();
+    const received = captureSingleMessage(connection);
+    const raw = new Uint8Array([0x08, 0x96, 0x01]);
+
+    invokeHandleMessage(connection, raw);
+
+    expect(received).toEqual([raw]);
+  });
+
   it("decodes framed single-fragment payloads", () => {
     const connection = new WebRTCConnection();
     const received = captureSingleMessage(connection);
@@ -58,5 +68,24 @@ describe("WebRTCConnection fragment handling", () => {
     invokeHandleMessage(connection, frame);
 
     expect(received).toEqual([]);
+  });
+
+  it("passes through legacy marker payload when total is excessive", () => {
+    const connection = new WebRTCConnection();
+    const received = captureSingleMessage(connection);
+    const oversizedTotal = 4097;
+    const frame = new Uint8Array([
+      0x01,
+      oversizedTotal & 0xff,
+      (oversizedTotal >> 8) & 0xff,
+      (oversizedTotal >> 16) & 0xff,
+      (oversizedTotal >> 24) & 0xff,
+      0, 0, 0, 0,
+      1, 2, 3,
+    ]);
+
+    invokeHandleMessage(connection, frame);
+
+    expect(received).toEqual([frame]);
   });
 });
