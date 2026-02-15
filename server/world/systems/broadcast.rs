@@ -30,6 +30,20 @@ fn filter_key(filter: &ClientFilter) -> String {
                 key.push_str(&ids[0]);
                 return key;
             }
+            if ids.len() == 2 {
+                let (first, second) = if ids[0] <= ids[1] {
+                    (&ids[0], &ids[1])
+                } else {
+                    (&ids[1], &ids[0])
+                };
+                let mut key =
+                    String::with_capacity("include:".len() + first.len() + 1 + second.len());
+                key.push_str("include:");
+                key.push_str(first);
+                key.push(',');
+                key.push_str(second);
+                return key;
+            }
             let mut sorted = ids.clone();
             sorted.sort();
             format!("include:{}", sorted.join(","))
@@ -42,6 +56,20 @@ fn filter_key(filter: &ClientFilter) -> String {
                 let mut key = String::with_capacity("exclude:".len() + ids[0].len());
                 key.push_str("exclude:");
                 key.push_str(&ids[0]);
+                return key;
+            }
+            if ids.len() == 2 {
+                let (first, second) = if ids[0] <= ids[1] {
+                    (&ids[0], &ids[1])
+                } else {
+                    (&ids[1], &ids[0])
+                };
+                let mut key =
+                    String::with_capacity("exclude:".len() + first.len() + 1 + second.len());
+                key.push_str("exclude:");
+                key.push_str(first);
+                key.push(',');
+                key.push_str(second);
                 return key;
             }
             let mut sorted = ids.clone();
