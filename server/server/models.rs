@@ -506,3 +506,66 @@ impl MessageBuilder {
         message
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        ChunkProtocol, EntityOperation, EntityProtocol, EventProtocol, Message, MessageType,
+        PeerProtocol, UpdateProtocol,
+    };
+
+    #[test]
+    fn owned_collection_setters_skip_empty_vectors() {
+        let message = Message::new(&MessageType::Peer)
+            .peers_owned(Vec::new())
+            .entities_owned(Vec::new())
+            .events_owned(Vec::new())
+            .chunks_owned(Vec::new())
+            .updates_owned(Vec::new())
+            .build();
+
+        assert!(message.peers.is_empty());
+        assert!(message.entities.is_empty());
+        assert!(message.events.is_empty());
+        assert!(message.chunks.is_empty());
+        assert!(message.updates.is_empty());
+    }
+
+    #[test]
+    fn owned_collection_setters_keep_non_empty_vectors() {
+        let message = Message::new(&MessageType::Entity)
+            .peers_owned(vec![PeerProtocol {
+                id: "peer-1".to_owned(),
+                username: "name".to_owned(),
+                metadata: "{}".to_owned(),
+            }])
+            .entities_owned(vec![EntityProtocol {
+                operation: EntityOperation::Update,
+                id: "entity-1".to_owned(),
+                r#type: "npc".to_owned(),
+                metadata: Some("{}".to_owned()),
+            }])
+            .events_owned(vec![EventProtocol {
+                name: "evt".to_owned(),
+                payload: "{}".to_owned(),
+            }])
+            .chunks_owned(vec![ChunkProtocol {
+                id: "chunk-0-0".to_owned(),
+                ..Default::default()
+            }])
+            .updates_owned(vec![UpdateProtocol {
+                vx: 1,
+                vy: 2,
+                vz: 3,
+                voxel: 4,
+                light: 5,
+            }])
+            .build();
+
+        assert_eq!(message.peers.len(), 1);
+        assert_eq!(message.entities.len(), 1);
+        assert_eq!(message.events.len(), 1);
+        assert_eq!(message.chunks.len(), 1);
+        assert_eq!(message.updates.len(), 1);
+    }
+}
