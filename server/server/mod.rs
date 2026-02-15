@@ -604,9 +604,8 @@ impl Handler<Disconnect> for Server {
 
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
         // Check connections: only remove if the token matches the current session
-        if let Some((_, _, current_token)) = self.connections.get(&msg.id) {
-            if *current_token == msg.token {
-                let (_, world_name, _) = self.connections.remove(&msg.id).unwrap();
+        if let Some((sender, world_name, current_token)) = self.connections.remove(&msg.id) {
+            if current_token == msg.token {
                 if let Some(world) = self.worlds.get_mut(&world_name) {
                     world.do_send(ClientLeaveRequest { id: msg.id.clone() });
                 }
@@ -615,6 +614,8 @@ impl Handler<Disconnect> for Server {
                     "Ignoring stale disconnect for {} (token mismatch)",
                     msg.id
                 );
+                self.connections
+                    .insert(msg.id.clone(), (sender, world_name, current_token));
             }
         }
 
@@ -627,9 +628,10 @@ impl Handler<Disconnect> for Server {
         }
 
         // Check lost_sessions: only remove if the token matches
-        if let Some((_, current_token)) = self.lost_sessions.get(&msg.id) {
-            if *current_token == msg.token {
-                self.lost_sessions.remove(&msg.id);
+        if let Some((sender, current_token)) = self.lost_sessions.remove(&msg.id) {
+            if current_token != msg.token {
+                self.lost_sessions
+                    .insert(msg.id, (sender, current_token));
             }
         }
     }
