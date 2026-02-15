@@ -1868,7 +1868,13 @@ impl World {
                 .read_resource::<BackgroundEntitiesSaver>()
                 .folder()
                 .clone();
-            fs::create_dir_all(&folder).ok();
+            if let Err(error) = fs::create_dir_all(&folder) {
+                warn!(
+                    "Failed to create persisted entity directory {:?}: {:?}",
+                    folder, error
+                );
+                return;
+            }
             let paths = match fs::read_dir(folder) {
                 Ok(paths) => paths,
                 Err(error) => {
