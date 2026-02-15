@@ -398,6 +398,7 @@ pnpm run check:preflight:all-checks:verify:json:compact
 # known status token extraction is case-insensitive and normalizes to lowercase canonical values
 # sparse trap fallbacks can supplement bounded-prefix entries with bounded key-scan recovery when high-index readable entries exist
 # bounded fallback scans use own-property checks so inherited numeric prototype entries are ignored
+# when own-property descriptor probes trap, bounded fallback switches to guarded direct reads without repeated probe failures
 # optionally write the same report to disk
 pnpm run check:preflight:verify:json -- --output ./preflight-report.json
 

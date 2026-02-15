@@ -650,6 +650,8 @@ Sparse trap fallbacks can supplement bounded-prefix entries with bounded
 key-scan recovery when high-index readable entries exist.
 Bounded fallback scans use own-property checks so inherited numeric
 prototype entries are ignored.
+When own-property descriptor probes trap, bounded fallback switches to
+guarded direct reads without repeated probe failures.
 Client JSON reports additionally expose top-level wasm preflight summary
 fields `wasmPackCheckStatus`, `wasmPackCheckCommand`,
 `wasmPackCheckArgs`, `wasmPackCheckArgCount`, `wasmPackCheckExitCode`,
