@@ -486,7 +486,7 @@ impl Registry {
                 }
             }
 
-            if let Some(existing_name) = id_to_name.get(&block.id).cloned() {
+            if let Some(existing_name) = id_to_name.remove(&block.id) {
                 name_to_id.remove(&existing_name);
             }
 
