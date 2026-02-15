@@ -76,6 +76,18 @@ impl EntityTree {
         results
     }
 
+    fn for_each_within_id<F>(&self, point: &[f32; 3], radius_squared: f32, mut f: F)
+    where
+        F: FnMut(EntityId),
+    {
+        if self.tree.size() == 0 {
+            return;
+        }
+        for entry in self.tree.within::<SquaredEuclidean>(point, radius_squared) {
+            f(entry.item);
+        }
+    }
+
     fn first_nearest_item(
         &self,
         point: &[f32; 3],
@@ -435,12 +447,13 @@ impl KdTree {
     where
         F: FnMut(u32),
     {
-        let Some(results) = self.player_results_within_radius(point, radius) else {
+        let Some(query_point) = point_array_if_finite(point) else {
             return;
         };
-        for (_, ent_id) in results {
-            f(ent_id);
-        }
+        let Some(radius_squared) = normalized_radius_squared(radius) else {
+            return;
+        };
+        self.players.for_each_within_id(&query_point, radius_squared, |ent_id| f(ent_id));
     }
 
     pub fn player_ids_within_radius(&self, point: &Vec3<f32>, radius: f32) -> Vec<u32> {
