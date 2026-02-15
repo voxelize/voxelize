@@ -1875,6 +1875,45 @@ describe("report-utils", () => {
     });
   });
 
+  it("preserves duplicate canonical alias keys when trimmed siblings trap", () => {
+    const optionAliases = Object.create(null) as {
+      readonly "--no-build": string[];
+      readonly " --no-build ": string[];
+    };
+    Object.defineProperty(optionAliases, "--no-build", {
+      configurable: true,
+      enumerable: true,
+      value: ["--verify"],
+    });
+    Object.defineProperty(optionAliases, " --no-build ", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("alias trap");
+      },
+    });
+
+    const catalog = createCliOptionCatalog({
+      canonicalOptions: ["--json"],
+      optionAliases: optionAliases as never,
+    });
+
+    expect(catalog.supportedCliOptions).toEqual([
+      "--json",
+      "--no-build",
+      "--verify",
+    ]);
+    expect(catalog.supportedCliOptionCount).toBe(3);
+    expect(catalog.availableCliOptionAliases).toEqual({
+      "--no-build": ["--verify"],
+    });
+    expect(catalog.availableCliOptionCanonicalMap).toEqual({
+      "--json": "--json",
+      "--no-build": "--no-build",
+      "--verify": "--no-build",
+    });
+  });
+
   it("creates unified cli diagnostics metadata", () => {
     const diagnostics = createCliDiagnostics(
       ["--json", "--verify", "--output", "./report.json", "--mystery"],
