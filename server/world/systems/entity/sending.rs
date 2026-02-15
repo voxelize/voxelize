@@ -303,6 +303,10 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     };
                     let entities_to_delete = &mut self.known_entities_to_delete_buffer;
                     entities_to_delete.clear();
+                    if entities_to_delete.capacity() < known_entities.len() {
+                        entities_to_delete
+                            .reserve(known_entities.len() - entities_to_delete.capacity());
+                    }
 
                     for entity_id in known_entities.iter() {
                         let mut deleted_match: Option<(&String, &String)> = None;
@@ -351,6 +355,10 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     };
                     let entities_to_delete = &mut self.known_entities_to_delete_buffer;
                     entities_to_delete.clear();
+                    if entities_to_delete.capacity() < known_entities.len() {
+                        entities_to_delete
+                            .reserve(known_entities.len() - entities_to_delete.capacity());
+                    }
 
                     for entity_id in known_entities.iter() {
                         let Some((etype, metadata_str)) =
@@ -391,6 +399,9 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             };
             let entities_to_delete = &mut self.known_entities_to_delete_buffer;
             entities_to_delete.clear();
+            if entities_to_delete.capacity() < known_entities.len() {
+                entities_to_delete.reserve(known_entities.len() - entities_to_delete.capacity());
+            }
             for entity_id in known_entities.iter() {
                 if let Some((etype, ..)) = new_bookkeeping_records.get(entity_id) {
                     if etype.starts_with("block::") {
