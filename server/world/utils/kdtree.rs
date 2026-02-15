@@ -96,21 +96,6 @@ impl EntityTree {
         nearest.get(skip).map(|entry| entry.item)
     }
 
-    fn retain<F>(&mut self, mut f: F)
-    where
-        F: FnMut(EntityId) -> bool,
-    {
-        let to_remove: Vec<EntityId> = self
-            .positions
-            .keys()
-            .copied()
-            .filter(|&id| !f(id))
-            .collect();
-
-        for ent_id in to_remove {
-            self.remove(ent_id);
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
