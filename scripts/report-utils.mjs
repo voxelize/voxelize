@@ -302,6 +302,36 @@ const safeReadProperty = (value, key) => {
   }
 };
 
+const MAX_ARRAY_LENGTH_FALLBACK_SCAN = 10_000;
+
+const cloneArrayFromLengthFallback = (value) => {
+  let lengthValue = 0;
+  try {
+    lengthValue = value.length;
+  } catch {
+    return null;
+  }
+
+  if (
+    !Number.isSafeInteger(lengthValue) ||
+    lengthValue < 0 ||
+    lengthValue > MAX_ARRAY_LENGTH_FALLBACK_SCAN
+  ) {
+    return null;
+  }
+
+  const clonedArray = [];
+  for (let arrayIndex = 0; arrayIndex < lengthValue; arrayIndex += 1) {
+    try {
+      clonedArray.push(value[arrayIndex]);
+    } catch {
+      continue;
+    }
+  }
+
+  return clonedArray;
+};
+
 const cloneArrayFromIndexedAccess = (value) => {
   if (!Array.isArray(value)) {
     return null;
@@ -311,7 +341,7 @@ const cloneArrayFromIndexedAccess = (value) => {
   try {
     indexKeys = Object.keys(value);
   } catch {
-    return null;
+    return cloneArrayFromLengthFallback(value);
   }
 
   const orderedIndices = indexKeys
