@@ -395,6 +395,7 @@ pnpm run check:preflight:all-checks:verify:json:compact
 # ts-core example status extraction accepts only known status values (ok/failed/skipped) before fallback derivation
 # status token extraction trims surrounding whitespace before known-status validation
 # canonical alias keys and alias token lists are whitespace-normalized before cli catalog/diagnostic resolution
+# known status token extraction is case-insensitive and normalizes to lowercase canonical values
 # optionally write the same report to disk
 pnpm run check:preflight:verify:json -- --output ./preflight-report.json
 

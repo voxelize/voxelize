@@ -644,6 +644,8 @@ Status token extraction trims surrounding whitespace before known-status
 validation.
 Canonical alias keys and alias token lists are whitespace-normalized
 before CLI catalog/diagnostic resolution.
+Known status token extraction is case-insensitive and normalizes to
+lowercase canonical values.
 Client JSON reports additionally expose top-level wasm preflight summary
 fields `wasmPackCheckStatus`, `wasmPackCheckCommand`,
 `wasmPackCheckArgs`, `wasmPackCheckArgCount`, `wasmPackCheckExitCode`,
