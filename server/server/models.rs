@@ -54,7 +54,7 @@ impl Message {
     /// Create a new protobuf message with the idiomatic Builder pattern.
     pub fn new(r#type: &MessageType) -> MessageBuilder {
         MessageBuilder {
-            r#type: r#type.to_owned(),
+            r#type: *r#type,
             ..Default::default()
         }
     }
@@ -250,37 +250,40 @@ impl MessageBuilder {
         message.world_name = self.world_name.unwrap_or_default();
 
         if let Some(peers) = self.peers {
-            message.peers = peers
-                .into_iter()
-                .map(|peer| protocols::Peer {
+            let mut mapped = Vec::with_capacity(peers.len());
+            for peer in peers {
+                mapped.push(protocols::Peer {
                     id: peer.id,
                     username: peer.username,
                     metadata: peer.metadata,
-                })
-                .collect();
+                });
+            }
+            message.peers = mapped;
         }
 
         if let Some(entities) = self.entities {
-            message.entities = entities
-                .into_iter()
-                .map(|entity| protocols::Entity {
+            let mut mapped = Vec::with_capacity(entities.len());
+            for entity in entities {
+                mapped.push(protocols::Entity {
                     operation: entity.operation as i32,
                     id: entity.id,
                     r#type: entity.r#type,
                     metadata: entity.metadata.unwrap_or_default(),
-                })
-                .collect();
+                });
+            }
+            message.entities = mapped;
         }
 
         if let Some(events) = self.events {
-            message.events = events
-                .into_iter()
-                .map(|event| protocols::Event {
+            let mut mapped = Vec::with_capacity(events.len());
+            for event in events {
+                mapped.push(protocols::Event {
                     name: event.name,
                     // Convert payload from json to struct
                     payload: event.payload,
-                })
-                .collect()
+                });
+            }
+            message.events = mapped;
         }
 
         if let Some(chunks) = self.chunks {
@@ -317,16 +320,17 @@ impl MessageBuilder {
         }
 
         if let Some(updates) = self.updates {
-            message.updates = updates
-                .into_iter()
-                .map(|update| protocols::Update {
+            let mut mapped = Vec::with_capacity(updates.len());
+            for update in updates {
+                mapped.push(protocols::Update {
                     vx: update.vx,
                     vy: update.vy,
                     vz: update.vz,
                     light: update.light,
                     voxel: update.voxel,
-                })
-                .collect()
+                });
+            }
+            message.updates = mapped;
         }
 
         if let Some(method) = self.method {
