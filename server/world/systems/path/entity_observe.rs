@@ -8,6 +8,7 @@ fn clear_target_if_set(target: &mut TargetComp) {
     if target.position.is_some() || target.id.is_some() {
         target.position = None;
         target.id = None;
+        target.dirty = true;
     }
 }
 
@@ -46,11 +47,17 @@ impl<'a> System<'a> for EntityObserveSystem {
                             Some(current_position) => *current_position != next_position,
                             None => true,
                         };
+                        let mut changed = false;
                         if target.id.as_deref() != Some(next_id) {
                             target.id = Some(id.0.clone());
+                            changed = true;
                         }
                         if position_changed {
                             target.position = Some(next_position);
+                            changed = true;
+                        }
+                        if changed {
+                            target.dirty = true;
                         }
                     } else {
                         clear_target_if_set(target);

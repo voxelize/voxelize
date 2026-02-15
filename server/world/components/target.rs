@@ -12,15 +12,31 @@ pub enum TargetType {
     Entities,
 }
 
+#[inline]
+const fn target_dirty_default() -> bool {
+    true
+}
+
 /// By adding this component, an entity has the ability to scan around
 /// and look at the closest entity.
-#[derive(Component, Debug, Serialize, Deserialize, Default)]
+#[derive(Component, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[storage(VecStorage)]
 pub struct TargetComp {
     pub target_type: TargetType,
     pub position: Option<Vec3<f32>>,
     pub id: Option<String>,
+
+    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
+    #[serde(default = "target_dirty_default")]
+    pub dirty: bool,
+}
+
+impl Default for TargetComp {
+    fn default() -> Self {
+        Self::all()
+    }
 }
 
 impl TargetComp {
@@ -29,6 +45,7 @@ impl TargetComp {
             target_type,
             position,
             id,
+            dirty: true,
         }
     }
 
@@ -37,6 +54,7 @@ impl TargetComp {
             target_type: TargetType::All,
             position: None,
             id: None,
+            dirty: true,
         }
     }
 
@@ -45,6 +63,7 @@ impl TargetComp {
             target_type: TargetType::Players,
             position: None,
             id: None,
+            dirty: true,
         }
     }
 
@@ -53,6 +72,7 @@ impl TargetComp {
             target_type: TargetType::Entities,
             position: None,
             id: None,
+            dirty: true,
         }
     }
 }
