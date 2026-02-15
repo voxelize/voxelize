@@ -837,6 +837,26 @@ describe("report-utils", () => {
     expect(ownKeysTrapResult.positionalArgs).toEqual([]);
     expect(ownKeysTrapResult.optionTerminatorUsed).toBe(false);
 
+    const lengthTrapArgs = new Proxy(["--json", "--output", "report.json"], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          throw new Error("length trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const lengthTrapResult = splitCliArgs(lengthTrapArgs as never);
+    expect(lengthTrapResult.optionArgs).toEqual([
+      "--json",
+      "--output",
+      "report.json",
+    ]);
+    expect(lengthTrapResult.positionalArgs).toEqual([]);
+    expect(lengthTrapResult.optionTerminatorUsed).toBe(false);
+
     let oversizedOwnKeysIndexProbeCount = 0;
     let oversizedOwnKeysIndexReadCount = 0;
     const oversizedOwnKeysTrapArgs = new Proxy(["--json", "--mystery"], {

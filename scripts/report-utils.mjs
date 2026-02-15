@@ -351,11 +351,16 @@ const cloneArrayFromIndexedAccess = (value) => {
     return null;
   }
 
+  const lengthFallbackClone = cloneArrayFromLengthFallback(value);
+  if (lengthFallbackClone !== null) {
+    return lengthFallbackClone;
+  }
+
   let indexKeys = [];
   try {
     indexKeys = Object.keys(value);
   } catch {
-    return cloneArrayFromLengthFallback(value);
+    return null;
   }
 
   const orderedIndices = indexKeys
