@@ -1075,6 +1075,13 @@ impl World {
         etype: &str,
     ) -> Option<Arc<dyn Fn(&mut World, MetadataComp) -> EntityBuilder + Send + Sync>> {
         self.entity_loaders.get(etype).cloned().or_else(|| {
+            if !etype
+                .as_bytes()
+                .iter()
+                .any(|byte| byte.is_ascii_uppercase())
+            {
+                return None;
+            }
             let lower = etype.to_lowercase();
             self.entity_loaders.get(&lower).cloned()
         })
