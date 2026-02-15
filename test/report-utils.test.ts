@@ -3254,6 +3254,30 @@ describe("report-utils", () => {
     expect(unknownFromFullyTrappedCanonicalOptionsWithAliasFallback).toEqual([
       "--mystery",
     ]);
+    const nonArrayCanonicalOptions = new Set(["--json", "--output"]);
+    const unknownFromNonArrayCanonicalOptions = parseUnknownCliOptions(
+      ["--json", "--mystery", "--output", "./report.json"],
+      {
+        canonicalOptions: nonArrayCanonicalOptions as never,
+        optionsWithValues: ["--output"],
+      }
+    );
+    expect(unknownFromNonArrayCanonicalOptions).toEqual([
+      "--json",
+      "--mystery",
+      "--output",
+    ]);
+    const unknownFromNonArrayCanonicalOptionsWithAliasFallback =
+      parseUnknownCliOptions(["--verify", "--json", "--mystery"], {
+        canonicalOptions: nonArrayCanonicalOptions as never,
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+      });
+    expect(unknownFromNonArrayCanonicalOptionsWithAliasFallback).toEqual([
+      "--json",
+      "--mystery",
+    ]);
     const nonArrayAliasMetadata = {
       "--no-build": new Set(["--verify"]),
     };
@@ -4890,6 +4914,56 @@ describe("report-utils", () => {
     expect(lengthAndOwnKeysTrapValidation.unknownOptionCount).toBe(0);
     expect(lengthAndOwnKeysTrapValidation.unsupportedOptionsError).toBeNull();
     expect(lengthAndOwnKeysTrapValidation.validationErrorCode).toBeNull();
+    const nonArrayCanonicalOptions = new Set(["--json", "--output"]);
+    const nonArrayCanonicalValidation = createCliOptionValidation(
+      ["--json", "--mystery", "--output", "./report.json"],
+      {
+        canonicalOptions: nonArrayCanonicalOptions as never,
+        optionsWithValues: ["--output"],
+      }
+    );
+    expect(nonArrayCanonicalValidation.supportedCliOptions).toEqual([]);
+    expect(nonArrayCanonicalValidation.supportedCliOptionCount).toBe(0);
+    expect(nonArrayCanonicalValidation.unknownOptions).toEqual([
+      "--json",
+      "--mystery",
+      "--output",
+    ]);
+    expect(nonArrayCanonicalValidation.unknownOptionCount).toBe(3);
+    expect(nonArrayCanonicalValidation.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --json, --mystery, --output. Supported options: (none)."
+    );
+    expect(nonArrayCanonicalValidation.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    const nonArrayCanonicalValidationWithAliasFallback = createCliOptionValidation(
+      ["--verify", "--json", "--mystery"],
+      {
+        canonicalOptions: nonArrayCanonicalOptions as never,
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+      }
+    );
+    expect(nonArrayCanonicalValidationWithAliasFallback.supportedCliOptions).toEqual(
+      ["--no-build", "--verify"]
+    );
+    expect(
+      nonArrayCanonicalValidationWithAliasFallback.supportedCliOptionCount
+    ).toBe(2);
+    expect(nonArrayCanonicalValidationWithAliasFallback.unknownOptions).toEqual([
+      "--json",
+      "--mystery",
+    ]);
+    expect(nonArrayCanonicalValidationWithAliasFallback.unknownOptionCount).toBe(2);
+    expect(
+      nonArrayCanonicalValidationWithAliasFallback.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --json, --mystery. Supported options: --no-build, --verify."
+    );
+    expect(
+      nonArrayCanonicalValidationWithAliasFallback.validationErrorCode
+    ).toBe("unsupported_options");
     const nonArrayAliasMetadataValidation = createCliOptionValidation(
       ["--verify", "--mystery"],
       {
@@ -5304,6 +5378,40 @@ describe("report-utils", () => {
     });
     expect(
       fullyTrappedCatalogWithAliasFallback.availableCliOptionCanonicalMap
+    ).toEqual({
+      "--no-build": "--no-build",
+      "--verify": "--no-build",
+    });
+    const nonArrayCanonicalMetadataCatalog = createCliOptionCatalog({
+      canonicalOptions: new Set(["--json", "--output"]) as never,
+    });
+    expect(nonArrayCanonicalMetadataCatalog.supportedCliOptions).toEqual([]);
+    expect(nonArrayCanonicalMetadataCatalog.supportedCliOptionCount).toBe(0);
+    expect(nonArrayCanonicalMetadataCatalog.availableCliOptionAliases).toEqual({});
+    expect(nonArrayCanonicalMetadataCatalog.availableCliOptionCanonicalMap).toEqual(
+      {}
+    );
+    const nonArrayCanonicalMetadataCatalogWithAliasFallback = createCliOptionCatalog(
+      {
+        canonicalOptions: new Set(["--json", "--output"]) as never,
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+      }
+    );
+    expect(nonArrayCanonicalMetadataCatalogWithAliasFallback.supportedCliOptions).toEqual(
+      ["--no-build", "--verify"]
+    );
+    expect(
+      nonArrayCanonicalMetadataCatalogWithAliasFallback.supportedCliOptionCount
+    ).toBe(2);
+    expect(
+      nonArrayCanonicalMetadataCatalogWithAliasFallback.availableCliOptionAliases
+    ).toEqual({
+      "--no-build": ["--verify"],
+    });
+    expect(
+      nonArrayCanonicalMetadataCatalogWithAliasFallback.availableCliOptionCanonicalMap
     ).toEqual({
       "--no-build": "--no-build",
       "--verify": "--no-build",
@@ -5862,6 +5970,121 @@ describe("report-utils", () => {
     ]);
     expect(
       nonArrayAliasMetadataCanonicalKeyDiagnostics.activeCliOptionOccurrenceCount
+    ).toBe(1);
+    const nonArrayCanonicalOptions = new Set(["--json", "--output"]);
+    const nonArrayCanonicalMetadataDiagnostics = createCliDiagnostics(
+      ["--json", "--mystery", "--output", "./report.json"],
+      {
+        canonicalOptions: nonArrayCanonicalOptions as never,
+        optionsWithValues: ["--output"],
+      }
+    );
+    expect(nonArrayCanonicalMetadataDiagnostics.supportedCliOptions).toEqual([]);
+    expect(nonArrayCanonicalMetadataDiagnostics.supportedCliOptionCount).toBe(0);
+    expect(nonArrayCanonicalMetadataDiagnostics.availableCliOptionAliases).toEqual(
+      {}
+    );
+    expect(
+      nonArrayCanonicalMetadataDiagnostics.availableCliOptionCanonicalMap
+    ).toEqual({});
+    expect(nonArrayCanonicalMetadataDiagnostics.unknownOptions).toEqual([
+      "--json",
+      "--mystery",
+      "--output",
+    ]);
+    expect(nonArrayCanonicalMetadataDiagnostics.unknownOptionCount).toBe(3);
+    expect(nonArrayCanonicalMetadataDiagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --json, --mystery, --output. Supported options: (none)."
+    );
+    expect(nonArrayCanonicalMetadataDiagnostics.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    expect(nonArrayCanonicalMetadataDiagnostics.activeCliOptions).toEqual([]);
+    expect(nonArrayCanonicalMetadataDiagnostics.activeCliOptionCount).toBe(0);
+    expect(nonArrayCanonicalMetadataDiagnostics.activeCliOptionTokens).toEqual(
+      []
+    );
+    expect(nonArrayCanonicalMetadataDiagnostics.activeCliOptionResolutions).toEqual(
+      []
+    );
+    expect(
+      nonArrayCanonicalMetadataDiagnostics.activeCliOptionResolutionCount
+    ).toBe(0);
+    expect(
+      nonArrayCanonicalMetadataDiagnostics.activeCliOptionOccurrences
+    ).toEqual([]);
+    expect(
+      nonArrayCanonicalMetadataDiagnostics.activeCliOptionOccurrenceCount
+    ).toBe(0);
+    const nonArrayCanonicalMetadataDiagnosticsWithAliasFallback =
+      createCliDiagnostics(["--verify", "--json", "--mystery"], {
+        canonicalOptions: nonArrayCanonicalOptions as never,
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+      });
+    expect(
+      nonArrayCanonicalMetadataDiagnosticsWithAliasFallback.supportedCliOptions
+    ).toEqual(["--no-build", "--verify"]);
+    expect(
+      nonArrayCanonicalMetadataDiagnosticsWithAliasFallback.supportedCliOptionCount
+    ).toBe(2);
+    expect(
+      nonArrayCanonicalMetadataDiagnosticsWithAliasFallback.availableCliOptionAliases
+    ).toEqual({
+      "--no-build": ["--verify"],
+    });
+    expect(
+      nonArrayCanonicalMetadataDiagnosticsWithAliasFallback.availableCliOptionCanonicalMap
+    ).toEqual({
+      "--no-build": "--no-build",
+      "--verify": "--no-build",
+    });
+    expect(
+      nonArrayCanonicalMetadataDiagnosticsWithAliasFallback.unknownOptions
+    ).toEqual(["--json", "--mystery"]);
+    expect(
+      nonArrayCanonicalMetadataDiagnosticsWithAliasFallback.unknownOptionCount
+    ).toBe(2);
+    expect(
+      nonArrayCanonicalMetadataDiagnosticsWithAliasFallback.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --json, --mystery. Supported options: --no-build, --verify."
+    );
+    expect(
+      nonArrayCanonicalMetadataDiagnosticsWithAliasFallback.validationErrorCode
+    ).toBe("unsupported_options");
+    expect(
+      nonArrayCanonicalMetadataDiagnosticsWithAliasFallback.activeCliOptions
+    ).toEqual(["--no-build"]);
+    expect(
+      nonArrayCanonicalMetadataDiagnosticsWithAliasFallback.activeCliOptionCount
+    ).toBe(1);
+    expect(
+      nonArrayCanonicalMetadataDiagnosticsWithAliasFallback.activeCliOptionTokens
+    ).toEqual(["--verify"]);
+    expect(
+      nonArrayCanonicalMetadataDiagnosticsWithAliasFallback.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+    ]);
+    expect(
+      nonArrayCanonicalMetadataDiagnosticsWithAliasFallback.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      nonArrayCanonicalMetadataDiagnosticsWithAliasFallback.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+        index: 0,
+      },
+    ]);
+    expect(
+      nonArrayCanonicalMetadataDiagnosticsWithAliasFallback.activeCliOptionOccurrenceCount
     ).toBe(1);
     const fullyTrappedCanonicalOptions = createFullyTrappedStringArray([
       "--json",
@@ -9913,6 +10136,75 @@ describe("report-utils", () => {
     expect(activeMetadataFromCanonicalAliasKey.activeCliOptionOccurrenceCount).toBe(
       1
     );
+  });
+
+  it("tracks non-array canonical metadata deterministically in active metadata parsing", () => {
+    const nonArrayCanonicalOptions = new Set(["--json", "--output"]);
+    const activeMetadataFromNonArrayCanonicalOptions = parseActiveCliOptionMetadata(
+      ["--json", "--output", "./report.json"],
+      {
+        canonicalOptions: nonArrayCanonicalOptions as never,
+        optionsWithValues: ["--output"],
+      }
+    );
+
+    expect(activeMetadataFromNonArrayCanonicalOptions.activeCliOptions).toEqual([]);
+    expect(activeMetadataFromNonArrayCanonicalOptions.activeCliOptionCount).toBe(0);
+    expect(activeMetadataFromNonArrayCanonicalOptions.activeCliOptionTokens).toEqual(
+      []
+    );
+    expect(
+      activeMetadataFromNonArrayCanonicalOptions.activeCliOptionResolutions
+    ).toEqual([]);
+    expect(
+      activeMetadataFromNonArrayCanonicalOptions.activeCliOptionResolutionCount
+    ).toBe(0);
+    expect(
+      activeMetadataFromNonArrayCanonicalOptions.activeCliOptionOccurrences
+    ).toEqual([]);
+    expect(
+      activeMetadataFromNonArrayCanonicalOptions.activeCliOptionOccurrenceCount
+    ).toBe(0);
+
+    const activeMetadataFromNonArrayCanonicalOptionsWithAliasFallback =
+      parseActiveCliOptionMetadata(["--verify", "--json"], {
+        canonicalOptions: nonArrayCanonicalOptions as never,
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+      });
+    expect(
+      activeMetadataFromNonArrayCanonicalOptionsWithAliasFallback.activeCliOptions
+    ).toEqual(["--no-build"]);
+    expect(
+      activeMetadataFromNonArrayCanonicalOptionsWithAliasFallback.activeCliOptionCount
+    ).toBe(1);
+    expect(
+      activeMetadataFromNonArrayCanonicalOptionsWithAliasFallback.activeCliOptionTokens
+    ).toEqual(["--verify"]);
+    expect(
+      activeMetadataFromNonArrayCanonicalOptionsWithAliasFallback.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+    ]);
+    expect(
+      activeMetadataFromNonArrayCanonicalOptionsWithAliasFallback.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      activeMetadataFromNonArrayCanonicalOptionsWithAliasFallback.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+        index: 0,
+      },
+    ]);
+    expect(
+      activeMetadataFromNonArrayCanonicalOptionsWithAliasFallback.activeCliOptionOccurrenceCount
+    ).toBe(1);
   });
 
   it("tracks alias-defined canonical options that consume values", () => {
