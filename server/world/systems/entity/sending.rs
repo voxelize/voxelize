@@ -13,7 +13,6 @@ use crate::{
 #[derive(Default)]
 pub struct EntitiesSendingSystem {
     deleted_entities_buffer: Vec<(String, String, String)>,
-    known_entities_to_delete_buffer: Vec<String>,
     clients_with_updates_buffer: Vec<String>,
     client_updates_buffer: HashMap<String, Vec<EntityProtocol>>,
     metadata_json_cache_buffer: HashMap<String, String>,
@@ -144,7 +143,6 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         let _t = timing.timer("entities-sending");
 
         self.deleted_entities_buffer.clear();
-        self.known_entities_to_delete_buffer.clear();
         self.clients_with_updates_buffer.clear();
         self.metadata_json_cache_buffer.clear();
         if clients.is_empty() {
@@ -470,18 +468,11 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                         }
                         continue;
                     }
-                    let entities_to_delete = &mut self.known_entities_to_delete_buffer;
-                    entities_to_delete.clear();
-                    if entities_to_delete.capacity() < known_entities.len() {
-                        entities_to_delete
-                            .reserve(known_entities.len() - entities_to_delete.capacity());
-                    }
-
-                    for entity_id in known_entities.iter() {
+                    known_entities.retain(|entity_id| {
                         let Some((etype, metadata_str)) =
                             deleted_entities_lookup.get(entity_id.as_str())
                         else {
-                            continue;
+                            return true;
                         };
                         push_client_update(
                             &mut self.client_updates_buffer,
@@ -494,12 +485,8 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                                 metadata: Some((*metadata_str).clone()),
                             },
                         );
-                        entities_to_delete.push(entity_id.clone());
-                    }
-
-                    for entity_id in entities_to_delete.iter() {
-                        known_entities.remove(entity_id);
-                    }
+                        false
+                    });
                 }
             }
         }
