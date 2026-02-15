@@ -2353,6 +2353,14 @@ describe("report-utils", () => {
       }
     );
     expect(unknownWithMalformedArrayOptionArgsOverride).toEqual(["--mystery"]);
+    const unknownWithMixedArrayOptionArgsOverride = parseUnknownCliOptions(
+      ["--mystery"],
+      {
+        canonicalOptions: ["--json"],
+        optionArgs: ["--json", 1] as never,
+      }
+    );
+    expect(unknownWithMixedArrayOptionArgsOverride).toEqual(["--mystery"]);
     const unknownWithMalformedValueMetadataOverride = parseUnknownCliOptions(
       ["--output", "-artifact-report.json"],
       {
@@ -3837,6 +3845,27 @@ describe("report-utils", () => {
       "Unsupported option(s): --mystery. Supported options: --json, --output."
     );
     expect(malformedArrayOptionArgsValidation.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    const mixedArrayOptionArgsValidation = createCliOptionValidation(
+      ["--mystery"],
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        optionArgs: ["--json", 1] as never,
+      }
+    );
+    expect(mixedArrayOptionArgsValidation.supportedCliOptions).toEqual([
+      "--json",
+      "--output",
+    ]);
+    expect(mixedArrayOptionArgsValidation.supportedCliOptionCount).toBe(2);
+    expect(mixedArrayOptionArgsValidation.unknownOptions).toEqual(["--mystery"]);
+    expect(mixedArrayOptionArgsValidation.unknownOptionCount).toBe(1);
+    expect(mixedArrayOptionArgsValidation.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
+    expect(mixedArrayOptionArgsValidation.validationErrorCode).toBe(
       "unsupported_options"
     );
     const malformedValueMetadataOverrideValidation = createCliOptionValidation(
@@ -11682,6 +11711,43 @@ describe("report-utils", () => {
     ]);
     expect(
       activeMetadataWithMalformedArrayOptionArgsOverride.activeCliOptionOccurrenceCount
+    ).toBe(1);
+    const activeMetadataWithMixedArrayOptionArgsOverride =
+      parseActiveCliOptionMetadata(["--json"], {
+        canonicalOptions: ["--json", "--output"],
+        optionArgs: ["--output", 1] as never,
+      });
+    expect(activeMetadataWithMixedArrayOptionArgsOverride.activeCliOptions).toEqual([
+      "--json",
+    ]);
+    expect(activeMetadataWithMixedArrayOptionArgsOverride.activeCliOptionCount).toBe(
+      1
+    );
+    expect(
+      activeMetadataWithMixedArrayOptionArgsOverride.activeCliOptionTokens
+    ).toEqual(["--json"]);
+    expect(
+      activeMetadataWithMixedArrayOptionArgsOverride.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(
+      activeMetadataWithMixedArrayOptionArgsOverride.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      activeMetadataWithMixedArrayOptionArgsOverride.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+    ]);
+    expect(
+      activeMetadataWithMixedArrayOptionArgsOverride.activeCliOptionOccurrenceCount
     ).toBe(1);
     const activeMetadataWithMalformedValueMetadataOverride =
       parseActiveCliOptionMetadata(["--output", "-j"], {

@@ -936,6 +936,27 @@ const toStringArrayOrEmpty = (value) => {
   return toStringArrayOrNull(value) ?? [];
 };
 
+const toTrustedOptionArgsOverrideOrNull = (optionArgsOverride) => {
+  if (!Array.isArray(optionArgsOverride)) {
+    return null;
+  }
+
+  const clonedOptionArgs = cloneIndexedArraySafelyWithMetadata(optionArgsOverride);
+  if (
+    clonedOptionArgs === null ||
+    clonedOptionArgs.fromIndexedFallback ||
+    clonedOptionArgs.entries.some((entry) => {
+      return typeof entry.value !== "string";
+    })
+  ) {
+    return null;
+  }
+
+  return clonedOptionArgs.entries.map((entry) => {
+    return entry.value;
+  });
+};
+
 export const extractWasmPackCheckSummaryFromReport = (report) => {
   if (!isObjectRecord(report)) {
     return {
@@ -1955,9 +1976,7 @@ export const parseUnknownCliOptions = (
   } = {}
 ) => {
   const optionArgsFromOverride =
-    Array.isArray(normalizedOptionArgs)
-      ? toStringArrayOrNull(normalizedOptionArgs)
-      : null;
+    toTrustedOptionArgsOverrideOrNull(normalizedOptionArgs);
   const optionArgs =
     optionArgsFromOverride === null
       ? splitCliArgs(args).optionArgs
@@ -2125,9 +2144,7 @@ export const parseActiveCliOptionMetadata = (
   } = {}
 ) => {
   const optionArgsFromOverride =
-    Array.isArray(normalizedOptionArgs)
-      ? toStringArrayOrNull(normalizedOptionArgs)
-      : null;
+    toTrustedOptionArgsOverrideOrNull(normalizedOptionArgs);
   const optionArgs =
     optionArgsFromOverride === null
       ? splitCliArgs(args).optionArgs
