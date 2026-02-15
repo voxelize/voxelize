@@ -537,7 +537,7 @@ export class Inputs<T extends string = string> extends EventEmitter {
     // Handle all three types of key events while checking namespace and passing the KeyboardEvent.
     const keyListener = (occasion: InputOccasion) => (e: KeyboardEvent) => {
       const { key, code } = e;
-      const keyName = key.toLowerCase();
+      const keyName = normalizeKeyIfNeeded(key);
       const codeName = code.toLowerCase();
       const keyCombo = keyName + occasion;
       const codeCombo = codeName + occasion;
