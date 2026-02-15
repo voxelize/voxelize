@@ -896,13 +896,55 @@ export const hasCliOption = (args, canonicalOption, aliases = []) => {
     return true;
   }
 
-  return aliases.some((alias) => optionArgs.includes(alias));
+  const aliasTokens = toStringArrayOrEmpty(aliases);
+  return aliasTokens.some((alias) => optionArgs.includes(alias));
+};
+
+const dedupeStringList = (tokens) => {
+  return tokens.filter((token, index) => {
+    return token.length > 0 && tokens.indexOf(token) === index;
+  });
+};
+
+const normalizeCliOptionTokenList = (tokens) => {
+  return dedupeStringList(toStringArrayOrEmpty(tokens));
+};
+
+const normalizeCliOptionAliases = (optionAliases) => {
+  if (!isObjectRecord(optionAliases)) {
+    return {};
+  }
+
+  let aliasEntries = [];
+  try {
+    aliasEntries = Object.entries(optionAliases);
+  } catch {
+    return {};
+  }
+
+  return Object.fromEntries(
+    aliasEntries
+      .map(([canonicalOption, aliases]) => {
+        if (canonicalOption.length === 0) {
+          return null;
+        }
+
+        return [canonicalOption, normalizeCliOptionTokenList(aliases)];
+      })
+      .filter((entry) => {
+        return entry !== null;
+      })
+  );
 };
 
 const createCanonicalOptionMap = (canonicalOptions, optionAliases = {}) => {
-  const canonicalMap = new Map(canonicalOptions.map((option) => [option, option]));
+  const normalizedCanonicalOptions = normalizeCliOptionTokenList(canonicalOptions);
+  const normalizedOptionAliases = normalizeCliOptionAliases(optionAliases);
+  const canonicalMap = new Map(
+    normalizedCanonicalOptions.map((option) => [option, option])
+  );
 
-  for (const [canonicalOption, aliases] of Object.entries(optionAliases)) {
+  for (const [canonicalOption, aliases] of Object.entries(normalizedOptionAliases)) {
     canonicalMap.set(canonicalOption, canonicalOption);
     for (const alias of aliases) {
       canonicalMap.set(alias, canonicalOption);
@@ -913,28 +955,28 @@ const createCanonicalOptionMap = (canonicalOptions, optionAliases = {}) => {
 };
 
 const createSupportedCliOptions = (canonicalOptions, optionAliases = {}) => {
-  return [
-    ...canonicalOptions,
-    ...Object.keys(optionAliases),
-    ...Object.values(optionAliases).flat(),
-  ].filter(
-    (optionToken, index, allOptions) => {
-      return allOptions.indexOf(optionToken) === index;
-    }
-  );
+  const normalizedCanonicalOptions = normalizeCliOptionTokenList(canonicalOptions);
+  const normalizedOptionAliases = normalizeCliOptionAliases(optionAliases);
+
+  return dedupeStringList([
+    ...normalizedCanonicalOptions,
+    ...Object.keys(normalizedOptionAliases),
+    ...Object.values(normalizedOptionAliases).flat(),
+  ]);
 };
 
 export const createCliOptionCatalog = ({
   canonicalOptions = [],
   optionAliases = {},
 } = {}) => {
+  const normalizedOptionAliases = normalizeCliOptionAliases(optionAliases);
   const supportedCliOptions = createSupportedCliOptions(
     canonicalOptions,
-    optionAliases
+    normalizedOptionAliases
   );
   const canonicalOptionMap = createCanonicalOptionMap(
     canonicalOptions,
-    optionAliases
+    normalizedOptionAliases
   );
   const availableCliOptionCanonicalMap = Object.fromEntries(
     supportedCliOptions.map((optionToken) => {
@@ -949,7 +991,7 @@ export const createCliOptionCatalog = ({
   return {
     supportedCliOptions,
     supportedCliOptionCount: supportedCliOptions.length,
-    availableCliOptionAliases: optionAliases,
+    availableCliOptionAliases: normalizedOptionAliases,
     availableCliOptionCanonicalMap,
   };
 };
@@ -1023,13 +1065,17 @@ const createValueOptionMetadata = (
   optionsWithStrictValues,
   canonicalOptionMap
 ) => {
+  const normalizedOptionsWithValues = normalizeCliOptionTokenList(optionsWithValues);
+  const normalizedOptionsWithStrictValues = normalizeCliOptionTokenList(
+    optionsWithStrictValues
+  );
   const canonicalValueOptions = new Set(
-    optionsWithValues.map((optionWithValue) => {
+    normalizedOptionsWithValues.map((optionWithValue) => {
       return canonicalOptionMap.get(optionWithValue) ?? optionWithValue;
     })
   );
   const canonicalStrictValueOptions = new Set(
-    optionsWithStrictValues
+    normalizedOptionsWithStrictValues
       .map((strictValueOption) => {
         return canonicalOptionMap.get(strictValueOption) ?? strictValueOption;
       })

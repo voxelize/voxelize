@@ -1271,6 +1271,37 @@ describe("report-utils", () => {
     });
   });
 
+  it("sanitizes malformed cli option catalog inputs", () => {
+    const canonicalOptions = ["--json", "--output"];
+    Object.defineProperty(canonicalOptions, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    const optionAliases = Object.create(null) as {
+      readonly "--no-build": string[];
+    };
+    Object.defineProperty(optionAliases, "--no-build", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("alias trap");
+      },
+    });
+
+    const catalog = createCliOptionCatalog({
+      canonicalOptions: canonicalOptions as never,
+      optionAliases: optionAliases as never,
+    });
+
+    expect(catalog.supportedCliOptions).toEqual([]);
+    expect(catalog.supportedCliOptionCount).toBe(0);
+    expect(catalog.availableCliOptionAliases).toEqual({});
+    expect(catalog.availableCliOptionCanonicalMap).toEqual({});
+  });
+
   it("creates unified cli diagnostics metadata", () => {
     const diagnostics = createCliDiagnostics(
       ["--json", "--verify", "--output", "./report.json", "--mystery"],
