@@ -73,7 +73,11 @@ fn get_or_insert_client_known_entities<'a>(
 ) -> &'a mut HashSet<String> {
     match client_known_entities.raw_entry_mut().from_key(client_id) {
         RawEntryMut::Occupied(entry) => entry.into_mut(),
-        RawEntryMut::Vacant(entry) => entry.insert(client_id.to_owned(), HashSet::new()).1,
+        RawEntryMut::Vacant(entry) => {
+            entry
+                .insert(client_id.to_owned(), HashSet::with_capacity(8))
+                .1
+        }
     }
 }
 
