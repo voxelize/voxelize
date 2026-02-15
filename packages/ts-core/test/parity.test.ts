@@ -1905,6 +1905,28 @@ describe("Type builders", () => {
       id: 5,
       rotation: invalidInstance,
     });
+    const rotationWithThrowingValue = Object.create(null) as {
+      readonly value: number;
+      readonly yRotation: number;
+    };
+    Object.defineProperty(rotationWithThrowingValue, "value", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("value trap");
+      },
+    });
+    Object.defineProperty(rotationWithThrowingValue, "yRotation", {
+      configurable: true,
+      enumerable: true,
+      value: Math.PI / 2,
+    });
+    const getterTrapRule = createBlockRule({
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 5,
+      rotation: rotationWithThrowingValue as never,
+    });
 
     expect(invalidValueRule).toEqual({
       type: "simple",
@@ -1917,6 +1939,11 @@ describe("Type builders", () => {
       id: 5,
     });
     expect(invalidInstanceRule).toEqual({
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 5,
+    });
+    expect(getterTrapRule).toEqual({
       type: "simple",
       offset: [0, 0, 0],
       id: 5,
@@ -3192,6 +3219,30 @@ describe("Type builders", () => {
         },
       }
     );
+    const valueTrapRotation = Object.create(null) as {
+      readonly value: number;
+      readonly yRotation: number;
+    };
+    Object.defineProperty(valueTrapRotation, "value", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("value trap");
+      },
+    });
+    Object.defineProperty(valueTrapRotation, "yRotation", {
+      configurable: true,
+      enumerable: true,
+      value: Math.PI / 2,
+    });
+    const proxyRotation = new Proxy(BlockRotation.py(Math.PI / 2), {
+      get: (target, property, receiver) => {
+        if (property === "value") {
+          throw new Error("value trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
 
     expect(createBlockRotation()).toEqual(BlockRotation.py(0));
     expect(createBlockRotation(null)).toEqual(BlockRotation.py(0));
@@ -3227,6 +3278,12 @@ describe("Type builders", () => {
       BlockRotation.py(0)
     );
     expect(createBlockRotation(throwingPrototypeProxy as never)).toEqual(
+      BlockRotation.py(0)
+    );
+    expect(createBlockRotation(valueTrapRotation as never)).toEqual(
+      BlockRotation.py(0)
+    );
+    expect(createBlockRotation(proxyRotation as never)).toEqual(
       BlockRotation.py(0)
     );
   });

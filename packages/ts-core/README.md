@@ -140,7 +140,8 @@ const voxel = Voxel.pack({
     plain/readonly/frozen rotation literals (`value`/`yRotation`)
   - `BlockRotation` instances are revalidated to encoded nibble/finiteness
     constraints before cloning
-  - malformed inputs fall back to identity `BlockRotation.py(0)`
+  - malformed inputs (including getter/proxy-trap rotation values) fall back to
+    identity `BlockRotation.py(0)`
 - `createFaceTransparency`
   - builds normalized 6-face transparency tuples from
     optional/null/partial/readonly/frozen boolean arrays

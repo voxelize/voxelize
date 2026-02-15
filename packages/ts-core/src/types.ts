@@ -453,30 +453,31 @@ const toOptionalRuleNumber = (
 };
 
 const toBlockRotation = (value: DynamicValue): BlockRotation | null => {
-  if (isBlockRotationInstance(value)) {
-    if (!isRotationValue(value.value) || !isFiniteNumberValue(value.yRotation)) {
+  try {
+    if (isBlockRotationInstance(value)) {
+      const axis = value.value;
+      const yRotation = value.yRotation;
+      if (!isRotationValue(axis) || !isFiniteNumberValue(yRotation)) {
+        return null;
+      }
+
+      return new BlockRotation(axis, yRotation);
+    }
+
+    if (!isPlainObjectValue(value)) {
       return null;
     }
 
-    return new BlockRotation(value.value, value.yRotation);
-  }
+    const axis = readObjectEntry(value, "value");
+    const yRotation = readObjectEntry(value, "yRotation");
+    if (!isRotationValue(axis) || !isFiniteNumberValue(yRotation)) {
+      return null;
+    }
 
-  if (!isPlainObjectValue(value)) {
+    return new BlockRotation(axis, yRotation);
+  } catch {
     return null;
   }
-
-  const maybeRotation = value as {
-    value?: DynamicValue;
-    yRotation?: DynamicValue;
-  };
-  if (
-    !isRotationValue(maybeRotation.value) ||
-    !isFiniteNumberValue(maybeRotation.yRotation)
-  ) {
-    return null;
-  }
-
-  return new BlockRotation(maybeRotation.value, maybeRotation.yRotation);
 };
 
 export const createBlockRotation = (

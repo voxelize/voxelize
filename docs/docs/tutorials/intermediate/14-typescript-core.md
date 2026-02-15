@@ -47,6 +47,7 @@ flowchart LR
   for malformed values (including non-finite `AABB` instances)
 - `createBlockRotation`: ergonomic constructor helper for `BlockRotation` or
   plain/readonly/frozen rotation literals with deterministic identity fallback
+  (including malformed getter/proxy-trap rotation inputs)
 - `createFaceTransparency`: helper for normalized 6-face transparency tuples
 - `VoxelAccess`: shared access contract
 
