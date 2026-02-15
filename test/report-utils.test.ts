@@ -2976,6 +2976,40 @@ describe("report-utils", () => {
     expect(unknownDashPathFromPrimitiveValueOptionsWithStrictFallback).toEqual([]);
   });
 
+  it("applies set value metadata strict-subset fallback across sibling options in unknown parsing", () => {
+    const setValueMetadata = new Set(["--output"]);
+    const unknownOnlyShortOption = parseUnknownCliOptions(["--only", "-l"], {
+      canonicalOptions: ["--output", "--only"],
+      optionsWithValues: setValueMetadata as never,
+      optionsWithStrictValues: ["--output"],
+    });
+    expect(unknownOnlyShortOption).toEqual(["-l"]);
+    const unknownOnlyDashPrefixedValue = parseUnknownCliOptions(
+      ["--only", "-artifact-report.json"],
+      {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: setValueMetadata as never,
+        optionsWithStrictValues: ["--output"],
+      }
+    );
+    expect(unknownOnlyDashPrefixedValue).toEqual(["-artifact-report.json"]);
+    const unknownOutputShortOption = parseUnknownCliOptions(["--output", "-l"], {
+      canonicalOptions: ["--output", "--only"],
+      optionsWithValues: setValueMetadata as never,
+      optionsWithStrictValues: ["--output"],
+    });
+    expect(unknownOutputShortOption).toEqual(["-l"]);
+    const unknownOutputDashPrefixedValue = parseUnknownCliOptions(
+      ["--output", "-artifact-report.json"],
+      {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: setValueMetadata as never,
+        optionsWithStrictValues: ["--output"],
+      }
+    );
+    expect(unknownOutputDashPrefixedValue).toEqual([]);
+  });
+
   it("creates structured cli option validation metadata", () => {
     const noValidationErrors = createCliOptionValidation(
       ["--json", "--verify", "--output=./report.json"],
@@ -3957,6 +3991,51 @@ describe("report-utils", () => {
     expect(lengthAndOwnKeysTrapValidation.unknownOptionCount).toBe(0);
     expect(lengthAndOwnKeysTrapValidation.unsupportedOptionsError).toBeNull();
     expect(lengthAndOwnKeysTrapValidation.validationErrorCode).toBeNull();
+  });
+
+  it("validates set value metadata strict-subset fallback across sibling options", () => {
+    const setValueMetadata = new Set(["--output"]);
+    const onlyShortValidation = createCliOptionValidation(["--only", "-l"], {
+      canonicalOptions: ["--output", "--only"],
+      optionsWithValues: setValueMetadata as never,
+      optionsWithStrictValues: ["--output"],
+    });
+    expect(onlyShortValidation.unknownOptions).toEqual(["-l"]);
+    expect(onlyShortValidation.unknownOptionCount).toBe(1);
+    expect(onlyShortValidation.unsupportedOptionsError).toBe(
+      "Unsupported option(s): -l. Supported options: --output, --only."
+    );
+    expect(onlyShortValidation.validationErrorCode).toBe("unsupported_options");
+    const onlyDashPrefixedValueValidation = createCliOptionValidation(
+      ["--only", "-artifact-report.json"],
+      {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: setValueMetadata as never,
+        optionsWithStrictValues: ["--output"],
+      }
+    );
+    expect(onlyDashPrefixedValueValidation.unknownOptions).toEqual([
+      "-artifact-report.json",
+    ]);
+    expect(onlyDashPrefixedValueValidation.unknownOptionCount).toBe(1);
+    expect(onlyDashPrefixedValueValidation.unsupportedOptionsError).toBe(
+      "Unsupported option(s): -artifact-report.json. Supported options: --output, --only."
+    );
+    expect(onlyDashPrefixedValueValidation.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    const outputDashPrefixedValueValidation = createCliOptionValidation(
+      ["--output", "-artifact-report.json"],
+      {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: setValueMetadata as never,
+        optionsWithStrictValues: ["--output"],
+      }
+    );
+    expect(outputDashPrefixedValueValidation.unknownOptions).toEqual([]);
+    expect(outputDashPrefixedValueValidation.unknownOptionCount).toBe(0);
+    expect(outputDashPrefixedValueValidation.unsupportedOptionsError).toBeNull();
+    expect(outputDashPrefixedValueValidation.validationErrorCode).toBeNull();
   });
 
   it("derives cli validation failure messages with output priority", () => {
@@ -5820,38 +5899,6 @@ describe("report-utils", () => {
     expect(onlyDashPathDiagnostics.validationErrorCode).toBeNull();
   });
 
-  it("reports unknown short tokens with mixed value metadata without strict metadata", () => {
-    const diagnostics = createCliDiagnostics(["--output", "-l"], {
-      canonicalOptions: ["--output"],
-      optionsWithValues: ["--output", 1] as never,
-    });
-
-    expect(diagnostics.activeCliOptions).toEqual(["--output"]);
-    expect(diagnostics.activeCliOptionCount).toBe(1);
-    expect(diagnostics.activeCliOptionTokens).toEqual(["--output"]);
-    expect(diagnostics.activeCliOptionResolutions).toEqual([
-      {
-        token: "--output",
-        canonicalOption: "--output",
-      },
-    ]);
-    expect(diagnostics.activeCliOptionResolutionCount).toBe(1);
-    expect(diagnostics.activeCliOptionOccurrences).toEqual([
-      {
-        token: "--output",
-        canonicalOption: "--output",
-        index: 0,
-      },
-    ]);
-    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(1);
-    expect(diagnostics.unknownOptions).toEqual(["-l"]);
-    expect(diagnostics.unknownOptionCount).toBe(1);
-    expect(diagnostics.unsupportedOptionsError).toBe(
-      "Unsupported option(s): -l. Supported options: --output."
-    );
-    expect(diagnostics.validationErrorCode).toBe("unsupported_options");
-  });
-
   it("reports unknown short tokens with unresolved value metadata and supported strict metadata", () => {
     const diagnostics = createCliDiagnostics(["--output", "-l"], {
       canonicalOptions: ["--output"],
@@ -5952,6 +5999,97 @@ describe("report-utils", () => {
       "Unsupported option(s): -artifact-report.json. Supported options: --output."
     );
     expect(noStrictDiagnostics.validationErrorCode).toBe("unsupported_options");
+  });
+
+  it("applies set value metadata strict-subset fallback across sibling options in diagnostics", () => {
+    const setValueMetadata = new Set(["--output"]);
+    const onlyDashPrefixedValueDiagnostics = createCliDiagnostics(
+      ["--only", "-artifact-report.json"],
+      {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: setValueMetadata as never,
+        optionsWithStrictValues: ["--output"],
+      }
+    );
+
+    expect(onlyDashPrefixedValueDiagnostics.activeCliOptions).toEqual([
+      "--only",
+    ]);
+    expect(onlyDashPrefixedValueDiagnostics.activeCliOptionCount).toBe(1);
+    expect(onlyDashPrefixedValueDiagnostics.activeCliOptionTokens).toEqual([
+      "--only",
+    ]);
+    expect(onlyDashPrefixedValueDiagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+      },
+    ]);
+    expect(
+      onlyDashPrefixedValueDiagnostics.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(onlyDashPrefixedValueDiagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+        index: 0,
+      },
+    ]);
+    expect(
+      onlyDashPrefixedValueDiagnostics.activeCliOptionOccurrenceCount
+    ).toBe(1);
+    expect(onlyDashPrefixedValueDiagnostics.unknownOptions).toEqual([
+      "-artifact-report.json",
+    ]);
+    expect(onlyDashPrefixedValueDiagnostics.unknownOptionCount).toBe(1);
+    expect(onlyDashPrefixedValueDiagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): -artifact-report.json. Supported options: --output, --only."
+    );
+    expect(onlyDashPrefixedValueDiagnostics.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+
+    const outputDashPrefixedValueDiagnostics = createCliDiagnostics(
+      ["--output", "-artifact-report.json"],
+      {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: setValueMetadata as never,
+        optionsWithStrictValues: ["--output"],
+      }
+    );
+
+    expect(outputDashPrefixedValueDiagnostics.activeCliOptions).toEqual([
+      "--output",
+    ]);
+    expect(outputDashPrefixedValueDiagnostics.activeCliOptionCount).toBe(1);
+    expect(outputDashPrefixedValueDiagnostics.activeCliOptionTokens).toEqual([
+      "--output",
+    ]);
+    expect(outputDashPrefixedValueDiagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(
+      outputDashPrefixedValueDiagnostics.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      outputDashPrefixedValueDiagnostics.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+    ]);
+    expect(
+      outputDashPrefixedValueDiagnostics.activeCliOptionOccurrenceCount
+    ).toBe(1);
+    expect(outputDashPrefixedValueDiagnostics.unknownOptions).toEqual([]);
+    expect(outputDashPrefixedValueDiagnostics.unknownOptionCount).toBe(0);
+    expect(outputDashPrefixedValueDiagnostics.unsupportedOptionsError).toBeNull();
+    expect(outputDashPrefixedValueDiagnostics.validationErrorCode).toBeNull();
   });
 
   it("reports unknown short tokens with strict metadata only", () => {
@@ -8022,31 +8160,28 @@ describe("report-utils", () => {
     expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(2);
   });
 
-  it("preserves strict guards across value options with set strict metadata in metadata parsing", () => {
-    const setStrictValueMetadata = new Set(["--output"]);
-    const activeMetadata = parseActiveCliOptionMetadata(
-      ["--only", "-l", "--output", "-s"],
-      {
-        canonicalOptions: ["--output", "--only"],
-        optionsWithValues: ["--output", "--only"],
-        optionsWithStrictValues: setStrictValueMetadata as never,
-      }
-    );
+  it("keeps sibling aliases active when value metadata is a set strict subset in metadata parsing", () => {
+    const setValueMetadata = new Set(["--output"]);
+    const activeMetadata = parseActiveCliOptionMetadata(["--only", "-j"], {
+      canonicalOptions: ["--output", "--only", "--json"],
+      optionAliases: {
+        "--json": ["-j"],
+      },
+      optionsWithValues: setValueMetadata as never,
+      optionsWithStrictValues: ["--output"],
+    });
 
-    expect(activeMetadata.activeCliOptions).toEqual(["--output", "--only"]);
+    expect(activeMetadata.activeCliOptions).toEqual(["--only", "--json"]);
     expect(activeMetadata.activeCliOptionCount).toBe(2);
-    expect(activeMetadata.activeCliOptionTokens).toEqual([
-      "--only",
-      "--output",
-    ]);
+    expect(activeMetadata.activeCliOptionTokens).toEqual(["--only", "-j"]);
     expect(activeMetadata.activeCliOptionResolutions).toEqual([
       {
         token: "--only",
         canonicalOption: "--only",
       },
       {
-        token: "--output",
-        canonicalOption: "--output",
+        token: "-j",
+        canonicalOption: "--json",
       },
     ]);
     expect(activeMetadata.activeCliOptionResolutionCount).toBe(2);
@@ -8057,9 +8192,9 @@ describe("report-utils", () => {
         index: 0,
       },
       {
-        token: "--output",
-        canonicalOption: "--output",
-        index: 2,
+        token: "-j",
+        canonicalOption: "--json",
+        index: 1,
       },
     ]);
     expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(2);
