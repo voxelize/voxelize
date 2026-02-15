@@ -873,18 +873,19 @@ export const summarizeCheckFailureResults = (checks) => {
 };
 
 export const splitCliArgs = (args) => {
-  const optionTerminatorIndex = args.indexOf("--");
+  const normalizedArgs = toStringArrayOrEmpty(args);
+  const optionTerminatorIndex = normalizedArgs.indexOf("--");
   if (optionTerminatorIndex === -1) {
     return {
-      optionArgs: args,
+      optionArgs: normalizedArgs,
       positionalArgs: [],
       optionTerminatorUsed: false,
     };
   }
 
   return {
-    optionArgs: args.slice(0, optionTerminatorIndex),
-    positionalArgs: args.slice(optionTerminatorIndex + 1),
+    optionArgs: normalizedArgs.slice(0, optionTerminatorIndex),
+    positionalArgs: normalizedArgs.slice(optionTerminatorIndex + 1),
     optionTerminatorUsed: true,
   };
 };

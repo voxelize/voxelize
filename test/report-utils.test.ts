@@ -751,6 +751,30 @@ describe("report-utils", () => {
     ]);
     expect(withTerminator.positionalArgs).toEqual(["--output", "positional"]);
     expect(withTerminator.optionTerminatorUsed).toBe(true);
+
+    const mixedTypeArgs = splitCliArgs([
+      "--json",
+      1 as never,
+      "--",
+      null as never,
+      "--no-build",
+    ]);
+    expect(mixedTypeArgs.optionArgs).toEqual(["--json"]);
+    expect(mixedTypeArgs.positionalArgs).toEqual(["--no-build"]);
+    expect(mixedTypeArgs.optionTerminatorUsed).toBe(true);
+
+    const iteratorTrapArgs = ["--json", "--output", "report.json"];
+    Object.defineProperty(iteratorTrapArgs, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    const malformedArgs = splitCliArgs(iteratorTrapArgs as never);
+    expect(malformedArgs.optionArgs).toEqual([]);
+    expect(malformedArgs.positionalArgs).toEqual([]);
+    expect(malformedArgs.optionTerminatorUsed).toBe(false);
   });
 
   it("detects canonical options with optional aliases", () => {
@@ -774,6 +798,17 @@ describe("report-utils", () => {
         ["--verify"]
       )
     ).toBe(true);
+    const iteratorTrapArgs = ["--json", "--verify"];
+    Object.defineProperty(iteratorTrapArgs, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    expect(hasCliOption(iteratorTrapArgs as never, "--no-build", ["--verify"])).toBe(
+      false
+    );
   });
 
   it("parses unknown cli options with alias and value support", () => {
