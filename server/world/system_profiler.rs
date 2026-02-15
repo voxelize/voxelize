@@ -160,14 +160,12 @@ impl SystemTimer {
 }
 
 pub fn get_timing_summary_for_world(world_name: &str) -> HashMap<String, SystemStats> {
-    WORLD_TIMINGS
-        .read()
-        .map(|wt| {
-            wt.get(world_name)
-                .map(|t| t.get_summary())
-                .unwrap_or_default()
-        })
-        .unwrap_or_default()
+    if let Ok(world_timings) = WORLD_TIMINGS.read() {
+        if let Some(timings) = world_timings.get(world_name) {
+            return timings.get_summary();
+        }
+    }
+    HashMap::new()
 }
 
 pub fn get_all_world_names() -> Vec<String> {
