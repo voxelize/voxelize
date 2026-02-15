@@ -1,13 +1,12 @@
 use crossbeam_channel::Receiver;
 use hashbrown::HashMap;
-use log::info;
 use nalgebra::Vector3;
 use rapier3d::{
     geometry::DefaultBroadPhase,
     prelude::{
-        vector, ActiveEvents, BroadPhase, CCDSolver, ChannelEventCollector, ColliderBuilder,
+        vector, ActiveEvents, CCDSolver, ChannelEventCollector, ColliderBuilder,
         ColliderHandle, ColliderSet, CollisionEvent, ImpulseJointSet, IntegrationParameters,
-        IslandManager, MultibodyJointSet, NarrowPhase, PhysicsHooks, PhysicsPipeline,
+        IslandManager, MultibodyJointSet, NarrowPhase, PhysicsPipeline,
         RigidBody as RapierBody, RigidBodyBuilder as RapierBodyBuilder,
         RigidBodyHandle as RapierBodyHandle, RigidBodySet as RapierBodySet,
     },
