@@ -97,7 +97,7 @@ impl BackgroundChunkSaver {
 
     fn flush_pending(pending: &mut HashMap<Vec2<i32>, ChunkSaveData>, folder: &PathBuf) {
         for (_, data) in pending.drain() {
-            Self::save_chunk_to_disk(&data, folder);
+            Self::save_chunk_to_disk(data, folder);
         }
     }
 
@@ -114,15 +114,15 @@ impl BackgroundChunkSaver {
         STANDARD.encode(encoded)
     }
 
-    fn save_chunk_to_disk(data: &ChunkSaveData, folder: &PathBuf) {
+    fn save_chunk_to_disk(data: ChunkSaveData, folder: &PathBuf) {
         let file_data = ChunkFileData {
-            id: data.chunk_id.clone(),
+            id: data.chunk_id,
             voxels: Self::to_base_64(&data.voxels),
             height_map: Self::to_base_64(&data.height_map),
         };
 
         let mut path = folder.clone();
-        path.push(&data.chunk_name);
+        path.push(data.chunk_name);
         path.set_extension("json");
         let tmp_path = path.with_extension("json.tmp");
 
