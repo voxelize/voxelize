@@ -300,25 +300,33 @@ pub struct Registry {
 
 impl Registry {
     pub fn new(blocks_by_id: Vec<(u32, Block)>) -> Self {
-        Self {
+        let mut registry = Self {
             blocks_by_id,
             lookup_cache: None,
             dense_lookup: None,
-        }
+        };
+        registry.rebuild_lookup_indices();
+        registry
     }
 
     pub fn build_cache(&mut self) {
+        for (_, block) in self.blocks_by_id.iter_mut() {
+            block.compute_name_lower();
+        }
+        self.rebuild_lookup_indices();
+    }
+
+    #[inline]
+    fn rebuild_lookup_indices(&mut self) {
         let mut cache = HashMap::with_capacity(self.blocks_by_id.len());
         let mut max_id = 0u32;
-        for (idx, (id, block)) in self.blocks_by_id.iter_mut().enumerate() {
+        for (idx, (id, _)) in self.blocks_by_id.iter().enumerate() {
             cache.insert(*id, idx);
             if *id > max_id {
                 max_id = *id;
             }
-            block.compute_name_lower();
         }
         self.lookup_cache = Some(cache);
-
         let dense_limit = self.blocks_by_id.len().saturating_mul(16);
         if (max_id as usize) <= dense_limit {
             let mut dense = vec![usize::MAX; max_id as usize + 1];
