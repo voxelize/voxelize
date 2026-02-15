@@ -80,6 +80,7 @@ const voxel = Voxel.pack({
     avoid external mutation side effects after construction
   - accepts omitted/`null`/non-plain input and applies deterministic defaults
   - accepts either `BlockFace` instances or `BlockFaceInit` objects in `faces`
+  - accepts either `AABB` instances or plain `AABB` init objects in `aabbs`
   - accepts readonly input arrays/tuples for `faces`, `aabbs`, and
     `isTransparent`, including nullable entry values
   - ignores invalid/non-plain `faces`/`aabbs` entries instead of throwing

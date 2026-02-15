@@ -176,7 +176,17 @@ export interface BlockDynamicPattern {
   parts: BlockConditionalPart[];
 }
 
+export interface AABBInit {
+  minX: number;
+  minY: number;
+  minZ: number;
+  maxX: number;
+  maxY: number;
+  maxZ: number;
+}
+
 export type BlockFaceInput = BlockFace | BlockFaceInit;
+export type AABBInput = AABB | AABBInit;
 export type FaceTransparencyInput = readonly [
   boolean,
   boolean,
@@ -193,7 +203,7 @@ export type FaceTransparencyLike =
 export interface BlockConditionalPartInput {
   rule?: BlockRuleInput | null;
   faces?: readonly (BlockFaceInput | null | undefined)[];
-  aabbs?: readonly (AABB | null | undefined)[];
+  aabbs?: readonly (AABBInput | null | undefined)[];
   isTransparent?: FaceTransparencyLike;
   worldSpace?: boolean | null;
 }
@@ -522,6 +532,44 @@ const cloneBlockFace = (
   return new BlockFace(faceInit);
 };
 
+const cloneAabb = (aabb: AABBInput | null | undefined): AABB | null => {
+  if (aabb instanceof AABB) {
+    return aabb.clone();
+  }
+
+  if (!isPlainObjectValue(aabb)) {
+    return null;
+  }
+
+  const maybeAabb = aabb as {
+    minX?: DynamicValue;
+    minY?: DynamicValue;
+    minZ?: DynamicValue;
+    maxX?: DynamicValue;
+    maxY?: DynamicValue;
+    maxZ?: DynamicValue;
+  };
+  if (
+    !isFiniteNumberValue(maybeAabb.minX) ||
+    !isFiniteNumberValue(maybeAabb.minY) ||
+    !isFiniteNumberValue(maybeAabb.minZ) ||
+    !isFiniteNumberValue(maybeAabb.maxX) ||
+    !isFiniteNumberValue(maybeAabb.maxY) ||
+    !isFiniteNumberValue(maybeAabb.maxZ)
+  ) {
+    return null;
+  }
+
+  return AABB.create(
+    maybeAabb.minX,
+    maybeAabb.minY,
+    maybeAabb.minZ,
+    maybeAabb.maxX,
+    maybeAabb.maxY,
+    maybeAabb.maxZ
+  );
+};
+
 export const createBlockConditionalPart = (
   part: BlockConditionalPartInput | null = {}
 ): BlockConditionalPart => {
@@ -540,8 +588,9 @@ export const createBlockConditionalPart = (
     : [];
   const aabbs = Array.isArray(normalizedPart.aabbs)
     ? normalizedPart.aabbs.reduce<AABB[]>((clonedAabbs, aabb) => {
-        if (aabb instanceof AABB) {
-          clonedAabbs.push(aabb.clone());
+        const clonedAabb = cloneAabb(aabb);
+        if (clonedAabb !== null) {
+          clonedAabbs.push(clonedAabb);
         }
 
         return clonedAabbs;

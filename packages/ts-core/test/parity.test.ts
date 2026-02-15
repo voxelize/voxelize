@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   AABB,
   BLOCK_RULE_NONE,
+  type AABBInit,
   type BlockConditionalPartInput,
   type BlockDynamicPatternInput,
   type BlockFaceInit,
@@ -971,11 +972,19 @@ describe("Type builders", () => {
 
   it("accepts null-prototype conditional part inputs", () => {
     const nullPrototypePart = Object.create(null) as BlockConditionalPartInput;
+    const nullPrototypeAabb = Object.create(null) as AABBInit;
+    nullPrototypeAabb.minX = 0;
+    nullPrototypeAabb.minY = 0;
+    nullPrototypeAabb.minZ = 0;
+    nullPrototypeAabb.maxX = 1;
+    nullPrototypeAabb.maxY = 1;
+    nullPrototypeAabb.maxZ = 1;
     nullPrototypePart.rule = {
       type: "simple",
       offset: [1, 0, 0],
       id: 33,
     };
+    nullPrototypePart.aabbs = [nullPrototypeAabb];
     nullPrototypePart.worldSpace = true;
     const part = createBlockConditionalPart(nullPrototypePart);
 
@@ -986,7 +995,7 @@ describe("Type builders", () => {
         id: 33,
       },
       faces: [],
-      aabbs: [],
+      aabbs: [AABB.create(0, 0, 0, 1, 1, 1)],
       isTransparent: [false, false, false, false, false, false],
       worldSpace: true,
     });
@@ -1301,6 +1310,24 @@ describe("Type builders", () => {
     expect(part.aabbs[0]).not.toBe(validAabb);
   });
 
+  it("accepts plain AABB init objects during conditional part cloning", () => {
+    const sourceAabb: AABBInit = {
+      minX: 0,
+      minY: 0,
+      minZ: 0,
+      maxX: 1,
+      maxY: 1,
+      maxZ: 1,
+    };
+    const part = createBlockConditionalPart({
+      aabbs: [sourceAabb],
+    });
+
+    expect(part.aabbs).toEqual([AABB.create(0, 0, 0, 1, 1, 1)]);
+    sourceAabb.maxX = 9;
+    expect(part.aabbs).toEqual([AABB.create(0, 0, 0, 1, 1, 1)]);
+  });
+
   it("skips non-plain face objects during conditional part cloning", () => {
     class FaceLike {
       public readonly name = "ClassFace";
@@ -1312,6 +1339,23 @@ describe("Type builders", () => {
     });
 
     expect(part.faces).toEqual([]);
+  });
+
+  it("skips non-plain aabb-like objects during conditional part cloning", () => {
+    class AabbLike {
+      public readonly minX = 0;
+      public readonly minY = 0;
+      public readonly minZ = 0;
+      public readonly maxX = 1;
+      public readonly maxY = 1;
+      public readonly maxZ = 1;
+    }
+
+    const part = createBlockConditionalPart({
+      aabbs: [new AabbLike() as never],
+    });
+
+    expect(part.aabbs).toEqual([]);
   });
 
   it("sanitizes malformed optional BlockFaceInit fields to defaults", () => {
@@ -2001,6 +2045,30 @@ describe("Type builders", () => {
     expect(pattern.parts[0].aabbs).toHaveLength(1);
     expect(pattern.parts[0].aabbs[0]).toEqual(validAabb);
     expect(pattern.parts[0].aabbs[0]).not.toBe(validAabb);
+  });
+
+  it("accepts plain AABB init objects in dynamic pattern parts", () => {
+    const sourceAabb: AABBInit = {
+      minX: 0,
+      minY: 0,
+      minZ: 0,
+      maxX: 1,
+      maxY: 1,
+      maxZ: 1,
+    };
+    const pattern = createBlockDynamicPattern({
+      parts: [
+        {
+          aabbs: [sourceAabb],
+        },
+      ],
+    });
+
+    expect(pattern.parts).toHaveLength(1);
+    expect(pattern.parts[0].aabbs).toEqual([AABB.create(0, 0, 0, 1, 1, 1)]);
+
+    sourceAabb.maxX = 9;
+    expect(pattern.parts[0].aabbs).toEqual([AABB.create(0, 0, 0, 1, 1, 1)]);
   });
 
   it("clones dynamic pattern parts to avoid external mutation", () => {

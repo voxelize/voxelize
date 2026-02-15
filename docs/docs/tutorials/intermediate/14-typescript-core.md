@@ -48,6 +48,8 @@ Both helper constructors use deterministic defaults when optional fields are
 omitted or the top-level helper input is `null`/non-plain.
 `createBlockConditionalPart` accepts either `BlockFace` instances or
 `BlockFaceInit` objects in `faces`.
+`createBlockConditionalPart` accepts either `AABB` instances or plain `AABB`
+init objects in `aabbs`.
 Both helpers also accept readonly input arrays/tuples.
 Invalid face/AABB entries (including `null`/`undefined`/non-plain objects) are
 skipped during helper cloning.
