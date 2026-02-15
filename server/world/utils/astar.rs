@@ -27,12 +27,16 @@ impl PathNode {
 pub struct AStar;
 
 impl AStar {
-    pub fn calculate(
+    pub fn calculate<FSuccessors, FHeuristic>(
         start: &Vec3<i32>,
         goal: &Vec3<i32>,
-        successors: &dyn Fn(&PathNode) -> Vec<(PathNode, u32)>,
-        heuristic: &dyn Fn(&PathNode) -> u32,
-    ) -> Option<(Vec<PathNode>, u32)> {
+        successors: &FSuccessors,
+        heuristic: &FHeuristic,
+    ) -> Option<(Vec<PathNode>, u32)>
+    where
+        FSuccessors: Fn(&PathNode) -> Vec<(PathNode, u32)>,
+        FHeuristic: Fn(&PathNode) -> u32,
+    {
         let start_node = PathNode::from_vec3(start);
         let goal_node = PathNode::from_vec3(goal);
 
