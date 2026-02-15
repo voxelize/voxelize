@@ -38,7 +38,7 @@ impl BiomeTree {
         Self {
             tree: KiddoTree::new(),
             biomes: Vec::new(),
-            dimensions,
+            dimensions: dimensions.min(MAX_BIOME_LAYERS),
         }
     }
 
@@ -110,13 +110,17 @@ impl Terrain {
     }
 
     pub fn add_biome(&mut self, point: &[f64], biome: Biome) -> &mut Self {
-        let point_vec: Vec<f64> = point[..self.layers.len()]
-            .iter()
-            .enumerate()
-            .map(|(idx, val)| self.layers[idx].1 * val)
-            .collect();
+        let dimensions = self
+            .layers
+            .len()
+            .min(point.len())
+            .min(MAX_BIOME_LAYERS);
+        let mut weighted_point = [0.0f64; MAX_BIOME_LAYERS];
+        for idx in 0..dimensions {
+            weighted_point[idx] = self.layers[idx].1 * point[idx];
+        }
 
-        self.biome_tree.add(&point_vec, biome);
+        self.biome_tree.add(&weighted_point[..dimensions], biome);
         self
     }
 
@@ -172,27 +176,26 @@ impl Terrain {
     }
 
     pub fn get_biome_at(&self, vx: i32, vy: i32, vz: i32) -> &Biome {
-        let values: Vec<f64> = self
-            .layers
-            .iter()
-            .map(|(layer, weight)| {
-                (if layer.options.dimension == 2 {
-                    layer.noise.get2d(vx, vz)
-                } else {
-                    layer.noise.get3d(vx, vy, vz)
-                }) * weight
-            })
-            .collect();
+        let dimensions = self.layers.len().min(MAX_BIOME_LAYERS);
+        let mut values = [0.0f64; MAX_BIOME_LAYERS];
+        for idx in 0..dimensions {
+            let (layer, weight) = &self.layers[idx];
+            values[idx] = (if layer.options.dimension == 2 {
+                layer.noise.get2d(vx, vz)
+            } else {
+                layer.noise.get3d(vx, vy, vz)
+            }) * weight;
+        }
 
         self.biome_tree
-            .nearest(&values)
+            .nearest(&values[..dimensions])
             .expect("No biomes registered")
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{NoiseOptions, Terrain, TerrainLayer};
+    use super::{Biome, NoiseOptions, Terrain, TerrainLayer, MAX_BIOME_LAYERS};
     use crate::WorldConfig;
 
     #[test]
@@ -213,6 +216,27 @@ mod tests {
         terrain.add_layer(&layer, 0.0);
 
         assert_eq!(terrain.get_bias_offset(5, 10, -3), (0.0, 0.0));
+    }
+
+    #[test]
+    fn biome_tree_dimensions_are_capped_to_supported_layers() {
+        let config = WorldConfig::new().build();
+        let mut terrain = Terrain::new(&config);
+        let layer = TerrainLayer::new("layer", &NoiseOptions::new().build())
+            .add_bias_point([0.0, 0.0])
+            .add_offset_point([0.0, 0.0]);
+
+        for _ in 0..(MAX_BIOME_LAYERS + 2) {
+            terrain.add_layer(&layer, 1.0);
+        }
+
+        terrain.add_biome(
+            &vec![0.0; MAX_BIOME_LAYERS + 2],
+            Biome::new("capped", "stone"),
+        );
+
+        assert_eq!(terrain.biome_tree.dimensions, MAX_BIOME_LAYERS);
+        assert_eq!(terrain.get_biome_at(0, 0, 0).name, "capped");
     }
 }
 
