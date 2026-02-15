@@ -9,7 +9,7 @@ use crate::{
     VoxelAccess, WorldConfig,
 };
 
-use super::lights::Lights;
+use super::lights::{LightNode, Lights};
 
 #[inline]
 fn clamp_i64_to_i32(value: i64) -> i32 {
@@ -217,7 +217,8 @@ impl Mesher {
                     let Vec3(max_x, _, max_z) = chunk.max;
 
                     if should_store_lights {
-                        let mut light_queues = vec![VecDeque::new(); 4];
+                        let mut light_queues: [VecDeque<LightNode>; LIGHT_COLORS.len()] =
+                            std::array::from_fn(|_| VecDeque::new());
 
                         for dx in -1..=1 {
                             for dz in -1..=1 {
@@ -246,9 +247,7 @@ impl Mesher {
                                 let light_subqueues =
                                     Lights::propagate(&mut space, &min, &shape, &registry, &config);
 
-                                for (queue, subqueue) in
-                                    light_queues.iter_mut().zip(light_subqueues.into_iter())
-                                {
+                                for (queue, subqueue) in light_queues.iter_mut().zip(light_subqueues) {
                                     queue.extend(subqueue);
                                 }
                             }
