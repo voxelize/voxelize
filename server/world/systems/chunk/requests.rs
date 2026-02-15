@@ -1,4 +1,4 @@
-use hashbrown::{HashMap, HashSet};
+use hashbrown::{hash_map::RawEntryMut, HashMap, HashSet};
 use specs::{Join, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
@@ -49,7 +49,12 @@ impl<'a> System<'a> for ChunkRequestsSystem {
 
             for coords in requests.requests.drain(..) {
                 if chunks.is_chunk_ready(&coords) {
-                    let clients_to_send = to_send.entry(id.0.clone()).or_default();
+                    let clients_to_send = match to_send.raw_entry_mut().from_key(id.0.as_str()) {
+                        RawEntryMut::Occupied(entry) => entry.into_mut(),
+                        RawEntryMut::Vacant(entry) => {
+                            entry.insert(id.0.clone(), HashSet::new()).1
+                        }
+                    };
 
                     if clients_to_send.len() >= max_response_per_tick {
                         to_add_back_to_requested.insert(coords);
