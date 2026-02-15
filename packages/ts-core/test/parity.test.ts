@@ -1687,7 +1687,7 @@ describe("Type builders", () => {
       offset: [0, 0, 0],
       id: 5,
       rotation: {
-        value: 256,
+        value: 16,
         yRotation: Math.PI / 2,
       },
     });
@@ -2025,7 +2025,7 @@ describe("Type builders", () => {
         type: "simple",
         offset: [0, 0, 0],
         rotation: {
-          value: 256,
+          value: 16,
           yRotation: Math.PI / 2,
         },
       },
@@ -2061,7 +2061,7 @@ describe("Type builders", () => {
         type: "simple",
         offset: [0, 0, 0],
         rotation: {
-          value: 255,
+          value: 15,
           yRotation: Math.PI / 2,
         },
       },
@@ -2070,7 +2070,7 @@ describe("Type builders", () => {
     expect(part.rule).toEqual({
       type: "simple",
       offset: [0, 0, 0],
-      rotation: new BlockRotation(255, Math.PI / 2),
+      rotation: new BlockRotation(15, Math.PI / 2),
     });
   });
 
@@ -2662,11 +2662,11 @@ describe("Type builders", () => {
 
   it("retains boundary createBlockRotation encoded values", () => {
     const boundaryRotation = createBlockRotation({
-      value: 255,
+      value: 15,
       yRotation: Math.PI / 2,
     });
 
-    expect(boundaryRotation).toEqual(new BlockRotation(255, Math.PI / 2));
+    expect(boundaryRotation).toEqual(new BlockRotation(15, Math.PI / 2));
   });
 
   it("supports createBlockRotation helper with frozen rotation init objects", () => {
@@ -2699,7 +2699,7 @@ describe("Type builders", () => {
     ).toEqual(BlockRotation.py(0));
     expect(
       createBlockRotation({
-        value: 256,
+        value: 16,
         yRotation: Math.PI / 2,
       } as never)
     ).toEqual(BlockRotation.py(0));

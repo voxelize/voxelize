@@ -229,7 +229,7 @@ const isNonNegativeIntegerValue = (value: DynamicValue): value is number => {
 };
 
 const isRotationValue = (value: DynamicValue): value is number => {
-  return isNonNegativeIntegerValue(value) && value <= 0xff;
+  return isNonNegativeIntegerValue(value) && value <= 0x0f;
 };
 
 const isBooleanValue = (value: DynamicValue): value is boolean => {
