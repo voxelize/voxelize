@@ -3587,6 +3587,51 @@ describe("BlockRuleEvaluator", () => {
     ).toBe(true);
   });
 
+  it("caps combination length-fallback scans for iterator-trapped rule lists", () => {
+    let indexedReadCount = 0;
+    const oversizedRules = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1_000_000_000;
+        }
+        if (typeof property === "string" && /^(0|[1-9]\d*)$/.test(property)) {
+          indexedReadCount += 1;
+          if (property === "0") {
+            return {
+              type: "simple",
+              offset: [0, 0, 0],
+              id: 35,
+            };
+          }
+          return undefined;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const access = {
+      getVoxel: (x: number, y: number, z: number) =>
+        x === 0 && y === 0 && z === 0 ? 35 : 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.Or,
+          rules: oversizedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(true);
+    expect(indexedReadCount).toBe(1024);
+  });
+
   it("evaluates OR combinations across multiple sub-rules", () => {
     const access = {
       getVoxel: () => 8,
