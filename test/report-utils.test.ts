@@ -938,6 +938,55 @@ describe("report-utils", () => {
     expect(sparseHighIndexResult.positionalArgs).toEqual([]);
     expect(sparseHighIndexResult.optionTerminatorUsed).toBe(false);
 
+    const unorderedOwnKeysArgsTarget: string[] = [];
+    unorderedOwnKeysArgsTarget[1] = "--one";
+    unorderedOwnKeysArgsTarget[3] = "--three";
+    unorderedOwnKeysArgsTarget[5] = "--five";
+    const unorderedOwnKeysArgs = new Proxy(unorderedOwnKeysArgsTarget, {
+      ownKeys() {
+        return ["5", "1", "3", "length"];
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          throw new Error("length trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const unorderedOwnKeysResult = splitCliArgs(unorderedOwnKeysArgs as never);
+    expect(unorderedOwnKeysResult.optionArgs).toEqual([
+      "--one",
+      "--three",
+      "--five",
+    ]);
+    expect(unorderedOwnKeysResult.positionalArgs).toEqual([]);
+    expect(unorderedOwnKeysResult.optionTerminatorUsed).toBe(false);
+
+    const keyScanCapArgsTarget: string[] = [];
+    for (let index = 0; index < 1_100; index += 1) {
+      keyScanCapArgsTarget[index] = `--k${index}`;
+    }
+    const keyScanCapArgs = new Proxy(keyScanCapArgsTarget, {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          throw new Error("length trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const keyScanCapResult = splitCliArgs(keyScanCapArgs as never);
+    expect(keyScanCapResult.optionArgs).toHaveLength(1_024);
+    expect(keyScanCapResult.optionArgs[0]).toBe("--k0");
+    expect(keyScanCapResult.optionArgs[1_023]).toBe("--k1023");
+    expect(keyScanCapResult.positionalArgs).toEqual([]);
+    expect(keyScanCapResult.optionTerminatorUsed).toBe(false);
+
     const partiallyTrappedArgs = ["--json", "--output", "report.json"];
     Object.defineProperty(partiallyTrappedArgs, 1, {
       configurable: true,

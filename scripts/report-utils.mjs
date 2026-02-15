@@ -346,6 +346,59 @@ const cloneArrayFromLengthFallback = (value) => {
   return clonedArray;
 };
 
+const toNonNegativeSafeArrayIndex = (indexKey) => {
+  if (!/^(0|[1-9]\d*)$/.test(indexKey)) {
+    return null;
+  }
+
+  const numericIndex = Number(indexKey);
+  return Number.isSafeInteger(numericIndex) ? numericIndex : null;
+};
+
+const insertBoundedSortedIndex = (indices, arrayIndex, maxCount) => {
+  let insertPosition = 0;
+  let low = 0;
+  let high = indices.length;
+
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    if (indices[mid] < arrayIndex) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+  insertPosition = low;
+
+  if (indices[insertPosition] === arrayIndex) {
+    return;
+  }
+
+  if (indices.length >= maxCount && insertPosition >= maxCount) {
+    return;
+  }
+
+  indices.splice(insertPosition, 0, arrayIndex);
+  if (indices.length > maxCount) {
+    indices.pop();
+  }
+};
+
+const selectSmallestArrayIndices = (indexKeys, maxCount) => {
+  const smallestIndices = [];
+
+  for (const indexKey of indexKeys) {
+    const numericIndex = toNonNegativeSafeArrayIndex(indexKey);
+    if (numericIndex === null) {
+      continue;
+    }
+
+    insertBoundedSortedIndex(smallestIndices, numericIndex, maxCount);
+  }
+
+  return smallestIndices;
+};
+
 const cloneArrayFromIndexedAccess = (value) => {
   if (!Array.isArray(value)) {
     return null;
@@ -363,23 +416,12 @@ const cloneArrayFromIndexedAccess = (value) => {
     return lengthFallbackClone;
   }
 
-  const orderedIndices = indexKeys
-    .map((indexKey) => {
-      if (!/^(0|[1-9]\d*)$/.test(indexKey)) {
-        return Number.NaN;
-      }
-
-      const numericIndex = Number(indexKey);
-      return Number.isSafeInteger(numericIndex) ? numericIndex : Number.NaN;
-    })
-    .filter((indexValue) => {
-      return Number.isInteger(indexValue) && indexValue >= 0;
-    })
-    .sort((leftIndex, rightIndex) => leftIndex - rightIndex);
-
+  const orderedIndices = selectSmallestArrayIndices(
+    indexKeys,
+    MAX_ARRAY_LENGTH_FALLBACK_SCAN
+  );
   const clonedArray = [];
-  const boundedIndices = orderedIndices.slice(0, MAX_ARRAY_LENGTH_FALLBACK_SCAN);
-  for (const arrayIndex of boundedIndices) {
+  for (const arrayIndex of orderedIndices) {
     try {
       clonedArray.push(value[arrayIndex]);
     } catch {
