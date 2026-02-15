@@ -7,7 +7,7 @@ fn absdiff(a: i32, b: i32) -> u32 {
     (i64::from(a) - i64::from(b)).unsigned_abs() as u32
 }
 
-#[derive(Debug, Clone, Serialize, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Copy, Serialize, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct PathNode(pub i32, pub i32, pub i32);
 
 impl PathNode {
@@ -36,14 +36,14 @@ impl AStar {
         let goal_node = PathNode::from_vec3(goal);
 
         let mut visited = std::collections::HashSet::new();
-        visited.insert(start_node.clone());
+        visited.insert(start_node);
 
         astar(
             &start_node,
             |p| {
                 successors(p)
                     .into_iter()
-                    .filter(|(s, _)| visited.insert(s.clone()))
+                    .filter(|(s, _)| visited.insert(*s))
                     .collect::<Vec<_>>()
             },
             heuristic,
