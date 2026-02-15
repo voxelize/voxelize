@@ -7429,20 +7429,13 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
     };
 
     const blocksById = this.registry.blocksById;
-    const blocks = new Array<Block>(blocksById.size);
-    let blockWriteIndex = 0;
-    let blocksByIdValues = blocksById.values();
-    let blockValue = blocksByIdValues.next();
-    while (!blockValue.done) {
-      blocks[blockWriteIndex] = blockValue.value;
-      blockWriteIndex++;
-      blockValue = blocksByIdValues.next();
-    }
 
     const textureGroups = new Set<string>();
     let ungroupedFaces = 0;
-    for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
-      const block = blocks[blockIndex];
+    let blocksByIdValues = blocksById.values();
+    let blockValue = blocksByIdValues.next();
+    while (!blockValue.done) {
+      const block = blockValue.value;
       const blockFaces = block.faces;
       for (let faceIndex = 0; faceIndex < blockFaces.length; faceIndex++) {
         const face = blockFaces[faceIndex];
@@ -7453,6 +7446,7 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
           ungroupedFaces++;
         }
       }
+      blockValue = blocksByIdValues.next();
     }
     const totalSlots = textureGroups.size + ungroupedFaces;
     const countPerSide = perSide(totalSlots);
@@ -7462,8 +7456,10 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
     this.chunkMaterialBaseKeyById.clear();
     this.chunkMaterialIndependentKeyById.clear();
 
-    for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
-      const block = blocks[blockIndex];
+    blocksByIdValues = blocksById.values();
+    blockValue = blocksByIdValues.next();
+    while (!blockValue.done) {
+      const block = blockValue.value;
       const mat = make(
         block.isSeeThrough,
         atlas,
@@ -7499,6 +7495,7 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
         }
         independentMaterialKeys.set(face.name, independentKey);
       }
+      blockValue = blocksByIdValues.next();
     }
   }
 
