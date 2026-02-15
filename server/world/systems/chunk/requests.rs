@@ -2,16 +2,22 @@ use hashbrown::{hash_map::RawEntryMut, HashMap, HashSet};
 use specs::{Join, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
-    ChunkInterests, ChunkRequestsComp, ChunkStatus, Chunks, ClientFilter, IDComp, Mesher, Message,
-    MessageQueues, MessageType, Pipeline, Vec2, WorldConfig, WorldTimingContext,
+    ChunkInterests, ChunkRequestsComp, ChunkStatus, Chunks, ClientFilter, Clients, IDComp, Mesher,
+    Message, MessageQueues, MessageType, Pipeline, Vec2, WorldConfig, WorldTimingContext,
 };
 
-pub struct ChunkRequestsSystem;
+#[derive(Default)]
+pub struct ChunkRequestsSystem {
+    to_send_buffer: HashMap<String, HashSet<Vec2<i32>>>,
+    to_send_touched_clients_buffer: Vec<String>,
+    to_add_back_to_requested_buffer: HashSet<Vec2<i32>>,
+}
 
 impl<'a> System<'a> for ChunkRequestsSystem {
     type SystemData = (
         ReadExpect<'a, Chunks>,
         ReadExpect<'a, WorldConfig>,
+        ReadExpect<'a, Clients>,
         WriteExpect<'a, ChunkInterests>,
         WriteExpect<'a, Pipeline>,
         WriteExpect<'a, Mesher>,
@@ -25,6 +31,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         let (
             chunks,
             config,
+            clients,
             mut interests,
             mut pipeline,
             mut mesher,
@@ -43,30 +50,41 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             config.sub_chunks as u32
         };
 
-        let mut to_send: HashMap<String, HashSet<Vec2<i32>>> = HashMap::new();
+        let to_send = &mut self.to_send_buffer;
+        let to_send_touched_clients = &mut self.to_send_touched_clients_buffer;
+        let to_add_back_to_requested = &mut self.to_add_back_to_requested_buffer;
+        to_send_touched_clients.clear();
+        if clients.is_empty() {
+            to_send.clear();
+        } else if !to_send.is_empty() && to_send.len() > clients.len() {
+            to_send.retain(|client_id, _| clients.contains_key(client_id));
+        }
 
         for (id, requests) in (&ids, &mut requests).join() {
-            let mut to_add_back_to_requested: Option<HashSet<Vec2<i32>>> = None;
+            to_add_back_to_requested.clear();
 
             for coords in requests.requests.drain(..) {
                 if chunks.is_chunk_ready(&coords) {
                     if !can_send_responses {
-                        to_add_back_to_requested
-                            .get_or_insert_with(HashSet::new)
-                            .insert(coords);
+                        to_add_back_to_requested.insert(coords);
                         continue;
                     }
                     let clients_to_send = match to_send.raw_entry_mut().from_key(id.0.as_str()) {
-                        RawEntryMut::Occupied(entry) => entry.into_mut(),
+                        RawEntryMut::Occupied(entry) => {
+                            let clients_to_send = entry.into_mut();
+                            if clients_to_send.is_empty() {
+                                to_send_touched_clients.push(id.0.clone());
+                            }
+                            clients_to_send
+                        }
                         RawEntryMut::Vacant(entry) => {
+                            to_send_touched_clients.push(id.0.clone());
                             entry.insert(id.0.clone(), HashSet::new()).1
                         }
                     };
 
                     if clients_to_send.len() >= max_response_per_tick {
-                        to_add_back_to_requested
-                            .get_or_insert_with(HashSet::new)
-                            .insert(coords);
+                        to_add_back_to_requested.insert(coords);
                         continue;
                     }
 
@@ -89,18 +107,25 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                 }
             }
 
-            if let Some(to_add_back_to_requested) = to_add_back_to_requested {
-                requests.requests.extend(to_add_back_to_requested);
+            if !to_add_back_to_requested.is_empty() {
+                requests.requests.extend(to_add_back_to_requested.drain());
             }
         }
 
-        for (id, coords) in to_send {
-            let mut chunk_models = Vec::with_capacity(coords.len());
-            for coords in coords {
-                if let Some(chunk) = chunks.get(&coords) {
+        for id in to_send_touched_clients.drain(..) {
+            let Some(coords_to_send) = to_send.get_mut(&id) else {
+                continue;
+            };
+            if coords_to_send.is_empty() {
+                continue;
+            }
+            let mut chunk_models = Vec::with_capacity(coords_to_send.len());
+            for coords in coords_to_send.iter() {
+                if let Some(chunk) = chunks.get(coords) {
                     chunk_models.push(chunk.to_model(true, true, 0..sub_chunks_u32));
                 }
             }
+            coords_to_send.clear();
             if chunk_models.is_empty() {
                 continue;
             }

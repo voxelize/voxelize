@@ -442,7 +442,11 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
         .with(PeersMetaSystem, "peers-meta", &[])
         .with(CurrentChunkSystem, "current-chunk", &[])
         .with(ChunkUpdatingSystem, "chunk-updating", &["current-chunk"])
-        .with(ChunkRequestsSystem, "chunk-requests", &["current-chunk"])
+        .with(
+            ChunkRequestsSystem::default(),
+            "chunk-requests",
+            &["current-chunk"],
+        )
         .with(
             ChunkGeneratingSystem,
             "chunk-generation",
