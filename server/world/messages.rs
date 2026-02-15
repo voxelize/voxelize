@@ -217,10 +217,16 @@ impl EncodedMessageQueue {
             }
             return result;
         }
-        if result.capacity() - result.len() < pending_batches {
-            result.reserve(pending_batches - (result.capacity() - result.len()));
+        let mut pending_message_batches = Vec::with_capacity(pending_batches);
+        let mut pending_message_count = 0usize;
+        while let Ok(messages) = self.receiver.try_recv() {
+            pending_message_count = pending_message_count.saturating_add(messages.len());
+            pending_message_batches.push(messages);
         }
-        while let Ok(mut messages) = self.receiver.try_recv() {
+        if pending_message_count > 0 && result.capacity() - result.len() < pending_message_count {
+            result.reserve(pending_message_count - (result.capacity() - result.len()));
+        }
+        for mut messages in pending_message_batches {
             result.append(&mut messages);
         }
         result
@@ -247,8 +253,16 @@ impl EncodedMessageQueue {
 
 #[cfg(test)]
 mod tests {
-    use super::{EncodedMessageQueue, MessageQueues};
+    use super::{EncodedMessage, EncodedMessageQueue, MessageQueues};
     use crate::{ClientFilter, EntityOperation, EntityProtocol, Message, MessageType};
+
+    fn encoded_marker(marker: u8) -> EncodedMessage {
+        EncodedMessage {
+            data: vec![marker],
+            msg_type: MessageType::Peer as i32,
+            is_rtc_eligible: true,
+        }
+    }
 
     #[test]
     fn message_queues_drain_prioritized_orders_by_priority_group() {
@@ -325,5 +339,33 @@ mod tests {
         assert!(EncodedMessageQueue::compute_rtc_eligibility(&update_message));
         assert!(!EncodedMessageQueue::compute_rtc_eligibility(&mixed_message));
         assert!(!EncodedMessageQueue::compute_rtc_eligibility(&empty_message));
+    }
+
+    #[test]
+    fn receive_merges_processed_and_multiple_async_batches() {
+        let mut queue = EncodedMessageQueue::new();
+        queue
+            .processed
+            .push((encoded_marker(1), ClientFilter::Direct("processed".to_string())));
+        queue
+            .sender
+            .send(vec![(encoded_marker(2), ClientFilter::Direct("batch-1".to_string()))])
+            .unwrap();
+        queue
+            .sender
+            .send(vec![
+                (encoded_marker(3), ClientFilter::Direct("batch-2".to_string())),
+                (encoded_marker(4), ClientFilter::Direct("batch-3".to_string())),
+            ])
+            .unwrap();
+
+        let received = queue.receive();
+        let payload_markers: Vec<u8> = received
+            .iter()
+            .map(|(encoded, _)| encoded.data[0])
+            .collect();
+
+        assert_eq!(payload_markers, vec![1, 2, 3, 4]);
+        assert!(queue.processed.is_empty());
     }
 }
