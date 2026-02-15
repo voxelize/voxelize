@@ -353,6 +353,10 @@ const toOptionalRuleNumber = (
 
 const toBlockRotation = (value: DynamicValue): BlockRotation | null => {
   if (value instanceof BlockRotation) {
+    if (!isRotationValue(value.value) || !isFiniteNumberValue(value.yRotation)) {
+      return null;
+    }
+
     return new BlockRotation(value.value, value.yRotation);
   }
 

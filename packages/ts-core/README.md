@@ -104,6 +104,7 @@ const voxel = Voxel.pack({
     (`id`: 0..65535, `stage`: 0..15)
   - keeps plain rotation-like values only when `value` is an encoded
     non-negative nibble (`0..15`) and `yRotation` is finite
+  - applies the same nibble/finiteness constraints to `BlockRotation` instances
   - accepts readonly rotation-like literals in helper input objects
   - normalizes `null` optional simple-rule fields (`id`/`rotation`/`stage`) to
     omitted constraints
@@ -126,6 +127,8 @@ const voxel = Voxel.pack({
 - `createBlockRotation`
   - ergonomic constructor helper for `BlockRotation` or
     plain/readonly/frozen rotation literals (`value`/`yRotation`)
+  - `BlockRotation` instances are revalidated to encoded nibble/finiteness
+    constraints before cloning
   - malformed inputs fall back to identity `BlockRotation.py(0)`
 - `createFaceTransparency`
   - builds normalized 6-face transparency tuples from

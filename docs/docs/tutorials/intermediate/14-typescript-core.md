@@ -76,6 +76,8 @@ Optional simple-rule `id`/`stage` values are kept only when they match voxel
 ranges (`id`: 0..65535, `stage`: 0..15).
 Plain rotation-like values are kept only when `value` is an encoded
 non-negative nibble (`0..15`) and `yRotation` is finite.
+`BlockRotation` instances are revalidated to the same nibble/finiteness
+constraints during helper sanitization.
 Readonly rotation-like literals are also accepted during helper sanitization.
 Frozen rotation-like literals are also accepted during helper sanitization.
 `createBlockRotation` exposes this rotation sanitization directly.

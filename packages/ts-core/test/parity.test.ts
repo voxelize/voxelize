@@ -1742,6 +1742,14 @@ describe("Type builders", () => {
         yRotation: Number.POSITIVE_INFINITY,
       },
     });
+    const invalidInstance = BlockRotation.py(Math.PI / 2);
+    invalidInstance.axis = 16;
+    const invalidInstanceRule = createBlockRule({
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 5,
+      rotation: invalidInstance,
+    });
 
     expect(invalidValueRule).toEqual({
       type: "simple",
@@ -1749,6 +1757,11 @@ describe("Type builders", () => {
       id: 5,
     });
     expect(invalidYRotationRule).toEqual({
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 5,
+    });
+    expect(invalidInstanceRule).toEqual({
       type: "simple",
       offset: [0, 0, 0],
       id: 5,
@@ -2082,6 +2095,14 @@ describe("Type builders", () => {
         },
       },
     });
+    const invalidInstanceRotation = new BlockRotation(16, Math.PI / 2);
+    const invalidInstancePart = createBlockConditionalPart({
+      rule: {
+        type: "simple",
+        offset: [0, 0, 0],
+        rotation: invalidInstanceRotation,
+      },
+    });
 
     expect(part.rule).toEqual({
       type: "simple",
@@ -2092,6 +2113,10 @@ describe("Type builders", () => {
       offset: [0, 0, 0],
     });
     expect(fractionalPart.rule).toEqual({
+      type: "simple",
+      offset: [0, 0, 0],
+    });
+    expect(invalidInstancePart.rule).toEqual({
       type: "simple",
       offset: [0, 0, 0],
     });
@@ -2739,6 +2764,10 @@ describe("Type builders", () => {
       public readonly value = BlockRotation.PX().axis;
       public readonly yRotation = Math.PI / 2;
     }
+    const malformedInstance = BlockRotation.py(Math.PI / 2);
+    malformedInstance.axis = 16;
+    const malformedYRotationInstance = BlockRotation.py(Math.PI / 2);
+    malformedYRotationInstance.yRotation = Number.POSITIVE_INFINITY;
 
     expect(createBlockRotation()).toEqual(BlockRotation.py(0));
     expect(createBlockRotation(null)).toEqual(BlockRotation.py(0));
@@ -2769,6 +2798,10 @@ describe("Type builders", () => {
         yRotation: Number.POSITIVE_INFINITY,
       } as never)
     ).toEqual(BlockRotation.py(0));
+    expect(createBlockRotation(malformedInstance)).toEqual(BlockRotation.py(0));
+    expect(createBlockRotation(malformedYRotationInstance)).toEqual(
+      BlockRotation.py(0)
+    );
   });
 });
 
