@@ -546,14 +546,42 @@ export class Network {
   };
 
   unregister = (...intercepts: NetIntercept[]) => {
-    for (let interceptIndex = 0; interceptIndex < intercepts.length; interceptIndex++) {
-      const intercept = intercepts[interceptIndex];
-      const index = this.intercepts.indexOf(intercept);
+    if (intercepts.length === 0 || this.intercepts.length === 0) {
+      return this;
+    }
 
+    if (intercepts.length === 1) {
+      const index = this.intercepts.indexOf(intercepts[0]);
       if (index !== -1) {
         this.intercepts.splice(index, 1);
       }
+
+      return this;
     }
+
+    const removalCounts = new Map<NetIntercept, number>();
+    for (let interceptIndex = 0; interceptIndex < intercepts.length; interceptIndex++) {
+      const intercept = intercepts[interceptIndex];
+      removalCounts.set(intercept, (removalCounts.get(intercept) ?? 0) + 1);
+    }
+
+    const currentIntercepts = this.intercepts;
+    let writeIndex = 0;
+    for (let readIndex = 0; readIndex < currentIntercepts.length; readIndex++) {
+      const intercept = currentIntercepts[readIndex];
+      const remainingRemovals = removalCounts.get(intercept);
+      if (remainingRemovals !== undefined && remainingRemovals > 0) {
+        if (remainingRemovals === 1) {
+          removalCounts.delete(intercept);
+        } else {
+          removalCounts.set(intercept, remainingRemovals - 1);
+        }
+        continue;
+      }
+      currentIntercepts[writeIndex] = intercept;
+      writeIndex++;
+    }
+    currentIntercepts.length = writeIndex;
 
     return this;
   };
