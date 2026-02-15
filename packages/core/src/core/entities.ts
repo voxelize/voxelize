@@ -109,14 +109,22 @@ export class Entities extends Group implements NetIntercept {
               continue;
             }
 
-            object = this.createEntityOfType(type, id);
+            const createdObject = this.createEntityOfType(type, id);
+            if (!createdObject) {
+              continue;
+            }
+            object = createdObject;
             object.onCreate?.(metadata);
 
             break;
           }
           case "UPDATE": {
             if (!object) {
-              object = this.createEntityOfType(type, id);
+              const createdObject = this.createEntityOfType(type, id);
+              if (!createdObject) {
+                continue;
+              }
+              object = createdObject;
               object.onCreate?.(metadata);
             }
 
