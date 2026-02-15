@@ -4456,6 +4456,37 @@ describe("report-utils", () => {
     expect(aliasOnlyOptionCatalogOverrideValidation.unsupportedOptionsError).toBeNull();
     expect(aliasOnlyOptionCatalogOverrideValidation.validationErrorCode).toBeNull();
     expect(aliasOnlyOptionCatalogOverrideCanonicalReadCount).toBe(0);
+    const whitespaceCanonicalMapOptionCatalogOverrideValidation =
+      createCliOptionValidation(["--verify", "--skip-build"], {
+        canonicalOptions: ["--json"],
+        optionCatalog: {
+          availableCliOptionCanonicalMap: {
+            " --verify ": " --no-build ",
+            " --no-build ": " --no-build ",
+          },
+          availableCliOptionAliases: {
+            " --no-build ": [" --skip-build "],
+          },
+        } as never,
+      });
+    expect(
+      whitespaceCanonicalMapOptionCatalogOverrideValidation.supportedCliOptions
+    ).toEqual(["--no-build", "--skip-build", "--verify"]);
+    expect(
+      whitespaceCanonicalMapOptionCatalogOverrideValidation.supportedCliOptionCount
+    ).toBe(3);
+    expect(
+      whitespaceCanonicalMapOptionCatalogOverrideValidation.unknownOptions
+    ).toEqual([]);
+    expect(
+      whitespaceCanonicalMapOptionCatalogOverrideValidation.unknownOptionCount
+    ).toBe(0);
+    expect(
+      whitespaceCanonicalMapOptionCatalogOverrideValidation.unsupportedOptionsError
+    ).toBeNull();
+    expect(
+      whitespaceCanonicalMapOptionCatalogOverrideValidation.validationErrorCode
+    ).toBeNull();
     let malformedOptionCatalogOverrideCanonicalReadCount = 0;
     const malformedOptionCatalogOverrideCanonicalOptions = new Proxy(
       ["--json"],
