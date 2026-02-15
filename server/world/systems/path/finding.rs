@@ -155,7 +155,7 @@ impl<'a> System<'a> for PathFindingSystem {
         (&bodies, &targets, &mut paths)
             .par_join()
             .for_each(|(body, target, entity_path)| {
-                if let Some(target_position) = target.position.to_owned() {
+                if let Some(target_position) = &target.position {
                     let body_vpos = body.0.get_voxel_position();
 
                     let height = body.0.aabb.height();
@@ -196,7 +196,7 @@ impl<'a> System<'a> for PathFindingSystem {
                     let start = if body.0.at_rest_y() < 0
                         || is_position_supported(&body_vpos, aabb_width)
                     {
-                        body_vpos.clone()
+                        body_vpos
                     } else {
                         get_standable_voxel(&body_vpos, 3)
                     };
