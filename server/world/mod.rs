@@ -1677,7 +1677,6 @@ impl World {
                     "Client entity doesn't have ChunkRequestsComp component: {}",
                     client_id
                 );
-                //TODO: We could re-add the component here, server doesn't panic now though
             }
         }
     }
