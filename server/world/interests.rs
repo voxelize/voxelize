@@ -139,6 +139,9 @@ impl ChunkInterests {
     }
 
     pub fn remove_client(&mut self, client_id: &str) {
+        if self.map.is_empty() {
+            return;
+        }
         self.map.retain(|_, clients| {
             clients.remove(client_id);
             !clients.is_empty()
