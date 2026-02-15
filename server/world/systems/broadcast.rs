@@ -166,6 +166,7 @@ impl<'a> System<'a> for BroadcastSystem {
 
         let rtc_map = rtc_senders_opt.as_ref().and_then(|rtc| rtc.try_lock().ok());
         let client_count = clients.len();
+        let has_transports = !transports.is_empty();
 
         for (encoded, filter) in done_messages {
             let use_rtc = encoded.is_rtc_eligible;
@@ -282,7 +283,7 @@ impl<'a> System<'a> for BroadcastSystem {
                 _ => {}
             }
 
-            if !transports.is_empty() && should_send_to_transport(encoded.msg_type) {
+            if has_transports && should_send_to_transport(encoded.msg_type) {
                 transports.values().for_each(|sender| {
                     let _ = sender.send(encoded.data.clone());
                 });
