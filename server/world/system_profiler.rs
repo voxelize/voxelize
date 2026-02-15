@@ -173,7 +173,13 @@ pub fn get_timing_summary_for_world(world_name: &str) -> HashMap<String, SystemS
 pub fn get_all_world_names() -> Vec<String> {
     WORLD_TIMINGS
         .read()
-        .map(|wt| wt.keys().cloned().collect())
+        .map(|wt| {
+            let mut world_names = Vec::with_capacity(wt.len());
+            for name in wt.keys() {
+                world_names.push(name.clone());
+            }
+            world_names
+        })
         .unwrap_or_default()
 }
 
