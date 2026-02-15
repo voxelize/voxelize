@@ -129,11 +129,11 @@ impl ChunkInterests {
     }
 
     pub fn remove(&mut self, client_id: &str, coords: &Vec2<i32>) {
-        if let Some(clients) = self.map.get_mut(coords) {
+        if let Entry::Occupied(mut entry) = self.map.entry(*coords) {
+            let clients = entry.get_mut();
             clients.remove(client_id);
-
             if clients.is_empty() {
-                self.map.remove(coords);
+                entry.remove();
             }
         }
     }
