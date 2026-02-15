@@ -154,9 +154,10 @@ impl<'a> System<'a> for BroadcastSystem {
         encoded_queue.process();
 
         let mut async_messages = encoded_queue.receive();
-        let mut done_messages =
-            Vec::with_capacity(immediate_encoded.len() + async_messages.len());
-        done_messages.append(&mut immediate_encoded);
+        let mut done_messages = immediate_encoded;
+        if done_messages.capacity() - done_messages.len() < async_messages.len() {
+            done_messages.reserve(async_messages.len());
+        }
         done_messages.append(&mut async_messages);
 
         if done_messages.is_empty() {
