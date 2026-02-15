@@ -199,7 +199,7 @@ impl<'a> System<'a> for BroadcastSystem {
             if is_immediate(message.r#type) {
                 let msg_type = message.r#type;
                 let encoded = EncodedMessage {
-                    data: encode_message(&message),
+                    data: Bytes::from(encode_message(&message)),
                     msg_type,
                     is_rtc_eligible: false,
                 };
@@ -234,7 +234,7 @@ impl<'a> System<'a> for BroadcastSystem {
             if has_transports {
                 for (encoded, _) in done_messages {
                     if should_send_to_transport(encoded.msg_type) {
-                        send_to_transports(&transports, Bytes::from(encoded.data));
+                        send_to_transports(&transports, encoded.data);
                     }
                 }
             }
@@ -243,7 +243,7 @@ impl<'a> System<'a> for BroadcastSystem {
 
         for (encoded, filter) in done_messages {
             let use_rtc = encoded.is_rtc_eligible;
-            let encoded_data = Bytes::from(encoded.data);
+            let encoded_data = encoded.data;
             if let ClientFilter::Direct(id) = &filter {
                 if let Some(client) = clients.get(id) {
                     if use_rtc {

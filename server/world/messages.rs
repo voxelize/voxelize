@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use bytes::Bytes;
 use crossbeam_channel::{Receiver, Sender};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
@@ -25,7 +26,7 @@ fn reserve_for_append<T>(buffer: &mut Vec<T>, additional: usize) {
 
 #[derive(Clone)]
 pub struct EncodedMessage {
-    pub data: Vec<u8>,
+    pub data: Bytes,
     pub msg_type: i32,
     pub is_rtc_eligible: bool,
 }
@@ -151,7 +152,7 @@ impl EncodedMessageQueue {
                 let msg_type = message.r#type;
                 let is_rtc_eligible = Self::compute_rtc_eligibility(&message);
                 let encoded = EncodedMessage {
-                    data: encode_message(&message),
+                    data: Bytes::from(encode_message(&message)),
                     msg_type,
                     is_rtc_eligible,
                 };
@@ -165,7 +166,7 @@ impl EncodedMessageQueue {
                 let msg_type = message.r#type;
                 let is_rtc_eligible = Self::compute_rtc_eligibility(&message);
                 let encoded = EncodedMessage {
-                    data: encode_message(&message),
+                    data: Bytes::from(encode_message(&message)),
                     msg_type,
                     is_rtc_eligible,
                 };
@@ -183,7 +184,7 @@ impl EncodedMessageQueue {
                     let msg_type = message.r#type;
                     let is_rtc_eligible = Self::compute_rtc_eligibility(&message);
                     let encoded = EncodedMessage {
-                        data: encode_message(&message),
+                        data: Bytes::from(encode_message(&message)),
                         msg_type,
                         is_rtc_eligible,
                     };
@@ -283,12 +284,14 @@ impl EncodedMessageQueue {
 
 #[cfg(test)]
 mod tests {
+    use bytes::Bytes;
+
     use super::{EncodedMessage, EncodedMessageQueue, MessageQueues};
     use crate::{ClientFilter, EntityOperation, EntityProtocol, Message, MessageType};
 
     fn encoded_marker(marker: u8) -> EncodedMessage {
         EncodedMessage {
-            data: vec![marker],
+            data: Bytes::from(vec![marker]),
             msg_type: MessageType::Peer as i32,
             is_rtc_eligible: true,
         }
