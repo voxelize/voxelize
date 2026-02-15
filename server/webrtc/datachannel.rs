@@ -81,12 +81,21 @@ impl FragmentAssembler {
         let entry = self
             .fragments
             .entry(message_id)
-            .or_insert_with(HashMap::new);
+            .or_insert_with(|| HashMap::with_capacity(total));
         entry.insert(index, payload.to_vec());
 
         if let Some(&expected) = self.expected_counts.get(&message_id) {
             if entry.len() == expected {
-                let mut complete = Vec::new();
+                let mut complete_len = 0usize;
+                for i in 0..expected {
+                    if let Some(fragment) = entry.get(&i) {
+                        complete_len = complete_len.saturating_add(fragment.len());
+                    } else {
+                        return None;
+                    }
+                }
+
+                let mut complete = Vec::with_capacity(complete_len);
                 for i in 0..expected {
                     if let Some(fragment) = entry.get(&i) {
                         complete.extend_from_slice(fragment);
