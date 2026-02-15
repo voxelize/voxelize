@@ -107,6 +107,9 @@ Length-fallback recovery skips sparse-hole placeholders and inherited numeric
 prototype entries before logical evaluation.
 If bounded length recovery yields only `none` entries, bounded key-scan
 recovery can still supplement readable high-index rules before evaluation.
+When bounded length recovery preserves readable prefix rules but does not
+fill the scan window, key-scan recovery can still supplement readable
+high-index rules.
 Optional simple-rule `id`/`stage` values are kept only when they match voxel
 ranges (`id`: 0..65535, `stage`: 0..15).
 Plain rotation-like values are kept only when `value` is an encoded

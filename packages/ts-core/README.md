@@ -105,6 +105,9 @@ const voxel = Voxel.pack({
     numeric prototype entries before logical evaluation
   - if bounded length recovery yields only `none` entries, bounded key-scan
     recovery can still supplement readable high-index rules before evaluation
+  - when bounded length recovery preserves some readable prefix rules but does
+    not fill the scan window, key-scan recovery can still supplement readable
+    high-index rules
 - `createBlockConditionalPart`
   - defensively clones rule, face, AABB, and transparency-array inputs to
     avoid external mutation side effects after construction
