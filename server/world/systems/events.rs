@@ -69,6 +69,11 @@ impl<'a> System<'a> for EventsSystem {
         let has_transports = !transports.is_empty();
         let queued_events_count = events.queue.len();
         let dispatch_map = &mut self.dispatch_map_buffer;
+        if client_count == 0 && !has_transports {
+            events.queue.clear();
+            dispatch_map.clear();
+            return;
+        }
         if client_count == 0 {
             dispatch_map.clear();
         } else {
