@@ -90,6 +90,8 @@ const voxel = Voxel.pack({
     `stage`) are treated as deterministic non-matches
   - cyclic combination-rule edges are guarded during evaluation to avoid
     recursion overflows and follow deterministic `none`-edge semantics
+  - malformed combination-rule child collections sanitize to empty-list logic
+    semantics (`AND` => `true`, `OR` => `false`, `NOT` => `true`)
 - `createBlockConditionalPart`
   - defensively clones rule, face, AABB, and transparency-array inputs to
     avoid external mutation side effects after construction
