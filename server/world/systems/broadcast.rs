@@ -12,20 +12,6 @@ use crate::{
 pub struct BroadcastSystem;
 const SMALL_FILTER_LINEAR_SCAN_LIMIT: usize = 8;
 
-#[derive(Hash, Eq, PartialEq)]
-enum BatchFilterKey {
-    All,
-    Direct(String),
-    IncludeNone,
-    IncludeOne(String),
-    IncludePair(String, String),
-    IncludeMany(Vec<String>),
-    ExcludeNone,
-    ExcludeOne(String),
-    ExcludePair(String, String),
-    ExcludeMany(Vec<String>),
-}
-
 #[inline]
 fn ids_are_strictly_sorted(ids: &[String]) -> bool {
     if ids.len() < 2 {
@@ -58,69 +44,16 @@ fn ids_contains_target(ids: &[String], target: &str) -> bool {
     }
 }
 
-fn filter_key(filter: &ClientFilter) -> BatchFilterKey {
-    match filter {
-        ClientFilter::All => BatchFilterKey::All,
-        ClientFilter::Direct(id) => BatchFilterKey::Direct(id.clone()),
-        ClientFilter::Include(ids) => {
-            if ids.is_empty() {
-                return BatchFilterKey::IncludeNone;
-            }
-            if ids.len() == 1 {
-                return BatchFilterKey::IncludeOne(ids[0].clone());
-            }
-            if ids.len() == 2 {
-                let (first, second) = if ids[0] <= ids[1] {
-                    (&ids[0], &ids[1])
-                } else {
-                    (&ids[1], &ids[0])
-                };
-                if first == second {
-                    return BatchFilterKey::IncludeOne(first.clone());
-                }
-                return BatchFilterKey::IncludePair(first.clone(), second.clone());
-            }
-            if ids_are_strictly_sorted(ids) {
-                return BatchFilterKey::IncludeMany(ids.clone());
-            }
-            let mut sorted = ids.clone();
-            sorted.sort_unstable();
-            sorted.dedup();
-            if sorted.len() == 1 {
-                return BatchFilterKey::IncludeOne(sorted.swap_remove(0));
-            }
-            BatchFilterKey::IncludeMany(sorted)
-        }
-        ClientFilter::Exclude(ids) => {
-            if ids.is_empty() {
-                return BatchFilterKey::ExcludeNone;
-            }
-            if ids.len() == 1 {
-                return BatchFilterKey::ExcludeOne(ids[0].clone());
-            }
-            if ids.len() == 2 {
-                let (first, second) = if ids[0] <= ids[1] {
-                    (&ids[0], &ids[1])
-                } else {
-                    (&ids[1], &ids[0])
-                };
-                if first == second {
-                    return BatchFilterKey::ExcludeOne(first.clone());
-                }
-                return BatchFilterKey::ExcludePair(first.clone(), second.clone());
-            }
-            if ids_are_strictly_sorted(ids) {
-                return BatchFilterKey::ExcludeMany(ids.clone());
-            }
-            let mut sorted = ids.clone();
-            sorted.sort_unstable();
-            sorted.dedup();
-            if sorted.len() == 1 {
-                return BatchFilterKey::ExcludeOne(sorted.swap_remove(0));
-            }
-            BatchFilterKey::ExcludeMany(sorted)
-        }
+fn normalize_filter_for_batching(filter: &mut ClientFilter) {
+    let ids = match filter {
+        ClientFilter::Include(ids) | ClientFilter::Exclude(ids) => ids,
+        _ => return,
+    };
+    if ids.len() < 2 || ids_are_strictly_sorted(ids) {
+        return;
     }
+    ids.sort_unstable();
+    ids.dedup();
 }
 
 fn can_batch(msg_type: i32) -> bool {
@@ -162,23 +95,21 @@ fn batch_messages(messages: Vec<(Message, ClientFilter)>) -> Vec<(Message, Clien
         return messages;
     }
     let total_messages = messages.len();
-    let mut batched: HashMap<(i32, BatchFilterKey), (Message, ClientFilter)> =
-        HashMap::with_capacity(total_messages);
+    let mut batched: HashMap<(i32, ClientFilter), Message> = HashMap::with_capacity(total_messages);
     let mut unbatched: Vec<(Message, ClientFilter)> = Vec::with_capacity(total_messages);
 
-    for (message, filter) in messages {
+    for (message, mut filter) in messages {
         let msg_type = message.r#type;
 
         if can_batch(msg_type) {
-            let key = (msg_type, filter_key(&filter));
+            normalize_filter_for_batching(&mut filter);
 
-            match batched.entry(key) {
+            match batched.entry((msg_type, filter)) {
                 Entry::Occupied(mut entry) => {
-                    let (existing, _) = entry.get_mut();
-                    merge_messages(existing, message);
+                    merge_messages(entry.get_mut(), message);
                 }
                 Entry::Vacant(entry) => {
-                    entry.insert((message, filter));
+                    entry.insert(message);
                 }
             }
         } else {
@@ -188,7 +119,9 @@ fn batch_messages(messages: Vec<(Message, ClientFilter)>) -> Vec<(Message, Clien
 
     let mut result: Vec<(Message, ClientFilter)> =
         Vec::with_capacity(batched.len() + unbatched.len());
-    result.extend(batched.into_values());
+    for ((_, filter), message) in batched {
+        result.push((message, filter));
+    }
     result.extend(unbatched);
     result
 }
@@ -562,7 +495,8 @@ impl<'a> System<'a> for BroadcastSystem {
 
 #[cfg(test)]
 mod tests {
-    use super::{ids_are_strictly_sorted, ids_contains_target, sorted_ids_contains};
+    use super::{batch_messages, ids_are_strictly_sorted, ids_contains_target, sorted_ids_contains};
+    use crate::{ClientFilter, Message, MessageType};
 
     fn ids(values: &[&str]) -> Vec<String> {
         values.iter().map(|value| value.to_string()).collect()
@@ -591,5 +525,47 @@ mod tests {
         assert!(sorted_ids_contains(&sorted, "aa"));
         assert!(sorted_ids_contains(&sorted, "dd"));
         assert!(!sorted_ids_contains(&sorted, "ab"));
+    }
+
+    #[test]
+    fn batch_messages_merges_unsorted_duplicate_include_filters() {
+        let messages = vec![
+            (
+                Message::new(&MessageType::Event).build(),
+                ClientFilter::Include(ids(&["b", "a", "a"])),
+            ),
+            (
+                Message::new(&MessageType::Event).build(),
+                ClientFilter::Include(ids(&["a", "b"])),
+            ),
+        ];
+
+        let batched = batch_messages(messages);
+        assert_eq!(batched.len(), 1);
+        assert!(matches!(
+            &batched[0].1,
+            ClientFilter::Include(values) if values == &ids(&["a", "b"])
+        ));
+    }
+
+    #[test]
+    fn batch_messages_merges_unsorted_duplicate_exclude_filters() {
+        let messages = vec![
+            (
+                Message::new(&MessageType::Event).build(),
+                ClientFilter::Exclude(ids(&["x", "y", "x"])),
+            ),
+            (
+                Message::new(&MessageType::Event).build(),
+                ClientFilter::Exclude(ids(&["y", "x"])),
+            ),
+        ];
+
+        let batched = batch_messages(messages);
+        assert_eq!(batched.len(), 1);
+        assert!(matches!(
+            &batched[0].1,
+            ClientFilter::Exclude(values) if values == &ids(&["x", "y"])
+        ));
     }
 }
