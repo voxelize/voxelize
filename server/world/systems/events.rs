@@ -176,11 +176,6 @@ impl<'a> System<'a> for EventsSystem {
             };
 
             if let Some(filter) = filter {
-                if let ClientFilter::Direct(id) = &filter {
-                    send_to_id(id);
-                    continue;
-                }
-
                 match &filter {
                     ClientFilter::All => {
                         for (id, client) in clients.iter() {
