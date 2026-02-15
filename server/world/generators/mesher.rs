@@ -168,10 +168,8 @@ impl Mesher {
         registry: &Registry,
         config: &WorldConfig,
     ) {
-        let processes: Vec<(Chunk, Space)> = processes
-            .into_iter()
-            .filter(|(chunk, _)| self.map.insert(chunk.coords.to_owned()))
-            .collect();
+        let mut processes = processes;
+        processes.retain(|(chunk, _)| self.map.insert(chunk.coords.to_owned()));
 
         if processes.is_empty() {
             return;
