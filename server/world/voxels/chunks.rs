@@ -518,9 +518,9 @@ impl Chunks {
             return;
         }
         if prioritized {
-            self.to_send.push_front((*coords, r#type.clone()));
+            self.to_send.push_front((*coords, *r#type));
         } else {
-            self.to_send.push_back((*coords, r#type.clone()));
+            self.to_send.push_back((*coords, *r#type));
         }
     }
 
