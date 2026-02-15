@@ -181,7 +181,15 @@ impl<'a> System<'a> for EventsSystem {
                         }
                         if ids.len() <= 4 {
                             for (id, client) in clients.iter() {
-                                if !ids.iter().any(|excluded_id| excluded_id == id) {
+                                let id = id.as_str();
+                                let mut excluded = false;
+                                for excluded_id in ids.iter() {
+                                    if excluded_id.as_str() == id {
+                                        excluded = true;
+                                        break;
+                                    }
+                                }
+                                if !excluded {
                                     send_to_client(id, client.entity);
                                 }
                             }
