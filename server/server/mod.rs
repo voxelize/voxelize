@@ -11,6 +11,7 @@ use fern::colors::{Color, ColoredLevelConfig};
 use futures_util::future::join_all;
 use hashbrown::HashMap;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use bytes::Bytes;
 use log::{info, warn};
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
@@ -28,7 +29,7 @@ use crate::{
 
 pub use models::*;
 
-pub type WsSender = mpsc::UnboundedSender<Vec<u8>>;
+pub type WsSender = mpsc::UnboundedSender<Bytes>;
 
 #[derive(Serialize, Deserialize)]
 pub struct OnJoinRequest {
@@ -569,11 +570,11 @@ impl Handler<Connect> for Server {
             return MessageResult((id, token));
         }
 
-        let kick_msg = encode_message(
+        let kick_msg = Bytes::from(encode_message(
             &Message::new(&MessageType::Error)
                 .text("Another session connected with your account.")
                 .build(),
-        );
+        ));
 
         if let Some((old_sender, _old_token)) = self.lost_sessions.remove(&id) {
             info!("Kicking duplicate pre-join session: {}", id);

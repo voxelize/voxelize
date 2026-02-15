@@ -1,4 +1,5 @@
 use hashbrown::{hash_map::RawEntryMut, HashMap, HashSet};
+use bytes::Bytes;
 use specs::{Entity, ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::{
@@ -97,7 +98,7 @@ fn push_dispatch_event(
 }
 
 #[inline]
-fn send_to_transports(transports: &Transports, payload: Vec<u8>) {
+fn send_to_transports(transports: &Transports, payload: Bytes) {
     let mut senders = transports.values();
     let Some(first_sender) = senders.next() else {
         return;
@@ -190,7 +191,7 @@ impl<'a> System<'a> for EventsSystem {
                 .world_name(&world_metadata.world_name)
                 .events_owned(transports_events_to_send)
                 .build();
-            let encoded = encode_message(&message);
+            let encoded = Bytes::from(encode_message(&message));
             send_to_transports(&transports, encoded);
             return;
         }
@@ -479,7 +480,7 @@ impl<'a> System<'a> for EventsSystem {
                 let message = Message::new(&MessageType::Event)
                     .events_owned(client_events_to_send)
                     .build();
-                let encoded = encode_message(&message);
+                let encoded = Bytes::from(encode_message(&message));
                 let _ = client.sender.send(encoded);
             }
         }
@@ -494,7 +495,7 @@ impl<'a> System<'a> for EventsSystem {
                 .world_name(&world_metadata.world_name)
                 .events_owned(transports_events_to_send)
                 .build();
-            let encoded = encode_message(&message);
+            let encoded = Bytes::from(encode_message(&message));
             send_to_transports(&transports, encoded);
         }
     }

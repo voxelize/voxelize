@@ -108,7 +108,7 @@ fn send_fragmented_rtc_payload(rtc_sender: &mpsc::UnboundedSender<Bytes>, payloa
 }
 
 #[inline]
-fn send_to_transports(transports: &Transports, payload: Vec<u8>) {
+fn send_to_transports(transports: &Transports, payload: Bytes) {
     let mut senders = transports.values();
     let Some(first_sender) = senders.next() else {
         return;
@@ -234,7 +234,7 @@ impl<'a> System<'a> for BroadcastSystem {
             if has_transports {
                 for (encoded, _) in done_messages {
                     if should_send_to_transport(encoded.msg_type) {
-                        send_to_transports(&transports, encoded.data);
+                        send_to_transports(&transports, Bytes::from(encoded.data));
                     }
                 }
             }
@@ -243,17 +243,18 @@ impl<'a> System<'a> for BroadcastSystem {
 
         for (encoded, filter) in done_messages {
             let use_rtc = encoded.is_rtc_eligible;
+            let encoded_data = Bytes::from(encoded.data);
             if let ClientFilter::Direct(id) = &filter {
                 if let Some(client) = clients.get(id) {
                     if use_rtc {
                         if let Some(ref rtc_map) = rtc_map {
                             if let Some(rtc_sender) = rtc_map.get(id) {
-                                send_fragmented_rtc_payload(rtc_sender, &encoded.data);
+                                send_fragmented_rtc_payload(rtc_sender, encoded_data.as_ref());
                                 continue;
                             }
                         }
                     }
-                    let _ = client.sender.send(encoded.data);
+                    let _ = client.sender.send(encoded_data);
                 }
                 continue;
             }
@@ -272,21 +273,21 @@ impl<'a> System<'a> for BroadcastSystem {
                     if use_rtc {
                         if let Some(ref rtc_map) = rtc_map {
                             if let Some(rtc_sender) = rtc_map.get(single_id) {
-                                send_fragmented_rtc_payload(rtc_sender, &encoded.data);
+                                send_fragmented_rtc_payload(rtc_sender, encoded_data.as_ref());
                                 sent_with_rtc = true;
                             }
                         }
                     }
                     if !sent_with_rtc {
                         if !should_send_transport {
-                            let _ = single_client.sender.send(encoded.data);
+                            let _ = single_client.sender.send(encoded_data);
                             continue;
                         }
-                        let _ = single_client.sender.send(encoded.data.clone());
+                        let _ = single_client.sender.send(encoded_data.clone());
                     }
                 }
                 if should_send_transport {
-                    send_to_transports(&transports, encoded.data);
+                    send_to_transports(&transports, encoded_data);
                 }
                 continue;
             }
@@ -303,21 +304,21 @@ impl<'a> System<'a> for BroadcastSystem {
                     if use_rtc {
                         if let Some(ref rtc_map) = rtc_map {
                             if let Some(rtc_sender) = rtc_map.get(target_id) {
-                                send_fragmented_rtc_payload(rtc_sender, &encoded.data);
+                                send_fragmented_rtc_payload(rtc_sender, encoded_data.as_ref());
                                 sent_with_rtc = true;
                             }
                         }
                     }
                     if !sent_with_rtc {
                         if !should_send_transport {
-                            let _ = client.sender.send(encoded.data);
+                            let _ = client.sender.send(encoded_data);
                             continue;
                         }
-                        let _ = client.sender.send(encoded.data.clone());
+                        let _ = client.sender.send(encoded_data.clone());
                     }
                 }
                 if should_send_transport {
-                    send_to_transports(&transports, encoded.data);
+                    send_to_transports(&transports, encoded_data);
                 }
                 continue;
             }
@@ -327,16 +328,16 @@ impl<'a> System<'a> for BroadcastSystem {
                 let mut clients_iter = clients.values();
                 if let Some(first_client) = clients_iter.next() {
                     for client in clients_iter {
-                        let _ = client.sender.send(encoded.data.clone());
+                        let _ = client.sender.send(encoded_data.clone());
                     }
                     if should_send_transport {
-                        let _ = first_client.sender.send(encoded.data.clone());
-                        send_to_transports(&transports, encoded.data);
+                        let _ = first_client.sender.send(encoded_data.clone());
+                        send_to_transports(&transports, encoded_data);
                     } else {
-                        let _ = first_client.sender.send(encoded.data);
+                        let _ = first_client.sender.send(encoded_data);
                     }
                 } else if should_send_transport {
-                    send_to_transports(&transports, encoded.data);
+                    send_to_transports(&transports, encoded_data);
                 }
                 continue;
             }
@@ -347,7 +348,7 @@ impl<'a> System<'a> for BroadcastSystem {
                         if let Some(rtc_sender) = rtc_map.get(id) {
                             let fragments = rtc_fragments_cache
                                 .get_or_insert_with(|| {
-                                    fragment_message(&encoded.data)
+                                    fragment_message(encoded_data.as_ref())
                                         .into_iter()
                                         .map(Bytes::from)
                                         .collect()
@@ -362,7 +363,7 @@ impl<'a> System<'a> for BroadcastSystem {
                     }
                 }
 
-                let _ = client.sender.send(encoded.data.clone());
+                let _ = client.sender.send(encoded_data.clone());
             };
             let mut send_to_id = |id: &str| {
                 if let Some(client) = clients.get(id) {
@@ -503,7 +504,7 @@ impl<'a> System<'a> for BroadcastSystem {
             }
 
             if has_transports && should_send_to_transport(encoded.msg_type) {
-                send_to_transports(&transports, encoded.data);
+                send_to_transports(&transports, encoded_data);
             }
         }
     }

@@ -25,6 +25,7 @@ use actix::{
     Actor, Handler, Message as ActixMessage, MessageResult, SyncContext,
 };
 use actix::{Addr, SyncArbiter};
+use bytes::Bytes;
 use hashbrown::HashMap;
 use log::{error, info, warn};
 use metadata::WorldMetadata;
@@ -1165,7 +1166,7 @@ impl World {
 
     /// Send a direct message to an endpoint
     pub fn send(&self, sender: &WsSender, data: &Message) {
-        let _ = sender.send(encode_message(data));
+        let _ = sender.send(Bytes::from(encode_message(data)));
     }
 
     /// Access to the world's config.

@@ -106,7 +106,7 @@ async fn handle_ws_connection(
     mut stream: impl StreamExt<Item = Result<AggregatedMessage, actix_ws::ProtocolError>> + Unpin,
     server: Addr<Server>,
 ) {
-    let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    let (tx, mut rx) = mpsc::unbounded_channel::<Bytes>();
 
     let (session_id, connection_token) = match server
         .send(Connect {
