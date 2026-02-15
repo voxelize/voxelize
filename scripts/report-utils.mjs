@@ -467,8 +467,9 @@ export const deriveFailureMessageFromReport = (report) => {
   }
 
   const requiredFailures = safeReadProperty(report, "requiredFailures");
-  if (typeof requiredFailures === "number") {
-    return `${requiredFailures} required check(s) failed.`;
+  const normalizedRequiredFailures = toNonNegativeIntegerOrNull(requiredFailures);
+  if (normalizedRequiredFailures !== null) {
+    return `${normalizedRequiredFailures} required check(s) failed.`;
   }
 
   const steps = cloneArraySafely(safeReadProperty(report, "steps"));

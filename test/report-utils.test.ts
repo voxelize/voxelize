@@ -4441,6 +4441,25 @@ describe("report-utils", () => {
       deriveFailureMessageFromReport({ requiredFailures: 2 })
     ).toBe("2 required check(s) failed.");
     expect(
+      deriveFailureMessageFromReport({ requiredFailures: Number.NaN })
+    ).toBeNull();
+    expect(
+      deriveFailureMessageFromReport({
+        requiredFailures: -1,
+        steps: [
+          {
+            name: "TypeScript typecheck",
+            passed: false,
+            skipped: false,
+            reason: "previous step failed",
+          },
+        ],
+      })
+    ).toBe("TypeScript typecheck: previous step failed");
+    expect(
+      deriveFailureMessageFromReport({ requiredFailures: 1.5 })
+    ).toBeNull();
+    expect(
       deriveFailureMessageFromReport({
         steps: [
           { name: "Skipped", passed: false, skipped: true },
