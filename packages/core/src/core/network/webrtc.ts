@@ -10,11 +10,16 @@ const toHttpProtocol = (protocol: string) => {
   return protocol;
 };
 
+type FragmentState = {
+  parts: Array<Uint8Array | null>;
+  received: number;
+  total: number;
+};
+
 export class WebRTCConnection {
   private pc: RTCPeerConnection | null = null;
   private dc: RTCDataChannel | null = null;
-  private fragments = new Map<number, Map<number, Uint8Array>>();
-  private expectedFragmentCounts = new Map<number, number>();
+  private fragments = new Map<number, FragmentState>();
   private nextMessageId = 0;
 
   onMessage: ((data: ArrayBuffer) => void) | null = null;
@@ -87,7 +92,6 @@ export class WebRTCConnection {
     this.dc = null;
     this.pc = null;
     this.fragments.clear();
-    this.expectedFragmentCounts.clear();
   }
 
   private handleMessage(data: ArrayBuffer): void {
@@ -121,37 +125,38 @@ export class WebRTCConnection {
     if (index !== 0 && this.nextMessageId === 0) {
       return;
     }
-    if (index === 0 && this.expectedFragmentCounts.size >= MAX_PENDING_MESSAGES) {
+    if (index === 0 && this.fragments.size >= MAX_PENDING_MESSAGES) {
       this.fragments.clear();
-      this.expectedFragmentCounts.clear();
       this.nextMessageId = 0;
     }
 
     const messageId =
       index === 0 ? this.nextMessageId++ : this.nextMessageId - 1;
-    if (index === 0) {
-      this.expectedFragmentCounts.set(messageId, total);
-    } else {
-      const expected = this.expectedFragmentCounts.get(messageId);
-      if (expected === undefined || expected !== total) {
+    let fragmentState = this.fragments.get(messageId);
+    if (!fragmentState) {
+      if (index !== 0) {
         return;
       }
+      fragmentState = {
+        parts: new Array<Uint8Array | null>(total).fill(null),
+        received: 0,
+        total,
+      };
+      this.fragments.set(messageId, fragmentState);
+    } else if (fragmentState.total !== total || index >= fragmentState.total) {
+      return;
     }
-
-    let fragmentMap = this.fragments.get(messageId);
-    if (!fragmentMap) {
-      fragmentMap = new Map();
-      this.fragments.set(messageId, fragmentMap);
+    if (fragmentState.parts[index] === null) {
+      fragmentState.received++;
     }
-    fragmentMap.set(index, payload);
+    fragmentState.parts[index] = payload;
 
-    if (fragmentMap.size === total) {
+    if (fragmentState.received === fragmentState.total) {
       let totalLength = 0;
-      for (let i = 0; i < total; i++) {
-        const frag = fragmentMap.get(i);
+      for (let i = 0; i < fragmentState.total; i++) {
+        const frag = fragmentState.parts[i];
         if (!frag) {
           this.fragments.delete(messageId);
-          this.expectedFragmentCounts.delete(messageId);
           return;
         }
         totalLength += frag.byteLength;
@@ -159,16 +164,17 @@ export class WebRTCConnection {
 
       const complete = new Uint8Array(totalLength);
       let offset = 0;
-      for (let i = 0; i < total; i++) {
-        const frag = fragmentMap.get(i);
-        if (frag) {
-          complete.set(frag, offset);
-          offset += frag.byteLength;
+      for (let i = 0; i < fragmentState.total; i++) {
+        const frag = fragmentState.parts[i];
+        if (!frag) {
+          this.fragments.delete(messageId);
+          return;
         }
+        complete.set(frag, offset);
+        offset += frag.byteLength;
       }
 
       this.fragments.delete(messageId);
-      this.expectedFragmentCounts.delete(messageId);
       this.onMessage?.(complete.buffer);
     }
   }
