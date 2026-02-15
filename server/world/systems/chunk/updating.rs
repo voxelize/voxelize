@@ -182,11 +182,18 @@ fn process_pending_updates(
         }
 
         let mut neighbors_ready = true;
-        chunks.for_each_light_traversed_chunk(&coords, |neighbor_coords| {
-            if neighbors_ready && !chunks.is_chunk_ready(&neighbor_coords) {
-                neighbors_ready = false;
+        if let Some((min_x, max_x, min_z, max_z)) = chunks.light_traversed_bounds(&coords) {
+            'neighbors: for x in min_x..=max_x {
+                for z in min_z..=max_z {
+                    if !chunks.is_chunk_ready(&Vec2(x, z)) {
+                        neighbors_ready = false;
+                        break 'neighbors;
+                    }
+                }
             }
-        });
+        } else {
+            neighbors_ready = false;
+        }
 
         if !neighbors_ready {
             for (voxel, raw) in chunk_updates.into_iter().rev() {
