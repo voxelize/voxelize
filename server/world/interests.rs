@@ -81,26 +81,7 @@ impl ChunkInterests {
             return HashSet::new();
         }
 
-        let mut expected_clients = 0usize;
-        for dx in -1..=1 {
-            let Some(nx) = center.0.checked_add(dx) else {
-                continue;
-            };
-            for dz in -1..=1 {
-                let Some(nz) = center.1.checked_add(dz) else {
-                    continue;
-                };
-                let coords = Vec2(nx, nz);
-                if let Some(interested) = self.get_interests(&coords) {
-                    expected_clients = expected_clients.saturating_add(interested.len());
-                }
-            }
-        }
-        if expected_clients == 0 {
-            return HashSet::new();
-        }
-
-        let mut clients = HashSet::with_capacity(expected_clients);
+        let mut clients = HashSet::with_capacity(self.map.len().min(16));
         for dx in -1..=1 {
             let Some(nx) = center.0.checked_add(dx) else {
                 continue;
