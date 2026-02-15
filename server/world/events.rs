@@ -1,5 +1,4 @@
 use serde::Serialize;
-use serde_json::json;
 
 use crate::{ClientFilter, Vec2};
 
@@ -15,6 +14,10 @@ impl Event {
     pub fn new(name: &str) -> EventBuilder {
         EventBuilder::new(name)
     }
+
+    pub fn new_owned(name: String) -> EventBuilder {
+        EventBuilder::new_owned(name)
+    }
 }
 
 #[derive(Default)]
@@ -29,13 +32,30 @@ impl EventBuilder {
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_owned(),
-            payload: Some(json!("{}").to_string()),
-            ..Default::default()
+            payload: None,
+            filter: None,
+            location: None,
+        }
+    }
+
+    pub fn new_owned(name: String) -> Self {
+        Self {
+            name,
+            payload: None,
+            filter: None,
+            location: None,
         }
     }
 
     pub fn payload<T: Serialize>(mut self, payload: T) -> Self {
-        self.payload = Some(json!(payload).to_string());
+        self.payload = Some(
+            serde_json::to_string(&payload).expect("Failed to serialize event payload"),
+        );
+        self
+    }
+
+    pub fn payload_raw(mut self, payload: String) -> Self {
+        self.payload = Some(payload);
         self
     }
 
@@ -71,5 +91,37 @@ impl Events {
 
     pub fn dispatch(&mut self, event: Event) {
         self.queue.push(event);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Event;
+
+    #[test]
+    fn event_builder_without_payload_keeps_payload_empty() {
+        let event = Event::new("vox-builtin:test").build();
+        assert!(event.payload.is_none());
+    }
+
+    #[test]
+    fn event_builder_serializes_payload_when_provided() {
+        let event = Event::new("vox-builtin:test").payload(42).build();
+        assert_eq!(event.payload.as_deref(), Some("42"));
+    }
+
+    #[test]
+    fn event_builder_payload_raw_keeps_existing_json() {
+        let raw_payload = String::from("{\"a\":1}");
+        let event = Event::new("vox-builtin:test")
+            .payload_raw(raw_payload.clone())
+            .build();
+        assert_eq!(event.payload, Some(raw_payload));
+    }
+
+    #[test]
+    fn event_builder_new_owned_keeps_name_without_copying() {
+        let event = Event::new_owned(String::from("vox-builtin:test")).build();
+        assert_eq!(event.name, "vox-builtin:test");
     }
 }

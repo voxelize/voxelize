@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
 use log::{info, warn};
@@ -30,8 +29,7 @@ impl Profiler {
     pub fn time_end(&mut self, label: &str) {
         if let Some((start, _)) = self.times.remove(label) {
             let duration = start.elapsed();
-            self.times
-                .insert(label.to_string(), (start.clone(), duration));
+            self.times.insert(label.to_string(), (start, duration));
             if let Some(last_label) = self.current_hierarchy.last() {
                 if last_label == label {
                     self.hierarchy_records.push(self.current_hierarchy.clone());
@@ -45,11 +43,12 @@ impl Profiler {
 
     pub fn summarize(&mut self) {
         let mut printed = std::collections::HashSet::new();
+        let threshold_secs = self.threshold.as_secs_f32();
 
         for hierarchy in self.hierarchy_records.iter() {
             if let Some(root_label) = hierarchy.first() {
                 if let Some(duration) = self.times.get(root_label) {
-                    if duration.1.as_secs_f32() > self.threshold.as_secs_f32() {
+                    if duration.1.as_secs_f32() > threshold_secs {
                         self.print_hierarchy_recursive(root_label, 0, &mut printed);
                     }
                 }

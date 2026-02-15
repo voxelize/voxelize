@@ -1,13 +1,12 @@
 use crossbeam_channel::Receiver;
 use hashbrown::HashMap;
-use log::info;
 use nalgebra::Vector3;
 use rapier3d::{
     geometry::DefaultBroadPhase,
     prelude::{
-        vector, ActiveEvents, BroadPhase, CCDSolver, ChannelEventCollector, ColliderBuilder,
+        vector, ActiveEvents, CCDSolver, ChannelEventCollector, ColliderBuilder,
         ColliderHandle, ColliderSet, CollisionEvent, ImpulseJointSet, IntegrationParameters,
-        IslandManager, MultibodyJointSet, NarrowPhase, PhysicsHooks, PhysicsPipeline,
+        IslandManager, MultibodyJointSet, NarrowPhase, PhysicsPipeline,
         RigidBody as RapierBody, RigidBodyBuilder as RapierBodyBuilder,
         RigidBodyHandle as RapierBodyHandle, RigidBodySet as RapierBodySet,
     },
@@ -90,7 +89,7 @@ impl Physics {
             &self.event_handler,
         );
 
-        let mut collisions = vec![];
+        let mut collisions = Vec::with_capacity(self.collision_recv.len());
 
         while let Ok(collision_event) = self.collision_recv.try_recv() {
             // Handle the collision event.
@@ -127,13 +126,13 @@ impl Physics {
 
     pub fn unregister(&mut self, body_handle: &RapierBodyHandle, collider_handle: &ColliderHandle) {
         self.collider_set.remove(
-            collider_handle.to_owned(),
+            *collider_handle,
             &mut self.island_manager,
             &mut self.body_set,
             false,
         );
         self.body_set.remove(
-            body_handle.to_owned(),
+            *body_handle,
             &mut self.island_manager,
             &mut self.collider_set,
             &mut self.impulse_joint_set,
@@ -143,11 +142,11 @@ impl Physics {
     }
 
     pub fn get(&self, body_handle: &RapierBodyHandle) -> &RapierBody {
-        &self.body_set[body_handle.to_owned()]
+        &self.body_set[*body_handle]
     }
 
     pub fn get_mut(&mut self, body_handle: &RapierBodyHandle) -> &mut RapierBody {
-        &mut self.body_set[body_handle.to_owned()]
+        &mut self.body_set[*body_handle]
     }
 
     pub fn move_rapier_body(&mut self, body_handle: &RapierBodyHandle, position: &Vec3<f32>) {
@@ -304,7 +303,10 @@ impl Physics {
         }
 
         // sleep check
-        let vsq = body.velocity.len().powi(2);
+        let vx = body.velocity.0;
+        let vy = body.velocity.1;
+        let vz = body.velocity.2;
+        let vsq = vx * vx + vy * vy + vz * vz;
         if vsq > 1e-5 {
             body.mark_active()
         }
@@ -376,8 +378,19 @@ impl Physics {
 
         let y0 = if test_fluid(center_x, y0, center_z) {
             y0
-        } else if y0 < y1 && test_fluid(center_x, y0 + 1, center_z) {
-            y0 + 1
+        } else if y0 < y1 {
+            let Some(next_y) = y0.checked_add(1) else {
+                body.in_fluid = false;
+                body.ratio_in_fluid = 0.0;
+                return;
+            };
+            if test_fluid(center_x, next_y, center_z) {
+                next_y
+            } else {
+                body.in_fluid = false;
+                body.ratio_in_fluid = 0.0;
+                return;
+            }
         } else {
             body.in_fluid = false;
             body.ratio_in_fluid = 0.0;
@@ -643,14 +656,6 @@ impl Physics {
         leftover[1] = 0.0;
         let mut tmp_resting = Vec3::default();
         Physics::process_collisions(space, registry, &mut body.aabb, &leftover, &mut tmp_resting);
-
-        // bail if no movement happened in the originally blocked direction
-        // if x_blocked && !approx_equals(old_aabb.min_x, target_pos[0]) {
-        //     return;
-        // }
-        // if z_blocked && !approx_equals(old_aabb.min_z, target_pos[2]) {
-        //     return;
-        // }
 
         // if the new position is below the old position, then the new position is invalid
         // since we're trying to step upwards

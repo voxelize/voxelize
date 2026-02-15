@@ -1,11 +1,14 @@
 use specs::{ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
-    world::system_profiler::WorldTimingContext, ClientFilter, ClientFlag, Clients, IDComp, Message,
-    MessageQueues, MessageType, MetadataComp, NameComp, PeerProtocol, Stats,
+    world::system_profiler::WorldTimingContext, ClientFilter, ClientFlag, Clients, IDComp,
+    Message, MessageQueues, MessageType, MetadataComp, NameComp, PeerProtocol,
 };
 
-pub struct PeersSendingSystem;
+#[derive(Default)]
+pub struct PeersSendingSystem {
+    peers_buffer: Vec<PeerProtocol>,
+}
 
 impl<'a> System<'a> for PeersSendingSystem {
     type SystemData = (
@@ -24,17 +27,21 @@ impl<'a> System<'a> for PeersSendingSystem {
         let (clients, mut queue, flag, ids, names, mut metadatas, timing) = data;
         let _t = timing.timer("peers-sending");
 
-        // if clients.len() <= 1 {
-        //     return;
-        // }
-
-        let mut peers = vec![];
+        let peers = &mut self.peers_buffer;
+        peers.clear();
+        if clients.is_empty() {
+            return;
+        }
+        if peers.capacity() < clients.len() {
+            peers.reserve(clients.len() - peers.capacity());
+        }
         for (id, name, metadata, _) in (&ids, &names, &mut metadatas, &flag).join() {
-            let (json_str, updated) = metadata.to_cached_str();
-
-            if !updated {
+            if metadata.is_empty() {
                 continue;
             }
+            let Some(json_str) = metadata.to_cached_str_if_updated() else {
+                continue;
+            };
 
             peers.push(PeerProtocol {
                 id: id.0.to_owned(),
@@ -48,9 +55,12 @@ impl<'a> System<'a> for PeersSendingSystem {
         if peers.is_empty() {
             return;
         }
+        let peers_to_send = std::mem::replace(peers, Vec::with_capacity(peers.len()));
 
         queue.push((
-            Message::new(&MessageType::Peer).peers(&peers).build(),
+            Message::new(&MessageType::Peer)
+                .peers_owned(peers_to_send)
+                .build(),
             ClientFilter::All,
         ));
     }

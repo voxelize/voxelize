@@ -1,5 +1,6 @@
 import { MessageProtocol } from "@voxelize/protocol";
 
+import { JsonValue } from "../types";
 import { NetIntercept } from "./network";
 
 /**
@@ -19,7 +20,7 @@ import { NetIntercept } from "./network";
  * ```
  */
 export class Method implements NetIntercept {
-  public packets: MessageProtocol<any, any, any, any>[] = [];
+  public packets: MessageProtocol[] = [];
 
   /**
    * Create a method caller that can be used to call a method on the server.
@@ -36,7 +37,7 @@ export class Method implements NetIntercept {
    * @param name The name of the method to call.
    * @param payload The JSON serializable payload to send to the server.
    */
-  call = (name: string, payload: any = {}) => {
+  call = (name: string, payload: JsonValue = {}) => {
     this.packets.push({
       type: "METHOD",
       method: {

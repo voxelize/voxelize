@@ -1,9 +1,9 @@
 use crossbeam_channel::{bounded, Receiver, Sender, TryRecvError};
 use hashbrown::HashMap;
 use log::warn;
-use serde_json::json;
+use serde::Serialize;
+use std::borrow::Cow;
 use std::fs::{self, File};
-use std::io::Write;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -14,14 +14,39 @@ use crate::{MetadataComp, WorldConfig};
 
 #[derive(Clone)]
 pub struct EntitySaveData {
-    pub id: String,
     pub etype: String,
     pub is_block: bool,
     pub metadata: MetadataComp,
 }
 
+#[derive(Serialize)]
+struct SavedEntityFile<'a> {
+    etype: &'a str,
+    metadata: &'a MetadataComp,
+}
+
+#[inline]
+fn normalized_entity_type<'a>(etype: &'a str) -> Cow<'a, str> {
+    let mut has_non_ascii = false;
+    for &byte in etype.as_bytes() {
+        if byte.is_ascii_uppercase() {
+            return Cow::Owned(etype.to_lowercase());
+        }
+        if !byte.is_ascii() {
+            has_non_ascii = true;
+        }
+    }
+    if !has_non_ascii {
+        Cow::Borrowed(etype)
+    } else if etype.chars().any(|ch| ch.is_uppercase()) {
+        Cow::Owned(etype.to_lowercase())
+    } else {
+        Cow::Borrowed(etype)
+    }
+}
+
 pub struct BackgroundEntitiesSaver {
-    sender: Sender<EntitySaveData>,
+    sender: Sender<(String, EntitySaveData)>,
     folder: PathBuf,
     saving: bool,
     shutdown: Arc<AtomicBool>,
@@ -38,7 +63,7 @@ impl BackgroundEntitiesSaver {
         }
 
         let saving = config.saving && config.save_entities;
-        let (sender, receiver) = bounded::<EntitySaveData>(10000);
+        let (sender, receiver) = bounded::<(String, EntitySaveData)>(10000);
         let shutdown = Arc::new(AtomicBool::new(false));
 
         let handle = if saving {
@@ -61,22 +86,27 @@ impl BackgroundEntitiesSaver {
     }
 
     fn background_save_loop(
-        receiver: Receiver<EntitySaveData>,
+        receiver: Receiver<(String, EntitySaveData)>,
         folder: PathBuf,
         shutdown: Arc<AtomicBool>,
     ) {
         let flush_interval = Duration::from_millis(100);
         let mut last_flush = Instant::now();
-        let mut pending: HashMap<String, EntitySaveData> = HashMap::new();
+        let mut pending: HashMap<String, EntitySaveData> = HashMap::with_capacity(64);
 
         loop {
             match receiver.try_recv() {
-                Ok(data) => {
-                    pending.insert(data.id.clone(), data);
+                Ok((id, data)) => {
+                    pending.insert(id, data);
                 }
                 Err(TryRecvError::Empty) => {
-                    if shutdown.load(Ordering::Relaxed) && pending.is_empty() {
-                        break;
+                    if shutdown.load(Ordering::Relaxed) {
+                        if pending.is_empty() {
+                            break;
+                        }
+                        Self::flush_pending(&mut pending, &folder);
+                        last_flush = Instant::now();
+                        continue;
                     }
                     thread::sleep(Duration::from_millis(10));
                 }
@@ -94,27 +124,41 @@ impl BackgroundEntitiesSaver {
     }
 
     fn flush_pending(pending: &mut HashMap<String, EntitySaveData>, folder: &PathBuf) {
-        for (_, data) in pending.drain() {
-            Self::save_entity_to_disk(&data, folder);
+        for (id, data) in pending.drain() {
+            Self::save_entity_to_disk(&id, &data, folder);
         }
     }
 
-    fn save_entity_to_disk(data: &EntitySaveData, folder: &PathBuf) {
-        let mut map = HashMap::new();
+    fn save_entity_to_disk(id: &str, data: &EntitySaveData, folder: &PathBuf) {
+        let normalized_etype = normalized_entity_type(&data.etype);
         let etype_value = if data.is_block {
-            format!(
-                "block::{}",
-                data.etype.to_lowercase().trim_start_matches("block::")
-            )
+            let normalized_etype = normalized_etype.as_ref();
+            let block_suffix = normalized_etype
+                .strip_prefix("block::")
+                .unwrap_or(normalized_etype);
+            let mut prefixed = String::with_capacity(7 + block_suffix.len());
+            prefixed.push_str("block::");
+            prefixed.push_str(block_suffix);
+            Cow::Owned(prefixed)
         } else {
-            data.etype.to_lowercase()
+            normalized_etype
         };
-        map.insert("etype".to_owned(), json!(etype_value));
-        map.insert("metadata".to_owned(), json!(data.metadata));
+        let payload = SavedEntityFile {
+            etype: etype_value.as_ref(),
+            metadata: &data.metadata,
+        };
 
-        let sanitized_filename = etype_value.replace("::", "-").replace(' ', "-");
-        let new_filename = format!("{}-{}.json", sanitized_filename, data.id);
-        let old_filename = format!("{}.json", data.id);
+        let etype_value = etype_value.as_ref();
+        let mut sanitized_filename = if etype_value.contains("::") {
+            etype_value.replace("::", "-")
+        } else {
+            etype_value.to_owned()
+        };
+        if sanitized_filename.contains(' ') {
+            sanitized_filename = sanitized_filename.replace(' ', "-");
+        }
+        let new_filename = format!("{}-{}.json", sanitized_filename, id);
+        let old_filename = format!("{}.json", id);
 
         let mut new_path = folder.clone();
         new_path.push(&new_filename);
@@ -130,8 +174,7 @@ impl BackgroundEntitiesSaver {
 
         match File::create(&path_to_use) {
             Ok(mut file) => {
-                let j = serde_json::to_string(&json!(map)).unwrap();
-                if let Err(e) = file.write_all(j.as_bytes()) {
+                if let Err(e) = serde_json::to_writer(&mut file, &payload) {
                     warn!("Failed to write entity file: {}", e);
                 }
             }
@@ -147,13 +190,12 @@ impl BackgroundEntitiesSaver {
         }
 
         let data = EntitySaveData {
-            id: id.to_string(),
             etype: etype.to_string(),
             is_block,
             metadata: metadata.clone(),
         };
 
-        if let Err(e) = self.sender.try_send(data) {
+        if let Err(e) = self.sender.try_send((id.to_string(), data)) {
             warn!("Failed to queue entity save: {}", e);
         }
     }
@@ -162,27 +204,31 @@ impl BackgroundEntitiesSaver {
         if !self.saving {
             return;
         }
+        let suffixed_file_name = format!("-{}.json", id);
+        let legacy_file_name = format!("{}.json", id);
+        let mut removed_any = false;
 
         if let Ok(entries) = fs::read_dir(&self.folder) {
             for entry in entries.flatten() {
                 let entry_path = entry.path();
                 if let Some(filename) = entry_path.file_name().and_then(|n| n.to_str()) {
-                    if filename.ends_with(&format!("-{}.json", id))
-                        || filename == format!("{}.json", id)
-                    {
+                    if filename.ends_with(&suffixed_file_name) || filename == legacy_file_name {
                         if let Err(e) = fs::remove_file(&entry_path) {
                             warn!(
                                 "Failed to remove entity file: {}. Entity could still be saving?",
                                 e
                             );
+                        } else {
+                            removed_any = true;
                         }
-                        return;
                     }
                 }
             }
         }
 
-        warn!("Could not find entity file to remove for id: {}", id);
+        if !removed_any {
+            warn!("Could not find entity file to remove for id: {}", id);
+        }
     }
 
     pub fn folder(&self) -> &PathBuf {
@@ -193,7 +239,6 @@ impl BackgroundEntitiesSaver {
 impl Drop for BackgroundEntitiesSaver {
     fn drop(&mut self) {
         self.shutdown.store(true, Ordering::Relaxed);
-        drop(self.sender.clone());
         if let Some(handle) = self.handle.take() {
             let _ = handle.join();
         }

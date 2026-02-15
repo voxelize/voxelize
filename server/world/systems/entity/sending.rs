@@ -1,6 +1,6 @@
-use hashbrown::{HashMap, HashSet};
+use hashbrown::{hash_map::RawEntryMut, HashMap, HashSet};
 use specs::{
-    Entities, Entity, Join, LendJoin, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage,
+    Entities, Join, LendJoin, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage,
 };
 
 use crate::{
@@ -12,9 +12,90 @@ use crate::{
 
 #[derive(Default)]
 pub struct EntitiesSendingSystem {
-    updated_entities_buffer: Vec<(String, Entity)>,
-    entity_updates_buffer: Vec<EntityProtocol>,
-    new_entity_ids_buffer: HashSet<String>,
+    deleted_entities_buffer: Vec<(String, String, String)>,
+    clients_with_updates_buffer: Vec<String>,
+    client_updates_buffer: HashMap<String, Vec<EntityProtocol>>,
+    metadata_json_cache_buffer: HashMap<String, String>,
+    bookkeeping_records_buffer: HashMap<String, (String, specs::Entity, MetadataComp, bool)>,
+}
+
+#[inline]
+fn normalized_visible_radius(radius: f32) -> (f32, f32) {
+    if radius.is_nan() {
+        return (f32::MAX, f32::MAX);
+    }
+    if radius < 0.0 {
+        return (0.0, 0.0);
+    }
+    if !radius.is_finite() {
+        return (f32::MAX, f32::MAX);
+    }
+    let radius_sq = f64::from(radius) * f64::from(radius);
+    if !radius_sq.is_finite() || radius_sq > f64::from(f32::MAX) {
+        return (radius, f32::MAX);
+    }
+    (radius, radius_sq as f32)
+}
+
+#[inline]
+fn is_outside_visible_radius_sq(dx: f32, dy: f32, dz: f32, radius_sq: f32) -> bool {
+    let dist_sq = dx * dx + dy * dy + dz * dz;
+    !dist_sq.is_finite() || dist_sq > radius_sq
+}
+
+#[inline]
+fn push_client_update(
+    client_updates: &mut HashMap<String, Vec<EntityProtocol>>,
+    touched_clients: &mut Vec<String>,
+    client_id: &str,
+    update: EntityProtocol,
+) {
+    match client_updates.raw_entry_mut().from_key(client_id) {
+        RawEntryMut::Occupied(mut entry) => {
+            let updates = entry.get_mut();
+            if updates.is_empty() {
+                touched_clients.push(client_id.to_owned());
+            }
+            updates.push(update);
+        }
+        RawEntryMut::Vacant(entry) => {
+            touched_clients.push(client_id.to_owned());
+            let mut updates = Vec::with_capacity(1);
+            updates.push(update);
+            entry.insert(client_id.to_owned(), updates);
+        }
+    }
+}
+
+#[inline]
+fn get_or_insert_client_known_entities<'a>(
+    client_known_entities: &'a mut HashMap<String, HashSet<String>>,
+    client_id: &str,
+) -> &'a mut HashSet<String> {
+    match client_known_entities.raw_entry_mut().from_key(client_id) {
+        RawEntryMut::Occupied(entry) => entry.into_mut(),
+        RawEntryMut::Vacant(entry) => {
+            entry
+                .insert(client_id.to_owned(), HashSet::with_capacity(8))
+                .1
+        }
+    }
+}
+
+#[inline]
+fn get_or_cache_metadata_json(
+    metadata_json_cache: &mut HashMap<String, String>,
+    entity_id: &str,
+    metadata: &MetadataComp,
+) -> String {
+    match metadata_json_cache.raw_entry_mut().from_key(entity_id) {
+        RawEntryMut::Occupied(entry) => entry.get().clone(),
+        RawEntryMut::Vacant(entry) => {
+            let (_, cached_metadata_json) =
+                entry.insert(entity_id.to_owned(), metadata.to_string());
+            cached_metadata_json.clone()
+        }
+    }
 }
 
 impl<'a> System<'a> for EntitiesSendingSystem {
@@ -62,67 +143,50 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         ) = data;
         let _t = timing.timer("entities-sending");
 
-        self.updated_entities_buffer.clear();
-        self.entity_updates_buffer.clear();
-        self.new_entity_ids_buffer.clear();
+        self.deleted_entities_buffer.clear();
+        self.clients_with_updates_buffer.clear();
+        self.metadata_json_cache_buffer.clear();
+        if clients.is_empty() {
+            self.client_updates_buffer.clear();
+        } else if self.client_updates_buffer.len() > clients.len() {
+            self.client_updates_buffer
+                .retain(|client_id, _| clients.contains_key(client_id));
+        }
 
-        let entity_visible_radius = config.entity_visible_radius;
+        let (entity_visible_radius, entity_visible_radius_sq) =
+            normalized_visible_radius(config.entity_visible_radius);
 
-        let mut new_entity_handlers = HashMap::new();
+        let mut old_entity_handlers = std::mem::take(&mut physics.entity_to_handlers);
+        let mut new_entity_handlers = HashMap::with_capacity(old_entity_handlers.len());
 
         for (ent, interactor) in (&entities, &interactors).join() {
             new_entity_handlers.insert(
                 ent,
                 (
-                    interactor.collider_handle().clone(),
-                    interactor.body_handle().clone(),
+                    *interactor.collider_handle(),
+                    *interactor.body_handle(),
                 ),
             );
         }
 
-        let mut updated_ids: HashSet<&String> = HashSet::new();
-
-        for (id, ent, _) in (&ids, &entities, &flags).join() {
-            updated_ids.insert(&id.0);
-            self.updated_entities_buffer.push((id.0.to_owned(), ent));
+        let mut old_entities = std::mem::take(&mut bookkeeping.entities);
+        let mut new_bookkeeping_records = std::mem::take(&mut self.bookkeeping_records_buffer);
+        new_bookkeeping_records.clear();
+        if new_bookkeeping_records.capacity() < old_entities.len() {
+            new_bookkeeping_records
+                .reserve(old_entities.len() - new_bookkeeping_records.capacity());
         }
-
-        let old_entities = std::mem::take(&mut bookkeeping.entities);
-        let old_ids: HashSet<&String> = old_entities.keys().collect();
-        let _old_entity_positions = std::mem::take(&mut bookkeeping.entity_positions);
-
-        let old_entity_handlers = std::mem::take(&mut physics.entity_to_handlers);
-
-        let mut deleted_entities: Vec<(String, String, String)> = Vec::new();
-
-        for (id, (etype, ent, metadata, persisted)) in old_entities.iter() {
-            if updated_ids.contains(id) {
-                continue;
-            }
-
-            if *persisted {
-                bg_saver.remove(id);
-            }
-            entity_ids.remove(id);
-
-            if let Some((collider_handle, body_handle)) = old_entity_handlers.get(ent) {
-                physics.unregister(body_handle, collider_handle);
-            }
-
-            deleted_entities.push((id.clone(), etype.clone(), metadata.to_string()));
+        let mut entity_positions = std::mem::take(&mut bookkeeping.entity_positions);
+        entity_positions.clear();
+        if entity_positions.capacity() < old_entities.len() {
+            entity_positions.reserve(old_entities.len() - entity_positions.capacity());
         }
-
-        physics.entity_to_handlers = new_entity_handlers;
-
-        for (id, _) in &self.updated_entities_buffer {
-            if !old_ids.contains(id) {
-                self.new_entity_ids_buffer.insert(id.to_owned());
-            }
-        }
-
-        let mut new_bookkeeping_records = HashMap::new();
-        let mut entity_positions: HashMap<String, Vec3<f32>> = HashMap::new();
-        let mut entity_metadata_map: HashMap<String, (String, String, bool)> = HashMap::new();
+        let has_clients = !clients.is_empty();
+        let mut entity_metadata_map: HashMap<&str, (&str, String, bool)> = if has_clients {
+            HashMap::with_capacity(old_entities.len())
+        } else {
+            HashMap::new()
+        };
 
         for (ent, id, metadata, etype, _, do_not_persist, position, voxel) in (
             &entities,
@@ -136,6 +200,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         )
             .join()
         {
+            let is_new = old_entities.remove(&id.0).is_none();
             if metadata.is_empty() {
                 continue;
             }
@@ -148,158 +213,458 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             );
 
             let pos = position
-                .map(|p| p.0.clone())
+                .map(|p| p.0)
                 .or_else(|| voxel.map(|v| Vec3(v.0 .0 as f32, v.0 .1 as f32, v.0 .2 as f32)))
                 .unwrap_or(Vec3(0.0, 0.0, 0.0));
             entity_positions.insert(id.0.clone(), pos);
 
-            let is_new = self.new_entity_ids_buffer.contains(&id.0);
-            let (json_str, updated) = metadata.to_cached_str();
-
-            if is_new || updated {
-                entity_metadata_map.insert(id.0.clone(), (etype.0.clone(), json_str, is_new));
+            if has_clients {
+                if is_new {
+                    let json_str = metadata.to_cached_str_for_new_record();
+                    entity_metadata_map.insert(id.0.as_str(), (etype.0.as_str(), json_str, true));
+                } else if let Some(json_str) = metadata.to_cached_str_if_updated() {
+                    entity_metadata_map.insert(id.0.as_str(), (etype.0.as_str(), json_str, false));
+                }
             }
         }
 
-        let all_client_ids: Vec<String> = clients.keys().cloned().collect();
+        if has_clients {
+            self.deleted_entities_buffer.reserve(old_entities.len());
+        }
+        for (id, (etype, ent, mut metadata, persisted)) in old_entities.drain() {
+            if persisted {
+                bg_saver.remove(&id);
+            }
+            entity_ids.remove(&id);
 
-        let entity_to_client_id: HashMap<Entity, String> = clients
-            .iter()
-            .map(|(client_id, client)| (client.entity, client_id.clone()))
-            .collect();
+            if let Some((collider_handle, body_handle)) = old_entity_handlers.remove(&ent) {
+                physics.unregister(&body_handle, &collider_handle);
+            }
 
-        let mut client_updates: HashMap<String, Vec<EntityProtocol>> = HashMap::new();
+            if has_clients {
+                let metadata_json = metadata.to_cached_str_for_new_record();
+                self.deleted_entities_buffer.push((id, etype, metadata_json));
+            }
+        }
+        physics.entity_to_handlers = new_entity_handlers;
+
+        if !has_clients {
+            bookkeeping.client_known_entities.clear();
+            bookkeeping.entities = new_bookkeeping_records;
+            self.bookkeeping_records_buffer = old_entities;
+            bookkeeping.entity_positions = entity_positions;
+            return;
+        }
+        if entity_metadata_map.is_empty() && self.deleted_entities_buffer.is_empty() {
+            let has_known_entities = bookkeeping
+                .client_known_entities
+                .values()
+                .any(|known_entities| !known_entities.is_empty());
+            if !has_known_entities {
+                bookkeeping.entities = new_bookkeeping_records;
+                self.bookkeeping_records_buffer = old_entities;
+                bookkeeping.entity_positions = entity_positions;
+                return;
+            }
+        }
+        self.clients_with_updates_buffer.reserve(clients.len());
+        let single_client = if clients.len() == 1 {
+            clients
+                .iter()
+                .next()
+                .map(|(client_id, client)| (client_id.as_str(), client.entity))
+        } else {
+            None
+        };
+        let single_client_position =
+            single_client.and_then(|(_, client_entity)| positions.get(client_entity).map(|p| p.0));
+
+        let mut entity_to_client_id: HashMap<u32, &str> = HashMap::new();
+        if single_client.is_none() && !entity_metadata_map.is_empty() {
+            entity_to_client_id.reserve(clients.len());
+            for (client_id, client) in clients.iter() {
+                entity_to_client_id.insert(client.entity.id(), client_id.as_str());
+            }
+        }
+
+        let default_pos = Vec3(0.0, 0.0, 0.0);
 
         for (entity_id, (etype, metadata_str, is_new)) in &entity_metadata_map {
-            let pos = entity_positions
-                .get(entity_id)
-                .cloned()
-                .unwrap_or(Vec3(0.0, 0.0, 0.0));
-            let nearby_players = kdtree.players_within_radius(&pos, entity_visible_radius);
-
-            for player_entity in nearby_players {
-                let client_id = match entity_to_client_id.get(player_entity) {
-                    Some(id) => id,
-                    None => continue,
+            let entity_id = *entity_id;
+            let pos = entity_positions.get(entity_id).unwrap_or(&default_pos);
+            if let Some((single_client_id, _)) = single_client {
+                let Some(client_pos) = single_client_position else {
+                    continue;
                 };
-
-                let client_known = bookkeeping
-                    .client_known_entities
-                    .get(client_id)
-                    .map(|set| set.contains(entity_id))
-                    .unwrap_or(false);
-
-                let operation = if !client_known {
-                    EntityOperation::Create
-                } else if *is_new {
+                let dx = pos.0 - client_pos.0;
+                let dy = pos.1 - client_pos.1;
+                let dz = pos.2 - client_pos.2;
+                if is_outside_visible_radius_sq(dx, dy, dz, entity_visible_radius_sq) {
+                    continue;
+                }
+                let known_entities = get_or_insert_client_known_entities(
+                    &mut bookkeeping.client_known_entities,
+                    single_client_id,
+                );
+                let client_known = known_entities.contains(entity_id);
+                if !client_known {
+                    known_entities.insert(entity_id.to_owned());
+                }
+                let operation = if !client_known || *is_new {
                     EntityOperation::Create
                 } else {
                     EntityOperation::Update
                 };
-
-                client_updates
-                    .entry(client_id.clone())
-                    .or_default()
-                    .push(EntityProtocol {
+                push_client_update(
+                    &mut self.client_updates_buffer,
+                    &mut self.clients_with_updates_buffer,
+                    single_client_id,
+                    EntityProtocol {
                         operation,
-                        id: entity_id.clone(),
-                        r#type: etype.clone(),
+                        id: entity_id.to_owned(),
+                        r#type: (*etype).to_owned(),
                         metadata: Some(metadata_str.clone()),
-                    });
-
-                bookkeeping
-                    .client_known_entities
-                    .entry(client_id.clone())
-                    .or_default()
-                    .insert(entity_id.clone());
+                    },
+                );
+                continue;
             }
+            kdtree.for_each_player_id_within_radius(pos, entity_visible_radius, |player_entity_id| {
+                if let Some(client_id) = entity_to_client_id.get(&player_entity_id) {
+                    let client_id = *client_id;
+                    let known_entities = get_or_insert_client_known_entities(
+                        &mut bookkeeping.client_known_entities,
+                        client_id,
+                    );
+                    let client_known = known_entities.contains(entity_id);
+                    if !client_known {
+                        known_entities.insert(entity_id.to_owned());
+                    }
+                    let operation = if !client_known || *is_new {
+                        EntityOperation::Create
+                    } else {
+                        EntityOperation::Update
+                    };
+
+                    push_client_update(
+                        &mut self.client_updates_buffer,
+                        &mut self.clients_with_updates_buffer,
+                        client_id,
+                        EntityProtocol {
+                            operation,
+                            id: entity_id.to_owned(),
+                            r#type: (*etype).to_owned(),
+                            metadata: Some(metadata_str.clone()),
+                        },
+                    );
+                }
+            });
         }
 
-        for (entity_id, etype, metadata_str) in &deleted_entities {
-            for client_id in &all_client_ids {
-                let client_knew = bookkeeping
-                    .client_known_entities
-                    .get(client_id)
-                    .map(|set| set.contains(entity_id))
-                    .unwrap_or(false);
-
-                if client_knew {
-                    client_updates
-                        .entry(client_id.clone())
-                        .or_default()
-                        .push(EntityProtocol {
+        if !self.deleted_entities_buffer.is_empty() {
+            if let Some((single_client_id, _)) = single_client {
+                if let Some(known_entities) =
+                    bookkeeping.client_known_entities.get_mut(single_client_id)
+                {
+                    if !known_entities.is_empty() {
+                        for (deleted_entity_id, etype, metadata_str) in
+                            self.deleted_entities_buffer.drain(..)
+                        {
+                            if !known_entities.remove(&deleted_entity_id) {
+                                continue;
+                            }
+                            push_client_update(
+                                &mut self.client_updates_buffer,
+                                &mut self.clients_with_updates_buffer,
+                                single_client_id,
+                                EntityProtocol {
+                                    operation: EntityOperation::Delete,
+                                    id: deleted_entity_id,
+                                    r#type: etype,
+                                    metadata: Some(metadata_str),
+                                },
+                            );
+                        }
+                    } else {
+                        self.deleted_entities_buffer.clear();
+                    }
+                } else {
+                    self.deleted_entities_buffer.clear();
+                }
+            } else if self.deleted_entities_buffer.len() == 1 {
+                let (entity_id, etype, metadata_str) = &self.deleted_entities_buffer[0];
+                for client_id in clients.keys() {
+                    let client_id = client_id.as_str();
+                    let Some(known_entities) =
+                        bookkeeping.client_known_entities.get_mut(client_id)
+                    else {
+                        continue;
+                    };
+                    if known_entities.is_empty() {
+                        continue;
+                    }
+                    if !known_entities.remove(entity_id) {
+                        continue;
+                    }
+                    push_client_update(
+                        &mut self.client_updates_buffer,
+                        &mut self.clients_with_updates_buffer,
+                        client_id,
+                        EntityProtocol {
                             operation: EntityOperation::Delete,
                             id: entity_id.clone(),
                             r#type: etype.clone(),
                             metadata: Some(metadata_str.clone()),
-                        });
-
-                    if let Some(known) = bookkeeping.client_known_entities.get_mut(client_id) {
-                        known.remove(entity_id);
+                        },
+                    );
+                }
+            } else if self.deleted_entities_buffer.len() <= 4 {
+                for client_id in clients.keys() {
+                    let client_id = client_id.as_str();
+                    let Some(known_entities) =
+                        bookkeeping.client_known_entities.get_mut(client_id)
+                    else {
+                        continue;
+                    };
+                    if known_entities.is_empty() {
+                        continue;
                     }
+                    for (deleted_entity_id, etype, metadata_str) in &self.deleted_entities_buffer {
+                        if !known_entities.remove(deleted_entity_id) {
+                            continue;
+                        }
+                        push_client_update(
+                            &mut self.client_updates_buffer,
+                            &mut self.clients_with_updates_buffer,
+                            client_id,
+                            EntityProtocol {
+                                operation: EntityOperation::Delete,
+                                id: deleted_entity_id.clone(),
+                                r#type: etype.clone(),
+                                metadata: Some(metadata_str.clone()),
+                            },
+                        );
+                    }
+                }
+            } else {
+                let mut deleted_entities_lookup: HashMap<&str, (&String, &String)> =
+                    HashMap::with_capacity(self.deleted_entities_buffer.len());
+                for (entity_id, etype, metadata_str) in &self.deleted_entities_buffer {
+                    deleted_entities_lookup.insert(entity_id.as_str(), (etype, metadata_str));
+                }
+
+                for client_id in clients.keys() {
+                    let client_id = client_id.as_str();
+                    let Some(known_entities) =
+                        bookkeeping.client_known_entities.get_mut(client_id)
+                    else {
+                        continue;
+                    };
+                    if known_entities.is_empty() {
+                        continue;
+                    }
+                    if self.deleted_entities_buffer.len() < known_entities.len() {
+                        for (deleted_entity_id, etype, metadata_str) in &self.deleted_entities_buffer
+                        {
+                            if !known_entities.remove(deleted_entity_id) {
+                                continue;
+                            }
+                            push_client_update(
+                                &mut self.client_updates_buffer,
+                                &mut self.clients_with_updates_buffer,
+                                client_id,
+                                EntityProtocol {
+                                    operation: EntityOperation::Delete,
+                                    id: deleted_entity_id.clone(),
+                                    r#type: etype.clone(),
+                                    metadata: Some(metadata_str.clone()),
+                                },
+                            );
+                        }
+                        continue;
+                    }
+                    known_entities.retain(|entity_id| {
+                        let Some((etype, metadata_str)) =
+                            deleted_entities_lookup.get(entity_id.as_str())
+                        else {
+                            return true;
+                        };
+                        push_client_update(
+                            &mut self.client_updates_buffer,
+                            &mut self.clients_with_updates_buffer,
+                            client_id,
+                            EntityProtocol {
+                                operation: EntityOperation::Delete,
+                                id: entity_id.clone(),
+                                r#type: (*etype).clone(),
+                                metadata: Some((*metadata_str).clone()),
+                            },
+                        );
+                        false
+                    });
                 }
             }
         }
 
-        for (client_id, client) in clients.iter() {
-            let client_pos = match positions.get(client.entity) {
-                Some(p) => p.0.clone(),
-                None => continue,
-            };
-
-            if let Some(known_entities) = bookkeeping.client_known_entities.get_mut(client_id) {
-                let entities_to_delete: Vec<String> = known_entities
-                    .iter()
-                    .filter(|entity_id| {
-                        if let Some((etype, ..)) = new_bookkeeping_records.get(*entity_id) {
-                            if etype.starts_with("block::") {
-                                return false;
+        if let Some((single_client_id, _)) = single_client {
+            if let Some(client_pos) = single_client_position {
+                let (client_x, client_y, client_z) = (client_pos.0, client_pos.1, client_pos.2);
+                if let Some(known_entities) = bookkeeping.client_known_entities.get_mut(single_client_id)
+                {
+                    if !known_entities.is_empty() {
+                        known_entities.retain(|entity_id| {
+                            if let Some((etype, ..)) = new_bookkeeping_records.get(entity_id) {
+                                if etype.starts_with("block::") {
+                                    return true;
+                                }
                             }
-                        }
-                        if let Some(entity_pos) = entity_positions.get(*entity_id) {
-                            let dx = entity_pos.0 - client_pos.0;
-                            let dy = entity_pos.1 - client_pos.1;
-                            let dz = entity_pos.2 - client_pos.2;
-                            let dist_sq = dx * dx + dy * dy + dz * dz;
-                            dist_sq > entity_visible_radius * entity_visible_radius
-                        } else {
-                            true
-                        }
-                    })
-                    .cloned()
-                    .collect();
+                            let should_delete = if let Some(entity_pos) =
+                                entity_positions.get(entity_id)
+                            {
+                                let dx = entity_pos.0 - client_x;
+                                let dy = entity_pos.1 - client_y;
+                                let dz = entity_pos.2 - client_z;
+                                is_outside_visible_radius_sq(dx, dy, dz, entity_visible_radius_sq)
+                            } else {
+                                true
+                            };
 
-                for entity_id in entities_to_delete {
+                            if !should_delete {
+                                return true;
+                            }
+                            if let Some((etype, _ent, metadata, _persisted)) =
+                                new_bookkeeping_records.get(entity_id)
+                            {
+                                let metadata_json = get_or_cache_metadata_json(
+                                    &mut self.metadata_json_cache_buffer,
+                                    entity_id,
+                                    metadata,
+                                );
+                                push_client_update(
+                                    &mut self.client_updates_buffer,
+                                    &mut self.clients_with_updates_buffer,
+                                    single_client_id,
+                                    EntityProtocol {
+                                        operation: EntityOperation::Delete,
+                                        id: entity_id.clone(),
+                                        r#type: etype.clone(),
+                                        metadata: Some(metadata_json),
+                                    },
+                                );
+                            }
+                            false
+                        });
+                    }
+                }
+            }
+        } else {
+            for (client_id, client) in clients.iter() {
+                let (client_x, client_y, client_z) = match positions.get(client.entity) {
+                    Some(p) => (p.0 .0, p.0 .1, p.0 .2),
+                    None => continue,
+                };
+
+                let Some(known_entities) = bookkeeping.client_known_entities.get_mut(client_id)
+                else {
+                    continue;
+                };
+                if known_entities.is_empty() {
+                    continue;
+                }
+                known_entities.retain(|entity_id| {
+                    if let Some((etype, ..)) = new_bookkeeping_records.get(entity_id) {
+                        if etype.starts_with("block::") {
+                            return true;
+                        }
+                    }
+                    let should_delete = if let Some(entity_pos) = entity_positions.get(entity_id) {
+                        let dx = entity_pos.0 - client_x;
+                        let dy = entity_pos.1 - client_y;
+                        let dz = entity_pos.2 - client_z;
+                        is_outside_visible_radius_sq(dx, dy, dz, entity_visible_radius_sq)
+                    } else {
+                        true
+                    };
+
+                    if !should_delete {
+                        return true;
+                    }
                     if let Some((etype, _ent, metadata, _persisted)) =
-                        new_bookkeeping_records.get(&entity_id)
+                        new_bookkeeping_records.get(entity_id)
                     {
-                        client_updates
-                            .entry(client_id.clone())
-                            .or_default()
-                            .push(EntityProtocol {
+                        let metadata_json = get_or_cache_metadata_json(
+                            &mut self.metadata_json_cache_buffer,
+                            entity_id,
+                            metadata,
+                        );
+                        push_client_update(
+                            &mut self.client_updates_buffer,
+                            &mut self.clients_with_updates_buffer,
+                            client_id,
+                            EntityProtocol {
                                 operation: EntityOperation::Delete,
                                 id: entity_id.clone(),
                                 r#type: etype.clone(),
-                                metadata: Some(metadata.to_string()),
-                            });
+                                metadata: Some(metadata_json),
+                            },
+                        );
                     }
-                    known_entities.remove(&entity_id);
-                }
+                    false
+                });
             }
         }
 
         bookkeeping.entities = new_bookkeeping_records;
+        self.bookkeeping_records_buffer = old_entities;
         bookkeeping.entity_positions = entity_positions;
 
-        for (client_id, updates) in client_updates {
-            if !updates.is_empty() {
-                queue.push((
-                    Message::new(&MessageType::Entity)
-                        .entities(&updates)
-                        .build(),
-                    ClientFilter::Direct(client_id),
-                ));
+        for client_id in self.clients_with_updates_buffer.drain(..) {
+            let updates = match self.client_updates_buffer.get_mut(&client_id) {
+                Some(updates) => updates,
+                None => continue,
+            };
+            if updates.is_empty() {
+                continue;
             }
+            queue.push((
+                Message::new(&MessageType::Entity)
+                    .entities_owned(updates.split_off(0))
+                    .build(),
+                ClientFilter::Direct(client_id),
+            ));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{is_outside_visible_radius_sq, normalized_visible_radius};
+
+    #[test]
+    fn normalized_visible_radius_handles_invalid_values() {
+        assert_eq!(normalized_visible_radius(-1.0), (0.0, 0.0));
+        assert_eq!(
+            normalized_visible_radius(f32::INFINITY),
+            (f32::MAX, f32::MAX)
+        );
+        assert_eq!(
+            normalized_visible_radius(f32::NAN),
+            (f32::MAX, f32::MAX)
+        );
+    }
+
+    #[test]
+    fn normalized_visible_radius_clamps_squared_radius() {
+        assert_eq!(normalized_visible_radius(5.0), (5.0, 25.0));
+        assert_eq!(
+            normalized_visible_radius(f32::MAX),
+            (f32::MAX, f32::MAX)
+        );
+    }
+
+    #[test]
+    fn is_outside_visible_radius_sq_rejects_non_finite_distance() {
+        assert!(!is_outside_visible_radius_sq(1.0, 2.0, 2.0, 9.0));
+        assert!(is_outside_visible_radius_sq(4.0, 0.0, 0.0, 9.0));
+        assert!(is_outside_visible_radius_sq(f32::NAN, 0.0, 0.0, 9.0));
     }
 }

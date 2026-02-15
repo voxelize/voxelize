@@ -5,7 +5,7 @@ use std::ops::{self, Index, IndexMut};
 use serde::{Deserialize, Serialize};
 
 /// Vector2 implementation for Voxelize.
-#[derive(Debug, Eq, PartialEq, Clone, Default, Hash, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy, Default, Hash, Serialize, Deserialize)]
 pub struct Vec2<T>(pub T, pub T);
 
 impl<T: Copy + 'static> Vec2<T> {
@@ -16,7 +16,7 @@ impl<T: Copy + 'static> Vec2<T> {
 }
 
 /// Vector3 implementation for Voxelize.
-#[derive(Debug, Eq, PartialEq, Clone, Default, Hash, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy, Default, Hash, Serialize, Deserialize)]
 pub struct Vec3<T>(pub T, pub T, pub T);
 
 impl<T: Copy> Vec3<T> {

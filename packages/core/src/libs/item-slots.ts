@@ -75,6 +75,8 @@ const defaultOptions: ItemSlotsOptions = {
   scrollable: true,
 };
 
+const LIGHT_ROTATION_AXIS = new Vector3(0, 1, 0);
+
 export class ItemSlot<T = number> {
   public itemSlots: ItemSlots<T>;
 
@@ -114,6 +116,8 @@ export class ItemSlot<T = number> {
   public lightRotationOffset = -Math.PI / 8;
 
   public offset: Vector3 = new Vector3();
+  private cameraPositionScratch = new Vector3();
+  private lightPositionScratch = new Vector3();
 
   constructor(itemSlots: ItemSlots<T>, row: number, col: number) {
     this.itemSlots = itemSlots;
@@ -121,8 +125,6 @@ export class ItemSlot<T = number> {
     this.col = col;
 
     this.scene = new Scene();
-
-    this.camera = new OrthographicCamera(-1, 1, 1, -1, 0, 10);
 
     this.element = document.createElement("div");
     this.subscriptElement = document.createElement("div");
@@ -149,8 +151,6 @@ export class ItemSlot<T = number> {
       background: "#22c55e",
       borderRadius: "1px",
     });
-
-    this.offset = new Vector3();
 
     this.scene.add(new AmbientLight(0xffffff, 0.35));
     this.light = new DirectionalLight(0xffffff, 2.5);
@@ -273,18 +273,16 @@ export class ItemSlot<T = number> {
   };
 
   private updateCamera = () => {
-    this.camera.position.copy(
-      this.offset.clone().multiplyScalar((this.zoom || 1) * 3.5)
-    );
+    const cameraPosition = this.cameraPositionScratch
+      .copy(this.offset)
+      .multiplyScalar((this.zoom || 1) * 3.5);
+    this.camera.position.copy(cameraPosition);
 
     this.camera.lookAt(0, 0, 0);
 
-    const lightPosition = this.camera.position.clone();
+    const lightPosition = this.lightPositionScratch.copy(cameraPosition);
     // Rotate light position by y axis 45 degrees.
-    lightPosition.applyAxisAngle(
-      new Vector3(0, 1, 0),
-      this.lightRotationOffset
-    );
+    lightPosition.applyAxisAngle(LIGHT_ROTATION_AXIS, this.lightRotationOffset);
 
     this.light.position.copy(lightPosition);
   };
@@ -322,8 +320,12 @@ export class ItemSlots<T = number> {
     prevSlot: ItemSlot<T>,
     nextSlot: ItemSlot<T>
   ) => {
-    for (const callback of this.focusChangeCallbacks) {
-      callback(prevSlot, nextSlot);
+    for (
+      let callbackIndex = 0;
+      callbackIndex < this.focusChangeCallbacks.length;
+      callbackIndex++
+    ) {
+      this.focusChangeCallbacks[callbackIndex](prevSlot, nextSlot);
     }
   };
 

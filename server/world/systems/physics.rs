@@ -1,8 +1,7 @@
 use std::ops::Deref;
 
 use hashbrown::HashMap;
-use log::info;
-use rapier3d::prelude::CollisionEvent;
+use rapier3d::prelude::{ColliderHandle, CollisionEvent};
 use specs::{Entities, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
@@ -16,12 +15,14 @@ use crate::{
         voxels::Chunks,
         WorldConfig,
     },
-    ClientFilter, ClientFlag, CollisionsComp, Event, EventBuilder, Events, IDComp, InteractorComp,
-    Vec2, Vec3,
+    ClientFilter, ClientFlag, CollisionsComp, EventBuilder, Events, IDComp, InteractorComp, Vec2,
+    Vec3,
 };
 
 #[derive(Default)]
-pub struct PhysicsSystem;
+pub struct PhysicsSystem {
+    collision_map_buffer: HashMap<ColliderHandle, specs::Entity>,
+}
 
 impl<'a> System<'a> for PhysicsSystem {
     type SystemData = (
@@ -72,7 +73,11 @@ impl<'a> System<'a> for PhysicsSystem {
             return;
         }
 
-        let mut collision_map = HashMap::new();
+        let collision_map = &mut self.collision_map_buffer;
+        collision_map.clear();
+        if collision_map.capacity() < physics.entity_to_handlers.len() {
+            collision_map.reserve(physics.entity_to_handlers.len() - collision_map.capacity());
+        }
 
         // Tick the voxel physics of all entities (non-clients).
         // Skip entities in chunks with no interested players.
@@ -121,54 +126,29 @@ impl<'a> System<'a> for PhysicsSystem {
             });
 
         // Move the clients' rigid bodies to their positions
-        (&entities, &interactors, &positions)
-            .join()
-            .for_each(|(ent, interactor, position)| {
-                physics.move_rapier_body(interactor.body_handle(), &position.0);
-                collision_map.insert(interactor.collider_handle().clone(), ent);
-            });
+        for (ent, interactor, position) in (&entities, &interactors, &positions).join() {
+            physics.move_rapier_body(interactor.body_handle(), &position.0);
+            collision_map.insert(*interactor.collider_handle(), ent);
+        }
 
         // Tick the rapier physics engine, and add the collisions to individual entities.
         let collision_events = physics.step(stats.delta);
-
-        let mut started_collisions = Vec::new();
-        let mut stopped_collisions = Vec::new();
-
         for event in collision_events {
-            match event {
-                CollisionEvent::Started(ch1, ch2, _) => {
-                    if let (Some(ent1), Some(ent2)) =
-                        (collision_map.get(&ch1), collision_map.get(&ch2))
-                    {
-                        started_collisions.push((*ent1, *ent2, event));
-                    }
+            let (ch1, ch2) = match event {
+                CollisionEvent::Started(ch1, ch2, _) => (ch1, ch2),
+                CollisionEvent::Stopped(ch1, ch2, _) => (ch1, ch2),
+            };
+            let (Some(ent1), Some(ent2)) = (collision_map.get(&ch1), collision_map.get(&ch2))
+            else {
+                continue;
+            };
+            if let Some(collision_comp) = collisions.get_mut(*ent1) {
+                collision_comp.0.push((event, *ent2));
+            }
+            if ent1 != ent2 {
+                if let Some(collision_comp) = collisions.get_mut(*ent2) {
+                    collision_comp.0.push((event, *ent1));
                 }
-                CollisionEvent::Stopped(ch1, ch2, _) => {
-                    if let (Some(ent1), Some(ent2)) =
-                        (collision_map.get(&ch1), collision_map.get(&ch2))
-                    {
-                        stopped_collisions.push((*ent1, *ent2, event));
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        for (ent1, ent2, event) in started_collisions {
-            if let Some(collision_comp) = collisions.get_mut(ent1) {
-                collision_comp.0.push((event, ent2));
-            }
-            if let Some(collision_comp) = collisions.get_mut(ent2) {
-                collision_comp.0.push((event, ent1));
-            }
-        }
-
-        for (ent1, ent2, event) in stopped_collisions {
-            if let Some(collision_comp) = collisions.get_mut(ent1) {
-                collision_comp.0.push((event, ent2));
-            }
-            if let Some(collision_comp) = collisions.get_mut(ent2) {
-                collision_comp.0.push((event, ent1));
             }
         }
 
@@ -177,7 +157,9 @@ impl<'a> System<'a> for PhysicsSystem {
         }
 
         // Collision detection, push bodies away from one another.
-        let mut collision_data = Vec::new();
+        let collision_repulsion = config.collision_repulsion;
+        let client_collision_repulsion = config.client_collision_repulsion;
+        let should_emit_client_impulse = client_collision_repulsion > f32::EPSILON;
         for (curr_chunk, body, interactor, entity, position) in (
             &curr_chunks,
             &mut bodies,
@@ -204,16 +186,15 @@ impl<'a> System<'a> for PhysicsSystem {
             let dy = if dy.abs() < 0.001 { 0.0 } else { dy };
             let dz = if dz.abs() < 0.001 { 0.0 } else { dz };
 
-            let len = (dx * dx + dy * dy + dz * dz).sqrt();
+            let len_sq = dx * dx + dy * dy + dz * dz;
 
-            if len > 0.0001 {
-                collision_data.push((body, dx, dy, dz, len, entity));
+            if len_sq <= 1.0e-8 {
+                continue;
             }
-        }
-        for (body, dx, dy, dz, len, entity) in collision_data {
-            let mut dx = dx / len;
-            let dy = dy / len;
-            let mut dz = dz / len;
+            let inv_len = len_sq.sqrt().recip();
+            let mut dx = dx * inv_len;
+            let dy = dy * inv_len;
+            let mut dz = dz * inv_len;
 
             // If only dy movements, add a little bias to eliminate stack overflow.
             if dx.abs() < 0.001 && dz.abs() < 0.001 {
@@ -223,25 +204,28 @@ impl<'a> System<'a> for PhysicsSystem {
 
             // Check if the entity is a client, and if so, apply the impulse to the client's body.
             if client_flag.get(entity).is_some() {
-                if let Some(id) = ids.get(entity) {
-                    let event = EventBuilder::new("vox-builtin:impulse")
-                        .payload(vec![
-                            dx * config.client_collision_repulsion,
-                            dy * config.client_collision_repulsion,
-                            dz * config.client_collision_repulsion,
-                        ])
-                        .filter(ClientFilter::Direct(id.0.to_owned()))
-                        .build();
-                    events.dispatch(event);
+                if should_emit_client_impulse {
+                    if let Some(id) = ids.get(entity) {
+                        let event = EventBuilder::new("vox-builtin:impulse")
+                            .payload([
+                                dx * client_collision_repulsion,
+                                dy * client_collision_repulsion,
+                                dz * client_collision_repulsion,
+                            ])
+                            .filter(ClientFilter::Direct(id.0.to_owned()))
+                            .build();
+                        events.dispatch(event);
+                    }
                     continue;
                 }
+                continue;
             }
 
             // Apply the impulse to the body.
             body.0.apply_impulse(
-                (dx * config.collision_repulsion).min(3.0),
-                (dy * config.collision_repulsion).min(3.0),
-                (dz * config.collision_repulsion).min(3.0),
+                (dx * collision_repulsion).min(3.0),
+                (dy * collision_repulsion).min(3.0),
+                (dz * collision_repulsion).min(3.0),
             );
         }
     }

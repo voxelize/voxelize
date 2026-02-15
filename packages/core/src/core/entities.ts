@@ -1,9 +1,33 @@
 import { MessageProtocol } from "@voxelize/protocol";
 import { Group, Vector3 } from "three";
 
+import { JsonValue } from "../types";
 import { NetIntercept } from "./network";
 
-export class Entity<T = any> extends Group {
+const normalizeEntityType = (type: string): string => {
+  let hasNonAscii = false;
+  const length = type.length;
+  for (let index = 0; index < length; index++) {
+    const code = type.charCodeAt(index);
+    if (code >= 65 && code <= 90) {
+      return type.toLowerCase();
+    }
+    if (code > 127) {
+      hasNonAscii = true;
+    }
+  }
+  if (!hasNonAscii) {
+    return type;
+  }
+  for (const char of type) {
+    if (char.toLowerCase() !== char.toUpperCase() && char === char.toUpperCase()) {
+      return type.toLowerCase();
+    }
+  }
+  return type;
+};
+
+export class Entity<T = JsonValue> extends Group {
   public entId: string;
 
   constructor(id: string) {
@@ -52,16 +76,20 @@ export class Entity<T = any> extends Group {
  */
 export class Entities extends Group implements NetIntercept {
   public map: Map<string, Entity> = new Map();
-  public types: Map<
-    string,
-    (new (id: string) => Entity) | ((id: string) => Entity)
-  > = new Map();
+  public types: Map<string, (id: string) => Entity> = new Map();
 
   setClass = (
     type: string,
     entity: (new (id: string) => Entity) | ((id: string) => Entity)
   ) => {
-    this.types.set(type.toLowerCase(), entity);
+    const isEntityClass =
+      typeof entity === "function" && entity.prototype instanceof Entity;
+    const factory =
+      isEntityClass
+        ? (id: string) => new (entity as new (id: string) => Entity)(id)
+        : (entity as (id: string) => Entity);
+
+    this.types.set(normalizeEntityType(type), factory);
   };
 
   /**
@@ -73,55 +101,66 @@ export class Entities extends Group implements NetIntercept {
    * @param message The message to intercept.
    */
   onMessage = (message: MessageProtocol) => {
-    const { entities } = message;
+    const entityUpdates = message.entities;
+    const entityCount = entityUpdates?.length ?? 0;
+    if (entityCount === 0) {
+      return;
+    }
 
-    if (entities && entities.length) {
-      entities.forEach((entity) => {
-        const { id, type, metadata, operation } = entity;
+    for (let entityIndex = 0; entityIndex < entityCount; entityIndex++) {
+      const entity = entityUpdates[entityIndex];
+      const { id, type, metadata, operation } = entity;
 
-        // ignore all block entities as they are handled by world
-        if (type.startsWith("block::")) {
-          return;
+      // ignore all block entities as they are handled by world
+      if (type.startsWith("block::")) {
+        continue;
+      }
+
+      let object = this.map.get(id);
+
+      switch (operation) {
+        case "CREATE": {
+          if (object) {
+            continue;
+          }
+
+          const createdObject = this.createEntityOfType(type, id);
+          if (!createdObject) {
+            continue;
+          }
+          object = createdObject;
+          object.onCreate?.(metadata);
+
+          break;
         }
-
-        let object = this.map.get(id);
-
-        switch (operation) {
-          case "CREATE": {
-            if (object) {
-              return;
+        case "UPDATE": {
+          if (!object) {
+            const createdObject = this.createEntityOfType(type, id);
+            if (!createdObject) {
+              continue;
             }
-
-            object = this.createEntityOfType(type, id);
+            object = createdObject;
             object.onCreate?.(metadata);
-
-            break;
           }
-          case "UPDATE": {
-            if (!object) {
-              object = this.createEntityOfType(type, id);
-              object.onCreate?.(metadata);
-            }
 
-            object.onUpdate?.(metadata);
+          object.onUpdate?.(metadata);
 
-            break;
-          }
-          case "DELETE": {
-            if (!object) {
-              console.warn(`Entity ${id} does not exist.`);
-              return;
-            }
-
-            this.map.delete(id);
-
-            object.parent?.remove(object);
-            object.onDelete?.(metadata);
-
-            break;
-          }
+          break;
         }
-      });
+        case "DELETE": {
+          if (!object) {
+            console.warn(`Entity ${id} does not exist.`);
+            continue;
+          }
+
+          this.map.delete(id);
+
+          object.parent?.remove(object);
+          object.onDelete?.(metadata);
+
+          break;
+        }
+      }
     }
   };
 
@@ -136,42 +175,45 @@ export class Entities extends Group implements NetIntercept {
   update = (cameraPos?: Vector3, renderDistance?: number) => {
     const renderDistSq =
       cameraPos && renderDistance ? renderDistance * renderDistance : 0;
+    const shouldCullByDistance = renderDistSq > 0 && !!cameraPos;
 
-    this.map.forEach((entity) => {
-      if (renderDistSq > 0 && cameraPos && entity.setHidden) {
-        const tooFar =
-          entity.position.distanceToSquared(cameraPos) > renderDistSq;
+    let entities = this.map.values();
+    let entityEntry = entities.next();
+    while (!entityEntry.done) {
+      const entity = entityEntry.value;
+      if (shouldCullByDistance && cameraPos && entity.setHidden) {
+        const tooFar = entity.position.distanceToSquared(cameraPos) > renderDistSq;
         entity.setHidden(tooFar);
-        if (tooFar) return;
+        if (tooFar) {
+          entityEntry = entities.next();
+          continue;
+        }
       }
 
       entity.update?.();
-    });
+      entityEntry = entities.next();
+    }
   };
 
   snapAllToTarget = () => {
-    this.map.forEach((entity) => {
+    let entities = this.map.values();
+    let entityEntry = entities.next();
+    while (!entityEntry.done) {
+      const entity = entityEntry.value;
       (entity as Entity & { snapToTarget?: () => void }).snapToTarget?.();
-    });
+      entityEntry = entities.next();
+    }
   };
 
   private createEntityOfType = (type: string, id: string) => {
-    if (!this.types.has(type)) {
+    const normalizedType = normalizeEntityType(type);
+    const entityFactory = this.types.get(normalizedType);
+    if (!entityFactory) {
       console.warn(`Entity type ${type} is not registered.`);
       return;
     }
 
-    const Entity = this.types.get(type.toLowerCase());
-    let object;
-    if (
-      typeof Entity === "function" &&
-      Entity.prototype &&
-      Entity.prototype.constructor
-    ) {
-      object = new (Entity as new (id: string) => Entity)(id);
-    } else {
-      object = (Entity as (id: string) => Entity)(id);
-    }
+    const object = entityFactory(id);
     this.map.set(id, object);
     this.add(object);
 

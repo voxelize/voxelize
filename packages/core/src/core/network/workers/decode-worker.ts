@@ -1,18 +1,29 @@
 import { decodeMessage } from "./decode-utils";
 
-onmessage = (e: MessageEvent) => {
+type DecodeWorkerBuffer = ArrayBuffer | Uint8Array;
+type DecodeWorkerInput = DecodeWorkerBuffer | DecodeWorkerBuffer[];
+
+const reusableTransferables: ArrayBuffer[] = [];
+const reusableSingleBufferList: DecodeWorkerBuffer[] = [new Uint8Array(0)];
+const reusableMessages: ReturnType<typeof decodeMessage>[] = [];
+
+onmessage = (e: MessageEvent<DecodeWorkerInput>) => {
   let { data: buffers } = e;
   if (!Array.isArray(buffers)) {
-    buffers = [buffers];
+    reusableSingleBufferList[0] = buffers;
+    buffers = reusableSingleBufferList;
   }
 
-  const transferables: ArrayBuffer[] = [];
-  const messages = buffers.map((buffer: ArrayBuffer | Uint8Array) => {
+  const transferables = reusableTransferables;
+  transferables.length = 0;
+  const messages = reusableMessages;
+  const bufferCount = buffers.length;
+  messages.length = bufferCount;
+  for (let index = 0; index < bufferCount; index++) {
+    const buffer = buffers[index];
     const view = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
-    return decodeMessage(view, transferables);
-  });
+    messages[index] = decodeMessage(view, transferables);
+  }
 
-  queueMicrotask(() => {
-    postMessage(messages, { transfer: transferables });
-  });
+  postMessage(messages, { transfer: transferables });
 };

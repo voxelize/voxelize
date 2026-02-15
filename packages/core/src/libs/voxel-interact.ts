@@ -122,6 +122,8 @@ const defaultOptions: VoxelInteractOptions = {
  * @noInheritDoc
  */
 export class VoxelInteract extends Group {
+  private static readonly TARGET_OFFSET = new Vector3(0.5, 0.5, 0.5);
+
   /**
    * Parameters to customize the {@link VoxelInteract} instance.
    */
@@ -235,6 +237,12 @@ export class VoxelInteract extends Group {
    * An arrow that points to the y axis rotation of the potential block placement.
    */
   private yRotArrow: ArrowHelper;
+  private raycastOrigin = new Vector3();
+  private raycastDirection = new Vector3();
+  private raycastOriginCoords: Coords3 = [0, 0, 0];
+  private raycastDirectionCoords: Coords3 = [0, 0, 0];
+  private yRotationArrowDirection = new Vector3();
+  private potentialArrowDirection = new Vector3();
 
   /**
    * Create a new VoxelInteract instance.
@@ -301,8 +309,8 @@ export class VoxelInteract extends Group {
       this.options.highlightLerp
     );
 
-    const objPos = new Vector3();
-    const objDir = new Vector3();
+    const objPos = this.raycastOrigin;
+    const objDir = this.raycastDirection;
     this.object.getWorldPosition(objPos);
     this.object.getWorldDirection(objDir);
     objDir.normalize();
@@ -311,9 +319,19 @@ export class VoxelInteract extends Group {
       objDir.multiplyScalar(-1);
     }
 
+    const raycastOrigin = this.raycastOriginCoords;
+    raycastOrigin[0] = objPos.x;
+    raycastOrigin[1] = objPos.y;
+    raycastOrigin[2] = objPos.z;
+
+    const raycastDirection = this.raycastDirectionCoords;
+    raycastDirection[0] = objDir.x;
+    raycastDirection[1] = objDir.y;
+    raycastDirection[2] = objDir.z;
+
     const result = this.world.raycastVoxels(
-      objPos.toArray(),
-      objDir.toArray(),
+      raycastOrigin,
+      raycastDirection,
       reachDistance,
       {
         ignoreFluids: this.options.ignoreFluids,
@@ -350,26 +368,34 @@ export class VoxelInteract extends Group {
     if (lookingAt && this.target) {
       const { isDynamic, dynamicFn, dynamicPatterns } = lookingAt;
 
-      const aabbsWithFlags = dynamicPatterns
-        ? this.world.getBlockAABBsForDynamicPatterns(
-            voxel[0],
-            voxel[1],
-            voxel[2],
-            dynamicPatterns
-          )
-        : isDynamic
-        ? dynamicFn(voxel as Coords3).aabbs.map((aabb: AABB) => ({
-            aabb,
+      let aabbsWithFlags: Array<{ aabb: AABB; worldSpace: boolean }>;
+      if (dynamicPatterns) {
+        aabbsWithFlags = this.world.getBlockAABBsForDynamicPatterns(
+          voxel[0],
+          voxel[1],
+          voxel[2],
+          dynamicPatterns
+        );
+      } else {
+        const sourceAabbs = isDynamic
+          ? dynamicFn(voxel as Coords3).aabbs
+          : lookingAt.aabbs;
+        aabbsWithFlags = new Array(sourceAabbs.length);
+        for (let aabbIndex = 0; aabbIndex < sourceAabbs.length; aabbIndex++) {
+          aabbsWithFlags[aabbIndex] = {
+            aabb: sourceAabbs[aabbIndex],
             worldSpace: false,
-          }))
-        : lookingAt.aabbs.map((aabb: AABB) => ({ aabb, worldSpace: false }));
+          };
+        }
+      }
 
       if (!aabbsWithFlags.length) return;
 
       const rotation = this.world.getVoxelRotationAt(...this.target);
 
       let union: AABB | null = null;
-      for (const { aabb, worldSpace } of aabbsWithFlags) {
+      for (let aabbIndex = 0; aabbIndex < aabbsWithFlags.length; aabbIndex++) {
+        const { aabb, worldSpace } = aabbsWithFlags[aabbIndex];
         const rotatedAabb = worldSpace ? aabb : rotation.rotateAABB(aabb);
         union = union ? union.union(rotatedAabb) : rotatedAabb;
       }
@@ -411,14 +437,12 @@ export class VoxelInteract extends Group {
         : 0;
 
     const calculateYRotation = (segmentCount: 4 | 8 | 16) => {
-      if (Math.abs(ny) !== 0) {
-        const [vx, vy, vz] = [objPos.x, objPos.y, objPos.z];
+      const vx = objPos.x;
+      const vz = objPos.z;
+      const tx = targetVoxel[0] + 0.5;
+      const tz = targetVoxel[2] + 0.5;
 
-        const [tx, ty, tz] = [
-          targetVoxel[0] + 0.5,
-          targetVoxel[1] + 0.5,
-          targetVoxel[2] + 0.5,
-        ];
+      if (Math.abs(ny) !== 0) {
 
         let angle =
           ny > 0 ? Math.atan2(vx - tx, vz - tz) : Math.atan2(vz - tz, vx - tx);
@@ -426,8 +450,8 @@ export class VoxelInteract extends Group {
         const normalized = MathUtils.normalizeAngle(angle);
 
         let min = Infinity;
-        let closest: number;
-        let closestA: number;
+        let closest = 0;
+        let closestA = 0;
 
         const rotMap =
           segmentCount === 4
@@ -436,37 +460,33 @@ export class VoxelInteract extends Group {
             ? Y_ROT_MAP_EIGHT
             : Y_ROT_MAP;
 
-        rotMap.forEach(([a, yRot]) => {
-          if (Math.abs(normalized - a) < min) {
-            min = Math.abs(normalized - a);
+        for (let rotIndex = 0; rotIndex < rotMap.length; rotIndex++) {
+          const [a, yRot] = rotMap[rotIndex];
+          const delta = Math.abs(normalized - a);
+          if (delta < min) {
+            min = delta;
             closest = yRot;
             closestA = a;
           }
-        });
+        }
 
         const x =
           ny < 0 ? Math.cos(closestA - Math.PI / 2) : Math.sin(closestA);
         const z =
           ny < 0 ? Math.sin(closestA - Math.PI / 2) : Math.cos(closestA);
-        this.yRotArrow.setDirection(new Vector3(x, 0, z).normalize());
+        const yRotationArrowDirection = this.yRotationArrowDirection;
+        yRotationArrowDirection.set(x, 0, z).normalize();
+        this.yRotArrow.setDirection(yRotationArrowDirection);
         return closest;
       }
-
-      const [vx, vy, vz] = [objPos.x, objPos.y, objPos.z];
-
-      const [tx, ty, tz] = [
-        targetVoxel[0] + 0.5,
-        targetVoxel[1] + 0.5,
-        targetVoxel[2] + 0.5,
-      ];
 
       // use same case as ny > 0
       const angle = Math.atan2(vx - tx, vz - tz);
       const normalized = MathUtils.normalizeAngle(angle);
 
       let min = Infinity;
-      let closest: number;
-      let closestA: number;
+      let closest = 0;
+      let closestA = 0;
 
       const rotMap =
         segmentCount === 4
@@ -475,17 +495,21 @@ export class VoxelInteract extends Group {
           ? Y_ROT_MAP_EIGHT
           : Y_ROT_MAP;
 
-      rotMap.forEach(([a, yRot]) => {
-        if (Math.abs(normalized - a) < min) {
-          min = Math.abs(normalized - a);
+      for (let rotIndex = 0; rotIndex < rotMap.length; rotIndex++) {
+        const [a, yRot] = rotMap[rotIndex];
+        const delta = Math.abs(normalized - a);
+        if (delta < min) {
+          min = delta;
           closest = yRot;
           closestA = a;
         }
-      });
+      }
 
       const x = ny < 0 ? Math.cos(closestA - Math.PI / 2) : Math.sin(closestA);
       const z = ny < 0 ? Math.sin(closestA - Math.PI / 2) : Math.cos(closestA);
-      this.yRotArrow.setDirection(new Vector3(x, 0, z).normalize());
+      const yRotationArrowDirection = this.yRotationArrowDirection;
+      yRotationArrowDirection.set(x, 0, z).normalize();
+      this.yRotArrow.setDirection(yRotationArrowDirection);
       return closest;
     };
 
@@ -508,12 +532,12 @@ export class VoxelInteract extends Group {
       yRotation8: number;
       yRotation4: number;
     } => {
-      const [px, py, pz] = [objPos.x, objPos.y, objPos.z];
-      const [tx, ty, tz] = [
-        targetVoxel[0] + 0.5,
-        targetVoxel[1] + 0.5,
-        targetVoxel[2] + 0.5,
-      ];
+      const px = objPos.x;
+      const py = objPos.y;
+      const pz = objPos.z;
+      const tx = targetVoxel[0] + 0.5;
+      const ty = targetVoxel[1] + 0.5;
+      const tz = targetVoxel[2] + 0.5;
 
       const dx = px - tx;
       const dy = py - ty;
@@ -550,12 +574,14 @@ export class VoxelInteract extends Group {
         let min = Infinity;
         let closest = 0;
 
-        rotMap.forEach(([a, yRot]) => {
-          if (Math.abs(normalized - a) < min) {
-            min = Math.abs(normalized - a);
+        for (let rotIndex = 0; rotIndex < rotMap.length; rotIndex++) {
+          const [a, yRot] = rotMap[rotIndex];
+          const delta = Math.abs(normalized - a);
+          if (delta < min) {
+            min = delta;
             closest = yRot;
           }
-        });
+        }
 
         return closest;
       };
@@ -591,7 +617,9 @@ export class VoxelInteract extends Group {
         this.potential.voxel[1] + 0.5,
         this.potential.voxel[2] + 0.5
       );
-      this.potentialArrow.setDirection(new Vector3(nx, ny, nz));
+      const potentialArrowDirection = this.potentialArrowDirection;
+      potentialArrowDirection.set(nx, ny, nz);
+      this.potentialArrow.setDirection(potentialArrowDirection);
     }
   };
 
@@ -663,11 +691,11 @@ export class VoxelInteract extends Group {
         }
       }
 
-      const offset = new Vector3(0.5, 0.5, 0.5);
-
-      this.targetGroup.children.forEach((child) => {
-        child.position.add(offset);
-      });
+      for (let childIndex = 0; childIndex < this.targetGroup.children.length; childIndex++) {
+        this.targetGroup.children[childIndex].position.add(
+          VoxelInteract.TARGET_OFFSET
+        );
+      }
     } else if (highlightType === "box") {
       const box = new Mesh(
         new BoxGeometry(highlightScale, highlightScale, highlightScale),

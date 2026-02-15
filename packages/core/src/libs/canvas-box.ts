@@ -133,6 +133,9 @@ export const BOX_SIDES: BoxSides[] = [
   "left",
   "right",
 ];
+const BOX_SIDE_FACES: BoxSides[] = ["front", "back", "left", "right"];
+
+const tempSRGBColor = new Color();
 
 /**
  * A layer of a canvas box. This is a group of six canvases that are rendered as a single mesh.
@@ -236,11 +239,13 @@ export class BoxLayer extends Mesh {
       this.userData.receiveShadows = true;
     }
 
-    for (const face of BOX_SIDES) {
-      this.materials.set(face, this.createCanvasMaterial(face));
+    const materials = new Array<MeshBasicMaterial>(BOX_SIDES.length);
+    for (let faceIndex = 0; faceIndex < BOX_SIDES.length; faceIndex++) {
+      const face = BOX_SIDES[faceIndex];
+      const material = this.createCanvasMaterial(face);
+      this.materials.set(face, material);
+      materials[faceIndex] = material;
     }
-
-    const materials = Array.from(this.materials.values());
     const temp = materials[0];
     materials[0] = materials[1];
     materials[1] = temp;
@@ -261,38 +266,39 @@ export class BoxLayer extends Mesh {
       side === "all"
         ? BOX_SIDES
         : side === "sides"
-        ? (["front", "back", "left", "right"] as BoxSides[])
+        ? BOX_SIDE_FACES
         : Array.isArray(side)
         ? side
         : [side];
 
-    for (const face of actualSides) {
+    for (let sideIndex = 0; sideIndex < actualSides.length; sideIndex++) {
+      const face = actualSides[sideIndex];
       const material = this.materials.get(face);
       if (!material) continue;
 
       const canvas = <HTMLCanvasElement>material.map?.image;
       if (!canvas) continue;
 
-      const context = canvas.getContext("2d");
+      let context = material.userData.canvasContext as
+        | CanvasRenderingContext2D
+        | undefined;
+      if (!context) {
+        context = canvas.getContext("2d") ?? undefined;
+        if (!context) continue;
+        material.userData.canvasContext = context;
+      }
       if (!context) continue;
 
       context.imageSmoothingEnabled = false;
 
       const { width, height } = this.getDimensionFromSide(face);
 
-      const isTexture = (art: any): art is Texture => {
-        return art.isTexture;
-      };
-      const isColor = (art: any): art is Color => {
-        return art.isColor;
-      };
-
-      if (isTexture(art)) {
+      if (art instanceof Texture) {
         context.drawImage(art.image, 0, 0, width, height);
       } else {
-        if (isColor(art)) {
+        if (art instanceof Color) {
           context.save();
-          const srgbColor = art.clone().convertLinearToSRGB();
+          const srgbColor = tempSRGBColor.copy(art).convertLinearToSRGB();
           context.fillStyle = `rgb(${srgbColor.r * 255},${srgbColor.g * 255},${
             srgbColor.b * 255
           })`;
@@ -739,10 +745,16 @@ const drawCrown: ArtFunction = (context: CanvasRenderingContext2D) => {
   ];
 
   context.fillStyle = "#f7ea00";
-  gold.forEach(([x, y]) => context.fillRect(x, y, 1, 1));
+  for (let index = 0; index < gold.length; index++) {
+    const [x, y] = gold[index];
+    context.fillRect(x, y, 1, 1);
+  }
 
   context.fillStyle = "#51c2d5";
-  blue.forEach(([x, y]) => context.fillRect(x, y, 1, 1));
+  for (let index = 0; index < blue.length; index++) {
+    const [x, y] = blue[index];
+    context.fillRect(x, y, 1, 1);
+  }
 
   context.fillStyle = "#ff005c";
   context.fillRect(3, 1, 1, 1);

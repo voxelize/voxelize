@@ -1,4 +1,4 @@
-use std::f64;
+use std::{borrow::Cow, f64};
 
 use hashbrown::HashMap;
 use nalgebra::{Rotation3, Vector3};
@@ -35,6 +35,26 @@ pub struct Trees {
 }
 
 impl Trees {
+    #[inline]
+    fn normalized_tree_name<'a>(name: &'a str) -> Cow<'a, str> {
+        let mut has_non_ascii = false;
+        for &byte in name.as_bytes() {
+            if byte.is_ascii_uppercase() {
+                return Cow::Owned(name.to_lowercase());
+            }
+            if !byte.is_ascii() {
+                has_non_ascii = true;
+            }
+        }
+        if !has_non_ascii {
+            Cow::Borrowed(name)
+        } else if name.chars().any(|ch| ch.is_uppercase()) {
+            Cow::Owned(name.to_lowercase())
+        } else {
+            Cow::Borrowed(name)
+        }
+    }
+
     pub fn new(seed: u32, options: &NoiseOptions) -> Trees {
         Trees {
             threshold: 0.5,
@@ -48,7 +68,8 @@ impl Trees {
     }
 
     pub fn register(&mut self, name: &str, tree: Tree) {
-        self.trees.insert(name.to_lowercase(), tree);
+        self.trees
+            .insert(Self::normalized_tree_name(name).into_owned(), tree);
     }
 
     pub fn should_plant(&self, pos: &Vec3<i32>) -> bool {
@@ -57,7 +78,8 @@ impl Trees {
     }
 
     pub fn generate(&self, name: &str, at: &Vec3<i32>) -> Vec<VoxelUpdate> {
-        let tree = self.trees.get(&name.to_lowercase()).unwrap();
+        let normalized_name = Self::normalized_tree_name(name);
+        let tree = self.trees.get(normalized_name.as_ref()).unwrap();
         // Panic if the tree doesn't exist
         let &Tree {
             leaf_radius,
@@ -76,7 +98,7 @@ impl Trees {
             ..
         } = tree;
 
-        let mut base = at.clone();
+        let mut base = *at;
         let mut length = branch_initial_length as f64;
         let mut radius = branch_initial_radius as f64;
         let mut leaf_scale = 1.0;
@@ -84,8 +106,9 @@ impl Trees {
         let mut y_angle = 0.0;
         let mut rot_angle = 0.0;
 
-        let mut updates = HashMap::new();
-        let mut leaves_updates = HashMap::new();
+        let estimated_symbols = tree.system_result.len();
+        let mut updates = HashMap::with_capacity(estimated_symbols);
+        let mut leaves_updates = HashMap::with_capacity(estimated_symbols.saturating_div(2) + 1);
 
         let mut push_updates = |new_updates: Vec<VoxelUpdate>| {
             new_updates.into_iter().for_each(|(pos, id)| {
@@ -93,7 +116,7 @@ impl Trees {
             });
         };
 
-        let mut stack = vec![];
+        let mut stack = Vec::with_capacity(estimated_symbols.min(64));
 
         for symbol in tree.system_result.chars() {
             // Grow the tree from base.
@@ -146,7 +169,7 @@ impl Trees {
             // Save the state
             else if symbol == '[' {
                 stack.push(TreeState {
-                    base: base.clone(),
+                    base,
                     length,
                     radius,
                     y_angle,
@@ -166,29 +189,9 @@ impl Trees {
 
         leaves_updates.extend(updates.into_iter());
 
-        leaves_updates.into_iter().collect()
-    }
-
-    fn place_trunk_by_angles(
-        trunk_id: u32,
-        from: &Vec3<i32>,
-        y_angle: f64,
-        rot_angle: f64,
-        dist: i32,
-        start_radius: i32,
-        end_radius: i32,
-    ) -> Vec<VoxelUpdate> {
-        let &Vec3(fx, fy, fz) = from;
-
-        let Vec3(dx, dy, dz) = Trees::angle_dist_cast(y_angle, rot_angle, dist);
-
-        Trees::place_trunk_by_points(
-            trunk_id,
-            from,
-            &Vec3(fx + dx, fy + dy, fz + dz),
-            start_radius,
-            end_radius,
-        )
+        let mut result = Vec::with_capacity(leaves_updates.len());
+        result.extend(leaves_updates);
+        result
     }
 
     fn place_trunk_by_points(

@@ -17,19 +17,25 @@ impl<'a> System<'a> for ChunkSavingSystem {
         let _t = timing.timer("chunk-saving");
 
         if !config.saving {
+            chunks.to_save.clear();
+            chunks.to_save_lookup.clear();
             return;
         }
 
+        let max_saves_per_tick = config.max_saves_per_tick;
+        if max_saves_per_tick == 0 {
+            return;
+        }
         let mut count = 0;
-
-        while !chunks.to_save.is_empty() && count < config.max_saves_per_tick {
-            if let Some(coords) = chunks.to_save.pop_front() {
-                if let Some((chunk_name, chunk_id, voxels, height_map)) =
-                    chunks.prepare_save_data(&coords)
-                {
-                    bg_saver.queue_save(coords, chunk_name, chunk_id, voxels, height_map);
-                    count += 1;
-                }
+        while count < max_saves_per_tick {
+            let Some(coords) = chunks.to_save.pop_front() else {
+                break;
+            };
+            chunks.to_save_lookup.remove(&coords);
+            if let Some((chunk_name, chunk_id, voxels, height_map)) = chunks.prepare_save_data(&coords)
+            {
+                bg_saver.queue_save(coords, chunk_name, chunk_id, voxels, height_map);
+                count += 1;
             }
         }
     }

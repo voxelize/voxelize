@@ -3,6 +3,15 @@ use specs::{Read, ReadExpect, ReadStorage, System, WriteStorage};
 
 pub struct EntityObserveSystem;
 
+#[inline]
+fn clear_target_if_set(target: &mut TargetComp) {
+    if target.position.is_some() || target.id.is_some() {
+        target.position = None;
+        target.id = None;
+        target.dirty = true;
+    }
+}
+
 impl<'a> System<'a> for EntityObserveSystem {
     #[allow(clippy::type_complexity)]
     type SystemData = (
@@ -23,29 +32,38 @@ impl<'a> System<'a> for EntityObserveSystem {
         (&positions, &mut targets)
             .par_join()
             .for_each(|(position, target)| {
-                let closest_arr = if target.target_type == TargetType::All {
-                    tree.search(&position.0, 1)
-                } else if target.target_type == TargetType::Players {
-                    tree.search_player(&position.0, 1, false)
-                } else {
-                    tree.search_entity(&position.0, 1, true)
+                let closest_entity = match target.target_type {
+                    TargetType::All => tree.search_first(&position.0),
+                    TargetType::Players => tree.search_first_player(&position.0, false),
+                    TargetType::Entities => tree.search_first_entity(&position.0, true),
                 };
 
-                if closest_arr.len() > 0 {
-                    let entity = closest_arr[0].1;
-
-                    if let Some(target_position) = positions.get(entity.to_owned()) {
-                        let id = ids.get(*entity).unwrap().0.clone();
-
-                        target.position = Some(target_position.0.clone());
-                        target.id = Some(id);
+                if let Some(entity) = closest_entity {
+                    if let (Some(target_position), Some(id)) = (positions.get(*entity), ids.get(*entity))
+                    {
+                        let next_position = target_position.0;
+                        let next_id = id.0.as_str();
+                        let position_changed = match target.position.as_ref() {
+                            Some(current_position) => *current_position != next_position,
+                            None => true,
+                        };
+                        let mut changed = false;
+                        if target.id.as_deref() != Some(next_id) {
+                            target.id = Some(id.0.clone());
+                            changed = true;
+                        }
+                        if position_changed {
+                            target.position = Some(next_position);
+                            changed = true;
+                        }
+                        if changed {
+                            target.dirty = true;
+                        }
                     } else {
-                        target.position = None;
-                        target.id = None;
+                        clear_target_if_set(target);
                     }
                 } else {
-                    target.position = None;
-                    target.id = None;
+                    clear_target_if_set(target);
                 }
             });
     }

@@ -1,7 +1,25 @@
-use noise::{Fbm, HybridMulti, MultiFractal, NoiseFn, Perlin, RidgedMulti, Seedable};
+use noise::{HybridMulti, MultiFractal, NoiseFn, Perlin, RidgedMulti};
 use serde::Serialize;
-use splines::interpolate::Interpolator;
 use std::f64;
+
+#[inline]
+fn build_regular_noise(seed: u32, options: &NoiseOptions) -> HybridMulti<Perlin> {
+    HybridMulti::new(seed)
+        .set_frequency(options.frequency)
+        .set_lacunarity(options.lacunarity)
+        .set_persistence(options.persistence)
+        .set_octaves(options.octaves)
+}
+
+#[inline]
+fn build_ridged_noise(seed: u32, options: &NoiseOptions) -> RidgedMulti<Perlin> {
+    RidgedMulti::new(seed)
+        .set_frequency(options.frequency)
+        .set_lacunarity(options.lacunarity)
+        .set_persistence(options.persistence)
+        .set_attenuation(options.attenuation)
+        .set_octaves(options.octaves)
+}
 
 /// Seeded simplex noise for Voxelize.
 #[derive(Clone, Debug)]
@@ -15,17 +33,8 @@ pub struct SeededNoise {
 impl SeededNoise {
     /// Create a new seeded simplex noise.
     pub fn new(seed: u32, options: &NoiseOptions) -> Self {
-        let regular = HybridMulti::new(seed)
-            .set_frequency(options.frequency)
-            .set_lacunarity(options.lacunarity)
-            .set_persistence(options.persistence)
-            .set_octaves(options.octaves);
-        let ridged = RidgedMulti::new(seed)
-            .set_frequency(options.frequency)
-            .set_lacunarity(options.lacunarity)
-            .set_persistence(options.persistence)
-            .set_attenuation(options.attenuation)
-            .set_octaves(options.octaves);
+        let regular = build_regular_noise(seed, options);
+        let ridged = build_ridged_noise(seed, options);
 
         Self {
             regular,
@@ -56,8 +65,9 @@ impl SeededNoise {
 
     /// Set the noise of this seeded noise as a whole.
     pub fn set_seed(&mut self, seed: u32) -> &mut Self {
-        self.regular = self.regular.clone().set_seed(seed + self.options.seed);
-        self.ridged = self.ridged.clone().set_seed(seed + self.options.seed);
+        let combined_seed = seed.saturating_add(self.options.seed);
+        self.regular = build_regular_noise(combined_seed, &self.options);
+        self.ridged = build_ridged_noise(combined_seed, &self.options);
         self
     }
 }

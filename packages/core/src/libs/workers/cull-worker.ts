@@ -61,69 +61,85 @@ const FACES = [
   },
 ];
 
-function get(
-  arr: Uint8Array,
-  x: number,
-  y: number,
-  z: number,
-  stride: number[]
-) {
-  const index = x * stride[0] + y * stride[1] + z * stride[2];
-  return index > arr.length || index < 0 ? 0 : arr[index];
-}
+type CullWorkerMessage = {
+  data: Uint8Array;
+  configs: {
+    dimensions: [number, number, number];
+    min: [number, number, number];
+    max: [number, number, number];
+    realMin: [number, number, number];
+    realMax: [number, number, number];
+    stride: [number, number, number];
+  };
+};
 
-function contains(voxel, min, max) {
-  const [sx, sy, sz] = min;
-  const [ex, ey, ez] = max;
-  const [vx, vy, vz] = voxel;
-  return vx < ex && vx >= sx && vy < ey && vy >= sy && vz < ez && vz >= sz;
-}
-
-// @ts-ignore
-onmessage = function (e) {
+self.onmessage = function (e: MessageEvent<CullWorkerMessage>) {
   const {
     data,
     configs: { dimensions, min, max, realMin, realMax, stride },
   } = e.data;
 
-  const positions = [];
-  const normals = [];
-  const indices = [];
+  const positions: number[] = [];
+  const normals: number[] = [];
+  const indices: number[] = [];
+  let vertexCount = 0;
 
   const [startX, startY, startZ] = min;
   const [endX, endY, endZ] = max;
+  const [realStartX, realStartY, realStartZ] = realMin;
+  const [realEndX, realEndY, realEndZ] = realMax;
+  const [strideX, strideY, strideZ] = stride;
+  const dataLength = data.length;
 
   const [dx, dy, dz] = dimensions;
 
   for (let vx = startX, x = 0; vx < endX; ++vx, ++x) {
     for (let vz = startZ, z = 0; vz < endZ; ++vz, ++z) {
       for (let vy = startY, y = 0; vy < endY; ++vy, ++y) {
-        const voxel = get(data, vx, vy, vz, stride);
+        const voxelIndex = vx * strideX + vy * strideY + vz * strideZ;
+        const voxel =
+          voxelIndex >= 0 && voxelIndex < dataLength ? data[voxelIndex] : 0;
 
         if (voxel) {
+          const baseX = x * dx;
+          const baseY = y * dy;
+          const baseZ = z * dz;
           // There is a voxel here but do we need faces for it?
-          for (const { dir, corners } of FACES) {
+          for (let faceIndex = 0; faceIndex < FACES.length; faceIndex++) {
+            const face = FACES[faceIndex];
+            const { dir, corners } = face;
             const nvx = vx + dir[0];
             const nvy = vy + dir[1];
             const nvz = vz + dir[2];
-
-            const nVoxel = [nvx, nvy, nvz];
-
-            if (
-              !get(data, nvx, nvy, nvz, stride) ||
-              !contains(nVoxel, realMin, realMax)
-            ) {
-              // this voxel has no neighbor in this direction so we need a face.
-              const ndx = positions.length / 3;
-
-              for (const pos of corners) {
-                const posX = pos[0] + x;
-                const posY = pos[1] + y;
-                const posZ = pos[2] + z;
-
-                positions.push(posX * dx, posY * dy, posZ * dz);
-                normals.push(...dir);
+            const inRealBounds =
+              nvx < realEndX &&
+              nvx >= realStartX &&
+              nvy < realEndY &&
+              nvy >= realStartY &&
+              nvz < realEndZ &&
+              nvz >= realStartZ;
+            let neighborSolid = 0;
+            if (inRealBounds) {
+              const neighborIndex = nvx * strideX + nvy * strideY + nvz * strideZ;
+              if (neighborIndex >= 0 && neighborIndex < dataLength) {
+                neighborSolid = data[neighborIndex];
               }
+            }
+
+            if (!neighborSolid) {
+              // this voxel has no neighbor in this direction so we need a face.
+              const ndx = vertexCount;
+
+              for (let cornerIndex = 0; cornerIndex < corners.length; cornerIndex++) {
+                const corner = corners[cornerIndex];
+                positions.push(
+                  baseX + corner[0] * dx,
+                  baseY + corner[1] * dy,
+                  baseZ + corner[2] * dz
+                );
+                normals.push(dir[0], dir[1], dir[2]);
+              }
+              vertexCount += corners.length;
 
               indices.push(ndx, ndx + 1, ndx + 2, ndx + 2, ndx + 1, ndx + 3);
             }
@@ -134,16 +150,17 @@ onmessage = function (e) {
   }
 
   const positionsArray = new Float32Array(positions);
-  const normalsArray = new Float32Array(normals);
-  const indicesArray = new Float32Array(indices);
+  const normalsArray = new Int8Array(normals);
+  const indicesArray = new Uint32Array(indices);
 
-  postMessage(
+  self.postMessage(
     {
       positions: positionsArray,
       normals: normalsArray,
       indices: indicesArray,
     },
-    // @ts-ignore
-    [positionsArray.buffer, normalsArray.buffer, indicesArray.buffer]
+    {
+      transfer: [positionsArray.buffer, normalsArray.buffer, indicesArray.buffer],
+    }
   );
 };

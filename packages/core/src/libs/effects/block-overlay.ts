@@ -4,6 +4,28 @@ import { Color, PerspectiveCamera, Uniform, Vector3 } from "three";
 import { World } from "../../core/world";
 import OverlayFragmentShader from "../../shaders/effects/overlay.frag.glsl?raw";
 
+const normalizeOverlayName = (name: string) => {
+  let hasNonAscii = false;
+  for (let i = 0; i < name.length; i++) {
+    const code = name.charCodeAt(i);
+    if (code >= 65 && code <= 90) {
+      return name.toLowerCase();
+    }
+    if (code > 127) {
+      hasNonAscii = true;
+    }
+  }
+  if (!hasNonAscii) {
+    return name;
+  }
+  for (const char of name) {
+    if (char.toLowerCase() !== char.toUpperCase() && char === char.toUpperCase()) {
+      return name.toLowerCase();
+    }
+  }
+  return name;
+};
+
 /**
  * The block overlay effect is used to add a color blend whenever the camera is inside certain types of blocks.
  *
@@ -39,6 +61,7 @@ export class BlockOverlayEffect extends Effect {
    * The old voxel ID that the camera was in.
    */
   private oldId: number;
+  private cameraPosition = new Vector3();
 
   /**
    * Create a new block overlay effect.
@@ -48,9 +71,9 @@ export class BlockOverlayEffect extends Effect {
    */
   constructor(public world: World, public camera: PerspectiveCamera) {
     super("BlockOverlayEffect", OverlayFragmentShader, {
-      uniforms: new Map([
+      uniforms: new Map<string, Uniform<number | Vector3>>([
         ["overlay", new Uniform(new Vector3(0, 0, 1))],
-        ["opacity", new Uniform(0.0 as any)],
+        ["opacity", new Uniform(0.0)],
       ]),
     });
   }
@@ -64,7 +87,7 @@ export class BlockOverlayEffect extends Effect {
    */
   addOverlay = (idOrName: number | string, color: Color, opacity: number) => {
     this.overlays.set(
-      typeof idOrName === "number" ? idOrName : idOrName.toLowerCase(),
+      typeof idOrName === "number" ? idOrName : normalizeOverlayName(idOrName),
       [color, opacity]
     );
   };
@@ -79,7 +102,7 @@ export class BlockOverlayEffect extends Effect {
       return;
     }
 
-    const position = new Vector3();
+    const position = this.cameraPosition;
     this.camera.getWorldPosition(position);
 
     const id = this.world.getVoxelAt(position.x, position.y, position.z);
@@ -90,9 +113,11 @@ export class BlockOverlayEffect extends Effect {
       return;
     }
 
-    const block = this.world.getBlockById(id);
-    const entry =
-      this.overlays.get(id) || this.overlays.get(block.name.toLowerCase());
+    let entry = this.overlays.get(id);
+    if (!entry) {
+      const block = this.world.getBlockById(id);
+      entry = this.overlays.get(normalizeOverlayName(block.name));
+    }
 
     if (!entry) {
       this.opacity = 0;

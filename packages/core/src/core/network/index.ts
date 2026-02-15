@@ -3,6 +3,7 @@ import DOMUrl from "domurl";
 
 import { setWorkerInterval } from "../../libs/setWorkerInterval";
 import { WorkerPool } from "../../libs/worker-pool";
+import { JsonValue } from "../../types";
 
 import { NetIntercept } from "./intercept";
 import { WebRTCConnection } from "./webrtc";
@@ -14,7 +15,7 @@ export { WebRTCConnection } from "./webrtc";
 const { Message } = protocol;
 
 export type ProtocolWS = WebSocket & {
-  sendEvent: (event: any) => void;
+  sendEvent: (event: MessageProtocol) => void;
 };
 
 export type NetworkOptions = {
@@ -33,13 +34,15 @@ export type NetworkConnectionOptions = {
   useWebRTC?: boolean;
 };
 
+type ClientMetadata = Record<string, JsonValue>;
+
 export class Network {
   public options: NetworkOptions;
 
   public clientInfo: {
     id: string;
     username: string;
-    metadata?: Record<string, any>;
+    metadata?: ClientMetadata;
   } = {
     id: "",
     username: "",
@@ -50,9 +53,7 @@ export class Network {
 
   public ws: ProtocolWS;
 
-  public url: DOMUrl<{
-    [key: string]: any;
-  }>;
+  public url: DOMUrl<Record<string, string>>;
 
   public world: string;
 
@@ -88,6 +89,11 @@ export class Network {
   private joinReject: ((reason: string) => void) | null = null;
 
   private packetQueue: ArrayBuffer[] = [];
+  private packetQueueHead = 0;
+  private decodePromises: Array<Promise<MessageProtocol[]>> = [];
+  private decodePacketBatches: Array<ArrayBuffer[]> = [];
+  private reusableDecodePacketBatches: Array<ArrayBuffer[]> = [];
+  private priorityDecodeBatch: ArrayBuffer[] = [new ArrayBuffer(0)];
 
   private joinStartTime = 0;
 
@@ -98,6 +104,58 @@ export class Network {
   private rtc: WebRTCConnection | null = null;
 
   private useWebRTC = false;
+
+  private hasPendingPackets = () => this.packetQueueHead < this.packetQueue.length;
+
+  private queuedPacketCount = () => this.packetQueue.length - this.packetQueueHead;
+
+  private normalizePacketQueue = () => {
+    if (this.packetQueueHead === 0) {
+      return;
+    }
+
+    if (this.packetQueueHead >= this.packetQueue.length) {
+      this.packetQueue.length = 0;
+      this.packetQueueHead = 0;
+      return;
+    }
+
+    if (
+      this.packetQueueHead >= 1024 &&
+      this.packetQueueHead * 2 >= this.packetQueue.length
+    ) {
+      this.packetQueue.copyWithin(0, this.packetQueueHead);
+      this.packetQueue.length -= this.packetQueueHead;
+      this.packetQueueHead = 0;
+    }
+  };
+
+  private acquireDecodePacketBatch(size: number) {
+    const batch = this.reusableDecodePacketBatches.pop();
+    if (batch) {
+      batch.length = size;
+      return batch;
+    }
+    return new Array<ArrayBuffer>(size);
+  }
+
+  private releaseDecodePacketBatch(batch: ArrayBuffer[]) {
+    batch.length = 0;
+    this.reusableDecodePacketBatches.push(batch);
+  }
+
+  private copyPacketRangeIntoBatch(
+    source: ArrayBuffer[],
+    start: number,
+    end: number
+  ) {
+    const count = end - start;
+    const batch = this.acquireDecodePacketBatch(count);
+    for (let index = 0; index < count; index++) {
+      batch[index] = source[start + index];
+    }
+    return batch;
+  }
 
   constructor(options: Partial<NetworkOptions> = {}) {
     this.options = {
@@ -112,10 +170,9 @@ export class Network {
     }, 1000 / 60);
 
     const MAX = 10000;
+    const maxDigits = MAX.toString().length;
     let index = Math.floor(Math.random() * MAX).toString();
-    index =
-      new Array(MAX.toString().length - index.length).fill("0").join("") +
-      index;
+    index = index.padStart(maxDigits, "0");
     this.clientInfo.username = `Guest ${index}`;
   }
 
@@ -167,11 +224,29 @@ export class Network {
     return new Promise<Network>((resolve) => {
       const ws = new WebSocket(this.socket.toString()) as ProtocolWS;
       ws.binaryType = "arraybuffer";
-      ws.sendEvent = async (event: any) => {
+      const sendWhenConnected = async (event: MessageProtocol) => {
         while (!this.connected) {
+          if (
+            ws.readyState === WebSocket.CLOSING ||
+            ws.readyState === WebSocket.CLOSED ||
+            this.ws !== ws
+          ) {
+            return;
+          }
           console.log(`waiting for websocket connection...`);
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
+        if (ws.readyState === WebSocket.OPEN) {
+          const encoded = Network.encodeSync(event);
+          ws.send(encoded);
+        }
+      };
+      ws.sendEvent = (event: MessageProtocol) => {
+        if (!this.connected) {
+          void sendWhenConnected(event);
+          return;
+        }
+
         if (ws.readyState === WebSocket.OPEN) {
           const encoded = Network.encodeSync(event);
           ws.send(encoded);
@@ -194,7 +269,7 @@ export class Network {
             `  ReadyState: ${ws.readyState} (${
               ["CONNECTING", "OPEN", "CLOSING", "CLOSED"][ws.readyState]
             })\n` +
-            `  Pending packets: ${this.packetQueue.length}`
+            `  Pending packets: ${this.queuedPacketCount()}`
         );
       };
       ws.onmessage = ({ data }) => {
@@ -319,7 +394,7 @@ export class Network {
     });
   };
 
-  action = async (type: string, data?: any) => {
+  action = async (type: string, data?: JsonValue) => {
     this.send({
       type: "ACTION",
       json: {
@@ -330,73 +405,208 @@ export class Network {
   };
 
   sync = () => {
-    if (!this.connected || !this.packetQueue.length) {
+    if (!this.connected || !this.hasPendingPackets()) {
       return;
     }
 
-    const queueLength = this.packetQueue.length;
+    const queueLength = this.queuedPacketCount();
     const backlogFactor = Math.min(
       this.options.maxBacklogFactor,
       Math.ceil(queueLength / 25)
     );
     const packetsToProcess = this.options.maxPacketsPerTick * backlogFactor;
-
-    const packets = this.packetQueue.splice(
-      0,
-      Math.min(packetsToProcess, this.packetQueue.length)
+    const batchEnd = Math.min(
+      this.packetQueueHead + packetsToProcess,
+      this.packetQueue.length
     );
-
-    const availableWorkers = Math.max(1, this.pool.availableCount);
-    const perWorker = Math.ceil(packets.length / availableWorkers);
-
-    const batches: ArrayBuffer[][] = [];
-    for (let i = 0; i < packets.length; i += perWorker) {
-      batches.push(packets.slice(i, i + perWorker));
+    const packetCount = batchEnd - this.packetQueueHead;
+    if (packetCount <= 0) {
+      return;
     }
 
-    Promise.all(
-      batches.map((batch, idx) =>
-        this.decode(batch).then((msgs) => ({ idx, msgs }))
-      )
-    ).then((results) => {
-      results.sort((a, b) => a.idx - b.idx);
-      for (const { msgs } of results) {
-        for (const message of msgs) {
-          this.onMessage(message);
-        }
+    const availableWorkers = Math.max(1, this.pool.availableCount);
+    const perWorker = Math.ceil(packetCount / availableWorkers);
+
+    if (packetCount <= perWorker) {
+      let packets: ArrayBuffer[];
+      let shouldReleasePackets = false;
+      if (this.packetQueueHead === 0 && batchEnd === this.packetQueue.length) {
+        packets = this.packetQueue;
+        this.packetQueue = [];
+        this.packetQueueHead = 0;
+      } else {
+        packets = this.copyPacketRangeIntoBatch(
+          this.packetQueue,
+          this.packetQueueHead,
+          batchEnd
+        );
+        shouldReleasePackets = true;
+        this.packetQueueHead = batchEnd;
+        this.normalizePacketQueue();
       }
-    });
+      this.decode(packets)
+        .then((messages) => {
+          for (
+            let messageIndex = 0;
+            messageIndex < messages.length;
+            messageIndex++
+          ) {
+            this.onMessage(messages[messageIndex]);
+          }
+          if (shouldReleasePackets) {
+            this.releaseDecodePacketBatch(packets);
+          }
+        }, (error) => {
+          console.error("[NETWORK] Failed to decode packet batch.", error);
+          if (shouldReleasePackets) {
+            this.releaseDecodePacketBatch(packets);
+          }
+        });
+      return;
+    }
+
+    const batchCount = Math.ceil(packetCount / perWorker);
+    const decodePromises = this.decodePromises;
+    const decodePacketBatches = this.decodePacketBatches;
+    decodePromises.length = batchCount;
+    decodePacketBatches.length = batchCount;
+    const sourceQueue = this.packetQueue;
+    const batchStart = this.packetQueueHead;
+    let batchIndex = 0;
+    for (let offset = batchStart; offset < batchEnd; offset += perWorker) {
+      const end = Math.min(offset + perWorker, batchEnd);
+      const packetBatch = this.copyPacketRangeIntoBatch(
+        sourceQueue,
+        offset,
+        end
+      );
+      decodePacketBatches[batchIndex] = packetBatch;
+      decodePromises[batchIndex] = this.decode(packetBatch);
+      batchIndex++;
+    }
+    if (batchStart === 0 && batchEnd === sourceQueue.length) {
+      this.packetQueue = [];
+      this.packetQueueHead = 0;
+    } else {
+      this.packetQueueHead = batchEnd;
+      this.normalizePacketQueue();
+    }
+
+    const clearDecodeBatches = () => {
+      for (let batchIndex = 0; batchIndex < decodePacketBatches.length; batchIndex++) {
+        this.releaseDecodePacketBatch(decodePacketBatches[batchIndex]);
+      }
+      decodePacketBatches.length = 0;
+      this.decodePromises.length = 0;
+    };
+
+    Promise.all(decodePromises).then((results) => {
+        for (let batchIndex = 0; batchIndex < results.length; batchIndex++) {
+          const messages = results[batchIndex];
+          for (
+            let messageIndex = 0;
+            messageIndex < messages.length;
+            messageIndex++
+          ) {
+            this.onMessage(messages[messageIndex]);
+          }
+        }
+        clearDecodeBatches();
+      }, (error) => {
+        console.error("[NETWORK] Failed to decode packet batches.", error);
+        clearDecodeBatches();
+      });
   };
 
   flush = () => {
+    if (!this.connected || !this.ws) {
+      return;
+    }
+
+    const ws = this.ws;
     for (let i = 0; i < this.intercepts.length; i++) {
       const intercept = this.intercepts[i];
       const packets = intercept.packets;
       if (packets && packets.length) {
-        const toSend = packets.splice(0, packets.length);
-        for (let j = 0; j < toSend.length; j++) {
-          this.send(toSend[j]);
+        const packetCount = packets.length;
+        for (let j = 0; j < packetCount; j++) {
+          ws.sendEvent(packets[j]);
         }
+        packets.length = 0;
       }
     }
   };
 
   register = (...intercepts: NetIntercept[]) => {
-    intercepts.forEach((intercept) => {
-      this.intercepts.push(intercept);
-    });
+    for (let index = 0; index < intercepts.length; index++) {
+      this.intercepts.push(intercepts[index]);
+    }
 
     return this;
   };
 
   unregister = (...intercepts: NetIntercept[]) => {
-    intercepts.forEach((intercept) => {
-      const index = this.intercepts.indexOf(intercept);
+    if (intercepts.length === 0 || this.intercepts.length === 0) {
+      return this;
+    }
 
+    if (intercepts.length === 1) {
+      const index = this.intercepts.indexOf(intercepts[0]);
       if (index !== -1) {
         this.intercepts.splice(index, 1);
       }
-    });
+
+      return this;
+    }
+    if (intercepts.length === 2) {
+      const firstIntercept = intercepts[0];
+      const secondIntercept = intercepts[1];
+      if (firstIntercept === secondIntercept) {
+        let index = this.intercepts.indexOf(firstIntercept);
+        if (index !== -1) {
+          this.intercepts.splice(index, 1);
+          index = this.intercepts.indexOf(firstIntercept, index);
+          if (index !== -1) {
+            this.intercepts.splice(index, 1);
+          }
+        }
+        return this;
+      }
+
+      let firstIndex = this.intercepts.indexOf(firstIntercept);
+      if (firstIndex !== -1) {
+        this.intercepts.splice(firstIndex, 1);
+      }
+      const secondIndex = this.intercepts.indexOf(secondIntercept);
+      if (secondIndex !== -1) {
+        this.intercepts.splice(secondIndex, 1);
+      }
+      return this;
+    }
+
+    const removalCounts = new Map<NetIntercept, number>();
+    for (let interceptIndex = 0; interceptIndex < intercepts.length; interceptIndex++) {
+      const intercept = intercepts[interceptIndex];
+      removalCounts.set(intercept, (removalCounts.get(intercept) ?? 0) + 1);
+    }
+
+    const currentIntercepts = this.intercepts;
+    let writeIndex = 0;
+    for (let readIndex = 0; readIndex < currentIntercepts.length; readIndex++) {
+      const intercept = currentIntercepts[readIndex];
+      const remainingRemovals = removalCounts.get(intercept);
+      if (remainingRemovals !== undefined && remainingRemovals > 0) {
+        if (remainingRemovals === 1) {
+          removalCounts.delete(intercept);
+        } else {
+          removalCounts.set(intercept, remainingRemovals - 1);
+        }
+        continue;
+      }
+      currentIntercepts[writeIndex] = intercept;
+      writeIndex++;
+    }
+    currentIntercepts.length = writeIndex;
 
     return this;
   };
@@ -425,7 +635,7 @@ export class Network {
     }
   };
 
-  send = (event: any) => {
+  send = (event: MessageProtocol) => {
     this.ws.sendEvent(event);
   };
 
@@ -437,7 +647,7 @@ export class Network {
     this.clientInfo.username = username || " ";
   };
 
-  setMetadata = (metadata: Record<string, any>) => {
+  setMetadata = (metadata: ClientMetadata) => {
     this.clientInfo.metadata = metadata || {};
   };
 
@@ -446,7 +656,7 @@ export class Network {
   }
 
   get packetQueueLength() {
-    return this.packetQueue.length;
+    return this.queuedPacketCount();
   }
 
   get rtcConnected() {
@@ -479,9 +689,9 @@ export class Network {
       }
     }
 
-    this.intercepts.forEach((intercept) => {
-      intercept.onMessage?.(message, this.clientInfo);
-    });
+    for (let index = 0; index < this.intercepts.length; index++) {
+      this.intercepts[index].onMessage?.(message, this.clientInfo);
+    }
 
     if (type === "INIT") {
       if (!this.joinResolve) {
@@ -500,29 +710,46 @@ export class Network {
     }
   };
 
-  private static encodeSync(message: Record<string, unknown>) {
-    if (message.json) {
-      message.json = JSON.stringify(message.json);
+  private static encodeSync(message: Record<string, JsonValue | object>) {
+    const messageJson = message.json;
+    if (messageJson && typeof messageJson !== "string") {
+      message.json = JSON.stringify(messageJson);
     }
     message.type = Message.Type[message.type as string];
-    if (message.entities) {
-      (message.entities as Array<Record<string, unknown>>).forEach(
-        (entity) => (entity.metadata = JSON.stringify(entity.metadata))
-      );
+    const entities = message.entities as Array<{
+      metadata: string | JsonValue | null;
+    }>;
+    if (entities) {
+      for (let index = 0; index < entities.length; index++) {
+        const entity = entities[index];
+        if (typeof entity.metadata !== "string") {
+          entity.metadata = JSON.stringify(entity.metadata);
+        }
+      }
     }
-    if (message.peers) {
-      (message.peers as Array<Record<string, unknown>>).forEach(
-        (peer) => (peer.metadata = JSON.stringify(peer.metadata))
-      );
+    const peers = message.peers as Array<{
+      metadata: string | JsonValue | null;
+    }>;
+    if (peers) {
+      for (let index = 0; index < peers.length; index++) {
+        const peer = peers[index];
+        if (typeof peer.metadata !== "string") {
+          peer.metadata = JSON.stringify(peer.metadata);
+        }
+      }
     }
     return protocol.Message.encode(protocol.Message.create(message)).finish();
   }
 
   private decodePriority = (buffer: ArrayBuffer) => {
-    const handler = (e: MessageEvent) => {
+    const handler = (e: MessageEvent<MessageProtocol[]>) => {
       this.priorityWorker.removeEventListener("message", handler);
 
-      const messages = e.data as MessageProtocol[];
+      const messages = e.data;
+      if (!messages || messages.length === 0) {
+        this.packetQueue.push(buffer);
+        return;
+      }
       const decoded = messages[0];
 
       if (decoded.type === "INIT" && this.waitingForInit) {
@@ -533,15 +760,17 @@ export class Network {
     };
 
     this.priorityWorker.addEventListener("message", handler);
-    this.priorityWorker.postMessage([buffer]);
+    this.priorityDecodeBatch[0] = buffer;
+    this.priorityWorker.postMessage(this.priorityDecodeBatch);
   };
 
   private decode = (data: ArrayBuffer[]): Promise<MessageProtocol[]> => {
-    return new Promise<MessageProtocol[]>((resolve) => {
+    return new Promise<MessageProtocol[]>((resolve, reject) => {
       this.pool.addJob({
         message: data,
         buffers: data,
         resolve,
+        reject,
       });
     });
   };

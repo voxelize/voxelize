@@ -10,6 +10,7 @@ import { LightColor } from "./light-utils";
 
 const ROTATION_MASK = 0xfff0ffff;
 const Y_ROTATION_MASK = 0xff0fffff;
+const ROTATION_VALUES_MASK = ROTATION_MASK & Y_ROTATION_MASK;
 const STAGE_MASK = 0xf0ffffff;
 
 /**
@@ -75,8 +76,23 @@ export class BlockUtils {
    */
   static insertRotation = (voxel: number, rotation: BlockRotation) => {
     const [rot, yRot] = BlockRotation.decode(rotation);
-    const value = (voxel & ROTATION_MASK) | ((rot & 0xf) << 16);
-    return (value & Y_ROTATION_MASK) | ((yRot & 0xf) << 20);
+    return (
+      (voxel & ROTATION_VALUES_MASK) |
+      ((rot & 0xf) << 16) |
+      ((yRot & 0xf) << 20)
+    );
+  };
+
+  static insertRotationValues = (
+    voxel: number,
+    rotation: number,
+    yRotation: number
+  ) => {
+    return (
+      (voxel & ROTATION_VALUES_MASK) |
+      ((rotation & 0xf) << 16) |
+      ((yRotation & 0xf) << 20)
+    );
   };
 
   /**
@@ -97,7 +113,7 @@ export class BlockUtils {
    * @returns The inserted voxel value.
    */
   static insertStage = (voxel: number, stage: number) => {
-    return (voxel & STAGE_MASK) | (stage << 24);
+    return (voxel & STAGE_MASK) | ((stage & 0xf) << 24);
   };
 
   static insertAll = (id: number, rotation?: BlockRotation, stage?: number) => {
@@ -145,12 +161,12 @@ export class BlockUtils {
       const oy = offset[1] + vy;
       const oz = offset[2] + vz;
 
-      if (id !== null) {
+      if (id !== null && id !== undefined) {
         const voxelId = functions.getVoxelAt(ox, oy, oz);
         if (voxelId !== id) return false;
       }
 
-      if (rotation !== null) {
+      if (rotation !== null && rotation !== undefined) {
         const voxelRotation = functions.getVoxelRotationAt(ox, oy, oz);
         if (
           voxelRotation.value !== rotation.value ||
@@ -159,7 +175,7 @@ export class BlockUtils {
           return false;
       }
 
-      if (stage !== null) {
+      if (stage !== null && stage !== undefined) {
         const voxelStage = functions.getVoxelStageAt(ox, oy, oz);
         if (voxelStage !== stage) return false;
       }
@@ -172,18 +188,30 @@ export class BlockUtils {
       const { logic, rules } = rule;
 
       switch (logic) {
-        case BlockRuleLogic.And:
-          return rules.every((subRule) =>
-            BlockUtils.evaluateBlockRule(subRule, voxel, functions)
-          );
-        case BlockRuleLogic.Or:
-          return rules.some((subRule) =>
-            BlockUtils.evaluateBlockRule(subRule, voxel, functions)
-          );
-        case BlockRuleLogic.Not:
-          return !rules.some((subRule) =>
-            BlockUtils.evaluateBlockRule(subRule, voxel, functions)
-          );
+        case BlockRuleLogic.And: {
+          for (let index = 0; index < rules.length; index++) {
+            if (!BlockUtils.evaluateBlockRule(rules[index], voxel, functions)) {
+              return false;
+            }
+          }
+          return true;
+        }
+        case BlockRuleLogic.Or: {
+          for (let index = 0; index < rules.length; index++) {
+            if (BlockUtils.evaluateBlockRule(rules[index], voxel, functions)) {
+              return true;
+            }
+          }
+          return false;
+        }
+        case BlockRuleLogic.Not: {
+          for (let index = 0; index < rules.length; index++) {
+            if (BlockUtils.evaluateBlockRule(rules[index], voxel, functions)) {
+              return false;
+            }
+          }
+          return true;
+        }
         default:
           return false; // Unsupported logic
       }

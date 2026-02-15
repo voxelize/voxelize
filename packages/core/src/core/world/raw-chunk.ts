@@ -15,6 +15,15 @@ export type RawChunkOptions = {
   subChunks: number;
 };
 
+export type SerializedRawChunk = {
+  id: string;
+  x: number;
+  z: number;
+  voxels: ArrayBuffer;
+  lights: ArrayBuffer;
+  options: RawChunkOptions;
+};
+
 export class RawChunk {
   public options: RawChunkOptions;
 
@@ -31,6 +40,12 @@ export class RawChunk {
   public voxels: NdArray<Uint32Array>;
 
   public lights: NdArray<Uint32Array>;
+  private localBuffer: Coords3 = [0, 0, 0];
+  private minX = 0;
+  private minY = 0;
+  private minZ = 0;
+  private size = 0;
+  private maxHeight = 0;
 
   constructor(id: string, coords: Coords2, options: RawChunkOptions) {
     this.id = id;
@@ -40,34 +55,45 @@ export class RawChunk {
     this.options = options;
 
     const { size, maxHeight } = options;
+    this.size = size;
+    this.maxHeight = maxHeight;
 
-    this.voxels = ndarray([] as any, [size, maxHeight, size]);
-    this.lights = ndarray([] as any, [size, maxHeight, size]);
+    this.voxels = ndarray(new Uint32Array(0), [size, maxHeight, size]);
+    this.lights = ndarray(new Uint32Array(0), [size, maxHeight, size]);
 
     const [x, z] = coords;
 
     this.min = [x * size, 0, z * size];
     this.max = [(x + 1) * size, maxHeight, (z + 1) * size];
+    this.minX = this.min[0];
+    this.minY = this.min[1];
+    this.minZ = this.min[2];
   }
 
-  serialize(): [object, ArrayBuffer[]] {
+  serialize(): [SerializedRawChunk, ArrayBuffer[]] {
+    const voxelsBuffer = RawChunk.cloneDataBuffer(this.voxels.data);
+    const lightsBuffer = RawChunk.cloneDataBuffer(this.lights.data);
     return [
       {
         id: this.id,
         x: this.coords[0],
         z: this.coords[1],
-        voxels: this.voxels.data.buffer,
-        lights: this.lights.data.buffer,
+        voxels: voxelsBuffer,
+        lights: lightsBuffer,
         options: this.options,
       },
-      [
-        this.voxels.data.buffer.slice(0) as ArrayBuffer,
-        this.lights.data.buffer.slice(0) as ArrayBuffer,
-      ],
+      [voxelsBuffer, lightsBuffer],
     ];
   }
 
-  static deserialize(data: any): RawChunk {
+  private static cloneDataBuffer(data: Uint32Array): ArrayBuffer {
+    const buffer = data.buffer as ArrayBuffer;
+    const start = data.byteOffset;
+    const end = start + data.byteLength;
+    return buffer.slice(start, end);
+  }
+
+  static deserialize(data: SerializedRawChunk): RawChunk {
     const { id, x, z, voxels, lights, options } = data;
 
     const chunk = new RawChunk(id, [x, z], options);
@@ -112,8 +138,8 @@ export class RawChunk {
       return 0;
     }
 
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
-    return this.voxels.get(lx, ly, lz);
+    const localBuffer = this.localBuffer;
+    return this.voxels.get(localBuffer[0], localBuffer[1], localBuffer[2]);
   }
 
   /**
@@ -129,8 +155,8 @@ export class RawChunk {
    */
   setRawValue(vx: number, vy: number, vz: number, val: number) {
     if (!this.contains(vx, vy, vz)) return 0;
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
-    return this.voxels.set(lx, ly, lz, val);
+    const localBuffer = this.localBuffer;
+    return this.voxels.set(localBuffer[0], localBuffer[1], localBuffer[2], val);
   }
 
   /**
@@ -143,8 +169,8 @@ export class RawChunk {
    */
   getRawLight(vx: number, vy: number, vz: number) {
     if (!this.contains(vx, vy, vz)) return 0;
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
-    return this.lights.get(lx, ly, lz);
+    const localBuffer = this.localBuffer;
+    return this.lights.get(localBuffer[0], localBuffer[1], localBuffer[2]);
   }
 
   /**
@@ -160,8 +186,13 @@ export class RawChunk {
    */
   setRawLight(vx: number, vy: number, vz: number, level: number) {
     if (!this.contains(vx, vy, vz)) return 0;
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
-    return this.lights.set(lx, ly, lz, level);
+    const localBuffer = this.localBuffer;
+    return this.lights.set(
+      localBuffer[0],
+      localBuffer[1],
+      localBuffer[2],
+      level
+    );
   }
 
   /**
@@ -173,7 +204,7 @@ export class RawChunk {
    * @returns The voxel type ID at the given voxel coordinate.
    */
   getVoxel(vx: number, vy: number, vz: number) {
-    return BlockUtils.extractID(this.getRawValue(vx | 0, vy | 0, vz | 0));
+    return BlockUtils.extractID(this.getRawValue(vx, vy, vz));
   }
 
   /**
@@ -203,7 +234,10 @@ export class RawChunk {
    */
   getVoxelRotation(vx: number, vy: number, vz: number) {
     if (!this.contains(vx, vy, vz)) return new BlockRotation();
-    return BlockUtils.extractRotation(this.getRawValue(vx, vy, vz));
+    const localBuffer = this.localBuffer;
+    return BlockUtils.extractRotation(
+      this.voxels.get(localBuffer[0], localBuffer[1], localBuffer[2])
+    );
   }
 
   /**
@@ -222,11 +256,16 @@ export class RawChunk {
     vz: number,
     rotation: BlockRotation
   ) {
-    const value = BlockUtils.insertRotation(
-      this.getRawValue(vx, vy, vz),
-      rotation
-    );
-    this.setRawValue(vx, vy, vz, value);
+    if (!this.contains(vx, vy, vz)) {
+      return;
+    }
+
+    const localBuffer = this.localBuffer;
+    const lx = localBuffer[0];
+    const ly = localBuffer[1];
+    const lz = localBuffer[2];
+    const value = BlockUtils.insertRotation(this.voxels.get(lx, ly, lz), rotation);
+    this.voxels.set(lx, ly, lz, value);
   }
 
   /**
@@ -239,7 +278,10 @@ export class RawChunk {
    */
   getVoxelStage(vx: number, vy: number, vz: number) {
     if (!this.contains(vx, vy, vz)) return 0;
-    return BlockUtils.extractStage(this.getRawValue(vx, vy, vz));
+    const localBuffer = this.localBuffer;
+    return BlockUtils.extractStage(
+      this.voxels.get(localBuffer[0], localBuffer[1], localBuffer[2])
+    );
   }
 
   /**
@@ -254,8 +296,16 @@ export class RawChunk {
    * @returns The voxel stage at the given voxel coordinate.
    */
   setVoxelStage(vx: number, vy: number, vz: number, stage: number) {
-    const value = BlockUtils.insertStage(this.getRawValue(vx, vy, vz), stage);
-    this.setRawValue(vx, vy, vz, value);
+    if (!this.contains(vx, vy, vz)) {
+      return stage;
+    }
+
+    const localBuffer = this.localBuffer;
+    const lx = localBuffer[0];
+    const ly = localBuffer[1];
+    const lz = localBuffer[2];
+    const value = BlockUtils.insertStage(this.voxels.get(lx, ly, lz), stage);
+    this.voxels.set(lx, ly, lz, value);
     return stage;
   }
 
@@ -272,8 +322,12 @@ export class RawChunk {
       return 0;
     }
 
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
-    return this.getLocalRedLight(lx, ly, lz);
+    const localBuffer = this.localBuffer;
+    return this.getLocalRedLight(
+      localBuffer[0],
+      localBuffer[1],
+      localBuffer[2]
+    );
   }
 
   /**
@@ -292,8 +346,13 @@ export class RawChunk {
       return 0;
     }
 
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
-    return this.setLocalRedLight(lx, ly, lz, level);
+    const localBuffer = this.localBuffer;
+    return this.setLocalRedLight(
+      localBuffer[0],
+      localBuffer[1],
+      localBuffer[2],
+      level
+    );
   }
 
   /**
@@ -309,8 +368,12 @@ export class RawChunk {
       return 0;
     }
 
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
-    return this.getLocalGreenLight(lx, ly, lz);
+    const localBuffer = this.localBuffer;
+    return this.getLocalGreenLight(
+      localBuffer[0],
+      localBuffer[1],
+      localBuffer[2]
+    );
   }
 
   /**
@@ -329,8 +392,13 @@ export class RawChunk {
       return 0;
     }
 
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
-    return this.setLocalGreenLight(lx, ly, lz, level);
+    const localBuffer = this.localBuffer;
+    return this.setLocalGreenLight(
+      localBuffer[0],
+      localBuffer[1],
+      localBuffer[2],
+      level
+    );
   }
 
   /**
@@ -346,8 +414,12 @@ export class RawChunk {
       return 0;
     }
 
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
-    return this.getLocalBlueLight(lx, ly, lz);
+    const localBuffer = this.localBuffer;
+    return this.getLocalBlueLight(
+      localBuffer[0],
+      localBuffer[1],
+      localBuffer[2]
+    );
   }
 
   /**
@@ -366,8 +438,13 @@ export class RawChunk {
       return 0;
     }
 
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
-    return this.setLocalBlueLight(lx, ly, lz, level);
+    const localBuffer = this.localBuffer;
+    return this.setLocalBlueLight(
+      localBuffer[0],
+      localBuffer[1],
+      localBuffer[2],
+      level
+    );
   }
 
   /**
@@ -439,8 +516,12 @@ export class RawChunk {
       return this.options.maxLightLevel;
     }
 
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
-    return this.getLocalSunlight(lx, ly, lz);
+    const localBuffer = this.localBuffer;
+    return this.getLocalSunlight(
+      localBuffer[0],
+      localBuffer[1],
+      localBuffer[2]
+    );
   }
 
   /**
@@ -459,8 +540,13 @@ export class RawChunk {
       return 0;
     }
 
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
-    return this.setLocalSunlight(lx, ly, lz, level);
+    const localBuffer = this.localBuffer;
+    return this.setLocalSunlight(
+      localBuffer[0],
+      localBuffer[1],
+      localBuffer[2],
+      level
+    );
   }
 
   /**
@@ -527,17 +613,21 @@ export class RawChunk {
     );
   }
 
-  private toLocal(vx: number, vy: number, vz: number) {
-    const [mx, my, mz] = this.min;
-    return [(vx | 0) - mx, (vy | 0) - my, (vz | 0) - mz];
-  }
-
   private contains(vx: number, vy: number, vz: number) {
-    const { size, maxHeight } = this.options;
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
+    const lx = Math.floor(vx) - this.minX;
+    const ly = Math.floor(vy) - this.minY;
+    const lz = Math.floor(vz) - this.minZ;
+    this.localBuffer[0] = lx;
+    this.localBuffer[1] = ly;
+    this.localBuffer[2] = lz;
 
     return (
-      lx >= 0 && lx < size && ly >= 0 && ly < maxHeight && lz >= 0 && lz < size
+      lx >= 0 &&
+      lx < this.size &&
+      ly >= 0 &&
+      ly < this.maxHeight &&
+      lz >= 0 &&
+      lz < this.size
     );
   }
 }

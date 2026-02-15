@@ -7,8 +7,8 @@ import CullWorker from "./workers/cull-worker.ts?worker&inline";
 
 export type MeshResultType = {
   positions: Float32Array;
-  normals: Float32Array;
-  indices: Float32Array;
+  normals: Int8Array;
+  indices: Uint32Array;
 };
 
 export type CullOptionsType = {
@@ -25,16 +25,22 @@ const cullPool = new WorkerPool(CullWorker, {
 });
 
 export async function cull(
-  array: NdArray,
+  array: NdArray<Uint8Array>,
   options: CullOptionsType
 ): Promise<MeshResultType> {
   const { stride, data } = array;
   const { dimensions, min, max, realMin, realMax } = options;
+  const sourceBuffer = data.buffer as ArrayBuffer;
+  const transferBuffer = sourceBuffer.slice(
+    data.byteOffset,
+    data.byteOffset + data.byteLength
+  );
+  const transferData = new Uint8Array(transferBuffer);
 
-  return new Promise<MeshResultType>((resolve) => {
+  return new Promise<MeshResultType>((resolve, reject) => {
     cullPool.addJob({
       message: {
-        data,
+        data: transferData,
         configs: {
           min,
           max,
@@ -45,7 +51,8 @@ export async function cull(
         },
       },
       resolve,
-      buffers: [(<Uint8Array>data).buffer.slice(0)],
+      reject,
+      buffers: [transferBuffer],
     });
   });
 }

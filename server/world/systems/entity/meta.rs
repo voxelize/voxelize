@@ -20,28 +20,31 @@ impl<'a> System<'a> for EntitiesMetaSystem {
 
     fn run(&mut self, data: Self::SystemData) {
         use rayon::prelude::*;
-        use specs::ParJoin;
+        use specs::{LendJoin, ParJoin};
 
         let (flag, positions, directions, voxels, jsons, mut metadatas, timing) = data;
         let _t = timing.timer("entities-meta");
 
-        (&positions, &mut metadatas, &flag)
+        (
+            &mut metadatas,
+            &flag,
+            positions.maybe(),
+            directions.maybe(),
+            voxels.maybe(),
+            jsons.maybe(),
+        )
             .par_join()
-            .for_each(|(position, metadata, _)| {
-                metadata.set("position", position);
-            });
-
-        (&directions, &mut metadatas, &flag)
-            .par_join()
-            .for_each(|(direction, metadata, _)| {
-                metadata.set("direction", direction);
-            });
-
-        (&voxels, &jsons, &mut metadatas, &flag)
-            .par_join()
-            .for_each(|(voxel, json, metadata, _)| {
-                metadata.set("voxel", voxel);
-                metadata.set("json", json);
+            .for_each(|(metadata, _, position, direction, voxel, json)| {
+                if let Some(position) = position {
+                    metadata.set("position", position);
+                }
+                if let Some(direction) = direction {
+                    metadata.set("direction", direction);
+                }
+                if let (Some(voxel), Some(json)) = (voxel, json) {
+                    metadata.set("voxel", voxel);
+                    metadata.set("json", json);
+                }
             });
     }
 }

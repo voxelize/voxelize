@@ -1,3 +1,5 @@
+import { JsonValue } from "../../../types";
+
 export const DEFAULT_BLOCK_MAX_STACK = 64;
 
 export type SlotContent =
@@ -7,7 +9,7 @@ export type SlotContent =
       type: "item";
       id: number;
       count: number;
-      data?: Record<string, unknown>;
+      data?: Record<string, JsonValue>;
     };
 
 export const emptySlot = (): SlotContent => ({ type: "empty" });
@@ -21,7 +23,7 @@ export const blockSlot = (id: number, count: number): SlotContent => ({
 export const itemSlot = (
   id: number,
   count: number,
-  data: Record<string, unknown> = {}
+  data: Record<string, JsonValue> = {}
 ): SlotContent => ({
   type: "item",
   id,
@@ -40,13 +42,16 @@ export const itemSlotWithDurability = (
   data: { durability },
 });
 
-export function getSlotData<T>(slot: SlotContent, key: string): T | undefined {
+export function getSlotData<T extends JsonValue>(
+  slot: SlotContent,
+  key: string
+): T | undefined {
   if (slot.type !== "item") return undefined;
   if (!slot.data) return undefined;
   return slot.data[key] as T | undefined;
 }
 
-export function setSlotData<T>(
+export function setSlotData<T extends JsonValue>(
   slot: SlotContent,
   key: string,
   value: T

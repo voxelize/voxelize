@@ -101,6 +101,10 @@ export class Sky extends CanvasBox {
   };
 
   public shadingData: SkyShadingCycleData[] = [];
+  private readonly weightedRgbScratch = { r: 0, g: 0, b: 0 };
+  private readonly weightedTopColor = new Color();
+  private readonly weightedMiddleColor = new Color();
+  private readonly weightedBottomColor = new Color();
 
   /**
    * Create a new sky instance.
@@ -126,14 +130,22 @@ export class Sky extends CanvasBox {
       ...options,
     };
 
-    this.boxMaterials.forEach((m) => (m.depthWrite = false));
+    const boxMaterials = this.boxMaterials;
+    let boxMaterialEntries = boxMaterials.values();
+    let boxMaterialEntry = boxMaterialEntries.next();
+    while (!boxMaterialEntry.done) {
+      boxMaterialEntry.value.depthWrite = false;
+      boxMaterialEntry = boxMaterialEntries.next();
+    }
     this.frustumCulled = false;
     this.renderOrder = -1;
 
-    this.boxLayers.forEach((layer) => {
+    const boxLayers = this.boxLayers;
+    for (let index = 0; index < boxLayers.length; index++) {
+      const layer = boxLayers[index];
       layer.renderOrder = -1;
       layer.frustumCulled = false;
-    });
+    }
 
     this.createSkyShading();
   }
@@ -199,25 +211,23 @@ export class Sky extends CanvasBox {
   update = (position: Vector3, time: number, timePerDay: number) => {
     this.rotation.z = Math.PI * 2 * (time / timePerDay);
 
-    ["top", "right", "left", "front", "back"].forEach((face) => {
-      const mat = this.boxMaterials.get(face);
-      if (mat) {
-        // Update sky opacity to hide stars when the sun is up.
-      }
-    });
-
     this.position.copy(position);
 
     if (this.shadingData.length <= 1) {
       return;
     }
 
-    const shadingStack: [number, SkyShadingCycleData][] = [];
+    let primaryWeight = 0;
+    let primaryData: SkyShadingCycleData | null = null;
+    let secondaryWeight = 0;
+    let secondaryData: SkyShadingCycleData | null = null;
     const transitionTime = this.options.transitionSpan * timePerDay;
+    const shadingData = this.shadingData;
+    const shadingDataLength = shadingData.length;
 
-    for (let i = 0; i < this.shadingData.length; i++) {
-      const data = this.shadingData[i];
-      const nextData = this.shadingData[(i + 1) % this.shadingData.length];
+    for (let i = 0; i < shadingDataLength; i++) {
+      const data = shadingData[i];
+      const nextData = shadingData[(i + 1) % shadingDataLength];
 
       const { start } = data;
       const startTime = start * timePerDay;
@@ -238,7 +248,8 @@ export class Sky extends CanvasBox {
           0.0
         );
 
-        shadingStack.push([weight, data]);
+        primaryWeight = weight;
+        primaryData = data;
 
         if (
           time >= startTime
@@ -246,76 +257,113 @@ export class Sky extends CanvasBox {
             : time + timePerDay < startTime + transitionTime
         ) {
           const previousData =
-            this.shadingData[
-              (i - 1 < 0 ? i - 1 + this.shadingData.length : i - 1) %
-                this.shadingData.length
+            shadingData[
+              (i - 1 < 0 ? i - 1 + shadingDataLength : i - 1) %
+                shadingDataLength
             ];
 
-          shadingStack.push([1 - weight, previousData]);
+          secondaryWeight = 1 - weight;
+          secondaryData = previousData;
         }
 
         break;
       }
     }
 
-    const weightedTopRGB = [0, 0, 0];
-    const weightedMiddleRGB = [0, 0, 0];
-    const weightedBottomRGB = [0, 0, 0];
+    if (!primaryData) {
+      return;
+    }
+
+    let weightedTopR = 0;
+    let weightedTopG = 0;
+    let weightedTopB = 0;
+    let weightedMiddleR = 0;
+    let weightedMiddleG = 0;
+    let weightedMiddleB = 0;
+    let weightedBottomR = 0;
+    let weightedBottomG = 0;
+    let weightedBottomB = 0;
     let weightedSkyOffset = 0;
     let weightedVoidOffset = 0;
 
-    const emptyRGB = {
-      r: 0,
-      g: 0,
-      b: 0,
-    };
-
-    shadingStack.forEach(([weight, data]) => {
+    const rgbScratch = this.weightedRgbScratch;
+    const topColor = this.weightedTopColor;
+    const middleColor = this.weightedMiddleColor;
+    const bottomColor = this.weightedBottomColor;
+    {
+      const weight = primaryWeight;
+      const data = primaryData;
       const {
         skyOffset,
         voidOffset,
         color: { top, middle, bottom },
       } = data;
 
-      const topColor = new Color(top);
-      const middleColor = new Color(middle);
-      const bottomColor = new Color(bottom);
+      topColor.set(top);
+      middleColor.set(middle);
+      bottomColor.set(bottom);
 
-      topColor.getRGB(emptyRGB);
-      weightedTopRGB[0] += emptyRGB.r * weight;
-      weightedTopRGB[1] += emptyRGB.g * weight;
-      weightedTopRGB[2] += emptyRGB.b * weight;
+      topColor.getRGB(rgbScratch);
+      weightedTopR += rgbScratch.r * weight;
+      weightedTopG += rgbScratch.g * weight;
+      weightedTopB += rgbScratch.b * weight;
 
-      middleColor.getRGB(emptyRGB);
-      weightedMiddleRGB[0] += emptyRGB.r * weight;
-      weightedMiddleRGB[1] += emptyRGB.g * weight;
-      weightedMiddleRGB[2] += emptyRGB.b * weight;
+      middleColor.getRGB(rgbScratch);
+      weightedMiddleR += rgbScratch.r * weight;
+      weightedMiddleG += rgbScratch.g * weight;
+      weightedMiddleB += rgbScratch.b * weight;
 
-      bottomColor.getRGB(emptyRGB);
-      weightedBottomRGB[0] += emptyRGB.r * weight;
-      weightedBottomRGB[1] += emptyRGB.g * weight;
-      weightedBottomRGB[2] += emptyRGB.b * weight;
+      bottomColor.getRGB(rgbScratch);
+      weightedBottomR += rgbScratch.r * weight;
+      weightedBottomG += rgbScratch.g * weight;
+      weightedBottomB += rgbScratch.b * weight;
 
       weightedSkyOffset += weight * skyOffset;
       weightedVoidOffset += weight * voidOffset;
-    });
+    }
 
-    this.uTopColor.value.setRGB(
-      weightedTopRGB[0],
-      weightedTopRGB[1],
-      weightedTopRGB[2]
-    );
+    if (secondaryData && secondaryWeight > 0) {
+      const {
+        skyOffset,
+        voidOffset,
+        color: { top, middle, bottom },
+      } = secondaryData;
+
+      topColor.set(top);
+      middleColor.set(middle);
+      bottomColor.set(bottom);
+
+      topColor.getRGB(rgbScratch);
+      weightedTopR += rgbScratch.r * secondaryWeight;
+      weightedTopG += rgbScratch.g * secondaryWeight;
+      weightedTopB += rgbScratch.b * secondaryWeight;
+
+      middleColor.getRGB(rgbScratch);
+      weightedMiddleR += rgbScratch.r * secondaryWeight;
+      weightedMiddleG += rgbScratch.g * secondaryWeight;
+      weightedMiddleB += rgbScratch.b * secondaryWeight;
+
+      bottomColor.getRGB(rgbScratch);
+      weightedBottomR += rgbScratch.r * secondaryWeight;
+      weightedBottomG += rgbScratch.g * secondaryWeight;
+      weightedBottomB += rgbScratch.b * secondaryWeight;
+
+      weightedSkyOffset += secondaryWeight * skyOffset;
+      weightedVoidOffset += secondaryWeight * voidOffset;
+    }
+
+    this.uTopColor.value.setRGB(weightedTopR, weightedTopG, weightedTopB);
 
     this.uMiddleColor.value.setRGB(
-      weightedMiddleRGB[0],
-      weightedMiddleRGB[1],
-      weightedMiddleRGB[2]
+      weightedMiddleR,
+      weightedMiddleG,
+      weightedMiddleB
     );
 
     this.uBottomColor.value.setRGB(
-      weightedBottomRGB[0],
-      weightedBottomRGB[1],
-      weightedBottomRGB[2]
+      weightedBottomR,
+      weightedBottomG,
+      weightedBottomB
     );
 
     this.uSkyOffset.value = weightedSkyOffset;

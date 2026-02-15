@@ -9,4 +9,8 @@ impl JsonComp {
     pub fn new(json: &str) -> Self {
         Self(json.to_string())
     }
+
+    pub fn new_owned(json: String) -> Self {
+        Self(json)
+    }
 }

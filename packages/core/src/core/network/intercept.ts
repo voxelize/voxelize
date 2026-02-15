@@ -1,5 +1,7 @@
 import { MessageProtocol } from "@voxelize/protocol";
 
+import { JsonValue } from "../../types";
+
 /**
  * An interceptor for the network layer. When registered to a network
  * instance, the network instance will run through all network packets
@@ -27,7 +29,7 @@ export interface NetIntercept {
       /**
        * The client's metadata (device info, etc.).
        */
-      metadata?: Record<string, any>;
+      metadata?: Record<string, JsonValue>;
     }
   ) => void;
 

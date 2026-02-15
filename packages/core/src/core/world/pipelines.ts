@@ -6,11 +6,33 @@ import { ChunkUtils } from "../../utils";
 import { Chunk } from "./chunk";
 
 export type ChunkStage =
-  | { stage: "requested"; retryCount: number; requestedAt: number }
+  | { stage: "requested"; retryCount: number; cx: number; cz: number }
   | { stage: "processing"; source: "update" | "load"; data: ChunkProtocol }
   | { stage: "loaded"; chunk: Chunk };
 
 type StageType = ChunkStage["stage"];
+
+const normalizeFiniteNonNegativeLimit = (value: number): number => {
+  if (value === Number.POSITIVE_INFINITY) {
+    return Number.POSITIVE_INFINITY;
+  }
+  if (Number.isSafeInteger(value)) {
+    return value > 0 ? value : 0;
+  }
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor(value));
+};
+
+const incrementRetryCountSafely = (retryCount: number) =>
+  !Number.isFinite(retryCount) || retryCount < 0
+    ? 1
+    : retryCount >= Number.MAX_SAFE_INTEGER
+    ? Number.MAX_SAFE_INTEGER
+    : Number.isSafeInteger(retryCount)
+    ? retryCount + 1
+    : Math.floor(retryCount) + 1;
 
 export class ChunkPipeline {
   private states = new Map<string, ChunkStage>();
@@ -29,14 +51,6 @@ export class ChunkPipeline {
     this.indices[stage.stage].add(name);
   }
 
-  private removeStage(name: string): void {
-    const old = this.states.get(name);
-    if (old) {
-      this.indices[old.stage].delete(name);
-      this.states.delete(name);
-    }
-  }
-
   getStage(name: string): StageType | null {
     return this.states.get(name)?.stage ?? null;
   }
@@ -50,18 +64,23 @@ export class ChunkPipeline {
   }
 
   markRequested(coords: Coords2): void {
-    const name = ChunkUtils.getChunkName(coords);
+    this.markRequestedAt(coords[0], coords[1]);
+  }
+
+  markRequestedAt(cx: number, cz: number): void {
+    const name = ChunkUtils.getChunkNameAt(cx, cz);
     this.setStage(name, {
       stage: "requested",
       retryCount: 0,
-      requestedAt: performance.now(),
+      cx,
+      cz,
     });
   }
 
   incrementRetry(name: string): number {
     const state = this.states.get(name);
     if (state?.stage === "requested") {
-      state.retryCount++;
+      state.retryCount = incrementRetryCountSafely(state.retryCount);
       return state.retryCount;
     }
     return 0;
@@ -79,33 +98,85 @@ export class ChunkPipeline {
     return state?.stage === "requested" ? state.retryCount : 0;
   }
 
+  getRequestedCoords(
+    name: string
+  ): { cx: number; cz: number; retryCount: number } | undefined {
+    const state = this.states.get(name);
+    return state?.stage === "requested" ? state : undefined;
+  }
+
+  shouldRequestAt(cx: number, cz: number, chunkRerequestInterval: number) {
+    const rerequestLimit = normalizeFiniteNonNegativeLimit(
+      chunkRerequestInterval
+    );
+
+    const name = ChunkUtils.getChunkNameAt(cx, cz);
+    const state = this.states.get(name);
+
+    if (!state) {
+      return true;
+    }
+
+    if (state.stage === "loaded" || state.stage === "processing") {
+      return false;
+    }
+
+    state.retryCount = incrementRetryCountSafely(state.retryCount);
+    if (state.retryCount > rerequestLimit) {
+      this.indices.requested.delete(name);
+      this.states.delete(name);
+      return true;
+    }
+
+    return false;
+  }
+
   markProcessing(
     coords: Coords2,
     source: "update" | "load",
     data: ChunkProtocol
   ): void {
-    const name = ChunkUtils.getChunkName(coords);
+    this.markProcessingAt(coords[0], coords[1], source, data);
+  }
+
+  markProcessingAt(
+    cx: number,
+    cz: number,
+    source: "update" | "load",
+    data: ChunkProtocol
+  ): void {
+    const name = ChunkUtils.getChunkNameAt(cx, cz);
     const existing = this.states.get(name);
 
     if (existing?.stage === "processing") {
-      const merged: ChunkProtocol = {
-        ...existing.data,
-        ...data,
-        meshes:
-          data.meshes && data.meshes.length > 0
-            ? data.meshes
-            : existing.data.meshes,
-        voxels: data.voxels ?? existing.data.voxels,
-        lights: data.lights ?? existing.data.lights,
-      };
-      this.setStage(name, { stage: "processing", source, data: merged });
-    } else {
-      this.setStage(name, { stage: "processing", source, data });
+      const merged = existing.data;
+      merged.id = data.id;
+      merged.x = data.x;
+      merged.z = data.z;
+
+      if (data.meshes && data.meshes.length > 0) {
+        merged.meshes = data.meshes;
+      }
+      if (data.voxels !== undefined) {
+        merged.voxels = data.voxels;
+      }
+      if (data.lights !== undefined) {
+        merged.lights = data.lights;
+      }
+
+      existing.source = source;
+      return;
     }
+
+    this.setStage(name, { stage: "processing", source, data });
   }
 
   markLoaded(coords: Coords2, chunk: Chunk): void {
-    const name = ChunkUtils.getChunkName(coords);
+    this.markLoadedAt(coords[0], coords[1], chunk);
+  }
+
+  markLoadedAt(cx: number, cz: number, chunk: Chunk): void {
+    const name = ChunkUtils.getChunkNameAt(cx, cz);
     this.setStage(name, { stage: "loaded", chunk });
   }
 
@@ -114,29 +185,92 @@ export class ChunkPipeline {
     return state?.stage === "loaded" ? state.chunk : undefined;
   }
 
+  getLoadedChunkAt(cx: number, cz: number): Chunk | undefined {
+    const state = this.states.get(ChunkUtils.getChunkNameAt(cx, cz));
+    return state?.stage === "loaded" ? state.chunk : undefined;
+  }
+
   getProcessingData(
     name: string
   ): { source: "update" | "load"; data: ChunkProtocol } | undefined {
     const state = this.states.get(name);
-    return state?.stage === "processing"
-      ? { source: state.source, data: state.data }
-      : undefined;
+    return state?.stage === "processing" ? state : undefined;
+  }
+
+  getProcessingChunkData(name: string): ChunkProtocol | undefined {
+    const state = this.states.get(name);
+    return state?.stage === "processing" ? state.data : undefined;
   }
 
   remove(name: string): Chunk | undefined {
-    const chunk = this.getLoadedChunk(name);
-    this.removeStage(name);
-    return chunk;
+    const state = this.states.get(name);
+    if (!state) {
+      return undefined;
+    }
+
+    this.indices[state.stage].delete(name);
+    this.states.delete(name);
+    return state.stage === "loaded" ? state.chunk : undefined;
+  }
+
+  *loadedEntries(): IterableIterator<[string, Chunk]> {
+    let names = this.indices.loaded.values();
+    let name = names.next();
+    while (!name.done) {
+      const chunkName = name.value;
+      const state = this.states.get(chunkName);
+      if (state?.stage === "loaded") {
+        yield [chunkName, state.chunk];
+      }
+      name = names.next();
+    }
+  }
+
+  *processingEntries(): IterableIterator<[string, ChunkProtocol]> {
+    let names = this.indices.processing.values();
+    let name = names.next();
+    while (!name.done) {
+      const chunkName = name.value;
+      const state = this.states.get(chunkName);
+      if (state?.stage === "processing") {
+        yield [chunkName, state.data];
+      }
+      name = names.next();
+    }
+  }
+
+  *requestedEntries(): IterableIterator<[string, number, number]> {
+    let names = this.indices.requested.values();
+    let name = names.next();
+    while (!name.done) {
+      const chunkName = name.value;
+      const state = this.states.get(chunkName);
+      if (state?.stage === "requested") {
+        yield [chunkName, state.cx, state.cz];
+      }
+      name = names.next();
+    }
   }
 
   forEach(stage: StageType, callback: (name: string) => void): void {
-    this.indices[stage].forEach(callback);
+    let names = this.indices[stage].values();
+    let name = names.next();
+    while (!name.done) {
+      callback(name.value);
+      name = names.next();
+    }
   }
 
   forEachLoaded(callback: (chunk: Chunk, name: string) => void): void {
-    for (const name of this.indices.loaded) {
-      const chunk = this.getLoadedChunk(name);
-      if (chunk) callback(chunk, name);
+    let names = this.indices.loaded.values();
+    let name = names.next();
+    while (!name.done) {
+      const chunkName = name.value;
+      const state = this.states.get(chunkName);
+      if (state?.stage === "loaded") {
+        callback(state.chunk, chunkName);
+      }
+      name = names.next();
     }
   }
 
@@ -158,24 +292,56 @@ export class ChunkPipeline {
 }
 
 interface MeshState {
+  cx: number;
+  cz: number;
+  level: number;
   generation: number;
   inFlightGeneration: number | null;
   displayedGeneration: number;
 }
 
+export const MESH_JOB_ACCEPTED = 1;
+export const MESH_JOB_NEEDS_REMESH = 2;
+
 export class MeshPipeline {
   private states = new Map<string, MeshState>();
   private dirty = new Set<string>();
+  private keysByChunk = new Map<string, Set<string>>();
+  private inFlightCount = 0;
 
-  private getOrCreate(key: string): MeshState {
+  private static makeChunkKey(cx: number, cz: number): string {
+    return `${cx},${cz}`;
+  }
+
+  private indexKeyForChunk(cx: number, cz: number, key: string) {
+    const chunkKey = MeshPipeline.makeChunkKey(cx, cz);
+    let keys = this.keysByChunk.get(chunkKey);
+    if (!keys) {
+      keys = new Set();
+      this.keysByChunk.set(chunkKey, keys);
+    }
+    keys.add(key);
+  }
+
+  private getOrCreate(
+    key: string,
+    cx: number,
+    cz: number,
+    level: number
+  ): MeshState {
     let state = this.states.get(key);
     if (!state) {
       state = {
+        cx,
+        cz,
+        level,
         generation: 0,
         inFlightGeneration: null,
         displayedGeneration: 0,
       };
       this.states.set(key, state);
+      this.indexKeyForChunk(cx, cz, key);
+      return state;
     }
     return state;
   }
@@ -184,47 +350,89 @@ export class MeshPipeline {
     return `${cx},${cz}:${level}`;
   }
 
-  static parseKey(key: string): { cx: number; cz: number; level: number } {
-    const [coordsPart, levelStr] = key.split(":");
-    const [cx, cz] = coordsPart.split(",").map(Number);
-    return { cx, cz, level: parseInt(levelStr) };
-  }
-
   onVoxelChange(cx: number, cz: number, level: number): void {
     const key = MeshPipeline.makeKey(cx, cz, level);
-    const state = this.getOrCreate(key);
+    const state = this.getOrCreate(key, cx, cz, level);
     state.generation++;
     this.dirty.add(key);
   }
 
   shouldStartJob(key: string): boolean {
     const state = this.states.get(key);
-    if (!state) return false;
-    if (state.inFlightGeneration !== null) return false;
-    if (state.generation === state.displayedGeneration) return false;
-    return true;
+    return (
+      state !== undefined &&
+      state.inFlightGeneration === null &&
+      state.generation !== state.displayedGeneration
+    );
   }
 
-  startJob(key: string): number {
+  startJob(key: string): MeshState | null {
     const state = this.states.get(key);
-    if (!state) return 0;
+    if (!state) {
+      return null;
+    }
+    if (
+      state.inFlightGeneration !== null ||
+      state.generation === state.displayedGeneration
+    ) {
+      return null;
+    }
+
+    this.inFlightCount++;
     state.inFlightGeneration = state.generation;
     this.dirty.delete(key);
-    return state.generation;
+    return state;
+  }
+
+  abortJob(key: string): number {
+    const state = this.states.get(key);
+    if (!state) {
+      return 0;
+    }
+
+    if (state.inFlightGeneration !== null) {
+      this.inFlightCount--;
+    }
+    state.inFlightGeneration = null;
+    const needsRemesh = state.generation > state.displayedGeneration;
+    if (needsRemesh) {
+      this.dirty.add(key);
+    }
+
+    return needsRemesh ? MESH_JOB_NEEDS_REMESH : 0;
   }
 
   onJobComplete(key: string, jobGeneration: number): boolean {
+    return (this.completeJobStatus(key, jobGeneration) & MESH_JOB_ACCEPTED) !== 0;
+  }
+
+  completeJobStatus(key: string, jobGeneration: number): number {
     const state = this.states.get(key);
-    if (!state) return false;
-
-    state.inFlightGeneration = null;
-
-    if (jobGeneration < state.displayedGeneration) {
-      return false;
+    if (!state) {
+      return 0;
     }
 
+    if (state.inFlightGeneration !== null) {
+      this.inFlightCount--;
+    }
+    state.inFlightGeneration = null;
+    const displayedGeneration = state.displayedGeneration;
+
+    let status = 0;
+    if (jobGeneration < displayedGeneration) {
+      if (state.generation > displayedGeneration) {
+        status |= MESH_JOB_NEEDS_REMESH;
+      }
+      return status;
+    }
+
+    status |= MESH_JOB_ACCEPTED;
     state.displayedGeneration = jobGeneration;
-    return true;
+    if (state.generation > state.displayedGeneration) {
+      status |= MESH_JOB_NEEDS_REMESH;
+    }
+
+    return status;
   }
 
   needsRemesh(key: string): boolean {
@@ -235,50 +443,166 @@ export class MeshPipeline {
 
   markFreshFromServer(cx: number, cz: number, level: number): void {
     const key = MeshPipeline.makeKey(cx, cz, level);
-    let state = this.states.get(key);
-    if (!state) {
-      state = {
-        generation: 0,
-        inFlightGeneration: null,
-        displayedGeneration: 0,
-      };
-      this.states.set(key, state);
+    const state = this.getOrCreate(key, cx, cz, level);
+    if (state.inFlightGeneration !== null) {
+      this.inFlightCount--;
     }
     state.displayedGeneration = state.generation;
     state.inFlightGeneration = null;
     this.dirty.delete(key);
   }
 
-  getDirtyKeys(): string[] {
-    return [...this.dirty].filter((key) => this.shouldStartJob(key));
+  getDirtyKeys(maxCount = Number.POSITIVE_INFINITY): string[] {
+    return this.getDirtyKeysAndHasMore(maxCount).keys;
+  }
+
+  getDirtyKeysAndHasMore(maxCount = Number.POSITIVE_INFINITY): {
+    keys: string[];
+    hasMore: boolean;
+  } {
+    const normalizedMaxCount = normalizeFiniteNonNegativeLimit(maxCount);
+    if (normalizedMaxCount <= 0) {
+      return { keys: [], hasMore: false };
+    }
+    if (this.dirty.size === 0) {
+      return { keys: [], hasMore: false };
+    }
+    const states = this.states;
+    const dirty = this.dirty;
+
+    const hasFiniteLimit = normalizedMaxCount !== Number.POSITIVE_INFINITY;
+    if (!hasFiniteLimit) {
+      const dirtyKeys: string[] = [];
+      let dirtyEntries = dirty.values();
+      let dirtyEntry = dirtyEntries.next();
+      while (!dirtyEntry.done) {
+        const key = dirtyEntry.value;
+        const state = states.get(key);
+        if (!state) {
+          dirty.delete(key);
+          dirtyEntry = dirtyEntries.next();
+          continue;
+        }
+        if (
+          state.inFlightGeneration === null &&
+          state.generation !== state.displayedGeneration
+        ) {
+          dirtyKeys.push(key);
+        } else if (state.inFlightGeneration === null) {
+          dirty.delete(key);
+        }
+        dirtyEntry = dirtyEntries.next();
+      }
+      return {
+        keys: dirtyKeys,
+        hasMore: false,
+      };
+    }
+
+    const dirtyKeys = new Array<string>(
+      Math.min(dirty.size, normalizedMaxCount)
+    );
+    let dirtyCount = 0;
+    let hasMore = false;
+
+    let dirtyEntries = dirty.values();
+    let dirtyEntry = dirtyEntries.next();
+    while (!dirtyEntry.done) {
+      const key = dirtyEntry.value;
+      const state = states.get(key);
+      if (!state) {
+        dirty.delete(key);
+        dirtyEntry = dirtyEntries.next();
+        continue;
+      }
+      if (state.inFlightGeneration !== null) {
+        dirtyEntry = dirtyEntries.next();
+        continue;
+      }
+      if (state.generation === state.displayedGeneration) {
+        dirty.delete(key);
+        dirtyEntry = dirtyEntries.next();
+        continue;
+      }
+
+      if (dirtyCount >= normalizedMaxCount) {
+        hasMore = true;
+        break;
+      }
+
+      dirtyKeys[dirtyCount] = key;
+      dirtyCount++;
+      dirtyEntry = dirtyEntries.next();
+    }
+    dirtyKeys.length = dirtyCount;
+    return {
+      keys: dirtyKeys,
+      hasMore,
+    };
   }
 
   hasDirtyChunks(): boolean {
-    for (const key of this.dirty) {
-      if (this.shouldStartJob(key)) return true;
+    if (this.dirty.size === 0) {
+      return false;
+    }
+    const states = this.states;
+    const dirty = this.dirty;
+
+    let dirtyEntries = dirty.values();
+    let dirtyEntry = dirtyEntries.next();
+    while (!dirtyEntry.done) {
+      const key = dirtyEntry.value;
+      const state = states.get(key);
+      if (!state) {
+        dirty.delete(key);
+        dirtyEntry = dirtyEntries.next();
+        continue;
+      }
+      if (state.inFlightGeneration !== null) {
+        dirtyEntry = dirtyEntries.next();
+        continue;
+      }
+      if (state.generation === state.displayedGeneration) {
+        dirty.delete(key);
+        dirtyEntry = dirtyEntries.next();
+        continue;
+      }
+
+      return true;
     }
     return false;
   }
 
   remove(cx: number, cz: number): void {
-    const prefix = `${cx},${cz}:`;
-    for (const key of this.states.keys()) {
-      if (key.startsWith(prefix)) {
-        this.states.delete(key);
-        this.dirty.delete(key);
-      }
+    const chunkKey = MeshPipeline.makeChunkKey(cx, cz);
+    const keys = this.keysByChunk.get(chunkKey);
+    if (!keys) {
+      return;
     }
+    const states = this.states;
+    const dirty = this.dirty;
+
+    let keyEntries = keys.values();
+    let keyEntry = keyEntries.next();
+    while (!keyEntry.done) {
+      const key = keyEntry.value;
+      const state = states.get(key);
+      if (state !== undefined && state.inFlightGeneration !== null) {
+        this.inFlightCount--;
+      }
+      states.delete(key);
+      dirty.delete(key);
+      keyEntry = keyEntries.next();
+    }
+    this.keysByChunk.delete(chunkKey);
   }
 
   hasInFlightJob(key: string): boolean {
     const state = this.states.get(key);
-    return state?.inFlightGeneration !== null;
+    return state !== undefined && state.inFlightGeneration !== null;
   }
 
   hasAnyInFlightJobs(): boolean {
-    for (const state of this.states.values()) {
-      if (state.inFlightGeneration !== null) return true;
-    }
-    return false;
+    return this.inFlightCount > 0;
   }
 }

@@ -87,7 +87,7 @@ impl CpuProfiler {
         let mut root = FlameNode::new("root".to_string());
 
         for (frames, count) in report.data.iter() {
-            let mut stack: Vec<String> = Vec::new();
+            let mut stack: Vec<String> = Vec::with_capacity(frames.frames.len().saturating_add(1));
             stack.push(frames.thread_name_or_id());
 
             for frame in frames.frames.iter().rev() {

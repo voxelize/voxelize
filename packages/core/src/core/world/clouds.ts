@@ -1,5 +1,6 @@
 import ndarray from "ndarray";
 import {
+  BufferAttribute,
   BufferGeometry,
   Clock,
   Color,
@@ -247,12 +248,13 @@ export class Clouds extends Group {
    * Reset the clouds to their initial state.
    */
   reset = async () => {
-    this.children.forEach((child: Mesh) => {
+    for (let childIndex = this.children.length - 1; childIndex >= 0; childIndex--) {
+      const child = this.children[childIndex] as Mesh;
       if (child.parent) {
         child.parent.remove(child);
         child.geometry?.dispose();
       }
-    });
+    }
 
     this.meshes.length = 0;
 
@@ -273,22 +275,26 @@ export class Clouds extends Group {
 
     const { speedFactor, count, dimensions } = this.options;
 
-    this.newPosition = this.position.clone();
-    this.newPosition.z -= speedFactor * delta;
+    const newPosition = this.newPosition;
+    newPosition.copy(this.position);
+    newPosition.z -= speedFactor * delta;
 
-    const locatedCell: Coords2 = [
-      Math.floor((position.x - this.position.x) / (count * dimensions[0])),
-      Math.floor((position.z - this.position.z) / (count * dimensions[2])),
-    ];
+    const locatedCellX = Math.floor(
+      (position.x - this.position.x) / (count * dimensions[0])
+    );
+    const locatedCellZ = Math.floor(
+      (position.z - this.position.z) / (count * dimensions[2])
+    );
 
     if (
-      this.locatedCell[0] !== locatedCell[0] ||
-      this.locatedCell[1] !== locatedCell[1]
+      this.locatedCell[0] !== locatedCellX ||
+      this.locatedCell[1] !== locatedCellZ
     ) {
-      const dx = locatedCell[0] - this.locatedCell[0];
-      const dz = locatedCell[1] - this.locatedCell[1];
+      const dx = locatedCellX - this.locatedCell[0];
+      const dz = locatedCellZ - this.locatedCell[1];
 
-      this.locatedCell = locatedCell;
+      this.locatedCell[0] = locatedCellX;
+      this.locatedCell[1] = locatedCellZ;
 
       if (Math.abs(dx) > 1 || Math.abs(dz) > 1) {
         this.reset();
@@ -303,7 +309,7 @@ export class Clouds extends Group {
       }
     }
 
-    this.position.lerp(this.newPosition, this.options.lerpFactor);
+    this.position.lerp(newPosition, this.options.lerpFactor);
   };
 
   /**
@@ -333,8 +339,32 @@ export class Clouds extends Group {
    */
   private shiftX = async (direction = 1) => {
     const { width } = this.options;
+    const meshes = this.meshes;
 
-    const arr = direction > 0 ? this.meshes.shift() : this.meshes.pop();
+    if (!meshes || meshes.length === 0) {
+      return;
+    }
+
+    let arr: Mesh[] | undefined;
+    if (direction > 0) {
+      arr = meshes[0];
+      if (!arr) {
+        return;
+      }
+      if (width > 1) {
+        meshes.copyWithin(0, 1, width);
+      }
+      meshes[width - 1] = arr;
+    } else {
+      arr = meshes[width - 1];
+      if (!arr) {
+        return;
+      }
+      if (width > 1) {
+        meshes.copyWithin(1, 0, width - 1);
+      }
+      meshes[0] = arr;
+    }
 
     for (let z = 0; z < width; z++) {
       await this.makeCell(
@@ -342,12 +372,6 @@ export class Clouds extends Group {
         z + this.zOffset,
         arr[z]
       );
-    }
-
-    if (direction > 0) {
-      this.meshes.push(arr);
-    } else {
-      this.meshes.unshift(arr);
     }
 
     this.xOffset += direction;
@@ -376,25 +400,34 @@ export class Clouds extends Group {
         continue;
       }
 
-      // Safe array mutations with null checks
-      const cell = direction > 0 ? arr.shift() : arr.pop();
-
-      if (!cell) {
-        continue;
-      }
-
-      // Generate new cell
-      const newCell = await this.makeCell(
-        x + this.xOffset,
-        this.zOffset + (direction > 0 ? width : 0),
-        cell
-      );
-
-      // Safe array insertions
       if (direction > 0) {
-        arr.push(newCell);
+        const cell = arr[0];
+        if (!cell) {
+          continue;
+        }
+        const newCell = await this.makeCell(
+          x + this.xOffset,
+          this.zOffset + width,
+          cell
+        );
+        if (width > 1) {
+          arr.copyWithin(0, 1, width);
+        }
+        arr[width - 1] = newCell;
       } else {
-        arr.unshift(newCell);
+        const cell = arr[width - 1];
+        if (!cell) {
+          continue;
+        }
+        const newCell = await this.makeCell(
+          x + this.xOffset,
+          this.zOffset,
+          cell
+        );
+        if (width > 1) {
+          arr.copyWithin(1, 0, width - 1);
+        }
+        arr[0] = newCell;
       }
     }
 
@@ -434,7 +467,7 @@ export class Clouds extends Group {
     const min = [x * count - 1, 0, z * count - 1];
     const max = [(x + 1) * count + 1, height, (z + 1) * count + 1];
 
-    const data = await new Promise<any>((resolve) =>
+    const data = await new Promise<Uint8Array>((resolve, reject) =>
       this.pool.addJob({
         message: {
           data: array.data,
@@ -450,7 +483,8 @@ export class Clouds extends Group {
           },
         },
         resolve,
-        buffers: [array.data.buffer.slice(0)],
+        reject,
+        buffers: [array.data.buffer],
       })
     );
 
@@ -467,7 +501,7 @@ export class Clouds extends Group {
     const geometry = mesh ? mesh.geometry : new BufferGeometry();
     geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
     geometry.setAttribute("normal", new Int8BufferAttribute(normals, 3));
-    geometry.setIndex(Array.from(indices));
+    geometry.setIndex(new BufferAttribute(indices, 1));
     geometry.computeBoundingBox();
 
     mesh = mesh || new Mesh(geometry, this.material);

@@ -53,6 +53,29 @@ type KeyBoundItem<T extends string> = {
   identifier: string;
 };
 
+const normalizeKeyIfNeeded = (key: string): string => {
+  let hasNonAscii = false;
+  const length = key.length;
+  for (let index = 0; index < length; index++) {
+    const code = key.charCodeAt(index);
+    if (code >= 65 && code <= 90) {
+      return key.toLowerCase();
+    }
+    if (code > 127) {
+      hasNonAscii = true;
+    }
+  }
+  if (!hasNonAscii) {
+    return key;
+  }
+  for (const char of key) {
+    if (char.toLowerCase() !== char.toUpperCase() && char === char.toUpperCase()) {
+      return key.toLowerCase();
+    }
+  }
+  return key;
+};
+
 /**
  * A key and mouse binding manager for Voxelize.
  *
@@ -87,7 +110,7 @@ type KeyBoundItem<T extends string> = {
  * @param T The list of input namespaces. For instance, `T` could be "menu" and "game".
  * @category Core
  */
-export class Inputs<T extends string = any> extends EventEmitter {
+export class Inputs<T extends string = string> extends EventEmitter {
   /**
    * The namespace that the Voxelize inputs is in. Use `setNamespace` to
    * set the namespace to something else.
@@ -137,6 +160,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
    * A list of functions to unbind all inputs.
    */
   private unbinds: (() => void)[] = [];
+  private normalizedKeyCache = new Map<string, string>();
 
   /**
    * Listen to an event emitted by the input instance. The following events are emitted:
@@ -224,15 +248,17 @@ export class Inputs<T extends string = any> extends EventEmitter {
     const name = key + occasion;
 
     const existing = this.keyBounds.get(name) || [];
-    if (existing.some((item) => item.identifier === identifier)) {
-      throw new Error(
-        `Error registering input, key ${key} with checkType ${checkType}: already bound.`
-      );
+    for (let existingIndex = 0; existingIndex < existing.length; existingIndex++) {
+      if (existing[existingIndex].identifier === identifier) {
+        throw new Error(
+          `Error registering input, key ${key} with checkType ${checkType}: already bound.`
+        );
+      }
     }
 
     const callbackWrapper = (event: KeyboardEvent) => {
       const eventKey = checkType === "code" ? event.code : event.key;
-      if (this.modifyKey(eventKey) === this.modifyKey(key)) {
+      if (this.modifyKey(eventKey) === key) {
         return callback(event);
       }
 
@@ -245,8 +271,12 @@ export class Inputs<T extends string = any> extends EventEmitter {
         : occasion === "keyup"
         ? this.keyUpCallbacks
         : this.keyPressCallbacks;
-
-    callbackMap.set(name, [...(callbackMap.get(name) || []), callbackWrapper]);
+    const callbacks = callbackMap.get(name);
+    if (callbacks) {
+      callbacks.push(callbackWrapper);
+    } else {
+      callbackMap.set(name, [callbackWrapper]);
+    }
 
     const unbind = () => {
       const callbacks = callbackMap.get(name);
@@ -259,9 +289,13 @@ export class Inputs<T extends string = any> extends EventEmitter {
       if (callbackMap.get(name)?.length === 0) callbackMap.delete(name);
 
       const boundItems = this.keyBounds.get(name) || [];
-      const index = boundItems.findIndex(
-        (item) => item.identifier === identifier
-      );
+      let index = -1;
+      for (let boundItemIndex = 0; boundItemIndex < boundItems.length; boundItemIndex++) {
+        if (boundItems[boundItemIndex].identifier === identifier) {
+          index = boundItemIndex;
+          break;
+        }
+      }
       if (index !== -1) {
         boundItems.splice(index, 1);
         if (boundItems.length === 0) {
@@ -300,7 +334,13 @@ export class Inputs<T extends string = any> extends EventEmitter {
     const name = key + occasion;
     const bounds = this.keyBounds.get(name) || [];
 
-    const index = bounds.findIndex((item) => item.identifier === identifier);
+    let index = -1;
+    for (let boundIndex = 0; boundIndex < bounds.length; boundIndex++) {
+      if (bounds[boundIndex].identifier === identifier) {
+        index = boundIndex;
+        break;
+      }
+    }
     if (index !== -1) {
       const { unbind } = bounds[index];
       unbind();
@@ -342,8 +382,20 @@ export class Inputs<T extends string = any> extends EventEmitter {
     const boundsA = this.keyBounds.get(nameA) || [];
     const boundsB = this.keyBounds.get(nameB) || [];
 
-    const indexA = boundsA.findIndex((item) => item.identifier === identifier);
-    const indexB = boundsB.findIndex((item) => item.identifier === identifier);
+    let indexA = -1;
+    for (let boundIndex = 0; boundIndex < boundsA.length; boundIndex++) {
+      if (boundsA[boundIndex].identifier === identifier) {
+        indexA = boundIndex;
+        break;
+      }
+    }
+    let indexB = -1;
+    for (let boundIndex = 0; boundIndex < boundsB.length; boundIndex++) {
+      if (boundsB[boundIndex].identifier === identifier) {
+        indexB = boundIndex;
+        break;
+      }
+    }
 
     if (indexA === -1) {
       throw new Error(`Key ${nameA} is not bound.`);
@@ -405,7 +457,13 @@ export class Inputs<T extends string = any> extends EventEmitter {
     const name = oldKey + occasion;
     const bounds = this.keyBounds.get(name) || [];
 
-    const index = bounds.findIndex((item) => item.identifier === identifier);
+    let index = -1;
+    for (let boundIndex = 0; boundIndex < bounds.length; boundIndex++) {
+      if (bounds[boundIndex].identifier === identifier) {
+        index = boundIndex;
+        break;
+      }
+    }
     if (index === -1) {
       throw new Error(`Key ${name} is not bound.`);
     }
@@ -434,8 +492,19 @@ export class Inputs<T extends string = any> extends EventEmitter {
    * Reset all keyboard keys by unbinding all keys.
    */
   reset = () => {
-    this.keyBounds.forEach((bounds) => bounds.forEach((item) => item.unbind()));
-    this.unbinds.forEach((fn) => fn());
+    let keyBoundLists = this.keyBounds.values();
+    let keyBoundList = keyBoundLists.next();
+    while (!keyBoundList.done) {
+      const bounds = keyBoundList.value;
+      for (let index = 0; index < bounds.length; index++) {
+        bounds[index].unbind();
+      }
+      keyBoundList = keyBoundLists.next();
+    }
+    for (let index = 0; index < this.unbinds.length; index++) {
+      this.unbinds[index]();
+    }
+    this.normalizedKeyCache.clear();
   };
 
   /**
@@ -443,25 +512,45 @@ export class Inputs<T extends string = any> extends EventEmitter {
    */
   private modifyKey = (key: string) => {
     if (!key) return key;
-    // Make first character upper case
-    return (
-      key.length > 1 ? key.charAt(0).toUpperCase() + key.slice(1) : key
-    ).toLowerCase();
+    const cached = this.normalizedKeyCache.get(key);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const normalized = normalizeKeyIfNeeded(key);
+    if (this.normalizedKeyCache.size >= 256) {
+      this.normalizedKeyCache.clear();
+    }
+    this.normalizedKeyCache.set(key, normalized);
+    return normalized;
   };
 
   /**
    * Initialize the keyboard input listeners.
    */
   private initializeKeyListeners = () => {
+    const matchesNamespace = (namespaces: T | T[] | "*") => {
+      if (namespaces === "*") {
+        return true;
+      }
+
+      if (Array.isArray(namespaces)) {
+        for (let index = 0; index < namespaces.length; index++) {
+          if (namespaces[index] === this.namespace) {
+            return true;
+          }
+        }
+        return false;
+      }
+
+      return namespaces === this.namespace;
+    };
+
     const runBounds = (e: KeyboardEvent, bounds: KeyBoundItem<T>[]) => {
-      for (const bound of bounds) {
+      for (let boundIndex = 0; boundIndex < bounds.length; boundIndex++) {
+        const bound = bounds[boundIndex];
         const { callback, namespaces } = bound;
 
-        if (
-          namespaces === "*" || Array.isArray(namespaces)
-            ? new Set(namespaces).has(this.namespace)
-            : namespaces === this.namespace
-        ) {
+        if (matchesNamespace(namespaces)) {
           const result = callback(e);
           if (result) break;
         }
@@ -471,8 +560,8 @@ export class Inputs<T extends string = any> extends EventEmitter {
     // Handle all three types of key events while checking namespace and passing the KeyboardEvent.
     const keyListener = (occasion: InputOccasion) => (e: KeyboardEvent) => {
       const { key, code } = e;
-      const keyName = key.toLowerCase();
-      const codeName = code.toLowerCase();
+      const keyName = this.modifyKey(key);
+      const codeName = this.modifyKey(code);
       const keyCombo = keyName + occasion;
       const codeCombo = codeName + occasion;
 
@@ -492,26 +581,38 @@ export class Inputs<T extends string = any> extends EventEmitter {
    * Initialize the mouse input listeners.
    */
   private initializeClickListeners = () => {
-    (["left", "middle", "right"] as ClickType[]).forEach((type) =>
-      this.clickCallbacks.set(type, new Map())
-    );
+    const clickTypes: ClickType[] = ["left", "middle", "right"];
+    for (let index = 0; index < clickTypes.length; index++) {
+      this.clickCallbacks.set(clickTypes[index], new Map());
+    }
 
     const listener = (event: MouseEvent) => {
-      let callbacks: ClickCallbacks;
+      let callbacks: ClickCallbacks | undefined;
 
       if (event.button === 0)
-        callbacks = this.clickCallbacks.get("left") as any;
+        callbacks = this.clickCallbacks.get("left");
       else if (event.button === 1)
-        callbacks = this.clickCallbacks.get("middle") as any;
+        callbacks = this.clickCallbacks.get("middle");
       else if (event.button === 2)
-        callbacks = this.clickCallbacks.get("right") as any;
+        callbacks = this.clickCallbacks.get("right");
+      else return;
 
-      for (const bound of callbacks.values()) {
+      if (!callbacks) {
+        return;
+      }
+
+      let callbackEntries = callbacks.values();
+      let callbackEntry = callbackEntries.next();
+      while (!callbackEntry.done) {
+        const bound = callbackEntry.value;
         const { namespace, callback } = bound;
         if (this.namespace === namespace || namespace === "*") {
           const result = callback(event);
-          if (result) break;
+          if (result) {
+            break;
+          }
         }
+        callbackEntry = callbackEntries.next();
       }
     };
 
@@ -526,15 +627,21 @@ export class Inputs<T extends string = any> extends EventEmitter {
    */
   private initializeScrollListeners = () => {
     const listener = (event: WheelEvent) => {
-      for (const bound of this.scrollCallbacks.values()) {
+      let scrollEntries = this.scrollCallbacks.values();
+      let scrollEntry = scrollEntries.next();
+      while (!scrollEntry.done) {
+        const bound = scrollEntry.value;
         const { up, down, namespace } = bound;
         if (this.namespace === namespace || namespace === "*") {
           const result =
             event.deltaY > 0
               ? up(event.deltaY, event)
               : down(event.deltaY, event);
-          if (result) break;
+          if (result) {
+            break;
+          }
         }
+        scrollEntry = scrollEntries.next();
       }
     };
 

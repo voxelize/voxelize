@@ -1,11 +1,11 @@
 use std::{
     fs,
-    io::Write,
+    io::ErrorKind,
     path::PathBuf,
     time::{Duration, Instant, SystemTime},
 };
 
-use log::{info, warn};
+use log::warn;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -48,9 +48,9 @@ impl Stats {
         path.push("stats.json");
 
         // Try to load existing stats if saving is enabled and file exists
-        let (loaded_tick, loaded_time) = if saving && path.exists() {
-            match fs::read_to_string(&path) {
-                Ok(contents) => match serde_json::from_str::<StatsJson>(&contents) {
+        let (loaded_tick, loaded_time) = if saving {
+            match fs::File::open(&path) {
+                Ok(file) => match serde_json::from_reader::<_, StatsJson>(file) {
                     Ok(stats_json) => (stats_json.tick, stats_json.time),
                     Err(e) => {
                         warn!("Failed to parse stats.json: {}", e);
@@ -58,7 +58,9 @@ impl Stats {
                     }
                 },
                 Err(e) => {
-                    warn!("Failed to read stats.json: {}", e);
+                    if e.kind() != ErrorKind::NotFound {
+                        warn!("Failed to open stats.json: {}", e);
+                    }
                     (0, default_time)
                 }
             }
@@ -100,19 +102,12 @@ impl Stats {
             return;
         }
 
-        if let Ok(mut file) = fs::OpenOptions::new()
+        let mut file = fs::OpenOptions::new()
             .write(true)
             .truncate(true)
+            .create(true)
             .open(&self.path)
-        {
-            let j = serde_json::to_string(&self.get_stats()).unwrap();
-            file.write_all(j.as_bytes())
-                .expect("Unable to write stats file.");
-        } else {
-            let mut file = fs::File::create(&self.path).expect("Unable to create stats file...");
-            let j = serde_json::to_string(&self.get_stats()).unwrap();
-            file.write_all(j.as_bytes())
-                .expect("Unable to write stats file.");
-        }
+            .expect("Unable to open stats file for write...");
+        serde_json::to_writer(&mut file, &self.get_stats()).expect("Unable to write stats file.");
     }
 }

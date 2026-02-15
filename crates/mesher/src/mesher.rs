@@ -1588,7 +1588,7 @@ fn process_face<S: VoxelAccess>(
 
     let is_diagonal = dir == [0, 0, 0];
     let has_diagonals = is_see_through && has_diagonal_faces(block);
-    let (hash_ox, hash_oz) = if has_diagonals {
+    let (hash_ox, _hash_oz) = if has_diagonals {
         diagonal_face_offsets(vx, vy, vz)
     } else {
         (0.0, 0.0)

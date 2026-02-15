@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use voxelize::{
     Block, Chunk, ChunkOptions, Chunks, LightColor, LightNode, Lights, Registry, Vec2, Vec3,
@@ -113,7 +115,7 @@ fn bench_flood_light(c: &mut Criterion) {
 
             Lights::flood_light(
                 black_box(&mut space),
-                black_box(queue),
+                black_box(VecDeque::from(queue)),
                 black_box(&LightColor::Sunlight),
                 black_box(&registry),
                 black_box(&config),

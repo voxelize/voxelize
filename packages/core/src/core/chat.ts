@@ -2,8 +2,51 @@ import { ChatProtocol, MessageProtocol } from "@voxelize/protocol";
 import { z, ZodError, ZodObject, ZodOptional, ZodTypeAny } from "zod";
 
 import { DOMUtils } from "../utils/dom-utils";
+import { JsonValue } from "../types";
 
 import { NetIntercept } from "./network";
+
+type CommandErrorValue = Error | JsonValue | object;
+const isWhitespaceCode = (code: number) =>
+  code === 32 || (code >= 9 && code <= 13);
+const containsWhitespace = (value: string) => {
+  const length = value.length;
+  for (let index = 0; index < length; index++) {
+    if (isWhitespaceCode(value.charCodeAt(index))) {
+      return true;
+    }
+  }
+  return false;
+};
+const containsEquals = (value: string) => {
+  const length = value.length;
+  for (let index = 0; index < length; index++) {
+    if (value.charCodeAt(index) === 61) {
+      return true;
+    }
+  }
+  return false;
+};
+const getFirstEqualsIndex = (value: string) => {
+  const length = value.length;
+  for (let index = 1; index < length; index++) {
+    if (value.charCodeAt(index) === 61) {
+      return index;
+    }
+  }
+  return -1;
+};
+const assignParsedArg = (
+  rawObj: Record<string, string>,
+  rawObjKeys: string[],
+  key: string,
+  value: string
+) => {
+  if (rawObj[key] === undefined) {
+    rawObjKeys.push(key);
+  }
+  rawObj[key] = value;
+};
 
 /**
  * Options for adding a command.
@@ -107,10 +150,28 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   /**
    * The symbol that is used to trigger commands.
    */
-  private _commandSymbol: string;
-  private _commandSymbolCode: string;
+  private _commandSymbol = "";
+  private _commandSymbolCode = "";
+  private _commandSymbolLength = 0;
+  private _commandSymbolFirstCode = -1;
 
   private fallbackCommand: ((rest: string) => void) | null = null;
+  private quotedTokensBuffer: string[] = [];
+  private positionalValuesBuffer: string[] = [];
+  private parsedArgsObjectBuffer: Record<string, string> = {};
+  private parsedArgsObjectKeysBuffer: string[] = [];
+  private parsedCommandTrigger = "";
+  private parsedCommandRest = "";
+  private parseSchemaInfoBySchema = new WeakMap<
+    ZodObject<Record<string, ZodTypeAny>>,
+    {
+      keys: string[];
+      keySet: Set<string>;
+      booleanKeys: Set<string>;
+      positionalKeys: string[];
+      isRestOnly: boolean;
+    }
+  >();
 
   /**
    * Send a chat to the server.
@@ -118,19 +179,27 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
    * @param chat The chat message to send.
    */
   public send(chat: T) {
-    if (chat.body.startsWith(this._commandSymbol)) {
-      const words = chat.body
-        .substring(this._commandSymbol.length)
-        .split(" ")
-        .filter(Boolean);
-      const trigger = words.shift();
-      const rest = words.join(" ");
+    const body = chat.body;
+    const commandSymbol = this._commandSymbol;
+    const commandBodyStart = this._commandSymbolLength;
+    const commandSymbolFirstCode = this._commandSymbolFirstCode;
+    const isCommand =
+      commandSymbolFirstCode >= 0
+        ? body.charCodeAt(0) === commandSymbolFirstCode
+        : commandBodyStart > 1 &&
+          body.length >= commandBodyStart &&
+          body.charCodeAt(0) === commandSymbol.charCodeAt(0) &&
+          body.startsWith(commandSymbol);
+    if (isCommand) {
+      this.parseCommandBody(body, commandBodyStart);
+      const trigger = this.parsedCommandTrigger || undefined;
+      const rest = this.parsedCommandRest;
 
       const commandInfo = this.commands.get(trigger);
 
       if (commandInfo) {
         try {
-          const parsedArgs = this.parseArgs(rest.trim(), commandInfo.args);
+          const parsedArgs = this.parseArgs(rest, commandInfo.args);
           commandInfo.process(parsedArgs);
 
           this.packets.push({
@@ -149,7 +218,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         } catch (error) {
           if (this.onChat) {
             const errorMessage = this.formatCommandError(
-              error,
+              error as CommandErrorValue,
               trigger,
               commandInfo
             );
@@ -163,9 +232,13 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       }
 
       if (this.fallbackCommand) {
-        this.fallbackCommand(
-          chat.body.substring(this._commandSymbol.length).trim()
-        );
+        const commandBodyLength = body.length - commandBodyStart;
+        const shouldTrim =
+          commandBodyLength > 0 &&
+          (isWhitespaceCode(body.charCodeAt(commandBodyStart)) ||
+            isWhitespaceCode(body.charCodeAt(body.length - 1)));
+        const commandBody = body.substring(commandBodyStart);
+        this.fallbackCommand(shouldTrim ? commandBody.trim() : commandBody);
       }
     }
 
@@ -175,58 +248,175 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     });
   }
 
+  private parseCommandBody(raw: string, startIndex = 0) {
+    const length = raw.length;
+    let triggerStart = startIndex;
+
+    if (
+      triggerStart < length &&
+      isWhitespaceCode(raw.charCodeAt(triggerStart))
+    ) {
+      do {
+        triggerStart++;
+      } while (
+        triggerStart < length &&
+        isWhitespaceCode(raw.charCodeAt(triggerStart))
+      );
+    }
+
+    if (triggerStart >= length) {
+      this.parsedCommandTrigger = "";
+      this.parsedCommandRest = "";
+      return;
+    }
+
+    let triggerEnd = triggerStart;
+    while (
+      triggerEnd < length &&
+      !isWhitespaceCode(raw.charCodeAt(triggerEnd))
+    ) {
+      triggerEnd++;
+    }
+    if (triggerEnd === length) {
+      this.parsedCommandTrigger =
+        triggerStart === 0 ? raw : raw.substring(triggerStart);
+      this.parsedCommandRest = "";
+      return;
+    }
+    this.parsedCommandTrigger = raw.substring(triggerStart, triggerEnd);
+
+    let restStart = triggerEnd + 1;
+    if (restStart < length && isWhitespaceCode(raw.charCodeAt(restStart))) {
+      do {
+        restStart++;
+      } while (
+        restStart < length &&
+        isWhitespaceCode(raw.charCodeAt(restStart))
+      );
+    }
+
+    this.parsedCommandRest = restStart < length ? raw.substring(restStart) : "";
+  }
+
   private splitQuotedTokens(raw: string): string[] {
-    const tokens: string[] = [];
+    const tokens = this.quotedTokensBuffer;
+    tokens.length = 0;
+    const length = raw.length;
+    if (length === 0) {
+      return tokens;
+    }
+    let firstSpecialIndex = -1;
+    for (let index = 0; index < length; index++) {
+      const code = raw.charCodeAt(index);
+      if (code === 34 || code === 39 || isWhitespaceCode(code)) {
+        firstSpecialIndex = index;
+        break;
+      }
+    }
+    if (firstSpecialIndex === -1) {
+      tokens.push(raw);
+      return tokens;
+    }
     let current = "";
-    let quoteChar: string | null = null;
+    let tokenScanStart = firstSpecialIndex;
+    if (tokenScanStart > 0) {
+      current = raw.substring(0, tokenScanStart);
+    }
+    let quoteCharCode = 0;
+    let segmentStart = -1;
+    let sawWhitespace = false;
+    let sawQuote = false;
 
-    for (let i = 0; i < raw.length; i++) {
-      const ch = raw[i];
+    for (let i = tokenScanStart; i < length; i++) {
+      const code = raw.charCodeAt(i);
 
-      if (quoteChar) {
-        if (ch === quoteChar) {
-          quoteChar = null;
-        } else {
-          current += ch;
+      if (quoteCharCode !== 0) {
+        if (code === quoteCharCode) {
+          if (segmentStart >= 0) {
+            current += raw.substring(segmentStart, i);
+            segmentStart = -1;
+          }
+          quoteCharCode = 0;
         }
-      } else if (ch === '"' || ch === "'") {
-        quoteChar = ch;
-      } else if (ch === " ") {
+        continue;
+      }
+
+      if (code === 34 || code === 39) {
+        sawQuote = true;
+        if (segmentStart >= 0) {
+          current += raw.substring(segmentStart, i);
+        }
+        quoteCharCode = code;
+        segmentStart = i + 1;
+        continue;
+      }
+
+      if (isWhitespaceCode(code)) {
+        sawWhitespace = true;
+        if (segmentStart >= 0) {
+          current += raw.substring(segmentStart, i);
+          segmentStart = -1;
+        }
         if (current) {
           tokens.push(current);
           current = "";
         }
-      } else {
-        current += ch;
+        continue;
       }
+
+      if (segmentStart < 0) {
+        segmentStart = i;
+      }
+    }
+
+    if (segmentStart >= 0) {
+      current += raw.substring(segmentStart, length);
     }
 
     if (current) {
       tokens.push(current);
     }
 
+    if (
+      !sawQuote &&
+      !sawWhitespace &&
+      tokens.length === 1 &&
+      tokens[0].length === length
+    ) {
+      tokens[0] = raw;
+    }
+
     return tokens;
   }
 
-  private parseArgs<T extends ZodObject<Record<string, ZodTypeAny>>>(
-    raw: string,
+  private getParseSchemaInfo<T extends ZodObject<Record<string, ZodTypeAny>>>(
     schema: T
-  ): z.infer<T> {
-    const shape = schema.shape;
-    const keys = Object.keys(shape);
-
-    if (keys.length === 1 && keys[0] === "rest") {
-      return schema.parse({ rest: raw });
+  ): {
+    keys: string[];
+    keySet: Set<string>;
+    booleanKeys: Set<string>;
+    positionalKeys: string[];
+    isRestOnly: boolean;
+  } {
+    const cached = this.parseSchemaInfoBySchema.get(schema);
+    if (cached) {
+      return cached;
     }
 
-    const words = this.splitQuotedTokens(raw);
-    const rawObj: Record<string, string> = {};
-    const keySet = new Set(keys);
-    const assignedKeys = new Set<string>();
-    const positionalValues: string[] = [];
-
+    const shape = schema.shape;
+    const hasOwn = Object.prototype.hasOwnProperty;
+    const keys: string[] = [];
+    const keySet = new Set<string>();
     const booleanKeys = new Set<string>();
-    for (const key of keys) {
+    const positionalKeys: string[] = [];
+
+    for (const key in shape) {
+      if (!hasOwn.call(shape, key)) {
+        continue;
+      }
+      keys.push(key);
+      keySet.add(key);
+
       let innerType = shape[key] as ZodTypeAny;
       if (this.isOptionalSchema(innerType)) {
         innerType = innerType.unwrap();
@@ -239,36 +429,130 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       }
       if (this.isBooleanSchema(innerType)) {
         booleanKeys.add(key);
+      } else {
+        positionalKeys.push(key);
       }
     }
 
-    for (const word of words) {
-      const eqIndex = word.indexOf("=");
-      if (eqIndex > 0) {
-        const key = word.substring(0, eqIndex);
-        const value = word.substring(eqIndex + 1);
-        if (keySet.has(key)) {
-          rawObj[key] = value;
-          assignedKeys.add(key);
+    const isRestOnly = keys.length === 1 && keys[0] === "rest";
+    const info = { keys, keySet, booleanKeys, positionalKeys, isRestOnly };
+    this.parseSchemaInfoBySchema.set(schema, info);
+    return info;
+  }
+
+  private parseArgs<T extends ZodObject<Record<string, ZodTypeAny>>>(
+    raw: string,
+    schema: T
+  ): z.infer<T> {
+    const { keys, keySet, booleanKeys, positionalKeys, isRestOnly } =
+      this.getParseSchemaInfo(schema);
+
+    if (isRestOnly) {
+      const rawLength = raw.length;
+      const shouldTrim =
+        rawLength > 0 &&
+        (isWhitespaceCode(raw.charCodeAt(0)) ||
+          isWhitespaceCode(raw.charCodeAt(rawLength - 1)));
+      return schema.parse({ rest: shouldTrim ? raw.trim() : raw });
+    }
+    if (keys.length === 0) {
+      return schema.parse({});
+    }
+
+    if (raw.length === 0) {
+      return schema.parse({});
+    }
+
+    const words = this.splitQuotedTokens(raw);
+    const wordsLength = words.length;
+    if (wordsLength === 0) {
+      return schema.parse({});
+    }
+    const rawObj = this.parsedArgsObjectBuffer;
+    const rawObjKeys = this.parsedArgsObjectKeysBuffer;
+    const rawObjKeysLength = rawObjKeys.length;
+    if (rawObjKeysLength > 0) {
+      for (let index = 0; index < rawObjKeysLength; index++) {
+        delete rawObj[rawObjKeys[index]];
+      }
+    }
+    rawObjKeys.length = 0;
+    const positionalValues = this.positionalValuesBuffer;
+    positionalValues.length = 0;
+    const hasPositionalKeys = positionalKeys.length > 0;
+    const hasBooleanKeys = booleanKeys.size > 0;
+    const hasEquals = containsEquals(raw);
+
+    if (!hasBooleanKeys && !hasEquals) {
+      const assignCount =
+        wordsLength < positionalKeys.length ? wordsLength : positionalKeys.length;
+      for (let keyIndex = 0; keyIndex < assignCount; keyIndex++) {
+        const key = positionalKeys[keyIndex];
+        assignParsedArg(rawObj, rawObjKeys, key, words[keyIndex]);
+      }
+      return schema.parse(rawObj);
+    }
+
+    if (!hasBooleanKeys) {
+      for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
+        const word = words[wordIndex];
+        const eqIndex = getFirstEqualsIndex(word);
+        if (eqIndex > 0) {
+          const key = word.substring(0, eqIndex);
+          if (keySet.has(key)) {
+            const value = word.substring(eqIndex + 1);
+            assignParsedArg(rawObj, rawObjKeys, key, value);
+            continue;
+          }
+        }
+        positionalValues.push(word);
+      }
+    } else if (!hasPositionalKeys) {
+      for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
+        const word = words[wordIndex];
+        if (booleanKeys.has(word)) {
+          assignParsedArg(rawObj, rawObjKeys, word, "true");
           continue;
         }
+        if (hasEquals) {
+          const eqIndex = getFirstEqualsIndex(word);
+          if (eqIndex > 0) {
+            const key = word.substring(0, eqIndex);
+            if (keySet.has(key)) {
+              const value = word.substring(eqIndex + 1);
+              assignParsedArg(rawObj, rawObjKeys, key, value);
+            }
+          }
+        }
       }
-
-      if (booleanKeys.has(word)) {
-        rawObj[word] = "true";
-        assignedKeys.add(word);
-        continue;
+    } else {
+      for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
+        const word = words[wordIndex];
+        if (booleanKeys.has(word)) {
+          assignParsedArg(rawObj, rawObjKeys, word, "true");
+          continue;
+        }
+        if (hasEquals) {
+          const eqIndex = getFirstEqualsIndex(word);
+          if (eqIndex > 0) {
+            const key = word.substring(0, eqIndex);
+            if (keySet.has(key)) {
+              const value = word.substring(eqIndex + 1);
+              assignParsedArg(rawObj, rawObjKeys, key, value);
+              continue;
+            }
+          }
+        }
+        positionalValues.push(word);
       }
-
-      positionalValues.push(word);
     }
 
     let posIndex = 0;
-    for (const key of keys) {
-      if (assignedKeys.has(key)) continue;
-      if (booleanKeys.has(key)) continue;
+    for (let keyIndex = 0; keyIndex < positionalKeys.length; keyIndex++) {
+      const key = positionalKeys[keyIndex];
+      if (rawObj[key] !== undefined) continue;
       if (posIndex < positionalValues.length) {
-        rawObj[key] = positionalValues[posIndex];
+        assignParsedArg(rawObj, rawObjKeys, key, positionalValues[posIndex]);
         posIndex++;
       }
     }
@@ -277,43 +561,68 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   }
 
   private formatCommandError(
-    error: unknown,
+    error: CommandErrorValue,
     trigger: string,
     commandInfo: CommandInfo<ZodObject<Record<string, ZodTypeAny>>>
   ): string {
     const argMetadata = this.extractArgMetadata(commandInfo.args);
-    const usageArgs = argMetadata
-      .map((arg) => {
-        if (arg.type === "boolean") {
-          return `[${arg.name}]`;
-        }
-        return arg.required ? `<${arg.name}=>` : `[${arg.name}=]`;
-      })
-      .join(" ");
+    let usageArgs = "";
+    for (let argIndex = 0; argIndex < argMetadata.length; argIndex++) {
+      const arg = argMetadata[argIndex];
+      if (argIndex > 0) {
+        usageArgs += " ";
+      }
+      if (arg.type === "boolean") {
+        usageArgs += `[${arg.name}]`;
+      } else {
+        usageArgs += arg.required ? `<${arg.name}=>` : `[${arg.name}=]`;
+      }
+    }
     const usage = `Usage: ${this._commandSymbol}${trigger}${
       usageArgs ? ` ${usageArgs}` : ""
     }`;
 
     if (error instanceof ZodError) {
       const errorLines: string[] = [];
+      const argMetadataByName = new Map<string, ArgMetadata>();
+      for (let argIndex = 0; argIndex < argMetadata.length; argIndex++) {
+        const arg = argMetadata[argIndex];
+        argMetadataByName.set(arg.name, arg);
+      }
 
-      for (const issue of error.issues) {
+      for (let issueIndex = 0; issueIndex < error.issues.length; issueIndex++) {
+        const issue = error.issues[issueIndex];
         const fieldName = String(issue.path[0] ?? "argument");
-        const argMeta = argMetadata.find((a) => a.name === fieldName);
+        const argMeta = argMetadataByName.get(fieldName);
 
         if (argMeta?.type === "enum" && argMeta.options) {
           const options = argMeta.options;
           if (options.length <= 6) {
+            let allOptions = "";
+            for (let optionIndex = 0; optionIndex < options.length; optionIndex++) {
+              if (optionIndex > 0) {
+                allOptions += ", ";
+              }
+              allOptions += options[optionIndex];
+            }
             errorLines.push(
-              `$#FF6B6B$Invalid ${fieldName}. Valid options: $white$${options.join(
-                ", "
-              )}`
+              `$#FF6B6B$Invalid ${fieldName}. Valid options: $white$${allOptions}`
             );
           } else {
+            let preview = "";
+            const previewCount = 5;
+            for (
+              let optionIndex = 0;
+              optionIndex < previewCount && optionIndex < options.length;
+              optionIndex++
+            ) {
+              if (optionIndex > 0) {
+                preview += ", ";
+              }
+              preview += options[optionIndex];
+            }
             errorLines.push(
-              `$#FF6B6B$Invalid ${fieldName}. Valid: $white$${options
-                .slice(0, 5)
-                .join(", ")}$#FF6B6B$ (+${options.length - 5} more)`
+              `$#FF6B6B$Invalid ${fieldName}. Valid: $white$${preview}$#FF6B6B$ (+${options.length - 5} more)`
             );
           }
         } else if (argMeta?.required && issue.message.includes("Required")) {
@@ -353,19 +662,23 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     process: (args: z.infer<T>) => void,
     options: CommandOptions<T>
   ): () => void {
+    if (trigger.length === 0) {
+      throw new Error("Command trigger must not be empty.");
+    }
     if (this.commands.has(trigger)) {
       throw new Error(`Command trigger already taken: ${trigger}`);
     }
 
-    if (trigger.split(" ").length > 1) {
+    if (containsWhitespace(trigger)) {
       throw new Error("Command trigger must be one word.");
     }
 
+    const aliases = options.aliases || [];
     const commandInfo: CommandInfo<T> = {
       process,
       description: options.description,
       category: options.category,
-      aliases: options.aliases || [],
+      aliases: [],
       flags: options.flags || [],
       args: (options.args ?? Chat.emptySchema) as T,
       tabComplete:
@@ -377,7 +690,14 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       commandInfo as CommandInfo<ZodObject<Record<string, ZodTypeAny>>>
     );
 
-    for (const alias of commandInfo.aliases) {
+    for (let aliasIndex = 0; aliasIndex < aliases.length; aliasIndex++) {
+      const alias = aliases[aliasIndex];
+      if (alias.length === 0 || containsWhitespace(alias)) {
+        console.warn(
+          `Command alias for "${trigger}", "${alias}" ignored as invalid.`
+        );
+        continue;
+      }
       if (this.commands.has(alias)) {
         console.warn(
           `Command alias for "${trigger}", "${alias}" ignored as already taken.`
@@ -389,11 +709,16 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         alias,
         commandInfo as CommandInfo<ZodObject<Record<string, ZodTypeAny>>>
       );
+      commandInfo.aliases.push(alias);
     }
 
     return () => {
       this.commands.delete(trigger);
-      commandInfo.aliases.forEach((alias) => this.commands.delete(alias));
+      const aliases = commandInfo.aliases;
+      const aliasesLength = aliases.length;
+      for (let aliasIndex = 0; aliasIndex < aliasesLength; aliasIndex++) {
+        this.commands.delete(aliases[aliasIndex]);
+      }
     };
   }
 
@@ -403,7 +728,30 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
    * @param trigger - The trigger to remove.
    */
   public removeCommand(trigger: string) {
-    return !!this.commands.delete(trigger);
+    const commandInfo = this.commands.get(trigger);
+    if (!commandInfo) {
+      return false;
+    }
+    const aliases = commandInfo.aliases;
+    let aliasIndex = -1;
+    for (let index = 0; index < aliases.length; index++) {
+      if (aliases[index] === trigger) {
+        aliasIndex = index;
+        break;
+      }
+    }
+    const isAliasTrigger = aliasIndex >= 0;
+    this.commands.delete(trigger);
+    if (isAliasTrigger) {
+      aliases.splice(aliasIndex, 1);
+      return true;
+    }
+    const aliasesLength = aliases.length;
+    for (let aliasIndex = 0; aliasIndex < aliasesLength; aliasIndex++) {
+      this.commands.delete(aliases[aliasIndex]);
+    }
+    aliases.length = 0;
+    return true;
   }
 
   /**
@@ -420,6 +768,9 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         const { commandSymbol } = message.json.options;
         this._commandSymbol = commandSymbol;
         this._commandSymbolCode = DOMUtils.mapKeyToCode(commandSymbol);
+        this._commandSymbolLength = commandSymbol.length;
+        this._commandSymbolFirstCode =
+          this._commandSymbolLength === 1 ? commandSymbol.charCodeAt(0) : -1;
         break;
       }
       case "CHAT": {
@@ -480,19 +831,24 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   }
 
   private hasDefault(schema: ZodTypeAny): boolean {
-    const def = schema._def as unknown as Record<string, unknown> | undefined;
-    return def !== undefined && "defaultValue" in def;
+    const def = schema._def as {
+      defaultValue?: string | number | boolean | (() => string | number | boolean);
+    };
+    return def.defaultValue !== undefined;
   }
 
-  private getDefaultValue(schema: ZodTypeAny): string | number | undefined {
-    if (!this.hasDefault(schema)) return undefined;
-    const def = schema._def as unknown as {
-      defaultValue?: string | number | (() => string | number);
+  private getDefaultValue(schema: ZodTypeAny): string | number | boolean | undefined {
+    const def = schema._def as {
+      defaultValue?: string | number | boolean | (() => string | number | boolean);
     };
-    if (typeof def.defaultValue === "function") {
-      return def.defaultValue();
+    const defaultValue = def.defaultValue;
+    if (defaultValue === undefined) {
+      return undefined;
     }
-    return def.defaultValue;
+    if (typeof defaultValue === "function") {
+      return defaultValue();
+    }
+    return defaultValue;
   }
 
   private extractArgMetadata(
@@ -504,16 +860,22 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     }
 
     const result: ArgMetadata[] = [];
+    const shape = schema.shape;
+    const hasOwn = Object.prototype.hasOwnProperty;
 
-    for (const [name, zodType] of Object.entries(schema.shape)) {
+    for (const name in shape) {
+      if (!hasOwn.call(shape, name)) {
+        continue;
+      }
+      const zodType = shape[name];
       let innerType = zodType as ZodTypeAny;
       let required = true;
-      let defaultValue: string | number | undefined;
+      let defaultValue: string | number | boolean | undefined;
 
       if (this.hasDefault(innerType)) {
         required = false;
         defaultValue = this.getDefaultValue(innerType);
-        const def = innerType._def as unknown as {
+        const def = innerType._def as {
           innerType?: ZodTypeAny;
           type?: ZodTypeAny;
         };
@@ -584,16 +946,24 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     flags: string[];
     args: ArgMetadata[];
   }> {
+    if (this.commands.size === 0) {
+      return [];
+    }
+
     const uniqueCommands = new Map<
       CommandInfo<ZodObject<Record<string, ZodTypeAny>>>,
       string
     >();
 
-    this.commands.forEach((commandInfo, trigger) => {
+    let commandEntries = this.commands.entries();
+    let commandEntry = commandEntries.next();
+    while (!commandEntry.done) {
+      const [trigger, commandInfo] = commandEntry.value;
       if (!uniqueCommands.has(commandInfo)) {
         uniqueCommands.set(commandInfo, trigger);
       }
-    });
+      commandEntry = commandEntries.next();
+    }
 
     const result: Array<{
       trigger: string;
@@ -603,18 +973,26 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       flags: string[];
       args: ArgMetadata[];
     }> = [];
-    uniqueCommands.forEach((primaryTrigger, commandInfo) => {
+    let uniqueEntries = uniqueCommands.entries();
+    let uniqueEntry = uniqueEntries.next();
+    while (!uniqueEntry.done) {
+      const [commandInfo, primaryTrigger] = uniqueEntry.value;
       result.push({
         trigger: primaryTrigger,
         description: commandInfo.description,
         category: commandInfo.category,
-        aliases: commandInfo.aliases,
-        flags: commandInfo.flags,
+        aliases: commandInfo.aliases.slice(),
+        flags: commandInfo.flags.slice(),
         args: commandInfo.args
           ? this.extractArgMetadata(commandInfo.args, commandInfo.tabComplete)
           : [],
       });
-    });
+      uniqueEntry = uniqueEntries.next();
+    }
+
+    if (result.length <= 1) {
+      return result;
+    }
 
     return result.sort((a, b) => a.trigger.localeCompare(b.trigger));
   }

@@ -1,576 +1,197 @@
 use std::collections::VecDeque;
 
-use crate::{Block, ChunkUtils, LightColor, Registry, Vec2, Vec3, VoxelAccess, WorldConfig};
+use crate::{LightColor, Registry, Vec3, WorldConfig};
+use voxelize_lighter::{
+    can_enter as lighter_can_enter, can_enter_into as lighter_can_enter_into,
+    flood_light as lighter_flood_light, propagate as lighter_propagate,
+    remove_light as lighter_remove_light, remove_lights as lighter_remove_lights, LightBounds,
+    LightConfig, LightNode as LighterNode, LightVoxelAccess,
+};
 
-pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
-    [1, 0, 0],
-    [-1, 0, 0],
-    [0, 0, 1],
-    [0, 0, -1],
-    [0, 1, 0],
-    [0, -1, 0],
-];
+pub type LightNode = LighterNode;
 
-/// Node of a light propagation queue.
-#[derive(Debug, Clone)]
-pub struct LightNode {
-    pub voxel: [i32; 3],
-    pub level: u32,
+#[inline]
+fn clamp_usize_to_i32(value: usize) -> i32 {
+    value.min(i32::MAX as usize) as i32
 }
 
-const RED: LightColor = LightColor::Red;
-const GREEN: LightColor = LightColor::Green;
-const BLUE: LightColor = LightColor::Blue;
-const SUNLIGHT: LightColor = LightColor::Sunlight;
-const ALL_TRANSPARENT: [bool; 6] = [true, true, true, true, true, true];
+#[inline]
+fn normalized_chunk_size(chunk_size: usize) -> usize {
+    chunk_size.max(1)
+}
 
-/// A set of utility functions to simulate global illumination in a Voxelize world.
+#[inline]
+fn clamp_i64_to_usize(value: i64) -> usize {
+    if value <= 0 {
+        return 0;
+    }
+
+    usize::try_from(value).unwrap_or(usize::MAX)
+}
+
+#[inline]
+fn convert_config(config: &WorldConfig) -> LightConfig {
+    LightConfig {
+        chunk_size: clamp_usize_to_i32(normalized_chunk_size(config.chunk_size)),
+        max_height: clamp_usize_to_i32(config.max_height),
+        max_light_level: config.max_light_level,
+        min_chunk: config.min_chunk,
+        max_chunk: config.max_chunk,
+    }
+}
+
+#[inline]
+fn convert_bounds(
+    min: Option<&Vec3<i32>>,
+    shape: Option<&Vec3<usize>>,
+    config: &LightConfig,
+) -> Option<LightBounds> {
+    match (min, shape) {
+        (Some(&Vec3(start_x, start_y, start_z)), Some(&Vec3(shape_x, shape_y, shape_z))) => {
+            Some(LightBounds {
+                min: [start_x, start_y, start_z],
+                shape: [shape_x, shape_y, shape_z],
+            })
+        }
+        (Some(&Vec3(start_x, start_y, start_z)), None) => {
+            let max_chunk_x_exclusive = i64::from(config.max_chunk[0]).saturating_add(1);
+            let max_chunk_z_exclusive = i64::from(config.max_chunk[1]).saturating_add(1);
+            let chunk_size = i64::from(config.chunk_size.max(1));
+
+            let max_x_exclusive = max_chunk_x_exclusive.saturating_mul(chunk_size);
+            let max_z_exclusive = max_chunk_z_exclusive.saturating_mul(chunk_size);
+
+            let shape_x = clamp_i64_to_usize(max_x_exclusive.saturating_sub(i64::from(start_x)));
+            let shape_z = clamp_i64_to_usize(max_z_exclusive.saturating_sub(i64::from(start_z)));
+
+            Some(LightBounds {
+                min: [start_x, start_y, start_z],
+                shape: [shape_x, config.max_height as usize, shape_z],
+            })
+        }
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{convert_bounds, convert_config, normalized_chunk_size};
+    use crate::{Vec3, WorldConfig};
+
+    #[test]
+    fn convert_config_normalizes_zero_chunk_size() {
+        let world_config = WorldConfig::new().chunk_size(0).build();
+        let light_config = convert_config(&world_config);
+        assert_eq!(light_config.chunk_size, 1);
+    }
+
+    #[test]
+    fn convert_bounds_uses_normalized_chunk_size_for_shape() {
+        let world_config = WorldConfig::new()
+            .chunk_size(0)
+            .max_height(64)
+            .min_chunk([0, 0])
+            .max_chunk([0, 0])
+            .build();
+        let light_config = convert_config(&world_config);
+
+        let bounds = convert_bounds(Some(&Vec3(0, 0, 0)), None, &light_config)
+            .expect("expected bounds for explicit min and inferred shape");
+        assert_eq!(bounds.shape[0], 1);
+        assert_eq!(bounds.shape[2], 1);
+    }
+
+    #[test]
+    fn normalized_chunk_size_guards_zero() {
+        assert_eq!(normalized_chunk_size(0), 1);
+        assert_eq!(normalized_chunk_size(16), 16);
+    }
+}
+
 pub struct Lights;
 
-// TODO: RIGHT NOW, A TOP SLAB WILL STILL LET LIGHT TRAVEL INTO A BOTTOM SLAB...
-
 impl Lights {
-    /// Propagate a specific queue of `LightNode`s in a breadth-first-search fashion. If the propagation
-    /// is for sunlight, light value does not decrease going downwards to simulate sunshine.
     pub fn flood_light(
-        space: &mut dyn VoxelAccess,
-        mut queue: VecDeque<LightNode>,
+        space: &mut dyn LightVoxelAccess,
+        queue: VecDeque<LightNode>,
         color: &LightColor,
         registry: &Registry,
         config: &WorldConfig,
         min: Option<&Vec3<i32>>,
         shape: Option<&Vec3<usize>>,
     ) {
-        let WorldConfig {
-            max_height,
-            min_chunk,
-            max_chunk,
-            max_light_level,
-            ..
-        } = config;
-
-        let [start_cx, start_cz] = *min_chunk;
-        let [end_cx, end_cz] = *max_chunk;
-
-        let max_height = *max_height as i32;
-        let is_sunlight = *color == LightColor::Sunlight;
-
-        while let Some(LightNode { voxel, level }) = queue.pop_front() {
-            if level == 0 {
-                continue;
-            }
-
-            let [vx, vy, vz] = voxel;
-            let source_block = registry.get_block_by_id(space.get_voxel(vx, vy, vz));
-            let voxel_pos = Vec3(vx, vy, vz);
-            let source_transparency = if !is_sunlight
-                && source_block.get_torch_light_level_at(&voxel_pos, space, color) > 0
-            {
-                ALL_TRANSPARENT
-            } else {
-                source_block.get_rotated_transparency(&space.get_voxel_rotation(vx, vy, vz))
-            };
-
-            for [ox, oy, oz] in &VOXEL_NEIGHBORS {
-                let nvy = vy + oy;
-
-                if nvy < 0 || nvy >= max_height {
-                    continue;
-                }
-
-                let nvx = vx + ox;
-                let nvz = vz + oz;
-
-                let Vec2(ncx, ncz) =
-                    ChunkUtils::map_voxel_to_chunk(nvx, nvy, nvz, config.chunk_size);
-
-                // If neighbor is out of this chunk, or if voxel is out of the specified range, continue to next neighbor.
-                if ncx < start_cx
-                    || ncz < start_cz
-                    || ncx > end_cx
-                    || ncz > end_cz
-                    || if let Some(&Vec3(start_x, _, start_z)) = min {
-                        nvx < start_x
-                            || nvz < start_z
-                            || if let Some(&Vec3(shape0, _, shape2)) = shape {
-                                nvx >= start_x + shape0 as i32 || nvz >= start_z + shape2 as i32
-                            } else {
-                                false
-                            }
-                    } else {
-                        false
-                    }
-                {
-                    continue;
-                }
-
-                let next_voxel = [nvx, nvy, nvz];
-                let n_block = registry.get_block_by_id(space.get_voxel(nvx, nvy, nvz));
-                let rotation = space.get_voxel_rotation(nvx, nvy, nvz);
-                let n_transparency = n_block.get_rotated_transparency(&rotation);
-                let reduce = if is_sunlight
-                    && !n_block.light_reduce
-                    && *oy == -1
-                    && level == *max_light_level
-                {
-                    0
-                } else {
-                    1
-                };
-                let next_level = level.saturating_sub(reduce);
-
-                // To not continue:
-                // (1) Light cannot be flooded from source block to neighbor.
-                // (2) Neighbor light level is greater or equal to self.
-                if !Lights::can_enter(&source_transparency, &n_transparency, *ox, *oy, *oz)
-                    || (if is_sunlight {
-                        space.get_sunlight(nvx, nvy, nvz)
-                    } else {
-                        space.get_torch_light(nvx, nvy, nvz, color)
-                    } >= next_level)
-                {
-                    continue;
-                }
-
-                if is_sunlight {
-                    space.set_sunlight(nvx, nvy, nvz, next_level);
-                } else {
-                    space.set_torch_light(nvx, nvy, nvz, next_level, color);
-                }
-
-                queue.push_back(LightNode {
-                    voxel: next_voxel,
-                    level: next_level,
-                });
-            }
-        }
+        let light_registry = registry.lighter_registry();
+        let light_config = convert_config(config);
+        let bounds = convert_bounds(min, shape, &light_config);
+        lighter_flood_light(
+            space,
+            queue,
+            color,
+            &light_config,
+            bounds.as_ref(),
+            light_registry.as_ref(),
+        );
     }
 
     pub fn remove_light(
-        space: &mut dyn VoxelAccess,
+        space: &mut dyn LightVoxelAccess,
         voxel: &Vec3<i32>,
         color: &LightColor,
         config: &WorldConfig,
         registry: &Registry,
     ) {
-        let max_height = config.max_height as i32;
-        let max_light_level = config.max_light_level;
-
-        let mut fill = VecDeque::<LightNode>::new();
-        let mut queue = VecDeque::<LightNode>::new();
-
-        let is_sunlight = *color == LightColor::Sunlight;
-        let &Vec3(vx, vy, vz) = voxel;
-
-        queue.push_back(LightNode {
-            voxel: [vx, vy, vz],
-            level: if is_sunlight {
-                space.get_sunlight(vx, vy, vz)
-            } else {
-                space.get_torch_light(vx, vy, vz, color)
-            },
-        });
-
-        if is_sunlight {
-            space.set_sunlight(vx, vy, vz, 0);
-        } else {
-            space.set_torch_light(vx, vy, vz, 0, color);
-        }
-
-        while let Some(LightNode { voxel, level }) = queue.pop_front() {
-            let [vx, vy, vz] = voxel;
-
-            for [ox, oy, oz] in &VOXEL_NEIGHBORS {
-                let nvy = vy + oy;
-
-                if nvy < 0 || nvy >= max_height {
-                    continue;
-                }
-
-                let nvx = vx + ox;
-                let nvz = vz + oz;
-                let n_block = registry.get_block_by_id(space.get_voxel(nvx, nvy, nvz));
-                let n_voxel_pos = Vec3(nvx, nvy, nvz);
-                let rotation = space.get_voxel_rotation(nvx, nvy, nvz);
-                let n_transparency = n_block.get_rotated_transparency(&rotation);
-
-                // if the neighboring block doesn't allow light, then it wouldn't be a potential light entrance.
-                if if is_sunlight {
-                    true
-                } else {
-                    n_block.get_torch_light_level_at(&n_voxel_pos, space, color) == 0
-                } && !Lights::can_enter_into(&n_transparency, *ox, *oy, *oz)
-                {
-                    continue;
-                }
-
-                let n_voxel = [nvx, nvy, nvz];
-                let nl = if is_sunlight {
-                    space.get_sunlight(nvx, nvy, nvz)
-                } else {
-                    space.get_torch_light(nvx, nvy, nvz, color)
-                };
-
-                if nl == 0 {
-                    continue;
-                }
-
-                if nl < level
-                    || (is_sunlight
-                        && *oy == -1
-                        && level == max_light_level
-                        && nl == max_light_level)
-                {
-                    queue.push_back(LightNode {
-                        voxel: n_voxel,
-                        level: nl,
-                    });
-
-                    if is_sunlight {
-                        space.set_sunlight(nvx, nvy, nvz, 0);
-                    } else {
-                        space.set_torch_light(nvx, nvy, nvz, 0, color);
-                    }
-                } else if if is_sunlight && *oy == -1 {
-                    nl > level
-                } else {
-                    nl >= level
-                } {
-                    fill.push_back(LightNode {
-                        voxel: n_voxel,
-                        level: nl,
-                    })
-                }
-            }
-        }
-
-        Lights::flood_light(space, fill, color, registry, config, None, None);
-    }
-
-    pub fn propagate(
-        space: &mut dyn VoxelAccess,
-        min: &Vec3<i32>,
-        shape: &Vec3<usize>,
-        registry: &Registry,
-        config: &WorldConfig,
-    ) -> [VecDeque<LightNode>; 4] {
-        let &WorldConfig {
-            max_height,
-            max_light_level,
-            ..
-        } = config;
-
-        let mut red_light_queue = VecDeque::<LightNode>::new();
-        let mut green_light_queue = VecDeque::<LightNode>::new();
-        let mut blue_light_queue = VecDeque::<LightNode>::new();
-        let mut sunlight_queue = VecDeque::<LightNode>::new();
-
-        let Vec3(start_x, _, start_z) = min;
-        let shape = Vec3(shape.0 as i32, shape.1 as i32, shape.2 as i32);
-
-        let mut mask = vec![max_light_level; (shape.0 * shape.2) as usize];
-
-        for y in (0..max_height as i32).rev() {
-            for x in 0..shape.0 {
-                for z in 0..shape.2 {
-                    let id = space.get_voxel(x + start_x, y, z + start_z);
-                    let block = registry.get_block_by_id(id);
-                    let voxel_pos = Vec3(x + start_x, y, z + start_z);
-
-                    let &Block {
-                        is_transparent,
-                        is_opaque,
-                        is_light,
-                        light_reduce,
-                        ..
-                    } = block;
-
-                    // Get dynamic light levels
-                    let red_light_level =
-                        block.get_torch_light_level_at(&voxel_pos, space, &LightColor::Red);
-                    let green_light_level =
-                        block.get_torch_light_level_at(&voxel_pos, space, &LightColor::Green);
-                    let blue_light_level =
-                        block.get_torch_light_level_at(&voxel_pos, space, &LightColor::Blue);
-
-                    if is_light
-                        || red_light_level > 0
-                        || green_light_level > 0
-                        || blue_light_level > 0
-                    {
-                        if red_light_level > 0 {
-                            space.set_red_light(x + start_x, y, z + start_z, red_light_level);
-                            red_light_queue.push_back(LightNode {
-                                voxel: [x + start_x, y, z + start_z],
-                                level: red_light_level,
-                            });
-                        }
-                        if green_light_level > 0 {
-                            space.set_green_light(x + start_x, y, z + start_z, green_light_level);
-                            green_light_queue.push_back(LightNode {
-                                voxel: [x + start_x, y, z + start_z],
-                                level: green_light_level,
-                            });
-                        }
-                        if blue_light_level > 0 {
-                            space.set_blue_light(x + start_x, y, z + start_z, blue_light_level);
-                            blue_light_queue.push_back(LightNode {
-                                voxel: [x + start_x, y, z + start_z],
-                                level: blue_light_level,
-                            });
-                        }
-                    }
-
-                    let index = (x + z * shape.0) as usize;
-
-                    let [px, py, pz, nx, ny, nz] = space
-                        .get_voxel_rotation(x + start_x, y, z + start_z)
-                        .rotate_transparency(is_transparent);
-
-                    if is_opaque {
-                        mask[index] = 0;
-                    } else {
-                        if !py || !ny {
-                            mask[index] = 0;
-
-                            continue;
-                        }
-
-                        // Let sunlight pass through if it can.
-                        if light_reduce {
-                            if mask[index] != 0 {
-                                space.set_sunlight(x + start_x, y, z + start_z, mask[index] - 1);
-
-                                sunlight_queue.push_back(LightNode {
-                                    level: mask[index] - 1,
-                                    voxel: [start_x + x, y, start_z + z],
-                                });
-
-                                mask[index] = 0;
-                            }
-                        }
-                        // If the voxel is transparent, then it can pass sunlight through.
-                        else {
-                            space.set_sunlight(x + start_x, y, z + start_z, mask[index]);
-
-                            if mask[index] == max_light_level {
-                                if (x < shape.0 - 1
-                                    && mask[(x + 1 + z * shape.0) as usize] == 0
-                                    && px)
-                                    || (x > 0 && mask[(x - 1 + z * shape.0) as usize] == 0 && nx)
-                                    || (z < shape.2 - 1
-                                        && mask[(x + (z + 1) * shape.0) as usize] == 0
-                                        && pz)
-                                    || (z > 0 && mask[(x + (z - 1) * shape.0) as usize] == 0 && nz)
-                                {
-                                    space.set_sunlight(
-                                        x + start_x,
-                                        y,
-                                        z + start_z,
-                                        max_light_level,
-                                    );
-                                    sunlight_queue.push_back(LightNode {
-                                        level: max_light_level,
-                                        voxel: [start_x + x, y, start_z + z],
-                                    });
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        [
-            sunlight_queue,
-            red_light_queue,
-            green_light_queue,
-            blue_light_queue,
-        ]
-    }
-
-    /// Check to see if light can go "into" one block, disregarding the source.
-    pub fn can_enter_into(target: &[bool; 6], dx: i32, dy: i32, dz: i32) -> bool {
-        if (dx + dy + dz).abs() != 1 {
-            panic!("This isn't supposed to happen. Light neighboring direction should be on 1 axis only.");
-        }
-
-        let &[px, py, pz, nx, ny, nz] = target;
-
-        // Going into the NX of the target.
-        if dx == 1 {
-            return nx;
-        }
-
-        // Going into the PX of the target.
-        if dx == -1 {
-            return px;
-        }
-
-        // Going into the NY of the target.
-        if dy == 1 {
-            return ny;
-        }
-
-        // Going into the PY of the target.
-        if dy == -1 {
-            return py;
-        }
-
-        // Going into the NZ of the target.
-        if dz == 1 {
-            return nz;
-        }
-
-        // Going into the PZ of the target.
-        pz
-    }
-
-    /// Check to see if light can enter from one block to another.
-    pub fn can_enter(source: &[bool; 6], target: &[bool; 6], dx: i32, dy: i32, dz: i32) -> bool {
-        if (dx + dy + dz).abs() != 1 {
-            panic!("This isn't supposed to happen. Light neighboring direction should be on 1 axis only.");
-        }
-
-        let &[spx, spy, spz, snx, sny, snz] = source;
-        let &[tpx, tpy, tpz, tnx, tny, tnz] = target;
-
-        // Going from PX of source to NX of target
-        if dx == 1 {
-            return spx && tnx;
-        }
-
-        // Going from NX of source to PX of target
-        if dx == -1 {
-            return snx && tpx;
-        }
-
-        // Going from PY of source to NY of target
-        if dy == 1 {
-            return spy && tny;
-        }
-
-        // Going from NY of source to PY of target
-        if dy == -1 {
-            return sny && tpy;
-        }
-
-        // Going from PZ of source to NZ of target
-        if dz == 1 {
-            return spz && tnz;
-        }
-
-        // Going from NZ of source to PZ of target
-        snz && tpz
+        let light_registry = registry.lighter_registry();
+        let light_config = convert_config(config);
+        lighter_remove_light(
+            space,
+            [voxel.0, voxel.1, voxel.2],
+            color,
+            &light_config,
+            light_registry.as_ref(),
+        );
     }
 
     pub fn remove_lights(
-        space: &mut dyn VoxelAccess,
+        space: &mut dyn LightVoxelAccess,
         voxels: &[Vec3<i32>],
         color: &LightColor,
         config: &WorldConfig,
         registry: &Registry,
     ) {
-        if voxels.is_empty() {
-            return;
-        }
+        let light_registry = registry.lighter_registry();
+        let light_config = convert_config(config);
+        lighter_remove_lights(
+            space,
+            voxels.iter().map(|v| [v.0, v.1, v.2]),
+            color,
+            &light_config,
+            light_registry.as_ref(),
+        );
+    }
 
-        let max_height = config.max_height as i32;
-        let max_light_level = config.max_light_level;
+    pub fn propagate(
+        space: &mut dyn LightVoxelAccess,
+        min: &Vec3<i32>,
+        shape: &Vec3<usize>,
+        registry: &Registry,
+        config: &WorldConfig,
+    ) -> [VecDeque<LightNode>; 4] {
+        let light_registry = registry.lighter_registry();
+        let light_config = convert_config(config);
+        lighter_propagate(
+            space,
+            [min.0, min.1, min.2],
+            [shape.0, shape.1, shape.2],
+            light_registry.as_ref(),
+            &light_config,
+        )
+    }
 
-        let mut fill = VecDeque::<LightNode>::new();
-        let mut queue = VecDeque::<LightNode>::new();
+    pub fn can_enter_into(target: &[bool; 6], dx: i32, dy: i32, dz: i32) -> bool {
+        lighter_can_enter_into(target, dx, dy, dz)
+    }
 
-        let is_sunlight = *color == LightColor::Sunlight;
-
-        // Initialize queue with all voxels to remove
-        for &Vec3(vx, vy, vz) in voxels {
-            let level = if is_sunlight {
-                space.get_sunlight(vx, vy, vz)
-            } else {
-                space.get_torch_light(vx, vy, vz, color)
-            };
-            if level == 0 {
-                continue;
-            }
-            queue.push_back(LightNode {
-                voxel: [vx, vy, vz],
-                level,
-            });
-
-            if is_sunlight {
-                space.set_sunlight(vx, vy, vz, 0);
-            } else {
-                space.set_torch_light(vx, vy, vz, 0, color);
-            }
-        }
-
-        while let Some(LightNode { voxel, level }) = queue.pop_front() {
-            let [vx, vy, vz] = voxel;
-
-            for [ox, oy, oz] in &VOXEL_NEIGHBORS {
-                let nvy = vy + oy;
-
-                if nvy < 0 || nvy >= max_height {
-                    continue;
-                }
-
-                let nvx = vx + ox;
-                let nvz = vz + oz;
-                let n_block = registry.get_block_by_id(space.get_voxel(nvx, nvy, nvz));
-                let n_voxel_pos = Vec3(nvx, nvy, nvz);
-                let rotation = space.get_voxel_rotation(nvx, nvy, nvz);
-                let n_transparency = n_block.get_rotated_transparency(&rotation);
-
-                // if the neighboring block doesn't allow light, then it wouldn't be a potential light entrance.
-                if if is_sunlight {
-                    true
-                } else {
-                    n_block.get_torch_light_level_at(&n_voxel_pos, space, color) == 0
-                } && !Lights::can_enter_into(&n_transparency, *ox, *oy, *oz)
-                {
-                    continue;
-                }
-
-                let nl = if is_sunlight {
-                    space.get_sunlight(nvx, nvy, nvz)
-                } else {
-                    space.get_torch_light(nvx, nvy, nvz, color)
-                };
-
-                if nl == 0 {
-                    continue;
-                }
-
-                if nl < level
-                    || (is_sunlight
-                        && *oy == -1
-                        && level == max_light_level
-                        && nl == max_light_level)
-                {
-                    queue.push_back(LightNode {
-                        voxel: [nvx, nvy, nvz],
-                        level: nl,
-                    });
-
-                    if is_sunlight {
-                        space.set_sunlight(nvx, nvy, nvz, 0);
-                    } else {
-                        space.set_torch_light(nvx, nvy, nvz, 0, color);
-                    }
-                } else if if is_sunlight && *oy == -1 {
-                    nl > level
-                } else {
-                    nl >= level
-                } {
-                    fill.push_back(LightNode {
-                        voxel: [nvx, nvy, nvz],
-                        level: nl,
-                    });
-                }
-            }
-        }
-
-        Lights::flood_light(space, fill, color, registry, config, None, None);
+    pub fn can_enter(source: &[bool; 6], target: &[bool; 6], dx: i32, dy: i32, dz: i32) -> bool {
+        lighter_can_enter(source, target, dx, dy, dz)
     }
 }

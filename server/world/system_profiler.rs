@@ -1,6 +1,7 @@
-use hashbrown::HashMap;
+use hashbrown::{hash_map::RawEntryMut, HashMap};
 use lazy_static::lazy_static;
 use serde::Serialize;
+use std::collections::VecDeque;
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
 
@@ -14,16 +15,23 @@ pub struct SystemSample {
 
 #[derive(Default)]
 pub struct SystemTimings {
-    samples: HashMap<String, Vec<SystemSample>>,
+    samples: HashMap<String, VecDeque<SystemSample>>,
 }
 
 impl SystemTimings {
     pub fn record(&mut self, name: &str, duration_ms: f64) {
-        let samples = self.samples.entry(name.to_string()).or_default();
+        let samples = match self.samples.raw_entry_mut().from_key(name) {
+            RawEntryMut::Occupied(entry) => entry.into_mut(),
+            RawEntryMut::Vacant(entry) => {
+                entry
+                    .insert(name.to_owned(), VecDeque::with_capacity(MAX_SAMPLES))
+                    .1
+            }
+        };
         if samples.len() >= MAX_SAMPLES {
-            samples.remove(0);
+            samples.pop_front();
         }
-        samples.push(SystemSample {
+        samples.push_back(SystemSample {
             duration_ms,
             timestamp: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -33,24 +41,49 @@ impl SystemTimings {
     }
 
     pub fn get_summary(&self) -> HashMap<String, SystemStats> {
-        self.samples
-            .iter()
-            .map(|(name, samples)| {
-                let durations: Vec<f64> = samples.iter().map(|s| s.duration_ms).collect();
-                let avg = durations.iter().sum::<f64>() / durations.len() as f64;
-                let max = durations.iter().cloned().fold(0.0, f64::max);
-                let min = durations.iter().cloned().fold(f64::MAX, f64::min);
-                (
-                    name.clone(),
-                    SystemStats {
-                        avg,
-                        max,
-                        min,
-                        samples: durations.len(),
-                    },
-                )
-            })
-            .collect()
+        let mut summary = HashMap::with_capacity(self.samples.len());
+        for (name, samples) in self.samples.iter() {
+            if samples.is_empty() {
+                continue;
+            }
+            let sample_count = samples.len();
+            if sample_count == 1 {
+                if let Some(sample) = samples.front() {
+                    let duration = sample.duration_ms;
+                    summary.insert(
+                        name.clone(),
+                        SystemStats {
+                            avg: duration,
+                            max: duration,
+                            min: duration,
+                            samples: 1,
+                        },
+                    );
+                }
+                continue;
+            }
+
+            let mut sum = 0.0;
+            let mut max = f64::NEG_INFINITY;
+            let mut min = f64::INFINITY;
+            for sample in samples {
+                let duration = sample.duration_ms;
+                sum += duration;
+                max = max.max(duration);
+                min = min.min(duration);
+            }
+            let avg = sum / sample_count as f64;
+            summary.insert(
+                name.clone(),
+                SystemStats {
+                    avg,
+                    max,
+                    min,
+                    samples: sample_count,
+                },
+            );
+        }
+        summary
     }
 
     pub fn clear(&mut self) {
@@ -75,7 +108,10 @@ lazy_static! {
 
 pub fn record_timing(world_name: &str, system_name: &str, duration_ms: f64) {
     if let Ok(mut world_timings) = WORLD_TIMINGS.write() {
-        let timings = world_timings.entry(world_name.to_string()).or_default();
+        let timings = match world_timings.raw_entry_mut().from_key(world_name) {
+            RawEntryMut::Occupied(entry) => entry.into_mut(),
+            RawEntryMut::Vacant(entry) => entry.insert(world_name.to_owned(), SystemTimings::default()).1,
+        };
         timings.record(system_name, duration_ms);
     }
 }
@@ -143,20 +179,24 @@ impl SystemTimer {
 }
 
 pub fn get_timing_summary_for_world(world_name: &str) -> HashMap<String, SystemStats> {
-    WORLD_TIMINGS
-        .read()
-        .map(|wt| {
-            wt.get(world_name)
-                .map(|t| t.get_summary())
-                .unwrap_or_default()
-        })
-        .unwrap_or_default()
+    if let Ok(world_timings) = WORLD_TIMINGS.read() {
+        if let Some(timings) = world_timings.get(world_name) {
+            return timings.get_summary();
+        }
+    }
+    HashMap::new()
 }
 
 pub fn get_all_world_names() -> Vec<String> {
     WORLD_TIMINGS
         .read()
-        .map(|wt| wt.keys().cloned().collect())
+        .map(|wt| {
+            let mut world_names = Vec::with_capacity(wt.len());
+            for name in wt.keys() {
+                world_names.push(name.clone());
+            }
+            world_names
+        })
         .unwrap_or_default()
 }
 
@@ -165,5 +205,41 @@ pub fn clear_timing_data_for_world(world_name: &str) {
         if let Some(timings) = world_timings.get_mut(world_name) {
             timings.clear();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{SystemTimings, MAX_SAMPLES};
+
+    #[test]
+    fn record_keeps_only_latest_max_samples() {
+        let mut timings = SystemTimings::default();
+        for index in 0..(MAX_SAMPLES + 5) {
+            timings.record("system", index as f64);
+        }
+
+        let samples = timings.samples.get("system").expect("expected samples");
+        assert_eq!(samples.len(), MAX_SAMPLES);
+        assert_eq!(samples.front().map(|sample| sample.duration_ms), Some(5.0));
+        assert_eq!(
+            samples.back().map(|sample| sample.duration_ms),
+            Some((MAX_SAMPLES + 4) as f64)
+        );
+    }
+
+    #[test]
+    fn get_summary_reports_expected_statistics() {
+        let mut timings = SystemTimings::default();
+        timings.record("system", 10.0);
+        timings.record("system", 20.0);
+        timings.record("system", 30.0);
+
+        let summary = timings.get_summary();
+        let stats = summary.get("system").expect("expected system summary");
+        assert_eq!(stats.samples, 3);
+        assert_eq!(stats.min, 10.0);
+        assert_eq!(stats.max, 30.0);
+        assert_eq!(stats.avg, 20.0);
     }
 }

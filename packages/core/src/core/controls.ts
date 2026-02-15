@@ -23,25 +23,34 @@ import { World } from "./world";
 const PI_2 = Math.PI / 2;
 const emptyQ = new Quaternion();
 
-function rotateY(a: number[], b: number[], c: number) {
-  const bx = b[0];
-  const bz = b[2];
-
-  // translate point to the origin
-  const px = a[0] - bx;
-  const pz = a[2] - bz;
-
-  const sc = Math.sin(c);
-  const cc = Math.cos(c);
-
-  // perform rotation and translate to correct position
-  const out = [0, 0, 0];
-  out[0] = bx + pz * sc + px * cc;
-  out[1] = a[1];
-  out[2] = bz + pz * cc - px * sc;
-
-  return out;
-}
+const normalizeControlEventName = (name: string) => {
+  if (
+    name === "vox-builtin:position" ||
+    name === "vox-builtin:force" ||
+    name === "vox-builtin:impulse"
+  ) {
+    return name;
+  }
+  let hasNonAscii = false;
+  for (let index = 0; index < name.length; index++) {
+    const code = name.charCodeAt(index);
+    if (code >= 65 && code <= 90) {
+      return name.toLowerCase();
+    }
+    if (code > 127) {
+      hasNonAscii = true;
+    }
+  }
+  if (!hasNonAscii) {
+    return name;
+  }
+  for (const char of name) {
+    if (char.toLowerCase() !== char.toUpperCase() && char === char.toUpperCase()) {
+      return name.toLowerCase();
+    }
+  }
+  return name;
+};
 
 /**
  * The state of which a Voxelize {@link Controls} is in.
@@ -319,6 +328,19 @@ const defaultOptions: RigidControlsOptions = {
  * @category Core
  */
 export class RigidControls extends EventEmitter implements NetIntercept {
+  private static readonly FORWARD_DIRECTION = new Vector3(0, 0, -1);
+  private static readonly KEY_MAPPINGS: Array<
+    [string, keyof RigidControls["movements"]]
+  > = [
+    ["KeyW", "front"],
+    ["KeyA", "left"],
+    ["KeyS", "back"],
+    ["KeyD", "right"],
+    ["Space", "up"],
+    ["ShiftLeft", "down"],
+    ["KeyR", "sprint"],
+  ];
+
   /**
    * Parameters to initialize the Voxelize controls.
    */
@@ -414,7 +436,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   /**
    * An internal quaternion for sharing position calculations.
    */
-  private quaternion = new Quaternion();
+  protected quaternion = new Quaternion();
 
   /**
    * An internal vector for sharing position calculations.
@@ -425,6 +447,15 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    * The new position of the controls. This is used to lerp the position of the controls.
    */
   private newPosition = new Vector3();
+  private movementVector: Coords3 = [0, 0, 0];
+  private pushVector: Coords3 = [0, 0, 0];
+  private characterPosition: Coords3 = [0, 0, 0];
+  private characterDirection: Coords3 = [0, 0, 0];
+  private resetDirection = new Vector3();
+  private stepResetTimeout: ReturnType<typeof setTimeout> | null = null;
+  private stepLerpActive = false;
+  private positionLerpBeforeStep = 0;
+  private flyToggleTimeout: ReturnType<typeof setTimeout> | null = null;
 
   /**
    * Whether or not is the first movement back on lock. This is because Chrome has a bug where
@@ -442,7 +473,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    *
    * @hidden
    */
-  public packets: MessageProtocol<any, any, any, any>[] = [];
+  public packets: MessageProtocol[] = [];
 
   /**
    * The client's own peer ID. This is set when the client first connects to the server.
@@ -493,6 +524,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       ...defaultOptions,
       ...options,
     });
+    this.positionLerpBeforeStep = this.options.positionLerp;
 
     this.object.add(this.camera);
     this.world.add(this.object);
@@ -502,12 +534,20 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       onStep: (newAABB) => {
         const { positionLerp, stepLerp } = this.options;
 
+        if (!this.stepLerpActive) {
+          this.positionLerpBeforeStep = positionLerp;
+        }
+        this.stepLerpActive = true;
         this.options.positionLerp = stepLerp;
         this.body.aabb = newAABB.clone();
 
-        const stepTimeout = setTimeout(() => {
-          this.options.positionLerp = positionLerp;
-          clearTimeout(stepTimeout);
+        if (this.stepResetTimeout) {
+          clearTimeout(this.stepResetTimeout);
+        }
+        this.stepResetTimeout = setTimeout(() => {
+          this.options.positionLerp = this.positionLerpBeforeStep;
+          this.stepLerpActive = false;
+          this.stepResetTimeout = null;
         }, 500);
       },
       stepHeight: this.options.stepHeight,
@@ -517,7 +557,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   }
 
   onMessage = (
-    message: MessageProtocol<any, any, any, [number, number, number]>
+    message: MessageProtocol<{ id: string }, object, object, [number, number, number]>
   ) => {
     switch (message.type) {
       case "INIT": {
@@ -528,8 +568,11 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       case "EVENT": {
         const { events } = message;
 
-        for (const event of events) {
-          switch (event.name.toLowerCase()) {
+        for (let eventIndex = 0; eventIndex < events.length; eventIndex++) {
+          const event = events[eventIndex];
+          const normalizedName = normalizeControlEventName(event.name);
+
+          switch (normalizedName) {
             case "vox-builtin:position": {
               this.body.setPosition(event.payload);
               this.body.velocity = [0, 0, 0];
@@ -583,17 +626,23 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     this.object.position.lerp(this.newPosition, this.options.positionLerp);
 
     if (this.character) {
-      const {
-        x: dx,
-        y: dy,
-        z: dz,
-      } = new Vector3(0, 0, -1)
-        .applyQuaternion(this.object.getWorldQuaternion(emptyQ))
-        .normalize();
+      const direction = this.vector;
+      direction
+        .set(0, 0, -1)
+        .applyQuaternion(this.object.getWorldQuaternion(emptyQ));
 
-      const cameraPosition = this.object.position.toArray();
+      const characterDirection = this.characterDirection;
+      characterDirection[0] = direction.x;
+      characterDirection[1] = direction.y;
+      characterDirection[2] = direction.z;
 
-      this.character.set(cameraPosition, [dx, dy, dz]);
+      const objectPosition = this.object.position;
+      const characterPosition = this.characterPosition;
+      characterPosition[0] = objectPosition.x;
+      characterPosition[1] = objectPosition.y;
+      characterPosition[2] = objectPosition.z;
+
+      this.character.set(characterPosition, characterDirection);
       this.character.update();
     }
 
@@ -619,7 +668,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    * @options namespace The namespace to bind the controls to.
    */
   connect = (inputs: Inputs, namespace = "*") => {
-    const unbinds = [];
+    const unbinds: Array<() => void> = [];
     const mouseMoveHandler = (event: MouseEvent) => this.onMouseMove(event);
     const pointerLockChangeHandler = (e: Event) => {
       e.preventDefault();
@@ -652,17 +701,13 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       this.domElement.removeEventListener("click", documentClickHandler);
     });
 
-    const keyMappings = {
-      KeyW: "front",
-      KeyA: "left",
-      KeyS: "back",
-      KeyD: "right",
-      Space: "up",
-      ShiftLeft: "down",
-      KeyR: "sprint",
-    };
-
-    Object.entries(keyMappings).forEach(([code, movement]) => {
+    const keyMappings = RigidControls.KEY_MAPPINGS;
+    for (
+      let mappingIndex = 0;
+      mappingIndex < keyMappings.length;
+      mappingIndex++
+    ) {
+      const [code, movement] = keyMappings[mappingIndex];
       unbinds.push(
         inputs.bind(
           code,
@@ -694,28 +739,37 @@ export class RigidControls extends EventEmitter implements NetIntercept {
           }
         )
       );
-    });
+    }
 
     this.inputs = inputs;
 
     return () => {
-      unbinds.forEach((unbind) => {
+      for (let unbindIndex = 0; unbindIndex < unbinds.length; unbindIndex++) {
+        const unbind = unbinds[unbindIndex];
         try {
           unbind();
-        } catch (e) {
-          /// Ignore
-        }
-      });
+        } catch {}
+      }
     };
   };
 
   /**
    * Get the direction that the client is looking at.
    */
-  getDirection = () => {
-    return new Vector3(0, 0, -1)
-      .applyQuaternion(this.object.quaternion)
-      .normalize();
+  getDirection = (target?: Vector3) => {
+    const direction = target ?? new Vector3();
+    return direction
+      .copy(RigidControls.FORWARD_DIRECTION)
+      .applyQuaternion(this.object.quaternion);
+  };
+
+  getPositionVector = (target?: Vector3) => {
+    const bodyPosition = this.body.getPosition();
+    const x = bodyPosition[0];
+    const y = bodyPosition[1] - this.options.bodyHeight * 0.5;
+    const z = bodyPosition[2];
+    const position = target ?? new Vector3();
+    return position.set(x, y, z);
   };
 
   /**
@@ -762,7 +816,6 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       this.body.velocity = [0, 0, 0];
       this.body.forces = [0, 0, 0];
       this.body.impulses = [0, 0, 0];
-      this.body.resting = [0, 0, 0];
       this.body.setPosition([vx + 0.5, vy + bodyHeight / 2 + 1, vz + 0.5]);
     }
   };
@@ -778,8 +831,9 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       return;
     }
 
-    const [cx, cz] = ChunkUtils.mapVoxelToChunk(
-      [vx, 0, vz],
+    const [cx, cz] = ChunkUtils.mapVoxelToChunkAt(
+      vx,
+      vz,
       this.world.options.chunkSize
     );
     const chunk = this.world.getChunkByCoords(cx, cz);
@@ -787,10 +841,10 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       const maxHeight = this.world.getMaxHeightAt(vx, vz);
       this.teleport(Math.floor(vx), maxHeight + yOffset, Math.floor(vz));
     };
-    if (chunk.isReady) {
+    if (chunk?.isReady) {
       teleport();
     } else {
-      this.world.addChunkInitListener([cx, cz], teleport);
+      this.world.addChunkInitListenerAt(cx, cz, teleport);
     }
   };
 
@@ -802,25 +856,26 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    * @param z Z-coordinate to look at.
    */
   lookAt = (x: number, y: number, z: number) => {
-    const vec = this.object.position
-      .clone()
-      .add(this.object.position.clone().sub(new Vector3(x, y, z)));
-    this.object.lookAt(vec);
+    const position = this.object.position;
+    this.vector.set(
+      position.x * 2 - x,
+      position.y * 2 - y,
+      position.z * 2 - z
+    );
+    this.object.lookAt(this.vector);
   };
 
   /**
    * Reset all of the control's movements.
    */
   resetMovements = () => {
-    this.movements = {
-      sprint: false,
-      front: false,
-      back: false,
-      left: false,
-      right: false,
-      down: false,
-      up: false,
-    };
+    this.movements.sprint = false;
+    this.movements.front = false;
+    this.movements.back = false;
+    this.movements.left = false;
+    this.movements.right = false;
+    this.movements.down = false;
+    this.movements.up = false;
   };
 
   /**
@@ -828,7 +883,10 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    */
   toggleGhostMode = () => {
     const { aabb } = this.body;
-    const [px, py, pz] = this.body.getPosition();
+    const bodyPosition = this.body.getPosition();
+    const px = bodyPosition[0];
+    const py = bodyPosition[1];
+    const pz = bodyPosition[2];
     const { bodyWidth, bodyHeight, bodyDepth } = this.options;
 
     if (this.ghostMode) {
@@ -864,8 +922,13 @@ export class RigidControls extends EventEmitter implements NetIntercept {
         this.body.applyImpulse([0, 8, 0]);
       }
 
-      setTimeout(() => {
-        this.body.gravityMultiplier = isFlying ? 1 : 0;
+      if (this.flyToggleTimeout) {
+        clearTimeout(this.flyToggleTimeout);
+      }
+      const nextGravityMultiplier = isFlying ? 1 : 0;
+      this.flyToggleTimeout = setTimeout(() => {
+        this.body.gravityMultiplier = nextGravityMultiplier;
+        this.flyToggleTimeout = null;
       }, 100);
     }
   };
@@ -876,13 +939,17 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   reset = () => {
     this.teleport(...this.options.initialPosition);
 
+    const resetDirection = this.resetDirection;
+    resetDirection.set(
+      this.options.initialDirection[0],
+      this.options.initialDirection[1],
+      this.options.initialDirection[2]
+    );
+    resetDirection.normalize();
+
     this.quaternion.setFromUnitVectors(
-      new Vector3(0, 0, -1),
-      new Vector3(
-        this.options.initialDirection[0],
-        this.options.initialDirection[1],
-        this.options.initialDirection[2]
-      ).normalize()
+      RigidControls.FORWARD_DIRECTION,
+      resetDirection
     );
 
     this.object.rotation.set(0, 0, 0);
@@ -989,12 +1056,12 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    * floored to the voxel coordinate.
    */
   get voxel() {
-    const [x, y, z] = this.body.getPosition();
+    const bodyPosition = this.body.getPosition();
 
     return ChunkUtils.mapWorldToVoxel([
-      x,
-      y - this.options.bodyHeight * 0.5,
-      z,
+      bodyPosition[0],
+      bodyPosition[1] - this.options.bodyHeight * 0.5,
+      bodyPosition[2],
     ]);
   }
 
@@ -1002,16 +1069,19 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    * The 3D world coordinates that the client is at. This is where the bottom of the client's body is located.
    */
   get position() {
-    const position = new Vector3(...this.body.getPosition());
-    position.y -= this.options.bodyHeight * 0.5;
-    return position;
+    return this.getPositionVector();
   }
 
   /**
    * The chunk that the client is situated in.
    */
   get chunk() {
-    return ChunkUtils.mapVoxelToChunk(this.voxel, this.world.options.chunkSize);
+    const bodyPosition = this.body.getPosition();
+    return ChunkUtils.mapVoxelToChunkAt(
+      bodyPosition[0],
+      bodyPosition[2],
+      this.world.options.chunkSize
+    );
   }
 
   /**
@@ -1025,7 +1095,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     const fb = front ? (back ? 0 : 1) : back ? -1 : 0;
     const rl = left ? (right ? 0 : 1) : right ? -1 : 0;
 
-    const vec = new Vector3();
+    const vec = this.vector;
 
     // get the frontwards-backwards direction vectors
     vec.setFromMatrixColumn(object.matrix, 0);
@@ -1173,36 +1243,34 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       }
 
       // apply movement forces if entity is moving, otherwise just friction
-      let m = [0, 0, 0];
-      let push = [0, 0, 0];
+      const m = this.movementVector;
+      const push = this.pushVector;
       if (this.state.running) {
         let speed = maxSpeed;
         // todo: add crouch/sprint modifiers if needed
         if (this.state.sprinting) speed *= sprintFactor;
         if (this.state.crouching && this.body.resting[1] === -1)
           speed *= crouchFactor;
-        m[2] = speed;
-
-        // rotate move vector to entity's heading
-
-        m = rotateY(m, [0, 0, 0], this.state.heading);
+        const heading = this.state.heading;
+        const sinHeading = Math.sin(heading);
+        const cosHeading = Math.cos(heading);
+        m[0] = speed * sinHeading;
+        m[1] = 0;
+        m[2] = speed * cosHeading;
 
         // push vector to achieve desired speed & dir
         // following code to adjust 2D velocity to desired amount is patterned on Quake:
         // https://github.com/id-Software/Quake-III-Arena/blob/master/code/game/bg_pmove.c#L275
-        push = [
-          m[0] - this.body.velocity[0],
-          m[1] - this.body.velocity[1],
-          m[2] - this.body.velocity[2],
-        ];
+        push[0] = m[0] - this.body.velocity[0];
         push[1] = 0;
-        const pushLen = Math.sqrt(push[0] ** 2 + push[1] ** 2 + push[2] ** 2);
+        push[2] = m[2] - this.body.velocity[2];
+        const pushLen = Math.sqrt(push[0] ** 2 + push[2] ** 2);
 
         // Guard against a zero-length vector which would result in NaN / Infinity
         if (pushLen > 0) {
-          push[0] /= pushLen;
-          push[1] /= pushLen;
-          push[2] /= pushLen;
+          const invPushLen = 1 / pushLen;
+          push[0] *= invPushLen;
+          push[2] *= invPushLen;
 
           // No need to normalise the Y-component – it is always zero for planar movement
 
@@ -1244,34 +1312,35 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       }
 
       // apply movement forces if entity is moving, otherwise just friction
-      let m = [0, 0, 0];
-      let push = [0, 0, 0];
+      const m = this.movementVector;
+      const push = this.pushVector;
       if (this.state.running) {
         let speed = flySpeed;
         // todo: add crouch/sprint modifiers if needed
         if (this.state.sprinting) speed *= sprintFactor;
         if (this.state.crouching) speed *= crouchFactor;
-        m[2] = speed;
+        const heading = this.state.heading;
+        const sinHeading = Math.sin(heading);
+        const cosHeading = Math.cos(heading);
+        m[0] = speed * sinHeading;
+        m[1] = 0;
+        m[2] = speed * cosHeading;
 
         // rotate move vector to entity's heading
-        m = rotateY(m, [0, 0, 0], this.state.heading);
 
         // push vector to achieve desired speed & dir
         // following code to adjust 2D velocity to desired amount is patterned on Quake:
         // https://github.com/id-Software/Quake-III-Arena/blob/master/code/game/bg_pmove.c#L275
-        push = [
-          m[0] - this.body.velocity[0],
-          m[1] - this.body.velocity[1],
-          m[2] - this.body.velocity[2],
-        ];
-
+        push[0] = m[0] - this.body.velocity[0];
         push[1] = 0;
+        push[2] = m[2] - this.body.velocity[2];
         const pushLen = Math.sqrt(push[0] ** 2 + push[2] ** 2);
 
         // Guard against a zero-length vector which would result in NaN / Infinity
         if (pushLen > 0) {
-          push[0] /= pushLen;
-          push[2] /= pushLen;
+          const invPushLen = 1 / pushLen;
+          push[0] *= invPushLen;
+          push[2] *= invPushLen;
 
           // pushing force vector
           let canPush = flyForce;
@@ -1298,9 +1367,13 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       }
     }
 
-    const [x, y, z] = this.body.getPosition();
+    const bodyPosition = this.body.getPosition();
     const { eyeHeight, bodyHeight } = this.options;
-    this.newPosition.set(x, y + bodyHeight * (eyeHeight - 0.5), z);
+    this.newPosition.set(
+      bodyPosition[0],
+      bodyPosition[1] + bodyHeight * (eyeHeight - 0.5),
+      bodyPosition[2]
+    );
   };
 
   /**

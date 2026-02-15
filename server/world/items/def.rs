@@ -1,5 +1,5 @@
 use hashbrown::HashMap;
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::any::TypeId;
 
 use super::component::ItemComponent;
@@ -42,19 +42,19 @@ impl ItemDef {
     }
 
     pub fn to_client_json(&self) -> Value {
-        let mut components_map: HashMap<String, Value> = HashMap::new();
+        let mut components_map: Map<String, Value> = Map::with_capacity(self.components.len());
 
         for component in self.components.values() {
             let name = component.component_name();
             let value = component.to_json();
-            components_map.insert(name.to_string(), value);
+            components_map.insert(name.to_owned(), value);
         }
 
-        serde_json::json!({
-            "id": self.id,
-            "name": self.name,
-            "components": components_map
-        })
+        let mut item_map = Map::with_capacity(3);
+        item_map.insert(String::from("id"), Value::from(self.id));
+        item_map.insert(String::from("name"), Value::from(self.name.clone()));
+        item_map.insert(String::from("components"), Value::Object(components_map));
+        Value::Object(item_map)
     }
 }
 

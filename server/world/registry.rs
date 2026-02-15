@@ -1,7 +1,7 @@
-use std::sync::Arc;
+use std::borrow::Cow;
+use std::sync::{Arc, OnceLock};
 
 use hashbrown::{HashMap, HashSet};
-use log::info;
 use serde::{Deserialize, Serialize};
 
 use crate::{BlockFace, Vec3, VoxelAccess, VoxelUpdate};
@@ -38,7 +38,7 @@ impl Default for UV {
 
 /// A collection of blocks to use in a Voxelize server. One server has one registry and one
 /// registry only. Once a registry is added to a server, it cannot be changed.
-#[derive(Default, Clone)]
+#[derive(Default)]
 pub struct Registry {
     /// Block records, name -> Block.
     pub blocks_by_name: HashMap<String, Block>,
@@ -54,9 +54,46 @@ pub struct Registry {
 
     /// Map of name -> ID.
     type_map: HashMap<String, u32>,
+
+    mesher_registry_cache: OnceLock<Arc<voxelize_mesher::Registry>>,
+    lighter_registry_cache: OnceLock<Arc<voxelize_lighter::LightRegistry>>,
+}
+
+impl Clone for Registry {
+    fn clone(&self) -> Self {
+        Self {
+            blocks_by_name: self.blocks_by_name.clone(),
+            blocks_by_id: self.blocks_by_id.clone(),
+            textures: self.textures.clone(),
+            name_map: self.name_map.clone(),
+            type_map: self.type_map.clone(),
+            mesher_registry_cache: OnceLock::new(),
+            lighter_registry_cache: OnceLock::new(),
+        }
+    }
 }
 
 impl Registry {
+    #[inline]
+    fn normalized_name<'a>(name: &'a str) -> Cow<'a, str> {
+        let mut has_non_ascii = false;
+        for &byte in name.as_bytes() {
+            if byte.is_ascii_uppercase() {
+                return Cow::Owned(name.to_lowercase());
+            }
+            if !byte.is_ascii() {
+                has_non_ascii = true;
+            }
+        }
+        if !has_non_ascii {
+            Cow::Borrowed(name)
+        } else if name.chars().any(|ch| ch.is_uppercase()) {
+            Cow::Owned(name.to_lowercase())
+        } else {
+            Cow::Borrowed(name)
+        }
+    }
+
     /// Create a registry instance. By default, the "Air" block is registered at ID of 0.
     pub fn new() -> Self {
         let air = Block::new("Air")
@@ -82,23 +119,28 @@ impl Registry {
         active_ticker: F1,
         active_updater: F2,
     ) {
-        let mut air = self.blocks_by_id.remove(&0).unwrap();
+        let mut air = self
+            .blocks_by_id
+            .get(&0)
+            .cloned()
+            .expect("Air block must exist");
 
         air.active_ticker = Some(Arc::new(active_ticker));
         air.active_updater = Some(Arc::new(active_updater));
         air.is_active = true;
 
+        self.invalidate_cached_registries();
         self.record_block(&air);
     }
 
     /// Generate the UV coordinates of the blocks. Call this before the server starts!
     pub fn generate(&mut self) {
-        let all_blocks = self.blocks_by_id.values_mut().collect::<Vec<_>>();
+        self.invalidate_cached_registries();
 
         let mut texture_groups: HashSet<String> = HashSet::new();
         let mut ungrouped_faces = 0;
 
-        for block in all_blocks.iter() {
+        for block in self.blocks_by_id.values() {
             for face in block.faces.iter() {
                 if face.independent || face.isolated {
                     continue;
@@ -127,7 +169,7 @@ impl Registry {
         let count_per_side = count_per_side as usize;
         let offset = 1.0 / (count_per_side as f32 * 4.0);
 
-        let mut group_uvs: HashMap<String, UV> = HashMap::new();
+        let mut group_uvs: HashMap<String, UV> = HashMap::with_capacity(texture_groups.len());
         let mut row = 0;
         let mut col = 0;
 
@@ -159,7 +201,7 @@ impl Registry {
             group_uvs.insert(group.clone(), allocate_slot());
         }
 
-        for block in all_blocks {
+        for block in self.blocks_by_id.values_mut() {
             for face in block.faces.iter_mut() {
                 if face.independent || face.isolated {
                     continue;
@@ -189,52 +231,43 @@ impl Registry {
             }
         }
 
-        self.blocks_by_id.values().for_each(|block| {
-            let block_by_name = self
-                .blocks_by_name
-                .get_mut(&block.name.to_lowercase())
-                .unwrap();
+        for (block_id, block_name) in self.name_map.iter() {
+            let Some(block) = self.blocks_by_id.get(block_id) else {
+                continue;
+            };
+            let block_by_name = self.blocks_by_name.get_mut(block_name).unwrap();
             block_by_name.faces = block.faces.clone();
             block_by_name.dynamic_patterns = block.dynamic_patterns.clone();
-        });
+        }
     }
 
-    /// Register multiple blocks into this world. The block ID's are assigned to the length of the blocks at registration.
+    /// Register multiple blocks into this world. Blocks with ID 0 are auto-assigned to the next available non-zero ID.
     pub fn register_blocks(&mut self, blocks: &[Block]) {
-        blocks.into_iter().for_each(|block| {
-            self.register_block(block);
-        });
+        if blocks.is_empty() {
+            return;
+        }
+
+        let blocks = self.prepare_blocks_for_registration(blocks);
+
+        self.invalidate_cached_registries();
+        for block in &blocks {
+            self.record_block(block);
+        }
     }
 
-    /// Register a block into this world. The block ID is assigned to the length of the blocks registered.
+    /// Register a block into this world. If the block ID is 0, it is auto-assigned to the next available non-zero ID.
     pub fn register_block(&mut self, block: &Block) {
-        let mut block = block.to_owned();
+        let block = self.prepare_block_for_registration(block);
 
-        if block.id == 0 {
-            let mut next_available = 1;
-
-            loop {
-                if self.blocks_by_id.contains_key(&next_available) {
-                    next_available += 1;
-                } else {
-                    break;
-                }
-            }
-
-            block.id = next_available;
-        }
-
-        if self.blocks_by_id.contains_key(&block.id) {
-            panic!("Duplicated key: {}-{}", block.name, block.id);
-        }
-
+        self.invalidate_cached_registries();
         self.record_block(&block);
     }
 
     /// Get a block reference by block name.
     pub fn get_block_by_name(&self, name: &str) -> &Block {
+        let normalized_name = Self::normalized_name(name);
         self.blocks_by_name
-            .get(&name.to_lowercase())
+            .get(normalized_name.as_ref())
             .unwrap_or_else(|| panic!("Block name not found: {name}",))
     }
 
@@ -247,9 +280,10 @@ impl Registry {
 
     /// Get a block id by block name.
     pub fn get_id_by_name(&self, name: &str) -> u32 {
+        let normalized_name = Self::normalized_name(name);
         *self
             .type_map
-            .get(&name.to_lowercase())
+            .get(normalized_name.as_ref())
             .unwrap_or_else(|| panic!("Block name not found: {name}"))
     }
 
@@ -293,6 +327,15 @@ impl Registry {
         &self.get_block_by_name(name).faces
     }
 
+    /// Get normalized block name by id.
+    pub fn get_name_by_id(&self, id: u32) -> &str {
+        self.name_map
+            .get(&id)
+            .or_else(|| self.name_map.get(&0))
+            .map(|name| name.as_str())
+            .unwrap_or("air")
+    }
+
     /// Check if block is air by id.
     pub fn is_air(&self, id: u32) -> bool {
         self.get_block_by_id(id).name == "Air"
@@ -305,12 +348,13 @@ impl Registry {
 
     /// Get type map of all blocks.
     pub fn get_type_map(&self, blocks: &[&str]) -> HashMap<String, u32> {
-        let mut type_map = HashMap::new();
+        let mut type_map = HashMap::with_capacity(blocks.len());
 
         for block in blocks {
+            let normalized_name = Self::normalized_name(block);
             let &id = self
                 .type_map
-                .get(&block.to_lowercase())
+                .get(normalized_name.as_ref())
                 .unwrap_or_else(|| panic!("Block name not found: {}", block));
 
             type_map.insert((*block).to_owned(), id);
@@ -331,7 +375,7 @@ impl Registry {
 
     /// Get UV map by block.
     pub fn get_uv_map(&self, block: &Block) -> HashMap<String, UV> {
-        let mut uv_map = HashMap::new();
+        let mut uv_map = HashMap::with_capacity(block.faces.len());
 
         for source in block.faces.iter() {
             let uv = source.range.to_owned();
@@ -347,10 +391,34 @@ impl Registry {
             id, name, faces, ..
         } = block;
 
-        let lower_name = name.to_lowercase();
+        let lower_name = Self::normalized_name(name).into_owned();
+        let existing_id_for_name = self.blocks_by_name.get(&lower_name).map(|existing| existing.id);
+        let existing_name_for_id = self.name_map.get(id).cloned();
+
+        if let Some(existing_id) = existing_id_for_name {
+            self.blocks_by_id.remove(&existing_id);
+            self.name_map.remove(&existing_id);
+        }
+        if let Some(existing_name) = existing_name_for_id {
+            self.blocks_by_name.remove(&existing_name);
+            self.type_map.remove(&existing_name);
+        }
 
         self.blocks_by_name.remove(&lower_name);
         self.blocks_by_id.remove(id);
+        self.name_map.remove(id);
+        self.type_map.remove(&lower_name);
+        self.textures.retain(|(texture_id, _, _)| {
+            if *texture_id == *id {
+                return false;
+            }
+
+            if let Some(existing_id) = existing_id_for_name {
+                return *texture_id != existing_id;
+            }
+
+            true
+        });
 
         self.blocks_by_name
             .insert(lower_name.clone(), block.clone());
@@ -363,13 +431,115 @@ impl Registry {
         }
     }
 
-    pub fn to_mesher_registry(&self) -> voxelize_mesher::Registry {
-        let blocks_by_id: Vec<(u32, voxelize_mesher::Block)> = self
-            .blocks_by_id
-            .iter()
-            .map(|(id, block)| (*id, block.to_mesher_block()))
-            .collect();
+    fn prepare_block_for_registration(&self, block: &Block) -> Block {
+        self.prepare_blocks_for_registration(std::slice::from_ref(block))
+            .into_iter()
+            .next()
+            .expect("single-block preparation should always return one block")
+    }
 
-        voxelize_mesher::Registry::new(blocks_by_id)
+    fn prepare_blocks_for_registration(&self, blocks: &[Block]) -> Vec<Block> {
+        let mut occupied_ids = self
+            .blocks_by_id
+            .keys()
+            .copied()
+            .collect::<HashSet<u32>>();
+        let mut name_to_id = self
+            .blocks_by_name
+            .iter()
+            .map(|(name, block)| (name.clone(), block.id))
+            .collect::<HashMap<String, u32>>();
+        let mut id_to_name = self.name_map.clone();
+        let mut reserved_explicit_ids = blocks
+            .iter()
+            .filter(|block| block.id != 0)
+            .map(|block| block.id)
+            .collect::<HashSet<u32>>();
+        let mut prepared_blocks = Vec::with_capacity(blocks.len());
+        let mut next_available = 1;
+
+        for block in blocks {
+            let mut block = block.to_owned();
+            let lower_name = Self::normalized_name(&block.name).into_owned();
+            let existing_id_for_name = name_to_id.get(&lower_name).copied();
+
+            if block.id != 0 {
+                reserved_explicit_ids.remove(&block.id);
+            }
+
+            if block.id == 0 {
+                while occupied_ids.contains(&next_available)
+                    || reserved_explicit_ids.contains(&next_available)
+                {
+                    next_available += 1;
+                }
+                block.id = next_available;
+            } else if occupied_ids.contains(&block.id) {
+                panic!("Duplicated key: {}-{}", block.name, block.id);
+            }
+
+            if let Some(existing_id) = existing_id_for_name {
+                occupied_ids.remove(&existing_id);
+                id_to_name.remove(&existing_id);
+                if existing_id < next_available {
+                    next_available = existing_id;
+                }
+            }
+
+            if let Some(existing_name) = id_to_name.remove(&block.id) {
+                name_to_id.remove(&existing_name);
+            }
+
+            occupied_ids.insert(block.id);
+            id_to_name.insert(block.id, lower_name.clone());
+            name_to_id.insert(lower_name, block.id);
+            if block.id == next_available {
+                while occupied_ids.contains(&next_available)
+                    || reserved_explicit_ids.contains(&next_available)
+                {
+                    next_available += 1;
+                }
+            }
+            prepared_blocks.push(block);
+        }
+
+        prepared_blocks
+    }
+
+    pub fn mesher_registry(&self) -> Arc<voxelize_mesher::Registry> {
+        Arc::clone(self.mesher_registry_cache.get_or_init(|| {
+            let mut blocks_by_id = Vec::with_capacity(self.blocks_by_id.len());
+            for (id, block) in self.blocks_by_id.iter() {
+                blocks_by_id.push((*id, block.to_mesher_block()));
+            }
+
+            let mut registry = voxelize_mesher::Registry::new(blocks_by_id);
+            registry.build_cache();
+            Arc::new(registry)
+        }))
+    }
+
+    pub fn to_mesher_registry(&self) -> voxelize_mesher::Registry {
+        self.mesher_registry().as_ref().clone()
+    }
+
+    pub fn lighter_registry(&self) -> Arc<voxelize_lighter::LightRegistry> {
+        Arc::clone(self.lighter_registry_cache.get_or_init(|| {
+            let mut blocks_by_id = Vec::with_capacity(self.blocks_by_id.len());
+            for (id, block) in self.blocks_by_id.iter() {
+                blocks_by_id.push((*id, block.to_lighter_block()));
+            }
+
+            Arc::new(voxelize_lighter::LightRegistry::new(blocks_by_id))
+        }))
+    }
+
+    pub fn to_lighter_registry(&self) -> voxelize_lighter::LightRegistry {
+        self.lighter_registry().as_ref().clone()
+    }
+
+    fn invalidate_cached_registries(&mut self) {
+        self.mesher_registry_cache = OnceLock::new();
+        self.lighter_registry_cache = OnceLock::new();
     }
 }

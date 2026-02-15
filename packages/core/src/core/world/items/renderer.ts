@@ -5,6 +5,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   Object3D,
+  Vector3,
 } from "three";
 
 import type { World } from "../index";
@@ -44,6 +45,15 @@ export abstract class ItemRenderer {
 
 const THICKNESS = 0.25;
 const SIZE = 2.5;
+const Y_AXIS = new Vector3(0, 1, 0);
+const CUBE_FACE_TRIANGLE_INDICES = [
+  0, 1, 2, 0, 2, 3,
+  5, 4, 7, 5, 7, 6,
+  4, 0, 3, 4, 3, 7,
+  1, 5, 6, 1, 6, 2,
+  3, 2, 6, 3, 6, 7,
+  4, 5, 1, 4, 1, 0,
+];
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -110,40 +120,22 @@ function generateMeshDataFromImage(image: HTMLImageElement): ImageItemMeshData {
       const z0 = 0;
       const z1 = THICKNESS;
 
-      const verts = [
-        [x0, y0, z0],
-        [x1, y0, z0],
-        [x1, y1, z0],
-        [x0, y1, z0],
-        [x0, y0, z1],
-        [x1, y0, z1],
-        [x1, y1, z1],
-        [x0, y1, z1],
-      ];
-
-      for (const v of verts) {
-        positions.push(v[0], v[1], v[2]);
+      positions.push(
+        x0, y0, z0,
+        x1, y0, z0,
+        x1, y1, z0,
+        x0, y1, z0,
+        x0, y0, z1,
+        x1, y0, z1,
+        x1, y1, z1,
+        x0, y1, z1
+      );
+      for (let colorIndex = 0; colorIndex < 8; colorIndex++) {
         colors.push(r, g, b);
       }
 
-      const faces = [
-        [0, 1, 2, 3],
-        [5, 4, 7, 6],
-        [4, 0, 3, 7],
-        [1, 5, 6, 2],
-        [3, 2, 6, 7],
-        [4, 5, 1, 0],
-      ];
-
-      for (const face of faces) {
-        indices.push(
-          vertexIndex + face[0],
-          vertexIndex + face[1],
-          vertexIndex + face[2],
-          vertexIndex + face[0],
-          vertexIndex + face[2],
-          vertexIndex + face[3]
-        );
+      for (let indexOffset = 0; indexOffset < CUBE_FACE_TRIANGLE_INDICES.length; indexOffset++) {
+        indices.push(vertexIndex + CUBE_FACE_TRIANGLE_INDICES[indexOffset]);
       }
 
       vertexIndex += 8;
@@ -171,7 +163,7 @@ function createMeshFromData(data: ImageItemMeshData): Group {
   const mesh = new Mesh(geometry, material);
 
   mesh.position.set(1, -1.8, -2);
-  mesh.quaternion.setFromAxisAngle({ x: 0, y: 1, z: 0 } as never, -Math.PI / 4);
+  mesh.quaternion.setFromAxisAngle(Y_AXIS, -Math.PI / 4);
 
   const group1 = new Group();
   group1.add(mesh);

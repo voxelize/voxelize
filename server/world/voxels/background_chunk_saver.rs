@@ -1,4 +1,4 @@
-use byteorder::{ByteOrder, LittleEndian};
+use base64::{engine::general_purpose::STANDARD, Engine};
 use crossbeam_channel::{bounded, Receiver, Sender, TryRecvError};
 use hashbrown::HashMap;
 use libflate::zlib::Encoder;
@@ -11,6 +11,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
+
+#[cfg(not(target_endian = "little"))]
+use byteorder::{ByteOrder, LittleEndian};
 
 use crate::Vec2;
 
@@ -64,15 +67,19 @@ impl BackgroundChunkSaver {
     ) {
         let flush_interval = Duration::from_millis(50);
         let mut last_flush = Instant::now();
-        let mut pending: HashMap<Vec2<i32>, ChunkSaveData> = HashMap::new();
+        let mut pending: HashMap<Vec2<i32>, ChunkSaveData> = HashMap::with_capacity(64);
 
         loop {
             match receiver.try_recv() {
                 Ok(data) => {
-                    pending.insert(data.coords.clone(), data);
+                    pending.insert(data.coords, data);
                 }
                 Err(TryRecvError::Empty) => {
-                    if shutdown.load(Ordering::Relaxed) && pending.is_empty() {
+                    if shutdown.load(Ordering::Relaxed) {
+                        if pending.is_empty() {
+                            break;
+                        }
+                        Self::flush_pending(&mut pending, &folder);
                         break;
                     }
                     thread::sleep(Duration::from_millis(5));
@@ -92,38 +99,47 @@ impl BackgroundChunkSaver {
 
     fn flush_pending(pending: &mut HashMap<Vec2<i32>, ChunkSaveData>, folder: &PathBuf) {
         for (_, data) in pending.drain() {
-            Self::save_chunk_to_disk(&data, folder);
+            Self::save_chunk_to_disk(data, folder);
         }
-        // #endregion
     }
 
     fn to_base_64(data: &[u32]) -> String {
-        let mut bytes = vec![0; data.len() * 4];
-        LittleEndian::write_u32_into(data, &mut bytes);
+        if data.is_empty() {
+            return String::new();
+        }
+        let byte_len = data.len().saturating_mul(std::mem::size_of::<u32>());
 
-        let mut encoder = Encoder::new(vec![]).unwrap();
-        encoder.write_all(bytes.as_slice()).unwrap();
-        let encoded = encoder.finish().into_result().unwrap();
-        base64::encode(&encoded)
+        #[cfg(target_endian = "little")]
+        {
+            let bytes = unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u8, byte_len) };
+            let mut encoder = Encoder::new(Vec::with_capacity(byte_len)).unwrap();
+            encoder.write_all(bytes).unwrap();
+            let encoded = encoder.finish().into_result().unwrap();
+            STANDARD.encode(encoded)
+        }
+
+        #[cfg(not(target_endian = "little"))]
+        {
+            let mut bytes = vec![0; byte_len];
+            LittleEndian::write_u32_into(data, &mut bytes);
+
+            let mut encoder = Encoder::new(Vec::with_capacity(byte_len)).unwrap();
+            encoder.write_all(bytes.as_slice()).unwrap();
+            let encoded = encoder.finish().into_result().unwrap();
+            STANDARD.encode(encoded)
+        }
     }
 
-    fn save_chunk_to_disk(data: &ChunkSaveData, folder: &PathBuf) {
+    fn save_chunk_to_disk(data: ChunkSaveData, folder: &PathBuf) {
         let file_data = ChunkFileData {
-            id: data.chunk_id.clone(),
+            id: data.chunk_id,
             voxels: Self::to_base_64(&data.voxels),
             height_map: Self::to_base_64(&data.height_map),
         };
 
-        let json_data = match serde_json::to_string(&file_data) {
-            Ok(j) => j,
-            Err(e) => {
-                warn!("Failed to serialize chunk data: {}", e);
-                return;
-            }
-        };
-
         let mut path = folder.clone();
-        path.push(format!("{}.json", data.chunk_name));
+        path.push(data.chunk_name);
+        path.set_extension("json");
         let tmp_path = path.with_extension("json.tmp");
 
         let mut file = match File::create(&tmp_path) {
@@ -134,7 +150,8 @@ impl BackgroundChunkSaver {
             }
         };
 
-        if file.write_all(json_data.as_bytes()).is_err() {
+        if let Err(e) = serde_json::to_writer(&mut file, &file_data) {
+            warn!("Failed to serialize chunk data: {}", e);
             let _ = fs::remove_file(&tmp_path);
             return;
         }
@@ -176,7 +193,6 @@ impl BackgroundChunkSaver {
 impl Drop for BackgroundChunkSaver {
     fn drop(&mut self) {
         self.shutdown.store(true, Ordering::Relaxed);
-        drop(self.sender.clone());
         if let Some(handle) = self.handle.take() {
             let _ = handle.join();
         }

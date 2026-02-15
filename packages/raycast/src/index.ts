@@ -1,19 +1,23 @@
 import { AABB } from "@voxelize/aabb";
 
-export function raycastAABB(
-  origin: number[],
-  normal: number[],
+const EMPTY_AABBS: AABB[] = [];
+
+function raycastAABBAt(
+  ox: number,
+  oy: number,
+  oz: number,
+  nx: number,
+  ny: number,
+  nz: number,
   aabb: AABB,
   maxDistance = Infinity
 ): { axis: number; distance: number } | null {
-  const [nx, ny, nz] = normal;
-
-  const t1 = (aabb.minX - origin[0]) / nx;
-  const t2 = (aabb.maxX - origin[0]) / nx;
-  const t3 = (aabb.minY - origin[1]) / ny;
-  const t4 = (aabb.maxY - origin[1]) / ny;
-  const t5 = (aabb.minZ - origin[2]) / nz;
-  const t6 = (aabb.maxZ - origin[2]) / nz;
+  const t1 = (aabb.minX - ox) / nx;
+  const t2 = (aabb.maxX - ox) / nx;
+  const t3 = (aabb.minY - oy) / ny;
+  const t4 = (aabb.maxY - oy) / ny;
+  const t5 = (aabb.minZ - oz) / nz;
+  const t6 = (aabb.maxZ - oz) / nz;
 
   const tMin = Math.max(
     Math.max(Math.min(t1, t2), Math.min(t3, t4)),
@@ -26,7 +30,7 @@ export function raycastAABB(
     Math.max(t5, t6)
   );
   const tMaxAxis =
-    tMin === t1 || tMin === t2 ? 0 : tMin === t3 || tMin === t4 ? 1 : 2;
+    tMax === t1 || tMax === t2 ? 0 : tMax === t3 || tMax === t4 ? 1 : 2;
 
   // if tMax < 0, ray (line) is intersecting AABB, but whole AABB is behind us
   if (tMax < 0) {
@@ -57,6 +61,24 @@ export function raycastAABB(
     axis: tMinAxis,
     distance: tMin,
   };
+}
+
+export function raycastAABB(
+  origin: number[],
+  normal: number[],
+  aabb: AABB,
+  maxDistance = Infinity
+): { axis: number; distance: number } | null {
+  return raycastAABBAt(
+    origin[0],
+    origin[1],
+    origin[2],
+    normal[0],
+    normal[1],
+    normal[2],
+    aabb,
+    maxDistance
+  );
 }
 
 function raycast(
@@ -103,20 +125,16 @@ function raycast(
 
   while (t <= maxDistance) {
     // exit check
-    const aabbs = getVoxel(ix, iy, iz) || [];
+    const aabbs = getVoxel(ix, iy, iz) || EMPTY_AABBS;
 
-    let hit: any;
-    aabbs.forEach((aabb) => {
-      const result = raycastAABB(
-        origin,
-        [dx, dy, dz],
-        aabb.clone(),
-        maxDistance
-      );
-      if (result) {
+    let hit: { axis: number; distance: number } | null = null;
+    for (let aabbIndex = 0; aabbIndex < aabbs.length; aabbIndex++) {
+      const aabb = aabbs[aabbIndex];
+      const result = raycastAABBAt(ox, oy, oz, dx, dy, dz, aabb, maxDistance);
+      if (result && (!hit || result.distance < hit.distance)) {
         hit = result;
       }
-    });
+    }
 
     if (hit) {
       return {

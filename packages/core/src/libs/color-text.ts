@@ -29,6 +29,39 @@
  * @category Effects
  */
 export class ColorText {
+  private static findSingleSplitterIndex(
+    text: string,
+    textLength: number,
+    start: number,
+    splitterCode: number
+  ) {
+    if (start >= textLength) {
+      return -1;
+    }
+    for (let index = start; index < textLength; index++) {
+      if (text.charCodeAt(index) === splitterCode) {
+        return index;
+      }
+    }
+    return -1;
+  }
+
+  private static pushSegment(
+    result: { color: string; text: string }[],
+    color: string,
+    segment: string
+  ) {
+    if (segment.length === 0) {
+      return;
+    }
+    const lastIndex = result.length - 1;
+    if (lastIndex >= 0 && result[lastIndex].color === color) {
+      result[lastIndex].text += segment;
+      return;
+    }
+    result.push({ color, text: segment });
+  }
+
   /**
    * The symbol used to separate a text into a colored text object array.
    */
@@ -45,33 +78,120 @@ export class ColorText {
     text: string,
     defaultColor = "black"
   ): { color: string; text: string }[] {
-    const splitted = text
-      .split(
-        new RegExp(
-          `(\\${ColorText.SPLITTER}[^\\${ColorText.SPLITTER}]*\\${ColorText.SPLITTER})`
-        )
-      )
-      .filter(Boolean);
+    const splitter = ColorText.SPLITTER;
+    const splitterLength = splitter.length;
+    const textLength = text.length;
+    if (textLength === 0) {
+      return [];
+    }
+    if (splitterLength === 0) {
+      return [{ color: defaultColor, text }];
+    }
+    if (splitterLength > textLength) {
+      return [{ color: defaultColor, text }];
+    }
+    const result: { color: string; text: string }[] = [];
+    let currentColor = defaultColor;
+    let cursor = 0;
+    let endedOnColorToken = false;
 
-    if (splitted.length) {
-      if (!splitted[0].includes(ColorText.SPLITTER)) {
-        splitted.unshift(
-          `${ColorText.SPLITTER}${defaultColor}${ColorText.SPLITTER}`
-        );
+    if (splitterLength === 1) {
+      const splitterCode = splitter.charCodeAt(0);
+      let openIndex = ColorText.findSingleSplitterIndex(
+        text,
+        textLength,
+        0,
+        splitterCode
+      );
+      if (openIndex === -1) {
+        return [{ color: defaultColor, text }];
       }
 
-      if (splitted[splitted.length - 1].includes(ColorText.SPLITTER)) {
-        splitted.push("");
+      while (cursor < textLength) {
+        if (openIndex === -1) {
+          ColorText.pushSegment(result, currentColor, text.substring(cursor));
+          endedOnColorToken = false;
+          break;
+        }
+        if (openIndex > cursor) {
+          ColorText.pushSegment(
+            result,
+            currentColor,
+            text.substring(cursor, openIndex)
+          );
+          endedOnColorToken = false;
+        }
+        const tokenStart = openIndex + 1;
+        const closeIndex = ColorText.findSingleSplitterIndex(
+          text,
+          textLength,
+          tokenStart,
+          splitterCode
+        );
+        if (closeIndex === -1) {
+          ColorText.pushSegment(result, currentColor, text.substring(openIndex));
+          endedOnColorToken = false;
+          break;
+        }
+
+        currentColor = text.substring(tokenStart, closeIndex);
+        cursor = closeIndex + 1;
+        endedOnColorToken = cursor >= textLength;
+        openIndex = ColorText.findSingleSplitterIndex(
+          text,
+          textLength,
+          cursor,
+          splitterCode
+        );
+      }
+    } else {
+      let openIndex = text.indexOf(splitter, 0);
+      if (openIndex === -1) {
+        return [{ color: defaultColor, text }];
+      }
+
+      while (cursor < textLength) {
+        if (openIndex === -1) {
+          ColorText.pushSegment(result, currentColor, text.substring(cursor));
+          endedOnColorToken = false;
+          break;
+        }
+        if (openIndex > cursor) {
+          ColorText.pushSegment(
+            result,
+            currentColor,
+            text.substring(cursor, openIndex)
+          );
+          endedOnColorToken = false;
+        }
+        const tokenStart = openIndex + splitterLength;
+        const closeIndex = text.indexOf(splitter, tokenStart);
+        if (closeIndex === -1) {
+          ColorText.pushSegment(result, currentColor, text.substring(openIndex));
+          endedOnColorToken = false;
+          break;
+        }
+
+        currentColor = text.substring(tokenStart, closeIndex);
+        cursor = closeIndex + splitterLength;
+        endedOnColorToken = cursor >= textLength;
+        openIndex = text.indexOf(splitter, cursor);
       }
     }
 
-    const result = [];
+    if (endedOnColorToken) {
+      const lastSegment = result[result.length - 1];
+      if (!lastSegment || lastSegment.color !== currentColor) {
+        result.push({ color: currentColor, text: "" });
+      }
+    }
 
-    for (let i = 0; i < splitted.length; i += 2) {
-      const color = splitted[i].substring(1, splitted[i].length - 1);
-      const text = splitted[i + 1];
-
-      result.push({ color, text });
+    if (result.length === 0) {
+      if (endedOnColorToken) {
+        return [{ color: currentColor, text: "" }];
+      } else {
+        return [{ color: defaultColor, text }];
+      }
     }
 
     return result;

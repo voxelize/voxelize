@@ -10,6 +10,7 @@ use super::{
     block::{BlockRotation, PY_ROTATION},
     chunks::Chunks,
 };
+const SMALL_SPACE_CHUNK_LOAD_LIMIT: usize = 4;
 
 /// What kind of data does this space have/need?
 #[derive(Default)]
@@ -74,14 +75,33 @@ pub struct Space {
 }
 
 impl Space {
-    /// Converts a voxel position to a chunk coordinate and a chunk local coordinate.
-    fn to_local(&self, vx: i32, vy: i32, vz: i32) -> (Vec2<i32>, Vec3<usize>) {
-        let SpaceOptions { chunk_size, .. } = self.options;
+    #[inline]
+    fn chunk_size(&self) -> usize {
+        self.options.chunk_size.max(1)
+    }
 
-        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
-        let local = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+    #[inline]
+    fn max_height_i32(&self) -> Option<i32> {
+        if self.options.max_height > i32::MAX as usize {
+            None
+        } else {
+            Some(self.options.max_height as i32)
+        }
+    }
 
-        (coords, local)
+    #[inline]
+    fn is_y_above_world_height(&self, vy: i32) -> bool {
+        self.max_height_i32().is_some_and(|max_height| vy >= max_height)
+    }
+
+    #[inline]
+    fn is_y_out_of_world_height(&self, vy: i32) -> bool {
+        vy < 0 || self.is_y_above_world_height(vy)
+    }
+
+    #[inline]
+    pub(crate) fn take_lights(&mut self, cx: i32, cz: i32) -> Option<Ndarray<u32>> {
+        self.lights.remove(&Vec2(cx, cz))
     }
 }
 
@@ -133,12 +153,11 @@ impl SpaceBuilder<'_> {
 
     /// Create a `Space` instance with the instructed data loaded in.
     pub fn build(self) -> Space {
-        let SpaceOptions {
-            margin,
-            chunk_size,
-            max_height,
-            ..
-        } = self.options;
+        let mut options = self.options;
+        let margin = options.margin;
+        let chunk_size = options.chunk_size.max(1);
+        let max_height = options.max_height;
+        options.chunk_size = chunk_size;
 
         let Vec2(cx, cz) = self.coords;
 
@@ -146,81 +165,142 @@ impl SpaceBuilder<'_> {
             panic!("Margin of 0 on Space is wasteful.");
         }
 
-        let width = chunk_size + margin * 2;
+        let needs_voxels = self.needs_voxels;
+        let needs_lights = self.needs_lights;
+        let needs_height_maps = self.needs_height_maps;
+        let strict = self.strict;
 
-        let (voxels, lights, height_maps): (HashMap<_, _>, HashMap<_, _>, HashMap<_, _>) = self
-            .chunks
-            .light_traversed_chunks(&self.coords)
-            .into_par_iter()
-            .filter_map(|n_coords| {
-                if !self.chunks.is_within_world(&n_coords) {
-                    return None;
-                }
-
-                if let Some(chunk) = self.chunks.raw(&n_coords) {
-                    let voxels = if self.needs_voxels {
-                        Some((n_coords.clone(), Arc::clone(&chunk.voxels)))
+        let width = chunk_size.saturating_add(margin.saturating_mul(2));
+        let (voxels, lights, height_maps): (HashMap<_, _>, HashMap<_, _>, HashMap<_, _>) =
+            if let Some((min_x, max_x, min_z, max_z)) = self.chunks.light_traversed_bounds(&self.coords)
+            {
+                let width_x = (i64::from(max_x) - i64::from(min_x) + 1) as usize;
+                let width_z = (i64::from(max_z) - i64::from(min_z) + 1) as usize;
+                let traversed_count = width_x.saturating_mul(width_z);
+                if traversed_count <= SMALL_SPACE_CHUNK_LOAD_LIMIT {
+                    let mut voxels = if needs_voxels {
+                        HashMap::with_capacity(traversed_count)
                     } else {
-                        None
+                        HashMap::new()
                     };
-
-                    let lights = if self.needs_lights {
-                        Some((n_coords.clone(), (*chunk.lights).clone()))
+                    let mut lights = HashMap::with_capacity(traversed_count);
+                    let mut height_maps = if needs_height_maps {
+                        HashMap::with_capacity(traversed_count)
                     } else {
-                        Some((n_coords.clone(), ndarray(&chunk.lights.shape, 0)))
+                        HashMap::new()
                     };
-
-                    let height_maps = if self.needs_height_maps {
-                        Some((n_coords.clone(), Arc::clone(&chunk.height_map)))
-                    } else {
-                        None
-                    };
-
-                    Some((voxels, lights, height_maps))
-                } else if self.strict {
-                    panic!("Space incomplete in strict mode: {:?}", n_coords);
+                    for x in min_x..=max_x {
+                        for z in min_z..=max_z {
+                            let n_coords = Vec2(x, z);
+                            if let Some(chunk) = self.chunks.raw(&n_coords) {
+                                if needs_voxels {
+                                    voxels.insert(n_coords, Arc::clone(&chunk.voxels));
+                                }
+                                if needs_lights {
+                                    lights.insert(n_coords, (*chunk.lights).clone());
+                                } else {
+                                    lights.insert(n_coords, ndarray(&chunk.lights.shape, 0));
+                                }
+                                if needs_height_maps {
+                                    height_maps.insert(n_coords, Arc::clone(&chunk.height_map));
+                                }
+                            } else if strict {
+                                panic!("Space incomplete in strict mode: {:?}", n_coords);
+                            }
+                        }
+                    }
+                    (voxels, lights, height_maps)
                 } else {
-                    None
-                }
-            })
-            .fold(
-                || (HashMap::new(), HashMap::new(), HashMap::new()),
-                |(mut voxels_acc, mut lights_acc, mut height_maps_acc),
-                 (voxels, lights, height_maps)| {
-                    if let Some(voxel) = voxels {
-                        voxels_acc.insert(voxel.0, voxel.1);
-                    }
-                    if let Some(light) = lights {
-                        lights_acc.insert(light.0, light.1);
-                    }
-                    if let Some(height_map) = height_maps {
-                        height_maps_acc.insert(height_map.0, height_map.1);
-                    }
-                    (voxels_acc, lights_acc, height_maps_acc)
-                },
-            )
-            .reduce(
-                || (HashMap::new(), HashMap::new(), HashMap::new()),
-                |(mut voxels_acc, mut lights_acc, mut height_maps_acc),
-                 (voxels, lights, height_maps)| {
-                    voxels_acc.extend(voxels);
-                    lights_acc.extend(lights);
-                    height_maps_acc.extend(height_maps);
-                    (voxels_acc, lights_acc, height_maps_acc)
-                },
-            );
+                    (min_x..=max_x)
+                        .into_par_iter()
+                        .map(|x| {
+                            let mut voxels = if needs_voxels {
+                                HashMap::with_capacity(width_z)
+                            } else {
+                                HashMap::new()
+                            };
+                            let mut lights = HashMap::with_capacity(width_z);
+                            let mut height_maps = if needs_height_maps {
+                                HashMap::with_capacity(width_z)
+                            } else {
+                                HashMap::new()
+                            };
 
-        let min = Vec3(
-            cx * chunk_size as i32 - margin as i32,
-            0,
-            cz * chunk_size as i32 - margin as i32,
-        );
+                            for z in min_z..=max_z {
+                                let n_coords = Vec2(x, z);
+                                if let Some(chunk) = self.chunks.raw(&n_coords) {
+                                    if needs_voxels {
+                                        voxels.insert(n_coords, Arc::clone(&chunk.voxels));
+                                    }
+                                    if needs_lights {
+                                        lights.insert(n_coords, (*chunk.lights).clone());
+                                    } else {
+                                        lights.insert(n_coords, ndarray(&chunk.lights.shape, 0));
+                                    }
+                                    if needs_height_maps {
+                                        height_maps.insert(n_coords, Arc::clone(&chunk.height_map));
+                                    }
+                                } else if strict {
+                                    panic!("Space incomplete in strict mode: {:?}", n_coords);
+                                }
+                            }
+
+                            (voxels, lights, height_maps)
+                        })
+                        .reduce(
+                            || {
+                                (
+                                    if needs_voxels {
+                                        HashMap::with_capacity(traversed_count)
+                                    } else {
+                                        HashMap::new()
+                                    },
+                                    HashMap::with_capacity(traversed_count),
+                                    if needs_height_maps {
+                                        HashMap::with_capacity(traversed_count)
+                                    } else {
+                                        HashMap::new()
+                                    },
+                                )
+                            },
+                            |(mut voxels_acc, mut lights_acc, mut height_maps_acc),
+                             (voxels, lights, height_maps)| {
+                                voxels_acc.extend(voxels);
+                                lights_acc.extend(lights);
+                                height_maps_acc.extend(height_maps);
+                                (voxels_acc, lights_acc, height_maps_acc)
+                            },
+                        )
+                }
+            } else {
+                (HashMap::new(), HashMap::new(), HashMap::new())
+            };
+
+        let clamp_i64_to_i32 =
+            |value: i64| value.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
+        let chunk_size_i64 = if chunk_size > i64::MAX as usize {
+            i64::MAX
+        } else {
+            chunk_size as i64
+        };
+        let margin_i64 = if margin > i64::MAX as usize {
+            i64::MAX
+        } else {
+            margin as i64
+        };
+        let min_x = i64::from(cx)
+            .saturating_mul(chunk_size_i64)
+            .saturating_sub(margin_i64);
+        let min_z = i64::from(cz)
+            .saturating_mul(chunk_size_i64)
+            .saturating_sub(margin_i64);
+        let min = Vec3(clamp_i64_to_i32(min_x), 0, clamp_i64_to_i32(min_z));
 
         let shape = Vec3(width, max_height, width);
 
         Space {
             coords: self.coords,
-            options: self.options,
+            options,
 
             width,
             shape,
@@ -242,10 +322,14 @@ impl VoxelAccess for Space {
         if self.voxels.is_empty() {
             panic!("Space does not contain voxel data.");
         }
+        if self.is_y_out_of_world_height(vy) {
+            return 0;
+        }
 
-        let (coords, Vec3(lx, ly, lz)) = self.to_local(vx, vy, vz);
-
+        let chunk_size = self.chunk_size();
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
         if let Some(voxels) = self.voxels.get(&coords) {
+            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
             if !voxels.contains(&[lx, ly, lz]) {
                 return 0;
             }
@@ -259,30 +343,23 @@ impl VoxelAccess for Space {
     /// Get the voxel type at the voxel position. Zero is returned if chunk doesn't exist.
     /// Panics if space does not contain voxel data.
     fn get_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        if !self.contains(vx, vy, vz) {
-            return 0;
-        }
-
         BlockUtils::extract_id(self.get_raw_voxel(vx, vy, vz))
     }
 
     /// Get the voxel rotation at the voxel position. Zero is returned if chunk doesn't exist.
     /// Panics if space does not contain voxel data.
     fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> BlockRotation {
-        if !self.contains(vx, vy, vz) {
+        let raw = self.get_raw_voxel(vx, vy, vz);
+        if raw == 0 {
             return BlockRotation::encode(PY_ROTATION, 0);
         }
 
-        BlockUtils::extract_rotation(self.get_raw_voxel(vx, vy, vz))
+        BlockUtils::extract_rotation(raw)
     }
 
     /// Get the voxel stage at the voxel position. Zero is returned if chunk doesn't exist.
     /// Panics if space does not contain voxel data.
     fn get_voxel_stage(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        if !self.contains(vx, vy, vz) {
-            return 0;
-        }
-
         BlockUtils::extract_stage(self.get_raw_voxel(vx, vy, vz))
     }
 
@@ -293,15 +370,16 @@ impl VoxelAccess for Space {
             panic!("Space does not contain light data.");
         }
 
-        if vy > 0 && vy as usize >= self.options.max_height {
+        if self.is_y_above_world_height(vy) {
             return LightUtils::insert_sunlight(0, self.options.max_light_level);
         } else if vy < 0 {
             return 0;
         }
 
-        let (coords, Vec3(lx, ly, lz)) = self.to_local(vx, vy, vz);
-
+        let chunk_size = self.chunk_size();
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
         if let Some(lights) = self.lights.get(&coords) {
+            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
             if !lights.contains(&[lx, ly, lz]) {
                 return 0;
             }
@@ -319,16 +397,35 @@ impl VoxelAccess for Space {
             panic!("Space does not contain light data.");
         }
 
-        if !self.contains(vx, vy, vz) {
+        if self.is_y_out_of_world_height(vy) {
             return false;
         }
 
-        let (coords, Vec3(lx, ly, lz)) = self.to_local(vx, vy, vz);
-
+        let chunk_size = self.chunk_size();
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
         if let Some(lights) = self.lights.get_mut(&coords) {
-            let chunk_level =
-                vy as u32 / (self.options.max_height / self.options.sub_chunks) as u32;
-            self.updated_levels.insert(chunk_level);
+            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            if !lights.contains(&[lx, ly, lz]) {
+                return false;
+            }
+            if lights[&[lx, ly, lz]] == level {
+                return true;
+            }
+            let sub_chunks = self.options.sub_chunks;
+            if sub_chunks > 0 {
+                let representable_level_count = (sub_chunks as u128).min(u128::from(u32::MAX) + 1);
+                let max_level = representable_level_count.saturating_sub(1) as u32;
+                let max_height = self.options.max_height as u128;
+                let chunk_level = if max_height == 0 {
+                    0
+                } else {
+                    (u128::from(vy as u32)
+                        .saturating_mul(representable_level_count)
+                        / max_height)
+                        .min(max_level as u128) as u32
+                };
+                self.updated_levels.insert(chunk_level);
+            }
 
             lights[&[lx, ly, lz]] = level;
             return true;
@@ -339,15 +436,26 @@ impl VoxelAccess for Space {
 
     /// Get the sunlight level at the voxel position. Zero is returned if chunk doesn't exist.
     fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        if !self.contains(vx, vy, vz) {
-            return if vy < 0 {
-                0
-            } else {
-                self.options.max_light_level
-            };
+        if self.lights.is_empty() {
+            panic!("Space does not contain light data.");
+        }
+        if vy < 0 {
+            return 0;
+        }
+        if self.is_y_above_world_height(vy) {
+            return self.options.max_light_level;
         }
 
-        LightUtils::extract_sunlight(self.get_raw_light(vx, vy, vz))
+        let chunk_size = self.chunk_size();
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        if let Some(lights) = self.lights.get(&coords) {
+            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            if lights.contains(&[lx, ly, lz]) {
+                return LightUtils::extract_sunlight(lights[&[lx, ly, lz]]);
+            }
+        }
+
+        self.options.max_light_level
     }
 
     /// Get the max height at the voxel column. Zero is returned if column doesn't exist.
@@ -355,14 +463,13 @@ impl VoxelAccess for Space {
         if self.height_maps.is_empty() {
             panic!("Space does not contain height map data.");
         }
-
-        if !self.contains(vx, 0, vz) {
-            return 0;
-        }
-
-        let (coords, Vec3(lx, _, lz)) = self.to_local(vx, 0, vz);
-
+        let chunk_size = self.chunk_size();
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, 0, vz, chunk_size);
         if let Some(height_map) = self.height_maps.get(&coords) {
+            let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, 0, vz, chunk_size);
+            if !height_map.contains(&[lx, lz]) {
+                return 0;
+            }
             return height_map[&[lx, lz]];
         }
 
@@ -376,13 +483,35 @@ impl VoxelAccess for Space {
 
     /// Check if space contains this coordinate
     fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
-        let (coords, _) = self.to_local(vx, vy, vz);
+        if self.is_y_out_of_world_height(vy) {
+            return false;
+        }
+        let chunk_size = self.chunk_size();
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        let lights = self.lights.get(&coords);
+        let voxels = self.voxels.get(&coords);
+        let height_map = self.height_maps.get(&coords);
+        if lights.is_none() && voxels.is_none() && height_map.is_none() {
+            return false;
+        }
 
-        vy >= 0
-            && vy < self.options.max_height as i32
-            && (self.lights.contains_key(&coords)
-                || self.voxels.contains_key(&coords)
-                || self.height_maps.contains_key(&coords))
+        let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+        if let Some(lights) = lights {
+            if lights.contains(&[lx, ly, lz]) {
+                return true;
+            }
+        }
+        if let Some(voxels) = voxels {
+            if voxels.contains(&[lx, ly, lz]) {
+                return true;
+            }
+        }
+        if let Some(height_map) = height_map {
+            if height_map.contains(&[lx, lz]) {
+                return true;
+            }
+        }
+        false
     }
 }
 
@@ -419,6 +548,102 @@ impl voxelize_core::VoxelAccess for Space {
     fn get_all_lights(&self, vx: i32, vy: i32, vz: i32) -> (u32, u32, u32, u32) {
         let raw = VoxelAccess::get_raw_light(self, vx, vy, vz);
         LightUtils::extract_all(raw)
+    }
+
+    fn get_max_height(&self, vx: i32, vz: i32) -> u32 {
+        VoxelAccess::get_max_height(self, vx, vz)
+    }
+
+    fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        VoxelAccess::contains(self, vx, vy, vz)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use hashbrown::HashMap;
+
+    use super::{Space, SpaceOptions};
+    use crate::{ndarray, Vec2, Vec3, VoxelAccess};
+
+    fn test_space_with_sub_chunks(sub_chunks: usize) -> Space {
+        let mut lights = HashMap::new();
+        lights.insert(Vec2(0, 0), ndarray(&[16, 16, 16], 0));
+        Space {
+            coords: Vec2(0, 0),
+            width: 16,
+            shape: Vec3(16, 16, 16),
+            min: Vec3(0, 0, 0),
+            options: SpaceOptions {
+                margin: 1,
+                chunk_size: 16,
+                sub_chunks,
+                max_height: 16,
+                max_light_level: 15,
+            },
+            lights,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn set_raw_light_handles_sub_chunk_count_above_u32_range() {
+        let mut space = test_space_with_sub_chunks(u32::MAX as usize + 1);
+
+        assert!(space.set_raw_light(0, 0, 0, 1));
+        assert!(space.updated_levels.contains(&0));
+    }
+
+    #[test]
+    fn set_raw_light_clamps_dense_sub_chunk_levels_to_u32_range() {
+        let mut space = test_space_with_sub_chunks(usize::MAX);
+
+        assert!(space.set_raw_light(0, 15, 0, 1));
+        let level = *space
+            .updated_levels
+            .iter()
+            .next()
+            .expect("expected updated level");
+        assert_eq!(level, 4_026_531_840);
+    }
+
+    #[test]
+    fn set_raw_light_normalizes_zero_chunk_size() {
+        let mut space = test_space_with_sub_chunks(1);
+        space.options.chunk_size = 0;
+
+        assert!(space.set_raw_light(0, 0, 0, 1));
+    }
+
+    #[test]
+    fn take_lights_moves_light_array_out_of_space() {
+        let mut space = test_space_with_sub_chunks(1);
+
+        let lights = space.take_lights(0, 0).expect("missing test lights");
+        assert_eq!(lights.shape, vec![16, 16, 16]);
+        assert!(space.get_lights(0, 0).is_none());
+    }
+}
+
+impl voxelize_lighter::LightVoxelAccess for Space {
+    fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        VoxelAccess::get_raw_voxel(self, vx, vy, vz)
+    }
+
+    fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> BlockRotation {
+        VoxelAccess::get_voxel_rotation(self, vx, vy, vz)
+    }
+
+    fn get_voxel_stage(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        VoxelAccess::get_voxel_stage(self, vx, vy, vz)
+    }
+
+    fn get_raw_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        VoxelAccess::get_raw_light(self, vx, vy, vz)
+    }
+
+    fn set_raw_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
+        VoxelAccess::set_raw_light(self, vx, vy, vz, level)
     }
 
     fn get_max_height(&self, vx: i32, vz: i32) -> u32 {

@@ -1,5 +1,6 @@
 import { MessageProtocol } from "@voxelize/protocol";
 
+import { JsonValue } from "../types";
 import { NetIntercept } from "./network";
 
 /**
@@ -14,13 +15,13 @@ export type Event = {
   /**
    * Additional information of the event.
    */
-  payload?: any;
+  payload?: JsonValue;
 };
 
 /**
  * The handler for an event sent from the Voxelize server.
  */
-export type EventHandler = (payload: any | null) => void;
+export type EventHandler = (payload: JsonValue | null) => void;
 
 /**
  * A manager for any events interacting with the Voxelize server. This is useful
@@ -47,12 +48,13 @@ export type EventHandler = (payload: any | null) => void;
  * @noInheritDoc
  */
 export class Events extends Map<string, EventHandler> implements NetIntercept {
+  private static readonly EMPTY_PAYLOAD_JSON = "{}";
   /**
    * A list of packets that will be sent to the server.
    *
    * @hidden
    */
-  public packets: MessageProtocol<any, any, any, any>[] = [];
+  public packets: MessageProtocol[] = [];
 
   /**
    * The network intercept implementation for events.
@@ -65,11 +67,16 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
   onMessage = (message: MessageProtocol) => {
     switch (message.type) {
       case "EVENT": {
-        const { events } = message;
+        const events = message.events;
+        const eventCount = events?.length ?? 0;
+        if (eventCount === 0) {
+          return;
+        }
 
-        events.forEach((e: any) => {
-          this.handle(e.name, e.payload);
-        });
+        for (let eventIndex = 0; eventIndex < eventCount; eventIndex++) {
+          const event = events[eventIndex];
+          this.handle(event.name, event.payload);
+        }
 
         return;
       }
@@ -111,13 +118,17 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
    * @param name The name of the event to emit.
    * @param payload The payload to send with the event.
    */
-  emit = (name: string, payload: any = {}) => {
+  emit = (name: string, payload?: JsonValue) => {
+    const payloadJson =
+      payload === undefined
+        ? Events.EMPTY_PAYLOAD_JSON
+        : JSON.stringify(payload);
     this.packets.push({
       type: "EVENT",
       events: [
         {
           name,
-          payload: JSON.stringify(payload),
+          payload: payloadJson,
         },
       ],
     });
@@ -128,7 +139,7 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
    *
    * @hidden
    */
-  handle = (name: string, payload: any) => {
+  handle = (name: string, payload: JsonValue | null) => {
     const handler = this.get(name);
 
     if (!handler) {

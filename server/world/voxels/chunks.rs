@@ -1,8 +1,7 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
 use byteorder::{ByteOrder, LittleEndian};
-use hashbrown::{HashMap, HashSet};
+use hashbrown::{hash_map::Entry, HashMap, HashSet};
 use libflate::zlib::{Decoder, Encoder};
-use log::info;
 use serde::{Deserialize, Serialize};
 use specs::Entity;
 use std::sync::Arc;
@@ -66,9 +65,11 @@ pub struct Chunks {
 
     /// A list of chunks that are done meshing and ready to be sent.
     pub(crate) to_send: VecDeque<(Vec2<i32>, MessageType)>,
+    pub(crate) to_send_lookup: HashSet<Vec2<i32>>,
 
     /// A list of chunks that are done meshing and ready to be saved, if `config.save` is true.
     pub(crate) to_save: VecDeque<Vec2<i32>>,
+    pub(crate) to_save_lookup: HashSet<Vec2<i32>>,
 
     pub(crate) active_voxel_heap: BinaryHeap<Reverse<ActiveVoxel>>,
     pub(crate) active_voxel_set: HashMap<Vec3<i32>, u64>,
@@ -92,6 +93,58 @@ pub struct Chunks {
 }
 
 impl Chunks {
+    #[inline]
+    fn encode_base64_u32(data: &[u32]) -> String {
+        if data.is_empty() {
+            return String::new();
+        }
+        let byte_len = data.len().saturating_mul(std::mem::size_of::<u32>());
+
+        #[cfg(target_endian = "little")]
+        {
+            let bytes = unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u8, byte_len) };
+            let mut encoder = Encoder::new(Vec::with_capacity(byte_len)).unwrap();
+            encoder.write_all(bytes).unwrap();
+            let encoded = encoder.finish().into_result().unwrap();
+            STANDARD.encode(encoded)
+        }
+
+        #[cfg(not(target_endian = "little"))]
+        {
+            let mut bytes = vec![0; byte_len];
+            LittleEndian::write_u32_into(data, &mut bytes);
+
+            let mut encoder = Encoder::new(Vec::with_capacity(byte_len)).unwrap();
+            encoder.write_all(bytes.as_slice()).unwrap();
+            let encoded = encoder.finish().into_result().unwrap();
+            STANDARD.encode(encoded)
+        }
+    }
+
+    #[inline]
+    fn decode_base64_u32(base: &str, expected_u32_len: usize) -> Vec<u32> {
+        if base.is_empty() {
+            return Vec::new();
+        }
+
+        let decoded = STANDARD.decode(base).expect("Failed to decode base64");
+        let mut decoder = Decoder::new(&decoded[..]).expect("Failed to create decoder");
+        let mut buf = Vec::with_capacity(expected_u32_len.saturating_mul(4));
+        decoder
+            .read_to_end(&mut buf)
+            .expect("Failed to decode data");
+        let aligned_len = buf.len() & !3;
+        if aligned_len == 0 {
+            return Vec::new();
+        }
+        if aligned_len < buf.len() {
+            buf.truncate(aligned_len);
+        }
+        let mut data = vec![0; aligned_len / 4];
+        LittleEndian::read_u32_into(&buf, &mut data);
+        data
+    }
+
     /// Create a new instance of a chunk manager.
     pub fn new(config: &WorldConfig) -> Self {
         let folder = if config.saving {
@@ -129,25 +182,15 @@ impl Chunks {
 
         let data: ChunkFileData = serde_json::from_reader(chunk_data).ok()?;
 
-        let decode_base64 = |base: &str| -> Vec<u32> {
-            if base.is_empty() {
-                return vec![];
-            }
-
-            let decoded = STANDARD.decode(base).expect("Failed to decode base64");
-            let mut decoder = Decoder::new(&decoded[..]).expect("Failed to create decoder");
-            let mut buf = Vec::new();
-            decoder
-                .read_to_end(&mut buf)
-                .expect("Failed to decode data");
-            let mut data = vec![0; buf.len() / 4];
-            LittleEndian::read_u32_into(&buf, &mut data);
-            data
-        };
+        let chunk_size = self.chunk_size();
+        let expected_voxel_len = chunk_size
+            .saturating_mul(self.config.max_height)
+            .saturating_mul(chunk_size);
+        let expected_height_map_len = chunk_size.saturating_mul(chunk_size);
 
         let (voxels, height_map) = rayon::join(
-            || decode_base64(&data.voxels),
-            || decode_base64(&data.height_map),
+            || Self::decode_base64_u32(&data.voxels, expected_voxel_len),
+            || Self::decode_base64_u32(&data.height_map, expected_height_map_len),
         );
 
         let mut chunk = Chunk::new(
@@ -157,13 +200,13 @@ impl Chunks {
             &ChunkOptions {
                 max_height: self.config.max_height,
                 sub_chunks: self.config.sub_chunks,
-                size: self.config.chunk_size,
+                size: chunk_size,
             },
         );
 
         Arc::make_mut(&mut chunk.voxels).data = voxels;
 
-        if height_map.len() > 0 {
+        if !height_map.is_empty() {
             Arc::make_mut(&mut chunk.height_map).data = height_map;
         } else {
             chunk.calculate_max_height(registry);
@@ -188,25 +231,10 @@ impl Chunks {
         let path = self.get_chunk_file_path(&chunk.name);
         let tmp_path = path.with_extension("json.tmp");
 
-        let to_base_64 = |data: &Vec<u32>| {
-            let mut bytes = vec![0; data.len() * 4];
-            LittleEndian::write_u32_into(data, &mut bytes);
-
-            let mut encoder = Encoder::new(vec![]).unwrap();
-            encoder.write_all(bytes.as_slice()).unwrap();
-            let encoded = encoder.finish().into_result().unwrap();
-            base64::encode(&encoded)
-        };
-
         let data = ChunkFileData {
-            id: chunk.id.to_owned(),
-            voxels: to_base_64(&chunk.voxels.data),
-            height_map: to_base_64(&chunk.height_map.data),
-        };
-
-        let j = match serde_json::to_string(&data) {
-            Ok(j) => j,
-            Err(_) => return false,
+            id: chunk.id.clone(),
+            voxels: Self::encode_base64_u32(&chunk.voxels.data),
+            height_map: Self::encode_base64_u32(&chunk.height_map.data),
         };
 
         let mut file = match File::create(&tmp_path) {
@@ -214,7 +242,7 @@ impl Chunks {
             Err(_) => return false,
         };
 
-        if file.write_all(j.as_bytes()).is_err() {
+        if serde_json::to_writer(&mut file, &data).is_err() {
             let _ = fs::remove_file(&tmp_path);
             return false;
         }
@@ -250,17 +278,15 @@ impl Chunks {
     /// Update a chunk, removing the old chunk instance and updating with a new one.
     pub fn renew(&mut self, chunk: Chunk, renew_mesh_only: bool) {
         if renew_mesh_only {
-            if let Some(mut old_chunk) = self.map.remove(&chunk.coords) {
+            if let Some(old_chunk) = self.map.get_mut(&chunk.coords) {
                 old_chunk.meshes = chunk.meshes;
                 old_chunk.status = chunk.status;
-                self.map.insert(chunk.coords.to_owned(), old_chunk);
             }
 
             return;
         }
 
-        self.map.remove(&chunk.coords);
-        self.map.insert(chunk.coords.to_owned(), chunk);
+        self.map.insert(chunk.coords, chunk);
     }
 
     /// Add a new chunk, synonym for `chunks.renew`
@@ -283,7 +309,7 @@ impl Chunks {
             return None;
         }
 
-        self.cache.insert(coords.to_owned());
+        self.cache.insert(*coords);
         self.map.get_mut(coords)
     }
 
@@ -304,31 +330,45 @@ impl Chunks {
             return None;
         }
 
-        self.cache.insert(coords.to_owned());
+        self.cache.insert(*coords);
         self.map.get_mut(coords)
     }
 
     // Get a chunk by voxel coordinates. Returns a chunk even if chunk isn't fully instantiated.
     pub fn raw_chunk_by_voxel(&self, vx: i32, vy: i32, vz: i32) -> Option<&Chunk> {
-        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, self.config.chunk_size as usize);
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, self.chunk_size());
         self.raw(&coords)
     }
 
     /// Get a mutable chunk by voxel coordinates. Returns a chunk even if chunk isn't fully instantiated.
     pub fn raw_chunk_by_voxel_mut(&mut self, vx: i32, vy: i32, vz: i32) -> Option<&mut Chunk> {
-        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, self.config.chunk_size as usize);
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, self.chunk_size());
         self.raw_mut(&coords)
     }
 
     /// Get neighboring coords of a voxel coordinate.
     pub fn voxel_affected_chunks(&self, vx: i32, vy: i32, vz: i32) -> Vec<Vec2<i32>> {
-        let mut neighbors = vec![];
-        let chunk_size = self.config.chunk_size;
+        let mut neighbors = Vec::with_capacity(9);
+        let chunk_size = self.chunk_size();
 
         let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
         let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+        let mut push_if_within_world = |coords: Vec2<i32>| {
+            if self.is_within_world(&coords) {
+                neighbors.push(coords);
+            }
+        };
+        let mut push_with_offset = |offset_x: i32, offset_z: i32| {
+            let Some(nx) = cx.checked_add(offset_x) else {
+                return;
+            };
+            let Some(nz) = cz.checked_add(offset_z) else {
+                return;
+            };
+            push_if_within_world(Vec2(nx, nz));
+        };
 
-        neighbors.push(Vec2(cx, cz));
+        push_with_offset(0, 0);
 
         let a = lx == 0;
         let b = lz == 0;
@@ -336,64 +376,125 @@ impl Chunks {
         let d = lz == chunk_size - 1;
 
         if a {
-            neighbors.push(Vec2(cx - 1, cz))
+            push_with_offset(-1, 0);
         }
         if b {
-            neighbors.push(Vec2(cx, cz - 1));
+            push_with_offset(0, -1);
         }
         if c {
-            neighbors.push(Vec2(cx + 1, cz));
+            push_with_offset(1, 0);
         }
         if d {
-            neighbors.push(Vec2(cx, cz + 1));
+            push_with_offset(0, 1);
         }
 
         if a && b {
-            neighbors.push(Vec2(cx - 1, cz - 1));
+            push_with_offset(-1, -1);
         }
         if a && d {
-            neighbors.push(Vec2(cx - 1, cz + 1));
+            push_with_offset(-1, 1);
         }
         if b && c {
-            neighbors.push(Vec2(cx + 1, cz - 1));
+            push_with_offset(1, -1);
         }
         if c && d {
-            neighbors.push(Vec2(cx + 1, cz + 1));
+            push_with_offset(1, 1);
         }
 
         neighbors
-            .into_iter()
-            .filter(|coords| self.is_within_world(coords))
-            .collect()
     }
 
     /// Get a list of chunks that light could traverse within.
     pub fn light_traversed_chunks(&self, coords: &Vec2<i32>) -> Vec<Vec2<i32>> {
-        let mut list = vec![];
-        let extended =
-            (self.config.max_light_level as f32 / self.config.chunk_size as f32).ceil() as i32;
+        let Some((min_x, max_x, min_z, max_z)) = self.light_traversed_bounds(coords) else {
+            return Vec::new();
+        };
 
-        for x in -extended..=extended {
-            for z in -extended..=extended {
-                let n_coords = Vec2(coords.0 + x, coords.1 + z);
-
-                if self.is_within_world(&n_coords) {
-                    list.push(n_coords);
-                }
+        let width_x = (i64::from(max_x) - i64::from(min_x) + 1) as usize;
+        let width_z = (i64::from(max_z) - i64::from(min_z) + 1) as usize;
+        let mut list = Vec::with_capacity(width_x.saturating_mul(width_z));
+        for x in min_x..=max_x {
+            for z in min_z..=max_z {
+                list.push(Vec2(x, z));
             }
         }
-
         list
+    }
+
+    /// Iterate all chunks that light could traverse within for a center coordinate.
+    pub fn for_each_light_traversed_chunk<F>(&self, coords: &Vec2<i32>, mut f: F)
+    where
+        F: FnMut(Vec2<i32>),
+    {
+        let Some((min_x, max_x, min_z, max_z)) = self.light_traversed_bounds(coords) else {
+            return;
+        };
+        for x in min_x..=max_x {
+            for z in min_z..=max_z {
+                f(Vec2(x, z));
+            }
+        }
+    }
+
+    #[inline]
+    pub(crate) fn light_traversed_bounds(
+        &self,
+        coords: &Vec2<i32>,
+    ) -> Option<(i32, i32, i32, i32)> {
+        let chunk_size = self.chunk_size();
+        let extended = ((self.config.max_light_level as usize)
+            .saturating_add(chunk_size.saturating_sub(1))
+            / chunk_size)
+            .min(i32::MAX as usize) as i32;
+        let min_x = coords.0.saturating_sub(extended).max(self.config.min_chunk[0]);
+        let max_x = coords.0.saturating_add(extended).min(self.config.max_chunk[0]);
+        let min_z = coords.1.saturating_sub(extended).max(self.config.min_chunk[1]);
+        let max_z = coords.1.saturating_add(extended).min(self.config.max_chunk[1]);
+        if min_x > max_x || min_z > max_z {
+            return None;
+        }
+        Some((min_x, max_x, min_z, max_z))
+    }
+
+    #[inline]
+    pub(crate) fn light_traversed_bounds_for_center_radius(
+        &self,
+        radius: i32,
+    ) -> Option<(i32, i32, i32, i32)> {
+        let clamped_radius = radius.max(0);
+        let chunk_size = self.chunk_size();
+        let extended = ((self.config.max_light_level as usize)
+            .saturating_add(chunk_size.saturating_sub(1))
+            / chunk_size)
+            .min(i32::MAX as usize) as i32;
+        let min_center = clamped_radius.saturating_neg();
+        let max_center = clamped_radius;
+        let min_x = min_center
+            .saturating_sub(extended)
+            .max(self.config.min_chunk[0]);
+        let max_x = max_center
+            .saturating_add(extended)
+            .min(self.config.max_chunk[0]);
+        let min_z = min_center
+            .saturating_sub(extended)
+            .max(self.config.min_chunk[1]);
+        let max_z = max_center
+            .saturating_add(extended)
+            .min(self.config.max_chunk[1]);
+        if min_x > max_x || min_z > max_z {
+            return None;
+        }
+        Some((min_x, max_x, min_z, max_z))
     }
 
     /// Create a voxel querying space around a chunk coordinate.
     pub fn make_space<'a>(&'a self, coords: &Vec2<i32>, margin: usize) -> SpaceBuilder<'a> {
         SpaceBuilder {
             chunks: self,
-            coords: coords.to_owned(),
+            coords: *coords,
             options: SpaceOptions {
                 margin,
-                chunk_size: self.config.chunk_size,
+                chunk_size: self.chunk_size(),
                 sub_chunks: self.config.sub_chunks,
                 max_height: self.config.max_height,
                 max_light_level: self.config.max_light_level,
@@ -431,7 +532,7 @@ impl Chunks {
     /// and sending the chunk to the interested clients. This process is not instant, and will
     /// be done in the background.
     pub fn update_voxel(&mut self, voxel: &Vec3<i32>, val: u32) {
-        self.updates_staging.insert(voxel.to_owned(), val);
+        self.updates_staging.insert(*voxel, val);
     }
 
     /// Flush staged updates into the processing queue. Called before processing updates.
@@ -440,8 +541,13 @@ impl Chunks {
             return;
         }
 
-        self.updates
-            .retain(|(v, _)| !self.updates_staging.contains_key(v));
+        if !self.updates.is_empty() {
+            self.updates
+                .retain(|(v, _)| !self.updates_staging.contains_key(v));
+        }
+
+        let staged_count = self.updates_staging.len();
+        self.updates.reserve(staged_count);
 
         for (voxel, val) in self.updates_staging.drain() {
             self.updates.push_back((voxel, val));
@@ -449,30 +555,38 @@ impl Chunks {
     }
 
     pub fn update_voxels(&mut self, voxels: &[(Vec3<i32>, u32)]) {
+        if voxels.is_empty() {
+            return;
+        }
+        self.updates_staging.reserve(voxels.len());
         for (voxel, val) in voxels {
-            self.update_voxel(voxel, *val);
+            self.updates_staging.insert(*voxel, *val);
         }
     }
 
     pub fn mark_voxel_active(&mut self, voxel: &Vec3<i32>, active_at: u64) {
-        if self.active_voxel_set.contains_key(voxel) {
-            return;
+        let voxel = *voxel;
+        match self.active_voxel_set.entry(voxel) {
+            Entry::Occupied(_) => return,
+            Entry::Vacant(entry) => {
+                entry.insert(active_at);
+            }
         }
-        self.active_voxel_set.insert(voxel.clone(), active_at);
         self.active_voxel_heap.push(Reverse(ActiveVoxel {
             tick: active_at,
-            voxel: voxel.clone(),
+            voxel,
         }));
     }
 
     /// Add a chunk to be saved.
     pub fn add_chunk_to_save(&mut self, coords: &Vec2<i32>, prioritized: bool) {
-        if !self.to_save.contains(coords) {
-            if prioritized {
-                self.to_save.push_front(coords.to_owned());
-            } else {
-                self.to_save.push_back(coords.to_owned());
-            }
+        if !self.config.saving || !self.to_save_lookup.insert(*coords) {
+            return;
+        }
+        if prioritized {
+            self.to_save.push_front(*coords);
+        } else {
+            self.to_save.push_back(*coords);
         }
     }
 
@@ -483,121 +597,273 @@ impl Chunks {
         r#type: &MessageType,
         prioritized: bool,
     ) {
-        if self.to_send.iter().any(|(c, _)| c == coords) {
+        if !self.to_send_lookup.insert(*coords) {
             return;
         }
         if prioritized {
-            self.to_send.push_front((coords.to_owned(), r#type.clone()));
+            self.to_send.push_front((*coords, *r#type));
         } else {
-            self.to_send.push_back((coords.to_owned(), r#type.clone()));
+            self.to_send.push_back((*coords, *r#type));
         }
     }
 
     /// Add a listener to a chunk.
     pub fn add_listener(&mut self, coords: &Vec2<i32>, listener: &Vec2<i32>) {
-        let mut listeners = self.listeners.remove(coords).unwrap_or_default();
-        listeners.push(listener.to_owned());
-        self.listeners.insert(coords.to_owned(), listeners);
+        let listeners = self.listeners.entry(*coords).or_default();
+        if listeners.iter().any(|existing| existing == listener) {
+            return;
+        }
+        listeners.push(*listener);
     }
 
     fn get_chunk_file_path(&self, chunk_name: &str) -> PathBuf {
-        if self.folder.is_none() {
+        let Some(folder) = self.folder.as_ref() else {
             return PathBuf::new();
-        }
-
-        let mut path = self.folder.clone().unwrap();
-        path.push(format!("{}.json", chunk_name));
+        };
+        let mut path = folder.clone();
+        path.push(chunk_name);
+        path.set_extension("json");
         path
     }
 
+    fn add_updated_level_for_chunk(&mut self, coords: Vec2<i32>, vy: i32) {
+        if let Some(neighbor) = self.raw_mut(&coords) {
+            neighbor.add_updated_level(vy);
+        }
+    }
+
+    #[inline]
+    fn chunk_size(&self) -> usize {
+        self.config.chunk_size.max(1)
+    }
+
+    #[inline]
+    fn max_height_i32(&self) -> Option<i32> {
+        if self.config.max_height > i32::MAX as usize {
+            None
+        } else {
+            Some(self.config.max_height as i32)
+        }
+    }
+
+    #[inline]
+    fn is_y_above_world_height(&self, vy: i32) -> bool {
+        self.max_height_i32().is_some_and(|max_height| vy >= max_height)
+    }
+
+    #[inline]
+    fn is_y_out_of_world_height(&self, vy: i32) -> bool {
+        vy < 0 || self.is_y_above_world_height(vy)
+    }
+
     fn add_updated_level_at(&mut self, vx: i32, vy: i32, vz: i32) {
-        self.voxel_affected_chunks(vx, vy, vz)
-            .into_iter()
-            .for_each(|coords| {
-                if let Some(neighbor) = self.raw_mut(&coords) {
-                    neighbor.add_updated_level(vy);
-                }
-            });
+        if self.is_y_out_of_world_height(vy) {
+            return;
+        }
+        let chunk_size = self.chunk_size();
+        let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+
+        self.add_updated_level_for_chunk(Vec2(cx, cz), vy);
+
+        let touches_min_x = lx == 0;
+        let touches_min_z = lz == 0;
+        let touches_max_x = lx == chunk_size - 1;
+        let touches_max_z = lz == chunk_size - 1;
+        let mut add_with_offset = |offset_x: i32, offset_z: i32| {
+            let Some(nx) = cx.checked_add(offset_x) else {
+                return;
+            };
+            let Some(nz) = cz.checked_add(offset_z) else {
+                return;
+            };
+            self.add_updated_level_for_chunk(Vec2(nx, nz), vy);
+        };
+
+        if touches_min_x {
+            add_with_offset(-1, 0);
+        }
+        if touches_min_z {
+            add_with_offset(0, -1);
+        }
+        if touches_max_x {
+            add_with_offset(1, 0);
+        }
+        if touches_max_z {
+            add_with_offset(0, 1);
+        }
+        if touches_min_x && touches_min_z {
+            add_with_offset(-1, -1);
+        }
+        if touches_min_x && touches_max_z {
+            add_with_offset(-1, 1);
+        }
+        if touches_max_x && touches_min_z {
+            add_with_offset(1, -1);
+        }
+        if touches_max_x && touches_max_z {
+            add_with_offset(1, 1);
+        }
+    }
+
+    #[inline]
+    fn local_is_within_chunk(chunk: &Chunk, lx: usize, ly: usize, lz: usize) -> bool {
+        lx < chunk.options.size && ly < chunk.options.max_height && lz < chunk.options.size
+    }
+
+    #[inline]
+    fn local_column_is_within_chunk(chunk: &Chunk, lx: usize, lz: usize) -> bool {
+        lx < chunk.options.size && lz < chunk.options.size
     }
 }
 
 impl VoxelAccess for Chunks {
     /// Get the raw voxel value at a voxel coordinate. If chunk not found, 0 is returned.
     fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        if let Some(chunk) = self.raw_chunk_by_voxel(vx, vy, vz) {
-            chunk.get_raw_voxel(vx, vy, vz)
-        } else {
-            0
+        if self.is_y_out_of_world_height(vy) {
+            return 0;
         }
+        let chunk_size = self.chunk_size();
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        if let Some(chunk) = self.raw(&coords) {
+            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            if !Self::local_is_within_chunk(chunk, lx, ly, lz) {
+                return 0;
+            }
+            return chunk.voxels[&[lx, ly, lz]];
+        }
+
+        0
     }
 
     /// Set the raw voxel value at a voxel coordinate. Returns false couldn't set.
     fn set_raw_voxel(&mut self, vx: i32, vy: i32, vz: i32, id: u32) -> bool {
-        if let Some(chunk) = self.raw_chunk_by_voxel_mut(vx, vy, vz) {
-            chunk.set_raw_voxel(vx, vy, vz, id);
-            self.add_updated_level_at(vx, vy, vz);
-
-            return true;
+        if self.is_y_out_of_world_height(vy) {
+            return false;
         }
+        let chunk_size = self.chunk_size();
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
 
-        false
+        {
+            let Some(chunk) = self.raw_mut(&coords) else {
+                return false;
+            };
+            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            if !Self::local_is_within_chunk(chunk, lx, ly, lz) {
+                if vy >= 0 && (vy as usize) < chunk.options.max_height {
+                    chunk.extra_changes.push((Vec3(vx, vy, vz), id));
+                }
+                return false;
+            }
+            if chunk.voxels[&[lx, ly, lz]] == id {
+                return true;
+            }
+
+            Arc::make_mut(&mut chunk.voxels)[&[lx, ly, lz]] = id;
+        }
+        self.add_updated_level_at(vx, vy, vz);
+
+        true
     }
 
     /// Get the raw light value at a voxel coordinate. If chunk not found, 0 is returned.
     fn get_raw_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        if vy as usize >= self.config.max_height {
+        if self.is_y_above_world_height(vy) {
             return LightUtils::insert_sunlight(0, self.config.max_light_level);
         }
-
-        if let Some(chunk) = self.raw_chunk_by_voxel(vx, vy, vz) {
-            chunk.get_raw_light(vx, vy, vz)
-        } else {
-            0
+        if vy < 0 {
+            return 0;
         }
+        let chunk_size = self.chunk_size();
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        if let Some(chunk) = self.raw(&coords) {
+            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            if !Self::local_is_within_chunk(chunk, lx, ly, lz) {
+                return 0;
+            }
+            return chunk.lights[&[lx, ly, lz]];
+        }
+
+        0
     }
 
     /// Set the raw light level at a voxel coordinate. Returns false couldn't set.
     fn set_raw_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
-        if let Some(chunk) = self.raw_chunk_by_voxel_mut(vx, vy, vz) {
-            chunk.set_raw_light(vx, vy, vz, level);
-            self.add_updated_level_at(vx, vy, vz);
-
-            return true;
+        if self.is_y_out_of_world_height(vy) {
+            return false;
         }
+        let chunk_size = self.chunk_size();
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
 
-        false
+        {
+            let Some(chunk) = self.raw_mut(&coords) else {
+                return false;
+            };
+            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            if !Self::local_is_within_chunk(chunk, lx, ly, lz) {
+                return false;
+            }
+            if chunk.lights[&[lx, ly, lz]] == level {
+                return true;
+            }
+
+            Arc::make_mut(&mut chunk.lights)[&[lx, ly, lz]] = level;
+        }
+        self.add_updated_level_at(vx, vy, vz);
+
+        true
     }
 
     /// Get the sunlight level at a voxel position. Returns 0 if chunk does not exist.
     fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        if vy >= self.config.max_height as i32 {
+        if self.is_y_above_world_height(vy) {
             return self.config.max_light_level;
         }
-
-        if let Some(chunk) = self.raw_chunk_by_voxel(vx, vy, vz) {
-            chunk.get_sunlight(vx, vy, vz)
-        } else {
-            return if vy < 0 {
-                0
-            } else {
-                self.config.max_light_level
-            };
+        if vy < 0 {
+            return 0;
         }
+        let chunk_size = self.chunk_size();
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        if let Some(chunk) = self.raw(&coords) {
+            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            if !Self::local_is_within_chunk(chunk, lx, ly, lz) {
+                return 0;
+            }
+            return LightUtils::extract_sunlight(chunk.lights[&[lx, ly, lz]]);
+        }
+
+        self.config.max_light_level
     }
 
     /// Get the max height at a voxel column. Returns 0 if column does not exist.
     fn get_max_height(&self, vx: i32, vz: i32) -> u32 {
-        if let Some(chunk) = self.raw_chunk_by_voxel(vx, 0, vz) {
-            chunk.get_max_height(vx, vz)
-        } else {
-            0
+        let chunk_size = self.chunk_size();
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, 0, vz, chunk_size);
+        if let Some(chunk) = self.raw(&coords) {
+            let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, 0, vz, chunk_size);
+            if !Self::local_column_is_within_chunk(chunk, lx, lz) {
+                return 0;
+            }
+            return chunk.height_map[&[lx, lz]];
         }
+
+        0
     }
 
     /// Set the max height at a voxel column. Does nothing if column does not exist.
     fn set_max_height(&mut self, vx: i32, vz: i32, height: u32) -> bool {
-        if let Some(chunk) = self.raw_chunk_by_voxel_mut(vx, 0, vz) {
-            chunk.set_max_height(vx, vz, height);
+        let chunk_size = self.chunk_size();
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, 0, vz, chunk_size);
+
+        if let Some(chunk) = self.raw_mut(&coords) {
+            let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, 0, vz, chunk_size);
+            if !Self::local_column_is_within_chunk(chunk, lx, lz) {
+                return false;
+            }
+            if chunk.height_map[&[lx, lz]] == height {
+                return true;
+            }
+            Arc::make_mut(&mut chunk.height_map)[&[lx, lz]] = height;
             return true;
         }
 
@@ -605,6 +871,151 @@ impl VoxelAccess for Chunks {
     }
 
     fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
-        self.raw_chunk_by_voxel(vx, vy, vz).is_some()
+        if self.is_y_out_of_world_height(vy) {
+            return false;
+        }
+
+        let chunk_size = self.chunk_size();
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        if let Some(chunk) = self.raw(&coords) {
+            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            return Self::local_is_within_chunk(chunk, lx, ly, lz);
+        }
+
+        false
+    }
+}
+
+impl voxelize_lighter::LightVoxelAccess for Chunks {
+    fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        VoxelAccess::get_raw_voxel(self, vx, vy, vz)
+    }
+
+    fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> super::block::BlockRotation {
+        VoxelAccess::get_voxel_rotation(self, vx, vy, vz)
+    }
+
+    fn get_voxel_stage(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        VoxelAccess::get_voxel_stage(self, vx, vy, vz)
+    }
+
+    fn get_raw_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        VoxelAccess::get_raw_light(self, vx, vy, vz)
+    }
+
+    fn set_raw_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
+        VoxelAccess::set_raw_light(self, vx, vy, vz, level)
+    }
+
+    fn get_max_height(&self, vx: i32, vz: i32) -> u32 {
+        VoxelAccess::get_max_height(self, vx, vz)
+    }
+
+    fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        VoxelAccess::contains(self, vx, vy, vz)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Chunks;
+    use crate::{MessageType, Vec2, WorldConfig};
+
+    #[test]
+    fn add_chunk_to_save_skips_when_saving_disabled() {
+        let config = WorldConfig::new().saving(false).build();
+        let mut chunks = Chunks::new(&config);
+
+        chunks.add_chunk_to_save(&Vec2(1, 2), false);
+
+        assert!(chunks.to_save.is_empty());
+        assert!(chunks.to_save_lookup.is_empty());
+    }
+
+    #[test]
+    fn add_chunk_to_send_dedupes_by_coords() {
+        let config = WorldConfig::new().build();
+        let mut chunks = Chunks::new(&config);
+
+        chunks.add_chunk_to_send(&Vec2(3, -4), &MessageType::Load, false);
+        chunks.add_chunk_to_send(&Vec2(3, -4), &MessageType::Update, true);
+
+        assert_eq!(chunks.to_send.len(), 1);
+        assert_eq!(chunks.to_send_lookup.len(), 1);
+        assert_eq!(
+            chunks.to_send.front().map(|(_, msg_type)| *msg_type),
+            Some(MessageType::Load)
+        );
+    }
+
+    #[test]
+    fn light_traversed_chunks_clamps_to_world_bounds() {
+        let config = WorldConfig::new().min_chunk([0, 0]).max_chunk([1, 1]).build();
+        let chunks = Chunks::new(&config);
+
+        let traversed = chunks.light_traversed_chunks(&Vec2(0, 0));
+
+        assert_eq!(
+            traversed,
+            vec![Vec2(0, 0), Vec2(0, 1), Vec2(1, 0), Vec2(1, 1)]
+        );
+    }
+
+    #[test]
+    fn light_traversed_bounds_for_center_radius_handles_disjoint_and_overlap() {
+        let config = WorldConfig::new()
+            .chunk_size(16)
+            .max_light_level(15)
+            .min_chunk([100, 100])
+            .max_chunk([101, 101])
+            .build();
+        let chunks = Chunks::new(&config);
+
+        assert_eq!(chunks.light_traversed_bounds_for_center_radius(0), None);
+        assert_eq!(
+            chunks.light_traversed_bounds_for_center_radius(100),
+            Some((100, 101, 100, 101))
+        );
+        assert_eq!(chunks.light_traversed_bounds_for_center_radius(-5), None);
+    }
+
+    #[test]
+    fn add_listener_dedupes_existing_listener_ids() {
+        let config = WorldConfig::new().build();
+        let mut chunks = Chunks::new(&config);
+        let coords = Vec2(2, -3);
+        let first = Vec2(10, 11);
+        let second = Vec2(-4, 8);
+
+        chunks.add_listener(&coords, &first);
+        chunks.add_listener(&coords, &second);
+        chunks.add_listener(&coords, &first);
+
+        let listeners = chunks.listeners.get(&coords).expect("listeners missing");
+        assert_eq!(listeners, &vec![first, second]);
+    }
+
+    #[test]
+    fn make_space_normalizes_zero_chunk_size() {
+        let config = WorldConfig::new().chunk_size(0).build();
+        let chunks = Chunks::new(&config);
+
+        let space = chunks.make_space(&Vec2(0, 0), 1).build();
+
+        assert_eq!(space.options.chunk_size, 1);
+    }
+
+    #[test]
+    fn encode_base64_u32_returns_empty_for_empty_input() {
+        assert!(Chunks::encode_base64_u32(&[]).is_empty());
+    }
+
+    #[test]
+    fn encode_decode_base64_u32_roundtrip_restores_values() {
+        let raw = vec![0, 1, u32::MAX, 12345];
+        let encoded = Chunks::encode_base64_u32(&raw);
+        let decoded = Chunks::decode_base64_u32(&encoded, raw.len());
+
+        assert_eq!(decoded, raw);
     }
 }

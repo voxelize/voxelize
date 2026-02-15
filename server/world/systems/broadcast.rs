@@ -1,55 +1,86 @@
-use hashbrown::HashMap;
+use hashbrown::{hash_map::Entry, HashMap, HashSet};
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
     common::ClientFilter,
     encode_message, fragment_message,
     server::Message,
-    world::{profiler::Profiler, system_profiler::WorldTimingContext, Clients, MessageQueues},
+    world::{profiler::Profiler, system_profiler::WorldTimingContext, Client, Clients, MessageQueues},
     EncodedMessage, EncodedMessageQueue, MessageType, RtcSenders, Transports,
 };
 
 pub struct BroadcastSystem;
+const SMALL_FILTER_LINEAR_SCAN_LIMIT: usize = 8;
 
-fn filter_key(filter: &ClientFilter) -> String {
-    match filter {
-        ClientFilter::All => "all".to_string(),
-        ClientFilter::Direct(id) => format!("direct:{}", id),
-        ClientFilter::Include(ids) => {
-            let mut sorted = ids.clone();
-            sorted.sort();
-            format!("include:{}", sorted.join(","))
+#[inline]
+fn ids_are_strictly_sorted(ids: &[String]) -> bool {
+    if ids.len() < 2 {
+        return true;
+    }
+    let mut prev = ids[0].as_str();
+    for id in ids.iter().skip(1) {
+        let id = id.as_str();
+        if id <= prev {
+            return false;
         }
-        ClientFilter::Exclude(ids) => {
-            let mut sorted = ids.clone();
-            sorted.sort();
-            format!("exclude:{}", sorted.join(","))
-        }
+        prev = id;
+    }
+    true
+}
+
+#[inline]
+fn sorted_ids_contains(ids: &[String], target: &str) -> bool {
+    ids.binary_search_by(|probe| probe.as_str().cmp(target))
+        .is_ok()
+}
+
+#[inline]
+fn ids_contains_target(ids: &[String], target: &str) -> bool {
+    match ids.len() {
+        0 => false,
+        1 => ids[0] == target,
+        2 => ids[0] == target || ids[1] == target,
+        _ => ids.iter().any(|id| id.as_str() == target),
     }
 }
 
+fn normalize_filter_for_batching(filter: &mut ClientFilter) {
+    let ids = match filter {
+        ClientFilter::Include(ids) | ClientFilter::Exclude(ids) => ids,
+        _ => return,
+    };
+    if ids.len() < 2 || ids_are_strictly_sorted(ids) {
+        return;
+    }
+    ids.sort_unstable();
+    ids.dedup();
+}
+
 fn can_batch(msg_type: i32) -> bool {
-    matches!(
-        MessageType::try_from(msg_type),
-        Ok(MessageType::Peer)
-            | Ok(MessageType::Entity)
-            | Ok(MessageType::Update)
-            | Ok(MessageType::Event)
-    )
+    msg_type == MessageType::Peer as i32
+        || msg_type == MessageType::Entity as i32
+        || msg_type == MessageType::Update as i32
+        || msg_type == MessageType::Event as i32
 }
 
 fn is_immediate(msg_type: i32) -> bool {
-    matches!(
-        MessageType::try_from(msg_type),
-        Ok(MessageType::Chat) | Ok(MessageType::Method)
-    )
+    msg_type == MessageType::Chat as i32 || msg_type == MessageType::Method as i32
 }
 
 fn should_send_to_transport(msg_type: i32) -> bool {
-    matches!(
-        MessageType::try_from(msg_type),
-        Ok(MessageType::Entity) | Ok(MessageType::Peer)
-    )
+    msg_type == MessageType::Entity as i32 || msg_type == MessageType::Peer as i32
+}
+
+#[inline]
+fn send_to_transports(transports: &Transports, payload: Vec<u8>) {
+    let mut senders = transports.values();
+    let Some(first_sender) = senders.next() else {
+        return;
+    };
+    for sender in senders {
+        let _ = sender.send(payload.clone());
+    }
+    let _ = first_sender.send(payload);
 }
 
 fn merge_messages(base: &mut Message, other: Message) {
@@ -60,26 +91,37 @@ fn merge_messages(base: &mut Message, other: Message) {
 }
 
 fn batch_messages(messages: Vec<(Message, ClientFilter)>) -> Vec<(Message, ClientFilter)> {
-    let mut batched: HashMap<(i32, String), (Message, ClientFilter)> = HashMap::new();
-    let mut unbatched: Vec<(Message, ClientFilter)> = Vec::new();
+    if messages.len() <= 1 {
+        return messages;
+    }
+    let total_messages = messages.len();
+    let mut batched: HashMap<(i32, ClientFilter), Message> = HashMap::with_capacity(total_messages);
+    let mut unbatched: Vec<(Message, ClientFilter)> = Vec::with_capacity(total_messages);
 
-    for (message, filter) in messages {
+    for (message, mut filter) in messages {
         let msg_type = message.r#type;
 
         if can_batch(msg_type) {
-            let key = (msg_type, filter_key(&filter));
+            normalize_filter_for_batching(&mut filter);
 
-            if let Some((existing, _)) = batched.get_mut(&key) {
-                merge_messages(existing, message);
-            } else {
-                batched.insert(key, (message, filter));
+            match batched.entry((msg_type, filter)) {
+                Entry::Occupied(mut entry) => {
+                    merge_messages(entry.get_mut(), message);
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert(message);
+                }
             }
         } else {
             unbatched.push((message, filter));
         }
     }
 
-    let mut result: Vec<(Message, ClientFilter)> = batched.into_values().collect();
+    let mut result: Vec<(Message, ClientFilter)> =
+        Vec::with_capacity(batched.len() + unbatched.len());
+    for ((_, filter), message) in batched {
+        result.push((message, filter));
+    }
     result.extend(unbatched);
     result
 }
@@ -108,56 +150,70 @@ impl<'a> System<'a> for BroadcastSystem {
         let _t = timing.timer("broadcast");
         let world_name = &*timing.world_name;
 
-        let messages_with_world_name: Vec<(Message, ClientFilter)> = queues
-            .drain_prioritized()
-            .into_iter()
-            .map(|(mut message, filter)| {
-                message.world_name = world_name.clone();
-                (message, filter)
-            })
-            .collect();
-
-        let (immediate_messages, deferred_messages): (Vec<_>, Vec<_>) = messages_with_world_name
-            .into_iter()
-            .partition(|(msg, _)| is_immediate(msg.r#type));
-
-        let immediate_encoded: Vec<(EncodedMessage, ClientFilter)> = immediate_messages
-            .into_iter()
-            .map(|(message, filter)| {
+        let pending_messages = queues.drain_prioritized();
+        if pending_messages.is_empty() {
+            return;
+        }
+        let pending_messages_count = pending_messages.len();
+        let mut immediate_encoded: Vec<(EncodedMessage, ClientFilter)> =
+            Vec::with_capacity(pending_messages_count);
+        let mut deferred_messages = Vec::with_capacity(pending_messages_count);
+        for (mut message, filter) in pending_messages {
+            message.world_name = world_name.clone();
+            if is_immediate(message.r#type) {
                 let msg_type = message.r#type;
                 let encoded = EncodedMessage {
                     data: encode_message(&message),
                     msg_type,
                     is_rtc_eligible: false,
                 };
-                (encoded, filter)
-            })
-            .collect();
+                immediate_encoded.push((encoded, filter));
+            } else {
+                deferred_messages.push((message, filter));
+            }
+        }
 
-        let batched_messages = batch_messages(deferred_messages);
+        if !deferred_messages.is_empty() {
+            let batched_messages = batch_messages(deferred_messages);
+            encoded_queue.append(batched_messages);
+            encoded_queue.process();
+        }
 
-        encoded_queue.append(batched_messages);
-        encoded_queue.process();
-
-        let async_messages = encoded_queue.receive();
+        let mut async_messages = encoded_queue.receive();
         let mut done_messages = immediate_encoded;
-        done_messages.extend(async_messages);
+        let remaining_capacity = done_messages.capacity() - done_messages.len();
+        if remaining_capacity < async_messages.len() {
+            done_messages.reserve(async_messages.len() - remaining_capacity);
+        }
+        done_messages.append(&mut async_messages);
 
         if done_messages.is_empty() {
             return;
         }
 
         let rtc_map = rtc_senders_opt.as_ref().and_then(|rtc| rtc.try_lock().ok());
+        let client_count = clients.len();
+        let has_transports = !transports.is_empty();
+        if client_count == 0 {
+            if has_transports {
+                for (encoded, _) in done_messages {
+                    if should_send_to_transport(encoded.msg_type) {
+                        send_to_transports(&transports, encoded.data);
+                    }
+                }
+            }
+            return;
+        }
 
         for (encoded, filter) in done_messages {
             let use_rtc = encoded.is_rtc_eligible;
-
             if let ClientFilter::Direct(id) = &filter {
                 if let Some(client) = clients.get(id) {
                     if use_rtc {
                         if let Some(ref rtc_map) = rtc_map {
                             if let Some(rtc_sender) = rtc_map.get(id) {
-                                for fragment in fragment_message(&encoded.data) {
+                                let rtc_fragments = fragment_message(&encoded.data);
+                                for fragment in rtc_fragments {
                                     if rtc_sender.send(fragment).is_err() {
                                         break;
                                     }
@@ -166,32 +222,122 @@ impl<'a> System<'a> for BroadcastSystem {
                             }
                         }
                     }
-                    let _ = client.sender.send(encoded.data.clone());
+                    let _ = client.sender.send(encoded.data);
                 }
                 continue;
             }
-
-            clients.iter().for_each(|(id, client)| {
-                match &filter {
-                    ClientFilter::All => {}
-                    ClientFilter::Include(ids) => {
-                        if !ids.iter().any(|i| *i == *id) {
-                            return;
-                        }
-                    }
-                    ClientFilter::Exclude(ids) => {
-                        if ids.iter().any(|i| *i == *id) {
-                            return;
-                        }
-                    }
-                    _ => {}
+            if client_count == 1 {
+                let (single_id, single_client) = clients.iter().next().unwrap();
+                let should_send = match &filter {
+                    ClientFilter::All => true,
+                    ClientFilter::Include(ids) => ids_contains_target(ids, single_id),
+                    ClientFilter::Exclude(ids) => !ids_contains_target(ids, single_id),
+                    _ => false,
                 };
-
+                let should_send_transport =
+                    has_transports && should_send_to_transport(encoded.msg_type);
+                let mut sent_with_rtc = false;
+                if should_send {
+                    if use_rtc {
+                        if let Some(ref rtc_map) = rtc_map {
+                            if let Some(rtc_sender) = rtc_map.get(single_id) {
+                                for fragment in fragment_message(&encoded.data) {
+                                    if rtc_sender.send(fragment).is_err() {
+                                        break;
+                                    }
+                                }
+                                sent_with_rtc = true;
+                            }
+                        }
+                    }
+                    if !sent_with_rtc {
+                        if !should_send_transport {
+                            let _ = single_client.sender.send(encoded.data);
+                            continue;
+                        }
+                        let _ = single_client.sender.send(encoded.data.clone());
+                    }
+                }
+                if should_send_transport {
+                    send_to_transports(&transports, encoded.data);
+                }
+                continue;
+            }
+            let include_single_target = if let ClientFilter::Include(ids) = &filter {
+                match ids.len() {
+                    0 => None,
+                    1 => Some(ids[0].as_str()),
+                    2 if ids[0] == ids[1] => Some(ids[0].as_str()),
+                    _ => {
+                        let first_id = ids[0].as_str();
+                        if ids.iter().all(|id| id.as_str() == first_id) {
+                            Some(first_id)
+                        } else {
+                            None
+                        }
+                    }
+                }
+            } else {
+                None
+            };
+            if let Some(target_id) = include_single_target {
+                let should_send_transport =
+                    has_transports && should_send_to_transport(encoded.msg_type);
+                let mut sent_with_rtc = false;
+                if let Some(client) = clients.get(target_id) {
+                    if use_rtc {
+                        if let Some(ref rtc_map) = rtc_map {
+                            if let Some(rtc_sender) = rtc_map.get(target_id) {
+                                for fragment in fragment_message(&encoded.data) {
+                                    if rtc_sender.send(fragment).is_err() {
+                                        break;
+                                    }
+                                }
+                                sent_with_rtc = true;
+                            }
+                        }
+                    }
+                    if !sent_with_rtc {
+                        if !should_send_transport {
+                            let _ = client.sender.send(encoded.data);
+                            continue;
+                        }
+                        let _ = client.sender.send(encoded.data.clone());
+                    }
+                }
+                if should_send_transport {
+                    send_to_transports(&transports, encoded.data);
+                }
+                continue;
+            }
+            if !use_rtc && matches!(&filter, ClientFilter::All) {
+                let should_send_transport =
+                    has_transports && should_send_to_transport(encoded.msg_type);
+                let mut clients_iter = clients.values();
+                if let Some(first_client) = clients_iter.next() {
+                    for client in clients_iter {
+                        let _ = client.sender.send(encoded.data.clone());
+                    }
+                    if should_send_transport {
+                        let _ = first_client.sender.send(encoded.data.clone());
+                        send_to_transports(&transports, encoded.data);
+                    } else {
+                        let _ = first_client.sender.send(encoded.data);
+                    }
+                } else if should_send_transport {
+                    send_to_transports(&transports, encoded.data);
+                }
+                continue;
+            }
+            let mut rtc_fragments_cache: Option<Vec<Vec<u8>>> = None;
+            let mut send_to_client = |id: &str, client: &Client| {
                 if use_rtc {
                     if let Some(ref rtc_map) = rtc_map {
                         if let Some(rtc_sender) = rtc_map.get(id) {
-                            for fragment in fragment_message(&encoded.data) {
-                                if rtc_sender.send(fragment).is_err() {
+                            let fragments = rtc_fragments_cache
+                                .get_or_insert_with(|| fragment_message(&encoded.data));
+                            for fragment in fragments.iter() {
+                                if rtc_sender.send(fragment.clone()).is_err() {
                                     break;
                                 }
                             }
@@ -201,101 +347,225 @@ impl<'a> System<'a> for BroadcastSystem {
                 }
 
                 let _ = client.sender.send(encoded.data.clone());
-            });
+            };
+            let mut send_to_id = |id: &str| {
+                if let Some(client) = clients.get(id) {
+                    send_to_client(id, client);
+                }
+            };
 
-            if !transports.is_empty() && should_send_to_transport(encoded.msg_type) {
-                transports.values().for_each(|sender| {
-                    let _ = sender.send(encoded.data.clone());
-                });
+            match &filter {
+                ClientFilter::All => {
+                    for (id, client) in clients.iter() {
+                        send_to_client(id, client);
+                    }
+                }
+                ClientFilter::Include(ids) => {
+                    if ids.is_empty() {
+                    } else if ids.len() == 1 {
+                        send_to_id(ids[0].as_str());
+                    } else if ids.len() == 2 {
+                        let first_id = ids[0].as_str();
+                        let second_id = ids[1].as_str();
+                        send_to_id(first_id);
+                        if second_id != first_id {
+                            send_to_id(second_id);
+                        }
+                    } else if ids.len() <= SMALL_FILTER_LINEAR_SCAN_LIMIT {
+                        for include_index in 0..ids.len() {
+                            let include_id = ids[include_index].as_str();
+                            let mut duplicate = false;
+                            for prev_index in 0..include_index {
+                                if ids[prev_index].as_str() == include_id {
+                                    duplicate = true;
+                                    break;
+                                }
+                            }
+                            if duplicate {
+                                continue;
+                            }
+                            send_to_id(include_id);
+                        }
+                    } else if ids.len() < client_count {
+                        if ids_are_strictly_sorted(ids) {
+                            for include_id in ids.iter() {
+                                send_to_id(include_id);
+                            }
+                        } else {
+                            let mut seen_ids: HashSet<&str> = HashSet::with_capacity(ids.len());
+                            for include_id in ids.iter() {
+                                let include_id = include_id.as_str();
+                                if seen_ids.insert(include_id) {
+                                    send_to_id(include_id);
+                                }
+                            }
+                        }
+                    } else {
+                        if ids_are_strictly_sorted(ids) {
+                            for (id, client) in clients.iter() {
+                                if sorted_ids_contains(ids, id.as_str()) {
+                                    send_to_client(id, client);
+                                }
+                            }
+                        } else {
+                            let mut include_ids: HashSet<&str> = HashSet::with_capacity(ids.len());
+                            for include_id in ids.iter() {
+                                include_ids.insert(include_id.as_str());
+                            }
+                            for (id, client) in clients.iter() {
+                                if include_ids.contains(id.as_str()) {
+                                    send_to_client(id, client);
+                                }
+                            }
+                        }
+                    }
+                }
+                ClientFilter::Exclude(ids) => {
+                    if ids.is_empty() {
+                        for (id, client) in clients.iter() {
+                            send_to_client(id, client);
+                        }
+                    } else if ids.len() == 1 {
+                        let excluded_id = ids[0].as_str();
+                        for (id, client) in clients.iter() {
+                            if id.as_str() != excluded_id {
+                                send_to_client(id, client);
+                            }
+                        }
+                    } else if ids.len() == 2 {
+                        let first_id = ids[0].as_str();
+                        let second_id = ids[1].as_str();
+                        if first_id == second_id {
+                            for (id, client) in clients.iter() {
+                                if id.as_str() != first_id {
+                                    send_to_client(id, client);
+                                }
+                            }
+                        } else {
+                            for (id, client) in clients.iter() {
+                                let id = id.as_str();
+                                if id != first_id && id != second_id {
+                                    send_to_client(id, client);
+                                }
+                            }
+                        }
+                    } else if ids.len() <= SMALL_FILTER_LINEAR_SCAN_LIMIT {
+                        for (id, client) in clients.iter() {
+                            let id = id.as_str();
+                            let mut excluded = false;
+                            for excluded_id in ids.iter() {
+                                if excluded_id.as_str() == id {
+                                    excluded = true;
+                                    break;
+                                }
+                            }
+                            if !excluded {
+                                send_to_client(id, client);
+                            }
+                        }
+                    } else {
+                        if ids_are_strictly_sorted(ids) {
+                            for (id, client) in clients.iter() {
+                                if !sorted_ids_contains(ids, id.as_str()) {
+                                    send_to_client(id, client);
+                                }
+                            }
+                        } else {
+                            let mut exclude_ids: HashSet<&str> = HashSet::with_capacity(ids.len());
+                            for exclude_id in ids.iter() {
+                                exclude_ids.insert(exclude_id.as_str());
+                            }
+                            for (id, client) in clients.iter() {
+                                if !exclude_ids.contains(id.as_str()) {
+                                    send_to_client(id, client);
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+
+            if has_transports && should_send_to_transport(encoded.msg_type) {
+                send_to_transports(&transports, encoded.data);
             }
         }
     }
 }
 
-// use log::info;
-// use specs::{ReadExpect, System, WriteExpect};
+#[cfg(test)]
+mod tests {
+    use super::{batch_messages, ids_are_strictly_sorted, ids_contains_target, sorted_ids_contains};
+    use crate::{ClientFilter, Message, MessageType};
 
-// use crate::{
-//     common::ClientFilter,
-//     server::encode_message,
-//     world::{profiler::Profiler, Clients, MessageQueue},
-//     EncodedMessage, EncodedMessageQueue, MessageType, Transports,
-// };
+    fn ids(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| value.to_string()).collect()
+    }
 
-// pub struct BroadcastSystem;
+    #[test]
+    fn ids_are_strictly_sorted_rejects_duplicates_and_descending() {
+        assert!(ids_are_strictly_sorted(&ids(&["a", "b", "c"])));
+        assert!(!ids_are_strictly_sorted(&ids(&["a", "a", "b"])));
+        assert!(!ids_are_strictly_sorted(&ids(&["c", "b", "a"])));
+    }
 
-// impl<'a> System<'a> for BroadcastSystem {
-//     type SystemData = (
-//         ReadExpect<'a, Transports>,
-//         ReadExpect<'a, Clients>,
-//         WriteExpect<'a, MessageQueue>,
-//         WriteExpect<'a, EncodedMessageQueue>,
-//         WriteExpect<'a, Profiler>,
-//     );
+    #[test]
+    fn ids_contains_target_supports_small_sorted_and_unsorted_inputs() {
+        assert!(!ids_contains_target(&ids(&[]), "a"));
+        assert!(ids_contains_target(&ids(&["a"]), "a"));
+        assert!(ids_contains_target(&ids(&["a", "b"]), "b"));
+        assert!(!ids_contains_target(&ids(&["a", "b"]), "z"));
+        assert!(ids_contains_target(&ids(&["a", "c", "d"]), "c"));
+        assert!(ids_contains_target(&ids(&["d", "a", "c"]), "c"));
+    }
 
-//     fn run(&mut self, data: Self::SystemData) {
-//         let (transports, clients, mut queue, mut encoded_queue, mut profiler) = data;
+    #[test]
+    fn sorted_ids_contains_uses_binary_search_semantics() {
+        let sorted = ids(&["aa", "bb", "cc", "dd"]);
+        assert!(sorted_ids_contains(&sorted, "aa"));
+        assert!(sorted_ids_contains(&sorted, "dd"));
+        assert!(!sorted_ids_contains(&sorted, "ab"));
+    }
 
-//         profiler.time("broadcast");
+    #[test]
+    fn batch_messages_merges_unsorted_duplicate_include_filters() {
+        let messages = vec![
+            (
+                Message::new(&MessageType::Event).build(),
+                ClientFilter::Include(ids(&["b", "a", "a"])),
+            ),
+            (
+                Message::new(&MessageType::Event).build(),
+                ClientFilter::Include(ids(&["a", "b"])),
+            ),
+        ];
 
-//         let all_messages: Vec<_> = queue.drain(..).collect();
+        let batched = batch_messages(messages);
+        assert_eq!(batched.len(), 1);
+        assert!(matches!(
+            &batched[0].1,
+            ClientFilter::Include(values) if values == &ids(&["a", "b"])
+        ));
+    }
 
-//         let (chunk_messages, other_messages): (Vec<_>, Vec<_>) = all_messages
-//             .into_iter()
-//             .partition(|message| !message.0.chunks.is_empty());
+    #[test]
+    fn batch_messages_merges_unsorted_duplicate_exclude_filters() {
+        let messages = vec![
+            (
+                Message::new(&MessageType::Event).build(),
+                ClientFilter::Exclude(ids(&["x", "y", "x"])),
+            ),
+            (
+                Message::new(&MessageType::Event).build(),
+                ClientFilter::Exclude(ids(&["y", "x"])),
+            ),
+        ];
 
-//         encoded_queue.append(chunk_messages);
-//         encoded_queue.process();
-
-//         let done_messages = encoded_queue.receive();
-
-//         let other_messages_encoded: Vec<_> = other_messages
-//             .into_iter()
-//             .map(|(message, filter)| (EncodedMessage(encode_message(&message)), filter))
-//             .collect();
-
-//         let all_messages: Vec<_> = done_messages
-//             .into_iter()
-//             .chain(other_messages_encoded.into_iter())
-//             .collect();
-
-//         if all_messages.is_empty() {
-//             return;
-//         }
-
-//         for (encoded, filter) in all_messages {
-//             transports.values().for_each(|recipient| {
-//                 recipient.do_send(encoded.to_owned());
-//             });
-
-//             match &filter {
-//                 ClientFilter::Direct(id) => {
-//                     if let Some(client) = clients.get(id) {
-//                         client.addr.do_send(encoded);
-//                     }
-//                 }
-//                 ClientFilter::All => {
-//                     clients.values().for_each(|client| {
-//                         client.addr.do_send(encoded.to_owned());
-//                     });
-//                 }
-//                 ClientFilter::Include(ids) => {
-//                     clients.iter().for_each(|(id, client)| {
-//                         if ids.contains(id) {
-//                             client.addr.do_send(encoded.to_owned());
-//                         }
-//                     });
-//                 }
-//                 ClientFilter::Exclude(ids) => {
-//                     clients.iter().for_each(|(id, client)| {
-//                         if !ids.contains(id) {
-//                             client.addr.do_send(encoded.to_owned());
-//                         }
-//                     });
-//                 }
-//             }
-//         }
-
-//         profiler.time_end("broadcast");
-//     }
-// }
+        let batched = batch_messages(messages);
+        assert_eq!(batched.len(), 1);
+        assert!(matches!(
+            &batched[0].1,
+            ClientFilter::Exclude(values) if values == &ids(&["x", "y"])
+        ));
+    }
+}

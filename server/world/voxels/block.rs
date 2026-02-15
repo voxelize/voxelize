@@ -8,8 +8,8 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    AABBBuilder, BlockUtils, FluidConfig, LightColor, LightUtils, Registry, Vec2, Vec3,
-    VoxelAccess, VoxelUpdate, AABB, UV,
+    BlockUtils, FluidConfig, LightColor, LightUtils, Registry, Vec3, VoxelAccess, VoxelUpdate,
+    AABB, UV,
 };
 
 use super::fluids::create_fluid_active_fn;
@@ -18,6 +18,27 @@ pub use voxelize_core::{
     BlockRotation, CornerData, NX_ROTATION, NY_ROTATION, NZ_ROTATION, PX_ROTATION, PY_ROTATION,
     PZ_ROTATION, ROTATION_MASK, STAGE_MASK, Y_ROTATION_MASK, Y_ROT_SEGMENTS,
 };
+
+#[inline]
+fn lowercase_if_needed(value: &str) -> String {
+    let mut has_non_ascii = false;
+    for &byte in value.as_bytes() {
+        if byte.is_ascii_uppercase() {
+            return value.to_lowercase();
+        }
+        if !byte.is_ascii() {
+            has_non_ascii = true;
+        }
+    }
+    if !has_non_ascii {
+        return value.to_owned();
+    }
+    if value.chars().any(|ch| ch.is_uppercase()) {
+        value.to_lowercase()
+    } else {
+        value.to_owned()
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -65,7 +86,7 @@ impl BlockFace {
     pub fn to_mesher_face(&self) -> voxelize_mesher::BlockFace {
         voxelize_mesher::BlockFace {
             name: self.name.clone(),
-            name_lower: self.name.to_lowercase(),
+            name_lower: lowercase_if_needed(&self.name),
             independent: self.independent,
             isolated: self.isolated,
             texture_group: self.texture_group.clone(),
@@ -1268,20 +1289,47 @@ pub struct BlockDynamicPattern {
 
 impl BlockDynamicPattern {
     pub fn to_mesher_pattern(&self) -> voxelize_mesher::BlockDynamicPattern {
+        let mut parts = Vec::with_capacity(self.parts.len());
+        for part in self.parts.iter() {
+            parts.push(part.to_mesher_part());
+        }
         voxelize_mesher::BlockDynamicPattern {
-            parts: self.parts.iter().map(|p| p.to_mesher_part()).collect(),
+            parts,
+        }
+    }
+
+    pub fn to_lighter_pattern(&self) -> voxelize_lighter::LightDynamicPattern {
+        let mut parts = Vec::with_capacity(self.parts.len());
+        for part in self.parts.iter() {
+            parts.push(part.to_lighter_part());
+        }
+        voxelize_lighter::LightDynamicPattern {
+            parts,
         }
     }
 }
 
 impl BlockConditionalPart {
     pub fn to_mesher_part(&self) -> voxelize_mesher::BlockConditionalPart {
+        let mut faces = Vec::with_capacity(self.faces.len());
+        for face in self.faces.iter() {
+            faces.push(face.to_mesher_face());
+        }
         voxelize_mesher::BlockConditionalPart {
             rule: self.rule.to_mesher_rule(),
-            faces: self.faces.iter().map(|f| f.to_mesher_face()).collect(),
+            faces,
             aabbs: self.aabbs.clone(),
             is_transparent: self.is_transparent,
             world_space: self.world_space,
+        }
+    }
+
+    pub fn to_lighter_part(&self) -> voxelize_lighter::LightConditionalPart {
+        voxelize_lighter::LightConditionalPart {
+            rule: self.rule.to_mesher_rule(),
+            red_light_level: self.red_light_level,
+            green_light_level: self.green_light_level,
+            blue_light_level: self.blue_light_level,
         }
     }
 }
@@ -1307,7 +1355,13 @@ impl BlockRule {
                     BlockRuleLogic::Or => voxelize_mesher::BlockRuleLogic::Or,
                     BlockRuleLogic::Not => voxelize_mesher::BlockRuleLogic::Not,
                 },
-                rules: rules.iter().map(|r| r.to_mesher_rule()).collect(),
+                rules: {
+                    let mut mapped_rules = Vec::with_capacity(rules.len());
+                    for rule in rules.iter() {
+                        mapped_rules.push(rule.to_mesher_rule());
+                    }
+                    mapped_rules
+                },
             },
         }
     }
@@ -1463,14 +1517,14 @@ impl Block {
             if let Some(dynamic_patterns) = &self.dynamic_patterns {
                 for pattern in dynamic_patterns {
                     let (_, aabbs, __) = Block::match_dynamic_pattern(pattern, pos, space);
-                    if aabbs.len() > 0 {
-                        return aabbs.to_owned();
+                    if !aabbs.is_empty() {
+                        return aabbs;
                     }
                 }
                 return self.aabbs.clone();
             }
 
-            (self.dynamic_fn.as_ref().unwrap())(pos.to_owned(), space, registry).1
+            (self.dynamic_fn.as_ref().unwrap())(*pos, space, registry).1
         } else {
             self.aabbs.clone()
         }
@@ -1486,14 +1540,14 @@ impl Block {
             if let Some(dynamic_patterns) = &self.dynamic_patterns {
                 for pattern in dynamic_patterns {
                     let (faces, _, __) = Block::match_dynamic_pattern(pattern, pos, space);
-                    if faces.len() > 0 {
-                        return faces.to_owned();
+                    if !faces.is_empty() {
+                        return faces;
                     }
                 }
                 return self.faces.clone();
             }
 
-            (self.dynamic_fn.as_ref().unwrap())(pos.to_owned(), space, registry).0
+            (self.dynamic_fn.as_ref().unwrap())(*pos, space, registry).0
         } else {
             self.faces.clone()
         }
@@ -1626,10 +1680,21 @@ impl Block {
     }
 
     pub fn to_mesher_block(&self) -> voxelize_mesher::Block {
+        let mut faces = Vec::with_capacity(self.faces.len());
+        for face in self.faces.iter() {
+            faces.push(face.to_mesher_face());
+        }
+        let dynamic_patterns = self.dynamic_patterns.as_ref().map(|patterns| {
+            let mut mapped_patterns = Vec::with_capacity(patterns.len());
+            for pattern in patterns.iter() {
+                mapped_patterns.push(pattern.to_mesher_pattern());
+            }
+            mapped_patterns
+        });
         voxelize_mesher::Block {
             id: self.id,
             name: self.name.clone(),
-            name_lower: self.name.to_lowercase(),
+            name_lower: lowercase_if_needed(&self.name),
             rotatable: self.rotatable,
             y_rotatable: self.y_rotatable,
             is_empty: self.is_empty,
@@ -1640,13 +1705,29 @@ impl Block {
             is_transparent: self.is_transparent,
             transparent_standalone: self.transparent_standalone,
             occludes_fluid: self.occludes_fluid,
-            faces: self.faces.iter().map(|f| f.to_mesher_face()).collect(),
+            faces,
             aabbs: self.aabbs.clone(),
-            dynamic_patterns: self
-                .dynamic_patterns
-                .as_ref()
-                .map(|patterns| patterns.iter().map(|p| p.to_mesher_pattern()).collect()),
+            dynamic_patterns,
         }
+    }
+
+    pub fn to_lighter_block(&self) -> voxelize_lighter::LightBlock {
+        let dynamic_patterns = self.dynamic_patterns.as_ref().map(|patterns| {
+            let mut mapped_patterns = Vec::with_capacity(patterns.len());
+            for pattern in patterns.iter() {
+                mapped_patterns.push(pattern.to_lighter_pattern());
+            }
+            mapped_patterns
+        });
+        voxelize_lighter::LightBlock::new(
+            self.id,
+            self.is_transparent,
+            self.light_reduce,
+            self.red_light_level,
+            self.green_light_level,
+            self.blue_light_level,
+            dynamic_patterns,
+        )
     }
 }
 

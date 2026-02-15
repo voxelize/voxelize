@@ -7,8 +7,6 @@ import {
   Texture,
 } from "three";
 
-import { ThreeUtils } from "../../utils";
-
 import { UV } from "./uv";
 
 /**
@@ -59,7 +57,10 @@ export class AtlasTexture extends CanvasTexture {
   /**
    * The list of block animations that are being used by this texture atlas.
    */
-  public animations: { animation: FaceAnimation; timer: any }[] = [];
+  public animations: {
+    animation: FaceAnimation;
+    timer: ReturnType<typeof setTimeout> | null;
+  }[] = [];
 
   /**
    * Create a new texture this.
@@ -170,14 +171,6 @@ export class AtlasTexture extends CanvasTexture {
   ) {
     const { startU, endV } = range;
 
-    const image2 = ThreeUtils.isTexture(image)
-      ? image.image
-      : (image as any as HTMLImageElement);
-
-    if (!image2) {
-      return;
-    }
-
     const context = this.canvas.getContext("2d");
 
     context.save();
@@ -190,57 +183,78 @@ export class AtlasTexture extends CanvasTexture {
     if (opacity !== 1) context.globalCompositeOperation = "lighter";
 
     if (clearRect) {
+      const textureStartX = (startU - this.atlasOffset) * canvasWidth;
+      const textureStartY = (1 - endV - this.atlasOffset) * canvasHeight;
+      const textureSize = this.dimension * this.atlasRatio + 2 * this.atlasMargin;
       context.clearRect(
-        (startU - this.atlasOffset) * canvasWidth,
-        (1 - endV - this.atlasOffset) * canvasHeight,
-        this.dimension * this.atlasRatio + 2 * this.atlasMargin,
-        this.dimension * this.atlasRatio + 2 * this.atlasMargin
+        textureStartX,
+        textureStartY,
+        textureSize,
+        textureSize
       );
     }
 
-    if ((image as any as Color).isColor) {
-      const originalColor = image as any as Color;
+    if (image instanceof Color) {
       // Use getHexString() directly - it returns the sRGB hex that was originally passed in
       // Do NOT use convertLinearToSRGB() as that would double-convert and wash out colors
       // When Color is created from hex string like "#9be9a8", getHexString() returns "9be9a8"
-      context.fillStyle = `#${originalColor.getHexString()}`;
+      const textureStartX = (startU - this.atlasOffset) * canvasWidth;
+      const textureStartY = (1 - endV - this.atlasOffset) * canvasHeight;
+      const textureSize = this.dimension * this.atlasRatio + 2 * this.atlasMargin;
+      context.fillStyle = `#${image.getHexString()}`;
       context.fillRect(
-        (startU - this.atlasOffset) * canvasWidth,
-        (1 - endV - this.atlasOffset) * canvasHeight,
-        this.dimension * this.atlasRatio + 2 * this.atlasMargin,
-        this.dimension * this.atlasRatio + 2 * this.atlasMargin
+        textureStartX,
+        textureStartY,
+        textureSize,
+        textureSize
       );
 
+      context.restore();
+      this.needsUpdate = true;
       return;
     }
+
+    const image2 = image instanceof Texture ? image.image : image;
+    if (!image2 || typeof image2 === "function") {
+      context.restore();
+      return;
+    }
+
+    const textureStartX = (startU - this.atlasOffset) * canvasWidth;
+    const textureStartY = (1 - endV - this.atlasOffset) * canvasHeight;
+    const textureSize = this.dimension * this.atlasRatio + 2 * this.atlasMargin;
+    const innerTextureStartX = textureStartX + this.atlasMargin;
+    const innerTextureStartY = textureStartY + this.atlasMargin;
+    const innerTextureSize = this.dimension * this.atlasRatio;
+    const drawableImage = image2 as CanvasImageSource;
 
     // Draw a background first.
 
     if (clearRect) {
       context.drawImage(
-        image2,
-        (startU - this.atlasOffset) * canvasWidth,
-        (1 - endV - this.atlasOffset) * canvasHeight,
-        this.dimension * this.atlasRatio + 2 * this.atlasMargin,
-        this.dimension * this.atlasRatio + 2 * this.atlasMargin
+        drawableImage,
+        textureStartX,
+        textureStartY,
+        textureSize,
+        textureSize
       );
 
       // Carve out the middle.
       context.clearRect(
-        (startU - this.atlasOffset) * canvasWidth + this.atlasMargin,
-        (1 - endV - this.atlasOffset) * canvasHeight + this.atlasMargin,
-        this.dimension * this.atlasRatio,
-        this.dimension * this.atlasRatio
+        innerTextureStartX,
+        innerTextureStartY,
+        innerTextureSize,
+        innerTextureSize
       );
     }
 
     // Draw the actual texture.
     context.drawImage(
-      image2,
-      (startU - this.atlasOffset) * canvasWidth + this.atlasMargin,
-      (1 - endV - this.atlasOffset) * canvasHeight + this.atlasMargin,
-      this.dimension * this.atlasRatio,
-      this.dimension * this.atlasRatio
+      drawableImage,
+      innerTextureStartX,
+      innerTextureStartY,
+      innerTextureSize,
+      innerTextureSize
     );
 
     context.restore();
@@ -263,7 +277,9 @@ export class AtlasTexture extends CanvasTexture {
       this.drawImageToRange(range, keyframe[1], this.countPerSide !== 1);
 
       entry.timer = setTimeout(() => {
-        clearTimeout(entry.timer);
+        if (entry.timer) {
+          clearTimeout(entry.timer);
+        }
 
         const nextIndex = (index + 1) % animation.keyframes.length;
 
@@ -426,7 +442,7 @@ export class FaceAnimation {
     }
 
     this.range = range;
-    this.keyframes = keyframes as any;
+    this.keyframes = keyframes;
     this.fadeFrames = fadeFrames;
   }
 }

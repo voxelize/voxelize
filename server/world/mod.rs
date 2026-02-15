@@ -22,7 +22,7 @@ mod utils;
 mod voxels;
 
 use actix::{
-    Actor, AsyncContext, Context, Handler, Message as ActixMessage, MessageResult, SyncContext,
+    Actor, Handler, Message as ActixMessage, MessageResult, SyncContext,
 };
 use actix::{Addr, SyncArbiter};
 use hashbrown::HashMap;
@@ -37,21 +37,24 @@ use specs::{
     Builder, Component, DispatcherBuilder, Entity, EntityBuilder, Join, ReadStorage, SystemData,
     World as ECSWorld, WorldExt, WriteStorage,
 };
-use std::f64::consts::E;
+use std::borrow::Cow;
 use std::path::PathBuf;
 use std::sync::{Mutex, RwLock};
-use std::{env, sync::Arc};
+use std::sync::Arc;
 use std::{
     fs::{self, File},
     time::Duration,
 };
-use system_profiler::{record_timing, SystemTimer, WorldTimingContext};
+use system_profiler::{
+    record_timing as record_system_timing, SystemTimer as ProfilerSystemTimer,
+    WorldTimingContext as ProfilerWorldTimingContext,
+};
 
 use crate::{
     encode_message,
     protocols::Peer,
     server::{Message, MessageType, WsSender},
-    EntityOperation, EntityProtocol, MethodProtocol, PeerProtocol, Server, Vec2, Vec3,
+    EntityOperation, EntityProtocol, MethodProtocol, PeerProtocol, Vec2, Vec3,
 };
 
 use super::common::ClientFilter;
@@ -84,7 +87,7 @@ pub fn default_client_parser(world: &mut World, metadata: &str, client_ent: Enti
     let metadata: PeerUpdate = match serde_json::from_str(metadata) {
         Ok(metadata) => metadata,
         Err(e) => {
-            warn!("Could not parse peer update: {}", metadata);
+            warn!("Could not parse peer update: {} ({})", metadata, e);
             return;
         }
     };
@@ -119,6 +122,32 @@ pub struct PeerUpdate {
     direction: Option<Vec3<f32>>,
 }
 
+#[inline]
+fn normalized_lookup_name<'a>(name: &'a str) -> Cow<'a, str> {
+    let mut has_non_ascii = false;
+    for &byte in name.as_bytes() {
+        if byte.is_ascii_uppercase() {
+            return Cow::Owned(name.to_lowercase());
+        }
+        if !byte.is_ascii() {
+            has_non_ascii = true;
+        }
+    }
+    if !has_non_ascii {
+        Cow::Borrowed(name)
+    } else if name.chars().any(|ch| ch.is_uppercase()) {
+        Cow::Owned(name.to_lowercase())
+    } else {
+        Cow::Borrowed(name)
+    }
+}
+
+#[derive(Deserialize)]
+struct PersistedEntityRecord {
+    etype: String,
+    metadata: MetadataComp,
+}
+
 /// Wrapper to make a non-Send/Sync type safely usable in contexts that require it.
 /// This is safe because the World is only ever accessed from a single SyncWorld actor thread.
 struct UnsafeSendSync<T>(T);
@@ -134,6 +163,52 @@ impl<T> UnsafeSendSync<T> {
     fn get_mut(&mut self) -> &mut T {
         &mut self.0
     }
+}
+
+#[inline]
+fn clamp_usize_to_i32(value: usize) -> i32 {
+    if value > i32::MAX as usize {
+        i32::MAX
+    } else {
+        value as i32
+    }
+}
+
+#[inline]
+fn preload_light_padding(max_light_level: u32, chunk_size: usize) -> usize {
+    let normalized_chunk_size = chunk_size.max(1);
+    (max_light_level as usize)
+        .saturating_add(normalized_chunk_size.saturating_sub(1))
+        / normalized_chunk_size
+}
+
+#[inline]
+fn preload_check_radius(preload_radius: usize, max_light_level: u32, chunk_size: usize) -> i32 {
+    let light_padding = preload_light_padding(max_light_level, chunk_size);
+    clamp_usize_to_i32(preload_radius.saturating_sub(light_padding))
+}
+
+#[inline]
+fn preload_expected_chunk_count(check_radius: i32) -> i64 {
+    let diameter = i64::from(check_radius).saturating_mul(2).saturating_add(1);
+    diameter.saturating_mul(diameter)
+}
+
+fn collect_preload_targets(chunks: &Chunks, radius: i32) -> Vec<Vec2<i32>> {
+    let Some((min_x, max_x, min_z, max_z)) =
+        chunks.light_traversed_bounds_for_center_radius(radius)
+    else {
+        return Vec::new();
+    };
+    let width_x = (i64::from(max_x) - i64::from(min_x) + 1) as usize;
+    let width_z = (i64::from(max_z) - i64::from(min_z) + 1) as usize;
+    let mut targets = Vec::with_capacity(width_x.saturating_mul(width_z));
+    for x in min_x..=max_x {
+        for z in min_z..=max_z {
+            targets.push(Vec2(x, z));
+        }
+    }
+    targets
 }
 
 /// A voxelize world.
@@ -189,10 +264,6 @@ pub struct World {
     extra_init_data: HashMap<String, serde_json::Value>,
 
     items: Option<ItemRegistry>,
-
-    addr: Option<Addr<SyncWorld>>,
-
-    server_addr: Option<Addr<Server>>,
 }
 
 // Define messages for the World actor
@@ -393,16 +464,24 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
         .with(PeersMetaSystem, "peers-meta", &[])
         .with(CurrentChunkSystem, "current-chunk", &[])
         .with(ChunkUpdatingSystem, "chunk-updating", &["current-chunk"])
-        .with(ChunkRequestsSystem, "chunk-requests", &["current-chunk"])
+        .with(
+            ChunkRequestsSystem::default(),
+            "chunk-requests",
+            &["current-chunk"],
+        )
         .with(
             ChunkGeneratingSystem,
             "chunk-generation",
             &["chunk-requests"],
         )
-        .with(ChunkSendingSystem, "chunk-sending", &["chunk-generation"])
+        .with(
+            ChunkSendingSystem::default(),
+            "chunk-sending",
+            &["chunk-generation"],
+        )
         .with(ChunkSavingSystem, "chunk-saving", &["chunk-generation"])
         .with(
-            PhysicsSystem,
+            PhysicsSystem::default(),
             "physics",
             &["current-chunk", "update-stats", "chunk-updating"],
         )
@@ -412,7 +491,7 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
             "entities-sending",
             &["entities-meta"],
         )
-        .with(PeersSendingSystem, "peers-sending", &["peers-meta"])
+        .with(PeersSendingSystem::default(), "peers-sending", &["peers-meta"])
         .with(
             BroadcastSystem,
             "broadcast",
@@ -423,12 +502,12 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
             "cleanup",
             &["entities-sending", "peers-sending"],
         )
-        .with(EventsSystem, "events", &["broadcast"])
+        .with(EventsSystem::default(), "events", &["broadcast"])
         .with(EntityObserveSystem, "entity-observe", &[])
-        .with(PathFindingSystem, "path-finding", &["entity-observe"])
+        .with(PathFindingSystem::default(), "path-finding", &["entity-observe"])
         .with(TargetMetadataSystem, "target-meta", &[])
         .with(PathMetadataSystem, "path-meta", &[])
-        .with(EntityTreeSystem, "entity-tree", &[])
+        .with(EntityTreeSystem::default(), "entity-tree", &[])
         .with(WalkTowardsSystem, "walk-towards", &["path-finding"])
 }
 
@@ -442,12 +521,6 @@ struct OnLoadRequest {
 #[derive(Serialize, Deserialize)]
 struct OnUnloadRequest {
     chunks: Vec<Vec2<i32>>,
-}
-
-#[derive(Serialize, Deserialize)]
-struct OnEventRequest {
-    name: String,
-    payload: Value,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -483,7 +556,7 @@ impl World {
         let world_metadata = WorldMetadata {
             world_name: name.to_owned(),
         };
-        let timing_context = WorldTimingContext::new(name);
+        let timing_context = ProfilerWorldTimingContext::new(name);
 
         let mut ecs = ECSWorld::new();
 
@@ -563,15 +636,13 @@ impl World {
             command_handle: None,
             extra_init_data: HashMap::default(),
             items: None,
-            addr: None,
-            server_addr: None,
         };
 
         world.set_method_handle("vox-builtin:get-stats", |world, client_id, _| {
             let stats_json = world.stats().get_stats();
             world.write_resource::<MessageQueues>().push((
                 Message::new(&MessageType::Stats)
-                    .json(&serde_json::to_string(&stats_json).unwrap())
+                    .json_owned(serde_json::to_string(&stats_json).unwrap())
                     .build(),
                 ClientFilter::Direct(client_id.to_owned()),
             ));
@@ -608,118 +679,133 @@ impl World {
                     return;
                 }
             };
+            let payload_json = payload.json.as_str();
 
-            // Validate payload JSON before proceeding
-            if let Err(e) = serde_json::from_str::<serde_json::Value>(&payload.json) {
-                log::error!("Payload JSON is invalid: {}", e);
-                return;
-            }
-
-            let entities = world.ecs().entities();
-            let ids = world.ecs().read_storage::<IDComp>();
-
-            let mut to_update = vec![];
-
-            for (entity, id_comp) in (&entities, &ids).join() {
-                if id_comp.0 == payload.id {
-                    to_update.push(entity);
-                    break;
+            let payload_obj: serde_json::Value = match serde_json::from_str(payload_json) {
+                Ok(obj) => obj,
+                Err(e) => {
+                    log::error!("Payload JSON is invalid: {}", e);
+                    return;
                 }
+            };
+
+            let mut to_update = None;
+
+            if let Some(entity_index) = world.entity_ids().get(&payload.id).copied() {
+                let entities = world.ecs().entities();
+                let ids = world.ecs().read_storage::<IDComp>();
+                let candidate = entities.entity(entity_index);
+                if ids
+                    .get(candidate)
+                    .is_some_and(|id_comp| id_comp.0 == payload.id)
+                {
+                    to_update = Some(candidate);
+                }
+                drop((entities, ids));
             }
 
-            drop((entities, ids));
+            if to_update.is_none() {
+                let entities = world.ecs().entities();
+                let ids = world.ecs().read_storage::<IDComp>();
 
-            if to_update.is_empty() {
-                if let Some(voxel) = payload.voxel {
-                    let voxel_key = Vec3(voxel[0], voxel[1], voxel[2]);
-                    if let Some(&entity) = world.chunks().block_entities.get(&voxel_key) {
-                        to_update.push(entity);
+                for (entity, id_comp) in (&entities, &ids).join() {
+                    if id_comp.0 == payload.id {
+                        to_update = Some(entity);
+                        break;
                     }
                 }
+
+                drop((entities, ids));
             }
 
-            if to_update.is_empty() {
+            if to_update.is_none() {
+                if let Some(voxel) = payload.voxel {
+                    let voxel_key = Vec3(voxel[0], voxel[1], voxel[2]);
+                    to_update = world.chunks().block_entities.get(&voxel_key).copied();
+                }
+            }
+
+            let Some(entity) = to_update else {
                 log::warn!(
                     "No entity found with ID: {} or voxel: {:?}",
                     payload.id,
                     payload.voxel
                 );
                 return;
+            };
+
+            let mut storage = world.ecs_mut().write_storage::<JsonComp>();
+            // Check if this is a partial update
+            if !payload.is_partial.unwrap_or(false) {
+                // For full updates, just use the new JSON directly
+                if let Err(e) = storage.insert(entity, JsonComp::new(payload_json)) {
+                    log::error!("Failed to update block entity JSON: {}", e);
+                }
+                return;
             }
-
-            for entity in to_update {
-                let mut storage = world.ecs_mut().write_storage::<JsonComp>();
-
-                // Check if this is a partial update
-                if !payload.is_partial.unwrap_or(false) {
-                    // For full updates, just use the new JSON directly
-                    if let Err(e) = storage.insert(entity, JsonComp::new(&payload.json)) {
+            let payload_map = match payload_obj {
+                serde_json::Value::Object(payload_map) => payload_map,
+                _ => {
+                    if let Err(e) = storage.insert(entity, JsonComp::new(payload_json)) {
                         log::error!("Failed to update block entity JSON: {}", e);
                     }
-                    continue;
+                    return;
+                }
+            };
+
+            // Handle partial updates with careful JSON merging
+            let current_json = match storage.get(entity) {
+                Some(comp) => &comp.0,
+                None => {
+                    // If there's no current JSON, just use the new JSON
+                    if let Err(e) = storage.insert(entity, JsonComp::new(payload_json)) {
+                        log::error!("Failed to update block entity JSON: {}", e);
+                    }
+                    return;
+                }
+            };
+
+            // Try to parse current JSON
+            let current_obj: serde_json::Value = match serde_json::from_str(current_json) {
+                Ok(obj) => obj,
+                Err(e) => {
+                    // If current JSON is invalid, use payload JSON only
+                    log::error!(
+                        "Failed to parse current JSON: {} - using payload JSON only",
+                        e
+                    );
+                    if let Err(e) = storage.insert(entity, JsonComp::new(payload_json)) {
+                        log::error!("Failed to update block entity JSON: {}", e);
+                    }
+                    return;
+                }
+            };
+
+            // Merge the objects if both are objects
+            if let serde_json::Value::Object(mut current_map) = current_obj {
+                // Merge payload map into current map
+                for (key, value) in payload_map {
+                    current_map.insert(key, value);
                 }
 
-                // Handle partial updates with careful JSON merging
-                let current_json = match storage.get(entity) {
-                    Some(comp) => &comp.0,
-                    None => {
-                        // If there's no current JSON, just use the new JSON
-                        if let Err(e) = storage.insert(entity, JsonComp::new(&payload.json)) {
-                            log::error!("Failed to update block entity JSON: {}", e);
-                        }
-                        continue;
-                    }
-                };
-
-                // Try to parse current JSON
-                let current_obj: serde_json::Value = match serde_json::from_str(current_json) {
-                    Ok(obj) => obj,
-                    Err(e) => {
-                        // If current JSON is invalid, use payload JSON only
-                        log::error!(
-                            "Failed to parse current JSON: {} - using payload JSON only",
-                            e
-                        );
-                        if let Err(e) = storage.insert(entity, JsonComp::new(&payload.json)) {
-                            log::error!("Failed to update block entity JSON: {}", e);
-                        }
-                        continue;
-                    }
-                };
-
-                // Parse payload JSON (we already validated it above)
-                let payload_obj: serde_json::Value = serde_json::from_str(&payload.json).unwrap();
-
-                // Merge the objects if both are objects
-                if let (
-                    serde_json::Value::Object(mut current_map),
-                    serde_json::Value::Object(payload_map),
-                ) = (current_obj, payload_obj)
-                {
-                    // Merge payload map into current map
-                    for (key, value) in payload_map {
-                        current_map.insert(key, value);
-                    }
-
-                    // Convert back to string
-                    match serde_json::to_string(&serde_json::Value::Object(current_map)) {
-                        Ok(merged) => {
-                            if let Err(e) = storage.insert(entity, JsonComp::new(&merged)) {
-                                log::error!("Failed to serialize merged JSON: {}", e);
-                            }
-                        }
-                        Err(e) => {
+                // Convert back to string
+                match serde_json::to_string(&current_map) {
+                    Ok(merged) => {
+                        if let Err(e) = storage.insert(entity, JsonComp::new_owned(merged)) {
                             log::error!("Failed to serialize merged JSON: {}", e);
-                            if let Err(e) = storage.insert(entity, JsonComp::new(&payload.json)) {
-                                log::error!("Failed to update block entity JSON: {}", e);
-                            }
                         }
                     }
-                } else {
-                    // If either isn't an object, fall back to payload
-                    if let Err(e) = storage.insert(entity, JsonComp::new(&payload.json)) {
-                        log::error!("Failed to update block entity JSON: {}", e);
+                    Err(e) => {
+                        log::error!("Failed to serialize merged JSON: {}", e);
+                        if let Err(e) = storage.insert(entity, JsonComp::new(payload_json)) {
+                            log::error!("Failed to update block entity JSON: {}", e);
+                        }
                     }
+                }
+            } else {
+                // If either isn't an object, fall back to payload
+                if let Err(e) = storage.insert(entity, JsonComp::new(payload_json)) {
+                    log::error!("Failed to update block entity JSON: {}", e);
                 }
             }
         });
@@ -727,7 +813,7 @@ impl World {
         world
     }
 
-    pub fn start(mut self) -> Addr<SyncWorld> {
+    pub fn start(self) -> Addr<SyncWorld> {
         // self.prepare();
         // self.preload();
 
@@ -760,22 +846,22 @@ impl World {
     }
 
     /// Read an ECS resource generically.
-    pub fn read_resource<T: Resource>(&self) -> Fetch<T> {
+    pub fn read_resource<T: Resource>(&self) -> Fetch<'_, T> {
         self.ecs.read_resource::<T>()
     }
 
     /// Write an ECS resource generically.
-    pub fn write_resource<T: Resource>(&mut self) -> FetchMut<T> {
+    pub fn write_resource<T: Resource>(&mut self) -> FetchMut<'_, T> {
         self.ecs.write_resource::<T>()
     }
 
     /// Read an ECS component storage.
-    pub fn read_component<T: Component>(&self) -> ReadStorage<T> {
+    pub fn read_component<T: Component>(&self) -> ReadStorage<'_, T> {
         self.ecs.read_component::<T>()
     }
 
     /// Write an ECS component storage.
-    pub fn write_component<T: Component>(&mut self) -> WriteStorage<T> {
+    pub fn write_component<T: Component>(&mut self) -> WriteStorage<'_, T> {
         self.ecs.write_component::<T>()
     }
 
@@ -827,7 +913,8 @@ impl World {
             .with(CollisionsComp::new())
             .build();
 
-        if let Some(modifier) = self.client_modifier.to_owned() {
+        if let Some(modifier) = self.client_modifier.as_ref() {
+            let modifier = Arc::clone(modifier);
             modifier(self, ent);
         }
 
@@ -878,13 +965,11 @@ impl World {
                 let interactors = self.ecs.read_storage::<InteractorComp>();
 
                 // Safely get the interactor component, with error handling
-                let interactor_result = interactors
+                let interactor_handles = interactors
                     .get(client.entity)
-                    .map(|interactor| interactor.to_owned());
+                    .map(|interactor| (*interactor.body_handle(), *interactor.collider_handle()));
 
-                if let Some(interactor) = interactor_result {
-                    let body_handle = interactor.body_handle().to_owned();
-                    let collider_handle = interactor.collider_handle().to_owned();
+                if let Some((body_handle, collider_handle)) = interactor_handles {
 
                     drop(interactors);
 
@@ -933,9 +1018,15 @@ impl World {
 
             self.ecs.maintain();
 
-            let leave_message = Message::new(&MessageType::Leave).text(&client.id).build();
+            let departing_client_id = client.id;
+            info!(
+                "Client at {} left the world: {}",
+                departing_client_id, self.name
+            );
+            let leave_message = Message::new(&MessageType::Leave)
+                .text_owned(departing_client_id)
+                .build();
             self.broadcast(leave_message, ClientFilter::All);
-            info!("Client at {} left the world: {}", id, self.name);
         }
     }
 
@@ -968,7 +1059,7 @@ impl World {
         handle: F,
     ) {
         self.method_handles
-            .insert(method.to_lowercase(), Arc::new(handle));
+            .insert(normalized_lookup_name(method).into_owned(), Arc::new(handle));
     }
 
     pub fn set_event_handle<F: Fn(&mut World, &str, &str) + Send + Sync + 'static>(
@@ -977,7 +1068,7 @@ impl World {
         handle: F,
     ) {
         self.event_handles
-            .insert(event.to_lowercase(), Arc::new(handle));
+            .insert(normalized_lookup_name(event).into_owned(), Arc::new(handle));
     }
 
     pub fn set_transport_handle<F: Fn(&mut World, Value) + Send + Sync + 'static>(
@@ -1014,12 +1105,32 @@ impl World {
         loader: F,
     ) {
         self.entity_loaders
-            .insert(etype.to_lowercase(), Arc::new(loader));
+            .insert(normalized_lookup_name(etype).into_owned(), Arc::new(loader));
+    }
+
+    #[inline]
+    fn entity_loader_for_type(
+        &self,
+        etype: &str,
+    ) -> Option<Arc<dyn Fn(&mut World, MetadataComp) -> EntityBuilder + Send + Sync>> {
+        self.entity_loaders.get(etype).cloned().or_else(|| {
+            let normalized_etype = normalized_lookup_name(etype);
+            if normalized_etype.as_ref() == etype {
+                return None;
+            }
+            self.entity_loaders.get(normalized_etype.as_ref()).cloned()
+        })
     }
 
     /// Handler for protobuf requests from clients.
     pub(crate) fn on_request(&mut self, client_id: &str, data: Message) {
-        let msg_type = MessageType::from_i32(data.r#type).unwrap();
+        let Ok(msg_type) = MessageType::try_from(data.r#type) else {
+            warn!(
+                "Unknown message type {} from client {}",
+                data.r#type, client_id
+            );
+            return;
+        };
 
         match msg_type {
             MessageType::Peer => self.on_peer(client_id, data),
@@ -1030,17 +1141,16 @@ impl World {
             MessageType::Update => self.on_update(client_id, data),
             MessageType::Event => self.on_event(client_id, data),
             MessageType::Transport => {
-                if self.transport_handle.is_none() {
+                let Some(handle) = self.transport_handle.as_ref().map(Arc::clone) else {
                     warn!("Transport calls are being called, but no transport handlers set!");
-                } else {
-                    let handle = self.transport_handle.as_ref().unwrap().to_owned();
+                    return;
+                };
 
-                    handle(
-                        self,
-                        serde_json::from_str(&data.json)
-                            .expect("Something went wrong with the transport JSON value."),
-                    );
-                }
+                handle(
+                    self,
+                    serde_json::from_str(&data.json)
+                        .expect("Something went wrong with the transport JSON value."),
+                );
             }
             _ => {
                 info!("Received message of unknown type: {:?}", msg_type);
@@ -1059,17 +1169,17 @@ impl World {
     }
 
     /// Access to the world's config.
-    pub fn config(&self) -> Fetch<WorldConfig> {
+    pub fn config(&self) -> Fetch<'_, WorldConfig> {
         self.read_resource::<WorldConfig>()
     }
 
     /// Access all clients in the ECS world.
-    pub fn clients(&self) -> Fetch<Clients> {
+    pub fn clients(&self) -> Fetch<'_, Clients> {
         self.read_resource::<Clients>()
     }
 
     /// Access a mutable clients map in the ECS world.
-    pub fn clients_mut(&mut self) -> FetchMut<Clients> {
+    pub fn clients_mut(&mut self) -> FetchMut<'_, Clients> {
         self.write_resource::<Clients>()
     }
 
@@ -1096,102 +1206,102 @@ impl World {
     }
 
     /// Access all entity IDs in the ECS world.
-    pub fn entity_ids(&self) -> Fetch<EntityIDs> {
+    pub fn entity_ids(&self) -> Fetch<'_, EntityIDs> {
         self.read_resource::<EntityIDs>()
     }
 
     /// Access a mutable entity IDs map in the ECS world.
-    pub fn entity_ids_mut(&mut self) -> FetchMut<EntityIDs> {
+    pub fn entity_ids_mut(&mut self) -> FetchMut<'_, EntityIDs> {
         self.write_resource::<EntityIDs>()
     }
 
     /// Access the registry in the ECS world.
-    pub fn registry(&self) -> Fetch<Registry> {
+    pub fn registry(&self) -> Fetch<'_, Registry> {
         self.read_resource::<Registry>()
     }
 
     /// Access chunks management in the ECS world.
-    pub fn chunks(&self) -> Fetch<Chunks> {
+    pub fn chunks(&self) -> Fetch<'_, Chunks> {
         self.read_resource::<Chunks>()
     }
 
     /// Access a mutable chunk manager in the ECS world.
-    pub fn chunks_mut(&mut self) -> FetchMut<Chunks> {
+    pub fn chunks_mut(&mut self) -> FetchMut<'_, Chunks> {
         self.write_resource::<Chunks>()
     }
 
     /// Access physics management in the ECS world.
-    pub fn physics(&self) -> Fetch<Physics> {
+    pub fn physics(&self) -> Fetch<'_, Physics> {
         self.read_resource::<Physics>()
     }
 
     /// Access a mutable physics manager in the ECS world.
-    pub fn physics_mut(&mut self) -> FetchMut<Physics> {
+    pub fn physics_mut(&mut self) -> FetchMut<'_, Physics> {
         self.write_resource::<Physics>()
     }
 
     /// Access the chunk interests manager in the ECS world.
-    pub fn chunk_interest(&self) -> Fetch<ChunkInterests> {
+    pub fn chunk_interest(&self) -> Fetch<'_, ChunkInterests> {
         self.read_resource::<ChunkInterests>()
     }
 
     /// Access the mutable chunk interest manager in the ECS world.
-    pub fn chunk_interest_mut(&mut self) -> FetchMut<ChunkInterests> {
+    pub fn chunk_interest_mut(&mut self) -> FetchMut<'_, ChunkInterests> {
         self.write_resource::<ChunkInterests>()
     }
 
     /// Access the bookkeeping in the ECS world.
-    pub fn bookkeeping(&self) -> Fetch<Bookkeeping> {
+    pub fn bookkeeping(&self) -> Fetch<'_, Bookkeeping> {
         self.read_resource::<Bookkeeping>()
     }
 
     /// Access the mutable bookkeeping in the ECS world.
-    pub fn bookkeeping_mut(&mut self) -> FetchMut<Bookkeeping> {
+    pub fn bookkeeping_mut(&mut self) -> FetchMut<'_, Bookkeeping> {
         self.write_resource::<Bookkeeping>()
     }
 
     /// Access the event queue in the ECS world.
-    pub fn events(&self) -> Fetch<Events> {
+    pub fn events(&self) -> Fetch<'_, Events> {
         self.read_resource::<Events>()
     }
 
     /// Access the mutable events queue in the ECS world.
-    pub fn events_mut(&mut self) -> FetchMut<Events> {
+    pub fn events_mut(&mut self) -> FetchMut<'_, Events> {
         self.write_resource::<Events>()
     }
 
     /// Access the stats manager in the ECS world.
-    pub fn stats(&self) -> Fetch<Stats> {
+    pub fn stats(&self) -> Fetch<'_, Stats> {
         self.read_resource::<Stats>()
     }
 
     /// Access the mutable stats manager in the ECS world.
-    pub fn stats_mut(&mut self) -> FetchMut<Stats> {
+    pub fn stats_mut(&mut self) -> FetchMut<'_, Stats> {
         self.write_resource::<Stats>()
     }
 
     /// Access pipeline management in the ECS world.
-    pub fn pipeline(&self) -> Fetch<Pipeline> {
+    pub fn pipeline(&self) -> Fetch<'_, Pipeline> {
         self.read_resource::<Pipeline>()
     }
 
     /// Access a mutable pipeline management in the ECS world.
-    pub fn pipeline_mut(&mut self) -> FetchMut<Pipeline> {
+    pub fn pipeline_mut(&mut self) -> FetchMut<'_, Pipeline> {
         self.write_resource::<Pipeline>()
     }
 
     /// Access the mesher in the ECS world.
-    pub fn mesher(&self) -> Fetch<Mesher> {
+    pub fn mesher(&self) -> Fetch<'_, Mesher> {
         self.read_resource::<Mesher>()
     }
 
     /// Access a mutable mesher in the ECS world.
-    pub fn mesher_mut(&mut self) -> FetchMut<Mesher> {
+    pub fn mesher_mut(&mut self) -> FetchMut<'_, Mesher> {
         self.write_resource::<Mesher>()
     }
 
     /// Create a basic entity ready to be added more.
-    pub fn create_base_entity(&mut self, id: &str, etype: &str) -> EntityBuilder {
+    pub fn create_base_entity(&mut self, id: &str) -> EntityBuilder<'_> {
         self.ecs_mut()
             .create_entity()
             .with(IDComp::new(id))
@@ -1200,31 +1310,25 @@ impl World {
     }
 
     /// Create a basic entity ready to be added more.
-    pub fn create_entity(&mut self, id: &str, etype: &str) -> EntityBuilder {
-        self.create_base_entity(id, etype)
+    pub fn create_entity(&mut self, id: &str, etype: &str) -> EntityBuilder<'_> {
+        self.create_base_entity(id)
             .with(ETypeComp::new(etype, false))
             .with(MetadataComp::new())
             .with(CollisionsComp::new())
     }
 
     /// Create a basic entity ready to be added more.
-    pub fn create_block_entity(&mut self, id: &str, etype: &str) -> EntityBuilder {
-        self.create_base_entity(id, etype)
+    pub fn create_block_entity(&mut self, id: &str, etype: &str) -> EntityBuilder<'_> {
+        self.create_base_entity(id)
             .with(ETypeComp::new(etype, true))
     }
 
     /// Spawn an entity of type at a location.
     pub fn spawn_entity_at(&mut self, etype: &str, position: &Vec3<f32>) -> Option<Entity> {
-        if !self.entity_loaders.contains_key(&etype.to_lowercase()) {
+        let Some(loader) = self.entity_loader_for_type(etype) else {
             warn!("Tried to spawn unknown entity type: {}", etype);
             return None;
-        }
-
-        let loader = self
-            .entity_loaders
-            .get(&etype.to_lowercase())
-            .unwrap()
-            .to_owned();
+        };
 
         let ent = loader(self, MetadataComp::default()).build();
         self.populate_entity(ent, &nanoid!(), etype, MetadataComp::default());
@@ -1241,16 +1345,10 @@ impl World {
         position: &Vec3<f32>,
         metadata: MetadataComp,
     ) -> Option<Entity> {
-        if !self.entity_loaders.contains_key(&etype.to_lowercase()) {
+        let Some(loader) = self.entity_loader_for_type(etype) else {
             warn!("Tried to spawn unknown entity type: {}", etype);
             return None;
-        }
-
-        let loader = self
-            .entity_loaders
-            .get(&etype.to_lowercase())
-            .unwrap()
-            .to_owned();
+        };
 
         let ent = loader(self, metadata.clone()).build();
         self.populate_entity(ent, &nanoid!(), etype, metadata);
@@ -1268,7 +1366,7 @@ impl World {
     ) -> Option<Entity> {
         if etype.starts_with("block::") {
             let voxel_meta = metadata.get::<VoxelComp>("voxel").unwrap_or_default();
-            let voxel = voxel_meta.0.clone();
+            let voxel = voxel_meta.0;
             if self.chunks_mut().block_entities.contains_key(&voxel) {
                 warn!("Block entity already exists at voxel: {:?}", voxel);
                 self.read_resource::<BackgroundEntitiesSaver>().remove(id);
@@ -1288,25 +1386,21 @@ impl World {
             return Some(entity);
         }
 
-        if !self.entity_loaders.contains_key(&etype.to_lowercase()) {
+        let Some(loader) = self.entity_loader_for_type(etype) else {
             warn!("Tried to revive unknown entity type: {}", etype);
             return None;
-        }
-
-        let loader = self
-            .entity_loaders
-            .get(&etype.to_lowercase())
-            .unwrap()
-            .to_owned();
+        };
+        let loader_metadata = metadata.clone();
+        let position = metadata.get::<PositionComp>("position");
 
         // Wrap entity creation in panic handler to catch any errors
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            loader(self, metadata.to_owned()).build()
+            loader(self, loader_metadata).build()
         })) {
             Ok(ent) => {
-                self.populate_entity(ent, id, etype, metadata.clone());
+                self.populate_entity(ent, id, etype, metadata);
 
-                if let Some(pos) = metadata.get::<PositionComp>("position") {
+                if let Some(pos) = position {
                     set_position(self.ecs_mut(), ent, pos.0 .0, pos.0 .1, pos.0 .2);
                 }
 
@@ -1399,26 +1493,16 @@ impl World {
 
     /// Preload the chunks in the world.
     pub(crate) fn preload(&mut self) {
-        let radius = self.config().preload_radius as i32;
+        let radius = clamp_usize_to_i32(self.config().preload_radius);
+        let preload_targets = {
+            let chunks = self.chunks();
+            collect_preload_targets(&chunks, radius)
+        };
 
         {
-            for x in -radius..=radius {
-                for z in -radius..=radius {
-                    let coords = Vec2(x, z);
-                    let neighbors = self.chunks().light_traversed_chunks(&coords);
-
-                    neighbors.into_iter().for_each(|coords| {
-                        let is_within = {
-                            let chunks = self.chunks();
-                            chunks.is_within_world(&coords)
-                        };
-
-                        let mut pipeline = self.pipeline_mut();
-                        if is_within {
-                            pipeline.add_chunk(&coords, false);
-                        }
-                    });
-                }
+            let mut pipeline = self.pipeline_mut();
+            for coords in preload_targets {
+                pipeline.add_chunk(&coords, false);
             }
         }
 
@@ -1432,36 +1516,43 @@ impl World {
         }
 
         if self.preloading {
-            let light_padding = (self.config().max_light_level as f32
-                / self.config().chunk_size as f32)
-                .ceil() as usize;
-            let check_radius = (self.config().preload_radius - light_padding) as i32;
+            let check_radius = preload_check_radius(
+                self.config().preload_radius,
+                self.config().max_light_level,
+                self.config().chunk_size,
+            );
 
-            let mut total = 0;
-            let supposed = (check_radius * 2).pow(2);
+            let mut total = 0_i64;
+            let supposed = preload_expected_chunk_count(check_radius);
+            let mut remesh_coords = Vec::new();
+            {
+                let chunks = self.chunks();
+                for x in -check_radius..=check_radius {
+                    for z in -check_radius..=check_radius {
+                        let coords = Vec2(x, z);
 
-            for x in -check_radius..=check_radius {
-                for z in -check_radius..=check_radius {
-                    let chunks = self.chunks();
-                    let coords = Vec2(x, z);
-
-                    if chunks.is_chunk_ready(&coords) {
-                        total += 1;
-                    } else {
-                        if let Some(chunk) = chunks.raw(&coords) {
-                            if chunk.status == ChunkStatus::Meshing
-                                && !self.mesher().map.contains(&coords)
-                            {
-                                // Add the chunk back to meshing queue.
-                                drop(chunks);
-                                self.mesher_mut().add_chunk(&coords, false);
+                        if chunks.is_chunk_ready(&coords) {
+                            total += 1;
+                        } else if let Some(chunk) = chunks.raw(&coords) {
+                            if chunk.status == ChunkStatus::Meshing {
+                                remesh_coords.push(coords);
                             }
                         }
                     }
                 }
             }
+            if !remesh_coords.is_empty() {
+                let mut mesher = self.mesher_mut();
+                for coords in remesh_coords {
+                    mesher.add_chunk(&coords, false);
+                }
+            }
 
-            self.preload_progress = (total as f32 / supposed as f32).min(1.0);
+            self.preload_progress = if supposed == 0 {
+                1.0
+            } else {
+                (total as f32 / supposed as f32).min(1.0)
+            };
 
             if total >= supposed {
                 self.preloading = false;
@@ -1470,18 +1561,18 @@ impl World {
 
         self.stats_mut().preloading = self.preloading;
 
-        let tick_timer = SystemTimer::new("tick-total");
+        let tick_timer = ProfilerSystemTimer::new("tick-total");
 
         let dispatch_time = {
             let mut dispatcher_guard = self.built_dispatcher.lock().unwrap();
             if dispatcher_guard.is_none() {
-                let build_timer = SystemTimer::new("dispatcher-build");
+                let build_timer = ProfilerSystemTimer::new("dispatcher-build");
                 let dispatcher = (self.dispatcher)().build();
                 *dispatcher_guard = Some(UnsafeSendSync::new(dispatcher));
-                record_timing(&self.name, "dispatcher-build", build_timer.elapsed_ms());
+                record_system_timing(&self.name, "dispatcher-build", build_timer.elapsed_ms());
             }
 
-            let dispatch_timer = SystemTimer::new("dispatcher-dispatch");
+            let dispatch_timer = ProfilerSystemTimer::new("dispatcher-dispatch");
             dispatcher_guard
                 .as_mut()
                 .unwrap()
@@ -1493,50 +1584,61 @@ impl World {
         self.write_resource::<Profiler>().summarize();
 
         let maintain_time = {
-            let maintain_timer = SystemTimer::new("ecs-maintain");
+            let maintain_timer = ProfilerSystemTimer::new("ecs-maintain");
             self.ecs.maintain();
             maintain_timer.elapsed_ms()
         };
 
         let total_time = tick_timer.elapsed_ms();
 
-        record_timing(&self.name, "tick-total", total_time);
-        record_timing(&self.name, "dispatcher-dispatch", dispatch_time);
-        record_timing(&self.name, "ecs-maintain", maintain_time);
+        record_system_timing(&self.name, "tick-total", total_time);
+        record_system_timing(&self.name, "dispatcher-dispatch", dispatch_time);
+        record_system_timing(&self.name, "ecs-maintain", maintain_time);
     }
 
     /// Handler for `Peer` type messages.
     fn on_peer(&mut self, client_id: &str, data: Message) {
         let client_ent = if let Some(client) = self.clients().get(client_id) {
-            client.entity.to_owned()
+            client.entity
         } else {
             return;
         };
+        if data.peers.is_empty() {
+            return;
+        }
+        let client_parser = self.client_parser.clone();
+        let mut latest_username: Option<String> = None;
 
-        data.peers.into_iter().for_each(|peer| {
+        for peer in data.peers {
             let Peer {
                 metadata, username, ..
             } = peer;
 
+            client_parser(self, &metadata, client_ent);
+            latest_username = Some(username);
+        }
+
+        if let Some(username) = latest_username {
             {
                 let mut names = self.write_component::<NameComp>();
                 if let Some(n) = names.get_mut(client_ent) {
-                    n.0 = username.to_owned();
+                    if n.0 != username {
+                        n.0.clone_from(&username);
+                    }
                 }
             }
-
-            self.client_parser.clone()(self, &metadata, client_ent);
-
             if let Some(client) = self.clients_mut().get_mut(client_id) {
-                client.username = username;
+                if client.username != username {
+                    client.username = username;
+                }
             }
-        })
+        }
     }
 
     /// Handler for `Load` type messages.
     fn on_load(&mut self, client_id: &str, data: Message) {
         let client_ent = if let Some(client) = self.clients().get(client_id) {
-            client.entity.to_owned()
+            client.entity
         } else {
             return;
         };
@@ -1544,7 +1646,10 @@ impl World {
         let json: OnLoadRequest = match serde_json::from_str(&data.json) {
             Ok(json) => json,
             Err(e) => {
-                warn!("`on_load` error. Could not read JSON string: {}", data.json);
+                warn!(
+                    "`on_load` error. Could not read JSON string: {} ({})",
+                    data.json, e
+                );
                 return;
             }
         };
@@ -1559,9 +1664,9 @@ impl World {
 
             // Check for component existence
             if let Some(requests) = storage.get_mut(client_ent) {
-                chunks.iter().for_each(|coords| {
+                for coords in chunks.iter() {
                     requests.add(coords);
-                });
+                }
 
                 requests.set_center(&json.center);
                 requests.set_direction(&json.direction);
@@ -1579,7 +1684,7 @@ impl World {
     /// Handler for `Unload` type messages.
     fn on_unload(&mut self, client_id: &str, data: Message) {
         let client_ent = if let Some(client) = self.clients().get(client_id) {
-            client.entity.to_owned()
+            client.entity
         } else {
             return;
         };
@@ -1588,8 +1693,8 @@ impl World {
             Ok(json) => json,
             Err(e) => {
                 warn!(
-                    "`on_unload` error. Could not read JSON string: {}",
-                    data.json
+                    "`on_unload` error. Could not read JSON string: {} ({})",
+                    data.json, e
                 );
                 return;
             }
@@ -1604,31 +1709,31 @@ impl World {
             let mut storage = self.write_component::<ChunkRequestsComp>();
 
             if let Some(requests) = storage.get_mut(client_ent) {
-                chunks.iter().for_each(|coords| {
+                for coords in chunks.iter() {
                     requests.remove(coords);
-                });
+                }
             }
         }
 
         {
             let mut interests = self.chunk_interest_mut();
 
-            let mut to_remove = Vec::new();
+            let mut to_remove = Vec::with_capacity(chunks.len());
 
-            chunks.iter().for_each(|coords| {
+            for coords in chunks.iter() {
                 interests.remove(client_id, coords);
 
                 if !interests.has_interests(coords) {
-                    to_remove.push(coords);
+                    to_remove.push(*coords);
                 }
-            });
+            }
 
             drop(interests);
 
-            to_remove.into_iter().for_each(|coords| {
-                self.pipeline_mut().remove_chunk(coords);
-                self.mesher_mut().remove_chunk(coords);
-            })
+            for coords in to_remove {
+                self.pipeline_mut().remove_chunk(&coords);
+                self.mesher_mut().remove_chunk(&coords);
+            }
         }
     }
 
@@ -1638,12 +1743,13 @@ impl World {
         let mut chunks = self.chunks_mut();
 
         if let Some(bulk) = data.bulk_update {
-            for i in 0..bulk.vx.len() {
-                let vx = bulk.vx[i];
-                let vy = bulk.vy[i];
-                let vz = bulk.vz[i];
-                let voxel = bulk.voxels[i];
-
+            for (((&vx, &vy), &vz), &voxel) in bulk
+                .vx
+                .iter()
+                .zip(bulk.vy.iter())
+                .zip(bulk.vz.iter())
+                .zip(bulk.voxels.iter())
+            {
                 let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
 
                 if !chunks.is_within_world(&coords) {
@@ -1653,34 +1759,42 @@ impl World {
                 chunks.update_voxel(&Vec3(vx, vy, vz), voxel);
             }
         } else {
-            data.updates.into_iter().for_each(|update| {
+            for update in data.updates {
                 let coords =
                     ChunkUtils::map_voxel_to_chunk(update.vx, update.vy, update.vz, chunk_size);
 
                 if !chunks.is_within_world(&coords) {
-                    return;
+                    continue;
                 }
 
                 chunks.update_voxel(&Vec3(update.vx, update.vy, update.vz), update.voxel);
-            });
+            }
         }
     }
 
     /// Handler for `Method` type messages.
     fn on_method(&mut self, client_id: &str, data: Message) {
         if let Some(method) = data.method {
-            if !self
+            let handle = self
                 .method_handles
-                .contains_key(&method.name.to_lowercase())
-            {
+                .get(method.name.as_str())
+                .cloned()
+                .or_else(|| {
+                    let normalized_method_name = normalized_lookup_name(&method.name);
+                    if normalized_method_name.as_ref() == method.name.as_str() {
+                        return None;
+                    }
+                    self.method_handles
+                        .get(normalized_method_name.as_ref())
+                        .cloned()
+                });
+            let Some(handle) = handle else {
                 warn!(
                     "`Method` type messages received of name {}, but no method handler set.",
                     method.name
                 );
                 return;
-            }
-
-            let handle = self.method_handles.get(&method.name).unwrap().to_owned();
+            };
 
             handle(self, client_id, &method.payload);
         }
@@ -1688,49 +1802,61 @@ impl World {
 
     /// Handler for `Event` type messages.
     fn on_event(&mut self, client_id: &str, data: Message) {
-        let client_ent = self.clients().get(client_id).map(|c| c.entity.to_owned());
-
-        data.events.into_iter().for_each(|event| {
-            if !self.event_handles.contains_key(&event.name.to_lowercase()) {
-                let location = client_ent.and_then(|ent| {
-                    self.read_component::<CurrentChunkComp>()
-                        .get(ent)
-                        .map(|c| c.coords.clone())
-                });
-
-                let mut event_builder = Event::new(&event.name).payload(event.payload);
-                if let Some(loc) = location {
-                    event_builder = event_builder.location(loc);
-                }
-                self.events_mut().dispatch(event_builder.build());
-                return;
-            }
-
-            let handle = self.event_handles.get(&event.name).unwrap().to_owned();
-            handle(self, client_id, &event.payload);
+        let client_ent = self.clients().get(client_id).map(|c| c.entity);
+        let client_location = client_ent.and_then(|ent| {
+            self.read_component::<CurrentChunkComp>()
+                .get(ent)
+                .map(|c| c.coords)
         });
+
+        for event in data.events {
+            let handle = self
+                .event_handles
+                .get(event.name.as_str())
+                .cloned()
+                .or_else(|| {
+                    let normalized_event_name = normalized_lookup_name(&event.name);
+                    if normalized_event_name.as_ref() == event.name.as_str() {
+                        return None;
+                    }
+                    self.event_handles
+                        .get(normalized_event_name.as_ref())
+                        .cloned()
+                });
+            if let Some(handle) = handle {
+                handle(self, client_id, &event.payload);
+                continue;
+            }
+            let mut event_builder = Event::new_owned(event.name).payload_raw(event.payload);
+            if let Some(loc) = client_location {
+                event_builder = event_builder.location(loc);
+            }
+            self.events_mut().dispatch(event_builder.build());
+        }
     }
 
     /// Handler for `Chat` type messages.
     fn on_chat(&mut self, id: &str, data: Message) {
-        if let Some(chat) = data.chat.clone() {
-            let sender = chat.sender.clone();
-            let body = chat.body.clone();
+        let Some(chat) = data.chat.as_ref() else {
+            return;
+        };
 
-            info!("{}: {}", sender, body);
+        info!("{}: {}", chat.sender, chat.body);
 
-            let command_symbol = self.config().command_symbol.to_owned();
-
-            if body.starts_with(&command_symbol) {
-                if let Some(handle) = self.command_handle.to_owned() {
-                    handle(self, id, body.strip_prefix(&command_symbol).unwrap());
-                } else {
-                    warn!("Clients are sending commands, but no command handler set.");
-                }
+        let command = {
+            let config = self.config();
+            chat.body.strip_prefix(config.command_symbol.as_str())
+        };
+        if let Some(command) = command {
+            if let Some(handle) = self.command_handle.as_ref().map(Arc::clone) {
+                handle(self, id, command);
             } else {
-                self.broadcast(data, ClientFilter::All);
+                warn!("Clients are sending commands, but no command handler set.");
             }
+            return;
         }
+
+        self.broadcast(data, ClientFilter::All);
     }
 
     /// Load existing entities.
@@ -1744,14 +1870,14 @@ impl World {
                 .clone();
             fs::create_dir_all(&folder).ok();
             let paths = fs::read_dir(folder).unwrap();
-            let mut loaded_entities = HashMap::new();
+            let mut loaded_entities = HashMap::with_capacity(64);
 
             for path in paths {
                 let path = path.unwrap().path();
 
                 if let Ok(entity_data) = File::open(&path) {
                     let id = path.file_stem().unwrap().to_str().unwrap().to_owned();
-                    let mut data: HashMap<String, Value> =
+                    let PersistedEntityRecord { etype, metadata } =
                         match serde_json::from_reader(entity_data) {
                             Ok(data) => data,
                             Err(e) => {
@@ -1764,17 +1890,9 @@ impl World {
                                 continue;
                             }
                         };
-                    let etype: String = serde_json::from_value(data.remove("etype").unwrap())
-                        .unwrap_or_else(|_| {
-                            panic!("EType filed does not exist on file: {:?}", path)
-                        });
-                    let metadata: MetadataComp =
-                        serde_json::from_value(data.remove("metadata").unwrap()).unwrap_or_else(
-                            |_| panic!("Metadata field does not exist on file: {:?}", path),
-                        );
 
                     if let Some(ent) = self.revive_entity(&id, &etype, metadata.to_owned()) {
-                        loaded_entities.insert(id.to_owned(), (etype, ent, metadata, true));
+                        loaded_entities.insert(id, (etype, ent, metadata, true));
                     } else {
                         // Use error! instead of info! for better visibility
                         error!(
@@ -1790,21 +1908,23 @@ impl World {
             }
 
             if !loaded_entities.is_empty() {
-                let name = self.name.to_owned();
+                let loaded_count = loaded_entities.len();
                 let mut bookkeeping = self.write_resource::<Bookkeeping>();
+                bookkeeping.entities = loaded_entities;
+                drop(bookkeeping);
                 info!(
                     "World {:?} loaded {} entities from disk.",
-                    name,
-                    loaded_entities.len()
+                    self.name, loaded_count
                 );
-                bookkeeping.entities = loaded_entities;
             }
         }
     }
 
     fn generate_init_message(&self, id: &str) -> (Message, Vec<String>) {
         let config = (*self.config()).to_owned();
-        let mut json = HashMap::new();
+        let mut json = HashMap::with_capacity(
+            4 + self.extra_init_data.len() + usize::from(self.items.is_some()),
+        );
 
         json.insert("id".to_owned(), json!(id));
         json.insert("blocks".to_owned(), json!(self.registry().blocks_by_name));
@@ -1821,6 +1941,8 @@ impl World {
         for (key, value) in &self.extra_init_data {
             json.insert(key.clone(), value.clone());
         }
+        let peer_capacity_hint = self.clients().len();
+        let entity_capacity_hint = self.entity_ids().len();
 
         /* ------------------------ Loading other the clients ----------------------- */
         let ids = self.read_component::<IDComp>();
@@ -1828,35 +1950,38 @@ impl World {
         let names = self.read_component::<NameComp>();
         let metadatas = self.read_component::<MetadataComp>();
 
-        let mut peers = vec![];
+        let mut peers = Vec::with_capacity(peer_capacity_hint);
 
         for (pid, name, metadata, _) in (&ids, &names, &metadatas, &flags).join() {
+            let peer_id = pid.0.clone();
+            let peer_username = name.0.clone();
             peers.push(PeerProtocol {
-                id: pid.0.to_owned(),
-                username: name.0.to_owned(),
+                id: peer_id,
+                username: peer_username,
                 metadata: metadata.to_string(),
             })
         }
 
         /* -------------------------- Loading all entities -------------------------- */
         let etypes = self.read_component::<ETypeComp>();
-        let metadatas = self.read_component::<MetadataComp>();
 
-        let mut entities = vec![];
-        let mut entity_ids = vec![];
+        let mut entities = Vec::with_capacity(entity_capacity_hint);
+        let mut entity_ids = Vec::with_capacity(entity_capacity_hint);
 
         for (id, etype, metadata) in (&ids, &etypes, &metadatas).join() {
             if !etype.0.starts_with("block::") && metadata.is_empty() {
                 continue;
             }
 
+            let entity_id = id.0.clone();
+            let entity_type = etype.0.clone();
             let j_str = metadata.to_string();
 
-            entity_ids.push(id.0.to_owned());
+            entity_ids.push(entity_id.clone());
             entities.push(EntityProtocol {
                 operation: EntityOperation::Update,
-                id: id.0.to_owned(),
-                r#type: etype.0.to_owned(),
+                id: entity_id,
+                r#type: entity_type,
                 metadata: Some(j_str),
             });
         }
@@ -1868,11 +1993,91 @@ impl World {
         (
             Message::new(&MessageType::Init)
                 .world_name(&self.name)
-                .json(&serde_json::to_string(&json).unwrap())
-                .peers(&peers)
-                .entities(&entities)
+                .json_owned(serde_json::to_string(&json).unwrap())
+                .peers_owned(peers)
+                .entities_owned(entities)
                 .build(),
             entity_ids,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::borrow::Cow;
+
+    use hashbrown::HashSet;
+
+    use super::{
+        collect_preload_targets, preload_check_radius, preload_expected_chunk_count,
+        preload_light_padding, normalized_lookup_name, Chunks, Vec2, WorldConfig,
+    };
+
+    #[test]
+    fn normalized_lookup_name_keeps_lowercase_borrowed() {
+        assert!(matches!(
+            normalized_lookup_name("method"),
+            Cow::Borrowed("method")
+        ));
+    }
+
+    #[test]
+    fn normalized_lookup_name_lowercases_ascii_and_unicode_uppercase() {
+        assert_eq!(normalized_lookup_name("MeThOd").as_ref(), "method");
+        assert_eq!(normalized_lookup_name("Äction").as_ref(), "äction");
+    }
+
+    #[test]
+    fn preload_light_padding_uses_integer_ceil_and_zero_chunk_guard() {
+        assert_eq!(preload_light_padding(15, 16), 1);
+        assert_eq!(preload_light_padding(16, 16), 1);
+        assert_eq!(preload_light_padding(15, 0), 15);
+    }
+
+    #[test]
+    fn preload_check_radius_saturates_and_clamps() {
+        assert_eq!(preload_check_radius(0, 15, 16), 0);
+        assert_eq!(preload_check_radius(10, 15, 16), 9);
+        assert_eq!(preload_check_radius(usize::MAX, 0, 1), i32::MAX);
+    }
+
+    #[test]
+    fn preload_expected_chunk_count_matches_inclusive_radius_grid() {
+        assert_eq!(preload_expected_chunk_count(0), 1);
+        assert_eq!(preload_expected_chunk_count(1), 9);
+        assert_eq!(preload_expected_chunk_count(2), 25);
+    }
+
+    #[test]
+    fn collect_preload_targets_deduplicates_neighbor_chunks() {
+        let config = WorldConfig {
+            chunk_size: 16,
+            max_height: 16,
+            max_light_level: 15,
+            min_chunk: [-1, -1],
+            max_chunk: [1, 1],
+            ..Default::default()
+        };
+        let chunks = Chunks::new(&config);
+
+        let targets = collect_preload_targets(&chunks, 1);
+        let unique: HashSet<_> = targets.iter().cloned().collect();
+        assert_eq!(targets.len(), unique.len());
+    }
+
+    #[test]
+    fn collect_preload_targets_respects_world_bounds() {
+        let config = WorldConfig {
+            chunk_size: 16,
+            max_height: 16,
+            max_light_level: 15,
+            min_chunk: [0, 0],
+            max_chunk: [0, 0],
+            ..Default::default()
+        };
+        let chunks = Chunks::new(&config);
+
+        let targets = collect_preload_targets(&chunks, 3);
+        assert_eq!(targets, vec![Vec2(0, 0)]);
     }
 }

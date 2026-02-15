@@ -1,5 +1,6 @@
 mod models;
 
+use std::borrow::Cow;
 use std::time::{Duration, Instant};
 
 use actix::{
@@ -19,10 +20,10 @@ use tokio::sync::mpsc;
 
 use crate::{
     errors::AddWorldError,
-    world::{Registry, World, WorldConfig},
-    ChunkStatus, ClientJoinRequest, ClientLeaveRequest, ClientRequest, GetConfig, GetInfo,
-    GetWorldStats, Mesher, MessageQueues, Preload, Prepare, RtcSenders, Stats, SyncWorld, Tick,
-    TransportJoinRequest, TransportLeaveRequest, WorldStatsResponse,
+    world::{Registry, World},
+    ClientJoinRequest, ClientLeaveRequest, ClientRequest, GetInfo, GetWorldStats, Preload,
+    Prepare, RtcSenders, SyncWorld, Tick, TransportJoinRequest, TransportLeaveRequest,
+    WorldStatsResponse,
 };
 
 pub use models::*;
@@ -43,15 +44,56 @@ struct OnActionRequest {
 
 type ServerInfoHandle = fn(&Server) -> Value;
 
+#[inline]
+fn normalized_action_name<'a>(action: &'a str) -> Cow<'a, str> {
+    let mut has_non_ascii = false;
+    for &byte in action.as_bytes() {
+        if byte.is_ascii_uppercase() {
+            return Cow::Owned(action.to_lowercase());
+        }
+        if !byte.is_ascii() {
+            has_non_ascii = true;
+        }
+    }
+    if !has_non_ascii {
+        Cow::Borrowed(action)
+    } else if action.chars().any(|ch| ch.is_uppercase()) {
+        Cow::Owned(action.to_lowercase())
+    } else {
+        Cow::Borrowed(action)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::borrow::Cow;
+
+    use super::normalized_action_name;
+
+    #[test]
+    fn normalized_action_name_borrows_lowercase_ascii() {
+        assert!(matches!(
+            normalized_action_name("action"),
+            Cow::Borrowed("action")
+        ));
+    }
+
+    #[test]
+    fn normalized_action_name_lowercases_ascii_and_unicode_uppercase() {
+        assert_eq!(normalized_action_name("AcTiOn").as_ref(), "action");
+        assert_eq!(normalized_action_name("Äction").as_ref(), "äction");
+    }
+}
+
 fn default_info_handle(server: &Server) -> Value {
-    let mut info = HashMap::new();
+    let mut info = HashMap::with_capacity(3);
 
     info.insert(
         "lost_sessions".to_owned(),
         json!(server.lost_sessions.len()),
     );
 
-    let mut connections = HashMap::new();
+    let mut connections = HashMap::with_capacity(server.connections.len());
 
     for (id, (_, world, _)) in server.connections.iter() {
         connections.insert(id.to_owned(), json!(world));
@@ -59,100 +101,13 @@ fn default_info_handle(server: &Server) -> Value {
 
     info.insert("connections".to_owned(), json!(connections));
 
-    let mut transports = vec![];
+    let mut transports = Vec::with_capacity(server.transport_sessions.len());
 
     for (id, _) in server.transport_sessions.iter() {
         transports.push(id.to_owned());
     }
 
     info.insert("transports".to_owned(), json!(transports));
-
-    // for (name, world) in server.worlds.iter() {
-    //     let mut world_info = HashMap::new();
-
-    //     {
-    //         let clients = world.clients();
-    //         world_info.insert(
-    //             "clients".to_owned(),
-    //             json!(clients
-    //                 .values()
-    //                 .map(|client| json!({
-    //                     "id": client.id.to_owned(),
-    //                     "username": client.username.to_owned(),
-    //                 }))
-    //                 .collect::<Vec<_>>()),
-    //         );
-    //     }
-
-    //     {
-    //         let config = world.config();
-    //         world_info.insert("config".to_owned(), json!(*config));
-    //     }
-
-    //     {
-    //         let stats = world.read_resource::<Stats>();
-    //         let mut stats_info = HashMap::new();
-
-    //         stats_info.insert("tick".to_owned(), json!(stats.tick));
-    //         stats_info.insert("delta".to_owned(), json!(stats.delta));
-
-    //         world_info.insert("stats".to_owned(), json!(stats_info));
-    //     }
-
-    //     {
-    //         let chunks = world.chunks();
-    //         let pipeline = world.pipeline();
-    //         let mesher = world.read_resource::<Mesher>();
-
-    //         let mut generating: i32 = 0;
-    //         let mut meshing: i32 = 0;
-    //         let mut ready: i32 = 0;
-
-    //         for chunk in chunks.map.values() {
-    //             match chunk.status {
-    //                 ChunkStatus::Generating(_) => generating += 1,
-    //                 ChunkStatus::Meshing => meshing += 1,
-    //                 ChunkStatus::Ready => ready += 1,
-    //             }
-    //         }
-
-    //         world_info.insert(
-    //             "chunks".to_owned(),
-    //             json!({
-    //                 "count": chunks.map.len(),
-    //                 "generating": generating,
-    //                 "meshing": meshing,
-    //                 "ready": ready,
-    //                 "pipeline_chunks": pipeline.chunks,
-    //                 "pipeline_queue": pipeline.queue,
-    //                 "mesher_chunks": mesher.map,
-    //                 "mesher_queue": mesher.queue,
-    //                 "active_voxels": chunks.active_voxels.len()
-    //             }),
-    //         );
-    //     }
-
-    //     {
-    //         let pipeline = world.pipeline();
-
-    //         let pipeline_info = json!({
-    //             "count": json!(pipeline.chunks.len()),
-    //             "stages": json!(
-    //                 pipeline
-    //                     .stages
-    //                     .iter()
-    //                     .map(|stage| json!(stage.name()))
-    //                     .collect::<Vec<_>>()
-    //             )
-    //         });
-
-    //         world_info.insert("pipeline".to_owned(), pipeline_info);
-    //     }
-
-    //     worlds.insert(name.to_owned(), json!(world_info));
-    // }
-
-    // info.insert("worlds".to_owned(), json!(worlds));
 
     serde_json::to_value(info).unwrap()
 }
@@ -290,27 +245,25 @@ impl Server {
             let json: OnJoinRequest = serde_json::from_str(&data.json)
                 .expect("`on_join` error. Could not read JSON string.");
 
-            if !self.lost_sessions.contains_key(id) {
+            let Some((sender, token)) = self.lost_sessions.remove(id) else {
                 return Some(format!(
                     "Client at {} is already in world: {}",
                     id, json.world
                 ));
-            }
+            };
 
             if let Some(world) = self.worlds.get_mut(&json.world) {
-                if let Some((sender, token)) = self.lost_sessions.remove(id) {
-                    world.do_send(ClientJoinRequest {
-                        id: id.to_owned(),
-                        username: json.username,
-                        sender: sender.clone(),
-                    });
-                    self.connections
-                        .insert(id.to_owned(), (sender, json.world, token));
-                    return None;
-                }
-
-                return Some("Something went wrong with joining. Maybe you called .join twice on the client?".to_owned());
+                world.do_send(ClientJoinRequest {
+                    id: id.to_owned(),
+                    username: json.username,
+                    sender: sender.clone(),
+                });
+                self.connections
+                    .insert(id.to_owned(), (sender, json.world, token));
+                return None;
             }
+
+            self.lost_sessions.insert(id.to_owned(), (sender, token));
 
             return Some(format!(
                 "ID {} is attempting to connect to a non-existent world!",
@@ -331,54 +284,55 @@ impl Server {
             self.on_action(id, &data);
 
             return None;
-        } else if data.r#type == MessageType::Transport as i32
-            || self.transport_sessions.contains_key(id)
-        {
-            if !self.transport_sessions.contains_key(id) {
+        } else {
+            let is_transport_session = self.transport_sessions.contains_key(id);
+            if data.r#type == MessageType::Transport as i32 || is_transport_session {
+                if !is_transport_session {
+                    return Some(
+                        "Someone who isn't a transport server is attempting to transport."
+                            .to_owned(),
+                    );
+                }
+
+                if data.text.is_empty() {
+                    return Some(format!(
+                        "Transport message missing world name (text field empty). Message type: {:?}",
+                        MessageType::try_from(data.r#type)
+                            .map(|t| format!("{:?}", t))
+                            .unwrap_or_else(|_| data.r#type.to_string())
+                    ));
+                }
+
+                if let Some(world) = self.get_world_mut(&data.text) {
+                    world.do_send(ClientRequest {
+                        client_id: id.to_owned(),
+                        data,
+                    });
+
+                    return None;
+                } else {
+                    return Some(format!(
+                        "Transport message for unknown world '{}'. Message type: {:?}",
+                        data.text,
+                        MessageType::try_from(data.r#type)
+                            .map(|t| format!("{:?}", t))
+                            .unwrap_or_else(|_| data.r#type.to_string())
+                    ));
+                }
+            }
+
+            let Some((_, world_name, _)) = self.connections.get(id) else {
                 return Some(
-                    "Someone who isn't a transport server is attempting to transport.".to_owned(),
+                    "You are not connected to a world!".to_owned()
                 );
-            }
+            };
 
-            if data.text.is_empty() {
-                return Some(format!(
-                    "Transport message missing world name (text field empty). Message type: {:?}",
-                    MessageType::try_from(data.r#type)
-                        .map(|t| format!("{:?}", t))
-                        .unwrap_or_else(|_| data.r#type.to_string())
-                ));
-            }
-
-            if let Some(world) = self.get_world_mut(&data.text) {
+            if let Some(world) = self.get_world(world_name) {
                 world.do_send(ClientRequest {
                     client_id: id.to_owned(),
                     data,
                 });
-
-                return None;
-            } else {
-                return Some(format!(
-                    "Transport message for unknown world '{}'. Message type: {:?}",
-                    data.text,
-                    MessageType::try_from(data.r#type)
-                        .map(|t| format!("{:?}", t))
-                        .unwrap_or_else(|_| data.r#type.to_string())
-                ));
             }
-        }
-
-        let connection = self.connections.get(id);
-        if connection.is_none() {
-            return Some("You are not connected to a world!".to_owned());
-        }
-
-        let (_, world_name, _) = connection.unwrap().to_owned();
-
-        if let Some(world) = self.get_world_mut(&world_name) {
-            world.do_send(ClientRequest {
-                client_id: id.to_owned(),
-                data,
-            });
         }
 
         None
@@ -386,7 +340,7 @@ impl Server {
 
     /// Prepare all worlds on the server to start.
     pub async fn prepare(&mut self) {
-        for world in self.worlds.values_mut() {
+        for world in self.worlds.values() {
             world.do_send(Prepare);
         }
     }
@@ -400,13 +354,13 @@ impl Server {
         .unwrap()
         .progress_chars("#>-");
 
-        let infos: Vec<_> = join_all(self.worlds.values().map(|world| world.send(GetInfo)))
-            .await
-            .into_iter()
-            .map(|r| r.unwrap())
-            .collect();
+        let info_results = join_all(self.worlds.values().map(|world| world.send(GetInfo))).await;
+        let mut infos = Vec::with_capacity(info_results.len());
+        for info_result in info_results {
+            infos.push(info_result.unwrap());
+        }
 
-        let mut bars = vec![];
+        let mut bars = Vec::with_capacity(self.worlds.len());
         for (world, info) in self.worlds.values().zip(infos.iter()) {
             if !info.config.preload {
                 bars.push(None);
@@ -425,11 +379,12 @@ impl Server {
         let start = Instant::now();
 
         loop {
-            let infos: Vec<_> = join_all(self.worlds.values().map(|world| world.send(GetInfo)))
-                .await
-                .into_iter()
-                .map(|r| r.unwrap())
-                .collect();
+            let info_results =
+                join_all(self.worlds.values().map(|world| world.send(GetInfo))).await;
+            let mut infos = Vec::with_capacity(info_results.len());
+            for info_result in info_results {
+                infos.push(info_result.unwrap());
+            }
 
             let mut done = true;
 
@@ -471,7 +426,7 @@ impl Server {
 
     /// Tick every world on this server.
     pub(crate) fn tick(&mut self) {
-        for world in self.worlds.values_mut() {
+        for world in self.worlds.values() {
             world.do_send(Tick);
         }
     }
@@ -511,29 +466,25 @@ impl Server {
         handle: F,
     ) {
         self.action_handles
-            .insert(action.to_lowercase(), Arc::new(handle));
+            .insert(normalized_action_name(action).into_owned(), Arc::new(handle));
     }
 
     /// Handler for `Action` type messages.
     fn on_action(&mut self, _: &str, data: &Message) {
         let json: OnActionRequest = serde_json::from_str(&data.json)
             .expect("`on_action` error. Could not read JSON string.");
-        let action = json.action.to_lowercase();
+        let action = normalized_action_name(&json.action);
 
-        info!("{:?}", &self.action_handles.keys());
-        info!("{:?}", &action);
-
-        if !self.action_handles.contains_key(&action) {
-            warn!(
-                "`Action` type messages received of type {}, but no action handler set.",
-                action
-            );
+        if let Some(handle) = self.action_handles.get(action.as_ref()) {
+            let handle = Arc::clone(handle);
+            handle(json.data, self);
             return;
         }
 
-        let handle = self.action_handles.get(&action).unwrap().to_owned();
-
-        handle(json.data, self);
+        warn!(
+            "`Action` type messages received of type {}, but no action handler set.",
+            action.as_ref()
+        );
     }
 }
 
@@ -584,9 +535,7 @@ impl Actor for Server {
     fn started(&mut self, ctx: &mut Self::Context) {
         // Set up a recurring task to tick all worlds
         ctx.run_interval(Duration::from_millis(self.interval), |act, _| {
-            for world in act.worlds.values() {
-                world.do_send(Tick);
-            }
+            act.tick();
         });
     }
 }
@@ -608,12 +557,12 @@ impl Handler<Connect> for Server {
         let token = nanoid!();
 
         if msg.is_transport {
-            self.worlds.values_mut().for_each(|world| {
+            for world in self.worlds.values() {
                 world.do_send(TransportJoinRequest {
                     id: id.clone(),
                     sender: msg.sender.clone(),
-                })
-            });
+                });
+            }
 
             self.transport_sessions.insert(id.to_owned(), msg.sender);
 
@@ -655,9 +604,8 @@ impl Handler<Disconnect> for Server {
 
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
         // Check connections: only remove if the token matches the current session
-        if let Some((_, _, current_token)) = self.connections.get(&msg.id) {
-            if *current_token == msg.token {
-                let (_, world_name, _) = self.connections.remove(&msg.id).unwrap();
+        if let Some((sender, world_name, current_token)) = self.connections.remove(&msg.id) {
+            if current_token == msg.token {
                 if let Some(world) = self.worlds.get_mut(&world_name) {
                     world.do_send(ClientLeaveRequest { id: msg.id.clone() });
                 }
@@ -666,21 +614,24 @@ impl Handler<Disconnect> for Server {
                     "Ignoring stale disconnect for {} (token mismatch)",
                     msg.id
                 );
+                self.connections
+                    .insert(msg.id.clone(), (sender, world_name, current_token));
             }
         }
 
-        if let Some(_) = self.transport_sessions.remove(&msg.id) {
-            self.worlds.values_mut().for_each(|world| {
+        if self.transport_sessions.remove(&msg.id).is_some() {
+            for world in self.worlds.values() {
                 world.do_send(TransportLeaveRequest { id: msg.id.clone() });
-            });
+            }
 
             info!("A transport server connection has ended.")
         }
 
         // Check lost_sessions: only remove if the token matches
-        if let Some((_, current_token)) = self.lost_sessions.get(&msg.id) {
-            if *current_token == msg.token {
-                self.lost_sessions.remove(&msg.id);
+        if let Some((sender, current_token)) = self.lost_sessions.remove(&msg.id) {
+            if current_token != msg.token {
+                self.lost_sessions
+                    .insert(msg.id, (sender, current_token));
             }
         }
     }
@@ -700,10 +651,11 @@ impl Handler<GetAllWorldStats> for Server {
     type Result = actix::ResponseActFuture<Self, Vec<WorldStatsResponse>>;
 
     fn handle(&mut self, _: GetAllWorldStats, _: &mut Context<Self>) -> Self::Result {
-        let world_addrs: Vec<_> = self.worlds.iter().map(|(_, addr)| addr.clone()).collect();
+        let mut world_addrs = Vec::with_capacity(self.worlds.len());
+        world_addrs.extend(self.worlds.values().cloned());
 
         Box::pin(wrap_future(async move {
-            let mut stats = Vec::new();
+            let mut stats = Vec::with_capacity(world_addrs.len());
             for addr in world_addrs {
                 if let Ok(world_stats) = addr.send(GetWorldStats).await {
                     stats.push(world_stats);

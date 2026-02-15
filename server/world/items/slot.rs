@@ -1,4 +1,4 @@
-use hashbrown::HashMap;
+use hashbrown::{hash_map::RawEntryMut, HashMap};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -95,7 +95,16 @@ impl SlotContent {
         match self {
             SlotContent::Item { data, .. } => {
                 if let Ok(json_value) = serde_json::to_value(value) {
-                    data.insert(key.to_string(), json_value);
+                    match data.raw_entry_mut().from_key(key) {
+                        RawEntryMut::Occupied(mut entry) => {
+                            if entry.get() != &json_value {
+                                *entry.get_mut() = json_value;
+                            }
+                        }
+                        RawEntryMut::Vacant(entry) => {
+                            entry.insert(key.to_owned(), json_value);
+                        }
+                    }
                     true
                 } else {
                     false
@@ -161,6 +170,13 @@ pub enum HeldObject {
     Item(u32),
 }
 
+const MAX_ENCODED_HELD_OBJECT_ID: u32 = i32::MAX as u32;
+
+#[inline]
+fn clamp_held_object_id(id: u32) -> u32 {
+    id.min(MAX_ENCODED_HELD_OBJECT_ID)
+}
+
 impl Default for HeldObject {
     fn default() -> Self {
         HeldObject::None
@@ -171,8 +187,8 @@ impl HeldObject {
     pub fn encode(self) -> i32 {
         match self {
             HeldObject::None => 0,
-            HeldObject::Block(id) => id as i32,
-            HeldObject::Item(id) => -(id as i32),
+            HeldObject::Block(id) => clamp_held_object_id(id) as i32,
+            HeldObject::Item(id) => -(clamp_held_object_id(id) as i32),
         }
     }
 
@@ -183,7 +199,7 @@ impl HeldObject {
         if raw > 0 {
             return HeldObject::Block(raw as u32);
         }
-        HeldObject::Item((-raw) as u32)
+        HeldObject::Item(raw.saturating_abs() as u32)
     }
 
     pub fn from_slot(slot: &SlotContent) -> Self {
@@ -285,5 +301,27 @@ mod tests {
         item_with_data.set_data("durability", 100u32);
 
         assert!(!item_a.slots_equal(&item_with_data));
+    }
+
+    #[test]
+    fn test_held_object_encode_clamps_large_ids() {
+        assert_eq!(HeldObject::Block(u32::MAX).encode(), i32::MAX);
+        assert_eq!(HeldObject::Item(u32::MAX).encode(), -i32::MAX);
+    }
+
+    #[test]
+    fn test_held_object_decode_handles_i32_min_without_overflow() {
+        assert_eq!(
+            HeldObject::decode(i32::MIN),
+            HeldObject::Item(i32::MAX as u32)
+        );
+    }
+
+    #[test]
+    fn test_held_object_roundtrip_preserves_representable_ids() {
+        let block = HeldObject::Block(42);
+        let item = HeldObject::Item(42);
+        assert_eq!(HeldObject::decode(block.encode()), block);
+        assert_eq!(HeldObject::decode(item.encode()), item);
     }
 }

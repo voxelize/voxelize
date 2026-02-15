@@ -1,9 +1,8 @@
 use std::{collections::VecDeque, sync::Arc};
 
-use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use hashbrown::{HashMap, HashSet};
-use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
-use rayon::{ThreadPool, ThreadPoolBuilder};
+use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 
 use crate::{
     Chunk, ChunkStatus, Registry, Space, SpaceData, Terrain, Vec2, Vec3, VoxelAccess, VoxelUpdate,
@@ -29,11 +28,18 @@ impl MetaStage {
 
 impl ChunkStage for MetaStage {
     fn name(&self) -> String {
-        self.stages
-            .iter()
-            .map(|stage| stage.name())
-            .collect::<Vec<_>>()
-            .join(" -> ")
+        let stage_count = self.stages.len();
+        if stage_count == 0 {
+            return String::new();
+        }
+        let mut name = String::with_capacity(stage_count.saturating_mul(8));
+        for stage_index in 0..stage_count {
+            if stage_index > 0 {
+                name.push_str(" -> ");
+            }
+            name.push_str(&self.stages[stage_index].name());
+        }
+        name
     }
 
     fn process(&self, mut chunk: Chunk, resources: Resources, _: Option<Space>) -> Chunk {
@@ -117,11 +123,14 @@ impl FlatlandStage {
     }
 
     pub fn add_soiling(mut self, block: u32, height: usize) -> Self {
-        for _ in 0..height {
-            self.soiling.push(block);
-        }
+        self.soiling.extend(std::iter::repeat_n(block, height));
 
-        self.top_height += height as u32;
+        let height_u32 = if height > u32::MAX as usize {
+            u32::MAX
+        } else {
+            height as u32
+        };
+        self.top_height = self.top_height.saturating_add(height_u32);
 
         self
     }
@@ -131,6 +140,14 @@ impl FlatlandStage {
     }
 }
 
+#[inline]
+fn clamped_flatland_top_height(top_height: u32, chunk_max_y: i32) -> u32 {
+    if chunk_max_y <= 0 {
+        return 0;
+    }
+    top_height.min(chunk_max_y as u32)
+}
+
 impl ChunkStage for FlatlandStage {
     fn name(&self) -> String {
         "Flatland".to_owned()
@@ -138,11 +155,12 @@ impl ChunkStage for FlatlandStage {
 
     fn process(&self, mut chunk: Chunk, _: Resources, _: Option<Space>) -> Chunk {
         let Vec3(min_x, _, min_z) = chunk.min;
-        let Vec3(max_x, _, max_z) = chunk.max;
+        let Vec3(max_x, max_y, max_z) = chunk.max;
+        let top_height = clamped_flatland_top_height(self.top_height, max_y);
 
         for vx in min_x..max_x {
             for vz in min_z..max_z {
-                for vy in 0..self.top_height {
+                for vy in 0..top_height {
                     if let Some(soiling) = self.query_soiling(vy) {
                         chunk.set_voxel(vx, vy as i32, vz, soiling);
                     }
@@ -227,11 +245,27 @@ pub struct Pipeline {
     /// Receiver to receive processed chunks from other threads to main thread.
     receiver: Arc<Receiver<(Chunk, Vec<VoxelUpdate>)>>,
 
-    /// Pipeline's thread pool to process chunks.
-    pool: ThreadPool,
 }
 
 impl Pipeline {
+    #[inline]
+    fn remove_queued_chunk(&mut self, coords: &Vec2<i32>) {
+        if self.queue.is_empty() {
+            return;
+        }
+        if self.queue.front().is_some_and(|front| front == coords) {
+            self.queue.pop_front();
+            return;
+        }
+        if self.queue.back().is_some_and(|back| back == coords) {
+            self.queue.pop_back();
+            return;
+        }
+        if let Some(index) = self.queue.iter().position(|c| c == coords) {
+            self.queue.remove(index);
+        }
+    }
+
     /// Create a new chunk pipeline.
     pub fn new() -> Self {
         let (sender, receiver) = unbounded();
@@ -239,10 +273,6 @@ impl Pipeline {
         Self {
             sender: Arc::new(sender),
             receiver: Arc::new(receiver),
-            pool: ThreadPoolBuilder::new()
-                .thread_name(|index| format!("voxelize-chunking-{index}"))
-                .build()
-                .unwrap(),
             chunks: HashSet::new(),
             leftovers: HashMap::new(),
             pending_regenerate: HashSet::new(),
@@ -253,12 +283,24 @@ impl Pipeline {
 
     pub fn mark_for_regenerate(&mut self, coords: &Vec2<i32>) {
         if self.chunks.contains(coords) {
-            self.pending_regenerate.insert(coords.to_owned());
+            self.pending_regenerate.insert(*coords);
         }
     }
 
     pub fn drain_pending_regenerate(&mut self) -> Vec<Vec2<i32>> {
-        self.pending_regenerate.drain().collect()
+        let pending_len = self.pending_regenerate.len();
+        if pending_len == 0 {
+            return Vec::new();
+        }
+        if pending_len == 1 {
+            let coords = *self.pending_regenerate.iter().next().unwrap();
+            self.pending_regenerate.clear();
+            return vec![coords];
+        }
+
+        let mut drained = Vec::with_capacity(pending_len);
+        drained.extend(self.pending_regenerate.drain());
+        drained
     }
 
     /// Add a chunk coordinate to the pipeline to be processed.
@@ -267,20 +309,41 @@ impl Pipeline {
             self.mark_for_regenerate(coords);
             return;
         }
+        if self.queue.is_empty() {
+            if prioritized {
+                self.queue.push_front(*coords);
+            } else {
+                self.queue.push_back(*coords);
+            }
+            return;
+        }
+        if prioritized {
+            if self.queue.front().is_some_and(|front| front == coords) {
+                return;
+            }
+        } else if self.queue.back().is_some_and(|back| back == coords) {
+            return;
+        }
 
-        self.remove_chunk(coords);
+        self.remove_queued_chunk(coords);
 
         if prioritized {
-            self.queue.push_front(coords.to_owned());
+            self.queue.push_front(*coords);
         } else {
-            self.queue.push_back(coords.to_owned());
+            self.queue.push_back(*coords);
         }
     }
 
     /// Remove a chunk coordinate from the pipeline.
     pub fn remove_chunk(&mut self, coords: &Vec2<i32>) {
         self.chunks.remove(coords);
-        self.queue.retain(|c| c != coords);
+        self.remove_queued_chunk(coords);
+    }
+
+    /// Remove a chunk coordinate from tracking set only.
+    #[inline]
+    pub fn remove_chunk_tracking(&mut self, coords: &Vec2<i32>) {
+        self.chunks.remove(coords);
     }
 
     /// Check to see if a chunk coordinate is in the pipeline.
@@ -309,70 +372,88 @@ impl Pipeline {
         registry: &Registry,
         config: &WorldConfig,
     ) {
-        processes.iter().for_each(|(chunk, _)| {
-            self.chunks.insert(chunk.coords.to_owned());
-        });
-
-        // Retrieve the chunk stages' Arc clones.
-        let processes: Vec<(Chunk, Option<Space>, Arc<dyn ChunkStage + Send + Sync>)> = processes
-            .into_iter()
-            .map(|(chunk, space)| {
-                let index = if let ChunkStatus::Generating(index) = chunk.status {
-                    index
-                } else {
-                    panic!("Chunk in pipeline does not have a generating status.");
-                };
-
-                let stage = self.stages.get(index).unwrap().clone();
-                (chunk, space, stage)
-            })
-            .collect();
+        if processes.is_empty() {
+            return;
+        }
+        let mut processes_with_stages: Vec<(Chunk, Option<Space>, Arc<dyn ChunkStage + Send + Sync>)> =
+            Vec::with_capacity(processes.len());
+        for (chunk, space) in processes {
+            self.chunks.insert(chunk.coords);
+            let index = if let ChunkStatus::Generating(index) = chunk.status {
+                index
+            } else {
+                panic!("Chunk in pipeline does not have a generating status.");
+            };
+            let stage = self.stages.get(index).unwrap().clone();
+            processes_with_stages.push((chunk, space, stage));
+        }
 
         let sender = Arc::clone(&self.sender);
-        let registry = registry.to_owned();
-        let config = config.to_owned();
+        let registry = Arc::new(registry.to_owned());
+        let config = Arc::new(config.to_owned());
+        if processes_with_stages.len() == 1 {
+            let (chunk, space, stage) = processes_with_stages.pop().unwrap();
+            rayon::spawn(move || {
+                let mut chunk = stage.process(
+                    chunk,
+                    Resources {
+                        registry: &registry,
+                        config: &config,
+                    },
+                    space,
+                );
+                chunk.calculate_max_height(&registry);
+                let changes = std::mem::take(&mut chunk.extra_changes);
+                sender.send((chunk, changes)).unwrap();
+            });
+            return;
+        }
 
         rayon::spawn(move || {
-            processes
+            processes_with_stages
                 .into_par_iter()
-                .enumerate()
-                .for_each(|(_, (chunk, space, stage))| {
-                    let sender = Arc::clone(&sender);
-                    let registry = registry.clone();
-                    let config = config.clone();
+                .for_each(|(chunk, space, stage)| {
+                    let mut chunk = stage.process(
+                        chunk,
+                        Resources {
+                            registry: &registry,
+                            config: &config,
+                        },
+                        space,
+                    );
 
-                    rayon::spawn_fifo(move || {
-                        let mut changes = vec![];
+                    // Calculate the max height after processing each chunk.
+                    chunk.calculate_max_height(&registry);
 
-                        let mut chunk = stage.process(
-                            chunk,
-                            Resources {
-                                registry: &registry,
-                                config: &config,
-                            },
-                            space,
-                        );
+                    let changes = std::mem::take(&mut chunk.extra_changes);
 
-                        // Calculate the max height after processing each chunk.
-                        chunk.calculate_max_height(&registry);
-
-                        if !chunk.extra_changes.is_empty() {
-                            changes.append(&mut chunk.extra_changes.drain(..).collect());
-                        }
-
-                        sender.send((chunk, changes)).unwrap();
-                    });
+                    sender.send((chunk, changes)).unwrap();
                 });
         });
     }
 
     /// Attempt to retrieve the results from `pipeline.process`
     pub fn results(&mut self) -> Vec<(Chunk, Vec<VoxelUpdate>)> {
-        let mut results = Vec::new();
+        let pending_results = self.receiver.len();
+        if pending_results == 0 {
+            return Vec::new();
+        }
+        if self.chunks.is_empty() {
+            while self.receiver.try_recv().is_ok() {}
+            return Vec::new();
+        }
+        if pending_results == 1 {
+            if let Ok(result) = self.receiver.try_recv() {
+                if self.chunks.remove(&result.0.coords) {
+                    return vec![result];
+                }
+            }
+            return Vec::new();
+        }
+        let mut results = Vec::with_capacity(pending_results.min(self.chunks.len()));
 
         while let Ok(result) = self.receiver.try_recv() {
-            if self.chunks.contains(&result.0.coords) {
-                self.remove_chunk(&result.0.coords);
+            if self.chunks.remove(&result.0.coords) {
                 results.push(result);
             }
         }
@@ -382,11 +463,13 @@ impl Pipeline {
 
     /// Merge consecutive chunk stages that don't require spaces together into meta stages.
     pub(crate) fn merge_stages(&mut self) {
-        let mut new_stages: Vec<Arc<dyn ChunkStage + Send + Sync>> = vec![];
+        let stages = std::mem::take(&mut self.stages);
+        let mut new_stages: Vec<Arc<dyn ChunkStage + Send + Sync>> =
+            Vec::with_capacity(stages.len());
 
         let mut current_meta: Option<MetaStage> = None;
 
-        for stage in self.stages.to_owned().into_iter() {
+        for stage in stages.into_iter() {
             if stage.needs_space().is_some() {
                 if let Some(current_stage) = current_meta {
                     new_stages.push(Arc::new(current_stage));
@@ -411,5 +494,70 @@ impl Pipeline {
         }
 
         self.stages = new_stages;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use hashbrown::HashSet;
+
+    use crate::Vec2;
+
+    use super::Pipeline;
+    use super::{clamped_flatland_top_height, FlatlandStage};
+
+    #[test]
+    fn add_soiling_saturates_top_height_on_overflow() {
+        let stage = FlatlandStage {
+            top_height: u32::MAX - 1,
+            soiling: Vec::new(),
+        }
+        .add_soiling(3, 4);
+
+        assert_eq!(stage.top_height, u32::MAX);
+        assert_eq!(stage.soiling.len(), 4);
+    }
+
+    #[test]
+    fn add_soiling_appends_requested_soiling_values() {
+        let stage = FlatlandStage::new().add_soiling(7, 3);
+        assert_eq!(stage.top_height, 3);
+        assert_eq!(stage.soiling, vec![7, 7, 7]);
+    }
+
+    #[test]
+    fn clamped_flatland_top_height_limits_to_chunk_height() {
+        assert_eq!(clamped_flatland_top_height(u32::MAX, 16), 16);
+        assert_eq!(clamped_flatland_top_height(12, 8), 8);
+    }
+
+    #[test]
+    fn clamped_flatland_top_height_handles_non_positive_chunk_ceiling() {
+        assert_eq!(clamped_flatland_top_height(12, 0), 0);
+        assert_eq!(clamped_flatland_top_height(12, -8), 0);
+    }
+
+    #[test]
+    fn drain_pending_regenerate_single_entry_clears_set() {
+        let mut pipeline = Pipeline::new();
+        let coords = Vec2(9, -3);
+        pipeline.pending_regenerate.insert(coords);
+
+        assert_eq!(pipeline.drain_pending_regenerate(), vec![coords]);
+        assert!(pipeline.pending_regenerate.is_empty());
+    }
+
+    #[test]
+    fn drain_pending_regenerate_collects_multiple_entries() {
+        let mut pipeline = Pipeline::new();
+        let first = Vec2(1, 4);
+        let second = Vec2(-2, 8);
+        pipeline.pending_regenerate.insert(first);
+        pipeline.pending_regenerate.insert(second);
+
+        let drained: HashSet<_> = pipeline.drain_pending_regenerate().into_iter().collect();
+        let expected: HashSet<_> = [first, second].into_iter().collect();
+        assert_eq!(drained, expected);
+        assert!(pipeline.pending_regenerate.is_empty());
     }
 }

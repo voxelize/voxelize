@@ -2,7 +2,6 @@ mod common;
 mod errors;
 mod libs;
 mod server;
-mod types;
 pub mod webrtc;
 mod world;
 
@@ -24,7 +23,6 @@ use tokio::sync::{mpsc, Mutex};
 pub use common::*;
 pub use libs::*;
 pub use server::*;
-pub use types::*;
 pub use webrtc::signaling::{rtc_candidate, rtc_offer, WebRTCPeers};
 pub use webrtc::{create_webrtc_api, datachannel::fragment_message};
 pub use world::system_profiler::{
@@ -50,29 +48,29 @@ async fn ws_route(
     secret: web::Data<Option<String>>,
     options: Query<HashMap<String, String>>,
 ) -> Result<HttpResponse, Error> {
-    if !secret.is_none() {
-        info!("Secret: {:?}", secret);
-        let error = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "wrong secret!");
-
+    if let Some(expected_secret) = secret.get_ref().as_deref() {
         if let Some(client_secret) = options.get("secret") {
-            if *client_secret != secret.as_deref().unwrap() {
+            if client_secret != expected_secret {
                 warn!(
                     "An attempt to join with a wrong secret was made: {}",
                     client_secret
                 );
-                return Err(error.into());
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "wrong secret!",
+                )
+                .into());
             }
         } else {
             warn!("An attempt to join with no secret key was made.");
-            return Err(error.into());
+            return Err(
+                std::io::Error::new(std::io::ErrorKind::PermissionDenied, "wrong secret!")
+                    .into(),
+            );
         }
     }
 
-    let id = if let Some(id) = options.get("client_id") {
-        id.to_owned()
-    } else {
-        "".to_owned()
-    };
+    let id = options.get("client_id").cloned().unwrap_or_default();
 
     let is_transport = options.contains_key("is_transport");
 
@@ -144,7 +142,7 @@ async fn handle_ws_connection(
                             info!("[WS] Received large binary message: {:.2}KB", size_kb);
                         }
 
-                        let message = match decode_message(&bytes.to_vec()) {
+                        let message = match decode_message(&bytes) {
                             Ok(m) => m,
                             Err(e) => {
                                 warn!("[WS] Failed to decode message: {:?}", e);
@@ -159,7 +157,9 @@ async fn handle_ws_connection(
                             Ok(Some(error_msg)) => {
                                 warn!("[WS] ClientMessage error: {}", error_msg);
                                 let error_response = encode_message(
-                                    &Message::new(&MessageType::Error).text(&error_msg).build(),
+                                    &Message::new(&MessageType::Error)
+                                        .text_owned(error_msg)
+                                        .build(),
                                 );
                                 let _ = session.binary(error_response).await;
                                 break;

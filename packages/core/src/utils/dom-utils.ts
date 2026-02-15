@@ -17,16 +17,26 @@ export class DOMUtils {
   ) => {
     if (!ele) return;
 
-    Object.keys(style).forEach((key: string) => {
-      // @ts-ignore
-      const attribute = style[key];
-      if (Array.isArray(ele)) {
-        ele.forEach((e: any) => (e.style[key] = attribute));
-      } else {
-        // @ts-ignore
-        ele.style[key] = attribute;
+    const elements = Array.isArray(ele) ? ele : [ele];
+    const styleMap = style as Record<string, string | number | null | undefined>;
+    const hasOwn = Object.prototype.hasOwnProperty;
+    for (const key in styleMap) {
+      if (!hasOwn.call(styleMap, key)) {
+        continue;
       }
-    });
+      const attribute = styleMap[key];
+      if (attribute === undefined || attribute === null) {
+        continue;
+      }
+
+      const value = String(attribute);
+      const cssKey = key.startsWith("--")
+        ? key
+        : key.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`);
+      for (let elementIndex = 0; elementIndex < elements.length; elementIndex++) {
+        elements[elementIndex].style.setProperty(cssKey, value);
+      }
+    }
 
     return ele;
   };

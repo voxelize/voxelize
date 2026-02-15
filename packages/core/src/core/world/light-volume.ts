@@ -23,6 +23,12 @@ export class LightVolume {
   private config: LightVolumeConfig;
   private texture: Data3DTexture;
   private data: Uint8Array;
+  private texWidth = 0;
+  private texHeight = 0;
+  private texDepth = 0;
+  private halfSizeX = 0;
+  private halfSizeY = 0;
+  private halfSizeZ = 0;
   private volumeMin = new Vector3();
   private volumeSize = new Vector3();
   private lastCenterX = NaN;
@@ -31,18 +37,21 @@ export class LightVolume {
   private lastRegistryVersion = -1;
   private registryVersion = 0;
 
-  private tempHalfSize = new Vector3();
   private tempVolumeMax = new Vector3();
   private tempLocalPos = new Vector3();
+  private lightsInRegionBuffer: DynamicLight[] = [];
 
   constructor(config: Partial<LightVolumeConfig> = {}) {
     this.config = { ...defaultConfig, ...config };
 
     const [width, height, depth] = this.config.size;
     const res = this.config.resolution;
-    const texWidth = Math.ceil(width / res);
-    const texHeight = Math.ceil(height / res);
-    const texDepth = Math.ceil(depth / res);
+    this.texWidth = Math.ceil(width / res);
+    this.texHeight = Math.ceil(height / res);
+    this.texDepth = Math.ceil(depth / res);
+    const texWidth = this.texWidth;
+    const texHeight = this.texHeight;
+    const texDepth = this.texDepth;
 
     this.data = new Uint8Array(texWidth * texHeight * texDepth * 4);
     this.data.fill(255);
@@ -58,6 +67,9 @@ export class LightVolume {
     this.texture.needsUpdate = true;
 
     this.volumeSize.set(width, height, depth);
+    this.halfSizeX = width * 0.5;
+    this.halfSizeY = height * 0.5;
+    this.halfSizeZ = depth * 0.5;
   }
 
   markDirty() {
@@ -65,11 +77,9 @@ export class LightVolume {
   }
 
   updateCenter(center: Vector3): boolean {
-    this.tempHalfSize.copy(this.volumeSize).multiplyScalar(0.5);
-
-    const newMinX = Math.floor(center.x - this.tempHalfSize.x);
-    const newMinY = Math.floor(center.y - this.tempHalfSize.y);
-    const newMinZ = Math.floor(center.z - this.tempHalfSize.z);
+    const newMinX = Math.floor(center.x - this.halfSizeX);
+    const newMinY = Math.floor(center.y - this.halfSizeY);
+    const newMinZ = Math.floor(center.z - this.halfSizeZ);
 
     const moved =
       newMinX !== this.lastCenterX ||
@@ -88,8 +98,7 @@ export class LightVolume {
   }
 
   updateFromRegistry(registry: LightSourceRegistry): boolean {
-    const dirtyRegions = registry.getDirtyRegions();
-    const hasDirtyRegions = dirtyRegions.length > 0;
+    const hasDirtyRegions = registry.hasDirtyRegions();
 
     if (hasDirtyRegions) {
       this.registryVersion++;
@@ -102,21 +111,21 @@ export class LightVolume {
     this.lastRegistryVersion = this.registryVersion;
 
     this.tempVolumeMax.copy(this.volumeMin).add(this.volumeSize);
-    const lights = registry.getLightsInRegion(
+    const lights = this.lightsInRegionBuffer;
+    const lightCount = registry.getLightsInRegionInto(
       this.volumeMin,
-      this.tempVolumeMax
+      this.tempVolumeMax,
+      lights
     );
 
     this.data.fill(0);
 
-    const [width, height, depth] = this.config.size;
-    const res = this.config.resolution;
-    const texWidth = Math.ceil(width / res);
-    const texHeight = Math.ceil(height / res);
-    const texDepth = Math.ceil(depth / res);
+    const texWidth = this.texWidth;
+    const texHeight = this.texHeight;
+    const texDepth = this.texDepth;
 
-    for (const light of lights) {
-      this.accumulateLight(light, texWidth, texHeight, texDepth);
+    for (let lightIndex = 0; lightIndex < lightCount; lightIndex++) {
+      this.accumulateLight(lights[lightIndex], texWidth, texHeight, texDepth);
     }
 
     this.texture.needsUpdate = true;
@@ -131,6 +140,10 @@ export class LightVolume {
   ) {
     const res = this.config.resolution;
     const radius = light.radius;
+    if (radius <= 0) {
+      return;
+    }
+    const radiusSq = radius * radius;
     const falloff = light.falloffExponent;
 
     this.tempLocalPos.copy(light.position).sub(this.volumeMin);
@@ -161,10 +174,10 @@ export class LightVolume {
           const dx = worldX - this.tempLocalPos.x;
           const dy = worldY - this.tempLocalPos.y;
           const dz = worldZ - this.tempLocalPos.z;
-          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          const distSq = dx * dx + dy * dy + dz * dz;
+          if (distSq > radiusSq) continue;
 
-          if (dist > radius) continue;
-
+          const dist = Math.sqrt(distSq);
           const attenuation = Math.pow(Math.max(0, 1 - dist / radius), falloff);
           const intensity = light.intensity * attenuation;
 
@@ -192,22 +205,22 @@ export class LightVolume {
     return this.texture;
   }
 
-  getVolumeMin(): Vector3 {
+  getVolumeMin(target?: Vector3): Vector3 {
+    if (target) {
+      return target.copy(this.volumeMin);
+    }
     return this.volumeMin.clone();
   }
 
-  getVolumeSize(): Vector3 {
+  getVolumeSize(target?: Vector3): Vector3 {
+    if (target) {
+      return target.copy(this.volumeSize);
+    }
     return this.volumeSize.clone();
   }
 
   getResolution(): Vector3 {
-    const [width, height, depth] = this.config.size;
-    const res = this.config.resolution;
-    return new Vector3(
-      Math.ceil(width / res),
-      Math.ceil(height / res),
-      Math.ceil(depth / res)
-    );
+    return new Vector3(this.texWidth, this.texHeight, this.texDepth);
   }
 
   dispose() {
