@@ -17,7 +17,7 @@ export const toLowerCaseIfNeeded = (value: string): string => {
     return value;
   }
   for (const char of value) {
-    if (char.toLowerCase() !== char.toUpperCase() && char === char.toUpperCase()) {
+    if (char !== char.toLowerCase()) {
       return value.toLowerCase();
     }
   }
