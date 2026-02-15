@@ -86,14 +86,14 @@ fn push_chunk_batch(
 fn prepare_chunk_batch_buffer(
     batches: &mut HashMap<String, Vec<ChunkProtocol>>,
     touched_clients: &mut Vec<String>,
-    capacity_hint: usize,
+    client_capacity_hint: usize,
 ) {
-    if batches.capacity() < capacity_hint {
-        batches.reserve(capacity_hint - batches.capacity());
+    if batches.capacity() < client_capacity_hint {
+        batches.reserve(client_capacity_hint - batches.capacity());
     }
     touched_clients.clear();
-    if touched_clients.capacity() < capacity_hint {
-        touched_clients.reserve(capacity_hint - touched_clients.capacity());
+    if touched_clients.capacity() < client_capacity_hint {
+        touched_clients.reserve(client_capacity_hint - touched_clients.capacity());
     }
 }
 
@@ -161,7 +161,6 @@ impl<'a> System<'a> for ChunkSendingSystem {
         }
 
         let mut to_send = std::mem::take(&mut chunks.to_send);
-        let send_batch_estimate = to_send.len();
 
         let client_load_mesh = &mut self.client_load_mesh_buffer;
         let client_load_data = &mut self.client_load_data_buffer;
@@ -191,17 +190,17 @@ impl<'a> System<'a> for ChunkSendingSystem {
         let client_load_data_touched = &mut self.client_load_data_touched;
         let client_update_mesh_touched = &mut self.client_update_mesh_touched;
         let client_update_data_touched = &mut self.client_update_data_touched;
-        prepare_chunk_batch_buffer(client_load_mesh, client_load_mesh_touched, send_batch_estimate);
-        prepare_chunk_batch_buffer(client_load_data, client_load_data_touched, send_batch_estimate);
+        prepare_chunk_batch_buffer(client_load_mesh, client_load_mesh_touched, client_count);
+        prepare_chunk_batch_buffer(client_load_data, client_load_data_touched, client_count);
         prepare_chunk_batch_buffer(
             client_update_mesh,
             client_update_mesh_touched,
-            send_batch_estimate,
+            client_count,
         );
         prepare_chunk_batch_buffer(
             client_update_data,
             client_update_data_touched,
-            send_batch_estimate,
+            client_count,
         );
 
         while let Some((coords, msg_type)) = to_send.pop_front() {
