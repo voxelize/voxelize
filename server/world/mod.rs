@@ -1566,14 +1566,18 @@ impl World {
             {
                 let mut names = self.write_component::<NameComp>();
                 if let Some(n) = names.get_mut(client_ent) {
-                    n.0 = username.to_owned();
+                    if n.0 != username {
+                        n.0 = username.clone();
+                    }
                 }
             }
 
             client_parser(self, &metadata, client_ent);
 
             if let Some(client) = self.clients_mut().get_mut(client_id) {
-                client.username = username;
+                if client.username != username {
+                    client.username = username;
+                }
             }
         }
     }
