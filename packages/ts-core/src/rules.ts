@@ -220,7 +220,8 @@ export class BlockRuleEvaluator {
     rule: BlockRule,
     position: Vec3,
     access: RuleAccess,
-    options: NormalizedRuleEvaluationOptions
+    options: NormalizedRuleEvaluationOptions,
+    activeCombinationRules: Set<BlockRule>
   ): boolean {
     const { rotationY, yRotatable, worldSpace } = options;
 
@@ -286,40 +287,52 @@ export class BlockRuleEvaluator {
       return true;
     }
 
-    switch (rule.logic) {
-      case BlockRuleLogic.And:
-        return rule.rules.every((subRule) =>
-          BlockRuleEvaluator.evaluateWithNormalizedOptions(
-            subRule,
-            position,
-            access,
-            options
-          )
-        );
-      case BlockRuleLogic.Or:
-        return rule.rules.some((subRule) =>
-          BlockRuleEvaluator.evaluateWithNormalizedOptions(
-            subRule,
-            position,
-            access,
-            options
-          )
-        );
-      case BlockRuleLogic.Not: {
-        const [firstRule] = rule.rules;
-        if (firstRule === undefined) {
-          return true;
-        }
+    if (activeCombinationRules.has(rule)) {
+      return true;
+    }
 
-        return !BlockRuleEvaluator.evaluateWithNormalizedOptions(
-          firstRule,
-          position,
-          access,
-          options
-        );
+    activeCombinationRules.add(rule);
+    try {
+      switch (rule.logic) {
+        case BlockRuleLogic.And:
+          return rule.rules.every((subRule) =>
+            BlockRuleEvaluator.evaluateWithNormalizedOptions(
+              subRule,
+              position,
+              access,
+              options,
+              activeCombinationRules
+            )
+          );
+        case BlockRuleLogic.Or:
+          return rule.rules.some((subRule) =>
+            BlockRuleEvaluator.evaluateWithNormalizedOptions(
+              subRule,
+              position,
+              access,
+              options,
+              activeCombinationRules
+            )
+          );
+        case BlockRuleLogic.Not: {
+          const [firstRule] = rule.rules;
+          if (firstRule === undefined) {
+            return true;
+          }
+
+          return !BlockRuleEvaluator.evaluateWithNormalizedOptions(
+            firstRule,
+            position,
+            access,
+            options,
+            activeCombinationRules
+          );
+        }
+        default:
+          return false;
       }
-      default:
-        return false;
+    } finally {
+      activeCombinationRules.delete(rule);
     }
   }
 
@@ -334,7 +347,8 @@ export class BlockRuleEvaluator {
       rule,
       position,
       access,
-      normalizedOptions
+      normalizedOptions,
+      new Set()
     );
   }
 }

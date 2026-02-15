@@ -3408,6 +3408,49 @@ describe("BlockRuleEvaluator", () => {
     expect(BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access)).toBe(false);
   });
 
+  it("treats cyclic AND/OR combination edges as deterministic matches", () => {
+    const access = {
+      getVoxel: () => 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+    const andCycleRule = {
+      type: "combination" as const,
+      logic: BlockRuleLogic.And,
+      rules: [] as BlockRule[],
+    };
+    andCycleRule.rules.push(andCycleRule);
+    const orCycleRule = {
+      type: "combination" as const,
+      logic: BlockRuleLogic.Or,
+      rules: [] as BlockRule[],
+    };
+    orCycleRule.rules.push(orCycleRule);
+
+    expect(BlockRuleEvaluator.evaluate(andCycleRule, [0, 0, 0], access)).toBe(
+      true
+    );
+    expect(BlockRuleEvaluator.evaluate(orCycleRule, [0, 0, 0], access)).toBe(true);
+  });
+
+  it("treats cyclic NOT combination edges as deterministic non-matches", () => {
+    const access = {
+      getVoxel: () => 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+    const notCycleRule = {
+      type: "combination" as const,
+      logic: BlockRuleLogic.Not,
+      rules: [] as BlockRule[],
+    };
+    notCycleRule.rules.push(notCycleRule);
+
+    expect(BlockRuleEvaluator.evaluate(notCycleRule, [0, 0, 0], access)).toBe(
+      false
+    );
+  });
+
   it("evaluates OR combinations across multiple sub-rules", () => {
     const access = {
       getVoxel: () => 8,
