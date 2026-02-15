@@ -190,7 +190,9 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             }
         }
 
-        self.deleted_entities_buffer.reserve(old_entities.len());
+        if has_clients {
+            self.deleted_entities_buffer.reserve(old_entities.len());
+        }
         for (id, (etype, ent, metadata, persisted)) in old_entities.into_iter() {
             if persisted {
                 bg_saver.remove(&id);
@@ -201,8 +203,10 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 physics.unregister(body_handle, collider_handle);
             }
 
-            self.deleted_entities_buffer
-                .push((id, etype, metadata.to_string()));
+            if has_clients {
+                self.deleted_entities_buffer
+                    .push((id, etype, metadata.to_string()));
+            }
         }
         physics.entity_to_handlers = new_entity_handlers;
 
