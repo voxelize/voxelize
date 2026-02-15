@@ -119,6 +119,8 @@ semantics (`AND` => `true`, `OR` => `false`, `NOT` => `true`).
 Iterator-trapped combination-rule child collections can still recover
 readable indexed entries through bounded length fallback (up to 1024
 entries).
+When `length` access also traps, combination-rule child recovery can fall
+back to bounded numeric-key scans for deterministic salvage.
 Cyclic rule graphs are sanitized by replacing recursive edges with `none`.
 
 ## Basic usage
