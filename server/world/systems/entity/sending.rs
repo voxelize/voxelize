@@ -125,7 +125,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         self.clients_with_updates_buffer.clear();
         if clients.is_empty() {
             self.client_updates_buffer.clear();
-        } else if !self.client_updates_buffer.is_empty() {
+        } else if self.client_updates_buffer.len() > clients.len() {
             self.client_updates_buffer
                 .retain(|client_id, _| clients.contains_key(client_id));
         }
