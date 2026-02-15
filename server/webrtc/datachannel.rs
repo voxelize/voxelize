@@ -9,7 +9,7 @@ pub fn fragment_message(data: &[u8]) -> Vec<Vec<u8>> {
         return vec![data.to_vec()];
     }
 
-    let total_fragments = (data.len() + MAX_PAYLOAD_SIZE - 1) / MAX_PAYLOAD_SIZE;
+    let total_fragments = data.len().div_ceil(MAX_PAYLOAD_SIZE);
     let mut fragments = Vec::with_capacity(total_fragments);
 
     for (i, chunk) in data.chunks(MAX_PAYLOAD_SIZE).enumerate() {
