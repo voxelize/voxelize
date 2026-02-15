@@ -2993,8 +2993,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
         Option<BlockFace>,
         UV,
         bool,
-        bool,
-        bool,
     )> = Vec::new();
     let mut uncached_greedy_face_indices_by_block: HashMap<u32, [i16; 6]> = HashMap::new();
 
@@ -3178,8 +3176,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                     face_index as i16,
                                     None,
                                     face.range,
-                                    is_see_through,
-                                    is_fluid,
                                     false,
                                 ));
                             }
@@ -3195,8 +3191,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                     -1,
                                     Some(face.clone()),
                                     face.range,
-                                    is_see_through,
-                                    is_fluid,
                                     *world_space,
                                 ));
                             }
@@ -3298,8 +3292,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                     face_index,
                                     None,
                                     uv_range,
-                                    is_see_through,
-                                    is_fluid,
                                     false,
                                 ));
                             } else {
@@ -3354,8 +3346,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                     face_index as i16,
                                     None,
                                     uv_range,
-                                    is_see_through,
-                                    is_fluid,
                                     false,
                                 ));
                                 continue;
@@ -3410,8 +3400,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                     -1,
                                     Some(face.clone()),
                                     uv_range,
-                                    is_see_through,
-                                    is_fluid,
                                     *world_space,
                                 ));
                                 continue;
@@ -3537,7 +3525,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
 
             let mut cached_non_greedy_block_id = u32::MAX;
             let mut cached_non_greedy_block: Option<&Block> = None;
-            let mut cached_non_greedy_voxel_key: Option<(usize, u32, bool, bool)> = None;
+            let mut cached_non_greedy_voxel_key: Option<usize> = None;
             let mut cached_non_greedy_neighbors: Option<NeighborCache> = None;
             let mut cached_non_greedy_face_cache: Option<FaceProcessCache> = None;
             for (
@@ -3550,8 +3538,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                 face_index,
                 face_owned,
                 uv_range,
-                is_see_through,
-                is_fluid,
                 world_space,
             ) in non_greedy_faces.drain(..)
             {
@@ -3602,9 +3588,10 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     new_geometry_protocol(voxel_id, face_name, at)
                 });
 
+                let is_see_through = block.is_see_through;
+                let is_fluid = block.is_fluid;
                 let skip_opaque_checks = is_see_through || block.is_all_transparent;
-                let cache_key = (voxel_key, voxel_id, is_see_through, is_fluid);
-                if cached_non_greedy_voxel_key != Some(cache_key) {
+                if cached_non_greedy_voxel_key != Some(voxel_key) {
                     let neighbors = populate_neighbors_for_face_processing(
                         vx,
                         vy,
@@ -3624,7 +3611,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         voxel_id,
                         space,
                     );
-                    cached_non_greedy_voxel_key = Some(cache_key);
+                    cached_non_greedy_voxel_key = Some(voxel_key);
                     cached_non_greedy_neighbors = Some(neighbors);
                     cached_non_greedy_face_cache = Some(face_cache);
                 }
