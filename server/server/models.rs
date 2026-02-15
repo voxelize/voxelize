@@ -259,7 +259,11 @@ impl MessageBuilder {
 
     /// Configure the peers data of the protocol.
     pub fn peers(mut self, peers: &[PeerProtocol]) -> Self {
-        self.peers = Some(peers.to_vec());
+        if peers.is_empty() {
+            self.peers = None;
+        } else {
+            self.peers = Some(peers.to_vec());
+        }
         self
     }
 
@@ -271,7 +275,11 @@ impl MessageBuilder {
 
     /// Configure the entities data of the protocol.
     pub fn entities(mut self, entities: &[EntityProtocol]) -> Self {
-        self.entities = Some(entities.to_vec());
+        if entities.is_empty() {
+            self.entities = None;
+        } else {
+            self.entities = Some(entities.to_vec());
+        }
         self
     }
 
@@ -283,7 +291,11 @@ impl MessageBuilder {
 
     /// Configure the set of events to send in this message.
     pub fn events(mut self, events: &[EventProtocol]) -> Self {
-        self.events = Some(events.to_vec());
+        if events.is_empty() {
+            self.events = None;
+        } else {
+            self.events = Some(events.to_vec());
+        }
         self
     }
 
@@ -295,7 +307,11 @@ impl MessageBuilder {
 
     /// Configure the chunks data of the protocol.
     pub fn chunks(mut self, chunks: &[ChunkProtocol]) -> Self {
-        self.chunks = Some(chunks.to_vec());
+        if chunks.is_empty() {
+            self.chunks = None;
+        } else {
+            self.chunks = Some(chunks.to_vec());
+        }
         self
     }
 
@@ -307,7 +323,11 @@ impl MessageBuilder {
 
     /// Configure the voxel update data of the protocol.
     pub fn updates(mut self, updates: &[UpdateProtocol]) -> Self {
-        self.updates = Some(updates.to_vec());
+        if updates.is_empty() {
+            self.updates = None;
+        } else {
+            self.updates = Some(updates.to_vec());
+        }
         self
     }
 
