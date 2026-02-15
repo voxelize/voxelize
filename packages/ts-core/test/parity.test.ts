@@ -2162,6 +2162,107 @@ describe("Type builders", () => {
     });
   });
 
+  it("supplements noisy prefix combination entries with key fallback in createBlockRule", () => {
+    const noisyRules: Array<BlockRuleInput | number> = [];
+    noisyRules[0] = {
+      type: "simple",
+      offset: [1, 0, 0],
+      id: 5,
+    };
+    noisyRules[5_000] = {
+      type: "simple",
+      offset: [2, 0, 0],
+      id: 9,
+    };
+    Object.defineProperty(noisyRules, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+
+    expect(
+      createBlockRule({
+        type: "combination",
+        logic: BlockRuleLogic.Or,
+        rules: noisyRules as never,
+      })
+    ).toEqual({
+      type: "combination",
+      logic: BlockRuleLogic.Or,
+      rules: [
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 5,
+        },
+        {
+          type: "simple",
+          offset: [2, 0, 0],
+          id: 9,
+        },
+      ],
+    });
+  });
+
+  it("recovers key-based combination entries when bounded createBlockRule direct reads throw", () => {
+    const sparseRules: BlockRuleInput[] = [];
+    sparseRules[5_000] = {
+      type: "simple",
+      offset: [1, 0, 0],
+      id: 5,
+    };
+    const trappedRules = new Proxy(sparseRules, {
+      getOwnPropertyDescriptor(target, property) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (typeof propertyKey === "string" && /^(0|[1-9]\d*)$/.test(propertyKey)) {
+          const numericIndex = Number(propertyKey);
+          if (numericIndex >= 0 && numericIndex < 1_024) {
+            throw new Error("descriptor trap");
+          }
+        }
+        return Reflect.getOwnPropertyDescriptor(target, property);
+      },
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1_000_000_000;
+        }
+        if (typeof propertyKey === "string" && /^(0|[1-9]\d*)$/.test(propertyKey)) {
+          if (propertyKey === "5000") {
+            return target[5_000];
+          }
+          throw new Error("read trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(
+      createBlockRule({
+        type: "combination",
+        logic: BlockRuleLogic.Or,
+        rules: trappedRules as never,
+      })
+    ).toEqual({
+      type: "combination",
+      logic: BlockRuleLogic.Or,
+      rules: [
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 5,
+        },
+      ],
+    });
+  });
+
   it("sanitizes malformed createBlockRule inputs to none rules", () => {
     const malformedRule = createBlockRule({
       type: "simple",
