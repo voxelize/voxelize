@@ -459,6 +459,19 @@ const toFiniteNumberOrNull = (value) => {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 };
 
+const KNOWN_WASM_PACK_STATUSES = new Set([
+  "ok",
+  "missing",
+  "unavailable",
+  "skipped",
+]);
+
+const toKnownWasmPackStatus = (value) => {
+  return typeof value === "string" && KNOWN_WASM_PACK_STATUSES.has(value)
+    ? value
+    : null;
+};
+
 export const deriveFailureMessageFromReport = (report) => {
   if (!isObjectRecord(report)) {
     return null;
@@ -544,10 +557,7 @@ export const extractWasmPackCheckSummaryFromReport = (report) => {
   }
 
   const wasmPackCheckStatusValue = safeReadProperty(report, "wasmPackCheckStatus");
-  const wasmPackCheckStatus =
-    typeof wasmPackCheckStatusValue === "string"
-      ? wasmPackCheckStatusValue
-      : null;
+  const wasmPackCheckStatus = toKnownWasmPackStatus(wasmPackCheckStatusValue);
   const wasmPackCheckCommandValue = safeReadProperty(report, "wasmPackCheckCommand");
   const wasmPackCheckCommand =
     typeof wasmPackCheckCommandValue === "string"
@@ -962,8 +972,9 @@ export const extractWasmPackStatusFromReport = (report) => {
   }
 
   const directStatus = safeReadProperty(report, "wasmPackCheckStatus");
-  if (typeof directStatus === "string") {
-    return directStatus;
+  const normalizedDirectStatus = toKnownWasmPackStatus(directStatus);
+  if (normalizedDirectStatus !== null) {
+    return normalizedDirectStatus;
   }
 
   const checkStatusMap = safeReadProperty(report, "checkStatusMap");
@@ -972,7 +983,7 @@ export const extractWasmPackStatusFromReport = (report) => {
   }
 
   const wasmPackStatus = safeReadProperty(checkStatusMap, "wasm-pack");
-  return typeof wasmPackStatus === "string" ? wasmPackStatus : null;
+  return toKnownWasmPackStatus(wasmPackStatus);
 };
 
 export const deriveWasmPackCheckStatus = ({

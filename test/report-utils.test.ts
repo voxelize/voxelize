@@ -4856,6 +4856,18 @@ describe("report-utils", () => {
       wasmPackCheckExitCode: null,
       wasmPackCheckOutputLine: null,
     });
+    expect(
+      extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckStatus: "mystery",
+      })
+    ).toEqual({
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: null,
+      wasmPackCheckArgCount: null,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
   });
 
   it("sanitizes malformed wasm pack summary argument arrays", () => {
@@ -5783,6 +5795,18 @@ describe("report-utils", () => {
         },
       })
     ).toBe("ok");
+    expect(
+      extractWasmPackStatusFromReport({
+        wasmPackCheckStatus: "mystery",
+      })
+    ).toBeNull();
+    expect(
+      extractWasmPackStatusFromReport({
+        checkStatusMap: {
+          "wasm-pack": "mystery",
+        },
+      })
+    ).toBeNull();
     expect(extractWasmPackStatusFromReport(reportWithThrowingDirectStatus)).toBe("ok");
     expect(extractWasmPackStatusFromReport(reportWithThrowingCheckMap)).toBeNull();
     expect(extractWasmPackStatusFromReport({ checkStatusMap: {} })).toBeNull();
@@ -5818,5 +5842,13 @@ describe("report-utils", () => {
         },
       })
     ).toBe("missing");
+    expect(
+      deriveWasmPackCheckStatus({
+        wasmPackCheckExitCode: 0,
+        wasmPackCheckReport: {
+          wasmPackCheckStatus: "mystery",
+        },
+      })
+    ).toBe("ok");
   });
 });
