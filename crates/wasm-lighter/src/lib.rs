@@ -15,14 +15,14 @@ thread_local! {
     static EMPTY_BATCH_RESULT: JsValue = {
         let output = Object::new();
         let modified_chunks = Array::new_with_length(0);
-        let modified_chunks_obj: Object = modified_chunks.clone().unchecked_into();
-        Object::freeze(&modified_chunks_obj);
         Reflect::set(
             &output,
             &JsValue::from_str("modifiedChunks"),
             &modified_chunks,
         )
         .expect("Unable to set modified chunks");
+        let modified_chunks_obj: Object = modified_chunks.unchecked_into();
+        Object::freeze(&modified_chunks_obj);
         Object::freeze(&output);
         output.into()
     };
