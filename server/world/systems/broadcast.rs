@@ -211,6 +211,25 @@ impl<'a> System<'a> for BroadcastSystem {
         let client_count = clients.len();
         let has_transports = !transports.is_empty();
         let transport_count = transports.len();
+        if client_count == 0 {
+            if has_transports {
+                for (encoded, _) in done_messages {
+                    if should_send_to_transport(encoded.msg_type) {
+                        if transport_count == 1 {
+                            if let Some(sender) = transports.values().next() {
+                                let _ = sender.send(encoded.data);
+                            }
+                        } else {
+                            let payload = &encoded.data;
+                            transports.values().for_each(|sender| {
+                                let _ = sender.send(payload.clone());
+                            });
+                        }
+                    }
+                }
+            }
+            return;
+        }
 
         for (encoded, filter) in done_messages {
             let use_rtc = encoded.is_rtc_eligible;
