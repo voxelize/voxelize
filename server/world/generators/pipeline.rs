@@ -1,8 +1,8 @@
 use std::{collections::VecDeque, sync::Arc};
 
-use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use hashbrown::{HashMap, HashSet};
-use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
+use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use crate::{
