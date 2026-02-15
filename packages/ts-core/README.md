@@ -136,6 +136,8 @@ const voxel = Voxel.pack({
     scans can still supplement readable high-index face/AABB entries
   - throwing bounded direct reads are skipped during helper fallback scans so
     key recovery can still salvage readable high-index entries
+  - throwing key-fallback reads are skipped so malformed low-index entries do
+    not block readable high-index face/AABB recovery
   - fallback scans ignore inherited numeric prototype entries while recovering
     readable indexed face/AABB values
   - malformed optional face fields (such as invalid `dir`/`corners`/`range`)
@@ -191,6 +193,8 @@ const voxel = Voxel.pack({
     scans can still supplement readable high-index part entries
   - throwing bounded direct reads are skipped during helper fallback scans so
     key recovery can still salvage readable high-index part entries
+  - throwing key-fallback reads are skipped so malformed low-index entries do
+    not block readable high-index part recovery
   - fallback scans ignore inherited numeric prototype entries while recovering
     readable indexed part entries
 - `createBlockFace`
