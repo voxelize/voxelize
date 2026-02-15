@@ -108,6 +108,8 @@ const voxel = Voxel.pack({
   - when bounded length recovery preserves some readable prefix rules but does
     not fill the scan window, key-scan recovery can still supplement readable
     high-index rules
+  - recovered simple-rule entries are validated for finite 3D offsets; malformed
+    simple/combination placeholders sanitize to `none`
   - if key-fallback recovery omits readable prefix rules (for example due
     stateful low-index read traps), bounded-prefix and key-fallback recoveries
     are merged by numeric index before evaluation, preserving duplicate-value

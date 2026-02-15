@@ -196,12 +196,65 @@ const toRuleEntryOrNone = (value: RuleOptionValue): BlockRule => {
     return BLOCK_RULE_NONE;
   }
 
-  const ruleType = safeReadRecordValue(value as RuleOptionRecord, "type");
-  return ruleType === "none" ||
-    ruleType === "simple" ||
-    ruleType === "combination"
-    ? (value as BlockRule)
-    : BLOCK_RULE_NONE;
+  const valueRecord = value as RuleOptionRecord;
+  const ruleType = safeReadRecordValue(valueRecord, "type");
+  if (ruleType === "none") {
+    return BLOCK_RULE_NONE;
+  }
+
+  if (ruleType === "simple") {
+    const offsetValue = safeReadRecordValue(valueRecord, "offset");
+    if (!Array.isArray(offsetValue)) {
+      return BLOCK_RULE_NONE;
+    }
+
+    let x: RuleOptionValue = null;
+    let y: RuleOptionValue = null;
+    let z: RuleOptionValue = null;
+    try {
+      if (offsetValue.length !== 3) {
+        return BLOCK_RULE_NONE;
+      }
+
+      x = offsetValue[0];
+      y = offsetValue[1];
+      z = offsetValue[2];
+    } catch {
+      return BLOCK_RULE_NONE;
+    }
+
+    if (
+      typeof x !== "number" ||
+      !Number.isFinite(x) ||
+      typeof y !== "number" ||
+      !Number.isFinite(y) ||
+      typeof z !== "number" ||
+      !Number.isFinite(z)
+    ) {
+      return BLOCK_RULE_NONE;
+    }
+
+    return value as BlockRule;
+  }
+
+  if (ruleType === "combination") {
+    const logicValue = safeReadRecordValue(valueRecord, "logic");
+    const rulesValue = safeReadRecordValue(valueRecord, "rules");
+    if (
+      logicValue !== BlockRuleLogic.And &&
+      logicValue !== BlockRuleLogic.Or &&
+      logicValue !== BlockRuleLogic.Not
+    ) {
+      return BLOCK_RULE_NONE;
+    }
+    if (!Array.isArray(rulesValue)) {
+      return BLOCK_RULE_NONE;
+    }
+
+    return value as BlockRule;
+  }
+
+  return BLOCK_RULE_NONE;
 };
 
 type IndexedRuleEntry = {

@@ -5423,6 +5423,57 @@ describe("BlockRuleEvaluator", () => {
     ).toBe(true);
   });
 
+  it("prefers key-fallback non-none rules over bounded malformed placeholders during evaluation", () => {
+    let zeroReadCount = 0;
+    const sparseRules: BlockRule[] = [];
+    sparseRules[0] = {
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 61,
+    };
+    const trappedRules = new Proxy(sparseRules, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (propertyKey === "0") {
+          zeroReadCount += 1;
+          if (zeroReadCount === 1) {
+            return {
+              type: "simple",
+              offset: ["x", 0, 0],
+              id: 61,
+            };
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const access = {
+      getVoxel: (x: number, y: number, z: number) =>
+        x === 0 && y === 0 && z === 0 ? 61 : 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.Or,
+          rules: trappedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(true);
+  });
+
   it("preserves duplicate-value rule entries across fallback merging", () => {
     let zeroReadCount = 0;
     const duplicateRules: BlockRule[] = [];

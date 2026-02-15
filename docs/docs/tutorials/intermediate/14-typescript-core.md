@@ -133,6 +133,8 @@ recovery can still supplement readable high-index rules before evaluation.
 When bounded length recovery preserves readable prefix rules but does not
 fill the scan window, key-scan recovery can still supplement readable
 high-index rules.
+Recovered simple-rule entries are validated for finite 3D offsets;
+malformed simple/combination placeholders sanitize to `none`.
 If key-fallback recovery omits readable prefix rules (for example due
 stateful low-index read traps), bounded-prefix and key-fallback recoveries
 are merged by numeric index before evaluation, preserving duplicate-value
