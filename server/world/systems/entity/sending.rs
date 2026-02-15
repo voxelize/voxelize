@@ -227,9 +227,19 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             return;
         }
         self.clients_with_updates_buffer.reserve(clients.len());
+        let single_client = if clients.len() == 1 {
+            clients
+                .iter()
+                .next()
+                .map(|(client_id, client)| (client_id.as_str(), client.entity))
+        } else {
+            None
+        };
+        let single_client_position =
+            single_client.and_then(|(_, client_entity)| positions.get(client_entity).map(|p| p.0));
 
         let mut entity_to_client_id: HashMap<u32, &str> = HashMap::new();
-        if !entity_metadata_map.is_empty() {
+        if single_client.is_none() && !entity_metadata_map.is_empty() {
             entity_to_client_id.reserve(clients.len());
             for (client_id, client) in clients.iter() {
                 entity_to_client_id.insert(client.entity.id(), client_id.as_str());
@@ -240,6 +250,39 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         for (entity_id, (etype, metadata_str, is_new)) in &entity_metadata_map {
             let pos = entity_positions.get(entity_id).unwrap_or(&default_pos);
+            if let Some((single_client_id, _)) = single_client {
+                let Some(client_pos) = single_client_position else {
+                    continue;
+                };
+                let dx = pos.0 - client_pos.0;
+                let dy = pos.1 - client_pos.1;
+                let dz = pos.2 - client_pos.2;
+                if is_outside_visible_radius_sq(dx, dy, dz, entity_visible_radius_sq) {
+                    continue;
+                }
+                let known_entities = get_or_insert_client_known_entities(
+                    &mut bookkeeping.client_known_entities,
+                    single_client_id,
+                );
+                let inserted = known_entities.insert(entity_id.clone());
+                let operation = if inserted || *is_new {
+                    EntityOperation::Create
+                } else {
+                    EntityOperation::Update
+                };
+                push_client_update(
+                    &mut self.client_updates_buffer,
+                    &mut self.clients_with_updates_buffer,
+                    single_client_id,
+                    EntityProtocol {
+                        operation,
+                        id: entity_id.clone(),
+                        r#type: (*etype).to_owned(),
+                        metadata: Some(metadata_str.clone()),
+                    },
+                );
+                continue;
+            }
             kdtree.for_each_player_id_within_radius(pos, entity_visible_radius, |player_entity_id| {
                 if let Some(client_id) = entity_to_client_id.get(&player_entity_id) {
                     let client_id = *client_id;
