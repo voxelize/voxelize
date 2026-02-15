@@ -90,7 +90,7 @@ impl Physics {
             &self.event_handler,
         );
 
-        let mut collisions = vec![];
+        let mut collisions = Vec::with_capacity(self.collision_recv.len());
 
         while let Ok(collision_event) = self.collision_recv.try_recv() {
             // Handle the collision event.
