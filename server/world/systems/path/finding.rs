@@ -226,6 +226,10 @@ impl<'a> System<'a> for PathFindingSystem {
                     let start_time = Instant::now();
                     let count = Cell::new(0i32);
                     let max_depth_search = normalized_max_depth_search(entity_path.max_depth_search);
+                    if max_depth_search == 0 {
+                        entity_path.path = None;
+                        return;
+                    }
                     let goal_node = PathNode(goal.0, goal.1, goal.2);
 
                     let path = AStar::calculate(
