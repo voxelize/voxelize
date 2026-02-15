@@ -132,7 +132,7 @@ impl Chunks {
 
         let decode_base64 = |base: &str| -> Vec<u32> {
             if base.is_empty() {
-                return vec![];
+                return Vec::new();
             }
 
             let decoded = STANDARD.decode(base).expect("Failed to decode base64");
@@ -189,18 +189,18 @@ impl Chunks {
         let path = self.get_chunk_file_path(&chunk.name);
         let tmp_path = path.with_extension("json.tmp");
 
-        let to_base_64 = |data: &Vec<u32>| {
+        let to_base_64 = |data: &[u32]| {
             let mut bytes = vec![0; data.len() * 4];
             LittleEndian::write_u32_into(data, &mut bytes);
 
             let mut encoder = Encoder::new(vec![]).unwrap();
             encoder.write_all(bytes.as_slice()).unwrap();
             let encoded = encoder.finish().into_result().unwrap();
-            base64::encode(&encoded)
+            STANDARD.encode(encoded)
         };
 
         let data = ChunkFileData {
-            id: chunk.id.to_owned(),
+            id: chunk.id.clone(),
             voxels: to_base_64(&chunk.voxels.data),
             height_map: to_base_64(&chunk.height_map.data),
         };
@@ -514,8 +514,13 @@ impl Chunks {
             return;
         }
 
-        self.updates
-            .retain(|(v, _)| !self.updates_staging.contains_key(v));
+        if !self.updates.is_empty() {
+            self.updates
+                .retain(|(v, _)| !self.updates_staging.contains_key(v));
+        }
+
+        let staged_count = self.updates_staging.len();
+        self.updates.reserve(staged_count);
 
         for (voxel, val) in self.updates_staging.drain() {
             self.updates.push_back((voxel, val));
@@ -523,8 +528,12 @@ impl Chunks {
     }
 
     pub fn update_voxels(&mut self, voxels: &[(Vec3<i32>, u32)]) {
+        if voxels.is_empty() {
+            return;
+        }
+        self.updates_staging.reserve(voxels.len());
         for (voxel, val) in voxels {
-            self.update_voxel(voxel, *val);
+            self.updates_staging.insert(*voxel, *val);
         }
     }
 
@@ -581,12 +590,12 @@ impl Chunks {
     }
 
     fn get_chunk_file_path(&self, chunk_name: &str) -> PathBuf {
-        if self.folder.is_none() {
+        let Some(folder) = self.folder.as_ref() else {
             return PathBuf::new();
-        }
-
-        let mut path = self.folder.clone().unwrap();
-        path.push(format!("{}.json", chunk_name));
+        };
+        let mut path = folder.clone();
+        path.push(chunk_name);
+        path.set_extension("json");
         path
     }
 
