@@ -650,14 +650,11 @@ fn process_pending_updates(
         mesher.process(processes, &MessageType::Update, registry, config);
     }
 
+    for update in &mut results {
+        update.voxel = chunks.get_raw_voxel(update.vx, update.vy, update.vz);
+        update.light = chunks.get_raw_light(update.vx, update.vy, update.vz);
+    }
     results
-        .into_iter()
-        .map(|mut update| {
-            update.voxel = chunks.get_raw_voxel(update.vx, update.vy, update.vz);
-            update.light = chunks.get_raw_light(update.vx, update.vy, update.vz);
-            update
-        })
-        .collect()
 }
 
 pub struct ChunkUpdatingSystem;
