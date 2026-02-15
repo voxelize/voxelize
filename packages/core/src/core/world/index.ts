@@ -3922,7 +3922,7 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
       const block = blocks[name];
       const { id, aabbs, isDynamic } = block;
 
-      const lowerName = name.toLowerCase();
+      const lowerName = this.normalizeBlockNameLookup(name);
 
       block.independentFaces = new Set();
       block.isolatedFaces = new Set();
