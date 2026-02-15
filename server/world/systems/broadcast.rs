@@ -214,18 +214,14 @@ impl<'a> System<'a> for BroadcastSystem {
 
         for (encoded, filter) in done_messages {
             let use_rtc = encoded.is_rtc_eligible;
-            let rtc_fragments = if use_rtc && rtc_map.is_some() {
-                Some(fragment_message(&encoded.data))
-            } else {
-                None
-            };
             if let ClientFilter::Direct(id) = &filter {
                 if let Some(client) = clients.get(id) {
-                    if let Some(fragments) = &rtc_fragments {
+                    if use_rtc {
                         if let Some(ref rtc_map) = rtc_map {
                             if let Some(rtc_sender) = rtc_map.get(id) {
-                                for fragment in fragments.iter() {
-                                    if rtc_sender.send(fragment.clone()).is_err() {
+                                let rtc_fragments = fragment_message(&encoded.data);
+                                for fragment in rtc_fragments {
+                                    if rtc_sender.send(fragment).is_err() {
                                         break;
                                     }
                                 }
@@ -237,10 +233,13 @@ impl<'a> System<'a> for BroadcastSystem {
                 }
                 continue;
             }
-            let send_to_client = |id: &str, client: &Client| {
-                if let Some(fragments) = &rtc_fragments {
+            let mut rtc_fragments_cache: Option<Vec<Vec<u8>>> = None;
+            let mut send_to_client = |id: &str, client: &Client| {
+                if use_rtc {
                     if let Some(ref rtc_map) = rtc_map {
                         if let Some(rtc_sender) = rtc_map.get(id) {
+                            let fragments = rtc_fragments_cache
+                                .get_or_insert_with(|| fragment_message(&encoded.data));
                             for fragment in fragments.iter() {
                                 if rtc_sender.send(fragment.clone()).is_err() {
                                     break;
@@ -253,7 +252,7 @@ impl<'a> System<'a> for BroadcastSystem {
 
                 let _ = client.sender.send(encoded.data.clone());
             };
-            let send_to_id = |id: &str| {
+            let mut send_to_id = |id: &str| {
                 if let Some(client) = clients.get(id) {
                     send_to_client(id, client);
                 }
