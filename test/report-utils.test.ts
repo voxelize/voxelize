@@ -495,6 +495,40 @@ describe("report-utils", () => {
     expect(malformedRecognizedSingleDashValueResult.outputPath).toBe(
       "/workspace/-"
     );
+    let largeLengthRecognizedOutputTokenReadCount = 0;
+    const largeLengthRecognizedOutputTokens = new Proxy(["-l"], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1_000_000_000;
+        }
+        if (property === "0") {
+          largeLengthRecognizedOutputTokenReadCount += 1;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const largeLengthRecognizedOutputTokenResult = resolveOutputPath(
+      ["--output", "-l"],
+      "/workspace",
+      largeLengthRecognizedOutputTokens as never
+    );
+    expect(largeLengthRecognizedOutputTokenResult.error).toBe(
+      "Missing value for --output option."
+    );
+    expect(largeLengthRecognizedOutputTokenResult.outputPath).toBeNull();
+    const largeLengthRecognizedOutputDashValueResult = resolveOutputPath(
+      ["--output", "-artifact-report.json"],
+      "/workspace",
+      largeLengthRecognizedOutputTokens as never
+    );
+    expect(largeLengthRecognizedOutputDashValueResult.error).toBeNull();
+    expect(largeLengthRecognizedOutputDashValueResult.outputPath).toBe(
+      "/workspace/-artifact-report.json"
+    );
+    expect(largeLengthRecognizedOutputTokenReadCount).toBe(4);
     const partiallyRecoveredRecognizedOutputTokens = new Proxy(
       ["--list-checks", "-l"],
       {
@@ -980,6 +1014,45 @@ describe("report-utils", () => {
     );
     expect(resolvedSingleDashValueFromCombinedRecognizedOptionTraps.value).toBe("-");
     expect(resolvedSingleDashValueFromCombinedRecognizedOptionTraps.error).toBeNull();
+    let largeLengthRecognizedTokenReadCount = 0;
+    const largeLengthRecognizedOptionTokens = new Proxy(["-l"], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1_000_000_000;
+        }
+        if (property === "0") {
+          largeLengthRecognizedTokenReadCount += 1;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const resolvedFromLargeLengthRecognizedOptionTokens = resolveLastOptionValue(
+      ["--output", "-l"],
+      "--output",
+      largeLengthRecognizedOptionTokens as never
+    );
+    expect(resolvedFromLargeLengthRecognizedOptionTokens.hasOption).toBe(true);
+    expect(resolvedFromLargeLengthRecognizedOptionTokens.value).toBeNull();
+    expect(resolvedFromLargeLengthRecognizedOptionTokens.error).toBe(
+      "Missing value for --output option."
+    );
+    const resolvedDashValueFromLargeLengthRecognizedOptionTokens =
+      resolveLastOptionValue(
+        ["--output", "-artifact-report.json"],
+        "--output",
+        largeLengthRecognizedOptionTokens as never
+      );
+    expect(resolvedDashValueFromLargeLengthRecognizedOptionTokens.hasOption).toBe(
+      true
+    );
+    expect(resolvedDashValueFromLargeLengthRecognizedOptionTokens.value).toBe(
+      "-artifact-report.json"
+    );
+    expect(resolvedDashValueFromLargeLengthRecognizedOptionTokens.error).toBeNull();
+    expect(largeLengthRecognizedTokenReadCount).toBe(4);
     const partiallyRecoveredRecognizedOptionTokens = new Proxy(
       ["--list-checks", "-l"],
       {
