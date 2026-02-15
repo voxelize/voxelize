@@ -648,6 +648,8 @@ Known status token extraction is case-insensitive and normalizes to
 lowercase canonical values.
 Sparse trap fallbacks can supplement bounded-prefix entries with bounded
 key-scan recovery when high-index readable entries exist.
+Bounded fallback scans use own-property checks so inherited numeric
+prototype entries are ignored.
 Client JSON reports additionally expose top-level wasm preflight summary
 fields `wasmPackCheckStatus`, `wasmPackCheckCommand`,
 `wasmPackCheckArgs`, `wasmPackCheckArgCount`, `wasmPackCheckExitCode`,
