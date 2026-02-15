@@ -41,8 +41,12 @@ impl ChunkRequestsComp {
             self.requests.push(*coords);
             return;
         }
-        if self.requests.last().is_some_and(|last| last == coords) || self.requests.contains(coords)
+        if self.requests.last().is_some_and(|last| last == coords)
+            || self.requests.first().is_some_and(|first| first == coords)
         {
+            return;
+        }
+        if self.requests.contains(coords) {
             return;
         }
 
@@ -64,6 +68,10 @@ impl ChunkRequestsComp {
         }
         if self.requests.last().is_some_and(|last| last == coords) {
             self.requests.pop();
+            return;
+        }
+        if self.requests.first().is_some_and(|first| first == coords) {
+            self.requests.remove(0);
             return;
         }
         self.requests.retain(|c| c != coords);
@@ -96,5 +104,28 @@ mod tests {
         assert_eq!(requests.requests[0], Vec2(i32::MAX - 1, i32::MAX));
         assert_eq!(requests.requests[1], Vec2(i32::MAX, i32::MAX - 1));
         assert_eq!(requests.requests[2], Vec2(i32::MIN, i32::MIN));
+    }
+
+    #[test]
+    fn add_ignores_duplicate_first_and_tail_entries() {
+        let mut requests = ChunkRequestsComp::new();
+        requests.requests = vec![Vec2(1, 1), Vec2(2, 2)];
+
+        requests.add(&Vec2(1, 1));
+        requests.add(&Vec2(2, 2));
+
+        assert_eq!(requests.requests, vec![Vec2(1, 1), Vec2(2, 2)]);
+    }
+
+    #[test]
+    fn remove_handles_first_and_tail_entries() {
+        let mut requests = ChunkRequestsComp::new();
+        requests.requests = vec![Vec2(1, 1), Vec2(2, 2), Vec2(3, 3)];
+
+        requests.remove(&Vec2(1, 1));
+        assert_eq!(requests.requests, vec![Vec2(2, 2), Vec2(3, 3)]);
+
+        requests.remove(&Vec2(3, 3));
+        assert_eq!(requests.requests, vec![Vec2(2, 2)]);
     }
 }
