@@ -2263,6 +2263,107 @@ describe("Type builders", () => {
     });
   });
 
+  it("skips createBlockRule key enumeration when bounded length fallback is full", () => {
+    let ownKeysCount = 0;
+    const denseRules: BlockRuleInput[] = [];
+    for (let index = 0; index < 1_024; index += 1) {
+      denseRules[index] = {
+        type: "simple",
+        offset: [0, 0, 0],
+        id: 50,
+      };
+    }
+    denseRules[5_000] = {
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 51,
+    };
+    const trappedRules = new Proxy(denseRules, {
+      ownKeys(target) {
+        ownKeysCount += 1;
+        return Reflect.ownKeys(target);
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    const clonedRule = createBlockRule({
+      type: "combination",
+      logic: BlockRuleLogic.Or,
+      rules: trappedRules as never,
+    });
+
+    expect(clonedRule.type).toBe("combination");
+    if (clonedRule.type !== "combination") {
+      throw new Error("Expected combination rule");
+    }
+    expect(clonedRule.rules).toHaveLength(1024);
+    expect(clonedRule.rules[0]).toEqual({
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 50,
+    });
+    expect(clonedRule.rules[1023]).toEqual({
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 50,
+    });
+    expect(
+      clonedRule.rules.some((entry) => {
+        return entry.type === "simple" && entry.id === 51;
+      })
+    ).toBe(false);
+    expect(ownKeysCount).toBe(0);
+  });
+
+  it("ignores inherited numeric prototype entries in createBlockRule fallbacks", () => {
+    Object.defineProperty(Array.prototype, "0", {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: {
+        type: "simple",
+        offset: [0, 0, 0],
+        id: 52,
+      },
+    });
+
+    try {
+      const trappedRules = new Proxy([] as BlockRuleInput[], {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+
+      expect(
+        createBlockRule({
+          type: "combination",
+          logic: BlockRuleLogic.Or,
+          rules: trappedRules as never,
+        })
+      ).toEqual({
+        type: "combination",
+        logic: BlockRuleLogic.Or,
+        rules: [],
+      });
+    } finally {
+      delete (Array.prototype as Record<string, BlockRuleInput>)["0"];
+    }
+  });
+
   it("sanitizes malformed createBlockRule inputs to none rules", () => {
     const malformedRule = createBlockRule({
       type: "simple",
