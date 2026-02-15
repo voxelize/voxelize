@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use hashbrown::{HashMap, HashSet};
+use hashbrown::{hash_map::Entry, HashMap, HashSet};
 
 use crate::Vec2;
 
@@ -94,10 +94,20 @@ impl ChunkInterests {
     }
 
     pub fn add(&mut self, client_id: &str, coords: &Vec2<i32>) {
-        self.map
-            .entry(*coords)
-            .or_default()
-            .insert(client_id.to_owned());
+        match self.map.entry(*coords) {
+            Entry::Occupied(mut entry) => {
+                let clients = entry.get_mut();
+                if clients.contains(client_id) {
+                    return;
+                }
+                clients.insert(client_id.to_owned());
+            }
+            Entry::Vacant(entry) => {
+                let mut clients = HashSet::with_capacity(1);
+                clients.insert(client_id.to_owned());
+                entry.insert(clients);
+            }
+        }
     }
 
     pub fn remove(&mut self, client_id: &str, coords: &Vec2<i32>) {
