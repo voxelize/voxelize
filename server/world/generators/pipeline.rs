@@ -397,11 +397,13 @@ impl Pipeline {
 
     /// Merge consecutive chunk stages that don't require spaces together into meta stages.
     pub(crate) fn merge_stages(&mut self) {
-        let mut new_stages: Vec<Arc<dyn ChunkStage + Send + Sync>> = vec![];
+        let stages = std::mem::take(&mut self.stages);
+        let mut new_stages: Vec<Arc<dyn ChunkStage + Send + Sync>> =
+            Vec::with_capacity(stages.len());
 
         let mut current_meta: Option<MetaStage> = None;
 
-        for stage in self.stages.to_owned().into_iter() {
+        for stage in stages.into_iter() {
             if stage.needs_space().is_some() {
                 if let Some(current_stage) = current_meta {
                     new_stages.push(Arc::new(current_stage));
