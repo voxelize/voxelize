@@ -583,7 +583,7 @@ impl Chunks {
     /// Add a listener to a chunk.
     pub fn add_listener(&mut self, coords: &Vec2<i32>, listener: &Vec2<i32>) {
         let listeners = self.listeners.entry(*coords).or_default();
-        if listeners.last().is_some_and(|last| last == listener) {
+        if listeners.iter().any(|existing| existing == listener) {
             return;
         }
         listeners.push(*listener);
@@ -950,6 +950,22 @@ mod tests {
             Some((100, 101, 100, 101))
         );
         assert_eq!(chunks.light_traversed_bounds_for_center_radius(-5), None);
+    }
+
+    #[test]
+    fn add_listener_dedupes_existing_listener_ids() {
+        let config = WorldConfig::new().build();
+        let mut chunks = Chunks::new(&config);
+        let coords = Vec2(2, -3);
+        let first = Vec2(10, 11);
+        let second = Vec2(-4, 8);
+
+        chunks.add_listener(&coords, &first);
+        chunks.add_listener(&coords, &second);
+        chunks.add_listener(&coords, &first);
+
+        let listeners = chunks.listeners.get(&coords).expect("listeners missing");
+        assert_eq!(listeners, &vec![first, second]);
     }
 
     #[test]
