@@ -11,70 +11,35 @@ use crate::{
 
 pub struct BroadcastSystem;
 
-fn filter_key(filter: &ClientFilter) -> String {
+#[derive(Hash, Eq, PartialEq)]
+enum BatchFilterKey {
+    All,
+    Direct(String),
+    Include(Vec<String>),
+    Exclude(Vec<String>),
+}
+
+fn filter_key(filter: &ClientFilter) -> BatchFilterKey {
     match filter {
-        ClientFilter::All => "all".to_string(),
-        ClientFilter::Direct(id) => {
-            let mut key = String::with_capacity("direct:".len() + id.len());
-            key.push_str("direct:");
-            key.push_str(id);
-            key
-        }
+        ClientFilter::All => BatchFilterKey::All,
+        ClientFilter::Direct(id) => BatchFilterKey::Direct(id.clone()),
         ClientFilter::Include(ids) => {
-            if ids.is_empty() {
-                return "include:".to_owned();
-            }
-            if ids.len() == 1 {
-                let mut key = String::with_capacity("include:".len() + ids[0].len());
-                key.push_str("include:");
-                key.push_str(&ids[0]);
-                return key;
-            }
-            if ids.len() == 2 {
-                let (first, second) = if ids[0] <= ids[1] {
-                    (&ids[0], &ids[1])
-                } else {
-                    (&ids[1], &ids[0])
-                };
-                let mut key =
-                    String::with_capacity("include:".len() + first.len() + 1 + second.len());
-                key.push_str("include:");
-                key.push_str(first);
-                key.push(',');
-                key.push_str(second);
-                return key;
+            if ids.len() <= 1 {
+                return BatchFilterKey::Include(ids.clone());
             }
             let mut sorted = ids.clone();
             sorted.sort();
-            format!("include:{}", sorted.join(","))
+            sorted.dedup();
+            BatchFilterKey::Include(sorted)
         }
         ClientFilter::Exclude(ids) => {
-            if ids.is_empty() {
-                return "exclude:".to_owned();
-            }
-            if ids.len() == 1 {
-                let mut key = String::with_capacity("exclude:".len() + ids[0].len());
-                key.push_str("exclude:");
-                key.push_str(&ids[0]);
-                return key;
-            }
-            if ids.len() == 2 {
-                let (first, second) = if ids[0] <= ids[1] {
-                    (&ids[0], &ids[1])
-                } else {
-                    (&ids[1], &ids[0])
-                };
-                let mut key =
-                    String::with_capacity("exclude:".len() + first.len() + 1 + second.len());
-                key.push_str("exclude:");
-                key.push_str(first);
-                key.push(',');
-                key.push_str(second);
-                return key;
+            if ids.len() <= 1 {
+                return BatchFilterKey::Exclude(ids.clone());
             }
             let mut sorted = ids.clone();
             sorted.sort();
-            format!("exclude:{}", sorted.join(","))
+            sorted.dedup();
+            BatchFilterKey::Exclude(sorted)
         }
     }
 }
@@ -103,7 +68,7 @@ fn merge_messages(base: &mut Message, other: Message) {
 
 fn batch_messages(messages: Vec<(Message, ClientFilter)>) -> Vec<(Message, ClientFilter)> {
     let total_messages = messages.len();
-    let mut batched: HashMap<(i32, String), (Message, ClientFilter)> =
+    let mut batched: HashMap<(i32, BatchFilterKey), (Message, ClientFilter)> =
         HashMap::with_capacity(total_messages);
     let mut unbatched: Vec<(Message, ClientFilter)> = Vec::with_capacity(total_messages);
 
