@@ -206,6 +206,12 @@ impl MessageBuilder {
         self
     }
 
+    /// Configure owned entities data of the protocol.
+    pub fn entities_owned(mut self, entities: Vec<EntityProtocol>) -> Self {
+        self.entities = Some(entities);
+        self
+    }
+
     /// Configure the set of events to send in this message.
     pub fn events(mut self, events: &[EventProtocol]) -> Self {
         self.events = Some(events.to_vec());

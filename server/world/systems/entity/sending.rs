@@ -627,11 +627,10 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             }
             queue.push((
                 Message::new(&MessageType::Entity)
-                    .entities(&updates)
+                    .entities_owned(updates.split_off(0))
                     .build(),
                 ClientFilter::Direct(client_id),
             ));
-            updates.clear();
         }
     }
 }
