@@ -89,6 +89,8 @@ Nullable combination sub-rules are normalized to deterministic `none` entries.
 Iterator-trapped combination-rule collections can recover readable indexed
 entries via bounded fallback scans; irrecoverable trap combinations normalize
 to deterministic `none` rules.
+Length-fallback recovery skips sparse-hole placeholders and inherited numeric
+prototype entries before logical evaluation.
 Optional simple-rule `id`/`stage` values are kept only when they match voxel
 ranges (`id`: 0..65535, `stage`: 0..15).
 Plain rotation-like values are kept only when `value` is an encoded

@@ -99,6 +99,8 @@ const voxel = Voxel.pack({
   - key-based recovery keeps the smallest bounded numeric index set in
     ascending order to avoid full-list sorting overhead under sparse trap
     inputs
+  - length-fallback recovery skips sparse-hole placeholders and inherited
+    numeric prototype entries before logical evaluation
 - `createBlockConditionalPart`
   - defensively clones rule, face, AABB, and transparency-array inputs to
     avoid external mutation side effects after construction
