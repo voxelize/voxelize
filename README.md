@@ -396,6 +396,7 @@ pnpm run check:preflight:all-checks:verify:json:compact
 # status token extraction trims surrounding whitespace before known-status validation
 # canonical alias keys and alias token lists are whitespace-normalized before cli catalog/diagnostic resolution
 # known status token extraction is case-insensitive and normalizes to lowercase canonical values
+# wasm status-map key lookup normalizes key tokens (trim + lowercase) before known-status extraction
 # sparse trap fallbacks can supplement bounded-prefix entries with bounded key-scan recovery when high-index readable entries exist
 # bounded fallback scans use own-property checks so inherited numeric prototype entries are ignored
 # when own-property descriptor probes trap, bounded fallback switches to guarded direct reads without repeated probe failures

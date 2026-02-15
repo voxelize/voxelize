@@ -646,6 +646,8 @@ Canonical alias keys and alias token lists are whitespace-normalized
 before CLI catalog/diagnostic resolution.
 Known status token extraction is case-insensitive and normalizes to
 lowercase canonical values.
+Wasm status-map key lookup normalizes key tokens (trim + lowercase)
+before known-status extraction.
 Sparse trap fallbacks can supplement bounded-prefix entries with bounded
 key-scan recovery when high-index readable entries exist.
 Bounded fallback scans use own-property checks so inherited numeric
