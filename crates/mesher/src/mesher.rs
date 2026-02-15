@@ -1962,9 +1962,9 @@ fn compute_face_ao_and_light(
                         }
 
                         if x == 1 && y == 1 && z == 1 {
-                            let diagonal_yz_opaque = neighbor_is_opaque(mask, 0, ddy, ddz);
-                            let diagonal_xz_opaque = neighbor_is_opaque(mask, ddx, 0, ddz);
-                            let diagonal_xy_opaque = neighbor_is_opaque(mask, ddx, ddy, 0);
+                            let diagonal_yz_opaque = !b011;
+                            let diagonal_xz_opaque = !b101;
+                            let diagonal_xy_opaque = !b110;
 
                             if diagonal_yz_opaque && diagonal_xz_opaque && diagonal_xy_opaque {
                                 continue;
@@ -2120,9 +2120,9 @@ fn compute_face_ao_and_light_fast(
                     }
 
                     if x == 1 && y == 1 && z == 1 {
-                        let diagonal_yz_opaque = neighbor_is_opaque(mask, 0, ddy, ddz);
-                        let diagonal_xz_opaque = neighbor_is_opaque(mask, ddx, 0, ddz);
-                        let diagonal_xy_opaque = neighbor_is_opaque(mask, ddx, ddy, 0);
+                        let diagonal_yz_opaque = !b011;
+                        let diagonal_xz_opaque = !b101;
+                        let diagonal_xy_opaque = !b110;
 
                         if diagonal_yz_opaque && diagonal_xz_opaque && diagonal_xy_opaque {
                             continue;
@@ -3020,9 +3020,9 @@ fn process_face<S: VoxelAccess>(
                         }
 
                         if x == 1 && y == 1 && z == 1 {
-                            let diagonal_yz_opaque = neighbor_is_opaque(mask, 0, ddy, ddz);
-                            let diagonal_xz_opaque = neighbor_is_opaque(mask, ddx, 0, ddz);
-                            let diagonal_xy_opaque = neighbor_is_opaque(mask, ddx, ddy, 0);
+                            let diagonal_yz_opaque = !b011;
+                            let diagonal_xz_opaque = !b101;
+                            let diagonal_xy_opaque = !b110;
 
                             if diagonal_yz_opaque && diagonal_xz_opaque && diagonal_xy_opaque {
                                 continue;
