@@ -68,17 +68,14 @@ impl SplineMap {
         self.left_val = scale(self.left_val);
         self.right_val = scale(self.right_val);
 
-        let keys = self.spline.keys().to_owned();
-
-        let mut index = 0;
-        keys.into_iter().for_each(|_| {
+        let key_count = self.spline.keys().len();
+        for index in 0..key_count {
             self.spline.replace(index, |key| {
                 let mut key = key.to_owned();
                 key.value = scale(key.value);
                 key
             });
-            index += 1;
-        });
+        }
 
         self.min_val = min_val;
         self.max_val = max_val;
@@ -96,17 +93,14 @@ impl SplineMap {
             (max - min) * (num - self.min) / (self.max - self.min) + min
         };
 
-        let keys = self.spline.keys().to_owned();
-
-        let mut index = 0;
-        keys.into_iter().for_each(|_| {
+        let key_count = self.spline.keys().len();
+        for index in 0..key_count {
             self.spline.replace(index, |key| {
                 let mut key = key.to_owned();
                 key.t = scale(key.t);
                 key
             });
-            index += 1;
-        });
+        }
 
         self.min = min;
         self.max = max;
