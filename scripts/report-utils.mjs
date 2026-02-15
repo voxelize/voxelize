@@ -1656,9 +1656,10 @@ const normalizeCliOptionAliases = (optionAliases) => {
   return Object.fromEntries(normalizedAliasMap.entries());
 };
 
-const createCanonicalOptionMap = (canonicalOptions, optionAliases = {}) => {
-  const normalizedCanonicalOptions = normalizeCliOptionTokenList(canonicalOptions);
-  const normalizedOptionAliases = normalizeCliOptionAliases(optionAliases);
+const createCanonicalOptionMapFromNormalizedMetadata = (
+  normalizedCanonicalOptions,
+  normalizedOptionAliases
+) => {
   const canonicalMap = new Map(
     normalizedCanonicalOptions.map((option) => [option, option])
   );
@@ -1673,15 +1674,29 @@ const createCanonicalOptionMap = (canonicalOptions, optionAliases = {}) => {
   return canonicalMap;
 };
 
-const createSupportedCliOptions = (canonicalOptions, optionAliases = {}) => {
-  const normalizedCanonicalOptions = normalizeCliOptionTokenList(canonicalOptions);
-  const normalizedOptionAliases = normalizeCliOptionAliases(optionAliases);
+const createCanonicalOptionMap = (canonicalOptions, optionAliases = {}) => {
+  return createCanonicalOptionMapFromNormalizedMetadata(
+    normalizeCliOptionTokenList(canonicalOptions),
+    normalizeCliOptionAliases(optionAliases)
+  );
+};
 
+const createSupportedCliOptionsFromNormalizedMetadata = (
+  normalizedCanonicalOptions,
+  normalizedOptionAliases
+) => {
   return dedupeStringList([
     ...normalizedCanonicalOptions,
     ...Object.keys(normalizedOptionAliases),
     ...Object.values(normalizedOptionAliases).flat(),
   ]);
+};
+
+const createSupportedCliOptions = (canonicalOptions, optionAliases = {}) => {
+  return createSupportedCliOptionsFromNormalizedMetadata(
+    normalizeCliOptionTokenList(canonicalOptions),
+    normalizeCliOptionAliases(optionAliases)
+  );
 };
 
 export const createCliOptionCatalog = ({
@@ -1690,11 +1705,11 @@ export const createCliOptionCatalog = ({
 } = {}) => {
   const normalizedCanonicalOptions = normalizeCliOptionTokenList(canonicalOptions);
   const normalizedOptionAliases = normalizeCliOptionAliases(optionAliases);
-  const supportedCliOptions = createSupportedCliOptions(
+  const supportedCliOptions = createSupportedCliOptionsFromNormalizedMetadata(
     normalizedCanonicalOptions,
     normalizedOptionAliases
   );
-  const canonicalOptionMap = createCanonicalOptionMap(
+  const canonicalOptionMap = createCanonicalOptionMapFromNormalizedMetadata(
     normalizedCanonicalOptions,
     normalizedOptionAliases
   );
