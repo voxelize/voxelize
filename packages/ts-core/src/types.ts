@@ -424,8 +424,16 @@ const mergeIndexedFallbackEntries = (
     return entryValue === undefined || entryValue === null;
   };
 
+  const isPrimitivePlaceholderEntry = (entryValue: DynamicValue): boolean => {
+    return entryValue !== null && typeof entryValue !== "object";
+  };
+
   const isRecoverableFallbackEntry = (entryValue: DynamicValue): boolean => {
     return entryValue !== undefined && entryValue !== null;
+  };
+
+  const isObjectFallbackEntry = (entryValue: DynamicValue): boolean => {
+    return entryValue !== null && typeof entryValue === "object";
   };
 
   const mergedEntries = new Map<number, DynamicValue>();
@@ -444,6 +452,13 @@ const mergeIndexedFallbackEntries = (
     if (
       isEmptyPlaceholderEntry(existingValue) &&
       isRecoverableFallbackEntry(entry.value)
+    ) {
+      mergedEntries.set(entry.index, entry.value);
+      continue;
+    }
+    if (
+      isPrimitivePlaceholderEntry(existingValue) &&
+      isObjectFallbackEntry(entry.value)
     ) {
       mergedEntries.set(entry.index, entry.value);
     }

@@ -147,7 +147,8 @@ const voxel = Voxel.pack({
   - if key-fallback recovery omits readable prefix entries (for example due
     stateful low-index read traps), bounded-prefix and key-fallback
     recoveries are merged by numeric index
-  - when bounded recovery yields same-index `null`/`undefined` placeholders,
+  - when bounded recovery yields same-index `null`/`undefined`/primitive
+    placeholders,
     same-index defined key-fallback entries are preferred during merge
   - merged bounded/key helper recoveries remain capped to the smallest 1024
     numeric indices to keep fallback cloning bounded
@@ -218,7 +219,8 @@ const voxel = Voxel.pack({
   - if key-fallback recovery omits readable prefix entries (for example due
     stateful low-index read traps), bounded-prefix and key-fallback
     recoveries are merged by numeric index
-  - when bounded recovery yields same-index `null`/`undefined` placeholders,
+  - when bounded recovery yields same-index `null`/`undefined`/primitive
+    placeholders,
     same-index defined key-fallback entries are preferred during merge
   - merged bounded/key helper recoveries remain capped to the smallest 1024
     numeric indices to keep fallback cloning bounded

@@ -1664,6 +1664,41 @@ describe("Type builders", () => {
     ]);
   });
 
+  it("prefers key-fallback object face entries over bounded primitive placeholders", () => {
+    let prefixReadCount = 0;
+    const sparseFaces: BlockFaceInit[] = [];
+    sparseFaces[0] = { name: "PrefixFace" };
+    sparseFaces[1] = { name: "SecondFace" };
+    const trappedFaces = new Proxy(sparseFaces, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 2;
+        }
+        if (propertyKey === "0") {
+          prefixReadCount += 1;
+          if (prefixReadCount === 1) {
+            return 1;
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    const part = createBlockConditionalPart({
+      faces: trappedFaces as never,
+    });
+
+    expect(part.faces).toEqual([
+      new BlockFace({ name: "PrefixFace" }),
+      new BlockFace({ name: "SecondFace" }),
+    ]);
+  });
+
   it("prefers key-fallback defined aabb entries over bounded undefined placeholders", () => {
     let prefixReadCount = 0;
     const sparseAabbs: AABB[] = [];
@@ -2578,6 +2613,63 @@ describe("Type builders", () => {
           prefixReadCount += 1;
           if (prefixReadCount === 1) {
             return null;
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(
+      createBlockRule({
+        type: "combination",
+        logic: BlockRuleLogic.Or,
+        rules: trappedRules as never,
+      })
+    ).toEqual({
+      type: "combination",
+      logic: BlockRuleLogic.Or,
+      rules: [
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 5,
+        },
+        {
+          type: "simple",
+          offset: [2, 0, 0],
+          id: 9,
+        },
+      ],
+    });
+  });
+
+  it("prefers key-fallback object entries over bounded primitive placeholders in createBlockRule", () => {
+    let prefixReadCount = 0;
+    const sparseRules: BlockRuleInput[] = [];
+    sparseRules[0] = {
+      type: "simple",
+      offset: [1, 0, 0],
+      id: 5,
+    };
+    sparseRules[1] = {
+      type: "simple",
+      offset: [2, 0, 0],
+      id: 9,
+    };
+    const trappedRules = new Proxy(sparseRules, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 2;
+        }
+        if (propertyKey === "0") {
+          prefixReadCount += 1;
+          if (prefixReadCount === 1) {
+            return 1;
           }
         }
         return Reflect.get(target, property, receiver);
@@ -3740,6 +3832,52 @@ describe("Type builders", () => {
           prefixReadCount += 1;
           if (prefixReadCount === 1) {
             return null;
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const pattern = createBlockDynamicPattern({
+      parts: trappedParts as never,
+    });
+
+    expect(pattern.parts).toEqual([
+      {
+        rule: BLOCK_RULE_NONE,
+        faces: [],
+        aabbs: [],
+        isTransparent: [false, false, false, false, false, false],
+        worldSpace: true,
+      },
+      {
+        rule: BLOCK_RULE_NONE,
+        faces: [],
+        aabbs: [],
+        isTransparent: [false, false, false, false, false, false],
+        worldSpace: false,
+      },
+    ]);
+  });
+
+  it("prefers key-fallback object part entries over bounded primitive placeholders", () => {
+    let prefixReadCount = 0;
+    const sparseParts: BlockConditionalPartInput[] = [];
+    sparseParts[0] = { worldSpace: true };
+    sparseParts[1] = { worldSpace: false };
+    const trappedParts = new Proxy(sparseParts, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 2;
+        }
+        if (propertyKey === "0") {
+          prefixReadCount += 1;
+          if (prefixReadCount === 1) {
+            return 1;
           }
         }
         return Reflect.get(target, property, receiver);
