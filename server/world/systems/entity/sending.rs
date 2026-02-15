@@ -16,6 +16,7 @@ pub struct EntitiesSendingSystem {
     known_entities_to_delete_buffer: Vec<String>,
     clients_with_updates_buffer: Vec<String>,
     client_updates_buffer: HashMap<String, Vec<EntityProtocol>>,
+    metadata_json_cache_buffer: HashMap<String, String>,
 }
 
 #[inline]
@@ -81,6 +82,22 @@ fn get_or_insert_client_known_entities<'a>(
     }
 }
 
+#[inline]
+fn get_or_cache_metadata_json(
+    metadata_json_cache: &mut HashMap<String, String>,
+    entity_id: &str,
+    metadata: &MetadataComp,
+) -> String {
+    match metadata_json_cache.raw_entry_mut().from_key(entity_id) {
+        RawEntryMut::Occupied(entry) => entry.get().clone(),
+        RawEntryMut::Vacant(entry) => {
+            let (_, cached_metadata_json) =
+                entry.insert(entity_id.to_owned(), metadata.to_string());
+            cached_metadata_json.clone()
+        }
+    }
+}
+
 impl<'a> System<'a> for EntitiesSendingSystem {
     type SystemData = (
         Entities<'a>,
@@ -129,6 +146,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         self.deleted_entities_buffer.clear();
         self.known_entities_to_delete_buffer.clear();
         self.clients_with_updates_buffer.clear();
+        self.metadata_json_cache_buffer.clear();
         if clients.is_empty() {
             self.client_updates_buffer.clear();
         } else if self.client_updates_buffer.len() > clients.len() {
@@ -521,6 +539,11 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                             if let Some((etype, _ent, metadata, _persisted)) =
                                 new_bookkeeping_records.get(entity_id)
                             {
+                                let metadata_json = get_or_cache_metadata_json(
+                                    &mut self.metadata_json_cache_buffer,
+                                    entity_id,
+                                    metadata,
+                                );
                                 push_client_update(
                                     &mut self.client_updates_buffer,
                                     &mut self.clients_with_updates_buffer,
@@ -529,7 +552,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                                         operation: EntityOperation::Delete,
                                         id: entity_id.clone(),
                                         r#type: etype.clone(),
-                                        metadata: Some(metadata.to_string()),
+                                        metadata: Some(metadata_json),
                                     },
                                 );
                             }
@@ -580,6 +603,11 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     if let Some((etype, _ent, metadata, _persisted)) =
                         new_bookkeeping_records.get(entity_id)
                     {
+                        let metadata_json = get_or_cache_metadata_json(
+                            &mut self.metadata_json_cache_buffer,
+                            entity_id,
+                            metadata,
+                        );
                         push_client_update(
                             &mut self.client_updates_buffer,
                             &mut self.clients_with_updates_buffer,
@@ -588,7 +616,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                                 operation: EntityOperation::Delete,
                                 id: entity_id.clone(),
                                 r#type: etype.clone(),
-                                metadata: Some(metadata.to_string()),
+                                metadata: Some(metadata_json),
                             },
                         );
                     }
