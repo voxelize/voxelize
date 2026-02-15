@@ -151,7 +151,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             }
 
             if !to_add_back_to_requested.is_empty() {
-                requests.requests.extend(to_add_back_to_requested.drain(..));
+                requests.requests.append(to_add_back_to_requested);
             }
         }
 
