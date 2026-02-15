@@ -10,6 +10,11 @@ const SEGMENT_ANGLE = TWO_PI / Y_ROT_SEGMENTS;
 const MAX_PRECISION_SNAP_EPSILON = SEGMENT_ANGLE / 8;
 type RuleOptionValue = object | string | number | boolean | null | undefined;
 type RuleOptionRecord = Record<string, RuleOptionValue>;
+type NormalizedRuleEvaluationOptions = {
+  rotationY: number;
+  yRotatable: boolean;
+  worldSpace: boolean;
+};
 
 const normalizeRuleYRotation = (rotation: number): number => {
   if (!Number.isFinite(rotation)) {
@@ -76,11 +81,7 @@ const toFiniteNumberOrDefault = (value: RuleOptionValue, fallback: number): numb
 
 const normalizeRuleEvaluationOptions = (
   options: BlockRuleEvaluationOptions
-): {
-  rotationY: number;
-  yRotatable: boolean;
-  worldSpace: boolean;
-} => {
+): NormalizedRuleEvaluationOptions => {
   const optionRecord = toObjectRecordOrNull(options);
   if (optionRecord === null) {
     return {
@@ -104,6 +105,71 @@ const normalizeRuleEvaluationOptions = (
     yRotatable: safeReadRecordValue(optionRecord, "yRotatable") === true,
     worldSpace: safeReadRecordValue(optionRecord, "worldSpace") === true,
   };
+};
+
+const isBlockRotationInstance = (value: RuleOptionValue): value is BlockRotation => {
+  try {
+    return value instanceof BlockRotation;
+  } catch {
+    return false;
+  }
+};
+
+const readVoxelIdSafely = (
+  access: RuleAccess,
+  x: number,
+  y: number,
+  z: number
+): number | null => {
+  try {
+    const voxelId = access.getVoxel(x, y, z);
+    return typeof voxelId === "number" && Number.isFinite(voxelId)
+      ? voxelId
+      : null;
+  } catch {
+    return null;
+  }
+};
+
+const readVoxelStageSafely = (
+  access: RuleAccess,
+  x: number,
+  y: number,
+  z: number
+): number | null => {
+  try {
+    const voxelStage = access.getVoxelStage(x, y, z);
+    return typeof voxelStage === "number" && Number.isFinite(voxelStage)
+      ? voxelStage
+      : null;
+  } catch {
+    return null;
+  }
+};
+
+const readVoxelRotationSafely = (
+  access: RuleAccess,
+  x: number,
+  y: number,
+  z: number
+): BlockRotation | null => {
+  try {
+    const voxelRotation = access.getVoxelRotation(x, y, z);
+    return isBlockRotationInstance(voxelRotation) ? voxelRotation : null;
+  } catch {
+    return null;
+  }
+};
+
+const areRotationsEqualSafely = (
+  left: BlockRotation,
+  right: BlockRotation
+): boolean => {
+  try {
+    return left.equals(right);
+  } catch {
+    return false;
+  }
 };
 
 const rotateOffsetY = (offset: Vec3, rotationY: number): Vec3 => {
@@ -132,14 +198,13 @@ type RuleAccess = Pick<
 >;
 
 export class BlockRuleEvaluator {
-  static evaluate(
+  private static evaluateWithNormalizedOptions(
     rule: BlockRule,
     position: Vec3,
     access: RuleAccess,
-    options: BlockRuleEvaluationOptions = {}
+    options: NormalizedRuleEvaluationOptions
   ): boolean {
-    const { rotationY, yRotatable, worldSpace } =
-      normalizeRuleEvaluationOptions(options);
+    const { rotationY, yRotatable, worldSpace } = options;
 
     if (rule.type === "none") {
       return true;
@@ -159,34 +224,40 @@ export class BlockRuleEvaluator {
       ];
 
       if (rule.id !== undefined && rule.id !== null) {
-        const actualId = access.getVoxel(
+        const actualId = readVoxelIdSafely(
+          access,
           checkPosition[0],
           checkPosition[1],
           checkPosition[2]
         );
-        if (actualId !== rule.id) {
+        if (actualId === null || actualId !== rule.id) {
           return false;
         }
       }
 
       if (rule.rotation !== undefined && rule.rotation !== null) {
-        const actualRotation = access.getVoxelRotation(
+        const actualRotation = readVoxelRotationSafely(
+          access,
           checkPosition[0],
           checkPosition[1],
           checkPosition[2]
         );
-        if (!actualRotation.equals(rule.rotation)) {
+        if (
+          actualRotation === null ||
+          !areRotationsEqualSafely(actualRotation, rule.rotation)
+        ) {
           return false;
         }
       }
 
       if (rule.stage !== undefined && rule.stage !== null) {
-        const actualStage = access.getVoxelStage(
+        const actualStage = readVoxelStageSafely(
+          access,
           checkPosition[0],
           checkPosition[1],
           checkPosition[2]
         );
-        if (actualStage !== rule.stage) {
+        if (actualStage === null || actualStage !== rule.stage) {
           return false;
         }
       }
@@ -197,11 +268,21 @@ export class BlockRuleEvaluator {
     switch (rule.logic) {
       case BlockRuleLogic.And:
         return rule.rules.every((subRule) =>
-          BlockRuleEvaluator.evaluate(subRule, position, access, options)
+          BlockRuleEvaluator.evaluateWithNormalizedOptions(
+            subRule,
+            position,
+            access,
+            options
+          )
         );
       case BlockRuleLogic.Or:
         return rule.rules.some((subRule) =>
-          BlockRuleEvaluator.evaluate(subRule, position, access, options)
+          BlockRuleEvaluator.evaluateWithNormalizedOptions(
+            subRule,
+            position,
+            access,
+            options
+          )
         );
       case BlockRuleLogic.Not: {
         const [firstRule] = rule.rules;
@@ -209,10 +290,30 @@ export class BlockRuleEvaluator {
           return true;
         }
 
-        return !BlockRuleEvaluator.evaluate(firstRule, position, access, options);
+        return !BlockRuleEvaluator.evaluateWithNormalizedOptions(
+          firstRule,
+          position,
+          access,
+          options
+        );
       }
       default:
         return false;
     }
+  }
+
+  static evaluate(
+    rule: BlockRule,
+    position: Vec3,
+    access: RuleAccess,
+    options: BlockRuleEvaluationOptions = {}
+  ): boolean {
+    const normalizedOptions = normalizeRuleEvaluationOptions(options);
+    return BlockRuleEvaluator.evaluateWithNormalizedOptions(
+      rule,
+      position,
+      access,
+      normalizedOptions
+    );
   }
 }

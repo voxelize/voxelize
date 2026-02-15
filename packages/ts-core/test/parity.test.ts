@@ -3773,6 +3773,129 @@ describe("BlockRuleEvaluator", () => {
     expect(matched).toBe(true);
   });
 
+  it("normalizes rule-evaluation options once for nested combinations", () => {
+    const rule = {
+      type: "combination" as const,
+      logic: BlockRuleLogic.And,
+      rules: [
+        {
+          type: "simple" as const,
+          offset: [1, 0, 0] as [number, number, number],
+          id: 28,
+        },
+        {
+          type: "simple" as const,
+          offset: [2, 0, 0] as [number, number, number],
+          id: 29,
+        },
+      ],
+    };
+
+    const access = {
+      getVoxel: (x: number, y: number, z: number) => {
+        if (x === 0 && y === 0 && z === 1) {
+          return 28;
+        }
+        if (x === 0 && y === 0 && z === 2) {
+          return 29;
+        }
+        return 0;
+      },
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    let rotationReadCount = 0;
+    const options = Object.create(null) as {
+      readonly rotation: BlockRotation;
+      readonly yRotatable: boolean;
+      readonly worldSpace: boolean;
+    };
+    Object.defineProperty(options, "rotation", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        rotationReadCount += 1;
+        if (rotationReadCount > 1) {
+          throw new Error("rotation option trap");
+        }
+        return BlockRotation.py(Math.PI / 2);
+      },
+    });
+    Object.defineProperty(options, "yRotatable", {
+      configurable: true,
+      enumerable: true,
+      value: true,
+    });
+    Object.defineProperty(options, "worldSpace", {
+      configurable: true,
+      enumerable: true,
+      value: false,
+    });
+
+    const matched = BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access, options);
+
+    expect(matched).toBe(true);
+    expect(rotationReadCount).toBe(1);
+  });
+
+  it("returns false when voxel id access throws during rule evaluation", () => {
+    const rule = {
+      type: "simple" as const,
+      offset: [0, 0, 0] as [number, number, number],
+      id: 30,
+    };
+    const access = {
+      getVoxel: () => {
+        throw new Error("getVoxel trap");
+      },
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    expect(BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access)).toBe(false);
+  });
+
+  it("returns false when stage access throws during rule evaluation", () => {
+    const rule = {
+      type: "simple" as const,
+      offset: [0, 0, 0] as [number, number, number],
+      stage: 4,
+    };
+    const access = {
+      getVoxel: () => 1,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => {
+        throw new Error("getVoxelStage trap");
+      },
+    };
+
+    expect(BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access)).toBe(false);
+  });
+
+  it("returns false when rotation access/comparison throws during rule evaluation", () => {
+    const rule = {
+      type: "simple" as const,
+      offset: [0, 0, 0] as [number, number, number],
+      rotation: BlockRotation.py(0),
+    };
+    const rotationWithEqualsTrap = new Proxy(BlockRotation.py(0), {
+      get(target, property, receiver) {
+        if (property === "equals") {
+          throw new Error("equals trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const access = {
+      getVoxel: () => 1,
+      getVoxelRotation: () => rotationWithEqualsTrap as never,
+      getVoxelStage: () => 0,
+    };
+
+    expect(BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access)).toBe(false);
+  });
+
   it("rotates offsets for negative y-rotation values", () => {
     const rule = {
       type: "simple" as const,
