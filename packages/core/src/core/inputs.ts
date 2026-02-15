@@ -492,6 +492,7 @@ export class Inputs<T extends string = string> extends EventEmitter {
     for (let index = 0; index < this.unbinds.length; index++) {
       this.unbinds[index]();
     }
+    this.normalizedKeyCache.clear();
   };
 
   /**
