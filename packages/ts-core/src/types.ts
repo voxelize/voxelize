@@ -223,6 +223,16 @@ const hasPlainObjectPrototype = (value: object): boolean => {
   return prototype === Object.prototype || prototype === null;
 };
 
+const isPlainObjectValue = (
+  value: DynamicValue
+): value is Record<string, DynamicValue> => {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  return hasPlainObjectPrototype(value);
+};
+
 export const createFaceTransparency = (
   value: FaceTransparencyLike = null
 ): FaceTransparency => {
@@ -323,17 +333,11 @@ const toOptionalRuleNumber = (
 const toOptionalRuleRotation = (
   value: DynamicValue
 ): BlockRotation | undefined => {
-
   if (value instanceof BlockRotation) {
     return new BlockRotation(value.value, value.yRotation);
   }
 
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    !hasPlainObjectPrototype(value)
-  ) {
+  if (!isPlainObjectValue(value)) {
     return undefined;
   }
 
@@ -355,12 +359,7 @@ const toBlockRule = (
   value: DynamicValue,
   path: Set<object> = new Set<object>()
 ): BlockRule => {
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    !hasPlainObjectPrototype(value)
-  ) {
+  if (!isPlainObjectValue(value)) {
     return { type: "none" };
   }
   if (path.has(value)) {
@@ -461,10 +460,7 @@ const toBlockFaceInit = (face: BlockFaceInput): BlockFaceInit | null => {
   }
 
   if (
-    face === null ||
-    typeof face !== "object" ||
-    Array.isArray(face) ||
-    !hasPlainObjectPrototype(face)
+    !isPlainObjectValue(face)
   ) {
     return null;
   }
@@ -529,13 +525,9 @@ const cloneBlockFace = (
 export const createBlockConditionalPart = (
   part: BlockConditionalPartInput | null = {}
 ): BlockConditionalPart => {
-  const normalizedPart =
-    part !== null &&
-    typeof part === "object" &&
-    !Array.isArray(part) &&
-    hasPlainObjectPrototype(part)
-      ? part
-      : {};
+  const normalizedPart: BlockConditionalPartInput = isPlainObjectValue(part)
+    ? part
+    : {};
   const faces = Array.isArray(normalizedPart.faces)
     ? normalizedPart.faces.reduce<BlockFace[]>((clonedFaces, face) => {
         const clonedFace = cloneBlockFace(face);
@@ -572,22 +564,12 @@ export const createBlockConditionalPart = (
 export const createBlockDynamicPattern = (
   pattern: BlockDynamicPatternInput | null = {}
 ): BlockDynamicPattern => {
-  const normalizedPattern =
-    pattern !== null &&
-    typeof pattern === "object" &&
-    !Array.isArray(pattern) &&
-    hasPlainObjectPrototype(pattern)
-      ? pattern
-      : {};
+  const normalizedPattern: BlockDynamicPatternInput = isPlainObjectValue(pattern)
+    ? pattern
+    : {};
   const parts = Array.isArray(normalizedPattern.parts)
     ? normalizedPattern.parts.reduce<BlockConditionalPart[]>((clonedParts, part) => {
-        if (
-          part !== null &&
-          part !== undefined &&
-          typeof part === "object" &&
-          !Array.isArray(part) &&
-          hasPlainObjectPrototype(part)
-        ) {
+        if (isPlainObjectValue(part)) {
           clonedParts.push(createBlockConditionalPart(part));
         }
 
