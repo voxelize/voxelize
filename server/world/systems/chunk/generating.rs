@@ -195,8 +195,10 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         }
 
         let mut to_load = Vec::with_capacity(pipeline.queue.len());
-        while !pipeline.queue.is_empty() && !pipeline.stages.is_empty() {
-            let coords = pipeline.get().unwrap();
+        while !pipeline.stages.is_empty() {
+            let Some(coords) = pipeline.get() else {
+                break;
+            };
             let chunk = chunks.raw(&coords);
 
             if chunk.is_none() {
@@ -405,8 +407,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
         let mut ready_chunks = Vec::with_capacity(mesher.queue.len());
 
-        while !mesher.queue.is_empty() {
-            let coords = mesher.get().unwrap();
+        while let Some(coords) = mesher.get() {
             let mut ready = true;
 
             for n_coords in chunks.light_traversed_chunks(&coords) {
