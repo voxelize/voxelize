@@ -371,7 +371,7 @@ impl Registry {
             id, name, faces, ..
         } = block;
 
-        let lower_name = name.to_lowercase();
+        let lower_name = Self::normalized_name(name).into_owned();
         let existing_id_for_name = self.blocks_by_name.get(&lower_name).map(|existing| existing.id);
         let existing_name_for_id = self.name_map.get(id).cloned();
 
@@ -440,7 +440,7 @@ impl Registry {
 
         for block in blocks {
             let mut block = block.to_owned();
-            let lower_name = block.name.to_lowercase();
+            let lower_name = Self::normalized_name(&block.name).into_owned();
             let existing_id_for_name = name_to_id.get(&lower_name).copied();
 
             if block.id != 0 {
