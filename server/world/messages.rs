@@ -4,6 +4,7 @@ use crossbeam_channel::{Receiver, Sender};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::{common::ClientFilter, encode_message, server::Message, EntityOperation, MessageType};
+const SYNC_ENCODE_BATCH_LIMIT: usize = 4;
 
 #[derive(Clone)]
 pub struct EncodedMessage {
@@ -132,7 +133,7 @@ impl EncodedMessageQueue {
             return;
         }
         let pending_len = self.pending.len();
-        if pending_len <= 2 {
+        if pending_len <= SYNC_ENCODE_BATCH_LIMIT {
             if self.processed.capacity() - self.processed.len() < pending_len {
                 self.processed
                     .reserve(pending_len - (self.processed.capacity() - self.processed.len()));
