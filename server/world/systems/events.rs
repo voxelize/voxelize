@@ -170,19 +170,17 @@ impl<'a> System<'a> for EventsSystem {
             if has_transports {
                 transports_map.push(serialized.clone());
             }
-            if !has_transports {
-                if let Some(ClientFilter::Direct(id)) = filter.as_ref() {
-                    if let Some(client) = clients.get(id) {
-                        let should_send = match location.as_ref() {
-                            Some(location) => is_interested(location, client.entity),
-                            None => true,
-                        };
-                        if should_send {
-                            push_dispatch_event_owned(dispatch_map, touched_clients, id, serialized);
-                        }
+            if let Some(ClientFilter::Direct(id)) = filter.as_ref() {
+                if let Some(client) = clients.get(id) {
+                    let should_send = match location.as_ref() {
+                        Some(location) => is_interested(location, client.entity),
+                        None => true,
+                    };
+                    if should_send {
+                        push_dispatch_event_owned(dispatch_map, touched_clients, id, serialized);
                     }
-                    continue;
                 }
+                continue;
             }
 
             // Checks if location is required, otherwise just sends.
