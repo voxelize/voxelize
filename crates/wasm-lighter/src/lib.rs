@@ -504,7 +504,7 @@ where
         let first_value = array.get(0);
 
         if first_value.is_object() && array.get(length_u32 - 1).is_object() {
-            if let Ok(nodes) = serde_wasm_bindgen::from_value(array.clone().into()) {
+            if let Ok(nodes) = serde_wasm_bindgen::from_value(JsValue::from(array)) {
                 return nodes;
             }
         }
