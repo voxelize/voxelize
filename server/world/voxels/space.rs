@@ -236,9 +236,17 @@ impl SpaceBuilder<'_> {
                         .reduce(
                             || {
                                 (
+                                    if self.needs_voxels {
+                                        HashMap::with_capacity(traversed_count)
+                                    } else {
+                                        HashMap::new()
+                                    },
                                     HashMap::with_capacity(traversed_count),
-                                    HashMap::with_capacity(traversed_count),
-                                    HashMap::with_capacity(traversed_count),
+                                    if self.needs_height_maps {
+                                        HashMap::with_capacity(traversed_count)
+                                    } else {
+                                        HashMap::new()
+                                    },
                                 )
                             },
                             |(mut voxels_acc, mut lights_acc, mut height_maps_acc),
