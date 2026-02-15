@@ -117,6 +117,13 @@ impl EncodedMessageQueue {
     }
 
     pub fn append(&mut self, mut list: Vec<(Message, ClientFilter)>) {
+        if list.is_empty() {
+            return;
+        }
+        if self.pending.capacity() - self.pending.len() < list.len() {
+            self.pending
+                .reserve(list.len() - (self.pending.capacity() - self.pending.len()));
+        }
         self.pending.append(&mut list);
     }
 
