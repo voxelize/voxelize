@@ -6294,6 +6294,37 @@ describe("report-utils", () => {
       passedChecks: ["client"],
       failedChecks: ["devEnvironment"],
     });
+    let statefulObjectReplacementReadCount = 0;
+    const statefulObjectReplacementChecks = new Proxy(
+      [{ name: "devEnvironment", passed: false }],
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (propertyKey === "0") {
+            statefulObjectReplacementReadCount += 1;
+            if (statefulObjectReplacementReadCount > 1) {
+              return { name: "client", passed: true };
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(summarizeCheckResults(statefulObjectReplacementChecks as never)).toEqual({
+      totalChecks: 1,
+      passedCheckCount: 0,
+      failedCheckCount: 1,
+      firstFailedCheck: "devEnvironment",
+      passedChecks: [],
+      failedChecks: ["devEnvironment"],
+    });
     const cappedSupplementedChecksTarget: Array<
       number | { readonly name: string; readonly passed: boolean }
     > = [];
@@ -6594,6 +6625,46 @@ describe("report-utils", () => {
         ],
       })
     ).toBe("Client checks failed.");
+    let statefulObjectReplacementReadCount = 0;
+    const statefulObjectReplacementSteps = new Proxy(
+      [
+        {
+          name: "Primary check",
+          passed: false,
+          skipped: false,
+          reason: "initial failure",
+        },
+      ],
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (propertyKey === "0") {
+            statefulObjectReplacementReadCount += 1;
+            if (statefulObjectReplacementReadCount > 1) {
+              return {
+                name: "Secondary check",
+                passed: true,
+                skipped: false,
+                reason: "secondary failure",
+              };
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      deriveFailureMessageFromReport({
+        steps: statefulObjectReplacementSteps,
+      })
+    ).toBe("Primary check: initial failure");
     const cappedSupplementedFailureMessageStepsTarget: Array<
       number | { readonly name: string; readonly passed: boolean; readonly skipped: boolean; readonly reason: string }
     > = [];
