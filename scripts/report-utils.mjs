@@ -1755,7 +1755,11 @@ const shouldConsumeSplitOptionValue = (
     return true;
   }
 
-  return !isKnownOptionTokenLike(nextArg, canonicalOptionMap);
+  if (isKnownOptionTokenLike(nextArg, canonicalOptionMap)) {
+    return false;
+  }
+
+  return !isLikelyShortOptionToken(nextArg);
 };
 
 const createValueOptionMetadata = (

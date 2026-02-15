@@ -2173,6 +2173,24 @@ describe("report-utils", () => {
       }
     );
     expect(unknownWithAliasValueThatMatchesAnotherAlias).toEqual([]);
+    const unknownWithStrictUnknownShortValue = parseUnknownCliOptions(
+      ["--output", "-l"],
+      {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+      }
+    );
+    expect(unknownWithStrictUnknownShortValue).toEqual(["-l"]);
+    const unknownWithStrictDashPrefixedPathValue = parseUnknownCliOptions(
+      ["--output", "-artifact-report.json"],
+      {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+      }
+    );
+    expect(unknownWithStrictDashPrefixedPathValue).toEqual([]);
 
     const unknownWithInlineValues = parseUnknownCliOptions(
       ["--json", "--mystery=alpha", "--mystery=beta", "-x=1", "-x=2"],
@@ -2582,6 +2600,34 @@ describe("report-utils", () => {
     expect(outputErrorPriority.validationErrorCode).toBe(
       "output_option_missing_value"
     );
+    const strictUnknownShortValueValidation = createCliOptionValidation(
+      ["--output", "-l"],
+      {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+      }
+    );
+    expect(strictUnknownShortValueValidation.unknownOptions).toEqual(["-l"]);
+    expect(strictUnknownShortValueValidation.unknownOptionCount).toBe(1);
+    expect(strictUnknownShortValueValidation.unsupportedOptionsError).toBe(
+      "Unsupported option(s): -l. Supported options: --output."
+    );
+    expect(strictUnknownShortValueValidation.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    const strictDashPrefixedPathValueValidation = createCliOptionValidation(
+      ["--output", "-artifact-report.json"],
+      {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+      }
+    );
+    expect(strictDashPrefixedPathValueValidation.unknownOptions).toEqual([]);
+    expect(strictDashPrefixedPathValueValidation.unknownOptionCount).toBe(0);
+    expect(strictDashPrefixedPathValueValidation.unsupportedOptionsError).toBeNull();
+    expect(strictDashPrefixedPathValueValidation.validationErrorCode).toBeNull();
 
     const aliasCanonicalTokenValidation = createCliOptionValidation(
       ["--no-build"],
@@ -3662,6 +3708,73 @@ describe("report-utils", () => {
     expect(diagnostics.unknownOptions).toEqual([]);
     expect(diagnostics.unknownOptionCount).toBe(0);
     expect(diagnostics.unsupportedOptionsError).toBeNull();
+  });
+
+  it("reports unknown short tokens after strict value options", () => {
+    const diagnostics = createCliDiagnostics(["--output", "-l"], {
+      canonicalOptions: ["--output"],
+      optionsWithValues: ["--output"],
+      optionsWithStrictValues: ["--output"],
+    });
+
+    expect(diagnostics.activeCliOptions).toEqual(["--output"]);
+    expect(diagnostics.activeCliOptionCount).toBe(1);
+    expect(diagnostics.activeCliOptionTokens).toEqual(["--output"]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(diagnostics.activeCliOptionResolutionCount).toBe(1);
+    expect(diagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+    ]);
+    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(1);
+    expect(diagnostics.unknownOptions).toEqual(["-l"]);
+    expect(diagnostics.unknownOptionCount).toBe(1);
+    expect(diagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): -l. Supported options: --output."
+    );
+    expect(diagnostics.validationErrorCode).toBe("unsupported_options");
+  });
+
+  it("keeps dash-prefixed path values after strict value options", () => {
+    const diagnostics = createCliDiagnostics(
+      ["--output", "-artifact-report.json"],
+      {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+      }
+    );
+
+    expect(diagnostics.activeCliOptions).toEqual(["--output"]);
+    expect(diagnostics.activeCliOptionCount).toBe(1);
+    expect(diagnostics.activeCliOptionTokens).toEqual(["--output"]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(diagnostics.activeCliOptionResolutionCount).toBe(1);
+    expect(diagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+    ]);
+    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(1);
+    expect(diagnostics.unknownOptions).toEqual([]);
+    expect(diagnostics.unknownOptionCount).toBe(0);
+    expect(diagnostics.unsupportedOptionsError).toBeNull();
+    expect(diagnostics.validationErrorCode).toBeNull();
   });
 
   it("reports recognized inline option misuse for strict value options", () => {
