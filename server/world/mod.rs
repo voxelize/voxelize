@@ -1876,7 +1876,11 @@ impl World {
                 let path = path.unwrap().path();
 
                 if let Ok(entity_data) = File::open(&path) {
-                    let id = path.file_stem().unwrap().to_str().unwrap().to_owned();
+                    let Some(id_stem) = path.file_stem().and_then(|stem| stem.to_str()) else {
+                        warn!("Skipping entity file with non-UTF8 stem: {:?}", path);
+                        continue;
+                    };
+                    let id = id_stem.to_owned();
                     let PersistedEntityRecord { etype, metadata } =
                         match serde_json::from_reader(entity_data) {
                             Ok(data) => data,
