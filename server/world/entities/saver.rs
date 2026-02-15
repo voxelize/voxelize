@@ -2,7 +2,6 @@ use log::warn;
 use serde_json::json;
 use specs::{Entity, World as ECSWorld, WorldExt};
 use std::fs::{self, File};
-use std::io::Write;
 use std::path::PathBuf;
 
 use crate::{MetadataComp, PositionComp, RigidBodyComp, WorldConfig};
@@ -65,22 +64,22 @@ impl EntitiesSaver {
         };
 
         let mut file = File::create(&path_to_use).expect("Could not create entity file...");
-        let j = serde_json::to_string(&payload).unwrap();
-        file.write_all(j.as_bytes())
-            .expect("Unable to write entity file.");
+        serde_json::to_writer(&mut file, &payload).expect("Unable to write entity file.");
     }
 
     pub fn remove(&self, id: &str) {
         if !self.saving {
             return;
         }
+        let suffixed_file_name = format!("-{}.json", id);
+        let legacy_file_name = format!("{}.json", id);
 
         if let Ok(entries) = fs::read_dir(&self.folder) {
             for entry in entries.flatten() {
                 let entry_path = entry.path();
                 if let Some(filename) = entry_path.file_name().and_then(|n| n.to_str()) {
-                    if filename.ends_with(&format!("-{}.json", id))
-                        || filename == format!("{}.json", id)
+                    if filename.ends_with(&suffixed_file_name)
+                        || filename == legacy_file_name
                     {
                         if let Err(e) = fs::remove_file(&entry_path) {
                             warn!(
