@@ -172,13 +172,11 @@ fn collect_preload_targets(chunks: &Chunks, radius: i32) -> Vec<Vec2<i32>> {
     for x in -radius..=radius {
         for z in -radius..=radius {
             let coords = Vec2(x, z);
-            let neighbors = chunks.light_traversed_chunks(&coords);
-
-            for n_coords in neighbors {
-                if chunks.is_within_world(&n_coords) && seen.insert(n_coords.clone()) {
+            chunks.for_each_light_traversed_chunk(&coords, |n_coords| {
+                if seen.insert(n_coords) {
                     targets.push(n_coords);
                 }
-            }
+            });
         }
     }
 
