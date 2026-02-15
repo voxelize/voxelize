@@ -3203,8 +3203,10 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
         if non_greedy_faces.capacity() < mask_len {
             non_greedy_faces.reserve(mask_len - non_greedy_faces.capacity());
         }
-        if non_greedy_owned_faces.capacity() < mask_len {
-            non_greedy_owned_faces.reserve(mask_len - non_greedy_owned_faces.capacity());
+        let owned_faces_capacity_hint = (mask_len / 4).max(16);
+        if non_greedy_owned_faces.capacity() < owned_faces_capacity_hint {
+            non_greedy_owned_faces
+                .reserve(owned_faces_capacity_hint - non_greedy_owned_faces.capacity());
         }
         let mut quads: Vec<GreedyQuad> = Vec::with_capacity(quads_capacity_hint(mask_len));
         let mut faces: Vec<(BlockFace, bool)> = Vec::new();
