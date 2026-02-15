@@ -12220,6 +12220,265 @@ describe("report-utils", () => {
       },
     ]);
     expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(2);
+    let canonicalActiveReadCount = 0;
+    const activeMetadataFromCanonicalReadCount = parseActiveCliOptionMetadata(
+      ["--json"],
+      {
+        canonicalOptions: new Proxy(["--json"], {
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              throw new Error("iterator trap");
+            }
+            if (property === "length") {
+              return 1;
+            }
+            if (property === "0") {
+              canonicalActiveReadCount += 1;
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      }
+    );
+    expect(activeMetadataFromCanonicalReadCount.activeCliOptions).toEqual([
+      "--json",
+    ]);
+    expect(activeMetadataFromCanonicalReadCount.activeCliOptionCount).toBe(1);
+    expect(activeMetadataFromCanonicalReadCount.activeCliOptionTokens).toEqual([
+      "--json",
+    ]);
+    expect(activeMetadataFromCanonicalReadCount.activeCliOptionResolutions).toEqual(
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+        },
+      ]
+    );
+    expect(
+      activeMetadataFromCanonicalReadCount.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(activeMetadataFromCanonicalReadCount.activeCliOptionOccurrences).toEqual(
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
+    expect(
+      activeMetadataFromCanonicalReadCount.activeCliOptionOccurrenceCount
+    ).toBe(1);
+    expect(canonicalActiveReadCount).toBe(2);
+    let aliasActiveReadCount = 0;
+    const activeMetadataFromAliasReadCount = parseActiveCliOptionMetadata(
+      ["--verify"],
+      {
+        canonicalOptions: ["--json"],
+        optionAliases: {
+          "--no-build": new Proxy(["--verify"], {
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                throw new Error("iterator trap");
+              }
+              if (property === "length") {
+                return 1;
+              }
+              if (property === "0") {
+                aliasActiveReadCount += 1;
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+        },
+      }
+    );
+    expect(activeMetadataFromAliasReadCount.activeCliOptions).toEqual([
+      "--no-build",
+    ]);
+    expect(activeMetadataFromAliasReadCount.activeCliOptionCount).toBe(1);
+    expect(activeMetadataFromAliasReadCount.activeCliOptionTokens).toEqual([
+      "--verify",
+    ]);
+    expect(activeMetadataFromAliasReadCount.activeCliOptionResolutions).toEqual([
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+    ]);
+    expect(activeMetadataFromAliasReadCount.activeCliOptionResolutionCount).toBe(1);
+    expect(activeMetadataFromAliasReadCount.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+        index: 0,
+      },
+    ]);
+    expect(activeMetadataFromAliasReadCount.activeCliOptionOccurrenceCount).toBe(1);
+    expect(aliasActiveReadCount).toBe(2);
+    let optionArgsActiveReadCount = 0;
+    const activeMetadataFromOptionArgsReadCount = parseActiveCliOptionMetadata(
+      new Proxy(["--json"], {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (property === "0") {
+            optionArgsActiveReadCount += 1;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }) as never,
+      {
+        canonicalOptions: ["--json"],
+      }
+    );
+    expect(activeMetadataFromOptionArgsReadCount.activeCliOptions).toEqual([
+      "--json",
+    ]);
+    expect(activeMetadataFromOptionArgsReadCount.activeCliOptionCount).toBe(1);
+    expect(activeMetadataFromOptionArgsReadCount.activeCliOptionTokens).toEqual([
+      "--json",
+    ]);
+    expect(
+      activeMetadataFromOptionArgsReadCount.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(
+      activeMetadataFromOptionArgsReadCount.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      activeMetadataFromOptionArgsReadCount.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+    ]);
+    expect(
+      activeMetadataFromOptionArgsReadCount.activeCliOptionOccurrenceCount
+    ).toBe(1);
+    expect(optionArgsActiveReadCount).toBe(2);
+    let valueMetadataActiveReadCount = 0;
+    const activeMetadataFromValueMetadataReadCount =
+      parseActiveCliOptionMetadata(["--output", "-j"], {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-j"],
+        },
+        optionsWithValues: new Proxy(["--output"], {
+          get(target, property, receiver) {
+            if (property === "0") {
+              valueMetadataActiveReadCount += 1;
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      });
+    expect(activeMetadataFromValueMetadataReadCount.activeCliOptions).toEqual([
+      "--output",
+    ]);
+    expect(activeMetadataFromValueMetadataReadCount.activeCliOptionCount).toBe(1);
+    expect(activeMetadataFromValueMetadataReadCount.activeCliOptionTokens).toEqual(
+      ["--output"]
+    );
+    expect(
+      activeMetadataFromValueMetadataReadCount.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(
+      activeMetadataFromValueMetadataReadCount.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      activeMetadataFromValueMetadataReadCount.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+    ]);
+    expect(
+      activeMetadataFromValueMetadataReadCount.activeCliOptionOccurrenceCount
+    ).toBe(1);
+    expect(valueMetadataActiveReadCount).toBe(1);
+    let strictMetadataActiveReadCount = 0;
+    const activeMetadataFromStrictMetadataReadCount =
+      parseActiveCliOptionMetadata(["--output", "-j"], {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-j"],
+        },
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: new Proxy(["--output"], {
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              throw new Error("iterator trap");
+            }
+            if (property === "length") {
+              return 1;
+            }
+            if (property === "0") {
+              strictMetadataActiveReadCount += 1;
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      });
+    expect(activeMetadataFromStrictMetadataReadCount.activeCliOptions).toEqual([
+      "--output",
+      "--json",
+    ]);
+    expect(activeMetadataFromStrictMetadataReadCount.activeCliOptionCount).toBe(2);
+    expect(activeMetadataFromStrictMetadataReadCount.activeCliOptionTokens).toEqual(
+      ["--output", "-j"]
+    );
+    expect(
+      activeMetadataFromStrictMetadataReadCount.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+      {
+        token: "-j",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(
+      activeMetadataFromStrictMetadataReadCount.activeCliOptionResolutionCount
+    ).toBe(2);
+    expect(
+      activeMetadataFromStrictMetadataReadCount.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+      {
+        token: "-j",
+        canonicalOption: "--json",
+        index: 1,
+      },
+    ]);
+    expect(
+      activeMetadataFromStrictMetadataReadCount.activeCliOptionOccurrenceCount
+    ).toBe(2);
+    expect(strictMetadataActiveReadCount).toBe(2);
   });
 
   it("tracks active canonical options when aliases are configured outside canonical list", () => {
