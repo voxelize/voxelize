@@ -4498,6 +4498,34 @@ describe("report-utils", () => {
     ).toBeNull();
     expect(staleAliasOnlyOptionCatalogOverrideValidation.validationErrorCode).toBeNull();
     expect(staleAliasOnlyOptionCatalogOverrideCanonicalReadCount).toBe(0);
+    const staleAliasOnlyWithUnknownTokenCatalogOverrideValidation =
+      createCliOptionValidation(["--verify"], {
+        canonicalOptions: ["--json"],
+        optionCatalog: {
+          supportedCliOptions: ["--no-build", "--mystery"],
+          availableCliOptionAliases: {
+            "--no-build": ["--verify"],
+          },
+        } as never,
+      });
+    expect(
+      staleAliasOnlyWithUnknownTokenCatalogOverrideValidation.supportedCliOptions
+    ).toEqual(["--no-build", "--verify"]);
+    expect(
+      staleAliasOnlyWithUnknownTokenCatalogOverrideValidation.supportedCliOptionCount
+    ).toBe(2);
+    expect(
+      staleAliasOnlyWithUnknownTokenCatalogOverrideValidation.unknownOptions
+    ).toEqual([]);
+    expect(
+      staleAliasOnlyWithUnknownTokenCatalogOverrideValidation.unknownOptionCount
+    ).toBe(0);
+    expect(
+      staleAliasOnlyWithUnknownTokenCatalogOverrideValidation.unsupportedOptionsError
+    ).toBeNull();
+    expect(
+      staleAliasOnlyWithUnknownTokenCatalogOverrideValidation.validationErrorCode
+    ).toBeNull();
     let optionCatalogOverrideWithoutSupportedCanonicalReadCount = 0;
     const optionCatalogOverrideWithoutSupportedCanonicalOptions = new Proxy(
       ["--json"],
