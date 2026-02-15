@@ -243,6 +243,24 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
+    #[inline]
+    fn remove_queued_chunk(&mut self, coords: &Vec2<i32>) {
+        if self.queue.is_empty() {
+            return;
+        }
+        if self.queue.front().is_some_and(|front| front == coords) {
+            self.queue.pop_front();
+            return;
+        }
+        if self.queue.back().is_some_and(|back| back == coords) {
+            self.queue.pop_back();
+            return;
+        }
+        if let Some(index) = self.queue.iter().position(|c| c == coords) {
+            self.queue.remove(index);
+        }
+    }
+
     /// Create a new chunk pipeline.
     pub fn new() -> Self {
         let (sender, receiver) = unbounded();
@@ -282,7 +300,7 @@ impl Pipeline {
             return;
         }
 
-        self.remove_chunk(coords);
+        self.remove_queued_chunk(coords);
 
         if prioritized {
             self.queue.push_front(coords.to_owned());
@@ -294,20 +312,7 @@ impl Pipeline {
     /// Remove a chunk coordinate from the pipeline.
     pub fn remove_chunk(&mut self, coords: &Vec2<i32>) {
         self.chunks.remove(coords);
-        if self.queue.is_empty() {
-            return;
-        }
-        if self.queue.front().is_some_and(|front| front == coords) {
-            self.queue.pop_front();
-            return;
-        }
-        if self.queue.back().is_some_and(|back| back == coords) {
-            self.queue.pop_back();
-            return;
-        }
-        if let Some(index) = self.queue.iter().position(|c| c == coords) {
-            self.queue.remove(index);
-        }
+        self.remove_queued_chunk(coords);
     }
 
     /// Check to see if a chunk coordinate is in the pipeline.
