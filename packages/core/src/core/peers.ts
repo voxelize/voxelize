@@ -11,6 +11,31 @@ const forwardDirection = new Vector3(0, 0, -1);
 type NetInterceptMessage = NonNullable<NetIntercept["onMessage"]>;
 type NetInterceptClientInfo = Parameters<NetInterceptMessage>[1];
 
+const normalizePeerEventName = (name: string) => {
+  if (name === "vox-builtin:arm-swing") {
+    return name;
+  }
+  let hasNonAscii = false;
+  for (let index = 0; index < name.length; index++) {
+    const code = name.charCodeAt(index);
+    if (code >= 65 && code <= 90) {
+      return name.toLowerCase();
+    }
+    if (code > 127) {
+      hasNonAscii = true;
+    }
+  }
+  if (!hasNonAscii) {
+    return name;
+  }
+  for (const char of name) {
+    if (char.toLowerCase() !== char.toUpperCase() && char === char.toUpperCase()) {
+      return name.toLowerCase();
+    }
+  }
+  return name;
+};
+
 /**
  * Parameters to customize the peers manager.
  */
@@ -239,8 +264,7 @@ export class Peers<
         for (let eventIndex = 0; eventIndex < events.length; eventIndex++) {
           const event = events[eventIndex];
           const { name, payload: id } = event;
-          const normalizedName =
-            name === "vox-builtin:arm-swing" ? name : name.toLowerCase();
+          const normalizedName = normalizePeerEventName(name);
 
           switch (normalizedName) {
             case "vox-builtin:arm-swing": {
