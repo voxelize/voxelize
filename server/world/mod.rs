@@ -1892,6 +1892,9 @@ impl World {
                         continue;
                     }
                 };
+                if !path.is_file() {
+                    continue;
+                }
 
                 let entity_data = match File::open(&path) {
                     Ok(entity_data) => entity_data,
