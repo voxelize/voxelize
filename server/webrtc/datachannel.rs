@@ -122,8 +122,12 @@ impl FragmentAssembler {
                 self.fragments.clear();
                 self.next_message_id = 0;
             }
+            if self.next_message_id == usize::MAX {
+                self.fragments.clear();
+                self.next_message_id = 0;
+            }
             let id = self.next_message_id;
-            self.next_message_id = self.next_message_id.saturating_add(1);
+            self.next_message_id += 1;
             id
         } else {
             let Some(id) = self.next_message_id.checked_sub(1) else {
@@ -187,7 +191,7 @@ impl FragmentAssembler {
 #[cfg(test)]
 mod tests {
     use super::{
-        fragment_message, FragmentAssembler, FRAGMENT_MARKER, LEGACY_FRAGMENT_MARKER,
+        fragment_message, FragmentAssembler, FragmentState, FRAGMENT_MARKER, LEGACY_FRAGMENT_MARKER,
         FRAGMENT_HEADER_SIZE, MAX_FRAGMENT_COUNT,
     };
 
@@ -261,6 +265,23 @@ mod tests {
         }
 
         assert_eq!(assembler.fragments.len(), 1);
+        assert_eq!(assembler.next_message_id, 1);
+    }
+
+    #[test]
+    fn process_resets_pending_state_when_message_id_overflows() {
+        let mut assembler = FragmentAssembler::new();
+        assembler.fragments.insert(77, FragmentState::new(2));
+        assembler.next_message_id = usize::MAX;
+
+        let mut framed = vec![FRAGMENT_MARKER];
+        framed.extend_from_slice(&(2u32).to_le_bytes());
+        framed.extend_from_slice(&(0u32).to_le_bytes());
+        framed.push(1);
+
+        assert_eq!(assembler.process(&framed), None);
+        assert_eq!(assembler.fragments.len(), 1);
+        assert!(assembler.fragments.contains_key(&0));
         assert_eq!(assembler.next_message_id, 1);
     }
 

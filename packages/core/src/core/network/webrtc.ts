@@ -1,6 +1,7 @@
 const FRAGMENT_HEADER_SIZE = 9;
 const MAX_FRAGMENT_COUNT = 4096;
 const MAX_PENDING_MESSAGES = 64;
+const MAX_MESSAGE_ID = Number.MAX_SAFE_INTEGER - 1;
 const FRAGMENT_MARKER = 0xff;
 const LEGACY_FRAGMENT_MARKER = 0x01;
 
@@ -153,6 +154,10 @@ export class WebRTCConnection {
       return;
     }
     if (index === 0 && this.fragments.size >= MAX_PENDING_MESSAGES) {
+      this.fragments.clear();
+      this.nextMessageId = 0;
+    }
+    if (index === 0 && this.nextMessageId >= MAX_MESSAGE_ID) {
       this.fragments.clear();
       this.nextMessageId = 0;
     }

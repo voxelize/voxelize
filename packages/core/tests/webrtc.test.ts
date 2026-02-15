@@ -15,6 +15,12 @@ const captureSingleMessage = (connection: WebRTCConnection) => {
   return received;
 };
 
+type FragmentState = {
+  parts: Array<Uint8Array | null>;
+  received: number;
+  total: number;
+};
+
 describe("WebRTCConnection fragment handling", () => {
   it("passes through raw non-fragment payloads", () => {
     const connection = new WebRTCConnection();
@@ -87,5 +93,43 @@ describe("WebRTCConnection fragment handling", () => {
     invokeHandleMessage(connection, frame);
 
     expect(received).toEqual([frame]);
+  });
+
+  it("resets fragment state when message id approaches max safe integer", () => {
+    const connection = new WebRTCConnection();
+    const received = captureSingleMessage(connection);
+    const internals = connection as {
+      fragments: Map<number, FragmentState>;
+      nextMessageId: number;
+    };
+    internals.fragments.set(88, {
+      parts: [new Uint8Array([5]), null],
+      received: 1,
+      total: 2,
+    });
+    internals.nextMessageId = Number.MAX_SAFE_INTEGER - 1;
+
+    const firstFragment = new Uint8Array([
+      0xff,
+      2, 0, 0, 0,
+      0, 0, 0, 0,
+      10,
+    ]);
+    const secondFragment = new Uint8Array([
+      0xff,
+      2, 0, 0, 0,
+      1, 0, 0, 0,
+      11, 12,
+    ]);
+
+    invokeHandleMessage(connection, firstFragment);
+    expect(internals.nextMessageId).toBe(1);
+    expect(internals.fragments.has(88)).toBe(false);
+    expect(internals.fragments.has(0)).toBe(true);
+
+    invokeHandleMessage(connection, secondFragment);
+
+    expect(received).toEqual([new Uint8Array([10, 11, 12])]);
+    expect(internals.fragments.size).toBe(0);
   });
 });
