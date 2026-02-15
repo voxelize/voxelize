@@ -1,4 +1,4 @@
-use hashbrown::HashMap;
+use hashbrown::{hash_map::Entry, HashMap};
 use serde_json::Value;
 
 use super::def::{ItemDef, ItemDefBuilder};
@@ -20,7 +20,6 @@ impl ItemRegistry {
         F: FnOnce(ItemDefBuilder) -> ItemDefBuilder,
     {
         let lower_name = name.to_lowercase();
-
         if self.items_by_name.contains_key(&lower_name) {
             panic!("Duplicated item name: {}", name);
         }
@@ -50,14 +49,15 @@ impl ItemRegistry {
         if self.items_by_id.contains_key(&id) {
             panic!("Duplicated item id: {}", id);
         }
-        if self.items_by_name.contains_key(&lower_name) {
-            panic!("Duplicated item name: {}", name);
-        }
+        let name_entry = match self.items_by_name.entry(lower_name) {
+            Entry::Occupied(_) => panic!("Duplicated item name: {}", name),
+            Entry::Vacant(entry) => entry,
+        };
 
         let builder = ItemDefBuilder::new(id, name);
         let def = builder_fn(builder).build();
 
-        self.items_by_name.insert(lower_name, id);
+        name_entry.insert(id);
         self.items_by_id.insert(id, def);
         self.next_auto_id = self.next_auto_id.max(id.saturating_add(1));
         self
