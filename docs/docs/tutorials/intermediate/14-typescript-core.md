@@ -617,6 +617,8 @@ Iterator-trapped step/check collections and ts-core payload-issue arrays
 also salvage readable indexed entries for deterministic diagnostics.
 When key enumeration traps, fallback index scans salvage a bounded prefix
 of present entries to avoid pathological loops.
+Bounded fallback salvage remains active even when proxy has-check traps
+throw.
 Client JSON reports additionally expose top-level wasm preflight summary
 fields `wasmPackCheckStatus`, `wasmPackCheckCommand`,
 `wasmPackCheckArgs`, `wasmPackCheckArgCount`, `wasmPackCheckExitCode`,

@@ -382,6 +382,7 @@ pnpm run check:preflight:all-checks:verify:json:compact
 # CLI option token/arg arrays also salvage readable indexed entries when iterator access traps
 # iterator-trapped step/check collections and ts-core payload-issue arrays also salvage readable indexed entries for deterministic diagnostics
 # if key enumeration traps, fallback index scans salvage a bounded prefix of present entries to avoid pathological loops
+# bounded fallback salvage remains active even when proxy has-check traps throw
 # optionally write the same report to disk
 pnpm run check:preflight:verify:json -- --output ./preflight-report.json
 
