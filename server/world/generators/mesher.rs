@@ -203,7 +203,6 @@ impl Mesher {
                         LightColor::Blue,
                     ];
 
-                    let sub_chunks = chunk.updated_levels.clone();
                     let Vec3(min_x, min_y, min_z) = chunk.min;
                     let Vec3(max_x, _, max_z) = chunk.max;
 
@@ -265,7 +264,7 @@ impl Mesher {
 
                     let mesher_registry = registry.mesher_registry();
 
-                    for level_u32 in sub_chunks {
+                    for &level_u32 in chunk.updated_levels.iter() {
                         let Some((level_start_y, level_end_y)) = sub_chunk_y_bounds(
                             min_y,
                             space.options.max_height,
