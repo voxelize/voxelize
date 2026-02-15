@@ -1199,6 +1199,51 @@ describe("report-utils", () => {
     expect(cappedMergedFallbackResult.positionalArgs).toEqual([]);
     expect(cappedMergedFallbackResult.optionTerminatorUsed).toBe(false);
 
+    const cappedSupplementedFallbackArgsTarget: Array<string | number> = [];
+    cappedSupplementedFallbackArgsTarget[0] = "--json";
+    for (let index = 1; index < 1_024; index += 1) {
+      cappedSupplementedFallbackArgsTarget[index] = index;
+    }
+    for (let index = 0; index < 1_024; index += 1) {
+      cappedSupplementedFallbackArgsTarget[5_000 + index] = `--k${index}`;
+    }
+    const cappedSupplementedFallbackKeyList = Array.from(
+      { length: 1_024 },
+      (_, index) => {
+        return String(5_000 + index);
+      }
+    );
+    const cappedSupplementedFallbackArgs = new Proxy(
+      cappedSupplementedFallbackArgsTarget,
+      {
+        ownKeys() {
+          return [...cappedSupplementedFallbackKeyList, "length"];
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1_000_000_000;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const cappedSupplementedFallbackResult = splitCliArgs(
+      cappedSupplementedFallbackArgs as never
+    );
+    expect(cappedSupplementedFallbackResult.optionArgs).toHaveLength(1_024);
+    expect(cappedSupplementedFallbackResult.optionArgs[0]).toBe("--json");
+    expect(cappedSupplementedFallbackResult.optionArgs.includes("--k1022")).toBe(
+      true
+    );
+    expect(cappedSupplementedFallbackResult.optionArgs.includes("--k1023")).toBe(
+      false
+    );
+    expect(cappedSupplementedFallbackResult.positionalArgs).toEqual([]);
+    expect(cappedSupplementedFallbackResult.optionTerminatorUsed).toBe(false);
+
     const sparseHighIndexWithUndefinedPrefixArgs: Array<string | undefined> = [];
     sparseHighIndexWithUndefinedPrefixArgs[0] = undefined;
     sparseHighIndexWithUndefinedPrefixArgs[5_000] = "--json";
@@ -4356,6 +4401,62 @@ describe("report-utils", () => {
       failedSteps: ["step-b"],
       skippedSteps: [],
     });
+
+    const cappedSupplementedStepsTarget: Array<
+      number | { readonly name: string; readonly passed: boolean; readonly skipped: boolean }
+    > = [];
+    cappedSupplementedStepsTarget[0] = {
+      name: "step-a",
+      passed: true,
+      skipped: false,
+    };
+    for (let index = 1; index < 1_024; index += 1) {
+      cappedSupplementedStepsTarget[index] = index;
+    }
+    for (let index = 0; index < 1_024; index += 1) {
+      cappedSupplementedStepsTarget[5_000 + index] = {
+        name: `step-k${index}`,
+        passed: true,
+        skipped: false,
+      };
+    }
+    const cappedSupplementedStepKeyList = Array.from(
+      { length: 1_024 },
+      (_, index) => {
+        return String(5_000 + index);
+      }
+    );
+    const cappedSupplementedSteps = new Proxy(cappedSupplementedStepsTarget, {
+      ownKeys() {
+        return [...cappedSupplementedStepKeyList, "length"];
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1_000_000_000;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const cappedSupplementedStepSummary = summarizeStepResults(
+      cappedSupplementedSteps as never
+    );
+    expect(cappedSupplementedStepSummary.totalSteps).toBe(1_024);
+    expect(cappedSupplementedStepSummary.passedStepCount).toBe(1_024);
+    expect(cappedSupplementedStepSummary.failedStepCount).toBe(0);
+    expect(cappedSupplementedStepSummary.skippedStepCount).toBe(0);
+    expect(cappedSupplementedStepSummary.firstFailedStep).toBeNull();
+    expect(cappedSupplementedStepSummary.passedSteps[0]).toBe("step-a");
+    expect(cappedSupplementedStepSummary.passedSteps.includes("step-k1022")).toBe(
+      true
+    );
+    expect(cappedSupplementedStepSummary.passedSteps.includes("step-k1023")).toBe(
+      false
+    );
+    expect(cappedSupplementedStepSummary.failedSteps).toEqual([]);
+    expect(cappedSupplementedStepSummary.skippedSteps).toEqual([]);
 
     const ownKeysTrapSteps = new Proxy(
       [{ name: "step-a", passed: true, skipped: false }],

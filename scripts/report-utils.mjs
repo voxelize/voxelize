@@ -444,6 +444,21 @@ const toValuesFromIndexedArrayEntries = (entries) => {
   });
 };
 
+const toOrderedValuesFromEntryMap = (entryMap, capToFallbackWindow = false) => {
+  const orderedEntries = Array.from(entryMap.entries()).sort(
+    (leftEntry, rightEntry) => {
+      return leftEntry[0] - rightEntry[0];
+    }
+  );
+  const boundedEntries = capToFallbackWindow
+    ? orderedEntries.slice(0, MAX_ARRAY_LENGTH_FALLBACK_SCAN)
+    : orderedEntries;
+
+  return boundedEntries.map(([, entryValue]) => {
+    return entryValue;
+  });
+};
+
 const mergeIndexedFallbackEntries = (primaryEntries, supplementalEntries) => {
   const isEmptyPlaceholderEntry = (entryValue) => {
     return entryValue === undefined || entryValue === null;
@@ -858,13 +873,13 @@ const toStringArrayOrNull = (value) => {
     }
 
     if (mergedStringEntries.size > 0) {
-      return Array.from(mergedStringEntries.entries())
-        .sort((leftEntry, rightEntry) => {
-          return leftEntry[0] - rightEntry[0];
-        })
-        .map(([, entryValue]) => {
-          return entryValue;
-        });
+      const capMergedStringEntries =
+        indexedEntries.length <= MAX_ARRAY_LENGTH_FALLBACK_SCAN &&
+        keyFallbackStringEntries.length <= MAX_ARRAY_LENGTH_FALLBACK_SCAN;
+      return toOrderedValuesFromEntryMap(
+        mergedStringEntries,
+        capMergedStringEntries
+      );
     }
   }
 
@@ -894,13 +909,13 @@ const toObjectRecordEntriesOrEmpty = (sourceValue, indexedEntries) => {
     }
 
     if (mergedRecordEntries.size > 0) {
-      return Array.from(mergedRecordEntries.entries())
-        .sort((leftEntry, rightEntry) => {
-          return leftEntry[0] - rightEntry[0];
-        })
-        .map(([, entryValue]) => {
-          return entryValue;
-        });
+      const capMergedRecordEntries =
+        indexedEntries.length <= MAX_ARRAY_LENGTH_FALLBACK_SCAN &&
+        keyFallbackRecordEntries.length <= MAX_ARRAY_LENGTH_FALLBACK_SCAN;
+      return toOrderedValuesFromEntryMap(
+        mergedRecordEntries,
+        capMergedRecordEntries
+      );
     }
   }
 
