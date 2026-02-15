@@ -448,7 +448,7 @@ impl KdTree {
         let Some(radius_squared) = normalized_radius_squared(radius) else {
             return Vec::new();
         };
-        let mut player_ids = Vec::new();
+        let mut player_ids = Vec::with_capacity((self.players.tree.size() as usize).min(16));
         self.players
             .for_each_within_id(&query_point, radius_squared, |ent_id| player_ids.push(ent_id));
         player_ids
@@ -461,7 +461,7 @@ impl KdTree {
         let Some(radius_squared) = normalized_radius_squared(radius) else {
             return Vec::new();
         };
-        let mut entities = Vec::new();
+        let mut entities = Vec::with_capacity((self.players.tree.size() as usize).min(16));
         self.players.for_each_within_id(&query_point, radius_squared, |ent_id| {
             if let Some(entity) = self.entity_map.get(&ent_id) {
                 entities.push(entity);
