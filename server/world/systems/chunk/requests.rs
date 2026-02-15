@@ -10,7 +10,7 @@ use crate::{
 pub struct ChunkRequestsSystem {
     to_send_buffer: HashMap<String, HashSet<Vec2<i32>>>,
     to_send_touched_clients_buffer: Vec<String>,
-    to_add_back_to_requested_buffer: HashSet<Vec2<i32>>,
+    to_add_back_to_requested_buffer: Vec<Vec2<i32>>,
     chunk_models_buffer: Vec<crate::ChunkProtocol>,
 }
 
@@ -85,7 +85,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             for coords in requests.requests.drain(..) {
                 if chunks.is_chunk_ready(&coords) {
                     if !can_send_responses {
-                        to_add_back_to_requested.insert(coords);
+                        to_add_back_to_requested.push(coords);
                         continue;
                     }
 
@@ -111,7 +111,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     };
 
                     if clients_to_send.len() >= max_response_per_tick {
-                        to_add_back_to_requested.insert(coords);
+                        to_add_back_to_requested.push(coords);
                         continue;
                     }
                     if !touched_client {
@@ -148,7 +148,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             }
 
             if !to_add_back_to_requested.is_empty() {
-                requests.requests.extend(to_add_back_to_requested.drain());
+                requests.requests.extend(to_add_back_to_requested.drain(..));
             }
         }
 
