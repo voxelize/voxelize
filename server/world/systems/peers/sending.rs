@@ -36,6 +36,9 @@ impl<'a> System<'a> for PeersSendingSystem {
             peers.reserve(clients.len() - peers.capacity());
         }
         for (id, name, metadata, _) in (&ids, &names, &mut metadatas, &flag).join() {
+            if metadata.is_empty() {
+                continue;
+            }
             let (json_str, updated) = metadata.to_cached_str();
 
             if !updated {
