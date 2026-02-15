@@ -38,6 +38,17 @@ fn sorted_ids_contains(ids: &[String], target: &str) -> bool {
 }
 
 #[inline]
+fn ids_contains_target(ids: &[String], target: &str) -> bool {
+    match ids.len() {
+        0 => false,
+        1 => ids[0] == target,
+        2 => ids[0] == target || ids[1] == target,
+        _ if ids_are_strictly_sorted(ids) => sorted_ids_contains(ids, target),
+        _ => ids.iter().any(|id| id.as_str() == target),
+    }
+}
+
+#[inline]
 fn push_dispatch_event(
     dispatch_map: &mut HashMap<String, Vec<EventProtocol>>,
     touched_clients: &mut Vec<String>,
@@ -194,12 +205,8 @@ impl<'a> System<'a> for EventsSystem {
             if let Some((single_client_id, single_client_entity)) = single_client {
                 let mut should_send = match filter.as_ref() {
                     None | Some(ClientFilter::All) => true,
-                    Some(ClientFilter::Include(ids)) => {
-                        ids.iter().any(|id| id.as_str() == single_client_id)
-                    }
-                    Some(ClientFilter::Exclude(ids)) => {
-                        !ids.iter().any(|id| id.as_str() == single_client_id)
-                    }
+                    Some(ClientFilter::Include(ids)) => ids_contains_target(ids, single_client_id),
+                    Some(ClientFilter::Exclude(ids)) => !ids_contains_target(ids, single_client_id),
                     Some(_) => false,
                 };
                 if should_send {

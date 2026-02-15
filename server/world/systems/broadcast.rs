@@ -48,6 +48,17 @@ fn sorted_ids_contains(ids: &[String], target: &str) -> bool {
         .is_ok()
 }
 
+#[inline]
+fn ids_contains_target(ids: &[String], target: &str) -> bool {
+    match ids.len() {
+        0 => false,
+        1 => ids[0] == target,
+        2 => ids[0] == target || ids[1] == target,
+        _ if ids_are_strictly_sorted(ids) => sorted_ids_contains(ids, target),
+        _ => ids.iter().any(|id| id.as_str() == target),
+    }
+}
+
 fn filter_key(filter: &ClientFilter) -> BatchFilterKey {
     match filter {
         ClientFilter::All => BatchFilterKey::All,
@@ -286,8 +297,8 @@ impl<'a> System<'a> for BroadcastSystem {
                 let (single_id, single_client) = clients.iter().next().unwrap();
                 let should_send = match &filter {
                     ClientFilter::All => true,
-                    ClientFilter::Include(ids) => ids.iter().any(|id| id == single_id),
-                    ClientFilter::Exclude(ids) => !ids.iter().any(|id| id == single_id),
+                    ClientFilter::Include(ids) => ids_contains_target(ids, single_id),
+                    ClientFilter::Exclude(ids) => !ids_contains_target(ids, single_id),
                     _ => false,
                 };
                 let should_send_transport =
