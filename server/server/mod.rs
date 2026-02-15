@@ -245,27 +245,25 @@ impl Server {
             let json: OnJoinRequest = serde_json::from_str(&data.json)
                 .expect("`on_join` error. Could not read JSON string.");
 
-            if !self.lost_sessions.contains_key(id) {
+            let Some((sender, token)) = self.lost_sessions.remove(id) else {
                 return Some(format!(
                     "Client at {} is already in world: {}",
                     id, json.world
                 ));
-            }
+            };
 
             if let Some(world) = self.worlds.get_mut(&json.world) {
-                if let Some((sender, token)) = self.lost_sessions.remove(id) {
-                    world.do_send(ClientJoinRequest {
-                        id: id.to_owned(),
-                        username: json.username,
-                        sender: sender.clone(),
-                    });
-                    self.connections
-                        .insert(id.to_owned(), (sender, json.world, token));
-                    return None;
-                }
-
-                return Some("Something went wrong with joining. Maybe you called .join twice on the client?".to_owned());
+                world.do_send(ClientJoinRequest {
+                    id: id.to_owned(),
+                    username: json.username,
+                    sender: sender.clone(),
+                });
+                self.connections
+                    .insert(id.to_owned(), (sender, json.world, token));
+                return None;
             }
+
+            self.lost_sessions.insert(id.to_owned(), (sender, token));
 
             return Some(format!(
                 "ID {} is attempting to connect to a non-existent world!",
