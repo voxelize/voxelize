@@ -23,6 +23,35 @@ import { World } from "./world";
 const PI_2 = Math.PI / 2;
 const emptyQ = new Quaternion();
 
+const normalizeControlEventName = (name: string) => {
+  if (
+    name === "vox-builtin:position" ||
+    name === "vox-builtin:force" ||
+    name === "vox-builtin:impulse"
+  ) {
+    return name;
+  }
+  let hasNonAscii = false;
+  for (let index = 0; index < name.length; index++) {
+    const code = name.charCodeAt(index);
+    if (code >= 65 && code <= 90) {
+      return name.toLowerCase();
+    }
+    if (code > 127) {
+      hasNonAscii = true;
+    }
+  }
+  if (!hasNonAscii) {
+    return name;
+  }
+  for (const char of name) {
+    if (char.toLowerCase() !== char.toUpperCase() && char === char.toUpperCase()) {
+      return name.toLowerCase();
+    }
+  }
+  return name;
+};
+
 /**
  * The state of which a Voxelize {@link Controls} is in.
  */
@@ -541,12 +570,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
         for (let eventIndex = 0; eventIndex < events.length; eventIndex++) {
           const event = events[eventIndex];
-          const normalizedName =
-            event.name === "vox-builtin:position" ||
-            event.name === "vox-builtin:force" ||
-            event.name === "vox-builtin:impulse"
-              ? event.name
-              : event.name.toLowerCase();
+          const normalizedName = normalizeControlEventName(event.name);
 
           switch (normalizedName) {
             case "vox-builtin:position": {
