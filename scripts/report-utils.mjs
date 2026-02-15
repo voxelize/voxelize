@@ -486,8 +486,13 @@ const KNOWN_WASM_PACK_STATUSES = new Set([
 
 const toKnownWasmPackStatus = (value) => {
   const normalizedValue = toTrimmedStringOrNull(value);
-  return normalizedValue !== null && KNOWN_WASM_PACK_STATUSES.has(normalizedValue)
-    ? normalizedValue
+  if (normalizedValue === null) {
+    return null;
+  }
+
+  const canonicalStatus = normalizedValue.toLowerCase();
+  return KNOWN_WASM_PACK_STATUSES.has(canonicalStatus)
+    ? canonicalStatus
     : null;
 };
 
@@ -495,9 +500,13 @@ const KNOWN_TS_CORE_EXAMPLE_STATUSES = new Set(["ok", "failed", "skipped"]);
 
 const toKnownTsCoreExampleStatus = (value) => {
   const normalizedValue = toTrimmedStringOrNull(value);
-  return normalizedValue !== null &&
-    KNOWN_TS_CORE_EXAMPLE_STATUSES.has(normalizedValue)
-    ? normalizedValue
+  if (normalizedValue === null) {
+    return null;
+  }
+
+  const canonicalStatus = normalizedValue.toLowerCase();
+  return KNOWN_TS_CORE_EXAMPLE_STATUSES.has(canonicalStatus)
+    ? canonicalStatus
     : null;
 };
 

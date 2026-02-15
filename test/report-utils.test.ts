@@ -4932,6 +4932,18 @@ describe("report-utils", () => {
     });
     expect(
       extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckStatus: " OK ",
+      })
+    ).toEqual({
+      wasmPackCheckStatus: "ok",
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: null,
+      wasmPackCheckArgCount: null,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
+    expect(
+      extractWasmPackCheckSummaryFromReport({
         wasmPackCheckStatus: "mystery",
       })
     ).toEqual({
@@ -5253,6 +5265,25 @@ describe("report-utils", () => {
       exampleArgCount: null,
       exampleAttempted: false,
       exampleStatus: "ok",
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: null,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleAttempted: false,
+        exampleStatus: " FAILED ",
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: null,
+      exampleArgCount: null,
+      exampleAttempted: false,
+      exampleStatus: "failed",
       exampleRuleMatched: null,
       examplePayloadValid: null,
       examplePayloadIssues: null,
@@ -5960,6 +5991,11 @@ describe("report-utils", () => {
     ).toBe("missing");
     expect(
       extractWasmPackStatusFromReport({
+        wasmPackCheckStatus: " UnAvAiLaBlE ",
+      })
+    ).toBe("unavailable");
+    expect(
+      extractWasmPackStatusFromReport({
         wasmPackCheckStatus: "mystery",
       })
     ).toBeNull();
@@ -6010,6 +6046,16 @@ describe("report-utils", () => {
         wasmPackCheckExitCode: 0,
         wasmPackCheckReport: {
           wasmPackCheckStatus: " missing ",
+        },
+      })
+    ).toBe("missing");
+    expect(
+      deriveWasmPackCheckStatus({
+        wasmPackCheckExitCode: 1,
+        wasmPackCheckReport: {
+          checkStatusMap: {
+            "wasm-pack": " MiSsInG ",
+          },
         },
       })
     ).toBe("missing");
