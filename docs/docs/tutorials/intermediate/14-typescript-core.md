@@ -650,6 +650,8 @@ Wasm status-map key lookup normalizes key tokens (trim + lowercase)
 before known-status extraction.
 Command metadata fields sanitize whitespace-only strings to `null`
 before summary emission.
+Failure-message derivation trims whitespace-only
+message/name/reason fields before fallback composition.
 Sparse trap fallbacks can supplement bounded-prefix entries with bounded
 key-scan recovery when high-index readable entries exist.
 Bounded fallback scans use own-property checks so inherited numeric
