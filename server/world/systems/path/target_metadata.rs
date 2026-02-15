@@ -12,7 +12,7 @@ impl<'a> System<'a> for TargetMetadataSystem {
 
     fn run(&mut self, data: Self::SystemData) {
         use rayon::prelude::*;
-        use specs::{LendJoin, ParJoin};
+        use specs::ParJoin;
 
         let (mut targets, mut metadatas, timing) = data;
         let _t = timing.timer("target-metadata");

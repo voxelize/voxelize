@@ -12,7 +12,7 @@ impl<'a> System<'a> for PathMetadataSystem {
 
     fn run(&mut self, data: Self::SystemData) {
         use rayon::prelude::*;
-        use specs::{LendJoin, ParJoin};
+        use specs::ParJoin;
 
         let (mut paths, mut metadatas, timing) = data;
         let _t = timing.timer("path-metadata");
