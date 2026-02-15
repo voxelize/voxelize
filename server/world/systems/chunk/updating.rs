@@ -181,10 +181,12 @@ fn process_pending_updates(
             continue;
         }
 
-        let neighbors_ready = chunks
-            .light_traversed_chunks(&coords)
-            .iter()
-            .all(|n| chunks.is_chunk_ready(n));
+        let mut neighbors_ready = true;
+        chunks.for_each_light_traversed_chunk(&coords, |neighbor_coords| {
+            if neighbors_ready && !chunks.is_chunk_ready(&neighbor_coords) {
+                neighbors_ready = false;
+            }
+        });
 
         if !neighbors_ready {
             for (voxel, raw) in chunk_updates.into_iter().rev() {
