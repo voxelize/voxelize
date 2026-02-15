@@ -264,6 +264,7 @@ impl Mesher {
 
                     let mesher_registry = registry.mesher_registry();
 
+                    let chunk_meshes = chunk.meshes.get_or_insert_with(HashMap::new);
                     for &level_u32 in chunk.updated_levels.iter() {
                         let Some((level_start_y, level_end_y)) = sub_chunk_y_bounds(
                             min_y,
@@ -309,10 +310,7 @@ impl Mesher {
                             })
                             .collect();
 
-                        chunk
-                            .meshes
-                            .get_or_insert_with(HashMap::new)
-                            .insert(level_u32, MeshProtocol { level, geometries });
+                        chunk_meshes.insert(level_u32, MeshProtocol { level, geometries });
                     }
 
                     sender.send((chunk, r#type.clone())).unwrap();
