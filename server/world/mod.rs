@@ -1604,9 +1604,9 @@ impl World {
 
             // Check for component existence
             if let Some(requests) = storage.get_mut(client_ent) {
-                chunks.iter().for_each(|coords| {
+                for coords in chunks.iter() {
                     requests.add(coords);
-                });
+                }
 
                 requests.set_center(&json.center);
                 requests.set_direction(&json.direction);
@@ -1649,31 +1649,31 @@ impl World {
             let mut storage = self.write_component::<ChunkRequestsComp>();
 
             if let Some(requests) = storage.get_mut(client_ent) {
-                chunks.iter().for_each(|coords| {
+                for coords in chunks.iter() {
                     requests.remove(coords);
-                });
+                }
             }
         }
 
         {
             let mut interests = self.chunk_interest_mut();
 
-            let mut to_remove = Vec::new();
+            let mut to_remove = Vec::with_capacity(chunks.len());
 
-            chunks.iter().for_each(|coords| {
+            for coords in chunks.iter() {
                 interests.remove(client_id, coords);
 
                 if !interests.has_interests(coords) {
-                    to_remove.push(coords);
+                    to_remove.push(*coords);
                 }
-            });
+            }
 
             drop(interests);
 
-            to_remove.into_iter().for_each(|coords| {
-                self.pipeline_mut().remove_chunk(coords);
-                self.mesher_mut().remove_chunk(coords);
-            })
+            for coords in to_remove {
+                self.pipeline_mut().remove_chunk(&coords);
+                self.mesher_mut().remove_chunk(&coords);
+            }
         }
     }
 
