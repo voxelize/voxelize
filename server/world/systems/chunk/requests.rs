@@ -74,6 +74,9 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         }
 
         for (id, requests) in (&ids, &mut requests).join() {
+            if requests.requests.is_empty() {
+                continue;
+            }
             to_add_back_to_requested.clear();
             if to_add_back_to_requested.capacity() < requests.requests.len() {
                 to_add_back_to_requested
