@@ -204,10 +204,9 @@ fn process_pending_updates(
 
             let current_type = registry.get_block_by_id(current_id);
             let updated_type = registry.get_block_by_id(updated_id);
-            let voxel_pos = voxel.clone();
 
-            let current_is_light = current_type.is_light_at(&voxel_pos, &*chunks);
-            let updated_is_light = updated_type.is_light_at(&voxel_pos, &*chunks);
+            let current_is_light = current_type.is_light_at(&voxel, &*chunks);
+            let updated_is_light = updated_type.is_light_at(&voxel, &*chunks);
 
             let rotation = BlockUtils::extract_rotation(raw);
             let stage = BlockUtils::extract_stage(raw);
@@ -221,8 +220,6 @@ fn process_pending_updates(
                 removed_light_sources.push((voxel.clone(), current_type.clone()));
             }
 
-            processed_updates.push((voxel.clone(), raw, current_id, updated_id));
-
             let existing_entity = chunks.block_entities.remove(&Vec3(vx, vy, vz));
             if let Some(existing_entity) = existing_entity {
                 lazy.exec_mut(move |world| {
@@ -234,7 +231,7 @@ fn process_pending_updates(
 
             if updated_type.is_entity {
                 let entity = entities.create();
-                chunks.block_entities.insert(voxel.clone(), entity);
+                chunks.block_entities.insert(Vec3(vx, vy, vz), entity);
                 lazy.insert(entity, IDComp::new(&nanoid!()));
                 lazy.insert(entity, EntityFlag::default());
                 lazy.insert(
@@ -311,6 +308,8 @@ fn process_pending_updates(
                     chunks.cache.insert(c);
                 });
 
+            processed_updates.push((voxel, raw, current_id, updated_id));
+
             results.push(UpdateProtocol {
                 vx,
                 vy,
@@ -326,10 +325,9 @@ fn process_pending_updates(
     let mut blue_removals = Vec::new();
 
     for (voxel, light_block) in &removed_light_sources {
-        let voxel_pos = voxel.clone();
-        let red_level = light_block.get_torch_light_level_at(&voxel_pos, &*chunks, &RED);
-        let green_level = light_block.get_torch_light_level_at(&voxel_pos, &*chunks, &GREEN);
-        let blue_level = light_block.get_torch_light_level_at(&voxel_pos, &*chunks, &BLUE);
+        let red_level = light_block.get_torch_light_level_at(voxel, &*chunks, &RED);
+        let green_level = light_block.get_torch_light_level_at(voxel, &*chunks, &GREEN);
+        let blue_level = light_block.get_torch_light_level_at(voxel, &*chunks, &BLUE);
 
         if red_level > 0 {
             red_removals.push(voxel.clone());
@@ -367,10 +365,9 @@ fn process_pending_updates(
 
         let current_type = registry.get_block_by_id(current_id);
         let updated_type = registry.get_block_by_id(updated_id);
-        let voxel_pos = voxel.clone();
 
-        let current_is_light = current_type.is_light_at(&voxel_pos, &*chunks);
-        let updated_is_light = updated_type.is_light_at(&voxel_pos, &*chunks);
+        let current_is_light = current_type.is_light_at(&voxel, &*chunks);
+        let updated_is_light = updated_type.is_light_at(&voxel, &*chunks);
         let is_removed_light_source = current_is_light && !updated_is_light;
 
         if is_removed_light_source && !current_type.is_opaque {
@@ -477,9 +474,9 @@ fn process_pending_updates(
         }
 
         if updated_is_light {
-            let red_level = updated_type.get_torch_light_level_at(&voxel_pos, &*chunks, &RED);
-            let green_level = updated_type.get_torch_light_level_at(&voxel_pos, &*chunks, &GREEN);
-            let blue_level = updated_type.get_torch_light_level_at(&voxel_pos, &*chunks, &BLUE);
+            let red_level = updated_type.get_torch_light_level_at(&voxel, &*chunks, &RED);
+            let green_level = updated_type.get_torch_light_level_at(&voxel, &*chunks, &GREEN);
+            let blue_level = updated_type.get_torch_light_level_at(&voxel, &*chunks, &BLUE);
 
             if red_level > 0 {
                 chunks.set_torch_light(vx, vy, vz, red_level, &RED);

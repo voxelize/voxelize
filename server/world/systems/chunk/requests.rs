@@ -2,8 +2,8 @@ use hashbrown::{hash_map::RawEntryMut, HashMap, HashSet};
 use specs::{Join, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
-    ChunkInterests, ChunkProtocol, ChunkRequestsComp, ChunkStatus, Chunks, ClientFilter, IDComp,
-    Mesher, Message, MessageQueues, MessageType, Pipeline, Vec2, WorldConfig, WorldTimingContext,
+    ChunkInterests, ChunkRequestsComp, ChunkStatus, Chunks, ClientFilter, IDComp, Mesher, Message,
+    MessageQueues, MessageType, Pipeline, Vec2, WorldConfig, WorldTimingContext,
 };
 
 pub struct ChunkRequestsSystem;
