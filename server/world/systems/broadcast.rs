@@ -269,6 +269,13 @@ impl<'a> System<'a> for BroadcastSystem {
                     if ids.is_empty() {
                     } else if ids.len() == 1 {
                         send_to_id(ids[0].as_str());
+                    } else if ids.len() == 2 {
+                        let first_id = ids[0].as_str();
+                        let second_id = ids[1].as_str();
+                        send_to_id(first_id);
+                        if second_id != first_id {
+                            send_to_id(second_id);
+                        }
                     } else if ids.len() <= SMALL_FILTER_LINEAR_SCAN_LIMIT {
                         for include_index in 0..ids.len() {
                             let include_id = ids[include_index].as_str();
@@ -314,6 +321,23 @@ impl<'a> System<'a> for BroadcastSystem {
                         for (id, client) in clients.iter() {
                             if id.as_str() != excluded_id {
                                 send_to_client(id, client);
+                            }
+                        }
+                    } else if ids.len() == 2 {
+                        let first_id = ids[0].as_str();
+                        let second_id = ids[1].as_str();
+                        if first_id == second_id {
+                            for (id, client) in clients.iter() {
+                                if id.as_str() != first_id {
+                                    send_to_client(id, client);
+                                }
+                            }
+                        } else {
+                            for (id, client) in clients.iter() {
+                                let id = id.as_str();
+                                if id != first_id && id != second_id {
+                                    send_to_client(id, client);
+                                }
                             }
                         }
                     } else if ids.len() <= SMALL_FILTER_LINEAR_SCAN_LIMIT {
