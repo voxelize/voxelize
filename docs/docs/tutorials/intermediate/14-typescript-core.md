@@ -768,6 +768,9 @@ When own-property descriptor probes trap, bounded fallback switches to
 guarded direct reads without repeated probe failures.
 String-array fallbacks can supplement dense non-string bounded prefixes
 with bounded key-scan string recovery.
+If merged fallback recovery still includes non-string placeholders,
+key-scan string recovery is preferred when it yields a larger set of
+sanitized string entries.
 Client JSON reports additionally expose top-level wasm preflight summary
 fields `wasmPackCheckStatus`, `wasmPackCheckCommand`,
 `wasmPackCheckArgs`, `wasmPackCheckArgCount`, `wasmPackCheckExitCode`,

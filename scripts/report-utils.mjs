@@ -743,16 +743,23 @@ const toStringArrayOrNull = (value) => {
   const normalizedStrings = clonedArray.filter((entry) => {
     return typeof entry === "string";
   });
-  if (normalizedStrings.length > 0) {
+  if (normalizedStrings.length === clonedArray.length) {
     return normalizedStrings;
   }
 
   const keyFallbackStrings = cloneStringEntriesFromIndexedKeys(value);
-  if (keyFallbackStrings === null) {
+  if (
+    keyFallbackStrings !== null &&
+    keyFallbackStrings.length > normalizedStrings.length
+  ) {
+    return keyFallbackStrings;
+  }
+
+  if (normalizedStrings.length > 0) {
     return normalizedStrings;
   }
 
-  return keyFallbackStrings;
+  return keyFallbackStrings ?? normalizedStrings;
 };
 
 const toStringArrayOrEmpty = (value) => {

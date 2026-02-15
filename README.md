@@ -413,6 +413,7 @@ pnpm run check:preflight:all-checks:verify:json:compact
 # bounded fallback scans use own-property checks so inherited numeric prototype entries are ignored
 # when own-property descriptor probes trap, bounded fallback switches to guarded direct reads without repeated probe failures
 # string-array fallbacks can supplement dense non-string bounded prefixes with bounded key-scan string recovery
+# if merged array recovery still includes non-string placeholders, key-scan string recovery is preferred when it yields a larger string set
 # optionally write the same report to disk
 pnpm run check:preflight:verify:json -- --output ./preflight-report.json
 
