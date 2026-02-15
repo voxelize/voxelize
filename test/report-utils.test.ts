@@ -5554,6 +5554,79 @@ describe("report-utils", () => {
         message: "Step failed with exit code 3.",
       },
     ]);
+    const cappedSupplementedFailureStepsTarget: Array<
+      | number
+      | {
+          readonly name: string;
+          readonly scriptName: string;
+          readonly supportsNoBuild: boolean;
+          readonly stepIndex: number;
+          readonly passed: boolean;
+          readonly skipped: boolean;
+          readonly exitCode: number;
+        }
+    > = [];
+    cappedSupplementedFailureStepsTarget[0] = {
+      name: "step-a",
+      scriptName: "step-a.mjs",
+      supportsNoBuild: true,
+      stepIndex: 0,
+      passed: false,
+      skipped: false,
+      exitCode: 2,
+    };
+    for (let index = 1; index < 1_024; index += 1) {
+      cappedSupplementedFailureStepsTarget[index] = index;
+    }
+    for (let index = 0; index < 1_024; index += 1) {
+      cappedSupplementedFailureStepsTarget[5_000 + index] = {
+        name: `step-k${index}`,
+        scriptName: `step-k${index}.mjs`,
+        supportsNoBuild: true,
+        stepIndex: 5_000 + index,
+        passed: false,
+        skipped: false,
+        exitCode: 2,
+      };
+    }
+    const cappedSupplementedFailureStepKeyList = Array.from(
+      { length: 1_024 },
+      (_, index) => {
+        return String(5_000 + index);
+      }
+    );
+    const cappedSupplementedFailureSteps = new Proxy(
+      cappedSupplementedFailureStepsTarget,
+      {
+        ownKeys() {
+          return [...cappedSupplementedFailureStepKeyList, "length"];
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1_000_000_000;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const cappedSupplementedStepFailureSummaries = summarizeStepFailureResults(
+      cappedSupplementedFailureSteps as never
+    );
+    expect(cappedSupplementedStepFailureSummaries).toHaveLength(1_024);
+    expect(cappedSupplementedStepFailureSummaries[0]?.name).toBe("step-a");
+    expect(
+      cappedSupplementedStepFailureSummaries.some(
+        (summary) => summary.name === "step-k1022"
+      )
+    ).toBe(true);
+    expect(
+      cappedSupplementedStepFailureSummaries.some(
+        (summary) => summary.name === "step-k1023"
+      )
+    ).toBe(false);
 
     const checkWithTrapPassed = Object.create(null) as {
       readonly name: string;
