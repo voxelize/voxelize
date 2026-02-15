@@ -3452,32 +3452,31 @@ describe("BlockRuleEvaluator", () => {
     );
   });
 
-  it("sanitizes malformed combination-rule collections to empty semantics", () => {
+  it("salvages indexed combination rules when iterator access traps", () => {
     const access = {
-      getVoxel: () => 0,
+      getVoxel: (x: number, y: number, z: number) =>
+        x === 0 && y === 0 && z === 0 ? 33 : 0,
       getVoxelRotation: () => BlockRotation.py(0),
       getVoxelStage: () => 0,
     };
-    const iteratorTrapRules = new Proxy([BLOCK_RULE_NONE], {
-      get(target, property, receiver) {
-        if (property === Symbol.iterator) {
-          throw new Error("iterator trap");
-        }
-        return Reflect.get(target, property, receiver);
-      },
-    });
-
-    expect(
-      BlockRuleEvaluator.evaluate(
+    const iteratorTrapRules = new Proxy(
+      [
         {
-          type: "combination",
-          logic: BlockRuleLogic.And,
-          rules: iteratorTrapRules as never,
+          type: "simple" as const,
+          offset: [0, 0, 0] as [number, number, number],
+          id: 33,
         },
-        [0, 0, 0],
-        access
-      )
-    ).toBe(true);
+      ],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+
     expect(
       BlockRuleEvaluator.evaluate(
         {
@@ -3488,13 +3487,55 @@ describe("BlockRuleEvaluator", () => {
         [0, 0, 0],
         access
       )
+    ).toBe(true);
+  });
+
+  it("sanitizes malformed combination-rule collections to empty semantics", () => {
+    const access = {
+      getVoxel: () => 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+    const malformedRules = new Proxy([BLOCK_RULE_NONE], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          throw new Error("length trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.And,
+          rules: malformedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(true);
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.Or,
+          rules: malformedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
     ).toBe(false);
     expect(
       BlockRuleEvaluator.evaluate(
         {
           type: "combination",
           logic: BlockRuleLogic.Not,
-          rules: iteratorTrapRules as never,
+          rules: malformedRules as never,
         },
         [0, 0, 0],
         access

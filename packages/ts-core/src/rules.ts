@@ -1,13 +1,14 @@
 import { VoxelAccess } from "./access";
 import { Y_ROT_SEGMENTS } from "./constants";
 import { BlockRotation } from "./rotation";
-import { BlockRule, BlockRuleLogic } from "./types";
+import { BLOCK_RULE_NONE, BlockRule, BlockRuleLogic } from "./types";
 import { Vec3 } from "./vectors";
 
 const TWO_PI = Math.PI * 2.0;
 const ANGLE_EPSILON = 1e-12;
 const SEGMENT_ANGLE = TWO_PI / Y_ROT_SEGMENTS;
 const MAX_PRECISION_SNAP_EPSILON = SEGMENT_ANGLE / 8;
+const MAX_RULE_ENTRY_FALLBACK_SCAN = 1_024;
 type RuleOptionValue = object | string | number | boolean | null | undefined;
 type RuleOptionRecord = Record<string, RuleOptionValue>;
 type NormalizedRuleEvaluationOptions = {
@@ -190,13 +191,72 @@ const toRoundedCheckPositionOrNull = (
   return [checkX, checkY, checkZ];
 };
 
+const toRuleEntryOrNone = (value: RuleOptionValue): BlockRule => {
+  if (value === null || typeof value !== "object") {
+    return BLOCK_RULE_NONE;
+  }
+
+  const ruleType = safeReadRecordValue(value as RuleOptionRecord, "type");
+  return ruleType === "none" ||
+    ruleType === "simple" ||
+    ruleType === "combination"
+    ? (value as BlockRule)
+    : BLOCK_RULE_NONE;
+};
+
+const toRuleEntriesFromLengthFallback = (value: RuleOptionValue): BlockRule[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  let lengthValue = 0;
+  try {
+    lengthValue = value.length;
+  } catch {
+    return [];
+  }
+
+  if (!Number.isSafeInteger(lengthValue) || lengthValue < 0) {
+    return [];
+  }
+
+  const boundedLength = Math.min(lengthValue, MAX_RULE_ENTRY_FALLBACK_SCAN);
+  const recoveredRules: BlockRule[] = [];
+  for (let index = 0; index < boundedLength; index += 1) {
+    let entryValue: RuleOptionValue = undefined;
+    try {
+      entryValue = value[index] as RuleOptionValue;
+    } catch {
+      recoveredRules.push(BLOCK_RULE_NONE);
+      continue;
+    }
+
+    recoveredRules.push(toRuleEntryOrNone(entryValue));
+  }
+
+  return recoveredRules;
+};
+
 const toRuleEntriesOrEmpty = (
   rule: Extract<BlockRule, { type: "combination" }>
 ): BlockRule[] => {
+  let rawRules: RuleOptionValue = undefined;
   try {
-    return Array.isArray(rule.rules) ? Array.from(rule.rules) : [];
+    rawRules = rule.rules as RuleOptionValue;
   } catch {
     return [];
+  }
+
+  if (!Array.isArray(rawRules)) {
+    return [];
+  }
+
+  try {
+    return Array.from(rawRules).map((entry) => {
+      return toRuleEntryOrNone(entry as RuleOptionValue);
+    });
+  } catch {
+    return toRuleEntriesFromLengthFallback(rawRules);
   }
 };
 
