@@ -1341,9 +1341,17 @@ describe("Type builders", () => {
       name: "ValidFace",
       dir: [1, 0, 0],
     };
+    const malformedFaceInstance = new BlockFace({ name: "MalformedFace" });
+    (malformedFaceInstance as { name: string | number }).name = 42;
     const validAabb = AABB.create(0, 0, 0, 1, 1, 1);
     const part = createBlockConditionalPart({
-      faces: [undefined, null, { name: 42 } as never, validFaceInit],
+      faces: [
+        undefined,
+        null,
+        { name: 42 } as never,
+        malformedFaceInstance,
+        validFaceInit,
+      ],
       aabbs: [undefined, null, { clone: "not-a-function" } as never, validAabb],
     });
 
@@ -2382,11 +2390,19 @@ describe("Type builders", () => {
     const validFaceInit: BlockFaceInit = {
       name: "ValidPatternFace",
     };
+    const malformedFaceInstance = new BlockFace({ name: "MalformedPatternFace" });
+    (malformedFaceInstance as { name: string | number }).name = 42;
     const validAabb = AABB.create(0, 0, 0, 1, 1, 1);
     const pattern = createBlockDynamicPattern({
       parts: [
         {
-          faces: [undefined, null, { name: 42 } as never, validFaceInit],
+          faces: [
+            undefined,
+            null,
+            { name: 42 } as never,
+            malformedFaceInstance,
+            validFaceInit,
+          ],
           aabbs: [undefined, null, { clone: "not-a-function" } as never, validAabb],
         },
       ],
@@ -2597,6 +2613,15 @@ describe("Type builders", () => {
     expect(face).toBeInstanceOf(BlockFace);
     expect(face.name).toBe("FrozenFace");
     expect(face.dir).toEqual([1, 0, 0]);
+  });
+
+  it("falls back to default when createBlockFace receives malformed BlockFace instances", () => {
+    const malformedSourceFace = new BlockFace({ name: "SourceFace" });
+    (malformedSourceFace as { name: string | number }).name = 42;
+
+    expect(createBlockFace(malformedSourceFace)).toEqual(
+      new BlockFace({ name: "Face" })
+    );
   });
 
   it("builds deterministic default faces for malformed createBlockFace input", () => {

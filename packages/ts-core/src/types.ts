@@ -472,35 +472,7 @@ export const createBlockRule = (
 };
 
 const toBlockFaceInit = (face: BlockFaceInput): BlockFaceInit | null => {
-  if (face instanceof BlockFace) {
-    return {
-      name: face.name,
-      independent: face.independent,
-      isolated: face.isolated,
-      textureGroup: face.textureGroup,
-      dir: [...face.dir],
-      corners: [
-        createCornerData(face.corners[0].pos, face.corners[0].uv),
-        createCornerData(face.corners[1].pos, face.corners[1].uv),
-        createCornerData(face.corners[2].pos, face.corners[2].uv),
-        createCornerData(face.corners[3].pos, face.corners[3].uv),
-      ],
-      range: {
-        startU: face.range.startU,
-        endU: face.range.endU,
-        startV: face.range.startV,
-        endV: face.range.endV,
-      },
-    };
-  }
-
-  if (
-    !isPlainObjectValue(face)
-  ) {
-    return null;
-  }
-
-  const maybeFace = face as {
+  const maybeFace: {
     name?: DynamicValue;
     independent?: DynamicValue;
     isolated?: DynamicValue;
@@ -508,7 +480,23 @@ const toBlockFaceInit = (face: BlockFaceInput): BlockFaceInit | null => {
     dir?: DynamicValue;
     corners?: DynamicValue;
     range?: DynamicValue;
-  };
+  } | null = face instanceof BlockFace
+    ? {
+        name: face.name,
+        independent: face.independent,
+        isolated: face.isolated,
+        textureGroup: face.textureGroup,
+        dir: face.dir,
+        corners: face.corners,
+        range: face.range,
+      }
+    : isPlainObjectValue(face)
+      ? face
+      : null;
+  if (maybeFace === null) {
+    return null;
+  }
+
   if (typeof maybeFace.name !== "string") {
     return null;
   }

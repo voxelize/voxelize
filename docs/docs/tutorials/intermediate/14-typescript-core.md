@@ -40,7 +40,8 @@ flowchart LR
   inputs via `createBlockConditionalPart` and skips malformed part entries
 - `createBlockFace`: ergonomic constructor helper for `BlockFaceInit` or
   `BlockFace` input (plain/readonly/frozen init support) with deterministic
-  default fallback for malformed values
+  default fallback for malformed values (including malformed `BlockFace`
+  instances)
 - `createAABB`: ergonomic constructor helper for `AABB` or plain `AABB` init
   input (including readonly/frozen literals) with deterministic empty fallback
   for malformed values (including non-finite `AABB` instances)
@@ -58,9 +59,9 @@ Plain frozen helper input objects are also accepted.
 plain/readonly `AABB` init objects in `aabbs`.
 `createAABB` exposes this AABB normalization directly.
 Both helpers also accept readonly input arrays/tuples.
-Invalid face/AABB entries (including `null`/`undefined`/non-plain objects or
-malformed/non-finite AABB init values or malformed AABB instances) are skipped
-during helper cloning.
+Invalid face/AABB entries (including `null`/`undefined`/non-plain objects,
+malformed `BlockFace`/`AABB` instances, or malformed/non-finite AABB init
+values) are skipped during helper cloning.
 Malformed dynamic-pattern part entries (including `null`/`undefined`) are
 skipped during helper cloning.
 Non-plain object part entries are also skipped during helper cloning.
