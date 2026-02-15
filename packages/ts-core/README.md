@@ -108,6 +108,8 @@ const voxel = Voxel.pack({
   - when bounded length recovery preserves some readable prefix rules but does
     not fill the scan window, key-scan recovery can still supplement readable
     high-index rules
+  - throwing bounded direct reads are skipped during fallback scans so key
+    recovery can still salvage readable high-index rules
 - `createBlockConditionalPart`
   - defensively clones rule, face, AABB, and transparency-array inputs to
     avoid external mutation side effects after construction

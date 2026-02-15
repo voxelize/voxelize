@@ -110,6 +110,8 @@ recovery can still supplement readable high-index rules before evaluation.
 When bounded length recovery preserves readable prefix rules but does not
 fill the scan window, key-scan recovery can still supplement readable
 high-index rules.
+Throwing bounded direct reads are skipped during fallback scans so key
+recovery can still salvage readable high-index rules.
 Optional simple-rule `id`/`stage` values are kept only when they match voxel
 ranges (`id`: 0..65535, `stage`: 0..15).
 Plain rotation-like values are kept only when `value` is an encoded
