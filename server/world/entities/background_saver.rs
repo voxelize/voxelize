@@ -1,9 +1,8 @@
 use crossbeam_channel::{bounded, Receiver, Sender, TryRecvError};
 use hashbrown::HashMap;
 use log::warn;
-use serde_json::json;
+use serde::Serialize;
 use std::fs::{self, File};
-use std::io::Write;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -18,6 +17,12 @@ pub struct EntitySaveData {
     pub etype: String,
     pub is_block: bool,
     pub metadata: MetadataComp,
+}
+
+#[derive(Serialize)]
+struct SavedEntityFile<'a> {
+    etype: &'a str,
+    metadata: &'a MetadataComp,
 }
 
 pub struct BackgroundEntitiesSaver {
@@ -100,7 +105,6 @@ impl BackgroundEntitiesSaver {
     }
 
     fn save_entity_to_disk(data: &EntitySaveData, folder: &PathBuf) {
-        let mut map = HashMap::new();
         let etype_value = if data.is_block {
             format!(
                 "block::{}",
@@ -109,8 +113,10 @@ impl BackgroundEntitiesSaver {
         } else {
             data.etype.to_lowercase()
         };
-        map.insert("etype".to_owned(), json!(etype_value));
-        map.insert("metadata".to_owned(), json!(data.metadata));
+        let payload = SavedEntityFile {
+            etype: &etype_value,
+            metadata: &data.metadata,
+        };
 
         let sanitized_filename = etype_value.replace("::", "-").replace(' ', "-");
         let new_filename = format!("{}-{}.json", sanitized_filename, data.id);
@@ -130,8 +136,7 @@ impl BackgroundEntitiesSaver {
 
         match File::create(&path_to_use) {
             Ok(mut file) => {
-                let j = serde_json::to_string(&json!(map)).unwrap();
-                if let Err(e) = file.write_all(j.as_bytes()) {
+                if let Err(e) = serde_json::to_writer(&mut file, &payload) {
                     warn!("Failed to write entity file: {}", e);
                 }
             }
@@ -162,14 +167,14 @@ impl BackgroundEntitiesSaver {
         if !self.saving {
             return;
         }
+        let suffixed_file_name = format!("-{}.json", id);
+        let legacy_file_name = format!("{}.json", id);
 
         if let Ok(entries) = fs::read_dir(&self.folder) {
             for entry in entries.flatten() {
                 let entry_path = entry.path();
                 if let Some(filename) = entry_path.file_name().and_then(|n| n.to_str()) {
-                    if filename.ends_with(&format!("-{}.json", id))
-                        || filename == format!("{}.json", id)
-                    {
+                    if filename.ends_with(&suffixed_file_name) || filename == legacy_file_name {
                         if let Err(e) = fs::remove_file(&entry_path) {
                             warn!(
                                 "Failed to remove entity file: {}. Entity could still be saving?",
