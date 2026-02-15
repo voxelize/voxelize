@@ -51,8 +51,8 @@ omitted or the top-level helper input is `null`/non-plain.
 `createBlockConditionalPart` accepts either `AABB` instances or plain `AABB`
 init objects in `aabbs`.
 Both helpers also accept readonly input arrays/tuples.
-Invalid face/AABB entries (including `null`/`undefined`/non-plain objects) are
-skipped during helper cloning.
+Invalid face/AABB entries (including `null`/`undefined`/non-plain objects or
+malformed/non-finite AABB init values) are skipped during helper cloning.
 Malformed dynamic-pattern part entries (including `null`/`undefined`) are
 skipped during helper cloning.
 Non-plain object part entries are also skipped during helper cloning.

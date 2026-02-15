@@ -83,7 +83,8 @@ const voxel = Voxel.pack({
   - accepts either `AABB` instances or plain `AABB` init objects in `aabbs`
   - accepts readonly input arrays/tuples for `faces`, `aabbs`, and
     `isTransparent`, including nullable entry values
-  - ignores invalid/non-plain `faces`/`aabbs` entries instead of throwing
+  - ignores invalid/non-plain `faces`/`aabbs` entries (including malformed or
+    non-finite AABB init values) instead of throwing
   - malformed optional face fields (such as invalid `dir`/`corners`/`range`)
     fall back to default face values
   - malformed rule inputs fall back to `BLOCK_RULE_NONE`, and malformed

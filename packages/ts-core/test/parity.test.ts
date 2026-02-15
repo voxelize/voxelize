@@ -1328,6 +1328,31 @@ describe("Type builders", () => {
     expect(part.aabbs).toEqual([AABB.create(0, 0, 0, 1, 1, 1)]);
   });
 
+  it("skips malformed AABB init values during conditional part cloning", () => {
+    const part = createBlockConditionalPart({
+      aabbs: [
+        {
+          minX: 0,
+          minY: 0,
+          minZ: 0,
+          maxX: Number.POSITIVE_INFINITY,
+          maxY: 1,
+          maxZ: 1,
+        } as never,
+        {
+          minX: 0,
+          minY: 0,
+          minZ: 0,
+          maxX: "1",
+          maxY: 1,
+          maxZ: 1,
+        } as never,
+      ],
+    });
+
+    expect(part.aabbs).toEqual([]);
+  });
+
   it("skips non-plain face objects during conditional part cloning", () => {
     class FaceLike {
       public readonly name = "ClassFace";
