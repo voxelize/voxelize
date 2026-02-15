@@ -1063,6 +1063,37 @@ describe("report-utils", () => {
     expect(statefulUndefinedPrefixResult.positionalArgs).toEqual([]);
     expect(statefulUndefinedPrefixResult.optionTerminatorUsed).toBe(false);
 
+    let statefulNullPrefixReadCount = 0;
+    const statefulNullPrefixArgsTarget: string[] = [];
+    statefulNullPrefixArgsTarget[0] = "--json";
+    statefulNullPrefixArgsTarget[1] = "--mystery";
+    const statefulNullPrefixArgs = new Proxy(statefulNullPrefixArgsTarget, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 2;
+        }
+        if (propertyKey === "0") {
+          statefulNullPrefixReadCount += 1;
+          if (statefulNullPrefixReadCount === 1) {
+            return null;
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const statefulNullPrefixResult = splitCliArgs(statefulNullPrefixArgs as never);
+    expect(statefulNullPrefixResult.optionArgs).toEqual([
+      "--json",
+      "--mystery",
+    ]);
+    expect(statefulNullPrefixResult.positionalArgs).toEqual([]);
+    expect(statefulNullPrefixResult.optionTerminatorUsed).toBe(false);
+
     const cappedMergedFallbackArgsTarget: string[] = [];
     cappedMergedFallbackArgsTarget[0] = "--json";
     for (let index = 0; index < 1_024; index += 1) {
@@ -5872,6 +5903,41 @@ describe("report-utils", () => {
       wasmPackCheckExitCode: null,
       wasmPackCheckOutputLine: null,
     });
+    let statefulNullPrefixReadCount = 0;
+    const statefulNullPrefixWasmArgsTarget: string[] = [];
+    statefulNullPrefixWasmArgsTarget[0] = "check-wasm-pack.mjs";
+    statefulNullPrefixWasmArgsTarget[1] = "--json";
+    const statefulNullPrefixWasmArgs = new Proxy(statefulNullPrefixWasmArgsTarget, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 2;
+        }
+        if (propertyKey === "0") {
+          statefulNullPrefixReadCount += 1;
+          if (statefulNullPrefixReadCount === 1) {
+            return null;
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    expect(
+      extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckArgs: statefulNullPrefixWasmArgs,
+      })
+    ).toEqual({
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: ["check-wasm-pack.mjs", "--json"],
+      wasmPackCheckArgCount: 2,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
     const ownKeysHasTrapArgs = new Proxy(
       ["check-wasm-pack.mjs", "--json"],
       {
@@ -6713,6 +6779,53 @@ describe("report-utils", () => {
     expect(
       extractTsCoreExampleSummaryFromReport({
         exampleArgs: statefulUndefinedPrefixExampleArgs,
+        exampleAttempted: true,
+        exampleExitCode: 1,
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: ["packages/ts-core/examples/end-to-end.mjs", "--json"],
+      exampleArgCount: 2,
+      exampleAttempted: true,
+      exampleStatus: "failed",
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: 1,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    let statefulNullPrefixReadCount = 0;
+    const statefulNullPrefixExampleArgsTarget: string[] = [];
+    statefulNullPrefixExampleArgsTarget[0] =
+      "packages/ts-core/examples/end-to-end.mjs";
+    statefulNullPrefixExampleArgsTarget[1] = "--json";
+    const statefulNullPrefixExampleArgs = new Proxy(
+      statefulNullPrefixExampleArgsTarget,
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (propertyKey === "0") {
+            statefulNullPrefixReadCount += 1;
+            if (statefulNullPrefixReadCount === 1) {
+              return null;
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleArgs: statefulNullPrefixExampleArgs,
         exampleAttempted: true,
         exampleExitCode: 1,
       })

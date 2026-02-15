@@ -420,6 +420,14 @@ const mergeIndexedFallbackEntries = (
   primaryEntries: IndexedArrayEntry[],
   supplementalEntries: IndexedArrayEntry[]
 ): IndexedArrayEntry[] => {
+  const isEmptyPlaceholderEntry = (entryValue: DynamicValue): boolean => {
+    return entryValue === undefined || entryValue === null;
+  };
+
+  const isRecoverableFallbackEntry = (entryValue: DynamicValue): boolean => {
+    return entryValue !== undefined && entryValue !== null;
+  };
+
   const mergedEntries = new Map<number, DynamicValue>();
   for (const entry of primaryEntries) {
     if (!mergedEntries.has(entry.index)) {
@@ -433,7 +441,10 @@ const mergeIndexedFallbackEntries = (
     }
 
     const existingValue = mergedEntries.get(entry.index);
-    if (existingValue === undefined && entry.value !== undefined) {
+    if (
+      isEmptyPlaceholderEntry(existingValue) &&
+      isRecoverableFallbackEntry(entry.value)
+    ) {
       mergedEntries.set(entry.index, entry.value);
     }
   }

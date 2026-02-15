@@ -451,6 +451,14 @@ const toValuesFromIndexedArrayEntries = (entries) => {
 };
 
 const mergeIndexedFallbackEntries = (primaryEntries, supplementalEntries) => {
+  const isEmptyPlaceholderEntry = (entryValue) => {
+    return entryValue === undefined || entryValue === null;
+  };
+
+  const isRecoverableFallbackEntry = (entryValue) => {
+    return entryValue !== undefined && entryValue !== null;
+  };
+
   const mergedEntryMap = new Map();
   for (const entry of primaryEntries) {
     if (!mergedEntryMap.has(entry.index)) {
@@ -464,7 +472,10 @@ const mergeIndexedFallbackEntries = (primaryEntries, supplementalEntries) => {
     }
 
     const existingValue = mergedEntryMap.get(entry.index);
-    if (existingValue === undefined && entry.value !== undefined) {
+    if (
+      isEmptyPlaceholderEntry(existingValue) &&
+      isRecoverableFallbackEntry(entry.value)
+    ) {
       mergedEntryMap.set(entry.index, entry.value);
     }
   }
