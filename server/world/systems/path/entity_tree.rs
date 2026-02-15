@@ -92,7 +92,10 @@ impl<'a> System<'a> for EntityTreeSystem {
 
 #[cfg(test)]
 mod tests {
-    use super::should_update_position;
+    use specs::{Builder, RunNow, World, WorldExt};
+
+    use super::{should_update_position, EntityTreeSystem};
+    use crate::{EntityFlag, KdTree, PositionComp, Vec3, WorldTimingContext};
 
     #[test]
     fn should_update_position_rejects_non_finite_distances() {
@@ -100,5 +103,31 @@ mod tests {
         assert!(should_update_position(0.2, 0.0, 0.0));
         assert!(should_update_position(f32::NAN, 0.0, 0.0));
         assert!(should_update_position(f32::INFINITY, 0.0, 0.0));
+    }
+
+    #[test]
+    fn unflagged_entities_are_removed_from_kdtree() {
+        let mut world = World::new();
+        world.register::<EntityFlag>();
+        world.register::<crate::ClientFlag>();
+        world.register::<PositionComp>();
+        world.insert(WorldTimingContext::new("test-world"));
+
+        let ent = world
+            .create_entity()
+            .with(PositionComp::new(1.0, 2.0, 3.0))
+            .build();
+
+        let mut tree = KdTree::new();
+        tree.add_entity(ent, &Vec3(1.0, 2.0, 3.0));
+        assert!(tree.contains(ent));
+        world.insert(tree);
+
+        let mut system = EntityTreeSystem::default();
+        system.run_now(&world);
+        world.maintain();
+
+        let tree = world.read_resource::<KdTree>();
+        assert!(!tree.contains(ent));
     }
 }
