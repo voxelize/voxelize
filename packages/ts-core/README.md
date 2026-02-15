@@ -137,6 +137,9 @@ const voxel = Voxel.pack({
     key-enumeration fallback is skipped to avoid redundant overhead
   - when bounded prefixes only contain malformed/noisy entries, key-fallback
     scans can still supplement readable high-index face/AABB entries
+  - if key-fallback recovery omits readable prefix entries (for example due
+    stateful low-index read traps), bounded-prefix and key-fallback
+    recoveries are merged with index-based de-duplication
   - throwing bounded direct reads are skipped during helper fallback scans so
     key recovery can still salvage readable high-index entries
   - throwing key-fallback reads are skipped so malformed low-index entries do
@@ -194,6 +197,9 @@ const voxel = Voxel.pack({
     key-enumeration fallback is skipped to avoid redundant overhead
   - when bounded prefixes only contain malformed/noisy entries, key-fallback
     scans can still supplement readable high-index part entries
+  - if key-fallback recovery omits readable prefix entries (for example due
+    stateful low-index read traps), bounded-prefix and key-fallback
+    recoveries are merged with index-based de-duplication
   - throwing bounded direct reads are skipped during helper fallback scans so
     key recovery can still salvage readable high-index part entries
   - throwing key-fallback reads are skipped so malformed low-index entries do

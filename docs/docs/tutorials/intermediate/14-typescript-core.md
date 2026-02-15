@@ -71,6 +71,9 @@ When bounded length recovery already fills the scan window, helper
 key-enumeration fallback is skipped to avoid redundant overhead.
 When bounded prefixes contain only malformed/noisy entries, key-fallback
 scans can still supplement readable high-index face/AABB entries.
+If key-fallback recovery omits readable prefix entries (for example due
+stateful low-index read traps), bounded-prefix and key-fallback recoveries
+are merged with index-based de-duplication.
 Throwing bounded direct reads are skipped during helper fallback scans so
 key recovery can still salvage readable high-index face/AABB entries.
 Throwing key-fallback reads are skipped so malformed low-index entries do
@@ -88,6 +91,9 @@ When bounded length recovery already fills the scan window, helper
 key-enumeration fallback is skipped to avoid redundant overhead.
 When bounded prefixes contain only malformed/noisy entries, key-fallback
 scans can still supplement readable high-index part entries.
+If key-fallback recovery omits readable prefix entries (for example due
+stateful low-index read traps), bounded-prefix and key-fallback recoveries
+are merged with index-based de-duplication.
 Throwing bounded direct reads are skipped during helper fallback scans so
 key recovery can still salvage readable high-index part entries.
 Throwing key-fallback reads are skipped so malformed low-index entries do

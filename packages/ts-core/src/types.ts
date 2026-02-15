@@ -267,9 +267,14 @@ const readArrayEntry = (
   }
 };
 
+type IndexedArrayEntry = {
+  index: number;
+  value: DynamicValue;
+};
+
 const cloneArrayFromLengthFallback = (
   value: readonly DynamicValue[]
-): DynamicValue[] | null => {
+): IndexedArrayEntry[] | null => {
   let lengthValue = 0;
   try {
     lengthValue = value.length;
@@ -282,7 +287,7 @@ const cloneArrayFromLengthFallback = (
   }
 
   const boundedLength = Math.min(lengthValue, MAX_ARRAY_ENTRY_FALLBACK_SCAN);
-  const recoveredEntries: DynamicValue[] = [];
+  const recoveredEntries: IndexedArrayEntry[] = [];
   let canProbeOwnProperty = true;
   for (let arrayIndex = 0; arrayIndex < boundedLength; arrayIndex += 1) {
     let indexPresent = false;
@@ -309,7 +314,10 @@ const cloneArrayFromLengthFallback = (
         continue;
       }
 
-      recoveredEntries.push(entryValue);
+      recoveredEntries.push({
+        index: arrayIndex,
+        value: entryValue,
+      });
     } catch {
       continue;
     }
@@ -361,7 +369,7 @@ const insertBoundedSortedArrayIndex = (
 
 const cloneArrayFromKeyFallback = (
   value: readonly DynamicValue[]
-): DynamicValue[] | null => {
+): IndexedArrayEntry[] | null => {
   let indexKeys: string[] = [];
   try {
     indexKeys = Object.keys(value);
@@ -383,10 +391,13 @@ const cloneArrayFromKeyFallback = (
     );
   }
 
-  const recoveredEntries: DynamicValue[] = [];
+  const recoveredEntries: IndexedArrayEntry[] = [];
   for (const arrayIndex of boundedIndices) {
     try {
-      recoveredEntries.push(value[arrayIndex]);
+      recoveredEntries.push({
+        index: arrayIndex,
+        value: value[arrayIndex],
+      });
     } catch {
       continue;
     }
@@ -395,41 +406,77 @@ const cloneArrayFromKeyFallback = (
   return recoveredEntries;
 };
 
+const toArrayValuesFromIndexedEntries = (
+  entries: IndexedArrayEntry[] | null
+): DynamicValue[] | null => {
+  if (entries === null) {
+    return null;
+  }
+
+  return entries.map((entry) => entry.value);
+};
+
+const mergeIndexedFallbackEntries = (
+  primaryEntries: IndexedArrayEntry[],
+  supplementalEntries: IndexedArrayEntry[]
+): IndexedArrayEntry[] => {
+  const mergedEntries = new Map<number, DynamicValue>();
+  for (const entry of primaryEntries) {
+    if (!mergedEntries.has(entry.index)) {
+      mergedEntries.set(entry.index, entry.value);
+    }
+  }
+  for (const entry of supplementalEntries) {
+    if (!mergedEntries.has(entry.index)) {
+      mergedEntries.set(entry.index, entry.value);
+    }
+  }
+
+  return Array.from(mergedEntries.entries())
+    .sort((left, right) => {
+      return left[0] - right[0];
+    })
+    .map(([index, entryValue]) => {
+      return {
+        index,
+        value: entryValue,
+      };
+    });
+};
+
 const cloneArrayFromIndexedAccess = (
   value: readonly DynamicValue[]
 ): DynamicValue[] | null => {
   const lengthFallbackEntries = cloneArrayFromLengthFallback(value);
   const hasNonUndefinedLengthFallbackEntry =
     lengthFallbackEntries !== null &&
-    lengthFallbackEntries.some((entry) => entry !== undefined);
+    lengthFallbackEntries.some((entry) => entry.value !== undefined);
   if (
     hasNonUndefinedLengthFallbackEntry &&
     lengthFallbackEntries !== null &&
     lengthFallbackEntries.length >= MAX_ARRAY_ENTRY_FALLBACK_SCAN
   ) {
-    return lengthFallbackEntries;
+    return toArrayValuesFromIndexedEntries(lengthFallbackEntries);
   }
 
   const keyFallbackEntries = cloneArrayFromKeyFallback(value);
   if (keyFallbackEntries !== null && keyFallbackEntries.length > 0) {
-    if (
-      !hasNonUndefinedLengthFallbackEntry ||
-      (lengthFallbackEntries !== null &&
-        lengthFallbackEntries.length < MAX_ARRAY_ENTRY_FALLBACK_SCAN)
-    ) {
-      return keyFallbackEntries;
+    if (hasNonUndefinedLengthFallbackEntry && lengthFallbackEntries !== null) {
+      const mergedEntries = mergeIndexedFallbackEntries(
+        lengthFallbackEntries,
+        keyFallbackEntries
+      );
+      return toArrayValuesFromIndexedEntries(mergedEntries);
     }
+
+    return toArrayValuesFromIndexedEntries(keyFallbackEntries);
   }
 
-  if (hasNonUndefinedLengthFallbackEntry) {
-    return lengthFallbackEntries;
+  if (hasNonUndefinedLengthFallbackEntry && lengthFallbackEntries !== null) {
+    return toArrayValuesFromIndexedEntries(lengthFallbackEntries);
   }
 
-  if (keyFallbackEntries !== null && keyFallbackEntries.length > 0) {
-    return keyFallbackEntries;
-  }
-
-  return lengthFallbackEntries;
+  return toArrayValuesFromIndexedEntries(lengthFallbackEntries);
 };
 
 const cloneArrayEntriesSafely = (value: DynamicValue): DynamicValue[] | null => {

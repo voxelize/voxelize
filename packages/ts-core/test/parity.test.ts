@@ -1559,6 +1559,41 @@ describe("Type builders", () => {
     expect(part.aabbs).toEqual([AABB.create(0, 0, 0, 1, 1, 1)]);
   });
 
+  it("merges readable prefix and key-fallback face entries", () => {
+    let prefixReadCount = 0;
+    const sparseFaces: BlockFaceInit[] = [];
+    sparseFaces[0] = { name: "PrefixFace" };
+    sparseFaces[5_000] = { name: "KeyFace" };
+    const trappedFaces = new Proxy(sparseFaces, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (propertyKey === "0") {
+          prefixReadCount += 1;
+          if (prefixReadCount > 1) {
+            throw new Error("read trap");
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    const part = createBlockConditionalPart({
+      faces: trappedFaces as never,
+    });
+
+    expect(part.faces).toEqual([
+      new BlockFace({ name: "PrefixFace" }),
+      new BlockFace({ name: "KeyFace" }),
+    ]);
+  });
+
   it("recovers key-based face entries when bounded direct reads throw", () => {
     const sparseFaces: BlockFaceInit[] = [];
     sparseFaces[5_000] = { name: "SparseFace" };
@@ -3218,6 +3253,52 @@ describe("Type builders", () => {
     });
 
     expect(pattern.parts).toEqual([
+      {
+        rule: BLOCK_RULE_NONE,
+        faces: [],
+        aabbs: [],
+        isTransparent: [false, false, false, false, false, false],
+        worldSpace: true,
+      },
+    ]);
+  });
+
+  it("merges readable prefix and key-fallback part entries", () => {
+    let prefixReadCount = 0;
+    const sparseParts: BlockConditionalPartInput[] = [];
+    sparseParts[0] = { worldSpace: false };
+    sparseParts[5_000] = { worldSpace: true };
+    const trappedParts = new Proxy(sparseParts, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (propertyKey === "0") {
+          prefixReadCount += 1;
+          if (prefixReadCount > 1) {
+            throw new Error("read trap");
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const pattern = createBlockDynamicPattern({
+      parts: trappedParts as never,
+    });
+
+    expect(pattern.parts).toEqual([
+      {
+        rule: BLOCK_RULE_NONE,
+        faces: [],
+        aabbs: [],
+        isTransparent: [false, false, false, false, false, false],
+        worldSpace: false,
+      },
       {
         rule: BLOCK_RULE_NONE,
         faces: [],
