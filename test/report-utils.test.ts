@@ -3371,6 +3371,33 @@ describe("report-utils", () => {
       }
     );
     expect(unknownFromPartiallyRecoverableShortAliasToken).toEqual(["--mystery"]);
+    const fullyTrappedAliasTokens = createFullyTrappedStringArray([
+      "-o",
+      "--only-long",
+    ]);
+    const unknownFromFullyTrappedAliasTokens = parseUnknownCliOptions(
+      ["--only", "--mystery"],
+      {
+        canonicalOptions: ["--output"],
+        optionAliases: {
+          "--only": fullyTrappedAliasTokens as never,
+        },
+      }
+    );
+    expect(unknownFromFullyTrappedAliasTokens).toEqual(["--mystery"]);
+    const unknownFromFullyTrappedAliasTokensByAliasValue = parseUnknownCliOptions(
+      ["-o", "--mystery"],
+      {
+        canonicalOptions: ["--output"],
+        optionAliases: {
+          "--only": fullyTrappedAliasTokens as never,
+        },
+      }
+    );
+    expect(unknownFromFullyTrappedAliasTokensByAliasValue).toEqual([
+      "-o",
+      "--mystery",
+    ]);
   });
 
   it("salvages length-trapped canonical option metadata in unknown option parsing", () => {
@@ -4762,6 +4789,45 @@ describe("report-utils", () => {
     expect(lengthAndOwnKeysTrapValidation.validationErrorCode).toBeNull();
   });
 
+  it("handles fully trapped alias token lists in cli option validation", () => {
+    const fullyTrappedAliasTokens = createFullyTrappedStringArray([
+      "-o",
+      "--only-long",
+    ]);
+    const validation = createCliOptionValidation(["--only", "--mystery"], {
+      canonicalOptions: ["--output"],
+      optionAliases: {
+        "--only": fullyTrappedAliasTokens as never,
+      },
+    });
+
+    expect(validation.supportedCliOptions).toEqual(["--output", "--only"]);
+    expect(validation.supportedCliOptionCount).toBe(2);
+    expect(validation.unknownOptions).toEqual(["--mystery"]);
+    expect(validation.unknownOptionCount).toBe(1);
+    expect(validation.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --output, --only."
+    );
+    expect(validation.validationErrorCode).toBe("unsupported_options");
+    const aliasValueValidation = createCliOptionValidation(["-o", "--mystery"], {
+      canonicalOptions: ["--output"],
+      optionAliases: {
+        "--only": fullyTrappedAliasTokens as never,
+      },
+    });
+    expect(aliasValueValidation.supportedCliOptions).toEqual([
+      "--output",
+      "--only",
+    ]);
+    expect(aliasValueValidation.supportedCliOptionCount).toBe(2);
+    expect(aliasValueValidation.unknownOptions).toEqual(["-o", "--mystery"]);
+    expect(aliasValueValidation.unknownOptionCount).toBe(2);
+    expect(aliasValueValidation.unsupportedOptionsError).toBe(
+      "Unsupported option(s): -o, --mystery. Supported options: --output, --only."
+    );
+    expect(aliasValueValidation.validationErrorCode).toBe("unsupported_options");
+  });
+
   it("validates set value metadata strict-subset fallback across sibling options", () => {
     const setValueMetadata = new Set(["--output"]);
     const onlyShortValidation = createCliOptionValidation(["--only", "-l"], {
@@ -5137,6 +5203,29 @@ describe("report-utils", () => {
       "--output": "--output",
       "--only": "--only",
       "-o": "--only",
+    });
+    const fullyTrappedAliasTokens = createFullyTrappedStringArray([
+      "-o",
+      "--only-long",
+    ]);
+    const fullyTrappedAliasCatalog = createCliOptionCatalog({
+      canonicalOptions: ["--output"],
+      optionAliases: {
+        "--only": fullyTrappedAliasTokens as never,
+      },
+    });
+
+    expect(fullyTrappedAliasCatalog.supportedCliOptions).toEqual([
+      "--output",
+      "--only",
+    ]);
+    expect(fullyTrappedAliasCatalog.supportedCliOptionCount).toBe(2);
+    expect(fullyTrappedAliasCatalog.availableCliOptionAliases).toEqual({
+      "--only": [],
+    });
+    expect(fullyTrappedAliasCatalog.availableCliOptionCanonicalMap).toEqual({
+      "--output": "--output",
+      "--only": "--only",
     });
   });
 
@@ -5709,6 +5798,57 @@ describe("report-utils", () => {
     expect(partiallyRecoverableDiagnostics.activeCliOptionResolutionCount).toBe(0);
     expect(partiallyRecoverableDiagnostics.activeCliOptionOccurrences).toEqual([]);
     expect(partiallyRecoverableDiagnostics.activeCliOptionOccurrenceCount).toBe(0);
+    const fullyTrappedAliasTokens = createFullyTrappedStringArray([
+      "-o",
+      "--only-long",
+    ]);
+    const fullyTrappedDiagnostics = createCliDiagnostics(
+      ["--only", "--mystery"],
+      {
+        canonicalOptions: ["--output"],
+        optionAliases: {
+          "--only": fullyTrappedAliasTokens as never,
+        },
+      }
+    );
+    expect(fullyTrappedDiagnostics.supportedCliOptions).toEqual([
+      "--output",
+      "--only",
+    ]);
+    expect(fullyTrappedDiagnostics.supportedCliOptionCount).toBe(2);
+    expect(fullyTrappedDiagnostics.availableCliOptionAliases).toEqual({
+      "--only": [],
+    });
+    expect(fullyTrappedDiagnostics.availableCliOptionCanonicalMap).toEqual({
+      "--output": "--output",
+      "--only": "--only",
+    });
+    expect(fullyTrappedDiagnostics.unknownOptions).toEqual(["--mystery"]);
+    expect(fullyTrappedDiagnostics.unknownOptionCount).toBe(1);
+    expect(fullyTrappedDiagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --output, --only."
+    );
+    expect(fullyTrappedDiagnostics.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    expect(fullyTrappedDiagnostics.activeCliOptions).toEqual(["--only"]);
+    expect(fullyTrappedDiagnostics.activeCliOptionCount).toBe(1);
+    expect(fullyTrappedDiagnostics.activeCliOptionTokens).toEqual(["--only"]);
+    expect(fullyTrappedDiagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+      },
+    ]);
+    expect(fullyTrappedDiagnostics.activeCliOptionResolutionCount).toBe(1);
+    expect(fullyTrappedDiagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+        index: 0,
+      },
+    ]);
+    expect(fullyTrappedDiagnostics.activeCliOptionOccurrenceCount).toBe(1);
   });
 
   it("tracks length-trapped canonical option recovery in unified cli diagnostics", () => {
@@ -9335,6 +9475,54 @@ describe("report-utils", () => {
       },
     ]);
     expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(1);
+  });
+
+  it("tracks fully trapped alias token lists as canonical keys in active metadata parsing", () => {
+    const fullyTrappedAliasTokens = createFullyTrappedStringArray([
+      "-o",
+      "--only-long",
+    ]);
+    const activeMetadata = parseActiveCliOptionMetadata(["--only", "--mystery"], {
+      canonicalOptions: ["--output"],
+      optionAliases: {
+        "--only": fullyTrappedAliasTokens as never,
+      },
+    });
+
+    expect(activeMetadata.activeCliOptions).toEqual(["--only"]);
+    expect(activeMetadata.activeCliOptionCount).toBe(1);
+    expect(activeMetadata.activeCliOptionTokens).toEqual(["--only"]);
+    expect(activeMetadata.activeCliOptionResolutions).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionResolutionCount).toBe(1);
+    expect(activeMetadata.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+        index: 0,
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(1);
+    const aliasValueActiveMetadata = parseActiveCliOptionMetadata(
+      ["-o", "--mystery"],
+      {
+        canonicalOptions: ["--output"],
+        optionAliases: {
+          "--only": fullyTrappedAliasTokens as never,
+        },
+      }
+    );
+    expect(aliasValueActiveMetadata.activeCliOptions).toEqual([]);
+    expect(aliasValueActiveMetadata.activeCliOptionCount).toBe(0);
+    expect(aliasValueActiveMetadata.activeCliOptionTokens).toEqual([]);
+    expect(aliasValueActiveMetadata.activeCliOptionResolutions).toEqual([]);
+    expect(aliasValueActiveMetadata.activeCliOptionResolutionCount).toBe(0);
+    expect(aliasValueActiveMetadata.activeCliOptionOccurrences).toEqual([]);
+    expect(aliasValueActiveMetadata.activeCliOptionOccurrenceCount).toBe(0);
   });
 
   it("tracks alias-valued options when optionsWithValues uses alias tokens", () => {
