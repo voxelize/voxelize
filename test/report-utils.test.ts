@@ -4419,6 +4419,53 @@ describe("report-utils", () => {
     ).toBeNull();
     expect(staleSupportedOptionCatalogOverrideValidation.validationErrorCode).toBeNull();
     expect(staleSupportedOptionCatalogOverrideCanonicalReadCount).toBe(0);
+    let staleAliasOnlyOptionCatalogOverrideCanonicalReadCount = 0;
+    const staleAliasOnlyOptionCatalogOverrideCanonicalOptions = new Proxy(
+      ["--json"],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (property === "0") {
+            staleAliasOnlyOptionCatalogOverrideCanonicalReadCount += 1;
+            return "--json";
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const staleAliasOnlyOptionCatalogOverrideValidation =
+      createCliOptionValidation(["--verify"], {
+        canonicalOptions:
+          staleAliasOnlyOptionCatalogOverrideCanonicalOptions as never,
+        optionCatalog: {
+          supportedCliOptions: ["--no-build"],
+          availableCliOptionAliases: {
+            "--no-build": ["--verify"],
+          },
+        } as never,
+      });
+    expect(staleAliasOnlyOptionCatalogOverrideValidation.supportedCliOptions).toEqual(
+      ["--no-build", "--verify"]
+    );
+    expect(
+      staleAliasOnlyOptionCatalogOverrideValidation.supportedCliOptionCount
+    ).toBe(2);
+    expect(staleAliasOnlyOptionCatalogOverrideValidation.unknownOptions).toEqual(
+      []
+    );
+    expect(staleAliasOnlyOptionCatalogOverrideValidation.unknownOptionCount).toBe(
+      0
+    );
+    expect(
+      staleAliasOnlyOptionCatalogOverrideValidation.unsupportedOptionsError
+    ).toBeNull();
+    expect(staleAliasOnlyOptionCatalogOverrideValidation.validationErrorCode).toBeNull();
+    expect(staleAliasOnlyOptionCatalogOverrideCanonicalReadCount).toBe(0);
     let optionCatalogOverrideWithoutSupportedCanonicalReadCount = 0;
     const optionCatalogOverrideWithoutSupportedCanonicalOptions = new Proxy(
       ["--json"],
