@@ -15,6 +15,7 @@ use actix_web::{
     App, Error, HttpRequest, HttpResponse, HttpServer, Result,
 };
 use actix_ws::AggregatedMessage;
+use bytes::Bytes;
 use futures_util::StreamExt;
 use hashbrown::HashMap;
 use log::{info, warn};
@@ -31,7 +32,7 @@ pub use world::system_profiler::{
 };
 pub use world::*;
 
-pub type RtcSenders = Arc<Mutex<HashMap<String, mpsc::UnboundedSender<Vec<u8>>>>>;
+pub type RtcSenders = Arc<Mutex<HashMap<String, mpsc::UnboundedSender<Bytes>>>>;
 
 pub fn create_rtc_senders() -> RtcSenders {
     Arc::new(Mutex::new(HashMap::new()))

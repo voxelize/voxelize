@@ -68,7 +68,7 @@ pub async fn rtc_offer(
     let pc = Arc::new(pc);
     peers.lock().await.insert(client_id.clone(), pc.clone());
 
-    let (rtc_tx, rtc_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    let (rtc_tx, rtc_rx) = mpsc::unbounded_channel::<Bytes>();
 
     let rtc_senders_clone = rtc_senders.get_ref().clone();
     let client_id_clone = client_id.clone();
@@ -100,7 +100,7 @@ pub async fn rtc_offer(
                 let dc_send = dc.clone();
                 tokio::spawn(async move {
                     while let Some(data) = rtc_rx.recv().await {
-                        if dc_send.send(&Bytes::from(data)).await.is_err() {
+                        if dc_send.send(&data).await.is_err() {
                             break;
                         }
                     }

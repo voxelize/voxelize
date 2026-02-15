@@ -1,4 +1,5 @@
 use hashbrown::{hash_map::Entry, HashMap, HashSet};
+use bytes::Bytes;
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
@@ -239,7 +240,7 @@ impl<'a> System<'a> for BroadcastSystem {
                             if let Some(rtc_sender) = rtc_map.get(id) {
                                 let rtc_fragments = fragment_message(&encoded.data);
                                 for fragment in rtc_fragments {
-                                    if rtc_sender.send(fragment).is_err() {
+                                    if rtc_sender.send(Bytes::from(fragment)).is_err() {
                                         break;
                                     }
                                 }
@@ -267,7 +268,7 @@ impl<'a> System<'a> for BroadcastSystem {
                         if let Some(ref rtc_map) = rtc_map {
                             if let Some(rtc_sender) = rtc_map.get(single_id) {
                                 for fragment in fragment_message(&encoded.data) {
-                                    if rtc_sender.send(fragment).is_err() {
+                                    if rtc_sender.send(Bytes::from(fragment)).is_err() {
                                         break;
                                     }
                                 }
@@ -302,7 +303,7 @@ impl<'a> System<'a> for BroadcastSystem {
                         if let Some(ref rtc_map) = rtc_map {
                             if let Some(rtc_sender) = rtc_map.get(target_id) {
                                 for fragment in fragment_message(&encoded.data) {
-                                    if rtc_sender.send(fragment).is_err() {
+                                    if rtc_sender.send(Bytes::from(fragment)).is_err() {
                                         break;
                                     }
                                 }
@@ -342,13 +343,18 @@ impl<'a> System<'a> for BroadcastSystem {
                 }
                 continue;
             }
-            let mut rtc_fragments_cache: Option<Vec<Vec<u8>>> = None;
+            let mut rtc_fragments_cache: Option<Vec<Bytes>> = None;
             let mut send_to_client = |id: &str, client: &Client| {
                 if use_rtc {
                     if let Some(ref rtc_map) = rtc_map {
                         if let Some(rtc_sender) = rtc_map.get(id) {
                             let fragments = rtc_fragments_cache
-                                .get_or_insert_with(|| fragment_message(&encoded.data));
+                                .get_or_insert_with(|| {
+                                    fragment_message(&encoded.data)
+                                        .into_iter()
+                                        .map(Bytes::from)
+                                        .collect()
+                                });
                             for fragment in fragments.iter() {
                                 if rtc_sender.send(fragment.clone()).is_err() {
                                     break;
