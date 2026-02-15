@@ -233,9 +233,13 @@ export const summarizeStepResults = (steps) => {
   const failedStepCount = failedSteps.length;
   const skippedStepCount = skippedSteps.length;
   const firstFailedStep = failedSteps[0] ?? null;
+  const totalSteps = Math.max(
+    stepEntries.length,
+    passedStepCount + failedStepCount + skippedStepCount
+  );
 
   return {
-    totalSteps: stepEntries.length,
+    totalSteps,
     passedStepCount,
     failedStepCount,
     skippedStepCount,
@@ -272,7 +276,7 @@ export const summarizeCheckResults = (checks) => {
   }
 
   return {
-    totalChecks: checkEntries.length,
+    totalChecks: Math.max(checkEntries.length, passedChecks.length + failedChecks.length),
     passedCheckCount: passedChecks.length,
     failedCheckCount: failedChecks.length,
     firstFailedCheck: failedChecks[0] ?? null,
