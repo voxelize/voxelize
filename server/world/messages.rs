@@ -173,6 +173,9 @@ impl EncodedMessageQueue {
         if pending_batches == 0 {
             return result;
         }
+        if result.is_empty() && pending_batches == 1 {
+            return self.receiver.try_recv().unwrap_or_default();
+        }
         if pending_batches == 1 {
             if let Ok(mut messages) = self.receiver.try_recv() {
                 result.append(&mut messages);
