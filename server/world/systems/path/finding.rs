@@ -749,26 +749,6 @@ fn can_walk_directly(
         if !is_position_walkable(x, y, z, chunks, registry, height) {
             return false;
         }
-
-        // Also check adjacent positions to avoid corner clipping
-        // This is important when moving diagonally
-        if i > 0 && i < steps_i32 {
-            let prev_step = (i - 1) as f64;
-            let prev_x = clamp_f64_to_i32((f64::from(from.0) + step_x * prev_step).round());
-            let prev_z = clamp_f64_to_i32((f64::from(from.2) + step_z * prev_step).round());
-
-            // Check the two cells that form the "corner" when moving diagonally
-            if x != prev_x && z != prev_z {
-                // We're moving diagonally, check if we can navigate the corner
-                let corner_clear = is_position_walkable(x, y, z, chunks, registry, height);
-                let side1_clear = is_position_walkable(prev_x, y, z, chunks, registry, height);
-                let side2_clear = is_position_walkable(x, y, prev_z, chunks, registry, height);
-
-                if !corner_clear && !side1_clear && !side2_clear {
-                    return false;
-                }
-            }
-        }
     }
 
     true
