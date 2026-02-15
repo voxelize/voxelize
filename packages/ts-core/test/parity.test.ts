@@ -1594,6 +1594,45 @@ describe("Type builders", () => {
     expect(boundedReadCount).toBe(1024);
   });
 
+  it("skips helper key enumeration when bounded face fallback is full", () => {
+    let ownKeysCount = 0;
+    const denseFaces: BlockFaceInit[] = [];
+    for (let index = 0; index < 1_024; index += 1) {
+      denseFaces[index] = {
+        name: `DenseFace-${index}`,
+      };
+    }
+    denseFaces[5_000] = {
+      name: "SparseFace",
+    };
+    const trappedFaces = new Proxy(denseFaces, {
+      ownKeys(target) {
+        ownKeysCount += 1;
+        return Reflect.ownKeys(target);
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    const part = createBlockConditionalPart({
+      faces: trappedFaces as never,
+    });
+
+    expect(part.faces).toHaveLength(1024);
+    expect(part.faces[0].name).toBe("DenseFace-0");
+    expect(part.faces[1023].name).toBe("DenseFace-1023");
+    expect(
+      part.faces.some((face) => {
+        return face.name === "SparseFace";
+      })
+    ).toBe(false);
+    expect(ownKeysCount).toBe(0);
+  });
+
   it("ignores inherited numeric prototype face/aabb entries in fallback scans", () => {
     Object.defineProperty(Array.prototype, "0", {
       configurable: true,
