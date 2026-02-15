@@ -1996,9 +1996,11 @@ export const parseUnknownCliOptions = (
     optionArgsFromOverride === null
       ? splitCliArgs(args).optionArgs
       : optionArgsFromOverride;
-  const canonicalOptionMap = createCanonicalOptionMap(
-    canonicalOptions,
-    optionAliases
+  const normalizedCanonicalOptions = normalizeCliOptionTokenList(canonicalOptions);
+  const normalizedOptionAliases = normalizeCliOptionAliases(optionAliases);
+  const canonicalOptionMap = createCanonicalOptionMapFromNormalizedMetadata(
+    normalizedCanonicalOptions,
+    normalizedOptionAliases
   );
   const normalizedValueOptionTokenMetadata = toNormalizedCliOptionTokenMetadata(
     valueOptionTokenMetadata,
@@ -2166,7 +2168,7 @@ export const parseActiveCliOptionMetadata = (
       : optionArgsFromOverride;
   const normalizedCanonicalOptions = normalizeCliOptionTokenList(canonicalOptions);
   const normalizedOptionAliases = normalizeCliOptionAliases(optionAliases);
-  const canonicalOptionMap = createCanonicalOptionMap(
+  const canonicalOptionMap = createCanonicalOptionMapFromNormalizedMetadata(
     normalizedCanonicalOptions,
     normalizedOptionAliases
   );
@@ -2233,7 +2235,7 @@ export const parseActiveCliOptionMetadata = (
     }
   }
 
-  const canonicalOptionCandidates = createSupportedCliOptions(
+  const canonicalOptionCandidates = createSupportedCliOptionsFromNormalizedMetadata(
     normalizedCanonicalOptions,
     normalizedOptionAliases
   )
