@@ -1570,6 +1570,7 @@ impl World {
             return;
         };
         let client_parser = self.client_parser.clone();
+        let mut latest_username: Option<String> = None;
 
         for peer in data.peers {
             let Peer {
@@ -1586,7 +1587,10 @@ impl World {
             }
 
             client_parser(self, &metadata, client_ent);
+            latest_username = Some(username);
+        }
 
+        if let Some(username) = latest_username {
             if let Some(client) = self.clients_mut().get_mut(client_id) {
                 if client.username != username {
                     client.username = username;
