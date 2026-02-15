@@ -1,6 +1,5 @@
 use std::{
     fs,
-    io::Write,
     path::PathBuf,
     time::{Duration, Instant, SystemTime},
 };
@@ -106,8 +105,6 @@ impl Stats {
             .create(true)
             .open(&self.path)
             .expect("Unable to open stats file for write...");
-        let j = serde_json::to_string(&self.get_stats()).unwrap();
-        file.write_all(j.as_bytes())
-            .expect("Unable to write stats file.");
+        serde_json::to_writer(&mut file, &self.get_stats()).expect("Unable to write stats file.");
     }
 }
