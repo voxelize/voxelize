@@ -7,6 +7,7 @@ import {
   type BlockConditionalPartInput,
   type BlockDynamicPatternInput,
   type BlockFaceInit,
+  type BlockRuleEvaluationRotationInput,
   type BlockRotationInput,
   type BlockRule,
   type BlockRuleInput,
@@ -3711,7 +3712,7 @@ describe("BlockRuleEvaluator", () => {
     };
 
     const matched = BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access, {
-      rotation: { yRotation: Math.PI / 2 } as never,
+      rotation: { yRotation: Math.PI / 2 },
       yRotatable: true,
       worldSpace: false,
     });
@@ -3734,7 +3735,7 @@ describe("BlockRuleEvaluator", () => {
     };
 
     const matched = BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access, {
-      rotation: { yRotation: Number.NaN } as never,
+      rotation: { yRotation: Number.NaN },
       yRotatable: "true" as never,
       worldSpace: "false" as never,
     });
@@ -3796,9 +3797,7 @@ describe("BlockRuleEvaluator", () => {
       getVoxelStage: () => 0,
     };
 
-    const rotationWithTrap = Object.create(null) as {
-      readonly yRotation: number;
-    };
+    const rotationWithTrap = Object.create(null) as BlockRuleEvaluationRotationInput;
     Object.defineProperty(rotationWithTrap, "yRotation", {
       configurable: true,
       enumerable: true,
@@ -3808,7 +3807,7 @@ describe("BlockRuleEvaluator", () => {
     });
 
     const matched = BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access, {
-      rotation: rotationWithTrap as never,
+      rotation: rotationWithTrap,
       yRotatable: true,
       worldSpace: false,
     });

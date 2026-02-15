@@ -204,10 +204,14 @@ const rotateOffsetY = (offset: Vec3, rotationY: number): Vec3 => {
   return [x * cosRot - z * sinRot, y, x * sinRot + z * cosRot];
 };
 
+export interface BlockRuleEvaluationRotationInput {
+  yRotation: number;
+}
+
 export interface BlockRuleEvaluationOptions {
-  rotation?: BlockRotation;
-  yRotatable?: boolean;
-  worldSpace?: boolean;
+  rotation?: BlockRotation | BlockRuleEvaluationRotationInput | null;
+  yRotatable?: boolean | null;
+  worldSpace?: boolean | null;
 }
 
 type RuleAccess = Pick<
