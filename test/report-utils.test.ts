@@ -2493,6 +2493,15 @@ describe("report-utils", () => {
     expect(unknownWithPartiallyRecoveredValueAndStrictSubsetForOnly).toEqual([
       "-l",
     ]);
+    const unknownDashPathWithPartiallyRecoveredValueAndStrictSubsetForOnly =
+      parseUnknownCliOptions(["--only", "-artifact-report.json"], {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: partiallyRecoveredValueOptions as never,
+        optionsWithStrictValues: partiallyRecoveredStrictSubsetOptions as never,
+      });
+    expect(
+      unknownDashPathWithPartiallyRecoveredValueAndStrictSubsetForOnly
+    ).toEqual([]);
     const unknownWithUnresolvedValueMetadataAndSupportedStrictMetadata =
       parseUnknownCliOptions(["--output", "-l"], {
         canonicalOptions: ["--output"],
@@ -3359,6 +3368,24 @@ describe("report-utils", () => {
     expect(
       partiallyRecoveredValueAndStrictSubsetOnlyValidation.validationErrorCode
     ).toBe("unsupported_options");
+    const partiallyRecoveredValueAndStrictSubsetOnlyDashPathValidation =
+      createCliOptionValidation(["--only", "-artifact-report.json"], {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: partiallyRecoveredValueOptions as never,
+        optionsWithStrictValues: partiallyRecoveredStrictSubsetOptions as never,
+      });
+    expect(
+      partiallyRecoveredValueAndStrictSubsetOnlyDashPathValidation.unknownOptions
+    ).toEqual([]);
+    expect(
+      partiallyRecoveredValueAndStrictSubsetOnlyDashPathValidation.unknownOptionCount
+    ).toBe(0);
+    expect(
+      partiallyRecoveredValueAndStrictSubsetOnlyDashPathValidation.unsupportedOptionsError
+    ).toBeNull();
+    expect(
+      partiallyRecoveredValueAndStrictSubsetOnlyDashPathValidation.validationErrorCode
+    ).toBeNull();
     const unavailableValueMetadataAndRecoverableStrictSubsetOutputValidation =
       createCliOptionValidation(["--output", "-l"], {
         canonicalOptions: ["--output", "--only"],
@@ -5274,6 +5301,48 @@ describe("report-utils", () => {
     expect(onlyWithStrictSubsetDiagnostics.validationErrorCode).toBe(
       "unsupported_options"
     );
+    const onlyWithStrictSubsetDashPathDiagnostics = createCliDiagnostics(
+      ["--only", "-artifact-report.json"],
+      {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: partiallyRecoveredValueOptions as never,
+        optionsWithStrictValues: partiallyRecoveredStrictSubsetOptions as never,
+      }
+    );
+    expect(onlyWithStrictSubsetDashPathDiagnostics.activeCliOptions).toEqual([
+      "--only",
+    ]);
+    expect(onlyWithStrictSubsetDashPathDiagnostics.activeCliOptionCount).toBe(1);
+    expect(onlyWithStrictSubsetDashPathDiagnostics.activeCliOptionTokens).toEqual([
+      "--only",
+    ]);
+    expect(onlyWithStrictSubsetDashPathDiagnostics.activeCliOptionResolutions).toEqual(
+      [
+        {
+          token: "--only",
+          canonicalOption: "--only",
+        },
+      ]
+    );
+    expect(
+      onlyWithStrictSubsetDashPathDiagnostics.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(onlyWithStrictSubsetDashPathDiagnostics.activeCliOptionOccurrences).toEqual(
+      [
+        {
+          token: "--only",
+          canonicalOption: "--only",
+          index: 0,
+        },
+      ]
+    );
+    expect(
+      onlyWithStrictSubsetDashPathDiagnostics.activeCliOptionOccurrenceCount
+    ).toBe(1);
+    expect(onlyWithStrictSubsetDashPathDiagnostics.unknownOptions).toEqual([]);
+    expect(onlyWithStrictSubsetDashPathDiagnostics.unknownOptionCount).toBe(0);
+    expect(onlyWithStrictSubsetDashPathDiagnostics.unsupportedOptionsError).toBeNull();
+    expect(onlyWithStrictSubsetDashPathDiagnostics.validationErrorCode).toBeNull();
   });
 
   it("preserves recoverable strict subsets when value metadata is unavailable", () => {
