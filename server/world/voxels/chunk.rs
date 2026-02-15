@@ -32,7 +32,16 @@ fn initial_updated_levels(sub_chunks: usize, max_height: usize) -> HashSet<u32> 
     }
 
     let level_count = representable_level_count(sub_chunks);
-    let mut levels = HashSet::with_capacity(max_height.min(level_count as usize));
+    let level_count_usize = level_count.min(usize::MAX as u128) as usize;
+    if max_height >= level_count_usize {
+        let mut levels = HashSet::with_capacity(level_count_usize);
+        for level in 0..level_count_usize {
+            levels.insert(level as u32);
+        }
+        return levels;
+    }
+
+    let mut levels = HashSet::with_capacity(max_height);
     for y in 0..max_height {
         levels.insert(map_y_to_level(y, max_height, level_count));
     }
@@ -373,6 +382,13 @@ mod tests {
     fn initial_updated_levels_only_tracks_non_empty_dense_partitions() {
         let levels = initial_updated_levels(8, 4);
         let expected: HashSet<u32> = [0, 2, 4, 6].into_iter().collect();
+        assert_eq!(levels, expected);
+    }
+
+    #[test]
+    fn initial_updated_levels_covers_all_levels_when_height_is_dense() {
+        let levels = initial_updated_levels(4, 16);
+        let expected: HashSet<u32> = [0, 1, 2, 3].into_iter().collect();
         assert_eq!(levels, expected);
     }
 
