@@ -95,6 +95,9 @@ pub struct Chunks {
 impl Chunks {
     #[inline]
     fn encode_base64_u32(data: &[u32]) -> String {
+        if data.is_empty() {
+            return String::new();
+        }
         let mut bytes = vec![0; data.len() * 4];
         LittleEndian::write_u32_into(data, &mut bytes);
 
@@ -986,5 +989,19 @@ mod tests {
         let space = chunks.make_space(&Vec2(0, 0), 1).build();
 
         assert_eq!(space.options.chunk_size, 1);
+    }
+
+    #[test]
+    fn encode_base64_u32_returns_empty_for_empty_input() {
+        assert!(Chunks::encode_base64_u32(&[]).is_empty());
+    }
+
+    #[test]
+    fn encode_decode_base64_u32_roundtrip_restores_values() {
+        let raw = vec![0, 1, u32::MAX, 12345];
+        let encoded = Chunks::encode_base64_u32(&raw);
+        let decoded = Chunks::decode_base64_u32(&encoded, raw.len());
+
+        assert_eq!(decoded, raw);
     }
 }

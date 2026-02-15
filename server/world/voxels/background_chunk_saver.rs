@@ -102,6 +102,9 @@ impl BackgroundChunkSaver {
     }
 
     fn to_base_64(data: &[u32]) -> String {
+        if data.is_empty() {
+            return String::new();
+        }
         let mut bytes = vec![0; data.len() * 4];
         LittleEndian::write_u32_into(data, &mut bytes);
 
