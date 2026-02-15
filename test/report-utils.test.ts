@@ -38,6 +38,27 @@ import {
   writeReportToPath,
 } from "../scripts/report-utils.mjs";
 
+const createPartiallyRecoveredStringArray = (
+  values: readonly string[],
+  trappedIndex = 1
+): string[] => {
+  const clonedValues = [...values];
+  return new Proxy(clonedValues, {
+    get(target, property, receiver) {
+      if (property === Symbol.iterator) {
+        throw new Error("iterator trap");
+      }
+      if (property === "length") {
+        return clonedValues.length;
+      }
+      if (property === String(trappedIndex)) {
+        throw new Error("read trap");
+      }
+      return Reflect.get(target, property, receiver);
+    },
+  });
+};
+
 describe("report-utils", () => {
   it("parses valid json output", () => {
     expect(parseJsonOutput("{\"ok\":true}")).toEqual({ ok: true });
@@ -604,23 +625,8 @@ describe("report-utils", () => {
       "/workspace/-artifact-report.json"
     );
     expect(largeLengthRecognizedOutputTokenReadCount).toBe(4);
-    const partiallyRecoveredRecognizedOutputTokens = new Proxy(
-      ["--list-checks", "-l"],
-      {
-        get(target, property, receiver) {
-          if (property === Symbol.iterator) {
-            throw new Error("iterator trap");
-          }
-          if (property === "length") {
-            return 2;
-          }
-          if (property === "1") {
-            throw new Error("read trap");
-          }
-          return Reflect.get(target, property, receiver);
-        },
-      }
-    );
+    const partiallyRecoveredRecognizedOutputTokens =
+      createPartiallyRecoveredStringArray(["--list-checks", "-l"]);
     const partiallyRecoveredRecognizedOutputTokenResult = resolveOutputPath(
       ["--output", "-l"],
       "/workspace",
@@ -1233,23 +1239,8 @@ describe("report-utils", () => {
     );
     expect(resolvedDashValueFromLargeLengthRecognizedOptionTokens.error).toBeNull();
     expect(largeLengthRecognizedTokenReadCount).toBe(4);
-    const partiallyRecoveredRecognizedOptionTokens = new Proxy(
-      ["--list-checks", "-l"],
-      {
-        get(target, property, receiver) {
-          if (property === Symbol.iterator) {
-            throw new Error("iterator trap");
-          }
-          if (property === "length") {
-            return 2;
-          }
-          if (property === "1") {
-            throw new Error("read trap");
-          }
-          return Reflect.get(target, property, receiver);
-        },
-      }
-    );
+    const partiallyRecoveredRecognizedOptionTokens =
+      createPartiallyRecoveredStringArray(["--list-checks", "-l"]);
     const resolvedFromPartiallyRecoveredRecognizedOptionTokens =
       resolveLastOptionValue(
         ["--output", "-l"],
@@ -2284,22 +2275,8 @@ describe("report-utils", () => {
       }
     );
     expect(unknownWithStrictUnknownInlineShortValue).toEqual(["-l"]);
-    const partiallyRecoveredStrictValueOptions = new Proxy(
-      ["--output", "--only"],
-      {
-        get(target, property, receiver) {
-          if (property === Symbol.iterator) {
-            throw new Error("iterator trap");
-          }
-          if (property === "length") {
-            return 2;
-          }
-          if (property === "1") {
-            throw new Error("read trap");
-          }
-          return Reflect.get(target, property, receiver);
-        },
-      }
+    const partiallyRecoveredStrictValueOptions = createPartiallyRecoveredStringArray(
+      ["--output", "--only"]
     );
     const unknownWithPartiallyRecoveredStrictMetadataForStrictOption =
       parseUnknownCliOptions(["--output", "-l"], {
@@ -2473,20 +2450,10 @@ describe("report-utils", () => {
     expect(
       unknownDashPathWithUnavailableValueMetadataAndUnsupportedStrictMetadataForOnly
     ).toEqual([]);
-    const partiallyRecoveredValueOptions = new Proxy(["--output", "--only"], {
-      get(target, property, receiver) {
-        if (property === Symbol.iterator) {
-          throw new Error("iterator trap");
-        }
-        if (property === "length") {
-          return 2;
-        }
-        if (property === "1") {
-          throw new Error("read trap");
-        }
-        return Reflect.get(target, property, receiver);
-      },
-    });
+    const partiallyRecoveredValueOptions = createPartiallyRecoveredStringArray([
+      "--output",
+      "--only",
+    ]);
     const unknownWithPartiallyRecoveredValueMetadataForOutput =
       parseUnknownCliOptions(["--output", "-l"], {
         canonicalOptions: ["--output", "--only"],
@@ -3277,20 +3244,10 @@ describe("report-utils", () => {
     expect(
       mixedValueMetadataWithoutStrictSubsetOnlyDashPathValidation.validationErrorCode
     ).toBeNull();
-    const partiallyRecoveredValueOptions = new Proxy(["--output", "--only"], {
-      get(target, property, receiver) {
-        if (property === Symbol.iterator) {
-          throw new Error("iterator trap");
-        }
-        if (property === "length") {
-          return 2;
-        }
-        if (property === "1") {
-          throw new Error("read trap");
-        }
-        return Reflect.get(target, property, receiver);
-      },
-    });
+    const partiallyRecoveredValueOptions = createPartiallyRecoveredStringArray([
+      "--output",
+      "--only",
+    ]);
     const partiallyRecoveredValueMetadataOutputValidation =
       createCliOptionValidation(["--output", "-l"], {
         canonicalOptions: ["--output", "--only"],
@@ -4887,22 +4844,8 @@ describe("report-utils", () => {
   });
 
   it("preserves strict subsets when strict metadata is partially recovered from traps", () => {
-    const partiallyRecoveredStrictValueOptions = new Proxy(
-      ["--output", "--only"],
-      {
-        get(target, property, receiver) {
-          if (property === Symbol.iterator) {
-            throw new Error("iterator trap");
-          }
-          if (property === "length") {
-            return 2;
-          }
-          if (property === "1") {
-            throw new Error("read trap");
-          }
-          return Reflect.get(target, property, receiver);
-        },
-      }
+    const partiallyRecoveredStrictValueOptions = createPartiallyRecoveredStringArray(
+      ["--output", "--only"]
     );
     const strictOptionDiagnostics = createCliDiagnostics(["--output", "-l"], {
       canonicalOptions: ["--output", "--only"],
@@ -5096,20 +5039,10 @@ describe("report-utils", () => {
   });
 
   it("applies partial strict guards when value metadata is partially recovered from traps", () => {
-    const partiallyRecoveredValueOptions = new Proxy(["--output", "--only"], {
-      get(target, property, receiver) {
-        if (property === Symbol.iterator) {
-          throw new Error("iterator trap");
-        }
-        if (property === "length") {
-          return 2;
-        }
-        if (property === "1") {
-          throw new Error("read trap");
-        }
-        return Reflect.get(target, property, receiver);
-      },
-    });
+    const partiallyRecoveredValueOptions = createPartiallyRecoveredStringArray([
+      "--output",
+      "--only",
+    ]);
     const outputDiagnostics = createCliDiagnostics(["--output", "-l"], {
       canonicalOptions: ["--output", "--only"],
       optionsWithValues: partiallyRecoveredValueOptions as never,
@@ -7066,22 +6999,8 @@ describe("report-utils", () => {
   });
 
   it("preserves strict subsets for active metadata when strict token lists are partially recovered from traps", () => {
-    const partiallyRecoveredStrictValueOptions = new Proxy(
-      ["--output", "--only"],
-      {
-        get(target, property, receiver) {
-          if (property === Symbol.iterator) {
-            throw new Error("iterator trap");
-          }
-          if (property === "length") {
-            return 2;
-          }
-          if (property === "1") {
-            throw new Error("read trap");
-          }
-          return Reflect.get(target, property, receiver);
-        },
-      }
+    const partiallyRecoveredStrictValueOptions = createPartiallyRecoveredStringArray(
+      ["--output", "--only"]
     );
     const activeMetadata = parseActiveCliOptionMetadata(
       ["--only", "-l", "--output", "-s"],
@@ -7167,20 +7086,10 @@ describe("report-utils", () => {
   });
 
   it("applies partial strict guards for active metadata when value metadata is partially recovered", () => {
-    const partiallyRecoveredValueOptions = new Proxy(["--output", "--only"], {
-      get(target, property, receiver) {
-        if (property === Symbol.iterator) {
-          throw new Error("iterator trap");
-        }
-        if (property === "length") {
-          return 2;
-        }
-        if (property === "1") {
-          throw new Error("read trap");
-        }
-        return Reflect.get(target, property, receiver);
-      },
-    });
+    const partiallyRecoveredValueOptions = createPartiallyRecoveredStringArray([
+      "--output",
+      "--only",
+    ]);
     const activeMetadata = parseActiveCliOptionMetadata(
       ["--only", "-l", "--output", "-s"],
       {
