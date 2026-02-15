@@ -447,6 +447,9 @@ impl KdTree {
     where
         F: FnMut(u32),
     {
+        if self.players.tree.size() == 0 {
+            return;
+        }
         let Some(query_point) = point_array_if_finite(point) else {
             return;
         };
@@ -458,26 +461,34 @@ impl KdTree {
     }
 
     pub fn player_ids_within_radius(&self, point: &Vec3<f32>, radius: f32) -> Vec<u32> {
+        let player_tree_size = self.players.tree.size() as usize;
+        if player_tree_size == 0 {
+            return Vec::new();
+        }
         let Some(query_point) = point_array_if_finite(point) else {
             return Vec::new();
         };
         let Some(radius_squared) = normalized_radius_squared(radius) else {
             return Vec::new();
         };
-        let mut player_ids = Vec::with_capacity((self.players.tree.size() as usize).min(16));
+        let mut player_ids = Vec::with_capacity(player_tree_size.min(16));
         self.players
             .for_each_within_id(&query_point, radius_squared, |ent_id| player_ids.push(ent_id));
         player_ids
     }
 
     pub fn players_within_radius(&self, point: &Vec3<f32>, radius: f32) -> Vec<&Entity> {
+        let player_tree_size = self.players.tree.size() as usize;
+        if player_tree_size == 0 {
+            return Vec::new();
+        }
         let Some(query_point) = point_array_if_finite(point) else {
             return Vec::new();
         };
         let Some(radius_squared) = normalized_radius_squared(radius) else {
             return Vec::new();
         };
-        let mut entities = Vec::with_capacity((self.players.tree.size() as usize).min(16));
+        let mut entities = Vec::with_capacity(player_tree_size.min(16));
         self.players.for_each_within_id(&query_point, radius_squared, |ent_id| {
             if let Some(entity) = self.entity_map.get(&ent_id) {
                 entities.push(entity);
