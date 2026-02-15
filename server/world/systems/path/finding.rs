@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicI32, Ordering};
+use std::cell::Cell;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
@@ -224,7 +224,7 @@ impl<'a> System<'a> for PathFindingSystem {
                     }
 
                     let start_time = Instant::now();
-                    let count = AtomicI32::new(0);
+                    let count = Cell::new(0i32);
                     let max_depth_search = normalized_max_depth_search(entity_path.max_depth_search);
                     let goal_node = PathNode(goal.0, goal.1, goal.2);
 
@@ -233,7 +233,8 @@ impl<'a> System<'a> for PathFindingSystem {
                         &goal,
                         &|node| {
                             let &PathNode(vx, vy, vz) = node;
-                            let current_count = count.fetch_add(1, Ordering::Relaxed);
+                            let current_count = count.get();
+                            count.set(current_count.saturating_add(1));
 
                             if current_count >= max_depth_search
                                 || start_time.elapsed() > entity_path.max_pathfinding_time
