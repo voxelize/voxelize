@@ -793,7 +793,11 @@ describe("report-utils", () => {
       },
     });
     const malformedArgs = splitCliArgs(iteratorTrapArgs as never);
-    expect(malformedArgs.optionArgs).toEqual([]);
+    expect(malformedArgs.optionArgs).toEqual([
+      "--json",
+      "--output",
+      "report.json",
+    ]);
     expect(malformedArgs.positionalArgs).toEqual([]);
     expect(malformedArgs.optionTerminatorUsed).toBe(false);
   });
@@ -828,7 +832,7 @@ describe("report-utils", () => {
       },
     });
     expect(hasCliOption(iteratorTrapArgs as never, "--no-build", ["--verify"])).toBe(
-      false
+      true
     );
   });
 
@@ -1079,6 +1083,23 @@ describe("report-utils", () => {
       "--=<value>",
       "-=<value>",
     ]);
+
+    const iteratorTrapArgs = ["--json", "--mystery", "--output", "./report.json"];
+    Object.defineProperty(iteratorTrapArgs, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    const unknownFromIteratorTrapArgs = parseUnknownCliOptions(
+      iteratorTrapArgs as never,
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+      }
+    );
+    expect(unknownFromIteratorTrapArgs).toEqual(["--mystery"]);
   });
 
   it("sanitizes malformed metadata inputs in unknown option parsing", () => {
@@ -1525,6 +1546,29 @@ describe("report-utils", () => {
       },
     ]);
     expect(diagnostics.activeCliOptionOccurrenceCount).toBe(3);
+
+    const iteratorTrapArgs = ["--json", "--mystery", "--output", "./report.json"];
+    Object.defineProperty(iteratorTrapArgs, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    const diagnosticsFromIteratorTrapArgs = createCliDiagnostics(
+      iteratorTrapArgs as never,
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+      }
+    );
+    expect(diagnosticsFromIteratorTrapArgs.unknownOptions).toEqual(["--mystery"]);
+    expect(diagnosticsFromIteratorTrapArgs.unknownOptionCount).toBe(1);
+    expect(diagnosticsFromIteratorTrapArgs.activeCliOptions).toEqual([
+      "--json",
+      "--output",
+    ]);
+    expect(diagnosticsFromIteratorTrapArgs.activeCliOptionCount).toBe(2);
   });
 
   it("sanitizes malformed metadata inputs in unified cli diagnostics", () => {
@@ -2712,6 +2756,46 @@ describe("report-utils", () => {
       },
     ]);
     expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(5);
+
+    const iteratorTrapArgs = ["--json", "--output", "./report.json"];
+    Object.defineProperty(iteratorTrapArgs, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    const activeMetadataFromIteratorTrapArgs = parseActiveCliOptionMetadata(
+      iteratorTrapArgs as never,
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+      }
+    );
+    expect(activeMetadataFromIteratorTrapArgs.activeCliOptions).toEqual([
+      "--json",
+      "--output",
+    ]);
+    expect(activeMetadataFromIteratorTrapArgs.activeCliOptionCount).toBe(2);
+    expect(activeMetadataFromIteratorTrapArgs.activeCliOptionTokens).toEqual([
+      "--json",
+      "--output",
+    ]);
+    expect(activeMetadataFromIteratorTrapArgs.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 1,
+      },
+    ]);
+    expect(activeMetadataFromIteratorTrapArgs.activeCliOptionOccurrenceCount).toBe(
+      2
+    );
   });
 
   it("sanitizes malformed active-cli option metadata inputs", () => {

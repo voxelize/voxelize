@@ -393,6 +393,46 @@ const toStringArrayOrEmpty = (value) => {
   return toStringArrayOrNull(value) ?? [];
 };
 
+const toStringArrayFromIndexedAccess = (tokens) => {
+  if (!Array.isArray(tokens)) {
+    return null;
+  }
+
+  let tokenCount = 0;
+  try {
+    tokenCount = tokens.length;
+  } catch {
+    return null;
+  }
+
+  if (!Number.isInteger(tokenCount) || tokenCount < 0) {
+    return null;
+  }
+
+  const normalizedTokens = [];
+  for (let tokenIndex = 0; tokenIndex < tokenCount; tokenIndex += 1) {
+    try {
+      const token = tokens[tokenIndex];
+      if (typeof token === "string") {
+        normalizedTokens.push(token);
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return normalizedTokens;
+};
+
+const toStringArrayOrEmptyWithIndexedFallback = (value) => {
+  const normalizedValues = toStringArrayOrNull(value);
+  if (normalizedValues !== null) {
+    return normalizedValues;
+  }
+
+  return toStringArrayFromIndexedAccess(value) ?? [];
+};
+
 export const extractWasmPackCheckSummaryFromReport = (report) => {
   if (!isObjectRecord(report)) {
     return {
@@ -979,7 +1019,7 @@ export const summarizeCheckFailureResults = (checks) => {
 };
 
 export const splitCliArgs = (args) => {
-  const normalizedArgs = toStringArrayOrEmpty(args);
+  const normalizedArgs = toStringArrayOrEmptyWithIndexedFallback(args);
   const optionTerminatorIndex = normalizedArgs.indexOf("--");
   if (optionTerminatorIndex === -1) {
     return {
@@ -1002,7 +1042,7 @@ export const hasCliOption = (args, canonicalOption, aliases = []) => {
     return true;
   }
 
-  const aliasTokens = toStringArrayOrEmpty(aliases);
+  const aliasTokens = toStringArrayOrEmptyWithIndexedFallback(aliases);
   return aliasTokens.some((alias) => optionArgs.includes(alias));
 };
 
@@ -1012,49 +1052,8 @@ const dedupeStringList = (tokens) => {
   });
 };
 
-const toStringArrayFromIndexedAccess = (tokens) => {
-  if (!Array.isArray(tokens)) {
-    return null;
-  }
-
-  let tokenCount = 0;
-  try {
-    tokenCount = tokens.length;
-  } catch {
-    return null;
-  }
-
-  if (!Number.isInteger(tokenCount) || tokenCount < 0) {
-    return null;
-  }
-
-  const normalizedTokens = [];
-  for (let tokenIndex = 0; tokenIndex < tokenCount; tokenIndex += 1) {
-    try {
-      const token = tokens[tokenIndex];
-      if (typeof token === "string") {
-        normalizedTokens.push(token);
-      }
-    } catch {
-      continue;
-    }
-  }
-
-  return normalizedTokens;
-};
-
 const normalizeCliOptionTokenList = (tokens) => {
-  const normalizedTokens = dedupeStringList(toStringArrayOrEmpty(tokens));
-  if (normalizedTokens.length > 0 || !Array.isArray(tokens)) {
-    return normalizedTokens;
-  }
-
-  const indexedTokens = toStringArrayFromIndexedAccess(tokens);
-  if (indexedTokens === null) {
-    return normalizedTokens;
-  }
-
-  return dedupeStringList(indexedTokens);
+  return dedupeStringList(toStringArrayOrEmptyWithIndexedFallback(tokens));
 };
 
 const normalizeCliOptionAliases = (optionAliases) => {
