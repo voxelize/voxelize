@@ -1,5 +1,6 @@
 import type { World } from "../index";
 import { JsonValue } from "../../../types";
+import { toLowerCaseIfNeeded } from "../../../utils/string-utils";
 
 import { getImageComp, getItemComponent, ImageComp, ItemDef } from "./item";
 import {
@@ -52,35 +53,8 @@ function hasData<T extends object>(data: T | undefined): boolean {
   return false;
 }
 
-const analyzeNormalization = (name: string): [requiresLowercase: boolean, hasWhitespace: boolean] => {
-  let requiresLowercase = false;
-  let hasWhitespace = false;
-  let hasNonAscii = false;
-  const length = name.length;
-  for (let index = 0; index < length; index++) {
-    const code = name.charCodeAt(index);
-    if (code >= 65 && code <= 90) {
-      requiresLowercase = true;
-    } else if (code === 32) {
-      hasWhitespace = true;
-    } else if (code > 127) {
-      hasNonAscii = true;
-    }
-  }
-  if (!requiresLowercase && hasNonAscii) {
-    for (const char of name) {
-      if (char.toLowerCase() !== char.toUpperCase() && char === char.toUpperCase()) {
-        requiresLowercase = true;
-        break;
-      }
-    }
-  }
-  return [requiresLowercase, hasWhitespace];
-};
-
 const normalizeLookupName = (name: string): string => {
-  const [requiresLowercase] = analyzeNormalization(name);
-  return requiresLowercase ? name.toLowerCase() : name;
+  return toLowerCaseIfNeeded(name);
 };
 
 const replaceSpacesWithDashes = (value: string): string => {
@@ -92,13 +66,18 @@ const replaceSpacesWithDashes = (value: string): string => {
 };
 
 const normalizeRendererName = (name: string): string => {
-  const [requiresLowercase, hasWhitespace] = analyzeNormalization(name);
-  if (!requiresLowercase && !hasWhitespace) {
-    return name;
+  let hasWhitespace = false;
+  for (let index = 0; index < name.length; index++) {
+    if (name.charCodeAt(index) === 32) {
+      hasWhitespace = true;
+      break;
+    }
   }
-
-  const normalizedCase = requiresLowercase ? name.toLowerCase() : name;
-  return hasWhitespace ? replaceSpacesWithDashes(normalizedCase) : normalizedCase;
+  const normalizedCase = toLowerCaseIfNeeded(name);
+  if (!hasWhitespace) {
+    return normalizedCase;
+  }
+  return replaceSpacesWithDashes(normalizedCase);
 };
 
 export class ItemRegistry {
