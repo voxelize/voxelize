@@ -226,17 +226,16 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             bookkeeping.entity_positions = entity_positions;
             return;
         }
-        let has_known_entities = bookkeeping
-            .client_known_entities
-            .values()
-            .any(|known_entities| !known_entities.is_empty());
-        if entity_metadata_map.is_empty()
-            && self.deleted_entities_buffer.is_empty()
-            && !has_known_entities
-        {
-            bookkeeping.entities = new_bookkeeping_records;
-            bookkeeping.entity_positions = entity_positions;
-            return;
+        if entity_metadata_map.is_empty() && self.deleted_entities_buffer.is_empty() {
+            let has_known_entities = bookkeeping
+                .client_known_entities
+                .values()
+                .any(|known_entities| !known_entities.is_empty());
+            if !has_known_entities {
+                bookkeeping.entities = new_bookkeeping_records;
+                bookkeeping.entity_positions = entity_positions;
+                return;
+            }
         }
         self.clients_with_updates_buffer.reserve(clients.len());
         let single_client = if clients.len() == 1 {
