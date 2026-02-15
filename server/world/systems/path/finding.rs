@@ -124,7 +124,7 @@ impl<'a> System<'a> for PathFindingSystem {
         };
 
         let get_standable_voxel = |voxel: &Vec3<i32>, max_drop: i32| -> Vec3<i32> {
-            let mut voxel = voxel.clone();
+            let mut voxel = *voxel;
             let min_y = 0;
             let original_y = voxel.1;
 
@@ -442,7 +442,7 @@ fn smooth_path(path: &mut Vec<Vec3<i32>>, chunks: &Chunks, registry: &Registry, 
     let simplified = rdp_simplify(path, EPSILON);
 
     let mut validated_path = Vec::with_capacity(path.len());
-    validated_path.push(simplified[0].clone());
+    validated_path.push(simplified[0]);
     let mut from_original_idx = 0usize;
 
     for i in 1..simplified.len() {
@@ -460,17 +460,17 @@ fn smooth_path(path: &mut Vec<Vec3<i32>>, chunks: &Chunks, registry: &Registry, 
         if turn_angle > MAX_TURN_ANGLE {
             for idx in (from_original_idx + 1)..to_original_idx {
                 if idx < path.len() {
-                    validated_path.push(path[idx].clone());
+                    validated_path.push(path[idx]);
                 }
             }
         }
 
         if can_walk_directly_with_clearance(from, to, chunks, registry, height) {
-            validated_path.push(to.clone());
+            validated_path.push(*to);
         } else {
             for idx in (from_original_idx + 1)..=to_original_idx {
                 if idx < path.len() {
-                    validated_path.push(path[idx].clone());
+                    validated_path.push(path[idx]);
                 }
             }
         }
@@ -523,7 +523,7 @@ fn rdp_simplify(points: &[Vec3<i32>], epsilon: f32) -> Vec<Vec3<i32>> {
         result.extend_from_slice(&right[1..]);
         result
     } else {
-        vec![points[0].clone(), points[end].clone()]
+        vec![points[0], points[end]]
     }
 }
 

@@ -217,7 +217,7 @@ fn process_pending_updates(
             chunks.set_voxel_stage(vx, vy, vz, stage);
 
             if current_is_light && !updated_is_light {
-                removed_light_sources.push((voxel.clone(), current_type.clone()));
+                removed_light_sources.push((voxel, current_type.clone()));
             }
 
             let existing_entity = chunks.block_entities.remove(&Vec3(vx, vy, vz));
@@ -330,13 +330,13 @@ fn process_pending_updates(
         let blue_level = light_block.get_torch_light_level_at(voxel, &*chunks, &BLUE);
 
         if red_level > 0 {
-            red_removals.push(voxel.clone());
+            red_removals.push(*voxel);
         }
         if green_level > 0 {
-            green_removals.push(voxel.clone());
+            green_removals.push(*voxel);
         }
         if blue_level > 0 {
-            blue_removals.push(voxel.clone());
+            blue_removals.push(*voxel);
         }
 
         let Vec3(vx, vy, vz) = voxel;
