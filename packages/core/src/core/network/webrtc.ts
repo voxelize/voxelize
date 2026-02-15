@@ -108,6 +108,13 @@ export class WebRTCConnection {
     const total = view.getUint32(1, true);
     const index = view.getUint32(5, true);
     const payload = new Uint8Array(data, FRAGMENT_HEADER_SIZE);
+    if (total === 0 || index >= total) {
+      return;
+    }
+    if (total === 1) {
+      this.onMessage?.(data.slice(FRAGMENT_HEADER_SIZE));
+      return;
+    }
 
     const messageId =
       index === 0 ? this.nextMessageId++ : this.nextMessageId - 1;
