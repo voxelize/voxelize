@@ -142,6 +142,10 @@ impl<'a> System<'a> for EventsSystem {
                         if ids.is_empty() {
                             continue;
                         }
+                        if ids.len() == 1 {
+                            send_to_id(ids[0].as_str());
+                            continue;
+                        }
                         if ids.len() <= 4 {
                             for include_index in 0..ids.len() {
                                 let include_id = ids[include_index].as_str();
@@ -181,6 +185,15 @@ impl<'a> System<'a> for EventsSystem {
                         if ids.is_empty() {
                             for (id, client) in clients.iter() {
                                 send_to_client(id, client.entity);
+                            }
+                            continue;
+                        }
+                        if ids.len() == 1 {
+                            let excluded_id = ids[0].as_str();
+                            for (id, client) in clients.iter() {
+                                if id.as_str() != excluded_id {
+                                    send_to_client(id, client.entity);
+                                }
                             }
                             continue;
                         }
