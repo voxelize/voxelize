@@ -269,7 +269,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       triggerEnd++;
     }
     if (triggerEnd === length) {
-      this.parsedCommandTrigger = raw.substring(triggerStart);
+      this.parsedCommandTrigger =
+        triggerStart === 0 ? raw : raw.substring(triggerStart);
       this.parsedCommandRest = "";
       return;
     }
