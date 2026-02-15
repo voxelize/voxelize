@@ -210,30 +210,42 @@ impl<'a> System<'a> for ChunkSendingSystem {
         }
 
         let mut to_send = std::mem::take(&mut chunks.to_send);
+        if clients.is_empty() {
+            self.client_load_mesh_buffer.clear();
+            self.client_load_data_buffer.clear();
+            self.client_update_mesh_buffer.clear();
+            self.client_update_data_buffer.clear();
+            self.client_load_mesh_touched.clear();
+            self.client_load_data_touched.clear();
+            self.client_update_mesh_touched.clear();
+            self.client_update_data_touched.clear();
+
+            while let Some((coords, msg_type)) = to_send.pop_front() {
+                if msg_type == MessageType::Update {
+                    if let Some(chunk) = chunks.get_mut(&coords) {
+                        chunk.updated_levels.clear();
+                    }
+                }
+            }
+            return;
+        }
 
         let client_load_mesh = &mut self.client_load_mesh_buffer;
         let client_load_data = &mut self.client_load_data_buffer;
         let client_update_mesh = &mut self.client_update_mesh_buffer;
         let client_update_data = &mut self.client_update_data_buffer;
         let client_count = clients.len();
-        if clients.is_empty() {
-            client_load_mesh.clear();
-            client_load_data.clear();
-            client_update_mesh.clear();
-            client_update_data.clear();
-        } else {
-            if client_load_mesh.len() > client_count {
-                client_load_mesh.retain(|client_id, _| clients.contains_key(client_id));
-            }
-            if client_load_data.len() > client_count {
-                client_load_data.retain(|client_id, _| clients.contains_key(client_id));
-            }
-            if client_update_mesh.len() > client_count {
-                client_update_mesh.retain(|client_id, _| clients.contains_key(client_id));
-            }
-            if client_update_data.len() > client_count {
-                client_update_data.retain(|client_id, _| clients.contains_key(client_id));
-            }
+        if client_load_mesh.len() > client_count {
+            client_load_mesh.retain(|client_id, _| clients.contains_key(client_id));
+        }
+        if client_load_data.len() > client_count {
+            client_load_data.retain(|client_id, _| clients.contains_key(client_id));
+        }
+        if client_update_mesh.len() > client_count {
+            client_update_mesh.retain(|client_id, _| clients.contains_key(client_id));
+        }
+        if client_update_data.len() > client_count {
+            client_update_data.retain(|client_id, _| clients.contains_key(client_id));
         }
         let client_load_mesh_touched = &mut self.client_load_mesh_touched;
         let client_load_data_touched = &mut self.client_load_data_touched;
