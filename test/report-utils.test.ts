@@ -3652,8 +3652,8 @@ describe("report-utils", () => {
         supportsNoBuild: false,
         stepIndex: 0,
         checkCommand: "node",
-        checkArgs: [],
-        checkArgCount: 0,
+        checkArgs: ["check-proxy.mjs", "--json"],
+        checkArgCount: 2,
         exitCode: 2,
         message: "Step failed with exit code 2.",
       },
@@ -3713,6 +3713,34 @@ describe("report-utils", () => {
         checkCommand: "node",
         checkArgs: ["check-proxy.mjs"],
         checkArgCount: 1,
+        exitCode: 2,
+        message: "Preflight check failed with exit code 2.",
+      },
+    ]);
+    expect(
+      summarizeCheckFailureResults([
+        {
+          name: "check-proxy-trap",
+          scriptName: "check-proxy.mjs",
+          supportsNoBuild: false,
+          checkCommand: "node",
+          checkArgs: throwingIteratorArgs,
+          checkIndex: 2,
+          passed: false,
+          exitCode: 2,
+          report: null,
+          output: null,
+        },
+      ])
+    ).toEqual([
+      {
+        name: "check-proxy-trap",
+        scriptName: "check-proxy.mjs",
+        supportsNoBuild: false,
+        checkIndex: 2,
+        checkCommand: "node",
+        checkArgs: ["check-proxy.mjs", "--json"],
+        checkArgCount: 2,
         exitCode: 2,
         message: "Preflight check failed with exit code 2.",
       },
@@ -4162,8 +4190,8 @@ describe("report-utils", () => {
     ).toEqual({
       wasmPackCheckStatus: null,
       wasmPackCheckCommand: null,
-      wasmPackCheckArgs: null,
-      wasmPackCheckArgCount: null,
+      wasmPackCheckArgs: ["check-wasm-pack.mjs", "--json"],
+      wasmPackCheckArgCount: 2,
       wasmPackCheckExitCode: null,
       wasmPackCheckOutputLine: null,
     });
@@ -4422,8 +4450,8 @@ describe("report-utils", () => {
       })
     ).toEqual({
       exampleCommand: null,
-      exampleArgs: null,
-      exampleArgCount: null,
+      exampleArgs: ["packages/ts-core/examples/end-to-end.mjs"],
+      exampleArgCount: 1,
       exampleAttempted: true,
       exampleStatus: "failed",
       exampleRuleMatched: null,

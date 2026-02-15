@@ -378,21 +378,6 @@ export const deriveFailureMessageFromReport = (report) => {
   return null;
 };
 
-const toStringArrayOrNull = (value) => {
-  const clonedArray = cloneArraySafely(value);
-  if (clonedArray === null) {
-    return null;
-  }
-
-  return clonedArray.filter((entry) => {
-    return typeof entry === "string";
-  });
-};
-
-const toStringArrayOrEmpty = (value) => {
-  return toStringArrayOrNull(value) ?? [];
-};
-
 const toStringArrayFromIndexedAccess = (tokens) => {
   if (!Array.isArray(tokens)) {
     return null;
@@ -424,13 +409,20 @@ const toStringArrayFromIndexedAccess = (tokens) => {
   return normalizedTokens;
 };
 
-const toStringArrayOrEmptyWithIndexedFallback = (value) => {
-  const normalizedValues = toStringArrayOrNull(value);
-  if (normalizedValues !== null) {
-    return normalizedValues;
+const toStringArrayOrNull = (value) => {
+  const clonedArray =
+    cloneArraySafely(value) ?? toStringArrayFromIndexedAccess(value);
+  if (clonedArray === null) {
+    return null;
   }
 
-  return toStringArrayFromIndexedAccess(value) ?? [];
+  return clonedArray.filter((entry) => {
+    return typeof entry === "string";
+  });
+};
+
+const toStringArrayOrEmpty = (value) => {
+  return toStringArrayOrNull(value) ?? [];
 };
 
 export const extractWasmPackCheckSummaryFromReport = (report) => {
@@ -1019,7 +1011,7 @@ export const summarizeCheckFailureResults = (checks) => {
 };
 
 export const splitCliArgs = (args) => {
-  const normalizedArgs = toStringArrayOrEmptyWithIndexedFallback(args);
+  const normalizedArgs = toStringArrayOrEmpty(args);
   const optionTerminatorIndex = normalizedArgs.indexOf("--");
   if (optionTerminatorIndex === -1) {
     return {
@@ -1042,7 +1034,7 @@ export const hasCliOption = (args, canonicalOption, aliases = []) => {
     return true;
   }
 
-  const aliasTokens = toStringArrayOrEmptyWithIndexedFallback(aliases);
+  const aliasTokens = toStringArrayOrEmpty(aliases);
   return aliasTokens.some((alias) => optionArgs.includes(alias));
 };
 
@@ -1053,7 +1045,7 @@ const dedupeStringList = (tokens) => {
 };
 
 const normalizeCliOptionTokenList = (tokens) => {
-  return dedupeStringList(toStringArrayOrEmptyWithIndexedFallback(tokens));
+  return dedupeStringList(toStringArrayOrEmpty(tokens));
 };
 
 const normalizeCliOptionAliases = (optionAliases) => {
