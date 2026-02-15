@@ -3,6 +3,14 @@ use specs::{Read, ReadExpect, ReadStorage, System, WriteStorage};
 
 pub struct EntityObserveSystem;
 
+#[inline]
+fn clear_target_if_set(target: &mut TargetComp) {
+    if target.position.is_some() || target.id.is_some() {
+        target.position = None;
+        target.id = None;
+    }
+}
+
 impl<'a> System<'a> for EntityObserveSystem {
     #[allow(clippy::type_complexity)]
     type SystemData = (
@@ -23,12 +31,6 @@ impl<'a> System<'a> for EntityObserveSystem {
         (&positions, &mut targets)
             .par_join()
             .for_each(|(position, target)| {
-                let clear_target = |target: &mut TargetComp| {
-                    if target.position.is_some() || target.id.is_some() {
-                        target.position = None;
-                        target.id = None;
-                    }
-                };
                 let closest_entity = match target.target_type {
                     TargetType::All => tree.search_first(&position.0),
                     TargetType::Players => tree.search_first_player(&position.0, false),
@@ -44,15 +46,17 @@ impl<'a> System<'a> for EntityObserveSystem {
                             Some(current_position) => current_position != next_position,
                             None => true,
                         };
-                        if target.id.as_deref() != Some(next_id) || position_changed {
-                            target.position = Some(next_position.clone());
+                        if target.id.as_deref() != Some(next_id) {
                             target.id = Some(id.0.clone());
                         }
+                        if position_changed {
+                            target.position = Some(next_position.clone());
+                        }
                     } else {
-                        clear_target(target);
+                        clear_target_if_set(target);
                     }
                 } else {
-                    clear_target(target);
+                    clear_target_if_set(target);
                 }
             });
     }
