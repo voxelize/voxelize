@@ -202,7 +202,10 @@ impl EncodedMessageQueue {
             return result;
         }
         if result.is_empty() {
-            let mut first_batch = self.receiver.try_recv().unwrap_or_default();
+            let mut first_batch = match self.receiver.try_recv() {
+                Ok(messages) => messages,
+                Err(_) => return Vec::new(),
+            };
             while let Ok(mut messages) = self.receiver.try_recv() {
                 first_batch.append(&mut messages);
             }
