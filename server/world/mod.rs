@@ -1869,7 +1869,13 @@ impl World {
                 .folder()
                 .clone();
             fs::create_dir_all(&folder).ok();
-            let paths = fs::read_dir(folder).unwrap();
+            let paths = match fs::read_dir(folder) {
+                Ok(paths) => paths,
+                Err(error) => {
+                    warn!("Failed to read persisted entity directory: {:?}", error);
+                    return;
+                }
+            };
             let mut loaded_entities = HashMap::with_capacity(64);
 
             for path_result in paths {
