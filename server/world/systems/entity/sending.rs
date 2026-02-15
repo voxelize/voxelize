@@ -314,7 +314,31 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         }
 
         if !self.deleted_entities_buffer.is_empty() {
-            if self.deleted_entities_buffer.len() == 1 {
+            if let Some((single_client_id, _)) = single_client {
+                if let Some(known_entities) =
+                    bookkeeping.client_known_entities.get_mut(single_client_id)
+                {
+                    if !known_entities.is_empty() {
+                        for (deleted_entity_id, etype, metadata_str) in &self.deleted_entities_buffer
+                        {
+                            if !known_entities.remove(deleted_entity_id) {
+                                continue;
+                            }
+                            push_client_update(
+                                &mut self.client_updates_buffer,
+                                &mut self.clients_with_updates_buffer,
+                                single_client_id,
+                                EntityProtocol {
+                                    operation: EntityOperation::Delete,
+                                    id: deleted_entity_id.clone(),
+                                    r#type: etype.clone(),
+                                    metadata: Some(metadata_str.clone()),
+                                },
+                            );
+                        }
+                    }
+                }
+            } else if self.deleted_entities_buffer.len() == 1 {
                 let (entity_id, etype, metadata_str) = &self.deleted_entities_buffer[0];
                 for client_id in clients.keys() {
                     let client_id = client_id.as_str();
@@ -440,59 +464,115 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             }
         }
 
-        for (client_id, client) in clients.iter() {
-            let (client_x, client_y, client_z) = match positions.get(client.entity) {
-                Some(p) => (p.0 .0, p.0 .1, p.0 .2),
-                None => continue,
-            };
+        if let Some((single_client_id, single_client_entity)) = single_client {
+            if let Some(position) = positions.get(single_client_entity) {
+                let (client_x, client_y, client_z) = (position.0 .0, position.0 .1, position.0 .2);
+                if let Some(known_entities) =
+                    bookkeeping.client_known_entities.get_mut(single_client_id)
+                {
+                    if !known_entities.is_empty() {
+                        let entities_to_delete = &mut self.known_entities_to_delete_buffer;
+                        entities_to_delete.clear();
+                        if entities_to_delete.capacity() < known_entities.len() {
+                            entities_to_delete
+                                .reserve(known_entities.len() - entities_to_delete.capacity());
+                        }
+                        for entity_id in known_entities.iter() {
+                            if let Some((etype, ..)) = new_bookkeeping_records.get(entity_id) {
+                                if etype.starts_with("block::") {
+                                    continue;
+                                }
+                            }
+                            if let Some(entity_pos) = entity_positions.get(entity_id) {
+                                let dx = entity_pos.0 - client_x;
+                                let dy = entity_pos.1 - client_y;
+                                let dz = entity_pos.2 - client_z;
+                                if is_outside_visible_radius_sq(dx, dy, dz, entity_visible_radius_sq)
+                                {
+                                    entities_to_delete.push(entity_id.clone());
+                                }
+                            } else {
+                                entities_to_delete.push(entity_id.clone());
+                            }
+                        }
 
-            let Some(known_entities) = bookkeeping.client_known_entities.get_mut(client_id)
-            else {
-                continue;
-            };
-            if known_entities.is_empty() {
-                continue;
-            }
-            let entities_to_delete = &mut self.known_entities_to_delete_buffer;
-            entities_to_delete.clear();
-            if entities_to_delete.capacity() < known_entities.len() {
-                entities_to_delete.reserve(known_entities.len() - entities_to_delete.capacity());
-            }
-            for entity_id in known_entities.iter() {
-                if let Some((etype, ..)) = new_bookkeeping_records.get(entity_id) {
-                    if etype.starts_with("block::") {
-                        continue;
+                        for entity_id in entities_to_delete.iter() {
+                            if let Some((etype, _ent, metadata, _persisted)) =
+                                new_bookkeeping_records.get(entity_id)
+                            {
+                                push_client_update(
+                                    &mut self.client_updates_buffer,
+                                    &mut self.clients_with_updates_buffer,
+                                    single_client_id,
+                                    EntityProtocol {
+                                        operation: EntityOperation::Delete,
+                                        id: entity_id.clone(),
+                                        r#type: etype.clone(),
+                                        metadata: Some(metadata.to_string()),
+                                    },
+                                );
+                            }
+                            known_entities.remove(entity_id);
+                        }
                     }
                 }
-                if let Some(entity_pos) = entity_positions.get(entity_id) {
-                    let dx = entity_pos.0 - client_x;
-                    let dy = entity_pos.1 - client_y;
-                    let dz = entity_pos.2 - client_z;
-                    if is_outside_visible_radius_sq(dx, dy, dz, entity_visible_radius_sq) {
+            }
+        } else {
+            for (client_id, client) in clients.iter() {
+                let (client_x, client_y, client_z) = match positions.get(client.entity) {
+                    Some(p) => (p.0 .0, p.0 .1, p.0 .2),
+                    None => continue,
+                };
+
+                let Some(known_entities) = bookkeeping.client_known_entities.get_mut(client_id)
+                else {
+                    continue;
+                };
+                if known_entities.is_empty() {
+                    continue;
+                }
+                let entities_to_delete = &mut self.known_entities_to_delete_buffer;
+                entities_to_delete.clear();
+                if entities_to_delete.capacity() < known_entities.len() {
+                    entities_to_delete
+                        .reserve(known_entities.len() - entities_to_delete.capacity());
+                }
+                for entity_id in known_entities.iter() {
+                    if let Some((etype, ..)) = new_bookkeeping_records.get(entity_id) {
+                        if etype.starts_with("block::") {
+                            continue;
+                        }
+                    }
+                    if let Some(entity_pos) = entity_positions.get(entity_id) {
+                        let dx = entity_pos.0 - client_x;
+                        let dy = entity_pos.1 - client_y;
+                        let dz = entity_pos.2 - client_z;
+                        if is_outside_visible_radius_sq(dx, dy, dz, entity_visible_radius_sq) {
+                            entities_to_delete.push(entity_id.clone());
+                        }
+                    } else {
                         entities_to_delete.push(entity_id.clone());
                     }
-                } else {
-                    entities_to_delete.push(entity_id.clone());
                 }
-            }
 
-            for entity_id in entities_to_delete.iter() {
-                if let Some((etype, _ent, metadata, _persisted)) =
-                    new_bookkeeping_records.get(entity_id)
-                {
-                    push_client_update(
-                        &mut self.client_updates_buffer,
-                        &mut self.clients_with_updates_buffer,
-                        client_id,
-                        EntityProtocol {
-                            operation: EntityOperation::Delete,
-                            id: entity_id.clone(),
-                            r#type: etype.clone(),
-                            metadata: Some(metadata.to_string()),
-                        },
-                    );
+                for entity_id in entities_to_delete.iter() {
+                    if let Some((etype, _ent, metadata, _persisted)) =
+                        new_bookkeeping_records.get(entity_id)
+                    {
+                        push_client_update(
+                            &mut self.client_updates_buffer,
+                            &mut self.clients_with_updates_buffer,
+                            client_id,
+                            EntityProtocol {
+                                operation: EntityOperation::Delete,
+                                id: entity_id.clone(),
+                                r#type: etype.clone(),
+                                metadata: Some(metadata.to_string()),
+                            },
+                        );
+                    }
+                    known_entities.remove(entity_id);
                 }
-                known_entities.remove(entity_id);
             }
         }
 
