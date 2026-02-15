@@ -4021,6 +4021,41 @@ describe("report-utils", () => {
     expect(precomputedSupportedTokens.unsupportedOptionsError).toBe(
       "Unsupported option(s): --mystery. Supported options: --output, --json."
     );
+    let statefulCanonicalWithPrecomputedReadCount = 0;
+    const statefulCanonicalWithPrecomputed = new Proxy(["--json"], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (property === "0") {
+          statefulCanonicalWithPrecomputedReadCount += 1;
+          if (statefulCanonicalWithPrecomputedReadCount > 1) {
+            return undefined;
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const statefulCanonicalWithPrecomputedValidation =
+      createCliOptionValidation(["--json"], {
+        canonicalOptions: statefulCanonicalWithPrecomputed as never,
+        supportedCliOptions: ["--json"],
+      });
+    expect(statefulCanonicalWithPrecomputedValidation.supportedCliOptions).toEqual([
+      "--json",
+    ]);
+    expect(statefulCanonicalWithPrecomputedValidation.supportedCliOptionCount).toBe(
+      1
+    );
+    expect(statefulCanonicalWithPrecomputedValidation.unknownOptions).toEqual([]);
+    expect(statefulCanonicalWithPrecomputedValidation.unknownOptionCount).toBe(0);
+    expect(
+      statefulCanonicalWithPrecomputedValidation.unsupportedOptionsError
+    ).toBeNull();
+    expect(statefulCanonicalWithPrecomputedValidation.validationErrorCode).toBeNull();
 
     const malformedPrecomputedSupportedTokens = createCliOptionValidation(
       ["--mystery"],
