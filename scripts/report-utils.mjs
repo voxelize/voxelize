@@ -729,8 +729,13 @@ const cloneIndexedArraySafelyWithMetadata = (value) => {
       fromIndexedFallback: false,
     };
   } catch {
+    const fallbackEntries = cloneIndexedArrayFromIndexedAccess(value);
+    if (fallbackEntries === null) {
+      return null;
+    }
+
     return {
-      entries: cloneIndexedArrayFromIndexedAccess(value),
+      entries: fallbackEntries,
       fromIndexedFallback: true,
     };
   }

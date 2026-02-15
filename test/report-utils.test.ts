@@ -837,6 +837,25 @@ describe("report-utils", () => {
     expect(ownKeysTrapResult.positionalArgs).toEqual([]);
     expect(ownKeysTrapResult.optionTerminatorUsed).toBe(false);
 
+    const lengthAndOwnKeysTrapArgs = new Proxy(["--json"], {
+      ownKeys() {
+        throw new Error("ownKeys trap");
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          throw new Error("length trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const lengthAndOwnKeysTrapResult = splitCliArgs(lengthAndOwnKeysTrapArgs as never);
+    expect(lengthAndOwnKeysTrapResult.optionArgs).toEqual([]);
+    expect(lengthAndOwnKeysTrapResult.positionalArgs).toEqual([]);
+    expect(lengthAndOwnKeysTrapResult.optionTerminatorUsed).toBe(false);
+
     const lengthTrapArgs = new Proxy(["--json", "--output", "report.json"], {
       get(target, property, receiver) {
         if (property === Symbol.iterator) {
@@ -7197,6 +7216,37 @@ describe("report-utils", () => {
         steps: iteratorTrapSteps,
       })
     ).toBe("TypeScript typecheck: previous step failed");
+
+    const lengthAndOwnKeysTrapSteps = new Proxy(
+      [
+        {
+          name: "WASM artifact preflight",
+          passed: false,
+          skipped: false,
+          reason: "artifact missing",
+        },
+      ],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            throw new Error("length trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      deriveFailureMessageFromReport({
+        steps: lengthAndOwnKeysTrapSteps,
+      })
+    ).toBeNull();
+
     expect(
       deriveFailureMessageFromReport({
         steps: largeLengthIteratorTrapSteps,
