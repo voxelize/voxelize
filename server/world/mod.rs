@@ -722,6 +722,15 @@ impl World {
                 }
                 return;
             }
+            let payload_map = match payload_obj {
+                serde_json::Value::Object(payload_map) => payload_map,
+                _ => {
+                    if let Err(e) = storage.insert(entity, JsonComp::new(payload_json)) {
+                        log::error!("Failed to update block entity JSON: {}", e);
+                    }
+                    return;
+                }
+            };
 
             // Handle partial updates with careful JSON merging
             let current_json = match storage.get(entity) {
@@ -752,11 +761,7 @@ impl World {
             };
 
             // Merge the objects if both are objects
-            if let (
-                serde_json::Value::Object(mut current_map),
-                serde_json::Value::Object(payload_map),
-            ) = (current_obj, payload_obj)
-            {
+            if let serde_json::Value::Object(mut current_map) = current_obj {
                 // Merge payload map into current map
                 for (key, value) in payload_map {
                     current_map.insert(key, value);
