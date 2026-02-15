@@ -324,7 +324,11 @@ impl KdTree {
         let Some(query_point) = point_array_if_finite(point) else {
             return Vec::new();
         };
-        let max_results = count.min((self.all.tree.size() as usize).saturating_sub(1));
+        let tree_size = self.all.tree.size() as usize;
+        if tree_size <= 1 {
+            return Vec::new();
+        }
+        let max_results = count.min(tree_size - 1);
         let mut entities = Vec::with_capacity(max_results);
         let mut skipped = 0usize;
         self.all
@@ -362,7 +366,11 @@ impl KdTree {
             return Vec::new();
         };
         let skip = if is_player { 1 } else { 0 };
-        let max_results = count.min((self.players.tree.size() as usize).saturating_sub(skip));
+        let tree_size = self.players.tree.size() as usize;
+        if tree_size <= skip {
+            return Vec::new();
+        }
+        let max_results = count.min(tree_size - skip);
         let mut entities = Vec::with_capacity(max_results);
         let mut skipped = 0usize;
         self.players
@@ -403,7 +411,11 @@ impl KdTree {
             return Vec::new();
         };
         let skip = if is_entity { 1 } else { 0 };
-        let max_results = count.min((self.entities.tree.size() as usize).saturating_sub(skip));
+        let tree_size = self.entities.tree.size() as usize;
+        if tree_size <= skip {
+            return Vec::new();
+        }
+        let max_results = count.min(tree_size - skip);
         let mut entities = Vec::with_capacity(max_results);
         let mut skipped = 0usize;
         self.entities
