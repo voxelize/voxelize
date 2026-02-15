@@ -58,9 +58,12 @@ fn normalized_action_name<'a>(action: &'a str) -> Cow<'a, str> {
     }
     if !has_non_ascii {
         Cow::Borrowed(action)
-    } else if action.chars().any(|ch| ch.is_uppercase()) {
-        Cow::Owned(action.to_lowercase())
     } else {
+        for ch in action.chars() {
+            if ch.is_uppercase() {
+                return Cow::Owned(action.to_lowercase());
+            }
+        }
         Cow::Borrowed(action)
     }
 }

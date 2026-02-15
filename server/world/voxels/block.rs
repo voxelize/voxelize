@@ -33,11 +33,12 @@ fn lowercase_if_needed(value: &str) -> String {
     if !has_non_ascii {
         return value.to_owned();
     }
-    if value.chars().any(|ch| ch.is_uppercase()) {
-        value.to_lowercase()
-    } else {
-        value.to_owned()
+    for ch in value.chars() {
+        if ch.is_uppercase() {
+            return value.to_lowercase();
+        }
     }
+    value.to_owned()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

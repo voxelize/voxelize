@@ -48,9 +48,12 @@ impl Trees {
         }
         if !has_non_ascii {
             Cow::Borrowed(name)
-        } else if name.chars().any(|ch| ch.is_uppercase()) {
-            Cow::Owned(name.to_lowercase())
         } else {
+            for ch in name.chars() {
+                if ch.is_uppercase() {
+                    return Cow::Owned(name.to_lowercase());
+                }
+            }
             Cow::Borrowed(name)
         }
     }

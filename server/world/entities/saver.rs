@@ -34,9 +34,12 @@ fn normalized_entity_type<'a>(etype: &'a str) -> Cow<'a, str> {
     }
     if !has_non_ascii {
         Cow::Borrowed(etype)
-    } else if etype.chars().any(|ch| ch.is_uppercase()) {
-        Cow::Owned(etype.to_lowercase())
     } else {
+        for ch in etype.chars() {
+            if ch.is_uppercase() {
+                return Cow::Owned(etype.to_lowercase());
+            }
+        }
         Cow::Borrowed(etype)
     }
 }
