@@ -41,6 +41,8 @@ flowchart LR
 - `createBlockFace`: ergonomic constructor helper for `BlockFaceInit` or
   `BlockFace` input (plain-object init only) with deterministic default fallback
   for malformed values
+- `createAABB`: ergonomic constructor helper for `AABB` or plain `AABB` init
+  input with deterministic empty fallback for malformed values
 - `createFaceTransparency`: helper for normalized 6-face transparency tuples
 - `VoxelAccess`: shared access contract
 
@@ -50,6 +52,7 @@ omitted or the top-level helper input is `null`/non-plain.
 `BlockFaceInit` objects in `faces`.
 `createBlockConditionalPart` accepts either `AABB` instances or plain `AABB`
 init objects in `aabbs`.
+`createAABB` exposes this AABB normalization directly.
 Both helpers also accept readonly input arrays/tuples.
 Invalid face/AABB entries (including `null`/`undefined`/non-plain objects or
 malformed/non-finite AABB init values) are skipped during helper cloning.
@@ -166,6 +169,7 @@ You can build cloned dynamic part definitions with helper constructors:
 ```ts title="Dynamic pattern helper"
 import {
   BlockRuleLogic,
+  createAABB,
   createBlockRule,
   createBlockDynamicPattern,
   createFaceTransparency,
@@ -180,7 +184,7 @@ const pattern = createBlockDynamicPattern({
         rules: [{ type: "simple", offset: [0, 0, 0], id: 12 }],
       }),
       faces: [{ name: "Top", dir: [0, 1, 0] }],
-      aabbs: [{ minX: 0, minY: 0, minZ: 0, maxX: 1, maxY: 1, maxZ: 1 }],
+      aabbs: [createAABB({ minX: 0, minY: 0, minZ: 0, maxX: 1, maxY: 1, maxZ: 1 })],
       isTransparent: createFaceTransparency([true]),
       worldSpace: false,
     },

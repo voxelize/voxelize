@@ -574,6 +574,11 @@ const cloneAabb = (aabb: AABBInput | null | undefined): AABB | null => {
   );
 };
 
+export const createAABB = (aabb: AABBInput | null | undefined = null): AABB => {
+  const clonedAabb = cloneAabb(aabb);
+  return clonedAabb ?? AABB.empty();
+};
+
 export const createBlockConditionalPart = (
   part: BlockConditionalPartInput | null = {}
 ): BlockConditionalPart => {

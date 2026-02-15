@@ -20,6 +20,7 @@ import {
   Y_ROT_MAP,
   Y_ROT_MAP_EIGHT,
   Y_ROT_MAP_FOUR,
+  createAABB,
   createBlockConditionalPart,
   createBlockDynamicPattern,
   createBlockFace,
@@ -2278,6 +2279,72 @@ describe("Type builders", () => {
     const fallbackFace = createBlockFace(new FaceLike());
 
     expect(fallbackFace).toEqual(new BlockFace({ name: "Face" }));
+  });
+
+  it("supports createAABB helper with cloned AABB values", () => {
+    const sourceAabb = AABB.create(0, 0, 0, 1, 1, 1);
+    const clonedAabb = createAABB(sourceAabb);
+
+    expect(clonedAabb).toEqual(sourceAabb);
+    expect(clonedAabb).not.toBe(sourceAabb);
+
+    sourceAabb.maxX = 9;
+    expect(clonedAabb.maxX).toBe(1);
+  });
+
+  it("supports createAABB helper with plain and null-prototype init objects", () => {
+    const initAabb: AABBInit = {
+      minX: 0,
+      minY: 0,
+      minZ: 0,
+      maxX: 1,
+      maxY: 1,
+      maxZ: 1,
+    };
+    const nullPrototypeInit = Object.create(null) as AABBInit;
+    nullPrototypeInit.minX = 1;
+    nullPrototypeInit.minY = 2;
+    nullPrototypeInit.minZ = 3;
+    nullPrototypeInit.maxX = 4;
+    nullPrototypeInit.maxY = 5;
+    nullPrototypeInit.maxZ = 6;
+
+    const fromPlainInit = createAABB(initAabb);
+    const fromNullPrototypeInit = createAABB(nullPrototypeInit);
+
+    expect(fromPlainInit).toEqual(AABB.create(0, 0, 0, 1, 1, 1));
+    expect(fromNullPrototypeInit).toEqual(AABB.create(1, 2, 3, 4, 5, 6));
+
+    initAabb.maxX = 9;
+    nullPrototypeInit.maxX = 9;
+
+    expect(fromPlainInit.maxX).toBe(1);
+    expect(fromNullPrototypeInit.maxX).toBe(4);
+  });
+
+  it("falls back to empty AABB for malformed createAABB inputs", () => {
+    class AabbLike {
+      public readonly minX = 0;
+      public readonly minY = 0;
+      public readonly minZ = 0;
+      public readonly maxX = 1;
+      public readonly maxY = 1;
+      public readonly maxZ = 1;
+    }
+
+    expect(createAABB()).toEqual(AABB.empty());
+    expect(createAABB(null)).toEqual(AABB.empty());
+    expect(createAABB(new AabbLike() as never)).toEqual(AABB.empty());
+    expect(
+      createAABB({
+        minX: 0,
+        minY: 0,
+        minZ: 0,
+        maxX: Number.POSITIVE_INFINITY,
+        maxY: 1,
+        maxZ: 1,
+      } as never)
+    ).toEqual(AABB.empty());
   });
 });
 

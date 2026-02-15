@@ -112,6 +112,9 @@ const voxel = Voxel.pack({
   - ergonomic constructor helper for `BlockFaceInit` (plain object) or
     `BlockFace` input
   - malformed inputs fall back to a deterministic default face (`name: "Face"`)
+- `createAABB`
+  - ergonomic constructor helper for `AABB` or plain `AABB` init input
+  - malformed inputs fall back to an empty AABB
 - `createFaceTransparency`
   - builds normalized 6-face transparency tuples from optional/null/partial
     boolean arrays
@@ -124,6 +127,7 @@ const voxel = Voxel.pack({
 ```ts
 import {
   BlockRuleLogic,
+  createAABB,
   createBlockRule,
   createBlockDynamicPattern,
   createFaceTransparency,
@@ -138,7 +142,7 @@ const pattern = createBlockDynamicPattern({
         rules: [{ type: "simple", offset: [0, 0, 0], id: 42 }],
       }),
       faces: [{ name: "Top", dir: [0, 1, 0] }],
-      aabbs: [{ minX: 0, minY: 0, minZ: 0, maxX: 1, maxY: 1, maxZ: 1 }],
+      aabbs: [createAABB({ minX: 0, minY: 0, minZ: 0, maxX: 1, maxY: 1, maxZ: 1 })],
       isTransparent: createFaceTransparency([true]),
       worldSpace: false,
     },
