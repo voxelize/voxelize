@@ -225,18 +225,19 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 chunks.renew(new_chunk, false);
             }
 
-            let chunk = chunks.raw(&coords).unwrap();
-
-            if !matches!(chunk.status, ChunkStatus::Generating(_)) {
-                pipeline.remove_chunk(&coords);
-                continue;
-            }
-
-            let chunk = chunk.clone();
-            let index = if let ChunkStatus::Generating(index) = chunk.status {
-                index
-            } else {
-                unreachable!()
+            let index = match chunks.raw(&coords) {
+                Some(chunk) => {
+                    if let ChunkStatus::Generating(index) = chunk.status {
+                        index
+                    } else {
+                        pipeline.remove_chunk(&coords);
+                        continue;
+                    }
+                }
+                None => {
+                    pipeline.remove_chunk(&coords);
+                    continue;
+                }
             };
             let stage = &pipeline.stages[index];
             let margin = stage.neighbors(&config);
@@ -290,7 +291,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             }
 
             if let Some(data) = stage.needs_space() {
-                let mut space = chunks.make_space(&chunk.coords, margin);
+                let mut space = chunks.make_space(&coords, margin);
 
                 if data.needs_voxels {
                     space = space.needs_voxels();
@@ -305,8 +306,10 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 }
 
                 let space = space.build();
+                let chunk = chunks.raw(&coords).unwrap().clone();
                 processes.push((chunk, Some(space)));
             } else {
+                let chunk = chunks.raw(&coords).unwrap().clone();
                 processes.push((chunk, None));
             }
         }
