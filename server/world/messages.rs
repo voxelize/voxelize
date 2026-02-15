@@ -137,6 +137,22 @@ impl EncodedMessageQueue {
             return;
         }
         let pending_len = self.pending.len();
+        if pending_len == 1 {
+            if self.processed.capacity() == self.processed.len() {
+                self.processed.reserve(1);
+            }
+            if let Some((message, filter)) = self.pending.pop() {
+                let msg_type = message.r#type;
+                let is_rtc_eligible = Self::compute_rtc_eligibility(&message);
+                let encoded = EncodedMessage {
+                    data: encode_message(&message),
+                    msg_type,
+                    is_rtc_eligible,
+                };
+                self.processed.push((encoded, filter));
+            }
+            return;
+        }
         if pending_len <= SYNC_ENCODE_BATCH_LIMIT {
             if self.processed.capacity() - self.processed.len() < pending_len {
                 self.processed
