@@ -164,6 +164,8 @@ impl<'a> System<'a> for PathFindingSystem {
                         entity_path.path = None;
                         return;
                     }
+                    let max_distance_sq =
+                        f64::from(max_distance_allowed) * f64::from(max_distance_allowed);
 
                     let (Some(target_x), Some(target_y), Some(target_z)) = (
                         floor_f32_to_i32(target_position.0),
@@ -182,8 +184,8 @@ impl<'a> System<'a> for PathFindingSystem {
 
                     // Check the distance between the robot and the target
                     // If the distance is too large, skip pathfinding for this entity
-                    let distance = squared_voxel_distance_f64(&body_vpos, &target_vpos).sqrt();
-                    if !distance.is_finite() || distance > max_distance_allowed {
+                    let distance_sq = squared_voxel_distance_f64(&body_vpos, &target_vpos);
+                    if !distance_sq.is_finite() || distance_sq > max_distance_sq {
                         entity_path.path = None;
                         return;
                     }
@@ -209,9 +211,9 @@ impl<'a> System<'a> for PathFindingSystem {
                     }
 
                     // Check if the start and goal are too far apart for pathfinding
-                    let start_goal_distance = squared_voxel_distance_f64(&start, &goal).sqrt();
-                    if !start_goal_distance.is_finite()
-                        || start_goal_distance > max_distance_allowed
+                    let start_goal_distance_sq = squared_voxel_distance_f64(&start, &goal);
+                    if !start_goal_distance_sq.is_finite()
+                        || start_goal_distance_sq > max_distance_sq
                     {
                         entity_path.path = None;
                         return;
