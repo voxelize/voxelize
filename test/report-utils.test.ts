@@ -816,6 +816,26 @@ describe("report-utils", () => {
     expect(largeLengthTrapResult.optionArgs).toEqual(["--json", "--mystery"]);
     expect(largeLengthTrapResult.positionalArgs).toEqual([]);
     expect(largeLengthTrapResult.optionTerminatorUsed).toBe(false);
+
+    const partiallyTrappedArgs = ["--json", "--output", "report.json"];
+    Object.defineProperty(partiallyTrappedArgs, 1, {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("index trap");
+      },
+    });
+    Object.defineProperty(partiallyTrappedArgs, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    const partiallyTrappedResult = splitCliArgs(partiallyTrappedArgs as never);
+    expect(partiallyTrappedResult.optionArgs).toEqual(["--json", "report.json"]);
+    expect(partiallyTrappedResult.positionalArgs).toEqual([]);
+    expect(partiallyTrappedResult.optionTerminatorUsed).toBe(false);
   });
 
   it("detects canonical options with optional aliases", () => {
@@ -1140,6 +1160,13 @@ describe("report-utils", () => {
 
   it("sanitizes malformed metadata inputs in unknown option parsing", () => {
     const canonicalOptions = ["--json", "--output"];
+    Object.defineProperty(canonicalOptions, 2, {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("index trap");
+      },
+    });
     Object.defineProperty(canonicalOptions, Symbol.iterator, {
       configurable: true,
       enumerable: false,
