@@ -27,7 +27,9 @@ where
         let d = shape.len();
 
         let mut size = 1;
-        shape.iter().for_each(|x| size *= x);
+        for x in shape.iter() {
+            size *= x;
+        }
 
         let data = vec![default; size];
 
@@ -48,16 +50,21 @@ where
 
     /// Obtain the index of the n-dimensional array
     pub fn index(&self, coords: &[usize]) -> usize {
-        coords
-            .iter()
-            .zip(self.stride.iter())
-            .map(|(a, b)| a * b)
-            .sum()
+        let mut index = 0;
+        for (coord, stride) in coords.iter().zip(self.stride.iter()) {
+            index += coord * stride;
+        }
+        index
     }
 
     /// Check to see if index is within the n-dimensional array's bounds
     pub fn contains(&self, coords: &[usize]) -> bool {
-        !coords.iter().zip(self.shape.iter()).any(|(&a, &b)| a >= b)
+        for (coord, bound) in coords.iter().zip(self.shape.iter()) {
+            if coord >= bound {
+                return false;
+            }
+        }
+        true
     }
 }
 
