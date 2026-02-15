@@ -231,7 +231,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         if has_clients {
             self.deleted_entities_buffer.reserve(old_entities.len());
         }
-        for (id, (etype, ent, metadata, persisted)) in old_entities.drain() {
+        for (id, (etype, ent, mut metadata, persisted)) in old_entities.drain() {
             if persisted {
                 bg_saver.remove(&id);
             }
@@ -242,8 +242,8 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             }
 
             if has_clients {
-                self.deleted_entities_buffer
-                    .push((id, etype, metadata.to_string()));
+                let metadata_json = metadata.to_cached_str_for_new_record();
+                self.deleted_entities_buffer.push((id, etype, metadata_json));
             }
         }
         physics.entity_to_handlers = new_entity_handlers;
