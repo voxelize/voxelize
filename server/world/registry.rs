@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::sync::{Arc, OnceLock};
 
 use hashbrown::{HashMap, HashSet};
@@ -73,6 +74,15 @@ impl Clone for Registry {
 }
 
 impl Registry {
+    #[inline]
+    fn normalized_name<'a>(name: &'a str) -> Cow<'a, str> {
+        if name.chars().any(|ch| ch.is_uppercase()) {
+            Cow::Owned(name.to_lowercase())
+        } else {
+            Cow::Borrowed(name)
+        }
+    }
+
     /// Create a registry instance. By default, the "Air" block is registered at ID of 0.
     pub fn new() -> Self {
         let air = Block::new("Air")
@@ -210,14 +220,14 @@ impl Registry {
             }
         }
 
-        self.blocks_by_id.values().for_each(|block| {
-            let block_by_name = self
-                .blocks_by_name
-                .get_mut(&block.name.to_lowercase())
-                .unwrap();
+        for (block_id, block_name) in self.name_map.iter() {
+            let Some(block) = self.blocks_by_id.get(block_id) else {
+                continue;
+            };
+            let block_by_name = self.blocks_by_name.get_mut(block_name).unwrap();
             block_by_name.faces = block.faces.clone();
             block_by_name.dynamic_patterns = block.dynamic_patterns.clone();
-        });
+        }
     }
 
     /// Register multiple blocks into this world. Blocks with ID 0 are auto-assigned to the next available non-zero ID.
@@ -244,8 +254,9 @@ impl Registry {
 
     /// Get a block reference by block name.
     pub fn get_block_by_name(&self, name: &str) -> &Block {
+        let normalized_name = Self::normalized_name(name);
         self.blocks_by_name
-            .get(&name.to_lowercase())
+            .get(normalized_name.as_ref())
             .unwrap_or_else(|| panic!("Block name not found: {name}",))
     }
 
@@ -258,9 +269,10 @@ impl Registry {
 
     /// Get a block id by block name.
     pub fn get_id_by_name(&self, name: &str) -> u32 {
+        let normalized_name = Self::normalized_name(name);
         *self
             .type_map
-            .get(&name.to_lowercase())
+            .get(normalized_name.as_ref())
             .unwrap_or_else(|| panic!("Block name not found: {name}"))
     }
 
@@ -316,12 +328,13 @@ impl Registry {
 
     /// Get type map of all blocks.
     pub fn get_type_map(&self, blocks: &[&str]) -> HashMap<String, u32> {
-        let mut type_map = HashMap::new();
+        let mut type_map = HashMap::with_capacity(blocks.len());
 
         for block in blocks {
+            let normalized_name = Self::normalized_name(block);
             let &id = self
                 .type_map
-                .get(&block.to_lowercase())
+                .get(normalized_name.as_ref())
                 .unwrap_or_else(|| panic!("Block name not found: {}", block));
 
             type_map.insert((*block).to_owned(), id);
@@ -342,7 +355,7 @@ impl Registry {
 
     /// Get UV map by block.
     pub fn get_uv_map(&self, block: &Block) -> HashMap<String, UV> {
-        let mut uv_map = HashMap::new();
+        let mut uv_map = HashMap::with_capacity(block.faces.len());
 
         for source in block.faces.iter() {
             let uv = source.range.to_owned();
