@@ -60,13 +60,34 @@ export class LightSourceRegistry {
   }
 
   getAllLights(): DynamicLight[] {
-    return Array.from(this.lights.values());
+    const lights = new Array<DynamicLight>(this.lights.size);
+    let index = 0;
+    let lightEntries = this.lights.values();
+    let lightEntry = lightEntries.next();
+    while (!lightEntry.done) {
+      lights[index] = lightEntry.value;
+      index++;
+      lightEntry = lightEntries.next();
+    }
+    return lights;
   }
 
   getLightsInRegion(min: Vector3, max: Vector3): DynamicLight[] {
     const result: DynamicLight[] = [];
+    this.getLightsInRegionInto(min, max, result);
+    return result;
+  }
 
-    for (const light of this.lights.values()) {
+  getLightsInRegionInto(
+    min: Vector3,
+    max: Vector3,
+    out: DynamicLight[]
+  ): number {
+    let count = 0;
+    let lightEntries = this.lights.values();
+    let lightEntry = lightEntries.next();
+    while (!lightEntry.done) {
+      const light = lightEntry.value;
       const pos = light.position;
       const r = light.radius;
 
@@ -78,24 +99,46 @@ export class LightSourceRegistry {
         pos.z + r >= min.z &&
         pos.z - r <= max.z
       ) {
-        result.push(light);
+        out[count] = light;
+        count++;
       }
+      lightEntry = lightEntries.next();
     }
 
-    return result;
+    out.length = count;
+    return count;
   }
 
   getLightsNearPoint(point: Vector3, maxDistance: number): DynamicLight[] {
     const result: DynamicLight[] = [];
+    this.getLightsNearPointInto(point, maxDistance, result);
+    return result;
+  }
 
-    for (const light of this.lights.values()) {
-      const dist = light.position.distanceTo(point);
-      if (dist <= maxDistance + light.radius) {
-        result.push(light);
+  getLightsNearPointInto(
+    point: Vector3,
+    maxDistance: number,
+    out: DynamicLight[]
+  ): number {
+    let count = 0;
+
+    let lightEntries = this.lights.values();
+    let lightEntry = lightEntries.next();
+    while (!lightEntry.done) {
+      const light = lightEntry.value;
+      const maxDist = maxDistance + light.radius;
+      const dx = light.position.x - point.x;
+      const dy = light.position.y - point.y;
+      const dz = light.position.z - point.z;
+      if (dx * dx + dy * dy + dz * dz <= maxDist * maxDist) {
+        out[count] = light;
+        count++;
       }
+      lightEntry = lightEntries.next();
     }
 
-    return result;
+    out.length = count;
+    return count;
   }
 
   private markRegionDirty(center: Vector3, radius: number) {
@@ -108,16 +151,31 @@ export class LightSourceRegistry {
     const maxZ = Math.floor((center.z + radius) / regionSize);
 
     for (let x = minX; x <= maxX; x++) {
+      const xPrefix = `${x}|`;
       for (let y = minY; y <= maxY; y++) {
+        const xyPrefix = `${xPrefix}${y}|`;
         for (let z = minZ; z <= maxZ; z++) {
-          this.dirtyRegions.add(`${x}|${y}|${z}`);
+          this.dirtyRegions.add(`${xyPrefix}${z}`);
         }
       }
     }
   }
 
   getDirtyRegions(): string[] {
-    return Array.from(this.dirtyRegions);
+    const dirtyRegions = new Array<string>(this.dirtyRegions.size);
+    let index = 0;
+    let regionEntries = this.dirtyRegions.values();
+    let regionEntry = regionEntries.next();
+    while (!regionEntry.done) {
+      dirtyRegions[index] = regionEntry.value;
+      index++;
+      regionEntry = regionEntries.next();
+    }
+    return dirtyRegions;
+  }
+
+  hasDirtyRegions(): boolean {
+    return this.dirtyRegions.size > 0;
   }
 
   clearDirtyRegions() {
@@ -129,8 +187,12 @@ export class LightSourceRegistry {
   }
 
   private notifyLightChanged(light: DynamicLight) {
-    for (const callback of this.onLightChangedCallbacks) {
-      callback(light);
+    for (
+      let callbackIndex = 0;
+      callbackIndex < this.onLightChangedCallbacks.length;
+      callbackIndex++
+    ) {
+      this.onLightChangedCallbacks[callbackIndex](light);
     }
   }
 

@@ -420,33 +420,31 @@ export class BlockRotation {
     const min = [aabb.minX, aabb.minY, aabb.minZ] as Coords3;
     const max = [aabb.maxX, aabb.maxY, aabb.maxZ] as Coords3;
 
-    let minX = null;
-    let minZ = null;
-    let maxX = null;
-    let maxZ = null;
+    let minX = Number.POSITIVE_INFINITY;
+    let minZ = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let maxZ = Number.NEGATIVE_INFINITY;
+    let hasYRotatedBounds = false;
 
     if (yRotate && this.yRotation !== 0) {
-      const min1 = [aabb.minX, aabb.minY, aabb.minZ];
-      const min2 = [aabb.minX, aabb.minY, aabb.maxZ];
-      const min3 = [aabb.maxX, aabb.minY, aabb.minZ];
-      const min4 = [aabb.maxX, aabb.minY, aabb.maxZ];
-
-      [min1, min2, min3, min4].forEach((min) => {
-        this.rotateNode(min as Coords3, true, true);
-        minX = minX === null ? min[0] : Math.min(minX, min[0]);
-        minZ = minZ === null ? min[2] : Math.min(minZ, min[2]);
-      });
-
-      const max1 = [aabb.minX, aabb.maxY, aabb.minZ];
-      const max2 = [aabb.minX, aabb.maxY, aabb.maxZ];
-      const max3 = [aabb.maxX, aabb.maxY, aabb.minZ];
-      const max4 = [aabb.maxX, aabb.maxY, aabb.maxZ];
-
-      [max1, max2, max3, max4].forEach((max) => {
-        this.rotateNode(max as Coords3, true, true);
-        maxX = maxX === null ? max[0] : Math.max(maxX, max[0]);
-        maxZ = maxZ === null ? max[2] : Math.max(maxZ, max[2]);
-      });
+      hasYRotatedBounds = true;
+      const corner = [0, 0, 0] as Coords3;
+      for (let cornerIndex = 0; cornerIndex < 4; cornerIndex++) {
+        corner[0] = (cornerIndex & 1) === 0 ? aabb.minX : aabb.maxX;
+        corner[1] = aabb.minY;
+        corner[2] = (cornerIndex & 2) === 0 ? aabb.minZ : aabb.maxZ;
+        this.rotateNode(corner, true, true);
+        if (corner[0] < minX) minX = corner[0];
+        if (corner[2] < minZ) minZ = corner[2];
+      }
+      for (let cornerIndex = 0; cornerIndex < 4; cornerIndex++) {
+        corner[0] = (cornerIndex & 1) === 0 ? aabb.minX : aabb.maxX;
+        corner[1] = aabb.maxY;
+        corner[2] = (cornerIndex & 2) === 0 ? aabb.minZ : aabb.maxZ;
+        this.rotateNode(corner, true, true);
+        if (corner[0] > maxX) maxX = corner[0];
+        if (corner[2] > maxZ) maxZ = corner[2];
+      }
     }
 
     this.rotateNode(min, yRotate, translate);
@@ -462,25 +460,35 @@ export class BlockRotation {
     max[1] = justify(max[1]);
     max[2] = justify(max[2]);
 
-    const realMin = [
-      minX !== null ? justify(minX) : Math.min(min[0], max[0]),
-      Math.min(min[1], max[1]),
-      minZ !== null ? justify(minZ) : Math.min(min[2], max[2]),
-    ];
+    const minXValue = min[0];
+    const minYValue = min[1];
+    const minZValue = min[2];
+    const maxXValue = max[0];
+    const maxYValue = max[1];
+    const maxZValue = max[2];
 
-    const realMax = [
-      maxX !== null ? justify(maxX) : Math.max(min[0], max[0]),
-      Math.max(min[1], max[1]),
-      maxZ !== null ? justify(maxZ) : Math.max(min[2], max[2]),
-    ];
+    const realMinX = hasYRotatedBounds
+      ? justify(minX)
+      : Math.min(minXValue, maxXValue);
+    const realMinY = Math.min(minYValue, maxYValue);
+    const realMinZ = hasYRotatedBounds
+      ? justify(minZ)
+      : Math.min(minZValue, maxZValue);
+    const realMaxX = hasYRotatedBounds
+      ? justify(maxX)
+      : Math.max(minXValue, maxXValue);
+    const realMaxY = Math.max(minYValue, maxYValue);
+    const realMaxZ = hasYRotatedBounds
+      ? justify(maxZ)
+      : Math.max(minZValue, maxZValue);
 
     return new AABB(
-      realMin[0],
-      realMin[1],
-      realMin[2],
-      realMax[0],
-      realMax[1],
-      realMax[2]
+      realMinX,
+      realMinY,
+      realMinZ,
+      realMaxX,
+      realMaxY,
+      realMaxZ
     );
   };
 
@@ -504,29 +512,83 @@ export class BlockRotation {
     this.rotateNode(positive as Coords3, true, false);
     this.rotateNode(negative as Coords3, true, false);
 
-    const p = positive.map((n) => {
-      if (n === 1.0) return px;
-      if (n === 2.0) return py;
-      if (n === 3.0) return pz;
-      if (n === 4.0) return nx;
-      if (n === 5.0) return ny;
-      return nz;
-    });
-
-    const n = negative.map((n) => {
-      if (n === 1.0) return px;
-      if (n === 2.0) return py;
-      if (n === 3.0) return pz;
-      if (n === 4.0) return nx;
-      if (n === 5.0) return ny;
-      return nz;
-    });
-
-    return [p[0], p[1], p[2], n[0], n[1], n[2]];
+    return [
+      BlockRotation.resolveTransparencyFlag(
+        positive[0],
+        px,
+        py,
+        pz,
+        nx,
+        ny,
+        nz
+      ),
+      BlockRotation.resolveTransparencyFlag(
+        positive[1],
+        px,
+        py,
+        pz,
+        nx,
+        ny,
+        nz
+      ),
+      BlockRotation.resolveTransparencyFlag(
+        positive[2],
+        px,
+        py,
+        pz,
+        nx,
+        ny,
+        nz
+      ),
+      BlockRotation.resolveTransparencyFlag(
+        negative[0],
+        px,
+        py,
+        pz,
+        nx,
+        ny,
+        nz
+      ),
+      BlockRotation.resolveTransparencyFlag(
+        negative[1],
+        px,
+        py,
+        pz,
+        nx,
+        ny,
+        nz
+      ),
+      BlockRotation.resolveTransparencyFlag(
+        negative[2],
+        px,
+        py,
+        pz,
+        nx,
+        ny,
+        nz
+      ),
+    ];
   }
 
   // Reference:
   // https://www.khanacademy.org/computer-programming/cube-rotated-around-x-y-and-z/4930679668473856
+
+  private static resolveTransparencyFlag(
+    value: number,
+    px: boolean,
+    py: boolean,
+    pz: boolean,
+    nx: boolean,
+    ny: boolean,
+    nz: boolean
+  ) {
+    if (value === 1.0) return px;
+    if (value === 2.0) return py;
+    if (value === 3.0) return pz;
+    if (value === 4.0) return nx;
+    if (value === 5.0) return ny;
+    return nz;
+  }
 
   /**
    * Rotate a 3D coordinate around the X axis.

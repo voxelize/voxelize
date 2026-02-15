@@ -1,6 +1,7 @@
 use voxelize::{
     Block, BlockConditionalPart, BlockDynamicPattern, BlockFaces, BlockRule, BlockRuleLogic,
-    BlockSimpleRule, Registry, Vec3, VoxelPacker, YRotatableSegments, AABB, SIX_FACES_NX,
+    BlockSimpleRule, Registry, Vec3, VoxelPacker, YRotatableSegments, AABB, AABBServerExt,
+    SIX_FACES_NX,
     SIX_FACES_PY, SIX_FACES_PZ,
 };
 
@@ -141,6 +142,7 @@ pub fn setup_registry() -> Registry {
                 aabbs: vec![green_stone_base_aabb],
                 faces: green_stone_base_faces.to_vec(),
                 is_transparent: [true, true, true, true, true, true],
+                ..BlockConditionalPart::default()
             },
             BlockConditionalPart {
                 rule: BlockRule::Combination {
@@ -169,6 +171,7 @@ pub fn setup_registry() -> Registry {
                 aabbs: vec![green_stone_pos_100_aabb],
                 faces: green_stone_pos_100_faces.to_vec(),
                 is_transparent: [true, true, true, true, true, true],
+                ..BlockConditionalPart::default()
             },
             BlockConditionalPart {
                 rule: BlockRule::Combination {
@@ -197,6 +200,7 @@ pub fn setup_registry() -> Registry {
                 aabbs: vec![green_stone_neg_100_aabb],
                 faces: green_stone_neg_100_faces.to_vec(),
                 is_transparent: [true, true, true, true, true, true],
+                ..BlockConditionalPart::default()
             },
             BlockConditionalPart {
                 rule: BlockRule::Combination {
@@ -225,6 +229,7 @@ pub fn setup_registry() -> Registry {
                 aabbs: vec![green_stone_pos_001_aabb],
                 faces: green_stone_pos_001_faces.to_vec(),
                 is_transparent: [true, true, true, true, true, true],
+                ..BlockConditionalPart::default()
             },
             BlockConditionalPart {
                 rule: BlockRule::Combination {
@@ -253,6 +258,7 @@ pub fn setup_registry() -> Registry {
                 aabbs: vec![green_stone_neg_001_aabb],
                 faces: green_stone_neg_001_faces.to_vec(),
                 is_transparent: [true, true, true, true, true, true],
+                ..BlockConditionalPart::default()
             },
         ],
     };
@@ -406,6 +412,7 @@ pub fn setup_registry() -> Registry {
                             .independent_at(SIX_FACES_PY)
                             .to_vec(),
                         is_transparent: [true, true, true, true, true, true],
+                        ..BlockConditionalPart::default()
                     },
                     // You can add more BlockConditionalPart here as needed
                 ],

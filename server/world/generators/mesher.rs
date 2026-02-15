@@ -11,6 +11,54 @@ use crate::{
 
 use super::lights::Lights;
 
+#[inline]
+fn clamp_i64_to_i32(value: i64) -> i32 {
+    value.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
+}
+
+#[inline]
+fn clamp_u128_to_i64(value: u128) -> i64 {
+    if value > i64::MAX as u128 {
+        i64::MAX
+    } else {
+        value as i64
+    }
+}
+
+#[inline]
+fn mesh_protocol_level(level: u32) -> i32 {
+    i32::try_from(level).unwrap_or(i32::MAX)
+}
+
+#[inline]
+fn sub_chunk_y_bounds(min_y: i32, max_height: usize, sub_chunks: usize, level: u32) -> Option<(i32, i32)> {
+    if max_height == 0 || sub_chunks == 0 {
+        return None;
+    }
+
+    let level = usize::try_from(level).ok()?;
+    if level >= sub_chunks {
+        return None;
+    }
+
+    let sub_chunks_u128 = sub_chunks as u128;
+    let max_height_u128 = max_height as u128;
+    let level_u128 = level as u128;
+    let start_offset = (level_u128 * max_height_u128) / sub_chunks_u128;
+    let end_offset = ((level_u128 + 1) * max_height_u128) / sub_chunks_u128;
+    if end_offset <= start_offset {
+        return None;
+    }
+
+    let start = clamp_i64_to_i32(i64::from(min_y).saturating_add(clamp_u128_to_i64(start_offset)));
+    let end = clamp_i64_to_i32(i64::from(min_y).saturating_add(clamp_u128_to_i64(end_offset)));
+    if end <= start {
+        return None;
+    }
+
+    Some((start, end))
+}
+
 pub struct Mesher {
     pub(crate) queue: std::collections::VecDeque<Vec2<i32>>,
     pub(crate) map: HashSet<Vec2<i32>>,
@@ -111,7 +159,14 @@ impl Mesher {
             processes
                 .into_par_iter()
                 .for_each(|(mut chunk, mut space)| {
-                    let chunk_size = config.chunk_size as i32;
+                    let chunk_size = if config.chunk_size == 0 {
+                        1
+                    } else if config.chunk_size > i32::MAX as usize {
+                        i32::MAX
+                    } else {
+                        config.chunk_size as i32
+                    };
+                    let chunk_size_usize = chunk_size as usize;
                     let coords = space.coords.to_owned();
                     let min = space.min.to_owned();
                     let shape = space.shape.to_owned();
@@ -126,25 +181,32 @@ impl Mesher {
                     let sub_chunks = chunk.updated_levels.clone();
                     let Vec3(min_x, min_y, min_z) = chunk.min;
                     let Vec3(max_x, _, max_z) = chunk.max;
-                    let blocks_per_sub_chunk =
-                        (space.options.max_height / space.options.sub_chunks) as i32;
 
                     if chunk.meshes.is_none() {
                         let mut light_queues = vec![VecDeque::new(); 4];
 
                         for dx in -1..=1 {
                             for dz in -1..=1 {
+                                let center = dx == 0 && dz == 0;
+                                let min_x = coords
+                                    .0
+                                    .saturating_add(dx)
+                                    .saturating_mul(chunk_size)
+                                    .saturating_sub(if center { 1 } else { 0 });
+                                let min_z = coords
+                                    .1
+                                    .saturating_add(dz)
+                                    .saturating_mul(chunk_size)
+                                    .saturating_sub(if center { 1 } else { 0 });
                                 let min = Vec3(
-                                    (coords.0 + dx) * chunk_size
-                                        - if dx == 0 && dz == 0 { 1 } else { 0 },
+                                    min_x,
                                     0,
-                                    (coords.1 + dz) * chunk_size
-                                        - if dx == 0 && dz == 0 { 1 } else { 0 },
+                                    min_z,
                                 );
                                 let shape = Vec3(
-                                    chunk_size as usize + if dx == 0 && dz == 0 { 2 } else { 0 },
+                                    chunk_size_usize + if center { 2 } else { 0 },
                                     space.options.max_height as usize,
-                                    chunk_size as usize + if dx == 0 && dz == 0 { 2 } else { 0 },
+                                    chunk_size_usize + if center { 2 } else { 0 },
                                 );
 
                                 let light_subqueues =
@@ -176,14 +238,20 @@ impl Mesher {
                             Arc::new(space.get_lights(coords.0, coords.1).unwrap().clone());
                     }
 
-                    let mut mesher_registry = registry.to_mesher_registry();
-                    mesher_registry.build_cache();
+                    let mesher_registry = registry.mesher_registry();
 
-                    for level in sub_chunks {
-                        let level = level as i32;
-
-                        let min = Vec3(min_x, min_y + level * blocks_per_sub_chunk, min_z);
-                        let max = Vec3(max_x, min_y + (level + 1) * blocks_per_sub_chunk, max_z);
+                    for level_u32 in sub_chunks {
+                        let Some((level_start_y, level_end_y)) = sub_chunk_y_bounds(
+                            min_y,
+                            space.options.max_height,
+                            space.options.sub_chunks,
+                            level_u32,
+                        ) else {
+                            continue;
+                        };
+                        let level = mesh_protocol_level(level_u32);
+                        let min = Vec3(min_x, level_start_y, min_z);
+                        let max = Vec3(max_x, level_end_y, max_z);
 
                         let min_arr = [min.0, min.1, min.2];
                         let max_arr = [max.0, max.1, max.2];
@@ -193,14 +261,14 @@ impl Mesher {
                                 &min_arr,
                                 &max_arr,
                                 &space,
-                                &mesher_registry,
+                                mesher_registry.as_ref(),
                             )
                         } else {
                             voxelize_mesher::mesh_space(
                                 &min_arr,
                                 &max_arr,
                                 &space,
-                                &mesher_registry,
+                                mesher_registry.as_ref(),
                             )
                         };
 
@@ -220,7 +288,7 @@ impl Mesher {
                         chunk
                             .meshes
                             .get_or_insert_with(HashMap::new)
-                            .insert(level as u32, MeshProtocol { level, geometries });
+                            .insert(level_u32, MeshProtocol { level, geometries });
                     }
 
                     sender.send((chunk, r#type.clone())).unwrap();
@@ -247,5 +315,47 @@ impl Mesher {
 impl Default for Mesher {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{mesh_protocol_level, sub_chunk_y_bounds};
+
+    #[test]
+    fn sub_chunk_y_bounds_cover_full_height_for_irregular_partitions() {
+        assert_eq!(sub_chunk_y_bounds(0, 10, 3, 0), Some((0, 3)));
+        assert_eq!(sub_chunk_y_bounds(0, 10, 3, 1), Some((3, 6)));
+        assert_eq!(sub_chunk_y_bounds(0, 10, 3, 2), Some((6, 10)));
+    }
+
+    #[test]
+    fn sub_chunk_y_bounds_reject_invalid_sub_chunk_levels() {
+        assert_eq!(sub_chunk_y_bounds(0, 10, 0, 0), None);
+        assert_eq!(sub_chunk_y_bounds(0, 0, 3, 0), None);
+        assert_eq!(sub_chunk_y_bounds(0, 10, 3, 3), None);
+    }
+
+    #[test]
+    fn sub_chunk_y_bounds_clamp_to_i32_range_for_extreme_offsets() {
+        assert_eq!(
+            sub_chunk_y_bounds(0, usize::MAX, 1, 0),
+            Some((0, i32::MAX))
+        );
+        assert_eq!(
+            sub_chunk_y_bounds(i32::MAX - 1, usize::MAX, 1, 0),
+            Some((i32::MAX - 1, i32::MAX))
+        );
+        assert_eq!(
+            sub_chunk_y_bounds(i32::MIN + 1, usize::MAX, 1, 0),
+            Some((i32::MIN + 1, i32::MAX))
+        );
+    }
+
+    #[test]
+    fn mesh_protocol_level_saturates_to_i32_max() {
+        assert_eq!(mesh_protocol_level(0), 0);
+        assert_eq!(mesh_protocol_level(i32::MAX as u32), i32::MAX);
+        assert_eq!(mesh_protocol_level(u32::MAX), i32::MAX);
     }
 }

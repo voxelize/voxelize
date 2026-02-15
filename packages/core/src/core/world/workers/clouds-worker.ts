@@ -1,11 +1,19 @@
-// @ts-ignore
 import { Noise } from "noisejs";
 
-function set(arr, x, y, z, stride, value) {
-  arr[x * stride[0] + y * stride[1] + z * stride[2]] = value;
-}
+type CloudsWorkerMessage = {
+  data: Uint8Array;
+  configs: {
+    min: [number, number, number];
+    max: [number, number, number];
+    noiseScale: number;
+    threshold: number;
+    stride: [number, number, number];
+    octaves: number;
+    falloff: number;
+    seed: number;
+  };
+};
 
-// @ts-ignore
 const instance = new Noise();
 
 function noise(
@@ -35,8 +43,7 @@ function noise(
   return total / maxVal;
 }
 
-// @ts-ignore
-onmessage = function (e) {
+self.onmessage = function (e: MessageEvent<CloudsWorkerMessage>) {
   const {
     data,
     configs: {
@@ -55,25 +62,27 @@ onmessage = function (e) {
 
   const [startX, startY, startZ] = min;
   const [endX, endY, endZ] = max;
+  const [strideX, strideY, strideZ] = stride;
 
   for (let vx = startX, lx = 0; vx < endX; ++vx, ++lx) {
+    const scaledX = vx * noiseScale;
     for (let vz = startZ, lz = 0; vz < endZ; ++vz, ++lz) {
+      const scaledZ = vz * noiseScale;
       for (let vy = startY, ly = 0; vy < endY; ++vy, ++ly) {
+        const scaledY = vy * noiseScale;
         const value =
-          noise(
-            vx * noiseScale,
-            vy * noiseScale,
-            vz * noiseScale,
-            octaves,
-            falloff
-          ) > threshold
+          noise(scaledX, scaledY, scaledZ, octaves, falloff) > threshold
             ? 1
             : 0;
-        set(data, lx, ly, lz, stride, value);
+        data[lx * strideX + ly * strideY + lz * strideZ] = value;
       }
     }
   }
 
-  // @ts-ignore
-  postMessage(data, [data.buffer]);
+  const transfer: Transferable[] = [];
+  const buffer = data.buffer;
+  if (buffer instanceof ArrayBuffer) {
+    transfer.push(buffer);
+  }
+  self.postMessage(data, { transfer });
 };

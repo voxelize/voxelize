@@ -17,6 +17,7 @@ import {
   ShaderLightingUniforms,
   updateEntityShadowUniforms,
 } from "../core/world/entity-shadow-uniforms";
+import { JsonValue } from "../types";
 import { AnimationUtils, MathUtils as VoxMathUtils } from "../utils";
 
 import { CanvasBox, CanvasBoxOptions } from "./canvas-box";
@@ -401,7 +402,7 @@ export class Character extends Group {
   /**
    * Somewhere to store whatever you want.
    */
-  public extraData: any = null;
+  public extraData: JsonValue = null;
 
   /**
    * Whether the character is in a sitting pose.
@@ -428,6 +429,7 @@ export class Character extends Group {
    * An internal clock instance for calculating delta time.
    */
   private clock = new Clock();
+  private shadowParts: CanvasBox[] = [];
 
   /**
    * Create a new Voxelize character.
@@ -538,15 +540,17 @@ export class Character extends Group {
 
     this.newPosition.set(position[0], position[1], position[2]);
 
-    this.newDirection.copy(
-      VoxMathUtils.directionToQuaternion(
-        direction[0],
-        direction[1],
-        direction[2]
-      )
+    VoxMathUtils.directionToQuaternion(
+      direction[0],
+      direction[1],
+      direction[2],
+      this.newDirection
     );
-    this.newBodyDirection.copy(
-      VoxMathUtils.directionToQuaternion(direction[0], 0, direction[2])
+    VoxMathUtils.directionToQuaternion(
+      direction[0],
+      0,
+      direction[2],
+      this.newBodyDirection
     );
   }
 
@@ -625,16 +629,9 @@ export class Character extends Group {
   updateShadowUniforms(lightingUniforms: ShaderLightingUniforms): void {
     if (!this.options.receiveShadows) return;
 
-    const parts = [
-      this.head,
-      this.body,
-      this.leftArm,
-      this.rightArm,
-      this.leftLeg,
-      this.rightLeg,
-    ];
-
-    for (const part of parts) {
+    const parts = this.shadowParts;
+    for (let partIndex = 0; partIndex < parts.length; partIndex++) {
+      const part = parts[partIndex];
       if (part?.shadowUniforms) {
         updateEntityShadowUniforms(part.shadowUniforms, lightingUniforms);
       }
@@ -815,6 +812,15 @@ export class Character extends Group {
     this.rightArm = rightArm;
     this.leftLeg = leftLeg;
     this.rightLeg = rightLeg;
+
+    const shadowParts = this.shadowParts;
+    shadowParts.length = 6;
+    shadowParts[0] = head;
+    shadowParts[1] = body;
+    shadowParts[2] = leftArm;
+    shadowParts[3] = rightArm;
+    shadowParts[4] = leftLeg;
+    shadowParts[5] = rightLeg;
   };
 
   /**
@@ -822,11 +828,10 @@ export class Character extends Group {
    * is moving or not.
    */
   private calculateDelta = () => {
-    const p1 = this.position.clone();
-    const p2 = this.newPosition.clone();
-    p1.y = p2.y = 0;
-    const dist = p1.distanceTo(p2);
-    if (dist > 0.00001) {
+    const dx = this.position.x - this.newPosition.x;
+    const dz = this.position.z - this.newPosition.z;
+    const distSq = dx * dx + dz * dz;
+    if (distSq > 0.0000000001) {
       if (this.speed === 0) this.onMove?.();
       this.speed = this.options.walkingSpeed;
     } else {

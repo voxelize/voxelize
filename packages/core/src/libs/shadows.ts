@@ -60,6 +60,10 @@ export class Shadow extends Mesh {
    * The y-offset of the shadow from the ground.
    */
   static readonly Y_OFFSET = 0.01;
+  private static readonly DOWN_DIRECTION: [number, number, number] = [0, -1, 0];
+  private worldPosition = new Vector3();
+  private localPosition = new Vector3();
+  private raycastOrigin: [number, number, number] = [0, 0, 0];
 
   /**
    * Create a shadow instance.
@@ -85,14 +89,18 @@ export class Shadow extends Mesh {
   update = () => {
     if (!this.parent) return;
 
-    const position = new Vector3();
+    const position = this.worldPosition;
     this.parent.getWorldPosition(position);
+    const raycastOrigin = this.raycastOrigin;
+    raycastOrigin[0] = position.x;
+    raycastOrigin[1] = position.y;
+    raycastOrigin[2] = position.z;
 
     const { maxDistance } = this.options;
 
     const result = this.world.raycastVoxels(
-      position.toArray(),
-      [0, -1, 0],
+      raycastOrigin,
+      Shadow.DOWN_DIRECTION,
       maxDistance
     );
 
@@ -106,21 +114,20 @@ export class Shadow extends Mesh {
       return;
     }
 
-    const dist = Math.sqrt(
-      (point[0] - position.x) ** 2 +
-        (point[1] - position.y) ** 2 +
-        (point[2] - position.z) ** 2
-    );
+    const dx = point[0] - position.x;
+    const dy = point[1] - position.y;
+    const dz = point[2] - position.z;
+    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
     const scale = Math.max(1 - dist / maxDistance, 0) ** 2;
 
-    const newPosition = new Vector3(
-      point[0],
-      point[1] + Shadow.Y_OFFSET,
-      point[2]
+    const localPosition = this.localPosition;
+    localPosition.set(
+      dx,
+      dy + Shadow.Y_OFFSET,
+      dz
     );
-    newPosition.sub(position);
 
-    this.position.copy(newPosition);
+    this.position.copy(localPosition);
     this.scale.set(scale, scale, 1);
   };
 }
@@ -174,20 +181,20 @@ export class Shadows extends Array<Shadow> {
    * is no longer in the scene.
    */
   update = () => {
+    const enabled = this.enabled;
     for (let i = this.length - 1; i >= 0; i--) {
       const shadow = this[i];
       if (!shadow.parent || !this.isInScene(shadow.parent)) {
         this.splice(i, 1);
+        continue;
       }
-    }
 
-    this.forEach((shadow) => {
-      if (this.enabled) {
+      if (enabled) {
         shadow.update();
       } else {
         shadow.visible = false;
       }
-    });
+    }
   };
 
   private isInScene(object: Object3D): boolean {

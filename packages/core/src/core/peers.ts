@@ -7,6 +7,9 @@ import { NetIntercept } from "./network";
 
 const emptyQ = new Quaternion();
 const emptyP = new Vector3();
+const forwardDirection = new Vector3(0, 0, -1);
+type NetInterceptMessage = NonNullable<NetIntercept["onMessage"]>;
+type NetInterceptClientInfo = Parameters<NetInterceptMessage>[1];
 
 /**
  * Parameters to customize the peers manager.
@@ -77,7 +80,7 @@ const defaultOptions: PeersOptions = {
  */
 export class Peers<
     C extends Object3D = Object3D,
-    T = { direction: number[]; position: number[] }
+    T extends object = { direction: number[]; position: number[] }
   >
   extends Group
   implements NetIntercept
@@ -100,7 +103,7 @@ export class Peers<
   /**
    * The client's own metadata (device info, etc.). This is set when the client first connects to the server.
    */
-  public ownMetadata?: Record<string, any>;
+  public ownMetadata?: T;
 
   public ownPeer?: C;
 
@@ -109,7 +112,7 @@ export class Peers<
    *
    * @hidden
    */
-  public packets: MessageProtocol<any, any, any, any>[] = [];
+  public packets: MessageProtocol[] = [];
 
   private infoJsonCache: string | null = null;
 
@@ -181,10 +184,10 @@ export class Peers<
    */
   onMessage = (
     message: MessageProtocol<{ id: string }, T>,
-    { username, metadata }: { username: string; metadata?: Record<string, any> }
+    { username, metadata }: NetInterceptClientInfo
   ) => {
     this.ownUsername = username;
-    this.ownMetadata = metadata;
+    this.ownMetadata = metadata as T | undefined;
 
     const internalOnJoin = (id: string) => {
       const peer = this.createPeer(id);
@@ -233,7 +236,8 @@ export class Peers<
       case "EVENT": {
         const { events } = message;
 
-        for (const event of events) {
+        for (let eventIndex = 0; eventIndex < events.length; eventIndex++) {
+          const event = events[eventIndex];
           const { name, payload: id } = event;
 
           switch (name.toLowerCase()) {
@@ -257,10 +261,19 @@ export class Peers<
     const { peers } = message;
 
     if (peers) {
-      peers.forEach((peer: any) => {
+      const peerUpdateHandler = this.onPeerUpdate;
+      const hasPeerUpdateHandler = !!peerUpdateHandler;
+      if (!hasPeerUpdateHandler && peers.length > 0) {
+        console.warn(
+          "Peers.onPeerUpdate is not defined, skipping peer update."
+        );
+      }
+
+      for (let peerIndex = 0; peerIndex < peers.length; peerIndex++) {
+        const peer = peers[peerIndex];
         const self = this.ownID && peer.id === this.ownID;
 
-        if (!this.options.countSelf && self) return;
+        if (!this.options.countSelf && self) continue;
 
         let object = self ? this.ownPeer : this.getPeerById(peer.id);
 
@@ -269,17 +282,13 @@ export class Peers<
           this.onPeerJoin?.(peer.id, object);
         }
 
-        if (!this.onPeerUpdate) {
-          console.warn(
-            "Peers.onPeerUpdate is not defined, skipping peer update."
-          );
-        } else {
-          this.onPeerUpdate(object, peer.metadata, {
+        if (peerUpdateHandler) {
+          peerUpdateHandler(object, peer.metadata, {
             id: peer.id,
             username: peer.username,
           });
         }
-      });
+      }
     }
   };
 
@@ -314,11 +323,8 @@ export class Peers<
    * @returns A peer protocol message
    */
   packInfo(): PeerProtocol<T> | void {
-    const {
-      x: dx,
-      y: dy,
-      z: dz,
-    } = new Vector3(0, 0, -1)
+    const direction = forwardDirection
+      .set(0, 0, -1)
       .applyQuaternion(this.object.getWorldQuaternion(emptyQ))
       .normalize();
     const { x: px, y: py, z: pz } = this.object.getWorldPosition(emptyP);
@@ -329,8 +335,8 @@ export class Peers<
       metadata: {
         ...this.ownMetadata,
         position: [px, py, pz],
-        direction: [dx, dy, dz],
-      } as any as T,
+        direction: [direction.x, direction.y, direction.z],
+      } as T,
     } as PeerProtocol<T>;
   }
 
@@ -376,23 +382,25 @@ export class Peers<
     }
 
     if (this.options.updateChildren) {
-      this.children.forEach((child) => {
-        if (child === this.ownPeer) return;
+      for (let childIndex = 0; childIndex < this.children.length; childIndex++) {
+        const child = this.children[childIndex];
+        if (child === this.ownPeer) continue;
 
         if (child instanceof Character) {
           child.update();
         }
-      });
+      }
     }
   }
 
   snapAllToTarget() {
-    this.children.forEach((child) => {
-      if (child === this.ownPeer) return;
+    for (let childIndex = 0; childIndex < this.children.length; childIndex++) {
+      const child = this.children[childIndex];
+      if (child === this.ownPeer) continue;
 
       if (child instanceof Character) {
         child.snapToTarget();
       }
-    });
+    }
   }
 }

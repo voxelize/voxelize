@@ -25,20 +25,31 @@ pub trait VoxelAccess {
     }
 
     fn set_voxel(&mut self, vx: i32, vy: i32, vz: i32, id: u32) -> bool {
+        if id > 0xFFFF {
+            return false;
+        }
+        let raw = self.get_raw_voxel(vx, vy, vz);
         let value = BlockUtils::insert_id(0, id);
+        if value == raw {
+            return self.contains(vx, vy, vz);
+        }
         self.set_raw_voxel(vx, vy, vz, value)
     }
 
     fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> BlockRotation {
         if !self.contains(vx, vy, vz) {
-            return BlockRotation::PX(0.0);
+            return BlockRotation::PY(0.0);
         }
 
         BlockUtils::extract_rotation(self.get_raw_voxel(vx, vy, vz))
     }
 
     fn set_voxel_rotation(&mut self, vx: i32, vy: i32, vz: i32, rotation: &BlockRotation) -> bool {
-        let value = BlockUtils::insert_rotation(self.get_raw_voxel(vx, vy, vz), rotation);
+        let raw = self.get_raw_voxel(vx, vy, vz);
+        let value = BlockUtils::insert_rotation(raw, rotation);
+        if value == raw {
+            return self.contains(vx, vy, vz);
+        }
         self.set_raw_voxel(vx, vy, vz, value)
     }
 
@@ -47,7 +58,14 @@ pub trait VoxelAccess {
     }
 
     fn set_voxel_stage(&mut self, vx: i32, vy: i32, vz: i32, stage: u32) -> bool {
-        let value = BlockUtils::insert_stage(self.get_raw_voxel(vx, vy, vz), stage);
+        if stage > 15 {
+            return false;
+        }
+        let raw = self.get_raw_voxel(vx, vy, vz);
+        let value = BlockUtils::insert_stage(raw, stage);
+        if value == raw {
+            return self.contains(vx, vy, vz);
+        }
         self.set_raw_voxel(vx, vy, vz, value)
     }
 
@@ -56,12 +74,15 @@ pub trait VoxelAccess {
     }
 
     fn set_sunlight(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
-        self.set_raw_light(
-            vx,
-            vy,
-            vz,
-            LightUtils::insert_sunlight(self.get_raw_light(vx, vy, vz), level),
-        )
+        if level > 15 {
+            return false;
+        }
+        let raw = self.get_raw_light(vx, vy, vz);
+        let value = LightUtils::insert_sunlight(raw, level);
+        if value == raw {
+            return self.contains(vx, vy, vz);
+        }
+        self.set_raw_light(vx, vy, vz, value)
     }
 
     fn get_red_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
@@ -69,12 +90,15 @@ pub trait VoxelAccess {
     }
 
     fn set_red_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
-        self.set_raw_light(
-            vx,
-            vy,
-            vz,
-            LightUtils::insert_red_light(self.get_raw_light(vx, vy, vz), level),
-        )
+        if level > 15 {
+            return false;
+        }
+        let raw = self.get_raw_light(vx, vy, vz);
+        let value = LightUtils::insert_red_light(raw, level);
+        if value == raw {
+            return self.contains(vx, vy, vz);
+        }
+        self.set_raw_light(vx, vy, vz, value)
     }
 
     fn get_green_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
@@ -82,12 +106,15 @@ pub trait VoxelAccess {
     }
 
     fn set_green_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
-        self.set_raw_light(
-            vx,
-            vy,
-            vz,
-            LightUtils::insert_green_light(self.get_raw_light(vx, vy, vz), level),
-        )
+        if level > 15 {
+            return false;
+        }
+        let raw = self.get_raw_light(vx, vy, vz);
+        let value = LightUtils::insert_green_light(raw, level);
+        if value == raw {
+            return self.contains(vx, vy, vz);
+        }
+        self.set_raw_light(vx, vy, vz, value)
     }
 
     fn get_blue_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
@@ -95,12 +122,15 @@ pub trait VoxelAccess {
     }
 
     fn set_blue_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
-        self.set_raw_light(
-            vx,
-            vy,
-            vz,
-            LightUtils::insert_blue_light(self.get_raw_light(vx, vy, vz), level),
-        )
+        if level > 15 {
+            return false;
+        }
+        let raw = self.get_raw_light(vx, vy, vz);
+        let value = LightUtils::insert_blue_light(raw, level);
+        if value == raw {
+            return self.contains(vx, vy, vz);
+        }
+        self.set_raw_light(vx, vy, vz, value)
     }
 
     fn get_torch_light(&self, vx: i32, vy: i32, vz: i32, color: &LightColor) -> u32 {

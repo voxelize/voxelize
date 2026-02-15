@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use voxelize::{
-    Block, Chunk, ChunkOptions, Chunks, Mesher, Registry, Vec2, Vec3, VoxelAccess, WorldConfig,
+    Block, Chunk, ChunkOptions, Chunks, Registry, Vec2, Vec3, VoxelAccess, WorldConfig,
 };
 
 fn create_test_registry() -> Registry {
@@ -64,6 +64,7 @@ fn bench_mesh_space(c: &mut Criterion) {
     };
 
     let registry = create_test_registry();
+    let mesher_registry = registry.mesher_registry();
     let chunks = create_test_chunks(&config);
     let coords = Vec2(0, 0);
 
@@ -75,14 +76,16 @@ fn bench_mesh_space(c: &mut Criterion) {
 
     let min = Vec3(0, 0, 0);
     let max = Vec3(16, 32, 16);
+    let min_arr = [min.0, min.1, min.2];
+    let max_arr = [max.0, max.1, max.2];
 
     c.bench_function("mesh_space_16x32x16", |b| {
         b.iter(|| {
-            Mesher::mesh_space(
-                black_box(&min),
-                black_box(&max),
-                black_box(&space as &dyn VoxelAccess),
-                black_box(&registry),
+            voxelize_mesher::mesh_space(
+                black_box(&min_arr),
+                black_box(&max_arr),
+                black_box(&space),
+                black_box(mesher_registry.as_ref()),
             )
         })
     });
@@ -100,6 +103,7 @@ fn bench_mesh_space_sizes(c: &mut Criterion) {
     };
 
     let registry = create_test_registry();
+    let mesher_registry = registry.mesher_registry();
 
     for height in [8, 16, 32, 64].iter() {
         let chunks = create_test_chunks(&config);
@@ -109,17 +113,19 @@ fn bench_mesh_space_sizes(c: &mut Criterion) {
 
         let min = Vec3(0, 0, 0);
         let max = Vec3(16, *height, 16);
+        let min_arr = [min.0, min.1, min.2];
+        let max_arr = [max.0, max.1, max.2];
 
         group.bench_with_input(
             BenchmarkId::from_parameter(format!("16x{}x16", height)),
             height,
             |b, _| {
                 b.iter(|| {
-                    Mesher::mesh_space(
-                        black_box(&min),
-                        black_box(&max),
-                        black_box(&space as &dyn VoxelAccess),
-                        black_box(&registry),
+                    voxelize_mesher::mesh_space(
+                        black_box(&min_arr),
+                        black_box(&max_arr),
+                        black_box(&space),
+                        black_box(mesher_registry.as_ref()),
                     )
                 })
             },

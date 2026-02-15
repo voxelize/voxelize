@@ -35,24 +35,36 @@ export class Chunk extends RawChunk {
   }
 
   dispose() {
-    this.meshes.forEach((mesh) => {
-      mesh.forEach((subMesh) => {
-        if (!subMesh) return;
+    let meshGroups = this.meshes.values();
+    let meshGroup = meshGroups.next();
+    while (!meshGroup.done) {
+      const meshes = meshGroup.value;
+      for (let meshIndex = 0; meshIndex < meshes.length; meshIndex++) {
+        const subMesh = meshes[meshIndex];
+        if (!subMesh) {
+          continue;
+        }
 
         subMesh.geometry?.dispose();
 
-        if (subMesh.material) {
-          if (Array.isArray(subMesh.material)) {
-            subMesh.material.forEach((mat) => mat.dispose());
+        const material = subMesh.material;
+        if (material) {
+          if (Array.isArray(material)) {
+            for (let materialIndex = 0; materialIndex < material.length; materialIndex++) {
+              material[materialIndex].dispose();
+            }
           } else {
-            subMesh.material.dispose();
+            material.dispose();
           }
         }
 
         if (subMesh.parent) {
           subMesh.parent.remove(subMesh);
         }
-      });
-    });
+      }
+      meshGroup = meshGroups.next();
+    }
+
+    this.meshes.clear();
   }
 }

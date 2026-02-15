@@ -1,9 +1,10 @@
 import { MessageProtocol } from "@voxelize/protocol";
 import { Group, Vector3 } from "three";
 
+import { JsonValue } from "../types";
 import { NetIntercept } from "./network";
 
-export class Entity<T = any> extends Group {
+export class Entity<T = JsonValue> extends Group {
   public entId: string;
 
   constructor(id: string) {
@@ -76,12 +77,13 @@ export class Entities extends Group implements NetIntercept {
     const { entities } = message;
 
     if (entities && entities.length) {
-      entities.forEach((entity) => {
+      for (let entityIndex = 0; entityIndex < entities.length; entityIndex++) {
+        const entity = entities[entityIndex];
         const { id, type, metadata, operation } = entity;
 
         // ignore all block entities as they are handled by world
         if (type.startsWith("block::")) {
-          return;
+          continue;
         }
 
         let object = this.map.get(id);
@@ -89,7 +91,7 @@ export class Entities extends Group implements NetIntercept {
         switch (operation) {
           case "CREATE": {
             if (object) {
-              return;
+              continue;
             }
 
             object = this.createEntityOfType(type, id);
@@ -110,7 +112,7 @@ export class Entities extends Group implements NetIntercept {
           case "DELETE": {
             if (!object) {
               console.warn(`Entity ${id} does not exist.`);
-              return;
+              continue;
             }
 
             this.map.delete(id);
@@ -121,7 +123,7 @@ export class Entities extends Group implements NetIntercept {
             break;
           }
         }
-      });
+      }
     }
   };
 
@@ -136,41 +138,53 @@ export class Entities extends Group implements NetIntercept {
   update = (cameraPos?: Vector3, renderDistance?: number) => {
     const renderDistSq =
       cameraPos && renderDistance ? renderDistance * renderDistance : 0;
+    const shouldCullByDistance = renderDistSq > 0 && !!cameraPos;
 
-    this.map.forEach((entity) => {
-      if (renderDistSq > 0 && cameraPos && entity.setHidden) {
-        const tooFar =
-          entity.position.distanceToSquared(cameraPos) > renderDistSq;
+    let entities = this.map.values();
+    let entityEntry = entities.next();
+    while (!entityEntry.done) {
+      const entity = entityEntry.value;
+      if (shouldCullByDistance && cameraPos && entity.setHidden) {
+        const tooFar = entity.position.distanceToSquared(cameraPos) > renderDistSq;
         entity.setHidden(tooFar);
-        if (tooFar) return;
+        if (tooFar) {
+          entityEntry = entities.next();
+          continue;
+        }
       }
 
       entity.update?.();
-    });
+      entityEntry = entities.next();
+    }
   };
 
   snapAllToTarget = () => {
-    this.map.forEach((entity) => {
+    let entities = this.map.values();
+    let entityEntry = entities.next();
+    while (!entityEntry.done) {
+      const entity = entityEntry.value;
       (entity as Entity & { snapToTarget?: () => void }).snapToTarget?.();
-    });
+      entityEntry = entities.next();
+    }
   };
 
   private createEntityOfType = (type: string, id: string) => {
-    if (!this.types.has(type)) {
+    const normalizedType = type.toLowerCase();
+    const EntityType = this.types.get(normalizedType);
+    if (!EntityType) {
       console.warn(`Entity type ${type} is not registered.`);
       return;
     }
 
-    const Entity = this.types.get(type.toLowerCase());
     let object;
     if (
-      typeof Entity === "function" &&
-      Entity.prototype &&
-      Entity.prototype.constructor
+      typeof EntityType === "function" &&
+      EntityType.prototype &&
+      EntityType.prototype.constructor
     ) {
-      object = new (Entity as new (id: string) => Entity)(id);
+      object = new (EntityType as new (id: string) => Entity)(id);
     } else {
-      object = (Entity as (id: string) => Entity)(id);
+      object = (EntityType as (id: string) => Entity)(id);
     }
     this.map.set(id, object);
     this.add(object);

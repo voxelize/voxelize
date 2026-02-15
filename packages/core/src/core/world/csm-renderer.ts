@@ -34,6 +34,14 @@ interface Cascade {
   split: number;
 }
 
+interface CSMUniforms {
+  uShadowMaps: Texture[];
+  uShadowMatrices: Matrix4[];
+  uCascadeSplits: number[];
+  uShadowBias: number;
+  uNumCascades: number;
+}
+
 const defaultConfig: CSMConfig = {
   cascades: 3,
   shadowMapSize: 2048,
@@ -59,6 +67,12 @@ export class CSMRenderer {
   private tempVec3 = new Vector3();
 
   private skipShadowObjectsCache: Object3D[] = [];
+  private hiddenObjectsBuffer: Object3D[] = [];
+  private hiddenEntitiesBuffer: Object3D[] = [];
+  private reparentedEntitiesBuffer: Object3D[] = [];
+  private reparentedParentsBuffer: Array<Object3D | null> = [];
+  private poolOriginalMaterialMeshes: THREE.Mesh[] = [];
+  private poolOriginalMaterials: Array<THREE.Material | THREE.Material[]> = [];
 
   private cascadeFrustum = new Frustum();
   private cascadeMatrix = new Matrix4();
@@ -71,12 +85,25 @@ export class CSMRenderer {
   private lightViewMatrixInverse = new Matrix4();
   private lightSpaceCenter = new Vector3();
   private tempLookAtTarget = new Vector3();
-  private cornerPool: Vector3[] = Array(8)
-    .fill(null)
-    .map(() => new Vector3());
+  private objectTraversalStack: Object3D[] = [];
+  private cornerPool: Vector3[] = (() => {
+    const corners = new Array<Vector3>(8);
+    for (let index = 0; index < corners.length; index++) {
+      corners[index] = new Vector3();
+    }
+    return corners;
+  })();
+  private uniforms: CSMUniforms = {
+    uShadowMaps: [],
+    uShadowMatrices: [],
+    uCascadeSplits: [],
+    uShadowBias: 0,
+    uNumCascades: 0,
+  };
 
   constructor(config: Partial<CSMConfig> = {}) {
     this.config = { ...defaultConfig, ...config };
+    this.uniforms.uShadowBias = this.config.shadowBias;
 
     this.depthMaterial = new MeshDepthMaterial({
       depthPacking: RGBADepthPacking,
@@ -112,10 +139,16 @@ export class CSMRenderer {
         matrix: new Matrix4(),
         split: splits[i + 1],
       });
+      const cascade = this.cascades[this.cascades.length - 1];
+      this.uniforms.uShadowMaps.push(cascade.renderTarget.depthTexture);
+      this.uniforms.uShadowMatrices.push(cascade.matrix);
+      this.uniforms.uCascadeSplits.push(cascade.split);
 
       this.cascadeDirty.push(true);
       this.cascadeNeedsRender.push(true);
     }
+
+    this.uniforms.uNumCascades = this.cascades.length;
   }
 
   setLightDirection(direction: Vector3) {
@@ -154,7 +187,15 @@ export class CSMRenderer {
 
   rebuildSkipShadowCache(scene: Scene) {
     this.skipShadowObjectsCache = [];
-    scene.traverse((object) => {
+    const objectTraversalStack = this.objectTraversalStack;
+    objectTraversalStack.length = 0;
+    objectTraversalStack.push(scene);
+
+    while (objectTraversalStack.length > 0) {
+      const object = objectTraversalStack.pop();
+      if (!object) {
+        continue;
+      }
       if (
         "material" in object &&
         (object as { material: { userData?: { skipShadow?: boolean } } })
@@ -162,7 +203,73 @@ export class CSMRenderer {
       ) {
         this.skipShadowObjectsCache.push(object);
       }
-    });
+      const children = object.children;
+      for (let childIndex = 0; childIndex < children.length; childIndex++) {
+        objectTraversalStack.push(children[childIndex]);
+      }
+    }
+  }
+
+  private hideEntitySkipShadowChildren(
+    entity: Object3D,
+    hiddenObjects: Object3D[]
+  ) {
+    const objectTraversalStack = this.objectTraversalStack;
+    objectTraversalStack.length = 0;
+    const entityChildren = entity.children;
+    for (let childIndex = 0; childIndex < entityChildren.length; childIndex++) {
+      objectTraversalStack.push(entityChildren[childIndex]);
+    }
+
+    while (objectTraversalStack.length > 0) {
+      const child = objectTraversalStack.pop();
+      if (!child) {
+        continue;
+      }
+
+      if (
+        child.visible &&
+        "material" in child &&
+        (child as { material: { userData?: { skipShadow?: boolean } } }).material
+          ?.userData?.skipShadow === true
+      ) {
+        hiddenObjects.push(child);
+        child.visible = false;
+      }
+
+      const children = child.children;
+      for (let childIndex = 0; childIndex < children.length; childIndex++) {
+        objectTraversalStack.push(children[childIndex]);
+      }
+    }
+  }
+
+  private applyPoolDepthMaterials(
+    pool: Group,
+    poolOriginalMaterialMeshes: THREE.Mesh[],
+    poolOriginalMaterials: Array<THREE.Material | THREE.Material[]>
+  ) {
+    const objectTraversalStack = this.objectTraversalStack;
+    objectTraversalStack.length = 0;
+    objectTraversalStack.push(pool);
+
+    while (objectTraversalStack.length > 0) {
+      const child = objectTraversalStack.pop();
+      if (!child) {
+        continue;
+      }
+
+      if (child instanceof THREE.Mesh && child.customDepthMaterial) {
+        poolOriginalMaterialMeshes.push(child);
+        poolOriginalMaterials.push(child.material);
+        child.material = child.customDepthMaterial;
+      }
+
+      const children = child.children;
+      for (let childIndex = 0; childIndex < children.length; childIndex++) {
+        objectTraversalStack.push(children[childIndex]);
+      }
+    }
   }
 
   update(mainCamera: Camera, sunDirection: Vector3, playerPosition?: Vector3) {
@@ -247,14 +354,16 @@ export class CSMRenderer {
 
     this.frustumCenter.divideScalar(8);
 
-    let radius = 0;
+    let radiusSq = 0;
     for (let i = 0; i < 8; i++) {
-      radius = Math.max(
-        radius,
-        this.cornerPool[i].distanceTo(this.frustumCenter)
+      const cornerRadiusSq = this.cornerPool[i].distanceToSquared(
+        this.frustumCenter
       );
+      if (cornerRadiusSq > radiusSq) {
+        radiusSq = cornerRadiusSq;
+      }
     }
-    radius = Math.ceil(radius * 16) / 16;
+    const radius = Math.ceil(Math.sqrt(radiusSq) * 16) / 16;
 
     this.frustumUp.set(0, 1, 0);
     if (Math.abs(this.lightDirection.dot(this.frustumUp)) > 0.999) {
@@ -328,50 +437,54 @@ export class CSMRenderer {
     maxEntityShadowDistance = 32,
     instancePools?: Group[]
   ) {
-    const anyNeedsRender = this.cascadeNeedsRender.some((v) => v);
+    let anyNeedsRender = false;
+    for (
+      let cascadeIndex = 0;
+      cascadeIndex < this.cascadeNeedsRender.length;
+      cascadeIndex++
+    ) {
+      if (this.cascadeNeedsRender[cascadeIndex]) {
+        anyNeedsRender = true;
+        break;
+      }
+    }
     if (!anyNeedsRender) {
       return;
     }
 
     const originalOverrideMaterial = scene.overrideMaterial;
 
-    const hiddenObjects: { object: Object3D; visible: boolean }[] = [];
-    for (const object of this.skipShadowObjectsCache) {
+    const hiddenObjects = this.hiddenObjectsBuffer;
+    hiddenObjects.length = 0;
+    for (
+      let objectIndex = 0;
+      objectIndex < this.skipShadowObjectsCache.length;
+      objectIndex++
+    ) {
+      const object = this.skipShadowObjectsCache[objectIndex];
       if (object.visible) {
-        hiddenObjects.push({ object, visible: true });
+        hiddenObjects.push(object);
         object.visible = false;
       }
     }
 
     if (entities) {
-      for (const entity of entities) {
-        entity.traverse((child) => {
-          if (
-            child !== entity &&
-            child.visible &&
-            "material" in child &&
-            (child as { material: { userData?: { skipShadow?: boolean } } })
-              .material?.userData?.skipShadow === true
-          ) {
-            hiddenObjects.push({ object: child, visible: true });
-            child.visible = false;
-          }
-        });
+      for (let entityIndex = 0; entityIndex < entities.length; entityIndex++) {
+        this.hideEntitySkipShadowChildren(entities[entityIndex], hiddenObjects);
       }
     }
 
-    const poolOriginalMaterials: Map<
-      Object3D,
-      THREE.Material | THREE.Material[]
-    > = new Map();
+    const poolOriginalMaterialMeshes = this.poolOriginalMaterialMeshes;
+    poolOriginalMaterialMeshes.length = 0;
+    const poolOriginalMaterials = this.poolOriginalMaterials;
+    poolOriginalMaterials.length = 0;
     if (this.shouldRenderEntityShadows && instancePools) {
-      for (const pool of instancePools) {
-        pool.traverse((child) => {
-          if (child instanceof THREE.Mesh && child.customDepthMaterial) {
-            poolOriginalMaterials.set(child, child.material);
-            child.material = child.customDepthMaterial;
-          }
-        });
+      for (let poolIndex = 0; poolIndex < instancePools.length; poolIndex++) {
+        this.applyPoolDepthMaterials(
+          instancePools[poolIndex],
+          poolOriginalMaterialMeshes,
+          poolOriginalMaterials
+        );
       }
     }
 
@@ -392,19 +505,22 @@ export class CSMRenderer {
       renderer.setRenderTarget(cascade.renderTarget);
       renderer.clear();
 
-      const hiddenEntities: { object: Object3D; visible: boolean }[] = [];
+      const hiddenEntities = this.hiddenEntitiesBuffer;
+      hiddenEntities.length = 0;
       if (i >= 2 && entities) {
-        for (const entity of entities) {
+        for (let entityIndex = 0; entityIndex < entities.length; entityIndex++) {
+          const entity = entities[entityIndex];
           if (entity.visible) {
-            hiddenEntities.push({ object: entity, visible: true });
+            hiddenEntities.push(entity);
             entity.visible = false;
           }
         }
       }
       if (i >= 2 && instancePools) {
-        for (const pool of instancePools) {
+        for (let poolIndex = 0; poolIndex < instancePools.length; poolIndex++) {
+          const pool = instancePools[poolIndex];
           if (pool.visible) {
-            hiddenEntities.push({ object: pool, visible: true });
+            hiddenEntities.push(pool);
             pool.visible = false;
           }
         }
@@ -412,8 +528,8 @@ export class CSMRenderer {
 
       renderer.render(scene, cascade.camera);
 
-      for (const { object, visible } of hiddenEntities) {
-        object.visible = visible;
+      for (let hiddenIndex = 0; hiddenIndex < hiddenEntities.length; hiddenIndex++) {
+        hiddenEntities[hiddenIndex].visible = true;
       }
 
       if (
@@ -423,31 +539,44 @@ export class CSMRenderer {
         i < 2
       ) {
         scene.overrideMaterial = null;
-        for (const pool of instancePools) {
-          renderer.render(pool as unknown as Scene, cascade.camera);
+        for (let poolIndex = 0; poolIndex < instancePools.length; poolIndex++) {
+          renderer.render(instancePools[poolIndex], cascade.camera);
         }
         scene.overrideMaterial = this.depthMaterial;
       }
 
       if (this.shouldRenderEntityShadows && entities && i < 2) {
         const maxDistSq = maxEntityShadowDistance * maxEntityShadowDistance;
-        const originalParents: Map<Object3D, Object3D | null> = new Map();
-        for (const entity of entities) {
+        const reparentedEntities = this.reparentedEntitiesBuffer;
+        const reparentedParents = this.reparentedParentsBuffer;
+        reparentedEntities.length = 0;
+        reparentedParents.length = 0;
+        for (let entityIndex = 0; entityIndex < entities.length; entityIndex++) {
+          const entity = entities[entityIndex];
           if (entity.userData.castsShadow === false) continue;
           const distSq = entity.position.distanceToSquared(
             this.lastCameraPosition
           );
           if (distSq >= maxDistSq) continue;
           if (!this.cascadeFrustum.containsPoint(entity.position)) continue;
-          originalParents.set(entity, entity.parent);
+          reparentedEntities.push(entity);
+          reparentedParents.push(entity.parent);
           this.entityBatchGroup.add(entity);
         }
         if (this.entityBatchGroup.children.length > 0) {
-          const batchAsScene = this.entityBatchGroup as unknown as Scene;
-          batchAsScene.overrideMaterial = this.depthMaterial;
-          renderer.render(batchAsScene, cascade.camera);
-          batchAsScene.overrideMaterial = null;
-          for (const [entity, originalParent] of originalParents) {
+          const batchWithOverrideMaterial = this.entityBatchGroup as Group & {
+            overrideMaterial: THREE.Material | null;
+          };
+          batchWithOverrideMaterial.overrideMaterial = this.depthMaterial;
+          renderer.render(this.entityBatchGroup, cascade.camera);
+          batchWithOverrideMaterial.overrideMaterial = null;
+          for (
+            let reparentIndex = 0;
+            reparentIndex < reparentedEntities.length;
+            reparentIndex++
+          ) {
+            const entity = reparentedEntities[reparentIndex];
+            const originalParent = reparentedParents[reparentIndex];
             if (originalParent) {
               originalParent.add(entity);
             } else {
@@ -461,12 +590,19 @@ export class CSMRenderer {
       this.cascadeNeedsRender[i] = false;
     }
 
-    for (const [mesh, originalMaterial] of poolOriginalMaterials) {
-      (mesh as THREE.Mesh).material = originalMaterial;
+    for (
+      let materialIndex = 0;
+      materialIndex < poolOriginalMaterialMeshes.length;
+      materialIndex++
+    ) {
+      poolOriginalMaterialMeshes[materialIndex].material =
+        poolOriginalMaterials[materialIndex];
     }
+    poolOriginalMaterialMeshes.length = 0;
+    poolOriginalMaterials.length = 0;
 
-    for (const { object, visible } of hiddenObjects) {
-      object.visible = visible;
+    for (let hiddenIndex = 0; hiddenIndex < hiddenObjects.length; hiddenIndex++) {
+      hiddenObjects[hiddenIndex].visible = true;
     }
 
     scene.overrideMaterial = originalOverrideMaterial;
@@ -485,20 +621,8 @@ export class CSMRenderer {
     this.cascadeNeedsRender[0] = true;
   }
 
-  getUniforms(): {
-    uShadowMaps: Texture[];
-    uShadowMatrices: Matrix4[];
-    uCascadeSplits: number[];
-    uShadowBias: number;
-    uNumCascades: number;
-  } {
-    return {
-      uShadowMaps: this.cascades.map((c) => c.renderTarget.depthTexture),
-      uShadowMatrices: this.cascades.map((c) => c.matrix),
-      uCascadeSplits: this.cascades.map((c) => c.split),
-      uShadowBias: this.config.shadowBias,
-      uNumCascades: this.cascades.length,
-    };
+  getUniforms(): CSMUniforms {
+    return this.uniforms;
   }
 
   getShadowMap(index: number): Texture | null {
@@ -522,11 +646,16 @@ export class CSMRenderer {
   }
 
   dispose() {
-    for (const cascade of this.cascades) {
+    for (let cascadeIndex = 0; cascadeIndex < this.cascades.length; cascadeIndex++) {
+      const cascade = this.cascades[cascadeIndex];
       cascade.renderTarget.dispose();
       cascade.renderTarget.depthTexture?.dispose();
     }
     this.depthMaterial.dispose();
     this.cascades = [];
+    this.uniforms.uShadowMaps.length = 0;
+    this.uniforms.uShadowMatrices.length = 0;
+    this.uniforms.uCascadeSplits.length = 0;
+    this.uniforms.uNumCascades = 0;
   }
 }

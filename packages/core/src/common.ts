@@ -14,6 +14,14 @@ interface CachedDistance {
   epoch: number;
 }
 
+type TransparentSortItem = {
+  object?: Object3D;
+  renderOrder?: number;
+  groupOrder: number;
+  z: number;
+  id: number;
+};
+
 const OBJECT_SORT_THRESHOLD_SQ = 0.5;
 const _distanceCache = new WeakMap<object, CachedDistance>();
 let _sortEpoch = 0;
@@ -89,7 +97,7 @@ function getDistance(
 }
 
 export const TRANSPARENT_SORT = (object: Object3D) => {
-  return (a: any, b: any) => {
+  return (a: TransparentSortItem, b: TransparentSortItem) => {
     const aObj = a.object;
     const bObj = b.object;
 
@@ -99,7 +107,7 @@ export const TRANSPARENT_SORT = (object: Object3D) => {
       return aRenderOrder - bRenderOrder;
     }
 
-    if (aObj?.isMesh && bObj?.isMesh) {
+    if (aObj instanceof Mesh && bObj instanceof Mesh) {
       if (!_camPosValid) {
         object.getWorldPosition(_camWorldPos);
         const dx = _camWorldPos.x - _lastCamX;
@@ -119,8 +127,11 @@ export const TRANSPARENT_SORT = (object: Object3D) => {
 
       const aDist = getDistance(aObj, _lastCamX, _lastCamY, _lastCamZ);
       const bDist = getDistance(bObj, _lastCamX, _lastCamY, _lastCamZ);
-
-      return bDist - aDist > 0 ? 1 : -1;
+      const distanceDelta = bDist - aDist;
+      if (distanceDelta !== 0) {
+        return distanceDelta > 0 ? 1 : -1;
+      }
+      return a.id - b.id;
     }
 
     if (a.groupOrder !== b.groupOrder) {

@@ -304,7 +304,10 @@ impl Physics {
         }
 
         // sleep check
-        let vsq = body.velocity.len().powi(2);
+        let vx = body.velocity.0;
+        let vy = body.velocity.1;
+        let vz = body.velocity.2;
+        let vsq = vx * vx + vy * vy + vz * vz;
         if vsq > 1e-5 {
             body.mark_active()
         }
@@ -376,8 +379,19 @@ impl Physics {
 
         let y0 = if test_fluid(center_x, y0, center_z) {
             y0
-        } else if y0 < y1 && test_fluid(center_x, y0 + 1, center_z) {
-            y0 + 1
+        } else if y0 < y1 {
+            let Some(next_y) = y0.checked_add(1) else {
+                body.in_fluid = false;
+                body.ratio_in_fluid = 0.0;
+                return;
+            };
+            if test_fluid(center_x, next_y, center_z) {
+                next_y
+            } else {
+                body.in_fluid = false;
+                body.ratio_in_fluid = 0.0;
+                return;
+            }
         } else {
             body.in_fluid = false;
             body.ratio_in_fluid = 0.0;

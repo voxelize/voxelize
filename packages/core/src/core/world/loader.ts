@@ -1,6 +1,8 @@
 import { GifReader } from "omggif";
 import { AudioLoader, LoadingManager, Texture, TextureLoader } from "three";
 
+type LoaderAsset = Texture | HTMLImageElement | HTMLImageElement[];
+
 /**
  * An asset loader that can load textures and audio files. This class is used internally by the world
  * and can be accessed via {@link World.loader}.
@@ -43,7 +45,7 @@ class Loader {
   /**
    * A map of promises to load assets.
    */
-  private assetPromises = new Map<string, Promise<any>>();
+  private assetPromises = new Map<string, Promise<LoaderAsset>>();
 
   /**
    * A map of callbacks to load audios.
@@ -72,6 +74,19 @@ class Loader {
     source: string,
     onLoaded?: (images: HTMLImageElement[]) => void
   ) => {
+    const existing = this.assetPromises.get(source);
+    if (existing) {
+      return existing.then((asset) => {
+        if (!Array.isArray(asset)) {
+          throw new Error(
+            `Asset "${source}" is not loading as GIF frames.`
+          );
+        }
+        onLoaded?.(asset);
+        return asset;
+      });
+    }
+
     const promise = new Promise<HTMLImageElement[]>((resolve) => {
       const run = async () => {
         const response = await fetch(source);
@@ -82,22 +97,32 @@ class Loader {
         const reader = new GifReader(intArray);
 
         const info = reader.frameInfo(0);
+        const frameCount = reader.numFrames();
+        const images = new Array<HTMLImageElement>(frameCount);
+        const canvas = document.createElement("canvas");
+        canvas.width = info.width;
+        canvas.height = info.height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          throw new Error("Failed to get 2D canvas context while decoding GIF.");
+        }
 
-        const images = new Array(reader.numFrames()).fill(0).map((_, k) => {
+        for (let frameIndex = 0; frameIndex < frameCount; frameIndex++) {
           const image = new ImageData(info.width, info.height);
-          reader.decodeAndBlitFrameRGBA(k, image.data as any);
+          const imageData = image.data;
+          const rgbaData = new Uint8Array(
+            imageData.buffer,
+            imageData.byteOffset,
+            imageData.byteLength
+          );
+          reader.decodeAndBlitFrameRGBA(frameIndex, rgbaData);
 
-          const canvas = document.createElement("canvas");
-          const ctx = canvas.getContext("2d");
-          canvas.width = image.width;
-          canvas.height = image.height;
           ctx.putImageData(image, 0, 0);
 
           const actual = new Image();
           actual.src = canvas.toDataURL();
-
-          return actual;
-        });
+          images[frameIndex] = actual;
+        }
 
         this.images.set(source, images);
         this.assetPromises.delete(source);
@@ -116,6 +141,17 @@ class Loader {
   };
 
   loadTexture = (source: string, onLoaded?: (texture: Texture) => void) => {
+    const existing = this.assetPromises.get(source);
+    if (existing) {
+      return existing.then((asset) => {
+        if (!(asset instanceof Texture)) {
+          throw new Error(`Asset "${source}" is not loading as a texture.`);
+        }
+        onLoaded?.(asset);
+        return asset;
+      });
+    }
+
     const promise = new Promise<Texture>((resolve) => {
       this.textureLoader.load(source, (texture) => {
         this.textures.set(source, texture);
@@ -144,9 +180,12 @@ class Loader {
 
     const existing = this.assetPromises.get(source);
     if (existing) {
-      return existing.then((img: HTMLImageElement) => {
-        onLoaded?.(img);
-        return img;
+      return existing.then((asset) => {
+        if (Array.isArray(asset) || asset instanceof Texture) {
+          throw new Error(`Asset "${source}" is not loading as an image.`);
+        }
+        onLoaded?.(asset);
+        return asset;
       });
     }
 
@@ -245,7 +284,7 @@ class Loader {
    * @returns A promise that resolves when all assets are loaded.
    */
   load = async () => {
-    await Promise.all(Array.from(this.assetPromises.values()));
+    await Promise.all(this.assetPromises.values());
 
     this.assetPromises.clear();
   };
@@ -254,9 +293,13 @@ class Loader {
    * Load all audio loader callbacks.
    */
   private loadAudios = async () => {
-    for (const [source, callback] of this.audioCallbacks) {
+    let audioEntries = this.audioCallbacks.entries();
+    let audioEntry = audioEntries.next();
+    while (!audioEntry.done) {
+      const [source, callback] = audioEntry.value;
       const buffer = await callback();
       this.audioBuffers.set(source, buffer);
+      audioEntry = audioEntries.next();
     }
 
     this.audioCallbacks.clear();

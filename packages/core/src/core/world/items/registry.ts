@@ -1,4 +1,5 @@
 import type { World } from "../index";
+import { JsonValue } from "../../../types";
 
 import { getImageComp, getItemComponent, ImageComp, ItemDef } from "./item";
 import {
@@ -11,19 +12,44 @@ import { DEFAULT_BLOCK_MAX_STACK, SlotContent } from "./slot";
 export type ImageResolver = (name: string) => string;
 
 function dataEqual(
-  a: Record<string, unknown> | undefined,
-  b: Record<string, unknown> | undefined
+  a: Record<string, JsonValue> | undefined,
+  b: Record<string, JsonValue> | undefined
 ): boolean {
   if (a === b) return true;
   if (!a && !b) return true;
   if (!a || !b) return false;
-  const keysA = Object.keys(a);
-  const keysB = Object.keys(b);
-  if (keysA.length !== keysB.length) return false;
-  for (const key of keysA) {
-    if (a[key] !== b[key]) return false;
+  const hasOwn = Object.prototype.hasOwnProperty;
+  let keysInA = 0;
+  for (const key in a) {
+    if (!hasOwn.call(a, key)) {
+      continue;
+    }
+    keysInA++;
+    if (!hasOwn.call(b, key) || a[key] !== b[key]) return false;
   }
-  return true;
+  let keysInB = 0;
+  for (const key in b) {
+    if (!hasOwn.call(b, key)) {
+      continue;
+    }
+    keysInB++;
+  }
+  return keysInA === keysInB;
+}
+
+function hasData<T extends object>(data: T | undefined): boolean {
+  if (!data) {
+    return false;
+  }
+
+  const hasOwn = Object.prototype.hasOwnProperty;
+  for (const key in data) {
+    if (hasOwn.call(data, key)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export class ItemRegistry {
@@ -65,7 +91,8 @@ export class ItemRegistry {
     this.itemsByName.clear();
     this.renderers.clear();
 
-    for (const item of items) {
+    for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
+      const item = items[itemIndex];
       this.itemsById.set(item.id, item);
       this.itemsByName.set(item.name.toLowerCase(), item);
     }
@@ -101,11 +128,14 @@ export class ItemRegistry {
 
   async waitForRenderers(): Promise<void> {
     const promises: Promise<void>[] = [];
-    for (const [id] of this.itemsById) {
-      const renderer = this.getRenderer(id);
+    let itemIds = this.itemsById.keys();
+    let itemId = itemIds.next();
+    while (!itemId.done) {
+      const renderer = this.getRenderer(itemId.value);
       if (renderer instanceof ImageItemRenderer) {
         promises.push(renderer.waitForLoad());
       }
+      itemId = itemIds.next();
     }
     await Promise.all(promises);
   }
@@ -119,7 +149,16 @@ export class ItemRegistry {
   }
 
   getAll(): ItemDef[] {
-    return Array.from(this.itemsById.values());
+    const items = new Array<ItemDef>(this.itemsById.size);
+    let index = 0;
+    let itemEntries = this.itemsById.values();
+    let itemEntry = itemEntries.next();
+    while (!itemEntry.done) {
+      items[index] = itemEntry.value;
+      index++;
+      itemEntry = itemEntries.next();
+    }
+    return items;
   }
 
   getMaxStack(slot: SlotContent): number {
@@ -151,10 +190,8 @@ export class ItemRegistry {
     if (a.type === "item" && b.type === "item") {
       if (a.id !== b.id) return false;
       if (this.getMaxStack(a) <= 1) return false;
-      const aData = a.data;
-      const bData = b.data;
-      const aHasData = aData && Object.keys(aData).length > 0;
-      const bHasData = bData && Object.keys(bData).length > 0;
+      const aHasData = hasData(a.data);
+      const bHasData = hasData(b.data);
       if (aHasData || bHasData) return false;
       return true;
     }
@@ -175,8 +212,11 @@ export class ItemRegistry {
   }
 
   disposeRenderers(): void {
-    for (const renderer of this.renderers.values()) {
-      renderer.dispose?.();
+    let rendererEntries = this.renderers.values();
+    let rendererEntry = rendererEntries.next();
+    while (!rendererEntry.done) {
+      rendererEntry.value.dispose?.();
+      rendererEntry = rendererEntries.next();
     }
     this.renderers.clear();
   }

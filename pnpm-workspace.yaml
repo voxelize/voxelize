@@ -2,6 +2,7 @@ packages:
   - docs
   - packages/*
   - crates/wasm-mesher
+  - crates/wasm-lighter
   - examples/client
 
 onlyBuiltDependencies:

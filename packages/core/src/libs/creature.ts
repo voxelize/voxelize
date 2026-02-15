@@ -8,6 +8,7 @@ import {
   Vector3,
 } from "three";
 
+import { JsonValue } from "../types";
 import { MathUtils as VoxMathUtils } from "../utils";
 
 import { CanvasBox, CanvasBoxOptions } from "./canvas-box";
@@ -117,7 +118,7 @@ export class Creature extends Group {
   public positionLerpOverride: number | null = null;
   public newPosition = new Vector3();
   public newDirection = new Quaternion();
-  public extraData: unknown = null;
+  public extraData: JsonValue = null;
 
   onMove: () => void;
   onIdle: () => void;
@@ -128,6 +129,12 @@ export class Creature extends Group {
     pos: Vector3;
     dir: Quaternion;
   }> = [];
+  private reusablePositionBufferEntries: Array<{
+    time: number;
+    pos: Vector3;
+    dir: Quaternion;
+  }> = [];
+  private positionBufferHead = 0;
   private interpolationDelay = 50;
 
   constructor(options: Partial<CreatureOptions> = {}) {
@@ -166,26 +173,41 @@ export class Creature extends Group {
   }
 
   private interpolateFromBuffer() {
-    if (this.positionBuffer.length === 0) return;
+    const positionBuffer = this.positionBuffer;
+    let head = this.positionBufferHead;
+    const available = positionBuffer.length - head;
+    if (available <= 0) return;
+
     const renderTime = performance.now() - this.interpolationDelay;
     while (
-      this.positionBuffer.length > 2 &&
-      this.positionBuffer[1].time <= renderTime
+      positionBuffer.length - head > 2 &&
+      positionBuffer[head + 1].time <= renderTime
     ) {
-      this.positionBuffer.shift();
+      this.reusablePositionBufferEntries.push(positionBuffer[head]);
+      head++;
     }
-    if (this.positionBuffer.length >= 2) {
-      const p0 = this.positionBuffer[0];
-      const p1 = this.positionBuffer[1];
+
+    if (head !== this.positionBufferHead) {
+      this.positionBufferHead = head;
+      if (head >= 8) {
+        this.normalizePositionBuffer();
+        head = this.positionBufferHead;
+      }
+    }
+
+    const bufferedCount = positionBuffer.length - head;
+    if (bufferedCount >= 2) {
+      const p0 = positionBuffer[head];
+      const p1 = positionBuffer[head + 1];
       const t = Math.max(
         0,
         Math.min(1, (renderTime - p0.time) / (p1.time - p0.time))
       );
       this.newPosition.lerpVectors(p0.pos, p1.pos, t);
       this.newDirection.slerpQuaternions(p0.dir, p1.dir, t);
-    } else if (this.positionBuffer.length === 1) {
-      this.newPosition.copy(this.positionBuffer[0].pos);
-      this.newDirection.copy(this.positionBuffer[0].dir);
+    } else if (bufferedCount === 1) {
+      this.newPosition.copy(positionBuffer[head].pos);
+      this.newDirection.copy(positionBuffer[head].dir);
     }
   }
 
@@ -196,17 +218,50 @@ export class Creature extends Group {
 
   set(position: number[], direction: number[]) {
     if (!position || !direction) return;
-    const pos = new Vector3(position[0], position[1], position[2]);
-    const dir = VoxMathUtils.directionToQuaternion(
-      direction[0],
-      0,
-      direction[2]
-    );
-    const now = performance.now();
-    this.positionBuffer.push({ time: now, pos, dir });
-    while (this.positionBuffer.length > 10) {
-      this.positionBuffer.shift();
+    let entry = this.reusablePositionBufferEntries.pop();
+    if (!entry) {
+      entry = {
+        time: 0,
+        pos: new Vector3(),
+        dir: new Quaternion(),
+      };
     }
+
+    const now = performance.now();
+    entry.time = now;
+    entry.pos.set(position[0], position[1], position[2]);
+    VoxMathUtils.directionToQuaternion(direction[0], 0, direction[2], entry.dir);
+
+    const positionBuffer = this.positionBuffer;
+    positionBuffer.push(entry);
+    const bufferedCount = positionBuffer.length - this.positionBufferHead;
+    if (bufferedCount > 10) {
+      const toTrim = bufferedCount - 10;
+      const head = this.positionBufferHead;
+      const reusableEntries = this.reusablePositionBufferEntries;
+      for (let trimIndex = 0; trimIndex < toTrim; trimIndex++) {
+        reusableEntries.push(positionBuffer[head + trimIndex]);
+      }
+      this.positionBufferHead = head + toTrim;
+    }
+    if (this.positionBufferHead >= 10) {
+      this.normalizePositionBuffer();
+    }
+  }
+
+  private normalizePositionBuffer() {
+    const head = this.positionBufferHead;
+    if (head <= 0) {
+      return;
+    }
+
+    const positionBuffer = this.positionBuffer;
+    const bufferedCount = positionBuffer.length - head;
+    if (bufferedCount > 0) {
+      positionBuffer.copyWithin(0, head, positionBuffer.length);
+    }
+    positionBuffer.length = Math.max(bufferedCount, 0);
+    this.positionBufferHead = 0;
   }
 
   set username(username: string) {
@@ -358,11 +413,10 @@ export class Creature extends Group {
   private calculateDelta = () => {
     if (this.manualSpeed) return;
 
-    const p1 = this.position.clone();
-    const p2 = this.newPosition.clone();
-    p1.y = p2.y = 0;
-    const dist = p1.distanceTo(p2);
-    if (dist > 0.00001) {
+    const dx = this.position.x - this.newPosition.x;
+    const dz = this.position.z - this.newPosition.z;
+    const distSq = dx * dx + dz * dz;
+    if (distSq > 0.0000000001) {
       if (this.speed === 0) this.onMove?.();
       this.speed = this.options.walkingSpeed ?? 0.8;
     } else {

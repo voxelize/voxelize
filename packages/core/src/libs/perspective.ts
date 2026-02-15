@@ -44,6 +44,13 @@ const defaultOptions: PerspectiveOptions = {
   ignoreFluids: true,
 };
 
+const normalizeNonNegativeFinite = (value: number, fallback: number) =>
+  Number.isFinite(value) && value >= 0 ? value : fallback;
+const normalizeFinite = (value: number, fallback: number) =>
+  Number.isFinite(value) ? value : fallback;
+const areFinite3 = (x: number, y: number, z: number) =>
+  Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z);
+
 /**
  * A class that allows you to switch between first, second and third person perspectives for
  * a {@link RigidControls} instance. By default, the key to switch between perspectives is <kbd>C</kbd>.
@@ -82,7 +89,7 @@ export class Perspective {
   /**
    * The input manager that binds the perspective's keyboard inputs.
    */
-  public inputs?: Inputs<any>;
+  public inputs?: Inputs;
 
   /**
    * The internal state of the perspective.
@@ -93,6 +100,11 @@ export class Perspective {
    * A cache to save the first person camera position.
    */
   private firstPersonPosition = new Vector3();
+  private raycastDirection = new Vector3();
+  private raycastOrigin = new Vector3();
+  private raycastOriginCoords: [number, number, number] = [0, 0, 0];
+  private raycastDirectionCoords: [number, number, number] = [0, 0, 0];
+  private targetCameraPosition = new Vector3();
 
   /**
    * This is the identifier that is used to bind the perspective's keyboard inputs
@@ -152,7 +164,7 @@ export class Perspective {
     const unbindKeyC = inputs.bind(
       "KeyC",
       () => {
-        if (!this.controls?.isLocked) {
+        if (!this.controls.isLocked) {
           return;
         }
         this.toggle();
@@ -164,7 +176,6 @@ export class Perspective {
       }
     );
 
-    // no clue why but this seems to work, f5 seems to be reversed
     const unbindF5 = inputs.bind("F5", () => this.toggle(true), namespace, {
       identifier: Perspective.INPUT_IDENTIFIER,
       checkType: "code",
@@ -175,10 +186,10 @@ export class Perspective {
     return () => {
       try {
         unbindKeyC();
+      } catch {}
+      try {
         unbindF5();
-      } catch (e) {
-        // Ignore.
-      }
+      } catch {}
     };
   };
 
@@ -218,68 +229,103 @@ export class Perspective {
    * This updates the perspective. Internally, if the perspective isn't in first person, it raycasts to find the closest
    * block and then ensures that the camera is not clipping into any blocks.
    */
+  private getDistance() {
+    const maxDistance = normalizeNonNegativeFinite(
+      this.options.maxDistance,
+      defaultOptions.maxDistance
+    );
+    const { object, camera } = this.controls;
+    const dir = this.raycastDirection;
+    (this.state === "second" ? object : camera).getWorldDirection(dir);
+    dir.normalize();
+    dir.multiplyScalar(-1);
+    if (!areFinite3(dir.x, dir.y, dir.z)) {
+      return maxDistance;
+    }
+
+    const pos = this.raycastOrigin;
+    object.getWorldPosition(pos);
+    const blockMargin = normalizeNonNegativeFinite(
+      this.options.blockMargin,
+      defaultOptions.blockMargin
+    );
+    pos.addScaledVector(dir, blockMargin);
+    if (!areFinite3(pos.x, pos.y, pos.z)) {
+      return maxDistance;
+    }
+
+    const raycastOrigin = this.raycastOriginCoords;
+    raycastOrigin[0] = pos.x;
+    raycastOrigin[1] = pos.y;
+    raycastOrigin[2] = pos.z;
+
+    const raycastDirection = this.raycastDirectionCoords;
+    raycastDirection[0] = dir.x;
+    raycastDirection[1] = dir.y;
+    raycastDirection[2] = dir.z;
+
+    const result = this.world.raycastVoxels(
+      raycastOrigin,
+      raycastDirection,
+      maxDistance,
+      {
+        ignoreFluids: this.options.ignoreFluids,
+        ignoreSeeThrough: this.options.ignoreSeeThrough,
+      }
+    );
+
+    if (!result) {
+      return maxDistance;
+    }
+
+    const dx = pos.x - result.point[0];
+    const dy = pos.y - result.point[1];
+    const dz = pos.z - result.point[2];
+    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    return normalizeNonNegativeFinite(distance, maxDistance);
+  }
+
   update = () => {
     const { object, camera } = this.controls;
+    const state = this.state;
+    const lerpFactor = normalizeFinite(
+      this.options.lerpFactor,
+      defaultOptions.lerpFactor
+    );
 
-    if (this.controls.character) {
-      if (this.state === "first" && this.controls.character.visible) {
-        this.controls.character.visible = false;
-      } else if (this.state !== "first" && !this.controls.character.visible) {
-        this.controls.character.visible = true;
+    const character = this.controls.character;
+    if (character) {
+      const shouldShowCharacter = state !== "first";
+      if (character.visible !== shouldShowCharacter) {
+        character.visible = shouldShowCharacter;
       }
     }
 
-    if (this.controls.arm) {
-      if (this.state === "first" && !this.controls.arm.visible) {
-        this.controls.arm.visible = true;
-      } else if (this.state !== "first" && this.controls.arm.visible) {
-        this.controls.arm.visible = false;
+    const arm = this.controls.arm;
+    if (arm) {
+      const shouldShowArm = state === "first";
+      if (arm.visible !== shouldShowArm) {
+        arm.visible = shouldShowArm;
       }
     }
 
-    const getDistance = () => {
-      const dir = new Vector3();
-      (this.state === "second" ? object : camera).getWorldDirection(dir);
-      dir.normalize();
-      dir.multiplyScalar(-1);
-
-      const pos = new Vector3();
-      object.getWorldPosition(pos);
-
-      pos.add(dir.clone().multiplyScalar(this.options.blockMargin));
-
-      const result = this.world.raycastVoxels(
-        pos.toArray(),
-        dir.toArray(),
-        this.options.maxDistance,
-        {
-          ignoreFluids: this.options.ignoreFluids,
-          ignoreSeeThrough: this.options.ignoreSeeThrough,
-        }
-      );
-
-      if (!result) {
-        return this.options.maxDistance;
-      }
-
-      return pos.distanceTo(new Vector3(...result.point));
-    };
-
-    switch (this.state) {
+    switch (state) {
       case "first": {
         break;
       }
       case "second": {
-        const newPos = camera.position.clone();
-        newPos.z = -getDistance();
-        camera.position.lerp(newPos, this.options.lerpFactor);
+        const newPos = this.targetCameraPosition;
+        newPos.copy(camera.position);
+        newPos.z = -this.getDistance();
+        camera.position.lerp(newPos, lerpFactor);
         camera.lookAt(object.position);
         break;
       }
       case "third": {
-        const newPos = camera.position.clone();
-        newPos.z = getDistance();
-        camera.position.lerp(newPos, this.options.lerpFactor);
+        const newPos = this.targetCameraPosition;
+        newPos.copy(camera.position);
+        newPos.z = this.getDistance();
+        camera.position.lerp(newPos, lerpFactor);
         break;
       }
     }
@@ -297,7 +343,7 @@ export class Perspective {
       camera.position.set(0, 0, 0);
     }
 
-    camera.quaternion.set(0, 0, 0, 0);
+    camera.quaternion.identity();
 
     if (state !== this._state) {
       this.onChangeState?.(state);

@@ -1,9 +1,10 @@
 import { Color, Material, Mesh, Object3D, Vector3 } from "three";
 
 import { World } from "../../core";
-import { ChunkUtils, ThreeUtils } from "../../utils";
+import { ThreeUtils } from "../../utils";
 import { NameTag } from "../nametag";
 import { Shadow } from "../shadows";
+import type { DynamicLight } from "../../core/world/light-registry";
 
 const position = new Vector3();
 const tempColor = new Color();
@@ -46,6 +47,8 @@ const defaultOptions: LightShinedOptions = {
  * @category Effects
  */
 export class LightShined {
+  private static readonly zeroColor = new Color(0, 0, 0);
+
   /**
    * Parameters to customize the effect.
    */
@@ -59,9 +62,15 @@ export class LightShined {
   /**
    * A list of types that are ignored by this effect.
    */
-  public ignored: Set<any> = new Set();
+  public ignored: Set<Function> = new Set();
+  private ignoredTypes: Function[] = [];
 
   private positionOverrides = new Map<Object3D, Vector3>();
+  private torchLightColor = new Color();
+  private traversalStack: Object3D[] = [];
+  private raycastOrigin: [number, number, number] = [0, 0, 0];
+  private raycastDirection: [number, number, number] = [0, 0, 0];
+  private nearbyLightsBuffer: DynamicLight[] = [];
 
   /**
    * Construct a light shined effect manager.
@@ -102,9 +111,12 @@ export class LightShined {
    * This should be called in the render loop.
    */
   update = () => {
-    this.list.forEach((obj) => {
-      this.recursiveUpdate(obj);
-    });
+    let objects = this.list.values();
+    let object = objects.next();
+    while (!object.done) {
+      this.recursiveUpdate(object.value);
+      object = objects.next();
+    }
   };
 
   setPositionOverride = (obj: Object3D, position: Vector3) => {
@@ -115,10 +127,15 @@ export class LightShined {
     this.positionOverrides.delete(obj);
   };
 
-  ignore = (...types: any[]) => {
-    types.forEach((type) => {
+  ignore = (...types: Function[]) => {
+    for (let index = 0; index < types.length; index++) {
+      const type = types[index];
+      if (this.ignored.has(type)) {
+        continue;
+      }
       this.ignored.add(type);
-    });
+      this.ignoredTypes.push(type);
+    }
   };
 
   private setupLightMaterials = (obj: Object3D) => {
@@ -167,19 +184,20 @@ export class LightShined {
       material.userData.lightEffectSetup = true;
     };
 
-    const isMesh = (object: any): object is Mesh => {
-      return object.isMesh;
-    };
-
     const setupObjectAndChildren = (object: Object3D) => {
-      if (isMesh(object)) {
+      if (object instanceof Mesh) {
         if (Array.isArray(object.material)) {
-          object.material.forEach(setupMaterial);
+          const materials = object.material;
+          for (let materialIndex = 0; materialIndex < materials.length; materialIndex++) {
+            setupMaterial(materials[materialIndex]);
+          }
         } else {
           setupMaterial(object.material);
         }
       }
-      object.children.forEach(setupObjectAndChildren);
+      for (let childIndex = 0; childIndex < object.children.length; childIndex++) {
+        setupObjectAndChildren(object.children[childIndex]);
+      }
     };
 
     // Setup initial materials
@@ -187,7 +205,7 @@ export class LightShined {
 
     // Setup proxies to detect changes
     const setupProxies = (object: Object3D) => {
-      if (isMesh(object)) {
+      if (object instanceof Mesh) {
         object.material = new Proxy(object.material, {
           set: (target, prop, value) => {
             target[prop] = value;
@@ -211,19 +229,26 @@ export class LightShined {
         },
       });
 
-      object.children.forEach(setupProxies);
+      for (let childIndex = 0; childIndex < object.children.length; childIndex++) {
+        setupProxies(object.children[childIndex]);
+      }
     };
 
     setupProxies(obj);
   };
 
   private updateObject = (obj: Object3D, color: Color) => {
-    for (const type of this.ignored) {
-      if (obj instanceof type) return;
+    const ignoredTypes = this.ignoredTypes;
+    for (let typeIndex = 0; typeIndex < ignoredTypes.length; typeIndex++) {
+      if (obj instanceof ignoredTypes[typeIndex]) return;
     }
 
     if (obj.userData.lightUniforms) {
-      obj.userData.lightUniforms.forEach((uniform: { value: Color }) => {
+      const lightUniforms = obj.userData.lightUniforms as Array<{
+        value: Color;
+      }>;
+      for (let uniformIndex = 0; uniformIndex < lightUniforms.length; uniformIndex++) {
+        const uniform = lightUniforms[uniformIndex];
         if (obj.userData.justChanged) {
           uniform.value.copy(color);
         } else {
@@ -233,7 +258,7 @@ export class LightShined {
         uniform.value.r = Math.min(uniform.value.r, this.options.maxBrightness);
         uniform.value.g = Math.min(uniform.value.g, this.options.maxBrightness);
         uniform.value.b = Math.min(uniform.value.b, this.options.maxBrightness);
-      });
+      }
     }
     obj.userData.justChanged = false;
   };
@@ -241,8 +266,9 @@ export class LightShined {
   private recursiveUpdate = (obj: Object3D, color: Color | null = null) => {
     if (!obj.parent) return;
 
-    for (const type of this.ignored) {
-      if (obj instanceof type) return;
+    const ignoredTypes = this.ignoredTypes;
+    for (let typeIndex = 0; typeIndex < ignoredTypes.length; typeIndex++) {
+      if (obj instanceof ignoredTypes[typeIndex]) return;
     }
 
     if (color === null) {
@@ -262,14 +288,34 @@ export class LightShined {
       if (!color) return;
     }
 
-    obj.traverse((child) => {
-      this.updateObject(child, color);
-    });
+    this.updateObjectSubtree(obj, color);
   };
 
+  private updateObjectSubtree(root: Object3D, color: Color) {
+    const stack = this.traversalStack;
+    stack.length = 0;
+    stack.push(root);
+
+    while (stack.length > 0) {
+      const current = stack.pop();
+      if (!current) {
+        continue;
+      }
+
+      this.updateObject(current, color);
+
+      const children = current.children;
+      for (let childIndex = 0; childIndex < children.length; childIndex++) {
+        stack.push(children[childIndex]);
+      }
+    }
+  }
+
   private computeCPUBasedLight(pos: Vector3): Color | null {
-    const voxel = ChunkUtils.mapWorldToVoxel(pos.toArray());
-    const lightValues = this.world.getLightValuesAt(...voxel);
+    const vx = Math.floor(pos.x);
+    const vy = Math.floor(pos.y);
+    const vz = Math.floor(pos.z);
+    const lightValues = this.world.getLightValuesAt(vx, vy, vz);
     if (!lightValues) return null;
 
     const { sunlight, red, green, blue } = lightValues;
@@ -309,8 +355,10 @@ export class LightShined {
 
     const torchLight = this.getTorchLightAtPosition(pos);
 
-    const voxel = ChunkUtils.mapWorldToVoxel(pos.toArray());
-    const lightValues = this.world.getLightValuesAt(...voxel);
+    const vx = Math.floor(pos.x);
+    const vy = Math.floor(pos.y);
+    const vz = Math.floor(pos.z);
+    const lightValues = this.world.getLightValuesAt(vx, vy, vz);
 
     let cpuTorchR = 0,
       cpuTorchG = 0,
@@ -346,21 +394,30 @@ export class LightShined {
 
   private getTorchLightAtPosition(pos: Vector3): Color {
     const registry = this.world.lightRegistry;
-    if (!registry) return new Color(0, 0, 0);
+    if (!registry) return LightShined.zeroColor;
 
-    const lights = registry.getLightsNearPoint(pos, 16);
+    const lights = this.nearbyLightsBuffer;
+    const lightCount = registry.getLightsNearPointInto(pos, 16, lights);
     let r = 0,
       g = 0,
       b = 0;
 
-    for (const light of lights) {
-      const dist = light.position.distanceTo(pos);
-      if (dist > light.radius) continue;
+    for (let lightIndex = 0; lightIndex < lightCount; lightIndex++) {
+      const light = lights[lightIndex];
+      const radius = light.radius;
+      if (radius <= 0) {
+        continue;
+      }
 
-      const attenuation = Math.pow(
-        Math.max(0, 1 - dist / light.radius),
-        light.falloffExponent
-      );
+      const dx = light.position.x - pos.x;
+      const dy = light.position.y - pos.y;
+      const dz = light.position.z - pos.z;
+      const distSq = dx * dx + dy * dy + dz * dz;
+      const radiusSq = radius * radius;
+      if (distSq > radiusSq) continue;
+
+      const dist = Math.sqrt(distSq);
+      const attenuation = Math.pow(1 - dist / radius, light.falloffExponent);
       const intensity = light.intensity * attenuation;
 
       r += light.color.r * intensity;
@@ -368,7 +425,7 @@ export class LightShined {
       b += light.color.b * intensity;
     }
 
-    return new Color(r, g, b);
+    return this.torchLightColor.setRGB(r, g, b);
   }
 
   private computeShadowFactor(pos: Vector3): number {
@@ -379,18 +436,17 @@ export class LightShined {
 
     if (shadowStrength.value < 0.01) return 1.0;
 
-    const dir: [number, number, number] = [
-      sunDirection.value.x,
-      sunDirection.value.y,
-      sunDirection.value.z,
-    ];
+    const dir = this.raycastDirection;
+    dir[0] = sunDirection.value.x;
+    dir[1] = sunDirection.value.y;
+    dir[2] = sunDirection.value.z;
+    const origin = this.raycastOrigin;
+    origin[0] = pos.x;
+    origin[1] = pos.y;
+    origin[2] = pos.z;
     const maxDist = 64;
 
-    const hit = this.world.raycastVoxels(
-      pos.toArray() as [number, number, number],
-      dir,
-      maxDist
-    );
+    const hit = this.world.raycastVoxels(origin, dir, maxDist);
 
     if (hit) {
       return 1.0 - shadowStrength.value;

@@ -25,7 +25,7 @@ use actix::{
     Actor, AsyncContext, Context, Handler, Message as ActixMessage, MessageResult, SyncContext,
 };
 use actix::{Addr, SyncArbiter};
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use log::{error, info, warn};
 use metadata::WorldMetadata;
 use nanoid::nanoid;
@@ -134,6 +134,55 @@ impl<T> UnsafeSendSync<T> {
     fn get_mut(&mut self) -> &mut T {
         &mut self.0
     }
+}
+
+#[inline]
+fn clamp_usize_to_i32(value: usize) -> i32 {
+    if value > i32::MAX as usize {
+        i32::MAX
+    } else {
+        value as i32
+    }
+}
+
+#[inline]
+fn preload_light_padding(max_light_level: u32, chunk_size: usize) -> usize {
+    let normalized_chunk_size = chunk_size.max(1);
+    (max_light_level as usize)
+        .saturating_add(normalized_chunk_size.saturating_sub(1))
+        / normalized_chunk_size
+}
+
+#[inline]
+fn preload_check_radius(preload_radius: usize, max_light_level: u32, chunk_size: usize) -> i32 {
+    let light_padding = preload_light_padding(max_light_level, chunk_size);
+    clamp_usize_to_i32(preload_radius.saturating_sub(light_padding))
+}
+
+#[inline]
+fn preload_expected_chunk_count(check_radius: i32) -> i64 {
+    let diameter = i64::from(check_radius).saturating_mul(2).saturating_add(1);
+    diameter.saturating_mul(diameter)
+}
+
+fn collect_preload_targets(chunks: &Chunks, radius: i32) -> Vec<Vec2<i32>> {
+    let mut targets = Vec::new();
+    let mut seen = HashSet::new();
+
+    for x in -radius..=radius {
+        for z in -radius..=radius {
+            let coords = Vec2(x, z);
+            let neighbors = chunks.light_traversed_chunks(&coords);
+
+            for n_coords in neighbors {
+                if chunks.is_within_world(&n_coords) && seen.insert(n_coords.clone()) {
+                    targets.push(n_coords);
+                }
+            }
+        }
+    }
+
+    targets
 }
 
 /// A voxelize world.
@@ -412,7 +461,7 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
             "entities-sending",
             &["entities-meta"],
         )
-        .with(PeersSendingSystem, "peers-sending", &["peers-meta"])
+        .with(PeersSendingSystem::default(), "peers-sending", &["peers-meta"])
         .with(
             BroadcastSystem,
             "broadcast",
@@ -423,12 +472,12 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
             "cleanup",
             &["entities-sending", "peers-sending"],
         )
-        .with(EventsSystem, "events", &["broadcast"])
+        .with(EventsSystem::default(), "events", &["broadcast"])
         .with(EntityObserveSystem, "entity-observe", &[])
         .with(PathFindingSystem, "path-finding", &["entity-observe"])
         .with(TargetMetadataSystem, "target-meta", &[])
         .with(PathMetadataSystem, "path-meta", &[])
-        .with(EntityTreeSystem, "entity-tree", &[])
+        .with(EntityTreeSystem::default(), "entity-tree", &[])
         .with(WalkTowardsSystem, "walk-towards", &["path-finding"])
 }
 
@@ -1399,26 +1448,16 @@ impl World {
 
     /// Preload the chunks in the world.
     pub(crate) fn preload(&mut self) {
-        let radius = self.config().preload_radius as i32;
+        let radius = clamp_usize_to_i32(self.config().preload_radius);
+        let preload_targets = {
+            let chunks = self.chunks();
+            collect_preload_targets(&chunks, radius)
+        };
 
         {
-            for x in -radius..=radius {
-                for z in -radius..=radius {
-                    let coords = Vec2(x, z);
-                    let neighbors = self.chunks().light_traversed_chunks(&coords);
-
-                    neighbors.into_iter().for_each(|coords| {
-                        let is_within = {
-                            let chunks = self.chunks();
-                            chunks.is_within_world(&coords)
-                        };
-
-                        let mut pipeline = self.pipeline_mut();
-                        if is_within {
-                            pipeline.add_chunk(&coords, false);
-                        }
-                    });
-                }
+            let mut pipeline = self.pipeline_mut();
+            for coords in preload_targets {
+                pipeline.add_chunk(&coords, false);
             }
         }
 
@@ -1432,13 +1471,14 @@ impl World {
         }
 
         if self.preloading {
-            let light_padding = (self.config().max_light_level as f32
-                / self.config().chunk_size as f32)
-                .ceil() as usize;
-            let check_radius = (self.config().preload_radius - light_padding) as i32;
+            let check_radius = preload_check_radius(
+                self.config().preload_radius,
+                self.config().max_light_level,
+                self.config().chunk_size,
+            );
 
-            let mut total = 0;
-            let supposed = (check_radius * 2).pow(2);
+            let mut total = 0_i64;
+            let supposed = preload_expected_chunk_count(check_radius);
 
             for x in -check_radius..=check_radius {
                 for z in -check_radius..=check_radius {
@@ -1461,7 +1501,11 @@ impl World {
                 }
             }
 
-            self.preload_progress = (total as f32 / supposed as f32).min(1.0);
+            self.preload_progress = if supposed == 0 {
+                1.0
+            } else {
+                (total as f32 / supposed as f32).min(1.0)
+            };
 
             if total >= supposed {
                 self.preloading = false;
@@ -1874,5 +1918,69 @@ impl World {
                 .build(),
             entity_ids,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use hashbrown::HashSet;
+
+    use super::{
+        collect_preload_targets, preload_check_radius, preload_expected_chunk_count,
+        preload_light_padding, Chunks, Vec2, WorldConfig,
+    };
+
+    #[test]
+    fn preload_light_padding_uses_integer_ceil_and_zero_chunk_guard() {
+        assert_eq!(preload_light_padding(15, 16), 1);
+        assert_eq!(preload_light_padding(16, 16), 1);
+        assert_eq!(preload_light_padding(15, 0), 15);
+    }
+
+    #[test]
+    fn preload_check_radius_saturates_and_clamps() {
+        assert_eq!(preload_check_radius(0, 15, 16), 0);
+        assert_eq!(preload_check_radius(10, 15, 16), 9);
+        assert_eq!(preload_check_radius(usize::MAX, 0, 1), i32::MAX);
+    }
+
+    #[test]
+    fn preload_expected_chunk_count_matches_inclusive_radius_grid() {
+        assert_eq!(preload_expected_chunk_count(0), 1);
+        assert_eq!(preload_expected_chunk_count(1), 9);
+        assert_eq!(preload_expected_chunk_count(2), 25);
+    }
+
+    #[test]
+    fn collect_preload_targets_deduplicates_neighbor_chunks() {
+        let config = WorldConfig {
+            chunk_size: 16,
+            max_height: 16,
+            max_light_level: 15,
+            min_chunk: [-1, -1],
+            max_chunk: [1, 1],
+            ..Default::default()
+        };
+        let chunks = Chunks::new(&config);
+
+        let targets = collect_preload_targets(&chunks, 1);
+        let unique: HashSet<_> = targets.iter().cloned().collect();
+        assert_eq!(targets.len(), unique.len());
+    }
+
+    #[test]
+    fn collect_preload_targets_respects_world_bounds() {
+        let config = WorldConfig {
+            chunk_size: 16,
+            max_height: 16,
+            max_light_level: 15,
+            min_chunk: [0, 0],
+            max_chunk: [0, 0],
+            ..Default::default()
+        };
+        let chunks = Chunks::new(&config);
+
+        let targets = collect_preload_targets(&chunks, 3);
+        assert_eq!(targets, vec![Vec2(0, 0)]);
     }
 }

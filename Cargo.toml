@@ -33,6 +33,7 @@ path = "examples/server/main.rs"
 [dependencies]
 voxelize-core = { path = "crates/core" }
 voxelize-mesher = { path = "crates/mesher" }
+voxelize-lighter = { path = "crates/lighter" }
 actix = "0.13.3"
 actix-cors = "0.7.0"
 actix-files = "0.6.5"
@@ -81,6 +82,7 @@ prost-build = "0.12.4"
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
+kdtree = "0.8.0"
 
 [[bench]]
 name = "mesher_bench"

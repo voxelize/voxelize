@@ -87,7 +87,9 @@ export class Arrow extends ArrowHelper {
         ? new Color(this.options.color)
         : this.options.color;
 
-    [...this.children].forEach((child) => this.remove(child));
+    for (let childIndex = this.children.length - 1; childIndex >= 0; childIndex--) {
+      this.remove(this.children[childIndex]);
+    }
 
     this.add(
       new Mesh(

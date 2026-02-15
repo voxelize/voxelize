@@ -4,6 +4,7 @@ use hashbrown::HashMap;
 use nanoid::nanoid;
 use specs::{Entities, LazyUpdate, ReadExpect, System, WorldExt, WriteExpect};
 
+use super::height_updates::update_chunk_column_height_for_voxel_update;
 use crate::{
     BlockUtils, ChunkUtils, Chunks, ClientFilter, CurrentChunkComp, ETypeComp, EntityFlag, IDComp,
     JsonComp, LightColor, LightNode, Lights, Mesher, Message, MessageQueues, MessageType,
@@ -42,6 +43,87 @@ const BLUE: LightColor = LightColor::Blue;
 const SUNLIGHT: LightColor = LightColor::Sunlight;
 const ALL_TRANSPARENT: [bool; 6] = [true, true, true, true, true, true];
 
+#[inline]
+fn schedule_active_tick(current_tick: u64, delay: u64) -> u64 {
+    current_tick.saturating_add(delay)
+}
+
+#[inline]
+fn clamp_i64_to_i32(value: i64) -> i32 {
+    value.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
+}
+
+#[inline]
+fn clamp_i64_to_usize(value: i64) -> usize {
+    if value <= 0 {
+        0
+    } else if value as u128 > usize::MAX as u128 {
+        usize::MAX
+    } else {
+        value as usize
+    }
+}
+
+fn compute_flood_bounds(
+    queue: &VecDeque<LightNode>,
+    max_light_level: u32,
+) -> Option<(Vec3<i32>, Vec3<usize>)> {
+    if queue.is_empty() {
+        return None;
+    }
+
+    let mut min_x = i64::from(queue[0].voxel[0]);
+    let mut min_y = i64::from(queue[0].voxel[1]);
+    let mut min_z = i64::from(queue[0].voxel[2]);
+    let mut max_x = min_x;
+    let mut max_y = min_y;
+    let mut max_z = min_z;
+
+    for node in queue.iter() {
+        let [x, y, z] = node.voxel;
+        let x = i64::from(x);
+        let y = i64::from(y);
+        let z = i64::from(z);
+        if x < min_x {
+            min_x = x;
+        }
+        if y < min_y {
+            min_y = y;
+        }
+        if z < min_z {
+            min_z = z;
+        }
+        if x > max_x {
+            max_x = x;
+        }
+        if y > max_y {
+            max_y = y;
+        }
+        if z > max_z {
+            max_z = z;
+        }
+    }
+
+    let expand = i64::from(max_light_level);
+    min_x = min_x.saturating_sub(expand);
+    min_z = min_z.saturating_sub(expand);
+    max_x = max_x.saturating_add(expand);
+    max_z = max_z.saturating_add(expand);
+
+    let shape_x = clamp_i64_to_usize(max_x.saturating_sub(min_x).saturating_add(1));
+    let shape_y = clamp_i64_to_usize(max_y.saturating_sub(min_y).saturating_add(1));
+    let shape_z = clamp_i64_to_usize(max_z.saturating_sub(min_z).saturating_add(1));
+
+    Some((
+        Vec3(
+            clamp_i64_to_i32(min_x),
+            clamp_i64_to_i32(min_y),
+            clamp_i64_to_i32(min_z),
+        ),
+        Vec3(shape_x, shape_y, shape_z),
+    ))
+}
+
 fn process_pending_updates(
     chunks: &mut Chunks,
     mesher: &mut Mesher,
@@ -53,8 +135,12 @@ fn process_pending_updates(
     max_updates: usize,
 ) -> Vec<UpdateProtocol> {
     let mut results = vec![];
-    let max_height = config.max_height as i32;
     let max_light_level = config.max_light_level;
+    let max_height = if config.max_height > i32::MAX as usize {
+        None
+    } else {
+        Some(config.max_height as i32)
+    };
 
     chunks.flush_staged_updates();
 
@@ -65,26 +151,27 @@ fn process_pending_updates(
     let total_updates = chunks.updates.len();
     let num_to_process = max_updates.min(total_updates);
 
-    let mut updates_by_chunk: HashMap<Vec2<i32>, Vec<(Vec3<i32>, u32)>> = HashMap::new();
+    let mut updates_by_chunk: HashMap<Vec2<i32>, Vec<(Vec3<i32>, u32)>> =
+        HashMap::with_capacity(num_to_process);
 
     for _ in 0..num_to_process {
         let (voxel, raw) = chunks.updates.pop_front().unwrap();
         let Vec3(vx, vy, vz) = voxel;
 
         let updated_id = BlockUtils::extract_id(raw);
-        if vy < 0 || vy >= config.max_height as i32 || !registry.has_type(updated_id) {
+        if vy < 0
+            || max_height.is_some_and(|world_max_height| vy >= world_max_height)
+            || !registry.has_type(updated_id)
+        {
             continue;
         }
 
         let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, config.chunk_size);
-        updates_by_chunk
-            .entry(coords)
-            .or_insert_with(Vec::new)
-            .push((voxel, raw));
+        updates_by_chunk.entry(coords).or_default().push((voxel, raw));
     }
 
-    let mut removed_light_sources = Vec::new();
-    let mut processed_updates = Vec::new();
+    let mut removed_light_sources = Vec::with_capacity(num_to_process);
+    let mut processed_updates = Vec::with_capacity(num_to_process);
 
     for (coords, chunk_updates) in updates_by_chunk {
         if !chunks.is_chunk_ready(&coords) {
@@ -122,15 +209,19 @@ fn process_pending_updates(
             let current_is_light = current_type.is_light_at(&voxel_pos, &*chunks);
             let updated_is_light = updated_type.is_light_at(&voxel_pos, &*chunks);
 
+            let rotation = BlockUtils::extract_rotation(raw);
+            let stage = BlockUtils::extract_stage(raw);
+
+            if !chunks.set_voxel(vx, vy, vz, updated_id) {
+                continue;
+            }
+            chunks.set_voxel_stage(vx, vy, vz, stage);
+
             if current_is_light && !updated_is_light {
                 removed_light_sources.push((voxel.clone(), current_type.clone()));
             }
 
             processed_updates.push((voxel.clone(), raw, current_id, updated_id));
-
-            let rotation = BlockUtils::extract_rotation(raw);
-            let stage = BlockUtils::extract_stage(raw);
-            let height = chunks.get_max_height(vx, vz);
 
             let existing_entity = chunks.block_entities.remove(&Vec3(vx, vy, vz));
             if let Some(existing_entity) = existing_entity {
@@ -166,22 +257,25 @@ fn process_pending_updates(
                 lazy.insert(entity, JsonComp::new(default_json));
             }
 
-            chunks.set_voxel(vx, vy, vz, updated_id);
-            chunks.set_voxel_stage(vx, vy, vz, stage);
-
             if updated_type.is_active {
                 let ticks = (&updated_type.active_ticker.as_ref().unwrap())(
                     Vec3(vx, vy, vz),
                     &*chunks,
                     registry,
                 );
-                chunks.mark_voxel_active(&Vec3(vx, vy, vz), ticks + current_tick);
+                chunks.mark_voxel_active(&Vec3(vx, vy, vz), schedule_active_tick(current_tick, ticks));
             }
 
             for [ox, oy, oz] in VOXEL_NEIGHBORS_WITH_STAIRS {
-                let nx = vx + ox;
-                let ny = vy + oy;
-                let nz = vz + oz;
+                let Some(nx) = vx.checked_add(ox) else {
+                    continue;
+                };
+                let Some(ny) = vy.checked_add(oy) else {
+                    continue;
+                };
+                let Some(nz) = vz.checked_add(oz) else {
+                    continue;
+                };
 
                 let neighbor_id = chunks.get_voxel(nx, ny, nz);
                 let neighbor_block = registry.get_block_by_id(neighbor_id);
@@ -195,7 +289,10 @@ fn process_pending_updates(
                         &*chunks,
                         registry,
                     );
-                    chunks.mark_voxel_active(&Vec3(nx, ny, nz), ticks + current_tick);
+                    chunks.mark_voxel_active(
+                        &Vec3(nx, ny, nz),
+                        schedule_active_tick(current_tick, ticks),
+                    );
                 }
             }
 
@@ -203,18 +300,9 @@ fn process_pending_updates(
                 chunks.set_voxel_rotation(vx, vy, vz, &rotation);
             }
 
-            if registry.is_air(updated_id) {
-                if vy == height as i32 {
-                    for y in (0..vy).rev() {
-                        if y == 0 || registry.check_height(chunks.get_voxel(vx, y, vz)) {
-                            chunks.set_max_height(vx, vz, y as u32);
-                            break;
-                        }
-                    }
-                }
-            } else if height < vy as u32 {
-                chunks.set_max_height(vx, vz, vy as u32);
-            }
+            update_chunk_column_height_for_voxel_update(
+                chunks, &registry, vx, vy, vz, updated_id,
+            );
 
             chunks
                 .voxel_affected_chunks(vx, vy, vz)
@@ -321,13 +409,19 @@ fn process_pending_updates(
             ];
 
             VOXEL_NEIGHBORS.iter().for_each(|&[ox, oy, oz]| {
-                let nvy = vy + oy;
-                if nvy < 0 || nvy >= max_height {
+                let Some(nvy) = vy.checked_add(oy) else {
+                    return;
+                };
+                if nvy < 0 || max_height.is_some_and(|world_max_height| nvy >= world_max_height) {
                     return;
                 }
 
-                let nvx = vx + ox;
-                let nvz = vz + oz;
+                let Some(nvx) = vx.checked_add(ox) else {
+                    return;
+                };
+                let Some(nvz) = vz.checked_add(oz) else {
+                    return;
+                };
 
                 let n_block = registry.get_block_by_id(chunks.get_voxel(nvx, nvy, nvz));
                 let n_transparency =
@@ -410,24 +504,29 @@ fn process_pending_updates(
             }
         } else if current_type.is_opaque && !updated_type.is_opaque {
             VOXEL_NEIGHBORS.iter().for_each(|&[ox, oy, oz]| {
-                let nvy = vy + oy;
+                let Some(nvy) = vy.checked_add(oy) else {
+                    return;
+                };
+                let Some(nvx) = vx.checked_add(ox) else {
+                    return;
+                };
+                let Some(nvz) = vz.checked_add(oz) else {
+                    return;
+                };
 
                 if nvy < 0 {
                     return;
                 }
 
-                if nvy >= max_height {
+                if max_height.is_some_and(|world_max_height| nvy >= world_max_height) {
                     if Lights::can_enter(&ALL_TRANSPARENT, &updated_transparency, ox, -1, oz) {
                         sun_flood.push_back(LightNode {
-                            voxel: [vx + ox, vy, vz + oz],
+                            voxel: [nvx, vy, nvz],
                             level: max_light_level,
                         })
                     }
                     return;
                 }
-
-                let nvx = vx + ox;
-                let nvz = vz + oz;
 
                 let n_block = registry.get_block_by_id(chunks.get_voxel(nvx, nvy, nvz));
                 let n_transparency =
@@ -477,55 +576,8 @@ fn process_pending_updates(
         }
     }
 
-    let compute_bounds = |queue: &VecDeque<LightNode>| -> Option<(Vec3<i32>, Vec3<usize>)> {
-        if queue.is_empty() {
-            return None;
-        }
-
-        let mut min_x = queue[0].voxel[0];
-        let mut min_y = queue[0].voxel[1];
-        let mut min_z = queue[0].voxel[2];
-        let mut max_x = min_x;
-        let mut max_y = min_y;
-        let mut max_z = min_z;
-
-        for node in queue.iter() {
-            let [x, y, z] = node.voxel;
-            if x < min_x {
-                min_x = x;
-            }
-            if y < min_y {
-                min_y = y;
-            }
-            if z < min_z {
-                min_z = z;
-            }
-            if x > max_x {
-                max_x = x;
-            }
-            if y > max_y {
-                max_y = y;
-            }
-            if z > max_z {
-                max_z = z;
-            }
-        }
-
-        let expand = max_light_level as i32;
-        min_x -= expand;
-        min_z -= expand;
-        max_x += expand;
-        max_z += expand;
-
-        let shape_x = (max_x - min_x + 1) as usize;
-        let shape_y = (max_y - min_y + 1) as usize;
-        let shape_z = (max_z - min_z + 1) as usize;
-
-        Some((Vec3(min_x, min_y, min_z), Vec3(shape_x, shape_y, shape_z)))
-    };
-
     if !red_flood.is_empty() {
-        let bounds = compute_bounds(&red_flood);
+        let bounds = compute_flood_bounds(&red_flood, max_light_level);
         Lights::flood_light(
             &mut *chunks,
             red_flood,
@@ -538,7 +590,7 @@ fn process_pending_updates(
     }
 
     if !green_flood.is_empty() {
-        let bounds = compute_bounds(&green_flood);
+        let bounds = compute_flood_bounds(&green_flood, max_light_level);
         Lights::flood_light(
             &mut *chunks,
             green_flood,
@@ -551,7 +603,7 @@ fn process_pending_updates(
     }
 
     if !blue_flood.is_empty() {
-        let bounds = compute_bounds(&blue_flood);
+        let bounds = compute_flood_bounds(&blue_flood, max_light_level);
         Lights::flood_light(
             &mut *chunks,
             blue_flood,
@@ -564,7 +616,7 @@ fn process_pending_updates(
     }
 
     if !sun_flood.is_empty() {
-        let bounds = compute_bounds(&sun_flood);
+        let bounds = compute_flood_bounds(&sun_flood, max_light_level);
         Lights::flood_light(
             &mut *chunks,
             sun_flood,
@@ -714,5 +766,43 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 .build();
             message_queue.push((new_message, ClientFilter::All));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::VecDeque;
+
+    use super::{compute_flood_bounds, schedule_active_tick};
+    use crate::{LightNode, Vec3};
+
+    #[test]
+    fn schedule_active_tick_saturates_on_overflow() {
+        assert_eq!(schedule_active_tick(u64::MAX - 1, 10), u64::MAX);
+    }
+
+    #[test]
+    fn schedule_active_tick_preserves_non_overflow_sum() {
+        assert_eq!(schedule_active_tick(100, 25), 125);
+    }
+
+    #[test]
+    fn compute_flood_bounds_returns_none_for_empty_queues() {
+        let queue = VecDeque::new();
+        assert_eq!(compute_flood_bounds(&queue, 15), None);
+    }
+
+    #[test]
+    fn compute_flood_bounds_clamps_extreme_expansion_without_wrapping() {
+        let queue = VecDeque::from([LightNode {
+            voxel: [i32::MAX, i32::MAX, i32::MAX],
+            level: 15,
+        }]);
+
+        let bounds = compute_flood_bounds(&queue, u32::MAX).expect("bounds should exist");
+        assert_eq!(bounds.0, Vec3(i32::MIN, i32::MAX, i32::MIN));
+        assert!(bounds.1.0 > i32::MAX as usize);
+        assert_eq!(bounds.1.1, 1);
+        assert!(bounds.1.2 > i32::MAX as usize);
     }
 }

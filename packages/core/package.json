@@ -45,6 +45,7 @@
     "@voxelize/protocol": "workspace:*",
     "@voxelize/raycast": "workspace:*",
     "@voxelize/wasm-mesher": "workspace:*",
+    "@voxelize/wasm-lighter": "workspace:*",
     "deepmerge": "^4.3.1",
     "domurl": "^2.3.4",
     "events": "^3.3.0",

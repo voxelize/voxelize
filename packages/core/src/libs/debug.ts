@@ -77,6 +77,32 @@ const defaultOptions: DebugOptions = {
   containerId: "voxelize-debug",
 };
 
+type DebugValue = string | number | boolean | null | undefined;
+type DebugTrackedObject = Record<PropertyKey, DebugValue>;
+type DebugSyncGetter = () => DebugValue;
+type DebugAsyncGetter = () => Promise<DebugValue>;
+type DebugSource = DebugTrackedObject | DebugSyncGetter | DebugAsyncGetter;
+type DebugFormatter = (value: DebugValue) => string;
+type DebugDataEntry = {
+  element: HTMLParagraphElement;
+  labelElement: HTMLSpanElement | null;
+  valueElement: HTMLSpanElement | null;
+  asyncTimer: ReturnType<typeof setInterval> | null;
+  object?: DebugSource;
+  attribute?: PropertyKey;
+  title: string;
+  formatter: DebugFormatter;
+};
+
+const isAsyncDebugGetter = (
+  source: DebugSource | undefined
+): source is DebugAsyncGetter =>
+  typeof source === "function" && source.constructor.name === "AsyncFunction";
+
+const isSyncDebugGetter = (
+  source: DebugSource | undefined
+): source is DebugSyncGetter => typeof source === "function";
+
 /**
  * A class for general debugging purposes in Voxelize, including FPS, value tracking, and real-time value testing.
  *
@@ -130,13 +156,7 @@ export class Debug extends Group {
   /**
    * Data entries to track individual values.
    */
-  private dataEntries: {
-    element: HTMLParagraphElement;
-    object?: any;
-    attribute?: any;
-    title: string;
-    formatter: (value: any) => string;
-  }[] = [];
+  private dataEntries: DebugDataEntry[] = [];
 
   /**
    * Create a new {@link Debug} instance.
@@ -171,13 +191,15 @@ export class Debug extends Group {
    * @param formatter A function to format the value of the attribute.
    * @returns The debug instance for chaining.
    */
-  registerDisplay = <T = any>(
+  registerDisplay = <T extends DebugTrackedObject = DebugTrackedObject>(
     title: string,
-    object?: T,
+    object?: T | DebugSyncGetter | DebugAsyncGetter,
     attribute?: keyof T,
-    formatter = (str: string) => str
+    formatter: DebugFormatter = (value) => `${value ?? ""}`
   ) => {
     const wrapper = this.makeDataEntry();
+    let labelElement: HTMLSpanElement | null = null;
+    let valueElement: HTMLSpanElement | null = null;
 
     if (title) {
       const labelSpan = document.createElement("span");
@@ -189,11 +211,16 @@ export class Debug extends Group {
 
       wrapper.appendChild(labelSpan);
       wrapper.appendChild(valueSpan);
+      labelElement = labelSpan;
+      valueElement = valueSpan;
     }
 
     const newEntry = {
       title,
       element: wrapper,
+      labelElement,
+      valueElement,
+      asyncTimer: null,
       object: object,
       formatter,
       attribute,
@@ -202,11 +229,11 @@ export class Debug extends Group {
     this.dataEntries.push(newEntry);
     this.entriesWrapper.insertBefore(wrapper, this.entriesWrapper.firstChild);
 
-    if (object.constructor.name === "AsyncFunction") {
-      setInterval(() => {
-        (object as any)().then((newValue: string) => {
+    if (isAsyncDebugGetter(object)) {
+      newEntry.asyncTimer = setInterval(() => {
+        object().then((newValue) => {
           const formattedValue = formatter(newValue);
-          const valueSpan = wrapper.querySelector(".debug-value");
+          const valueSpan = newEntry.valueElement;
           if (valueSpan) {
             valueSpan.textContent = formattedValue;
           } else {
@@ -227,15 +254,35 @@ export class Debug extends Group {
    * @param title The title of the debug entry.
    */
   removeDisplay = (title: string) => {
-    const index = this.dataEntries.findIndex((entry) => entry.title === title);
+    let index = -1;
+    for (let entryIndex = 0; entryIndex < this.dataEntries.length; entryIndex++) {
+      if (this.dataEntries[entryIndex].title === title) {
+        index = entryIndex;
+        break;
+      }
+    }
+    if (index === -1) {
+      return;
+    }
     const entry = this.dataEntries.splice(index, 1)[0];
 
     if (entry) {
+      if (entry.asyncTimer !== null) {
+        clearInterval(entry.asyncTimer);
+      }
       this.entriesWrapper.removeChild(entry.element);
     }
   };
 
   dispose = () => {
+    const entries = this.dataEntries;
+    for (let entryIndex = 0; entryIndex < entries.length; entryIndex++) {
+      const entry = entries[entryIndex];
+      if (entry.asyncTimer !== null) {
+        clearInterval(entry.asyncTimer);
+      }
+    }
+    this.dataEntries.length = 0;
     this.dataWrapper.remove();
   };
 
@@ -270,15 +317,17 @@ export class Debug extends Group {
    *
    * @param force Whether or not to force the debug panel to be shown/hidden.
    */
-  toggle = (force = null) => {
-    this.visible = force !== null ? force : !this.visible;
-
+  toggle = (force: boolean | null = null) => {
     const visibility = this.entriesWrapper.style.visibility;
-    const newVisibility = force
-      ? "visible"
-      : visibility === "visible"
-      ? "hidden"
-      : "visible";
+    const newVisibility =
+      force === null
+        ? visibility === "visible"
+          ? "hidden"
+          : "visible"
+        : force
+        ? "visible"
+        : "hidden";
+    this.visible = newVisibility === "visible";
 
     this.entriesWrapper.style.visibility = newVisibility;
     this.dataWrapper.style.visibility = newVisibility;
@@ -293,43 +342,47 @@ export class Debug extends Group {
    * Utilizes requestAnimationFrame to reduce lag spikes by not overloading the main thread.
    */
   update = () => {
-    requestAnimationFrame(() => {
-      this.dataEntries.forEach(
-        ({ element, title, attribute, object, formatter }) => {
-          if (object?.constructor?.name === "AsyncFunction") return;
-
-          let newValue = "";
-          if (object) {
-            newValue =
-              typeof object === "function" ? object() : object[attribute] ?? "";
-          }
-          const formattedValue = formatter(newValue);
-
-          if (title) {
-            const labelSpan = element.querySelector(".debug-label");
-            const valueSpan = element.querySelector(".debug-value");
-
-            if (labelSpan && valueSpan) {
-              const newValueText = formattedValue;
-              if (valueSpan.textContent !== newValueText) {
-                valueSpan.textContent = newValueText;
-              }
-            } else {
-              const wholeString = `${title}: ${formattedValue}`;
-              if (element.textContent !== wholeString) {
-                element.textContent = wholeString;
-              }
-            }
-          } else {
-            if (element.textContent !== formattedValue) {
-              element.textContent = formattedValue;
-            }
-          }
-        }
-      );
-    });
+    requestAnimationFrame(this.processDataEntriesInFrame);
 
     this.stats?.update();
+  };
+
+  private processDataEntriesInFrame = () => {
+    const entries = this.dataEntries;
+    for (let entryIndex = 0; entryIndex < entries.length; entryIndex++) {
+      const { element, title, attribute, object, formatter } = entries[entryIndex];
+      if (isAsyncDebugGetter(object)) {
+        continue;
+      }
+
+      let newValue: DebugValue = "";
+      if (object) {
+        newValue = isSyncDebugGetter(object)
+          ? object()
+          : attribute === undefined
+          ? ""
+          : object[attribute] ?? "";
+      }
+      const formattedValue = formatter(newValue);
+
+      if (title) {
+        const { labelElement, valueElement } = entries[entryIndex];
+
+        if (labelElement && valueElement) {
+          const newValueText = formattedValue;
+          if (valueElement.textContent !== newValueText) {
+            valueElement.textContent = newValueText;
+          }
+        } else {
+          const wholeString = `${title}: ${formattedValue}`;
+          if (element.textContent !== wholeString) {
+            element.textContent = wholeString;
+          }
+        }
+      } else if (element.textContent !== formattedValue) {
+        element.textContent = formattedValue;
+      }
+    }
   };
   /**
    * Make a new data entry element.
@@ -338,10 +391,11 @@ export class Debug extends Group {
     const dataEntry = document.createElement("p");
     dataEntry.classList.add(this.options.lineClass);
 
-    DOMUtils.applyStyles(dataEntry, {
-      ...(newline ? { height: "10px", ...this.options.newLineStyles } : {}),
-      ...(this.options.lineStyles || {}),
-    });
+    if (newline) {
+      dataEntry.style.height = "10px";
+      DOMUtils.applyStyles(dataEntry, this.options.newLineStyles);
+    }
+    DOMUtils.applyStyles(dataEntry, this.options.lineStyles);
 
     return dataEntry;
   };
