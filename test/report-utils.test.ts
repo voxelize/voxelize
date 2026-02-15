@@ -4056,6 +4056,7 @@ describe("report-utils", () => {
       statefulCanonicalWithPrecomputedValidation.unsupportedOptionsError
     ).toBeNull();
     expect(statefulCanonicalWithPrecomputedValidation.validationErrorCode).toBeNull();
+    expect(statefulCanonicalWithPrecomputedReadCount).toBe(2);
 
     const malformedPrecomputedSupportedTokens = createCliOptionValidation(
       ["--mystery"],
@@ -4203,6 +4204,78 @@ describe("report-utils", () => {
     expect(statefulAliasValidation.unknownOptionCount).toBe(0);
     expect(statefulAliasValidation.unsupportedOptionsError).toBeNull();
     expect(statefulAliasValidation.validationErrorCode).toBeNull();
+    expect(statefulAliasTokenReadCount).toBe(2);
+    let statefulValueMetadataReadCount = 0;
+    const statefulValueMetadataValidation = createCliOptionValidation(
+      ["--output", "-j"],
+      {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-j"],
+        },
+        optionsWithValues: new Proxy(["--output"], {
+          get(target, property, receiver) {
+            if (property === "0") {
+              statefulValueMetadataReadCount += 1;
+              if (statefulValueMetadataReadCount > 1) {
+                return undefined;
+              }
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      }
+    );
+    expect(statefulValueMetadataValidation.supportedCliOptions).toEqual([
+      "--output",
+      "--json",
+      "-j",
+    ]);
+    expect(statefulValueMetadataValidation.supportedCliOptionCount).toBe(3);
+    expect(statefulValueMetadataValidation.unknownOptions).toEqual([]);
+    expect(statefulValueMetadataValidation.unknownOptionCount).toBe(0);
+    expect(statefulValueMetadataValidation.unsupportedOptionsError).toBeNull();
+    expect(statefulValueMetadataValidation.validationErrorCode).toBeNull();
+    expect(statefulValueMetadataReadCount).toBe(1);
+    let statefulStrictMetadataReadCount = 0;
+    const statefulStrictMetadataValidation = createCliOptionValidation(
+      ["--output", "-j"],
+      {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-j"],
+        },
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: new Proxy(["--output"], {
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              throw new Error("iterator trap");
+            }
+            if (property === "length") {
+              return 1;
+            }
+            if (property === "0") {
+              statefulStrictMetadataReadCount += 1;
+              if (statefulStrictMetadataReadCount > 1) {
+                return undefined;
+              }
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      }
+    );
+    expect(statefulStrictMetadataValidation.supportedCliOptions).toEqual([
+      "--output",
+      "--json",
+      "-j",
+    ]);
+    expect(statefulStrictMetadataValidation.supportedCliOptionCount).toBe(3);
+    expect(statefulStrictMetadataValidation.unknownOptions).toEqual([]);
+    expect(statefulStrictMetadataValidation.unknownOptionCount).toBe(0);
+    expect(statefulStrictMetadataValidation.unsupportedOptionsError).toBeNull();
+    expect(statefulStrictMetadataValidation.validationErrorCode).toBeNull();
+    expect(statefulStrictMetadataReadCount).toBe(2);
 
     const iteratorTrapSupportedTokens = ["--json", "--output"];
     Object.defineProperty(iteratorTrapSupportedTokens, Symbol.iterator, {
