@@ -1329,7 +1329,7 @@ fn create_fluid_faces<S: VoxelAccess>(
 
     [
         BlockFace {
-            name: "py".to_string(),
+            name: String::new(),
             name_lower: String::new(),
             dir: [0, 1, 0],
             independent: true,
@@ -1356,7 +1356,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             ],
         },
         BlockFace {
-            name: "ny".to_string(),
+            name: String::new(),
             name_lower: String::new(),
             dir: [0, -1, 0],
             independent: false,
@@ -1383,7 +1383,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             ],
         },
         BlockFace {
-            name: "px".to_string(),
+            name: String::new(),
             name_lower: String::new(),
             dir: [1, 0, 0],
             independent: true,
@@ -1410,7 +1410,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             ],
         },
         BlockFace {
-            name: "nx".to_string(),
+            name: String::new(),
             name_lower: String::new(),
             dir: [-1, 0, 0],
             independent: true,
@@ -1437,7 +1437,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             ],
         },
         BlockFace {
-            name: "pz".to_string(),
+            name: String::new(),
             name_lower: String::new(),
             dir: [0, 0, 1],
             independent: true,
@@ -1464,7 +1464,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             ],
         },
         BlockFace {
-            name: "nz".to_string(),
+            name: String::new(),
             name_lower: String::new(),
             dir: [0, 0, -1],
             independent: true,
@@ -1534,9 +1534,26 @@ fn can_greedy_mesh_block(block: &Block) -> bool {
 }
 
 #[inline(always)]
+const fn cardinal_face_name(dir: [i32; 3]) -> Option<&'static str> {
+    match dir {
+        [1, 0, 0] => Some("px"),
+        [-1, 0, 0] => Some("nx"),
+        [0, 1, 0] => Some("py"),
+        [0, -1, 0] => Some("ny"),
+        [0, 0, 1] => Some("pz"),
+        [0, 0, -1] => Some("nz"),
+        _ => None,
+    }
+}
+
+#[inline(always)]
 fn face_name_owned(face: &BlockFace) -> String {
     if face.name_lower.is_empty() {
-        face.name.clone()
+        if face.name.is_empty() {
+            cardinal_face_name(face.dir).unwrap_or_default().to_string()
+        } else {
+            face.name.clone()
+        }
     } else {
         face.name_lower.clone()
     }
@@ -1545,7 +1562,11 @@ fn face_name_owned(face: &BlockFace) -> String {
 #[inline(always)]
 fn face_name_ref(face: &BlockFace) -> &str {
     if face.name_lower.is_empty() {
-        face.name.as_str()
+        if face.name.is_empty() {
+            cardinal_face_name(face.dir).unwrap_or_default()
+        } else {
+            face.name.as_str()
+        }
     } else {
         face.name_lower.as_str()
     }
@@ -3973,7 +3994,11 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 let geo_key = geometry_key_for_face(block, &face, vx, vy, vz);
                                 let geometry = map.entry(geo_key).or_insert_with(|| {
                                     let face_name = if face.independent || face.isolated {
-                                        Some(face.name.clone())
+                                        Some(if face.name.is_empty() {
+                                            face_name_owned(&face)
+                                        } else {
+                                            face.name.clone()
+                                        })
                                     } else {
                                         None
                                     };
@@ -4637,7 +4662,11 @@ pub fn mesh_space<S: VoxelAccess>(
 
                         let geometry = map.entry(key).or_insert_with(|| {
                             let face_name = if face.independent || face.isolated {
-                                Some(face.name.clone())
+                                Some(if face.name.is_empty() {
+                                    face_name_owned(face)
+                                } else {
+                                    face.name.clone()
+                                })
                             } else {
                                 None
                             };
