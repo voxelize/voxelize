@@ -39,6 +39,30 @@ fn push_dispatch_event(
     }
 }
 
+#[inline]
+fn push_dispatch_event_owned(
+    dispatch_map: &mut HashMap<String, Vec<EventProtocol>>,
+    touched_clients: &mut Vec<String>,
+    client_id: &str,
+    event: EventProtocol,
+) {
+    match dispatch_map.raw_entry_mut().from_key(client_id) {
+        RawEntryMut::Occupied(mut entry) => {
+            let events = entry.get_mut();
+            if events.is_empty() {
+                touched_clients.push(client_id.to_owned());
+            }
+            events.push(event);
+        }
+        RawEntryMut::Vacant(entry) => {
+            touched_clients.push(client_id.to_owned());
+            let mut events = Vec::with_capacity(1);
+            events.push(event);
+            entry.insert(client_id.to_owned(), events);
+        }
+    }
+}
+
 impl<'a> System<'a> for EventsSystem {
     type SystemData = (
         ReadExpect<'a, Transports>,
@@ -145,6 +169,20 @@ impl<'a> System<'a> for EventsSystem {
 
             if has_transports {
                 transports_map.push(serialized.clone());
+            }
+            if !has_transports {
+                if let Some(ClientFilter::Direct(id)) = filter.as_ref() {
+                    if let Some(client) = clients.get(id) {
+                        let should_send = match location.as_ref() {
+                            Some(location) => is_interested(location, client.entity),
+                            None => true,
+                        };
+                        if should_send {
+                            push_dispatch_event_owned(dispatch_map, touched_clients, id, serialized);
+                        }
+                    }
+                    continue;
+                }
             }
 
             // Checks if location is required, otherwise just sends.
