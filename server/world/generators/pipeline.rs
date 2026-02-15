@@ -283,7 +283,19 @@ impl Pipeline {
     }
 
     pub fn drain_pending_regenerate(&mut self) -> Vec<Vec2<i32>> {
-        self.pending_regenerate.drain().collect()
+        let pending_len = self.pending_regenerate.len();
+        if pending_len == 0 {
+            return Vec::new();
+        }
+        if pending_len == 1 {
+            let coords = *self.pending_regenerate.iter().next().unwrap();
+            self.pending_regenerate.clear();
+            return vec![coords];
+        }
+
+        let mut drained = Vec::with_capacity(pending_len);
+        drained.extend(self.pending_regenerate.drain());
+        drained
     }
 
     /// Add a chunk coordinate to the pipeline to be processed.
@@ -462,6 +474,11 @@ impl Pipeline {
 
 #[cfg(test)]
 mod tests {
+    use hashbrown::HashSet;
+
+    use crate::Vec2;
+
+    use super::Pipeline;
     use super::{clamped_flatland_top_height, FlatlandStage};
 
     #[test]
@@ -493,5 +510,29 @@ mod tests {
     fn clamped_flatland_top_height_handles_non_positive_chunk_ceiling() {
         assert_eq!(clamped_flatland_top_height(12, 0), 0);
         assert_eq!(clamped_flatland_top_height(12, -8), 0);
+    }
+
+    #[test]
+    fn drain_pending_regenerate_single_entry_clears_set() {
+        let mut pipeline = Pipeline::new();
+        let coords = Vec2(9, -3);
+        pipeline.pending_regenerate.insert(coords);
+
+        assert_eq!(pipeline.drain_pending_regenerate(), vec![coords]);
+        assert!(pipeline.pending_regenerate.is_empty());
+    }
+
+    #[test]
+    fn drain_pending_regenerate_collects_multiple_entries() {
+        let mut pipeline = Pipeline::new();
+        let first = Vec2(1, 4);
+        let second = Vec2(-2, 8);
+        pipeline.pending_regenerate.insert(first);
+        pipeline.pending_regenerate.insert(second);
+
+        let drained: HashSet<_> = pipeline.drain_pending_regenerate().into_iter().collect();
+        let expected: HashSet<_> = [first, second].into_iter().collect();
+        assert_eq!(drained, expected);
+        assert!(pipeline.pending_regenerate.is_empty());
     }
 }
