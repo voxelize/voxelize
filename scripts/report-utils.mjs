@@ -2215,12 +2215,19 @@ export const createCliOptionValidation = (
     normalizedOptionCatalogOverride === null
       ? resolvedOptionCatalog.availableCliOptionAliases
       : normalizedOptionCatalogOverride.availableCliOptionAliases;
+  const catalogSupportedCliOptions =
+    normalizedOptionCatalogOverride === null
+      ? resolvedOptionCatalog.supportedCliOptions
+      : normalizedOptionCatalogOverride.supportedCliOptions;
+  const catalogSupportedCliOptionSet = new Set(catalogSupportedCliOptions);
   const supportedCliOptions =
     precomputedSupportedCliOptions === null
-      ? normalizedOptionCatalogOverride === null
-        ? resolvedOptionCatalog.supportedCliOptions
-        : normalizedOptionCatalogOverride.supportedCliOptions
-      : normalizeCliOptionTokenList(precomputedSupportedCliOptions);
+      ? catalogSupportedCliOptions
+      : normalizeCliOptionTokenList(precomputedSupportedCliOptions).filter(
+          (optionToken) => {
+            return catalogSupportedCliOptionSet.has(optionToken);
+          }
+        );
   const unknownOptions = parseUnknownCliOptions(args, {
     canonicalOptions: catalogCanonicalOptions,
     optionAliases: catalogOptionAliases,

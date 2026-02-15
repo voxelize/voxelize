@@ -4294,6 +4294,53 @@ describe("report-utils", () => {
     expect(precomputedSupportedTokens.unsupportedOptionsError).toBe(
       "Unsupported option(s): --mystery. Supported options: --output, --json."
     );
+    const staleUnknownPrecomputedSupportedTokens = createCliOptionValidation(
+      ["--mystery"],
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        supportedCliOptions: ["--output", "--mystery", "--json"],
+      }
+    );
+    expect(staleUnknownPrecomputedSupportedTokens.supportedCliOptions).toEqual([
+      "--output",
+      "--json",
+    ]);
+    expect(staleUnknownPrecomputedSupportedTokens.supportedCliOptionCount).toBe(2);
+    expect(staleUnknownPrecomputedSupportedTokens.unknownOptions).toEqual([
+      "--mystery",
+    ]);
+    expect(staleUnknownPrecomputedSupportedTokens.unknownOptionCount).toBe(1);
+    expect(staleUnknownPrecomputedSupportedTokens.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --output, --json."
+    );
+    expect(staleUnknownPrecomputedSupportedTokens.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    const staleUnknownAliasPrecomputedSupportedTokens =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions: ["--json"],
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+        supportedCliOptions: ["--verify", "--mystery"],
+      });
+    expect(staleUnknownAliasPrecomputedSupportedTokens.supportedCliOptions).toEqual(
+      ["--verify"]
+    );
+    expect(staleUnknownAliasPrecomputedSupportedTokens.supportedCliOptionCount).toBe(
+      1
+    );
+    expect(staleUnknownAliasPrecomputedSupportedTokens.unknownOptions).toEqual([
+      "--mystery",
+    ]);
+    expect(staleUnknownAliasPrecomputedSupportedTokens.unknownOptionCount).toBe(1);
+    expect(staleUnknownAliasPrecomputedSupportedTokens.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --verify."
+    );
+    expect(staleUnknownAliasPrecomputedSupportedTokens.validationErrorCode).toBe(
+      "unsupported_options"
+    );
     let statefulCanonicalWithPrecomputedReadCount = 0;
     const statefulCanonicalWithPrecomputed = new Proxy(["--json"], {
       get(target, property, receiver) {
