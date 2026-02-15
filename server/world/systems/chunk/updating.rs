@@ -626,14 +626,10 @@ fn process_pending_updates(
     }
 
     if !chunks.cache.is_empty() {
-        let cache = chunks.cache.drain().collect::<Vec<Vec2<i32>>>();
-
-        cache.iter().for_each(|coords| {
-            chunks.add_chunk_to_save(coords, true);
-        });
-
+        let mut cache = std::mem::take(&mut chunks.cache);
         let mut processes = Vec::with_capacity(cache.len());
-        for coords in cache {
+        for coords in cache.drain() {
+            chunks.add_chunk_to_save(&coords, true);
             if !chunks.is_chunk_ready(&coords) {
                 continue;
             }
