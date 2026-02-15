@@ -4337,7 +4337,8 @@ describe("report-utils", () => {
         skipped: false,
         exitCode: 2,
         report: null,
-        output: "\u001b[31m  output failure  \u001b[0m\nadditional detail",
+        output:
+          "\u001b]0;step summary\u0007\u001b[31m  output failure  \u001b[0m\nadditional detail",
       },
       {
         name: "   ",
@@ -4399,7 +4400,8 @@ describe("report-utils", () => {
         passed: false,
         exitCode: 2,
         report: null,
-        output: "\u001b[33m  output failure  \u001b[0m\nadditional detail",
+        output:
+          "\u001b]0;check summary\u0007\u001b[33m  output failure  \u001b[0m\nadditional detail",
       },
       {
         name: "   ",
@@ -5437,6 +5439,19 @@ describe("report-utils", () => {
     });
     expect(
       extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckOutputLine:
+          "\u001b]0;voxelize preflight\u0007  wasm-pack not found  ",
+      })
+    ).toEqual({
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: null,
+      wasmPackCheckArgCount: null,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: "wasm-pack not found",
+    });
+    expect(
+      extractWasmPackCheckSummaryFromReport({
         wasmPackCheckOutputLine: "   ",
       })
     ).toEqual({
@@ -5869,6 +5884,26 @@ describe("report-utils", () => {
         exampleAttempted: false,
         exampleOutputLine:
           "\n\n\u001b[32m  ruleMatched=true  \u001b[0m\npayload validation skipped",
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: null,
+      exampleArgCount: null,
+      exampleAttempted: false,
+      exampleStatus: "skipped",
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: null,
+      exampleDurationMs: null,
+      exampleOutputLine: "ruleMatched=true",
+    });
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleAttempted: false,
+        exampleOutputLine:
+          "\u001b]0;ts-core example\u0007  ruleMatched=true  ",
       })
     ).toEqual({
       exampleCommand: null,
