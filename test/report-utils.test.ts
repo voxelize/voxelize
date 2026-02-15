@@ -7040,6 +7040,47 @@ describe("report-utils", () => {
     expect(summary.wasmPackCheckArgs.includes("--k1022")).toBe(true);
     expect(summary.wasmPackCheckArgs.includes("--k1023")).toBe(false);
     expect(summary.wasmPackCheckArgCount).toBe(1_024);
+
+    const cappedSupplementedArgsTarget: Array<string | number> = [];
+    cappedSupplementedArgsTarget[0] = "check-wasm-pack.mjs";
+    for (let index = 1; index < 1_024; index += 1) {
+      cappedSupplementedArgsTarget[index] = index;
+    }
+    for (let index = 0; index < 1_024; index += 1) {
+      cappedSupplementedArgsTarget[5_000 + index] = `--k${index}`;
+    }
+    const cappedSupplementedFallbackKeyList = Array.from(
+      { length: 1_024 },
+      (_, index) => {
+        return String(5_000 + index);
+      }
+    );
+    const cappedSupplementedArgs = new Proxy(cappedSupplementedArgsTarget, {
+      ownKeys() {
+        return [...cappedSupplementedFallbackKeyList, "length"];
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1_000_000_000;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const supplementedSummary = extractWasmPackCheckSummaryFromReport({
+      wasmPackCheckArgs: cappedSupplementedArgs,
+    });
+    expect(supplementedSummary.wasmPackCheckArgs).not.toBeNull();
+    if (supplementedSummary.wasmPackCheckArgs === null) {
+      throw new Error("Expected bounded supplemented wasm-pack fallback args.");
+    }
+    expect(supplementedSummary.wasmPackCheckArgs).toHaveLength(1_024);
+    expect(supplementedSummary.wasmPackCheckArgs[0]).toBe("check-wasm-pack.mjs");
+    expect(supplementedSummary.wasmPackCheckArgs.includes("--k1022")).toBe(true);
+    expect(supplementedSummary.wasmPackCheckArgs.includes("--k1023")).toBe(false);
+    expect(supplementedSummary.wasmPackCheckArgCount).toBe(1_024);
   });
 
   it("creates prefixed wasm pack summary objects", () => {
@@ -7320,6 +7361,47 @@ describe("report-utils", () => {
     expect(
       normalizeTsCorePayloadIssues(denseNonStringPrefixHighIndexIssues)
     ).toEqual(["voxel.id"]);
+    const cappedSupplementedIssuesTarget: Array<string | number> = [];
+    cappedSupplementedIssuesTarget[0] = " voxel.id ";
+    for (let index = 1; index < 1_024; index += 1) {
+      cappedSupplementedIssuesTarget[index] = index;
+    }
+    for (let index = 0; index < 1_024; index += 1) {
+      cappedSupplementedIssuesTarget[5_000 + index] = ` issue.k${index} `;
+    }
+    const cappedSupplementedIssueKeyList = Array.from(
+      { length: 1_024 },
+      (_, index) => {
+        return String(5_000 + index);
+      }
+    );
+    const cappedSupplementedIssues = new Proxy(cappedSupplementedIssuesTarget, {
+      ownKeys() {
+        return [...cappedSupplementedIssueKeyList, "length"];
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1_000_000_000;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const normalizedCappedSupplementedIssues = normalizeTsCorePayloadIssues(
+      cappedSupplementedIssues
+    );
+    expect(normalizedCappedSupplementedIssues).not.toBeNull();
+    if (normalizedCappedSupplementedIssues === null) {
+      throw new Error("Expected normalized capped supplemented payload issues.");
+    }
+    expect(normalizedCappedSupplementedIssues).toHaveLength(1_024);
+    expect(normalizedCappedSupplementedIssues[0]).toBe("voxel.id");
+    expect(normalizedCappedSupplementedIssues.includes("issue.k1022")).toBe(true);
+    expect(normalizedCappedSupplementedIssues.includes("issue.k1023")).toBe(
+      false
+    );
   });
 
   it("extracts ts-core example summary fields from reports", () => {
@@ -8058,6 +8140,51 @@ describe("report-utils", () => {
     expect(summary.exampleArgs.includes("--k1022")).toBe(true);
     expect(summary.exampleArgs.includes("--k1023")).toBe(false);
     expect(summary.exampleArgCount).toBe(1_024);
+
+    const cappedSupplementedArgsTarget: Array<string | number> = [];
+    cappedSupplementedArgsTarget[0] = "packages/ts-core/examples/end-to-end.mjs";
+    for (let index = 1; index < 1_024; index += 1) {
+      cappedSupplementedArgsTarget[index] = index;
+    }
+    for (let index = 0; index < 1_024; index += 1) {
+      cappedSupplementedArgsTarget[5_000 + index] = `--k${index}`;
+    }
+    const cappedSupplementedFallbackKeyList = Array.from(
+      { length: 1_024 },
+      (_, index) => {
+        return String(5_000 + index);
+      }
+    );
+    const cappedSupplementedArgs = new Proxy(cappedSupplementedArgsTarget, {
+      ownKeys() {
+        return [...cappedSupplementedFallbackKeyList, "length"];
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1_000_000_000;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const supplementedSummary = extractTsCoreExampleSummaryFromReport({
+      exampleArgs: cappedSupplementedArgs,
+      exampleAttempted: true,
+      exampleExitCode: 1,
+    });
+    expect(supplementedSummary.exampleArgs).not.toBeNull();
+    if (supplementedSummary.exampleArgs === null) {
+      throw new Error("Expected bounded supplemented ts-core fallback args.");
+    }
+    expect(supplementedSummary.exampleArgs).toHaveLength(1_024);
+    expect(supplementedSummary.exampleArgs[0]).toBe(
+      "packages/ts-core/examples/end-to-end.mjs"
+    );
+    expect(supplementedSummary.exampleArgs.includes("--k1022")).toBe(true);
+    expect(supplementedSummary.exampleArgs.includes("--k1023")).toBe(false);
+    expect(supplementedSummary.exampleArgCount).toBe(1_024);
   });
 
   it("creates prefixed ts-core example summary objects", () => {
