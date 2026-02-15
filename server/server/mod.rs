@@ -280,13 +280,11 @@ impl Server {
             }
         }
 
-        let connection = self.connections.get(id);
-        if connection.is_none() {
+        let Some((_, world_name, _)) = self.connections.get(id) else {
             return Some("You are not connected to a world!".to_owned());
-        }
+        };
 
-        let (_, world_name, _) = connection.unwrap().to_owned();
-
+        let world_name = world_name.clone();
         if let Some(world) = self.get_world_mut(&world_name) {
             world.do_send(ClientRequest {
                 client_id: id.to_owned(),
