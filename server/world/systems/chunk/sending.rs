@@ -26,6 +26,19 @@ impl ChunkSendingSystem {
 
 #[inline]
 fn take_updated_level_range(updated_levels: &mut HashSet<u32>) -> Option<(u32, u32)> {
+    if updated_levels.is_empty() {
+        return None;
+    }
+    if updated_levels.len() == 1 {
+        let level = *updated_levels.iter().next().unwrap();
+        updated_levels.clear();
+        let max_level_exclusive = level.saturating_add(1);
+        if max_level_exclusive <= level {
+            return None;
+        }
+        return Some((level, max_level_exclusive));
+    }
+
     let mut iter = updated_levels.drain();
     let first = iter.next()?;
     let mut min_level = first;
