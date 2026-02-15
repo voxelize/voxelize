@@ -1736,11 +1736,10 @@ fn should_render_face<S: VoxelAccess>(
     }
 
     if !see_through {
-        let (neighbor_has_type, neighbor_is_opaque) = registry.has_type_and_is_opaque(neighbor_id);
-        if neighbor_is_opaque {
+        if registry.is_opaque_id(neighbor_id) {
             return false;
         }
-        if neighbor_has_type {
+        if registry.has_type(neighbor_id) {
             return true;
         }
         return !space.contains(nvx, nvy, nvz);
