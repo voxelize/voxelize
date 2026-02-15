@@ -449,8 +449,28 @@ const mergeIndexedFallbackEntries = (primaryEntries, supplementalEntries) => {
     return entryValue === undefined || entryValue === null;
   };
 
+  const isPrimitivePlaceholderEntry = (entryValue) => {
+    return entryValue !== null && typeof entryValue !== "object";
+  };
+
+  const isNonStringPrimitivePlaceholderEntry = (entryValue) => {
+    return (
+      entryValue !== null &&
+      typeof entryValue !== "object" &&
+      typeof entryValue !== "string"
+    );
+  };
+
   const isRecoverableFallbackEntry = (entryValue) => {
     return entryValue !== undefined && entryValue !== null;
+  };
+
+  const isObjectFallbackEntry = (entryValue) => {
+    return entryValue !== null && typeof entryValue === "object";
+  };
+
+  const isStringFallbackEntry = (entryValue) => {
+    return typeof entryValue === "string";
   };
 
   const mergedEntryMap = new Map();
@@ -469,6 +489,20 @@ const mergeIndexedFallbackEntries = (primaryEntries, supplementalEntries) => {
     if (
       isEmptyPlaceholderEntry(existingValue) &&
       isRecoverableFallbackEntry(entry.value)
+    ) {
+      mergedEntryMap.set(entry.index, entry.value);
+      continue;
+    }
+    if (
+      isPrimitivePlaceholderEntry(existingValue) &&
+      isObjectFallbackEntry(entry.value)
+    ) {
+      mergedEntryMap.set(entry.index, entry.value);
+      continue;
+    }
+    if (
+      isNonStringPrimitivePlaceholderEntry(existingValue) &&
+      isStringFallbackEntry(entry.value)
     ) {
       mergedEntryMap.set(entry.index, entry.value);
     }

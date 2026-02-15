@@ -1160,7 +1160,10 @@ describe("report-utils", () => {
     const equalLengthReplacementResult = splitCliArgs(
       equalLengthReplacementArgs as never
     );
-    expect(equalLengthReplacementResult.optionArgs).toEqual(["--json"]);
+    expect(equalLengthReplacementResult.optionArgs).toEqual([
+      "--json",
+      "--mystery",
+    ]);
     expect(equalLengthReplacementResult.positionalArgs).toEqual([]);
     expect(equalLengthReplacementResult.optionTerminatorUsed).toBe(false);
 
@@ -4346,11 +4349,11 @@ describe("report-utils", () => {
     expect(summarizeStepResults(equalLengthReplacementSteps as never)).toEqual({
       totalSteps: 2,
       passedStepCount: 1,
-      failedStepCount: 0,
+      failedStepCount: 1,
       skippedStepCount: 0,
-      firstFailedStep: null,
+      firstFailedStep: "step-b",
       passedSteps: ["step-a"],
-      failedSteps: [],
+      failedSteps: ["step-b"],
       skippedSteps: [],
     });
 
@@ -5438,6 +5441,17 @@ describe("report-utils", () => {
         exitCode: 2,
         message: "Step failed with exit code 2.",
       },
+      {
+        name: "step-secondary",
+        scriptName: "check-secondary.mjs",
+        supportsNoBuild: true,
+        stepIndex: 1,
+        checkCommand: "",
+        checkArgs: [],
+        checkArgCount: 0,
+        exitCode: 3,
+        message: "Step failed with exit code 3.",
+      },
     ]);
 
     const checkWithTrapPassed = Object.create(null) as {
@@ -5640,6 +5654,17 @@ describe("report-utils", () => {
         checkArgCount: 0,
         exitCode: 2,
         message: "Preflight check failed with exit code 2.",
+      },
+      {
+        name: "check-secondary",
+        scriptName: "check-secondary.mjs",
+        supportsNoBuild: true,
+        checkIndex: 1,
+        checkCommand: "",
+        checkArgs: [],
+        checkArgCount: 0,
+        exitCode: 3,
+        message: "Preflight check failed with exit code 3.",
       },
     ]);
   });
@@ -5846,10 +5871,10 @@ describe("report-utils", () => {
     );
     expect(summarizeCheckResults(equalLengthReplacementChecks as never)).toEqual({
       totalChecks: 2,
-      passedCheckCount: 0,
+      passedCheckCount: 1,
       failedCheckCount: 1,
       firstFailedCheck: "devEnvironment",
-      passedChecks: [],
+      passedChecks: ["client"],
       failedChecks: ["devEnvironment"],
     });
 
