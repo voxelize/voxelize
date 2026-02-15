@@ -210,7 +210,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             if chunk.is_none() {
                 let can_load = chunks.test_load(&coords);
                 if can_load {
-                    pipeline.remove_chunk(&coords);
+                    pipeline.remove_chunk_tracking(&coords);
                     mesher.add_chunk(&coords, false);
                     to_load.push(coords);
                     continue;
@@ -236,12 +236,12 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                     if let ChunkStatus::Generating(index) = chunk.status {
                         index
                     } else {
-                        pipeline.remove_chunk(&coords);
+                        pipeline.remove_chunk_tracking(&coords);
                         continue;
                     }
                 }
                 None => {
-                    pipeline.remove_chunk(&coords);
+                    pipeline.remove_chunk_tracking(&coords);
                     continue;
                 }
             };

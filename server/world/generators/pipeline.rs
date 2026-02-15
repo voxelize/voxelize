@@ -323,6 +323,12 @@ impl Pipeline {
         self.remove_queued_chunk(coords);
     }
 
+    /// Remove a chunk coordinate from tracking set only.
+    #[inline]
+    pub fn remove_chunk_tracking(&mut self, coords: &Vec2<i32>) {
+        self.chunks.remove(coords);
+    }
+
     /// Check to see if a chunk coordinate is in the pipeline.
     pub fn has_chunk(&self, coords: &Vec2<i32>) -> bool {
         self.chunks.contains(coords)
