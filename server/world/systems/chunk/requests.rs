@@ -74,6 +74,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         }
 
         for (id, requests) in (&ids, &mut requests).join() {
+            let client_id = id.0.as_str();
             if requests.requests.is_empty() {
                 continue;
             }
@@ -97,19 +98,19 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                         clients_to_send
                     } else {
                         let fetched_clients_to_send =
-                            match to_send.raw_entry_mut().from_key(id.0.as_str()) {
+                            match to_send.raw_entry_mut().from_key(client_id) {
                                 RawEntryMut::Occupied(entry) => entry.into_mut(),
                                 RawEntryMut::Vacant(entry) => {
                                     entry
                                         .insert(
-                                            id.0.clone(),
+                                            client_id.to_owned(),
                                             HashSet::with_capacity(initial_send_set_capacity),
                                         )
                                         .1
                                 }
                             };
                         if !fetched_clients_to_send.is_empty() {
-                            to_send_touched_clients.push(id.0.clone());
+                            to_send_touched_clients.push(client_id.to_owned());
                             touched_client = true;
                         } else {
                             touched_client = false;
@@ -123,11 +124,11 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                         continue;
                     }
                     if !touched_client {
-                        to_send_touched_clients.push(id.0.clone());
+                        to_send_touched_clients.push(client_id.to_owned());
                         touched_client = true;
                     }
 
-                    interests.add(&id.0, &coords);
+                    interests.add(client_id, &coords);
                     clients_to_send.insert(coords);
                 } else {
                     if !interests.has_interests(&coords) {
@@ -151,7 +152,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                             }
                         }
                     }
-                    interests.add(&id.0, &coords);
+                    interests.add(client_id, &coords);
                 }
             }
 
