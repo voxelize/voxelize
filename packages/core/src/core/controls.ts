@@ -598,8 +598,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       const direction = this.vector;
       direction
         .set(0, 0, -1)
-        .applyQuaternion(this.object.getWorldQuaternion(emptyQ))
-        .normalize();
+        .applyQuaternion(this.object.getWorldQuaternion(emptyQ));
 
       const characterDirection = this.characterDirection;
       characterDirection[0] = direction.x;
