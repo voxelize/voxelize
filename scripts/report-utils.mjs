@@ -957,6 +957,18 @@ const toTrustedOptionArgsOverrideOrNull = (optionArgsOverride) => {
   });
 };
 
+const hasReadableArrayEntries = (value) => {
+  if (!Array.isArray(value)) {
+    return false;
+  }
+
+  try {
+    return value.length > 0;
+  } catch {
+    return false;
+  }
+};
+
 export const extractWasmPackCheckSummaryFromReport = (report) => {
   if (!isObjectRecord(report)) {
     return {
@@ -2226,6 +2238,10 @@ export const createCliOptionValidation = (
       : normalizeCliOptionTokenListWithAvailability(precomputedSupportedCliOptions);
   const normalizedPrecomputedSupportedCliOptions =
     normalizedPrecomputedSupportedCliOptionMetadata?.tokens ?? [];
+  const precomputedSupportedCliOptionsHasReadableEntries =
+    normalizedPrecomputedSupportedCliOptionMetadata === null
+      ? false
+      : hasReadableArrayEntries(precomputedSupportedCliOptions);
   const filteredPrecomputedSupportedCliOptions =
     normalizedPrecomputedSupportedCliOptions.filter((optionToken) => {
       return catalogSupportedCliOptionSet.has(optionToken);
@@ -2235,7 +2251,8 @@ export const createCliOptionValidation = (
     filteredPrecomputedSupportedCliOptions.length === 0 &&
     catalogSupportedCliOptions.length > 0 &&
     (normalizedPrecomputedSupportedCliOptionMetadata.unavailable ||
-      normalizedPrecomputedSupportedCliOptions.length > 0);
+      normalizedPrecomputedSupportedCliOptions.length > 0 ||
+      precomputedSupportedCliOptionsHasReadableEntries);
   const supportedCliOptions =
     normalizedPrecomputedSupportedCliOptionMetadata === null
       ? catalogSupportedCliOptions
