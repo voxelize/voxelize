@@ -287,36 +287,39 @@ impl MessageBuilder {
         }
 
         if let Some(chunks) = self.chunks {
-            message.chunks = chunks
-                .into_iter()
-                .map(|chunk| protocols::Chunk {
+            let mut mapped_chunks = Vec::with_capacity(chunks.len());
+            for chunk in chunks {
+                let mut mapped_meshes = Vec::with_capacity(chunk.meshes.len());
+                for mesh in chunk.meshes {
+                    let mut mapped_geometries = Vec::with_capacity(mesh.geometries.len());
+                    for geo in mesh.geometries {
+                        mapped_geometries.push(protocols::Geometry {
+                            voxel: geo.voxel,
+                            at: geo.at,
+                            face_name: geo.face_name,
+                            indices: compress_i32_array(&geo.indices),
+                            positions: compress_f32_array(&geo.positions),
+                            lights: compress_i32_array(&geo.lights),
+                            uvs: compress_f32_array(&geo.uvs),
+                        });
+                    }
+                    mapped_meshes.push(protocols::Mesh {
+                        level: mesh.level,
+                        geometries: mapped_geometries,
+                    });
+                }
+                let lights_data = chunk.lights.as_ref().map_or(&[][..], |lights| lights.data.as_slice());
+                let voxels_data = chunk.voxels.as_ref().map_or(&[][..], |voxels| voxels.data.as_slice());
+                mapped_chunks.push(protocols::Chunk {
                     id: chunk.id,
-                    meshes: chunk
-                        .meshes
-                        .into_iter()
-                        .map(|mesh| protocols::Mesh {
-                            level: mesh.level,
-                            geometries: mesh
-                                .geometries
-                                .into_iter()
-                                .map(|geo| protocols::Geometry {
-                                    voxel: geo.voxel,
-                                    at: geo.at,
-                                    face_name: geo.face_name,
-                                    indices: compress_i32_array(&geo.indices),
-                                    positions: compress_f32_array(&geo.positions),
-                                    lights: compress_i32_array(&geo.lights),
-                                    uvs: compress_f32_array(&geo.uvs),
-                                })
-                                .collect(),
-                        })
-                        .collect(),
-                    lights: compress_u32_array(&chunk.lights.unwrap_or_default().data),
-                    voxels: compress_u32_array(&chunk.voxels.unwrap_or_default().data),
+                    meshes: mapped_meshes,
+                    lights: compress_u32_array(lights_data),
+                    voxels: compress_u32_array(voxels_data),
                     x: chunk.x,
                     z: chunk.z,
-                })
-                .collect();
+                });
+            }
+            message.chunks = mapped_chunks;
         }
 
         if let Some(updates) = self.updates {
