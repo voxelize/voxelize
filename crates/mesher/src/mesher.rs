@@ -1052,6 +1052,16 @@ fn extract_rotation(voxel: u32) -> BlockRotation {
 }
 
 #[inline(always)]
+fn decode_rotation_bits(rotation_bits: u8) -> BlockRotation {
+    if rotation_bits == 0 {
+        return BlockRotation::PY(0.0);
+    }
+    let rotation = (rotation_bits & 0xF) as u32;
+    let y_rotation = ((rotation_bits >> 4) & 0xF) as u32;
+    BlockRotation::encode(rotation, y_rotation)
+}
+
+#[inline(always)]
 fn extract_stage(voxel: u32) -> u32 {
     (voxel >> 24) & 0xF
 }
@@ -2982,17 +2992,8 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
 
     let slice_size = (max_x - min_x).max(max_y - min_y).max(max_z - min_z) as usize;
     let mut greedy_mask: Vec<Option<FaceData>> = vec![None; slice_size * slice_size];
-    let mut non_greedy_faces: Vec<(
-        i32,
-        i32,
-        i32,
-        usize,
-        u32,
-        BlockRotation,
-        i16,
-        Option<BlockFace>,
-        bool,
-    )> = Vec::new();
+    let mut non_greedy_faces: Vec<(i32, i32, i32, usize, u32, u8, i16, Option<BlockFace>, bool)> =
+        Vec::new();
     let mut uncached_greedy_face_indices_by_block: HashMap<u32, [i16; 6]> = HashMap::new();
 
     for (dir, dir_index) in GREEDY_DIRECTIONS_WITH_INDEX {
@@ -3110,6 +3111,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     let is_see_through = block.is_see_through;
                     let skip_opaque_checks = is_see_through || block.is_all_transparent;
                     let block_needs_face_rotation = block.rotatable || block.y_rotatable;
+                    let rotation_bits = ((raw_voxel >> 16) & 0xFF) as u8;
                     let mut rotation = BlockRotation::PY(0.0);
                     if block_needs_face_rotation {
                         rotation = extract_rotation(raw_voxel);
@@ -3171,7 +3173,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                     vz,
                                     non_greedy_voxel_key,
                                     voxel_id,
-                                    rotation.clone(),
+                                    rotation_bits,
                                     face_index as i16,
                                     None,
                                     false,
@@ -3185,7 +3187,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                     vz,
                                     non_greedy_voxel_key,
                                     voxel_id,
-                                    rotation.clone(),
+                                    rotation_bits,
                                     -1,
                                     Some(face.clone()),
                                     *world_space,
@@ -3285,7 +3287,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                     vz,
                                     deferred_voxel_key,
                                     voxel_id,
-                                    rotation.clone(),
+                                    rotation_bits,
                                     face_index,
                                     None,
                                     false,
@@ -3338,7 +3340,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                     vz,
                                     deferred_voxel_key,
                                     voxel_id,
-                                    rotation.clone(),
+                                    rotation_bits,
                                     face_index as i16,
                                     None,
                                     false,
@@ -3391,7 +3393,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                     vz,
                                     deferred_voxel_key,
                                     voxel_id,
-                                    rotation.clone(),
+                                    rotation_bits,
                                     -1,
                                     Some(face.clone()),
                                     *world_space,
@@ -3520,10 +3522,20 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
             let mut cached_non_greedy_block_id = u32::MAX;
             let mut cached_non_greedy_block: Option<&Block> = None;
             let mut cached_non_greedy_voxel_key: Option<usize> = None;
+            let mut cached_non_greedy_rotation = BlockRotation::PY(0.0);
             let mut cached_non_greedy_neighbors: Option<NeighborCache> = None;
             let mut cached_non_greedy_face_cache: Option<FaceProcessCache> = None;
-            for (vx, vy, vz, voxel_key, voxel_id, rotation, face_index, face_owned, world_space) in
-                non_greedy_faces.drain(..)
+            for (
+                vx,
+                vy,
+                vz,
+                voxel_key,
+                voxel_id,
+                rotation_bits,
+                face_index,
+                face_owned,
+                world_space,
+            ) in non_greedy_faces.drain(..)
             {
                 let block = if cached_non_greedy_block_id == voxel_id {
                     match cached_non_greedy_block {
@@ -3576,6 +3588,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                 let is_fluid = block.is_fluid;
                 let skip_opaque_checks = is_see_through || block.is_all_transparent;
                 if cached_non_greedy_voxel_key != Some(voxel_key) {
+                    cached_non_greedy_rotation = decode_rotation_bits(rotation_bits);
                     let neighbors = populate_neighbors_for_face_processing(
                         vx,
                         vy,
@@ -3610,7 +3623,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     vy,
                     vz,
                     voxel_id,
-                    &rotation,
+                    &cached_non_greedy_rotation,
                     face,
                     &face.range,
                     block,
