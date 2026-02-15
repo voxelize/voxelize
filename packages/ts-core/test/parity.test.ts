@@ -1563,6 +1563,63 @@ describe("Type builders", () => {
     expect(boundedReadCount).toBe(1024);
   });
 
+  it("ignores inherited numeric prototype face/aabb entries in fallback scans", () => {
+    Object.defineProperty(Array.prototype, "0", {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: { name: "InheritedFace" },
+    });
+    Object.defineProperty(Array.prototype, "1", {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: AABB.create(0, 0, 0, 1, 1, 1),
+    });
+
+    try {
+      const trappedFaces = new Proxy([] as Array<BlockFaceInit>, {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+      const trappedAabbs = new Proxy([] as Array<AABB>, {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 2;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+
+      const part = createBlockConditionalPart({
+        faces: trappedFaces as never,
+        aabbs: trappedAabbs as never,
+      });
+
+      expect(part.faces).toEqual([]);
+      expect(part.aabbs).toEqual([]);
+    } finally {
+      delete (Array.prototype as Record<string, BlockFaceInit>)["0"];
+      delete (Array.prototype as Record<string, AABB>)["1"];
+    }
+  });
+
   it("accepts null-prototype face init objects during conditional part cloning", () => {
     const nullPrototypeFace = Object.create(null) as {
       name: string;
@@ -2693,6 +2750,39 @@ describe("Type builders", () => {
     });
 
     expect(pattern.parts).toEqual([]);
+  });
+
+  it("ignores inherited numeric prototype part entries in fallback scans", () => {
+    Object.defineProperty(Array.prototype, "0", {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: { worldSpace: true },
+    });
+
+    try {
+      const trappedParts = new Proxy([] as Array<BlockConditionalPartInput>, {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+      const pattern = createBlockDynamicPattern({
+        parts: trappedParts as never,
+      });
+
+      expect(pattern.parts).toEqual([]);
+    } finally {
+      delete (Array.prototype as Record<string, BlockConditionalPartInput>)["0"];
+    }
   });
 
   it("accepts partial dynamic pattern part inputs", () => {
