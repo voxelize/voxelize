@@ -84,7 +84,9 @@ impl<'a> System<'a> for EntityTreeSystem {
             }
         }
 
-        tree.retain(|ent_id| current_ids.contains(&ent_id));
+        if tree.len() > current_ids.len() {
+            tree.retain(|ent_id| current_ids.contains(&ent_id));
+        }
     }
 }
 
