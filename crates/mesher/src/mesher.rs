@@ -2374,7 +2374,12 @@ fn process_greedy_quad(
     geometry.uvs.extend_from_slice(&uv_chunk);
     geometry.lights.extend_from_slice(&light_chunk);
 
-    if face_aos == [face_aos[0]; 4] && face_lights == [face_lights[0]; 4] {
+    let uniform_ao =
+        face_aos[0] == face_aos[1] && face_aos[0] == face_aos[2] && face_aos[0] == face_aos[3];
+    let uniform_light = face_lights[0] == face_lights[1]
+        && face_lights[0] == face_lights[2]
+        && face_lights[0] == face_lights[3];
+    if uniform_ao && uniform_light {
         geometry
             .indices
             .extend_from_slice(&[ndx, ndx + 1, ndx + 2, ndx + 2, ndx + 1, ndx + 3]);
