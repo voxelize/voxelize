@@ -115,18 +115,17 @@ fn fanout_chunk_model(
     interested_clients: &HashSet<String>,
     chunk_model: ChunkProtocol,
 ) {
-    let Some(first_client_id) = interested_clients.iter().next() else {
+    let mut interested_iter = interested_clients.iter();
+    let Some(first_client_id) = interested_iter.next() else {
         return;
     };
-    if interested_clients.len() == 1 {
+    if interested_iter.len() == 0 {
         push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
         return;
     }
 
-    for client_id in interested_clients {
-        if client_id != first_client_id {
-            push_chunk_batch(batches, touched_clients, client_id, &chunk_model);
-        }
+    for client_id in interested_iter {
+        push_chunk_batch(batches, touched_clients, client_id, &chunk_model);
     }
 
     push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
