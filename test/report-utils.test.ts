@@ -5377,6 +5377,19 @@ describe("report-utils", () => {
     });
     expect(
       extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckOutputLine:
+          "\n\n\u001b[31m  wasm-pack not found  \u001b[0m\nadditional detail",
+      })
+    ).toEqual({
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: null,
+      wasmPackCheckArgCount: null,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: "wasm-pack not found",
+    });
+    expect(
+      extractWasmPackCheckSummaryFromReport({
         wasmPackCheckOutputLine: "   ",
       })
     ).toEqual({
@@ -5789,6 +5802,26 @@ describe("report-utils", () => {
       extractTsCoreExampleSummaryFromReport({
         exampleAttempted: false,
         exampleOutputLine: "\u001b[32m  ruleMatched=true  \u001b[0m",
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: null,
+      exampleArgCount: null,
+      exampleAttempted: false,
+      exampleStatus: "skipped",
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: null,
+      exampleDurationMs: null,
+      exampleOutputLine: "ruleMatched=true",
+    });
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleAttempted: false,
+        exampleOutputLine:
+          "\n\n\u001b[32m  ruleMatched=true  \u001b[0m\npayload validation skipped",
       })
     ).toEqual({
       exampleCommand: null,
