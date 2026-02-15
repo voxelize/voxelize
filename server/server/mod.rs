@@ -384,7 +384,7 @@ impl Server {
 
     /// Tick every world on this server.
     pub(crate) fn tick(&mut self) {
-        for world in self.worlds.values_mut() {
+        for world in self.worlds.values() {
             world.do_send(Tick);
         }
     }
@@ -497,9 +497,7 @@ impl Actor for Server {
     fn started(&mut self, ctx: &mut Self::Context) {
         // Set up a recurring task to tick all worlds
         ctx.run_interval(Duration::from_millis(self.interval), |act, _| {
-            for world in act.worlds.values() {
-                world.do_send(Tick);
-            }
+            act.tick();
         });
     }
 }

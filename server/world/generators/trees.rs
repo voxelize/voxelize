@@ -169,28 +169,6 @@ impl Trees {
         leaves_updates.into_iter().collect()
     }
 
-    fn place_trunk_by_angles(
-        trunk_id: u32,
-        from: &Vec3<i32>,
-        y_angle: f64,
-        rot_angle: f64,
-        dist: i32,
-        start_radius: i32,
-        end_radius: i32,
-    ) -> Vec<VoxelUpdate> {
-        let &Vec3(fx, fy, fz) = from;
-
-        let Vec3(dx, dy, dz) = Trees::angle_dist_cast(y_angle, rot_angle, dist);
-
-        Trees::place_trunk_by_points(
-            trunk_id,
-            from,
-            &Vec3(fx + dx, fy + dy, fz + dz),
-            start_radius,
-            end_radius,
-        )
-    }
-
     fn place_trunk_by_points(
         trunk_id: u32,
         from: &Vec3<i32>,

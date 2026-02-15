@@ -53,7 +53,7 @@ use crate::{
     encode_message,
     protocols::Peer,
     server::{Message, MessageType, WsSender},
-    EntityOperation, EntityProtocol, MethodProtocol, PeerProtocol, Server, Vec2, Vec3,
+    EntityOperation, EntityProtocol, MethodProtocol, PeerProtocol, Vec2, Vec3,
 };
 
 use super::common::ClientFilter;
@@ -237,10 +237,6 @@ pub struct World {
     extra_init_data: HashMap<String, serde_json::Value>,
 
     items: Option<ItemRegistry>,
-
-    addr: Option<Addr<SyncWorld>>,
-
-    server_addr: Option<Addr<Server>>,
 }
 
 // Define messages for the World actor
@@ -501,12 +497,6 @@ struct OnUnloadRequest {
 }
 
 #[derive(Serialize, Deserialize)]
-struct OnEventRequest {
-    name: String,
-    payload: Value,
-}
-
-#[derive(Serialize, Deserialize)]
 struct BuiltInSetTimeMethodPayload {
     time: f32,
 }
@@ -619,8 +609,6 @@ impl World {
             command_handle: None,
             extra_init_data: HashMap::default(),
             items: None,
-            addr: None,
-            server_addr: None,
         };
 
         world.set_method_handle("vox-builtin:get-stats", |world, client_id, _| {

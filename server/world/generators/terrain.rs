@@ -72,7 +72,6 @@ impl BiomeTree {
 #[derive(Clone)]
 pub struct Terrain {
     config: WorldConfig,
-    noise: SeededNoise,
     biome_tree: BiomeTree,
     pub layers: Vec<(TerrainLayer, f64)>,
     pub noise_layers: Vec<(TerrainLayer, f64)>,
@@ -82,7 +81,6 @@ impl Terrain {
     pub fn new(config: &WorldConfig) -> Self {
         Self {
             config: config.to_owned(),
-            noise: SeededNoise::new(config.seed, &config.terrain),
             biome_tree: BiomeTree::new(2),
             layers: vec![],
             noise_layers: vec![],
