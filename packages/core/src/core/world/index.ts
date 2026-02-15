@@ -5168,6 +5168,65 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
     this.csmRenderer.render(renderer, this, entities, 32, instancePools);
   }
 
+  private createChunkGeometry(geo: GeometryProtocol) {
+    const geometry = new BufferGeometry();
+    const { indices, lights, positions, uvs } = geo;
+
+    geometry.setAttribute("position", new BufferAttribute(positions, 3));
+    geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
+    geometry.setAttribute("light", new BufferAttribute(lights, 1));
+    geometry.setIndex(new BufferAttribute(indices, 1));
+    const normals = geo.normals;
+    if (normals && normals.length > 0) {
+      geometry.setAttribute("normal", new BufferAttribute(normals, 3));
+    } else {
+      computeFlatNormals(geometry);
+    }
+    if (geo.bsCenter && geo.bsRadius !== undefined) {
+      geometry.boundingSphere = new Sphere(
+        new Vector3(geo.bsCenter[0], geo.bsCenter[1], geo.bsCenter[2]),
+        geo.bsRadius
+      );
+    }
+
+    return geometry;
+  }
+
+  private resolveChunkGeometryMaterial(
+    voxel: number,
+    faceName: string,
+    texturePosition: Coords3 | undefined,
+    geometry: BufferGeometry
+  ) {
+    let material = this.getBlockFaceMaterialByIdWithoutCheck(
+      voxel,
+      faceName,
+      texturePosition
+    );
+    if (material) {
+      return material;
+    }
+
+    const block = this.getBlockById(voxel);
+    const face = this.findBlockFaceByName(block, faceName);
+    if (!face || !face.isolated || !texturePosition) {
+      geometry.dispose();
+      return null;
+    }
+
+    try {
+      material = this.getOrCreateIsolatedBlockMaterial(
+        voxel,
+        texturePosition,
+        faceName
+      );
+      return material;
+    } catch {
+      geometry.dispose();
+      return null;
+    }
+  }
+
   private buildChunkMesh(cx: number, cz: number, data: MeshProtocol) {
     const chunk = this.getLoadedChunkByCoords(cx, cz);
     if (!chunk) return;
@@ -5212,53 +5271,18 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
 
       for (let geometryIndex = 0; geometryIndex < geometries.length; geometryIndex++) {
         const geo = geometries[geometryIndex];
-        const { voxel, at, faceName, indices, lights, positions, uvs } = geo;
+        const { voxel, at, faceName } = geo;
         const texturePosition = at && at.length ? at : undefined;
-        const geometry = new BufferGeometry();
+        const geometry = this.createChunkGeometry(geo);
 
-        geometry.setAttribute("position", new BufferAttribute(positions, 3));
-        geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
-        geometry.setAttribute("light", new BufferAttribute(lights, 1));
-        geometry.setIndex(new BufferAttribute(indices, 1));
-        const normals = geo.normals;
-        if (normals && normals.length > 0) {
-          geometry.setAttribute("normal", new BufferAttribute(normals, 3));
-        } else {
-          computeFlatNormals(geometry);
-        }
-        if (geo.bsCenter && geo.bsRadius !== undefined) {
-          geometry.boundingSphere = new Sphere(
-            new Vector3(geo.bsCenter[0], geo.bsCenter[1], geo.bsCenter[2]),
-            geo.bsRadius
-          );
-        }
-
-        let material = this.getBlockFaceMaterialByIdWithoutCheck(
+        const material = this.resolveChunkGeometryMaterial(
           voxel,
           faceName,
-          texturePosition
+          texturePosition,
+          geometry
         );
         if (!material) {
-          const block = this.getBlockById(voxel);
-          const face = this.findBlockFaceByName(block, faceName);
-          if (!face) {
-            geometry.dispose();
-            continue;
-          }
-          if (!face.isolated || !texturePosition) {
-            geometry.dispose();
-            continue;
-          }
-          try {
-            material = this.getOrCreateIsolatedBlockMaterial(
-              voxel,
-              texturePosition,
-              faceName
-            );
-          } catch {
-            geometry.dispose();
-            continue;
-          }
+          continue;
         }
         let groupIndex = materialGroupIndexByMaterial.get(material);
         if (groupIndex === undefined) {
@@ -5342,59 +5366,21 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
       let meshWriteIndex = 0;
       for (let i = 0; i < geometries.length; i++) {
         const geo = geometries[i];
-        const { voxel, at, faceName, indices, lights, positions, uvs } = geo;
+        const { voxel, at, faceName } = geo;
         const texturePosition = at && at.length ? at : undefined;
-        const geometry = new BufferGeometry();
-
-        geometry.setAttribute("position", new BufferAttribute(positions, 3));
-        geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
-        geometry.setAttribute("light", new BufferAttribute(lights, 1));
-        geometry.setIndex(new BufferAttribute(indices, 1));
-        const normals = geo.normals;
-        if (normals && normals.length > 0) {
-          geometry.setAttribute("normal", new BufferAttribute(normals, 3));
-        } else {
-          computeFlatNormals(geometry);
-        }
-        if (geo.bsCenter && geo.bsRadius !== undefined) {
-          geometry.boundingSphere = new Sphere(
-            new Vector3(geo.bsCenter[0], geo.bsCenter[1], geo.bsCenter[2]),
-            geo.bsRadius
-          );
-        } else {
+        const geometry = this.createChunkGeometry(geo);
+        if (!geometry.boundingSphere) {
           geometry.computeBoundingSphere();
         }
 
-        let material = this.getBlockFaceMaterialByIdWithoutCheck(
+        const material = this.resolveChunkGeometryMaterial(
           voxel,
           faceName,
-          texturePosition
+          texturePosition,
+          geometry
         );
         if (!material) {
-          const block = this.getBlockById(voxel);
-          const face = this.findBlockFaceByName(block, faceName);
-          if (!face) {
-            geometry.dispose();
-            continue;
-          }
-
-          if (!face.isolated || !texturePosition) {
-            console.warn("Unlikely situation happened...");
-            geometry.dispose();
-            continue;
-          }
-
-          try {
-            material = this.getOrCreateIsolatedBlockMaterial(
-              voxel,
-              texturePosition,
-              faceName
-            );
-          } catch (e) {
-            console.error(e);
-            geometry.dispose();
-            continue;
-          }
+          continue;
         }
         const mesh = new Mesh(geometry, material);
         this.finalizeChunkMesh(
