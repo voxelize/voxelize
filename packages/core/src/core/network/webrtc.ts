@@ -1,4 +1,13 @@
 const FRAGMENT_HEADER_SIZE = 9;
+const toHttpProtocol = (protocol: string) => {
+  if (protocol.startsWith("wss")) {
+    return "https:";
+  }
+  if (protocol.startsWith("ws")) {
+    return "http:";
+  }
+  return protocol;
+};
 
 export class WebRTCConnection {
   private pc: RTCPeerConnection | null = null;
@@ -45,7 +54,7 @@ export class WebRTCConnection {
     };
 
     const baseUrl = new URL(serverUrl);
-    baseUrl.protocol = baseUrl.protocol.replace(/^ws/, "http");
+    baseUrl.protocol = toHttpProtocol(baseUrl.protocol);
 
     const offerUrl = new URL("/rtc/offer", baseUrl);
 

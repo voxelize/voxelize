@@ -28,6 +28,26 @@ const defaultOptions: NetworkOptions = {
   maxBacklogFactor: 16,
 };
 
+const toHttpProtocol = (protocol: string) => {
+  if (protocol.startsWith("wss")) {
+    return "https:";
+  }
+  if (protocol.startsWith("ws")) {
+    return "http:";
+  }
+  return protocol;
+};
+
+const toWsProtocol = (protocol: string) => {
+  if (protocol.startsWith("https")) {
+    return "wss:";
+  }
+  if (protocol.startsWith("http")) {
+    return "ws:";
+  }
+  return protocol;
+};
+
 export type NetworkConnectionOptions = {
   reconnectTimeout?: number;
   secret?: string;
@@ -192,14 +212,14 @@ export class Network {
     this.disconnectReason = "";
 
     this.url = new DOMUrl(serverURL);
-    this.url.protocol = this.url.protocol.replace(/ws/, "http");
+    this.url.protocol = toHttpProtocol(this.url.protocol);
     this.url.hash = "";
 
     const socketURL = new DOMUrl(serverURL);
     socketURL.path = "/ws/";
 
     this.socket = new URL(socketURL.toString());
-    this.socket.protocol = this.socket.protocol.replace(/http/, "ws");
+    this.socket.protocol = toWsProtocol(this.socket.protocol);
     this.socket.hash = "";
     this.socket.searchParams.set("secret", options.secret || "");
     if (this.clientInfo.id) {
