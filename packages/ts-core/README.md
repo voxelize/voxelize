@@ -83,6 +83,8 @@ const voxel = Voxel.pack({
   - malformed access reads/comparisons (including throwing `getVoxel*` calls
     and rotation equality traps) return deterministic non-matches instead of
     throwing
+  - non-finite resolved coordinates with active constraints (`id`/`rotation`/
+    `stage`) are treated as deterministic non-matches
 - `createBlockConditionalPart`
   - defensively clones rule, face, AABB, and transparency-array inputs to
     avoid external mutation side effects after construction

@@ -107,6 +107,8 @@ nested combination traversal.
 Malformed voxel-access reads/comparisons (including throwing `getVoxel*`
 accessors and rotation equality traps) now resolve to deterministic
 non-matches instead of throwing.
+Non-finite resolved coordinates with active simple-rule constraints
+(`id`/`rotation`/`stage`) are treated as deterministic non-matches.
 Cyclic rule graphs are sanitized by replacing recursive edges with `none`.
 
 ## Basic usage
