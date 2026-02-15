@@ -40,6 +40,11 @@ impl EventBuilder {
         self
     }
 
+    pub fn payload_raw(mut self, payload: String) -> Self {
+        self.payload = Some(payload);
+        self
+    }
+
     pub fn filter(mut self, filter: ClientFilter) -> Self {
         self.filter = Some(filter);
         self
@@ -89,5 +94,14 @@ mod tests {
     fn event_builder_serializes_payload_when_provided() {
         let event = Event::new("vox-builtin:test").payload(42).build();
         assert_eq!(event.payload.as_deref(), Some("42"));
+    }
+
+    #[test]
+    fn event_builder_payload_raw_keeps_existing_json() {
+        let raw_payload = String::from("{\"a\":1}");
+        let event = Event::new("vox-builtin:test")
+            .payload_raw(raw_payload.clone())
+            .build();
+        assert_eq!(event.payload, Some(raw_payload));
     }
 }

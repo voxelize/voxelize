@@ -1791,7 +1791,7 @@ impl World {
                 handle(self, client_id, &event.payload);
                 return;
             }
-            let mut event_builder = Event::new(&event.name).payload(event.payload);
+            let mut event_builder = Event::new(&event.name).payload_raw(event.payload);
             if let Some(loc) = client_location {
                 event_builder = event_builder.location(loc);
             }
