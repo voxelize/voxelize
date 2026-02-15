@@ -164,6 +164,10 @@ impl Terrain {
             total_weight += weight;
         });
 
+        if total_weight <= f64::EPSILON {
+            return (0.0, 0.0);
+        }
+
         (bias / total_weight, offset / total_weight)
     }
 
@@ -183,6 +187,32 @@ impl Terrain {
         self.biome_tree
             .nearest(&values)
             .expect("No biomes registered")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{NoiseOptions, Terrain, TerrainLayer};
+    use crate::WorldConfig;
+
+    #[test]
+    fn get_bias_offset_returns_zero_when_no_layers_exist() {
+        let config = WorldConfig::new().build();
+        let terrain = Terrain::new(&config);
+
+        assert_eq!(terrain.get_bias_offset(0, 0, 0), (0.0, 0.0));
+    }
+
+    #[test]
+    fn get_bias_offset_returns_zero_when_all_layer_weights_are_zero() {
+        let config = WorldConfig::new().build();
+        let mut terrain = Terrain::new(&config);
+        let layer = TerrainLayer::new("test", &NoiseOptions::new().build())
+            .add_bias_point([0.0, 0.0])
+            .add_offset_point([0.0, 0.0]);
+        terrain.add_layer(&layer, 0.0);
+
+        assert_eq!(terrain.get_bias_offset(5, 10, -3), (0.0, 0.0));
     }
 }
 
