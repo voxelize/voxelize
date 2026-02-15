@@ -262,6 +262,9 @@ impl EncodedMessageQueue {
             if entities.is_empty() {
                 return false;
             }
+            if entities.len() == 1 {
+                return entities[0].operation == ENTITY_OPERATION_UPDATE;
+            }
             for entity in entities {
                 if entity.operation != ENTITY_OPERATION_UPDATE {
                     return false;
