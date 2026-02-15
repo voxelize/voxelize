@@ -301,42 +301,21 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     else {
                         continue;
                     };
-                    let entities_to_delete = &mut self.known_entities_to_delete_buffer;
-                    entities_to_delete.clear();
-                    if entities_to_delete.capacity() < known_entities.len() {
-                        entities_to_delete
-                            .reserve(known_entities.len() - entities_to_delete.capacity());
-                    }
-
-                    for entity_id in known_entities.iter() {
-                        let mut deleted_match: Option<(&String, &String)> = None;
-                        for (deleted_entity_id, etype, metadata_str) in
-                            &self.deleted_entities_buffer
-                        {
-                            if deleted_entity_id == entity_id {
-                                deleted_match = Some((etype, metadata_str));
-                                break;
-                            }
-                        }
-                        let Some((etype, metadata_str)) = deleted_match else {
+                    for (deleted_entity_id, etype, metadata_str) in &self.deleted_entities_buffer {
+                        if !known_entities.remove(deleted_entity_id) {
                             continue;
-                        };
+                        }
                         push_client_update(
                             &mut self.client_updates_buffer,
                             &mut self.clients_with_updates_buffer,
                             client_id,
                             EntityProtocol {
                                 operation: EntityOperation::Delete,
-                                id: entity_id.clone(),
+                                id: deleted_entity_id.clone(),
                                 r#type: etype.clone(),
                                 metadata: Some(metadata_str.clone()),
                             },
                         );
-                        entities_to_delete.push(entity_id.clone());
-                    }
-
-                    for entity_id in entities_to_delete.iter() {
-                        known_entities.remove(entity_id);
                     }
                 }
             } else {
