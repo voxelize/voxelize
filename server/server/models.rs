@@ -289,7 +289,11 @@ impl MessageBuilder {
 
     /// Configure owned peers data of the protocol.
     pub fn peers_owned(mut self, peers: Vec<PeerProtocol>) -> Self {
-        self.peers = Some(peers);
+        if peers.is_empty() {
+            self.peers = None;
+        } else {
+            self.peers = Some(peers);
+        }
         self
     }
 
@@ -305,7 +309,11 @@ impl MessageBuilder {
 
     /// Configure owned entities data of the protocol.
     pub fn entities_owned(mut self, entities: Vec<EntityProtocol>) -> Self {
-        self.entities = Some(entities);
+        if entities.is_empty() {
+            self.entities = None;
+        } else {
+            self.entities = Some(entities);
+        }
         self
     }
 
@@ -321,7 +329,11 @@ impl MessageBuilder {
 
     /// Configure owned events data of the protocol.
     pub fn events_owned(mut self, events: Vec<EventProtocol>) -> Self {
-        self.events = Some(events);
+        if events.is_empty() {
+            self.events = None;
+        } else {
+            self.events = Some(events);
+        }
         self
     }
 
@@ -337,7 +349,11 @@ impl MessageBuilder {
 
     /// Configure owned chunks data of the protocol.
     pub fn chunks_owned(mut self, chunks: Vec<ChunkProtocol>) -> Self {
-        self.chunks = Some(chunks);
+        if chunks.is_empty() {
+            self.chunks = None;
+        } else {
+            self.chunks = Some(chunks);
+        }
         self
     }
 
@@ -353,7 +369,11 @@ impl MessageBuilder {
 
     /// Configure owned voxel update data of the protocol.
     pub fn updates_owned(mut self, updates: Vec<UpdateProtocol>) -> Self {
-        self.updates = Some(updates);
+        if updates.is_empty() {
+            self.updates = None;
+        } else {
+            self.updates = Some(updates);
+        }
         self
     }
 
