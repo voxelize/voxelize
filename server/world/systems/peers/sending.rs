@@ -42,6 +42,7 @@ impl<'a> System<'a> for PeersSendingSystem {
             let (json_str, updated) = metadata.to_cached_str();
 
             if !updated {
+                metadata.reset();
                 continue;
             }
 
