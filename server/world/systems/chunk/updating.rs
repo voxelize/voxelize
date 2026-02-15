@@ -507,19 +507,19 @@ fn process_pending_updates(
                 });
             }
         } else if current_type.is_opaque && !updated_type.is_opaque {
-            VOXEL_NEIGHBORS.iter().for_each(|&[ox, oy, oz]| {
+            for &[ox, oy, oz] in VOXEL_NEIGHBORS.iter() {
                 let Some(nvy) = vy.checked_add(oy) else {
-                    return;
+                    continue;
                 };
                 let Some(nvx) = vx.checked_add(ox) else {
-                    return;
+                    continue;
                 };
                 let Some(nvz) = vz.checked_add(oz) else {
-                    return;
+                    continue;
                 };
 
                 if nvy < 0 {
-                    return;
+                    continue;
                 }
 
                 if max_height.is_some_and(|world_max_height| nvy >= world_max_height) {
@@ -529,7 +529,7 @@ fn process_pending_updates(
                             level: max_light_level,
                         })
                     }
-                    return;
+                    continue;
                 }
 
                 let n_block = registry.get_block_by_id(chunks.get_voxel(nvx, nvy, nvz));
@@ -576,7 +576,7 @@ fn process_pending_updates(
                         }
                     }
                 }
-            });
+            }
         }
     }
 
