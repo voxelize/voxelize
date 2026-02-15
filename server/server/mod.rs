@@ -244,52 +244,56 @@ impl Server {
             self.on_action(id, &data);
 
             return None;
-        } else if data.r#type == MessageType::Transport as i32
-            || self.transport_sessions.contains_key(id)
-        {
-            if !self.transport_sessions.contains_key(id) {
+        } else {
+            let is_transport_session = self.transport_sessions.contains_key(id);
+            if data.r#type == MessageType::Transport as i32 || is_transport_session {
+                if !is_transport_session {
+                    return Some(
+                        "Someone who isn't a transport server is attempting to transport."
+                            .to_owned(),
+                    );
+                }
+
+                if data.text.is_empty() {
+                    return Some(format!(
+                        "Transport message missing world name (text field empty). Message type: {:?}",
+                        MessageType::try_from(data.r#type)
+                            .map(|t| format!("{:?}", t))
+                            .unwrap_or_else(|_| data.r#type.to_string())
+                    ));
+                }
+
+                if let Some(world) = self.get_world_mut(&data.text) {
+                    world.do_send(ClientRequest {
+                        client_id: id.to_owned(),
+                        data,
+                    });
+
+                    return None;
+                } else {
+                    return Some(format!(
+                        "Transport message for unknown world '{}'. Message type: {:?}",
+                        data.text,
+                        MessageType::try_from(data.r#type)
+                            .map(|t| format!("{:?}", t))
+                            .unwrap_or_else(|_| data.r#type.to_string())
+                    ));
+                }
+            }
+
+            let Some((_, world_name, _)) = self.connections.get(id) else {
                 return Some(
-                    "Someone who isn't a transport server is attempting to transport.".to_owned(),
+                    "You are not connected to a world!".to_owned()
                 );
-            }
+            };
 
-            if data.text.is_empty() {
-                return Some(format!(
-                    "Transport message missing world name (text field empty). Message type: {:?}",
-                    MessageType::try_from(data.r#type)
-                        .map(|t| format!("{:?}", t))
-                        .unwrap_or_else(|_| data.r#type.to_string())
-                ));
-            }
-
-            if let Some(world) = self.get_world_mut(&data.text) {
+            let world_name = world_name.clone();
+            if let Some(world) = self.get_world_mut(&world_name) {
                 world.do_send(ClientRequest {
                     client_id: id.to_owned(),
                     data,
                 });
-
-                return None;
-            } else {
-                return Some(format!(
-                    "Transport message for unknown world '{}'. Message type: {:?}",
-                    data.text,
-                    MessageType::try_from(data.r#type)
-                        .map(|t| format!("{:?}", t))
-                        .unwrap_or_else(|_| data.r#type.to_string())
-                ));
             }
-        }
-
-        let Some((_, world_name, _)) = self.connections.get(id) else {
-            return Some("You are not connected to a world!".to_owned());
-        };
-
-        let world_name = world_name.clone();
-        if let Some(world) = self.get_world_mut(&world_name) {
-            world.do_send(ClientRequest {
-                client_id: id.to_owned(),
-                data,
-            });
         }
 
         None
