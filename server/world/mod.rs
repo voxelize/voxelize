@@ -1770,7 +1770,7 @@ impl World {
                 .map(|c| c.coords)
         });
 
-        data.events.into_iter().for_each(|event| {
+        for event in data.events {
             let handle = self
                 .event_handles
                 .get(&event.name)
@@ -1796,7 +1796,7 @@ impl World {
                 event_builder = event_builder.location(loc);
             }
             self.events_mut().dispatch(event_builder.build());
-        });
+        }
     }
 
     /// Handler for `Chat` type messages.
