@@ -1,4 +1,4 @@
-use hashbrown::{HashMap, HashSet};
+use hashbrown::{hash_map::RawEntryMut, HashMap, HashSet};
 use specs::{ReadExpect, System, WriteExpect};
 use std::collections::VecDeque;
 
@@ -50,6 +50,22 @@ fn flush_chunk_batches(
     }
 }
 
+#[inline]
+fn push_chunk_batch(
+    batches: &mut HashMap<String, Vec<ChunkProtocol>>,
+    client_id: &str,
+    chunk_model: &ChunkProtocol,
+) {
+    match batches.raw_entry_mut().from_key(client_id) {
+        RawEntryMut::Occupied(mut entry) => {
+            entry.get_mut().push(chunk_model.clone());
+        }
+        RawEntryMut::Vacant(entry) => {
+            entry.insert(client_id.to_owned(), vec![chunk_model.clone()]);
+        }
+    }
+}
+
 impl<'a> System<'a> for ChunkSendingSystem {
     type SystemData = (
         ReadExpect<'a, WorldConfig>,
@@ -97,14 +113,8 @@ impl<'a> System<'a> for ChunkSendingSystem {
                 let data_model = chunk.to_model(false, true, 0..sub_chunks_u32);
 
                 for client_id in interested_clients {
-                    client_load_mesh
-                        .entry(client_id.to_owned())
-                        .or_default()
-                        .push(mesh_model.clone());
-                    client_load_data
-                        .entry(client_id.to_owned())
-                        .or_default()
-                        .push(data_model.clone());
+                    push_chunk_batch(&mut client_load_mesh, client_id, &mesh_model);
+                    push_chunk_batch(&mut client_load_data, client_id, &data_model);
                 }
             } else {
                 if let Some((min_level, max_level_exclusive)) =
@@ -113,19 +123,13 @@ impl<'a> System<'a> for ChunkSendingSystem {
                     let mesh_model = chunk.to_model(true, false, min_level..max_level_exclusive);
 
                     for client_id in interested_clients {
-                        client_update_mesh
-                            .entry(client_id.to_owned())
-                            .or_default()
-                            .push(mesh_model.clone());
+                        push_chunk_batch(&mut client_update_mesh, client_id, &mesh_model);
                     }
                 }
 
                 let data_model = chunk.to_model(false, true, 0..0);
                 for client_id in interested_clients {
-                    client_update_data
-                        .entry(client_id.to_owned())
-                        .or_default()
-                        .push(data_model.clone());
+                    push_chunk_batch(&mut client_update_data, client_id, &data_model);
                 }
             }
         }
