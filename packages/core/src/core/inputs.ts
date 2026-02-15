@@ -148,6 +148,7 @@ export class Inputs<T extends string = string> extends EventEmitter {
    * A list of functions to unbind all inputs.
    */
   private unbinds: (() => void)[] = [];
+  private normalizedKeyCache = new Map<string, string>();
 
   /**
    * Listen to an event emitted by the input instance. The following events are emitted:
@@ -498,7 +499,13 @@ export class Inputs<T extends string = string> extends EventEmitter {
    */
   private modifyKey = (key: string) => {
     if (!key) return key;
-    return normalizeKeyIfNeeded(key);
+    const cached = this.normalizedKeyCache.get(key);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const normalized = normalizeKeyIfNeeded(key);
+    this.normalizedKeyCache.set(key, normalized);
+    return normalized;
   };
 
   /**
@@ -537,8 +544,8 @@ export class Inputs<T extends string = string> extends EventEmitter {
     // Handle all three types of key events while checking namespace and passing the KeyboardEvent.
     const keyListener = (occasion: InputOccasion) => (e: KeyboardEvent) => {
       const { key, code } = e;
-      const keyName = normalizeKeyIfNeeded(key);
-      const codeName = code.toLowerCase();
+      const keyName = this.modifyKey(key);
+      const codeName = this.modifyKey(code);
       const keyCombo = keyName + occasion;
       const codeCombo = codeName + occasion;
 
