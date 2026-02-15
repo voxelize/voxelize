@@ -645,6 +645,30 @@ describe("report-utils", () => {
     expect(partiallyRecoveredRecognizedDashValueResult.outputPath).toBe(
       "/workspace/-artifact-report.json"
     );
+    const partiallyRecoveredRecognizedOutputTokensAtIndexZero =
+      createPartiallyRecoveredStringArray(["--list-checks", "-l"], 0);
+    const partiallyRecoveredRecognizedOutputTokenResultAtIndexZero =
+      resolveOutputPath(
+        ["--output", "-l"],
+        "/workspace",
+        partiallyRecoveredRecognizedOutputTokensAtIndexZero as never
+      );
+    expect(partiallyRecoveredRecognizedOutputTokenResultAtIndexZero.error).toBe(
+      "Missing value for --output option."
+    );
+    expect(
+      partiallyRecoveredRecognizedOutputTokenResultAtIndexZero.outputPath
+    ).toBeNull();
+    const partiallyRecoveredRecognizedDashValueResultAtIndexZero =
+      resolveOutputPath(
+        ["--output", "-artifact-report.json"],
+        "/workspace",
+        partiallyRecoveredRecognizedOutputTokensAtIndexZero as never
+      );
+    expect(partiallyRecoveredRecognizedDashValueResultAtIndexZero.error).toBeNull();
+    expect(partiallyRecoveredRecognizedDashValueResultAtIndexZero.outputPath).toBe(
+      "/workspace/-artifact-report.json"
+    );
     let statefulRecognizedOutputTokenReadCount = 0;
     const statefulRecognizedOutputTokens = new Proxy(["-l"], {
       get(target, property, receiver) {
@@ -1268,6 +1292,38 @@ describe("report-utils", () => {
     ).toBe("-artifact-report.json");
     expect(
       resolvedUnknownDashValueFromPartiallyRecoveredRecognizedOptionTokens.error
+    ).toBeNull();
+    const partiallyRecoveredRecognizedOptionTokensAtIndexZero =
+      createPartiallyRecoveredStringArray(["--list-checks", "-l"], 0);
+    const resolvedFromPartiallyRecoveredRecognizedOptionTokensAtIndexZero =
+      resolveLastOptionValue(
+        ["--output", "-l"],
+        "--output",
+        partiallyRecoveredRecognizedOptionTokensAtIndexZero as never
+      );
+    expect(
+      resolvedFromPartiallyRecoveredRecognizedOptionTokensAtIndexZero.hasOption
+    ).toBe(true);
+    expect(
+      resolvedFromPartiallyRecoveredRecognizedOptionTokensAtIndexZero.value
+    ).toBeNull();
+    expect(
+      resolvedFromPartiallyRecoveredRecognizedOptionTokensAtIndexZero.error
+    ).toBe("Missing value for --output option.");
+    const resolvedUnknownDashValueFromPartiallyRecoveredRecognizedOptionTokensAtIndexZero =
+      resolveLastOptionValue(
+        ["--output", "-artifact-report.json"],
+        "--output",
+        partiallyRecoveredRecognizedOptionTokensAtIndexZero as never
+      );
+    expect(
+      resolvedUnknownDashValueFromPartiallyRecoveredRecognizedOptionTokensAtIndexZero.hasOption
+    ).toBe(true);
+    expect(
+      resolvedUnknownDashValueFromPartiallyRecoveredRecognizedOptionTokensAtIndexZero.value
+    ).toBe("-artifact-report.json");
+    expect(
+      resolvedUnknownDashValueFromPartiallyRecoveredRecognizedOptionTokensAtIndexZero.error
     ).toBeNull();
     let statefulRecognizedOptionTokenReadCount = 0;
     const statefulRecognizedOptionTokens = new Proxy(["-l"], {
