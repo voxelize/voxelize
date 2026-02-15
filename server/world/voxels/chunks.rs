@@ -384,26 +384,22 @@ impl Chunks {
             .saturating_add(chunk_size.saturating_sub(1))
             / chunk_size)
             .min(i32::MAX as usize) as i32;
-        let span = extended.saturating_mul(2).saturating_add(1);
-        let capacity = (span as usize).saturating_mul(span as usize);
-        let mut list = Vec::with_capacity(capacity);
-
-        for x in -extended..=extended {
-            for z in -extended..=extended {
-                let Some(nx) = coords.0.checked_add(x) else {
-                    continue;
-                };
-                let Some(nz) = coords.1.checked_add(z) else {
-                    continue;
-                };
-                let n_coords = Vec2(nx, nz);
-
-                if self.is_within_world(&n_coords) {
-                    list.push(n_coords);
-                }
-            }
+        let min_x = coords.0.saturating_sub(extended).max(self.config.min_chunk[0]);
+        let max_x = coords.0.saturating_add(extended).min(self.config.max_chunk[0]);
+        let min_z = coords.1.saturating_sub(extended).max(self.config.min_chunk[1]);
+        let max_z = coords.1.saturating_add(extended).min(self.config.max_chunk[1]);
+        if min_x > max_x || min_z > max_z {
+            return Vec::new();
         }
 
+        let width_x = (i64::from(max_x) - i64::from(min_x) + 1) as usize;
+        let width_z = (i64::from(max_z) - i64::from(min_z) + 1) as usize;
+        let mut list = Vec::with_capacity(width_x.saturating_mul(width_z));
+        for x in min_x..=max_x {
+            for z in min_z..=max_z {
+                list.push(Vec2(x, z));
+            }
+        }
         list
     }
 
