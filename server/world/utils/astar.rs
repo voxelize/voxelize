@@ -36,7 +36,7 @@ impl AStar {
         let start_node = PathNode::from_vec3(start);
         let goal_node = PathNode::from_vec3(goal);
 
-        let mut visited = HashSet::new();
+        let mut visited = HashSet::with_capacity(128);
         visited.insert(start_node);
 
         astar(
