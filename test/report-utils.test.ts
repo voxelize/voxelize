@@ -3465,6 +3465,22 @@ describe("report-utils", () => {
     expect(
       unknownFromPartiallyRecoverableLengthTrappedCanonicalOptionsWithAliases
     ).toEqual(["--mystery"]);
+    const unknownFromPartiallyRecoverableLengthTrappedCanonicalOptionsWithAliasesAndDashValue =
+      parseUnknownCliOptions(
+        ["--verify", "--output", "-artifact-report.json"],
+        {
+          canonicalOptions:
+            partiallyRecoverableLengthTrappedCanonicalOptions as never,
+          optionAliases: {
+            "--no-build": ["--verify"],
+          },
+          optionsWithValues: ["--output"],
+          optionsWithStrictValues: ["--output"],
+        }
+      );
+    expect(
+      unknownFromPartiallyRecoverableLengthTrappedCanonicalOptionsWithAliasesAndDashValue
+    ).toEqual(["--output", "-artifact-report.json"]);
   });
 
   it("applies set value metadata strict-subset fallback across sibling options in unknown parsing", () => {
@@ -3850,6 +3866,39 @@ describe("report-utils", () => {
     );
     expect(
       partiallyRecoverableLengthTrappedCanonicalValidationWithAliasFallback.validationErrorCode
+    ).toBe("unsupported_options");
+    const partiallyRecoverableLengthTrappedCanonicalValidationWithAliasFallbackAndDashValue =
+      createCliOptionValidation(
+        ["--verify", "--output", "-artifact-report.json"],
+        {
+          canonicalOptions:
+            partiallyRecoverableLengthTrappedCanonicalOptions as never,
+          optionAliases: {
+            "--no-build": ["--verify"],
+          },
+          optionsWithValues: ["--output"],
+          optionsWithStrictValues: ["--output"],
+        }
+      );
+    expect(
+      partiallyRecoverableLengthTrappedCanonicalValidationWithAliasFallbackAndDashValue.supportedCliOptions
+    ).toEqual(["--json", "--no-build", "--verify"]);
+    expect(
+      partiallyRecoverableLengthTrappedCanonicalValidationWithAliasFallbackAndDashValue.supportedCliOptionCount
+    ).toBe(3);
+    expect(
+      partiallyRecoverableLengthTrappedCanonicalValidationWithAliasFallbackAndDashValue.unknownOptions
+    ).toEqual(["--output", "-artifact-report.json"]);
+    expect(
+      partiallyRecoverableLengthTrappedCanonicalValidationWithAliasFallbackAndDashValue.unknownOptionCount
+    ).toBe(2);
+    expect(
+      partiallyRecoverableLengthTrappedCanonicalValidationWithAliasFallbackAndDashValue.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --output, -artifact-report.json. Supported options: --json, --no-build, --verify."
+    );
+    expect(
+      partiallyRecoverableLengthTrappedCanonicalValidationWithAliasFallbackAndDashValue.validationErrorCode
     ).toBe("unsupported_options");
 
     const outputErrorPriority = createCliOptionValidation(
@@ -6289,6 +6338,80 @@ describe("report-utils", () => {
     ]);
     expect(
       partiallyRecoverableDiagnosticsWithAliasFallback.activeCliOptionOccurrenceCount
+    ).toBe(1);
+    const partiallyRecoverableDiagnosticsWithAliasFallbackAndDashValue =
+      createCliDiagnostics(["--verify", "--output", "-artifact-report.json"], {
+        canonicalOptions:
+          partiallyRecoverableLengthTrappedCanonicalOptions as never,
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+      });
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallbackAndDashValue.supportedCliOptions
+    ).toEqual(["--json", "--no-build", "--verify"]);
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallbackAndDashValue.supportedCliOptionCount
+    ).toBe(3);
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallbackAndDashValue.availableCliOptionAliases
+    ).toEqual({
+      "--no-build": ["--verify"],
+    });
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallbackAndDashValue.availableCliOptionCanonicalMap
+    ).toEqual({
+      "--json": "--json",
+      "--no-build": "--no-build",
+      "--verify": "--no-build",
+    });
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallbackAndDashValue.unknownOptions
+    ).toEqual(["--output", "-artifact-report.json"]);
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallbackAndDashValue.unknownOptionCount
+    ).toBe(2);
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallbackAndDashValue.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --output, -artifact-report.json. Supported options: --json, --no-build, --verify."
+    );
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallbackAndDashValue.validationErrorCode
+    ).toBe("unsupported_options");
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallbackAndDashValue.activeCliOptions
+    ).toEqual(["--no-build"]);
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallbackAndDashValue.activeCliOptionCount
+    ).toBe(1);
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallbackAndDashValue.activeCliOptionTokens
+    ).toEqual(["--verify"]);
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallbackAndDashValue.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+    ]);
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallbackAndDashValue.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallbackAndDashValue.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+        index: 0,
+      },
+    ]);
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallbackAndDashValue.activeCliOptionOccurrenceCount
     ).toBe(1);
   });
 
@@ -10127,6 +10250,51 @@ describe("report-utils", () => {
     expect(
       partiallyRecoverableActiveMetadataWithAliasFallback.activeCliOptionOccurrenceCount
     ).toBe(2);
+    const partiallyRecoverableActiveMetadataWithAliasFallbackAndDashValue =
+      parseActiveCliOptionMetadata(
+        ["--verify", "--output", "-artifact-report.json"],
+        {
+          canonicalOptions:
+            partiallyRecoverableLengthTrappedCanonicalOptions as never,
+          optionAliases: {
+            "--no-build": ["--verify"],
+          },
+          optionsWithValues: ["--output"],
+          optionsWithStrictValues: ["--output"],
+        }
+      );
+    expect(
+      partiallyRecoverableActiveMetadataWithAliasFallbackAndDashValue.activeCliOptions
+    ).toEqual(["--no-build"]);
+    expect(
+      partiallyRecoverableActiveMetadataWithAliasFallbackAndDashValue.activeCliOptionCount
+    ).toBe(1);
+    expect(
+      partiallyRecoverableActiveMetadataWithAliasFallbackAndDashValue.activeCliOptionTokens
+    ).toEqual(["--verify"]);
+    expect(
+      partiallyRecoverableActiveMetadataWithAliasFallbackAndDashValue.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+    ]);
+    expect(
+      partiallyRecoverableActiveMetadataWithAliasFallbackAndDashValue.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      partiallyRecoverableActiveMetadataWithAliasFallbackAndDashValue.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+        index: 0,
+      },
+    ]);
+    expect(
+      partiallyRecoverableActiveMetadataWithAliasFallbackAndDashValue.activeCliOptionOccurrenceCount
+    ).toBe(1);
   });
 
   it("keeps pre-terminator aliases active while ignoring post-terminator alias misuse", () => {
