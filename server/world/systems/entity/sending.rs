@@ -59,7 +59,9 @@ fn push_client_update(
         }
         RawEntryMut::Vacant(entry) => {
             touched_clients.push(client_id.to_owned());
-            entry.insert(client_id.to_owned(), vec![update]);
+            let mut updates = Vec::with_capacity(1);
+            updates.push(update);
+            entry.insert(client_id.to_owned(), updates);
         }
     }
 }
@@ -222,11 +224,11 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         }
         self.clients_with_updates_buffer.reserve(clients.len());
 
-        let mut entity_to_client_id: HashMap<u32, &String> = HashMap::new();
+        let mut entity_to_client_id: HashMap<u32, &str> = HashMap::new();
         if !entity_metadata_map.is_empty() {
             entity_to_client_id.reserve(clients.len());
             for (client_id, client) in clients.iter() {
-                entity_to_client_id.insert(client.entity.id(), client_id);
+                entity_to_client_id.insert(client.entity.id(), client_id.as_str());
             }
         }
 
@@ -236,7 +238,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             let pos = entity_positions.get(entity_id).unwrap_or(&default_pos);
             kdtree.for_each_player_id_within_radius(pos, entity_visible_radius, |player_entity_id| {
                 if let Some(client_id) = entity_to_client_id.get(&player_entity_id) {
-                    let client_id = (*client_id).as_str();
+                    let client_id = *client_id;
                     let known_entities = get_or_insert_client_known_entities(
                         &mut bookkeeping.client_known_entities,
                         client_id,
@@ -278,6 +280,9 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     else {
                         continue;
                     };
+                    if known_entities.is_empty() {
+                        continue;
+                    }
                     if !known_entities.remove(entity_id) {
                         continue;
                     }
@@ -301,6 +306,9 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     else {
                         continue;
                     };
+                    if known_entities.is_empty() {
+                        continue;
+                    }
                     for (deleted_entity_id, etype, metadata_str) in &self.deleted_entities_buffer {
                         if !known_entities.remove(deleted_entity_id) {
                             continue;
@@ -332,6 +340,9 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     else {
                         continue;
                     };
+                    if known_entities.is_empty() {
+                        continue;
+                    }
                     if self.deleted_entities_buffer.len() < known_entities.len() {
                         for (deleted_entity_id, etype, metadata_str) in &self.deleted_entities_buffer
                         {
@@ -396,6 +407,9 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             else {
                 continue;
             };
+            if known_entities.is_empty() {
+                continue;
+            }
             let entities_to_delete = &mut self.known_entities_to_delete_buffer;
             entities_to_delete.clear();
             if entities_to_delete.capacity() < known_entities.len() {
