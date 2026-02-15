@@ -167,7 +167,9 @@ impl Trees {
 
         leaves_updates.extend(updates.into_iter());
 
-        leaves_updates.into_iter().collect()
+        let mut result = Vec::with_capacity(leaves_updates.len());
+        result.extend(leaves_updates);
+        result
     }
 
     fn place_trunk_by_points(
