@@ -1569,6 +1569,9 @@ impl World {
         } else {
             return;
         };
+        if data.peers.is_empty() {
+            return;
+        }
         let client_parser = self.client_parser.clone();
         let mut latest_username: Option<String> = None;
 
