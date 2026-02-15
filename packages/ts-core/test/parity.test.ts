@@ -7,6 +7,7 @@ import {
   type BlockConditionalPartInput,
   type BlockDynamicPatternInput,
   type BlockFaceInit,
+  type BlockRotationInput,
   type BlockRule,
   BlockFace,
   BlockRotation,
@@ -24,6 +25,7 @@ import {
   createBlockConditionalPart,
   createBlockDynamicPattern,
   createBlockFace,
+  createBlockRotation,
   createBlockRule,
   createFaceTransparency,
   createCornerData,
@@ -2509,6 +2511,75 @@ describe("Type builders", () => {
         maxZ: 1,
       } as never)
     ).toEqual(AABB.empty());
+  });
+
+  it("supports createBlockRotation helper with cloned rotation values", () => {
+    const sourceRotation = BlockRotation.py(Math.PI / 2);
+    const clonedRotation = createBlockRotation(sourceRotation);
+
+    expect(clonedRotation).toEqual(sourceRotation);
+    expect(clonedRotation).not.toBe(sourceRotation);
+
+    sourceRotation.axis = BlockRotation.PX().axis;
+    sourceRotation.yRotation = 0;
+
+    expect(clonedRotation).toEqual(BlockRotation.py(Math.PI / 2));
+  });
+
+  it("supports createBlockRotation helper with plain and null-prototype inputs", () => {
+    const plainInput = {
+      value: BlockRotation.PX().axis,
+      yRotation: Math.PI / 2,
+    } as const;
+    const nullPrototypeInput = Object.create(null) as {
+      [Key in keyof BlockRotationInput]: number;
+    };
+    nullPrototypeInput.value = BlockRotation.NZ().axis;
+    nullPrototypeInput.yRotation = Math.PI;
+
+    expect(createBlockRotation(plainInput)).toEqual(
+      new BlockRotation(BlockRotation.PX().axis, Math.PI / 2)
+    );
+    expect(createBlockRotation(nullPrototypeInput)).toEqual(
+      new BlockRotation(BlockRotation.NZ().axis, Math.PI)
+    );
+  });
+
+  it("falls back to identity for malformed createBlockRotation inputs", () => {
+    class RotationLike {
+      public readonly value = BlockRotation.PX().axis;
+      public readonly yRotation = Math.PI / 2;
+    }
+
+    expect(createBlockRotation()).toEqual(BlockRotation.py(0));
+    expect(createBlockRotation(null)).toEqual(BlockRotation.py(0));
+    expect(createBlockRotation(new RotationLike() as never)).toEqual(
+      BlockRotation.py(0)
+    );
+    expect(
+      createBlockRotation({
+        value: -1,
+        yRotation: Math.PI / 2,
+      } as never)
+    ).toEqual(BlockRotation.py(0));
+    expect(
+      createBlockRotation({
+        value: 256,
+        yRotation: Math.PI / 2,
+      } as never)
+    ).toEqual(BlockRotation.py(0));
+    expect(
+      createBlockRotation({
+        value: 1.5,
+        yRotation: Math.PI / 2,
+      } as never)
+    ).toEqual(BlockRotation.py(0));
+    expect(
+      createBlockRotation({
+        value: BlockRotation.PX().axis,
+        yRotation: Number.POSITIVE_INFINITY,
+      } as never)
+    ).toEqual(BlockRotation.py(0));
   });
 });
 

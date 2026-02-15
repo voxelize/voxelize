@@ -121,6 +121,10 @@ const voxel = Voxel.pack({
   - ergonomic constructor helper for `AABB` or plain/readonly/frozen `AABB`
     init input
   - malformed inputs fall back to an empty AABB
+- `createBlockRotation`
+  - ergonomic constructor helper for `BlockRotation` or plain/readonly rotation
+    literals (`value`/`yRotation`)
+  - malformed inputs fall back to identity `BlockRotation.py(0)`
 - `createFaceTransparency`
   - builds normalized 6-face transparency tuples from optional/null/partial
     boolean arrays

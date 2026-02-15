@@ -4,6 +4,7 @@ import {
   BlockRuleLogic,
   createAABB,
   createBlockFace,
+  createBlockRotation,
   createBlockRule,
   createBlockConditionalPart,
   createBlockDynamicPattern,
@@ -61,7 +62,7 @@ const assert = (condition, message) => {
 const main = () => {
   const space = new MemorySpace();
 
-  const voxelRotation = BlockRotation.encode(0, 6);
+  const voxelRotation = createBlockRotation(BlockRotation.encode(0, 6));
   const packedVoxel = Voxel.pack({
     id: 42,
     rotation: voxelRotation,

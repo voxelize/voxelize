@@ -44,6 +44,8 @@ flowchart LR
 - `createAABB`: ergonomic constructor helper for `AABB` or plain `AABB` init
   input (including readonly/frozen literals) with deterministic empty fallback
   for malformed values
+- `createBlockRotation`: ergonomic constructor helper for `BlockRotation` or
+  plain/readonly rotation literals with deterministic identity fallback
 - `createFaceTransparency`: helper for normalized 6-face transparency tuples
 - `VoxelAccess`: shared access contract
 
@@ -73,6 +75,7 @@ ranges (`id`: 0..65535, `stage`: 0..15).
 Plain rotation-like values are kept only when `value` is an encoded
 non-negative byte (`0..255`) and `yRotation` is finite.
 Readonly rotation-like literals are also accepted during helper sanitization.
+`createBlockRotation` exposes this rotation sanitization directly.
 `createBlockRule` also accepts readonly rule-tree arrays/tuples for literal
 authoring ergonomics.
 Non-plain rule nodes/rotation-like objects are normalized away during
