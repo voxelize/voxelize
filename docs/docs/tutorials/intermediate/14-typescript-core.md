@@ -109,6 +109,8 @@ accessors and rotation equality traps) now resolve to deterministic
 non-matches instead of throwing.
 Non-finite resolved coordinates with active simple-rule constraints
 (`id`/`rotation`/`stage`) are treated as deterministic non-matches.
+Cyclic combination edges are guarded during evaluation to avoid recursion
+overflow and follow deterministic `none`-edge semantics.
 Cyclic rule graphs are sanitized by replacing recursive edges with `none`.
 
 ## Basic usage

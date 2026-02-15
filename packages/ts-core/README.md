@@ -85,6 +85,8 @@ const voxel = Voxel.pack({
     throwing
   - non-finite resolved coordinates with active constraints (`id`/`rotation`/
     `stage`) are treated as deterministic non-matches
+  - cyclic combination-rule edges are guarded during evaluation to avoid
+    recursion overflows and follow deterministic `none`-edge semantics
 - `createBlockConditionalPart`
   - defensively clones rule, face, AABB, and transparency-array inputs to
     avoid external mutation side effects after construction
