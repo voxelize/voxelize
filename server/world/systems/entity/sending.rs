@@ -464,11 +464,10 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             }
         }
 
-        if let Some((single_client_id, single_client_entity)) = single_client {
-            if let Some(position) = positions.get(single_client_entity) {
-                let (client_x, client_y, client_z) = (position.0 .0, position.0 .1, position.0 .2);
-                if let Some(known_entities) =
-                    bookkeeping.client_known_entities.get_mut(single_client_id)
+        if let Some((single_client_id, _)) = single_client {
+            if let Some(client_pos) = single_client_position {
+                let (client_x, client_y, client_z) = (client_pos.0, client_pos.1, client_pos.2);
+                if let Some(known_entities) = bookkeeping.client_known_entities.get_mut(single_client_id)
                 {
                     if !known_entities.is_empty() {
                         let entities_to_delete = &mut self.known_entities_to_delete_buffer;
