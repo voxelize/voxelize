@@ -1,7 +1,6 @@
 use std::ops::Deref;
 
 use hashbrown::HashMap;
-use log::info;
 use rapier3d::prelude::{ColliderHandle, CollisionEvent};
 use specs::{Entities, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
@@ -16,8 +15,8 @@ use crate::{
         voxels::Chunks,
         WorldConfig,
     },
-    ClientFilter, ClientFlag, CollisionsComp, Event, EventBuilder, Events, IDComp, InteractorComp,
-    Vec2, Vec3,
+    ClientFilter, ClientFlag, CollisionsComp, EventBuilder, Events, IDComp, InteractorComp, Vec2,
+    Vec3,
 };
 
 #[derive(Default)]
