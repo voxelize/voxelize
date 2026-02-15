@@ -1,5 +1,5 @@
 use std::cell::Cell;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use std::time::Instant;
 
 use hashbrown::HashMap;
@@ -29,11 +29,11 @@ impl<'a> System<'a> for PathFindingSystem {
         let (chunks, registry, _config, timing, bodies, targets, mut paths) = data;
         let _t = timing.timer("path-finding");
 
-        let voxel_cache = Arc::new(Mutex::new(HashMap::with_capacity(256)));
+        let voxel_cache = Arc::new(RwLock::new(HashMap::with_capacity(256)));
 
         let get_is_voxel_passable = |vx: i32, vy: i32, vz: i32| {
             let key = (vx, vy, vz);
-            if let Some(is_passable) = voxel_cache.lock().unwrap().get(&key).copied() {
+            if let Some(is_passable) = voxel_cache.read().unwrap().get(&key).copied() {
                 return is_passable;
             }
 
@@ -41,7 +41,7 @@ impl<'a> System<'a> for PathFindingSystem {
             let block = registry.get_block_by_id(voxel);
             let is_passable = block.is_passable || block.is_fluid;
 
-            let mut cache = voxel_cache.lock().unwrap();
+            let mut cache = voxel_cache.write().unwrap();
             *cache.entry(key).or_insert(is_passable)
         };
 
