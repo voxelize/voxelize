@@ -3797,6 +3797,38 @@ describe("report-utils", () => {
     expect(
       partiallyRecoverableLengthTrappedCanonicalValidation.validationErrorCode
     ).toBe("unsupported_options");
+    const partiallyRecoverableLengthTrappedCanonicalValidationWithAliasFallback =
+      createCliOptionValidation(
+        ["--verify", "--mystery", "--output", "./report.json"],
+        {
+          canonicalOptions:
+            partiallyRecoverableLengthTrappedCanonicalOptions as never,
+          optionAliases: {
+            "--no-build": ["--verify"],
+          },
+          optionsWithValues: ["--output"],
+        }
+      );
+    expect(
+      partiallyRecoverableLengthTrappedCanonicalValidationWithAliasFallback.supportedCliOptions
+    ).toEqual(["--json", "--no-build", "--verify"]);
+    expect(
+      partiallyRecoverableLengthTrappedCanonicalValidationWithAliasFallback.supportedCliOptionCount
+    ).toBe(3);
+    expect(
+      partiallyRecoverableLengthTrappedCanonicalValidationWithAliasFallback.unknownOptions
+    ).toEqual(["--mystery", "--output"]);
+    expect(
+      partiallyRecoverableLengthTrappedCanonicalValidationWithAliasFallback.unknownOptionCount
+    ).toBe(2);
+    expect(
+      partiallyRecoverableLengthTrappedCanonicalValidationWithAliasFallback.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --mystery, --output. Supported options: --json, --no-build, --verify."
+    );
+    expect(
+      partiallyRecoverableLengthTrappedCanonicalValidationWithAliasFallback.validationErrorCode
+    ).toBe("unsupported_options");
 
     const outputErrorPriority = createCliOptionValidation(
       ["--json", "--mystery"],
@@ -5968,6 +6000,82 @@ describe("report-utils", () => {
       },
     ]);
     expect(partiallyRecoverableDiagnostics.activeCliOptionOccurrenceCount).toBe(1);
+    const partiallyRecoverableDiagnosticsWithAliasFallback = createCliDiagnostics(
+      ["--verify", "--mystery", "--output", "./report.json"],
+      {
+        canonicalOptions:
+          partiallyRecoverableLengthTrappedCanonicalOptions as never,
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+        optionsWithValues: ["--output"],
+      }
+    );
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallback.supportedCliOptions
+    ).toEqual(["--json", "--no-build", "--verify"]);
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallback.supportedCliOptionCount
+    ).toBe(3);
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallback.availableCliOptionAliases
+    ).toEqual({
+      "--no-build": ["--verify"],
+    });
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallback.availableCliOptionCanonicalMap
+    ).toEqual({
+      "--json": "--json",
+      "--no-build": "--no-build",
+      "--verify": "--no-build",
+    });
+    expect(partiallyRecoverableDiagnosticsWithAliasFallback.unknownOptions).toEqual([
+      "--mystery",
+      "--output",
+    ]);
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallback.unknownOptionCount
+    ).toBe(2);
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallback.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --mystery, --output. Supported options: --json, --no-build, --verify."
+    );
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallback.validationErrorCode
+    ).toBe("unsupported_options");
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallback.activeCliOptions
+    ).toEqual(["--no-build"]);
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallback.activeCliOptionCount
+    ).toBe(1);
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallback.activeCliOptionTokens
+    ).toEqual(["--verify"]);
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallback.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+    ]);
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallback.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallback.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+        index: 0,
+      },
+    ]);
+    expect(
+      partiallyRecoverableDiagnosticsWithAliasFallback.activeCliOptionOccurrenceCount
+    ).toBe(1);
   });
 
   it("keeps pre-terminator aliases active while ignoring post-terminator misuse", () => {
