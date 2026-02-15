@@ -2220,14 +2220,28 @@ export const createCliOptionValidation = (
       ? resolvedOptionCatalog.supportedCliOptions
       : normalizedOptionCatalogOverride.supportedCliOptions;
   const catalogSupportedCliOptionSet = new Set(catalogSupportedCliOptions);
-  const supportedCliOptions =
+  const normalizedPrecomputedSupportedCliOptionMetadata =
     precomputedSupportedCliOptions === null
+      ? null
+      : normalizeCliOptionTokenListWithAvailability(precomputedSupportedCliOptions);
+  const normalizedPrecomputedSupportedCliOptions =
+    normalizedPrecomputedSupportedCliOptionMetadata?.tokens ?? [];
+  const filteredPrecomputedSupportedCliOptions =
+    normalizedPrecomputedSupportedCliOptions.filter((optionToken) => {
+      return catalogSupportedCliOptionSet.has(optionToken);
+    });
+  const shouldFallbackToCatalogSupportedCliOptions =
+    normalizedPrecomputedSupportedCliOptionMetadata !== null &&
+    filteredPrecomputedSupportedCliOptions.length === 0 &&
+    catalogSupportedCliOptions.length > 0 &&
+    (normalizedPrecomputedSupportedCliOptionMetadata.unavailable ||
+      normalizedPrecomputedSupportedCliOptions.length > 0);
+  const supportedCliOptions =
+    normalizedPrecomputedSupportedCliOptionMetadata === null
       ? catalogSupportedCliOptions
-      : normalizeCliOptionTokenList(precomputedSupportedCliOptions).filter(
-          (optionToken) => {
-            return catalogSupportedCliOptionSet.has(optionToken);
-          }
-        );
+      : shouldFallbackToCatalogSupportedCliOptions
+        ? catalogSupportedCliOptions
+        : filteredPrecomputedSupportedCliOptions;
   const unknownOptions = parseUnknownCliOptions(args, {
     canonicalOptions: catalogCanonicalOptions,
     optionAliases: catalogOptionAliases,

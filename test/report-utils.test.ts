@@ -4341,6 +4341,57 @@ describe("report-utils", () => {
     expect(staleUnknownAliasPrecomputedSupportedTokens.validationErrorCode).toBe(
       "unsupported_options"
     );
+    const staleUnknownOnlyPrecomputedSupportedTokens = createCliOptionValidation(
+      ["--mystery"],
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        supportedCliOptions: ["--mystery"],
+      }
+    );
+    expect(staleUnknownOnlyPrecomputedSupportedTokens.supportedCliOptions).toEqual([
+      "--json",
+      "--output",
+    ]);
+    expect(staleUnknownOnlyPrecomputedSupportedTokens.supportedCliOptionCount).toBe(2);
+    expect(staleUnknownOnlyPrecomputedSupportedTokens.unknownOptions).toEqual([
+      "--mystery",
+    ]);
+    expect(staleUnknownOnlyPrecomputedSupportedTokens.unknownOptionCount).toBe(1);
+    expect(staleUnknownOnlyPrecomputedSupportedTokens.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
+    expect(staleUnknownOnlyPrecomputedSupportedTokens.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    const staleUnknownOnlyAliasPrecomputedSupportedTokens =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions: ["--json"],
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+        supportedCliOptions: ["--mystery"],
+      });
+    expect(staleUnknownOnlyAliasPrecomputedSupportedTokens.supportedCliOptions).toEqual(
+      ["--json", "--no-build", "--verify"]
+    );
+    expect(staleUnknownOnlyAliasPrecomputedSupportedTokens.supportedCliOptionCount).toBe(
+      3
+    );
+    expect(staleUnknownOnlyAliasPrecomputedSupportedTokens.unknownOptions).toEqual([
+      "--mystery",
+    ]);
+    expect(staleUnknownOnlyAliasPrecomputedSupportedTokens.unknownOptionCount).toBe(
+      1
+    );
+    expect(
+      staleUnknownOnlyAliasPrecomputedSupportedTokens.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --no-build, --verify."
+    );
+    expect(staleUnknownOnlyAliasPrecomputedSupportedTokens.validationErrorCode).toBe(
+      "unsupported_options"
+    );
     let statefulCanonicalWithPrecomputedReadCount = 0;
     const statefulCanonicalWithPrecomputed = new Proxy(["--json"], {
       get(target, property, receiver) {
@@ -4923,10 +4974,13 @@ describe("report-utils", () => {
         supportedCliOptions: new Set(["--json", "--output"]) as never,
       }
     );
-    expect(setPrecomputedSupportedTokens.supportedCliOptions).toEqual([]);
-    expect(setPrecomputedSupportedTokens.supportedCliOptionCount).toBe(0);
+    expect(setPrecomputedSupportedTokens.supportedCliOptions).toEqual([
+      "--json",
+      "--output",
+    ]);
+    expect(setPrecomputedSupportedTokens.supportedCliOptionCount).toBe(2);
     expect(setPrecomputedSupportedTokens.unsupportedOptionsError).toBe(
-      "Unsupported option(s): --mystery. Supported options: (none)."
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
     );
     const mapPrecomputedSupportedTokens = createCliOptionValidation(
       ["--mystery"],
@@ -4939,10 +4993,13 @@ describe("report-utils", () => {
         ]) as never,
       }
     );
-    expect(mapPrecomputedSupportedTokens.supportedCliOptions).toEqual([]);
-    expect(mapPrecomputedSupportedTokens.supportedCliOptionCount).toBe(0);
+    expect(mapPrecomputedSupportedTokens.supportedCliOptions).toEqual([
+      "--json",
+      "--output",
+    ]);
+    expect(mapPrecomputedSupportedTokens.supportedCliOptionCount).toBe(2);
     expect(mapPrecomputedSupportedTokens.unsupportedOptionsError).toBe(
-      "Unsupported option(s): --mystery. Supported options: (none)."
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
     );
     const primitivePrecomputedSupportedTokens = createCliOptionValidation(
       ["--mystery"],
@@ -4952,10 +5009,13 @@ describe("report-utils", () => {
         supportedCliOptions: "--json" as never,
       }
     );
-    expect(primitivePrecomputedSupportedTokens.supportedCliOptions).toEqual([]);
-    expect(primitivePrecomputedSupportedTokens.supportedCliOptionCount).toBe(0);
+    expect(primitivePrecomputedSupportedTokens.supportedCliOptions).toEqual([
+      "--json",
+      "--output",
+    ]);
+    expect(primitivePrecomputedSupportedTokens.supportedCliOptionCount).toBe(2);
     expect(primitivePrecomputedSupportedTokens.unsupportedOptionsError).toBe(
-      "Unsupported option(s): --mystery. Supported options: (none)."
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
     );
     let canonicalValidationReadCount = 0;
     const canonicalOptionsForValidationReadCount = new Proxy(["--json"], {
@@ -5169,14 +5229,16 @@ describe("report-utils", () => {
         supportedCliOptions: lengthAndOwnKeysTrapSupportedTokens as never,
       });
     expect(lengthAndOwnKeysTrapPrecomputedSupportedTokens.supportedCliOptions).toEqual(
-      []
+      ["--json", "--output"]
     );
     expect(
       lengthAndOwnKeysTrapPrecomputedSupportedTokens.supportedCliOptionCount
-    ).toBe(0);
+    ).toBe(2);
     expect(
       lengthAndOwnKeysTrapPrecomputedSupportedTokens.unsupportedOptionsError
-    ).toBe("Unsupported option(s): --mystery. Supported options: (none).");
+    ).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
     const fullyRecoverableLengthTrappedSupportedTokens =
       createLengthTrappedPartiallyRecoveredStringArray(
         ["--json", "--output"],
