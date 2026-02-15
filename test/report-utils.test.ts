@@ -924,6 +924,44 @@ describe("report-utils", () => {
     expect(hasTrapFallbackResult.optionTerminatorUsed).toBe(false);
     expect(hasTrapFallbackReadCount).toBe(2);
 
+    let descriptorTrapProbeCount = 0;
+    let descriptorTrapReadCount = 0;
+    const descriptorTrapFallbackArgs = new Proxy(["--json", "--mystery"], {
+      ownKeys() {
+        throw new Error("ownKeys trap");
+      },
+      getOwnPropertyDescriptor(target, property) {
+        if (typeof property === "string" && /^(0|[1-9]\d*)$/.test(property)) {
+          descriptorTrapProbeCount += 1;
+          throw new Error("descriptor trap");
+        }
+        return Reflect.getOwnPropertyDescriptor(target, property);
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1_000_000_000;
+        }
+        if (typeof property === "string" && /^(0|[1-9]\d*)$/.test(property)) {
+          descriptorTrapReadCount += 1;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const descriptorTrapFallbackResult = splitCliArgs(
+      descriptorTrapFallbackArgs as never
+    );
+    expect(descriptorTrapFallbackResult.optionArgs).toEqual([
+      "--json",
+      "--mystery",
+    ]);
+    expect(descriptorTrapFallbackResult.positionalArgs).toEqual([]);
+    expect(descriptorTrapFallbackResult.optionTerminatorUsed).toBe(false);
+    expect(descriptorTrapProbeCount).toBe(1);
+    expect(descriptorTrapReadCount).toBe(1_024);
+
     const sparseHighIndexArgs: string[] = [];
     sparseHighIndexArgs[5_000] = "--json";
     Object.defineProperty(sparseHighIndexArgs, Symbol.iterator, {

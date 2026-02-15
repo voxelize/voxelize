@@ -318,22 +318,29 @@ const cloneArrayFromLengthFallback = (value) => {
 
   const boundedLength = Math.min(lengthValue, MAX_ARRAY_LENGTH_FALLBACK_SCAN);
   const clonedArray = [];
+  let canProbeOwnProperty = true;
   for (let arrayIndex = 0; arrayIndex < boundedLength; arrayIndex += 1) {
     let indexPresent = false;
-    let hasProbeFailed = false;
-    try {
-      indexPresent = Object.prototype.hasOwnProperty.call(value, arrayIndex);
-    } catch {
-      hasProbeFailed = true;
+    let requiresDirectRead = false;
+
+    if (canProbeOwnProperty) {
+      try {
+        indexPresent = Object.prototype.hasOwnProperty.call(value, arrayIndex);
+      } catch {
+        canProbeOwnProperty = false;
+        requiresDirectRead = true;
+      }
+    } else {
+      requiresDirectRead = true;
     }
 
-    if (!indexPresent && !hasProbeFailed) {
+    if (!indexPresent && !requiresDirectRead) {
       continue;
     }
 
     try {
       const arrayEntry = value[arrayIndex];
-      if (hasProbeFailed && arrayEntry === undefined) {
+      if (requiresDirectRead && arrayEntry === undefined) {
         continue;
       }
 
