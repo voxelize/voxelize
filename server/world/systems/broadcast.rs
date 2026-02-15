@@ -16,8 +16,12 @@ const SMALL_FILTER_LINEAR_SCAN_LIMIT: usize = 8;
 enum BatchFilterKey {
     All,
     Direct(String),
-    Include(Vec<String>),
-    Exclude(Vec<String>),
+    IncludeNone,
+    IncludeOne(String),
+    IncludeMany(Vec<String>),
+    ExcludeNone,
+    ExcludeOne(String),
+    ExcludeMany(Vec<String>),
 }
 
 fn filter_key(filter: &ClientFilter) -> BatchFilterKey {
@@ -26,27 +30,27 @@ fn filter_key(filter: &ClientFilter) -> BatchFilterKey {
         ClientFilter::Direct(id) => BatchFilterKey::Direct(id.clone()),
         ClientFilter::Include(ids) => {
             if ids.is_empty() {
-                return BatchFilterKey::Include(Vec::new());
+                return BatchFilterKey::IncludeNone;
             }
             if ids.len() == 1 {
-                return BatchFilterKey::Include(vec![ids[0].clone()]);
+                return BatchFilterKey::IncludeOne(ids[0].clone());
             }
             let mut sorted = ids.clone();
             sorted.sort_unstable();
             sorted.dedup();
-            BatchFilterKey::Include(sorted)
+            BatchFilterKey::IncludeMany(sorted)
         }
         ClientFilter::Exclude(ids) => {
             if ids.is_empty() {
-                return BatchFilterKey::Exclude(Vec::new());
+                return BatchFilterKey::ExcludeNone;
             }
             if ids.len() == 1 {
-                return BatchFilterKey::Exclude(vec![ids[0].clone()]);
+                return BatchFilterKey::ExcludeOne(ids[0].clone());
             }
             let mut sorted = ids.clone();
             sorted.sort_unstable();
             sorted.dedup();
-            BatchFilterKey::Exclude(sorted)
+            BatchFilterKey::ExcludeMany(sorted)
         }
     }
 }
