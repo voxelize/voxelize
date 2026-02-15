@@ -801,6 +801,8 @@ const toStringArrayOrNull = (value) => {
   const normalizedStrings = clonedArray.filter((entry) => {
     return typeof entry === "string";
   });
+  const hasNonStringPlaceholderEntries =
+    normalizedStrings.length !== clonedArray.length;
   if (normalizedStrings.length === clonedArray.length) {
     return normalizedStrings;
   }
@@ -809,6 +811,14 @@ const toStringArrayOrNull = (value) => {
   if (
     keyFallbackStrings !== null &&
     keyFallbackStrings.length > normalizedStrings.length
+  ) {
+    return keyFallbackStrings;
+  }
+  if (
+    hasNonStringPlaceholderEntries &&
+    keyFallbackStrings !== null &&
+    keyFallbackStrings.length === normalizedStrings.length &&
+    keyFallbackStrings.length > 0
   ) {
     return keyFallbackStrings;
   }
@@ -824,6 +834,8 @@ const toObjectRecordEntriesOrEmpty = (sourceValue, clonedArray) => {
   const normalizedRecords = clonedArray.filter((entry) => {
     return isObjectRecord(entry);
   });
+  const hasNonObjectPlaceholderEntries =
+    normalizedRecords.length !== clonedArray.length;
   if (normalizedRecords.length === clonedArray.length) {
     return normalizedRecords;
   }
@@ -832,6 +844,14 @@ const toObjectRecordEntriesOrEmpty = (sourceValue, clonedArray) => {
   if (
     keyFallbackRecords !== null &&
     keyFallbackRecords.length > normalizedRecords.length
+  ) {
+    return keyFallbackRecords;
+  }
+  if (
+    hasNonObjectPlaceholderEntries &&
+    keyFallbackRecords !== null &&
+    keyFallbackRecords.length === normalizedRecords.length &&
+    keyFallbackRecords.length > 0
   ) {
     return keyFallbackRecords;
   }
