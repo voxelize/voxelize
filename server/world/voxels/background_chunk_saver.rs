@@ -1,4 +1,3 @@
-use byteorder::{ByteOrder, LittleEndian};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use crossbeam_channel::{bounded, Receiver, Sender, TryRecvError};
 use hashbrown::HashMap;
@@ -12,6 +11,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
+
+#[cfg(not(target_endian = "little"))]
+use byteorder::{ByteOrder, LittleEndian};
 
 use crate::Vec2;
 
@@ -105,13 +107,27 @@ impl BackgroundChunkSaver {
         if data.is_empty() {
             return String::new();
         }
-        let mut bytes = vec![0; data.len() * 4];
-        LittleEndian::write_u32_into(data, &mut bytes);
+        let byte_len = data.len().saturating_mul(std::mem::size_of::<u32>());
 
-        let mut encoder = Encoder::new(Vec::with_capacity(bytes.len())).unwrap();
-        encoder.write_all(bytes.as_slice()).unwrap();
-        let encoded = encoder.finish().into_result().unwrap();
-        STANDARD.encode(encoded)
+        #[cfg(target_endian = "little")]
+        {
+            let bytes = unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u8, byte_len) };
+            let mut encoder = Encoder::new(Vec::with_capacity(byte_len)).unwrap();
+            encoder.write_all(bytes).unwrap();
+            let encoded = encoder.finish().into_result().unwrap();
+            STANDARD.encode(encoded)
+        }
+
+        #[cfg(not(target_endian = "little"))]
+        {
+            let mut bytes = vec![0; byte_len];
+            LittleEndian::write_u32_into(data, &mut bytes);
+
+            let mut encoder = Encoder::new(Vec::with_capacity(byte_len)).unwrap();
+            encoder.write_all(bytes.as_slice()).unwrap();
+            let encoded = encoder.finish().into_result().unwrap();
+            STANDARD.encode(encoded)
+        }
     }
 
     fn save_chunk_to_disk(data: ChunkSaveData, folder: &PathBuf) {
