@@ -6421,6 +6421,54 @@ describe("report-utils", () => {
         ],
       })
     ).toBe("Client checks failed.");
+    const cappedSupplementedFailureMessageStepsTarget: Array<
+      number | { readonly name: string; readonly passed: boolean; readonly skipped: boolean; readonly reason: string }
+    > = [];
+    cappedSupplementedFailureMessageStepsTarget[0] = {
+      name: "Precheck",
+      passed: true,
+      skipped: false,
+      reason: "ignored",
+    };
+    for (let index = 1; index < 1_024; index += 1) {
+      cappedSupplementedFailureMessageStepsTarget[index] = index;
+    }
+    for (let index = 0; index < 1_024; index += 1) {
+      cappedSupplementedFailureMessageStepsTarget[5_000 + index] = {
+        name: `High step ${index}`,
+        passed: false,
+        skipped: false,
+        reason: "artifact missing",
+      };
+    }
+    const cappedSupplementedFailureMessageStepKeyList = Array.from(
+      { length: 1_024 },
+      (_, index) => {
+        return String(5_000 + index);
+      }
+    );
+    const cappedSupplementedFailureMessageSteps = new Proxy(
+      cappedSupplementedFailureMessageStepsTarget,
+      {
+        ownKeys() {
+          return [...cappedSupplementedFailureMessageStepKeyList, "length"];
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1_000_000_000;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      deriveFailureMessageFromReport({
+        steps: cappedSupplementedFailureMessageSteps,
+      })
+    ).toBe("High step 0: artifact missing");
   });
 
   it("derives failure messages when malformed getters throw", () => {
