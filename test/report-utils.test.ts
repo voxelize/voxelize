@@ -3712,6 +3712,40 @@ describe("report-utils", () => {
       skippedSteps: [],
     });
 
+    const ownKeysHasTrapSteps = new Proxy(
+      [{ name: "step-a", passed: true, skipped: false }],
+      {
+        ownKeys: () => {
+          throw new Error("ownKeys trap");
+        },
+        has(target, property) {
+          if (typeof property === "string" && /^(0|[1-9]\d*)$/.test(property)) {
+            throw new Error("has trap");
+          }
+          return Reflect.has(target, property);
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1_000_000_000;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(summarizeStepResults(ownKeysHasTrapSteps as never)).toEqual({
+      totalSteps: 1,
+      passedStepCount: 1,
+      failedStepCount: 0,
+      skippedStepCount: 0,
+      firstFailedStep: null,
+      passedSteps: ["step-a"],
+      failedSteps: [],
+      skippedSteps: [],
+    });
+
     const largeLengthOwnKeysTrapSteps = new Proxy(
       [{ name: "step-a", passed: true, skipped: false }],
       {
@@ -4429,6 +4463,38 @@ describe("report-utils", () => {
       failedChecks: [],
     });
 
+    const ownKeysHasTrapChecks = new Proxy(
+      [{ name: "devEnvironment", passed: true }],
+      {
+        ownKeys: () => {
+          throw new Error("ownKeys trap");
+        },
+        has(target, property) {
+          if (typeof property === "string" && /^(0|[1-9]\d*)$/.test(property)) {
+            throw new Error("has trap");
+          }
+          return Reflect.has(target, property);
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1_000_000_000;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(summarizeCheckResults(ownKeysHasTrapChecks as never)).toEqual({
+      totalChecks: 1,
+      passedCheckCount: 1,
+      failedCheckCount: 0,
+      firstFailedCheck: null,
+      passedChecks: ["devEnvironment"],
+      failedChecks: [],
+    });
+
     const largeLengthOwnKeysTrapChecks = new Proxy(
       [{ name: "devEnvironment", passed: true }],
       {
@@ -4812,6 +4878,29 @@ describe("report-utils", () => {
       },
     });
     expect(normalizeTsCorePayloadIssues(ownKeysTrapIssues)).toEqual([
+      "voxel.id",
+    ]);
+    const ownKeysHasTrapIssues = new Proxy(["voxel.id"], {
+      ownKeys: () => {
+        throw new Error("ownKeys trap");
+      },
+      has(target, property) {
+        if (typeof property === "string" && /^(0|[1-9]\d*)$/.test(property)) {
+          throw new Error("has trap");
+        }
+        return Reflect.has(target, property);
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1_000_000_000;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    expect(normalizeTsCorePayloadIssues(ownKeysHasTrapIssues)).toEqual([
       "voxel.id",
     ]);
     const sparseHighIndexIssues: string[] = [];
