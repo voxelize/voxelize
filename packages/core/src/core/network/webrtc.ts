@@ -13,6 +13,7 @@ export class WebRTCConnection {
   private pc: RTCPeerConnection | null = null;
   private dc: RTCDataChannel | null = null;
   private fragments = new Map<number, Map<number, Uint8Array>>();
+  private expectedFragmentCounts = new Map<number, number>();
   private nextMessageId = 0;
 
   onMessage: ((data: ArrayBuffer) => void) | null = null;
@@ -85,6 +86,7 @@ export class WebRTCConnection {
     this.dc = null;
     this.pc = null;
     this.fragments.clear();
+    this.expectedFragmentCounts.clear();
   }
 
   private handleMessage(data: ArrayBuffer): void {
@@ -121,6 +123,14 @@ export class WebRTCConnection {
 
     const messageId =
       index === 0 ? this.nextMessageId++ : this.nextMessageId - 1;
+    if (index === 0) {
+      this.expectedFragmentCounts.set(messageId, total);
+    } else {
+      const expected = this.expectedFragmentCounts.get(messageId);
+      if (expected === undefined || expected !== total) {
+        return;
+      }
+    }
 
     let fragmentMap = this.fragments.get(messageId);
     if (!fragmentMap) {
@@ -135,6 +145,7 @@ export class WebRTCConnection {
         const frag = fragmentMap.get(i);
         if (!frag) {
           this.fragments.delete(messageId);
+          this.expectedFragmentCounts.delete(messageId);
           return;
         }
         totalLength += frag.byteLength;
@@ -151,6 +162,7 @@ export class WebRTCConnection {
       }
 
       this.fragments.delete(messageId);
+      this.expectedFragmentCounts.delete(messageId);
       this.onMessage?.(complete.buffer);
     }
   }
