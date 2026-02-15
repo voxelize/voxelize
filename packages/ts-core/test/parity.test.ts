@@ -1657,6 +1657,38 @@ describe("Type builders", () => {
     });
   });
 
+  it("sanitizes malformed rotation-like values in createBlockRule inputs", () => {
+    const invalidValueRule = createBlockRule({
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 5,
+      rotation: {
+        value: 256,
+        yRotation: Math.PI / 2,
+      },
+    });
+    const invalidYRotationRule = createBlockRule({
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 5,
+      rotation: {
+        value: BlockRotation.PX().axis,
+        yRotation: Number.POSITIVE_INFINITY,
+      },
+    });
+
+    expect(invalidValueRule).toEqual({
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 5,
+    });
+    expect(invalidYRotationRule).toEqual({
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 5,
+    });
+  });
+
   it("sanitizes non-plain createBlockRule inputs to none rules", () => {
     class RuleLike {
       public readonly type = "simple" as const;
