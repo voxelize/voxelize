@@ -6721,6 +6721,95 @@ describe("report-utils", () => {
       },
     ]);
     expect(statefulValueOptionDiagnostics.activeCliOptionOccurrenceCount).toBe(1);
+    let statefulStrictValueOptionReadCount = 0;
+    const statefulStrictValueOptionDiagnostics = createCliDiagnostics(
+      ["--output", "-j"],
+      {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-j"],
+        },
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: new Proxy(["--output"], {
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              throw new Error("iterator trap");
+            }
+            if (property === "length") {
+              return 1;
+            }
+            if (property === "0") {
+              statefulStrictValueOptionReadCount += 1;
+              if (statefulStrictValueOptionReadCount > 1) {
+                return undefined;
+              }
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      }
+    );
+    expect(statefulStrictValueOptionDiagnostics.supportedCliOptions).toEqual([
+      "--output",
+      "--json",
+      "-j",
+    ]);
+    expect(statefulStrictValueOptionDiagnostics.supportedCliOptionCount).toBe(3);
+    expect(statefulStrictValueOptionDiagnostics.availableCliOptionAliases).toEqual({
+      "--json": ["-j"],
+    });
+    expect(
+      statefulStrictValueOptionDiagnostics.availableCliOptionCanonicalMap
+    ).toEqual({
+      "--output": "--output",
+      "--json": "--json",
+      "-j": "--json",
+    });
+    expect(statefulStrictValueOptionDiagnostics.unknownOptions).toEqual([]);
+    expect(statefulStrictValueOptionDiagnostics.unknownOptionCount).toBe(0);
+    expect(statefulStrictValueOptionDiagnostics.unsupportedOptionsError).toBeNull();
+    expect(statefulStrictValueOptionDiagnostics.validationErrorCode).toBeNull();
+    expect(statefulStrictValueOptionDiagnostics.activeCliOptions).toEqual([
+      "--output",
+      "--json",
+    ]);
+    expect(statefulStrictValueOptionDiagnostics.activeCliOptionCount).toBe(2);
+    expect(statefulStrictValueOptionDiagnostics.activeCliOptionTokens).toEqual([
+      "--output",
+      "-j",
+    ]);
+    expect(
+      statefulStrictValueOptionDiagnostics.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+      {
+        token: "-j",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(
+      statefulStrictValueOptionDiagnostics.activeCliOptionResolutionCount
+    ).toBe(2);
+    expect(
+      statefulStrictValueOptionDiagnostics.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+      {
+        token: "-j",
+        canonicalOption: "--json",
+        index: 1,
+      },
+    ]);
+    expect(
+      statefulStrictValueOptionDiagnostics.activeCliOptionOccurrenceCount
+    ).toBe(2);
     const nonArrayAliasMetadataDiagnostics = createCliDiagnostics(
       ["--verify", "--mystery"],
       {
