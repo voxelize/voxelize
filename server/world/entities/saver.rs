@@ -1,5 +1,5 @@
 use log::warn;
-use serde_json::json;
+use serde::Serialize;
 use specs::{Entity, World as ECSWorld, WorldExt};
 use std::fs::{self, File};
 use std::path::PathBuf;
@@ -12,6 +12,12 @@ use crate::{MetadataComp, PositionComp, RigidBodyComp, WorldConfig};
 pub struct EntitiesSaver {
     pub folder: PathBuf,
     pub saving: bool,
+}
+
+#[derive(Serialize)]
+struct SavedEntityFile<'a> {
+    etype: &'a str,
+    metadata: &'a MetadataComp,
 }
 
 impl EntitiesSaver {
@@ -42,10 +48,10 @@ impl EntitiesSaver {
         } else {
             etype.to_lowercase()
         };
-        let payload = json!({
-            "etype": etype_value,
-            "metadata": metadata,
-        });
+        let payload = SavedEntityFile {
+            etype: &etype_value,
+            metadata,
+        };
 
         let mut sanitized_filename = if etype_value.contains("::") {
             etype_value.replace("::", "-")
