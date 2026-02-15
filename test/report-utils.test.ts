@@ -3920,6 +3920,37 @@ describe("report-utils", () => {
       "Unsupported option(s): --mystery. Supported options: --json, --output."
     );
     expect(unsupportedOnly.validationErrorCode).toBe("unsupported_options");
+    let optionArgsValidationReadCount = 0;
+    const optionArgsValidation = createCliOptionValidation(
+      new Proxy(["--json"], {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (property === "0") {
+            optionArgsValidationReadCount += 1;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }) as never,
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+      }
+    );
+    expect(optionArgsValidation.supportedCliOptions).toEqual([
+      "--json",
+      "--output",
+    ]);
+    expect(optionArgsValidation.supportedCliOptionCount).toBe(2);
+    expect(optionArgsValidation.unknownOptions).toEqual([]);
+    expect(optionArgsValidation.unknownOptionCount).toBe(0);
+    expect(optionArgsValidation.unsupportedOptionsError).toBeNull();
+    expect(optionArgsValidation.validationErrorCode).toBeNull();
+    expect(optionArgsValidationReadCount).toBe(2);
     const malformedOptionArgsValidation = createCliOptionValidation(
       ["--mystery"],
       {
