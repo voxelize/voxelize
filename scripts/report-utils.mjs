@@ -1044,9 +1044,19 @@ export const hasCliOption = (args, canonicalOption, aliases = []) => {
 };
 
 const dedupeStringList = (tokens) => {
-  return tokens.filter((token, index) => {
-    return token.length > 0 && tokens.indexOf(token) === index;
-  });
+  const seenTokens = new Set();
+  const uniqueTokens = [];
+
+  for (const token of tokens) {
+    if (token.length === 0 || seenTokens.has(token)) {
+      continue;
+    }
+
+    seenTokens.add(token);
+    uniqueTokens.push(token);
+  }
+
+  return uniqueTokens;
 };
 
 const normalizeCliOptionTokenList = (tokens) => {
