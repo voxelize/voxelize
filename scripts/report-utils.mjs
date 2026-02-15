@@ -278,6 +278,18 @@ const isObjectRecord = (value) => {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 };
 
+const safeObjectKeys = (value) => {
+  if (!isObjectRecord(value)) {
+    return [];
+  }
+
+  try {
+    return Object.keys(value);
+  } catch {
+    return [];
+  }
+};
+
 const safeReadProperty = (value, key) => {
   if (!isObjectRecord(value)) {
     return undefined;
@@ -1009,26 +1021,27 @@ const normalizeCliOptionAliases = (optionAliases) => {
     return {};
   }
 
-  let aliasEntries = [];
-  try {
-    aliasEntries = Object.entries(optionAliases);
-  } catch {
-    return {};
-  }
+  const aliasEntries = safeObjectKeys(optionAliases)
+    .map((canonicalOption) => {
+      if (canonicalOption.length === 0) {
+        return null;
+      }
 
-  return Object.fromEntries(
-    aliasEntries
-      .map(([canonicalOption, aliases]) => {
-        if (canonicalOption.length === 0) {
-          return null;
-        }
+      const aliases = safeReadProperty(optionAliases, canonicalOption);
+      if (aliases === undefined) {
+        return null;
+      }
 
-        return [canonicalOption, normalizeCliOptionTokenList(aliases)];
-      })
-      .filter((entry) => {
-        return entry !== null;
-      })
-  );
+      return [
+        canonicalOption,
+        normalizeCliOptionTokenList(aliases),
+      ];
+    })
+    .filter((entry) => {
+      return entry !== null;
+    });
+
+  return Object.fromEntries(aliasEntries);
 };
 
 const createCanonicalOptionMap = (canonicalOptions, optionAliases = {}) => {

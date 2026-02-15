@@ -1403,6 +1403,45 @@ describe("report-utils", () => {
     expect(catalog.availableCliOptionCanonicalMap).toEqual({});
   });
 
+  it("preserves non-trapping alias entries when others are malformed", () => {
+    const optionAliases = Object.create(null) as {
+      readonly "--no-build": string[];
+      readonly "--trap": string[];
+    };
+    Object.defineProperty(optionAliases, "--no-build", {
+      configurable: true,
+      enumerable: true,
+      value: ["--verify"],
+    });
+    Object.defineProperty(optionAliases, "--trap", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("alias trap");
+      },
+    });
+
+    const catalog = createCliOptionCatalog({
+      canonicalOptions: ["--json"],
+      optionAliases: optionAliases as never,
+    });
+
+    expect(catalog.supportedCliOptions).toEqual([
+      "--json",
+      "--no-build",
+      "--verify",
+    ]);
+    expect(catalog.supportedCliOptionCount).toBe(3);
+    expect(catalog.availableCliOptionAliases).toEqual({
+      "--no-build": ["--verify"],
+    });
+    expect(catalog.availableCliOptionCanonicalMap).toEqual({
+      "--json": "--json",
+      "--no-build": "--no-build",
+      "--verify": "--no-build",
+    });
+  });
+
   it("creates unified cli diagnostics metadata", () => {
     const diagnostics = createCliDiagnostics(
       ["--json", "--verify", "--output", "./report.json", "--mystery"],
