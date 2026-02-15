@@ -156,7 +156,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         let mut new_bookkeeping_records = HashMap::with_capacity(old_entities.len());
         let mut entity_positions: HashMap<String, Vec3<f32>> = HashMap::with_capacity(old_entities.len());
         let has_clients = !clients.is_empty();
-        let mut entity_metadata_map: HashMap<String, (&str, String, bool)> = if has_clients {
+        let mut entity_metadata_map: HashMap<&str, (&str, String, bool)> = if has_clients {
             HashMap::with_capacity(old_entities.len())
         } else {
             HashMap::new()
@@ -195,7 +195,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             if has_clients {
                 let (json_str, updated) = metadata.to_cached_str();
                 if is_new || updated {
-                    entity_metadata_map.insert(id.0.clone(), (etype.0.as_str(), json_str, is_new));
+                    entity_metadata_map.insert(id.0.as_str(), (etype.0.as_str(), json_str, is_new));
                 }
             }
         }
@@ -249,6 +249,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         let default_pos = Vec3(0.0, 0.0, 0.0);
 
         for (entity_id, (etype, metadata_str, is_new)) in &entity_metadata_map {
+            let entity_id = *entity_id;
             let pos = entity_positions.get(entity_id).unwrap_or(&default_pos);
             if let Some((single_client_id, _)) = single_client {
                 let Some(client_pos) = single_client_position else {
@@ -264,7 +265,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     &mut bookkeeping.client_known_entities,
                     single_client_id,
                 );
-                let inserted = known_entities.insert(entity_id.clone());
+                let inserted = known_entities.insert(entity_id.to_owned());
                 let operation = if inserted || *is_new {
                     EntityOperation::Create
                 } else {
@@ -276,7 +277,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     single_client_id,
                     EntityProtocol {
                         operation,
-                        id: entity_id.clone(),
+                        id: entity_id.to_owned(),
                         r#type: (*etype).to_owned(),
                         metadata: Some(metadata_str.clone()),
                     },
@@ -290,7 +291,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                         &mut bookkeeping.client_known_entities,
                         client_id,
                     );
-                    let inserted = known_entities.insert(entity_id.clone());
+                    let inserted = known_entities.insert(entity_id.to_owned());
 
                     let operation = if inserted || *is_new {
                         EntityOperation::Create
@@ -304,7 +305,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                         client_id,
                         EntityProtocol {
                             operation,
-                            id: entity_id.clone(),
+                            id: entity_id.to_owned(),
                             r#type: (*etype).to_owned(),
                             metadata: Some(metadata_str.clone()),
                         },
