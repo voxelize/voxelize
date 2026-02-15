@@ -50,6 +50,13 @@ where
 
     /// Obtain the index of the n-dimensional array
     pub fn index(&self, coords: &[usize]) -> usize {
+        assert_eq!(
+            coords.len(),
+            self.stride.len(),
+            "ndarray index dimension mismatch: got {}, expected {}",
+            coords.len(),
+            self.stride.len()
+        );
         let mut index = 0;
         for (coord, stride) in coords.iter().zip(self.stride.iter()) {
             index += coord * stride;
@@ -59,6 +66,9 @@ where
 
     /// Check to see if index is within the n-dimensional array's bounds
     pub fn contains(&self, coords: &[usize]) -> bool {
+        if coords.len() != self.shape.len() {
+            return false;
+        }
         for (coord, bound) in coords.iter().zip(self.shape.iter()) {
             if coord >= bound {
                 return false;
@@ -86,4 +96,23 @@ impl<T: Num + Clone> IndexMut<&[usize]> for Ndarray<T> {
 /// Create a new n-dimensional array.
 pub fn ndarray<T: Num + Clone>(shape: &[usize], default: T) -> Ndarray<T> {
     Ndarray::new(shape, default)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ndarray;
+
+    #[test]
+    fn contains_rejects_dimension_mismatches() {
+        let arr = ndarray(&[2, 2], 0u32);
+        assert!(!arr.contains(&[0]));
+        assert!(!arr.contains(&[0, 0, 0]));
+    }
+
+    #[test]
+    #[should_panic(expected = "ndarray index dimension mismatch")]
+    fn index_panics_on_dimension_mismatch() {
+        let arr = ndarray(&[2, 2], 0u32);
+        let _ = arr.index(&[0]);
+    }
 }
