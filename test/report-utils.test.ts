@@ -5152,6 +5152,19 @@ describe("report-utils", () => {
     });
     expect(
       extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckStatus: "ok",
+        wasmPackCheckCommand: "   ",
+      })
+    ).toEqual({
+      wasmPackCheckStatus: "ok",
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: null,
+      wasmPackCheckArgCount: null,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
+    expect(
+      extractWasmPackCheckSummaryFromReport({
         wasmPackCheckStatus: " missing ",
       })
     ).toEqual({
@@ -5508,6 +5521,26 @@ describe("report-utils", () => {
       exampleExitCode: 0,
       exampleDurationMs: 125,
       exampleOutputLine: "{\"ruleMatched\":true}",
+    });
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleCommand: "   ",
+        exampleAttempted: true,
+        exampleExitCode: 1,
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: null,
+      exampleArgCount: null,
+      exampleAttempted: true,
+      exampleStatus: "failed",
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: 1,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
     });
     expect(
       extractTsCoreExampleSummaryFromReport({

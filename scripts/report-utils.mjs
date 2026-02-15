@@ -694,10 +694,7 @@ export const extractWasmPackCheckSummaryFromReport = (report) => {
   const wasmPackCheckStatusValue = safeReadProperty(report, "wasmPackCheckStatus");
   const wasmPackCheckStatus = toKnownWasmPackStatus(wasmPackCheckStatusValue);
   const wasmPackCheckCommandValue = safeReadProperty(report, "wasmPackCheckCommand");
-  const wasmPackCheckCommand =
-    typeof wasmPackCheckCommandValue === "string"
-      ? wasmPackCheckCommandValue
-      : null;
+  const wasmPackCheckCommand = toTrimmedStringOrNull(wasmPackCheckCommandValue);
   const wasmPackCheckArgs = toStringArrayOrNull(
     safeReadProperty(report, "wasmPackCheckArgs")
   );
@@ -793,8 +790,7 @@ export const extractTsCoreExampleSummaryFromReport = (report) => {
   }
 
   const exampleCommandValue = safeReadProperty(report, "exampleCommand");
-  const exampleCommand =
-    typeof exampleCommandValue === "string" ? exampleCommandValue : null;
+  const exampleCommand = toTrimmedStringOrNull(exampleCommandValue);
   const exampleArgs = toStringArrayOrNull(safeReadProperty(report, "exampleArgs"));
   const exampleArgCountValue = safeReadProperty(report, "exampleArgCount");
   const exampleArgCount =
