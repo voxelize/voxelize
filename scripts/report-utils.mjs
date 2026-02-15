@@ -416,20 +416,8 @@ export const deriveFailureMessageFromReport = (report) => {
   return null;
 };
 
-const toStringArrayFromIndexedAccess = (tokens) => {
-  const indexedValues = cloneArrayFromIndexedAccess(tokens);
-  if (indexedValues === null) {
-    return null;
-  }
-
-  return indexedValues.filter((token) => {
-    return typeof token === "string";
-  });
-};
-
 const toStringArrayOrNull = (value) => {
-  const clonedArray =
-    cloneArraySafely(value) ?? toStringArrayFromIndexedAccess(value);
+  const clonedArray = cloneArraySafely(value);
   if (clonedArray === null) {
     return null;
   }

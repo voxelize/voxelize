@@ -4185,11 +4185,57 @@ describe("report-utils", () => {
         throw new Error("steps trap");
       },
     });
+    const iteratorTrapSteps = [
+      {
+        name: "TypeScript typecheck",
+        passed: false,
+        skipped: false,
+        reason: "previous step failed",
+      },
+    ];
+    Object.defineProperty(iteratorTrapSteps, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    const largeLengthIteratorTrapSteps = new Proxy(
+      [
+        {
+          name: "WASM artifact preflight",
+          passed: false,
+          skipped: false,
+          reason: "artifact missing",
+        },
+      ],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1_000_000_000;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
 
     expect(deriveFailureMessageFromReport(reportWithThrowingMessage)).toBe(
       "WASM artifact preflight: artifact missing"
     );
     expect(deriveFailureMessageFromReport(reportWithThrowingSteps)).toBeNull();
+    expect(
+      deriveFailureMessageFromReport({
+        steps: iteratorTrapSteps,
+      })
+    ).toBe("TypeScript typecheck: previous step failed");
+    expect(
+      deriveFailureMessageFromReport({
+        steps: largeLengthIteratorTrapSteps,
+      })
+    ).toBe("WASM artifact preflight: artifact missing");
   });
 
   it("extracts wasm pack summary fields from nested reports", () => {
