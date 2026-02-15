@@ -292,14 +292,17 @@ impl<'a> System<'a> for BroadcastSystem {
                 continue;
             }
             let include_single_target = if let ClientFilter::Include(ids) = &filter {
-                if ids.is_empty() {
-                    None
-                } else {
-                    let first_id = ids[0].as_str();
-                    if ids.iter().all(|id| id.as_str() == first_id) {
-                        Some(first_id)
-                    } else {
-                        None
+                match ids.len() {
+                    0 => None,
+                    1 => Some(ids[0].as_str()),
+                    2 if ids[0] == ids[1] => Some(ids[0].as_str()),
+                    _ => {
+                        let first_id = ids[0].as_str();
+                        if ids.iter().all(|id| id.as_str() == first_id) {
+                            Some(first_id)
+                        } else {
+                            None
+                        }
                     }
                 }
             } else {
