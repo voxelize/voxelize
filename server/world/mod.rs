@@ -1718,8 +1718,15 @@ impl World {
     /// Handler for `Method` type messages.
     fn on_method(&mut self, client_id: &str, data: Message) {
         if let Some(method) = data.method {
-            let method_name = method.name.to_lowercase();
-            let Some(handle) = self.method_handles.get(&method_name).cloned() else {
+            let handle = self
+                .method_handles
+                .get(&method.name)
+                .cloned()
+                .or_else(|| {
+                    let method_name = method.name.to_lowercase();
+                    self.method_handles.get(&method_name).cloned()
+                });
+            let Some(handle) = handle else {
                 warn!(
                     "`Method` type messages received of name {}, but no method handler set.",
                     method.name
@@ -1741,8 +1748,15 @@ impl World {
         });
 
         data.events.into_iter().for_each(|event| {
-            let event_name = event.name.to_lowercase();
-            if let Some(handle) = self.event_handles.get(&event_name).cloned() {
+            let handle = self
+                .event_handles
+                .get(&event.name)
+                .cloned()
+                .or_else(|| {
+                    let event_name = event.name.to_lowercase();
+                    self.event_handles.get(&event_name).cloned()
+                });
+            if let Some(handle) = handle {
                 handle(self, client_id, &event.payload);
                 return;
             }
