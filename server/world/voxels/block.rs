@@ -19,6 +19,27 @@ pub use voxelize_core::{
     PZ_ROTATION, ROTATION_MASK, STAGE_MASK, Y_ROTATION_MASK, Y_ROT_SEGMENTS,
 };
 
+#[inline]
+fn lowercase_if_needed(value: &str) -> String {
+    let mut has_non_ascii = false;
+    for &byte in value.as_bytes() {
+        if byte.is_ascii_uppercase() {
+            return value.to_lowercase();
+        }
+        if !byte.is_ascii() {
+            has_non_ascii = true;
+        }
+    }
+    if !has_non_ascii {
+        return value.to_owned();
+    }
+    if value.chars().any(|ch| ch.is_uppercase()) {
+        value.to_lowercase()
+    } else {
+        value.to_owned()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct BlockFace {
@@ -65,7 +86,7 @@ impl BlockFace {
     pub fn to_mesher_face(&self) -> voxelize_mesher::BlockFace {
         voxelize_mesher::BlockFace {
             name: self.name.clone(),
-            name_lower: self.name.to_lowercase(),
+            name_lower: lowercase_if_needed(&self.name),
             independent: self.independent,
             isolated: self.isolated,
             texture_group: self.texture_group.clone(),
@@ -1673,7 +1694,7 @@ impl Block {
         voxelize_mesher::Block {
             id: self.id,
             name: self.name.clone(),
-            name_lower: self.name.to_lowercase(),
+            name_lower: lowercase_if_needed(&self.name),
             rotatable: self.rotatable,
             y_rotatable: self.y_rotatable,
             is_empty: self.is_empty,
