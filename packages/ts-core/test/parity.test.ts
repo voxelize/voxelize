@@ -1880,6 +1880,24 @@ describe("Type builders", () => {
     });
   });
 
+  it("retains boundary optional rule numbers", () => {
+    const part = createBlockConditionalPart({
+      rule: {
+        type: "simple",
+        offset: [1, 0, 0],
+        id: 65535,
+        stage: 15,
+      },
+    });
+
+    expect(part.rule).toEqual({
+      type: "simple",
+      offset: [1, 0, 0],
+      id: 65535,
+      stage: 15,
+    });
+  });
+
   it("omits null optional simple-rule fields during sanitization", () => {
     const part = createBlockConditionalPart({
       rule: {
