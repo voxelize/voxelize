@@ -1757,24 +1757,23 @@ impl World {
 
     /// Handler for `Chat` type messages.
     fn on_chat(&mut self, id: &str, data: Message) {
-        if let Some(chat) = data.chat.clone() {
-            let sender = chat.sender.clone();
-            let body = chat.body.clone();
+        let Some(chat) = data.chat.as_ref() else {
+            return;
+        };
 
-            info!("{}: {}", sender, body);
+        info!("{}: {}", chat.sender, chat.body);
 
-            let command_symbol = self.config().command_symbol.to_owned();
-
-            if body.starts_with(&command_symbol) {
-                if let Some(handle) = self.command_handle.to_owned() {
-                    handle(self, id, body.strip_prefix(&command_symbol).unwrap());
-                } else {
-                    warn!("Clients are sending commands, but no command handler set.");
-                }
+        let command_symbol = self.config().command_symbol.clone();
+        if let Some(command) = chat.body.strip_prefix(&command_symbol) {
+            if let Some(handle) = self.command_handle.clone() {
+                handle(self, id, command);
             } else {
-                self.broadcast(data, ClientFilter::All);
+                warn!("Clients are sending commands, but no command handler set.");
             }
+            return;
         }
+
+        self.broadcast(data, ClientFilter::All);
     }
 
     /// Load existing entities.
