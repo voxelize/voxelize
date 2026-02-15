@@ -475,11 +475,10 @@ impl Registry {
 
     pub fn mesher_registry(&self) -> Arc<voxelize_mesher::Registry> {
         Arc::clone(self.mesher_registry_cache.get_or_init(|| {
-            let blocks_by_id: Vec<(u32, voxelize_mesher::Block)> = self
-                .blocks_by_id
-                .iter()
-                .map(|(id, block)| (*id, block.to_mesher_block()))
-                .collect();
+            let mut blocks_by_id = Vec::with_capacity(self.blocks_by_id.len());
+            for (id, block) in self.blocks_by_id.iter() {
+                blocks_by_id.push((*id, block.to_mesher_block()));
+            }
 
             let mut registry = voxelize_mesher::Registry::new(blocks_by_id);
             registry.build_cache();
@@ -493,11 +492,10 @@ impl Registry {
 
     pub fn lighter_registry(&self) -> Arc<voxelize_lighter::LightRegistry> {
         Arc::clone(self.lighter_registry_cache.get_or_init(|| {
-            let blocks_by_id: Vec<(u32, voxelize_lighter::LightBlock)> = self
-                .blocks_by_id
-                .iter()
-                .map(|(id, block)| (*id, block.to_lighter_block()))
-                .collect();
+            let mut blocks_by_id = Vec::with_capacity(self.blocks_by_id.len());
+            for (id, block) in self.blocks_by_id.iter() {
+                blocks_by_id.push((*id, block.to_lighter_block()));
+            }
 
             Arc::new(voxelize_lighter::LightRegistry::new(blocks_by_id))
         }))
