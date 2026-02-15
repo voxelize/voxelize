@@ -1600,6 +1600,34 @@ describe("Type builders", () => {
     expect(part.faces).toEqual([new BlockFace({ name: "SparseFace" })]);
   });
 
+  it("skips throwing key-fallback reads while salvaging face entries", () => {
+    const sparseFaces: BlockFaceInit[] = [];
+    sparseFaces[0] = { name: "BadFace" };
+    sparseFaces[5_000] = { name: "GoodFace" };
+    const trappedFaces = new Proxy(sparseFaces, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          throw new Error("length trap");
+        }
+        if (propertyKey === "0") {
+          throw new Error("read trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    const part = createBlockConditionalPart({
+      faces: trappedFaces as never,
+    });
+
+    expect(part.faces).toEqual([new BlockFace({ name: "GoodFace" })]);
+  });
+
   it("caps bounded face-entry fallback scans when iterator access traps", () => {
     let boundedReadCount = 0;
     const oversizedFaces = new Proxy([] as Array<BlockFaceInit | undefined>, {
@@ -2258,6 +2286,54 @@ describe("Type builders", () => {
           type: "simple",
           offset: [1, 0, 0],
           id: 5,
+        },
+      ],
+    });
+  });
+
+  it("skips throwing key-fallback reads while salvaging createBlockRule entries", () => {
+    const sparseRules: BlockRuleInput[] = [];
+    sparseRules[0] = {
+      type: "simple",
+      offset: [1, 0, 0],
+      id: 5,
+    };
+    sparseRules[5_000] = {
+      type: "simple",
+      offset: [2, 0, 0],
+      id: 9,
+    };
+    const trappedRules = new Proxy(sparseRules, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          throw new Error("length trap");
+        }
+        if (propertyKey === "0") {
+          throw new Error("read trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(
+      createBlockRule({
+        type: "combination",
+        logic: BlockRuleLogic.Or,
+        rules: trappedRules as never,
+      })
+    ).toEqual({
+      type: "combination",
+      logic: BlockRuleLogic.Or,
+      rules: [
+        {
+          type: "simple",
+          offset: [2, 0, 0],
+          id: 9,
         },
       ],
     });
