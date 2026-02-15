@@ -101,6 +101,8 @@ const voxel = Voxel.pack({
     inputs
   - length-fallback recovery skips sparse-hole placeholders and inherited
     numeric prototype entries before logical evaluation
+  - if bounded length recovery yields only `none` entries, bounded key-scan
+    recovery can still supplement readable high-index rules before evaluation
 - `createBlockConditionalPart`
   - defensively clones rule, face, AABB, and transparency-array inputs to
     avoid external mutation side effects after construction
