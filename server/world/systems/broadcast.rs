@@ -10,6 +10,7 @@ use crate::{
 };
 
 pub struct BroadcastSystem;
+const SMALL_FILTER_LINEAR_SCAN_LIMIT: usize = 8;
 
 #[derive(Hash, Eq, PartialEq)]
 enum BatchFilterKey {
@@ -207,7 +208,7 @@ impl<'a> System<'a> for BroadcastSystem {
                     if ids.is_empty() {
                     } else if ids.len() == 1 {
                         send_to_id(ids[0].as_str());
-                    } else if ids.len() <= 4 {
+                    } else if ids.len() <= SMALL_FILTER_LINEAR_SCAN_LIMIT {
                         for include_index in 0..ids.len() {
                             let include_id = ids[include_index].as_str();
                             let mut duplicate = false;
@@ -254,7 +255,7 @@ impl<'a> System<'a> for BroadcastSystem {
                                 send_to_client(id, client);
                             }
                         }
-                    } else if ids.len() <= 4 {
+                    } else if ids.len() <= SMALL_FILTER_LINEAR_SCAN_LIMIT {
                         for (id, client) in clients.iter() {
                             let id = id.as_str();
                             let mut excluded = false;
