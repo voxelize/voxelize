@@ -5226,6 +5226,12 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
         } else {
           computeFlatNormals(geometry);
         }
+        if (geo.bsCenter && geo.bsRadius !== undefined) {
+          geometry.boundingSphere = new Sphere(
+            new Vector3(geo.bsCenter[0], geo.bsCenter[1], geo.bsCenter[2]),
+            geo.bsRadius
+          );
+        }
 
         let material = this.getBlockFaceMaterialByIdWithoutCheck(
           voxel,
@@ -5302,7 +5308,9 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
           finalGeometry = merged;
         }
 
-        finalGeometry.computeBoundingSphere();
+        if (!finalGeometry.boundingSphere) {
+          finalGeometry.computeBoundingSphere();
+        }
 
         const mesh = new Mesh(finalGeometry, material);
         this.finalizeChunkMesh(
