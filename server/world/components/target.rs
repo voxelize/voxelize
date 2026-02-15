@@ -76,3 +76,30 @@ impl TargetComp {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{TargetComp, TargetType};
+
+    #[test]
+    fn constructors_mark_target_dirty() {
+        let all = TargetComp::all();
+        assert!(all.dirty);
+        assert_eq!(all.target_type, TargetType::All);
+
+        let players = TargetComp::players();
+        assert!(players.dirty);
+        assert_eq!(players.target_type, TargetType::Players);
+
+        let entities = TargetComp::entities();
+        assert!(entities.dirty);
+        assert_eq!(entities.target_type, TargetType::Entities);
+    }
+
+    #[test]
+    fn default_target_is_all_and_dirty() {
+        let target = TargetComp::default();
+        assert!(target.dirty);
+        assert_eq!(target.target_type, TargetType::All);
+    }
+}

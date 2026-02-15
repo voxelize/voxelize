@@ -54,3 +54,25 @@ impl PathComp {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::PathComp;
+
+    #[test]
+    fn default_marks_path_dirty() {
+        let path = PathComp::default();
+        assert!(path.dirty);
+        assert!(path.path.is_none());
+    }
+
+    #[test]
+    fn new_marks_path_dirty() {
+        let path = PathComp::new(32, 128.0, 64, Duration::from_millis(5));
+        assert!(path.dirty);
+        assert!(path.path.is_none());
+        assert_eq!(path.max_nodes, 32);
+    }
+}
