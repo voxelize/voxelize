@@ -219,6 +219,7 @@ type DynamicValue =
   | boolean
   | null
   | undefined;
+const MAX_ARRAY_ENTRY_FALLBACK_SCAN = 1_024;
 
 const isFiniteNumberValue = (value: DynamicValue): value is number => {
   return typeof value === "number" && Number.isFinite(value);
@@ -266,6 +267,171 @@ const readArrayEntry = (
   }
 };
 
+const cloneArrayFromLengthFallback = (
+  value: readonly DynamicValue[]
+): DynamicValue[] | null => {
+  let lengthValue = 0;
+  try {
+    lengthValue = value.length;
+  } catch {
+    return null;
+  }
+
+  if (!Number.isSafeInteger(lengthValue) || lengthValue < 0) {
+    return null;
+  }
+
+  const boundedLength = Math.min(lengthValue, MAX_ARRAY_ENTRY_FALLBACK_SCAN);
+  const recoveredEntries: DynamicValue[] = [];
+  let canProbeOwnProperty = true;
+  for (let arrayIndex = 0; arrayIndex < boundedLength; arrayIndex += 1) {
+    let indexPresent = false;
+    let requiresDirectRead = false;
+
+    if (canProbeOwnProperty) {
+      try {
+        indexPresent = Object.prototype.hasOwnProperty.call(value, arrayIndex);
+      } catch {
+        canProbeOwnProperty = false;
+        requiresDirectRead = true;
+      }
+    } else {
+      requiresDirectRead = true;
+    }
+
+    if (!indexPresent && !requiresDirectRead) {
+      continue;
+    }
+
+    try {
+      const entryValue = value[arrayIndex];
+      if (requiresDirectRead && entryValue === undefined) {
+        continue;
+      }
+
+      recoveredEntries.push(entryValue);
+    } catch {
+      continue;
+    }
+  }
+
+  return recoveredEntries;
+};
+
+const toNonNegativeSafeArrayIndex = (indexKey: string): number | null => {
+  if (!/^(0|[1-9]\d*)$/.test(indexKey)) {
+    return null;
+  }
+
+  const numericIndex = Number(indexKey);
+  return Number.isSafeInteger(numericIndex) ? numericIndex : null;
+};
+
+const insertBoundedSortedArrayIndex = (
+  indices: number[],
+  arrayIndex: number,
+  maxCount: number
+): void => {
+  let low = 0;
+  let high = indices.length;
+
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    if (indices[mid] < arrayIndex) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+  const insertPosition = low;
+
+  if (indices[insertPosition] === arrayIndex) {
+    return;
+  }
+
+  if (indices.length >= maxCount && insertPosition >= maxCount) {
+    return;
+  }
+
+  indices.splice(insertPosition, 0, arrayIndex);
+  if (indices.length > maxCount) {
+    indices.pop();
+  }
+};
+
+const cloneArrayFromKeyFallback = (
+  value: readonly DynamicValue[]
+): DynamicValue[] | null => {
+  let indexKeys: string[] = [];
+  try {
+    indexKeys = Object.keys(value);
+  } catch {
+    return null;
+  }
+
+  const boundedIndices: number[] = [];
+  for (const indexKey of indexKeys) {
+    const numericIndex = toNonNegativeSafeArrayIndex(indexKey);
+    if (numericIndex === null) {
+      continue;
+    }
+
+    insertBoundedSortedArrayIndex(
+      boundedIndices,
+      numericIndex,
+      MAX_ARRAY_ENTRY_FALLBACK_SCAN
+    );
+  }
+
+  const recoveredEntries: DynamicValue[] = [];
+  for (const arrayIndex of boundedIndices) {
+    try {
+      recoveredEntries.push(value[arrayIndex]);
+    } catch {
+      continue;
+    }
+  }
+
+  return recoveredEntries;
+};
+
+const cloneArrayFromIndexedAccess = (
+  value: readonly DynamicValue[]
+): DynamicValue[] | null => {
+  const lengthFallbackEntries = cloneArrayFromLengthFallback(value);
+  const hasNonUndefinedLengthFallbackEntry =
+    lengthFallbackEntries !== null &&
+    lengthFallbackEntries.some((entry) => entry !== undefined);
+  if (
+    hasNonUndefinedLengthFallbackEntry &&
+    lengthFallbackEntries !== null &&
+    lengthFallbackEntries.length >= MAX_ARRAY_ENTRY_FALLBACK_SCAN
+  ) {
+    return lengthFallbackEntries;
+  }
+
+  const keyFallbackEntries = cloneArrayFromKeyFallback(value);
+  if (keyFallbackEntries !== null && keyFallbackEntries.length > 0) {
+    if (
+      !hasNonUndefinedLengthFallbackEntry ||
+      (lengthFallbackEntries !== null &&
+        lengthFallbackEntries.length < MAX_ARRAY_ENTRY_FALLBACK_SCAN)
+    ) {
+      return keyFallbackEntries;
+    }
+  }
+
+  if (hasNonUndefinedLengthFallbackEntry) {
+    return lengthFallbackEntries;
+  }
+
+  if (keyFallbackEntries !== null && keyFallbackEntries.length > 0) {
+    return keyFallbackEntries;
+  }
+
+  return lengthFallbackEntries;
+};
+
 const cloneArrayEntriesSafely = (value: DynamicValue): DynamicValue[] | null => {
   if (!Array.isArray(value)) {
     return null;
@@ -274,7 +440,7 @@ const cloneArrayEntriesSafely = (value: DynamicValue): DynamicValue[] | null => 
   try {
     return Array.from(value);
   } catch {
-    return null;
+    return cloneArrayFromIndexedAccess(value);
   }
 };
 

@@ -1425,7 +1425,7 @@ describe("Type builders", () => {
     expect(part.aabbs[0]).not.toBe(validAabb);
   });
 
-  it("sanitizes malformed face and aabb entry iterators during conditional part cloning", () => {
+  it("salvages iterator-trapped face and aabb entries during conditional part cloning", () => {
     const faces = [{ name: "IteratorFace" } as BlockFaceInit];
     Object.defineProperty(faces, Symbol.iterator, {
       configurable: true,
@@ -1446,6 +1446,45 @@ describe("Type builders", () => {
     const part = createBlockConditionalPart({
       faces,
       aabbs,
+    });
+
+    expect(part.faces).toEqual([new BlockFace({ name: "IteratorFace" })]);
+    expect(part.aabbs).toEqual([AABB.create(0, 0, 0, 1, 1, 1)]);
+  });
+
+  it("sanitizes irrecoverable face and aabb iterators during conditional part cloning", () => {
+    const trappedFaces = new Proxy([{ name: "IteratorFace" }], {
+      ownKeys() {
+        throw new Error("ownKeys trap");
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          throw new Error("length trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const trappedAabbs = new Proxy([AABB.create(0, 0, 0, 1, 1, 1)], {
+      ownKeys() {
+        throw new Error("ownKeys trap");
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          throw new Error("length trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    const part = createBlockConditionalPart({
+      faces: trappedFaces as never,
+      aabbs: trappedAabbs as never,
     });
 
     expect(part.faces).toEqual([]);
@@ -1763,7 +1802,7 @@ describe("Type builders", () => {
     });
   });
 
-  it("sanitizes malformed combination rule iterators to none rules", () => {
+  it("salvages iterator-trapped combination rule entries", () => {
     const rules: BlockRuleInput[] = [
       {
         type: "simple",
@@ -1784,6 +1823,50 @@ describe("Type builders", () => {
         type: "combination",
         logic: BlockRuleLogic.And,
         rules,
+      })
+    ).toEqual({
+      type: "combination",
+      logic: BlockRuleLogic.And,
+      rules: [
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 5,
+        },
+      ],
+    });
+  });
+
+  it("sanitizes irrecoverable combination rule iterators to none rules", () => {
+    const trappedRules = new Proxy(
+      [
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 5,
+        },
+      ],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            throw new Error("length trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+
+    expect(
+      createBlockRule({
+        type: "combination",
+        logic: BlockRuleLogic.And,
+        rules: trappedRules as never,
       })
     ).toEqual(BLOCK_RULE_NONE);
   });
@@ -2494,7 +2577,7 @@ describe("Type builders", () => {
     expect(pattern.parts[0].rule).not.toBe(BLOCK_RULE_NONE);
   });
 
-  it("sanitizes malformed dynamic pattern part iterators", () => {
+  it("salvages iterator-trapped dynamic pattern part entries", () => {
     const parts: BlockConditionalPartInput[] = [{ worldSpace: true }];
     Object.defineProperty(parts, Symbol.iterator, {
       configurable: true,
@@ -2505,6 +2588,36 @@ describe("Type builders", () => {
     });
     const pattern = createBlockDynamicPattern({
       parts,
+    });
+
+    expect(pattern.parts).toEqual([
+      {
+        rule: BLOCK_RULE_NONE,
+        faces: [],
+        aabbs: [],
+        isTransparent: [false, false, false, false, false, false],
+        worldSpace: true,
+      },
+    ]);
+  });
+
+  it("sanitizes irrecoverable dynamic pattern part iterators", () => {
+    const trappedParts = new Proxy([{ worldSpace: true }], {
+      ownKeys() {
+        throw new Error("ownKeys trap");
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          throw new Error("length trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const pattern = createBlockDynamicPattern({
+      parts: trappedParts as never,
     });
 
     expect(pattern.parts).toEqual([]);
@@ -2954,6 +3067,43 @@ describe("Type builders", () => {
 
     expect(face.name).toBe("TrapFace");
     expect(face.dir).toEqual([0, 0, 0]);
+    expect(face.corners).toEqual([
+      createCornerData([0, 0, 0], [0, 0]),
+      createCornerData([1, 0, 0], [1, 0]),
+      createCornerData([1, 1, 0], [1, 1]),
+      createCornerData([0, 1, 0], [0, 1]),
+    ]);
+  });
+
+  it("sanitizes irrecoverable corner collection traps in createBlockFace", () => {
+    const trappedCorners = new Proxy(
+      [
+        createCornerData([0, 0, 0], [0, 0]),
+        createCornerData([1, 0, 0], [1, 0]),
+        createCornerData([1, 1, 0], [1, 1]),
+        createCornerData([0, 1, 0], [0, 1]),
+      ],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            throw new Error("length trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+
+    const face = createBlockFace({
+      name: "TrapFace",
+      corners: trappedCorners as never,
+    });
+
     expect(face.corners).toEqual(
       new BlockFace({
         name: "Defaults",
