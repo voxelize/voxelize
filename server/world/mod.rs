@@ -1734,6 +1734,11 @@ impl World {
     /// Handler for `Event` type messages.
     fn on_event(&mut self, client_id: &str, data: Message) {
         let client_ent = self.clients().get(client_id).map(|c| c.entity);
+        let client_location = client_ent.and_then(|ent| {
+            self.read_component::<CurrentChunkComp>()
+                .get(ent)
+                .map(|c| c.coords)
+        });
 
         data.events.into_iter().for_each(|event| {
             let event_name = event.name.to_lowercase();
@@ -1741,14 +1746,8 @@ impl World {
                 handle(self, client_id, &event.payload);
                 return;
             }
-            let location = client_ent.and_then(|ent| {
-                self.read_component::<CurrentChunkComp>()
-                    .get(ent)
-                    .map(|c| c.coords)
-            });
-
             let mut event_builder = Event::new(&event.name).payload(event.payload);
-            if let Some(loc) = location {
+            if let Some(loc) = client_location {
                 event_builder = event_builder.location(loc);
             }
             self.events_mut().dispatch(event_builder.build());
