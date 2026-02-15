@@ -140,6 +140,9 @@ impl EncodedMessageQueue {
         if pending_batches == 0 {
             return Vec::new();
         }
+        if pending_batches == 1 {
+            return self.receiver.try_recv().unwrap_or_default();
+        }
         let mut result = Vec::with_capacity(pending_batches);
         while let Ok(mut messages) = self.receiver.try_recv() {
             result.append(&mut messages);
