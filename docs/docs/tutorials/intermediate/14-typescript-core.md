@@ -656,8 +656,9 @@ Summary helper name/command fields trim whitespace and skip
 empty-name entries before count/list aggregation.
 `exampleDurationMs` metadata accepts only non-negative finite numbers
 before fallback coercion.
-Report output-line metadata trims whitespace-only strings to `null`
-before summary emission.
+Report output-line metadata strips ANSI/control escapes, trims
+whitespace, and sanitizes blank values to `null` before summary
+emission.
 Timed report builders clamp regressed clock durations to zero before
 emission.
 Sparse trap fallbacks can supplement bounded-prefix entries with bounded

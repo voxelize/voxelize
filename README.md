@@ -401,7 +401,7 @@ pnpm run check:preflight:all-checks:verify:json:compact
 # failure-message derivation trims whitespace-only message/name/reason fields before fallback composition
 # summary helper name/command fields trim whitespace and skip empty-name entries before count/list aggregation
 # exampleDurationMs metadata accepts only non-negative finite numbers before fallback coercion
-# report output-line metadata trims whitespace-only strings to null before summary emission
+# report output-line metadata strips ansi/control escapes, trims whitespace, and sanitizes blank values to null before summary emission
 # timed report builders clamp regressed clock durations to zero before emission
 # sparse trap fallbacks can supplement bounded-prefix entries with bounded key-scan recovery when high-index readable entries exist
 # bounded fallback scans use own-property checks so inherited numeric prototype entries are ignored
