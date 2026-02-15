@@ -8,8 +8,8 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    AABBBuilder, BlockUtils, FluidConfig, LightColor, LightUtils, Registry, Vec2, Vec3,
-    VoxelAccess, VoxelUpdate, AABB, UV,
+    BlockUtils, FluidConfig, LightColor, LightUtils, Registry, Vec3, VoxelAccess, VoxelUpdate,
+    AABB, UV,
 };
 
 use super::fluids::create_fluid_active_fn;
@@ -1478,14 +1478,14 @@ impl Block {
             if let Some(dynamic_patterns) = &self.dynamic_patterns {
                 for pattern in dynamic_patterns {
                     let (_, aabbs, __) = Block::match_dynamic_pattern(pattern, pos, space);
-                    if aabbs.len() > 0 {
-                        return aabbs.to_owned();
+                    if !aabbs.is_empty() {
+                        return aabbs;
                     }
                 }
                 return self.aabbs.clone();
             }
 
-            (self.dynamic_fn.as_ref().unwrap())(pos.to_owned(), space, registry).1
+            (self.dynamic_fn.as_ref().unwrap())(*pos, space, registry).1
         } else {
             self.aabbs.clone()
         }
@@ -1501,14 +1501,14 @@ impl Block {
             if let Some(dynamic_patterns) = &self.dynamic_patterns {
                 for pattern in dynamic_patterns {
                     let (faces, _, __) = Block::match_dynamic_pattern(pattern, pos, space);
-                    if faces.len() > 0 {
-                        return faces.to_owned();
+                    if !faces.is_empty() {
+                        return faces;
                     }
                 }
                 return self.faces.clone();
             }
 
-            (self.dynamic_fn.as_ref().unwrap())(pos.to_owned(), space, registry).0
+            (self.dynamic_fn.as_ref().unwrap())(*pos, space, registry).0
         } else {
             self.faces.clone()
         }
