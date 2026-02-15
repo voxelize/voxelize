@@ -3200,6 +3200,86 @@ describe("Type builders", () => {
     ]);
   });
 
+  it("recovers key-based part entries when bounded direct reads throw", () => {
+    const sparseParts: BlockConditionalPartInput[] = [];
+    sparseParts[5_000] = { worldSpace: true };
+    const trappedParts = new Proxy(sparseParts, {
+      getOwnPropertyDescriptor(target, property) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (typeof propertyKey === "string" && /^(0|[1-9]\d*)$/.test(propertyKey)) {
+          const numericIndex = Number(propertyKey);
+          if (numericIndex >= 0 && numericIndex < 1_024) {
+            throw new Error("descriptor trap");
+          }
+        }
+        return Reflect.getOwnPropertyDescriptor(target, property);
+      },
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1_000_000_000;
+        }
+        if (typeof propertyKey === "string" && /^(0|[1-9]\d*)$/.test(propertyKey)) {
+          if (propertyKey === "5000") {
+            return target[5_000];
+          }
+          throw new Error("read trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const pattern = createBlockDynamicPattern({
+      parts: trappedParts as never,
+    });
+
+    expect(pattern.parts).toEqual([
+      {
+        rule: BLOCK_RULE_NONE,
+        faces: [],
+        aabbs: [],
+        isTransparent: [false, false, false, false, false, false],
+        worldSpace: true,
+      },
+    ]);
+  });
+
+  it("skips helper key enumeration when bounded part fallback is full", () => {
+    let ownKeysCount = 0;
+    const denseParts: BlockConditionalPartInput[] = [];
+    for (let index = 0; index < 1_024; index += 1) {
+      denseParts[index] = {};
+    }
+    denseParts[5_000] = { worldSpace: true };
+    const trappedParts = new Proxy(denseParts, {
+      ownKeys(target) {
+        ownKeysCount += 1;
+        return Reflect.ownKeys(target);
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const pattern = createBlockDynamicPattern({
+      parts: trappedParts as never,
+    });
+
+    expect(pattern.parts).toHaveLength(1024);
+    expect(
+      pattern.parts.some((part) => {
+        return part.worldSpace;
+      })
+    ).toBe(false);
+    expect(ownKeysCount).toBe(0);
+  });
+
   it("accepts partial dynamic pattern part inputs", () => {
     const sourceRule = {
       type: "simple" as const,
