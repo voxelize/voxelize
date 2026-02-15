@@ -36,6 +36,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         let _t = timing.timer("chunk-requests");
 
         let max_response_per_tick = config.max_response_per_tick;
+        let can_send_responses = max_response_per_tick > 0;
         let sub_chunks_u32 = if config.sub_chunks > u32::MAX as usize {
             u32::MAX
         } else {
@@ -49,6 +50,12 @@ impl<'a> System<'a> for ChunkRequestsSystem {
 
             for coords in requests.requests.drain(..) {
                 if chunks.is_chunk_ready(&coords) {
+                    if !can_send_responses {
+                        to_add_back_to_requested
+                            .get_or_insert_with(HashSet::new)
+                            .insert(coords);
+                        continue;
+                    }
                     let clients_to_send = match to_send.raw_entry_mut().from_key(id.0.as_str()) {
                         RawEntryMut::Occupied(entry) => entry.into_mut(),
                         RawEntryMut::Vacant(entry) => {
