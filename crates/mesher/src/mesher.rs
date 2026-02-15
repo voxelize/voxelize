@@ -2991,7 +2991,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
         BlockRotation,
         i16,
         Option<BlockFace>,
-        UV,
         bool,
     )> = Vec::new();
     let mut uncached_greedy_face_indices_by_block: HashMap<u32, [i16; 6]> = HashMap::new();
@@ -3165,7 +3164,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         let non_greedy_voxel_key = non_greedy_voxel_key
                             .expect("non-greedy voxel key must exist for non-greedy blocks");
                         if use_static_faces {
-                            for (face_index, face) in block.faces.iter().enumerate() {
+                            for (face_index, _) in block.faces.iter().enumerate() {
                                 non_greedy_faces.push((
                                     vx,
                                     vy,
@@ -3175,7 +3174,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                     rotation.clone(),
                                     face_index as i16,
                                     None,
-                                    face.range,
                                     false,
                                 ));
                             }
@@ -3190,7 +3188,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                     rotation.clone(),
                                     -1,
                                     Some(face.clone()),
-                                    face.range,
                                     *world_space,
                                 ));
                             }
@@ -3291,7 +3288,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                     rotation.clone(),
                                     face_index,
                                     None,
-                                    uv_range,
                                     false,
                                 ));
                             } else {
@@ -3345,7 +3341,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                     rotation.clone(),
                                     face_index as i16,
                                     None,
-                                    uv_range,
                                     false,
                                 ));
                                 continue;
@@ -3399,7 +3394,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                     rotation.clone(),
                                     -1,
                                     Some(face.clone()),
-                                    uv_range,
                                     *world_space,
                                 ));
                                 continue;
@@ -3528,18 +3522,8 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
             let mut cached_non_greedy_voxel_key: Option<usize> = None;
             let mut cached_non_greedy_neighbors: Option<NeighborCache> = None;
             let mut cached_non_greedy_face_cache: Option<FaceProcessCache> = None;
-            for (
-                vx,
-                vy,
-                vz,
-                voxel_key,
-                voxel_id,
-                rotation,
-                face_index,
-                face_owned,
-                uv_range,
-                world_space,
-            ) in non_greedy_faces.drain(..)
+            for (vx, vy, vz, voxel_key, voxel_id, rotation, face_index, face_owned, world_space) in
+                non_greedy_faces.drain(..)
             {
                 let block = if cached_non_greedy_block_id == voxel_id {
                     match cached_non_greedy_block {
@@ -3628,7 +3612,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     voxel_id,
                     &rotation,
                     face,
-                    &uv_range,
+                    &face.range,
                     block,
                     registry,
                     space,
