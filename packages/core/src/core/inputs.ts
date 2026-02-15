@@ -504,6 +504,9 @@ export class Inputs<T extends string = string> extends EventEmitter {
       return cached;
     }
     const normalized = normalizeKeyIfNeeded(key);
+    if (this.normalizedKeyCache.size >= 256) {
+      this.normalizedKeyCache.clear();
+    }
     this.normalizedKeyCache.set(key, normalized);
     return normalized;
   };
