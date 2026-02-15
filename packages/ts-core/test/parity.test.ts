@@ -3632,6 +3632,62 @@ describe("BlockRuleEvaluator", () => {
     expect(indexedReadCount).toBe(1024);
   });
 
+  it("prefers smallest bounded indices during key-based rule fallback", () => {
+    let numericReadCount = 0;
+    let highIndexReadCount = 0;
+    const keyFallbackRules: BlockRule[] = [];
+    for (let index = 0; index < 1_024; index += 1) {
+      keyFallbackRules[index] =
+        index === 0
+          ? {
+              type: "simple",
+              offset: [0, 0, 0],
+              id: 36,
+            }
+          : BLOCK_RULE_NONE;
+    }
+    keyFallbackRules[1_000_000] = BLOCK_RULE_NONE;
+
+    const trappedRules = new Proxy(keyFallbackRules, {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          throw new Error("length trap");
+        }
+        if (property === "1000000") {
+          highIndexReadCount += 1;
+          throw new Error("high index should be excluded");
+        }
+        if (typeof property === "string" && /^(0|[1-9]\d*)$/.test(property)) {
+          numericReadCount += 1;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const access = {
+      getVoxel: (x: number, y: number, z: number) =>
+        x === 0 && y === 0 && z === 0 ? 36 : 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.Or,
+          rules: trappedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(true);
+    expect(numericReadCount).toBe(1024);
+    expect(highIndexReadCount).toBe(0);
+  });
+
   it("evaluates OR combinations across multiple sub-rules", () => {
     const access = {
       getVoxel: () => 8,

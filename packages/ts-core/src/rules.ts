@@ -237,6 +237,47 @@ const toRuleEntriesFromLengthFallback = (value: RuleOptionValue): BlockRule[] =>
   return recoveredRules;
 };
 
+const toNonNegativeSafeArrayIndex = (indexKey: string): number | null => {
+  if (!/^(0|[1-9]\d*)$/.test(indexKey)) {
+    return null;
+  }
+
+  const numericIndex = Number(indexKey);
+  return Number.isSafeInteger(numericIndex) ? numericIndex : null;
+};
+
+const insertBoundedSortedRuleIndex = (
+  indices: number[],
+  index: number,
+  maxCount: number
+): void => {
+  let low = 0;
+  let high = indices.length;
+
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    if (indices[mid] < index) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+  const insertPosition = low;
+
+  if (indices[insertPosition] === index) {
+    return;
+  }
+
+  if (indices.length >= maxCount && insertPosition >= maxCount) {
+    return;
+  }
+
+  indices.splice(insertPosition, 0, index);
+  if (indices.length > maxCount) {
+    indices.pop();
+  }
+};
+
 const toRuleEntriesFromKeyFallback = (value: RuleOptionValue): BlockRule[] => {
   if (!Array.isArray(value)) {
     return [];
@@ -249,18 +290,19 @@ const toRuleEntriesFromKeyFallback = (value: RuleOptionValue): BlockRule[] => {
     return [];
   }
 
-  const ruleIndices = indexKeys
-    .filter((indexKey) => {
-      return /^(0|[1-9]\d*)$/.test(indexKey);
-    })
-    .map((indexKey) => {
-      return Number(indexKey);
-    })
-    .filter((index) => {
-      return Number.isSafeInteger(index);
-    })
-    .sort((left, right) => left - right)
-    .slice(0, MAX_RULE_ENTRY_FALLBACK_SCAN);
+  const ruleIndices: number[] = [];
+  for (const indexKey of indexKeys) {
+    const numericIndex = toNonNegativeSafeArrayIndex(indexKey);
+    if (numericIndex === null) {
+      continue;
+    }
+
+    insertBoundedSortedRuleIndex(
+      ruleIndices,
+      numericIndex,
+      MAX_RULE_ENTRY_FALLBACK_SCAN
+    );
+  }
   const recoveredRules: BlockRule[] = [];
 
   for (const ruleIndex of ruleIndices) {
