@@ -295,6 +295,18 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     if (length === 0) {
       return tokens;
     }
+    let firstSpecialIndex = -1;
+    for (let index = 0; index < length; index++) {
+      const code = raw.charCodeAt(index);
+      if (code === 34 || code === 39 || isWhitespaceCode(code)) {
+        firstSpecialIndex = index;
+        break;
+      }
+    }
+    if (firstSpecialIndex === -1) {
+      tokens.push(raw);
+      return tokens;
+    }
     let current = "";
     let quoteCharCode = 0;
     let segmentStart = -1;
