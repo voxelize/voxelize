@@ -111,9 +111,9 @@ impl Trees {
         let mut leaves_updates = HashMap::with_capacity(estimated_symbols.saturating_div(2) + 1);
 
         let mut push_updates = |new_updates: Vec<VoxelUpdate>| {
-            new_updates.into_iter().for_each(|(pos, id)| {
+            for (pos, id) in new_updates {
                 updates.insert(pos, id);
-            });
+            }
         };
 
         let mut stack = Vec::with_capacity(estimated_symbols.min(64));
@@ -156,15 +156,13 @@ impl Trees {
             } else if symbol == '%' {
                 let scaled_radius = ((leaf_radius as f64) * leaf_scale).round().max(1.0) as u32;
                 let scaled_height = ((leaf_height as f64) * leaf_scale).round().max(1.0) as u32;
-                Trees::place_leaves(
+                for (pos, id) in Trees::place_leaves(
                     leaf_id,
                     &Vec3(scaled_radius, scaled_height, scaled_radius),
                     &base,
-                )
-                .into_iter()
-                .for_each(|(pos, id)| {
+                ) {
                     leaves_updates.insert(pos, id);
-                });
+                }
             }
             // Save the state
             else if symbol == '[' {
