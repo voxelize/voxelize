@@ -64,18 +64,6 @@ impl EntityTree {
         results
     }
 
-    fn within(&self, point: &[f32; 3], radius_squared: f32) -> Vec<(f32, EntityId)> {
-        if self.tree.size() == 0 {
-            return Vec::new();
-        }
-        let within = self.tree.within::<SquaredEuclidean>(point, radius_squared);
-        let mut results = Vec::with_capacity(within.len());
-        for entry in within {
-            results.push((entry.distance, entry.item));
-        }
-        results
-    }
-
     fn for_each_within_id<F>(&self, point: &[f32; 3], radius_squared: f32, mut f: F)
     where
         F: FnMut(EntityId),
@@ -223,17 +211,6 @@ impl KdTree {
             }
         }
         entities
-    }
-
-    #[inline]
-    fn player_results_within_radius(
-        &self,
-        point: &Vec3<f32>,
-        radius: f32,
-    ) -> Option<Vec<(f32, EntityId)>> {
-        let query_point = point_array_if_finite(point)?;
-        let radius_squared = normalized_radius_squared(radius)?;
-        Some(self.players.within(&query_point, radius_squared))
     }
 
     pub fn new() -> Self {
@@ -457,26 +434,31 @@ impl KdTree {
     }
 
     pub fn player_ids_within_radius(&self, point: &Vec3<f32>, radius: f32) -> Vec<u32> {
-        let Some(results) = self.player_results_within_radius(point, radius) else {
+        let Some(query_point) = point_array_if_finite(point) else {
             return Vec::new();
         };
-        let mut player_ids = Vec::with_capacity(results.len());
-        for (_, ent_id) in results {
-            player_ids.push(ent_id);
-        }
+        let Some(radius_squared) = normalized_radius_squared(radius) else {
+            return Vec::new();
+        };
+        let mut player_ids = Vec::new();
+        self.players
+            .for_each_within_id(&query_point, radius_squared, |ent_id| player_ids.push(ent_id));
         player_ids
     }
 
     pub fn players_within_radius(&self, point: &Vec3<f32>, radius: f32) -> Vec<&Entity> {
-        let Some(results) = self.player_results_within_radius(point, radius) else {
+        let Some(query_point) = point_array_if_finite(point) else {
             return Vec::new();
         };
-        let mut entities = Vec::with_capacity(results.len());
-        for (_, ent_id) in results {
+        let Some(radius_squared) = normalized_radius_squared(radius) else {
+            return Vec::new();
+        };
+        let mut entities = Vec::new();
+        self.players.for_each_within_id(&query_point, radius_squared, |ent_id| {
             if let Some(entity) = self.entity_map.get(&ent_id) {
                 entities.push(entity);
             }
-        }
+        });
         entities
     }
 }
