@@ -320,9 +320,10 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     bookkeeping.client_known_entities.get_mut(single_client_id)
                 {
                     if !known_entities.is_empty() {
-                        for (deleted_entity_id, etype, metadata_str) in &self.deleted_entities_buffer
+                        for (deleted_entity_id, etype, metadata_str) in
+                            self.deleted_entities_buffer.drain(..)
                         {
-                            if !known_entities.remove(deleted_entity_id) {
+                            if !known_entities.remove(&deleted_entity_id) {
                                 continue;
                             }
                             push_client_update(
@@ -331,13 +332,17 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                                 single_client_id,
                                 EntityProtocol {
                                     operation: EntityOperation::Delete,
-                                    id: deleted_entity_id.clone(),
-                                    r#type: etype.clone(),
-                                    metadata: Some(metadata_str.clone()),
+                                    id: deleted_entity_id,
+                                    r#type: etype,
+                                    metadata: Some(metadata_str),
                                 },
                             );
                         }
+                    } else {
+                        self.deleted_entities_buffer.clear();
                     }
+                } else {
+                    self.deleted_entities_buffer.clear();
                 }
             } else if self.deleted_entities_buffer.len() == 1 {
                 let (entity_id, etype, metadata_str) = &self.deleted_entities_buffer[0];
