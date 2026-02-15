@@ -307,6 +307,13 @@ const safeReadProperty = (value, key) => {
 
 const MAX_ARRAY_LENGTH_FALLBACK_SCAN = 1_024;
 
+const toIndexedArrayEntry = (index, value) => {
+  return {
+    index,
+    value,
+  };
+};
+
 const cloneArrayFromLengthFallback = (value) => {
   let lengthValue = 0;
   try {
@@ -347,7 +354,7 @@ const cloneArrayFromLengthFallback = (value) => {
         continue;
       }
 
-      clonedArray.push(arrayEntry);
+      clonedArray.push(toIndexedArrayEntry(arrayIndex, arrayEntry));
     } catch {
       continue;
     }
@@ -424,13 +431,45 @@ const cloneArrayFromIndexedKeys = (value) => {
   const clonedArray = [];
   for (const arrayIndex of orderedIndices) {
     try {
-      clonedArray.push(value[arrayIndex]);
+      clonedArray.push(toIndexedArrayEntry(arrayIndex, value[arrayIndex]));
     } catch {
       continue;
     }
   }
 
   return clonedArray;
+};
+
+const toValuesFromIndexedArrayEntries = (entries) => {
+  if (entries === null) {
+    return null;
+  }
+
+  return entries.map((entry) => {
+    return entry.value;
+  });
+};
+
+const mergeIndexedFallbackEntries = (primaryEntries, supplementalEntries) => {
+  const mergedEntryMap = new Map();
+  for (const entry of primaryEntries) {
+    if (!mergedEntryMap.has(entry.index)) {
+      mergedEntryMap.set(entry.index, entry.value);
+    }
+  }
+  for (const entry of supplementalEntries) {
+    if (!mergedEntryMap.has(entry.index)) {
+      mergedEntryMap.set(entry.index, entry.value);
+    }
+  }
+
+  return Array.from(mergedEntryMap.entries())
+    .sort((leftEntry, rightEntry) => {
+      return leftEntry[0] - rightEntry[0];
+    })
+    .map(([index, value]) => {
+      return toIndexedArrayEntry(index, value);
+    });
 };
 
 const cloneStringEntriesFromIndexedKeys = (value) => {
@@ -507,35 +546,33 @@ const cloneArrayFromIndexedAccess = (value) => {
   const lengthFallbackClone = cloneArrayFromLengthFallback(value);
   const hasNonUndefinedLengthFallbackEntry =
     lengthFallbackClone !== null &&
-    lengthFallbackClone.some((entry) => entry !== undefined);
+    lengthFallbackClone.some((entry) => entry.value !== undefined);
   if (
     hasNonUndefinedLengthFallbackEntry &&
     lengthFallbackClone !== null &&
     lengthFallbackClone.length >= MAX_ARRAY_LENGTH_FALLBACK_SCAN
   ) {
-    return lengthFallbackClone;
+    return toValuesFromIndexedArrayEntries(lengthFallbackClone);
   }
 
   const keyFallbackClone = cloneArrayFromIndexedKeys(value);
   if (keyFallbackClone !== null && keyFallbackClone.length > 0) {
-    if (
-      !hasNonUndefinedLengthFallbackEntry ||
-      (lengthFallbackClone !== null &&
-        lengthFallbackClone.length < MAX_ARRAY_LENGTH_FALLBACK_SCAN)
-    ) {
-      return keyFallbackClone;
+    if (hasNonUndefinedLengthFallbackEntry && lengthFallbackClone !== null) {
+      const mergedFallbackEntries = mergeIndexedFallbackEntries(
+        lengthFallbackClone,
+        keyFallbackClone
+      );
+      return toValuesFromIndexedArrayEntries(mergedFallbackEntries);
     }
+
+    return toValuesFromIndexedArrayEntries(keyFallbackClone);
   }
 
-  if (hasNonUndefinedLengthFallbackEntry) {
-    return lengthFallbackClone;
+  if (hasNonUndefinedLengthFallbackEntry && lengthFallbackClone !== null) {
+    return toValuesFromIndexedArrayEntries(lengthFallbackClone);
   }
 
-  if (keyFallbackClone !== null && keyFallbackClone.length > 0) {
-    return keyFallbackClone;
-  }
-
-  return lengthFallbackClone;
+  return toValuesFromIndexedArrayEntries(lengthFallbackClone);
 };
 
 const cloneArraySafely = (value) => {

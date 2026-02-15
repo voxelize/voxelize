@@ -996,6 +996,37 @@ describe("report-utils", () => {
     expect(sparseMixedPrefixAndHighIndexResult.positionalArgs).toEqual([]);
     expect(sparseMixedPrefixAndHighIndexResult.optionTerminatorUsed).toBe(false);
 
+    let statefulSparsePrefixReadCount = 0;
+    const statefulSparseArgsTarget: string[] = [];
+    statefulSparseArgsTarget[0] = "--json";
+    statefulSparseArgsTarget[5_000] = "--mystery";
+    const statefulSparseArgs = new Proxy(statefulSparseArgsTarget, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (propertyKey === "0") {
+          statefulSparsePrefixReadCount += 1;
+          if (statefulSparsePrefixReadCount > 1) {
+            throw new Error("read trap");
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const statefulSparseResult = splitCliArgs(statefulSparseArgs as never);
+    expect(statefulSparseResult.optionArgs).toEqual([
+      "--json",
+      "--mystery",
+    ]);
+    expect(statefulSparseResult.positionalArgs).toEqual([]);
+    expect(statefulSparseResult.optionTerminatorUsed).toBe(false);
+
     const sparseHighIndexWithUndefinedPrefixArgs: Array<string | undefined> = [];
     sparseHighIndexWithUndefinedPrefixArgs[0] = undefined;
     sparseHighIndexWithUndefinedPrefixArgs[5_000] = "--json";
@@ -5595,6 +5626,41 @@ describe("report-utils", () => {
       wasmPackCheckExitCode: null,
       wasmPackCheckOutputLine: null,
     });
+    let statefulSparsePrefixReadCount = 0;
+    const statefulSparseWasmArgsTarget: string[] = [];
+    statefulSparseWasmArgsTarget[0] = "check-wasm-pack.mjs";
+    statefulSparseWasmArgsTarget[5_000] = "--json";
+    const statefulSparseWasmArgs = new Proxy(statefulSparseWasmArgsTarget, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (propertyKey === "0") {
+          statefulSparsePrefixReadCount += 1;
+          if (statefulSparsePrefixReadCount > 1) {
+            throw new Error("read trap");
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    expect(
+      extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckArgs: statefulSparseWasmArgs,
+      })
+    ).toEqual({
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: ["check-wasm-pack.mjs", "--json"],
+      wasmPackCheckArgCount: 2,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
     const ownKeysHasTrapArgs = new Proxy(
       ["check-wasm-pack.mjs", "--json"],
       {
@@ -6280,6 +6346,49 @@ describe("report-utils", () => {
       exampleCommand: null,
       exampleArgs: ["packages/ts-core/examples/end-to-end.mjs"],
       exampleArgCount: 1,
+      exampleAttempted: true,
+      exampleStatus: "failed",
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: 1,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    let statefulSparsePrefixReadCount = 0;
+    const statefulSparseExampleArgsTarget: string[] = [];
+    statefulSparseExampleArgsTarget[0] = "packages/ts-core/examples/end-to-end.mjs";
+    statefulSparseExampleArgsTarget[5_000] = "--json";
+    const statefulSparseExampleArgs = new Proxy(statefulSparseExampleArgsTarget, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (propertyKey === "0") {
+          statefulSparsePrefixReadCount += 1;
+          if (statefulSparsePrefixReadCount > 1) {
+            throw new Error("read trap");
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleArgs: statefulSparseExampleArgs,
+        exampleAttempted: true,
+        exampleExitCode: 1,
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: ["packages/ts-core/examples/end-to-end.mjs", "--json"],
+      exampleArgCount: 2,
       exampleAttempted: true,
       exampleStatus: "failed",
       exampleRuleMatched: null,

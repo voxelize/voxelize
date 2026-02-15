@@ -407,6 +407,7 @@ pnpm run check:preflight:all-checks:verify:json:compact
 # wasm status derivation now treats malformed/non-integer exit-code metadata as skipped before ok/unavailable fallbacks
 # failure-message derivation now normalizes top-level and nested report/reason text via first-line ansi/control sanitization
 # sparse trap fallbacks can supplement bounded-prefix entries with bounded key-scan recovery when high-index readable entries exist
+# if key-fallback reads drop readable prefix entries under stateful low-index traps, bounded-prefix and key-fallback recoveries are merged by index before emission
 # bounded fallback scans use own-property checks so inherited numeric prototype entries are ignored
 # when own-property descriptor probes trap, bounded fallback switches to guarded direct reads without repeated probe failures
 # string-array fallbacks can supplement dense non-string bounded prefixes with bounded key-scan string recovery

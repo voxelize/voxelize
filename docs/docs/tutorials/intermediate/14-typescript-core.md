@@ -742,6 +742,9 @@ Failure-message derivation now normalizes top-level and nested
 report/reason text via first-line ANSI/control sanitization.
 Sparse trap fallbacks can supplement bounded-prefix entries with bounded
 key-scan recovery when high-index readable entries exist.
+If key-fallback reads drop readable prefix entries under stateful
+low-index traps, bounded-prefix and key-fallback recoveries are merged
+by index before summary emission.
 Bounded fallback scans use own-property checks so inherited numeric
 prototype entries are ignored.
 When own-property descriptor probes trap, bounded fallback switches to
