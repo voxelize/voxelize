@@ -31,7 +31,6 @@ fn normalized_chunk_size(chunk_size: usize) -> i32 {
 fn update_current_chunk(curr_chunk: &mut CurrentChunkComp, coords: crate::Vec2<i32>) {
     if coords != curr_chunk.coords {
         curr_chunk.coords = coords;
-        curr_chunk.changed = true;
     }
 }
 
