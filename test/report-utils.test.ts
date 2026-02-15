@@ -743,8 +743,8 @@ describe("report-utils", () => {
     );
 
     expect(resolved.hasOption).toBe(true);
-    expect(resolved.value).toBe("-l");
-    expect(resolved.error).toBeNull();
+    expect(resolved.value).toBeNull();
+    expect(resolved.error).toBe("Missing value for --output option.");
   });
 
   it("splits option and positional args using option terminator", () => {
@@ -1118,7 +1118,7 @@ describe("report-utils", () => {
       }
     );
 
-    expect(unknownOptions).toEqual(["--json", "--mystery", "--output"]);
+    expect(unknownOptions).toEqual(["--mystery"]);
   });
 
   it("creates structured cli option validation metadata", () => {
@@ -1275,10 +1275,15 @@ describe("report-utils", () => {
         supportedCliOptions: iteratorTrapSupportedTokens as never,
       }
     );
-    expect(iteratorTrapPrecomputedSupportedTokens.supportedCliOptions).toEqual([]);
+    expect(iteratorTrapPrecomputedSupportedTokens.supportedCliOptions).toEqual([
+      "--json",
+      "--output",
+    ]);
     expect(
       iteratorTrapPrecomputedSupportedTokens.unsupportedOptionsError
-    ).toBe("Unsupported option(s): --mystery. Supported options: (none).");
+    ).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
 
     const outputErrorPriority = createCliOptionValidation(
       ["--json", "--mystery"],
@@ -1397,10 +1402,13 @@ describe("report-utils", () => {
       optionAliases: optionAliases as never,
     });
 
-    expect(catalog.supportedCliOptions).toEqual([]);
-    expect(catalog.supportedCliOptionCount).toBe(0);
+    expect(catalog.supportedCliOptions).toEqual(["--json", "--output"]);
+    expect(catalog.supportedCliOptionCount).toBe(2);
     expect(catalog.availableCliOptionAliases).toEqual({});
-    expect(catalog.availableCliOptionCanonicalMap).toEqual({});
+    expect(catalog.availableCliOptionCanonicalMap).toEqual({
+      "--json": "--json",
+      "--output": "--output",
+    });
   });
 
   it("preserves non-trapping alias entries when others are malformed", () => {
@@ -1547,23 +1555,46 @@ describe("report-utils", () => {
       }
     );
 
-    expect(diagnostics.supportedCliOptions).toEqual([]);
-    expect(diagnostics.supportedCliOptionCount).toBe(0);
+    expect(diagnostics.supportedCliOptions).toEqual(["--json", "--output"]);
+    expect(diagnostics.supportedCliOptionCount).toBe(2);
     expect(diagnostics.availableCliOptionAliases).toEqual({});
-    expect(diagnostics.availableCliOptionCanonicalMap).toEqual({});
-    expect(diagnostics.unknownOptions).toEqual(["--json", "--mystery", "--output"]);
-    expect(diagnostics.unknownOptionCount).toBe(3);
+    expect(diagnostics.availableCliOptionCanonicalMap).toEqual({
+      "--json": "--json",
+      "--output": "--output",
+    });
+    expect(diagnostics.unknownOptions).toEqual(["--mystery"]);
+    expect(diagnostics.unknownOptionCount).toBe(1);
     expect(diagnostics.unsupportedOptionsError).toBe(
-      "Unsupported option(s): --json, --mystery, --output. Supported options: (none)."
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
     );
     expect(diagnostics.validationErrorCode).toBe("unsupported_options");
-    expect(diagnostics.activeCliOptions).toEqual([]);
-    expect(diagnostics.activeCliOptionCount).toBe(0);
-    expect(diagnostics.activeCliOptionTokens).toEqual([]);
-    expect(diagnostics.activeCliOptionResolutions).toEqual([]);
-    expect(diagnostics.activeCliOptionResolutionCount).toBe(0);
-    expect(diagnostics.activeCliOptionOccurrences).toEqual([]);
-    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(0);
+    expect(diagnostics.activeCliOptions).toEqual(["--json", "--output"]);
+    expect(diagnostics.activeCliOptionCount).toBe(2);
+    expect(diagnostics.activeCliOptionTokens).toEqual(["--json", "--output"]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(diagnostics.activeCliOptionResolutionCount).toBe(2);
+    expect(diagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 2,
+      },
+    ]);
+    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(2);
   });
 
   it("keeps pre-terminator aliases active while ignoring post-terminator misuse", () => {
@@ -2720,13 +2751,33 @@ describe("report-utils", () => {
       }
     );
 
-    expect(activeMetadata.activeCliOptions).toEqual([]);
-    expect(activeMetadata.activeCliOptionCount).toBe(0);
-    expect(activeMetadata.activeCliOptionTokens).toEqual([]);
-    expect(activeMetadata.activeCliOptionResolutions).toEqual([]);
-    expect(activeMetadata.activeCliOptionResolutionCount).toBe(0);
-    expect(activeMetadata.activeCliOptionOccurrences).toEqual([]);
-    expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(0);
+    expect(activeMetadata.activeCliOptions).toEqual(["--json", "--output"]);
+    expect(activeMetadata.activeCliOptionCount).toBe(2);
+    expect(activeMetadata.activeCliOptionTokens).toEqual(["--json", "--output"]);
+    expect(activeMetadata.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionResolutionCount).toBe(2);
+    expect(activeMetadata.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 1,
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(2);
   });
 
   it("tracks active canonical options when aliases are configured outside canonical list", () => {

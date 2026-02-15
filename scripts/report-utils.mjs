@@ -1012,8 +1012,49 @@ const dedupeStringList = (tokens) => {
   });
 };
 
+const toStringArrayFromIndexedAccess = (tokens) => {
+  if (!Array.isArray(tokens)) {
+    return null;
+  }
+
+  let tokenCount = 0;
+  try {
+    tokenCount = tokens.length;
+  } catch {
+    return null;
+  }
+
+  if (!Number.isInteger(tokenCount) || tokenCount < 0) {
+    return null;
+  }
+
+  const normalizedTokens = [];
+  for (let tokenIndex = 0; tokenIndex < tokenCount; tokenIndex += 1) {
+    try {
+      const token = tokens[tokenIndex];
+      if (typeof token === "string") {
+        normalizedTokens.push(token);
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return normalizedTokens;
+};
+
 const normalizeCliOptionTokenList = (tokens) => {
-  return dedupeStringList(toStringArrayOrEmpty(tokens));
+  const normalizedTokens = dedupeStringList(toStringArrayOrEmpty(tokens));
+  if (normalizedTokens.length > 0 || !Array.isArray(tokens)) {
+    return normalizedTokens;
+  }
+
+  const indexedTokens = toStringArrayFromIndexedAccess(tokens);
+  if (indexedTokens === null) {
+    return normalizedTokens;
+  }
+
+  return dedupeStringList(indexedTokens);
 };
 
 const normalizeCliOptionAliases = (optionAliases) => {
