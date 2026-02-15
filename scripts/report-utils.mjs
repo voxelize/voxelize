@@ -319,6 +319,17 @@ const cloneArrayFromLengthFallback = (value) => {
   const boundedLength = Math.min(lengthValue, MAX_ARRAY_LENGTH_FALLBACK_SCAN);
   const clonedArray = [];
   for (let arrayIndex = 0; arrayIndex < boundedLength; arrayIndex += 1) {
+    let indexPresent = false;
+    try {
+      indexPresent = arrayIndex in value;
+    } catch {
+      continue;
+    }
+
+    if (!indexPresent) {
+      continue;
+    }
+
     try {
       clonedArray.push(value[arrayIndex]);
     } catch {

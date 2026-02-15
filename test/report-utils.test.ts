@@ -837,10 +837,17 @@ describe("report-utils", () => {
     expect(ownKeysTrapResult.positionalArgs).toEqual([]);
     expect(ownKeysTrapResult.optionTerminatorUsed).toBe(false);
 
+    let oversizedOwnKeysIndexProbeCount = 0;
     let oversizedOwnKeysIndexReadCount = 0;
     const oversizedOwnKeysTrapArgs = new Proxy(["--json", "--mystery"], {
       ownKeys() {
         throw new Error("ownKeys trap");
+      },
+      has(target, property) {
+        if (typeof property === "string" && /^(0|[1-9]\d*)$/.test(property)) {
+          oversizedOwnKeysIndexProbeCount += 1;
+        }
+        return Reflect.has(target, property);
       },
       get(target, property, receiver) {
         if (property === Symbol.iterator) {
@@ -864,7 +871,8 @@ describe("report-utils", () => {
     ]);
     expect(oversizedOwnKeysTrapResult.positionalArgs).toEqual([]);
     expect(oversizedOwnKeysTrapResult.optionTerminatorUsed).toBe(false);
-    expect(oversizedOwnKeysIndexReadCount).toBe(1_024);
+    expect(oversizedOwnKeysIndexProbeCount).toBe(1_024);
+    expect(oversizedOwnKeysIndexReadCount).toBe(2);
 
     const partiallyTrappedArgs = ["--json", "--output", "report.json"];
     Object.defineProperty(partiallyTrappedArgs, 1, {
@@ -3565,6 +3573,34 @@ describe("report-utils", () => {
       failedSteps: [],
       skippedSteps: [],
     });
+
+    const largeLengthOwnKeysTrapSteps = new Proxy(
+      [{ name: "step-a", passed: true, skipped: false }],
+      {
+        ownKeys: () => {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1_000_000_000;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(summarizeStepResults(largeLengthOwnKeysTrapSteps as never)).toEqual({
+      totalSteps: 1,
+      passedStepCount: 1,
+      failedStepCount: 0,
+      skippedStepCount: 0,
+      firstFailedStep: null,
+      passedSteps: ["step-a"],
+      failedSteps: [],
+      skippedSteps: [],
+    });
   });
 
   it("summarizes failed step entries with message fallbacks", () => {
@@ -4198,6 +4234,32 @@ describe("report-utils", () => {
       }
     );
     expect(summarizeCheckResults(ownKeysTrapChecks as never)).toEqual({
+      totalChecks: 1,
+      passedCheckCount: 1,
+      failedCheckCount: 0,
+      firstFailedCheck: null,
+      passedChecks: ["devEnvironment"],
+      failedChecks: [],
+    });
+
+    const largeLengthOwnKeysTrapChecks = new Proxy(
+      [{ name: "devEnvironment", passed: true }],
+      {
+        ownKeys: () => {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1_000_000_000;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(summarizeCheckResults(largeLengthOwnKeysTrapChecks as never)).toEqual({
       totalChecks: 1,
       passedCheckCount: 1,
       failedCheckCount: 0,
