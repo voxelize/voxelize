@@ -4585,6 +4585,35 @@ describe("report-utils", () => {
     expect(
       whitespaceCanonicalMapOptionCatalogOverrideValidation.validationErrorCode
     ).toBeNull();
+    const mixedCanonicalMapEntryOptionCatalogOverrideValidation =
+      createCliOptionValidation(["--verify"], {
+        canonicalOptions: ["--json"],
+        optionCatalog: {
+          availableCliOptionCanonicalMap: {
+            "--verify": "--no-build",
+            "--json": 1 as never,
+            "--no-build": "--no-build",
+          },
+        } as never,
+      });
+    expect(
+      mixedCanonicalMapEntryOptionCatalogOverrideValidation.supportedCliOptions
+    ).toEqual(["--no-build", "--verify"]);
+    expect(
+      mixedCanonicalMapEntryOptionCatalogOverrideValidation.supportedCliOptionCount
+    ).toBe(2);
+    expect(mixedCanonicalMapEntryOptionCatalogOverrideValidation.unknownOptions).toEqual(
+      []
+    );
+    expect(
+      mixedCanonicalMapEntryOptionCatalogOverrideValidation.unknownOptionCount
+    ).toBe(0);
+    expect(
+      mixedCanonicalMapEntryOptionCatalogOverrideValidation.unsupportedOptionsError
+    ).toBeNull();
+    expect(
+      mixedCanonicalMapEntryOptionCatalogOverrideValidation.validationErrorCode
+    ).toBeNull();
     const dedupedAliasCatalogOverrideValidation = createCliOptionValidation(
       ["--verify", "--skip-build"],
       {
