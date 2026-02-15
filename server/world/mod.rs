@@ -121,6 +121,12 @@ pub struct PeerUpdate {
     direction: Option<Vec3<f32>>,
 }
 
+#[derive(Deserialize)]
+struct PersistedEntityRecord {
+    etype: String,
+    metadata: MetadataComp,
+}
+
 /// Wrapper to make a non-Send/Sync type safely usable in contexts that require it.
 /// This is safe because the World is only ever accessed from a single SyncWorld actor thread.
 struct UnsafeSendSync<T>(T);
@@ -1841,7 +1847,7 @@ impl World {
 
                 if let Ok(entity_data) = File::open(&path) {
                     let id = path.file_stem().unwrap().to_str().unwrap().to_owned();
-                    let mut data: HashMap<String, Value> =
+                    let PersistedEntityRecord { etype, metadata } =
                         match serde_json::from_reader(entity_data) {
                             Ok(data) => data,
                             Err(e) => {
@@ -1854,14 +1860,6 @@ impl World {
                                 continue;
                             }
                         };
-                    let etype: String = serde_json::from_value(data.remove("etype").unwrap())
-                        .unwrap_or_else(|_| {
-                            panic!("EType filed does not exist on file: {:?}", path)
-                        });
-                    let metadata: MetadataComp =
-                        serde_json::from_value(data.remove("metadata").unwrap()).unwrap_or_else(
-                            |_| panic!("Metadata field does not exist on file: {:?}", path),
-                        );
 
                     if let Some(ent) = self.revive_entity(&id, &etype, metadata.to_owned()) {
                         loaded_entities.insert(id, (etype, ent, metadata, true));
