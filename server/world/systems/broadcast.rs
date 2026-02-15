@@ -60,8 +60,10 @@ fn merge_messages(base: &mut Message, other: Message) {
 }
 
 fn batch_messages(messages: Vec<(Message, ClientFilter)>) -> Vec<(Message, ClientFilter)> {
-    let mut batched: HashMap<(i32, String), (Message, ClientFilter)> = HashMap::new();
-    let mut unbatched: Vec<(Message, ClientFilter)> = Vec::new();
+    let total_messages = messages.len();
+    let mut batched: HashMap<(i32, String), (Message, ClientFilter)> =
+        HashMap::with_capacity(total_messages);
+    let mut unbatched: Vec<(Message, ClientFilter)> = Vec::with_capacity(total_messages);
 
     for (message, filter) in messages {
         let msg_type = message.r#type;
@@ -79,7 +81,9 @@ fn batch_messages(messages: Vec<(Message, ClientFilter)>) -> Vec<(Message, Clien
         }
     }
 
-    let mut result: Vec<(Message, ClientFilter)> = batched.into_values().collect();
+    let mut result: Vec<(Message, ClientFilter)> =
+        Vec::with_capacity(batched.len() + unbatched.len());
+    result.extend(batched.into_values());
     result.extend(unbatched);
     result
 }
