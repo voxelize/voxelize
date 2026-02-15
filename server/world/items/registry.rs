@@ -31,10 +31,6 @@ impl ItemRegistry {
         F: FnOnce(ItemDefBuilder) -> ItemDefBuilder,
     {
         let lower_name = Self::normalized_name(name).into_owned();
-        if self.items_by_name.contains_key(&lower_name) {
-            panic!("Duplicated item name: {}", name);
-        }
-
         let id = self.next_id();
         let builder = ItemDefBuilder::new(id, name);
         let def = builder_fn(builder).build();
@@ -46,7 +42,11 @@ impl ItemRegistry {
             );
         }
 
-        self.items_by_name.insert(lower_name, id);
+        let name_entry = match self.items_by_name.entry(lower_name) {
+            Entry::Occupied(_) => panic!("Duplicated item name: {}", name),
+            Entry::Vacant(entry) => entry,
+        };
+        name_entry.insert(id);
         self.items_by_id.insert(id, def);
         self
     }
