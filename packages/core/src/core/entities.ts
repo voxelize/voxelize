@@ -64,16 +64,20 @@ export class Entity<T = JsonValue> extends Group {
  */
 export class Entities extends Group implements NetIntercept {
   public map: Map<string, Entity> = new Map();
-  public types: Map<
-    string,
-    (new (id: string) => Entity) | ((id: string) => Entity)
-  > = new Map();
+  public types: Map<string, (id: string) => Entity> = new Map();
 
   setClass = (
     type: string,
     entity: (new (id: string) => Entity) | ((id: string) => Entity)
   ) => {
-    this.types.set(normalizeEntityType(type), entity);
+    const factory =
+      typeof entity === "function" &&
+      entity.prototype &&
+      entity.prototype.constructor
+        ? (id: string) => new (entity as new (id: string) => Entity)(id)
+        : (entity as (id: string) => Entity);
+
+    this.types.set(normalizeEntityType(type), factory);
   };
 
   /**
@@ -181,22 +185,13 @@ export class Entities extends Group implements NetIntercept {
 
   private createEntityOfType = (type: string, id: string) => {
     const normalizedType = normalizeEntityType(type);
-    const EntityType = this.types.get(normalizedType);
-    if (!EntityType) {
+    const entityFactory = this.types.get(normalizedType);
+    if (!entityFactory) {
       console.warn(`Entity type ${type} is not registered.`);
       return;
     }
 
-    let object;
-    if (
-      typeof EntityType === "function" &&
-      EntityType.prototype &&
-      EntityType.prototype.constructor
-    ) {
-      object = new (EntityType as new (id: string) => Entity)(id);
-    } else {
-      object = (EntityType as (id: string) => Entity)(id);
-    }
+    const object = entityFactory(id);
     this.map.set(id, object);
     this.add(object);
 
