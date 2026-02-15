@@ -13,7 +13,6 @@ use crate::{MetadataComp, WorldConfig};
 
 #[derive(Clone)]
 pub struct EntitySaveData {
-    pub id: String,
     pub etype: String,
     pub is_block: bool,
     pub metadata: MetadataComp,
@@ -26,7 +25,7 @@ struct SavedEntityFile<'a> {
 }
 
 pub struct BackgroundEntitiesSaver {
-    sender: Sender<EntitySaveData>,
+    sender: Sender<(String, EntitySaveData)>,
     folder: PathBuf,
     saving: bool,
     shutdown: Arc<AtomicBool>,
@@ -43,7 +42,7 @@ impl BackgroundEntitiesSaver {
         }
 
         let saving = config.saving && config.save_entities;
-        let (sender, receiver) = bounded::<EntitySaveData>(10000);
+        let (sender, receiver) = bounded::<(String, EntitySaveData)>(10000);
         let shutdown = Arc::new(AtomicBool::new(false));
 
         let handle = if saving {
@@ -66,7 +65,7 @@ impl BackgroundEntitiesSaver {
     }
 
     fn background_save_loop(
-        receiver: Receiver<EntitySaveData>,
+        receiver: Receiver<(String, EntitySaveData)>,
         folder: PathBuf,
         shutdown: Arc<AtomicBool>,
     ) {
@@ -76,8 +75,8 @@ impl BackgroundEntitiesSaver {
 
         loop {
             match receiver.try_recv() {
-                Ok(data) => {
-                    pending.insert(data.id.clone(), data);
+                Ok((id, data)) => {
+                    pending.insert(id, data);
                 }
                 Err(TryRecvError::Empty) => {
                     if shutdown.load(Ordering::Relaxed) && pending.is_empty() {
@@ -99,12 +98,12 @@ impl BackgroundEntitiesSaver {
     }
 
     fn flush_pending(pending: &mut HashMap<String, EntitySaveData>, folder: &PathBuf) {
-        for (_, data) in pending.drain() {
-            Self::save_entity_to_disk(&data, folder);
+        for (id, data) in pending.drain() {
+            Self::save_entity_to_disk(&id, &data, folder);
         }
     }
 
-    fn save_entity_to_disk(data: &EntitySaveData, folder: &PathBuf) {
+    fn save_entity_to_disk(id: &str, data: &EntitySaveData, folder: &PathBuf) {
         let etype_value = if data.is_block {
             format!(
                 "block::{}",
@@ -119,8 +118,8 @@ impl BackgroundEntitiesSaver {
         };
 
         let sanitized_filename = etype_value.replace("::", "-").replace(' ', "-");
-        let new_filename = format!("{}-{}.json", sanitized_filename, data.id);
-        let old_filename = format!("{}.json", data.id);
+        let new_filename = format!("{}-{}.json", sanitized_filename, id);
+        let old_filename = format!("{}.json", id);
 
         let mut new_path = folder.clone();
         new_path.push(&new_filename);
@@ -152,13 +151,12 @@ impl BackgroundEntitiesSaver {
         }
 
         let data = EntitySaveData {
-            id: id.to_string(),
             etype: etype.to_string(),
             is_block,
             metadata: metadata.clone(),
         };
 
-        if let Err(e) = self.sender.try_send(data) {
+        if let Err(e) = self.sender.try_send((id.to_string(), data)) {
             warn!("Failed to queue entity save: {}", e);
         }
     }
