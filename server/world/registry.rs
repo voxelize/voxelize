@@ -1,7 +1,6 @@
 use std::sync::{Arc, OnceLock};
 
 use hashbrown::{HashMap, HashSet};
-use log::info;
 use serde::{Deserialize, Serialize};
 
 use crate::{BlockFace, Vec3, VoxelAccess, VoxelUpdate};
@@ -117,12 +116,10 @@ impl Registry {
     pub fn generate(&mut self) {
         self.invalidate_cached_registries();
 
-        let all_blocks = self.blocks_by_id.values_mut().collect::<Vec<_>>();
-
         let mut texture_groups: HashSet<String> = HashSet::new();
         let mut ungrouped_faces = 0;
 
-        for block in all_blocks.iter() {
+        for block in self.blocks_by_id.values() {
             for face in block.faces.iter() {
                 if face.independent || face.isolated {
                     continue;
@@ -183,7 +180,7 @@ impl Registry {
             group_uvs.insert(group.clone(), allocate_slot());
         }
 
-        for block in all_blocks {
+        for block in self.blocks_by_id.values_mut() {
             for face in block.faces.iter_mut() {
                 if face.independent || face.isolated {
                     continue;
