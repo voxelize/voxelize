@@ -238,6 +238,12 @@ impl<'a> System<'a> for PathFindingSystem {
                         entity_path.path = None;
                         return;
                     }
+                    if start == goal {
+                        let mut path_nodes = Vec::with_capacity(1);
+                        path_nodes.push(start);
+                        entity_path.path = Some(path_nodes);
+                        return;
+                    }
 
                     let start_time = Instant::now();
                     let count = Cell::new(0i32);
