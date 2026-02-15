@@ -3861,6 +3861,55 @@ describe("report-utils", () => {
         message: "Step failed with exit code 2.",
       },
     ]);
+    const ownKeysHasTrapArgs = new Proxy(["check-proxy.mjs", "--json"], {
+      ownKeys() {
+        throw new Error("ownKeys trap");
+      },
+      has(target, property) {
+        if (typeof property === "string" && /^(0|[1-9]\d*)$/.test(property)) {
+          throw new Error("has trap");
+        }
+        return Reflect.has(target, property);
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1_000_000_000;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    expect(
+      summarizeStepFailureResults([
+        {
+          name: "step-proxy-ownkeys",
+          scriptName: "check-proxy.mjs",
+          supportsNoBuild: false,
+          checkCommand: "node",
+          checkArgs: ownKeysHasTrapArgs,
+          stepIndex: 2,
+          passed: false,
+          skipped: false,
+          exitCode: 2,
+          report: null,
+          output: null,
+        },
+      ])
+    ).toEqual([
+      {
+        name: "step-proxy-ownkeys",
+        scriptName: "check-proxy.mjs",
+        supportsNoBuild: false,
+        stepIndex: 2,
+        checkCommand: "node",
+        checkArgs: ["check-proxy.mjs", "--json"],
+        checkArgCount: 2,
+        exitCode: 2,
+        message: "Step failed with exit code 2.",
+      },
+    ]);
     expect(
       summarizeStepFailureResults([
         {
@@ -4517,6 +4566,41 @@ describe("report-utils", () => {
       wasmPackCheckExitCode: null,
       wasmPackCheckOutputLine: null,
     });
+    const ownKeysHasTrapArgs = new Proxy(
+      ["check-wasm-pack.mjs", "--json"],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        has(target, property) {
+          if (typeof property === "string" && /^(0|[1-9]\d*)$/.test(property)) {
+            throw new Error("has trap");
+          }
+          return Reflect.has(target, property);
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1_000_000_000;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckArgs: ownKeysHasTrapArgs,
+      })
+    ).toEqual({
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: ["check-wasm-pack.mjs", "--json"],
+      wasmPackCheckArgCount: 2,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
   });
 
   it("creates prefixed wasm pack summary objects", () => {
@@ -4781,6 +4865,49 @@ describe("report-utils", () => {
     expect(
       extractTsCoreExampleSummaryFromReport({
         exampleArgs: iteratorTrapArgs,
+        exampleAttempted: true,
+        exampleExitCode: 1,
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: ["packages/ts-core/examples/end-to-end.mjs"],
+      exampleArgCount: 1,
+      exampleAttempted: true,
+      exampleStatus: "failed",
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: 1,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    const ownKeysHasTrapArgs = new Proxy(
+      ["packages/ts-core/examples/end-to-end.mjs"],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        has(target, property) {
+          if (typeof property === "string" && /^(0|[1-9]\d*)$/.test(property)) {
+            throw new Error("has trap");
+          }
+          return Reflect.has(target, property);
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1_000_000_000;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleArgs: ownKeysHasTrapArgs,
         exampleAttempted: true,
         exampleExitCode: 1,
       })
