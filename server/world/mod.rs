@@ -1907,8 +1907,12 @@ impl World {
                                     "Could not load entity file: {:?}. Error: {}, removing...",
                                     path, e
                                 );
-                                // remove the file
-                                fs::remove_file(path).unwrap();
+                                if let Err(remove_error) = fs::remove_file(&path) {
+                                    warn!(
+                                        "Failed to remove unreadable persisted entity file {:?}: {:?}",
+                                        path, remove_error
+                                    );
+                                }
                                 continue;
                             }
                         };
