@@ -1196,9 +1196,49 @@ describe("report-utils", () => {
         supportedCliOptions: ["--output", "--json"],
       }
     );
+    expect(precomputedSupportedTokens.supportedCliOptions).toEqual([
+      "--output",
+      "--json",
+    ]);
     expect(precomputedSupportedTokens.unsupportedOptionsError).toBe(
       "Unsupported option(s): --mystery. Supported options: --output, --json."
     );
+
+    const malformedPrecomputedSupportedTokens = createCliOptionValidation(
+      ["--mystery"],
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        supportedCliOptions: ["--json", "--json", 1],
+      }
+    );
+    expect(malformedPrecomputedSupportedTokens.supportedCliOptions).toEqual([
+      "--json",
+    ]);
+    expect(malformedPrecomputedSupportedTokens.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json."
+    );
+
+    const iteratorTrapSupportedTokens = ["--json", "--output"];
+    Object.defineProperty(iteratorTrapSupportedTokens, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    const iteratorTrapPrecomputedSupportedTokens = createCliOptionValidation(
+      ["--mystery"],
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        supportedCliOptions: iteratorTrapSupportedTokens as never,
+      }
+    );
+    expect(iteratorTrapPrecomputedSupportedTokens.supportedCliOptions).toEqual([]);
+    expect(
+      iteratorTrapPrecomputedSupportedTokens.unsupportedOptionsError
+    ).toBe("Unsupported option(s): --mystery. Supported options: (none).");
 
     const outputErrorPriority = createCliOptionValidation(
       ["--json", "--mystery"],

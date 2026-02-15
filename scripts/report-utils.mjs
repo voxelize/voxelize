@@ -1211,11 +1211,12 @@ export const createCliOptionValidation = (
   } = {}
 ) => {
   const supportedCliOptions =
-    precomputedSupportedCliOptions ??
-    createCliOptionCatalog({
-      canonicalOptions,
-      optionAliases,
-    }).supportedCliOptions;
+    precomputedSupportedCliOptions === null
+      ? createCliOptionCatalog({
+          canonicalOptions,
+          optionAliases,
+        }).supportedCliOptions
+      : normalizeCliOptionTokenList(precomputedSupportedCliOptions);
   const unknownOptions = parseUnknownCliOptions(args, {
     canonicalOptions,
     optionAliases,
@@ -1223,10 +1224,12 @@ export const createCliOptionValidation = (
     optionsWithStrictValues,
   });
   const unknownOptionCount = unknownOptions.length;
+  const supportedOptionList =
+    supportedCliOptions.length > 0 ? supportedCliOptions.join(", ") : "(none)";
   const unsupportedOptionsError =
     unknownOptionCount === 0
       ? null
-      : `Unsupported option(s): ${unknownOptions.join(", ")}. Supported options: ${supportedCliOptions.join(", ")}.`;
+      : `Unsupported option(s): ${unknownOptions.join(", ")}. Supported options: ${supportedOptionList}.`;
   const validationErrorCode =
     outputPathError !== null
       ? "output_option_missing_value"
