@@ -310,12 +310,9 @@ fn process_pending_updates(
                 chunks, &registry, vx, vy, vz, updated_id,
             );
 
-            chunks
-                .voxel_affected_chunks(vx, vy, vz)
-                .into_iter()
-                .for_each(|c| {
-                    chunks.cache.insert(c);
-                });
+            for coords in chunks.voxel_affected_chunks(vx, vy, vz) {
+                chunks.cache.insert(coords);
+            }
 
             processed_updates.push((voxel, raw, current_id, updated_id));
 
@@ -415,19 +412,19 @@ fn process_pending_updates(
                 (&BLUE, chunks.get_blue_light(vx, vy, vz)),
             ];
 
-            VOXEL_NEIGHBORS.iter().for_each(|&[ox, oy, oz]| {
+            for &[ox, oy, oz] in VOXEL_NEIGHBORS.iter() {
                 let Some(nvy) = vy.checked_add(oy) else {
-                    return;
+                    continue;
                 };
                 if nvy < 0 || max_height.is_some_and(|world_max_height| nvy >= world_max_height) {
-                    return;
+                    continue;
                 }
 
                 let Some(nvx) = vx.checked_add(ox) else {
-                    return;
+                    continue;
                 };
                 let Some(nvz) = vz.checked_add(oz) else {
-                    return;
+                    continue;
                 };
 
                 let n_block = registry.get_block_by_id(chunks.get_voxel(nvx, nvy, nvz));
@@ -437,10 +434,10 @@ fn process_pending_updates(
                 if !(Lights::can_enter(&current_transparency, &n_transparency, ox, oy, oz)
                     && !Lights::can_enter(&updated_transparency, &n_transparency, ox, oy, oz))
                 {
-                    return;
+                    continue;
                 }
 
-                light_data.iter().for_each(|&(color, source_level)| {
+                for &(color, source_level) in light_data.iter() {
                     let is_sunlight = *color == LightColor::Sunlight;
 
                     let n_level = if is_sunlight {
@@ -464,8 +461,8 @@ fn process_pending_updates(
                             registry,
                         );
                     }
-                });
-            });
+                }
+            }
 
             if remove_counts == 0 {
                 if chunks.get_sunlight(vx, vy, vz) != 0 {
