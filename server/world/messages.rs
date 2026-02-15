@@ -33,21 +33,21 @@ impl MessageQueues {
 
     pub fn push(&mut self, item: (Message, ClientFilter)) {
         let (message, filter) = item;
-        match MessageType::try_from(message.r#type) {
-            Ok(MessageType::Peer)
-            | Ok(MessageType::Entity)
-            | Ok(MessageType::Event)
-            | Ok(MessageType::Chat)
-            | Ok(MessageType::Join)
-            | Ok(MessageType::Leave) => {
-                self.critical.push((message, filter));
-            }
-            Ok(MessageType::Load) | Ok(MessageType::Unload) => {
-                self.bulk.push((message, filter));
-            }
-            _ => {
-                self.normal.push((message, filter));
-            }
+        let message_type = message.r#type;
+        if message_type == MessageType::Peer as i32
+            || message_type == MessageType::Entity as i32
+            || message_type == MessageType::Event as i32
+            || message_type == MessageType::Chat as i32
+            || message_type == MessageType::Join as i32
+            || message_type == MessageType::Leave as i32
+        {
+            self.critical.push((message, filter));
+        } else if message_type == MessageType::Load as i32
+            || message_type == MessageType::Unload as i32
+        {
+            self.bulk.push((message, filter));
+        } else {
+            self.normal.push((message, filter));
         }
     }
 
@@ -114,7 +114,11 @@ impl EncodedMessageQueue {
     }
 
     pub fn receive(&mut self) -> Vec<(EncodedMessage, ClientFilter)> {
-        let mut result = Vec::new();
+        let pending_batches = self.receiver.len();
+        if pending_batches == 0 {
+            return Vec::new();
+        }
+        let mut result = Vec::with_capacity(pending_batches);
         while let Ok(mut messages) = self.receiver.try_recv() {
             result.append(&mut messages);
         }
@@ -122,15 +126,15 @@ impl EncodedMessageQueue {
     }
 
     fn compute_rtc_eligibility(message: &Message) -> bool {
-        match MessageType::try_from(message.r#type) {
-            Ok(MessageType::Entity) => {
-                !message.entities.is_empty()
-                    && message.entities.iter().all(|e| {
-                        EntityOperation::try_from(e.operation) == Ok(EntityOperation::Update)
-                    })
-            }
-            Ok(MessageType::Peer) => true,
-            _ => false,
+        let message_type = message.r#type;
+        if message_type == MessageType::Entity as i32 {
+            !message.entities.is_empty()
+                && message
+                    .entities
+                    .iter()
+                    .all(|entity| entity.operation == EntityOperation::Update as i32)
+        } else {
+            message_type == MessageType::Peer as i32
         }
     }
 }
