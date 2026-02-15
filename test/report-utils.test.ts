@@ -441,6 +441,30 @@ describe("report-utils", () => {
     expect(recognizedOnlyInlineTokenBeforeTrailingOutput.outputPath).toBe(
       "/workspace/final-report.json"
     );
+
+    const lengthAndOwnKeysTrapOutputArgs = new Proxy(
+      ["--output", "./report.json"],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            throw new Error("length trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const lengthAndOwnKeysTrapOutput = resolveOutputPath(
+      lengthAndOwnKeysTrapOutputArgs as never,
+      "/workspace"
+    );
+    expect(lengthAndOwnKeysTrapOutput.error).toBeNull();
+    expect(lengthAndOwnKeysTrapOutput.outputPath).toBeNull();
   });
 
   it("resolves last option values for both split and inline forms", () => {
@@ -724,6 +748,31 @@ describe("report-utils", () => {
       "client"
     );
     expect(recognizedOutputInlineTokenBeforeTrailingOnlyValue.error).toBeNull();
+
+    const lengthAndOwnKeysTrapOptionArgs = new Proxy(
+      ["--output", "./report.json"],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            throw new Error("length trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const lengthAndOwnKeysTrapOptionResolution = resolveLastOptionValue(
+      lengthAndOwnKeysTrapOptionArgs as never,
+      "--output"
+    );
+    expect(lengthAndOwnKeysTrapOptionResolution.hasOption).toBe(false);
+    expect(lengthAndOwnKeysTrapOptionResolution.value).toBeNull();
+    expect(lengthAndOwnKeysTrapOptionResolution.error).toBeNull();
   });
 
   it("sanitizes malformed recognized option token lists in resolveLastOptionValue", () => {
@@ -2463,6 +2512,52 @@ describe("report-utils", () => {
       "--output",
     ]);
     expect(diagnosticsFromIteratorTrapArgs.activeCliOptionCount).toBe(2);
+
+    const diagnosticsFromLengthAndOwnKeysTrapArgs = createCliDiagnostics(
+      new Proxy(["--json", "--mystery", "--output", "./report.json"], {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            throw new Error("length trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }) as never,
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+      }
+    );
+    expect(diagnosticsFromLengthAndOwnKeysTrapArgs.supportedCliOptions).toEqual([
+      "--json",
+      "--output",
+    ]);
+    expect(diagnosticsFromLengthAndOwnKeysTrapArgs.supportedCliOptionCount).toBe(2);
+    expect(diagnosticsFromLengthAndOwnKeysTrapArgs.unknownOptions).toEqual([]);
+    expect(diagnosticsFromLengthAndOwnKeysTrapArgs.unknownOptionCount).toBe(0);
+    expect(diagnosticsFromLengthAndOwnKeysTrapArgs.unsupportedOptionsError).toBeNull();
+    expect(diagnosticsFromLengthAndOwnKeysTrapArgs.activeCliOptions).toEqual([]);
+    expect(diagnosticsFromLengthAndOwnKeysTrapArgs.activeCliOptionCount).toBe(0);
+    expect(diagnosticsFromLengthAndOwnKeysTrapArgs.activeCliOptionTokens).toEqual(
+      []
+    );
+    expect(
+      diagnosticsFromLengthAndOwnKeysTrapArgs.activeCliOptionResolutions
+    ).toEqual([]);
+    expect(
+      diagnosticsFromLengthAndOwnKeysTrapArgs.activeCliOptionResolutionCount
+    ).toBe(0);
+    expect(
+      diagnosticsFromLengthAndOwnKeysTrapArgs.activeCliOptionOccurrences
+    ).toEqual([]);
+    expect(
+      diagnosticsFromLengthAndOwnKeysTrapArgs.activeCliOptionOccurrenceCount
+    ).toBe(0);
   });
 
   it("sanitizes malformed metadata inputs in unified cli diagnostics", () => {
