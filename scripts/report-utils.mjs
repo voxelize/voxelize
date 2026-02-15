@@ -1728,7 +1728,7 @@ const parseInlineOptionName = (optionToken) => {
 };
 
 const isLikelyShortOptionToken = (optionToken) => {
-  return /^-[^-](?:=.*)?$/.test(optionToken);
+  return /^-[A-Za-z](?:=.*)?$/.test(optionToken);
 };
 
 const isKnownOptionTokenLike = (optionToken, canonicalOptionMap) => {
