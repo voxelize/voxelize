@@ -1769,16 +1769,24 @@ const createValueOptionMetadata = (
 ) => {
   const {
     tokens: normalizedOptionsWithValues,
+    unavailable: valueOptionsUnavailable,
   } = normalizeCliOptionTokenListWithAvailability(optionsWithValues);
   const {
     tokens: normalizedOptionsWithStrictValues,
     unavailable: strictValueOptionsUnavailable,
   } = normalizeCliOptionTokenListWithAvailability(optionsWithStrictValues);
-  const canonicalValueOptions = new Set(
+  let canonicalValueOptions = new Set(
     normalizedOptionsWithValues.map((optionWithValue) => {
       return canonicalOptionMap.get(optionWithValue) ?? optionWithValue;
     })
   );
+  if (valueOptionsUnavailable && normalizedOptionsWithStrictValues.length > 0) {
+    canonicalValueOptions = new Set(
+      normalizedOptionsWithStrictValues.map((strictValueOption) => {
+        return canonicalOptionMap.get(strictValueOption) ?? strictValueOption;
+      })
+    );
+  }
   let canonicalStrictValueOptions = new Set(
     normalizedOptionsWithStrictValues
       .map((strictValueOption) => {

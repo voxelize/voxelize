@@ -2465,6 +2465,37 @@ describe("report-utils", () => {
       }
     );
     expect(unknownDashPathFromTrappedStrictValueOptions).toEqual([]);
+
+    const trappedValueOptions = new Proxy(["--output"], {
+      ownKeys() {
+        throw new Error("ownKeys trap");
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          throw new Error("length trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const unknownFromTrappedValueOptionsWithStrictFallback = parseUnknownCliOptions(
+      ["--output", "-l"],
+      {
+        canonicalOptions: ["--output"],
+        optionsWithValues: trappedValueOptions as never,
+        optionsWithStrictValues: ["--output"],
+      }
+    );
+    expect(unknownFromTrappedValueOptionsWithStrictFallback).toEqual(["-l"]);
+    const unknownDashPathFromTrappedValueOptionsWithStrictFallback =
+      parseUnknownCliOptions(["--output", "-artifact-report.json"], {
+        canonicalOptions: ["--output"],
+        optionsWithValues: trappedValueOptions as never,
+        optionsWithStrictValues: ["--output"],
+      });
+    expect(unknownDashPathFromTrappedValueOptionsWithStrictFallback).toEqual([]);
   });
 
   it("creates structured cli option validation metadata", () => {
@@ -2716,6 +2747,48 @@ describe("report-utils", () => {
     expect(trappedStrictDashPathValueValidation.unknownOptionCount).toBe(0);
     expect(trappedStrictDashPathValueValidation.unsupportedOptionsError).toBeNull();
     expect(trappedStrictDashPathValueValidation.validationErrorCode).toBeNull();
+    const trappedValueOptions = new Proxy(["--output"], {
+      ownKeys() {
+        throw new Error("ownKeys trap");
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          throw new Error("length trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const trappedValueOptionsShortValidation = createCliOptionValidation(
+      ["--output", "-l"],
+      {
+        canonicalOptions: ["--output"],
+        optionsWithValues: trappedValueOptions as never,
+        optionsWithStrictValues: ["--output"],
+      }
+    );
+    expect(trappedValueOptionsShortValidation.unknownOptions).toEqual(["-l"]);
+    expect(trappedValueOptionsShortValidation.unknownOptionCount).toBe(1);
+    expect(trappedValueOptionsShortValidation.unsupportedOptionsError).toBe(
+      "Unsupported option(s): -l. Supported options: --output."
+    );
+    expect(trappedValueOptionsShortValidation.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    const trappedValueOptionsDashPathValidation = createCliOptionValidation(
+      ["--output", "-artifact-report.json"],
+      {
+        canonicalOptions: ["--output"],
+        optionsWithValues: trappedValueOptions as never,
+        optionsWithStrictValues: ["--output"],
+      }
+    );
+    expect(trappedValueOptionsDashPathValidation.unknownOptions).toEqual([]);
+    expect(trappedValueOptionsDashPathValidation.unknownOptionCount).toBe(0);
+    expect(trappedValueOptionsDashPathValidation.unsupportedOptionsError).toBeNull();
+    expect(trappedValueOptionsDashPathValidation.validationErrorCode).toBeNull();
     const strictDashPrefixedPathValueValidation = createCliOptionValidation(
       ["--output", "-artifact-report.json"],
       {
@@ -3862,6 +3935,53 @@ describe("report-utils", () => {
       canonicalOptions: ["--output"],
       optionsWithValues: ["--output"],
       optionsWithStrictValues: trappedStrictValueOptions as never,
+    });
+
+    expect(diagnostics.activeCliOptions).toEqual(["--output"]);
+    expect(diagnostics.activeCliOptionCount).toBe(1);
+    expect(diagnostics.activeCliOptionTokens).toEqual(["--output"]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(diagnostics.activeCliOptionResolutionCount).toBe(1);
+    expect(diagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+    ]);
+    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(1);
+    expect(diagnostics.unknownOptions).toEqual(["-l"]);
+    expect(diagnostics.unknownOptionCount).toBe(1);
+    expect(diagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): -l. Supported options: --output."
+    );
+    expect(diagnostics.validationErrorCode).toBe("unsupported_options");
+  });
+
+  it("keeps strict unknown short diagnostics when value metadata traps", () => {
+    const trappedValueOptions = new Proxy(["--output"], {
+      ownKeys() {
+        throw new Error("ownKeys trap");
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          throw new Error("length trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const diagnostics = createCliDiagnostics(["--output", "-l"], {
+      canonicalOptions: ["--output"],
+      optionsWithValues: trappedValueOptions as never,
+      optionsWithStrictValues: ["--output"],
     });
 
     expect(diagnostics.activeCliOptions).toEqual(["--output"]);
