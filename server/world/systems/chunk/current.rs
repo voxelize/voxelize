@@ -27,6 +27,14 @@ fn normalized_chunk_size(chunk_size: usize) -> i32 {
     }
 }
 
+#[inline]
+fn update_current_chunk(curr_chunk: &mut CurrentChunkComp, coords: crate::Vec2<i32>) {
+    if coords != curr_chunk.coords {
+        curr_chunk.coords = coords;
+        curr_chunk.changed = true;
+    }
+}
+
 impl<'a> System<'a> for CurrentChunkSystem {
     type SystemData = (
         ReadExpect<'a, WorldConfig>,
@@ -49,27 +57,46 @@ impl<'a> System<'a> for CurrentChunkSystem {
             None
         };
 
-        (&positions, &mut curr_chunks)
-            .par_join()
-            .for_each(|(position, curr_chunk)| {
-                let Vec3(vx, _, vz) = position.0;
-                let (Some(voxel_x), Some(voxel_z)) = (floor_f32_to_i32(vx), floor_f32_to_i32(vz))
-                else {
-                    return;
-                };
-                let coords = if chunk_size == 1 {
-                    crate::Vec2(voxel_x, voxel_z)
-                } else if let Some(shift) = chunk_shift {
-                    crate::Vec2(voxel_x >> shift, voxel_z >> shift)
-                } else {
-                    crate::Vec2(voxel_x.div_euclid(chunk_size), voxel_z.div_euclid(chunk_size))
-                };
-
-                if coords != curr_chunk.coords {
-                    curr_chunk.coords = coords;
-                    curr_chunk.changed = true;
-                }
-            });
+        if chunk_size == 1 {
+            (&positions, &mut curr_chunks)
+                .par_join()
+                .for_each(|(position, curr_chunk)| {
+                    let Vec3(vx, _, vz) = position.0;
+                    let (Some(voxel_x), Some(voxel_z)) =
+                        (floor_f32_to_i32(vx), floor_f32_to_i32(vz))
+                    else {
+                        return;
+                    };
+                    update_current_chunk(curr_chunk, crate::Vec2(voxel_x, voxel_z));
+                });
+        } else if let Some(shift) = chunk_shift {
+            (&positions, &mut curr_chunks)
+                .par_join()
+                .for_each(|(position, curr_chunk)| {
+                    let Vec3(vx, _, vz) = position.0;
+                    let (Some(voxel_x), Some(voxel_z)) =
+                        (floor_f32_to_i32(vx), floor_f32_to_i32(vz))
+                    else {
+                        return;
+                    };
+                    update_current_chunk(curr_chunk, crate::Vec2(voxel_x >> shift, voxel_z >> shift));
+                });
+        } else {
+            (&positions, &mut curr_chunks)
+                .par_join()
+                .for_each(|(position, curr_chunk)| {
+                    let Vec3(vx, _, vz) = position.0;
+                    let (Some(voxel_x), Some(voxel_z)) =
+                        (floor_f32_to_i32(vx), floor_f32_to_i32(vz))
+                    else {
+                        return;
+                    };
+                    update_current_chunk(
+                        curr_chunk,
+                        crate::Vec2(voxel_x.div_euclid(chunk_size), voxel_z.div_euclid(chunk_size)),
+                    );
+                });
+        }
     }
 }
 
