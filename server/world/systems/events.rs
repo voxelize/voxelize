@@ -32,7 +32,9 @@ fn push_dispatch_event(
         }
         RawEntryMut::Vacant(entry) => {
             touched_clients.push(client_id.to_owned());
-            entry.insert(client_id.to_owned(), vec![event]);
+            let mut events = Vec::with_capacity(1);
+            events.push(event);
+            entry.insert(client_id.to_owned(), events);
         }
     }
 }
@@ -94,6 +96,30 @@ impl<'a> System<'a> for EventsSystem {
             if transports_map.capacity() < queued_events_count {
                 transports_map.reserve(queued_events_count - transports_map.capacity());
             }
+        }
+        if client_count == 0 {
+            for event in events.queue.drain(..) {
+                let Event { name, payload, .. } = event;
+                transports_map.push(EventProtocol {
+                    name,
+                    payload: payload.unwrap_or_else(|| String::from("{}")),
+                });
+            }
+            let message = Message::new(&MessageType::Event)
+                .world_name(&world_metadata.world_name)
+                .events(&transports_map)
+                .build();
+            let encoded = encode_message(&message);
+            if transport_count == 1 {
+                if let Some(sender) = transports.values().next() {
+                    let _ = sender.send(encoded);
+                }
+            } else {
+                transports.values().for_each(|sender| {
+                    let _ = sender.send(encoded.clone());
+                });
+            }
+            return;
         }
 
         let is_interested = |coords: &Vec2<i32>, entity: Entity| {
