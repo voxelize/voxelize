@@ -170,7 +170,11 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         let mut old_entities = std::mem::take(&mut bookkeeping.entities);
         let mut new_bookkeeping_records = HashMap::with_capacity(old_entities.len());
-        let mut entity_positions: HashMap<String, Vec3<f32>> = HashMap::with_capacity(old_entities.len());
+        let mut entity_positions = std::mem::take(&mut bookkeeping.entity_positions);
+        entity_positions.clear();
+        if entity_positions.capacity() < old_entities.len() {
+            entity_positions.reserve(old_entities.len() - entity_positions.capacity());
+        }
         let has_clients = !clients.is_empty();
         let mut entity_metadata_map: HashMap<&str, (&str, String, bool)> = if has_clients {
             HashMap::with_capacity(old_entities.len())
