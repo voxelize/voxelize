@@ -523,6 +523,15 @@ describe("report-utils", () => {
     expect(malformedRecognizedDashEqualsValueResult.outputPath).toBe(
       "/workspace/-=token"
     );
+    const malformedRecognizedNumericDashValueResult = resolveOutputPath(
+      ["--output", "-9"],
+      "/workspace",
+      malformedRecognizedOutputTokens as never
+    );
+    expect(malformedRecognizedNumericDashValueResult.error).toBeNull();
+    expect(malformedRecognizedNumericDashValueResult.outputPath).toBe(
+      "/workspace/-9"
+    );
     let largeLengthRecognizedOutputTokenReadCount = 0;
     const largeLengthRecognizedOutputTokens = new Proxy(["-l"], {
       get(target, property, receiver) {
@@ -1079,6 +1088,19 @@ describe("report-utils", () => {
       "-=token"
     );
     expect(resolvedDashEqualsValueFromCombinedRecognizedOptionTraps.error).toBeNull();
+    const resolvedNumericDashValueFromCombinedRecognizedOptionTraps =
+      resolveLastOptionValue(
+        ["--output", "-9"],
+        "--output",
+        lengthAndOwnKeysTrapRecognizedOptionTokens as never
+      );
+    expect(resolvedNumericDashValueFromCombinedRecognizedOptionTraps.hasOption).toBe(
+      true
+    );
+    expect(resolvedNumericDashValueFromCombinedRecognizedOptionTraps.value).toBe(
+      "-9"
+    );
+    expect(resolvedNumericDashValueFromCombinedRecognizedOptionTraps.error).toBeNull();
     let largeLengthRecognizedTokenReadCount = 0;
     const largeLengthRecognizedOptionTokens = new Proxy(["-l"], {
       get(target, property, receiver) {
