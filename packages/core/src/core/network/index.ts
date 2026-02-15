@@ -558,6 +558,31 @@ export class Network {
 
       return this;
     }
+    if (intercepts.length === 2) {
+      const firstIntercept = intercepts[0];
+      const secondIntercept = intercepts[1];
+      if (firstIntercept === secondIntercept) {
+        let index = this.intercepts.indexOf(firstIntercept);
+        if (index !== -1) {
+          this.intercepts.splice(index, 1);
+          index = this.intercepts.indexOf(firstIntercept, index);
+          if (index !== -1) {
+            this.intercepts.splice(index, 1);
+          }
+        }
+        return this;
+      }
+
+      let firstIndex = this.intercepts.indexOf(firstIntercept);
+      if (firstIndex !== -1) {
+        this.intercepts.splice(firstIndex, 1);
+      }
+      const secondIndex = this.intercepts.indexOf(secondIntercept);
+      if (secondIndex !== -1) {
+        this.intercepts.splice(secondIndex, 1);
+      }
+      return this;
+    }
 
     const removalCounts = new Map<NetIntercept, number>();
     for (let interceptIndex = 0; interceptIndex < intercepts.length; interceptIndex++) {
