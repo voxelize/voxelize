@@ -3373,6 +3373,51 @@ describe("report-utils", () => {
     expect(unknownFromPartiallyRecoverableShortAliasToken).toEqual(["--mystery"]);
   });
 
+  it("salvages length-trapped canonical option metadata in unknown option parsing", () => {
+    const fullyRecoverableLengthTrappedCanonicalOptions =
+      createLengthTrappedPartiallyRecoveredStringArray(
+        ["--json", "--output"],
+        2
+      );
+    const unknownFromFullyRecoverableLengthTrappedCanonicalOptions =
+      parseUnknownCliOptions(
+        ["--json", "--mystery", "--output", "./report.json"],
+        {
+          canonicalOptions:
+            fullyRecoverableLengthTrappedCanonicalOptions as never,
+          optionsWithValues: ["--output"],
+        }
+      );
+    expect(unknownFromFullyRecoverableLengthTrappedCanonicalOptions).toEqual([
+      "--mystery",
+    ]);
+    const partiallyRecoverableLengthTrappedCanonicalOptions =
+      createLengthTrappedPartiallyRecoveredStringArray(["--json", "--output"]);
+    const unknownFromPartiallyRecoverableLengthTrappedCanonicalOptions =
+      parseUnknownCliOptions(
+        ["--json", "--mystery", "--output", "./report.json"],
+        {
+          canonicalOptions:
+            partiallyRecoverableLengthTrappedCanonicalOptions as never,
+          optionsWithValues: ["--output"],
+        }
+      );
+    expect(unknownFromPartiallyRecoverableLengthTrappedCanonicalOptions).toEqual(
+      ["--mystery", "--output"]
+    );
+    const unknownFromPartiallyRecoverableLengthTrappedCanonicalOptionsWithAliases =
+      parseUnknownCliOptions(["--verify", "--mystery"], {
+        canonicalOptions:
+          partiallyRecoverableLengthTrappedCanonicalOptions as never,
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+      });
+    expect(
+      unknownFromPartiallyRecoverableLengthTrappedCanonicalOptionsWithAliases
+    ).toEqual(["--mystery"]);
+  });
+
   it("applies set value metadata strict-subset fallback across sibling options in unknown parsing", () => {
     const setValueMetadata = new Set(["--output"]);
     const unknownOnlyShortOption = parseUnknownCliOptions(["--only", "-l"], {
@@ -3660,6 +3705,71 @@ describe("report-utils", () => {
     expect(
       partiallyRecoverableLengthTrappedPrecomputedSupportedTokens.unsupportedOptionsError
     ).toBe("Unsupported option(s): --mystery. Supported options: --json.");
+    const fullyRecoverableLengthTrappedCanonicalOptions =
+      createLengthTrappedPartiallyRecoveredStringArray(
+        ["--json", "--output"],
+        2
+      );
+    const fullyRecoverableLengthTrappedCanonicalValidation =
+      createCliOptionValidation(
+        ["--json", "--mystery", "--output", "./report.json"],
+        {
+          canonicalOptions:
+            fullyRecoverableLengthTrappedCanonicalOptions as never,
+          optionsWithValues: ["--output"],
+        }
+      );
+    expect(
+      fullyRecoverableLengthTrappedCanonicalValidation.supportedCliOptions
+    ).toEqual(["--json", "--output"]);
+    expect(
+      fullyRecoverableLengthTrappedCanonicalValidation.supportedCliOptionCount
+    ).toBe(2);
+    expect(fullyRecoverableLengthTrappedCanonicalValidation.unknownOptions).toEqual(
+      ["--mystery"]
+    );
+    expect(
+      fullyRecoverableLengthTrappedCanonicalValidation.unknownOptionCount
+    ).toBe(1);
+    expect(
+      fullyRecoverableLengthTrappedCanonicalValidation.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
+    expect(
+      fullyRecoverableLengthTrappedCanonicalValidation.validationErrorCode
+    ).toBe("unsupported_options");
+    const partiallyRecoverableLengthTrappedCanonicalOptions =
+      createLengthTrappedPartiallyRecoveredStringArray(["--json", "--output"]);
+    const partiallyRecoverableLengthTrappedCanonicalValidation =
+      createCliOptionValidation(
+        ["--json", "--mystery", "--output", "./report.json"],
+        {
+          canonicalOptions:
+            partiallyRecoverableLengthTrappedCanonicalOptions as never,
+          optionsWithValues: ["--output"],
+        }
+      );
+    expect(
+      partiallyRecoverableLengthTrappedCanonicalValidation.supportedCliOptions
+    ).toEqual(["--json"]);
+    expect(
+      partiallyRecoverableLengthTrappedCanonicalValidation.supportedCliOptionCount
+    ).toBe(1);
+    expect(
+      partiallyRecoverableLengthTrappedCanonicalValidation.unknownOptions
+    ).toEqual(["--mystery", "--output"]);
+    expect(
+      partiallyRecoverableLengthTrappedCanonicalValidation.unknownOptionCount
+    ).toBe(2);
+    expect(
+      partiallyRecoverableLengthTrappedCanonicalValidation.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --mystery, --output. Supported options: --json."
+    );
+    expect(
+      partiallyRecoverableLengthTrappedCanonicalValidation.validationErrorCode
+    ).toBe("unsupported_options");
 
     const outputErrorPriority = createCliOptionValidation(
       ["--json", "--mystery"],
@@ -5030,6 +5140,53 @@ describe("report-utils", () => {
     });
   });
 
+  it("salvages length-trapped canonical option metadata in cli option catalogs", () => {
+    const fullyRecoverableLengthTrappedCanonicalOptions =
+      createLengthTrappedPartiallyRecoveredStringArray(
+        ["--json", "--output"],
+        2
+      );
+    const fullyRecoverableCatalog = createCliOptionCatalog({
+      canonicalOptions: fullyRecoverableLengthTrappedCanonicalOptions as never,
+    });
+
+    expect(fullyRecoverableCatalog.supportedCliOptions).toEqual([
+      "--json",
+      "--output",
+    ]);
+    expect(fullyRecoverableCatalog.supportedCliOptionCount).toBe(2);
+    expect(fullyRecoverableCatalog.availableCliOptionAliases).toEqual({});
+    expect(fullyRecoverableCatalog.availableCliOptionCanonicalMap).toEqual({
+      "--json": "--json",
+      "--output": "--output",
+    });
+
+    const partiallyRecoverableLengthTrappedCanonicalOptions =
+      createLengthTrappedPartiallyRecoveredStringArray(["--json", "--output"]);
+    const partiallyRecoverableCatalog = createCliOptionCatalog({
+      canonicalOptions:
+        partiallyRecoverableLengthTrappedCanonicalOptions as never,
+      optionAliases: {
+        "--no-build": ["--verify"],
+      },
+    });
+
+    expect(partiallyRecoverableCatalog.supportedCliOptions).toEqual([
+      "--json",
+      "--no-build",
+      "--verify",
+    ]);
+    expect(partiallyRecoverableCatalog.supportedCliOptionCount).toBe(3);
+    expect(partiallyRecoverableCatalog.availableCliOptionAliases).toEqual({
+      "--no-build": ["--verify"],
+    });
+    expect(partiallyRecoverableCatalog.availableCliOptionCanonicalMap).toEqual({
+      "--json": "--json",
+      "--no-build": "--no-build",
+      "--verify": "--no-build",
+    });
+  });
+
   it("preserves non-trapping alias entries when others are malformed", () => {
     const optionAliases = Object.create(null) as {
       readonly "--no-build": string[];
@@ -5552,6 +5709,125 @@ describe("report-utils", () => {
     expect(partiallyRecoverableDiagnostics.activeCliOptionResolutionCount).toBe(0);
     expect(partiallyRecoverableDiagnostics.activeCliOptionOccurrences).toEqual([]);
     expect(partiallyRecoverableDiagnostics.activeCliOptionOccurrenceCount).toBe(0);
+  });
+
+  it("tracks length-trapped canonical option recovery in unified cli diagnostics", () => {
+    const fullyRecoverableLengthTrappedCanonicalOptions =
+      createLengthTrappedPartiallyRecoveredStringArray(
+        ["--json", "--output"],
+        2
+      );
+    const fullyRecoverableDiagnostics = createCliDiagnostics(
+      ["--json", "--mystery", "--output", "./report.json"],
+      {
+        canonicalOptions:
+          fullyRecoverableLengthTrappedCanonicalOptions as never,
+        optionsWithValues: ["--output"],
+      }
+    );
+
+    expect(fullyRecoverableDiagnostics.supportedCliOptions).toEqual([
+      "--json",
+      "--output",
+    ]);
+    expect(fullyRecoverableDiagnostics.supportedCliOptionCount).toBe(2);
+    expect(fullyRecoverableDiagnostics.availableCliOptionAliases).toEqual({});
+    expect(fullyRecoverableDiagnostics.availableCliOptionCanonicalMap).toEqual({
+      "--json": "--json",
+      "--output": "--output",
+    });
+    expect(fullyRecoverableDiagnostics.unknownOptions).toEqual(["--mystery"]);
+    expect(fullyRecoverableDiagnostics.unknownOptionCount).toBe(1);
+    expect(fullyRecoverableDiagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
+    expect(fullyRecoverableDiagnostics.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    expect(fullyRecoverableDiagnostics.activeCliOptions).toEqual([
+      "--json",
+      "--output",
+    ]);
+    expect(fullyRecoverableDiagnostics.activeCliOptionCount).toBe(2);
+    expect(fullyRecoverableDiagnostics.activeCliOptionTokens).toEqual([
+      "--json",
+      "--output",
+    ]);
+    expect(fullyRecoverableDiagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(fullyRecoverableDiagnostics.activeCliOptionResolutionCount).toBe(2);
+    expect(fullyRecoverableDiagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 2,
+      },
+    ]);
+    expect(fullyRecoverableDiagnostics.activeCliOptionOccurrenceCount).toBe(2);
+
+    const partiallyRecoverableLengthTrappedCanonicalOptions =
+      createLengthTrappedPartiallyRecoveredStringArray(["--json", "--output"]);
+    const partiallyRecoverableDiagnostics = createCliDiagnostics(
+      ["--json", "--mystery", "--output", "./report.json"],
+      {
+        canonicalOptions:
+          partiallyRecoverableLengthTrappedCanonicalOptions as never,
+        optionsWithValues: ["--output"],
+      }
+    );
+
+    expect(partiallyRecoverableDiagnostics.supportedCliOptions).toEqual([
+      "--json",
+    ]);
+    expect(partiallyRecoverableDiagnostics.supportedCliOptionCount).toBe(1);
+    expect(partiallyRecoverableDiagnostics.availableCliOptionAliases).toEqual({});
+    expect(partiallyRecoverableDiagnostics.availableCliOptionCanonicalMap).toEqual({
+      "--json": "--json",
+    });
+    expect(partiallyRecoverableDiagnostics.unknownOptions).toEqual([
+      "--mystery",
+      "--output",
+    ]);
+    expect(partiallyRecoverableDiagnostics.unknownOptionCount).toBe(2);
+    expect(partiallyRecoverableDiagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery, --output. Supported options: --json."
+    );
+    expect(partiallyRecoverableDiagnostics.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    expect(partiallyRecoverableDiagnostics.activeCliOptions).toEqual(["--json"]);
+    expect(partiallyRecoverableDiagnostics.activeCliOptionCount).toBe(1);
+    expect(partiallyRecoverableDiagnostics.activeCliOptionTokens).toEqual([
+      "--json",
+    ]);
+    expect(partiallyRecoverableDiagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(partiallyRecoverableDiagnostics.activeCliOptionResolutionCount).toBe(1);
+    expect(partiallyRecoverableDiagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+    ]);
+    expect(partiallyRecoverableDiagnostics.activeCliOptionOccurrenceCount).toBe(1);
   });
 
   it("keeps pre-terminator aliases active while ignoring post-terminator misuse", () => {
@@ -9147,6 +9423,143 @@ describe("report-utils", () => {
     expect(activeMetadata.activeCliOptionResolutionCount).toBe(0);
     expect(activeMetadata.activeCliOptionOccurrences).toEqual([]);
     expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(0);
+  });
+
+  it("salvages length-trapped canonical option metadata in active metadata parsing", () => {
+    const fullyRecoverableLengthTrappedCanonicalOptions =
+      createLengthTrappedPartiallyRecoveredStringArray(
+        ["--json", "--output"],
+        2
+      );
+    const fullyRecoverableActiveMetadata = parseActiveCliOptionMetadata(
+      ["--json", "--output", "./report.json"],
+      {
+        canonicalOptions:
+          fullyRecoverableLengthTrappedCanonicalOptions as never,
+        optionsWithValues: ["--output"],
+      }
+    );
+
+    expect(fullyRecoverableActiveMetadata.activeCliOptions).toEqual([
+      "--json",
+      "--output",
+    ]);
+    expect(fullyRecoverableActiveMetadata.activeCliOptionCount).toBe(2);
+    expect(fullyRecoverableActiveMetadata.activeCliOptionTokens).toEqual([
+      "--json",
+      "--output",
+    ]);
+    expect(fullyRecoverableActiveMetadata.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(fullyRecoverableActiveMetadata.activeCliOptionResolutionCount).toBe(2);
+    expect(fullyRecoverableActiveMetadata.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 1,
+      },
+    ]);
+    expect(fullyRecoverableActiveMetadata.activeCliOptionOccurrenceCount).toBe(2);
+
+    const partiallyRecoverableLengthTrappedCanonicalOptions =
+      createLengthTrappedPartiallyRecoveredStringArray(["--json", "--output"]);
+    const partiallyRecoverableActiveMetadata = parseActiveCliOptionMetadata(
+      ["--json", "--output", "./report.json"],
+      {
+        canonicalOptions:
+          partiallyRecoverableLengthTrappedCanonicalOptions as never,
+        optionsWithValues: ["--output"],
+      }
+    );
+
+    expect(partiallyRecoverableActiveMetadata.activeCliOptions).toEqual([
+      "--json",
+    ]);
+    expect(partiallyRecoverableActiveMetadata.activeCliOptionCount).toBe(1);
+    expect(partiallyRecoverableActiveMetadata.activeCliOptionTokens).toEqual([
+      "--json",
+    ]);
+    expect(partiallyRecoverableActiveMetadata.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(partiallyRecoverableActiveMetadata.activeCliOptionResolutionCount).toBe(
+      1
+    );
+    expect(partiallyRecoverableActiveMetadata.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+    ]);
+    expect(partiallyRecoverableActiveMetadata.activeCliOptionOccurrenceCount).toBe(
+      1
+    );
+    const partiallyRecoverableActiveMetadataWithAliasFallback =
+      parseActiveCliOptionMetadata(["--verify", "--json"], {
+        canonicalOptions:
+          partiallyRecoverableLengthTrappedCanonicalOptions as never,
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+      });
+    expect(partiallyRecoverableActiveMetadataWithAliasFallback.activeCliOptions).toEqual(
+      ["--json", "--no-build"]
+    );
+    expect(
+      partiallyRecoverableActiveMetadataWithAliasFallback.activeCliOptionCount
+    ).toBe(2);
+    expect(
+      partiallyRecoverableActiveMetadataWithAliasFallback.activeCliOptionTokens
+    ).toEqual(["--verify", "--json"]);
+    expect(
+      partiallyRecoverableActiveMetadataWithAliasFallback.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(
+      partiallyRecoverableActiveMetadataWithAliasFallback.activeCliOptionResolutionCount
+    ).toBe(2);
+    expect(
+      partiallyRecoverableActiveMetadataWithAliasFallback.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+        index: 0,
+      },
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 1,
+      },
+    ]);
+    expect(
+      partiallyRecoverableActiveMetadataWithAliasFallback.activeCliOptionOccurrenceCount
+    ).toBe(2);
   });
 
   it("keeps pre-terminator aliases active while ignoring post-terminator alias misuse", () => {
