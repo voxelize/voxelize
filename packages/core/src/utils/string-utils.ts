@@ -24,6 +24,33 @@ const normalizeCaseIfNeeded = (value: string): string => {
   return value;
 };
 
+const splitOnDashOrUnderscore = (value: string): string[] | null => {
+  let delimiterIndex = -1;
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index);
+    if (code === 45 || code === 95) {
+      delimiterIndex = index;
+      break;
+    }
+  }
+  if (delimiterIndex < 0) {
+    return null;
+  }
+
+  const parts: string[] = [];
+  let segmentStart = 0;
+  for (let index = delimiterIndex; index < value.length; index++) {
+    const code = value.charCodeAt(index);
+    if (code !== 45 && code !== 95) {
+      continue;
+    }
+    parts.push(value.slice(segmentStart, index));
+    segmentStart = index + 1;
+  }
+  parts.push(value.slice(segmentStart));
+  return parts;
+};
+
 export function findSimilar(
   target: string,
   available: string[],
@@ -31,7 +58,7 @@ export function findSimilar(
 ): string[] {
   const { maxSuggestions = 3 } = options;
   const targetLower = normalizeCaseIfNeeded(target);
-  const targetParts = targetLower.split(/[-_]/);
+  const targetParts = splitOnDashOrUnderscore(targetLower);
   const scored: Array<{ name: string; score: number }> = [];
 
   for (let nameIndex = 0; nameIndex < available.length; nameIndex++) {
@@ -43,14 +70,33 @@ export function findSimilar(
       score += 10;
     }
 
-    const nameParts = nameLower.split(/[-_]/);
-    for (let targetPartIndex = 0; targetPartIndex < targetParts.length; targetPartIndex++) {
-      const tp = targetParts[targetPartIndex];
+    const nameParts = splitOnDashOrUnderscore(nameLower);
+    if (targetParts) {
+      if (nameParts) {
+        for (let targetPartIndex = 0; targetPartIndex < targetParts.length; targetPartIndex++) {
+          const tp = targetParts[targetPartIndex];
+          for (let namePartIndex = 0; namePartIndex < nameParts.length; namePartIndex++) {
+            const np = nameParts[namePartIndex];
+            if (tp === np) score += 5;
+            else if (tp.includes(np) || np.includes(tp)) score += 2;
+          }
+        }
+      } else {
+        for (let targetPartIndex = 0; targetPartIndex < targetParts.length; targetPartIndex++) {
+          const tp = targetParts[targetPartIndex];
+          if (tp === nameLower) score += 5;
+          else if (tp.includes(nameLower) || nameLower.includes(tp)) score += 2;
+        }
+      }
+    } else if (nameParts) {
       for (let namePartIndex = 0; namePartIndex < nameParts.length; namePartIndex++) {
         const np = nameParts[namePartIndex];
-        if (tp === np) score += 5;
-        else if (tp.includes(np) || np.includes(tp)) score += 2;
+        if (targetLower === np) score += 5;
+        else if (targetLower.includes(np) || np.includes(targetLower)) score += 2;
       }
+    } else {
+      if (targetLower === nameLower) score += 5;
+      else if (targetLower.includes(nameLower) || nameLower.includes(targetLower)) score += 2;
     }
 
     if (targetLower[0] === nameLower[0]) score += 1;
