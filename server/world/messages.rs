@@ -113,8 +113,8 @@ impl EncodedMessageQueue {
             }
             return;
         }
-        let mut all_pending = Vec::with_capacity(self.pending.capacity());
-        std::mem::swap(&mut self.pending, &mut all_pending);
+        let mut all_pending = Vec::with_capacity(self.pending.len());
+        all_pending.extend(self.pending.drain(..));
 
         let sender = Arc::clone(&self.sender);
         rayon::spawn_fifo(move || {
