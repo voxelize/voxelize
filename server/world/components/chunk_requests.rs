@@ -52,6 +52,10 @@ impl ChunkRequestsComp {
         {
             return;
         }
+        if self.requests.len() <= 2 {
+            self.requests.push(*coords);
+            return;
+        }
         if self.requests.contains(coords) {
             return;
         }
