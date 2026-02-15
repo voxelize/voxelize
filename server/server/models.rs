@@ -62,13 +62,11 @@ impl Message {
 
 /// Encode message into protocol buffers with LZ4 frame compression for large messages.
 pub fn encode_message(message: &Message) -> Vec<u8> {
-    let mut buf = Vec::new();
-
-    buf.reserve(message.encoded_len());
+    let mut buf = Vec::with_capacity(message.encoded_len());
     message.encode(&mut buf).unwrap();
 
     if buf.len() > COMPRESSION_THRESHOLD {
-        let mut encoder = FrameEncoder::new(Vec::new());
+        let mut encoder = FrameEncoder::new(Vec::with_capacity(buf.len()));
         encoder.write_all(&buf).unwrap();
         encoder.finish().unwrap()
     } else {
