@@ -332,6 +332,26 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     else {
                         continue;
                     };
+                    if self.deleted_entities_buffer.len() < known_entities.len() {
+                        for (deleted_entity_id, etype, metadata_str) in &self.deleted_entities_buffer
+                        {
+                            if !known_entities.remove(deleted_entity_id) {
+                                continue;
+                            }
+                            push_client_update(
+                                &mut self.client_updates_buffer,
+                                &mut self.clients_with_updates_buffer,
+                                client_id,
+                                EntityProtocol {
+                                    operation: EntityOperation::Delete,
+                                    id: deleted_entity_id.clone(),
+                                    r#type: etype.clone(),
+                                    metadata: Some(metadata_str.clone()),
+                                },
+                            );
+                        }
+                        continue;
+                    }
                     let entities_to_delete = &mut self.known_entities_to_delete_buffer;
                     entities_to_delete.clear();
                     if entities_to_delete.capacity() < known_entities.len() {
