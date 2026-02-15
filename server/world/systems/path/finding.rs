@@ -780,13 +780,16 @@ fn can_walk_directly(
     let step_x = dx as f64 / steps as f64;
     let step_z = dz as f64 / steps as f64;
     let step_y = dy as f64 / steps as f64;
+    let from_x = f64::from(from.0);
+    let from_y = f64::from(from.1);
+    let from_z = f64::from(from.2);
 
     // Check each position along the line
     for i in 0..=steps_i32 {
         let step = i as f64;
-        let x = clamp_f64_to_i32((f64::from(from.0) + step_x * step).round());
-        let z = clamp_f64_to_i32((f64::from(from.2) + step_z * step).round());
-        let y = clamp_f64_to_i32((f64::from(from.1) + step_y * step).round());
+        let x = clamp_f64_to_i32((from_x + step_x * step).round());
+        let z = clamp_f64_to_i32((from_z + step_z * step).round());
+        let y = clamp_f64_to_i32((from_y + step_y * step).round());
 
         // Check if position is walkable
         if !is_position_walkable(x, y, z, chunks, registry, height) {
