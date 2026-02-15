@@ -292,6 +292,14 @@ impl Pipeline {
             self.mark_for_regenerate(coords);
             return;
         }
+        if self.queue.is_empty() {
+            if prioritized {
+                self.queue.push_front(coords.to_owned());
+            } else {
+                self.queue.push_back(coords.to_owned());
+            }
+            return;
+        }
         if prioritized {
             if self.queue.front().is_some_and(|front| front == coords) {
                 return;
