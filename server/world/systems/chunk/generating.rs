@@ -326,29 +326,29 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         }
 
         // parallelize loading
-        let loaded_chunks: Vec<(Vec2<i32>, Option<Chunk>)> =
-            if to_load.len() <= SMALL_PARALLEL_CHUNK_LOAD_LIMIT {
-                let mut loaded_chunks = Vec::with_capacity(to_load.len());
-                for coords in to_load {
-                    let loaded = chunks.try_load(&coords, &registry);
-                    loaded_chunks.push((coords, loaded));
+        if to_load.len() <= SMALL_PARALLEL_CHUNK_LOAD_LIMIT {
+            for coords in to_load {
+                if let Some(chunk) = chunks.try_load(&coords, &registry) {
+                    chunks.renew(chunk, false);
+                } else {
+                    pipeline.add_chunk(&coords, false);
                 }
-                loaded_chunks
-            } else {
-                to_load
-                    .into_par_iter()
-                    .map(|coords| {
-                        let loaded = chunks.try_load(&coords, &registry);
-                        (coords, loaded)
-                    })
-                    .collect()
-            };
+            }
+        } else {
+            let loaded_chunks: Vec<(Vec2<i32>, Option<Chunk>)> = to_load
+                .into_par_iter()
+                .map(|coords| {
+                    let loaded = chunks.try_load(&coords, &registry);
+                    (coords, loaded)
+                })
+                .collect();
 
-        for (coords, loaded_chunk) in loaded_chunks.into_iter() {
-            if let Some(chunk) = loaded_chunk {
-                chunks.renew(chunk, false);
-            } else {
-                pipeline.add_chunk(&coords, false);
+            for (coords, loaded_chunk) in loaded_chunks {
+                if let Some(chunk) = loaded_chunk {
+                    chunks.renew(chunk, false);
+                } else {
+                    pipeline.add_chunk(&coords, false);
+                }
             }
         }
 
