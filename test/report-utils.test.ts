@@ -6437,6 +6437,118 @@ describe("report-utils", () => {
       },
     ]);
     expect(diagnostics.activeCliOptionOccurrenceCount).toBe(2);
+    let statefulCanonicalOptionReadCount = 0;
+    const statefulCanonicalOptions = new Proxy(["--json"], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (property === "0") {
+          statefulCanonicalOptionReadCount += 1;
+          if (statefulCanonicalOptionReadCount > 1) {
+            return undefined;
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const statefulCanonicalDiagnostics = createCliDiagnostics(["--json"], {
+      canonicalOptions: statefulCanonicalOptions as never,
+    });
+    expect(statefulCanonicalDiagnostics.supportedCliOptions).toEqual(["--json"]);
+    expect(statefulCanonicalDiagnostics.supportedCliOptionCount).toBe(1);
+    expect(statefulCanonicalDiagnostics.availableCliOptionAliases).toEqual({});
+    expect(statefulCanonicalDiagnostics.availableCliOptionCanonicalMap).toEqual({
+      "--json": "--json",
+    });
+    expect(statefulCanonicalDiagnostics.unknownOptions).toEqual([]);
+    expect(statefulCanonicalDiagnostics.unknownOptionCount).toBe(0);
+    expect(statefulCanonicalDiagnostics.unsupportedOptionsError).toBeNull();
+    expect(statefulCanonicalDiagnostics.validationErrorCode).toBeNull();
+    expect(statefulCanonicalDiagnostics.activeCliOptions).toEqual(["--json"]);
+    expect(statefulCanonicalDiagnostics.activeCliOptionCount).toBe(1);
+    expect(statefulCanonicalDiagnostics.activeCliOptionTokens).toEqual([
+      "--json",
+    ]);
+    expect(statefulCanonicalDiagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(statefulCanonicalDiagnostics.activeCliOptionResolutionCount).toBe(1);
+    expect(statefulCanonicalDiagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+    ]);
+    expect(statefulCanonicalDiagnostics.activeCliOptionOccurrenceCount).toBe(1);
+    let statefulAliasTokenReadCount = 0;
+    const statefulAliasDiagnostics = createCliDiagnostics(["--verify"], {
+      canonicalOptions: ["--json"],
+      optionAliases: {
+        "--no-build": new Proxy(["--verify"], {
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              throw new Error("iterator trap");
+            }
+            if (property === "length") {
+              return 1;
+            }
+            if (property === "0") {
+              statefulAliasTokenReadCount += 1;
+              if (statefulAliasTokenReadCount > 1) {
+                return undefined;
+              }
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      },
+    });
+    expect(statefulAliasDiagnostics.supportedCliOptions).toEqual([
+      "--json",
+      "--no-build",
+      "--verify",
+    ]);
+    expect(statefulAliasDiagnostics.supportedCliOptionCount).toBe(3);
+    expect(statefulAliasDiagnostics.availableCliOptionAliases).toEqual({
+      "--no-build": ["--verify"],
+    });
+    expect(statefulAliasDiagnostics.availableCliOptionCanonicalMap).toEqual({
+      "--json": "--json",
+      "--no-build": "--no-build",
+      "--verify": "--no-build",
+    });
+    expect(statefulAliasDiagnostics.unknownOptions).toEqual([]);
+    expect(statefulAliasDiagnostics.unknownOptionCount).toBe(0);
+    expect(statefulAliasDiagnostics.unsupportedOptionsError).toBeNull();
+    expect(statefulAliasDiagnostics.validationErrorCode).toBeNull();
+    expect(statefulAliasDiagnostics.activeCliOptions).toEqual(["--no-build"]);
+    expect(statefulAliasDiagnostics.activeCliOptionCount).toBe(1);
+    expect(statefulAliasDiagnostics.activeCliOptionTokens).toEqual([
+      "--verify",
+    ]);
+    expect(statefulAliasDiagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+    ]);
+    expect(statefulAliasDiagnostics.activeCliOptionResolutionCount).toBe(1);
+    expect(statefulAliasDiagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+        index: 0,
+      },
+    ]);
+    expect(statefulAliasDiagnostics.activeCliOptionOccurrenceCount).toBe(1);
     const nonArrayAliasMetadataDiagnostics = createCliDiagnostics(
       ["--verify", "--mystery"],
       {

@@ -1694,6 +1694,21 @@ export const createCliOptionCatalog = ({
   };
 };
 
+const createCanonicalOptionSnapshotFromCatalog = (optionCatalog) => {
+  const availableCliOptionCanonicalMap = safeReadProperty(
+    optionCatalog,
+    "availableCliOptionCanonicalMap"
+  );
+  if (!isObjectRecord(availableCliOptionCanonicalMap)) {
+    return [];
+  }
+
+  const canonicalOptionTokens = Object.values(availableCliOptionCanonicalMap).filter(
+    (optionToken) => typeof optionToken === "string"
+  );
+  return dedupeStringList(canonicalOptionTokens);
+};
+
 const resolveCanonicalOptionToken = (
   optionToken,
   canonicalOptionMap,
@@ -2145,17 +2160,20 @@ export const createCliDiagnostics = (
     canonicalOptions,
     optionAliases,
   });
+  const catalogCanonicalOptions =
+    createCanonicalOptionSnapshotFromCatalog(optionCatalog);
+  const catalogOptionAliases = optionCatalog.availableCliOptionAliases;
   const optionValidation = createCliOptionValidation(args, {
-    canonicalOptions,
-    optionAliases,
+    canonicalOptions: catalogCanonicalOptions,
+    optionAliases: catalogOptionAliases,
     optionsWithValues,
     optionsWithStrictValues,
     outputPathError,
     supportedCliOptions: optionCatalog.supportedCliOptions,
   });
   const activeOptionMetadata = parseActiveCliOptionMetadata(args, {
-    canonicalOptions,
-    optionAliases,
+    canonicalOptions: catalogCanonicalOptions,
+    optionAliases: catalogOptionAliases,
     optionsWithValues,
     optionsWithStrictValues,
   });
