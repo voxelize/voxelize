@@ -3116,6 +3116,76 @@ describe("report-utils", () => {
     ]);
   });
 
+  it("sanitizes malformed check-args arrays in failure summaries", () => {
+    const throwingIteratorArgs = ["check-proxy.mjs", "--json"];
+    Object.defineProperty(throwingIteratorArgs, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+
+    expect(
+      summarizeStepFailureResults([
+        {
+          name: "step-proxy",
+          scriptName: "check-proxy.mjs",
+          supportsNoBuild: false,
+          checkCommand: "node",
+          checkArgs: throwingIteratorArgs,
+          stepIndex: 0,
+          passed: false,
+          skipped: false,
+          exitCode: 2,
+          report: null,
+          output: null,
+        },
+      ])
+    ).toEqual([
+      {
+        name: "step-proxy",
+        scriptName: "check-proxy.mjs",
+        supportsNoBuild: false,
+        stepIndex: 0,
+        checkCommand: "node",
+        checkArgs: [],
+        checkArgCount: 0,
+        exitCode: 2,
+        message: "Step failed with exit code 2.",
+      },
+    ]);
+
+    expect(
+      summarizeCheckFailureResults([
+        {
+          name: "check-proxy",
+          scriptName: "check-proxy.mjs",
+          supportsNoBuild: false,
+          checkCommand: "node",
+          checkArgs: ["check-proxy.mjs", 1, null],
+          checkIndex: 0,
+          passed: false,
+          exitCode: 2,
+          report: null,
+          output: null,
+        },
+      ])
+    ).toEqual([
+      {
+        name: "check-proxy",
+        scriptName: "check-proxy.mjs",
+        supportsNoBuild: false,
+        checkIndex: 0,
+        checkCommand: "node",
+        checkArgs: ["check-proxy.mjs"],
+        checkArgCount: 1,
+        exitCode: 2,
+        message: "Preflight check failed with exit code 2.",
+      },
+    ]);
+  });
+
   it("summarizes check outcomes for aggregate preflight reports", () => {
     const summary = summarizeCheckResults([
       { name: "devEnvironment", passed: false },
@@ -3223,6 +3293,42 @@ describe("report-utils", () => {
       wasmPackCheckCommand: "node",
       wasmPackCheckArgs: ["check-wasm-pack.mjs"],
       wasmPackCheckArgCount: 1,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
+  });
+
+  it("sanitizes malformed wasm pack summary argument arrays", () => {
+    const iteratorTrapArgs = ["check-wasm-pack.mjs", "--json"];
+    Object.defineProperty(iteratorTrapArgs, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+
+    expect(
+      extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckArgs: ["check-wasm-pack.mjs", 1, null],
+      })
+    ).toEqual({
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: ["check-wasm-pack.mjs"],
+      wasmPackCheckArgCount: 1,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
+    expect(
+      extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckArgs: iteratorTrapArgs,
+      })
+    ).toEqual({
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: null,
+      wasmPackCheckArgCount: null,
       wasmPackCheckExitCode: null,
       wasmPackCheckOutputLine: null,
     });
@@ -3427,6 +3533,58 @@ describe("report-utils", () => {
       examplePayloadIssues: null,
       examplePayloadIssueCount: null,
       exampleExitCode: null,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+  });
+
+  it("sanitizes malformed ts-core example argument arrays", () => {
+    const iteratorTrapArgs = ["packages/ts-core/examples/end-to-end.mjs"];
+    Object.defineProperty(iteratorTrapArgs, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleArgs: ["packages/ts-core/examples/end-to-end.mjs", 4, null],
+        exampleAttempted: true,
+        exampleExitCode: 1,
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: ["packages/ts-core/examples/end-to-end.mjs"],
+      exampleArgCount: 1,
+      exampleAttempted: true,
+      exampleStatus: "failed",
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: 1,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleArgs: iteratorTrapArgs,
+        exampleAttempted: true,
+        exampleExitCode: 1,
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: null,
+      exampleArgCount: null,
+      exampleAttempted: true,
+      exampleStatus: "failed",
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: 1,
       exampleDurationMs: null,
       exampleOutputLine: null,
     });

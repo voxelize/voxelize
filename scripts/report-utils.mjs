@@ -287,6 +287,33 @@ export const deriveFailureMessageFromReport = (report) => {
   return null;
 };
 
+const cloneArraySafely = (value) => {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  try {
+    return Array.from(value);
+  } catch {
+    return null;
+  }
+};
+
+const toStringArrayOrNull = (value) => {
+  const clonedArray = cloneArraySafely(value);
+  if (clonedArray === null) {
+    return null;
+  }
+
+  return clonedArray.filter((entry) => {
+    return typeof entry === "string";
+  });
+};
+
+const toStringArrayOrEmpty = (value) => {
+  return toStringArrayOrNull(value) ?? [];
+};
+
 export const extractWasmPackCheckSummaryFromReport = (report) => {
   if (
     report === null ||
@@ -311,9 +338,7 @@ export const extractWasmPackCheckSummaryFromReport = (report) => {
     typeof report.wasmPackCheckCommand === "string"
       ? report.wasmPackCheckCommand
       : null;
-  const wasmPackCheckArgs = Array.isArray(report.wasmPackCheckArgs)
-    ? [...report.wasmPackCheckArgs]
-    : null;
+  const wasmPackCheckArgs = toStringArrayOrNull(report.wasmPackCheckArgs);
   const wasmPackCheckArgCount =
     typeof report.wasmPackCheckArgCount === "number"
       ? report.wasmPackCheckArgCount
@@ -410,7 +435,7 @@ export const extractTsCoreExampleSummaryFromReport = (report) => {
 
   const exampleCommand =
     typeof report.exampleCommand === "string" ? report.exampleCommand : null;
-  const exampleArgs = Array.isArray(report.exampleArgs) ? [...report.exampleArgs] : null;
+  const exampleArgs = toStringArrayOrNull(report.exampleArgs);
   const exampleArgCount =
     typeof report.exampleArgCount === "number"
       ? report.exampleArgCount
@@ -766,6 +791,7 @@ export const summarizeStepFailureResults = (steps) => {
         typeof step.exitCode === "number"
           ? `Step failed with exit code ${step.exitCode}.`
           : "Step failed.";
+      const checkArgs = toStringArrayOrEmpty(step.checkArgs);
 
       return {
         name: step.name,
@@ -774,13 +800,11 @@ export const summarizeStepFailureResults = (steps) => {
         stepIndex: step.stepIndex,
         checkCommand:
           typeof step.checkCommand === "string" ? step.checkCommand : "",
-        checkArgs: Array.isArray(step.checkArgs) ? step.checkArgs : [],
+        checkArgs,
         checkArgCount:
           typeof step.checkArgCount === "number"
             ? step.checkArgCount
-            : Array.isArray(step.checkArgs)
-              ? step.checkArgs.length
-              : 0,
+            : checkArgs.length,
         exitCode: typeof step.exitCode === "number" ? step.exitCode : 1,
         message: reportMessage ?? outputMessage ?? defaultMessage,
       };
@@ -800,6 +824,7 @@ export const summarizeCheckFailureResults = (checks) => {
         typeof check.exitCode === "number"
           ? `Preflight check failed with exit code ${check.exitCode}.`
           : "Preflight check failed.";
+      const checkArgs = toStringArrayOrEmpty(check.checkArgs);
 
       return {
         name: check.name,
@@ -808,13 +833,11 @@ export const summarizeCheckFailureResults = (checks) => {
         checkIndex: typeof check.checkIndex === "number" ? check.checkIndex : null,
         checkCommand:
           typeof check.checkCommand === "string" ? check.checkCommand : "",
-        checkArgs: Array.isArray(check.checkArgs) ? check.checkArgs : [],
+        checkArgs,
         checkArgCount:
           typeof check.checkArgCount === "number"
             ? check.checkArgCount
-            : Array.isArray(check.checkArgs)
-              ? check.checkArgs.length
-              : 0,
+            : checkArgs.length,
         exitCode: typeof check.exitCode === "number" ? check.exitCode : 1,
         message: reportMessage ?? outputMessage ?? defaultMessage,
       };
