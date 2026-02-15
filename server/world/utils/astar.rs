@@ -1,4 +1,5 @@
 use serde::Serialize;
+use hashbrown::HashSet;
 
 use crate::Vec3;
 use pathfinding::prelude::astar;
@@ -35,7 +36,7 @@ impl AStar {
         let start_node = PathNode::from_vec3(start);
         let goal_node = PathNode::from_vec3(goal);
 
-        let mut visited = std::collections::HashSet::new();
+        let mut visited = HashSet::new();
         visited.insert(start_node);
 
         astar(
