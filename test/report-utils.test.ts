@@ -4082,6 +4082,36 @@ describe("report-utils", () => {
         message: "Step failed.",
       },
     ]);
+    expect(
+      summarizeStepFailureResults([
+        {
+          name: "step-overflow-count",
+          scriptName: "check-overflow-count.mjs",
+          supportsNoBuild: false,
+          checkCommand: "node",
+          checkArgs: ["check-overflow-count.mjs", "--json"],
+          checkArgCount: Number.MAX_SAFE_INTEGER + 1,
+          stepIndex: 0,
+          passed: false,
+          skipped: false,
+          exitCode: 2,
+          report: null,
+          output: null,
+        },
+      ])
+    ).toEqual([
+      {
+        name: "step-overflow-count",
+        scriptName: "check-overflow-count.mjs",
+        supportsNoBuild: false,
+        stepIndex: 0,
+        checkCommand: "node",
+        checkArgs: ["check-overflow-count.mjs", "--json"],
+        checkArgCount: 2,
+        exitCode: 2,
+        message: "Step failed with exit code 2.",
+      },
+    ]);
 
     expect(
       summarizeCheckFailureResults([
@@ -4166,6 +4196,35 @@ describe("report-utils", () => {
         checkArgCount: 2,
         exitCode: 1,
         message: "Preflight check failed.",
+      },
+    ]);
+    expect(
+      summarizeCheckFailureResults([
+        {
+          name: "check-overflow-count",
+          scriptName: "check-overflow-count.mjs",
+          supportsNoBuild: false,
+          checkCommand: "node",
+          checkArgs: ["check-overflow-count.mjs", "--json"],
+          checkArgCount: Number.MAX_SAFE_INTEGER + 1,
+          checkIndex: 0,
+          passed: false,
+          exitCode: 2,
+          report: null,
+          output: null,
+        },
+      ])
+    ).toEqual([
+      {
+        name: "check-overflow-count",
+        scriptName: "check-overflow-count.mjs",
+        supportsNoBuild: false,
+        checkIndex: 0,
+        checkCommand: "node",
+        checkArgs: ["check-overflow-count.mjs", "--json"],
+        checkArgCount: 2,
+        exitCode: 2,
+        message: "Preflight check failed with exit code 2.",
       },
     ]);
   });
@@ -4566,6 +4625,11 @@ describe("report-utils", () => {
     ).toBeNull();
     expect(
       deriveFailureMessageFromReport({
+        requiredFailures: Number.MAX_SAFE_INTEGER + 1,
+      })
+    ).toBeNull();
+    expect(
+      deriveFailureMessageFromReport({
         steps: [
           { name: "Skipped", passed: false, skipped: true },
           {
@@ -4752,6 +4816,19 @@ describe("report-utils", () => {
         wasmPackCheckArgs: ["check-wasm-pack.mjs", 1, null],
         wasmPackCheckArgCount: -1,
         wasmPackCheckExitCode: Number.NaN,
+      })
+    ).toEqual({
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: ["check-wasm-pack.mjs"],
+      wasmPackCheckArgCount: 1,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
+    expect(
+      extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckArgs: ["check-wasm-pack.mjs"],
+        wasmPackCheckArgCount: Number.MAX_SAFE_INTEGER + 1,
       })
     ).toEqual({
       wasmPackCheckStatus: null,
@@ -5106,6 +5183,27 @@ describe("report-utils", () => {
         exampleAttempted: true,
         exampleExitCode: 1,
         exampleDurationMs: Number.NaN,
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: ["packages/ts-core/examples/end-to-end.mjs"],
+      exampleArgCount: 1,
+      exampleAttempted: true,
+      exampleStatus: "failed",
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: 1,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleArgs: ["packages/ts-core/examples/end-to-end.mjs"],
+        exampleArgCount: Number.MAX_SAFE_INTEGER + 1,
+        exampleAttempted: true,
+        exampleExitCode: 1,
       })
     ).toEqual({
       exampleCommand: null,

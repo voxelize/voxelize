@@ -452,7 +452,7 @@ const cloneArraySafely = (value) => {
 };
 
 const toNonNegativeIntegerOrNull = (value) => {
-  return Number.isInteger(value) && value >= 0 ? value : null;
+  return Number.isSafeInteger(value) && value >= 0 ? value : null;
 };
 
 const toFiniteNumberOrNull = (value) => {
