@@ -405,7 +405,10 @@ const cloneArrayFromIndexedAccess = (value) => {
   }
 
   const lengthFallbackClone = cloneArrayFromLengthFallback(value);
-  if (lengthFallbackClone !== null && lengthFallbackClone.length > 0) {
+  const hasNonUndefinedLengthFallbackEntry =
+    lengthFallbackClone !== null &&
+    lengthFallbackClone.some((entry) => entry !== undefined);
+  if (hasNonUndefinedLengthFallbackEntry) {
     return lengthFallbackClone;
   }
 

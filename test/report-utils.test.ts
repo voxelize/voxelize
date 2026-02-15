@@ -938,6 +938,31 @@ describe("report-utils", () => {
     expect(sparseHighIndexResult.positionalArgs).toEqual([]);
     expect(sparseHighIndexResult.optionTerminatorUsed).toBe(false);
 
+    const sparseHighIndexWithUndefinedPrefixArgs: Array<string | undefined> = [];
+    sparseHighIndexWithUndefinedPrefixArgs[0] = undefined;
+    sparseHighIndexWithUndefinedPrefixArgs[5_000] = "--json";
+    Object.defineProperty(
+      sparseHighIndexWithUndefinedPrefixArgs,
+      Symbol.iterator,
+      {
+        configurable: true,
+        enumerable: false,
+        get: () => {
+          throw new Error("iterator trap");
+        },
+      }
+    );
+    const sparseHighIndexWithUndefinedPrefixResult = splitCliArgs(
+      sparseHighIndexWithUndefinedPrefixArgs as never
+    );
+    expect(sparseHighIndexWithUndefinedPrefixResult.optionArgs).toEqual([
+      "--json",
+    ]);
+    expect(sparseHighIndexWithUndefinedPrefixResult.positionalArgs).toEqual([]);
+    expect(sparseHighIndexWithUndefinedPrefixResult.optionTerminatorUsed).toBe(
+      false
+    );
+
     const unorderedOwnKeysArgsTarget: string[] = [];
     unorderedOwnKeysArgsTarget[1] = "--one";
     unorderedOwnKeysArgsTarget[3] = "--three";
@@ -4801,6 +4826,23 @@ describe("report-utils", () => {
     expect(normalizeTsCorePayloadIssues(sparseHighIndexIssues)).toEqual([
       "voxel.id",
     ]);
+    const sparseHighIndexWithUndefinedPrefixIssues: Array<string | undefined> = [];
+    sparseHighIndexWithUndefinedPrefixIssues[0] = undefined;
+    sparseHighIndexWithUndefinedPrefixIssues[5_000] = " voxel.id ";
+    Object.defineProperty(
+      sparseHighIndexWithUndefinedPrefixIssues,
+      Symbol.iterator,
+      {
+        configurable: true,
+        enumerable: false,
+        get: () => {
+          throw new Error("iterator trap");
+        },
+      }
+    );
+    expect(
+      normalizeTsCorePayloadIssues(sparseHighIndexWithUndefinedPrefixIssues)
+    ).toEqual(["voxel.id"]);
   });
 
   it("extracts ts-core example summary fields from reports", () => {
