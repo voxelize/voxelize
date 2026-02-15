@@ -1767,16 +1767,19 @@ const createValueOptionMetadata = (
   optionsWithStrictValues,
   canonicalOptionMap
 ) => {
-  const normalizedOptionsWithValues = normalizeCliOptionTokenList(optionsWithValues);
-  const normalizedOptionsWithStrictValues = normalizeCliOptionTokenList(
-    optionsWithStrictValues
-  );
+  const {
+    tokens: normalizedOptionsWithValues,
+  } = normalizeCliOptionTokenListWithAvailability(optionsWithValues);
+  const {
+    tokens: normalizedOptionsWithStrictValues,
+    unavailable: strictValueOptionsUnavailable,
+  } = normalizeCliOptionTokenListWithAvailability(optionsWithStrictValues);
   const canonicalValueOptions = new Set(
     normalizedOptionsWithValues.map((optionWithValue) => {
       return canonicalOptionMap.get(optionWithValue) ?? optionWithValue;
     })
   );
-  const canonicalStrictValueOptions = new Set(
+  let canonicalStrictValueOptions = new Set(
     normalizedOptionsWithStrictValues
       .map((strictValueOption) => {
         return canonicalOptionMap.get(strictValueOption) ?? strictValueOption;
@@ -1785,6 +1788,9 @@ const createValueOptionMetadata = (
         return canonicalValueOptions.has(strictValueOption);
       })
   );
+  if (strictValueOptionsUnavailable && canonicalValueOptions.size > 0) {
+    canonicalStrictValueOptions = new Set(canonicalValueOptions);
+  }
   const inlineValueTokenCanonicalMap = new Map(
     Array.from(canonicalValueOptions).map((canonicalOption) => {
       return [canonicalOption, canonicalOption];
