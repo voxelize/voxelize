@@ -659,11 +659,13 @@ impl World {
                 }
             };
 
-            // Validate payload JSON before proceeding
-            if let Err(e) = serde_json::from_str::<serde_json::Value>(&payload.json) {
-                log::error!("Payload JSON is invalid: {}", e);
-                return;
-            }
+            let payload_obj: serde_json::Value = match serde_json::from_str(&payload.json) {
+                Ok(obj) => obj,
+                Err(e) => {
+                    log::error!("Payload JSON is invalid: {}", e);
+                    return;
+                }
+            };
 
             let entities = world.ecs().entities();
             let ids = world.ecs().read_storage::<IDComp>();
@@ -734,9 +736,6 @@ impl World {
                     return;
                 }
             };
-
-            // Parse payload JSON (we already validated it above)
-            let payload_obj: serde_json::Value = serde_json::from_str(&payload.json).unwrap();
 
             // Merge the objects if both are objects
             if let (
