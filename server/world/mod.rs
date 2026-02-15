@@ -22,10 +22,10 @@ mod utils;
 mod voxels;
 
 use actix::{
-    Actor, AsyncContext, Context, Handler, Message as ActixMessage, MessageResult, SyncContext,
+    Actor, Handler, Message as ActixMessage, MessageResult, SyncContext,
 };
 use actix::{Addr, SyncArbiter};
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashMap;
 use log::{error, info, warn};
 use metadata::WorldMetadata;
 use nanoid::nanoid;
@@ -37,15 +37,17 @@ use specs::{
     Builder, Component, DispatcherBuilder, Entity, EntityBuilder, Join, ReadStorage, SystemData,
     World as ECSWorld, WorldExt, WriteStorage,
 };
-use std::f64::consts::E;
 use std::path::PathBuf;
 use std::sync::{Mutex, RwLock};
-use std::{env, sync::Arc};
+use std::sync::Arc;
 use std::{
     fs::{self, File},
     time::Duration,
 };
-use system_profiler::{record_timing, SystemTimer, WorldTimingContext};
+use system_profiler::{
+    record_timing as record_system_timing, SystemTimer as ProfilerSystemTimer,
+    WorldTimingContext as ProfilerWorldTimingContext,
+};
 
 use crate::{
     encode_message,
@@ -537,7 +539,7 @@ impl World {
         let world_metadata = WorldMetadata {
             world_name: name.to_owned(),
         };
-        let timing_context = WorldTimingContext::new(name);
+        let timing_context = ProfilerWorldTimingContext::new(name);
 
         let mut ecs = ECSWorld::new();
 
@@ -1527,18 +1529,18 @@ impl World {
 
         self.stats_mut().preloading = self.preloading;
 
-        let tick_timer = SystemTimer::new("tick-total");
+        let tick_timer = ProfilerSystemTimer::new("tick-total");
 
         let dispatch_time = {
             let mut dispatcher_guard = self.built_dispatcher.lock().unwrap();
             if dispatcher_guard.is_none() {
-                let build_timer = SystemTimer::new("dispatcher-build");
+                let build_timer = ProfilerSystemTimer::new("dispatcher-build");
                 let dispatcher = (self.dispatcher)().build();
                 *dispatcher_guard = Some(UnsafeSendSync::new(dispatcher));
-                record_timing(&self.name, "dispatcher-build", build_timer.elapsed_ms());
+                record_system_timing(&self.name, "dispatcher-build", build_timer.elapsed_ms());
             }
 
-            let dispatch_timer = SystemTimer::new("dispatcher-dispatch");
+            let dispatch_timer = ProfilerSystemTimer::new("dispatcher-dispatch");
             dispatcher_guard
                 .as_mut()
                 .unwrap()
@@ -1550,16 +1552,16 @@ impl World {
         self.write_resource::<Profiler>().summarize();
 
         let maintain_time = {
-            let maintain_timer = SystemTimer::new("ecs-maintain");
+            let maintain_timer = ProfilerSystemTimer::new("ecs-maintain");
             self.ecs.maintain();
             maintain_timer.elapsed_ms()
         };
 
         let total_time = tick_timer.elapsed_ms();
 
-        record_timing(&self.name, "tick-total", total_time);
-        record_timing(&self.name, "dispatcher-dispatch", dispatch_time);
-        record_timing(&self.name, "ecs-maintain", maintain_time);
+        record_system_timing(&self.name, "tick-total", total_time);
+        record_system_timing(&self.name, "dispatcher-dispatch", dispatch_time);
+        record_system_timing(&self.name, "ecs-maintain", maintain_time);
     }
 
     /// Handler for `Peer` type messages.
