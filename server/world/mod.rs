@@ -1908,14 +1908,14 @@ impl World {
             }
 
             if !loaded_entities.is_empty() {
-                let name = self.name.to_owned();
+                let loaded_count = loaded_entities.len();
                 let mut bookkeeping = self.write_resource::<Bookkeeping>();
+                bookkeeping.entities = loaded_entities;
+                drop(bookkeeping);
                 info!(
                     "World {:?} loaded {} entities from disk.",
-                    name,
-                    loaded_entities.len()
+                    self.name, loaded_count
                 );
-                bookkeeping.entities = loaded_entities;
             }
         }
     }
