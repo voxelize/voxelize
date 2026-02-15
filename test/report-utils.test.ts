@@ -3532,6 +3532,31 @@ describe("report-utils", () => {
       failedSteps: [],
       skippedSteps: [],
     });
+
+    const ownKeysTrapSteps = new Proxy(
+      [{ name: "step-a", passed: true, skipped: false }],
+      {
+        ownKeys: () => {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(summarizeStepResults(ownKeysTrapSteps as never)).toEqual({
+      totalSteps: 1,
+      passedStepCount: 1,
+      failedStepCount: 0,
+      skippedStepCount: 0,
+      firstFailedStep: null,
+      passedSteps: ["step-a"],
+      failedSteps: [],
+      skippedSteps: [],
+    });
   });
 
   it("summarizes failed step entries with message fallbacks", () => {
@@ -4149,6 +4174,29 @@ describe("report-utils", () => {
       passedChecks: ["devEnvironment"],
       failedChecks: [],
     });
+
+    const ownKeysTrapChecks = new Proxy(
+      [{ name: "devEnvironment", passed: true }],
+      {
+        ownKeys: () => {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(summarizeCheckResults(ownKeysTrapChecks as never)).toEqual({
+      totalChecks: 1,
+      passedCheckCount: 1,
+      failedCheckCount: 0,
+      firstFailedCheck: null,
+      passedChecks: ["devEnvironment"],
+      failedChecks: [],
+    });
   });
 
   it("derives failure messages from nested report structures", () => {
@@ -4427,6 +4475,20 @@ describe("report-utils", () => {
       },
     });
     expect(normalizeTsCorePayloadIssues(iteratorTrapIssues)).toEqual(["voxel.id"]);
+    const ownKeysTrapIssues = new Proxy(["voxel.id"], {
+      ownKeys: () => {
+        throw new Error("ownKeys trap");
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    expect(normalizeTsCorePayloadIssues(ownKeysTrapIssues)).toEqual([
+      "voxel.id",
+    ]);
   });
 
   it("extracts ts-core example summary fields from reports", () => {
