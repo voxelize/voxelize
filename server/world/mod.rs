@@ -1892,7 +1892,9 @@ impl World {
 
     fn generate_init_message(&self, id: &str) -> (Message, Vec<String>) {
         let config = (*self.config()).to_owned();
-        let mut json = HashMap::new();
+        let mut json = HashMap::with_capacity(
+            4 + self.extra_init_data.len() + usize::from(self.items.is_some()),
+        );
 
         json.insert("id".to_owned(), json!(id));
         json.insert("blocks".to_owned(), json!(self.registry().blocks_by_name));
@@ -1909,6 +1911,8 @@ impl World {
         for (key, value) in &self.extra_init_data {
             json.insert(key.clone(), value.clone());
         }
+        let peer_capacity_hint = self.clients().len();
+        let entity_capacity_hint = self.entity_ids().len();
 
         /* ------------------------ Loading other the clients ----------------------- */
         let ids = self.read_component::<IDComp>();
@@ -1916,7 +1920,7 @@ impl World {
         let names = self.read_component::<NameComp>();
         let metadatas = self.read_component::<MetadataComp>();
 
-        let mut peers = vec![];
+        let mut peers = Vec::with_capacity(peer_capacity_hint);
 
         for (pid, name, metadata, _) in (&ids, &names, &metadatas, &flags).join() {
             peers.push(PeerProtocol {
@@ -1930,8 +1934,8 @@ impl World {
         let etypes = self.read_component::<ETypeComp>();
         let metadatas = self.read_component::<MetadataComp>();
 
-        let mut entities = vec![];
-        let mut entity_ids = vec![];
+        let mut entities = Vec::with_capacity(entity_capacity_hint);
+        let mut entity_ids = Vec::with_capacity(entity_capacity_hint);
 
         for (id, etype, metadata) in (&ids, &etypes, &metadatas).join() {
             if !etype.0.starts_with("block::") && metadata.is_empty() {
