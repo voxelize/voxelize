@@ -1709,6 +1709,10 @@ const parseInlineOptionName = (optionToken) => {
   return optionToken.slice(0, equalsIndex);
 };
 
+const isLikelyShortOptionToken = (optionToken) => {
+  return /^-[^-](?:=.*)?$/.test(optionToken);
+};
+
 const isKnownOptionTokenLike = (optionToken, canonicalOptionMap) => {
   if (canonicalOptionMap.has(optionToken)) {
     return true;
@@ -2123,9 +2127,7 @@ export const resolveLastOptionValue = (
       if (
         nextArg === null ||
         nextArg.startsWith("--") ||
-        (recognizedOptionTokensUnavailable &&
-          nextArg.startsWith("-") &&
-          nextArg !== "-") ||
+        (recognizedOptionTokensUnavailable && isLikelyShortOptionToken(nextArg)) ||
         isRecognizedOptionTokenLike(nextArg) ||
         nextArg.trim().length === 0
       ) {

@@ -468,6 +468,15 @@ describe("report-utils", () => {
       "Missing value for --output option."
     );
     expect(malformedRecognizedOutputTokenResult.outputPath).toBeNull();
+    const malformedRecognizedDashValueResult = resolveOutputPath(
+      ["--output", "-artifact-report.json"],
+      "/workspace",
+      malformedRecognizedOutputTokens as never
+    );
+    expect(malformedRecognizedDashValueResult.error).toBeNull();
+    expect(malformedRecognizedDashValueResult.outputPath).toBe(
+      "/workspace/-artifact-report.json"
+    );
 
     const lengthAndOwnKeysTrapOutputArgs = new Proxy(
       ["--output", "./report.json"],
@@ -849,6 +858,21 @@ describe("report-utils", () => {
     expect(resolvedFromCombinedRecognizedOptionTraps.error).toBe(
       "Missing value for --output option."
     );
+    const resolvedUnknownDashValueFromCombinedRecognizedOptionTraps =
+      resolveLastOptionValue(
+        ["--output", "-artifact-report.json"],
+        "--output",
+        lengthAndOwnKeysTrapRecognizedOptionTokens as never
+      );
+    expect(resolvedUnknownDashValueFromCombinedRecognizedOptionTraps.hasOption).toBe(
+      true
+    );
+    expect(
+      resolvedUnknownDashValueFromCombinedRecognizedOptionTraps.value
+    ).toBe("-artifact-report.json");
+    expect(
+      resolvedUnknownDashValueFromCombinedRecognizedOptionTraps.error
+    ).toBeNull();
   });
 
   it("splits option and positional args using option terminator", () => {
