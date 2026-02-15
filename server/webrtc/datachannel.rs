@@ -3,6 +3,7 @@ use std::collections::HashMap;
 const MAX_FRAGMENT_SIZE: usize = 16000;
 const FRAGMENT_HEADER_SIZE: usize = 9;
 const MAX_PAYLOAD_SIZE: usize = MAX_FRAGMENT_SIZE - FRAGMENT_HEADER_SIZE;
+const MAX_PENDING_MESSAGES: usize = 64;
 
 pub fn fragment_message(data: &[u8]) -> Vec<Vec<u8>> {
     if data.len() <= MAX_PAYLOAD_SIZE {
@@ -79,6 +80,11 @@ impl FragmentAssembler {
         }
 
         let message_id = if index == 0 {
+            if self.expected_counts.len() >= MAX_PENDING_MESSAGES {
+                self.fragments.clear();
+                self.expected_counts.clear();
+                self.next_message_id = 0;
+            }
             let id = self.next_message_id;
             self.next_message_id = self.next_message_id.saturating_add(1);
             self.expected_counts.insert(id, total);
@@ -171,5 +177,21 @@ mod tests {
 
         let mut assembler = FragmentAssembler::new();
         assert_eq!(assembler.process(&framed), None);
+    }
+
+    #[test]
+    fn process_resets_pending_state_when_too_many_messages_accumulate() {
+        let mut assembler = FragmentAssembler::new();
+        for marker in 0u8..=64u8 {
+            let mut framed = vec![1];
+            framed.extend_from_slice(&(2u32).to_le_bytes());
+            framed.extend_from_slice(&(0u32).to_le_bytes());
+            framed.push(marker);
+            assert_eq!(assembler.process(&framed), None);
+        }
+
+        assert_eq!(assembler.expected_counts.len(), 1);
+        assert_eq!(assembler.fragments.len(), 1);
+        assert_eq!(assembler.next_message_id, 1);
     }
 }
