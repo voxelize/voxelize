@@ -3653,6 +3653,126 @@ describe("BlockRuleEvaluator", () => {
     }
   });
 
+  it("accepts plain rotation option objects for y-rotatable rules", () => {
+    const rule = {
+      type: "simple" as const,
+      offset: [1, 0, 0] as [number, number, number],
+      id: 24,
+    };
+
+    const access = {
+      getVoxel: (x: number, y: number, z: number) =>
+        x === 0 && y === 0 && z === 1 ? 24 : 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    const matched = BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access, {
+      rotation: { yRotation: Math.PI / 2 } as never,
+      yRotatable: true,
+      worldSpace: false,
+    });
+
+    expect(matched).toBe(true);
+  });
+
+  it("sanitizes malformed rule-evaluation option values to deterministic defaults", () => {
+    const rule = {
+      type: "simple" as const,
+      offset: [1, 0, 0] as [number, number, number],
+      id: 25,
+    };
+
+    const access = {
+      getVoxel: (x: number, y: number, z: number) =>
+        x === 1 && y === 0 && z === 0 ? 25 : 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    const matched = BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access, {
+      rotation: { yRotation: Number.NaN } as never,
+      yRotatable: "true" as never,
+      worldSpace: "false" as never,
+    });
+
+    expect(matched).toBe(true);
+  });
+
+  it("guards option getter traps while evaluating rules", () => {
+    const rule = {
+      type: "simple" as const,
+      offset: [1, 0, 0] as [number, number, number],
+      id: 26,
+    };
+
+    const access = {
+      getVoxel: (x: number, y: number, z: number) =>
+        x === 1 && y === 0 && z === 0 ? 26 : 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    const trapOptions = new Proxy(
+      {},
+      {
+        get(target, property, receiver) {
+          if (
+            property === "rotation" ||
+            property === "yRotatable" ||
+            property === "worldSpace"
+          ) {
+            throw new Error("options trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+
+    const matched = BlockRuleEvaluator.evaluate(
+      rule,
+      [0, 0, 0],
+      access,
+      trapOptions as never
+    );
+
+    expect(matched).toBe(true);
+  });
+
+  it("guards malformed rotation-option getters for y-rotatable rules", () => {
+    const rule = {
+      type: "simple" as const,
+      offset: [1, 0, 0] as [number, number, number],
+      id: 27,
+    };
+
+    const access = {
+      getVoxel: (x: number, y: number, z: number) =>
+        x === 1 && y === 0 && z === 0 ? 27 : 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    const rotationWithTrap = Object.create(null) as {
+      readonly yRotation: number;
+    };
+    Object.defineProperty(rotationWithTrap, "yRotation", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("yRotation trap");
+      },
+    });
+
+    const matched = BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access, {
+      rotation: rotationWithTrap as never,
+      yRotatable: true,
+      worldSpace: false,
+    });
+
+    expect(matched).toBe(true);
+  });
+
   it("rotates offsets for negative y-rotation values", () => {
     const rule = {
       type: "simple" as const,

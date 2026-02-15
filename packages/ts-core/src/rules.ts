@@ -8,6 +8,8 @@ const TWO_PI = Math.PI * 2.0;
 const ANGLE_EPSILON = 1e-12;
 const SEGMENT_ANGLE = TWO_PI / Y_ROT_SEGMENTS;
 const MAX_PRECISION_SNAP_EPSILON = SEGMENT_ANGLE / 8;
+type RuleOptionValue = object | string | number | boolean | null | undefined;
+type RuleOptionRecord = Record<string, RuleOptionValue>;
 
 const normalizeRuleYRotation = (rotation: number): number => {
   if (!Number.isFinite(rotation)) {
@@ -51,8 +53,61 @@ const normalizeRuleYRotation = (rotation: number): number => {
   return wrappedRotation;
 };
 
-const rotateOffsetY = (offset: Vec3, rotation: BlockRotation): Vec3 => {
-  const rot = normalizeRuleYRotation(rotation.yRotation);
+const safeReadRecordValue = (
+  value: RuleOptionRecord,
+  key: string
+): RuleOptionValue => {
+  try {
+    return value[key];
+  } catch {
+    return undefined;
+  }
+};
+
+const toObjectRecordOrNull = (value: RuleOptionValue): RuleOptionRecord | null => {
+  return value !== null && typeof value === "object"
+    ? (value as RuleOptionRecord)
+    : null;
+};
+
+const toFiniteNumberOrDefault = (value: RuleOptionValue, fallback: number): number => {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+};
+
+const normalizeRuleEvaluationOptions = (
+  options: BlockRuleEvaluationOptions
+): {
+  rotationY: number;
+  yRotatable: boolean;
+  worldSpace: boolean;
+} => {
+  const optionRecord = toObjectRecordOrNull(options);
+  if (optionRecord === null) {
+    return {
+      rotationY: 0,
+      yRotatable: false,
+      worldSpace: false,
+    };
+  }
+
+  const rotationValue = safeReadRecordValue(optionRecord, "rotation");
+  const rotationRecord = toObjectRecordOrNull(rotationValue);
+  const rotationY = toFiniteNumberOrDefault(
+    rotationRecord === null
+      ? undefined
+      : safeReadRecordValue(rotationRecord, "yRotation"),
+    0
+  );
+
+  return {
+    rotationY,
+    yRotatable: safeReadRecordValue(optionRecord, "yRotatable") === true,
+    worldSpace: safeReadRecordValue(optionRecord, "worldSpace") === true,
+  };
+};
+
+const rotateOffsetY = (offset: Vec3, rotationY: number): Vec3 => {
+  const rot = normalizeRuleYRotation(rotationY);
 
   if (Math.abs(rot) <= ANGLE_EPSILON) {
     return [...offset];
@@ -83,11 +138,8 @@ export class BlockRuleEvaluator {
     access: RuleAccess,
     options: BlockRuleEvaluationOptions = {}
   ): boolean {
-    const {
-      rotation = BlockRotation.py(0),
-      yRotatable = false,
-      worldSpace = false,
-    } = options;
+    const { rotationY, yRotatable, worldSpace } =
+      normalizeRuleEvaluationOptions(options);
 
     if (rule.type === "none") {
       return true;
@@ -97,7 +149,7 @@ export class BlockRuleEvaluator {
       let offset: Vec3 = [...rule.offset];
 
       if (yRotatable && !worldSpace) {
-        offset = rotateOffsetY(offset, rotation);
+        offset = rotateOffsetY(offset, rotationY);
       }
 
       const checkPosition: Vec3 = [
