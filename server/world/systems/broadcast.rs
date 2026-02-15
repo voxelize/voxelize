@@ -120,8 +120,9 @@ impl<'a> System<'a> for BroadcastSystem {
         let world_name = &*timing.world_name;
 
         let pending_messages = queues.drain_prioritized();
-        let mut immediate_messages = Vec::new();
-        let mut deferred_messages = Vec::new();
+        let pending_messages_count = pending_messages.len();
+        let mut immediate_messages = Vec::with_capacity(pending_messages_count);
+        let mut deferred_messages = Vec::with_capacity(pending_messages_count);
         for (mut message, filter) in pending_messages {
             message.world_name = world_name.clone();
             if is_immediate(message.r#type) {
@@ -131,27 +132,28 @@ impl<'a> System<'a> for BroadcastSystem {
             }
         }
 
-        let immediate_encoded: Vec<(EncodedMessage, ClientFilter)> = immediate_messages
-            .into_iter()
-            .map(|(message, filter)| {
-                let msg_type = message.r#type;
-                let encoded = EncodedMessage {
-                    data: encode_message(&message),
-                    msg_type,
-                    is_rtc_eligible: false,
-                };
-                (encoded, filter)
-            })
-            .collect();
+        let mut immediate_encoded: Vec<(EncodedMessage, ClientFilter)> =
+            Vec::with_capacity(immediate_messages.len());
+        for (message, filter) in immediate_messages {
+            let msg_type = message.r#type;
+            let encoded = EncodedMessage {
+                data: encode_message(&message),
+                msg_type,
+                is_rtc_eligible: false,
+            };
+            immediate_encoded.push((encoded, filter));
+        }
 
         let batched_messages = batch_messages(deferred_messages);
 
         encoded_queue.append(batched_messages);
         encoded_queue.process();
 
-        let async_messages = encoded_queue.receive();
-        let mut done_messages = immediate_encoded;
-        done_messages.extend(async_messages);
+        let mut async_messages = encoded_queue.receive();
+        let mut done_messages =
+            Vec::with_capacity(immediate_encoded.len() + async_messages.len());
+        done_messages.append(&mut immediate_encoded);
+        done_messages.append(&mut async_messages);
 
         if done_messages.is_empty() {
             return;
