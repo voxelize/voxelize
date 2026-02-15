@@ -379,4 +379,29 @@ mod tests {
         assert_eq!(payload_markers, vec![1, 2, 3, 4]);
         assert!(queue.processed.is_empty());
     }
+
+    #[test]
+    fn receive_merges_async_batches_when_processed_is_empty() {
+        let mut queue = EncodedMessageQueue::new();
+        queue
+            .sender
+            .send(vec![
+                (encoded_marker(2), ClientFilter::Direct("batch-1".to_string())),
+                (encoded_marker(3), ClientFilter::Direct("batch-2".to_string())),
+            ])
+            .unwrap();
+        queue
+            .sender
+            .send(vec![(encoded_marker(4), ClientFilter::Direct("batch-3".to_string()))])
+            .unwrap();
+
+        let received = queue.receive();
+        let payload_markers: Vec<u8> = received
+            .iter()
+            .map(|(encoded, _)| encoded.data[0])
+            .collect();
+
+        assert_eq!(payload_markers, vec![2, 3, 4]);
+        assert!(queue.processed.is_empty());
+    }
 }
