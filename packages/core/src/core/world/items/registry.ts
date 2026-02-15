@@ -56,7 +56,7 @@ const normalizeLookupName = (name: string): string => {
   const length = name.length;
   for (let index = 0; index < length; index++) {
     const code = name.charCodeAt(index);
-    if (code >= 65 && code <= 90) {
+    if ((code >= 65 && code <= 90) || code > 127) {
       return name.toLowerCase();
     }
   }
@@ -65,22 +65,22 @@ const normalizeLookupName = (name: string): string => {
 
 const normalizeRendererName = (name: string): string => {
   const length = name.length;
-  let hasUppercase = false;
+  let requiresLowercase = false;
   let hasWhitespace = false;
   for (let index = 0; index < length; index++) {
     const code = name.charCodeAt(index);
-    if (code >= 65 && code <= 90) {
-      hasUppercase = true;
+    if ((code >= 65 && code <= 90) || code > 127) {
+      requiresLowercase = true;
     } else if (code === 32) {
       hasWhitespace = true;
     }
   }
 
-  if (!hasUppercase && !hasWhitespace) {
+  if (!requiresLowercase && !hasWhitespace) {
     return name;
   }
 
-  const normalizedCase = hasUppercase ? name.toLowerCase() : name;
+  const normalizedCase = requiresLowercase ? name.toLowerCase() : name;
   return hasWhitespace ? normalizedCase.replaceAll(" ", "-") : normalizedCase;
 };
 
