@@ -14,6 +14,14 @@ pub struct PathFindingSystem {
     voxel_cache_buffer: HashMap<(i32, i32, i32), bool>,
 }
 
+#[inline]
+fn set_entity_path(path: &mut PathComp, next_path: Option<Vec<Vec3<i32>>>) {
+    if path.path != next_path {
+        path.path = next_path;
+        path.dirty = true;
+    }
+}
+
 impl<'a> System<'a> for PathFindingSystem {
     type SystemData = (
         ReadExpect<'a, Chunks>,
@@ -176,12 +184,12 @@ impl<'a> System<'a> for PathFindingSystem {
 
                     let height = body.0.aabb.height();
                     let Some(height_steps) = clamped_height_scan_steps(height) else {
-                        entity_path.path = None;
+                        set_entity_path(entity_path, None);
                         return;
                     };
                     let max_distance_allowed = entity_path.max_distance;
                     if !max_distance_allowed.is_finite() || max_distance_allowed < 0.0 {
-                        entity_path.path = None;
+                        set_entity_path(entity_path, None);
                         return;
                     }
                     let max_distance_sq =
@@ -192,13 +200,13 @@ impl<'a> System<'a> for PathFindingSystem {
                         floor_f32_to_i32(target_position.1),
                         floor_f32_to_i32(target_position.2),
                     ) else {
-                        entity_path.path = None;
+                        set_entity_path(entity_path, None);
                         return;
                     };
                     let target_vpos = Vec3(target_x, target_y, target_z);
 
                     if !get_is_voxel_passable(target_vpos.0, target_vpos.1, target_vpos.2) {
-                        entity_path.path = None;
+                        set_entity_path(entity_path, None);
                         return;
                     }
 
@@ -206,7 +214,7 @@ impl<'a> System<'a> for PathFindingSystem {
                     // If the distance is too large, skip pathfinding for this entity
                     let distance_sq = squared_voxel_distance_f64(&body_vpos, &target_vpos);
                     if !distance_sq.is_finite() || distance_sq > max_distance_sq {
-                        entity_path.path = None;
+                        set_entity_path(entity_path, None);
                         return;
                     }
 
@@ -226,13 +234,13 @@ impl<'a> System<'a> for PathFindingSystem {
                     let goal = get_standable_voxel(&target_vpos, 2);
 
                     if !get_is_voxel_passable(goal.0, goal.1, goal.2) {
-                        entity_path.path = None;
+                        set_entity_path(entity_path, None);
                         return;
                     }
                     if start == goal {
                         let mut path_nodes = Vec::with_capacity(1);
                         path_nodes.push(start);
-                        entity_path.path = Some(path_nodes);
+                        set_entity_path(entity_path, Some(path_nodes));
                         return;
                     }
 
@@ -241,7 +249,7 @@ impl<'a> System<'a> for PathFindingSystem {
                     if !start_goal_distance_sq.is_finite()
                         || start_goal_distance_sq > max_distance_sq
                     {
-                        entity_path.path = None;
+                        set_entity_path(entity_path, None);
                         return;
                     }
 
@@ -250,7 +258,7 @@ impl<'a> System<'a> for PathFindingSystem {
                     let max_depth_search = normalized_max_depth_search(entity_path.max_depth_search);
                     let max_pathfinding_time = entity_path.max_pathfinding_time;
                     if max_depth_search == 0 {
-                        entity_path.path = None;
+                        set_entity_path(entity_path, None);
                         return;
                     }
                     let goal_node = PathNode(goal.0, goal.1, goal.2);
@@ -447,21 +455,17 @@ impl<'a> System<'a> for PathFindingSystem {
 
                     if let Some((nodes, count)) = path {
                         if count > clamp_usize_to_u32(entity_path.max_nodes) {
-                            entity_path.path = None;
+                            set_entity_path(entity_path, None);
                         } else {
                             let mut path_nodes = Vec::with_capacity(nodes.len());
                             for PathNode(nx, ny, nz) in nodes {
                                 path_nodes.push(Vec3(nx, ny, nz));
                             }
-                            entity_path.path = Some(path_nodes);
-
-                            // Apply path smoothing to the first few nodes
-                            if let Some(ref mut path_nodes) = entity_path.path {
-                                smooth_path(path_nodes, &chunks, &registry, height);
-                            }
+                            smooth_path(&mut path_nodes, &chunks, &registry, height);
+                            set_entity_path(entity_path, Some(path_nodes));
                         }
                     } else {
-                        entity_path.path = None;
+                        set_entity_path(entity_path, None);
                     }
 
                     // let elapsed = start_time.elapsed();
