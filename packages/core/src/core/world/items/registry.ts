@@ -52,30 +52,39 @@ function hasData<T extends object>(data: T | undefined): boolean {
   return false;
 }
 
-const normalizeLookupName = (name: string): string => {
-  const length = name.length;
-  for (let index = 0; index < length; index++) {
-    const code = name.charCodeAt(index);
-    if ((code >= 65 && code <= 90) || code > 127) {
-      return name.toLowerCase();
-    }
-  }
-  return name;
-};
-
-const normalizeRendererName = (name: string): string => {
-  const length = name.length;
+const analyzeNormalization = (name: string): [requiresLowercase: boolean, hasWhitespace: boolean] => {
   let requiresLowercase = false;
   let hasWhitespace = false;
+  let hasNonAscii = false;
+  const length = name.length;
   for (let index = 0; index < length; index++) {
     const code = name.charCodeAt(index);
-    if ((code >= 65 && code <= 90) || code > 127) {
+    if (code >= 65 && code <= 90) {
       requiresLowercase = true;
     } else if (code === 32) {
       hasWhitespace = true;
+    } else if (code > 127) {
+      hasNonAscii = true;
     }
   }
+  if (!requiresLowercase && hasNonAscii) {
+    for (const char of name) {
+      if (char.toLowerCase() !== char.toUpperCase() && char === char.toUpperCase()) {
+        requiresLowercase = true;
+        break;
+      }
+    }
+  }
+  return [requiresLowercase, hasWhitespace];
+};
 
+const normalizeLookupName = (name: string): string => {
+  const [requiresLowercase] = analyzeNormalization(name);
+  return requiresLowercase ? name.toLowerCase() : name;
+};
+
+const normalizeRendererName = (name: string): string => {
+  const [requiresLowercase, hasWhitespace] = analyzeNormalization(name);
   if (!requiresLowercase && !hasWhitespace) {
     return name;
   }
