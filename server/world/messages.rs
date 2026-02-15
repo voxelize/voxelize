@@ -91,6 +91,19 @@ impl EncodedMessageQueue {
         if self.pending.is_empty() {
             return;
         }
+        if self.pending.len() == 1 {
+            if let Some((message, filter)) = self.pending.pop() {
+                let msg_type = message.r#type;
+                let is_rtc_eligible = Self::compute_rtc_eligibility(&message);
+                let encoded = EncodedMessage {
+                    data: encode_message(&message),
+                    msg_type,
+                    is_rtc_eligible,
+                };
+                self.sender.send(vec![(encoded, filter)]).unwrap();
+            }
+            return;
+        }
         let mut all_pending = Vec::with_capacity(self.pending.capacity());
         std::mem::swap(&mut self.pending, &mut all_pending);
 
