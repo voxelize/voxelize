@@ -29,7 +29,7 @@ impl EventBuilder {
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_owned(),
-            payload: Some(json!("{}").to_string()),
+            payload: None,
             ..Default::default()
         }
     }
@@ -52,7 +52,7 @@ impl EventBuilder {
     pub fn build(self) -> Event {
         Event {
             name: self.name,
-            payload: self.payload,
+            payload: Some(self.payload.unwrap_or_else(|| json!("{}").to_string())),
             filter: self.filter,
             location: self.location,
         }
