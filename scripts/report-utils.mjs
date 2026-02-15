@@ -1749,16 +1749,27 @@ const toNormalizedCliOptionCatalogOrNull = (optionCatalog) => {
       "availableCliOptionCanonicalMap"
     ),
   });
-  const hasCatalogData =
-    supportedCliOptions.length > 0 ||
+  const hasCanonicalCatalogData =
     catalogCanonicalOptions.length > 0 ||
     Object.keys(availableCliOptionAliases).length > 0;
+  if (!hasCanonicalCatalogData) {
+    return null;
+  }
+
+  const resolvedSupportedCliOptions =
+    supportedCliOptions.length > 0
+      ? supportedCliOptions
+      : createSupportedCliOptionsFromNormalizedMetadata(
+          catalogCanonicalOptions,
+          availableCliOptionAliases
+        );
+  const hasCatalogData = resolvedSupportedCliOptions.length > 0;
   if (!hasCatalogData) {
     return null;
   }
 
   return {
-    supportedCliOptions,
+    supportedCliOptions: resolvedSupportedCliOptions,
     availableCliOptionAliases,
     catalogCanonicalOptions,
   };

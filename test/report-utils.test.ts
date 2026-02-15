@@ -4368,6 +4368,53 @@ describe("report-utils", () => {
     expect(optionCatalogOverrideValidation.unsupportedOptionsError).toBeNull();
     expect(optionCatalogOverrideValidation.validationErrorCode).toBeNull();
     expect(optionCatalogOverrideCanonicalReadCount).toBe(0);
+    let optionCatalogOverrideWithoutSupportedCanonicalReadCount = 0;
+    const optionCatalogOverrideWithoutSupportedCanonicalOptions = new Proxy(
+      ["--json"],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (property === "0") {
+            optionCatalogOverrideWithoutSupportedCanonicalReadCount += 1;
+            return "--json";
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const optionCatalogOverrideWithoutSupportedValidation =
+      createCliOptionValidation(["--json"], {
+        canonicalOptions:
+          optionCatalogOverrideWithoutSupportedCanonicalOptions as never,
+        optionCatalog: {
+          availableCliOptionAliases: {},
+          availableCliOptionCanonicalMap: {
+            "--json": "--json",
+          },
+        } as never,
+      });
+    expect(optionCatalogOverrideWithoutSupportedValidation.supportedCliOptions).toEqual(
+      ["--json"]
+    );
+    expect(optionCatalogOverrideWithoutSupportedValidation.supportedCliOptionCount).toBe(
+      1
+    );
+    expect(optionCatalogOverrideWithoutSupportedValidation.unknownOptions).toEqual(
+      []
+    );
+    expect(optionCatalogOverrideWithoutSupportedValidation.unknownOptionCount).toBe(
+      0
+    );
+    expect(
+      optionCatalogOverrideWithoutSupportedValidation.unsupportedOptionsError
+    ).toBeNull();
+    expect(optionCatalogOverrideWithoutSupportedValidation.validationErrorCode).toBeNull();
+    expect(optionCatalogOverrideWithoutSupportedCanonicalReadCount).toBe(0);
     let malformedOptionCatalogOverrideCanonicalReadCount = 0;
     const malformedOptionCatalogOverrideCanonicalOptions = new Proxy(
       ["--json"],
