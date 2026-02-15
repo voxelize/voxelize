@@ -1485,25 +1485,27 @@ impl World {
 
             let mut total = 0_i64;
             let supposed = preload_expected_chunk_count(check_radius);
+            let mut remesh_coords = Vec::new();
+            {
+                let chunks = self.chunks();
+                for x in -check_radius..=check_radius {
+                    for z in -check_radius..=check_radius {
+                        let coords = Vec2(x, z);
 
-            for x in -check_radius..=check_radius {
-                for z in -check_radius..=check_radius {
-                    let chunks = self.chunks();
-                    let coords = Vec2(x, z);
-
-                    if chunks.is_chunk_ready(&coords) {
-                        total += 1;
-                    } else {
-                        if let Some(chunk) = chunks.raw(&coords) {
-                            if chunk.status == ChunkStatus::Meshing
-                                && !self.mesher().map.contains(&coords)
-                            {
-                                // Add the chunk back to meshing queue.
-                                drop(chunks);
-                                self.mesher_mut().add_chunk(&coords, false);
+                        if chunks.is_chunk_ready(&coords) {
+                            total += 1;
+                        } else if let Some(chunk) = chunks.raw(&coords) {
+                            if chunk.status == ChunkStatus::Meshing {
+                                remesh_coords.push(coords);
                             }
                         }
                     }
+                }
+            }
+            if !remesh_coords.is_empty() {
+                let mut mesher = self.mesher_mut();
+                for coords in remesh_coords {
+                    mesher.add_chunk(&coords, false);
                 }
             }
 
