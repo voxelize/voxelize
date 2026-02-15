@@ -520,6 +520,27 @@ describe("report-utils", () => {
     expect(nonArrayRecognizedOutputDashValueResult.outputPath).toBe(
       "/workspace/-artifact-report.json"
     );
+    const mapRecognizedOutputTokens = new Map<string, boolean>([
+      ["-l", true],
+    ]);
+    const mapRecognizedOutputTokenResult = resolveOutputPath(
+      ["--output", "-l"],
+      "/workspace",
+      mapRecognizedOutputTokens as never
+    );
+    expect(mapRecognizedOutputTokenResult.error).toBe(
+      "Missing value for --output option."
+    );
+    expect(mapRecognizedOutputTokenResult.outputPath).toBeNull();
+    const mapRecognizedOutputDashValueResult = resolveOutputPath(
+      ["--output", "-artifact-report.json"],
+      "/workspace",
+      mapRecognizedOutputTokens as never
+    );
+    expect(mapRecognizedOutputDashValueResult.error).toBeNull();
+    expect(mapRecognizedOutputDashValueResult.outputPath).toBe(
+      "/workspace/-artifact-report.json"
+    );
     const malformedPrimitiveRecognizedOutputTokens = "--list-checks";
     const malformedPrimitiveRecognizedOutputTokenResult = resolveOutputPath(
       ["--output", "-l"],
@@ -1069,6 +1090,30 @@ describe("report-utils", () => {
       "-artifact-report.json"
     );
     expect(resolvedUnknownDashValueFromNonArrayRecognizedOptionTokens.error).toBeNull();
+    const mapRecognizedOptionTokens = new Map<string, boolean>([["-l", true]]);
+    const resolvedFromMapRecognizedOptionTokens = resolveLastOptionValue(
+      ["--output", "-l"],
+      "--output",
+      mapRecognizedOptionTokens as never
+    );
+    expect(resolvedFromMapRecognizedOptionTokens.hasOption).toBe(true);
+    expect(resolvedFromMapRecognizedOptionTokens.value).toBeNull();
+    expect(resolvedFromMapRecognizedOptionTokens.error).toBe(
+      "Missing value for --output option."
+    );
+    const resolvedUnknownDashValueFromMapRecognizedOptionTokens =
+      resolveLastOptionValue(
+        ["--output", "-artifact-report.json"],
+        "--output",
+        mapRecognizedOptionTokens as never
+      );
+    expect(resolvedUnknownDashValueFromMapRecognizedOptionTokens.hasOption).toBe(
+      true
+    );
+    expect(resolvedUnknownDashValueFromMapRecognizedOptionTokens.value).toBe(
+      "-artifact-report.json"
+    );
+    expect(resolvedUnknownDashValueFromMapRecognizedOptionTokens.error).toBeNull();
     const malformedPrimitiveRecognizedOptionTokens = "--list-checks";
     const resolvedFromMalformedPrimitiveRecognizedOptionTokens =
       resolveLastOptionValue(
