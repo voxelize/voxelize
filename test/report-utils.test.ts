@@ -5021,6 +5021,18 @@ describe("report-utils", () => {
       wasmPackCheckExitCode: null,
       wasmPackCheckOutputLine: null,
     });
+    expect(
+      extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckStatus: "   ",
+      })
+    ).toEqual({
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: null,
+      wasmPackCheckArgCount: null,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
   });
 
   it("sanitizes malformed wasm pack summary argument arrays", () => {
@@ -5318,6 +5330,26 @@ describe("report-utils", () => {
       examplePayloadIssues: null,
       examplePayloadIssueCount: null,
       exampleExitCode: null,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleAttempted: true,
+        exampleStatus: "   ",
+        exampleExitCode: 1,
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: null,
+      exampleArgCount: null,
+      exampleAttempted: true,
+      exampleStatus: "failed",
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: 1,
       exampleDurationMs: null,
       exampleOutputLine: null,
     });
@@ -6064,6 +6096,11 @@ describe("report-utils", () => {
     expect(
       extractWasmPackStatusFromReport({
         wasmPackCheckStatus: "mystery",
+      })
+    ).toBeNull();
+    expect(
+      extractWasmPackStatusFromReport({
+        wasmPackCheckStatus: "   ",
       })
     ).toBeNull();
     expect(
