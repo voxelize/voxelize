@@ -577,19 +577,19 @@ fn rdp_simplify(points: &[Vec3<i32>], epsilon: f32) -> Vec<Vec3<i32>> {
 }
 
 fn perpendicular_distance(point: &Vec3<i32>, line_start: &Vec3<i32>, line_end: &Vec3<i32>) -> f32 {
-    let dx = (line_end.0 - line_start.0) as f32;
-    let dz = (line_end.2 - line_start.2) as f32;
+    let dx = axis_delta_i64(line_end.0, line_start.0) as f32;
+    let dz = axis_delta_i64(line_end.2, line_start.2) as f32;
     let mag = (dx * dx + dz * dz).sqrt();
 
     if mag < 0.001 {
-        let px = (point.0 - line_start.0) as f32;
-        let pz = (point.2 - line_start.2) as f32;
+        let px = axis_delta_i64(point.0, line_start.0) as f32;
+        let pz = axis_delta_i64(point.2, line_start.2) as f32;
         return (px * px + pz * pz).sqrt();
     }
 
-    let u = (((point.0 - line_start.0) as f32 * dx + (point.2 - line_start.2) as f32 * dz)
-        / (mag * mag))
-        .clamp(0.0, 1.0);
+    let point_dx = axis_delta_i64(point.0, line_start.0) as f32;
+    let point_dz = axis_delta_i64(point.2, line_start.2) as f32;
+    let u = ((point_dx * dx + point_dz * dz) / (mag * mag)).clamp(0.0, 1.0);
 
     let closest_x = line_start.0 as f32 + u * dx;
     let closest_z = line_start.2 as f32 + u * dz;
@@ -611,8 +611,8 @@ fn can_walk_directly_with_clearance(
         return false;
     }
 
-    let dx = (to.0 - from.0) as f32;
-    let dz = (to.2 - from.2) as f32;
+    let dx = axis_delta_i64(to.0, from.0) as f32;
+    let dz = axis_delta_i64(to.2, from.2) as f32;
     let mag = (dx * dx + dz * dz).sqrt();
 
     if mag < 0.001 {
@@ -845,7 +845,7 @@ fn is_position_walkable(
 mod tests {
     use super::{
         axis_delta_i64, can_expand_successors, clamp_f64_to_i32, clamp_usize_to_u32,
-        clamped_height_scan_steps, find_path_index_from, floor_f32_to_i32,
+        clamped_height_scan_steps, find_path_index_from, floor_f32_to_i32, perpendicular_distance,
         normalized_max_depth_search, squared_voxel_distance_f64,
     };
     use crate::Vec3;
@@ -885,6 +885,15 @@ mod tests {
         let dist = squared_voxel_distance_f64(&a, &b);
         assert!(dist.is_finite());
         assert!(dist > 0.0);
+    }
+
+    #[test]
+    fn perpendicular_distance_handles_i32_extreme_values() {
+        let point = Vec3(i32::MIN, 0, i32::MAX);
+        let line_start = Vec3(i32::MAX, 0, i32::MIN);
+        let line_end = Vec3(i32::MIN, 0, i32::MIN);
+        let distance = perpendicular_distance(&point, &line_start, &line_end);
+        assert!(distance.is_finite());
     }
 
     #[test]
