@@ -5331,6 +5331,30 @@ describe("report-utils", () => {
     });
     expect(
       extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckOutputLine: "   wasm-pack not found   ",
+      })
+    ).toEqual({
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: null,
+      wasmPackCheckArgCount: null,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: "wasm-pack not found",
+    });
+    expect(
+      extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckOutputLine: "   ",
+      })
+    ).toEqual({
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: null,
+      wasmPackCheckArgCount: null,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
+    expect(
+      extractWasmPackCheckSummaryFromReport({
         wasmPackCheckStatus: " missing ",
       })
     ).toEqual({
@@ -5705,6 +5729,44 @@ describe("report-utils", () => {
       examplePayloadIssues: null,
       examplePayloadIssueCount: null,
       exampleExitCode: 1,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleAttempted: false,
+        exampleOutputLine: "  ruleMatched=true  ",
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: null,
+      exampleArgCount: null,
+      exampleAttempted: false,
+      exampleStatus: "skipped",
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: null,
+      exampleDurationMs: null,
+      exampleOutputLine: "ruleMatched=true",
+    });
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleAttempted: false,
+        exampleOutputLine: "   ",
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: null,
+      exampleArgCount: null,
+      exampleAttempted: false,
+      exampleStatus: "skipped",
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: null,
       exampleDurationMs: null,
       exampleOutputLine: null,
     });

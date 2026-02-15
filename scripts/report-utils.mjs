@@ -551,10 +551,6 @@ const toNonNegativeIntegerOrNull = (value) => {
   return Number.isSafeInteger(value) && value >= 0 ? value : null;
 };
 
-const toFiniteNumberOrNull = (value) => {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-};
-
 const toNonNegativeFiniteNumberOrNull = (value) => {
   return typeof value === "number" && Number.isFinite(value) && value >= 0
     ? value
@@ -715,10 +711,9 @@ export const extractWasmPackCheckSummaryFromReport = (report) => {
     report,
     "wasmPackCheckOutputLine"
   );
-  const wasmPackCheckOutputLine =
-    typeof wasmPackCheckOutputLineValue === "string"
-      ? wasmPackCheckOutputLineValue
-      : null;
+  const wasmPackCheckOutputLine = toTrimmedStringOrNull(
+    wasmPackCheckOutputLineValue
+  );
 
   return {
     wasmPackCheckStatus,
@@ -810,8 +805,7 @@ export const extractTsCoreExampleSummaryFromReport = (report) => {
   const exampleDurationMs =
     toNonNegativeFiniteNumberOrNull(exampleDurationMsValue);
   const exampleOutputLineValue = safeReadProperty(report, "exampleOutputLine");
-  const exampleOutputLine =
-    typeof exampleOutputLineValue === "string" ? exampleOutputLineValue : null;
+  const exampleOutputLine = toTrimmedStringOrNull(exampleOutputLineValue);
   const exampleRuleMatchedValue = safeReadProperty(report, "exampleRuleMatched");
   const exampleRuleMatched =
     typeof exampleRuleMatchedValue === "boolean" ? exampleRuleMatchedValue : null;
