@@ -817,3 +817,49 @@ impl voxelize_lighter::LightVoxelAccess for Chunks {
         VoxelAccess::contains(self, vx, vy, vz)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Chunks;
+    use crate::{MessageType, Vec2, WorldConfig};
+
+    #[test]
+    fn add_chunk_to_save_skips_when_saving_disabled() {
+        let config = WorldConfig::new().saving(false).build();
+        let mut chunks = Chunks::new(&config);
+
+        chunks.add_chunk_to_save(&Vec2(1, 2), false);
+
+        assert!(chunks.to_save.is_empty());
+        assert!(chunks.to_save_lookup.is_empty());
+    }
+
+    #[test]
+    fn add_chunk_to_send_dedupes_by_coords() {
+        let config = WorldConfig::new().build();
+        let mut chunks = Chunks::new(&config);
+
+        chunks.add_chunk_to_send(&Vec2(3, -4), &MessageType::Load, false);
+        chunks.add_chunk_to_send(&Vec2(3, -4), &MessageType::Update, true);
+
+        assert_eq!(chunks.to_send.len(), 1);
+        assert_eq!(chunks.to_send_lookup.len(), 1);
+        assert_eq!(
+            chunks.to_send.front().map(|(_, msg_type)| *msg_type),
+            Some(MessageType::Load)
+        );
+    }
+
+    #[test]
+    fn light_traversed_chunks_clamps_to_world_bounds() {
+        let config = WorldConfig::new().min_chunk([0, 0]).max_chunk([1, 1]).build();
+        let chunks = Chunks::new(&config);
+
+        let traversed = chunks.light_traversed_chunks(&Vec2(0, 0));
+
+        assert_eq!(
+            traversed,
+            vec![Vec2(0, 0), Vec2(0, 1), Vec2(1, 0), Vec2(1, 1)]
+        );
+    }
+}
