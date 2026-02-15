@@ -5139,6 +5139,12 @@ describe("report-utils", () => {
       })
     ).toBe("top-level failure message");
     expect(
+      deriveFailureMessageFromReport({
+        message:
+          "\u001b]0;preflight\u0007\u001b[31m  top-level failure message  \u001b[0m\nadditional detail",
+      })
+    ).toBe("top-level failure message");
+    expect(
       deriveFailureMessageFromReport({ requiredFailures: 2 })
     ).toBe("2 required check(s) failed.");
     expect(deriveFailureMessageFromReport({ requiredFailures: 0 })).toBeNull();
@@ -5217,6 +5223,34 @@ describe("report-utils", () => {
             passed: false,
             skipped: false,
             reason: "  artifact missing  ",
+          },
+        ],
+      })
+    ).toBe("Client checks: artifact missing");
+    expect(
+      deriveFailureMessageFromReport({
+        steps: [
+          {
+            name: "Client checks",
+            passed: false,
+            skipped: false,
+            report: {
+              message:
+                "\u001b]0;report\u0007\u001b[31m  artifact missing  \u001b[0m\nadditional detail",
+            },
+          },
+        ],
+      })
+    ).toBe("Client checks: artifact missing");
+    expect(
+      deriveFailureMessageFromReport({
+        steps: [
+          {
+            name: "Client checks",
+            passed: false,
+            skipped: false,
+            reason:
+              "\u001b]0;reason\u0007\u001b[33m  artifact missing  \u001b[0m\nadditional detail",
           },
         ],
       })

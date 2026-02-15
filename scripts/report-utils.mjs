@@ -624,7 +624,9 @@ export const deriveFailureMessageFromReport = (report) => {
     return null;
   }
 
-  const reportMessage = toTrimmedStringOrNull(safeReadProperty(report, "message"));
+  const reportMessage = toSanitizedOutputLineOrNull(
+    safeReadProperty(report, "message")
+  );
   if (reportMessage !== null) {
     return reportMessage;
   }
@@ -656,14 +658,16 @@ export const deriveFailureMessageFromReport = (report) => {
         continue;
       }
 
-      const stepReportMessage = toTrimmedStringOrNull(
+      const stepReportMessage = toSanitizedOutputLineOrNull(
         safeReadProperty(safeReadProperty(step, "report"), "message")
       );
       if (stepReportMessage !== null) {
         return `${stepName}: ${stepReportMessage}`;
       }
 
-      const stepReason = toTrimmedStringOrNull(safeReadProperty(step, "reason"));
+      const stepReason = toSanitizedOutputLineOrNull(
+        safeReadProperty(step, "reason")
+      );
       if (stepReason !== null) {
         return `${stepName}: ${stepReason}`;
       }
