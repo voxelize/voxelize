@@ -108,7 +108,12 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                                         .1
                                 }
                             };
-                        touched_client = !fetched_clients_to_send.is_empty();
+                        if !fetched_clients_to_send.is_empty() {
+                            to_send_touched_clients.push(id.0.clone());
+                            touched_client = true;
+                        } else {
+                            touched_client = false;
+                        }
                         clients_to_send = Some(fetched_clients_to_send);
                         clients_to_send.as_deref_mut().unwrap()
                     };
