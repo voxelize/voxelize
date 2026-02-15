@@ -871,7 +871,8 @@ impl World {
             .with(CollisionsComp::new())
             .build();
 
-        if let Some(modifier) = self.client_modifier.to_owned() {
+        if let Some(modifier) = self.client_modifier.as_ref() {
+            let modifier = Arc::clone(modifier);
             modifier(self, ent);
         }
 
@@ -1098,17 +1099,16 @@ impl World {
             MessageType::Update => self.on_update(client_id, data),
             MessageType::Event => self.on_event(client_id, data),
             MessageType::Transport => {
-                if self.transport_handle.is_none() {
+                let Some(handle) = self.transport_handle.as_ref().map(Arc::clone) else {
                     warn!("Transport calls are being called, but no transport handlers set!");
-                } else {
-                    let handle = self.transport_handle.as_ref().unwrap().to_owned();
+                    return;
+                };
 
-                    handle(
-                        self,
-                        serde_json::from_str(&data.json)
-                            .expect("Something went wrong with the transport JSON value."),
-                    );
-                }
+                handle(
+                    self,
+                    serde_json::from_str(&data.json)
+                        .expect("Something went wrong with the transport JSON value."),
+                );
             }
             _ => {
                 info!("Received message of unknown type: {:?}", msg_type);
@@ -1812,7 +1812,7 @@ impl World {
             chat.body.strip_prefix(config.command_symbol.as_str())
         };
         if let Some(command) = command {
-            if let Some(handle) = self.command_handle.clone() {
+            if let Some(handle) = self.command_handle.as_ref().map(Arc::clone) {
                 handle(self, id, command);
             } else {
                 warn!("Clients are sending commands, but no command handler set.");
