@@ -1850,6 +1850,28 @@ describe("report-utils", () => {
       }
     );
     expect(unknownFromLargeLengthTrapArgs).toEqual(["--mystery"]);
+    const lengthAndOwnKeysTrapArgs = new Proxy(["--json", "--mystery"], {
+      ownKeys() {
+        throw new Error("ownKeys trap");
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          throw new Error("length trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const unknownFromLengthAndOwnKeysTrapArgs = parseUnknownCliOptions(
+      lengthAndOwnKeysTrapArgs as never,
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+      }
+    );
+    expect(unknownFromLengthAndOwnKeysTrapArgs).toEqual([]);
 
     const unknownFromWhitespacePaddedMetadata = parseUnknownCliOptions(
       ["--json", "--verify", "--mystery"],
@@ -3668,6 +3690,43 @@ describe("report-utils", () => {
     expect(activeMetadataFromIteratorTrapArgs.activeCliOptionOccurrenceCount).toBe(
       2
     );
+    const activeMetadataFromLengthAndOwnKeysTrapArgs = parseActiveCliOptionMetadata(
+      new Proxy(["--json", "--output", "./report.json"], {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            throw new Error("length trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }) as never,
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+      }
+    );
+    expect(activeMetadataFromLengthAndOwnKeysTrapArgs.activeCliOptions).toEqual([]);
+    expect(activeMetadataFromLengthAndOwnKeysTrapArgs.activeCliOptionCount).toBe(0);
+    expect(activeMetadataFromLengthAndOwnKeysTrapArgs.activeCliOptionTokens).toEqual(
+      []
+    );
+    expect(
+      activeMetadataFromLengthAndOwnKeysTrapArgs.activeCliOptionResolutions
+    ).toEqual([]);
+    expect(
+      activeMetadataFromLengthAndOwnKeysTrapArgs.activeCliOptionResolutionCount
+    ).toBe(0);
+    expect(
+      activeMetadataFromLengthAndOwnKeysTrapArgs.activeCliOptionOccurrences
+    ).toEqual([]);
+    expect(
+      activeMetadataFromLengthAndOwnKeysTrapArgs.activeCliOptionOccurrenceCount
+    ).toBe(0);
   });
 
   it("sanitizes malformed active-cli option metadata inputs", () => {
