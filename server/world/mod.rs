@@ -697,8 +697,8 @@ impl World {
                 return;
             }
 
+            let mut storage = world.ecs_mut().write_storage::<JsonComp>();
             for entity in to_update {
-                let mut storage = world.ecs_mut().write_storage::<JsonComp>();
 
                 // Check if this is a partial update
                 if !payload.is_partial.unwrap_or(false) {
