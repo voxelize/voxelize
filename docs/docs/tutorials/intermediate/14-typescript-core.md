@@ -178,6 +178,7 @@ const pattern = createBlockDynamicPattern({
         rules: [{ type: "simple", offset: [0, 0, 0], id: 12 }],
       }),
       faces: [{ name: "Top", dir: [0, 1, 0] }],
+      aabbs: [{ minX: 0, minY: 0, minZ: 0, maxX: 1, maxY: 1, maxZ: 1 }],
       isTransparent: createFaceTransparency([true]),
       worldSpace: false,
     },

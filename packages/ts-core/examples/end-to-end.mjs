@@ -118,12 +118,21 @@ const main = () => {
     name: "ConnectorTop",
     dir: [0, 1, 0],
   });
+  const sourcePatternAabb = {
+    minX: 0,
+    minY: 0,
+    minZ: 0,
+    maxX: 1,
+    maxY: 1,
+    maxZ: 1,
+  };
   const topFaceTransparency = createFaceTransparency([true]);
   const pattern = createBlockDynamicPattern({
     parts: [
       createBlockConditionalPart({
         rule: connectionRule,
         faces: [topFace],
+        aabbs: [sourcePatternAabb],
         isTransparent: topFaceTransparency,
         worldSpace: false,
       }),
@@ -134,10 +143,16 @@ const main = () => {
     throw new Error("Dynamic pattern was not created.");
   }
   topFace.name = "MutatedConnectorTop";
+  sourcePatternAabb.maxX = 9;
   assert(patternPart.faces.length === 1, "Dynamic pattern face was not preserved");
   assert(
     patternPart.faces[0].name === "ConnectorTop",
     "Dynamic pattern face was not defensively cloned"
+  );
+  assert(patternPart.aabbs.length === 1, "Dynamic pattern aabb was not preserved");
+  assert(
+    patternPart.aabbs[0].maxX === 1,
+    "Dynamic pattern aabb was not defensively cloned"
   );
   assert(
     patternPart.isTransparent[0] === true,
