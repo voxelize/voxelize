@@ -162,10 +162,6 @@ impl SpaceBuilder<'_> {
             .light_traversed_chunks(&self.coords)
             .into_par_iter()
             .filter_map(|n_coords| {
-                if !self.chunks.is_within_world(&n_coords) {
-                    return None;
-                }
-
                 if let Some(chunk) = self.chunks.raw(&n_coords) {
                     let voxels = if self.needs_voxels {
                         Some((n_coords, Arc::clone(&chunk.voxels)))
