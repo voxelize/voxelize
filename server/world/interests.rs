@@ -207,6 +207,20 @@ mod tests {
     }
 
     #[test]
+    fn add_ignores_duplicate_clients_for_same_chunk() {
+        let mut interests = ChunkInterests::new();
+        let coords = Vec2(-1, 7);
+        interests.add("a", &coords);
+        interests.add("a", &coords);
+
+        let interested = interests
+            .get_interests(&coords)
+            .expect("expected registered clients");
+        assert_eq!(interested.len(), 1);
+        assert!(interested.contains("a"));
+    }
+
+    #[test]
     fn comparable_weight_clamps_non_finite_values() {
         assert_eq!(comparable_weight(None), f32::MAX);
         assert_eq!(comparable_weight(Some(&f32::INFINITY)), f32::MAX);
