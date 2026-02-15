@@ -91,6 +91,8 @@ const voxel = Voxel.pack({
   - malformed `worldSpace` values fall back to `false`
 - `createBlockRule`
   - clones and sanitizes rule definitions with deterministic `none` fallbacks
+  - only plain-object rule nodes are interpreted; non-plain objects normalize
+    to `none`
   - breaks cyclic rule graphs safely by replacing cycle edges with `none`
   - accepts readonly rule-tree arrays/tuples for ergonomic literal input
   - normalizes nullable combination sub-rules to deterministic `none` entries

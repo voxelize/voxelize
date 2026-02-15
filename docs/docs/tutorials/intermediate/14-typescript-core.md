@@ -63,6 +63,8 @@ Extra transparency entries beyond six face slots are ignored.
 Nullable combination sub-rules are normalized to deterministic `none` entries.
 `createBlockRule` also accepts readonly rule-tree arrays/tuples for literal
 authoring ergonomics.
+Non-plain rule nodes/rotation-like objects are normalized away during
+sanitization.
 Malformed `worldSpace` values fall back to `false`.
 Cyclic rule graphs are sanitized by replacing recursive edges with `none`.
 

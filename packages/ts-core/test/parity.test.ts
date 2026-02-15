@@ -1498,11 +1498,19 @@ describe("Type builders", () => {
   });
 
   it("sanitizes non-plain createBlockRule inputs to none rules", () => {
+    class RuleLike {
+      public readonly type = "simple" as const;
+      public readonly offset: [number, number, number] = [1, 0, 0];
+      public readonly id = 12;
+    }
+
     const dateRule = createBlockRule(new Date() as never);
     const mapRule = createBlockRule(new Map() as never);
+    const classRule = createBlockRule(new RuleLike());
 
     expect(dateRule).toEqual(BLOCK_RULE_NONE);
     expect(mapRule).toEqual(BLOCK_RULE_NONE);
+    expect(classRule).toEqual(BLOCK_RULE_NONE);
   });
 
   it("sanitizes cyclic createBlockRule inputs without throwing", () => {
@@ -1713,6 +1721,26 @@ describe("Type builders", () => {
       type: "simple",
       offset: [0, 0, 0],
       rotation: BlockRotation.py(Math.PI / 2),
+    });
+  });
+
+  it("rejects non-plain rotation-like objects in rule sanitization", () => {
+    class RotationLike {
+      public readonly value = 0;
+      public readonly yRotation = Math.PI / 2;
+    }
+
+    const part = createBlockConditionalPart({
+      rule: {
+        type: "simple",
+        offset: [0, 0, 0],
+        rotation: new RotationLike(),
+      },
+    });
+
+    expect(part.rule).toEqual({
+      type: "simple",
+      offset: [0, 0, 0],
     });
   });
 

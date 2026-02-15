@@ -328,7 +328,12 @@ const toOptionalRuleRotation = (
     return new BlockRotation(value.value, value.yRotation);
   }
 
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    !hasPlainObjectPrototype(value)
+  ) {
     return undefined;
   }
 
@@ -350,7 +355,12 @@ const toBlockRule = (
   value: DynamicValue,
   path: Set<object> = new Set<object>()
 ): BlockRule => {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    !hasPlainObjectPrototype(value)
+  ) {
     return { type: "none" };
   }
   if (path.has(value)) {
