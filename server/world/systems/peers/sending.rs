@@ -1,8 +1,8 @@
 use specs::{ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
-    world::system_profiler::WorldTimingContext, ClientFilter, ClientFlag, IDComp, Message,
-    MessageQueues, MessageType, MetadataComp, NameComp, PeerProtocol,
+    world::system_profiler::WorldTimingContext, ClientFilter, ClientFlag, Clients, IDComp,
+    Message, MessageQueues, MessageType, MetadataComp, NameComp, PeerProtocol,
 };
 
 #[derive(Default)]
@@ -12,6 +12,7 @@ pub struct PeersSendingSystem {
 
 impl<'a> System<'a> for PeersSendingSystem {
     type SystemData = (
+        ReadExpect<'a, Clients>,
         WriteExpect<'a, MessageQueues>,
         ReadStorage<'a, ClientFlag>,
         ReadStorage<'a, IDComp>,
@@ -23,11 +24,14 @@ impl<'a> System<'a> for PeersSendingSystem {
     fn run(&mut self, data: Self::SystemData) {
         use specs::Join;
 
-        let (mut queue, flag, ids, names, mut metadatas, timing) = data;
+        let (clients, mut queue, flag, ids, names, mut metadatas, timing) = data;
         let _t = timing.timer("peers-sending");
 
         let peers = &mut self.peers_buffer;
         peers.clear();
+        if peers.capacity() < clients.len() {
+            peers.reserve(clients.len() - peers.capacity());
+        }
         for (id, name, metadata, _) in (&ids, &names, &mut metadatas, &flag).join() {
             let (json_str, updated) = metadata.to_cached_str();
 
