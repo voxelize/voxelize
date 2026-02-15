@@ -96,7 +96,7 @@ impl BackgroundChunkSaver {
     }
 
     fn flush_pending(pending: &mut HashMap<Vec2<i32>, ChunkSaveData>, folder: &PathBuf) {
-        for data in pending.drain().map(|(_, data)| data) {
+        for (_, data) in pending.drain() {
             Self::save_chunk_to_disk(&data, folder);
         }
     }
