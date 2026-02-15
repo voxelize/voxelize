@@ -1732,6 +1732,38 @@ const createCanonicalOptionSnapshotFromCatalog = (optionCatalog) => {
   return dedupeStringList(canonicalOptionTokens);
 };
 
+const toNormalizedCliOptionCatalogOrNull = (optionCatalog) => {
+  if (!isObjectRecord(optionCatalog)) {
+    return null;
+  }
+
+  const supportedCliOptions = normalizeCliOptionTokenList(
+    safeReadProperty(optionCatalog, "supportedCliOptions")
+  );
+  const availableCliOptionAliases = normalizeCliOptionAliases(
+    safeReadProperty(optionCatalog, "availableCliOptionAliases")
+  );
+  const catalogCanonicalOptions = createCanonicalOptionSnapshotFromCatalog({
+    availableCliOptionCanonicalMap: safeReadProperty(
+      optionCatalog,
+      "availableCliOptionCanonicalMap"
+    ),
+  });
+  const hasCatalogData =
+    supportedCliOptions.length > 0 ||
+    catalogCanonicalOptions.length > 0 ||
+    Object.keys(availableCliOptionAliases).length > 0;
+  if (!hasCatalogData) {
+    return null;
+  }
+
+  return {
+    supportedCliOptions,
+    availableCliOptionAliases,
+    catalogCanonicalOptions,
+  };
+};
+
 const resolveCanonicalOptionToken = (
   optionToken,
   canonicalOptionMap,
@@ -2061,18 +2093,30 @@ export const createCliOptionValidation = (
     optionArgs = null,
     outputPathError = null,
     supportedCliOptions: precomputedSupportedCliOptions = null,
+    optionCatalog = null,
   } = {}
 ) => {
-  const optionCatalog = createCliOptionCatalog({
-    canonicalOptions,
-    optionAliases,
-  });
+  const normalizedOptionCatalogOverride =
+    toNormalizedCliOptionCatalogOrNull(optionCatalog);
+  const resolvedOptionCatalog =
+    normalizedOptionCatalogOverride ??
+    createCliOptionCatalog({
+      canonicalOptions,
+      optionAliases,
+    });
   const catalogCanonicalOptions =
-    createCanonicalOptionSnapshotFromCatalog(optionCatalog);
-  const catalogOptionAliases = optionCatalog.availableCliOptionAliases;
+    normalizedOptionCatalogOverride === null
+      ? createCanonicalOptionSnapshotFromCatalog(resolvedOptionCatalog)
+      : normalizedOptionCatalogOverride.catalogCanonicalOptions;
+  const catalogOptionAliases =
+    normalizedOptionCatalogOverride === null
+      ? resolvedOptionCatalog.availableCliOptionAliases
+      : normalizedOptionCatalogOverride.availableCliOptionAliases;
   const supportedCliOptions =
     precomputedSupportedCliOptions === null
-      ? optionCatalog.supportedCliOptions
+      ? normalizedOptionCatalogOverride === null
+        ? resolvedOptionCatalog.supportedCliOptions
+        : normalizedOptionCatalogOverride.supportedCliOptions
       : normalizeCliOptionTokenList(precomputedSupportedCliOptions);
   const unknownOptions = parseUnknownCliOptions(args, {
     canonicalOptions: catalogCanonicalOptions,
@@ -2270,6 +2314,7 @@ export const createCliDiagnostics = (
   const strictValueOptionTokenMetadata =
     normalizeCliOptionTokenListWithAvailability(optionsWithStrictValues);
   const optionValidation = createCliOptionValidation(args, {
+    optionCatalog,
     canonicalOptions: catalogCanonicalOptions,
     optionAliases: catalogOptionAliases,
     optionsWithValues,

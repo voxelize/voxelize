@@ -4330,6 +4330,83 @@ describe("report-utils", () => {
     ).toBeNull();
     expect(statefulCanonicalWithPrecomputedValidation.validationErrorCode).toBeNull();
     expect(statefulCanonicalWithPrecomputedReadCount).toBe(2);
+    let optionCatalogOverrideCanonicalReadCount = 0;
+    const optionCatalogOverrideCanonicalOptions = new Proxy(["--json"], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (property === "0") {
+          optionCatalogOverrideCanonicalReadCount += 1;
+          return "--json";
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const optionCatalogOverrideValidation = createCliOptionValidation(
+      ["--json"],
+      {
+        canonicalOptions: optionCatalogOverrideCanonicalOptions as never,
+        optionCatalog: {
+          supportedCliOptions: ["--json"],
+          availableCliOptionAliases: {},
+          availableCliOptionCanonicalMap: {
+            "--json": "--json",
+          },
+        } as never,
+      }
+    );
+    expect(optionCatalogOverrideValidation.supportedCliOptions).toEqual([
+      "--json",
+    ]);
+    expect(optionCatalogOverrideValidation.supportedCliOptionCount).toBe(1);
+    expect(optionCatalogOverrideValidation.unknownOptions).toEqual([]);
+    expect(optionCatalogOverrideValidation.unknownOptionCount).toBe(0);
+    expect(optionCatalogOverrideValidation.unsupportedOptionsError).toBeNull();
+    expect(optionCatalogOverrideValidation.validationErrorCode).toBeNull();
+    expect(optionCatalogOverrideCanonicalReadCount).toBe(0);
+    let malformedOptionCatalogOverrideCanonicalReadCount = 0;
+    const malformedOptionCatalogOverrideCanonicalOptions = new Proxy(
+      ["--json"],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (property === "0") {
+            malformedOptionCatalogOverrideCanonicalReadCount += 1;
+            return "--json";
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const malformedOptionCatalogOverrideValidation = createCliOptionValidation(
+      ["--json"],
+      {
+        canonicalOptions: malformedOptionCatalogOverrideCanonicalOptions as never,
+        optionCatalog: {
+          supportedCliOptions: "--json" as never,
+        } as never,
+      }
+    );
+    expect(malformedOptionCatalogOverrideValidation.supportedCliOptions).toEqual([
+      "--json",
+    ]);
+    expect(malformedOptionCatalogOverrideValidation.supportedCliOptionCount).toBe(
+      1
+    );
+    expect(malformedOptionCatalogOverrideValidation.unknownOptions).toEqual([]);
+    expect(malformedOptionCatalogOverrideValidation.unknownOptionCount).toBe(0);
+    expect(malformedOptionCatalogOverrideValidation.unsupportedOptionsError).toBeNull();
+    expect(malformedOptionCatalogOverrideValidation.validationErrorCode).toBeNull();
+    expect(malformedOptionCatalogOverrideCanonicalReadCount).toBe(2);
 
     const malformedPrecomputedSupportedTokens = createCliOptionValidation(
       ["--mystery"],
