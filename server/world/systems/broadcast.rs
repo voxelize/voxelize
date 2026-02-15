@@ -248,8 +248,9 @@ impl<'a> System<'a> for BroadcastSystem {
 
         let mut async_messages = encoded_queue.receive();
         let mut done_messages = immediate_encoded;
-        if done_messages.capacity() - done_messages.len() < async_messages.len() {
-            done_messages.reserve(async_messages.len());
+        let remaining_capacity = done_messages.capacity() - done_messages.len();
+        if remaining_capacity < async_messages.len() {
+            done_messages.reserve(async_messages.len() - remaining_capacity);
         }
         done_messages.append(&mut async_messages);
 
