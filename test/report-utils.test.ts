@@ -5768,6 +5768,76 @@ describe("report-utils", () => {
         message: "Preflight check failed with exit code 3.",
       },
     ]);
+    const cappedSupplementedFailureChecksTarget: Array<
+      | number
+      | {
+          readonly name: string;
+          readonly scriptName: string;
+          readonly supportsNoBuild: boolean;
+          readonly checkIndex: number;
+          readonly passed: boolean;
+          readonly exitCode: number;
+        }
+    > = [];
+    cappedSupplementedFailureChecksTarget[0] = {
+      name: "check-a",
+      scriptName: "check-a.mjs",
+      supportsNoBuild: true,
+      checkIndex: 0,
+      passed: false,
+      exitCode: 2,
+    };
+    for (let index = 1; index < 1_024; index += 1) {
+      cappedSupplementedFailureChecksTarget[index] = index;
+    }
+    for (let index = 0; index < 1_024; index += 1) {
+      cappedSupplementedFailureChecksTarget[5_000 + index] = {
+        name: `check-k${index}`,
+        scriptName: `check-k${index}.mjs`,
+        supportsNoBuild: true,
+        checkIndex: 5_000 + index,
+        passed: false,
+        exitCode: 2,
+      };
+    }
+    const cappedSupplementedFailureCheckKeyList = Array.from(
+      { length: 1_024 },
+      (_, index) => {
+        return String(5_000 + index);
+      }
+    );
+    const cappedSupplementedFailureChecks = new Proxy(
+      cappedSupplementedFailureChecksTarget,
+      {
+        ownKeys() {
+          return [...cappedSupplementedFailureCheckKeyList, "length"];
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1_000_000_000;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const cappedSupplementedFailureSummaries = summarizeCheckFailureResults(
+      cappedSupplementedFailureChecks as never
+    );
+    expect(cappedSupplementedFailureSummaries).toHaveLength(1_024);
+    expect(cappedSupplementedFailureSummaries[0]?.name).toBe("check-a");
+    expect(
+      cappedSupplementedFailureSummaries.some(
+        (summary) => summary.name === "check-k1022"
+      )
+    ).toBe(true);
+    expect(
+      cappedSupplementedFailureSummaries.some(
+        (summary) => summary.name === "check-k1023"
+      )
+    ).toBe(false);
   });
 
   it("summarizes check outcomes for aggregate preflight reports", () => {
@@ -5978,6 +6048,57 @@ describe("report-utils", () => {
       passedChecks: ["client"],
       failedChecks: ["devEnvironment"],
     });
+    const cappedSupplementedChecksTarget: Array<
+      number | { readonly name: string; readonly passed: boolean }
+    > = [];
+    cappedSupplementedChecksTarget[0] = {
+      name: "check-a",
+      passed: true,
+    };
+    for (let index = 1; index < 1_024; index += 1) {
+      cappedSupplementedChecksTarget[index] = index;
+    }
+    for (let index = 0; index < 1_024; index += 1) {
+      cappedSupplementedChecksTarget[5_000 + index] = {
+        name: `check-k${index}`,
+        passed: true,
+      };
+    }
+    const cappedSupplementedCheckKeyList = Array.from(
+      { length: 1_024 },
+      (_, index) => {
+        return String(5_000 + index);
+      }
+    );
+    const cappedSupplementedChecks = new Proxy(cappedSupplementedChecksTarget, {
+      ownKeys() {
+        return [...cappedSupplementedCheckKeyList, "length"];
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1_000_000_000;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const cappedSupplementedCheckSummary = summarizeCheckResults(
+      cappedSupplementedChecks as never
+    );
+    expect(cappedSupplementedCheckSummary.totalChecks).toBe(1_024);
+    expect(cappedSupplementedCheckSummary.passedCheckCount).toBe(1_024);
+    expect(cappedSupplementedCheckSummary.failedCheckCount).toBe(0);
+    expect(cappedSupplementedCheckSummary.firstFailedCheck).toBeNull();
+    expect(cappedSupplementedCheckSummary.passedChecks[0]).toBe("check-a");
+    expect(cappedSupplementedCheckSummary.passedChecks.includes("check-k1022")).toBe(
+      true
+    );
+    expect(cappedSupplementedCheckSummary.passedChecks.includes("check-k1023")).toBe(
+      false
+    );
+    expect(cappedSupplementedCheckSummary.failedChecks).toEqual([]);
 
     const ownKeysTrapChecks = new Proxy(
       [{ name: "devEnvironment", passed: true }],
