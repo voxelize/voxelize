@@ -4,6 +4,7 @@ import {
   AABB,
   BLOCK_RULE_NONE,
   type BlockConditionalPartInput,
+  type BlockDynamicPatternInput,
   type BlockFaceInit,
   type BlockRule,
   BlockFace,
@@ -968,6 +969,29 @@ describe("Type builders", () => {
     expect(partFromDate.rule).not.toBe(BLOCK_RULE_NONE);
   });
 
+  it("accepts null-prototype conditional part inputs", () => {
+    const nullPrototypePart = Object.create(null) as BlockConditionalPartInput;
+    nullPrototypePart.rule = {
+      type: "simple",
+      offset: [1, 0, 0],
+      id: 33,
+    };
+    nullPrototypePart.worldSpace = true;
+    const part = createBlockConditionalPart(nullPrototypePart);
+
+    expect(part).toEqual({
+      rule: {
+        type: "simple",
+        offset: [1, 0, 0],
+        id: 33,
+      },
+      faces: [],
+      aabbs: [],
+      isTransparent: [false, false, false, false, false, false],
+      worldSpace: true,
+    });
+  });
+
   it("sanitizes malformed transparency entries to boolean defaults", () => {
     const malformedTransparency = [
       true,
@@ -1768,6 +1792,26 @@ describe("Type builders", () => {
 
     expect(patternFromNull.parts).toEqual([]);
     expect(patternFromNumber.parts).toEqual([]);
+  });
+
+  it("accepts null-prototype dynamic pattern inputs", () => {
+    const nullPrototypePart = Object.create(null) as BlockConditionalPartInput;
+    nullPrototypePart.worldSpace = true;
+    const nullPrototypePattern = Object.create(null) as BlockDynamicPatternInput;
+    nullPrototypePattern.parts = [nullPrototypePart];
+
+    const pattern = createBlockDynamicPattern(nullPrototypePattern);
+
+    expect(pattern.parts).toEqual([
+      {
+        rule: BLOCK_RULE_NONE,
+        faces: [],
+        aabbs: [],
+        isTransparent: [false, false, false, false, false, false],
+        worldSpace: true,
+      },
+    ]);
+    expect(pattern.parts[0].rule).not.toBe(BLOCK_RULE_NONE);
   });
 
   it("skips malformed dynamic pattern part entries", () => {
