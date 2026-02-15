@@ -72,7 +72,7 @@ impl<'a> System<'a> for PhysicsSystem {
             return;
         }
 
-        let mut collision_map = HashMap::new();
+        let mut collision_map = HashMap::with_capacity(physics.entity_to_handlers.len());
 
         // Tick the voxel physics of all entities (non-clients).
         // Skip entities in chunks with no interested players.
