@@ -938,6 +938,26 @@ describe("report-utils", () => {
     expect(sparseHighIndexResult.positionalArgs).toEqual([]);
     expect(sparseHighIndexResult.optionTerminatorUsed).toBe(false);
 
+    const sparseMixedPrefixAndHighIndexArgs: string[] = [];
+    sparseMixedPrefixAndHighIndexArgs[0] = "--json";
+    sparseMixedPrefixAndHighIndexArgs[5_000] = "--mystery";
+    Object.defineProperty(sparseMixedPrefixAndHighIndexArgs, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    const sparseMixedPrefixAndHighIndexResult = splitCliArgs(
+      sparseMixedPrefixAndHighIndexArgs as never
+    );
+    expect(sparseMixedPrefixAndHighIndexResult.optionArgs).toEqual([
+      "--json",
+      "--mystery",
+    ]);
+    expect(sparseMixedPrefixAndHighIndexResult.positionalArgs).toEqual([]);
+    expect(sparseMixedPrefixAndHighIndexResult.optionTerminatorUsed).toBe(false);
+
     const sparseHighIndexWithUndefinedPrefixArgs: Array<string | undefined> = [];
     sparseHighIndexWithUndefinedPrefixArgs[0] = undefined;
     sparseHighIndexWithUndefinedPrefixArgs[5_000] = "--json";
@@ -5226,6 +5246,23 @@ describe("report-utils", () => {
     expect(normalizeTsCorePayloadIssues(sparseHighIndexIssues)).toEqual([
       "voxel.id",
     ]);
+    const sparseMixedPrefixAndHighIndexIssues: string[] = [];
+    sparseMixedPrefixAndHighIndexIssues[0] = "voxel.id";
+    sparseMixedPrefixAndHighIndexIssues[5_000] = " light.red ";
+    Object.defineProperty(
+      sparseMixedPrefixAndHighIndexIssues,
+      Symbol.iterator,
+      {
+        configurable: true,
+        enumerable: false,
+        get: () => {
+          throw new Error("iterator trap");
+        },
+      }
+    );
+    expect(
+      normalizeTsCorePayloadIssues(sparseMixedPrefixAndHighIndexIssues)
+    ).toEqual(["voxel.id", "light.red"]);
     const sparseHighIndexWithUndefinedPrefixIssues: Array<string | undefined> = [];
     sparseHighIndexWithUndefinedPrefixIssues[0] = undefined;
     sparseHighIndexWithUndefinedPrefixIssues[5_000] = " voxel.id ";

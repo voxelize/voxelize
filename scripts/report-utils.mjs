@@ -432,16 +432,22 @@ const cloneArrayFromIndexedAccess = (value) => {
   const hasNonUndefinedLengthFallbackEntry =
     lengthFallbackClone !== null &&
     lengthFallbackClone.some((entry) => entry !== undefined);
+  const keyFallbackClone = cloneArrayFromIndexedKeys(value);
+  if (keyFallbackClone !== null && keyFallbackClone.length > 0) {
+    if (
+      !hasNonUndefinedLengthFallbackEntry ||
+      (lengthFallbackClone !== null &&
+        lengthFallbackClone.length < MAX_ARRAY_LENGTH_FALLBACK_SCAN)
+    ) {
+      return keyFallbackClone;
+    }
+  }
+
   if (hasNonUndefinedLengthFallbackEntry) {
     return lengthFallbackClone;
   }
 
-  const keyFallbackClone = cloneArrayFromIndexedKeys(value);
-  if (keyFallbackClone === null) {
-    return lengthFallbackClone;
-  }
-
-  if (keyFallbackClone.length > 0) {
+  if (keyFallbackClone !== null && keyFallbackClone.length > 0) {
     return keyFallbackClone;
   }
 
