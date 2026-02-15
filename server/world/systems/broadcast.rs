@@ -18,9 +18,11 @@ enum BatchFilterKey {
     Direct(String),
     IncludeNone,
     IncludeOne(String),
+    IncludePair(String, String),
     IncludeMany(Vec<String>),
     ExcludeNone,
     ExcludeOne(String),
+    ExcludePair(String, String),
     ExcludeMany(Vec<String>),
 }
 
@@ -35,9 +37,23 @@ fn filter_key(filter: &ClientFilter) -> BatchFilterKey {
             if ids.len() == 1 {
                 return BatchFilterKey::IncludeOne(ids[0].clone());
             }
+            if ids.len() == 2 {
+                let (first, second) = if ids[0] <= ids[1] {
+                    (&ids[0], &ids[1])
+                } else {
+                    (&ids[1], &ids[0])
+                };
+                if first == second {
+                    return BatchFilterKey::IncludeOne(first.clone());
+                }
+                return BatchFilterKey::IncludePair(first.clone(), second.clone());
+            }
             let mut sorted = ids.clone();
             sorted.sort_unstable();
             sorted.dedup();
+            if sorted.len() == 1 {
+                return BatchFilterKey::IncludeOne(sorted.swap_remove(0));
+            }
             BatchFilterKey::IncludeMany(sorted)
         }
         ClientFilter::Exclude(ids) => {
@@ -47,9 +63,23 @@ fn filter_key(filter: &ClientFilter) -> BatchFilterKey {
             if ids.len() == 1 {
                 return BatchFilterKey::ExcludeOne(ids[0].clone());
             }
+            if ids.len() == 2 {
+                let (first, second) = if ids[0] <= ids[1] {
+                    (&ids[0], &ids[1])
+                } else {
+                    (&ids[1], &ids[0])
+                };
+                if first == second {
+                    return BatchFilterKey::ExcludeOne(first.clone());
+                }
+                return BatchFilterKey::ExcludePair(first.clone(), second.clone());
+            }
             let mut sorted = ids.clone();
             sorted.sort_unstable();
             sorted.dedup();
+            if sorted.len() == 1 {
+                return BatchFilterKey::ExcludeOne(sorted.swap_remove(0));
+            }
             BatchFilterKey::ExcludeMany(sorted)
         }
     }
