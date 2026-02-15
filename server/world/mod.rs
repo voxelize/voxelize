@@ -1925,9 +1925,11 @@ impl World {
         let mut peers = Vec::with_capacity(peer_capacity_hint);
 
         for (pid, name, metadata, _) in (&ids, &names, &metadatas, &flags).join() {
+            let peer_id = pid.0.clone();
+            let peer_username = name.0.clone();
             peers.push(PeerProtocol {
-                id: pid.0.to_owned(),
-                username: name.0.to_owned(),
+                id: peer_id,
+                username: peer_username,
                 metadata: metadata.to_string(),
             })
         }
@@ -1943,13 +1945,15 @@ impl World {
                 continue;
             }
 
+            let entity_id = id.0.clone();
+            let entity_type = etype.0.clone();
             let j_str = metadata.to_string();
 
-            entity_ids.push(id.0.to_owned());
+            entity_ids.push(entity_id.clone());
             entities.push(EntityProtocol {
                 operation: EntityOperation::Update,
-                id: id.0.to_owned(),
-                r#type: etype.0.to_owned(),
+                id: entity_id,
+                r#type: entity_type,
                 metadata: Some(j_str),
             });
         }
