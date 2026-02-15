@@ -42,6 +42,12 @@ fn ids_are_strictly_sorted(ids: &[String]) -> bool {
     true
 }
 
+#[inline]
+fn sorted_ids_contains(ids: &[String], target: &str) -> bool {
+    ids.binary_search_by(|probe| probe.as_str().cmp(target))
+        .is_ok()
+}
+
 fn filter_key(filter: &ClientFilter) -> BatchFilterKey {
     match filter {
         ClientFilter::All => BatchFilterKey::All,
@@ -506,13 +512,21 @@ impl<'a> System<'a> for BroadcastSystem {
                             }
                         }
                     } else {
-                        let mut exclude_ids: HashSet<&str> = HashSet::with_capacity(ids.len());
-                        for exclude_id in ids.iter() {
-                            exclude_ids.insert(exclude_id.as_str());
-                        }
-                        for (id, client) in clients.iter() {
-                            if !exclude_ids.contains(id.as_str()) {
-                                send_to_client(id, client);
+                        if ids_are_strictly_sorted(ids) {
+                            for (id, client) in clients.iter() {
+                                if !sorted_ids_contains(ids, id.as_str()) {
+                                    send_to_client(id, client);
+                                }
+                            }
+                        } else {
+                            let mut exclude_ids: HashSet<&str> = HashSet::with_capacity(ids.len());
+                            for exclude_id in ids.iter() {
+                                exclude_ids.insert(exclude_id.as_str());
+                            }
+                            for (id, client) in clients.iter() {
+                                if !exclude_ids.contains(id.as_str()) {
+                                    send_to_client(id, client);
+                                }
                             }
                         }
                     }
