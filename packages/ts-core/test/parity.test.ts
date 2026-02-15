@@ -1277,6 +1277,19 @@ describe("Type builders", () => {
     expect(part.aabbs[0]).not.toBe(validAabb);
   });
 
+  it("skips non-plain face objects during conditional part cloning", () => {
+    class FaceLike {
+      public readonly name = "ClassFace";
+      public readonly dir: [number, number, number] = [1, 0, 0];
+    }
+
+    const part = createBlockConditionalPart({
+      faces: [new FaceLike()],
+    });
+
+    expect(part.faces).toEqual([]);
+  });
+
   it("sanitizes malformed optional BlockFaceInit fields to defaults", () => {
     const malformedFace = {
       name: "MalformedFace",
@@ -2062,6 +2075,17 @@ describe("Type builders", () => {
     expect(clonedFace.name).toBe("SourceFace");
     expect(clonedFace.dir).toEqual([0, 1, 0]);
     expect(clonedFace.range.endU).toBe(2);
+  });
+
+  it("falls back for non-plain face-like createBlockFace inputs", () => {
+    class FaceLike {
+      public readonly name = "FaceLike";
+      public readonly dir: [number, number, number] = [1, 0, 0];
+    }
+
+    const fallbackFace = createBlockFace(new FaceLike());
+
+    expect(fallbackFace).toEqual(new BlockFace({ name: "Face" }));
   });
 });
 

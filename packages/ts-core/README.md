@@ -82,7 +82,7 @@ const voxel = Voxel.pack({
   - accepts either `BlockFace` instances or `BlockFaceInit` objects in `faces`
   - accepts readonly input arrays/tuples for `faces`, `aabbs`, and
     `isTransparent`, including nullable entry values
-  - ignores invalid `faces`/`aabbs` entries instead of throwing
+  - ignores invalid/non-plain `faces`/`aabbs` entries instead of throwing
   - malformed optional face fields (such as invalid `dir`/`corners`/`range`)
     fall back to default face values
   - malformed rule inputs fall back to `BLOCK_RULE_NONE`, and malformed
@@ -106,7 +106,8 @@ const voxel = Voxel.pack({
   - skips malformed part entries (including non-plain objects) instead of
     materializing default placeholders
 - `createBlockFace`
-  - ergonomic constructor helper for `BlockFaceInit` or `BlockFace` input
+  - ergonomic constructor helper for `BlockFaceInit` (plain object) or
+    `BlockFace` input
   - malformed inputs fall back to a deterministic default face (`name: "Face"`)
 - `createFaceTransparency`
   - builds normalized 6-face transparency tuples from optional/null/partial

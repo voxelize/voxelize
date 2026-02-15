@@ -438,7 +438,34 @@ export const createBlockRule = (
 };
 
 const toBlockFaceInit = (face: BlockFaceInput): BlockFaceInit | null => {
-  if (face === null || typeof face !== "object" || Array.isArray(face)) {
+  if (face instanceof BlockFace) {
+    return {
+      name: face.name,
+      independent: face.independent,
+      isolated: face.isolated,
+      textureGroup: face.textureGroup,
+      dir: [...face.dir],
+      corners: [
+        createCornerData(face.corners[0].pos, face.corners[0].uv),
+        createCornerData(face.corners[1].pos, face.corners[1].uv),
+        createCornerData(face.corners[2].pos, face.corners[2].uv),
+        createCornerData(face.corners[3].pos, face.corners[3].uv),
+      ],
+      range: {
+        startU: face.range.startU,
+        endU: face.range.endU,
+        startV: face.range.startV,
+        endV: face.range.endV,
+      },
+    };
+  }
+
+  if (
+    face === null ||
+    typeof face !== "object" ||
+    Array.isArray(face) ||
+    !hasPlainObjectPrototype(face)
+  ) {
     return null;
   }
 

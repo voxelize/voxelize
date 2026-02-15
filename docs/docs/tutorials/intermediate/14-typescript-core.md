@@ -39,7 +39,8 @@ flowchart LR
 - `createBlockDynamicPattern`: defensive dynamic-pattern helper that clones part
   inputs via `createBlockConditionalPart` and skips malformed part entries
 - `createBlockFace`: ergonomic constructor helper for `BlockFaceInit` or
-  `BlockFace` input with deterministic default fallback for malformed values
+  `BlockFace` input (plain-object init only) with deterministic default fallback
+  for malformed values
 - `createFaceTransparency`: helper for normalized 6-face transparency tuples
 - `VoxelAccess`: shared access contract
 
@@ -48,8 +49,8 @@ omitted or the top-level helper input is `null`/non-plain.
 `createBlockConditionalPart` accepts either `BlockFace` instances or
 `BlockFaceInit` objects in `faces`.
 Both helpers also accept readonly input arrays/tuples.
-Invalid face/AABB entries (including `null`/`undefined`) are skipped during
-helper cloning.
+Invalid face/AABB entries (including `null`/`undefined`/non-plain objects) are
+skipped during helper cloning.
 Malformed dynamic-pattern part entries (including `null`/`undefined`) are
 skipped during helper cloning.
 Non-plain object part entries are also skipped during helper cloning.
