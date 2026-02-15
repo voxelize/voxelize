@@ -68,7 +68,11 @@ impl<'a> System<'a> for EventsSystem {
         let has_transports = !transports.is_empty();
         let queued_events_count = events.queue.len();
         let dispatch_map = &mut self.dispatch_map_buffer;
-        dispatch_map.retain(|id, _| clients.contains_key(id));
+        if clients.is_empty() {
+            dispatch_map.clear();
+        } else {
+            dispatch_map.retain(|id, _| clients.contains_key(id));
+        }
         let touched_clients = &mut self.touched_clients_buffer;
         touched_clients.clear();
         if touched_clients.capacity() < clients.len() {
