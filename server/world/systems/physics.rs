@@ -203,7 +203,7 @@ impl<'a> System<'a> for PhysicsSystem {
             if client_flag.get(entity).is_some() {
                 if let Some(id) = ids.get(entity) {
                     let event = EventBuilder::new("vox-builtin:impulse")
-                        .payload(vec![
+                        .payload([
                             dx * config.client_collision_repulsion,
                             dy * config.client_collision_repulsion,
                             dz * config.client_collision_repulsion,
