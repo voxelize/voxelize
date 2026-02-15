@@ -365,15 +365,19 @@ const toRuleEntriesOrEmpty = (
     const hasNonNoneLengthFallbackRule = lengthFallbackRules.some((entry) => {
       return entry.type !== "none";
     });
-    if (
-      hasNonNoneLengthFallbackRule ||
-      lengthFallbackRules.length >= MAX_RULE_ENTRY_FALLBACK_SCAN
-    ) {
+    if (lengthFallbackRules.length >= MAX_RULE_ENTRY_FALLBACK_SCAN) {
       return lengthFallbackRules;
     }
 
     const keyFallbackRules = toRuleEntriesFromKeyFallback(rawRules);
     if (keyFallbackRules.length > 0) {
+      if (
+        hasNonNoneLengthFallbackRule &&
+        keyFallbackRules.length <= lengthFallbackRules.length
+      ) {
+        return lengthFallbackRules;
+      }
+
       return keyFallbackRules;
     }
 

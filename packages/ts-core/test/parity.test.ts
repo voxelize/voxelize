@@ -4085,6 +4085,45 @@ describe("BlockRuleEvaluator", () => {
     ).toBe(true);
   });
 
+  it("supplements non-empty rule prefixes with key-fallback recovery", () => {
+    const noisyRules: Array<BlockRule | number> = [];
+    noisyRules[0] = {
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 42,
+    };
+    noisyRules[5_000] = {
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 43,
+    };
+    Object.defineProperty(noisyRules, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    const access = {
+      getVoxel: (x: number, y: number, z: number) =>
+        x === 0 && y === 0 && z === 0 ? 43 : 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.Or,
+          rules: noisyRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(true);
+  });
+
   it("skips sparse hole placeholders during combination length fallback", () => {
     const sparseRules: BlockRule[] = [];
     sparseRules[1] = {
