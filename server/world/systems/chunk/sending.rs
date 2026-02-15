@@ -88,8 +88,7 @@ impl<'a> System<'a> for ChunkSendingSystem {
             return;
         }
 
-        let mut to_send = VecDeque::new();
-        std::mem::swap(&mut chunks.to_send, &mut to_send);
+        let mut to_send = std::mem::take(&mut chunks.to_send);
         let send_batch_estimate = to_send.len();
 
         let mut client_load_mesh: HashMap<String, Vec<ChunkProtocol>> =
