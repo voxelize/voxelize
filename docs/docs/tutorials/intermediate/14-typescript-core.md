@@ -63,13 +63,15 @@ Both helpers also accept readonly input arrays/tuples.
 Invalid face/AABB entries (including `null`/`undefined`/non-plain objects,
 malformed `BlockFace`/`AABB` instances, or malformed/non-finite AABB init
 values) are skipped during helper cloning.
-Malformed face/AABB collection iterators are sanitized to deterministic empty
-collections.
+Iterator-trapped face/AABB collections can still recover readable indexed
+entries via bounded fallback scans; irrecoverable trap combinations sanitize
+to deterministic empty collections.
 Malformed dynamic-pattern part entries (including `null`/`undefined`) are
 skipped during helper cloning.
 Non-plain object part entries are also skipped during helper cloning.
-Malformed dynamic-pattern part iterators are also sanitized to empty
-collections.
+Iterator-trapped dynamic-pattern `parts` collections can still recover
+readable indexed entries via bounded fallback scans; irrecoverable trap
+combinations sanitize to deterministic empty collections.
 Malformed optional face fields fall back to default face values.
 Malformed rules fall back to `BLOCK_RULE_NONE`, and malformed transparency
 inputs (including `null`/non-array values) fall back to `false` defaults.
@@ -82,8 +84,9 @@ Extra transparency entries beyond six face slots are ignored.
 `createBlockRule` normalizes `null` simple-rule optional fields (`id`,
 `rotation`, `stage`) to omitted constraints.
 Nullable combination sub-rules are normalized to deterministic `none` entries.
-Malformed combination-rule iterators are also normalized to deterministic
-`none` rules.
+Iterator-trapped combination-rule collections can recover readable indexed
+entries via bounded fallback scans; irrecoverable trap combinations normalize
+to deterministic `none` rules.
 Optional simple-rule `id`/`stage` values are kept only when they match voxel
 ranges (`id`: 0..65535, `stage`: 0..15).
 Plain rotation-like values are kept only when `value` is an encoded
