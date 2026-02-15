@@ -80,6 +80,24 @@ const createLengthTrappedPartiallyRecoveredStringArray = (
   });
 };
 
+const createFullyTrappedStringArray = (values: readonly string[]): string[] => {
+  const clonedValues = [...values];
+  return new Proxy(clonedValues, {
+    ownKeys() {
+      throw new Error("ownKeys trap");
+    },
+    get(target, property, receiver) {
+      if (property === Symbol.iterator) {
+        throw new Error("iterator trap");
+      }
+      if (property === "length") {
+        throw new Error("length trap");
+      }
+      return Reflect.get(target, property, receiver);
+    },
+  });
+};
+
 describe("report-utils", () => {
   it("parses valid json output", () => {
     expect(parseJsonOutput("{\"ok\":true}")).toEqual({ ok: true });
@@ -3210,6 +3228,32 @@ describe("report-utils", () => {
     );
 
     expect(unknownOptions).toEqual(["--mystery"]);
+    const fullyTrappedCanonicalOptions = createFullyTrappedStringArray([
+      "--json",
+      "--output",
+    ]);
+    const unknownFromFullyTrappedCanonicalOptions = parseUnknownCliOptions(
+      ["--json", "--mystery", "--output", "./report.json"],
+      {
+        canonicalOptions: fullyTrappedCanonicalOptions as never,
+        optionsWithValues: ["--output"],
+      }
+    );
+    expect(unknownFromFullyTrappedCanonicalOptions).toEqual([
+      "--json",
+      "--mystery",
+      "--output",
+    ]);
+    const unknownFromFullyTrappedCanonicalOptionsWithAliasFallback =
+      parseUnknownCliOptions(["--verify", "--mystery"], {
+        canonicalOptions: fullyTrappedCanonicalOptions as never,
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+      });
+    expect(unknownFromFullyTrappedCanonicalOptionsWithAliasFallback).toEqual([
+      "--mystery",
+    ]);
 
     const trappedStrictValueOptions = new Proxy(["--output"], {
       ownKeys() {
@@ -4901,6 +4945,37 @@ describe("report-utils", () => {
       "--json": "--json",
       "--output": "--output",
     });
+    const fullyTrappedCanonicalOptions = createFullyTrappedStringArray([
+      "--json",
+      "--output",
+    ]);
+    const fullyTrappedCatalog = createCliOptionCatalog({
+      canonicalOptions: fullyTrappedCanonicalOptions as never,
+    });
+    expect(fullyTrappedCatalog.supportedCliOptions).toEqual([]);
+    expect(fullyTrappedCatalog.supportedCliOptionCount).toBe(0);
+    expect(fullyTrappedCatalog.availableCliOptionAliases).toEqual({});
+    expect(fullyTrappedCatalog.availableCliOptionCanonicalMap).toEqual({});
+    const fullyTrappedCatalogWithAliasFallback = createCliOptionCatalog({
+      canonicalOptions: fullyTrappedCanonicalOptions as never,
+      optionAliases: {
+        "--no-build": ["--verify"],
+      },
+    });
+    expect(fullyTrappedCatalogWithAliasFallback.supportedCliOptions).toEqual([
+      "--no-build",
+      "--verify",
+    ]);
+    expect(fullyTrappedCatalogWithAliasFallback.supportedCliOptionCount).toBe(2);
+    expect(fullyTrappedCatalogWithAliasFallback.availableCliOptionAliases).toEqual({
+      "--no-build": ["--verify"],
+    });
+    expect(
+      fullyTrappedCatalogWithAliasFallback.availableCliOptionCanonicalMap
+    ).toEqual({
+      "--no-build": "--no-build",
+      "--verify": "--no-build",
+    });
   });
 
   it("salvages length-trapped alias token lists in cli option catalogs", () => {
@@ -5247,6 +5322,134 @@ describe("report-utils", () => {
       },
     ]);
     expect(diagnostics.activeCliOptionOccurrenceCount).toBe(2);
+    const fullyTrappedCanonicalOptions = createFullyTrappedStringArray([
+      "--json",
+      "--output",
+    ]);
+    const diagnosticsFromFullyTrappedCanonicalOptions = createCliDiagnostics(
+      ["--json", "--mystery"],
+      {
+        canonicalOptions: fullyTrappedCanonicalOptions as never,
+      }
+    );
+    expect(diagnosticsFromFullyTrappedCanonicalOptions.supportedCliOptions).toEqual(
+      []
+    );
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptions.supportedCliOptionCount
+    ).toBe(0);
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptions.availableCliOptionAliases
+    ).toEqual({});
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptions.availableCliOptionCanonicalMap
+    ).toEqual({});
+    expect(diagnosticsFromFullyTrappedCanonicalOptions.unknownOptions).toEqual([
+      "--json",
+      "--mystery",
+    ]);
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptions.unknownOptionCount
+    ).toBe(2);
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptions.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --json, --mystery. Supported options: (none)."
+    );
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptions.validationErrorCode
+    ).toBe("unsupported_options");
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptions.activeCliOptions
+    ).toEqual([]);
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptions.activeCliOptionCount
+    ).toBe(0);
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptions.activeCliOptionTokens
+    ).toEqual([]);
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptions.activeCliOptionResolutions
+    ).toEqual([]);
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptions.activeCliOptionResolutionCount
+    ).toBe(0);
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptions.activeCliOptionOccurrences
+    ).toEqual([]);
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptions.activeCliOptionOccurrenceCount
+    ).toBe(0);
+    const diagnosticsFromFullyTrappedCanonicalOptionsWithAliasFallback =
+      createCliDiagnostics(["--verify", "--mystery"], {
+        canonicalOptions: fullyTrappedCanonicalOptions as never,
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+      });
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptionsWithAliasFallback.supportedCliOptions
+    ).toEqual(["--no-build", "--verify"]);
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptionsWithAliasFallback.supportedCliOptionCount
+    ).toBe(2);
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptionsWithAliasFallback.availableCliOptionAliases
+    ).toEqual({
+      "--no-build": ["--verify"],
+    });
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptionsWithAliasFallback.availableCliOptionCanonicalMap
+    ).toEqual({
+      "--no-build": "--no-build",
+      "--verify": "--no-build",
+    });
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptionsWithAliasFallback.unknownOptions
+    ).toEqual(["--mystery"]);
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptionsWithAliasFallback.unknownOptionCount
+    ).toBe(1);
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptionsWithAliasFallback.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --mystery. Supported options: --no-build, --verify."
+    );
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptionsWithAliasFallback.validationErrorCode
+    ).toBe("unsupported_options");
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptionsWithAliasFallback.activeCliOptions
+    ).toEqual(["--no-build"]);
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptionsWithAliasFallback.activeCliOptionCount
+    ).toBe(1);
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptionsWithAliasFallback.activeCliOptionTokens
+    ).toEqual(["--verify"]);
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptionsWithAliasFallback.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+    ]);
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptionsWithAliasFallback.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptionsWithAliasFallback.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+        index: 0,
+      },
+    ]);
+    expect(
+      diagnosticsFromFullyTrappedCanonicalOptionsWithAliasFallback.activeCliOptionOccurrenceCount
+    ).toBe(1);
   });
 
   it("tracks length-trapped alias token recovery in unified cli diagnostics", () => {
