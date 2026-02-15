@@ -114,8 +114,9 @@ const voxel = Voxel.pack({
     `BlockFace`/`AABB` instances and malformed/non-finite AABB init values)
     instead of throwing
   - iterator-trapped `faces`/`aabbs` collections can still recover readable
-    indexed entries via bounded length/key fallback scans; irrecoverable trap
-    combinations sanitize to deterministic empty collections
+    indexed entries via bounded length/key fallback scans (up to 1024 indexed
+    reads); irrecoverable trap combinations sanitize to deterministic empty
+    collections
   - malformed optional face fields (such as invalid `dir`/`corners`/`range`)
     fall back to default face values
   - malformed rule inputs fall back to `BLOCK_RULE_NONE`, and malformed
@@ -151,8 +152,8 @@ const voxel = Voxel.pack({
   - skips malformed part entries (including non-plain objects) instead of
     materializing default placeholders
   - iterator-trapped `parts` collections can recover readable indexed entries
-    via bounded fallback scans; irrecoverable trap combinations sanitize to
-    deterministic empty collections
+    via bounded fallback scans (up to 1024 indexed reads); irrecoverable trap
+    combinations sanitize to deterministic empty collections
 - `createBlockFace`
   - ergonomic constructor helper for `BlockFaceInit`
     (plain/null-prototype/readonly/frozen object) or `BlockFace` input
