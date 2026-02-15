@@ -372,6 +372,9 @@ impl Pipeline {
         registry: &Registry,
         config: &WorldConfig,
     ) {
+        if processes.is_empty() {
+            return;
+        }
         let mut processes_with_stages: Vec<(Chunk, Option<Space>, Arc<dyn ChunkStage + Send + Sync>)> =
             Vec::with_capacity(processes.len());
         for (chunk, space) in processes {
@@ -388,6 +391,23 @@ impl Pipeline {
         let sender = Arc::clone(&self.sender);
         let registry = Arc::new(registry.to_owned());
         let config = Arc::new(config.to_owned());
+        if processes_with_stages.len() == 1 {
+            let (chunk, space, stage) = processes_with_stages.pop().unwrap();
+            rayon::spawn(move || {
+                let mut chunk = stage.process(
+                    chunk,
+                    Resources {
+                        registry: &registry,
+                        config: &config,
+                    },
+                    space,
+                );
+                chunk.calculate_max_height(&registry);
+                let changes = std::mem::take(&mut chunk.extra_changes);
+                sender.send((chunk, changes)).unwrap();
+            });
+            return;
+        }
 
         rayon::spawn(move || {
             processes_with_stages
