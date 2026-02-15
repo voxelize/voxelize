@@ -1,4 +1,3 @@
-use hashbrown::HashMap;
 use log::warn;
 use serde_json::json;
 use specs::{Entity, World as ECSWorld, WorldExt};
@@ -36,7 +35,6 @@ impl EntitiesSaver {
             return;
         }
 
-        let mut map = HashMap::new();
         let etype_value = if is_block {
             format!(
                 "block::{}",
@@ -45,8 +43,10 @@ impl EntitiesSaver {
         } else {
             etype.to_lowercase()
         };
-        map.insert("etype".to_owned(), json!(etype_value));
-        map.insert("metadata".to_owned(), json!(metadata));
+        let payload = json!({
+            "etype": etype_value,
+            "metadata": metadata,
+        });
 
         let sanitized_filename = etype_value.replace("::", "-").replace(' ', "-");
         let new_filename = format!("{}-{}.json", sanitized_filename, id);
@@ -65,7 +65,7 @@ impl EntitiesSaver {
         };
 
         let mut file = File::create(&path_to_use).expect("Could not create entity file...");
-        let j = serde_json::to_string(&json!(map)).unwrap();
+        let j = serde_json::to_string(&payload).unwrap();
         file.write_all(j.as_bytes())
             .expect("Unable to write entity file.");
     }
