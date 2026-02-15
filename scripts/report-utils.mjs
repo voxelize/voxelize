@@ -481,6 +481,14 @@ const toKnownWasmPackStatus = (value) => {
     : null;
 };
 
+const KNOWN_TS_CORE_EXAMPLE_STATUSES = new Set(["ok", "failed", "skipped"]);
+
+const toKnownTsCoreExampleStatus = (value) => {
+  return typeof value === "string" && KNOWN_TS_CORE_EXAMPLE_STATUSES.has(value)
+    ? value
+    : null;
+};
+
 export const deriveFailureMessageFromReport = (report) => {
   if (!isObjectRecord(report)) {
     return null;
@@ -719,20 +727,18 @@ export const extractTsCoreExampleSummaryFromReport = (report) => {
       ? toNonNegativeIntegerOrNull(examplePayloadIssueCountValue)
       : examplePayloadIssues.length;
   const exampleStatusValue = safeReadProperty(report, "exampleStatus");
+  const normalizedExampleStatus = toKnownTsCoreExampleStatus(exampleStatusValue);
   const exampleStatus =
-    exampleStatusValue === "ok" ||
-    exampleStatusValue === "failed" ||
-    exampleStatusValue === "skipped"
-      ? exampleStatusValue
-      : exampleAttempted === null
-        ? null
-        : exampleAttempted
-          ? exampleExitCode === 0 &&
-            exampleRuleMatched === true &&
-            examplePayloadValid === true
-            ? "ok"
-            : "failed"
-          : "skipped";
+    normalizedExampleStatus ??
+    (exampleAttempted === null
+      ? null
+      : exampleAttempted
+        ? exampleExitCode === 0 &&
+          exampleRuleMatched === true &&
+          examplePayloadValid === true
+          ? "ok"
+          : "failed"
+        : "skipped");
 
   return {
     exampleCommand,

@@ -5154,6 +5154,47 @@ describe("report-utils", () => {
     });
     expect(
       extractTsCoreExampleSummaryFromReport({
+        exampleAttempted: true,
+        exampleStatus: "mystery",
+        exampleRuleMatched: true,
+        examplePayloadValid: true,
+        exampleExitCode: 0,
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: null,
+      exampleArgCount: null,
+      exampleAttempted: true,
+      exampleStatus: "ok",
+      exampleRuleMatched: true,
+      examplePayloadValid: true,
+      examplePayloadIssues: [],
+      examplePayloadIssueCount: 0,
+      exampleExitCode: 0,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleAttempted: false,
+        exampleStatus: "mystery",
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: null,
+      exampleArgCount: null,
+      exampleAttempted: false,
+      exampleStatus: "skipped",
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: null,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    expect(
+      extractTsCoreExampleSummaryFromReport({
         exampleArgs: ["packages/ts-core/examples/end-to-end.mjs"],
         exampleAttempted: true,
         exampleExitCode: 1,
