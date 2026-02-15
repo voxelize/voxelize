@@ -957,18 +957,6 @@ const toTrustedOptionArgsOverrideOrNull = (optionArgsOverride) => {
   });
 };
 
-const hasReadableArrayEntries = (value) => {
-  if (!Array.isArray(value)) {
-    return false;
-  }
-
-  try {
-    return value.length > 0;
-  } catch {
-    return false;
-  }
-};
-
 const resolveSupportedCliOptionsForValidation = (
   catalogSupportedCliOptions,
   precomputedSupportedCliOptions
@@ -993,14 +981,14 @@ const resolveSupportedCliOptionsForValidation = (
   const precomputedSupportedCliOptionsContainUnknownTokens =
     filteredPrecomputedSupportedCliOptions.length <
     normalizedPrecomputedSupportedCliOptions.length;
-  const precomputedSupportedCliOptionsHasReadableEntries =
-    hasReadableArrayEntries(precomputedSupportedCliOptions);
+  const precomputedSupportedCliOptionsHadArrayEntries =
+    normalizedPrecomputedSupportedCliOptionMetadata.hadArrayEntries === true;
   const shouldFallbackToCatalogSupportedCliOptions =
     normalizedPrecomputedSupportedCliOptionMetadata.unavailable ||
     precomputedSupportedCliOptionsContainUnknownTokens ||
     (filteredPrecomputedSupportedCliOptions.length === 0 &&
       (normalizedPrecomputedSupportedCliOptions.length > 0 ||
-        precomputedSupportedCliOptionsHasReadableEntries));
+        precomputedSupportedCliOptionsHadArrayEntries));
 
   return shouldFallbackToCatalogSupportedCliOptions
     ? catalogSupportedCliOptions
@@ -1650,6 +1638,7 @@ const normalizeCliOptionTokenListWithAvailability = (tokens) => {
     return {
       tokens: normalizedTokens,
       unavailable: tokens !== null && tokens !== undefined,
+      hadArrayEntries: false,
     };
   }
 
@@ -1658,6 +1647,7 @@ const normalizeCliOptionTokenListWithAvailability = (tokens) => {
     return {
       tokens: [],
       unavailable: true,
+      hadArrayEntries: false,
     };
   }
 
@@ -1670,6 +1660,7 @@ const normalizeCliOptionTokenListWithAvailability = (tokens) => {
       clonedIndexedTokens.entries.some((entry) => {
         return typeof entry.value !== "string";
       }),
+    hadArrayEntries: clonedIndexedTokens.entries.length > 0,
   };
 };
 
