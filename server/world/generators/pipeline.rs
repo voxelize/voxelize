@@ -28,11 +28,18 @@ impl MetaStage {
 
 impl ChunkStage for MetaStage {
     fn name(&self) -> String {
-        self.stages
-            .iter()
-            .map(|stage| stage.name())
-            .collect::<Vec<_>>()
-            .join(" -> ")
+        let stage_count = self.stages.len();
+        if stage_count == 0 {
+            return String::new();
+        }
+        let mut name = String::with_capacity(stage_count.saturating_mul(8));
+        for stage_index in 0..stage_count {
+            if stage_index > 0 {
+                name.push_str(" -> ");
+            }
+            name.push_str(&self.stages[stage_index].name());
+        }
+        name
     }
 
     fn process(&self, mut chunk: Chunk, resources: Resources, _: Option<Space>) -> Chunk {
