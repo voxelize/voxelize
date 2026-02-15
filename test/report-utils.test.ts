@@ -4766,6 +4766,34 @@ describe("report-utils", () => {
       failedSteps: [],
       skippedSteps: [],
     });
+
+    const lengthAndOwnKeysTrapSteps = new Proxy(
+      [{ name: "step-a", passed: true, skipped: false }],
+      {
+        ownKeys: () => {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            throw new Error("length trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(summarizeStepResults(lengthAndOwnKeysTrapSteps as never)).toEqual({
+      totalSteps: 0,
+      passedStepCount: 0,
+      failedStepCount: 0,
+      skippedStepCount: 0,
+      firstFailedStep: null,
+      passedSteps: [],
+      failedSteps: [],
+      skippedSteps: [],
+    });
   });
 
   it("summarizes failed step entries with message fallbacks", () => {
@@ -7046,6 +7074,32 @@ describe("report-utils", () => {
       failedCheckCount: 0,
       firstFailedCheck: null,
       passedChecks: ["devEnvironment"],
+      failedChecks: [],
+    });
+
+    const lengthAndOwnKeysTrapChecks = new Proxy(
+      [{ name: "devEnvironment", passed: true }],
+      {
+        ownKeys: () => {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            throw new Error("length trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(summarizeCheckResults(lengthAndOwnKeysTrapChecks as never)).toEqual({
+      totalChecks: 0,
+      passedCheckCount: 0,
+      failedCheckCount: 0,
+      firstFailedCheck: null,
+      passedChecks: [],
       failedChecks: [],
     });
   });
