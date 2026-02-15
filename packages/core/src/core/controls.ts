@@ -541,7 +541,14 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
         for (let eventIndex = 0; eventIndex < events.length; eventIndex++) {
           const event = events[eventIndex];
-          switch (event.name.toLowerCase()) {
+          const normalizedName =
+            event.name === "vox-builtin:position" ||
+            event.name === "vox-builtin:force" ||
+            event.name === "vox-builtin:impulse"
+              ? event.name
+              : event.name.toLowerCase();
+
+          switch (normalizedName) {
             case "vox-builtin:position": {
               this.body.setPosition(event.payload);
               this.body.velocity = [0, 0, 0];

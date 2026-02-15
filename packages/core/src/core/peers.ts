@@ -239,8 +239,10 @@ export class Peers<
         for (let eventIndex = 0; eventIndex < events.length; eventIndex++) {
           const event = events[eventIndex];
           const { name, payload: id } = event;
+          const normalizedName =
+            name === "vox-builtin:arm-swing" ? name : name.toLowerCase();
 
-          switch (name.toLowerCase()) {
+          switch (normalizedName) {
             case "vox-builtin:arm-swing": {
               const peer = this.getPeerById(id);
               if (peer && peer instanceof Character) {
