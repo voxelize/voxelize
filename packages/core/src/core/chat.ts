@@ -309,12 +309,16 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       return tokens;
     }
     let current = "";
+    let tokenScanStart = firstSpecialIndex;
+    if (tokenScanStart > 0) {
+      current = raw.substring(0, tokenScanStart);
+    }
     let quoteCharCode = 0;
     let segmentStart = -1;
     let sawWhitespace = false;
     let sawQuote = false;
 
-    for (let i = 0; i < length; i++) {
+    for (let i = tokenScanStart; i < length; i++) {
       const code = raw.charCodeAt(i);
 
       if (quoteCharCode !== 0) {
