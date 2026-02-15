@@ -79,7 +79,7 @@ impl FragmentAssembler {
             return None;
         }
 
-        let message_id = if index == 0 {
+        let (message_id, expected) = if index == 0 {
             if self.expected_counts.len() >= MAX_PENDING_MESSAGES {
                 self.fragments.clear();
                 self.expected_counts.clear();
@@ -88,15 +88,15 @@ impl FragmentAssembler {
             let id = self.next_message_id;
             self.next_message_id = self.next_message_id.saturating_add(1);
             self.expected_counts.insert(id, total);
-            id
+            (id, total)
         } else {
             let Some(id) = self.next_message_id.checked_sub(1) else {
                 return None;
             };
-            if !self.expected_counts.contains_key(&id) {
+            let Some(&expected) = self.expected_counts.get(&id) else {
                 return None;
-            }
-            id
+            };
+            (id, expected)
         };
 
         let entry = self
@@ -105,31 +105,29 @@ impl FragmentAssembler {
             .or_insert_with(|| HashMap::with_capacity(total));
         entry.insert(index, payload.to_vec());
 
-        if let Some(&expected) = self.expected_counts.get(&message_id) {
-            if entry.len() == expected {
-                let mut complete_len = 0usize;
-                for i in 0..expected {
-                    if let Some(fragment) = entry.get(&i) {
-                        complete_len = complete_len.saturating_add(fragment.len());
-                    } else {
-                        return None;
-                    }
+        if entry.len() == expected {
+            let mut complete_len = 0usize;
+            for i in 0..expected {
+                if let Some(fragment) = entry.get(&i) {
+                    complete_len = complete_len.saturating_add(fragment.len());
+                } else {
+                    return None;
                 }
-
-                let mut complete = Vec::with_capacity(complete_len);
-                for i in 0..expected {
-                    if let Some(fragment) = entry.get(&i) {
-                        complete.extend_from_slice(fragment);
-                    } else {
-                        return None;
-                    }
-                }
-
-                self.fragments.remove(&message_id);
-                self.expected_counts.remove(&message_id);
-
-                return Some(complete);
             }
+
+            let mut complete = Vec::with_capacity(complete_len);
+            for i in 0..expected {
+                if let Some(fragment) = entry.get(&i) {
+                    complete.extend_from_slice(fragment);
+                } else {
+                    return None;
+                }
+            }
+
+            self.fragments.remove(&message_id);
+            self.expected_counts.remove(&message_id);
+
+            return Some(complete);
         }
 
         None
