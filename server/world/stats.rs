@@ -1,5 +1,6 @@
 use std::{
     fs,
+    io::ErrorKind,
     path::PathBuf,
     time::{Duration, Instant, SystemTime},
 };
@@ -47,7 +48,7 @@ impl Stats {
         path.push("stats.json");
 
         // Try to load existing stats if saving is enabled and file exists
-        let (loaded_tick, loaded_time) = if saving && path.exists() {
+        let (loaded_tick, loaded_time) = if saving {
             match fs::File::open(&path) {
                 Ok(file) => match serde_json::from_reader::<_, StatsJson>(file) {
                     Ok(stats_json) => (stats_json.tick, stats_json.time),
@@ -57,7 +58,9 @@ impl Stats {
                     }
                 },
                 Err(e) => {
-                    warn!("Failed to open stats.json: {}", e);
+                    if e.kind() != ErrorKind::NotFound {
+                        warn!("Failed to open stats.json: {}", e);
+                    }
                     (0, default_time)
                 }
             }
