@@ -205,7 +205,19 @@ impl EncodedMessageQueue {
                 Ok(messages) => messages,
                 Err(_) => return Vec::new(),
             };
-            while let Ok(mut messages) = self.receiver.try_recv() {
+            if pending_batches == 1 {
+                return first_batch;
+            }
+            let mut pending_message_batches = Vec::with_capacity(pending_batches.saturating_sub(1));
+            let mut pending_message_count = first_batch.len();
+            while let Ok(messages) = self.receiver.try_recv() {
+                pending_message_count = pending_message_count.saturating_add(messages.len());
+                pending_message_batches.push(messages);
+            }
+            if first_batch.capacity() < pending_message_count {
+                first_batch.reserve(pending_message_count - first_batch.capacity());
+            }
+            for mut messages in pending_message_batches {
                 first_batch.append(&mut messages);
             }
             return first_batch;
