@@ -2147,6 +2147,27 @@ describe("Type builders", () => {
     expect(pattern.parts[0].aabbs).toEqual([AABB.create(0, 0, 0, 1, 1, 1)]);
   });
 
+  it("accepts readonly AABB init literals in dynamic pattern parts", () => {
+    const readonlyAabb = {
+      minX: 0,
+      minY: 0,
+      minZ: 0,
+      maxX: 1,
+      maxY: 1,
+      maxZ: 1,
+    } as const;
+    const pattern = createBlockDynamicPattern({
+      parts: [
+        {
+          aabbs: [readonlyAabb],
+        },
+      ],
+    });
+
+    expect(pattern.parts).toHaveLength(1);
+    expect(pattern.parts[0].aabbs).toEqual([AABB.create(0, 0, 0, 1, 1, 1)]);
+  });
+
   it("clones dynamic pattern parts to avoid external mutation", () => {
     const sourcePart = createBlockConditionalPart({
       rule: {
