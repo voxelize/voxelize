@@ -210,7 +210,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
             if has_clients {
                 if is_new {
-                    let (json_str, _) = metadata.to_cached_str();
+                    let json_str = metadata.to_cached_str_for_new_record();
                     entity_metadata_map.insert(id.0.as_str(), (etype.0.as_str(), json_str, true));
                 } else if let Some(json_str) = metadata.to_cached_str_if_updated() {
                     entity_metadata_map.insert(id.0.as_str(), (etype.0.as_str(), json_str, false));

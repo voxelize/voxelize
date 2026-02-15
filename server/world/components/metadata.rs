@@ -112,6 +112,19 @@ impl MetadataComp {
         None
     }
 
+    pub fn to_cached_str_for_new_record(&mut self) -> String {
+        if let Some(cached_json) = self.cached_json.as_ref() {
+            self.cache_hash = None;
+            self.dirty = false;
+            return cached_json.clone();
+        }
+        let json_str = self.to_string();
+        self.cached_json = Some(json_str.clone());
+        self.cache_hash = None;
+        self.dirty = false;
+        json_str
+    }
+
     /// Convert metadata to JSON string, also caches is current state using hash.
     pub fn to_cached_str(&mut self) -> (String, bool) {
         let updated = self.refresh_cached_json_if_dirty();
@@ -195,6 +208,17 @@ mod tests {
         let mut metadata = MetadataComp::new();
         metadata.set("test", &TestMetadataValue { value: 1 });
         assert!(metadata.to_cached_str_if_updated().is_some());
+        assert!(metadata.to_cached_str_if_updated().is_none());
+    }
+
+    #[test]
+    fn to_cached_str_for_new_record_marks_clean_without_update() {
+        let mut metadata = MetadataComp::new();
+        metadata.set("test", &TestMetadataValue { value: 1 });
+        let first = metadata.to_cached_str_for_new_record();
+        let second = metadata.to_cached_str_for_new_record();
+
+        assert_eq!(first, second);
         assert!(metadata.to_cached_str_if_updated().is_none());
     }
 }
