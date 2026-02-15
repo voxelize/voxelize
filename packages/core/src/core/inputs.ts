@@ -54,10 +54,22 @@ type KeyBoundItem<T extends string> = {
 };
 
 const normalizeKeyIfNeeded = (key: string): string => {
+  let hasNonAscii = false;
   const length = key.length;
   for (let index = 0; index < length; index++) {
     const code = key.charCodeAt(index);
-    if ((code >= 65 && code <= 90) || code > 127) {
+    if (code >= 65 && code <= 90) {
+      return key.toLowerCase();
+    }
+    if (code > 127) {
+      hasNonAscii = true;
+    }
+  }
+  if (!hasNonAscii) {
+    return key;
+  }
+  for (const char of key) {
+    if (char.toLowerCase() !== char.toUpperCase() && char === char.toUpperCase()) {
       return key.toLowerCase();
     }
   }
