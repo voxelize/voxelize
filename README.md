@@ -394,6 +394,7 @@ pnpm run check:preflight:all-checks:verify:json:compact
 # string-array extraction can fall through to bounded key scans when trapped bounded prefixes contain only non-string noise
 # ts-core example status extraction accepts only known status values (ok/failed/skipped) before fallback derivation
 # status token extraction trims surrounding whitespace before known-status validation
+# canonical alias keys and alias token lists are whitespace-normalized before cli catalog/diagnostic resolution
 # optionally write the same report to disk
 pnpm run check:preflight:verify:json -- --output ./preflight-report.json
 

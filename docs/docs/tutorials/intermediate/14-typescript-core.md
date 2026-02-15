@@ -642,6 +642,8 @@ Ts-core example status extraction accepts only known status values
 (`ok`/`failed`/`skipped`) before fallback derivation is applied.
 Status token extraction trims surrounding whitespace before known-status
 validation.
+Canonical alias keys and alias token lists are whitespace-normalized
+before CLI catalog/diagnostic resolution.
 Client JSON reports additionally expose top-level wasm preflight summary
 fields `wasmPackCheckStatus`, `wasmPackCheckCommand`,
 `wasmPackCheckArgs`, `wasmPackCheckArgCount`, `wasmPackCheckExitCode`,
