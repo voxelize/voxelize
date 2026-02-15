@@ -77,7 +77,9 @@ fn push_chunk_batch(
         }
         RawEntryMut::Vacant(entry) => {
             touched_clients.push(client_id.to_owned());
-            entry.insert(client_id.to_owned(), vec![chunk_model.clone()]);
+            let mut chunk_models = Vec::with_capacity(1);
+            chunk_models.push(chunk_model.clone());
+            entry.insert(client_id.to_owned(), chunk_models);
         }
     }
 }
