@@ -596,6 +596,14 @@ mod tests {
             .expect("expected updated level");
         assert_eq!(level, 4_026_531_840);
     }
+
+    #[test]
+    fn set_raw_light_normalizes_zero_chunk_size() {
+        let mut space = test_space_with_sub_chunks(1);
+        space.options.chunk_size = 0;
+
+        assert!(space.set_raw_light(0, 0, 0, 1));
+    }
 }
 
 impl voxelize_lighter::LightVoxelAccess for Space {

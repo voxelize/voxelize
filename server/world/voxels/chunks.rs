@@ -951,4 +951,14 @@ mod tests {
         );
         assert_eq!(chunks.light_traversed_bounds_for_center_radius(-5), None);
     }
+
+    #[test]
+    fn make_space_normalizes_zero_chunk_size() {
+        let config = WorldConfig::new().chunk_size(0).build();
+        let chunks = Chunks::new(&config);
+
+        let space = chunks.make_space(&Vec2(0, 0), 1).build();
+
+        assert_eq!(space.options.chunk_size, 1);
+    }
 }
