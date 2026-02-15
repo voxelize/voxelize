@@ -457,13 +457,21 @@ impl<'a> System<'a> for BroadcastSystem {
                             }
                         }
                     } else {
-                        let mut include_ids: HashSet<&str> = HashSet::with_capacity(ids.len());
-                        for include_id in ids.iter() {
-                            include_ids.insert(include_id.as_str());
-                        }
-                        for (id, client) in clients.iter() {
-                            if include_ids.contains(id.as_str()) {
-                                send_to_client(id, client);
+                        if ids_are_strictly_sorted(ids) {
+                            for (id, client) in clients.iter() {
+                                if sorted_ids_contains(ids, id.as_str()) {
+                                    send_to_client(id, client);
+                                }
+                            }
+                        } else {
+                            let mut include_ids: HashSet<&str> = HashSet::with_capacity(ids.len());
+                            for include_id in ids.iter() {
+                                include_ids.insert(include_id.as_str());
+                            }
+                            for (id, client) in clients.iter() {
+                                if include_ids.contains(id.as_str()) {
+                                    send_to_client(id, client);
+                                }
                             }
                         }
                     }
