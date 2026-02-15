@@ -277,9 +277,9 @@ impl TerrainLayer {
 
     /// Add a set of points to the bias spline graph.
     pub fn add_bias_points(mut self, points: &[[f64; 2]]) -> Self {
-        points.into_iter().for_each(|point| {
+        for point in points.iter() {
             self.height_bias_spline.add(point[0], point[1]);
-        });
+        }
         self
     }
 
@@ -291,9 +291,9 @@ impl TerrainLayer {
 
     /// Add a set of points to the height offset spline graph.
     pub fn add_offset_points(mut self, points: &[[f64; 2]]) -> Self {
-        points.into_iter().for_each(|point| {
+        for point in points.iter() {
             self.height_offset_spline.add(point[0], point[1]);
-        });
+        }
         self
     }
 
