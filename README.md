@@ -413,7 +413,7 @@ pnpm run check:preflight:all-checks:verify:json:compact
 # typed string/object supplementation unions also keep the same bounded 1024 index window when both merged sources come from bounded fallback scans
 # bounded fallback scans use own-property checks so inherited numeric prototype entries are ignored
 # when own-property descriptor probes trap, bounded fallback switches to guarded direct reads without repeated probe failures
-# object-array summary/failure extraction can prefer key-scan object recovery when merged fallbacks still include non-object placeholders
+# object-array summary/failure extraction can supplement missing object entries by index while preserving already recovered prefix objects
 # string-array fallbacks can supplement dense non-string bounded prefixes with bounded key-scan string recovery
 # if merged array recovery still includes non-string placeholders, key-scan string recovery supplements missing string entries by index while preserving already recovered prefix strings
 # optionally write the same report to disk
