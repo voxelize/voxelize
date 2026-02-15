@@ -370,27 +370,21 @@ impl Pipeline {
             processes_with_stages
                 .into_par_iter()
                 .for_each(|(chunk, space, stage)| {
-                    let sender = Arc::clone(&sender);
-                    let registry = registry.clone();
-                    let config = config.clone();
+                    let mut chunk = stage.process(
+                        chunk,
+                        Resources {
+                            registry: &registry,
+                            config: &config,
+                        },
+                        space,
+                    );
 
-                    rayon::spawn_fifo(move || {
-                        let mut chunk = stage.process(
-                            chunk,
-                            Resources {
-                                registry: &registry,
-                                config: &config,
-                            },
-                            space,
-                        );
+                    // Calculate the max height after processing each chunk.
+                    chunk.calculate_max_height(&registry);
 
-                        // Calculate the max height after processing each chunk.
-                        chunk.calculate_max_height(&registry);
+                    let changes = std::mem::take(&mut chunk.extra_changes);
 
-                        let changes = std::mem::take(&mut chunk.extra_changes);
-
-                        sender.send((chunk, changes)).unwrap();
-                    });
+                    sender.send((chunk, changes)).unwrap();
                 });
         });
     }
