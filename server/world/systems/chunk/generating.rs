@@ -464,26 +464,21 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
         // Process the ready chunks in parallel
         if !ready_chunks.is_empty() {
-            let processes = ready_chunks
-                .into_iter()
-                .map(|(coords, chunk)| {
-                    let mut space = chunks
-                        .make_space(&coords, config.max_light_level as usize)
-                        .needs_height_maps()
-                        .needs_voxels();
+            let mut processes = Vec::with_capacity(ready_chunks.len());
+            for (coords, chunk) in ready_chunks {
+                let mut space = chunks
+                    .make_space(&coords, config.max_light_level as usize)
+                    .needs_height_maps()
+                    .needs_voxels();
 
-                    if chunk.meshes.is_some() {
-                        space = space.needs_lights()
-                    }
+                if chunk.meshes.is_some() {
+                    space = space.needs_lights()
+                }
 
-                    let space = space.strict().build();
-                    (chunk, space)
-                })
-                .collect::<Vec<_>>();
-
-            if !processes.is_empty() {
-                mesher.process(processes, &MessageType::Load, &registry, &config);
+                let space = space.strict().build();
+                processes.push((chunk, space));
             }
+            mesher.process(processes, &MessageType::Load, &registry, &config);
         }
     }
 }
