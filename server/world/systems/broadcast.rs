@@ -214,15 +214,21 @@ impl<'a> System<'a> for BroadcastSystem {
         let rtc_map = rtc_senders_opt.as_ref().and_then(|rtc| rtc.try_lock().ok());
         let client_count = clients.len();
         let has_transports = !transports.is_empty();
+        let transport_count = transports.len();
 
         for (encoded, filter) in done_messages {
             let use_rtc = encoded.is_rtc_eligible;
+            let rtc_fragments = if use_rtc && rtc_map.is_some() {
+                Some(fragment_message(&encoded.data))
+            } else {
+                None
+            };
             let send_to_client = |id: &str, client: &Client| {
-                if use_rtc {
+                if let Some(fragments) = &rtc_fragments {
                     if let Some(ref rtc_map) = rtc_map {
                         if let Some(rtc_sender) = rtc_map.get(id) {
-                            for fragment in fragment_message(&encoded.data) {
-                                if rtc_sender.send(fragment).is_err() {
+                            for fragment in fragments.iter() {
+                                if rtc_sender.send(fragment.clone()).is_err() {
                                     break;
                                 }
                             }
@@ -331,7 +337,7 @@ impl<'a> System<'a> for BroadcastSystem {
             }
 
             if has_transports && should_send_to_transport(encoded.msg_type) {
-                if transports.len() == 1 {
+                if transport_count == 1 {
                     if let Some(sender) = transports.values().next() {
                         let _ = sender.send(encoded.data);
                     }
