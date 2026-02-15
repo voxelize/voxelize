@@ -253,7 +253,6 @@ export class Network {
           ) {
             return;
           }
-          console.log(`waiting for websocket connection...`);
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
         if (ws.readyState === WebSocket.OPEN) {
