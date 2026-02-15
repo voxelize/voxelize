@@ -45,6 +45,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
 
         let max_response_per_tick = config.max_response_per_tick;
         let can_send_responses = max_response_per_tick > 0;
+        let initial_send_set_capacity = max_response_per_tick.min(8).max(1);
         let sub_chunks_u32 = if config.sub_chunks > u32::MAX as usize {
             u32::MAX
         } else {
@@ -92,7 +93,12 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                         }
                         RawEntryMut::Vacant(entry) => {
                             to_send_touched_clients.push(id.0.clone());
-                            entry.insert(id.0.clone(), HashSet::new()).1
+                            entry
+                                .insert(
+                                    id.0.clone(),
+                                    HashSet::with_capacity(initial_send_set_capacity),
+                                )
+                                .1
                         }
                     };
 
