@@ -1166,6 +1166,34 @@ describe("report-utils", () => {
     ]);
     expect(equalLengthReplacementResult.positionalArgs).toEqual([]);
     expect(equalLengthReplacementResult.optionTerminatorUsed).toBe(false);
+    let statefulStringToObjectReadCount = 0;
+    const statefulStringToObjectArgsTarget: string[] = [];
+    statefulStringToObjectArgsTarget[0] = "--json";
+    const statefulStringToObjectArgs = new Proxy(statefulStringToObjectArgsTarget, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (propertyKey === "0") {
+          statefulStringToObjectReadCount += 1;
+          if (statefulStringToObjectReadCount > 1) {
+            return { malformed: true };
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const statefulStringToObjectResult = splitCliArgs(
+      statefulStringToObjectArgs as never
+    );
+    expect(statefulStringToObjectResult.optionArgs).toEqual(["--json"]);
+    expect(statefulStringToObjectResult.positionalArgs).toEqual([]);
+    expect(statefulStringToObjectResult.optionTerminatorUsed).toBe(false);
 
     const cappedMergedFallbackArgsTarget: string[] = [];
     cappedMergedFallbackArgsTarget[0] = "--json";

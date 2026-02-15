@@ -484,10 +484,6 @@ const mergeIndexedFallbackEntries = (primaryEntries, supplementalEntries) => {
     return entryValue === undefined || entryValue === null;
   };
 
-  const isPrimitivePlaceholderEntry = (entryValue) => {
-    return entryValue !== null && typeof entryValue !== "object";
-  };
-
   const isNonStringPrimitivePlaceholderEntry = (entryValue) => {
     return (
       entryValue !== null &&
@@ -498,10 +494,6 @@ const mergeIndexedFallbackEntries = (primaryEntries, supplementalEntries) => {
 
   const isRecoverableFallbackEntry = (entryValue) => {
     return entryValue !== undefined && entryValue !== null;
-  };
-
-  const isObjectFallbackEntry = (entryValue) => {
-    return entryValue !== null && typeof entryValue === "object";
   };
 
   const isStringFallbackEntry = (entryValue) => {
@@ -524,13 +516,6 @@ const mergeIndexedFallbackEntries = (primaryEntries, supplementalEntries) => {
     if (
       isEmptyPlaceholderEntry(existingValue) &&
       isRecoverableFallbackEntry(entry.value)
-    ) {
-      mergedEntryMap.set(entry.index, entry.value);
-      continue;
-    }
-    if (
-      isPrimitivePlaceholderEntry(existingValue) &&
-      isObjectFallbackEntry(entry.value)
     ) {
       mergedEntryMap.set(entry.index, entry.value);
       continue;
