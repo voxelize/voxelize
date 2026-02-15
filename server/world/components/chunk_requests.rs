@@ -37,7 +37,12 @@ impl ChunkRequestsComp {
 
     /// Add a chunk to the list of chunks requested.
     pub fn add(&mut self, coords: &Vec2<i32>) {
-        if self.requests.contains(coords) {
+        if self.requests.is_empty() {
+            self.requests.push(*coords);
+            return;
+        }
+        if self.requests.last().is_some_and(|last| last == coords) || self.requests.contains(coords)
+        {
             return;
         }
 
@@ -51,6 +56,13 @@ impl ChunkRequestsComp {
 
     /// Remove a chunk from the list of chunks requested.
     pub fn remove(&mut self, coords: &Vec2<i32>) {
+        if self.requests.is_empty() {
+            return;
+        }
+        if self.requests.last().is_some_and(|last| last == coords) {
+            self.requests.pop();
+            return;
+        }
         self.requests.retain(|c| c != coords);
     }
 }
