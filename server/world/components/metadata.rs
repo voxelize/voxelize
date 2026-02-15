@@ -18,6 +18,10 @@ pub struct MetadataComp {
     #[serde(skip_serializing)]
     #[serde(skip_deserializing)]
     cached_json: Option<String>,
+
+    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
+    dirty: bool,
 }
 
 impl MetadataComp {
@@ -31,6 +35,7 @@ impl MetadataComp {
             map,
             cache_hash: None,
             cached_json: None,
+            dirty: true,
         }
     }
 
@@ -43,10 +48,12 @@ impl MetadataComp {
                     return;
                 }
                 *entry.get_mut() = value;
+                self.dirty = true;
                 self.cached_json = None;
             }
             RawEntryMut::Vacant(entry) => {
                 entry.insert(component.to_owned(), value);
+                self.dirty = true;
                 self.cached_json = None;
             }
         }
@@ -58,6 +65,7 @@ impl MetadataComp {
             RawEntryMut::Occupied(_) => {}
             RawEntryMut::Vacant(entry) => {
                 entry.insert(component.to_owned(), json!(data));
+                self.dirty = true;
                 self.cached_json = None;
             }
         }
@@ -81,6 +89,12 @@ impl MetadataComp {
 
     /// Convert metadata to JSON string, also caches is current state using hash.
     pub fn to_cached_str(&mut self) -> (String, bool) {
+        if !self.dirty {
+            if let Some(cached_json) = self.cached_json.as_ref() {
+                return (cached_json.clone(), false);
+            }
+        }
+
         let current_hash = self.calculate_hash();
 
         let mut updated = false;
@@ -100,12 +114,14 @@ impl MetadataComp {
 
         // Use cached JSON if available and not updated
         if !updated && self.cached_json.is_some() {
+            self.dirty = false;
             return (self.cached_json.clone().unwrap(), updated);
         }
 
         // Generate and cache the JSON string
         let json_str = self.to_string();
         self.cached_json = Some(json_str.clone());
+        self.dirty = false;
 
         (json_str, updated)
     }
@@ -122,7 +138,12 @@ impl MetadataComp {
 
     /// Reset this metadata
     pub fn reset(&mut self) {
+        if self.map.is_empty() {
+            return;
+        }
         self.map.clear();
+        self.cached_json = None;
+        self.dirty = true;
     }
 }
 
