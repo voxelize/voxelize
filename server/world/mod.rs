@@ -667,26 +667,39 @@ impl World {
                 }
             };
 
-            let entities = world.ecs().entities();
-            let ids = world.ecs().read_storage::<IDComp>();
-
             let mut to_update = None;
 
-            for (entity, id_comp) in (&entities, &ids).join() {
-                if id_comp.0 == payload.id {
-                    to_update = Some(entity);
-                    break;
+            if let Some(entity_index) = world.entity_ids().get(&payload.id).copied() {
+                let entities = world.ecs().entities();
+                let ids = world.ecs().read_storage::<IDComp>();
+                let candidate = entities.entity(entity_index);
+                if ids
+                    .get(candidate)
+                    .is_some_and(|id_comp| id_comp.0 == payload.id)
+                {
+                    to_update = Some(candidate);
                 }
+                drop((entities, ids));
             }
 
-            drop((entities, ids));
+            if to_update.is_none() {
+                let entities = world.ecs().entities();
+                let ids = world.ecs().read_storage::<IDComp>();
+
+                for (entity, id_comp) in (&entities, &ids).join() {
+                    if id_comp.0 == payload.id {
+                        to_update = Some(entity);
+                        break;
+                    }
+                }
+
+                drop((entities, ids));
+            }
 
             if to_update.is_none() {
                 if let Some(voxel) = payload.voxel {
                     let voxel_key = Vec3(voxel[0], voxel[1], voxel[2]);
-                    if let Some(&entity) = world.chunks().block_entities.get(&voxel_key) {
-                        to_update = Some(entity);
-                    }
+                    to_update = world.chunks().block_entities.get(&voxel_key).copied();
                 }
             }
 
