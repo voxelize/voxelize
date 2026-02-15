@@ -189,10 +189,11 @@ impl<'a> System<'a> for BroadcastSystem {
             }
         }
 
-        let batched_messages = batch_messages(deferred_messages);
-
-        encoded_queue.append(batched_messages);
-        encoded_queue.process();
+        if !deferred_messages.is_empty() {
+            let batched_messages = batch_messages(deferred_messages);
+            encoded_queue.append(batched_messages);
+            encoded_queue.process();
+        }
 
         let mut async_messages = encoded_queue.receive();
         let mut done_messages = immediate_encoded;
