@@ -4,6 +4,34 @@
  * @category Utils
  */
 export class DOMUtils {
+  private static toCssKey = (key: string) => {
+    if (key.startsWith("--")) {
+      return key;
+    }
+    let uppercaseCount = 0;
+    for (let index = 0; index < key.length; index++) {
+      const code = key.charCodeAt(index);
+      if (code >= 65 && code <= 90) {
+        uppercaseCount++;
+      }
+    }
+    if (uppercaseCount === 0) {
+      return key;
+    }
+    const chars = new Array<string>(key.length + uppercaseCount);
+    let writeIndex = 0;
+    for (let index = 0; index < key.length; index++) {
+      const code = key.charCodeAt(index);
+      if (code >= 65 && code <= 90) {
+        chars[writeIndex++] = "-";
+        chars[writeIndex++] = String.fromCharCode(code + 32);
+      } else {
+        chars[writeIndex++] = key[index];
+      }
+    }
+    return chars.join("");
+  };
+
   /**
    * Apply styles directly onto DOM element(s).
    *
@@ -30,9 +58,7 @@ export class DOMUtils {
       }
 
       const value = String(attribute);
-      const cssKey = key.startsWith("--")
-        ? key
-        : key.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`);
+      const cssKey = DOMUtils.toCssKey(key);
       for (let elementIndex = 0; elementIndex < elements.length; elementIndex++) {
         elements[elementIndex].style.setProperty(cssKey, value);
       }
