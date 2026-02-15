@@ -93,6 +93,8 @@ Nullable combination sub-rules are normalized to deterministic `none` entries.
 Iterator-trapped combination-rule collections can recover readable indexed
 entries via bounded fallback scans; irrecoverable trap combinations normalize
 to deterministic `none` rules.
+When bounded length recovery already fills the scan window, key-scan
+enumeration is skipped to avoid redundant fallback overhead.
 Length-fallback recovery skips sparse-hole placeholders and inherited numeric
 prototype entries before logical evaluation.
 If bounded length recovery yields only `none` entries, bounded key-scan

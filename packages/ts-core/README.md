@@ -99,6 +99,8 @@ const voxel = Voxel.pack({
   - key-based recovery keeps the smallest bounded numeric index set in
     ascending order to avoid full-list sorting overhead under sparse trap
     inputs
+  - when bounded length recovery already fills the scan window, key-scan
+    enumeration is skipped to avoid redundant fallback overhead
   - length-fallback recovery skips sparse-hole placeholders and inherited
     numeric prototype entries before logical evaluation
   - if bounded length recovery yields only `none` entries, bounded key-scan
