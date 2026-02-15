@@ -768,6 +768,9 @@ Bounded fallback scans use own-property checks so inherited numeric
 prototype entries are ignored.
 When own-property descriptor probes trap, bounded fallback switches to
 guarded direct reads without repeated probe failures.
+Object-array summary/failure extraction can prefer key-scan object
+recovery when merged fallback arrays still include non-object
+placeholders.
 String-array fallbacks can supplement dense non-string bounded prefixes
 with bounded key-scan string recovery.
 If merged fallback recovery still includes non-string placeholders,

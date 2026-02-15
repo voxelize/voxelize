@@ -4237,6 +4237,42 @@ describe("report-utils", () => {
       failedSteps: ["step-b"],
       skippedSteps: [],
     });
+    let statefulNumericPrefixStepReadCount = 0;
+    const statefulNumericPrefixSteps = new Proxy(
+      [
+        { name: "step-a", passed: true, skipped: false },
+        { name: "step-b", passed: false, skipped: false },
+      ],
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (propertyKey === "0") {
+            statefulNumericPrefixStepReadCount += 1;
+            if (statefulNumericPrefixStepReadCount === 1) {
+              return 1;
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(summarizeStepResults(statefulNumericPrefixSteps as never)).toEqual({
+      totalSteps: 2,
+      passedStepCount: 1,
+      failedStepCount: 1,
+      skippedStepCount: 0,
+      firstFailedStep: "step-b",
+      passedSteps: ["step-a"],
+      failedSteps: ["step-b"],
+      skippedSteps: [],
+    });
 
     const ownKeysTrapSteps = new Proxy(
       [{ name: "step-a", passed: true, skipped: false }],
@@ -5211,6 +5247,54 @@ describe("report-utils", () => {
         message: "Step failed with exit code 2.",
       },
     ]);
+    let statefulNumericPrefixCheckReadCount = 0;
+    const statefulNumericPrefixSteps = new Proxy(
+      [
+        {
+          name: "step-valid",
+          scriptName: "check-valid.mjs",
+          supportsNoBuild: true,
+          stepIndex: 1,
+          passed: false,
+          skipped: false,
+          exitCode: 2,
+        },
+      ],
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (propertyKey === "0") {
+            statefulNumericPrefixCheckReadCount += 1;
+            if (statefulNumericPrefixCheckReadCount === 1) {
+              return 1;
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      summarizeStepFailureResults(statefulNumericPrefixSteps as never)
+    ).toEqual([
+      {
+        name: "step-valid",
+        scriptName: "check-valid.mjs",
+        supportsNoBuild: true,
+        stepIndex: 1,
+        checkCommand: "",
+        checkArgs: [],
+        checkArgCount: 0,
+        exitCode: 2,
+        message: "Step failed with exit code 2.",
+      },
+    ]);
 
     const checkWithTrapPassed = Object.create(null) as {
       readonly name: string;
@@ -5293,6 +5377,53 @@ describe("report-utils", () => {
       },
     });
     expect(summarizeCheckFailureResults(iteratorTrapChecks as never)).toEqual([
+      {
+        name: "check-valid",
+        scriptName: "check-valid.mjs",
+        supportsNoBuild: true,
+        checkIndex: 1,
+        checkCommand: "",
+        checkArgs: [],
+        checkArgCount: 0,
+        exitCode: 2,
+        message: "Preflight check failed with exit code 2.",
+      },
+    ]);
+    let statefulNumericPrefixReadCount = 0;
+    const statefulNumericPrefixChecks = new Proxy(
+      [
+        {
+          name: "check-valid",
+          scriptName: "check-valid.mjs",
+          supportsNoBuild: true,
+          checkIndex: 1,
+          passed: false,
+          exitCode: 2,
+        },
+      ],
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (propertyKey === "0") {
+            statefulNumericPrefixReadCount += 1;
+            if (statefulNumericPrefixReadCount === 1) {
+              return 1;
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      summarizeCheckFailureResults(statefulNumericPrefixChecks as never)
+    ).toEqual([
       {
         name: "check-valid",
         scriptName: "check-valid.mjs",
@@ -5433,6 +5564,40 @@ describe("report-utils", () => {
       }
     );
     expect(summarizeCheckResults(statefulNullPrefixChecks as never)).toEqual({
+      totalChecks: 2,
+      passedCheckCount: 1,
+      failedCheckCount: 1,
+      firstFailedCheck: "devEnvironment",
+      passedChecks: ["client"],
+      failedChecks: ["devEnvironment"],
+    });
+    let statefulNumericPrefixReadCount = 0;
+    const statefulNumericPrefixChecks = new Proxy(
+      [
+        { name: "devEnvironment", passed: false },
+        { name: "client", passed: true },
+      ],
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (propertyKey === "0") {
+            statefulNumericPrefixReadCount += 1;
+            if (statefulNumericPrefixReadCount === 1) {
+              return 1;
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(summarizeCheckResults(statefulNumericPrefixChecks as never)).toEqual({
       totalChecks: 2,
       passedCheckCount: 1,
       failedCheckCount: 1,
@@ -5844,6 +6009,41 @@ describe("report-utils", () => {
     expect(
       deriveFailureMessageFromReport({
         steps: statefulNullPrefixFailureSteps,
+      })
+    ).toBe("WASM artifact preflight: artifact missing");
+    let statefulNumericPrefixReadCount = 0;
+    const statefulNumericPrefixFailureSteps = new Proxy(
+      [
+        {
+          name: "WASM artifact preflight",
+          passed: false,
+          skipped: false,
+          reason: "artifact missing",
+        },
+      ],
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (propertyKey === "0") {
+            statefulNumericPrefixReadCount += 1;
+            if (statefulNumericPrefixReadCount === 1) {
+              return 1;
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      deriveFailureMessageFromReport({
+        steps: statefulNumericPrefixFailureSteps,
       })
     ).toBe("WASM artifact preflight: artifact missing");
   });

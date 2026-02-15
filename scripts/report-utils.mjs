@@ -194,15 +194,12 @@ export const countRecordEntries = (value) => {
 
 export const summarizeStepResults = (steps) => {
   const stepEntries = cloneArraySafely(steps) ?? [];
+  const stepRecordEntries = toObjectRecordEntriesOrEmpty(steps, stepEntries);
   const passedSteps = [];
   const failedSteps = [];
   const skippedSteps = [];
 
-  for (const step of stepEntries) {
-    if (!isObjectRecord(step)) {
-      continue;
-    }
-
+  for (const step of stepRecordEntries) {
     const name = toTrimmedStringOrNull(safeReadProperty(step, "name"));
     if (name === null) {
       continue;
@@ -246,14 +243,11 @@ export const summarizeStepResults = (steps) => {
 
 export const summarizeCheckResults = (checks) => {
   const checkEntries = cloneArraySafely(checks) ?? [];
+  const checkRecordEntries = toObjectRecordEntriesOrEmpty(checks, checkEntries);
   const passedChecks = [];
   const failedChecks = [];
 
-  for (const check of checkEntries) {
-    if (!isObjectRecord(check)) {
-      continue;
-    }
-
+  for (const check of checkRecordEntries) {
     const name = toTrimmedStringOrNull(safeReadProperty(check, "name"));
     if (name === null) {
       continue;
@@ -556,6 +550,72 @@ const cloneStringEntriesFromIndexedKeys = (value) => {
   return orderedStringEntries.map((entry) => entry.value);
 };
 
+const cloneObjectEntriesFromIndexedKeys = (value) => {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  let indexKeys = [];
+  try {
+    indexKeys = Object.keys(value);
+  } catch {
+    return null;
+  }
+
+  const orderedObjectEntries = [];
+  for (const indexKey of indexKeys) {
+    const numericIndex = toNonNegativeSafeArrayIndex(indexKey);
+    if (numericIndex === null) {
+      continue;
+    }
+
+    let entryValue = null;
+    try {
+      entryValue = value[numericIndex];
+    } catch {
+      continue;
+    }
+
+    if (!isObjectRecord(entryValue)) {
+      continue;
+    }
+
+    let insertPosition = 0;
+    let low = 0;
+    let high = orderedObjectEntries.length;
+    while (low < high) {
+      const mid = Math.floor((low + high) / 2);
+      if (orderedObjectEntries[mid].index < numericIndex) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    insertPosition = low;
+
+    if (orderedObjectEntries[insertPosition]?.index === numericIndex) {
+      continue;
+    }
+
+    if (
+      orderedObjectEntries.length >= MAX_ARRAY_LENGTH_FALLBACK_SCAN &&
+      insertPosition >= MAX_ARRAY_LENGTH_FALLBACK_SCAN
+    ) {
+      continue;
+    }
+
+    orderedObjectEntries.splice(insertPosition, 0, {
+      index: numericIndex,
+      value: entryValue,
+    });
+    if (orderedObjectEntries.length > MAX_ARRAY_LENGTH_FALLBACK_SCAN) {
+      orderedObjectEntries.pop();
+    }
+  }
+
+  return orderedObjectEntries.map((entry) => entry.value);
+};
+
 const cloneArrayFromIndexedAccess = (value) => {
   if (!Array.isArray(value)) {
     return null;
@@ -692,13 +752,11 @@ export const deriveFailureMessageFromReport = (report) => {
     return `${normalizedRequiredFailures} required check(s) failed.`;
   }
 
-  const steps = cloneArraySafely(safeReadProperty(report, "steps"));
+  const stepsValue = safeReadProperty(report, "steps");
+  const steps = cloneArraySafely(stepsValue);
   if (steps !== null) {
-    for (const step of steps) {
-      if (!isObjectRecord(step)) {
-        continue;
-      }
-
+    const stepRecordEntries = toObjectRecordEntriesOrEmpty(stepsValue, steps);
+    for (const step of stepRecordEntries) {
       const passedValue = safeReadProperty(step, "passed");
       if (passedValue !== false) {
         continue;
@@ -760,6 +818,25 @@ const toStringArrayOrNull = (value) => {
   }
 
   return keyFallbackStrings ?? normalizedStrings;
+};
+
+const toObjectRecordEntriesOrEmpty = (sourceValue, clonedArray) => {
+  const normalizedRecords = clonedArray.filter((entry) => {
+    return isObjectRecord(entry);
+  });
+  if (normalizedRecords.length === clonedArray.length) {
+    return normalizedRecords;
+  }
+
+  const keyFallbackRecords = cloneObjectEntriesFromIndexedKeys(sourceValue);
+  if (
+    keyFallbackRecords !== null &&
+    keyFallbackRecords.length > normalizedRecords.length
+  ) {
+    return keyFallbackRecords;
+  }
+
+  return normalizedRecords;
 };
 
 const toStringArrayOrEmpty = (value) => {
@@ -1225,13 +1302,10 @@ export const deriveWasmPackCheckStatus = ({
 
 export const summarizeStepFailureResults = (steps) => {
   const stepEntries = cloneArraySafely(steps) ?? [];
+  const stepRecordEntries = toObjectRecordEntriesOrEmpty(steps, stepEntries);
   const failureSummaries = [];
 
-  for (const step of stepEntries) {
-    if (!isObjectRecord(step)) {
-      continue;
-    }
-
+  for (const step of stepRecordEntries) {
     const passed = safeReadProperty(step, "passed");
     if (passed !== false) {
       continue;
@@ -1290,13 +1364,10 @@ export const summarizeStepFailureResults = (steps) => {
 
 export const summarizeCheckFailureResults = (checks) => {
   const checkEntries = cloneArraySafely(checks) ?? [];
+  const checkRecordEntries = toObjectRecordEntriesOrEmpty(checks, checkEntries);
   const failureSummaries = [];
 
-  for (const check of checkEntries) {
-    if (!isObjectRecord(check)) {
-      continue;
-    }
-
+  for (const check of checkRecordEntries) {
     const passed = safeReadProperty(check, "passed");
     if (passed !== false) {
       continue;
