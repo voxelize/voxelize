@@ -1,5 +1,6 @@
 mod models;
 
+use std::borrow::Cow;
 use std::time::{Duration, Instant};
 
 use actix::{
@@ -42,6 +43,15 @@ struct OnActionRequest {
 }
 
 type ServerInfoHandle = fn(&Server) -> Value;
+
+#[inline]
+fn normalized_action_name<'a>(action: &'a str) -> Cow<'a, str> {
+    if action.chars().any(|ch| ch.is_uppercase()) {
+        Cow::Owned(action.to_lowercase())
+    } else {
+        Cow::Borrowed(action)
+    }
+}
 
 fn default_info_handle(server: &Server) -> Value {
     let mut info = HashMap::new();
@@ -427,19 +437,16 @@ impl Server {
         handle: F,
     ) {
         self.action_handles
-            .insert(action.to_lowercase(), Arc::new(handle));
+            .insert(normalized_action_name(action).into_owned(), Arc::new(handle));
     }
 
     /// Handler for `Action` type messages.
     fn on_action(&mut self, _: &str, data: &Message) {
         let json: OnActionRequest = serde_json::from_str(&data.json)
             .expect("`on_action` error. Could not read JSON string.");
-        let action = json.action.to_lowercase();
+        let action = normalized_action_name(&json.action);
 
-        info!("{:?}", &self.action_handles.keys());
-        info!("{:?}", &action);
-
-        if let Some(handle) = self.action_handles.get(&action) {
+        if let Some(handle) = self.action_handles.get(action.as_ref()) {
             let handle = Arc::clone(handle);
             handle(json.data, self);
             return;
@@ -447,7 +454,7 @@ impl Server {
 
         warn!(
             "`Action` type messages received of type {}, but no action handler set.",
-            action
+            action.as_ref()
         );
     }
 }
