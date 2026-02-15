@@ -121,6 +121,10 @@ impl EncodedMessageQueue {
         if list.is_empty() {
             return;
         }
+        if self.pending.is_empty() {
+            self.pending = list;
+            return;
+        }
         if self.pending.capacity() - self.pending.len() < list.len() {
             self.pending
                 .reserve(list.len() - (self.pending.capacity() - self.pending.len()));
