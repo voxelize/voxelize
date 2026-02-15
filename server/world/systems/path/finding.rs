@@ -248,6 +248,7 @@ impl<'a> System<'a> for PathFindingSystem {
                     let start_time = Instant::now();
                     let count = Cell::new(0i32);
                     let max_depth_search = normalized_max_depth_search(entity_path.max_depth_search);
+                    let max_pathfinding_time = entity_path.max_pathfinding_time;
                     if max_depth_search == 0 {
                         entity_path.path = None;
                         return;
@@ -262,7 +263,7 @@ impl<'a> System<'a> for PathFindingSystem {
                             let current_count = count.get();
 
                             if current_count >= max_depth_search
-                                || start_time.elapsed() > entity_path.max_pathfinding_time
+                                || start_time.elapsed() > max_pathfinding_time
                             {
                                 return Vec::new();
                             }
