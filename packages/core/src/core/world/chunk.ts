@@ -54,5 +54,9 @@ export class Chunk extends RawChunk {
         }
       });
     });
+    this.meshes.clear();
+    // Release large typed arrays for GC
+    this.voxels.data = new Uint32Array(0);
+    this.lights.data = new Uint32Array(0);
   }
 }

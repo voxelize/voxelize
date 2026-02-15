@@ -3956,6 +3956,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         });
 
         this.pruneBlockEntitiesInChunk(chunk.coords);
+        this.remove(chunk.group);
         chunk.dispose();
         this.meshPipeline.remove(x, z);
         toRemove.push(name);
