@@ -2403,6 +2403,10 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
     faceName?: string,
     voxel?: Coords3
   ) {
+    const block = this.registry.blocksById.get(id);
+    if (!block) {
+      return undefined;
+    }
     const materials = this.chunkRenderer.materials;
     if (faceName) {
       const independentMaterialKey =
@@ -2410,22 +2414,15 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
       if (independentMaterialKey !== undefined) {
         return materials.get(independentMaterialKey);
       }
-      if (voxel) {
-        const cachedFace = this.blockFaceNameCache.get(id)?.get(faceName);
-        if (cachedFace?.isolated) {
-          return materials.get(this.makeChunkMaterialKey(id, faceName, voxel));
-        }
+      if (voxel && block.isolatedFaces.has(faceName)) {
+        return materials.get(this.makeChunkMaterialKey(id, faceName, voxel));
       }
     }
     const baseMaterialKey = this.chunkMaterialBaseKeyById.get(id);
     if (baseMaterialKey !== undefined) {
       return materials.get(baseMaterialKey);
     }
-    const block = this.registry.blocksById.get(id);
-    if (!block) {
-      return undefined;
-    }
-    return this.resolveChunkMaterialForBlock(block, faceName, voxel);
+    return materials.get(this.makeChunkMaterialKey(id));
   }
 
   getBlockFaceMaterial(
