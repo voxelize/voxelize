@@ -11,6 +11,7 @@ pub struct ChunkRequestsSystem {
     to_send_buffer: HashMap<String, HashSet<Vec2<i32>>>,
     to_send_touched_clients_buffer: Vec<String>,
     to_add_back_to_requested_buffer: HashSet<Vec2<i32>>,
+    chunk_models_buffer: Vec<crate::ChunkProtocol>,
 }
 
 impl<'a> System<'a> for ChunkRequestsSystem {
@@ -53,6 +54,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         let to_send = &mut self.to_send_buffer;
         let to_send_touched_clients = &mut self.to_send_touched_clients_buffer;
         let to_add_back_to_requested = &mut self.to_add_back_to_requested_buffer;
+        let chunk_models_buffer = &mut self.chunk_models_buffer;
         let client_count = clients.len();
         if to_send.capacity() < client_count {
             to_send.reserve(client_count - to_send.capacity());
@@ -130,18 +132,23 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             if coords_to_send.is_empty() {
                 continue;
             }
-            let mut chunk_models = Vec::with_capacity(coords_to_send.len());
+            chunk_models_buffer.clear();
+            if chunk_models_buffer.capacity() < coords_to_send.len() {
+                chunk_models_buffer.reserve(coords_to_send.len() - chunk_models_buffer.capacity());
+            }
             for coords in coords_to_send.iter() {
                 if let Some(chunk) = chunks.get(coords) {
-                    chunk_models.push(chunk.to_model(true, true, 0..sub_chunks_u32));
+                    chunk_models_buffer.push(chunk.to_model(true, true, 0..sub_chunks_u32));
                 }
             }
             coords_to_send.clear();
-            if chunk_models.is_empty() {
+            if chunk_models_buffer.is_empty() {
                 continue;
             }
 
-            let message = Message::new(&MessageType::Load).chunks(&chunk_models).build();
+            let message = Message::new(&MessageType::Load)
+                .chunks(chunk_models_buffer)
+                .build();
             queue.push((message, ClientFilter::Direct(id)));
         }
     }

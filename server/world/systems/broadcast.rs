@@ -219,6 +219,24 @@ impl<'a> System<'a> for BroadcastSystem {
             } else {
                 None
             };
+            if let ClientFilter::Direct(id) = &filter {
+                if let Some(client) = clients.get(id) {
+                    if let Some(fragments) = &rtc_fragments {
+                        if let Some(ref rtc_map) = rtc_map {
+                            if let Some(rtc_sender) = rtc_map.get(id) {
+                                for fragment in fragments.iter() {
+                                    if rtc_sender.send(fragment.clone()).is_err() {
+                                        break;
+                                    }
+                                }
+                                continue;
+                            }
+                        }
+                    }
+                    let _ = client.sender.send(encoded.data);
+                }
+                continue;
+            }
             let send_to_client = |id: &str, client: &Client| {
                 if let Some(fragments) = &rtc_fragments {
                     if let Some(ref rtc_map) = rtc_map {
@@ -240,11 +258,6 @@ impl<'a> System<'a> for BroadcastSystem {
                     send_to_client(id, client);
                 }
             };
-
-            if let ClientFilter::Direct(id) = &filter {
-                send_to_id(id);
-                continue;
-            }
 
             match &filter {
                 ClientFilter::All => {
