@@ -260,9 +260,11 @@ impl<'a> System<'a> for BroadcastSystem {
                     ClientFilter::Exclude(ids) => !ids.iter().any(|id| id == single_id),
                     _ => false,
                 };
+                let should_send_transport =
+                    has_transports && should_send_to_transport(encoded.msg_type);
+                let mut sent_with_rtc = false;
                 if should_send {
                     if use_rtc {
-                        let mut sent_with_rtc = false;
                         if let Some(ref rtc_map) = rtc_map {
                             if let Some(rtc_sender) = rtc_map.get(single_id) {
                                 for fragment in fragment_message(&encoded.data) {
@@ -273,14 +275,16 @@ impl<'a> System<'a> for BroadcastSystem {
                                 sent_with_rtc = true;
                             }
                         }
-                        if !sent_with_rtc {
-                            let _ = single_client.sender.send(encoded.data.clone());
+                    }
+                    if !sent_with_rtc {
+                        if !should_send_transport {
+                            let _ = single_client.sender.send(encoded.data);
+                            continue;
                         }
-                    } else {
                         let _ = single_client.sender.send(encoded.data.clone());
                     }
                 }
-                if has_transports && should_send_to_transport(encoded.msg_type) {
+                if should_send_transport {
                     if transport_count == 1 {
                         if let Some(sender) = transports.values().next() {
                             let _ = sender.send(encoded.data);
