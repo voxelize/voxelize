@@ -4487,6 +4487,30 @@ describe("report-utils", () => {
     expect(
       whitespaceCanonicalMapOptionCatalogOverrideValidation.validationErrorCode
     ).toBeNull();
+    const dedupedAliasCatalogOverrideValidation = createCliOptionValidation(
+      ["--verify", "--skip-build"],
+      {
+        canonicalOptions: ["--json"],
+        optionCatalog: {
+          availableCliOptionCanonicalMap: {
+            "--verify": "--no-build",
+          },
+          availableCliOptionAliases: {
+            "--no-build": ["--verify", "--skip-build"],
+          },
+        } as never,
+      }
+    );
+    expect(dedupedAliasCatalogOverrideValidation.supportedCliOptions).toEqual([
+      "--no-build",
+      "--verify",
+      "--skip-build",
+    ]);
+    expect(dedupedAliasCatalogOverrideValidation.supportedCliOptionCount).toBe(3);
+    expect(dedupedAliasCatalogOverrideValidation.unknownOptions).toEqual([]);
+    expect(dedupedAliasCatalogOverrideValidation.unknownOptionCount).toBe(0);
+    expect(dedupedAliasCatalogOverrideValidation.unsupportedOptionsError).toBeNull();
+    expect(dedupedAliasCatalogOverrideValidation.validationErrorCode).toBeNull();
     let malformedOptionCatalogOverrideCanonicalReadCount = 0;
     const malformedOptionCatalogOverrideCanonicalOptions = new Proxy(
       ["--json"],
