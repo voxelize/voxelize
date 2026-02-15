@@ -57,6 +57,31 @@ impl ChunkInterests {
     }
 
     pub fn has_interests_in_region(&self, center: &Vec2<i32>) -> bool {
+        if self.map.is_empty() {
+            return false;
+        }
+        for dx in -1..=1 {
+            let Some(nx) = center.0.checked_add(dx) else {
+                continue;
+            };
+            for dz in -1..=1 {
+                let Some(nz) = center.1.checked_add(dz) else {
+                    continue;
+                };
+                if self.map.contains_key(&Vec2(nx, nz)) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    pub fn get_interested_clients_in_region(&self, center: &Vec2<i32>) -> HashSet<String> {
+        if self.map.is_empty() {
+            return HashSet::new();
+        }
+
+        let mut expected_clients = 0usize;
         for dx in -1..=1 {
             let Some(nx) = center.0.checked_add(dx) else {
                 continue;
@@ -66,16 +91,16 @@ impl ChunkInterests {
                     continue;
                 };
                 let coords = Vec2(nx, nz);
-                if self.has_interests(&coords) {
-                    return true;
+                if let Some(interested) = self.get_interests(&coords) {
+                    expected_clients = expected_clients.saturating_add(interested.len());
                 }
             }
         }
-        false
-    }
+        if expected_clients == 0 {
+            return HashSet::new();
+        }
 
-    pub fn get_interested_clients_in_region(&self, center: &Vec2<i32>) -> HashSet<String> {
-        let mut clients = HashSet::new();
+        let mut clients = HashSet::with_capacity(expected_clients);
         for dx in -1..=1 {
             let Some(nx) = center.0.checked_add(dx) else {
                 continue;
