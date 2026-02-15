@@ -1732,6 +1732,57 @@ const createCanonicalOptionSnapshotFromCatalog = (optionCatalog) => {
   return dedupeStringList(canonicalOptionTokens);
 };
 
+const normalizeCliOptionCanonicalMapEntries = (
+  availableCliOptionCanonicalMap
+) => {
+  if (!isObjectRecord(availableCliOptionCanonicalMap)) {
+    return [];
+  }
+
+  const normalizedEntries = [];
+  for (const optionToken of safeObjectKeys(availableCliOptionCanonicalMap)) {
+    const normalizedOptionToken = optionToken.trim();
+    if (normalizedOptionToken.length === 0) {
+      continue;
+    }
+
+    const canonicalOption = toTrimmedStringOrNull(
+      safeReadProperty(availableCliOptionCanonicalMap, optionToken)
+    );
+    if (canonicalOption === null) {
+      continue;
+    }
+
+    normalizedEntries.push([normalizedOptionToken, canonicalOption]);
+  }
+
+  return normalizedEntries;
+};
+
+const mergeNormalizedCliOptionAliases = (
+  normalizedOptionAliases,
+  fallbackOptionAliases
+) => {
+  const mergedOptionAliases = new Map();
+  const mergeAliasEntries = (optionAliases) => {
+    for (const [canonicalOption, aliases] of Object.entries(optionAliases)) {
+      const existingAliases = mergedOptionAliases.get(canonicalOption) ?? [];
+      mergedOptionAliases.set(
+        canonicalOption,
+        dedupeStringList([
+          ...existingAliases,
+          ...aliases,
+        ])
+      );
+    }
+  };
+
+  mergeAliasEntries(normalizedOptionAliases);
+  mergeAliasEntries(fallbackOptionAliases);
+
+  return Object.fromEntries(mergedOptionAliases.entries());
+};
+
 const toNormalizedCliOptionCatalogOrNull = (optionCatalog) => {
   if (!isObjectRecord(optionCatalog)) {
     return null;
@@ -1740,15 +1791,40 @@ const toNormalizedCliOptionCatalogOrNull = (optionCatalog) => {
   const supportedCliOptions = normalizeCliOptionTokenList(
     safeReadProperty(optionCatalog, "supportedCliOptions")
   );
-  const availableCliOptionAliases = normalizeCliOptionAliases(
+  const normalizedOptionAliases = normalizeCliOptionAliases(
     safeReadProperty(optionCatalog, "availableCliOptionAliases")
   );
-  const catalogCanonicalOptions = createCanonicalOptionSnapshotFromCatalog({
-    availableCliOptionCanonicalMap: safeReadProperty(
-      optionCatalog,
-      "availableCliOptionCanonicalMap"
-    ),
-  });
+  const normalizedCanonicalMapEntries = normalizeCliOptionCanonicalMapEntries(
+    safeReadProperty(optionCatalog, "availableCliOptionCanonicalMap")
+  );
+  const catalogCanonicalOptions = dedupeStringList(
+    normalizedCanonicalMapEntries.map((entry) => entry[1])
+  );
+  const fallbackOptionAliases = Object.fromEntries(
+    Array.from(
+      normalizedCanonicalMapEntries
+        .filter((entry) => entry[0] !== entry[1])
+        .reduce((aliasEntries, entry) => {
+          const [optionToken, canonicalOption] = entry;
+          const existingAliases = aliasEntries.get(canonicalOption) ?? [];
+          aliasEntries.set(
+            canonicalOption,
+            dedupeStringList([
+              ...existingAliases,
+              optionToken,
+            ])
+          );
+          return aliasEntries;
+        }, new Map())
+        .entries()
+    ).sort((entryA, entryB) => {
+      return entryA[0].localeCompare(entryB[0]);
+    })
+  );
+  const availableCliOptionAliases = mergeNormalizedCliOptionAliases(
+    normalizedOptionAliases,
+    fallbackOptionAliases
+  );
   const hasCanonicalCatalogData =
     catalogCanonicalOptions.length > 0 ||
     Object.keys(availableCliOptionAliases).length > 0;

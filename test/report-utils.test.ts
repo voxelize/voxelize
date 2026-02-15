@@ -4415,6 +4415,47 @@ describe("report-utils", () => {
     ).toBeNull();
     expect(optionCatalogOverrideWithoutSupportedValidation.validationErrorCode).toBeNull();
     expect(optionCatalogOverrideWithoutSupportedCanonicalReadCount).toBe(0);
+    let aliasOnlyOptionCatalogOverrideCanonicalReadCount = 0;
+    const aliasOnlyOptionCatalogOverrideCanonicalOptions = new Proxy(
+      ["--json"],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (property === "0") {
+            aliasOnlyOptionCatalogOverrideCanonicalReadCount += 1;
+            return "--json";
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const aliasOnlyOptionCatalogOverrideValidation = createCliOptionValidation(
+      ["--verify"],
+      {
+        canonicalOptions:
+          aliasOnlyOptionCatalogOverrideCanonicalOptions as never,
+        optionCatalog: {
+          availableCliOptionCanonicalMap: {
+            "--verify": "--no-build",
+          },
+        } as never,
+      }
+    );
+    expect(aliasOnlyOptionCatalogOverrideValidation.supportedCliOptions).toEqual([
+      "--no-build",
+      "--verify",
+    ]);
+    expect(aliasOnlyOptionCatalogOverrideValidation.supportedCliOptionCount).toBe(2);
+    expect(aliasOnlyOptionCatalogOverrideValidation.unknownOptions).toEqual([]);
+    expect(aliasOnlyOptionCatalogOverrideValidation.unknownOptionCount).toBe(0);
+    expect(aliasOnlyOptionCatalogOverrideValidation.unsupportedOptionsError).toBeNull();
+    expect(aliasOnlyOptionCatalogOverrideValidation.validationErrorCode).toBeNull();
+    expect(aliasOnlyOptionCatalogOverrideCanonicalReadCount).toBe(0);
     let malformedOptionCatalogOverrideCanonicalReadCount = 0;
     const malformedOptionCatalogOverrideCanonicalOptions = new Proxy(
       ["--json"],
