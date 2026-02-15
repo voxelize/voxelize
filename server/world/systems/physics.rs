@@ -159,6 +159,7 @@ impl<'a> System<'a> for PhysicsSystem {
         // Collision detection, push bodies away from one another.
         let collision_repulsion = config.collision_repulsion;
         let client_collision_repulsion = config.client_collision_repulsion;
+        let should_emit_client_impulse = client_collision_repulsion > f32::EPSILON;
         for (curr_chunk, body, interactor, entity, position) in (
             &curr_chunks,
             &mut bodies,
@@ -203,7 +204,7 @@ impl<'a> System<'a> for PhysicsSystem {
 
             // Check if the entity is a client, and if so, apply the impulse to the client's body.
             if client_flag.get(entity).is_some() {
-                if client_collision_repulsion > f32::EPSILON {
+                if should_emit_client_impulse {
                     if let Some(id) = ids.get(entity) {
                         let event = EventBuilder::new("vox-builtin:impulse")
                             .payload([
