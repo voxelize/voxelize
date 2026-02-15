@@ -3,6 +3,7 @@ use hashbrown::{hash_map::Entry, HashMap};
 const MAX_FRAGMENT_SIZE: usize = 16000;
 const FRAGMENT_HEADER_SIZE: usize = 9;
 const MAX_PAYLOAD_SIZE: usize = MAX_FRAGMENT_SIZE - FRAGMENT_HEADER_SIZE;
+const MAX_FRAGMENT_COUNT: usize = 4096;
 const MAX_PENDING_MESSAGES: usize = 64;
 const FRAGMENT_MARKER: u8 = 0xFF;
 const LEGACY_FRAGMENT_MARKER: u8 = 0x01;
@@ -55,7 +56,7 @@ fn parse_fragment_header(data: &[u8]) -> Option<(usize, usize, &[u8])> {
     }
     let total = u32::from_le_bytes([data[1], data[2], data[3], data[4]]) as usize;
     let index = u32::from_le_bytes([data[5], data[6], data[7], data[8]]) as usize;
-    if total == 0 || index >= total {
+    if total == 0 || total > MAX_FRAGMENT_COUNT || index >= total {
         return None;
     }
     Some((total, index, &data[FRAGMENT_HEADER_SIZE..]))
@@ -177,6 +178,7 @@ impl FragmentAssembler {
 mod tests {
     use super::{
         fragment_message, FragmentAssembler, FRAGMENT_MARKER, LEGACY_FRAGMENT_MARKER,
+        MAX_FRAGMENT_COUNT,
     };
 
     #[test]
@@ -238,5 +240,27 @@ mod tests {
         let payload = vec![LEGACY_FRAGMENT_MARKER, 9, 8, 7, 6];
         let mut assembler = FragmentAssembler::new();
         assert_eq!(assembler.process(&payload), Some(payload));
+    }
+
+    #[test]
+    fn process_rejects_fragment_headers_with_excessive_total() {
+        let mut framed = vec![FRAGMENT_MARKER];
+        framed.extend_from_slice(&((MAX_FRAGMENT_COUNT as u32) + 1).to_le_bytes());
+        framed.extend_from_slice(&(0u32).to_le_bytes());
+        framed.extend_from_slice(&[1u8, 2u8, 3u8]);
+
+        let mut assembler = FragmentAssembler::new();
+        assert_eq!(assembler.process(&framed), None);
+    }
+
+    #[test]
+    fn process_treats_legacy_marker_with_excessive_total_as_raw_message() {
+        let mut framed = vec![LEGACY_FRAGMENT_MARKER];
+        framed.extend_from_slice(&((MAX_FRAGMENT_COUNT as u32) + 1).to_le_bytes());
+        framed.extend_from_slice(&(0u32).to_le_bytes());
+        framed.extend_from_slice(&[1u8, 2u8, 3u8]);
+
+        let mut assembler = FragmentAssembler::new();
+        assert_eq!(assembler.process(&framed), Some(framed));
     }
 }
