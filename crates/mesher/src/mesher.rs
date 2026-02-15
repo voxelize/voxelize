@@ -1750,8 +1750,8 @@ fn should_render_face<S: VoxelAccess>(
         return !is_opaque && block.transparent_standalone;
     }
 
-    let (neighbor_has_type, neighbor_is_opaque) = registry.has_type_and_is_opaque(neighbor_id);
-
+    let (neighbor_has_type, neighbor_is_opaque, neighbor_is_empty) =
+        registry.has_type_and_opaque_and_empty(neighbor_id);
     if neighbor_is_opaque {
         return false;
     }
@@ -1761,7 +1761,7 @@ fn should_render_face<S: VoxelAccess>(
     if !is_opaque {
         return true;
     }
-    registry.is_empty_id(neighbor_id)
+    neighbor_is_empty
 }
 
 #[inline(always)]
