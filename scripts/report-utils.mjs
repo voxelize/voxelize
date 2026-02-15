@@ -383,19 +383,24 @@ const toStringArrayFromIndexedAccess = (tokens) => {
     return null;
   }
 
-  let tokenCount = 0;
+  let indexKeys = [];
   try {
-    tokenCount = tokens.length;
+    indexKeys = Object.keys(tokens);
   } catch {
     return null;
   }
 
-  if (!Number.isInteger(tokenCount) || tokenCount < 0) {
-    return null;
-  }
-
   const normalizedTokens = [];
-  for (let tokenIndex = 0; tokenIndex < tokenCount; tokenIndex += 1) {
+  const orderedIndices = indexKeys
+    .map((indexKey) => {
+      return /^\d+$/.test(indexKey) ? Number(indexKey) : Number.NaN;
+    })
+    .filter((indexValue) => {
+      return Number.isInteger(indexValue) && indexValue >= 0;
+    })
+    .sort((leftIndex, rightIndex) => leftIndex - rightIndex);
+
+  for (const tokenIndex of orderedIndices) {
     try {
       const token = tokens[tokenIndex];
       if (typeof token === "string") {

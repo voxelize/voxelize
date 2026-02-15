@@ -800,6 +800,22 @@ describe("report-utils", () => {
     ]);
     expect(malformedArgs.positionalArgs).toEqual([]);
     expect(malformedArgs.optionTerminatorUsed).toBe(false);
+
+    const largeLengthTrapArgs = new Proxy(["--json", "--mystery"], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1_000_000_000;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const largeLengthTrapResult = splitCliArgs(largeLengthTrapArgs as never);
+    expect(largeLengthTrapResult.optionArgs).toEqual(["--json", "--mystery"]);
+    expect(largeLengthTrapResult.positionalArgs).toEqual([]);
+    expect(largeLengthTrapResult.optionTerminatorUsed).toBe(false);
   });
 
   it("detects canonical options with optional aliases", () => {
@@ -1100,6 +1116,26 @@ describe("report-utils", () => {
       }
     );
     expect(unknownFromIteratorTrapArgs).toEqual(["--mystery"]);
+
+    const largeLengthTrapArgs = new Proxy(["--json", "--mystery"], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1_000_000_000;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const unknownFromLargeLengthTrapArgs = parseUnknownCliOptions(
+      largeLengthTrapArgs as never,
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+      }
+    );
+    expect(unknownFromLargeLengthTrapArgs).toEqual(["--mystery"]);
   });
 
   it("sanitizes malformed metadata inputs in unknown option parsing", () => {
