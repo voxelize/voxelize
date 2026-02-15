@@ -186,13 +186,13 @@ impl Chunks {
             &ChunkOptions {
                 max_height: self.config.max_height,
                 sub_chunks: self.config.sub_chunks,
-                size: self.chunk_size(),
+                size: chunk_size,
             },
         );
 
         Arc::make_mut(&mut chunk.voxels).data = voxels;
 
-        if height_map.len() > 0 {
+        if !height_map.is_empty() {
             Arc::make_mut(&mut chunk.height_map).data = height_map;
         } else {
             chunk.calculate_max_height(registry);
