@@ -258,16 +258,16 @@ impl EncodedMessageQueue {
     fn compute_rtc_eligibility(message: &Message) -> bool {
         let message_type = message.r#type;
         if message_type == MESSAGE_TYPE_ENTITY {
-            if message.entities.is_empty() {
+            let entities = &message.entities;
+            if entities.is_empty() {
                 return false;
             }
-            if message.entities.len() == 1 {
-                return message.entities[0].operation == ENTITY_OPERATION_UPDATE;
+            for entity in entities {
+                if entity.operation != ENTITY_OPERATION_UPDATE {
+                    return false;
+                }
             }
-            message
-                .entities
-                .iter()
-                .all(|entity| entity.operation == ENTITY_OPERATION_UPDATE)
+            true
         } else {
             message_type == MESSAGE_TYPE_PEER
         }
