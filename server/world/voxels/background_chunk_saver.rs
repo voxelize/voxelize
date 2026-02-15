@@ -73,7 +73,11 @@ impl BackgroundChunkSaver {
                     pending.insert(data.coords, data);
                 }
                 Err(TryRecvError::Empty) => {
-                    if shutdown.load(Ordering::Relaxed) && pending.is_empty() {
+                    if shutdown.load(Ordering::Relaxed) {
+                        if pending.is_empty() {
+                            break;
+                        }
+                        Self::flush_pending(&mut pending, &folder);
                         break;
                     }
                     thread::sleep(Duration::from_millis(5));
