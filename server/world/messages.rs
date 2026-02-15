@@ -137,9 +137,7 @@ impl EncodedMessageQueue {
         }
         let pending_len = self.pending.len();
         if pending_len == 1 {
-            if self.processed.capacity() == self.processed.len() {
-                self.processed.reserve(1);
-            }
+            reserve_for_append(&mut self.processed, 1);
             if let Some((message, filter)) = self.pending.pop() {
                 let msg_type = message.r#type;
                 let is_rtc_eligible = Self::compute_rtc_eligibility(&message);
