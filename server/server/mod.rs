@@ -46,7 +46,18 @@ type ServerInfoHandle = fn(&Server) -> Value;
 
 #[inline]
 fn normalized_action_name<'a>(action: &'a str) -> Cow<'a, str> {
-    if action.chars().any(|ch| ch.is_uppercase()) {
+    let mut has_non_ascii = false;
+    for &byte in action.as_bytes() {
+        if byte.is_ascii_uppercase() {
+            return Cow::Owned(action.to_lowercase());
+        }
+        if !byte.is_ascii() {
+            has_non_ascii = true;
+        }
+    }
+    if !has_non_ascii {
+        Cow::Borrowed(action)
+    } else if action.chars().any(|ch| ch.is_uppercase()) {
         Cow::Owned(action.to_lowercase())
     } else {
         Cow::Borrowed(action)

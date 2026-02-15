@@ -124,7 +124,18 @@ pub struct PeerUpdate {
 
 #[inline]
 fn normalized_lookup_name<'a>(name: &'a str) -> Cow<'a, str> {
-    if name.chars().any(|ch| ch.is_uppercase()) {
+    let mut has_non_ascii = false;
+    for &byte in name.as_bytes() {
+        if byte.is_ascii_uppercase() {
+            return Cow::Owned(name.to_lowercase());
+        }
+        if !byte.is_ascii() {
+            has_non_ascii = true;
+        }
+    }
+    if !has_non_ascii {
+        Cow::Borrowed(name)
+    } else if name.chars().any(|ch| ch.is_uppercase()) {
         Cow::Owned(name.to_lowercase())
     } else {
         Cow::Borrowed(name)
