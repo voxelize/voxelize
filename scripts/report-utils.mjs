@@ -881,6 +881,11 @@ const toStringArrayOrNull = (value) => {
   if (clonedIndexedEntries === null) {
     return null;
   }
+
+  return toStringArrayFromClonedIndexedEntries(value, clonedIndexedEntries);
+};
+
+const toStringArrayFromClonedIndexedEntries = (sourceValue, clonedIndexedEntries) => {
   const indexedEntries = clonedIndexedEntries.entries;
 
   const normalizedStringEntries = indexedEntries.filter((entry) => {
@@ -890,7 +895,7 @@ const toStringArrayOrNull = (value) => {
     return toValuesFromIndexedArrayEntries(normalizedStringEntries);
   }
 
-  const keyFallbackStringEntries = cloneStringEntriesFromIndexedKeys(value);
+  const keyFallbackStringEntries = cloneStringEntriesFromIndexedKeys(sourceValue);
   if (keyFallbackStringEntries !== null && keyFallbackStringEntries.length > 0) {
     const capMergedStringEntries = clonedIndexedEntries.fromIndexedFallback;
     return mergeIndexedEntriesByFirstSeen(
@@ -1584,16 +1589,10 @@ const normalizeCliOptionTokenListWithAvailability = (tokens) => {
     };
   }
 
-  const normalizedTokens = toStringArrayOrNull(tokens);
-  if (normalizedTokens === null) {
-    return {
-      tokens: [],
-      unavailable: true,
-    };
-  }
-
   return {
-    tokens: dedupeStringList(normalizedTokens),
+    tokens: dedupeStringList(
+      toStringArrayFromClonedIndexedEntries(tokens, clonedIndexedTokens)
+    ),
     unavailable: clonedIndexedTokens.fromIndexedFallback,
   };
 };

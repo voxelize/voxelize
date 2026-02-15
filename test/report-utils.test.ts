@@ -530,6 +530,36 @@ describe("report-utils", () => {
     expect(partiallyRecoveredRecognizedDashValueResult.outputPath).toBe(
       "/workspace/-artifact-report.json"
     );
+    let statefulRecognizedOutputTokenReadCount = 0;
+    const statefulRecognizedOutputTokens = new Proxy(["-l"], {
+      get(target, property, receiver) {
+        if (property === "0") {
+          statefulRecognizedOutputTokenReadCount += 1;
+          if (statefulRecognizedOutputTokenReadCount > 1) {
+            throw new Error("read trap");
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const statefulRecognizedOutputTokenResult = resolveOutputPath(
+      ["--output", "-l"],
+      "/workspace",
+      statefulRecognizedOutputTokens as never
+    );
+    expect(statefulRecognizedOutputTokenResult.error).toBe(
+      "Missing value for --output option."
+    );
+    expect(statefulRecognizedOutputTokenResult.outputPath).toBeNull();
+    const statefulRecognizedOutputDashValueResult = resolveOutputPath(
+      ["--output", "-artifact-report.json"],
+      "/workspace",
+      statefulRecognizedOutputTokens as never
+    );
+    expect(statefulRecognizedOutputDashValueResult.error).toBeNull();
+    expect(statefulRecognizedOutputDashValueResult.outputPath).toBe(
+      "/workspace/-artifact-report.json"
+    );
 
     const lengthAndOwnKeysTrapOutputArgs = new Proxy(
       ["--output", "./report.json"],
@@ -995,6 +1025,41 @@ describe("report-utils", () => {
     expect(
       resolvedUnknownDashValueFromPartiallyRecoveredRecognizedOptionTokens.error
     ).toBeNull();
+    let statefulRecognizedOptionTokenReadCount = 0;
+    const statefulRecognizedOptionTokens = new Proxy(["-l"], {
+      get(target, property, receiver) {
+        if (property === "0") {
+          statefulRecognizedOptionTokenReadCount += 1;
+          if (statefulRecognizedOptionTokenReadCount > 1) {
+            throw new Error("read trap");
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const resolvedFromStatefulRecognizedOptionTokens = resolveLastOptionValue(
+      ["--output", "-l"],
+      "--output",
+      statefulRecognizedOptionTokens as never
+    );
+    expect(resolvedFromStatefulRecognizedOptionTokens.hasOption).toBe(true);
+    expect(resolvedFromStatefulRecognizedOptionTokens.value).toBeNull();
+    expect(resolvedFromStatefulRecognizedOptionTokens.error).toBe(
+      "Missing value for --output option."
+    );
+    const resolvedUnknownDashValueFromStatefulRecognizedOptionTokens =
+      resolveLastOptionValue(
+        ["--output", "-artifact-report.json"],
+        "--output",
+        statefulRecognizedOptionTokens as never
+      );
+    expect(resolvedUnknownDashValueFromStatefulRecognizedOptionTokens.hasOption).toBe(
+      true
+    );
+    expect(resolvedUnknownDashValueFromStatefulRecognizedOptionTokens.value).toBe(
+      "-artifact-report.json"
+    );
+    expect(resolvedUnknownDashValueFromStatefulRecognizedOptionTokens.error).toBeNull();
   });
 
   it("splits option and positional args using option terminator", () => {
