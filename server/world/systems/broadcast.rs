@@ -25,8 +25,11 @@ fn filter_key(filter: &ClientFilter) -> BatchFilterKey {
         ClientFilter::All => BatchFilterKey::All,
         ClientFilter::Direct(id) => BatchFilterKey::Direct(id.clone()),
         ClientFilter::Include(ids) => {
-            if ids.len() <= 1 {
-                return BatchFilterKey::Include(ids.clone());
+            if ids.is_empty() {
+                return BatchFilterKey::Include(Vec::new());
+            }
+            if ids.len() == 1 {
+                return BatchFilterKey::Include(vec![ids[0].clone()]);
             }
             let mut sorted = ids.clone();
             sorted.sort();
@@ -34,8 +37,11 @@ fn filter_key(filter: &ClientFilter) -> BatchFilterKey {
             BatchFilterKey::Include(sorted)
         }
         ClientFilter::Exclude(ids) => {
-            if ids.len() <= 1 {
-                return BatchFilterKey::Exclude(ids.clone());
+            if ids.is_empty() {
+                return BatchFilterKey::Exclude(Vec::new());
+            }
+            if ids.len() == 1 {
+                return BatchFilterKey::Exclude(vec![ids[0].clone()]);
             }
             let mut sorted = ids.clone();
             sorted.sort();
