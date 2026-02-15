@@ -2385,6 +2385,33 @@ describe("report-utils", () => {
       }
     );
     expect(unknownWithUnavailableValueMetadataOverride).toEqual(["-l"]);
+    const unknownWithUnavailableStrictMetadataOverride = parseUnknownCliOptions(
+      ["--output", "-l"],
+      {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+        strictValueOptionTokenMetadata: {
+          tokens: [],
+          unavailable: true,
+        } as never,
+      }
+    );
+    expect(unknownWithUnavailableStrictMetadataOverride).toEqual(["-l"]);
+    const unknownWithUnavailableStrictMetadataOverrideForAlias =
+      parseUnknownCliOptions(["--output", "-j"], {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-j"],
+        },
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+        strictValueOptionTokenMetadata: {
+          tokens: [],
+          unavailable: true,
+        } as never,
+      });
+    expect(unknownWithUnavailableStrictMetadataOverrideForAlias).toEqual([]);
     const unknownWithMalformedStrictMetadataOverride = parseUnknownCliOptions(
       ["--output", "-l"],
       {
@@ -4076,6 +4103,65 @@ describe("report-utils", () => {
     expect(unavailableValueMetadataOverrideValidation.validationErrorCode).toBe(
       "unsupported_options"
     );
+    const unavailableStrictMetadataOverrideValidation = createCliOptionValidation(
+      ["--output", "-l"],
+      {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+        strictValueOptionTokenMetadata: {
+          tokens: [],
+          unavailable: true,
+        } as never,
+      }
+    );
+    expect(unavailableStrictMetadataOverrideValidation.supportedCliOptions).toEqual([
+      "--output",
+    ]);
+    expect(unavailableStrictMetadataOverrideValidation.supportedCliOptionCount).toBe(
+      1
+    );
+    expect(unavailableStrictMetadataOverrideValidation.unknownOptions).toEqual([
+      "-l",
+    ]);
+    expect(unavailableStrictMetadataOverrideValidation.unknownOptionCount).toBe(1);
+    expect(
+      unavailableStrictMetadataOverrideValidation.unsupportedOptionsError
+    ).toBe("Unsupported option(s): -l. Supported options: --output.");
+    expect(unavailableStrictMetadataOverrideValidation.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    const unavailableStrictMetadataOverrideAliasValidation =
+      createCliOptionValidation(["--output", "-j"], {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-j"],
+        },
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+        strictValueOptionTokenMetadata: {
+          tokens: [],
+          unavailable: true,
+        } as never,
+      });
+    expect(
+      unavailableStrictMetadataOverrideAliasValidation.supportedCliOptions
+    ).toEqual(["--output", "--json", "-j"]);
+    expect(
+      unavailableStrictMetadataOverrideAliasValidation.supportedCliOptionCount
+    ).toBe(3);
+    expect(unavailableStrictMetadataOverrideAliasValidation.unknownOptions).toEqual(
+      []
+    );
+    expect(
+      unavailableStrictMetadataOverrideAliasValidation.unknownOptionCount
+    ).toBe(0);
+    expect(
+      unavailableStrictMetadataOverrideAliasValidation.unsupportedOptionsError
+    ).toBeNull();
+    expect(
+      unavailableStrictMetadataOverrideAliasValidation.validationErrorCode
+    ).toBeNull();
     const malformedStrictMetadataOverrideValidation = createCliOptionValidation(
       ["--output", "-l"],
       {
@@ -12180,6 +12266,60 @@ describe("report-utils", () => {
     ]);
     expect(
       activeMetadataWithUnavailableValueMetadataOverride.activeCliOptionOccurrenceCount
+    ).toBe(2);
+    const activeMetadataWithUnavailableStrictMetadataOverride =
+      parseActiveCliOptionMetadata(["--output", "-j"], {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-j"],
+        },
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+        strictValueOptionTokenMetadata: {
+          tokens: [],
+          unavailable: true,
+        } as never,
+      });
+    expect(
+      activeMetadataWithUnavailableStrictMetadataOverride.activeCliOptions
+    ).toEqual(["--output", "--json"]);
+    expect(
+      activeMetadataWithUnavailableStrictMetadataOverride.activeCliOptionCount
+    ).toBe(2);
+    expect(
+      activeMetadataWithUnavailableStrictMetadataOverride.activeCliOptionTokens
+    ).toEqual(["--output", "-j"]);
+    expect(
+      activeMetadataWithUnavailableStrictMetadataOverride.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+      {
+        token: "-j",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(
+      activeMetadataWithUnavailableStrictMetadataOverride.activeCliOptionResolutionCount
+    ).toBe(2);
+    expect(
+      activeMetadataWithUnavailableStrictMetadataOverride.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+      {
+        token: "-j",
+        canonicalOption: "--json",
+        index: 1,
+      },
+    ]);
+    expect(
+      activeMetadataWithUnavailableStrictMetadataOverride.activeCliOptionOccurrenceCount
     ).toBe(2);
     const activeMetadataWithMalformedStrictMetadataOverride =
       parseActiveCliOptionMetadata(["--output", "-j"], {
