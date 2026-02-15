@@ -368,15 +368,6 @@ impl Registry {
                 return Some(&self.blocks_by_id[idx].1);
             }
             None
-        } else if let Some(dense) = &self.dense_lookup {
-            let dense_index = id as usize;
-            if dense_index < dense.len() {
-                let idx = dense[dense_index];
-                if idx != usize::MAX {
-                    return Some(&self.blocks_by_id[idx].1);
-                }
-            }
-            None
         } else if let Some(cache) = &self.lookup_cache {
             if let Some(&idx) = cache.get(&id) {
                 Some(&self.blocks_by_id[idx].1)
