@@ -2223,6 +2223,40 @@ describe("report-utils", () => {
     );
     expect(aliasCanonicalTokenValidation.unknownOptions).toEqual([]);
     expect(aliasCanonicalTokenValidation.unsupportedOptionsError).toBeNull();
+
+    const lengthAndOwnKeysTrapValidationArgs = new Proxy(
+      ["--json", "--mystery", "--output", "./report.json"],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            throw new Error("length trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const lengthAndOwnKeysTrapValidation = createCliOptionValidation(
+      lengthAndOwnKeysTrapValidationArgs as never,
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+      }
+    );
+    expect(lengthAndOwnKeysTrapValidation.supportedCliOptions).toEqual([
+      "--json",
+      "--output",
+    ]);
+    expect(lengthAndOwnKeysTrapValidation.supportedCliOptionCount).toBe(2);
+    expect(lengthAndOwnKeysTrapValidation.unknownOptions).toEqual([]);
+    expect(lengthAndOwnKeysTrapValidation.unknownOptionCount).toBe(0);
+    expect(lengthAndOwnKeysTrapValidation.unsupportedOptionsError).toBeNull();
+    expect(lengthAndOwnKeysTrapValidation.validationErrorCode).toBeNull();
   });
 
   it("derives cli validation failure messages with output priority", () => {
