@@ -379,18 +379,9 @@ impl Chunks {
 
     /// Get a list of chunks that light could traverse within.
     pub fn light_traversed_chunks(&self, coords: &Vec2<i32>) -> Vec<Vec2<i32>> {
-        let chunk_size = self.config.chunk_size.max(1);
-        let extended = ((self.config.max_light_level as usize)
-            .saturating_add(chunk_size.saturating_sub(1))
-            / chunk_size)
-            .min(i32::MAX as usize) as i32;
-        let min_x = coords.0.saturating_sub(extended).max(self.config.min_chunk[0]);
-        let max_x = coords.0.saturating_add(extended).min(self.config.max_chunk[0]);
-        let min_z = coords.1.saturating_sub(extended).max(self.config.min_chunk[1]);
-        let max_z = coords.1.saturating_add(extended).min(self.config.max_chunk[1]);
-        if min_x > max_x || min_z > max_z {
+        let Some((min_x, max_x, min_z, max_z)) = self.light_traversed_bounds(coords) else {
             return Vec::new();
-        }
+        };
 
         let width_x = (i64::from(max_x) - i64::from(min_x) + 1) as usize;
         let width_z = (i64::from(max_z) - i64::from(min_z) + 1) as usize;
@@ -404,6 +395,21 @@ impl Chunks {
     where
         F: FnMut(Vec2<i32>),
     {
+        let Some((min_x, max_x, min_z, max_z)) = self.light_traversed_bounds(coords) else {
+            return;
+        };
+        for x in min_x..=max_x {
+            for z in min_z..=max_z {
+                f(Vec2(x, z));
+            }
+        }
+    }
+
+    #[inline]
+    pub(crate) fn light_traversed_bounds(
+        &self,
+        coords: &Vec2<i32>,
+    ) -> Option<(i32, i32, i32, i32)> {
         let chunk_size = self.config.chunk_size.max(1);
         let extended = ((self.config.max_light_level as usize)
             .saturating_add(chunk_size.saturating_sub(1))
@@ -414,13 +420,9 @@ impl Chunks {
         let min_z = coords.1.saturating_sub(extended).max(self.config.min_chunk[1]);
         let max_z = coords.1.saturating_add(extended).min(self.config.max_chunk[1]);
         if min_x > max_x || min_z > max_z {
-            return;
+            return None;
         }
-        for x in min_x..=max_x {
-            for z in min_z..=max_z {
-                f(Vec2(x, z));
-            }
-        }
+        Some((min_x, max_x, min_z, max_z))
     }
 
     /// Create a voxel querying space around a chunk coordinate.

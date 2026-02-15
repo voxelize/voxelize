@@ -434,33 +434,40 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         while let Some(coords) = mesher.get() {
             let mut ready = true;
 
-            for n_coords in chunks.light_traversed_chunks(&coords) {
-                let Some(n_chunk) = chunks.raw(&n_coords) else {
-                    ready = false;
-                    break;
-                };
-                if matches!(n_chunk.status, ChunkStatus::Generating(_)) {
-                    ready = false;
-                    chunks.add_listener(&n_coords, &coords);
-                    break;
-                }
+            if let Some((min_x, max_x, min_z, max_z)) = chunks.light_traversed_bounds(&coords) {
+                'neighbors: for x in min_x..=max_x {
+                    for z in min_z..=max_z {
+                        let n_coords = Vec2(x, z);
+                        let Some(n_chunk) = chunks.raw(&n_coords) else {
+                            ready = false;
+                            break 'neighbors;
+                        };
+                        if matches!(n_chunk.status, ChunkStatus::Generating(_)) {
+                            ready = false;
+                            chunks.add_listener(&n_coords, &coords);
+                            break 'neighbors;
+                        }
 
-                if let Some(blocks) = pipeline.leftovers.get(&n_coords) {
-                    for (voxel, val) in blocks.iter() {
-                        let Vec3(vx, vy, vz) = *voxel;
-                        if chunks.set_raw_voxel(vx, vy, vz, *val) {
-                            let id = BlockUtils::extract_id(*val);
-                            update_chunk_column_height_for_voxel_update(
-                                &mut chunks,
-                                &registry,
-                                vx,
-                                vy,
-                                vz,
-                                id,
-                            );
+                        if let Some(blocks) = pipeline.leftovers.get(&n_coords) {
+                            for (voxel, val) in blocks.iter() {
+                                let Vec3(vx, vy, vz) = *voxel;
+                                if chunks.set_raw_voxel(vx, vy, vz, *val) {
+                                    let id = BlockUtils::extract_id(*val);
+                                    update_chunk_column_height_for_voxel_update(
+                                        &mut chunks,
+                                        &registry,
+                                        vx,
+                                        vy,
+                                        vz,
+                                        id,
+                                    );
+                                }
+                            }
                         }
                     }
                 }
+            } else {
+                ready = false;
             }
 
             if !ready {
