@@ -1298,6 +1298,33 @@ describe("report-utils", () => {
     expect(cappedSupplementedFallbackResult.positionalArgs).toEqual([]);
     expect(cappedSupplementedFallbackResult.optionTerminatorUsed).toBe(false);
 
+    const uncappedSupplementedArgsTarget: string[] = [];
+    for (let index = 0; index < 900; index += 1) {
+      uncappedSupplementedArgsTarget[5_000 + index] = `--high${index}`;
+    }
+    Object.defineProperty(uncappedSupplementedArgsTarget, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      value: function* () {
+        for (let index = 0; index < 450; index += 1) {
+          yield index;
+        }
+        for (let index = 0; index < 450; index += 1) {
+          yield uncappedSupplementedArgsTarget[5_000 + index];
+        }
+      },
+    });
+    const uncappedSupplementedArgsResult = splitCliArgs(
+      uncappedSupplementedArgsTarget as never
+    );
+    expect(uncappedSupplementedArgsResult.optionArgs).toHaveLength(1_350);
+    expect(uncappedSupplementedArgsResult.optionArgs[0]).toBe("--high0");
+    expect(uncappedSupplementedArgsResult.optionArgs.includes("--high449")).toBe(
+      true
+    );
+    expect(uncappedSupplementedArgsResult.positionalArgs).toEqual([]);
+    expect(uncappedSupplementedArgsResult.optionTerminatorUsed).toBe(false);
+
     const sparseHighIndexWithUndefinedPrefixArgs: Array<string | undefined> = [];
     sparseHighIndexWithUndefinedPrefixArgs[0] = undefined;
     sparseHighIndexWithUndefinedPrefixArgs[5_000] = "--json";

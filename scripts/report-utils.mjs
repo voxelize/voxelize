@@ -193,8 +193,13 @@ export const countRecordEntries = (value) => {
 };
 
 export const summarizeStepResults = (steps) => {
-  const stepEntries = cloneIndexedArraySafely(steps) ?? [];
-  const stepRecordEntries = toObjectRecordEntriesOrEmpty(steps, stepEntries);
+  const clonedStepEntries = cloneIndexedArraySafelyWithMetadata(steps);
+  const stepEntries = clonedStepEntries?.entries ?? [];
+  const stepRecordEntries = toObjectRecordEntriesOrEmpty(
+    steps,
+    stepEntries,
+    clonedStepEntries?.fromIndexedFallback === true
+  );
   const passedSteps = [];
   const failedSteps = [];
   const skippedSteps = [];
@@ -242,8 +247,13 @@ export const summarizeStepResults = (steps) => {
 };
 
 export const summarizeCheckResults = (checks) => {
-  const checkEntries = cloneIndexedArraySafely(checks) ?? [];
-  const checkRecordEntries = toObjectRecordEntriesOrEmpty(checks, checkEntries);
+  const clonedCheckEntries = cloneIndexedArraySafelyWithMetadata(checks);
+  const checkEntries = clonedCheckEntries?.entries ?? [];
+  const checkRecordEntries = toObjectRecordEntriesOrEmpty(
+    checks,
+    checkEntries,
+    clonedCheckEntries?.fromIndexedFallback === true
+  );
   const passedChecks = [];
   const failedChecks = [];
 
@@ -706,17 +716,23 @@ const cloneIndexedArrayFromIndexedAccess = (value) => {
   return lengthFallbackClone;
 };
 
-const cloneIndexedArraySafely = (value) => {
+const cloneIndexedArraySafelyWithMetadata = (value) => {
   if (!Array.isArray(value)) {
     return null;
   }
 
   try {
-    return Array.from(value).map((entryValue, entryIndex) => {
-      return toIndexedArrayEntry(entryIndex, entryValue);
-    });
+    return {
+      entries: Array.from(value).map((entryValue, entryIndex) => {
+        return toIndexedArrayEntry(entryIndex, entryValue);
+      }),
+      fromIndexedFallback: false,
+    };
   } catch {
-    return cloneIndexedArrayFromIndexedAccess(value);
+    return {
+      entries: cloneIndexedArrayFromIndexedAccess(value),
+      fromIndexedFallback: true,
+    };
   }
 };
 
@@ -808,11 +824,12 @@ export const deriveFailureMessageFromReport = (report) => {
   }
 
   const stepsValue = safeReadProperty(report, "steps");
-  const stepEntries = cloneIndexedArraySafely(stepsValue);
-  if (stepEntries !== null) {
+  const clonedStepEntries = cloneIndexedArraySafelyWithMetadata(stepsValue);
+  if (clonedStepEntries !== null) {
     const stepRecordEntries = toObjectRecordEntriesOrEmpty(
       stepsValue,
-      stepEntries
+      clonedStepEntries.entries,
+      clonedStepEntries.fromIndexedFallback
     );
     for (const step of stepRecordEntries) {
       const passedValue = safeReadProperty(step, "passed");
@@ -851,10 +868,11 @@ export const deriveFailureMessageFromReport = (report) => {
 };
 
 const toStringArrayOrNull = (value) => {
-  const indexedEntries = cloneIndexedArraySafely(value);
-  if (indexedEntries === null) {
+  const clonedIndexedEntries = cloneIndexedArraySafelyWithMetadata(value);
+  if (clonedIndexedEntries === null) {
     return null;
   }
+  const indexedEntries = clonedIndexedEntries.entries;
 
   const normalizedStringEntries = indexedEntries.filter((entry) => {
     return typeof entry.value === "string";
@@ -865,9 +883,7 @@ const toStringArrayOrNull = (value) => {
 
   const keyFallbackStringEntries = cloneStringEntriesFromIndexedKeys(value);
   if (keyFallbackStringEntries !== null && keyFallbackStringEntries.length > 0) {
-    const capMergedStringEntries =
-      indexedEntries.length <= MAX_ARRAY_LENGTH_FALLBACK_SCAN &&
-      keyFallbackStringEntries.length <= MAX_ARRAY_LENGTH_FALLBACK_SCAN;
+    const capMergedStringEntries = clonedIndexedEntries.fromIndexedFallback;
     return mergeIndexedEntriesByFirstSeen(
       normalizedStringEntries,
       keyFallbackStringEntries,
@@ -878,7 +894,11 @@ const toStringArrayOrNull = (value) => {
   return toValuesFromIndexedArrayEntries(normalizedStringEntries);
 };
 
-const toObjectRecordEntriesOrEmpty = (sourceValue, indexedEntries) => {
+const toObjectRecordEntriesOrEmpty = (
+  sourceValue,
+  indexedEntries,
+  capMergedRecordEntries = false
+) => {
   const normalizedRecordEntries = indexedEntries.filter((entry) => {
     return isObjectRecord(entry.value);
   });
@@ -888,9 +908,6 @@ const toObjectRecordEntriesOrEmpty = (sourceValue, indexedEntries) => {
 
   const keyFallbackRecordEntries = cloneObjectEntriesFromIndexedKeys(sourceValue);
   if (keyFallbackRecordEntries !== null && keyFallbackRecordEntries.length > 0) {
-    const capMergedRecordEntries =
-      indexedEntries.length <= MAX_ARRAY_LENGTH_FALLBACK_SCAN &&
-      keyFallbackRecordEntries.length <= MAX_ARRAY_LENGTH_FALLBACK_SCAN;
     return mergeIndexedEntriesByFirstSeen(
       normalizedRecordEntries,
       keyFallbackRecordEntries,
@@ -1363,8 +1380,13 @@ export const deriveWasmPackCheckStatus = ({
 };
 
 export const summarizeStepFailureResults = (steps) => {
-  const stepEntries = cloneIndexedArraySafely(steps) ?? [];
-  const stepRecordEntries = toObjectRecordEntriesOrEmpty(steps, stepEntries);
+  const clonedStepEntries = cloneIndexedArraySafelyWithMetadata(steps);
+  const stepEntries = clonedStepEntries?.entries ?? [];
+  const stepRecordEntries = toObjectRecordEntriesOrEmpty(
+    steps,
+    stepEntries,
+    clonedStepEntries?.fromIndexedFallback === true
+  );
   const failureSummaries = [];
 
   for (const step of stepRecordEntries) {
@@ -1425,8 +1447,13 @@ export const summarizeStepFailureResults = (steps) => {
 };
 
 export const summarizeCheckFailureResults = (checks) => {
-  const checkEntries = cloneIndexedArraySafely(checks) ?? [];
-  const checkRecordEntries = toObjectRecordEntriesOrEmpty(checks, checkEntries);
+  const clonedCheckEntries = cloneIndexedArraySafelyWithMetadata(checks);
+  const checkEntries = clonedCheckEntries?.entries ?? [];
+  const checkRecordEntries = toObjectRecordEntriesOrEmpty(
+    checks,
+    checkEntries,
+    clonedCheckEntries?.fromIndexedFallback === true
+  );
   const failureSummaries = [];
 
   for (const check of checkRecordEntries) {
