@@ -147,6 +147,16 @@ impl<'a> System<'a> for ChunkSendingSystem {
         };
 
         if chunks.to_send.is_empty() {
+            if clients.is_empty() {
+                self.client_load_mesh_buffer.clear();
+                self.client_load_data_buffer.clear();
+                self.client_update_mesh_buffer.clear();
+                self.client_update_data_buffer.clear();
+                self.client_load_mesh_touched.clear();
+                self.client_load_data_touched.clear();
+                self.client_update_mesh_touched.clear();
+                self.client_update_data_touched.clear();
+            }
             return;
         }
 

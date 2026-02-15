@@ -5183,9 +5183,10 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
 
     const oldMeshes = chunk.meshes.get(level);
     if (oldMeshes) {
+      const csmRenderer = this.csmRenderer;
       for (let i = 0; i < oldMeshes.length; i++) {
         const mesh = oldMeshes[i];
-        this.csmRenderer?.removeSkipShadowObject(mesh);
+        csmRenderer?.removeSkipShadowObject(mesh);
         mesh.geometry.dispose();
         chunk.group.remove(mesh);
       }
