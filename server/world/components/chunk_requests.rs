@@ -50,6 +50,9 @@ impl ChunkRequestsComp {
     }
 
     pub fn sort(&mut self) {
+        if self.requests.len() <= 1 {
+            return;
+        }
         self.requests
             .sort_by_cached_key(|coords| manhattan_distance(coords, &self.center));
     }
