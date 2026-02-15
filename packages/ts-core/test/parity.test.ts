@@ -1331,6 +1331,22 @@ describe("Type builders", () => {
     expect(part.aabbs).toEqual([AABB.create(0, 0, 0, 1, 1, 1)]);
   });
 
+  it("accepts readonly AABB init literals during conditional part cloning", () => {
+    const readonlyAabb = {
+      minX: 0,
+      minY: 0,
+      minZ: 0,
+      maxX: 1,
+      maxY: 1,
+      maxZ: 1,
+    } as const;
+    const part = createBlockConditionalPart({
+      aabbs: [readonlyAabb],
+    });
+
+    expect(part.aabbs).toEqual([AABB.create(0, 0, 0, 1, 1, 1)]);
+  });
+
   it("skips malformed AABB init values during conditional part cloning", () => {
     const part = createBlockConditionalPart({
       aabbs: [
