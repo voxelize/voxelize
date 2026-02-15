@@ -658,14 +658,6 @@ impl Physics {
         let mut tmp_resting = Vec3::default();
         Physics::process_collisions(space, registry, &mut body.aabb, &leftover, &mut tmp_resting);
 
-        // bail if no movement happened in the originally blocked direction
-        // if x_blocked && !approx_equals(old_aabb.min_x, target_pos[0]) {
-        //     return;
-        // }
-        // if z_blocked && !approx_equals(old_aabb.min_z, target_pos[2]) {
-        //     return;
-        // }
-
         // if the new position is below the old position, then the new position is invalid
         // since we're trying to step upwards
         if old_aabb.min_y > body.aabb.min_y {
