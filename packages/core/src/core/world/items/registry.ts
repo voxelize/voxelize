@@ -83,6 +83,14 @@ const normalizeLookupName = (name: string): string => {
   return requiresLowercase ? name.toLowerCase() : name;
 };
 
+const replaceSpacesWithDashes = (value: string): string => {
+  const chars = new Array<string>(value.length);
+  for (let index = 0; index < value.length; index++) {
+    chars[index] = value.charCodeAt(index) === 32 ? "-" : value[index];
+  }
+  return chars.join("");
+};
+
 const normalizeRendererName = (name: string): string => {
   const [requiresLowercase, hasWhitespace] = analyzeNormalization(name);
   if (!requiresLowercase && !hasWhitespace) {
@@ -90,7 +98,7 @@ const normalizeRendererName = (name: string): string => {
   }
 
   const normalizedCase = requiresLowercase ? name.toLowerCase() : name;
-  return hasWhitespace ? normalizedCase.replaceAll(" ", "-") : normalizedCase;
+  return hasWhitespace ? replaceSpacesWithDashes(normalizedCase) : normalizedCase;
 };
 
 export class ItemRegistry {
