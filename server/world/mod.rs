@@ -1737,6 +1737,14 @@ impl World {
                 .get(&method.name)
                 .cloned()
                 .or_else(|| {
+                    if !method
+                        .name
+                        .as_bytes()
+                        .iter()
+                        .any(|byte| byte.is_ascii_uppercase())
+                    {
+                        return None;
+                    }
                     let method_name = method.name.to_lowercase();
                     self.method_handles.get(&method_name).cloned()
                 });
@@ -1767,6 +1775,14 @@ impl World {
                 .get(&event.name)
                 .cloned()
                 .or_else(|| {
+                    if !event
+                        .name
+                        .as_bytes()
+                        .iter()
+                        .any(|byte| byte.is_ascii_uppercase())
+                    {
+                        return None;
+                    }
                     let event_name = event.name.to_lowercase();
                     self.event_handles.get(&event_name).cloned()
                 });
