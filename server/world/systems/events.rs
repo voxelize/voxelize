@@ -72,6 +72,8 @@ impl<'a> System<'a> for EventsSystem {
         if client_count == 0 && !has_transports {
             events.queue.clear();
             dispatch_map.clear();
+            self.touched_clients_buffer.clear();
+            self.transports_map_buffer.clear();
             return;
         }
         if client_count == 0 {
