@@ -1,4 +1,4 @@
-use std::f64;
+use std::{borrow::Cow, f64};
 
 use hashbrown::HashMap;
 use nalgebra::{Rotation3, Vector3};
@@ -35,6 +35,26 @@ pub struct Trees {
 }
 
 impl Trees {
+    #[inline]
+    fn normalized_tree_name<'a>(name: &'a str) -> Cow<'a, str> {
+        let mut has_non_ascii = false;
+        for &byte in name.as_bytes() {
+            if byte.is_ascii_uppercase() {
+                return Cow::Owned(name.to_lowercase());
+            }
+            if !byte.is_ascii() {
+                has_non_ascii = true;
+            }
+        }
+        if !has_non_ascii {
+            Cow::Borrowed(name)
+        } else if name.chars().any(|ch| ch.is_uppercase()) {
+            Cow::Owned(name.to_lowercase())
+        } else {
+            Cow::Borrowed(name)
+        }
+    }
+
     pub fn new(seed: u32, options: &NoiseOptions) -> Trees {
         Trees {
             threshold: 0.5,
@@ -48,7 +68,8 @@ impl Trees {
     }
 
     pub fn register(&mut self, name: &str, tree: Tree) {
-        self.trees.insert(name.to_lowercase(), tree);
+        self.trees
+            .insert(Self::normalized_tree_name(name).into_owned(), tree);
     }
 
     pub fn should_plant(&self, pos: &Vec3<i32>) -> bool {
@@ -57,7 +78,8 @@ impl Trees {
     }
 
     pub fn generate(&self, name: &str, at: &Vec3<i32>) -> Vec<VoxelUpdate> {
-        let tree = self.trees.get(&name.to_lowercase()).unwrap();
+        let normalized_name = Self::normalized_tree_name(name);
+        let tree = self.trees.get(normalized_name.as_ref()).unwrap();
         // Panic if the tree doesn't exist
         let &Tree {
             leaf_radius,
