@@ -2,7 +2,7 @@ use std::ops::Deref;
 
 use hashbrown::HashMap;
 use log::info;
-use rapier3d::prelude::CollisionEvent;
+use rapier3d::prelude::{ColliderHandle, CollisionEvent};
 use specs::{Entities, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
@@ -21,7 +21,9 @@ use crate::{
 };
 
 #[derive(Default)]
-pub struct PhysicsSystem;
+pub struct PhysicsSystem {
+    collision_map_buffer: HashMap<ColliderHandle, specs::Entity>,
+}
 
 impl<'a> System<'a> for PhysicsSystem {
     type SystemData = (
@@ -72,7 +74,11 @@ impl<'a> System<'a> for PhysicsSystem {
             return;
         }
 
-        let mut collision_map = HashMap::with_capacity(physics.entity_to_handlers.len());
+        let collision_map = &mut self.collision_map_buffer;
+        collision_map.clear();
+        if collision_map.capacity() < physics.entity_to_handlers.len() {
+            collision_map.reserve(physics.entity_to_handlers.len() - collision_map.capacity());
+        }
 
         // Tick the voxel physics of all entities (non-clients).
         // Skip entities in chunks with no interested players.

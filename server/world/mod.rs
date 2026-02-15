@@ -456,7 +456,7 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
         )
         .with(ChunkSavingSystem, "chunk-saving", &["chunk-generation"])
         .with(
-            PhysicsSystem,
+            PhysicsSystem::default(),
             "physics",
             &["current-chunk", "update-stats", "chunk-updating"],
         )
