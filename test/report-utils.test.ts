@@ -4582,6 +4582,56 @@ describe("report-utils", () => {
       optionCatalogOverrideWithStalePrecomputedValidation.validationErrorCode
     ).toBe("unsupported_options");
     expect(optionCatalogOverrideWithStalePrecomputedCanonicalReadCount).toBe(0);
+    let optionCatalogOverrideWithKnownSubsetCanonicalReadCount = 0;
+    const optionCatalogOverrideWithKnownSubsetCanonicalOptions = new Proxy(
+      ["--json"],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (property === "0") {
+            optionCatalogOverrideWithKnownSubsetCanonicalReadCount += 1;
+            return "--json";
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const optionCatalogOverrideWithKnownSubsetValidation =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions:
+          optionCatalogOverrideWithKnownSubsetCanonicalOptions as never,
+        supportedCliOptions: ["--json"],
+        optionCatalog: {
+          availableCliOptionCanonicalMap: {
+            "--json": "--json",
+            "--output": "--output",
+          },
+        } as never,
+      });
+    expect(optionCatalogOverrideWithKnownSubsetValidation.supportedCliOptions).toEqual(
+      ["--json"]
+    );
+    expect(
+      optionCatalogOverrideWithKnownSubsetValidation.supportedCliOptionCount
+    ).toBe(1);
+    expect(optionCatalogOverrideWithKnownSubsetValidation.unknownOptions).toEqual([
+      "--mystery",
+    ]);
+    expect(optionCatalogOverrideWithKnownSubsetValidation.unknownOptionCount).toBe(
+      1
+    );
+    expect(
+      optionCatalogOverrideWithKnownSubsetValidation.unsupportedOptionsError
+    ).toBe("Unsupported option(s): --mystery. Supported options: --json.");
+    expect(optionCatalogOverrideWithKnownSubsetValidation.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    expect(optionCatalogOverrideWithKnownSubsetCanonicalReadCount).toBe(0);
     let staleSupportedOptionCatalogOverrideCanonicalReadCount = 0;
     const staleSupportedOptionCatalogOverrideCanonicalOptions = new Proxy(
       ["--json"],
