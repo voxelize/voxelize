@@ -1940,9 +1940,13 @@ export const parseUnknownCliOptions = (
     optionsWithStrictValues = [],
     valueOptionTokenMetadata = null,
     strictValueOptionTokenMetadata = null,
+    optionArgs: normalizedOptionArgs = null,
   } = {}
 ) => {
-  const { optionArgs } = splitCliArgs(args);
+  const optionArgs =
+    normalizedOptionArgs === null
+      ? splitCliArgs(args).optionArgs
+      : toStringArrayOrEmpty(normalizedOptionArgs);
   const canonicalOptionMap = createCanonicalOptionMap(
     canonicalOptions,
     optionAliases
@@ -2029,6 +2033,7 @@ export const createCliOptionValidation = (
     optionsWithStrictValues = [],
     valueOptionTokenMetadata = null,
     strictValueOptionTokenMetadata = null,
+    optionArgs = null,
     outputPathError = null,
     supportedCliOptions: precomputedSupportedCliOptions = null,
   } = {}
@@ -2051,6 +2056,7 @@ export const createCliOptionValidation = (
     optionsWithStrictValues,
     valueOptionTokenMetadata,
     strictValueOptionTokenMetadata,
+    optionArgs,
   });
   const unknownOptionCount = unknownOptions.length;
   const supportedOptionList =
@@ -2100,9 +2106,13 @@ export const parseActiveCliOptionMetadata = (
     optionsWithStrictValues = [],
     valueOptionTokenMetadata = null,
     strictValueOptionTokenMetadata = null,
+    optionArgs: normalizedOptionArgs = null,
   } = {}
 ) => {
-  const { optionArgs } = splitCliArgs(args);
+  const optionArgs =
+    normalizedOptionArgs === null
+      ? splitCliArgs(args).optionArgs
+      : toStringArrayOrEmpty(normalizedOptionArgs);
   const normalizedCanonicalOptions = normalizeCliOptionTokenList(canonicalOptions);
   const normalizedOptionAliases = normalizeCliOptionAliases(optionAliases);
   const canonicalOptionMap = createCanonicalOptionMap(
@@ -2219,6 +2229,7 @@ export const createCliDiagnostics = (
     outputPathError = null,
   } = {}
 ) => {
+  const { optionArgs } = splitCliArgs(args);
   const optionCatalog = createCliOptionCatalog({
     canonicalOptions,
     optionAliases,
@@ -2238,6 +2249,7 @@ export const createCliDiagnostics = (
     optionsWithStrictValues,
     valueOptionTokenMetadata,
     strictValueOptionTokenMetadata,
+    optionArgs,
     outputPathError,
     supportedCliOptions: optionCatalog.supportedCliOptions,
   });
@@ -2248,6 +2260,7 @@ export const createCliDiagnostics = (
     optionsWithStrictValues,
     valueOptionTokenMetadata,
     strictValueOptionTokenMetadata,
+    optionArgs,
   });
 
   return {

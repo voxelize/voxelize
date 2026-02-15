@@ -6609,6 +6609,57 @@ describe("report-utils", () => {
       },
     ]);
     expect(statefulAliasDiagnostics.activeCliOptionOccurrenceCount).toBe(1);
+    let statefulArgsReadCount = 0;
+    const statefulArgsDiagnostics = createCliDiagnostics(
+      new Proxy(["--json"], {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (property === "0") {
+            statefulArgsReadCount += 1;
+            if (statefulArgsReadCount > 1) {
+              return undefined;
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }) as never,
+      {
+        canonicalOptions: ["--json"],
+      }
+    );
+    expect(statefulArgsDiagnostics.supportedCliOptions).toEqual(["--json"]);
+    expect(statefulArgsDiagnostics.supportedCliOptionCount).toBe(1);
+    expect(statefulArgsDiagnostics.availableCliOptionAliases).toEqual({});
+    expect(statefulArgsDiagnostics.availableCliOptionCanonicalMap).toEqual({
+      "--json": "--json",
+    });
+    expect(statefulArgsDiagnostics.unknownOptions).toEqual([]);
+    expect(statefulArgsDiagnostics.unknownOptionCount).toBe(0);
+    expect(statefulArgsDiagnostics.unsupportedOptionsError).toBeNull();
+    expect(statefulArgsDiagnostics.validationErrorCode).toBeNull();
+    expect(statefulArgsDiagnostics.activeCliOptions).toEqual(["--json"]);
+    expect(statefulArgsDiagnostics.activeCliOptionCount).toBe(1);
+    expect(statefulArgsDiagnostics.activeCliOptionTokens).toEqual(["--json"]);
+    expect(statefulArgsDiagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(statefulArgsDiagnostics.activeCliOptionResolutionCount).toBe(1);
+    expect(statefulArgsDiagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+    ]);
+    expect(statefulArgsDiagnostics.activeCliOptionOccurrenceCount).toBe(1);
     let statefulValueOptionReadCount = 0;
     const statefulValueOptionDiagnostics = createCliDiagnostics(
       ["--output", "-l"],
