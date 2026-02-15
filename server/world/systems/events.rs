@@ -13,6 +13,7 @@ pub struct EventsSystem {
     touched_clients_buffer: Vec<String>,
     transports_map_buffer: Vec<EventProtocol>,
 }
+const SMALL_FILTER_LINEAR_SCAN_LIMIT: usize = 8;
 
 #[inline]
 fn push_dispatch_event(
@@ -155,7 +156,7 @@ impl<'a> System<'a> for EventsSystem {
                             send_to_id(ids[0].as_str());
                             continue;
                         }
-                        if ids.len() <= 4 {
+                        if ids.len() <= SMALL_FILTER_LINEAR_SCAN_LIMIT {
                             for include_index in 0..ids.len() {
                                 let include_id = ids[include_index].as_str();
                                 let mut duplicate = false;
@@ -206,7 +207,7 @@ impl<'a> System<'a> for EventsSystem {
                             }
                             continue;
                         }
-                        if ids.len() <= 4 {
+                        if ids.len() <= SMALL_FILTER_LINEAR_SCAN_LIMIT {
                             for (id, client) in clients.iter() {
                                 let id = id.as_str();
                                 let mut excluded = false;
