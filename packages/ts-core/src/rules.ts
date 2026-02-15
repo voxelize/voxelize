@@ -237,6 +237,47 @@ const toRuleEntriesFromLengthFallback = (value: RuleOptionValue): BlockRule[] =>
   return recoveredRules;
 };
 
+const toRuleEntriesFromKeyFallback = (value: RuleOptionValue): BlockRule[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  let indexKeys: string[] = [];
+  try {
+    indexKeys = Object.keys(value);
+  } catch {
+    return [];
+  }
+
+  const ruleIndices = indexKeys
+    .filter((indexKey) => {
+      return /^(0|[1-9]\d*)$/.test(indexKey);
+    })
+    .map((indexKey) => {
+      return Number(indexKey);
+    })
+    .filter((index) => {
+      return Number.isSafeInteger(index);
+    })
+    .sort((left, right) => left - right)
+    .slice(0, MAX_RULE_ENTRY_FALLBACK_SCAN);
+  const recoveredRules: BlockRule[] = [];
+
+  for (const ruleIndex of ruleIndices) {
+    let entryValue: RuleOptionValue = undefined;
+    try {
+      entryValue = value[ruleIndex] as RuleOptionValue;
+    } catch {
+      recoveredRules.push(BLOCK_RULE_NONE);
+      continue;
+    }
+
+    recoveredRules.push(toRuleEntryOrNone(entryValue));
+  }
+
+  return recoveredRules;
+};
+
 const toRuleEntriesOrEmpty = (
   rule: Extract<BlockRule, { type: "combination" }>
 ): BlockRule[] => {
@@ -256,7 +297,12 @@ const toRuleEntriesOrEmpty = (
       return toRuleEntryOrNone(entry as RuleOptionValue);
     });
   } catch {
-    return toRuleEntriesFromLengthFallback(rawRules);
+    const lengthFallbackRules = toRuleEntriesFromLengthFallback(rawRules);
+    if (lengthFallbackRules.length > 0) {
+      return lengthFallbackRules;
+    }
+
+    return toRuleEntriesFromKeyFallback(rawRules);
   }
 };
 

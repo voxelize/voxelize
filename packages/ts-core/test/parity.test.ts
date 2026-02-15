@@ -3497,6 +3497,9 @@ describe("BlockRuleEvaluator", () => {
       getVoxelStage: () => 0,
     };
     const malformedRules = new Proxy([BLOCK_RULE_NONE], {
+      ownKeys() {
+        throw new Error("ownKeys trap");
+      },
       get(target, property, receiver) {
         if (property === Symbol.iterator) {
           throw new Error("iterator trap");
@@ -3536,6 +3539,47 @@ describe("BlockRuleEvaluator", () => {
           type: "combination",
           logic: BlockRuleLogic.Not,
           rules: malformedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(true);
+  });
+
+  it("salvages key-based combination entries when length access traps", () => {
+    const access = {
+      getVoxel: (x: number, y: number, z: number) =>
+        x === 0 && y === 0 && z === 0 ? 34 : 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+    const lengthTrapRules = new Proxy(
+      [
+        {
+          type: "simple" as const,
+          offset: [0, 0, 0] as [number, number, number],
+          id: 34,
+        },
+      ],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            throw new Error("length trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.Or,
+          rules: lengthTrapRules as never,
         },
         [0, 0, 0],
         access
