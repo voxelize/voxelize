@@ -4530,6 +4530,58 @@ describe("report-utils", () => {
     expect(optionCatalogOverrideValidation.unsupportedOptionsError).toBeNull();
     expect(optionCatalogOverrideValidation.validationErrorCode).toBeNull();
     expect(optionCatalogOverrideCanonicalReadCount).toBe(0);
+    let optionCatalogOverrideWithStalePrecomputedCanonicalReadCount = 0;
+    const optionCatalogOverrideWithStalePrecomputedCanonicalOptions = new Proxy(
+      ["--json"],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (property === "0") {
+            optionCatalogOverrideWithStalePrecomputedCanonicalReadCount += 1;
+            return "--json";
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const optionCatalogOverrideWithStalePrecomputedValidation =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions:
+          optionCatalogOverrideWithStalePrecomputedCanonicalOptions as never,
+        supportedCliOptions: ["--json", "--mystery"],
+        optionCatalog: {
+          availableCliOptionCanonicalMap: {
+            "--json": "--json",
+            "--output": "--output",
+          },
+        } as never,
+      });
+    expect(optionCatalogOverrideWithStalePrecomputedValidation.supportedCliOptions).toEqual(
+      ["--json", "--output"]
+    );
+    expect(
+      optionCatalogOverrideWithStalePrecomputedValidation.supportedCliOptionCount
+    ).toBe(2);
+    expect(optionCatalogOverrideWithStalePrecomputedValidation.unknownOptions).toEqual(
+      ["--mystery"]
+    );
+    expect(
+      optionCatalogOverrideWithStalePrecomputedValidation.unknownOptionCount
+    ).toBe(1);
+    expect(
+      optionCatalogOverrideWithStalePrecomputedValidation.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
+    expect(
+      optionCatalogOverrideWithStalePrecomputedValidation.validationErrorCode
+    ).toBe("unsupported_options");
+    expect(optionCatalogOverrideWithStalePrecomputedCanonicalReadCount).toBe(0);
     let staleSupportedOptionCatalogOverrideCanonicalReadCount = 0;
     const staleSupportedOptionCatalogOverrideCanonicalOptions = new Proxy(
       ["--json"],
