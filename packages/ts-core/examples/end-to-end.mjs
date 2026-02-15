@@ -1,8 +1,8 @@
 import {
-  AABB,
   BlockRotation,
   BlockRuleEvaluator,
   BlockRuleLogic,
+  createAABB,
   createBlockFace,
   createBlockRule,
   createBlockConditionalPart,
@@ -89,7 +89,14 @@ const main = () => {
   assert(unpackedLight.blue === 3, "Unexpected blue light");
 
   const rotatedAabb = voxelRotation.rotateAABB(
-    AABB.create(0, 0, 0, 1, 0.5, 1),
+    createAABB({
+      minX: 0,
+      minY: 0,
+      minZ: 0,
+      maxX: 1,
+      maxY: 0.5,
+      maxZ: 1,
+    }),
     true,
     true
   );
