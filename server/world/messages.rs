@@ -415,4 +415,49 @@ mod tests {
         assert_eq!(payload_markers, vec![2, 3, 4]);
         assert!(queue.processed.is_empty());
     }
+
+    #[test]
+    fn receive_merges_exactly_two_async_batches_when_processed_empty() {
+        let mut queue = EncodedMessageQueue::new();
+        queue
+            .sender
+            .send(vec![(encoded_marker(8), ClientFilter::Direct("batch-a".to_string()))])
+            .unwrap();
+        queue
+            .sender
+            .send(vec![(encoded_marker(9), ClientFilter::Direct("batch-b".to_string()))])
+            .unwrap();
+
+        let received = queue.receive();
+        let payload_markers: Vec<u8> = received
+            .iter()
+            .map(|(encoded, _)| encoded.data[0])
+            .collect();
+
+        assert_eq!(payload_markers, vec![8, 9]);
+    }
+
+    #[test]
+    fn receive_merges_exactly_two_async_batches_when_processed_non_empty() {
+        let mut queue = EncodedMessageQueue::new();
+        queue
+            .processed
+            .push((encoded_marker(7), ClientFilter::Direct("processed".to_string())));
+        queue
+            .sender
+            .send(vec![(encoded_marker(8), ClientFilter::Direct("batch-a".to_string()))])
+            .unwrap();
+        queue
+            .sender
+            .send(vec![(encoded_marker(9), ClientFilter::Direct("batch-b".to_string()))])
+            .unwrap();
+
+        let received = queue.receive();
+        let payload_markers: Vec<u8> = received
+            .iter()
+            .map(|(encoded, _)| encoded.data[0])
+            .collect();
+
+        assert_eq!(payload_markers, vec![7, 8, 9]);
+    }
 }
