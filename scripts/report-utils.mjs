@@ -1948,18 +1948,6 @@ const createValueOptionMetadataFromNormalizedTokenMetadata = (
   };
 };
 
-const createValueOptionMetadata = (
-  optionsWithValues,
-  optionsWithStrictValues,
-  canonicalOptionMap
-) => {
-  return createValueOptionMetadataFromNormalizedTokenMetadata(
-    normalizeCliOptionTokenListWithAvailability(optionsWithValues),
-    normalizeCliOptionTokenListWithAvailability(optionsWithStrictValues),
-    canonicalOptionMap
-  );
-};
-
 const normalizeUnknownOptionToken = (optionToken, canonicalOptionMap) => {
   const optionName = parseInlineOptionName(optionToken);
   if (optionName === null) {
