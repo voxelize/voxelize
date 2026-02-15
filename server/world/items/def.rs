@@ -42,7 +42,8 @@ impl ItemDef {
     }
 
     pub fn to_client_json(&self) -> Value {
-        let mut components_map: HashMap<String, Value> = HashMap::new();
+        let mut components_map: HashMap<String, Value> =
+            HashMap::with_capacity(self.components.len());
 
         for component in self.components.values() {
             let name = component.component_name();
