@@ -29,7 +29,7 @@ impl<'a> System<'a> for PathFindingSystem {
         let (chunks, registry, _config, timing, bodies, targets, mut paths) = data;
         let _t = timing.timer("path-finding");
 
-        let voxel_cache = Arc::new(Mutex::new(HashMap::new()));
+        let voxel_cache = Arc::new(Mutex::new(HashMap::with_capacity(256)));
 
         let get_is_voxel_passable = |vx: i32, vy: i32, vz: i32| {
             let key = (vx, vy, vz);
