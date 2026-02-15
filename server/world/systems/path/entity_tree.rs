@@ -75,11 +75,11 @@ impl<'a> System<'a> for EntityTreeSystem {
         )
             .join()
         {
-            current_ids.insert(ent.id());
-
             if client_flag.is_some() {
+                current_ids.insert(ent.id());
                 sync_player_position(&mut tree, ent, &pos.0);
             } else if entity_flag.is_some() {
+                current_ids.insert(ent.id());
                 sync_entity_position(&mut tree, ent, &pos.0);
             }
         }
