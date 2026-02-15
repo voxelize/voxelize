@@ -658,6 +658,8 @@ empty-name entries before count/list aggregation.
 before fallback coercion.
 Report output-line metadata trims whitespace-only strings to `null`
 before summary emission.
+Timed report builders clamp regressed clock durations to zero before
+emission.
 Sparse trap fallbacks can supplement bounded-prefix entries with bounded
 key-scan recovery when high-index readable entries exist.
 Bounded fallback scans use own-property checks so inherited numeric
