@@ -41,6 +41,12 @@ impl ChunkRequestsComp {
             self.requests.push(*coords);
             return;
         }
+        if self.requests.len() == 1 {
+            if self.requests[0] != *coords {
+                self.requests.push(*coords);
+            }
+            return;
+        }
         if self.requests.last().is_some_and(|last| last == coords)
             || self.requests.first().is_some_and(|first| first == coords)
         {
