@@ -335,6 +335,25 @@ impl<'a> System<'a> for BroadcastSystem {
                 }
                 continue;
             }
+            if !use_rtc && matches!(&filter, ClientFilter::All) {
+                let should_send_transport =
+                    has_transports && should_send_to_transport(encoded.msg_type);
+                let mut clients_iter = clients.values();
+                if let Some(first_client) = clients_iter.next() {
+                    for client in clients_iter {
+                        let _ = client.sender.send(encoded.data.clone());
+                    }
+                    if should_send_transport {
+                        let _ = first_client.sender.send(encoded.data.clone());
+                        send_to_transports(&transports, encoded.data);
+                    } else {
+                        let _ = first_client.sender.send(encoded.data);
+                    }
+                } else if should_send_transport {
+                    send_to_transports(&transports, encoded.data);
+                }
+                continue;
+            }
             let mut rtc_fragments_cache: Option<Vec<Vec<u8>>> = None;
             let mut send_to_client = |id: &str, client: &Client| {
                 if use_rtc {
