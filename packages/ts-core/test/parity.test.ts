@@ -4050,6 +4050,63 @@ describe("BlockRuleEvaluator", () => {
     expect(indexedReadCount).toBe(1024);
   });
 
+  it("recovers key-based rules when bounded direct-read probes throw", () => {
+    const sparseRules: BlockRule[] = [];
+    sparseRules[5_000] = {
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 45,
+    };
+    const trappedRules = new Proxy(sparseRules, {
+      getOwnPropertyDescriptor(target, property) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (typeof propertyKey === "string" && /^(0|[1-9]\d*)$/.test(propertyKey)) {
+          const numericIndex = Number(propertyKey);
+          if (numericIndex >= 0 && numericIndex < 1_024) {
+            throw new Error("descriptor trap");
+          }
+        }
+        return Reflect.getOwnPropertyDescriptor(target, property);
+      },
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1_000_000_000;
+        }
+        if (typeof propertyKey === "string" && /^(0|[1-9]\d*)$/.test(propertyKey)) {
+          if (propertyKey === "5000") {
+            return target[5_000];
+          }
+          throw new Error("read trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const access = {
+      getVoxel: (x: number, y: number, z: number) =>
+        x === 0 && y === 0 && z === 0 ? 45 : 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.Or,
+          rules: trappedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(true);
+  });
+
   it("supplements none-only bounded prefixes with key-fallback recovery", () => {
     const noisyRules: Array<BlockRule | number> = [];
     noisyRules[0] = 1;

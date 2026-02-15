@@ -249,7 +249,6 @@ const toRuleEntriesFromLengthFallback = (value: RuleOptionValue): BlockRule[] =>
         continue;
       }
     } catch {
-      recoveredRules.push(BLOCK_RULE_NONE);
       continue;
     }
 
