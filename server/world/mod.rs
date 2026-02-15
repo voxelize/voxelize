@@ -1893,42 +1893,50 @@ impl World {
                     }
                 };
 
-                if let Ok(entity_data) = File::open(&path) {
-                    let Some(id_stem) = path.file_stem().and_then(|stem| stem.to_str()) else {
-                        warn!("Skipping entity file with non-UTF8 stem: {:?}", path);
-                        continue;
-                    };
-                    let id = id_stem.to_owned();
-                    let PersistedEntityRecord { etype, metadata } =
-                        match serde_json::from_reader(entity_data) {
-                            Ok(data) => data,
-                            Err(e) => {
-                                info!(
-                                    "Could not load entity file: {:?}. Error: {}, removing...",
-                                    path, e
-                                );
-                                if let Err(remove_error) = fs::remove_file(&path) {
-                                    warn!(
-                                        "Failed to remove unreadable persisted entity file {:?}: {:?}",
-                                        path, remove_error
-                                    );
-                                }
-                                continue;
-                            }
-                        };
-
-                    if let Some(ent) = self.revive_entity(&id, &etype, metadata.to_owned()) {
-                        loaded_entities.insert(id, (etype, ent, metadata, true));
-                    } else {
-                        // Use error! instead of info! for better visibility
-                        error!(
-                            "Failed to revive entity {:?} of type {}. Metadata: {:?}. File will be removed.",
-                            id, etype, metadata
+                let entity_data = match File::open(&path) {
+                    Ok(entity_data) => entity_data,
+                    Err(error) => {
+                        warn!(
+                            "Failed to open persisted entity file {:?}: {:?}",
+                            path, error
                         );
-                        // remove the file
-                        if let Err(e) = fs::remove_file(path) {
-                            warn!("Failed to remove file {:?}", e);
+                        continue;
+                    }
+                };
+                let Some(id_stem) = path.file_stem().and_then(|stem| stem.to_str()) else {
+                    warn!("Skipping entity file with non-UTF8 stem: {:?}", path);
+                    continue;
+                };
+                let id = id_stem.to_owned();
+                let PersistedEntityRecord { etype, metadata } =
+                    match serde_json::from_reader(entity_data) {
+                        Ok(data) => data,
+                        Err(e) => {
+                            info!(
+                                "Could not load entity file: {:?}. Error: {}, removing...",
+                                path, e
+                            );
+                            if let Err(remove_error) = fs::remove_file(&path) {
+                                warn!(
+                                    "Failed to remove unreadable persisted entity file {:?}: {:?}",
+                                    path, remove_error
+                                );
+                            }
+                            continue;
                         }
+                    };
+
+                if let Some(ent) = self.revive_entity(&id, &etype, metadata.to_owned()) {
+                    loaded_entities.insert(id, (etype, ent, metadata, true));
+                } else {
+                    // Use error! instead of info! for better visibility
+                    error!(
+                        "Failed to revive entity {:?} of type {}. Metadata: {:?}. File will be removed.",
+                        id, etype, metadata
+                    );
+                    // remove the file
+                    if let Err(e) = fs::remove_file(path) {
+                        warn!("Failed to remove file {:?}", e);
                     }
                 }
             }
