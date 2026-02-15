@@ -1559,6 +1559,47 @@ describe("Type builders", () => {
     expect(part.aabbs).toEqual([AABB.create(0, 0, 0, 1, 1, 1)]);
   });
 
+  it("recovers key-based face entries when bounded direct reads throw", () => {
+    const sparseFaces: BlockFaceInit[] = [];
+    sparseFaces[5_000] = { name: "SparseFace" };
+    const trappedFaces = new Proxy(sparseFaces, {
+      getOwnPropertyDescriptor(target, property) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (typeof propertyKey === "string" && /^(0|[1-9]\d*)$/.test(propertyKey)) {
+          const numericIndex = Number(propertyKey);
+          if (numericIndex >= 0 && numericIndex < 1_024) {
+            throw new Error("descriptor trap");
+          }
+        }
+        return Reflect.getOwnPropertyDescriptor(target, property);
+      },
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1_000_000_000;
+        }
+        if (typeof propertyKey === "string" && /^(0|[1-9]\d*)$/.test(propertyKey)) {
+          if (propertyKey === "5000") {
+            return target[5_000];
+          }
+          throw new Error("read trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    const part = createBlockConditionalPart({
+      faces: trappedFaces as never,
+    });
+
+    expect(part.faces).toEqual([new BlockFace({ name: "SparseFace" })]);
+  });
+
   it("caps bounded face-entry fallback scans when iterator access traps", () => {
     let boundedReadCount = 0;
     const oversizedFaces = new Proxy([] as Array<BlockFaceInit | undefined>, {
