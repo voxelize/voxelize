@@ -228,6 +228,10 @@ const isNonNegativeIntegerValue = (value: DynamicValue): value is number => {
   return isFiniteNumberValue(value) && Number.isInteger(value) && value >= 0;
 };
 
+const isRotationValue = (value: DynamicValue): value is number => {
+  return isNonNegativeIntegerValue(value) && value <= 0xff;
+};
+
 const isBooleanValue = (value: DynamicValue): value is boolean => {
   return typeof value === "boolean";
 };
@@ -363,7 +367,7 @@ const toOptionalRuleRotation = (
     yRotation?: DynamicValue;
   };
   if (
-    !isFiniteNumberValue(maybeRotation.value) ||
+    !isRotationValue(maybeRotation.value) ||
     !isFiniteNumberValue(maybeRotation.yRotation)
   ) {
     return undefined;

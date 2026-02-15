@@ -69,6 +69,8 @@ Extra transparency entries beyond six face slots are ignored.
 Nullable combination sub-rules are normalized to deterministic `none` entries.
 Optional simple-rule `id`/`stage` values are kept only when they match voxel
 ranges (`id`: 0..65535, `stage`: 0..15).
+Plain rotation-like values are kept only when `value` is an encoded
+non-negative byte (`0..255`) and `yRotation` is finite.
 `createBlockRule` also accepts readonly rule-tree arrays/tuples for literal
 authoring ergonomics.
 Non-plain rule nodes/rotation-like objects are normalized away during

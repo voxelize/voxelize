@@ -1898,6 +1898,52 @@ describe("Type builders", () => {
     });
   });
 
+  it("sanitizes malformed rotation-like values in rule sanitization", () => {
+    const part = createBlockConditionalPart({
+      rule: {
+        type: "simple",
+        offset: [0, 0, 0],
+        rotation: {
+          value: -1,
+          yRotation: Math.PI / 2,
+        },
+      },
+    });
+    const overflowingPart = createBlockConditionalPart({
+      rule: {
+        type: "simple",
+        offset: [0, 0, 0],
+        rotation: {
+          value: 256,
+          yRotation: Math.PI / 2,
+        },
+      },
+    });
+    const fractionalPart = createBlockConditionalPart({
+      rule: {
+        type: "simple",
+        offset: [0, 0, 0],
+        rotation: {
+          value: 1.5,
+          yRotation: Math.PI / 2,
+        },
+      },
+    });
+
+    expect(part.rule).toEqual({
+      type: "simple",
+      offset: [0, 0, 0],
+    });
+    expect(overflowingPart.rule).toEqual({
+      type: "simple",
+      offset: [0, 0, 0],
+    });
+    expect(fractionalPart.rule).toEqual({
+      type: "simple",
+      offset: [0, 0, 0],
+    });
+  });
+
   it("accepts null-prototype rotation-like objects in rule sanitization", () => {
     const nullPrototypeRotation = Object.create(null) as {
       value: number;

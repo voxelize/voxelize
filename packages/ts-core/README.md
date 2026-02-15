@@ -101,6 +101,8 @@ const voxel = Voxel.pack({
   - normalizes nullable combination sub-rules to deterministic `none` entries
   - keeps optional `id`/`stage` only when values match voxel ranges
     (`id`: 0..65535, `stage`: 0..15)
+  - keeps plain rotation-like values only when `value` is an encoded
+    non-negative byte (`0..255`) and `yRotation` is finite
   - normalizes `null` optional simple-rule fields (`id`/`rotation`/`stage`) to
     omitted constraints
 - `createBlockDynamicPattern`
