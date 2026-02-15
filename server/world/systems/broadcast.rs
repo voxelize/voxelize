@@ -14,13 +14,36 @@ pub struct BroadcastSystem;
 fn filter_key(filter: &ClientFilter) -> String {
     match filter {
         ClientFilter::All => "all".to_string(),
-        ClientFilter::Direct(id) => format!("direct:{}", id),
+        ClientFilter::Direct(id) => {
+            let mut key = String::with_capacity("direct:".len() + id.len());
+            key.push_str("direct:");
+            key.push_str(id);
+            key
+        }
         ClientFilter::Include(ids) => {
+            if ids.is_empty() {
+                return "include:".to_owned();
+            }
+            if ids.len() == 1 {
+                let mut key = String::with_capacity("include:".len() + ids[0].len());
+                key.push_str("include:");
+                key.push_str(&ids[0]);
+                return key;
+            }
             let mut sorted = ids.clone();
             sorted.sort();
             format!("include:{}", sorted.join(","))
         }
         ClientFilter::Exclude(ids) => {
+            if ids.is_empty() {
+                return "exclude:".to_owned();
+            }
+            if ids.len() == 1 {
+                let mut key = String::with_capacity("exclude:".len() + ids[0].len());
+                key.push_str("exclude:");
+                key.push_str(&ids[0]);
+                return key;
+            }
             let mut sorted = ids.clone();
             sorted.sort();
             format!("exclude:{}", sorted.join(","))
