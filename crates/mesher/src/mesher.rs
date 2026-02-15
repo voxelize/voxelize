@@ -296,7 +296,13 @@ pub struct Registry {
     lookup_cache: Option<HashMap<u32, usize>>,
     #[serde(skip)]
     dense_lookup: Option<Vec<usize>>,
+    #[serde(skip)]
+    dense_block_flags: Option<Vec<u8>>,
 }
+
+const DENSE_FLAG_PRESENT: u8 = 1;
+const DENSE_FLAG_OPAQUE: u8 = 1 << 1;
+const DENSE_FLAG_EMPTY: u8 = 1 << 2;
 
 impl Registry {
     pub fn new(blocks_by_id: Vec<(u32, Block)>) -> Self {
@@ -304,6 +310,7 @@ impl Registry {
             blocks_by_id,
             lookup_cache: None,
             dense_lookup: None,
+            dense_block_flags: None,
         };
         registry.rebuild_lookup_indices();
         registry
@@ -330,12 +337,23 @@ impl Registry {
         let dense_limit = self.blocks_by_id.len().saturating_mul(16);
         if (max_id as usize) <= dense_limit {
             let mut dense = vec![usize::MAX; max_id as usize + 1];
-            for (idx, (id, _)) in self.blocks_by_id.iter().enumerate() {
+            let mut dense_flags = vec![0u8; max_id as usize + 1];
+            for (idx, (id, block)) in self.blocks_by_id.iter().enumerate() {
                 dense[*id as usize] = idx;
+                let mut flags = DENSE_FLAG_PRESENT;
+                if block.is_opaque {
+                    flags |= DENSE_FLAG_OPAQUE;
+                }
+                if block.is_empty {
+                    flags |= DENSE_FLAG_EMPTY;
+                }
+                dense_flags[*id as usize] = flags;
             }
             self.dense_lookup = Some(dense);
+            self.dense_block_flags = Some(dense_flags);
         } else {
             self.dense_lookup = None;
+            self.dense_block_flags = None;
         }
     }
 
@@ -366,10 +384,10 @@ impl Registry {
 
     #[inline(always)]
     pub fn has_type(&self, id: u32) -> bool {
-        if let Some(dense) = &self.dense_lookup {
+        if let Some(dense_flags) = &self.dense_block_flags {
             let dense_index = id as usize;
-            if dense_index < dense.len() {
-                dense[dense_index] != usize::MAX
+            if dense_index < dense_flags.len() {
+                (dense_flags[dense_index] & DENSE_FLAG_PRESENT) != 0
             } else {
                 false
             }
@@ -384,11 +402,10 @@ impl Registry {
 
     #[inline(always)]
     pub fn is_opaque_id(&self, id: u32) -> bool {
-        if let Some(dense) = &self.dense_lookup {
+        if let Some(dense_flags) = &self.dense_block_flags {
             let dense_index = id as usize;
-            if dense_index < dense.len() {
-                let idx = dense[dense_index];
-                return idx != usize::MAX && self.blocks_by_id[idx].1.is_opaque;
+            if dense_index < dense_flags.len() {
+                return (dense_flags[dense_index] & DENSE_FLAG_OPAQUE) != 0;
             }
             false
         } else if let Some(cache) = &self.lookup_cache {
@@ -408,11 +425,10 @@ impl Registry {
 
     #[inline(always)]
     pub fn is_empty_id(&self, id: u32) -> bool {
-        if let Some(dense) = &self.dense_lookup {
+        if let Some(dense_flags) = &self.dense_block_flags {
             let dense_index = id as usize;
-            if dense_index < dense.len() {
-                let idx = dense[dense_index];
-                return idx != usize::MAX && self.blocks_by_id[idx].1.is_empty;
+            if dense_index < dense_flags.len() {
+                return (dense_flags[dense_index] & DENSE_FLAG_EMPTY) != 0;
             }
             false
         } else if let Some(cache) = &self.lookup_cache {
@@ -432,12 +448,12 @@ impl Registry {
 
     #[inline(always)]
     pub fn has_type_and_is_opaque(&self, id: u32) -> (bool, bool) {
-        if let Some(dense) = &self.dense_lookup {
+        if let Some(dense_flags) = &self.dense_block_flags {
             let dense_index = id as usize;
-            if dense_index < dense.len() {
-                let idx = dense[dense_index];
-                if idx != usize::MAX {
-                    return (true, self.blocks_by_id[idx].1.is_opaque);
+            if dense_index < dense_flags.len() {
+                let flags = dense_flags[dense_index];
+                if (flags & DENSE_FLAG_PRESENT) != 0 {
+                    return (true, (flags & DENSE_FLAG_OPAQUE) != 0);
                 }
             }
             (false, false)
@@ -460,13 +476,16 @@ impl Registry {
 
     #[inline(always)]
     pub fn has_type_and_opaque_and_empty(&self, id: u32) -> (bool, bool, bool) {
-        if let Some(dense) = &self.dense_lookup {
+        if let Some(dense_flags) = &self.dense_block_flags {
             let dense_index = id as usize;
-            if dense_index < dense.len() {
-                let idx = dense[dense_index];
-                if idx != usize::MAX {
-                    let block = &self.blocks_by_id[idx].1;
-                    return (true, block.is_opaque, block.is_empty);
+            if dense_index < dense_flags.len() {
+                let flags = dense_flags[dense_index];
+                if (flags & DENSE_FLAG_PRESENT) != 0 {
+                    return (
+                        true,
+                        (flags & DENSE_FLAG_OPAQUE) != 0,
+                        (flags & DENSE_FLAG_EMPTY) != 0,
+                    );
                 }
             }
             (false, false, false)
@@ -680,15 +699,13 @@ fn populate_neighbors_for_face_processing<S: VoxelAccess>(
 #[inline(always)]
 fn build_neighbor_opaque_mask(neighbors: &NeighborCache, registry: &Registry) -> [bool; 27] {
     let mut mask = [false; 27];
-    if let Some(dense) = &registry.dense_lookup {
-        let blocks = &registry.blocks_by_id;
-        let dense_len = dense.len();
+    if let Some(dense_flags) = &registry.dense_block_flags {
+        let dense_len = dense_flags.len();
         let mut idx = 0usize;
         while idx < 27 {
             let voxel_id = (neighbors.data[idx][0] & 0xFFFF) as usize;
             if voxel_id < dense_len {
-                let dense_index = dense[voxel_id];
-                mask[idx] = dense_index != usize::MAX && blocks[dense_index].1.is_opaque;
+                mask[idx] = (dense_flags[voxel_id] & DENSE_FLAG_OPAQUE) != 0;
             }
             idx += 1;
         }
@@ -1753,15 +1770,13 @@ fn is_surrounded_by_opaque_neighbors<S: VoxelAccess>(
     let id_pz = extract_id(space.get_raw_voxel(vx, vy, vz + 1));
     let id_nz = extract_id(space.get_raw_voxel(vx, vy, vz - 1));
 
-    if let Some(dense) = &registry.dense_lookup {
-        let blocks = &registry.blocks_by_id;
-        let dense_len = dense.len();
+    if let Some(dense_flags) = &registry.dense_block_flags {
+        let dense_len = dense_flags.len();
         macro_rules! dense_opaque {
             ($id:expr) => {{
                 let lookup_index = $id as usize;
                 if lookup_index < dense_len {
-                    let dense_index = dense[lookup_index];
-                    dense_index != usize::MAX && blocks[dense_index].1.is_opaque
+                    (dense_flags[lookup_index] & DENSE_FLAG_OPAQUE) != 0
                 } else {
                     false
                 }
