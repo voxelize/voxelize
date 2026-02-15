@@ -85,9 +85,11 @@ impl<'a> System<'a> for EventsSystem {
             touched_clients.reserve(client_count - touched_clients.capacity());
         }
         let transports_map = &mut self.transports_map_buffer;
-        transports_map.clear();
-        if has_transports && transports_map.capacity() < queued_events_count {
-            transports_map.reserve(queued_events_count - transports_map.capacity());
+        if has_transports {
+            transports_map.clear();
+            if transports_map.capacity() < queued_events_count {
+                transports_map.reserve(queued_events_count - transports_map.capacity());
+            }
         }
 
         let is_interested = |coords: &Vec2<i32>, entity: Entity| {
