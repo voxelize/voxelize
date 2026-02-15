@@ -302,6 +302,44 @@ const safeReadProperty = (value, key) => {
   }
 };
 
+const cloneArrayFromIndexedAccess = (value) => {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  let indexKeys = [];
+  try {
+    indexKeys = Object.keys(value);
+  } catch {
+    return null;
+  }
+
+  const orderedIndices = indexKeys
+    .map((indexKey) => {
+      if (!/^(0|[1-9]\d*)$/.test(indexKey)) {
+        return Number.NaN;
+      }
+
+      const numericIndex = Number(indexKey);
+      return Number.isSafeInteger(numericIndex) ? numericIndex : Number.NaN;
+    })
+    .filter((indexValue) => {
+      return Number.isInteger(indexValue) && indexValue >= 0;
+    })
+    .sort((leftIndex, rightIndex) => leftIndex - rightIndex);
+
+  const clonedArray = [];
+  for (const arrayIndex of orderedIndices) {
+    try {
+      clonedArray.push(value[arrayIndex]);
+    } catch {
+      continue;
+    }
+  }
+
+  return clonedArray;
+};
+
 const cloneArraySafely = (value) => {
   if (!Array.isArray(value)) {
     return null;
@@ -310,7 +348,7 @@ const cloneArraySafely = (value) => {
   try {
     return Array.from(value);
   } catch {
-    return null;
+    return cloneArrayFromIndexedAccess(value);
   }
 };
 
@@ -379,39 +417,14 @@ export const deriveFailureMessageFromReport = (report) => {
 };
 
 const toStringArrayFromIndexedAccess = (tokens) => {
-  if (!Array.isArray(tokens)) {
+  const indexedValues = cloneArrayFromIndexedAccess(tokens);
+  if (indexedValues === null) {
     return null;
   }
 
-  let indexKeys = [];
-  try {
-    indexKeys = Object.keys(tokens);
-  } catch {
-    return null;
-  }
-
-  const normalizedTokens = [];
-  const orderedIndices = indexKeys
-    .map((indexKey) => {
-      return /^\d+$/.test(indexKey) ? Number(indexKey) : Number.NaN;
-    })
-    .filter((indexValue) => {
-      return Number.isInteger(indexValue) && indexValue >= 0;
-    })
-    .sort((leftIndex, rightIndex) => leftIndex - rightIndex);
-
-  for (const tokenIndex of orderedIndices) {
-    try {
-      const token = tokens[tokenIndex];
-      if (typeof token === "string") {
-        normalizedTokens.push(token);
-      }
-    } catch {
-      continue;
-    }
-  }
-
-  return normalizedTokens;
+  return indexedValues.filter((token) => {
+    return typeof token === "string";
+  });
 };
 
 const toStringArrayOrNull = (value) => {

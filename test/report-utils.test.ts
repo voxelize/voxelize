@@ -3482,12 +3482,12 @@ describe("report-utils", () => {
       skippedSteps: [],
     });
     expect(summarizeStepResults(iteratorTrapSteps as never)).toEqual({
-      totalSteps: 0,
-      passedStepCount: 0,
+      totalSteps: 1,
+      passedStepCount: 1,
       failedStepCount: 0,
       skippedStepCount: 0,
       firstFailedStep: null,
-      passedSteps: [],
+      passedSteps: ["step-a"],
       failedSteps: [],
       skippedSteps: [],
     });
@@ -3934,7 +3934,19 @@ describe("report-utils", () => {
         throw new Error("iterator trap");
       },
     });
-    expect(summarizeStepFailureResults(iteratorTrapSteps as never)).toEqual([]);
+    expect(summarizeStepFailureResults(iteratorTrapSteps as never)).toEqual([
+      {
+        name: "step-valid",
+        scriptName: "check-valid.mjs",
+        supportsNoBuild: true,
+        stepIndex: 1,
+        checkCommand: "",
+        checkArgs: [],
+        checkArgCount: 0,
+        exitCode: 2,
+        message: "Step failed with exit code 2.",
+      },
+    ]);
 
     const checkWithTrapPassed = Object.create(null) as {
       readonly name: string;
@@ -4016,7 +4028,19 @@ describe("report-utils", () => {
         throw new Error("iterator trap");
       },
     });
-    expect(summarizeCheckFailureResults(iteratorTrapChecks as never)).toEqual([]);
+    expect(summarizeCheckFailureResults(iteratorTrapChecks as never)).toEqual([
+      {
+        name: "check-valid",
+        scriptName: "check-valid.mjs",
+        supportsNoBuild: true,
+        checkIndex: 1,
+        checkCommand: "",
+        checkArgs: [],
+        checkArgCount: 0,
+        exitCode: 2,
+        message: "Preflight check failed with exit code 2.",
+      },
+    ]);
   });
 
   it("summarizes check outcomes for aggregate preflight reports", () => {
@@ -4077,11 +4101,11 @@ describe("report-utils", () => {
       failedChecks: ["devEnvironment"],
     });
     expect(summarizeCheckResults(iteratorTrapChecks as never)).toEqual({
-      totalChecks: 0,
-      passedCheckCount: 0,
+      totalChecks: 1,
+      passedCheckCount: 1,
       failedCheckCount: 0,
       firstFailedCheck: null,
-      passedChecks: [],
+      passedChecks: ["devEnvironment"],
       failedChecks: [],
     });
   });
@@ -4315,7 +4339,7 @@ describe("report-utils", () => {
         throw new Error("iterator trap");
       },
     });
-    expect(normalizeTsCorePayloadIssues(iteratorTrapIssues)).toBeNull();
+    expect(normalizeTsCorePayloadIssues(iteratorTrapIssues)).toEqual(["voxel.id"]);
   });
 
   it("extracts ts-core example summary fields from reports", () => {
