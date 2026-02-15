@@ -4883,6 +4883,18 @@ describe("report-utils", () => {
     });
     expect(
       extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckStatus: " missing ",
+      })
+    ).toEqual({
+      wasmPackCheckStatus: "missing",
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: null,
+      wasmPackCheckArgCount: null,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
+    expect(
+      extractWasmPackCheckSummaryFromReport({
         wasmPackCheckStatus: "mystery",
       })
     ).toEqual({
@@ -5185,6 +5197,25 @@ describe("report-utils", () => {
       exampleArgCount: null,
       exampleAttempted: false,
       exampleStatus: "skipped",
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: null,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleAttempted: false,
+        exampleStatus: " ok ",
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: null,
+      exampleArgCount: null,
+      exampleAttempted: false,
+      exampleStatus: "ok",
       exampleRuleMatched: null,
       examplePayloadValid: null,
       examplePayloadIssues: null,
@@ -5880,6 +5911,18 @@ describe("report-utils", () => {
     ).toBe("ok");
     expect(
       extractWasmPackStatusFromReport({
+        wasmPackCheckStatus: " ok ",
+      })
+    ).toBe("ok");
+    expect(
+      extractWasmPackStatusFromReport({
+        checkStatusMap: {
+          "wasm-pack": " missing ",
+        },
+      })
+    ).toBe("missing");
+    expect(
+      extractWasmPackStatusFromReport({
         wasmPackCheckStatus: "mystery",
       })
     ).toBeNull();
@@ -5922,6 +5965,14 @@ describe("report-utils", () => {
           checkStatusMap: {
             "wasm-pack": "missing",
           },
+        },
+      })
+    ).toBe("missing");
+    expect(
+      deriveWasmPackCheckStatus({
+        wasmPackCheckExitCode: 0,
+        wasmPackCheckReport: {
+          wasmPackCheckStatus: " missing ",
         },
       })
     ).toBe("missing");

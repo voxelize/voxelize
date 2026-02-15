@@ -468,6 +468,15 @@ const toFiniteNumberOrNull = (value) => {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 };
 
+const toTrimmedStringOrNull = (value) => {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalizedValue = value.trim();
+  return normalizedValue.length > 0 ? normalizedValue : null;
+};
+
 const KNOWN_WASM_PACK_STATUSES = new Set([
   "ok",
   "missing",
@@ -476,16 +485,19 @@ const KNOWN_WASM_PACK_STATUSES = new Set([
 ]);
 
 const toKnownWasmPackStatus = (value) => {
-  return typeof value === "string" && KNOWN_WASM_PACK_STATUSES.has(value)
-    ? value
+  const normalizedValue = toTrimmedStringOrNull(value);
+  return normalizedValue !== null && KNOWN_WASM_PACK_STATUSES.has(normalizedValue)
+    ? normalizedValue
     : null;
 };
 
 const KNOWN_TS_CORE_EXAMPLE_STATUSES = new Set(["ok", "failed", "skipped"]);
 
 const toKnownTsCoreExampleStatus = (value) => {
-  return typeof value === "string" && KNOWN_TS_CORE_EXAMPLE_STATUSES.has(value)
-    ? value
+  const normalizedValue = toTrimmedStringOrNull(value);
+  return normalizedValue !== null &&
+    KNOWN_TS_CORE_EXAMPLE_STATUSES.has(normalizedValue)
+    ? normalizedValue
     : null;
 };
 
