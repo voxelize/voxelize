@@ -103,8 +103,7 @@ impl<'a> System<'a> for EventsSystem {
             return;
         }
         let client_count = clients.len();
-        let transport_count = transports.len();
-        let has_transports = transport_count > 0;
+        let has_transports = !transports.is_empty();
         let queued_events_count = events.queue.len();
         let dispatch_map = &mut self.dispatch_map_buffer;
         if client_count == 0 && !has_transports {
