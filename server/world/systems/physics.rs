@@ -154,7 +154,8 @@ impl<'a> System<'a> for PhysicsSystem {
         }
 
         // Collision detection, push bodies away from one another.
-        let mut collision_data = Vec::with_capacity(collision_map.len());
+        let collision_repulsion = config.collision_repulsion;
+        let client_collision_repulsion = config.client_collision_repulsion;
         for (curr_chunk, body, interactor, entity, position) in (
             &curr_chunks,
             &mut bodies,
@@ -183,15 +184,13 @@ impl<'a> System<'a> for PhysicsSystem {
 
             let len_sq = dx * dx + dy * dy + dz * dz;
 
-            if len_sq > 1.0e-8 {
-                let inv_len = len_sq.sqrt().recip();
-                collision_data.push((body, dx * inv_len, dy * inv_len, dz * inv_len, entity));
+            if len_sq <= 1.0e-8 {
+                continue;
             }
-        }
-        for (body, dx, dy, dz, entity) in collision_data {
-            let mut dx = dx;
-            let dy = dy;
-            let mut dz = dz;
+            let inv_len = len_sq.sqrt().recip();
+            let mut dx = dx * inv_len;
+            let dy = dy * inv_len;
+            let mut dz = dz * inv_len;
 
             // If only dy movements, add a little bias to eliminate stack overflow.
             if dx.abs() < 0.001 && dz.abs() < 0.001 {
@@ -201,13 +200,13 @@ impl<'a> System<'a> for PhysicsSystem {
 
             // Check if the entity is a client, and if so, apply the impulse to the client's body.
             if client_flag.get(entity).is_some() {
-                if config.client_collision_repulsion > f32::EPSILON {
+                if client_collision_repulsion > f32::EPSILON {
                     if let Some(id) = ids.get(entity) {
                         let event = EventBuilder::new("vox-builtin:impulse")
                             .payload([
-                                dx * config.client_collision_repulsion,
-                                dy * config.client_collision_repulsion,
-                                dz * config.client_collision_repulsion,
+                                dx * client_collision_repulsion,
+                                dy * client_collision_repulsion,
+                                dz * client_collision_repulsion,
                             ])
                             .filter(ClientFilter::Direct(id.0.to_owned()))
                             .build();
@@ -220,9 +219,9 @@ impl<'a> System<'a> for PhysicsSystem {
 
             // Apply the impulse to the body.
             body.0.apply_impulse(
-                (dx * config.collision_repulsion).min(3.0),
-                (dy * config.collision_repulsion).min(3.0),
-                (dz * config.collision_repulsion).min(3.0),
+                (dx * collision_repulsion).min(3.0),
+                (dy * collision_repulsion).min(3.0),
+                (dz * collision_repulsion).min(3.0),
             );
         }
     }
