@@ -560,6 +560,40 @@ impl<'a> System<'a> for BroadcastSystem {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::{ids_are_strictly_sorted, ids_contains_target, sorted_ids_contains};
+
+    fn ids(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| value.to_string()).collect()
+    }
+
+    #[test]
+    fn ids_are_strictly_sorted_rejects_duplicates_and_descending() {
+        assert!(ids_are_strictly_sorted(&ids(&["a", "b", "c"])));
+        assert!(!ids_are_strictly_sorted(&ids(&["a", "a", "b"])));
+        assert!(!ids_are_strictly_sorted(&ids(&["c", "b", "a"])));
+    }
+
+    #[test]
+    fn ids_contains_target_supports_small_sorted_and_unsorted_inputs() {
+        assert!(!ids_contains_target(&ids(&[]), "a"));
+        assert!(ids_contains_target(&ids(&["a"]), "a"));
+        assert!(ids_contains_target(&ids(&["a", "b"]), "b"));
+        assert!(!ids_contains_target(&ids(&["a", "b"]), "z"));
+        assert!(ids_contains_target(&ids(&["a", "c", "d"]), "c"));
+        assert!(ids_contains_target(&ids(&["d", "a", "c"]), "c"));
+    }
+
+    #[test]
+    fn sorted_ids_contains_uses_binary_search_semantics() {
+        let sorted = ids(&["aa", "bb", "cc", "dd"]);
+        assert!(sorted_ids_contains(&sorted, "aa"));
+        assert!(sorted_ids_contains(&sorted, "dd"));
+        assert!(!sorted_ids_contains(&sorted, "ab"));
+    }
+}
+
 // use log::info;
 // use specs::{ReadExpect, System, WriteExpect};
 
