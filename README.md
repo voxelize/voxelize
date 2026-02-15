@@ -404,6 +404,7 @@ pnpm run check:preflight:all-checks:verify:json:compact
 # report output-line metadata strips ansi/control escapes, normalizes to the first non-empty trimmed line, and sanitizes blank values to null before summary emission
 # timed report builders clamp regressed clock durations to zero before emission
 # failure-summary output-message fallbacks normalize ansi/control-heavy multiline output to the first non-empty sanitized line
+# wasm status derivation now treats malformed/non-integer exit-code metadata as skipped before ok/unavailable fallbacks
 # sparse trap fallbacks can supplement bounded-prefix entries with bounded key-scan recovery when high-index readable entries exist
 # bounded fallback scans use own-property checks so inherited numeric prototype entries are ignored
 # when own-property descriptor probes trap, bounded fallback switches to guarded direct reads without repeated probe failures
