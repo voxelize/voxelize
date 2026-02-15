@@ -84,8 +84,9 @@ impl Trees {
         let mut y_angle = 0.0;
         let mut rot_angle = 0.0;
 
-        let mut updates = HashMap::new();
-        let mut leaves_updates = HashMap::new();
+        let estimated_symbols = tree.system_result.len();
+        let mut updates = HashMap::with_capacity(estimated_symbols);
+        let mut leaves_updates = HashMap::with_capacity(estimated_symbols.saturating_div(2) + 1);
 
         let mut push_updates = |new_updates: Vec<VoxelUpdate>| {
             new_updates.into_iter().for_each(|(pos, id)| {
@@ -93,7 +94,7 @@ impl Trees {
             });
         };
 
-        let mut stack = vec![];
+        let mut stack = Vec::with_capacity(estimated_symbols.min(64));
 
         for symbol in tree.system_result.chars() {
             // Grow the tree from base.
