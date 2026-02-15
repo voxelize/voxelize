@@ -1046,6 +1046,25 @@ describe("report-utils", () => {
       false
     );
 
+    const denseNonStringPrefixHighIndexArgs: Array<number | string> = [];
+    for (let index = 0; index < 1_024; index += 1) {
+      denseNonStringPrefixHighIndexArgs[index] = index;
+    }
+    denseNonStringPrefixHighIndexArgs[5_000] = "--json";
+    Object.defineProperty(denseNonStringPrefixHighIndexArgs, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    const denseNonStringPrefixHighIndexResult = splitCliArgs(
+      denseNonStringPrefixHighIndexArgs as never
+    );
+    expect(denseNonStringPrefixHighIndexResult.optionArgs).toEqual(["--json"]);
+    expect(denseNonStringPrefixHighIndexResult.positionalArgs).toEqual([]);
+    expect(denseNonStringPrefixHighIndexResult.optionTerminatorUsed).toBe(false);
+
     const unorderedOwnKeysArgsTarget: string[] = [];
     unorderedOwnKeysArgsTarget[1] = "--one";
     unorderedOwnKeysArgsTarget[3] = "--three";
@@ -5442,6 +5461,21 @@ describe("report-utils", () => {
     );
     expect(
       normalizeTsCorePayloadIssues(sparseHighIndexWithNumericPrefixIssues)
+    ).toEqual(["voxel.id"]);
+    const denseNonStringPrefixHighIndexIssues: Array<number | string> = [];
+    for (let index = 0; index < 1_024; index += 1) {
+      denseNonStringPrefixHighIndexIssues[index] = index;
+    }
+    denseNonStringPrefixHighIndexIssues[5_000] = " voxel.id ";
+    Object.defineProperty(denseNonStringPrefixHighIndexIssues, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    expect(
+      normalizeTsCorePayloadIssues(denseNonStringPrefixHighIndexIssues)
     ).toEqual(["voxel.id"]);
   });
 

@@ -430,6 +430,72 @@ const cloneArrayFromIndexedKeys = (value) => {
   return clonedArray;
 };
 
+const cloneStringEntriesFromIndexedKeys = (value) => {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  let indexKeys = [];
+  try {
+    indexKeys = Object.keys(value);
+  } catch {
+    return null;
+  }
+
+  const orderedStringEntries = [];
+  for (const indexKey of indexKeys) {
+    const numericIndex = toNonNegativeSafeArrayIndex(indexKey);
+    if (numericIndex === null) {
+      continue;
+    }
+
+    let entryValue = null;
+    try {
+      entryValue = value[numericIndex];
+    } catch {
+      continue;
+    }
+
+    if (typeof entryValue !== "string") {
+      continue;
+    }
+
+    let insertPosition = 0;
+    let low = 0;
+    let high = orderedStringEntries.length;
+    while (low < high) {
+      const mid = Math.floor((low + high) / 2);
+      if (orderedStringEntries[mid].index < numericIndex) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    insertPosition = low;
+
+    if (orderedStringEntries[insertPosition]?.index === numericIndex) {
+      continue;
+    }
+
+    if (
+      orderedStringEntries.length >= MAX_ARRAY_LENGTH_FALLBACK_SCAN &&
+      insertPosition >= MAX_ARRAY_LENGTH_FALLBACK_SCAN
+    ) {
+      continue;
+    }
+
+    orderedStringEntries.splice(insertPosition, 0, {
+      index: numericIndex,
+      value: entryValue,
+    });
+    if (orderedStringEntries.length > MAX_ARRAY_LENGTH_FALLBACK_SCAN) {
+      orderedStringEntries.pop();
+    }
+  }
+
+  return orderedStringEntries.map((entry) => entry.value);
+};
+
 const cloneArrayFromIndexedAccess = (value) => {
   if (!Array.isArray(value)) {
     return null;
@@ -601,14 +667,12 @@ const toStringArrayOrNull = (value) => {
     return normalizedStrings;
   }
 
-  const keyFallbackClone = cloneArrayFromIndexedKeys(value);
-  if (keyFallbackClone === null) {
+  const keyFallbackStrings = cloneStringEntriesFromIndexedKeys(value);
+  if (keyFallbackStrings === null) {
     return normalizedStrings;
   }
 
-  return keyFallbackClone.filter((entry) => {
-    return typeof entry === "string";
-  });
+  return keyFallbackStrings;
 };
 
 const toStringArrayOrEmpty = (value) => {
