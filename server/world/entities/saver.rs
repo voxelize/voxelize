@@ -1,12 +1,12 @@
 use hashbrown::HashMap;
-use log::{info, warn};
-use serde_json::{json, Value};
+use log::warn;
+use serde_json::json;
 use specs::{Entity, World as ECSWorld, WorldExt};
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
 
-use crate::{ETypeComp, IDComp, MetadataComp, PositionComp, RigidBodyComp, WorldConfig};
+use crate::{MetadataComp, PositionComp, RigidBodyComp, WorldConfig};
 
 /// Takes all the metadata components, and saves them into the
 /// world saving directory by their ID's.
@@ -100,12 +100,12 @@ impl EntitiesSaver {
 
 pub fn set_position(ecs: &mut ECSWorld, entity: Entity, x: f32, y: f32, z: f32) {
     let mut positions = ecs.write_storage::<PositionComp>();
-    if let Some(position) = positions.get_mut(entity.to_owned()) {
+    if let Some(position) = positions.get_mut(entity) {
         position.0.set(x, y, z);
     }
 
     let mut bodies = ecs.write_storage::<RigidBodyComp>();
-    if let Some(body) = bodies.get_mut(entity.to_owned()) {
+    if let Some(body) = bodies.get_mut(entity) {
         body.0.set_position(x, y, z);
     }
 }
