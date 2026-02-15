@@ -275,6 +275,26 @@ const isObjectRecord = (value) => {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 };
 
+const isEmptyPlaceholderEntry = (entryValue) => {
+  return entryValue === undefined || entryValue === null;
+};
+
+const isNonStringPrimitivePlaceholderEntry = (entryValue) => {
+  return (
+    entryValue !== null &&
+    typeof entryValue !== "object" &&
+    typeof entryValue !== "string"
+  );
+};
+
+const isRecoverableFallbackEntry = (entryValue) => {
+  return entryValue !== undefined && entryValue !== null;
+};
+
+const isStringFallbackEntry = (entryValue) => {
+  return typeof entryValue === "string";
+};
+
 const safeObjectKeys = (value) => {
   if (!isObjectRecord(value)) {
     return [];
@@ -480,26 +500,6 @@ const mergeIndexedEntriesByFirstSeen = (
 };
 
 const mergeIndexedFallbackEntries = (primaryEntries, supplementalEntries) => {
-  const isEmptyPlaceholderEntry = (entryValue) => {
-    return entryValue === undefined || entryValue === null;
-  };
-
-  const isNonStringPrimitivePlaceholderEntry = (entryValue) => {
-    return (
-      entryValue !== null &&
-      typeof entryValue !== "object" &&
-      typeof entryValue !== "string"
-    );
-  };
-
-  const isRecoverableFallbackEntry = (entryValue) => {
-    return entryValue !== undefined && entryValue !== null;
-  };
-
-  const isStringFallbackEntry = (entryValue) => {
-    return typeof entryValue === "string";
-  };
-
   const mergedEntryMap = new Map();
   for (const entry of primaryEntries) {
     if (!mergedEntryMap.has(entry.index)) {
