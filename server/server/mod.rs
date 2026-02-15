@@ -313,11 +313,11 @@ impl Server {
         .unwrap()
         .progress_chars("#>-");
 
-        let infos: Vec<_> = join_all(self.worlds.values().map(|world| world.send(GetInfo)))
-            .await
-            .into_iter()
-            .map(|r| r.unwrap())
-            .collect();
+        let info_results = join_all(self.worlds.values().map(|world| world.send(GetInfo))).await;
+        let mut infos = Vec::with_capacity(info_results.len());
+        for info_result in info_results {
+            infos.push(info_result.unwrap());
+        }
 
         let mut bars = Vec::with_capacity(self.worlds.len());
         for (world, info) in self.worlds.values().zip(infos.iter()) {
@@ -338,11 +338,12 @@ impl Server {
         let start = Instant::now();
 
         loop {
-            let infos: Vec<_> = join_all(self.worlds.values().map(|world| world.send(GetInfo)))
-                .await
-                .into_iter()
-                .map(|r| r.unwrap())
-                .collect();
+            let info_results =
+                join_all(self.worlds.values().map(|world| world.send(GetInfo))).await;
+            let mut infos = Vec::with_capacity(info_results.len());
+            for info_result in info_results {
+                infos.push(info_result.unwrap());
+            }
 
             let mut done = true;
 
