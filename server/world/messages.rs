@@ -52,14 +52,38 @@ impl MessageQueues {
     }
 
     pub fn drain_prioritized(&mut self) -> Vec<(Message, ClientFilter)> {
-        if self.normal.is_empty() && self.bulk.is_empty() {
-            return std::mem::take(&mut self.critical);
+        if self.normal.is_empty() {
+            if self.bulk.is_empty() {
+                return std::mem::take(&mut self.critical);
+            }
+            if self.critical.is_empty() {
+                return std::mem::take(&mut self.bulk);
+            }
+            let mut result = std::mem::take(&mut self.critical);
+            if result.capacity() - result.len() < self.bulk.len() {
+                result.reserve(self.bulk.len() - (result.capacity() - result.len()));
+            }
+            result.append(&mut self.bulk);
+            return result;
         }
-        if self.critical.is_empty() && self.bulk.is_empty() {
-            return std::mem::take(&mut self.normal);
+        if self.bulk.is_empty() {
+            if self.critical.is_empty() {
+                return std::mem::take(&mut self.normal);
+            }
+            let mut result = std::mem::take(&mut self.critical);
+            if result.capacity() - result.len() < self.normal.len() {
+                result.reserve(self.normal.len() - (result.capacity() - result.len()));
+            }
+            result.append(&mut self.normal);
+            return result;
         }
-        if self.critical.is_empty() && self.normal.is_empty() {
-            return std::mem::take(&mut self.bulk);
+        if self.critical.is_empty() {
+            let mut result = std::mem::take(&mut self.normal);
+            if result.capacity() - result.len() < self.bulk.len() {
+                result.reserve(self.bulk.len() - (result.capacity() - result.len()));
+            }
+            result.append(&mut self.bulk);
+            return result;
         }
         let mut result =
             Vec::with_capacity(self.critical.len() + self.normal.len() + self.bulk.len());
