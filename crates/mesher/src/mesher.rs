@@ -359,7 +359,16 @@ impl Registry {
 
     #[inline(always)]
     pub fn get_block_by_id(&self, id: u32) -> Option<&Block> {
-        if let Some(dense) = &self.dense_lookup {
+        if let (Some(dense), Some(dense_flags)) = (&self.dense_lookup, &self.dense_block_flags) {
+            let dense_index = id as usize;
+            if dense_index < dense_flags.len()
+                && (dense_flags[dense_index] & DENSE_FLAG_PRESENT) != 0
+            {
+                let idx = dense[dense_index];
+                return Some(&self.blocks_by_id[idx].1);
+            }
+            None
+        } else if let Some(dense) = &self.dense_lookup {
             let dense_index = id as usize;
             if dense_index < dense.len() {
                 let idx = dense[dense_index];
