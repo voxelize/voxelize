@@ -226,7 +226,7 @@ fn process_pending_updates(
             chunks.set_voxel_stage(vx, vy, vz, stage);
 
             if current_is_light && !updated_is_light {
-                removed_light_sources.push((voxel, current_type.clone()));
+                removed_light_sources.push((voxel, current_id));
             }
 
             let existing_entity = chunks.block_entities.remove(&Vec3(vx, vy, vz));
@@ -333,7 +333,8 @@ fn process_pending_updates(
     let mut green_removals = Vec::with_capacity(removed_light_sources.len());
     let mut blue_removals = Vec::with_capacity(removed_light_sources.len());
 
-    for (voxel, light_block) in &removed_light_sources {
+    for (voxel, light_block_id) in &removed_light_sources {
+        let light_block = registry.get_block_by_id(*light_block_id);
         let red_level = light_block.get_torch_light_level_at(voxel, &*chunks, &RED);
         let green_level = light_block.get_torch_light_level_at(voxel, &*chunks, &GREEN);
         let blue_level = light_block.get_torch_light_level_at(voxel, &*chunks, &BLUE);
@@ -348,8 +349,8 @@ fn process_pending_updates(
             blue_removals.push(*voxel);
         }
 
-        let Vec3(vx, vy, vz) = voxel;
-        if light_block.is_opaque && chunks.get_sunlight(*vx, *vy, *vz) != 0 {
+        let Vec3(vx, vy, vz) = *voxel;
+        if light_block.is_opaque && chunks.get_sunlight(vx, vy, vz) != 0 {
             Lights::remove_light(&mut *chunks, voxel, &SUNLIGHT, config, registry);
         }
     }
