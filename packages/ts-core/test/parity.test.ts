@@ -2055,6 +2055,25 @@ describe("Type builders", () => {
     });
   });
 
+  it("retains boundary rotation-like values in rule sanitization", () => {
+    const part = createBlockConditionalPart({
+      rule: {
+        type: "simple",
+        offset: [0, 0, 0],
+        rotation: {
+          value: 255,
+          yRotation: Math.PI / 2,
+        },
+      },
+    });
+
+    expect(part.rule).toEqual({
+      type: "simple",
+      offset: [0, 0, 0],
+      rotation: new BlockRotation(255, Math.PI / 2),
+    });
+  });
+
   it("accepts null-prototype rotation-like objects in rule sanitization", () => {
     const nullPrototypeRotation = Object.create(null) as {
       value: number;
@@ -2639,6 +2658,15 @@ describe("Type builders", () => {
     expect(createBlockRotation(nullPrototypeInput)).toEqual(
       new BlockRotation(BlockRotation.NZ().axis, Math.PI)
     );
+  });
+
+  it("retains boundary createBlockRotation encoded values", () => {
+    const boundaryRotation = createBlockRotation({
+      value: 255,
+      yRotation: Math.PI / 2,
+    });
+
+    expect(boundaryRotation).toEqual(new BlockRotation(255, Math.PI / 2));
   });
 
   it("supports createBlockRotation helper with frozen rotation init objects", () => {
