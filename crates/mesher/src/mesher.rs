@@ -777,14 +777,14 @@ struct GreedyQuad {
 
 #[derive(Clone, Copy, Debug)]
 struct DeferredNonGreedyFace {
+    voxel_key: u32,
     vx: i32,
     vy: i32,
     vz: i32,
-    voxel_key: usize,
     voxel_id: u32,
-    rotation_bits: u8,
-    face_index: i16,
     owned_face_index: u32,
+    face_index: i16,
+    rotation_bits: u8,
     world_space: bool,
 }
 
@@ -3318,7 +3318,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                             continue;
                         }
                         processed_non_greedy[voxel_key] = true;
-                        Some(voxel_key)
+                        Some(voxel_key as u32)
                     } else {
                         None
                     };
@@ -3493,9 +3493,10 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         continue;
                     }
 
-                    let deferred_voxel_key = ((vx - min_x) as usize) * yz_span
+                    let deferred_voxel_key = (((vx - min_x) as usize) * yz_span
                         + ((vy - min_y) as usize) * z_span
-                        + (vz - min_z) as usize;
+                        + (vz - min_z) as usize)
+                        as u32;
                     let mut cached_neighbors = None;
                     let mut cached_ao_light: Option<([i32; 4], [i32; 4])> = None;
                     if let Some((face_index, face)) = direct_face {
@@ -3744,7 +3745,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
 
             let mut cached_non_greedy_block_id = u32::MAX;
             let mut cached_non_greedy_block: Option<&Block> = None;
-            let mut cached_non_greedy_voxel_key: Option<usize> = None;
+            let mut cached_non_greedy_voxel_key: Option<u32> = None;
             let mut cached_non_greedy_rotation = BlockRotation::PY(0.0);
             let mut cached_non_greedy_neighbors: Option<NeighborCache> = None;
             let mut cached_non_greedy_face_cache: Option<FaceProcessCache> = None;
