@@ -724,7 +724,13 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       return false;
     }
     const aliases = commandInfo.aliases;
-    const aliasIndex = aliases.indexOf(trigger);
+    let aliasIndex = -1;
+    for (let index = 0; index < aliases.length; index++) {
+      if (aliases[index] === trigger) {
+        aliasIndex = index;
+        break;
+      }
+    }
     const isAliasTrigger = aliasIndex >= 0;
     this.commands.delete(trigger);
     if (isAliasTrigger) {
