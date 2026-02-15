@@ -8,6 +8,12 @@ fn absdiff(a: i32, b: i32) -> u32 {
     (i64::from(a) - i64::from(b)).unsigned_abs() as u32
 }
 
+#[inline]
+fn estimated_visited_capacity(start: &PathNode, goal: &PathNode) -> usize {
+    let distance = start.distance(goal) as usize;
+    distance.saturating_mul(4).clamp(128, 4096)
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct PathNode(pub i32, pub i32, pub i32);
 
@@ -40,7 +46,7 @@ impl AStar {
         let start_node = PathNode::from_vec3(start);
         let goal_node = PathNode::from_vec3(goal);
 
-        let mut visited = HashSet::with_capacity(128);
+        let mut visited = HashSet::with_capacity(estimated_visited_capacity(&start_node, &goal_node));
         visited.insert(start_node);
 
         astar(
@@ -58,7 +64,7 @@ impl AStar {
 
 #[cfg(test)]
 mod tests {
-    use super::PathNode;
+    use super::{estimated_visited_capacity, PathNode};
 
     #[test]
     fn distance_handles_i32_extreme_delta() {
@@ -72,5 +78,17 @@ mod tests {
         let a = PathNode(i32::MIN, i32::MIN, 0);
         let b = PathNode(i32::MAX, i32::MAX, 0);
         assert_eq!(a.distance(&b), u32::MAX);
+    }
+
+    #[test]
+    fn estimated_visited_capacity_is_clamped() {
+        assert_eq!(
+            estimated_visited_capacity(&PathNode(0, 0, 0), &PathNode(1, 0, 0)),
+            128
+        );
+        assert_eq!(
+            estimated_visited_capacity(&PathNode(0, 0, 0), &PathNode(3000, 0, 0)),
+            4096
+        );
     }
 }
