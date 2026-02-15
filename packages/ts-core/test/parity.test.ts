@@ -4131,6 +4131,50 @@ describe("BlockRuleEvaluator", () => {
     expect(highIndexReadCount).toBe(0);
   });
 
+  it("skips key enumeration when bounded rule-length recovery is full", () => {
+    let ownKeysCount = 0;
+    const denseRules: BlockRule[] = [];
+    for (let index = 0; index < 1_024; index += 1) {
+      denseRules[index] = BLOCK_RULE_NONE;
+    }
+    denseRules[5_000] = {
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 41,
+    };
+    const trappedRules = new Proxy(denseRules, {
+      ownKeys(target) {
+        ownKeysCount += 1;
+        return Reflect.ownKeys(target);
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const access = {
+      getVoxel: (x: number, y: number, z: number) =>
+        x === 0 && y === 0 && z === 0 ? 41 : 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.Or,
+          rules: trappedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(true);
+    expect(ownKeysCount).toBe(0);
+  });
+
   it("evaluates OR combinations across multiple sub-rules", () => {
     const access = {
       getVoxel: () => 8,
