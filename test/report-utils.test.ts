@@ -6869,6 +6869,7 @@ describe("report-utils", () => {
       },
     ]);
     expect(statefulCanonicalDiagnostics.activeCliOptionOccurrenceCount).toBe(1);
+    expect(statefulCanonicalOptionReadCount).toBe(2);
     let statefulAliasTokenReadCount = 0;
     const statefulAliasDiagnostics = createCliDiagnostics(["--verify"], {
       canonicalOptions: ["--json"],
@@ -6930,6 +6931,7 @@ describe("report-utils", () => {
       },
     ]);
     expect(statefulAliasDiagnostics.activeCliOptionOccurrenceCount).toBe(1);
+    expect(statefulAliasTokenReadCount).toBe(2);
     let statefulArgsReadCount = 0;
     const statefulArgsDiagnostics = createCliDiagnostics(
       new Proxy(["--json"], {
@@ -6981,6 +6983,7 @@ describe("report-utils", () => {
       },
     ]);
     expect(statefulArgsDiagnostics.activeCliOptionOccurrenceCount).toBe(1);
+    expect(statefulArgsReadCount).toBe(2);
     let statefulValueOptionReadCount = 0;
     const statefulValueOptionDiagnostics = createCliDiagnostics(
       ["--output", "-l"],
@@ -7042,6 +7045,7 @@ describe("report-utils", () => {
       },
     ]);
     expect(statefulValueOptionDiagnostics.activeCliOptionOccurrenceCount).toBe(1);
+    expect(statefulValueOptionReadCount).toBe(1);
     let statefulStrictValueOptionReadCount = 0;
     const statefulStrictValueOptionDiagnostics = createCliDiagnostics(
       ["--output", "-j"],
@@ -7131,6 +7135,7 @@ describe("report-utils", () => {
     expect(
       statefulStrictValueOptionDiagnostics.activeCliOptionOccurrenceCount
     ).toBe(2);
+    expect(statefulStrictValueOptionReadCount).toBe(2);
     const nonArrayAliasMetadataDiagnostics = createCliDiagnostics(
       ["--verify", "--mystery"],
       {
