@@ -142,7 +142,7 @@ async fn handle_ws_connection(
                             info!("[WS] Received large binary message: {:.2}KB", size_kb);
                         }
 
-                        let message = match decode_message(&bytes.to_vec()) {
+                        let message = match decode_message(&bytes) {
                             Ok(m) => m,
                             Err(e) => {
                                 warn!("[WS] Failed to decode message: {:?}", e);
@@ -157,7 +157,9 @@ async fn handle_ws_connection(
                             Ok(Some(error_msg)) => {
                                 warn!("[WS] ClientMessage error: {}", error_msg);
                                 let error_response = encode_message(
-                                    &Message::new(&MessageType::Error).text(&error_msg).build(),
+                                    &Message::new(&MessageType::Error)
+                                        .text_owned(error_msg)
+                                        .build(),
                                 );
                                 let _ = session.binary(error_response).await;
                                 break;

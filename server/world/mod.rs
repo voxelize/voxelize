@@ -975,7 +975,9 @@ impl World {
 
             self.ecs.maintain();
 
-            let leave_message = Message::new(&MessageType::Leave).text(&client.id).build();
+            let leave_message = Message::new(&MessageType::Leave)
+                .text_owned(client.id.clone())
+                .build();
             self.broadcast(leave_message, ClientFilter::All);
             info!("Client at {} left the world: {}", id, self.name);
         }

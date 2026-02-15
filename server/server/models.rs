@@ -245,6 +245,12 @@ impl MessageBuilder {
         self
     }
 
+    /// Configure owned text data of the protocol.
+    pub fn text_owned(mut self, text: String) -> Self {
+        self.text = Some(text);
+        self
+    }
+
     /// Configure the world name of the protocol.
     pub fn world_name(mut self, world_name: &str) -> Self {
         self.world_name = Some(world_name.to_owned());
