@@ -4294,6 +4294,27 @@ describe("report-utils", () => {
     expect(precomputedSupportedTokens.unsupportedOptionsError).toBe(
       "Unsupported option(s): --mystery. Supported options: --output, --json."
     );
+    const precomputedSupportedTokensWithoutCatalog = createCliOptionValidation(
+      ["--mystery"],
+      {
+        canonicalOptions: "--json" as never,
+        supportedCliOptions: ["--json", "--json"],
+      }
+    );
+    expect(precomputedSupportedTokensWithoutCatalog.supportedCliOptions).toEqual([
+      "--json",
+    ]);
+    expect(precomputedSupportedTokensWithoutCatalog.supportedCliOptionCount).toBe(1);
+    expect(precomputedSupportedTokensWithoutCatalog.unknownOptions).toEqual([
+      "--mystery",
+    ]);
+    expect(precomputedSupportedTokensWithoutCatalog.unknownOptionCount).toBe(1);
+    expect(precomputedSupportedTokensWithoutCatalog.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json."
+    );
+    expect(precomputedSupportedTokensWithoutCatalog.validationErrorCode).toBe(
+      "unsupported_options"
+    );
     const staleUnknownPrecomputedSupportedTokens = createCliOptionValidation(
       ["--mystery"],
       {

@@ -2239,6 +2239,8 @@ export const createCliOptionValidation = (
   const supportedCliOptions =
     normalizedPrecomputedSupportedCliOptionMetadata === null
       ? catalogSupportedCliOptions
+      : catalogSupportedCliOptions.length === 0
+        ? normalizedPrecomputedSupportedCliOptions
       : shouldFallbackToCatalogSupportedCliOptions
         ? catalogSupportedCliOptions
         : filteredPrecomputedSupportedCliOptions;
