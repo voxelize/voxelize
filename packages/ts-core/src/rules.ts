@@ -362,11 +362,22 @@ const toRuleEntriesOrEmpty = (
     });
   } catch {
     const lengthFallbackRules = toRuleEntriesFromLengthFallback(rawRules);
-    if (lengthFallbackRules.length > 0) {
+    const hasNonNoneLengthFallbackRule = lengthFallbackRules.some((entry) => {
+      return entry.type !== "none";
+    });
+    if (
+      hasNonNoneLengthFallbackRule ||
+      lengthFallbackRules.length >= MAX_RULE_ENTRY_FALLBACK_SCAN
+    ) {
       return lengthFallbackRules;
     }
 
-    return toRuleEntriesFromKeyFallback(rawRules);
+    const keyFallbackRules = toRuleEntriesFromKeyFallback(rawRules);
+    if (keyFallbackRules.length > 0) {
+      return keyFallbackRules;
+    }
+
+    return lengthFallbackRules;
   }
 };
 
