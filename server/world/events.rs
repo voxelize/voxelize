@@ -33,7 +33,8 @@ impl EventBuilder {
         Self {
             name: name.to_owned(),
             payload: None,
-            ..Default::default()
+            filter: None,
+            location: None,
         }
     }
 
@@ -41,7 +42,8 @@ impl EventBuilder {
         Self {
             name,
             payload: None,
-            ..Default::default()
+            filter: None,
+            location: None,
         }
     }
 
