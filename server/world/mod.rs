@@ -1718,18 +1718,14 @@ impl World {
     /// Handler for `Method` type messages.
     fn on_method(&mut self, client_id: &str, data: Message) {
         if let Some(method) = data.method {
-            if !self
-                .method_handles
-                .contains_key(&method.name.to_lowercase())
-            {
+            let method_name = method.name.to_lowercase();
+            let Some(handle) = self.method_handles.get(&method_name).cloned() else {
                 warn!(
                     "`Method` type messages received of name {}, but no method handler set.",
                     method.name
                 );
                 return;
-            }
-
-            let handle = self.method_handles.get(&method.name).unwrap().to_owned();
+            };
 
             handle(self, client_id, &method.payload);
         }
@@ -1740,23 +1736,22 @@ impl World {
         let client_ent = self.clients().get(client_id).map(|c| c.entity);
 
         data.events.into_iter().for_each(|event| {
-            if !self.event_handles.contains_key(&event.name.to_lowercase()) {
-                let location = client_ent.and_then(|ent| {
-                    self.read_component::<CurrentChunkComp>()
-                        .get(ent)
-                        .map(|c| c.coords)
-                });
-
-                let mut event_builder = Event::new(&event.name).payload(event.payload);
-                if let Some(loc) = location {
-                    event_builder = event_builder.location(loc);
-                }
-                self.events_mut().dispatch(event_builder.build());
+            let event_name = event.name.to_lowercase();
+            if let Some(handle) = self.event_handles.get(&event_name).cloned() {
+                handle(self, client_id, &event.payload);
                 return;
             }
+            let location = client_ent.and_then(|ent| {
+                self.read_component::<CurrentChunkComp>()
+                    .get(ent)
+                    .map(|c| c.coords)
+            });
 
-            let handle = self.event_handles.get(&event.name).unwrap().to_owned();
-            handle(self, client_id, &event.payload);
+            let mut event_builder = Event::new(&event.name).payload(event.payload);
+            if let Some(loc) = location {
+                event_builder = event_builder.location(loc);
+            }
+            self.events_mut().dispatch(event_builder.build());
         });
     }
 
