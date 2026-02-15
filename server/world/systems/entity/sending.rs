@@ -152,7 +152,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         let mut new_bookkeeping_records = HashMap::with_capacity(old_entities.len());
         let mut entity_positions: HashMap<String, Vec3<f32>> = HashMap::with_capacity(old_entities.len());
         let has_clients = !clients.is_empty();
-        let mut entity_metadata_map: HashMap<String, (String, String, bool)> = if has_clients {
+        let mut entity_metadata_map: HashMap<String, (&str, String, bool)> = if has_clients {
             HashMap::with_capacity(old_entities.len())
         } else {
             HashMap::new()
@@ -191,7 +191,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             if has_clients {
                 let (json_str, updated) = metadata.to_cached_str();
                 if is_new || updated {
-                    entity_metadata_map.insert(id.0.clone(), (etype.0.clone(), json_str, is_new));
+                    entity_metadata_map.insert(id.0.clone(), (etype.0.as_str(), json_str, is_new));
                 }
             }
         }
@@ -260,7 +260,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                         EntityProtocol {
                             operation,
                             id: entity_id.clone(),
-                            r#type: etype.clone(),
+                            r#type: (*etype).to_owned(),
                             metadata: Some(metadata_str.clone()),
                         },
                     );
