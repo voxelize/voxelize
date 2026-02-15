@@ -93,6 +93,30 @@ pub struct Chunks {
 }
 
 impl Chunks {
+    #[inline]
+    fn decode_base64_u32(base: &str, expected_u32_len: usize) -> Vec<u32> {
+        if base.is_empty() {
+            return Vec::new();
+        }
+
+        let decoded = STANDARD.decode(base).expect("Failed to decode base64");
+        let mut decoder = Decoder::new(&decoded[..]).expect("Failed to create decoder");
+        let mut buf = Vec::with_capacity(expected_u32_len.saturating_mul(4));
+        decoder
+            .read_to_end(&mut buf)
+            .expect("Failed to decode data");
+        let aligned_len = buf.len() & !3;
+        if aligned_len == 0 {
+            return Vec::new();
+        }
+        if aligned_len < buf.len() {
+            buf.truncate(aligned_len);
+        }
+        let mut data = vec![0; aligned_len / 4];
+        LittleEndian::read_u32_into(&buf, &mut data);
+        data
+    }
+
     /// Create a new instance of a chunk manager.
     pub fn new(config: &WorldConfig) -> Self {
         let folder = if config.saving {
@@ -130,25 +154,15 @@ impl Chunks {
 
         let data: ChunkFileData = serde_json::from_reader(chunk_data).ok()?;
 
-        let decode_base64 = |base: &str| -> Vec<u32> {
-            if base.is_empty() {
-                return Vec::new();
-            }
-
-            let decoded = STANDARD.decode(base).expect("Failed to decode base64");
-            let mut decoder = Decoder::new(&decoded[..]).expect("Failed to create decoder");
-            let mut buf = Vec::new();
-            decoder
-                .read_to_end(&mut buf)
-                .expect("Failed to decode data");
-            let mut data = vec![0; buf.len() / 4];
-            LittleEndian::read_u32_into(&buf, &mut data);
-            data
-        };
+        let chunk_size = self.chunk_size();
+        let expected_voxel_len = chunk_size
+            .saturating_mul(self.config.max_height)
+            .saturating_mul(chunk_size);
+        let expected_height_map_len = chunk_size.saturating_mul(chunk_size);
 
         let (voxels, height_map) = rayon::join(
-            || decode_base64(&data.voxels),
-            || decode_base64(&data.height_map),
+            || Self::decode_base64_u32(&data.voxels, expected_voxel_len),
+            || Self::decode_base64_u32(&data.height_map, expected_height_map_len),
         );
 
         let mut chunk = Chunk::new(
