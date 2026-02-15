@@ -98,7 +98,7 @@ const voxel = Voxel.pack({
   - only plain-object rule nodes are interpreted; non-plain objects normalize
     to `none`
   - breaks cyclic rule graphs safely by replacing cycle edges with `none`
-  - accepts readonly rule-tree arrays/tuples for ergonomic literal input
+  - accepts readonly/frozen rule-tree arrays/tuples for ergonomic literal input
   - normalizes nullable combination sub-rules to deterministic `none` entries
   - keeps optional `id`/`stage` only when values match voxel ranges
     (`id`: 0..65535, `stage`: 0..15)

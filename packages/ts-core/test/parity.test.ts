@@ -1590,6 +1590,33 @@ describe("Type builders", () => {
     });
   });
 
+  it("accepts frozen rule-tree inputs with createBlockRule", () => {
+    const frozenRuleTree = Object.freeze({
+      type: "combination" as const,
+      logic: BlockRuleLogic.And,
+      rules: Object.freeze([
+        Object.freeze({
+          type: "simple" as const,
+          offset: [1, 0, 0] as const,
+          id: 5,
+        }),
+      ]),
+    });
+    const clonedRule = createBlockRule(frozenRuleTree);
+
+    expect(clonedRule).toEqual({
+      type: "combination",
+      logic: BlockRuleLogic.And,
+      rules: [
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 5,
+        },
+      ],
+    });
+  });
+
   it("accepts null-prototype rule inputs with createBlockRule", () => {
     const nullPrototypeRule = Object.create(null) as {
       type: "simple";

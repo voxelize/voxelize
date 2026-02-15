@@ -80,6 +80,7 @@ Frozen rotation-like literals are also accepted during helper sanitization.
 `createBlockRotation` exposes this rotation sanitization directly.
 `createBlockRule` also accepts readonly rule-tree arrays/tuples for literal
 authoring ergonomics.
+Frozen rule-tree literals are also accepted during helper sanitization.
 Non-plain rule nodes/rotation-like objects are normalized away during
 sanitization.
 Malformed `worldSpace` values fall back to `false`.
