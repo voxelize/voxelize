@@ -108,18 +108,17 @@ impl<'a> System<'a> for BroadcastSystem {
         let _t = timing.timer("broadcast");
         let world_name = &*timing.world_name;
 
-        let messages_with_world_name: Vec<(Message, ClientFilter)> = queues
-            .drain_prioritized()
-            .into_iter()
-            .map(|(mut message, filter)| {
-                message.world_name = world_name.clone();
-                (message, filter)
-            })
-            .collect();
-
-        let (immediate_messages, deferred_messages): (Vec<_>, Vec<_>) = messages_with_world_name
-            .into_iter()
-            .partition(|(msg, _)| is_immediate(msg.r#type));
+        let pending_messages = queues.drain_prioritized();
+        let mut immediate_messages = Vec::new();
+        let mut deferred_messages = Vec::new();
+        for (mut message, filter) in pending_messages {
+            message.world_name = world_name.clone();
+            if is_immediate(message.r#type) {
+                immediate_messages.push((message, filter));
+            } else {
+                deferred_messages.push((message, filter));
+            }
+        }
 
         let immediate_encoded: Vec<(EncodedMessage, ClientFilter)> = immediate_messages
             .into_iter()
