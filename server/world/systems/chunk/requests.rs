@@ -69,6 +69,9 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         } else if !to_send.is_empty() && to_send.len() > clients.len() {
             to_send.retain(|client_id, _| clients.contains_key(client_id));
         }
+        if !can_send_responses {
+            to_send.clear();
+        }
 
         for (id, requests) in (&ids, &mut requests).join() {
             to_add_back_to_requested.clear();
