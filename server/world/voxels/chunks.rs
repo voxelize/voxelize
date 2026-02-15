@@ -610,7 +610,7 @@ impl Chunks {
     /// Add a listener to a chunk.
     pub fn add_listener(&mut self, coords: &Vec2<i32>, listener: &Vec2<i32>) {
         let listeners = self.listeners.entry(*coords).or_default();
-        if listeners.iter().any(|existing| existing == listener) {
+        if listeners.contains(listener) {
             return;
         }
         listeners.push(*listener);
