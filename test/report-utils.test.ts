@@ -2423,6 +2423,57 @@ describe("report-utils", () => {
       }
     );
     expect(unknownWithAliasStrictSubsetForOnlyAliasToken).toEqual(["-l"]);
+    const strictAliasSubsetFromLengthTraps =
+      createLengthTrappedPartiallyRecoveredStringArray(["-o", "--output"]);
+    const unknownWithLengthTrappedAliasStrictSubsetForOutput =
+      parseUnknownCliOptions(["--output", "-l"], {
+        canonicalOptions: ["--output", "--only"],
+        optionAliases: {
+          "--only": ["-o"],
+        },
+        optionsWithValues: ["--output", "--only"],
+        optionsWithStrictValues: strictAliasSubsetFromLengthTraps as never,
+      });
+    expect(unknownWithLengthTrappedAliasStrictSubsetForOutput).toEqual([]);
+    const unknownWithLengthTrappedAliasStrictSubsetForOnly = parseUnknownCliOptions(
+      ["--only", "-l"],
+      {
+        canonicalOptions: ["--output", "--only"],
+        optionAliases: {
+          "--only": ["-o"],
+        },
+        optionsWithValues: ["--output", "--only"],
+        optionsWithStrictValues: strictAliasSubsetFromLengthTraps as never,
+      }
+    );
+    expect(unknownWithLengthTrappedAliasStrictSubsetForOnly).toEqual(["-l"]);
+    const setValueMetadataForAliasStrictSubset = new Set(["--output"]);
+    const unknownWithLengthTrappedAliasStrictSubsetAndSetValueMetadataForOutput =
+      parseUnknownCliOptions(["--report-path", "-artifact-report.json"], {
+        canonicalOptions: ["--output", "--only"],
+        optionAliases: {
+          "--only": ["-o"],
+          "--output": ["--report-path"],
+        },
+        optionsWithValues: setValueMetadataForAliasStrictSubset as never,
+        optionsWithStrictValues: strictAliasSubsetFromLengthTraps as never,
+      });
+    expect(
+      unknownWithLengthTrappedAliasStrictSubsetAndSetValueMetadataForOutput
+    ).toEqual(["-artifact-report.json"]);
+    const unknownWithLengthTrappedAliasStrictSubsetAndSetValueMetadataForOnly =
+      parseUnknownCliOptions(["-o", "-artifact-report.json"], {
+        canonicalOptions: ["--output", "--only"],
+        optionAliases: {
+          "--only": ["-o"],
+          "--output": ["--report-path"],
+        },
+        optionsWithValues: setValueMetadataForAliasStrictSubset as never,
+        optionsWithStrictValues: strictAliasSubsetFromLengthTraps as never,
+      });
+    expect(
+      unknownWithLengthTrappedAliasStrictSubsetAndSetValueMetadataForOnly
+    ).toEqual([]);
     const unknownWithStrictUnknownShortValue = parseUnknownCliOptions(
       ["--output", "-l"],
       {
@@ -4526,6 +4577,52 @@ describe("report-utils", () => {
     expect(aliasStrictSubsetOnlyValidation.unknownOptionCount).toBe(0);
     expect(aliasStrictSubsetOnlyValidation.unsupportedOptionsError).toBeNull();
     expect(aliasStrictSubsetOnlyValidation.validationErrorCode).toBeNull();
+    const strictAliasSubsetFromLengthTraps =
+      createLengthTrappedPartiallyRecoveredStringArray(["-o", "--output"]);
+    const lengthTrappedAliasStrictSubsetOutputValidation =
+      createCliOptionValidation(["--report-path", "-artifact-report.json"], {
+        canonicalOptions: ["--output", "--only"],
+        optionAliases: {
+          "--only": ["-o"],
+          "--output": ["--report-path"],
+        },
+        optionsWithValues: setValueMetadata as never,
+        optionsWithStrictValues: strictAliasSubsetFromLengthTraps as never,
+      });
+    expect(
+      lengthTrappedAliasStrictSubsetOutputValidation.unknownOptions
+    ).toEqual(["-artifact-report.json"]);
+    expect(
+      lengthTrappedAliasStrictSubsetOutputValidation.unknownOptionCount
+    ).toBe(1);
+    expect(
+      lengthTrappedAliasStrictSubsetOutputValidation.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): -artifact-report.json. Supported options: --output, --only, -o, --report-path."
+    );
+    expect(
+      lengthTrappedAliasStrictSubsetOutputValidation.validationErrorCode
+    ).toBe("unsupported_options");
+    const lengthTrappedAliasStrictSubsetOnlyValidation =
+      createCliOptionValidation(["-o", "-artifact-report.json"], {
+        canonicalOptions: ["--output", "--only"],
+        optionAliases: {
+          "--only": ["-o"],
+          "--output": ["--report-path"],
+        },
+        optionsWithValues: setValueMetadata as never,
+        optionsWithStrictValues: strictAliasSubsetFromLengthTraps as never,
+      });
+    expect(lengthTrappedAliasStrictSubsetOnlyValidation.unknownOptions).toEqual(
+      []
+    );
+    expect(lengthTrappedAliasStrictSubsetOnlyValidation.unknownOptionCount).toBe(0);
+    expect(
+      lengthTrappedAliasStrictSubsetOnlyValidation.unsupportedOptionsError
+    ).toBeNull();
+    expect(
+      lengthTrappedAliasStrictSubsetOnlyValidation.validationErrorCode
+    ).toBeNull();
   });
 
   it("derives cli validation failure messages with output priority", () => {
@@ -7001,6 +7098,66 @@ describe("report-utils", () => {
       "Unsupported option(s): -l. Supported options: --output, --only, -o, --report-path."
     );
     expect(strictAliasDiagnostics.validationErrorCode).toBe("unsupported_options");
+    const strictAliasSubsetFromLengthTraps =
+      createLengthTrappedPartiallyRecoveredStringArray(["-o", "--output"]);
+    const lengthTrappedAliasStrictSubsetOutputDiagnostics = createCliDiagnostics(
+      ["--report-path", "-artifact-report.json"],
+      {
+        canonicalOptions: ["--output", "--only"],
+        optionAliases: {
+          "--only": ["-o"],
+          "--output": ["--report-path"],
+        },
+        optionsWithValues: setValueMetadata as never,
+        optionsWithStrictValues: strictAliasSubsetFromLengthTraps as never,
+      }
+    );
+    expect(lengthTrappedAliasStrictSubsetOutputDiagnostics.activeCliOptions).toEqual(
+      ["--output"]
+    );
+    expect(
+      lengthTrappedAliasStrictSubsetOutputDiagnostics.activeCliOptionCount
+    ).toBe(1);
+    expect(
+      lengthTrappedAliasStrictSubsetOutputDiagnostics.activeCliOptionTokens
+    ).toEqual(["--report-path"]);
+    expect(
+      lengthTrappedAliasStrictSubsetOutputDiagnostics.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--report-path",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(
+      lengthTrappedAliasStrictSubsetOutputDiagnostics.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      lengthTrappedAliasStrictSubsetOutputDiagnostics.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--report-path",
+        canonicalOption: "--output",
+        index: 0,
+      },
+    ]);
+    expect(
+      lengthTrappedAliasStrictSubsetOutputDiagnostics.activeCliOptionOccurrenceCount
+    ).toBe(1);
+    expect(lengthTrappedAliasStrictSubsetOutputDiagnostics.unknownOptions).toEqual(
+      ["-artifact-report.json"]
+    );
+    expect(lengthTrappedAliasStrictSubsetOutputDiagnostics.unknownOptionCount).toBe(
+      1
+    );
+    expect(
+      lengthTrappedAliasStrictSubsetOutputDiagnostics.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): -artifact-report.json. Supported options: --output, --only, -o, --report-path."
+    );
+    expect(
+      lengthTrappedAliasStrictSubsetOutputDiagnostics.validationErrorCode
+    ).toBe("unsupported_options");
   });
 
   it("reports unknown short tokens with strict metadata only", () => {
@@ -9362,6 +9519,70 @@ describe("report-utils", () => {
         },
         optionsWithValues: setValueMetadata as never,
         optionsWithStrictValues: ["-o"],
+      }
+    );
+
+    expect(activeMetadata.activeCliOptions).toEqual([
+      "--output",
+      "--only",
+      "--json",
+    ]);
+    expect(activeMetadata.activeCliOptionCount).toBe(3);
+    expect(activeMetadata.activeCliOptionTokens).toEqual([
+      "--report-path",
+      "-o",
+      "-j",
+    ]);
+    expect(activeMetadata.activeCliOptionResolutions).toEqual([
+      {
+        token: "--report-path",
+        canonicalOption: "--output",
+      },
+      {
+        token: "-o",
+        canonicalOption: "--only",
+      },
+      {
+        token: "-j",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionResolutionCount).toBe(3);
+    expect(activeMetadata.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--report-path",
+        canonicalOption: "--output",
+        index: 0,
+      },
+      {
+        token: "-o",
+        canonicalOption: "--only",
+        index: 1,
+      },
+      {
+        token: "-j",
+        canonicalOption: "--json",
+        index: 3,
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(3);
+  });
+
+  it("keeps length-trapped alias strict subsets active when value metadata is a set in metadata parsing", () => {
+    const setValueMetadata = new Set(["--output"]);
+    const strictAliasSubsetFromLengthTraps =
+      createLengthTrappedPartiallyRecoveredStringArray(["-o", "--output"]);
+    const activeMetadata = parseActiveCliOptionMetadata(
+      ["--report-path", "-o", "-l", "-j"],
+      {
+        canonicalOptions: ["--output", "--only", "--json"],
+        optionAliases: {
+          "--only": ["-o"],
+          "--output": ["--report-path"],
+          "--json": ["-j"],
+        },
+        optionsWithValues: setValueMetadata as never,
+        optionsWithStrictValues: strictAliasSubsetFromLengthTraps as never,
       }
     );
 
