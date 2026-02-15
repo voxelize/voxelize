@@ -48,12 +48,11 @@ async fn ws_route(
     secret: web::Data<Option<String>>,
     options: Query<HashMap<String, String>>,
 ) -> Result<HttpResponse, Error> {
-    if !secret.is_none() {
-        info!("Secret: {:?}", secret);
+    if let Some(expected_secret) = secret.get_ref().as_deref() {
         let error = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "wrong secret!");
 
         if let Some(client_secret) = options.get("secret") {
-            if *client_secret != secret.as_deref().unwrap() {
+            if client_secret != expected_secret {
                 warn!(
                     "An attempt to join with a wrong secret was made: {}",
                     client_secret
