@@ -5321,6 +5321,151 @@ describe("report-utils", () => {
         message: "Preflight check failed with exit code 2.",
       },
     ]);
+    const cappedSupplementedStepFailureArgsTarget: Array<string | number> = [];
+    cappedSupplementedStepFailureArgsTarget[0] = "check-step-capped.mjs";
+    for (let index = 1; index < 1_024; index += 1) {
+      cappedSupplementedStepFailureArgsTarget[index] = index;
+    }
+    for (let index = 0; index < 1_024; index += 1) {
+      cappedSupplementedStepFailureArgsTarget[5_000 + index] = `--k${index}`;
+    }
+    const cappedSupplementedStepFailureArgKeyList = Array.from(
+      { length: 1_024 },
+      (_, index) => {
+        return String(5_000 + index);
+      }
+    );
+    const cappedSupplementedStepFailureArgs = new Proxy(
+      cappedSupplementedStepFailureArgsTarget,
+      {
+        ownKeys() {
+          return [...cappedSupplementedStepFailureArgKeyList, "length"];
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1_000_000_000;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      summarizeStepFailureResults([
+        {
+          name: "step-capped-args",
+          scriptName: "check-step-capped.mjs",
+          supportsNoBuild: true,
+          checkCommand: "node",
+          checkArgs: cappedSupplementedStepFailureArgs,
+          stepIndex: 5,
+          passed: false,
+          skipped: false,
+          exitCode: 2,
+          report: null,
+          output: null,
+        },
+      ])
+    ).toEqual([
+      {
+        name: "step-capped-args",
+        scriptName: "check-step-capped.mjs",
+        supportsNoBuild: true,
+        stepIndex: 5,
+        checkCommand: "node",
+        checkArgs: expect.any(Array),
+        checkArgCount: 1_024,
+        exitCode: 2,
+        message: "Step failed with exit code 2.",
+      },
+    ]);
+    const cappedStepFailureSummaries = summarizeStepFailureResults([
+      {
+        name: "step-capped-args",
+        scriptName: "check-step-capped.mjs",
+        supportsNoBuild: true,
+        checkCommand: "node",
+        checkArgs: cappedSupplementedStepFailureArgs,
+        stepIndex: 5,
+        passed: false,
+        skipped: false,
+        exitCode: 2,
+        report: null,
+        output: null,
+      },
+    ]);
+    const cappedStepFailureCheckArgs = cappedStepFailureSummaries[0]?.checkArgs ?? [];
+    expect(cappedStepFailureCheckArgs).toHaveLength(1_024);
+    expect(cappedStepFailureCheckArgs[0]).toBe("check-step-capped.mjs");
+    expect(cappedStepFailureCheckArgs.includes("--k1022")).toBe(true);
+    expect(cappedStepFailureCheckArgs.includes("--k1023")).toBe(false);
+
+    const cappedSupplementedCheckFailureArgsTarget: Array<string | number> = [];
+    cappedSupplementedCheckFailureArgsTarget[0] = "check-check-capped.mjs";
+    for (let index = 1; index < 1_024; index += 1) {
+      cappedSupplementedCheckFailureArgsTarget[index] = index;
+    }
+    for (let index = 0; index < 1_024; index += 1) {
+      cappedSupplementedCheckFailureArgsTarget[5_000 + index] = `--k${index}`;
+    }
+    const cappedSupplementedCheckFailureArgKeyList = Array.from(
+      { length: 1_024 },
+      (_, index) => {
+        return String(5_000 + index);
+      }
+    );
+    const cappedSupplementedCheckFailureArgs = new Proxy(
+      cappedSupplementedCheckFailureArgsTarget,
+      {
+        ownKeys() {
+          return [...cappedSupplementedCheckFailureArgKeyList, "length"];
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1_000_000_000;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const cappedCheckFailureSummaries = summarizeCheckFailureResults([
+      {
+        name: "check-capped-args",
+        scriptName: "check-check-capped.mjs",
+        supportsNoBuild: true,
+        checkCommand: "node",
+        checkArgs: cappedSupplementedCheckFailureArgs,
+        checkIndex: 6,
+        passed: false,
+        exitCode: 2,
+        report: null,
+        output: null,
+      },
+    ]);
+    expect(cappedCheckFailureSummaries).toEqual([
+      {
+        name: "check-capped-args",
+        scriptName: "check-check-capped.mjs",
+        supportsNoBuild: true,
+        checkIndex: 6,
+        checkCommand: "node",
+        checkArgs: expect.any(Array),
+        checkArgCount: 1_024,
+        exitCode: 2,
+        message: "Preflight check failed with exit code 2.",
+      },
+    ]);
+    const cappedCheckFailureCheckArgs =
+      cappedCheckFailureSummaries[0]?.checkArgs ?? [];
+    expect(cappedCheckFailureCheckArgs).toHaveLength(1_024);
+    expect(cappedCheckFailureCheckArgs[0]).toBe("check-check-capped.mjs");
+    expect(cappedCheckFailureCheckArgs.includes("--k1022")).toBe(true);
+    expect(cappedCheckFailureCheckArgs.includes("--k1023")).toBe(false);
   });
 
   it("sanitizes malformed step/check failure entries with trap inputs", () => {
