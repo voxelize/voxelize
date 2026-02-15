@@ -2297,6 +2297,118 @@ describe("Type builders", () => {
     });
   });
 
+  it("merges readable prefix and key-fallback entries in createBlockRule", () => {
+    let prefixReadCount = 0;
+    const sparseRules: BlockRuleInput[] = [];
+    sparseRules[0] = {
+      type: "simple",
+      offset: [1, 0, 0],
+      id: 5,
+    };
+    sparseRules[5_000] = {
+      type: "simple",
+      offset: [2, 0, 0],
+      id: 9,
+    };
+    const trappedRules = new Proxy(sparseRules, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (propertyKey === "0") {
+          prefixReadCount += 1;
+          if (prefixReadCount > 1) {
+            throw new Error("read trap");
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(
+      createBlockRule({
+        type: "combination",
+        logic: BlockRuleLogic.Or,
+        rules: trappedRules as never,
+      })
+    ).toEqual({
+      type: "combination",
+      logic: BlockRuleLogic.Or,
+      rules: [
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 5,
+        },
+        {
+          type: "simple",
+          offset: [2, 0, 0],
+          id: 9,
+        },
+      ],
+    });
+  });
+
+  it("caps merged createBlockRule fallback recovery to the bounded scan window", () => {
+    const sparseRules: BlockRuleInput[] = [];
+    sparseRules[0] = {
+      type: "simple",
+      offset: [1, 0, 0],
+      id: 5,
+    };
+    for (let index = 0; index < 1_024; index += 1) {
+      sparseRules[5_000 + index] = {
+        type: "simple",
+        offset: [2, 0, 0],
+        id: 9,
+      };
+    }
+    const fallbackKeyList = Array.from({ length: 1_024 }, (_, index) => {
+      return String(5_000 + index);
+    });
+    const trappedRules = new Proxy(sparseRules, {
+      ownKeys() {
+        return [...fallbackKeyList, "length"];
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    const clonedRule = createBlockRule({
+      type: "combination",
+      logic: BlockRuleLogic.Or,
+      rules: trappedRules as never,
+    });
+
+    expect(clonedRule.type).toBe("combination");
+    if (clonedRule.type !== "combination") {
+      throw new Error("Expected sanitized combination rule.");
+    }
+    expect(clonedRule.rules).toHaveLength(1_024);
+    expect(clonedRule.rules[0]).toEqual({
+      type: "simple",
+      offset: [1, 0, 0],
+      id: 5,
+    });
+    expect(
+      clonedRule.rules.filter((entry) => {
+        return entry.type === "simple" && entry.id === 9;
+      })
+    ).toHaveLength(1_023);
+  });
+
   it("recovers key-based combination entries when bounded createBlockRule direct reads throw", () => {
     const sparseRules: BlockRuleInput[] = [];
     sparseRules[5_000] = {

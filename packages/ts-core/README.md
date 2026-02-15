@@ -169,8 +169,13 @@ const voxel = Voxel.pack({
     sanitize to deterministic `none`
   - bounded key-fallback scans can supplement readable high-index rules when
     bounded prefixes contain malformed/noisy entries
+  - if key-fallback recovery omits readable prefix rules (for example due
+    stateful low-index read traps), bounded-prefix and key-fallback
+    recoveries are merged by numeric index
   - bounded key-enumeration fallback is skipped when bounded length recovery
     already fills the scan window
+  - merged bounded/key recoveries remain capped to the smallest 1024 numeric
+    indices to keep fallback cloning bounded
   - inherited numeric prototype entries are ignored during bounded fallback
     scans
   - bounded direct-read traps are skipped during fallback scans so key
