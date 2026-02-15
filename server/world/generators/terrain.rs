@@ -46,8 +46,9 @@ impl BiomeTree {
         let idx = self.biomes.len();
         self.biomes.push(biome);
         let mut padded = [0.0f64; MAX_BIOME_LAYERS];
-        for (i, &v) in point.iter().take(self.dimensions).enumerate() {
-            padded[i] = v;
+        let dimensions = self.dimensions.min(point.len());
+        for index in 0..dimensions {
+            padded[index] = point[index];
         }
         self.tree.add(&padded, idx);
     }
@@ -57,8 +58,9 @@ impl BiomeTree {
             return None;
         }
         let mut padded = [0.0f64; MAX_BIOME_LAYERS];
-        for (i, &v) in point.iter().take(self.dimensions).enumerate() {
-            padded[i] = v;
+        let dimensions = self.dimensions.min(point.len());
+        for index in 0..dimensions {
+            padded[index] = point[index];
         }
         let result = self.tree.nearest_one::<SquaredEuclidean>(&padded);
         self.biomes.get(result.item)
