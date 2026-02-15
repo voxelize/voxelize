@@ -2293,6 +2293,24 @@ describe("report-utils", () => {
       }
     );
     expect(unknownWithStrictDashPrefixedPathValue).toEqual([]);
+    const unknownWithMixedStrictMetadataForNonStrictOption = parseUnknownCliOptions(
+      ["--only", "-l"],
+      {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: ["--output", "--only"],
+        optionsWithStrictValues: ["--output", 1] as never,
+      }
+    );
+    expect(unknownWithMixedStrictMetadataForNonStrictOption).toEqual([]);
+    const unknownWithMixedStrictMetadataForStrictOption = parseUnknownCliOptions(
+      ["--output", "-l"],
+      {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: ["--output", "--only"],
+        optionsWithStrictValues: ["--output", 1] as never,
+      }
+    );
+    expect(unknownWithMixedStrictMetadataForStrictOption).toEqual(["-l"]);
     const unknownWithPrimitiveStrictValueMetadata = parseUnknownCliOptions(
       ["--output", "-l"],
       {
@@ -2923,6 +2941,38 @@ describe("report-utils", () => {
     expect(strictUnknownInlineShortValueValidation.validationErrorCode).toBe(
       "unsupported_options"
     );
+    const mixedStrictMetadataStrictOptionValidation = createCliOptionValidation(
+      ["--output", "-l"],
+      {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: ["--output", "--only"],
+        optionsWithStrictValues: ["--output", 1] as never,
+      }
+    );
+    expect(mixedStrictMetadataStrictOptionValidation.unknownOptions).toEqual([
+      "-l",
+    ]);
+    expect(mixedStrictMetadataStrictOptionValidation.unknownOptionCount).toBe(1);
+    expect(mixedStrictMetadataStrictOptionValidation.unsupportedOptionsError).toBe(
+      "Unsupported option(s): -l. Supported options: --output, --only."
+    );
+    expect(mixedStrictMetadataStrictOptionValidation.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    const mixedStrictMetadataNonStrictOptionValidation =
+      createCliOptionValidation(["--only", "-l"], {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: ["--output", "--only"],
+        optionsWithStrictValues: ["--output", 1] as never,
+      });
+    expect(mixedStrictMetadataNonStrictOptionValidation.unknownOptions).toEqual([]);
+    expect(mixedStrictMetadataNonStrictOptionValidation.unknownOptionCount).toBe(
+      0
+    );
+    expect(
+      mixedStrictMetadataNonStrictOptionValidation.unsupportedOptionsError
+    ).toBeNull();
+    expect(mixedStrictMetadataNonStrictOptionValidation.validationErrorCode).toBeNull();
     const primitiveStrictValueMetadataValidation = createCliOptionValidation(
       ["--output", "-l"],
       {
@@ -4401,6 +4451,70 @@ describe("report-utils", () => {
       "Unsupported option(s): -l. Supported options: --output."
     );
     expect(diagnostics.validationErrorCode).toBe("unsupported_options");
+  });
+
+  it("preserves strict subsets when mixed strict metadata contains malformed entries", () => {
+    const strictOptionDiagnostics = createCliDiagnostics(["--output", "-l"], {
+      canonicalOptions: ["--output", "--only"],
+      optionsWithValues: ["--output", "--only"],
+      optionsWithStrictValues: ["--output", 1] as never,
+    });
+
+    expect(strictOptionDiagnostics.activeCliOptions).toEqual(["--output"]);
+    expect(strictOptionDiagnostics.activeCliOptionCount).toBe(1);
+    expect(strictOptionDiagnostics.activeCliOptionTokens).toEqual(["--output"]);
+    expect(strictOptionDiagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(strictOptionDiagnostics.activeCliOptionResolutionCount).toBe(1);
+    expect(strictOptionDiagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+    ]);
+    expect(strictOptionDiagnostics.activeCliOptionOccurrenceCount).toBe(1);
+    expect(strictOptionDiagnostics.unknownOptions).toEqual(["-l"]);
+    expect(strictOptionDiagnostics.unknownOptionCount).toBe(1);
+    expect(strictOptionDiagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): -l. Supported options: --output, --only."
+    );
+    expect(strictOptionDiagnostics.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+
+    const nonStrictOptionDiagnostics = createCliDiagnostics(["--only", "-l"], {
+      canonicalOptions: ["--output", "--only"],
+      optionsWithValues: ["--output", "--only"],
+      optionsWithStrictValues: ["--output", 1] as never,
+    });
+
+    expect(nonStrictOptionDiagnostics.activeCliOptions).toEqual(["--only"]);
+    expect(nonStrictOptionDiagnostics.activeCliOptionCount).toBe(1);
+    expect(nonStrictOptionDiagnostics.activeCliOptionTokens).toEqual(["--only"]);
+    expect(nonStrictOptionDiagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+      },
+    ]);
+    expect(nonStrictOptionDiagnostics.activeCliOptionResolutionCount).toBe(1);
+    expect(nonStrictOptionDiagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+        index: 0,
+      },
+    ]);
+    expect(nonStrictOptionDiagnostics.activeCliOptionOccurrenceCount).toBe(1);
+    expect(nonStrictOptionDiagnostics.unknownOptions).toEqual([]);
+    expect(nonStrictOptionDiagnostics.unknownOptionCount).toBe(0);
+    expect(nonStrictOptionDiagnostics.unsupportedOptionsError).toBeNull();
+    expect(nonStrictOptionDiagnostics.validationErrorCode).toBeNull();
   });
 
   it("reports unknown short tokens with mixed value metadata and unsupported strict metadata", () => {
@@ -6024,6 +6138,48 @@ describe("report-utils", () => {
         token: "-j",
         canonicalOption: "--json",
         index: 1,
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(2);
+  });
+
+  it("preserves strict subsets for active metadata when strict token lists are mixed", () => {
+    const activeMetadata = parseActiveCliOptionMetadata(
+      ["--only", "-l", "--output", "-s"],
+      {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: ["--output", "--only"],
+        optionsWithStrictValues: ["--output", 1] as never,
+      }
+    );
+
+    expect(activeMetadata.activeCliOptions).toEqual(["--output", "--only"]);
+    expect(activeMetadata.activeCliOptionCount).toBe(2);
+    expect(activeMetadata.activeCliOptionTokens).toEqual([
+      "--only",
+      "--output",
+    ]);
+    expect(activeMetadata.activeCliOptionResolutions).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionResolutionCount).toBe(2);
+    expect(activeMetadata.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+        index: 0,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 2,
       },
     ]);
     expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(2);

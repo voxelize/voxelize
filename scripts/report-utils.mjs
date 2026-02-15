@@ -1827,8 +1827,12 @@ const createValueOptionMetadata = (
   const strictValueMetadataUnresolved =
     normalizedOptionsWithStrictValues.length > 0 &&
     resolvedCanonicalStrictValueOptions.length === 0;
+  const strictMetadataUnavailableWithoutRecoverableTokens =
+    strictValueOptionsUnavailable &&
+    resolvedCanonicalStrictValueOptions.length === 0;
   if (
-    (strictValueOptionsUnavailable || strictValueMetadataUnresolved) &&
+    (strictMetadataUnavailableWithoutRecoverableTokens ||
+      strictValueMetadataUnresolved) &&
     canonicalValueOptions.size > 0
   ) {
     canonicalStrictValueOptions = new Set(canonicalValueOptions);
