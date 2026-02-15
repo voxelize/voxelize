@@ -477,6 +477,24 @@ describe("report-utils", () => {
     expect(malformedRecognizedDashValueResult.outputPath).toBe(
       "/workspace/-artifact-report.json"
     );
+    const malformedRecognizedInlineAliasMisuseResult = resolveOutputPath(
+      ["--output", "-l=1"],
+      "/workspace",
+      malformedRecognizedOutputTokens as never
+    );
+    expect(malformedRecognizedInlineAliasMisuseResult.error).toBe(
+      "Missing value for --output option."
+    );
+    expect(malformedRecognizedInlineAliasMisuseResult.outputPath).toBeNull();
+    const malformedRecognizedSingleDashValueResult = resolveOutputPath(
+      ["--output", "-"],
+      "/workspace",
+      malformedRecognizedOutputTokens as never
+    );
+    expect(malformedRecognizedSingleDashValueResult.error).toBeNull();
+    expect(malformedRecognizedSingleDashValueResult.outputPath).toBe(
+      "/workspace/-"
+    );
 
     const lengthAndOwnKeysTrapOutputArgs = new Proxy(
       ["--output", "./report.json"],
@@ -873,6 +891,30 @@ describe("report-utils", () => {
     expect(
       resolvedUnknownDashValueFromCombinedRecognizedOptionTraps.error
     ).toBeNull();
+    const resolvedInlineAliasMisuseFromCombinedRecognizedOptionTraps =
+      resolveLastOptionValue(
+        ["--output", "-l=1"],
+        "--output",
+        lengthAndOwnKeysTrapRecognizedOptionTokens as never
+      );
+    expect(resolvedInlineAliasMisuseFromCombinedRecognizedOptionTraps.hasOption).toBe(
+      true
+    );
+    expect(resolvedInlineAliasMisuseFromCombinedRecognizedOptionTraps.value).toBeNull();
+    expect(resolvedInlineAliasMisuseFromCombinedRecognizedOptionTraps.error).toBe(
+      "Missing value for --output option."
+    );
+    const resolvedSingleDashValueFromCombinedRecognizedOptionTraps =
+      resolveLastOptionValue(
+        ["--output", "-"],
+        "--output",
+        lengthAndOwnKeysTrapRecognizedOptionTokens as never
+      );
+    expect(resolvedSingleDashValueFromCombinedRecognizedOptionTraps.hasOption).toBe(
+      true
+    );
+    expect(resolvedSingleDashValueFromCombinedRecognizedOptionTraps.value).toBe("-");
+    expect(resolvedSingleDashValueFromCombinedRecognizedOptionTraps.error).toBeNull();
   });
 
   it("splits option and positional args using option terminator", () => {
