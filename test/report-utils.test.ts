@@ -6624,6 +6624,106 @@ describe("report-utils", () => {
     ).toBe(false);
   });
 
+  it("does not cap disjoint failure summary supplementation when iterator succeeds", () => {
+    const uncappedDisjointFailureStepsTarget: Array<
+      number | Record<string, boolean | number | string>
+    > = [];
+    for (let index = 0; index < 900; index += 1) {
+      uncappedDisjointFailureStepsTarget[5_000 + index] = {
+        name: `step-high${index}`,
+        scriptName: `step-high${index}.mjs`,
+        supportsNoBuild: true,
+        stepIndex: 5_000 + index,
+        passed: false,
+        skipped: false,
+        exitCode: 2,
+      };
+    }
+    Object.defineProperty(uncappedDisjointFailureStepsTarget, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      value: function* () {
+        for (let index = 0; index < 450; index += 1) {
+          yield index;
+        }
+        for (let index = 0; index < 450; index += 1) {
+          yield {
+            name: `step-iter${index}`,
+            scriptName: `step-iter${index}.mjs`,
+            supportsNoBuild: true,
+            stepIndex: index,
+            passed: false,
+            skipped: false,
+            exitCode: 2,
+          };
+        }
+      },
+    });
+    const uncappedDisjointStepFailureSummaries = summarizeStepFailureResults(
+      uncappedDisjointFailureStepsTarget as never
+    );
+    expect(uncappedDisjointStepFailureSummaries).toHaveLength(1_350);
+    expect(uncappedDisjointStepFailureSummaries[0]?.name).toBe("step-iter0");
+    expect(
+      uncappedDisjointStepFailureSummaries.some(
+        (summary) => summary.name === "step-iter449"
+      )
+    ).toBe(true);
+    expect(
+      uncappedDisjointStepFailureSummaries.some(
+        (summary) => summary.name === "step-high899"
+      )
+    ).toBe(true);
+
+    const uncappedDisjointFailureChecksTarget: Array<
+      number | Record<string, boolean | number | string>
+    > = [];
+    for (let index = 0; index < 900; index += 1) {
+      uncappedDisjointFailureChecksTarget[5_000 + index] = {
+        name: `check-high${index}`,
+        scriptName: `check-high${index}.mjs`,
+        supportsNoBuild: true,
+        checkIndex: 5_000 + index,
+        passed: false,
+        exitCode: 2,
+      };
+    }
+    Object.defineProperty(uncappedDisjointFailureChecksTarget, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      value: function* () {
+        for (let index = 0; index < 450; index += 1) {
+          yield index;
+        }
+        for (let index = 0; index < 450; index += 1) {
+          yield {
+            name: `check-iter${index}`,
+            scriptName: `check-iter${index}.mjs`,
+            supportsNoBuild: true,
+            checkIndex: index,
+            passed: false,
+            exitCode: 2,
+          };
+        }
+      },
+    });
+    const uncappedDisjointCheckFailureSummaries = summarizeCheckFailureResults(
+      uncappedDisjointFailureChecksTarget as never
+    );
+    expect(uncappedDisjointCheckFailureSummaries).toHaveLength(1_350);
+    expect(uncappedDisjointCheckFailureSummaries[0]?.name).toBe("check-iter0");
+    expect(
+      uncappedDisjointCheckFailureSummaries.some(
+        (summary) => summary.name === "check-iter449"
+      )
+    ).toBe(true);
+    expect(
+      uncappedDisjointCheckFailureSummaries.some(
+        (summary) => summary.name === "check-high899"
+      )
+    ).toBe(true);
+  });
+
   it("summarizes check outcomes for aggregate preflight reports", () => {
     const summary = summarizeCheckResults([
       { name: "devEnvironment", passed: false },
@@ -8194,6 +8294,38 @@ describe("report-utils", () => {
     expect(supplementedSummary.wasmPackCheckArgCount).toBe(1_024);
   });
 
+  it("does not cap disjoint wasm pack supplementation when iterator succeeds", () => {
+    const uncappedDisjointWasmArgsTarget: string[] = [];
+    for (let index = 0; index < 900; index += 1) {
+      uncappedDisjointWasmArgsTarget[5_000 + index] = `--high${index}`;
+    }
+    Object.defineProperty(uncappedDisjointWasmArgsTarget, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      value: function* () {
+        for (let index = 0; index < 450; index += 1) {
+          yield index;
+        }
+        for (let index = 0; index < 450; index += 1) {
+          yield `--iter${index}`;
+        }
+      },
+    });
+
+    const summary = extractWasmPackCheckSummaryFromReport({
+      wasmPackCheckArgs: uncappedDisjointWasmArgsTarget,
+    });
+    expect(summary.wasmPackCheckArgs).not.toBeNull();
+    if (summary.wasmPackCheckArgs === null) {
+      throw new Error("Expected uncapped disjoint wasm-pack args.");
+    }
+    expect(summary.wasmPackCheckArgs).toHaveLength(1_350);
+    expect(summary.wasmPackCheckArgs[0]).toBe("--iter0");
+    expect(summary.wasmPackCheckArgs.includes("--iter449")).toBe(true);
+    expect(summary.wasmPackCheckArgs.includes("--high899")).toBe(true);
+    expect(summary.wasmPackCheckArgCount).toBe(1_350);
+  });
+
   it("creates prefixed wasm pack summary objects", () => {
     expect(
       createPrefixedWasmPackCheckSummary(
@@ -8559,6 +8691,36 @@ describe("report-utils", () => {
     expect(normalizedCappedSupplementedIssues.includes("issue.k1023")).toBe(
       false
     );
+  });
+
+  it("does not cap disjoint payload issue supplementation when iterator succeeds", () => {
+    const uncappedDisjointIssuesTarget: string[] = [];
+    for (let index = 0; index < 900; index += 1) {
+      uncappedDisjointIssuesTarget[5_000 + index] = ` issue.high${index} `;
+    }
+    Object.defineProperty(uncappedDisjointIssuesTarget, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      value: function* () {
+        for (let index = 0; index < 450; index += 1) {
+          yield index;
+        }
+        for (let index = 0; index < 450; index += 1) {
+          yield ` issue.iter${index} `;
+        }
+      },
+    });
+    const normalizedUncappedDisjointIssues = normalizeTsCorePayloadIssues(
+      uncappedDisjointIssuesTarget
+    );
+    expect(normalizedUncappedDisjointIssues).not.toBeNull();
+    if (normalizedUncappedDisjointIssues === null) {
+      throw new Error("Expected uncapped disjoint normalized payload issues.");
+    }
+    expect(normalizedUncappedDisjointIssues).toHaveLength(1_350);
+    expect(normalizedUncappedDisjointIssues[0]).toBe("issue.iter0");
+    expect(normalizedUncappedDisjointIssues.includes("issue.iter449")).toBe(true);
+    expect(normalizedUncappedDisjointIssues.includes("issue.high899")).toBe(true);
   });
 
   it("extracts ts-core example summary fields from reports", () => {
@@ -9428,6 +9590,40 @@ describe("report-utils", () => {
     expect(supplementedSummary.exampleArgs.includes("--k1022")).toBe(true);
     expect(supplementedSummary.exampleArgs.includes("--k1023")).toBe(false);
     expect(supplementedSummary.exampleArgCount).toBe(1_024);
+  });
+
+  it("does not cap disjoint ts-core example supplementation when iterator succeeds", () => {
+    const uncappedDisjointExampleArgsTarget: string[] = [];
+    for (let index = 0; index < 900; index += 1) {
+      uncappedDisjointExampleArgsTarget[5_000 + index] = `--high${index}`;
+    }
+    Object.defineProperty(uncappedDisjointExampleArgsTarget, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      value: function* () {
+        for (let index = 0; index < 450; index += 1) {
+          yield index;
+        }
+        for (let index = 0; index < 450; index += 1) {
+          yield `--iter${index}`;
+        }
+      },
+    });
+
+    const summary = extractTsCoreExampleSummaryFromReport({
+      exampleArgs: uncappedDisjointExampleArgsTarget,
+      exampleAttempted: true,
+      exampleExitCode: 1,
+    });
+    expect(summary.exampleArgs).not.toBeNull();
+    if (summary.exampleArgs === null) {
+      throw new Error("Expected uncapped disjoint ts-core example args.");
+    }
+    expect(summary.exampleArgs).toHaveLength(1_350);
+    expect(summary.exampleArgs[0]).toBe("--iter0");
+    expect(summary.exampleArgs.includes("--iter449")).toBe(true);
+    expect(summary.exampleArgs.includes("--high899")).toBe(true);
+    expect(summary.exampleArgCount).toBe(1_350);
   });
 
   it("creates prefixed ts-core example summary objects", () => {
