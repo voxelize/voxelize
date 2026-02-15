@@ -55,6 +55,24 @@ fn ids_contains_target(ids: &[String], target: &str) -> bool {
 }
 
 #[inline]
+fn include_single_target(ids: &[String]) -> Option<&str> {
+    match ids.len() {
+        0 => None,
+        1 => Some(ids[0].as_str()),
+        2 if ids[0] == ids[1] => Some(ids[0].as_str()),
+        _ => {
+            let first_id = ids[0].as_str();
+            for index in 1..ids.len() {
+                if ids[index].as_str() != first_id {
+                    return None;
+                }
+            }
+            Some(first_id)
+        }
+    }
+}
+
+#[inline]
 fn push_dispatch_event(
     dispatch_map: &mut HashMap<String, Vec<EventProtocol>>,
     touched_clients: &mut Vec<String>,
@@ -231,19 +249,7 @@ impl<'a> System<'a> for EventsSystem {
                 continue;
             }
             let include_single_target = if let Some(ClientFilter::Include(ids)) = filter.as_ref() {
-                match ids.len() {
-                    0 => None,
-                    1 => Some(ids[0].as_str()),
-                    2 if ids[0] == ids[1] => Some(ids[0].as_str()),
-                    _ => {
-                        let first_id = ids[0].as_str();
-                        if ids.iter().all(|id| id.as_str() == first_id) {
-                            Some(first_id)
-                        } else {
-                            None
-                        }
-                    }
-                }
+                include_single_target(ids)
             } else {
                 None
             };
