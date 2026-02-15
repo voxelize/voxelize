@@ -54,7 +54,7 @@ fn normalized_action_name<'a>(action: &'a str) -> Cow<'a, str> {
 }
 
 fn default_info_handle(server: &Server) -> Value {
-    let mut info = HashMap::new();
+    let mut info = HashMap::with_capacity(3);
 
     info.insert(
         "lost_sessions".to_owned(),
