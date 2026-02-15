@@ -442,6 +442,33 @@ describe("report-utils", () => {
       "/workspace/final-report.json"
     );
 
+    const malformedRecognizedOutputTokens = new Proxy(
+      ["--list-checks", "-l"],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            throw new Error("length trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const malformedRecognizedOutputTokenResult = resolveOutputPath(
+      ["--output", "-l"],
+      "/workspace",
+      malformedRecognizedOutputTokens as never
+    );
+    expect(malformedRecognizedOutputTokenResult.error).toBe(
+      "Missing value for --output option."
+    );
+    expect(malformedRecognizedOutputTokenResult.outputPath).toBeNull();
+
     const lengthAndOwnKeysTrapOutputArgs = new Proxy(
       ["--output", "./report.json"],
       {
@@ -794,6 +821,34 @@ describe("report-utils", () => {
     expect(resolved.hasOption).toBe(true);
     expect(resolved.value).toBeNull();
     expect(resolved.error).toBe("Missing value for --output option.");
+
+    const lengthAndOwnKeysTrapRecognizedOptionTokens = new Proxy(
+      ["--list-checks", "-l"],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            throw new Error("length trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const resolvedFromCombinedRecognizedOptionTraps = resolveLastOptionValue(
+      ["--output", "-l"],
+      "--output",
+      lengthAndOwnKeysTrapRecognizedOptionTokens as never
+    );
+    expect(resolvedFromCombinedRecognizedOptionTraps.hasOption).toBe(true);
+    expect(resolvedFromCombinedRecognizedOptionTraps.value).toBeNull();
+    expect(resolvedFromCombinedRecognizedOptionTraps.error).toBe(
+      "Missing value for --output option."
+    );
   });
 
   it("splits option and positional args using option terminator", () => {

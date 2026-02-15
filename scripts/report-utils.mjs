@@ -1568,6 +1568,21 @@ const normalizeCliOptionTokenList = (tokens) => {
   return dedupeStringList(toStringArrayOrEmpty(tokens));
 };
 
+const normalizeCliOptionTokenListWithAvailability = (tokens) => {
+  const normalizedTokens = toStringArrayOrNull(tokens);
+  if (normalizedTokens === null) {
+    return {
+      tokens: [],
+      unavailable: Array.isArray(tokens),
+    };
+  }
+
+  return {
+    tokens: dedupeStringList(normalizedTokens),
+    unavailable: false,
+  };
+};
+
 const normalizeCliOptionAliases = (optionAliases) => {
   if (!isObjectRecord(optionAliases)) {
     return {};
@@ -2075,8 +2090,12 @@ export const resolveLastOptionValue = (
   recognizedOptionTokens = []
 ) => {
   const { optionArgs } = splitCliArgs(args);
+  const {
+    tokens: normalizedRecognizedOptionTokens,
+    unavailable: recognizedOptionTokensUnavailable,
+  } = normalizeCliOptionTokenListWithAvailability(recognizedOptionTokens);
   const recognizedOptionTokenSet = new Set(
-    normalizeCliOptionTokenList(recognizedOptionTokens)
+    normalizedRecognizedOptionTokens
   );
   const isRecognizedOptionTokenLike = (optionToken) => {
     if (recognizedOptionTokenSet.has(optionToken)) {
@@ -2104,6 +2123,9 @@ export const resolveLastOptionValue = (
       if (
         nextArg === null ||
         nextArg.startsWith("--") ||
+        (recognizedOptionTokensUnavailable &&
+          nextArg.startsWith("-") &&
+          nextArg !== "-") ||
         isRecognizedOptionTokenLike(nextArg) ||
         nextArg.trim().length === 0
       ) {
