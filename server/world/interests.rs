@@ -39,7 +39,7 @@ impl ChunkInterests {
     }
 
     pub fn set_weight(&mut self, coords: &Vec2<i32>, weight: f32) {
-        self.weights.insert(coords.to_owned(), weight);
+        self.weights.insert(*coords, weight);
     }
 
     pub fn get_weight(&self, coords: &Vec2<i32>) -> Option<&f32> {
@@ -95,7 +95,7 @@ impl ChunkInterests {
 
     pub fn add(&mut self, client_id: &str, coords: &Vec2<i32>) {
         self.map
-            .entry(coords.to_owned())
+            .entry(*coords)
             .or_default()
             .insert(client_id.to_owned());
     }
