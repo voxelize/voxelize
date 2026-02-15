@@ -1343,15 +1343,17 @@ impl World {
             warn!("Tried to revive unknown entity type: {}", etype);
             return None;
         };
+        let loader_metadata = metadata.clone();
+        let position = metadata.get::<PositionComp>("position");
 
         // Wrap entity creation in panic handler to catch any errors
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            loader(self, metadata.to_owned()).build()
+            loader(self, loader_metadata).build()
         })) {
             Ok(ent) => {
-                self.populate_entity(ent, id, etype, metadata.clone());
+                self.populate_entity(ent, id, etype, metadata);
 
-                if let Some(pos) = metadata.get::<PositionComp>("position") {
+                if let Some(pos) = position {
                     set_position(self.ecs_mut(), ent, pos.0 .0, pos.0 .1, pos.0 .2);
                 }
 
