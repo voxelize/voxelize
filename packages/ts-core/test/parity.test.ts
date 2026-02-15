@@ -1491,6 +1491,78 @@ describe("Type builders", () => {
     expect(part.aabbs).toEqual([]);
   });
 
+  it("salvages key-based face and aabb entries when length access traps", () => {
+    const sparseFaces = [] as Array<BlockFaceInit | undefined>;
+    sparseFaces[5_000] = { name: "SparseFace" };
+    const sparseAabbs = [] as Array<AABB | undefined>;
+    sparseAabbs[5_000] = AABB.create(0, 0, 0, 1, 1, 1);
+    const trappedFaces = new Proxy(sparseFaces, {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          throw new Error("length trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const trappedAabbs = new Proxy(sparseAabbs, {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          throw new Error("length trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    const part = createBlockConditionalPart({
+      faces: trappedFaces as never,
+      aabbs: trappedAabbs as never,
+    });
+
+    expect(part.faces).toEqual([new BlockFace({ name: "SparseFace" })]);
+    expect(part.aabbs).toEqual([AABB.create(0, 0, 0, 1, 1, 1)]);
+  });
+
+  it("caps bounded face-entry fallback scans when iterator access traps", () => {
+    let boundedReadCount = 0;
+    const oversizedFaces = new Proxy([] as Array<BlockFaceInit | undefined>, {
+      getOwnPropertyDescriptor(target, property) {
+        if (typeof property === "string" && /^(0|[1-9]\d*)$/.test(property)) {
+          throw new Error("descriptor trap");
+        }
+        return Reflect.getOwnPropertyDescriptor(target, property);
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1_000_000_000;
+        }
+        if (typeof property === "string" && /^(0|[1-9]\d*)$/.test(property)) {
+          boundedReadCount += 1;
+          if (property === "0") {
+            return { name: "BoundedFace" };
+          }
+          return undefined;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    const part = createBlockConditionalPart({
+      faces: oversizedFaces as never,
+    });
+
+    expect(part.faces).toEqual([new BlockFace({ name: "BoundedFace" })]);
+    expect(boundedReadCount).toBe(1024);
+  });
+
   it("accepts null-prototype face init objects during conditional part cloning", () => {
     const nullPrototypeFace = Object.create(null) as {
       name: string;
