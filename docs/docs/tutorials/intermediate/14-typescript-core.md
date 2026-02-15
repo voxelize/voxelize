@@ -42,7 +42,8 @@ flowchart LR
   `BlockFace` input (plain-object init only) with deterministic default fallback
   for malformed values
 - `createAABB`: ergonomic constructor helper for `AABB` or plain `AABB` init
-  input with deterministic empty fallback for malformed values
+  input (including readonly/frozen literals) with deterministic empty fallback
+  for malformed values
 - `createFaceTransparency`: helper for normalized 6-face transparency tuples
 - `VoxelAccess`: shared access contract
 

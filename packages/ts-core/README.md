@@ -118,7 +118,8 @@ const voxel = Voxel.pack({
     `BlockFace` input
   - malformed inputs fall back to a deterministic default face (`name: "Face"`)
 - `createAABB`
-  - ergonomic constructor helper for `AABB` or plain `AABB` init input
+  - ergonomic constructor helper for `AABB` or plain/readonly/frozen `AABB`
+    init input
   - malformed inputs fall back to an empty AABB
 - `createFaceTransparency`
   - builds normalized 6-face transparency tuples from optional/null/partial

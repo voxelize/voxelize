@@ -1331,6 +1331,22 @@ describe("Type builders", () => {
     expect(part.aabbs).toEqual([AABB.create(0, 0, 0, 1, 1, 1)]);
   });
 
+  it("accepts frozen AABB init objects during conditional part cloning", () => {
+    const frozenAabb = Object.freeze({
+      minX: 0,
+      minY: 0,
+      minZ: 0,
+      maxX: 1,
+      maxY: 1,
+      maxZ: 1,
+    });
+    const part = createBlockConditionalPart({
+      aabbs: [frozenAabb],
+    });
+
+    expect(part.aabbs).toEqual([AABB.create(0, 0, 0, 1, 1, 1)]);
+  });
+
   it("accepts readonly AABB init literals during conditional part cloning", () => {
     const readonlyAabb = {
       minX: 0,
@@ -2442,6 +2458,19 @@ describe("Type builders", () => {
 
     expect(fromPlainInit.maxX).toBe(1);
     expect(fromNullPrototypeInit.maxX).toBe(4);
+  });
+
+  it("supports createAABB helper with frozen init objects", () => {
+    const frozenInit = Object.freeze({
+      minX: 0,
+      minY: 0,
+      minZ: 0,
+      maxX: 1,
+      maxY: 1,
+      maxZ: 1,
+    });
+
+    expect(createAABB(frozenInit)).toEqual(AABB.create(0, 0, 0, 1, 1, 1));
   });
 
   it("supports readonly AABB init literals in createAABB", () => {
