@@ -412,6 +412,7 @@ pnpm run check:preflight:all-checks:verify:json:compact
 # same-index fallback rescans preserve first-seen recovered string/object entries and only upgrade placeholder values
 # merged bounded/key trap recoveries remain capped to the smallest 1024 numeric indices for deterministic bounded output
 # typed string/object supplementation unions also keep the same bounded 1024 index window when both merged sources come from bounded fallback scans
+# when iterator cloning succeeds, disjoint key-scan supplementation remains uncapped so all recovered non-overlapping entries are preserved
 # step/check aggregate totals are clamped to at least their partition counts when uncapped supplementation adds disjoint recovered entries
 # bounded fallback scans use own-property checks so inherited numeric prototype entries are ignored
 # when own-property descriptor probes trap, bounded fallback switches to guarded direct reads without repeated probe failures
