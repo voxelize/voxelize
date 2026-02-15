@@ -1814,7 +1814,7 @@ impl World {
                 });
             if let Some(handle) = handle {
                 handle(self, client_id, &event.payload);
-                return;
+                continue;
             }
             let mut event_builder = Event::new_owned(event.name).payload_raw(event.payload);
             if let Some(loc) = client_location {
