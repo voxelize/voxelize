@@ -1682,12 +1682,13 @@ impl World {
         let mut chunks = self.chunks_mut();
 
         if let Some(bulk) = data.bulk_update {
-            for i in 0..bulk.vx.len() {
-                let vx = bulk.vx[i];
-                let vy = bulk.vy[i];
-                let vz = bulk.vz[i];
-                let voxel = bulk.voxels[i];
-
+            for (((&vx, &vy), &vz), &voxel) in bulk
+                .vx
+                .iter()
+                .zip(bulk.vy.iter())
+                .zip(bulk.vz.iter())
+                .zip(bulk.voxels.iter())
+            {
                 let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
 
                 if !chunks.is_within_world(&coords) {
@@ -1697,16 +1698,16 @@ impl World {
                 chunks.update_voxel(&Vec3(vx, vy, vz), voxel);
             }
         } else {
-            data.updates.into_iter().for_each(|update| {
+            for update in data.updates {
                 let coords =
                     ChunkUtils::map_voxel_to_chunk(update.vx, update.vy, update.vz, chunk_size);
 
                 if !chunks.is_within_world(&coords) {
-                    return;
+                    continue;
                 }
 
                 chunks.update_voxel(&Vec3(update.vx, update.vy, update.vz), update.voxel);
-            });
+            }
         }
     }
 
