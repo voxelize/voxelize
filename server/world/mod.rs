@@ -1762,8 +1762,11 @@ impl World {
 
         info!("{}: {}", chat.sender, chat.body);
 
-        let command_symbol = self.config().command_symbol.clone();
-        if let Some(command) = chat.body.strip_prefix(&command_symbol) {
+        let command = {
+            let config = self.config();
+            chat.body.strip_prefix(config.command_symbol.as_str())
+        };
+        if let Some(command) = command {
             if let Some(handle) = self.command_handle.clone() {
                 handle(self, id, command);
             } else {
