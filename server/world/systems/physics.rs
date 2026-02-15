@@ -130,45 +130,22 @@ impl<'a> System<'a> for PhysicsSystem {
 
         // Tick the rapier physics engine, and add the collisions to individual entities.
         let collision_events = physics.step(stats.delta);
-
-        let mut started_collisions = Vec::new();
-        let mut stopped_collisions = Vec::new();
-
         for event in collision_events {
-            match event {
-                CollisionEvent::Started(ch1, ch2, _) => {
-                    if let (Some(ent1), Some(ent2)) =
-                        (collision_map.get(&ch1), collision_map.get(&ch2))
-                    {
-                        started_collisions.push((*ent1, *ent2, event));
-                    }
+            let (ch1, ch2) = match event {
+                CollisionEvent::Started(ch1, ch2, _) => (ch1, ch2),
+                CollisionEvent::Stopped(ch1, ch2, _) => (ch1, ch2),
+            };
+            let (Some(ent1), Some(ent2)) = (collision_map.get(&ch1), collision_map.get(&ch2))
+            else {
+                continue;
+            };
+            if let Some(collision_comp) = collisions.get_mut(*ent1) {
+                collision_comp.0.push((event, *ent2));
+            }
+            if ent1 != ent2 {
+                if let Some(collision_comp) = collisions.get_mut(*ent2) {
+                    collision_comp.0.push((event, *ent1));
                 }
-                CollisionEvent::Stopped(ch1, ch2, _) => {
-                    if let (Some(ent1), Some(ent2)) =
-                        (collision_map.get(&ch1), collision_map.get(&ch2))
-                    {
-                        stopped_collisions.push((*ent1, *ent2, event));
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        for (ent1, ent2, event) in started_collisions {
-            if let Some(collision_comp) = collisions.get_mut(ent1) {
-                collision_comp.0.push((event, ent2));
-            }
-            if let Some(collision_comp) = collisions.get_mut(ent2) {
-                collision_comp.0.push((event, ent1));
-            }
-        }
-
-        for (ent1, ent2, event) in stopped_collisions {
-            if let Some(collision_comp) = collisions.get_mut(ent1) {
-                collision_comp.0.push((event, ent2));
-            }
-            if let Some(collision_comp) = collisions.get_mut(ent2) {
-                collision_comp.0.push((event, ent1));
             }
         }
 
@@ -177,7 +154,7 @@ impl<'a> System<'a> for PhysicsSystem {
         }
 
         // Collision detection, push bodies away from one another.
-        let mut collision_data = Vec::new();
+        let mut collision_data = Vec::with_capacity(collision_map.len());
         for (curr_chunk, body, interactor, entity, position) in (
             &curr_chunks,
             &mut bodies,
