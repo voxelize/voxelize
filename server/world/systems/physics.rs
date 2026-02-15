@@ -204,16 +204,17 @@ impl<'a> System<'a> for PhysicsSystem {
             let dy = if dy.abs() < 0.001 { 0.0 } else { dy };
             let dz = if dz.abs() < 0.001 { 0.0 } else { dz };
 
-            let len = (dx * dx + dy * dy + dz * dz).sqrt();
+            let len_sq = dx * dx + dy * dy + dz * dz;
 
-            if len > 0.0001 {
-                collision_data.push((body, dx, dy, dz, len, entity));
+            if len_sq > 1.0e-8 {
+                let inv_len = len_sq.sqrt().recip();
+                collision_data.push((body, dx * inv_len, dy * inv_len, dz * inv_len, entity));
             }
         }
-        for (body, dx, dy, dz, len, entity) in collision_data {
-            let mut dx = dx / len;
-            let dy = dy / len;
-            let mut dz = dz / len;
+        for (body, dx, dy, dz, entity) in collision_data {
+            let mut dx = dx;
+            let dy = dy;
+            let mut dz = dz;
 
             // If only dy movements, add a little bias to eliminate stack overflow.
             if dx.abs() < 0.001 && dz.abs() < 0.001 {
