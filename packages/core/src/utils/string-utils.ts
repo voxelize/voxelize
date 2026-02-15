@@ -2,19 +2,41 @@ export type FindSimilarOptions = {
   maxSuggestions?: number;
 };
 
+const normalizeCaseIfNeeded = (value: string): string => {
+  let hasNonAscii = false;
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index);
+    if (code >= 65 && code <= 90) {
+      return value.toLowerCase();
+    }
+    if (code > 127) {
+      hasNonAscii = true;
+    }
+  }
+  if (!hasNonAscii) {
+    return value;
+  }
+  for (const char of value) {
+    if (char.toLowerCase() !== char.toUpperCase() && char === char.toUpperCase()) {
+      return value.toLowerCase();
+    }
+  }
+  return value;
+};
+
 export function findSimilar(
   target: string,
   available: string[],
   options: FindSimilarOptions = {}
 ): string[] {
   const { maxSuggestions = 3 } = options;
-  const targetLower = target.toLowerCase();
+  const targetLower = normalizeCaseIfNeeded(target);
   const targetParts = targetLower.split(/[-_]/);
   const scored: Array<{ name: string; score: number }> = [];
 
   for (let nameIndex = 0; nameIndex < available.length; nameIndex++) {
     const name = available[nameIndex];
-    const nameLower = name.toLowerCase();
+    const nameLower = normalizeCaseIfNeeded(name);
     let score = 0;
 
     if (nameLower.includes(targetLower) || targetLower.includes(nameLower)) {
