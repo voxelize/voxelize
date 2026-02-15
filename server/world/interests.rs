@@ -81,6 +81,7 @@ impl ChunkInterests {
             return HashSet::new();
         }
 
+        let mut interested_sets = Vec::with_capacity(9);
         let mut expected_clients = 0usize;
         for dx in -1..=1 {
             let Some(nx) = center.0.checked_add(dx) else {
@@ -90,30 +91,22 @@ impl ChunkInterests {
                 let Some(nz) = center.1.checked_add(dz) else {
                     continue;
                 };
-                let coords = Vec2(nx, nz);
-                if let Some(interested) = self.get_interests(&coords) {
+                if let Some(interested) = self.get_interests(&Vec2(nx, nz)) {
                     expected_clients = expected_clients.saturating_add(interested.len());
+                    interested_sets.push(interested);
                 }
             }
         }
         if expected_clients == 0 {
             return HashSet::new();
         }
+        if interested_sets.len() == 1 {
+            return interested_sets[0].iter().cloned().collect();
+        }
 
         let mut clients = HashSet::with_capacity(expected_clients);
-        for dx in -1..=1 {
-            let Some(nx) = center.0.checked_add(dx) else {
-                continue;
-            };
-            for dz in -1..=1 {
-                let Some(nz) = center.1.checked_add(dz) else {
-                    continue;
-                };
-                let coords = Vec2(nx, nz);
-                if let Some(interested) = self.get_interests(&coords) {
-                    clients.extend(interested.iter().cloned());
-                }
-            }
+        for interested in interested_sets {
+            clients.extend(interested.iter().cloned());
         }
         clients
     }
