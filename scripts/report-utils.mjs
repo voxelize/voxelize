@@ -182,32 +182,55 @@ export const countRecordEntries = (value) => {
     return 0;
   }
 
-  return Object.keys(value).length;
+  try {
+    return Object.keys(value).length;
+  } catch {
+    return 0;
+  }
 };
 
 export const summarizeStepResults = (steps) => {
-  const passedSteps = steps
-    .filter((step) => {
-      return step.passed && step.skipped === false;
-    })
-    .map((step) => step.name);
-  const failedSteps = steps
-    .filter((step) => {
-      return !step.passed && step.skipped === false;
-    })
-    .map((step) => step.name);
-  const skippedSteps = steps
-    .filter((step) => {
-      return step.skipped === true;
-    })
-    .map((step) => step.name);
+  const stepEntries = cloneArraySafely(steps) ?? [];
+  const passedSteps = [];
+  const failedSteps = [];
+  const skippedSteps = [];
+
+  for (const step of stepEntries) {
+    if (!isObjectRecord(step)) {
+      continue;
+    }
+
+    const name = safeReadProperty(step, "name");
+    if (typeof name !== "string") {
+      continue;
+    }
+
+    const skipped = safeReadProperty(step, "skipped");
+    if (skipped === true) {
+      skippedSteps.push(name);
+      continue;
+    }
+
+    if (skipped !== false) {
+      continue;
+    }
+
+    const passed = safeReadProperty(step, "passed");
+    if (Boolean(passed)) {
+      passedSteps.push(name);
+      continue;
+    }
+
+    failedSteps.push(name);
+  }
+
   const passedStepCount = passedSteps.length;
   const failedStepCount = failedSteps.length;
   const skippedStepCount = skippedSteps.length;
   const firstFailedStep = failedSteps[0] ?? null;
 
   return {
-    totalSteps: steps.length,
+    totalSteps: stepEntries.length,
     passedStepCount,
     failedStepCount,
     skippedStepCount,
@@ -219,11 +242,30 @@ export const summarizeStepResults = (steps) => {
 };
 
 export const summarizeCheckResults = (checks) => {
-  const passedChecks = checks.filter((check) => check.passed).map((check) => check.name);
-  const failedChecks = checks.filter((check) => !check.passed).map((check) => check.name);
+  const checkEntries = cloneArraySafely(checks) ?? [];
+  const passedChecks = [];
+  const failedChecks = [];
+
+  for (const check of checkEntries) {
+    if (!isObjectRecord(check)) {
+      continue;
+    }
+
+    const name = safeReadProperty(check, "name");
+    if (typeof name !== "string") {
+      continue;
+    }
+
+    if (Boolean(safeReadProperty(check, "passed"))) {
+      passedChecks.push(name);
+      continue;
+    }
+
+    failedChecks.push(name);
+  }
 
   return {
-    totalChecks: checks.length,
+    totalChecks: checkEntries.length,
     passedCheckCount: passedChecks.length,
     failedCheckCount: failedChecks.length,
     firstFailedCheck: failedChecks[0] ?? null,

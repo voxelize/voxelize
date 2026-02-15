@@ -3166,6 +3166,15 @@ describe("report-utils", () => {
     expect(countRecordEntries("text")).toBe(0);
     expect(countRecordEntries(10)).toBe(0);
     expect(countRecordEntries(true)).toBe(0);
+    const trapRecord = new Proxy(
+      {},
+      {
+        ownKeys: () => {
+          throw new Error("ownKeys trap");
+        },
+      }
+    );
+    expect(countRecordEntries(trapRecord)).toBe(0);
   });
 
   it("summarizes step outcomes for json preflight reports", () => {
@@ -3184,6 +3193,66 @@ describe("report-utils", () => {
       passedSteps: ["step-a"],
       failedSteps: ["step-b"],
       skippedSteps: ["step-c"],
+    });
+  });
+
+  it("summarizes step outcomes with malformed/trap step entries", () => {
+    const stepWithTrapName = Object.create(null) as {
+      readonly name: string;
+      readonly passed: boolean;
+      readonly skipped: boolean;
+    };
+    Object.defineProperty(stepWithTrapName, "name", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("name trap");
+      },
+    });
+    Object.defineProperty(stepWithTrapName, "passed", {
+      configurable: true,
+      enumerable: true,
+      value: false,
+    });
+    Object.defineProperty(stepWithTrapName, "skipped", {
+      configurable: true,
+      enumerable: true,
+      value: false,
+    });
+    const iteratorTrapSteps = [{ name: "step-a", passed: true, skipped: false }];
+    Object.defineProperty(iteratorTrapSteps, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+
+    expect(
+      summarizeStepResults([
+        { name: "step-a", passed: true, skipped: false },
+        stepWithTrapName,
+        { name: "step-c", passed: false, skipped: false },
+      ])
+    ).toEqual({
+      totalSteps: 3,
+      passedStepCount: 1,
+      failedStepCount: 1,
+      skippedStepCount: 0,
+      firstFailedStep: "step-c",
+      passedSteps: ["step-a"],
+      failedSteps: ["step-c"],
+      skippedSteps: [],
+    });
+    expect(summarizeStepResults(iteratorTrapSteps as never)).toEqual({
+      totalSteps: 0,
+      passedStepCount: 0,
+      failedStepCount: 0,
+      skippedStepCount: 0,
+      firstFailedStep: null,
+      passedSteps: [],
+      failedSteps: [],
+      skippedSteps: [],
     });
   });
 
@@ -3519,6 +3588,56 @@ describe("report-utils", () => {
       firstFailedCheck: "devEnvironment",
       passedChecks: ["wasmPack"],
       failedChecks: ["devEnvironment", "client"],
+    });
+  });
+
+  it("summarizes check outcomes with malformed/trap check entries", () => {
+    const checkWithTrapName = Object.create(null) as {
+      readonly name: string;
+      readonly passed: boolean;
+    };
+    Object.defineProperty(checkWithTrapName, "name", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("name trap");
+      },
+    });
+    Object.defineProperty(checkWithTrapName, "passed", {
+      configurable: true,
+      enumerable: true,
+      value: false,
+    });
+    const iteratorTrapChecks = [{ name: "devEnvironment", passed: true }];
+    Object.defineProperty(iteratorTrapChecks, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+
+    expect(
+      summarizeCheckResults([
+        { name: "devEnvironment", passed: false },
+        checkWithTrapName,
+        { name: "client", passed: true },
+      ])
+    ).toEqual({
+      totalChecks: 3,
+      passedCheckCount: 1,
+      failedCheckCount: 1,
+      firstFailedCheck: "devEnvironment",
+      passedChecks: ["client"],
+      failedChecks: ["devEnvironment"],
+    });
+    expect(summarizeCheckResults(iteratorTrapChecks as never)).toEqual({
+      totalChecks: 0,
+      passedCheckCount: 0,
+      failedCheckCount: 0,
+      firstFailedCheck: null,
+      passedChecks: [],
+      failedChecks: [],
     });
   });
 
