@@ -229,31 +229,51 @@ pub struct MessageBuilder {
 impl MessageBuilder {
     /// Configure the json data of the protocol.
     pub fn json(mut self, json: &str) -> Self {
-        self.json = Some(json.to_owned());
+        if json.is_empty() {
+            self.json = None;
+        } else {
+            self.json = Some(json.to_owned());
+        }
         self
     }
 
     /// Configure owned json data of the protocol.
     pub fn json_owned(mut self, json: String) -> Self {
-        self.json = Some(json);
+        if json.is_empty() {
+            self.json = None;
+        } else {
+            self.json = Some(json);
+        }
         self
     }
 
     /// Configure the text data of the protocol.
     pub fn text(mut self, text: &str) -> Self {
-        self.text = Some(text.to_owned());
+        if text.is_empty() {
+            self.text = None;
+        } else {
+            self.text = Some(text.to_owned());
+        }
         self
     }
 
     /// Configure owned text data of the protocol.
     pub fn text_owned(mut self, text: String) -> Self {
-        self.text = Some(text);
+        if text.is_empty() {
+            self.text = None;
+        } else {
+            self.text = Some(text);
+        }
         self
     }
 
     /// Configure the world name of the protocol.
     pub fn world_name(mut self, world_name: &str) -> Self {
-        self.world_name = Some(world_name.to_owned());
+        if world_name.is_empty() {
+            self.world_name = None;
+        } else {
+            self.world_name = Some(world_name.to_owned());
+        }
         self
     }
 
