@@ -6,7 +6,7 @@ use rayon::{iter::IntoParallelIterator, prelude::ParallelIterator, ThreadPool, T
 
 use crate::{
     Chunk, GeometryProtocol, LightColor, MeshProtocol, MessageType, Registry, Space, Vec2, Vec3,
-    VoxelAccess, WorldConfig,
+    WorldConfig,
 };
 
 use super::lights::{LightNode, Lights};
