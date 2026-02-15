@@ -1,4 +1,5 @@
 use byteorder::{ByteOrder, LittleEndian};
+use base64::{engine::general_purpose::STANDARD, Engine};
 use crossbeam_channel::{bounded, Receiver, Sender, TryRecvError};
 use hashbrown::HashMap;
 use libflate::zlib::Encoder;
@@ -69,7 +70,7 @@ impl BackgroundChunkSaver {
         loop {
             match receiver.try_recv() {
                 Ok(data) => {
-                    pending.insert(data.coords.clone(), data);
+                    pending.insert(data.coords, data);
                 }
                 Err(TryRecvError::Empty) => {
                     if shutdown.load(Ordering::Relaxed) && pending.is_empty() {
@@ -91,10 +92,9 @@ impl BackgroundChunkSaver {
     }
 
     fn flush_pending(pending: &mut HashMap<Vec2<i32>, ChunkSaveData>, folder: &PathBuf) {
-        for (_, data) in pending.drain() {
+        for data in pending.drain().map(|(_, data)| data) {
             Self::save_chunk_to_disk(&data, folder);
         }
-        // #endregion
     }
 
     fn to_base_64(data: &[u32]) -> String {
@@ -104,7 +104,7 @@ impl BackgroundChunkSaver {
         let mut encoder = Encoder::new(vec![]).unwrap();
         encoder.write_all(bytes.as_slice()).unwrap();
         let encoded = encoder.finish().into_result().unwrap();
-        base64::encode(&encoded)
+        STANDARD.encode(encoded)
     }
 
     fn save_chunk_to_disk(data: &ChunkSaveData, folder: &PathBuf) {
@@ -123,7 +123,8 @@ impl BackgroundChunkSaver {
         };
 
         let mut path = folder.clone();
-        path.push(format!("{}.json", data.chunk_name));
+        path.push(&data.chunk_name);
+        path.set_extension("json");
         let tmp_path = path.with_extension("json.tmp");
 
         let mut file = match File::create(&tmp_path) {
@@ -176,7 +177,6 @@ impl BackgroundChunkSaver {
 impl Drop for BackgroundChunkSaver {
     fn drop(&mut self) {
         self.shutdown.store(true, Ordering::Relaxed);
-        drop(self.sender.clone());
         if let Some(handle) = self.handle.take() {
             let _ = handle.join();
         }
