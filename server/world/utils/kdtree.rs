@@ -76,6 +76,23 @@ impl EntityTree {
         results
     }
 
+    fn first_nearest_item(
+        &self,
+        point: &[f32; 3],
+        query_count: usize,
+        skip: usize,
+    ) -> Option<EntityId> {
+        if self.tree.size() == 0 {
+            return None;
+        }
+        let clamped_count = query_count.min(self.tree.size() as usize);
+        if clamped_count <= skip {
+            return None;
+        }
+        let nearest = self.tree.nearest_n::<SquaredEuclidean>(point, clamped_count);
+        nearest.get(skip).map(|entry| entry.item)
+    }
+
     fn retain<F>(&mut self, mut f: F)
     where
         F: FnMut(EntityId) -> bool,
@@ -191,24 +208,6 @@ impl KdTree {
             }
         }
         entities
-    }
-
-    #[inline]
-    fn first_entity_with_skip<'a>(
-        &'a self,
-        results: &[(f32, EntityId)],
-        skip: usize,
-    ) -> Option<&'a Entity> {
-        if results.len() <= skip {
-            return None;
-        }
-        for index in skip..results.len() {
-            let (_, ent_id) = results[index];
-            if let Some(entity) = self.entity_map.get(&ent_id) {
-                return Some(entity);
-            }
-        }
-        None
     }
 
     #[inline]
@@ -362,10 +361,9 @@ impl KdTree {
         let Some(query_point) = point_array_if_finite(point) else {
             return None;
         };
-        let results = self
-            .all
-            .nearest(&query_point, nearest_query_count(1, 1));
-        self.first_entity_with_skip(&results, 1)
+        let query_count = nearest_query_count(1, 1);
+        let ent_id = self.all.first_nearest_item(&query_point, query_count, 1)?;
+        self.entity_map.get(&ent_id)
     }
 
     pub fn search_player(
@@ -392,10 +390,11 @@ impl KdTree {
             return None;
         };
         let skip = if is_player { 1 } else { 0 };
-        let results = self
+        let query_count = nearest_query_count(1, skip);
+        let ent_id = self
             .players
-            .nearest(&query_point, nearest_query_count(1, skip));
-        self.first_entity_with_skip(&results, skip)
+            .first_nearest_item(&query_point, query_count, skip)?;
+        self.entity_map.get(&ent_id)
     }
 
     pub fn search_entity(
@@ -422,10 +421,11 @@ impl KdTree {
             return None;
         };
         let skip = if is_entity { 1 } else { 0 };
-        let results = self
+        let query_count = nearest_query_count(1, skip);
+        let ent_id = self
             .entities
-            .nearest(&query_point, nearest_query_count(1, skip));
-        self.first_entity_with_skip(&results, skip)
+            .first_nearest_item(&query_point, query_count, skip)?;
+        self.entity_map.get(&ent_id)
     }
 
     pub fn for_each_player_id_within_radius<F>(&self, point: &Vec3<f32>, radius: f32, mut f: F)
