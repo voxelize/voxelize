@@ -392,6 +392,7 @@ pnpm run check:preflight:all-checks:verify:json:compact
 # report count/index metadata accepts only non-negative safe integers before fallback coercion
 # wasm status extraction accepts only known status values (ok/missing/unavailable/skipped) before fallback derivation
 # string-array extraction can fall through to bounded key scans when trapped bounded prefixes contain only non-string noise
+# ts-core example status extraction accepts only known status values (ok/failed/skipped) before fallback derivation
 # optionally write the same report to disk
 pnpm run check:preflight:verify:json -- --output ./preflight-report.json
 

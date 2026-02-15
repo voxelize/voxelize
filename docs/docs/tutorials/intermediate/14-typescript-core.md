@@ -638,6 +638,8 @@ Wasm status extraction accepts only known status values
 applied.
 String-array extraction can fall through to bounded key scans when
 trapped bounded prefixes contain only non-string noise.
+Ts-core example status extraction accepts only known status values
+(`ok`/`failed`/`skipped`) before fallback derivation is applied.
 Client JSON reports additionally expose top-level wasm preflight summary
 fields `wasmPackCheckStatus`, `wasmPackCheckCommand`,
 `wasmPackCheckArgs`, `wasmPackCheckArgCount`, `wasmPackCheckExitCode`,
