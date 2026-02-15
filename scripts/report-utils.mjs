@@ -1840,13 +1840,17 @@ const toNormalizedCliOptionCatalogOrNull = (optionCatalog) => {
     return null;
   }
 
+  const derivedSupportedCliOptions = createSupportedCliOptionsFromNormalizedMetadata(
+    catalogCanonicalOptions,
+    availableCliOptionAliases
+  );
   const resolvedSupportedCliOptions =
     supportedCliOptions.length > 0
-      ? supportedCliOptions
-      : createSupportedCliOptionsFromNormalizedMetadata(
-          catalogCanonicalOptions,
-          availableCliOptionAliases
-        );
+      ? dedupeStringList([
+          ...supportedCliOptions,
+          ...derivedSupportedCliOptions,
+        ])
+      : derivedSupportedCliOptions;
   const hasCatalogData = resolvedSupportedCliOptions.length > 0;
   if (!hasCatalogData) {
     return null;
