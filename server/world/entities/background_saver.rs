@@ -2,6 +2,7 @@ use crossbeam_channel::{bounded, Receiver, Sender, TryRecvError};
 use hashbrown::HashMap;
 use log::warn;
 use serde::Serialize;
+use std::borrow::Cow;
 use std::fs::{self, File};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -22,6 +23,26 @@ pub struct EntitySaveData {
 struct SavedEntityFile<'a> {
     etype: &'a str,
     metadata: &'a MetadataComp,
+}
+
+#[inline]
+fn normalized_entity_type<'a>(etype: &'a str) -> Cow<'a, str> {
+    let mut has_non_ascii = false;
+    for &byte in etype.as_bytes() {
+        if byte.is_ascii_uppercase() {
+            return Cow::Owned(etype.to_lowercase());
+        }
+        if !byte.is_ascii() {
+            has_non_ascii = true;
+        }
+    }
+    if !has_non_ascii {
+        Cow::Borrowed(etype)
+    } else if etype.chars().any(|ch| ch.is_uppercase()) {
+        Cow::Owned(etype.to_lowercase())
+    } else {
+        Cow::Borrowed(etype)
+    }
 }
 
 pub struct BackgroundEntitiesSaver {
@@ -109,23 +130,29 @@ impl BackgroundEntitiesSaver {
     }
 
     fn save_entity_to_disk(id: &str, data: &EntitySaveData, folder: &PathBuf) {
+        let normalized_etype = normalized_entity_type(&data.etype);
         let etype_value = if data.is_block {
-            format!(
-                "block::{}",
-                data.etype.to_lowercase().trim_start_matches("block::")
-            )
+            let normalized_etype = normalized_etype.as_ref();
+            let block_suffix = normalized_etype
+                .strip_prefix("block::")
+                .unwrap_or(normalized_etype);
+            let mut prefixed = String::with_capacity(7 + block_suffix.len());
+            prefixed.push_str("block::");
+            prefixed.push_str(block_suffix);
+            Cow::Owned(prefixed)
         } else {
-            data.etype.to_lowercase()
+            normalized_etype
         };
         let payload = SavedEntityFile {
-            etype: &etype_value,
+            etype: etype_value.as_ref(),
             metadata: &data.metadata,
         };
 
+        let etype_value = etype_value.as_ref();
         let mut sanitized_filename = if etype_value.contains("::") {
             etype_value.replace("::", "-")
         } else {
-            etype_value.clone()
+            etype_value.to_owned()
         };
         if sanitized_filename.contains(' ') {
             sanitized_filename = sanitized_filename.replace(' ', "-");
