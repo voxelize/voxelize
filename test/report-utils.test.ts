@@ -7470,6 +7470,41 @@ describe("report-utils", () => {
       wasmPackCheckExitCode: null,
       wasmPackCheckOutputLine: null,
     });
+    let statefulObjectReplacementReadCount = 0;
+    const statefulObjectReplacementWasmArgs = new Proxy(
+      ["check-wasm-pack.mjs"],
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (propertyKey === "0") {
+            statefulObjectReplacementReadCount += 1;
+            if (statefulObjectReplacementReadCount > 1) {
+              return { malformed: true };
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckArgs: statefulObjectReplacementWasmArgs,
+      })
+    ).toEqual({
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: ["check-wasm-pack.mjs"],
+      wasmPackCheckArgCount: 1,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
     const ownKeysHasTrapArgs = new Proxy(
       ["check-wasm-pack.mjs", "--json"],
       {
@@ -7869,6 +7904,29 @@ describe("report-utils", () => {
     expect(
       normalizeTsCorePayloadIssues(denseNonStringPrefixHighIndexIssues)
     ).toEqual(["voxel.id"]);
+    let statefulObjectReplacementReadCount = 0;
+    const statefulObjectReplacementIssues = new Proxy([" voxel.id "], {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (propertyKey === "0") {
+          statefulObjectReplacementReadCount += 1;
+          if (statefulObjectReplacementReadCount > 1) {
+            return { malformed: true };
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    expect(normalizeTsCorePayloadIssues(statefulObjectReplacementIssues)).toEqual([
+      "voxel.id",
+    ]);
     const cappedSupplementedIssuesTarget: Array<string | number> = [];
     cappedSupplementedIssuesTarget[0] = " voxel.id ";
     for (let index = 1; index < 1_024; index += 1) {
@@ -8551,6 +8609,49 @@ describe("report-utils", () => {
       exampleCommand: null,
       exampleArgs: ["packages/ts-core/examples/end-to-end.mjs", "--json"],
       exampleArgCount: 2,
+      exampleAttempted: true,
+      exampleStatus: "failed",
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: 1,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    let statefulObjectReplacementReadCount = 0;
+    const statefulObjectReplacementExampleArgs = new Proxy(
+      ["packages/ts-core/examples/end-to-end.mjs"],
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (propertyKey === "0") {
+            statefulObjectReplacementReadCount += 1;
+            if (statefulObjectReplacementReadCount > 1) {
+              return { malformed: true };
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleArgs: statefulObjectReplacementExampleArgs,
+        exampleAttempted: true,
+        exampleExitCode: 1,
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: ["packages/ts-core/examples/end-to-end.mjs"],
+      exampleArgCount: 1,
       exampleAttempted: true,
       exampleStatus: "failed",
       exampleRuleMatched: null,
