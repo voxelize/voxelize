@@ -37,6 +37,7 @@ use specs::{
     Builder, Component, DispatcherBuilder, Entity, EntityBuilder, Join, ReadStorage, SystemData,
     World as ECSWorld, WorldExt, WriteStorage,
 };
+use std::borrow::Cow;
 use std::path::PathBuf;
 use std::sync::{Mutex, RwLock};
 use std::sync::Arc;
@@ -119,6 +120,15 @@ pub fn default_client_parser(world: &mut World, metadata: &str, client_ent: Enti
 pub struct PeerUpdate {
     position: Option<Vec3<f32>>,
     direction: Option<Vec3<f32>>,
+}
+
+#[inline]
+fn normalized_lookup_name<'a>(name: &'a str) -> Cow<'a, str> {
+    if name.chars().any(|ch| ch.is_uppercase()) {
+        Cow::Owned(name.to_lowercase())
+    } else {
+        Cow::Borrowed(name)
+    }
 }
 
 #[derive(Deserialize)]
@@ -1093,15 +1103,11 @@ impl World {
         etype: &str,
     ) -> Option<Arc<dyn Fn(&mut World, MetadataComp) -> EntityBuilder + Send + Sync>> {
         self.entity_loaders.get(etype).cloned().or_else(|| {
-            if !etype
-                .as_bytes()
-                .iter()
-                .any(|byte| byte.is_ascii_uppercase())
-            {
+            let normalized_etype = normalized_lookup_name(etype);
+            if normalized_etype.as_ref() == etype {
                 return None;
             }
-            let lower = etype.to_lowercase();
-            self.entity_loaders.get(&lower).cloned()
+            self.entity_loaders.get(normalized_etype.as_ref()).cloned()
         })
     }
 
@@ -1760,19 +1766,16 @@ impl World {
         if let Some(method) = data.method {
             let handle = self
                 .method_handles
-                .get(&method.name)
+                .get(method.name.as_str())
                 .cloned()
                 .or_else(|| {
-                    if !method
-                        .name
-                        .as_bytes()
-                        .iter()
-                        .any(|byte| byte.is_ascii_uppercase())
-                    {
+                    let normalized_method_name = normalized_lookup_name(&method.name);
+                    if normalized_method_name.as_ref() == method.name.as_str() {
                         return None;
                     }
-                    let method_name = method.name.to_lowercase();
-                    self.method_handles.get(&method_name).cloned()
+                    self.method_handles
+                        .get(normalized_method_name.as_ref())
+                        .cloned()
                 });
             let Some(handle) = handle else {
                 warn!(
@@ -1798,19 +1801,16 @@ impl World {
         for event in data.events {
             let handle = self
                 .event_handles
-                .get(&event.name)
+                .get(event.name.as_str())
                 .cloned()
                 .or_else(|| {
-                    if !event
-                        .name
-                        .as_bytes()
-                        .iter()
-                        .any(|byte| byte.is_ascii_uppercase())
-                    {
+                    let normalized_event_name = normalized_lookup_name(&event.name);
+                    if normalized_event_name.as_ref() == event.name.as_str() {
                         return None;
                     }
-                    let event_name = event.name.to_lowercase();
-                    self.event_handles.get(&event_name).cloned()
+                    self.event_handles
+                        .get(normalized_event_name.as_ref())
+                        .cloned()
                 });
             if let Some(handle) = handle {
                 handle(self, client_id, &event.payload);
