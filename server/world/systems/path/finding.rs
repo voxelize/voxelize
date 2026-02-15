@@ -235,17 +235,17 @@ impl<'a> System<'a> for PathFindingSystem {
                         &goal,
                         &|node| {
                             let &PathNode(vx, vy, vz) = node;
-                            let mut successors = Vec::with_capacity(12);
                             let current_count = count.fetch_add(1, Ordering::Relaxed);
 
                             if current_count >= max_depth_search
                                 || start_time.elapsed() > entity_path.max_pathfinding_time
                             {
-                                return successors;
+                                return Vec::new();
                             }
                             if !can_expand_successors(vx, vy, vz) {
-                                return successors;
+                                return Vec::new();
                             }
+                            let mut successors = Vec::with_capacity(12);
 
                             // emptiness
                             let py = !walkable(vx, vy + 1, vz, height);
