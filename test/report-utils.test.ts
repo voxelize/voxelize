@@ -4419,6 +4419,38 @@ describe("report-utils", () => {
     ).toBeNull();
     expect(staleSupportedOptionCatalogOverrideValidation.validationErrorCode).toBeNull();
     expect(staleSupportedOptionCatalogOverrideCanonicalReadCount).toBe(0);
+    const staleSupportedWithUnknownTokenCatalogOverrideValidation =
+      createCliOptionValidation(["--output", "-j"], {
+        canonicalOptions: ["--json"],
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+        optionCatalog: {
+          supportedCliOptions: ["--output", "--mystery"],
+          availableCliOptionCanonicalMap: {
+            "--output": "--output",
+            "--json": "--json",
+            "-j": "--json",
+          },
+        } as never,
+      });
+    expect(
+      staleSupportedWithUnknownTokenCatalogOverrideValidation.supportedCliOptions
+    ).toEqual(["--output", "--json", "-j"]);
+    expect(
+      staleSupportedWithUnknownTokenCatalogOverrideValidation.supportedCliOptionCount
+    ).toBe(3);
+    expect(
+      staleSupportedWithUnknownTokenCatalogOverrideValidation.unknownOptions
+    ).toEqual([]);
+    expect(
+      staleSupportedWithUnknownTokenCatalogOverrideValidation.unknownOptionCount
+    ).toBe(0);
+    expect(
+      staleSupportedWithUnknownTokenCatalogOverrideValidation.unsupportedOptionsError
+    ).toBeNull();
+    expect(
+      staleSupportedWithUnknownTokenCatalogOverrideValidation.validationErrorCode
+    ).toBeNull();
     let staleAliasOnlyOptionCatalogOverrideCanonicalReadCount = 0;
     const staleAliasOnlyOptionCatalogOverrideCanonicalOptions = new Proxy(
       ["--json"],

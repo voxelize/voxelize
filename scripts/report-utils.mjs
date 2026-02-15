@@ -1844,10 +1844,14 @@ const toNormalizedCliOptionCatalogOrNull = (optionCatalog) => {
     catalogCanonicalOptions,
     availableCliOptionAliases
   );
+  const derivedSupportedCliOptionSet = new Set(derivedSupportedCliOptions);
+  const sanitizedSupportedCliOptions = supportedCliOptions.filter((optionToken) => {
+    return derivedSupportedCliOptionSet.has(optionToken);
+  });
   const resolvedSupportedCliOptions =
     supportedCliOptions.length > 0
       ? dedupeStringList([
-          ...supportedCliOptions,
+          ...sanitizedSupportedCliOptions,
           ...derivedSupportedCliOptions,
         ])
       : derivedSupportedCliOptions;
