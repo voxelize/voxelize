@@ -611,10 +611,11 @@ impl Handler<GetAllWorldStats> for Server {
     type Result = actix::ResponseActFuture<Self, Vec<WorldStatsResponse>>;
 
     fn handle(&mut self, _: GetAllWorldStats, _: &mut Context<Self>) -> Self::Result {
-        let world_addrs: Vec<_> = self.worlds.iter().map(|(_, addr)| addr.clone()).collect();
+        let mut world_addrs = Vec::with_capacity(self.worlds.len());
+        world_addrs.extend(self.worlds.values().cloned());
 
         Box::pin(wrap_future(async move {
-            let mut stats = Vec::new();
+            let mut stats = Vec::with_capacity(world_addrs.len());
             for addr in world_addrs {
                 if let Ok(world_stats) = addr.send(GetWorldStats).await {
                     stats.push(world_stats);
