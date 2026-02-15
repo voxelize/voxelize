@@ -932,13 +932,11 @@ impl World {
                 let interactors = self.ecs.read_storage::<InteractorComp>();
 
                 // Safely get the interactor component, with error handling
-                let interactor_result = interactors
+                let interactor_handles = interactors
                     .get(client.entity)
-                    .map(|interactor| interactor.to_owned());
+                    .map(|interactor| (*interactor.body_handle(), *interactor.collider_handle()));
 
-                if let Some(interactor) = interactor_result {
-                    let body_handle = interactor.body_handle().to_owned();
-                    let collider_handle = interactor.collider_handle().to_owned();
+                if let Some((body_handle, collider_handle)) = interactor_handles {
 
                     drop(interactors);
 
