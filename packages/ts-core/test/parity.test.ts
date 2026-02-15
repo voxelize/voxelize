@@ -3452,6 +3452,56 @@ describe("BlockRuleEvaluator", () => {
     );
   });
 
+  it("sanitizes malformed combination-rule collections to empty semantics", () => {
+    const access = {
+      getVoxel: () => 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+    const iteratorTrapRules = new Proxy([BLOCK_RULE_NONE], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.And,
+          rules: iteratorTrapRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(true);
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.Or,
+          rules: iteratorTrapRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(false);
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.Not,
+          rules: iteratorTrapRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(true);
+  });
+
   it("evaluates OR combinations across multiple sub-rules", () => {
     const access = {
       getVoxel: () => 8,

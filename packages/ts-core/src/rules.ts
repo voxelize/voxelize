@@ -190,6 +190,16 @@ const toRoundedCheckPositionOrNull = (
   return [checkX, checkY, checkZ];
 };
 
+const toRuleEntriesOrEmpty = (
+  rule: Extract<BlockRule, { type: "combination" }>
+): BlockRule[] => {
+  try {
+    return Array.isArray(rule.rules) ? Array.from(rule.rules) : [];
+  } catch {
+    return [];
+  }
+};
+
 const rotateOffsetY = (offset: Vec3, rotationY: number): Vec3 => {
   const rot = normalizeRuleYRotation(rotationY);
 
@@ -295,11 +305,12 @@ export class BlockRuleEvaluator {
       return true;
     }
 
+    const ruleEntries = toRuleEntriesOrEmpty(rule);
     activeCombinationRules.add(rule);
     try {
       switch (rule.logic) {
         case BlockRuleLogic.And:
-          return rule.rules.every((subRule) =>
+          return ruleEntries.every((subRule) =>
             BlockRuleEvaluator.evaluateWithNormalizedOptions(
               subRule,
               position,
@@ -309,7 +320,7 @@ export class BlockRuleEvaluator {
             )
           );
         case BlockRuleLogic.Or:
-          return rule.rules.some((subRule) =>
+          return ruleEntries.some((subRule) =>
             BlockRuleEvaluator.evaluateWithNormalizedOptions(
               subRule,
               position,
@@ -319,7 +330,7 @@ export class BlockRuleEvaluator {
             )
           );
         case BlockRuleLogic.Not: {
-          const [firstRule] = rule.rules;
+          const [firstRule] = ruleEntries;
           if (firstRule === undefined) {
             return true;
           }
