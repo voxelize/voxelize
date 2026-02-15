@@ -339,9 +339,12 @@ const toCornerTuple = (
 };
 
 const toOptionalRuleNumber = (
-  value: DynamicValue
+  value: DynamicValue,
+  maximum: number
 ): number | undefined => {
-  return isNonNegativeIntegerValue(value) ? value : undefined;
+  return isNonNegativeIntegerValue(value) && value <= maximum
+    ? value
+    : undefined;
 };
 
 const toOptionalRuleRotation = (
@@ -404,11 +407,11 @@ const toBlockRule = (
         type: "simple",
         offset: [...maybeRule.offset],
       };
-      const id = toOptionalRuleNumber(maybeRule.id);
+      const id = toOptionalRuleNumber(maybeRule.id, 0xffff);
       if (id !== undefined) {
         simpleRule.id = id;
       }
-      const stage = toOptionalRuleNumber(maybeRule.stage);
+      const stage = toOptionalRuleNumber(maybeRule.stage, 0x0f);
       if (stage !== undefined) {
         simpleRule.stage = stage;
       }
