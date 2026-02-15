@@ -1,11 +1,11 @@
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
     common::ClientFilter,
     encode_message, fragment_message,
     server::Message,
-    world::{profiler::Profiler, system_profiler::WorldTimingContext, Clients, MessageQueues},
+    world::{profiler::Profiler, system_profiler::WorldTimingContext, Client, Clients, MessageQueues},
     EncodedMessage, EncodedMessageQueue, MessageType, RtcSenders, Transports,
 };
 
@@ -148,45 +148,11 @@ impl<'a> System<'a> for BroadcastSystem {
         }
 
         let rtc_map = rtc_senders_opt.as_ref().and_then(|rtc| rtc.try_lock().ok());
+        let client_count = clients.len();
 
         for (encoded, filter) in done_messages {
             let use_rtc = encoded.is_rtc_eligible;
-
-            if let ClientFilter::Direct(id) = &filter {
-                if let Some(client) = clients.get(id) {
-                    if use_rtc {
-                        if let Some(ref rtc_map) = rtc_map {
-                            if let Some(rtc_sender) = rtc_map.get(id) {
-                                for fragment in fragment_message(&encoded.data) {
-                                    if rtc_sender.send(fragment).is_err() {
-                                        break;
-                                    }
-                                }
-                                continue;
-                            }
-                        }
-                    }
-                    let _ = client.sender.send(encoded.data.clone());
-                }
-                continue;
-            }
-
-            clients.iter().for_each(|(id, client)| {
-                match &filter {
-                    ClientFilter::All => {}
-                    ClientFilter::Include(ids) => {
-                        if !ids.iter().any(|i| *i == *id) {
-                            return;
-                        }
-                    }
-                    ClientFilter::Exclude(ids) => {
-                        if ids.iter().any(|i| *i == *id) {
-                            return;
-                        }
-                    }
-                    _ => {}
-                };
-
+            let send_to_client = |id: &str, client: &Client| {
                 if use_rtc {
                     if let Some(ref rtc_map) = rtc_map {
                         if let Some(rtc_sender) = rtc_map.get(id) {
@@ -201,7 +167,103 @@ impl<'a> System<'a> for BroadcastSystem {
                 }
 
                 let _ = client.sender.send(encoded.data.clone());
-            });
+            };
+            let send_to_id = |id: &str| {
+                if let Some(client) = clients.get(id) {
+                    send_to_client(id, client);
+                }
+            };
+
+            if let ClientFilter::Direct(id) = &filter {
+                send_to_id(id);
+                continue;
+            }
+
+            match &filter {
+                ClientFilter::All => {
+                    for (id, client) in clients.iter() {
+                        send_to_client(id, client);
+                    }
+                }
+                ClientFilter::Include(ids) => {
+                    if ids.is_empty() {
+                    } else if ids.len() == 1 {
+                        send_to_id(ids[0].as_str());
+                    } else if ids.len() <= 4 {
+                        for include_index in 0..ids.len() {
+                            let include_id = ids[include_index].as_str();
+                            let mut duplicate = false;
+                            for prev_index in 0..include_index {
+                                if ids[prev_index].as_str() == include_id {
+                                    duplicate = true;
+                                    break;
+                                }
+                            }
+                            if duplicate {
+                                continue;
+                            }
+                            send_to_id(include_id);
+                        }
+                    } else if ids.len() < client_count {
+                        let mut seen_ids: HashSet<&str> = HashSet::with_capacity(ids.len());
+                        for include_id in ids.iter() {
+                            let include_id = include_id.as_str();
+                            if seen_ids.insert(include_id) {
+                                send_to_id(include_id);
+                            }
+                        }
+                    } else {
+                        let mut include_ids: HashSet<&str> = HashSet::with_capacity(ids.len());
+                        for include_id in ids.iter() {
+                            include_ids.insert(include_id.as_str());
+                        }
+                        for (id, client) in clients.iter() {
+                            if include_ids.contains(id.as_str()) {
+                                send_to_client(id, client);
+                            }
+                        }
+                    }
+                }
+                ClientFilter::Exclude(ids) => {
+                    if ids.is_empty() {
+                        for (id, client) in clients.iter() {
+                            send_to_client(id, client);
+                        }
+                    } else if ids.len() == 1 {
+                        let excluded_id = ids[0].as_str();
+                        for (id, client) in clients.iter() {
+                            if id.as_str() != excluded_id {
+                                send_to_client(id, client);
+                            }
+                        }
+                    } else if ids.len() <= 4 {
+                        for (id, client) in clients.iter() {
+                            let id = id.as_str();
+                            let mut excluded = false;
+                            for excluded_id in ids.iter() {
+                                if excluded_id.as_str() == id {
+                                    excluded = true;
+                                    break;
+                                }
+                            }
+                            if !excluded {
+                                send_to_client(id, client);
+                            }
+                        }
+                    } else {
+                        let mut exclude_ids: HashSet<&str> = HashSet::with_capacity(ids.len());
+                        for exclude_id in ids.iter() {
+                            exclude_ids.insert(exclude_id.as_str());
+                        }
+                        for (id, client) in clients.iter() {
+                            if !exclude_ids.contains(id.as_str()) {
+                                send_to_client(id, client);
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
 
             if !transports.is_empty() && should_send_to_transport(encoded.msg_type) {
                 transports.values().for_each(|sender| {
