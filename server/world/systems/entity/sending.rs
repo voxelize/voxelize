@@ -146,8 +146,8 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             new_entity_handlers.insert(
                 ent,
                 (
-                    interactor.collider_handle().clone(),
-                    interactor.body_handle().clone(),
+                    *interactor.collider_handle(),
+                    *interactor.body_handle(),
                 ),
             );
         }
@@ -187,7 +187,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             );
 
             let pos = position
-                .map(|p| p.0.clone())
+                .map(|p| p.0)
                 .or_else(|| voxel.map(|v| Vec3(v.0 .0 as f32, v.0 .1 as f32, v.0 .2 as f32)))
                 .unwrap_or(Vec3(0.0, 0.0, 0.0));
             entity_positions.insert(id.0.clone(), pos);
@@ -247,11 +247,9 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                         &mut bookkeeping.client_known_entities,
                         client_id,
                     );
-                    let client_known = known_entities.contains(entity_id);
+                    let inserted = known_entities.insert(entity_id.clone());
 
-                    let operation = if !client_known {
-                        EntityOperation::Create
-                    } else if *is_new {
+                    let operation = if inserted || *is_new {
                         EntityOperation::Create
                     } else {
                         EntityOperation::Update
@@ -268,8 +266,6 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                             metadata: Some(metadata_str.clone()),
                         },
                     );
-
-                    known_entities.insert(entity_id.clone());
                 }
             });
         }
