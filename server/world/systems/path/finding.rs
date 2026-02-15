@@ -441,17 +441,18 @@ fn smooth_path(path: &mut Vec<Vec3<i32>>, chunks: &Chunks, registry: &Registry, 
 
     let simplified = rdp_simplify(path, EPSILON);
 
-    let mut validated_path = vec![simplified[0].clone()];
+    let mut validated_path = Vec::with_capacity(path.len());
+    validated_path.push(simplified[0].clone());
     let mut from_original_idx = 0usize;
 
     for i in 1..simplified.len() {
-        let to = simplified[i].clone();
-        let to_original_idx = find_path_index_from(path, from_original_idx, &to);
-        let from = path[from_original_idx].clone();
+        let to = &simplified[i];
+        let to_original_idx = find_path_index_from(path, from_original_idx, to);
+        let from = &path[from_original_idx];
 
         let turn_angle = if validated_path.len() >= 2 {
-            let prev = validated_path[validated_path.len() - 2].clone();
-            calculate_angle_change(&prev, &from, &to)
+            let prev = &validated_path[validated_path.len() - 2];
+            calculate_angle_change(prev, from, to)
         } else {
             0.0
         };
@@ -464,7 +465,7 @@ fn smooth_path(path: &mut Vec<Vec3<i32>>, chunks: &Chunks, registry: &Registry, 
             }
         }
 
-        if can_walk_directly_with_clearance(&from, &to, chunks, registry, height) {
+        if can_walk_directly_with_clearance(from, to, chunks, registry, height) {
             validated_path.push(to.clone());
         } else {
             for idx in (from_original_idx + 1)..=to_original_idx {
