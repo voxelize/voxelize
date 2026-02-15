@@ -18,6 +18,15 @@ const containsWhitespace = (value: string) => {
   }
   return false;
 };
+const containsEquals = (value: string) => {
+  const length = value.length;
+  for (let index = 0; index < length; index++) {
+    if (value.charCodeAt(index) === 61) {
+      return true;
+    }
+  }
+  return false;
+};
 const getFirstEqualsIndex = (value: string) => {
   const length = value.length;
   for (let index = 1; index < length; index++) {
@@ -472,7 +481,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     positionalValues.length = 0;
     const hasPositionalKeys = positionalKeys.length > 0;
     const hasBooleanKeys = booleanKeys.size > 0;
-    const hasEquals = raw.indexOf("=") >= 0;
+    const hasEquals = containsEquals(raw);
 
     if (!hasBooleanKeys && !hasEquals) {
       const assignCount =
