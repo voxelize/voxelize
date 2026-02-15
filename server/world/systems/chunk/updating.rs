@@ -134,7 +134,6 @@ fn process_pending_updates(
     current_tick: u64,
     max_updates: usize,
 ) -> Vec<UpdateProtocol> {
-    let mut results = vec![];
     let max_light_level = config.max_light_level;
     let max_height = if config.max_height > i32::MAX as usize {
         None
@@ -145,11 +144,12 @@ fn process_pending_updates(
     chunks.flush_staged_updates();
 
     if chunks.updates.is_empty() {
-        return results;
+        return Vec::new();
     }
 
     let total_updates = chunks.updates.len();
     let num_to_process = max_updates.min(total_updates);
+    let mut results = Vec::with_capacity(num_to_process);
 
     let mut updates_by_chunk: HashMap<Vec2<i32>, Vec<(Vec3<i32>, u32)>> =
         HashMap::with_capacity(num_to_process);
@@ -320,9 +320,9 @@ fn process_pending_updates(
         }
     }
 
-    let mut red_removals = Vec::new();
-    let mut green_removals = Vec::new();
-    let mut blue_removals = Vec::new();
+    let mut red_removals = Vec::with_capacity(removed_light_sources.len());
+    let mut green_removals = Vec::with_capacity(removed_light_sources.len());
+    let mut blue_removals = Vec::with_capacity(removed_light_sources.len());
 
     for (voxel, light_block) in &removed_light_sources {
         let red_level = light_block.get_torch_light_level_at(voxel, &*chunks, &RED);
