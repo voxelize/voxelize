@@ -4101,6 +4101,42 @@ describe("report-utils", () => {
       failedSteps: [],
       skippedSteps: [],
     });
+    let statefulUndefinedPrefixReadCount = 0;
+    const statefulUndefinedPrefixSteps = new Proxy(
+      [
+        { name: "step-a", passed: true, skipped: false },
+        { name: "step-b", passed: false, skipped: false },
+      ],
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (propertyKey === "0") {
+            statefulUndefinedPrefixReadCount += 1;
+            if (statefulUndefinedPrefixReadCount === 1) {
+              return undefined;
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(summarizeStepResults(statefulUndefinedPrefixSteps as never)).toEqual({
+      totalSteps: 2,
+      passedStepCount: 1,
+      failedStepCount: 1,
+      skippedStepCount: 0,
+      firstFailedStep: "step-b",
+      passedSteps: ["step-a"],
+      failedSteps: ["step-b"],
+      skippedSteps: [],
+    });
 
     const ownKeysTrapSteps = new Proxy(
       [{ name: "step-a", passed: true, skipped: false }],
@@ -5130,6 +5166,40 @@ describe("report-utils", () => {
       passedChecks: ["devEnvironment"],
       failedChecks: [],
     });
+    let statefulUndefinedPrefixReadCount = 0;
+    const statefulUndefinedPrefixChecks = new Proxy(
+      [
+        { name: "devEnvironment", passed: false },
+        { name: "client", passed: true },
+      ],
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (propertyKey === "0") {
+            statefulUndefinedPrefixReadCount += 1;
+            if (statefulUndefinedPrefixReadCount === 1) {
+              return undefined;
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(summarizeCheckResults(statefulUndefinedPrefixChecks as never)).toEqual({
+      totalChecks: 2,
+      passedCheckCount: 1,
+      failedCheckCount: 1,
+      firstFailedCheck: "devEnvironment",
+      passedChecks: ["client"],
+      failedChecks: ["devEnvironment"],
+    });
 
     const ownKeysTrapChecks = new Proxy(
       [{ name: "devEnvironment", passed: true }],
@@ -5464,6 +5534,41 @@ describe("report-utils", () => {
     expect(
       deriveFailureMessageFromReport({
         steps: largeLengthIteratorTrapSteps,
+      })
+    ).toBe("WASM artifact preflight: artifact missing");
+    let statefulUndefinedPrefixReadCount = 0;
+    const statefulUndefinedPrefixFailureSteps = new Proxy(
+      [
+        {
+          name: "WASM artifact preflight",
+          passed: false,
+          skipped: false,
+          reason: "artifact missing",
+        },
+      ],
+      {
+        get(target, property, receiver) {
+          const propertyKey =
+            typeof property === "number" ? String(property) : property;
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (propertyKey === "0") {
+            statefulUndefinedPrefixReadCount += 1;
+            if (statefulUndefinedPrefixReadCount === 1) {
+              return undefined;
+            }
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      deriveFailureMessageFromReport({
+        steps: statefulUndefinedPrefixFailureSteps,
       })
     ).toBe("WASM artifact preflight: artifact missing");
   });
