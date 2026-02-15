@@ -1182,7 +1182,9 @@ export const summarizeStepFailureResults = (steps) => {
     const reportMessage = deriveFailureMessageFromReport(
       safeReadProperty(step, "report")
     );
-    const outputMessage = toTrimmedStringOrNull(safeReadProperty(step, "output"));
+    const outputMessage = toSanitizedOutputLineOrNull(
+      safeReadProperty(step, "output")
+    );
     const normalizedExitCode = toNonNegativeIntegerOrNull(
       safeReadProperty(step, "exitCode")
     );
@@ -1240,7 +1242,9 @@ export const summarizeCheckFailureResults = (checks) => {
     const reportMessage = deriveFailureMessageFromReport(
       safeReadProperty(check, "report")
     );
-    const outputMessage = toTrimmedStringOrNull(safeReadProperty(check, "output"));
+    const outputMessage = toSanitizedOutputLineOrNull(
+      safeReadProperty(check, "output")
+    );
     const normalizedExitCode = toNonNegativeIntegerOrNull(
       safeReadProperty(check, "exitCode")
     );
