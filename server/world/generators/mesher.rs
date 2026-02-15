@@ -335,7 +335,7 @@ impl Mesher {
                         chunk.lights = Arc::new(lights);
                     }
 
-                    sender.send((chunk, msg_type)).unwrap();
+                    let _ = sender.send((chunk, msg_type));
                 });
         });
     }
