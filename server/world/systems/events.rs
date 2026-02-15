@@ -65,18 +65,19 @@ impl<'a> System<'a> for EventsSystem {
         if events.queue.is_empty() {
             return;
         }
+        let client_count = clients.len();
         let has_transports = !transports.is_empty();
         let queued_events_count = events.queue.len();
         let dispatch_map = &mut self.dispatch_map_buffer;
-        if clients.is_empty() {
+        if client_count == 0 {
             dispatch_map.clear();
         } else {
             dispatch_map.retain(|id, _| clients.contains_key(id));
         }
         let touched_clients = &mut self.touched_clients_buffer;
         touched_clients.clear();
-        if touched_clients.capacity() < clients.len() {
-            touched_clients.reserve(clients.len() - touched_clients.capacity());
+        if touched_clients.capacity() < client_count {
+            touched_clients.reserve(client_count - touched_clients.capacity());
         }
         let transports_map = &mut self.transports_map_buffer;
         transports_map.clear();
@@ -156,7 +157,7 @@ impl<'a> System<'a> for EventsSystem {
                                 }
                                 send_to_id(include_id);
                             }
-                        } else if ids.len() < clients.len() {
+                        } else if ids.len() < client_count {
                             let mut seen_ids: HashSet<&str> = HashSet::with_capacity(ids.len());
                             for include_id in ids.iter() {
                                 let include_id = include_id.as_str();
