@@ -602,8 +602,8 @@ export const deriveFailureMessageFromReport = (report) => {
     return null;
   }
 
-  const reportMessage = safeReadProperty(report, "message");
-  if (typeof reportMessage === "string") {
+  const reportMessage = toTrimmedStringOrNull(safeReadProperty(report, "message"));
+  if (reportMessage !== null) {
     return reportMessage;
   }
 
@@ -629,21 +629,20 @@ export const deriveFailureMessageFromReport = (report) => {
         continue;
       }
 
-      const stepName = safeReadProperty(step, "name");
-      if (typeof stepName !== "string") {
+      const stepName = toTrimmedStringOrNull(safeReadProperty(step, "name"));
+      if (stepName === null) {
         continue;
       }
 
-      const stepReportMessage = safeReadProperty(
-        safeReadProperty(step, "report"),
-        "message"
+      const stepReportMessage = toTrimmedStringOrNull(
+        safeReadProperty(safeReadProperty(step, "report"), "message")
       );
-      if (typeof stepReportMessage === "string") {
+      if (stepReportMessage !== null) {
         return `${stepName}: ${stepReportMessage}`;
       }
 
-      const stepReason = safeReadProperty(step, "reason");
-      if (typeof stepReason === "string") {
+      const stepReason = toTrimmedStringOrNull(safeReadProperty(step, "reason"));
+      if (stepReason !== null) {
         return `${stepName}: ${stepReason}`;
       }
 

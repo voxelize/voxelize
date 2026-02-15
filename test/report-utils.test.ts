@@ -4939,6 +4939,24 @@ describe("report-utils", () => {
       deriveFailureMessageFromReport({ message: "top-level failure message" })
     ).toBe("top-level failure message");
     expect(
+      deriveFailureMessageFromReport({
+        message: "   ",
+        steps: [
+          {
+            name: "WASM artifact preflight",
+            passed: false,
+            skipped: false,
+            reason: "artifact missing",
+          },
+        ],
+      })
+    ).toBe("WASM artifact preflight: artifact missing");
+    expect(
+      deriveFailureMessageFromReport({
+        message: "  top-level failure message  ",
+      })
+    ).toBe("top-level failure message");
+    expect(
       deriveFailureMessageFromReport({ requiredFailures: 2 })
     ).toBe("2 required check(s) failed.");
     expect(deriveFailureMessageFromReport({ requiredFailures: 0 })).toBeNull();
@@ -5007,6 +5025,43 @@ describe("report-utils", () => {
     expect(
       deriveFailureMessageFromReport({
         steps: [{ name: "Client checks", passed: false, skipped: false }],
+      })
+    ).toBe("Client checks failed.");
+    expect(
+      deriveFailureMessageFromReport({
+        steps: [
+          {
+            name: "  Client checks  ",
+            passed: false,
+            skipped: false,
+            reason: "  artifact missing  ",
+          },
+        ],
+      })
+    ).toBe("Client checks: artifact missing");
+    expect(
+      deriveFailureMessageFromReport({
+        steps: [
+          {
+            name: "  ",
+            passed: false,
+            skipped: false,
+            reason: "artifact missing",
+          },
+        ],
+      })
+    ).toBeNull();
+    expect(
+      deriveFailureMessageFromReport({
+        steps: [
+          {
+            name: "Client checks",
+            passed: false,
+            skipped: false,
+            report: { message: "   " },
+            reason: "   ",
+          },
+        ],
       })
     ).toBe("Client checks failed.");
   });
