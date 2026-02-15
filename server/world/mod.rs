@@ -1872,8 +1872,14 @@ impl World {
             let paths = fs::read_dir(folder).unwrap();
             let mut loaded_entities = HashMap::with_capacity(64);
 
-            for path in paths {
-                let path = path.unwrap().path();
+            for path_result in paths {
+                let path = match path_result {
+                    Ok(entry) => entry.path(),
+                    Err(error) => {
+                        warn!("Failed to read persisted entity path entry: {:?}", error);
+                        continue;
+                    }
+                };
 
                 if let Ok(entity_data) = File::open(&path) {
                     let Some(id_stem) = path.file_stem().and_then(|stem| stem.to_str()) else {
