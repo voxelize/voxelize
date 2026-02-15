@@ -110,6 +110,8 @@ const voxel = Voxel.pack({
     high-index rules
   - throwing bounded direct reads are skipped during fallback scans so key
     recovery can still salvage readable high-index rules
+  - throwing key-fallback reads are skipped so malformed low-index entries do
+    not force placeholder `none` rules during recovered combination evaluation
 - `createBlockConditionalPart`
   - defensively clones rule, face, AABB, and transparency-array inputs to
     avoid external mutation side effects after construction
