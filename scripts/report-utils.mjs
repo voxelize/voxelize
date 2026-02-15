@@ -399,24 +399,12 @@ const selectSmallestArrayIndices = (indexKeys, maxCount) => {
   return smallestIndices;
 };
 
-const cloneArrayFromIndexedAccess = (value) => {
-  if (!Array.isArray(value)) {
-    return null;
-  }
-
-  const lengthFallbackClone = cloneArrayFromLengthFallback(value);
-  const hasNonUndefinedLengthFallbackEntry =
-    lengthFallbackClone !== null &&
-    lengthFallbackClone.some((entry) => entry !== undefined);
-  if (hasNonUndefinedLengthFallbackEntry) {
-    return lengthFallbackClone;
-  }
-
+const cloneArrayFromIndexedKeys = (value) => {
   let indexKeys = [];
   try {
     indexKeys = Object.keys(value);
   } catch {
-    return lengthFallbackClone;
+    return null;
   }
 
   const orderedIndices = selectSmallestArrayIndices(
@@ -432,8 +420,29 @@ const cloneArrayFromIndexedAccess = (value) => {
     }
   }
 
-  if (clonedArray.length > 0) {
-    return clonedArray;
+  return clonedArray;
+};
+
+const cloneArrayFromIndexedAccess = (value) => {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const lengthFallbackClone = cloneArrayFromLengthFallback(value);
+  const hasNonUndefinedLengthFallbackEntry =
+    lengthFallbackClone !== null &&
+    lengthFallbackClone.some((entry) => entry !== undefined);
+  if (hasNonUndefinedLengthFallbackEntry) {
+    return lengthFallbackClone;
+  }
+
+  const keyFallbackClone = cloneArrayFromIndexedKeys(value);
+  if (keyFallbackClone === null) {
+    return lengthFallbackClone;
+  }
+
+  if (keyFallbackClone.length > 0) {
+    return keyFallbackClone;
   }
 
   return lengthFallbackClone;
@@ -535,7 +544,19 @@ const toStringArrayOrNull = (value) => {
     return null;
   }
 
-  return clonedArray.filter((entry) => {
+  const normalizedStrings = clonedArray.filter((entry) => {
+    return typeof entry === "string";
+  });
+  if (normalizedStrings.length > 0) {
+    return normalizedStrings;
+  }
+
+  const keyFallbackClone = cloneArrayFromIndexedKeys(value);
+  if (keyFallbackClone === null) {
+    return normalizedStrings;
+  }
+
+  return keyFallbackClone.filter((entry) => {
     return typeof entry === "string";
   });
 };
@@ -615,7 +636,7 @@ export const createPrefixedWasmPackCheckSummary = (report, prefix = "") => {
 };
 
 export const normalizeTsCorePayloadIssues = (payloadIssues) => {
-  const clonedPayloadIssues = cloneArraySafely(payloadIssues);
+  const clonedPayloadIssues = toStringArrayOrNull(payloadIssues);
   if (clonedPayloadIssues === null) {
     return null;
   }
@@ -623,10 +644,6 @@ export const normalizeTsCorePayloadIssues = (payloadIssues) => {
   const seenPayloadIssues = new Set();
   const normalizedPayloadIssues = [];
   for (const payloadIssue of clonedPayloadIssues) {
-    if (typeof payloadIssue !== "string") {
-      continue;
-    }
-
     const normalizedPayloadIssue = payloadIssue.trim();
     if (normalizedPayloadIssue.length === 0) {
       continue;

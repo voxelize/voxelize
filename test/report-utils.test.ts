@@ -963,6 +963,31 @@ describe("report-utils", () => {
       false
     );
 
+    const sparseHighIndexWithNumericPrefixArgs: Array<string | number> = [];
+    sparseHighIndexWithNumericPrefixArgs[0] = 1;
+    sparseHighIndexWithNumericPrefixArgs[5_000] = "--json";
+    Object.defineProperty(
+      sparseHighIndexWithNumericPrefixArgs,
+      Symbol.iterator,
+      {
+        configurable: true,
+        enumerable: false,
+        get: () => {
+          throw new Error("iterator trap");
+        },
+      }
+    );
+    const sparseHighIndexWithNumericPrefixResult = splitCliArgs(
+      sparseHighIndexWithNumericPrefixArgs as never
+    );
+    expect(sparseHighIndexWithNumericPrefixResult.optionArgs).toEqual([
+      "--json",
+    ]);
+    expect(sparseHighIndexWithNumericPrefixResult.positionalArgs).toEqual([]);
+    expect(sparseHighIndexWithNumericPrefixResult.optionTerminatorUsed).toBe(
+      false
+    );
+
     const unorderedOwnKeysArgsTarget: string[] = [];
     unorderedOwnKeysArgsTarget[1] = "--one";
     unorderedOwnKeysArgsTarget[3] = "--three";
@@ -5077,6 +5102,23 @@ describe("report-utils", () => {
     );
     expect(
       normalizeTsCorePayloadIssues(sparseHighIndexWithUndefinedPrefixIssues)
+    ).toEqual(["voxel.id"]);
+    const sparseHighIndexWithNumericPrefixIssues: Array<string | number> = [];
+    sparseHighIndexWithNumericPrefixIssues[0] = 1;
+    sparseHighIndexWithNumericPrefixIssues[5_000] = " voxel.id ";
+    Object.defineProperty(
+      sparseHighIndexWithNumericPrefixIssues,
+      Symbol.iterator,
+      {
+        configurable: true,
+        enumerable: false,
+        get: () => {
+          throw new Error("iterator trap");
+        },
+      }
+    );
+    expect(
+      normalizeTsCorePayloadIssues(sparseHighIndexWithNumericPrefixIssues)
     ).toEqual(["voxel.id"]);
   });
 
