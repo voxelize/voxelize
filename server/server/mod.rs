@@ -319,7 +319,7 @@ impl Server {
             .map(|r| r.unwrap())
             .collect();
 
-        let mut bars = vec![];
+        let mut bars = Vec::with_capacity(self.worlds.len());
         for (world, info) in self.worlds.values().zip(infos.iter()) {
             if !info.config.preload {
                 bars.push(None);
