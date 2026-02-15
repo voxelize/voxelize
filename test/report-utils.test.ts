@@ -5730,6 +5730,49 @@ describe("report-utils", () => {
     });
   });
 
+  it("caps merged wasm pack fallback argument recovery", () => {
+    const cappedMergedArgsTarget: string[] = [];
+    cappedMergedArgsTarget[0] = "check-wasm-pack.mjs";
+    for (let index = 0; index < 1_024; index += 1) {
+      cappedMergedArgsTarget[5_000 + index] = `--k${index}`;
+    }
+    const fallbackKeyList = Array.from({ length: 1_024 }, (_, index) => {
+      return String(5_000 + index);
+    });
+    const cappedMergedArgs = new Proxy(cappedMergedArgsTarget, {
+      ownKeys() {
+        return [...fallbackKeyList, "length"];
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    const summary = extractWasmPackCheckSummaryFromReport({
+      wasmPackCheckArgs: cappedMergedArgs,
+    });
+
+    expect(summary.wasmPackCheckStatus).toBeNull();
+    expect(summary.wasmPackCheckCommand).toBeNull();
+    expect(summary.wasmPackCheckExitCode).toBeNull();
+    expect(summary.wasmPackCheckOutputLine).toBeNull();
+    expect(summary.wasmPackCheckArgs).not.toBeNull();
+    if (summary.wasmPackCheckArgs === null) {
+      throw new Error("Expected bounded wasm-pack fallback args.");
+    }
+    expect(summary.wasmPackCheckArgs).toHaveLength(1_024);
+    expect(summary.wasmPackCheckArgs[0]).toBe("check-wasm-pack.mjs");
+    expect(summary.wasmPackCheckArgs.includes("--k1022")).toBe(true);
+    expect(summary.wasmPackCheckArgs.includes("--k1023")).toBe(false);
+    expect(summary.wasmPackCheckArgCount).toBe(1_024);
+  });
+
   it("creates prefixed wasm pack summary objects", () => {
     expect(
       createPrefixedWasmPackCheckSummary(
@@ -6474,6 +6517,50 @@ describe("report-utils", () => {
       exampleDurationMs: null,
       exampleOutputLine: null,
     });
+  });
+
+  it("caps merged ts-core example fallback argument recovery", () => {
+    const cappedMergedArgsTarget: string[] = [];
+    cappedMergedArgsTarget[0] = "packages/ts-core/examples/end-to-end.mjs";
+    for (let index = 0; index < 1_024; index += 1) {
+      cappedMergedArgsTarget[5_000 + index] = `--k${index}`;
+    }
+    const fallbackKeyList = Array.from({ length: 1_024 }, (_, index) => {
+      return String(5_000 + index);
+    });
+    const cappedMergedArgs = new Proxy(cappedMergedArgsTarget, {
+      ownKeys() {
+        return [...fallbackKeyList, "length"];
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    const summary = extractTsCoreExampleSummaryFromReport({
+      exampleArgs: cappedMergedArgs,
+      exampleAttempted: true,
+      exampleExitCode: 1,
+    });
+
+    expect(summary.exampleCommand).toBeNull();
+    expect(summary.exampleStatus).toBe("failed");
+    expect(summary.exampleExitCode).toBe(1);
+    expect(summary.exampleArgs).not.toBeNull();
+    if (summary.exampleArgs === null) {
+      throw new Error("Expected bounded example fallback args.");
+    }
+    expect(summary.exampleArgs).toHaveLength(1_024);
+    expect(summary.exampleArgs[0]).toBe("packages/ts-core/examples/end-to-end.mjs");
+    expect(summary.exampleArgs.includes("--k1022")).toBe(true);
+    expect(summary.exampleArgs.includes("--k1023")).toBe(false);
+    expect(summary.exampleArgCount).toBe(1_024);
   });
 
   it("creates prefixed ts-core example summary objects", () => {
