@@ -526,10 +526,11 @@ impl Chunks {
 
     /// Add a listener to a chunk.
     pub fn add_listener(&mut self, coords: &Vec2<i32>, listener: &Vec2<i32>) {
-        self.listeners
-            .entry(*coords)
-            .or_default()
-            .push(*listener);
+        let listeners = self.listeners.entry(*coords).or_default();
+        if listeners.last().is_some_and(|last| last == listener) {
+            return;
+        }
+        listeners.push(*listener);
     }
 
     fn get_chunk_file_path(&self, chunk_name: &str) -> PathBuf {
