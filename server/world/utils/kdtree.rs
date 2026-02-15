@@ -85,6 +85,9 @@ impl EntityTree {
         if self.tree.size() == 0 {
             return None;
         }
+        if skip == 0 {
+            return Some(self.tree.nearest_one::<SquaredEuclidean>(point).item);
+        }
         let clamped_count = query_count.min(self.tree.size() as usize);
         if clamped_count <= skip {
             return None;
