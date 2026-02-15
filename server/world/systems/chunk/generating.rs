@@ -99,8 +99,10 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /* -------------------------------------------------------------------------- */
 
         let mut weights = std::mem::take(&mut interests.weights);
-        weights.clear();
         let interest_map = &interests.map;
+        if !weights.is_empty() {
+            weights.retain(|coords, _| interest_map.contains_key(coords));
+        }
         if weights.capacity() < interest_map.len() {
             weights.reserve(interest_map.len() - weights.capacity());
         }
@@ -122,7 +124,11 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 }
             }
 
-            weights.insert(coords.clone(), weight);
+            if let Some(existing_weight) = weights.get_mut(coords) {
+                *existing_weight = weight;
+            } else {
+                weights.insert(coords.clone(), weight);
+            }
         }
 
         interests.weights = weights;
