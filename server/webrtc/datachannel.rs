@@ -5,6 +5,22 @@ const FRAGMENT_HEADER_SIZE: usize = 9;
 const MAX_PAYLOAD_SIZE: usize = MAX_FRAGMENT_SIZE - FRAGMENT_HEADER_SIZE;
 const MAX_PENDING_MESSAGES: usize = 64;
 
+struct FragmentState {
+    parts: Vec<Option<Vec<u8>>>,
+    received: usize,
+    total: usize,
+}
+
+impl FragmentState {
+    fn new(total: usize) -> Self {
+        Self {
+            parts: vec![None; total],
+            received: 0,
+            total,
+        }
+    }
+}
+
 pub fn fragment_message(data: &[u8]) -> Vec<Vec<u8>> {
     if data.len() <= MAX_PAYLOAD_SIZE {
         return vec![data.to_vec()];
@@ -31,8 +47,7 @@ pub fn fragment_message(data: &[u8]) -> Vec<Vec<u8>> {
 }
 
 pub struct FragmentAssembler {
-    fragments: HashMap<usize, HashMap<usize, Vec<u8>>>,
-    expected_counts: HashMap<usize, usize>,
+    fragments: HashMap<usize, FragmentState>,
     next_message_id: usize,
 }
 
@@ -46,7 +61,6 @@ impl FragmentAssembler {
     pub fn new() -> Self {
         Self {
             fragments: HashMap::new(),
-            expected_counts: HashMap::new(),
             next_message_id: 0,
         }
     }
@@ -79,36 +93,51 @@ impl FragmentAssembler {
             return None;
         }
 
-        let (message_id, expected) = if index == 0 {
-            if self.expected_counts.len() >= MAX_PENDING_MESSAGES {
+        let message_id = if index == 0 {
+            if self.fragments.len() >= MAX_PENDING_MESSAGES {
                 self.fragments.clear();
-                self.expected_counts.clear();
                 self.next_message_id = 0;
             }
             let id = self.next_message_id;
             self.next_message_id = self.next_message_id.saturating_add(1);
-            self.expected_counts.insert(id, total);
-            (id, total)
+            id
         } else {
             let Some(id) = self.next_message_id.checked_sub(1) else {
                 return None;
             };
-            let Some(&expected) = self.expected_counts.get(&id) else {
+            if !self.fragments.contains_key(&id) {
                 return None;
-            };
-            (id, expected)
+            }
+            id
         };
 
-        let entry = self
-            .fragments
-            .entry(message_id)
-            .or_insert_with(|| HashMap::with_capacity(total));
-        entry.insert(index, payload.to_vec());
+        let is_complete = {
+            let state = match self.fragments.entry(message_id) {
+                std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    if index != 0 {
+                        return None;
+                    }
+                    entry.insert(FragmentState::new(total))
+                }
+            };
 
-        if entry.len() == expected {
+            if state.total != total || index >= state.total {
+                return None;
+            }
+
+            if state.parts[index].is_none() {
+                state.received = state.received.saturating_add(1);
+            }
+            state.parts[index] = Some(payload.to_vec());
+            state.received == state.total
+        };
+
+        if is_complete {
+            let state = self.fragments.remove(&message_id)?;
             let mut complete_len = 0usize;
-            for i in 0..expected {
-                if let Some(fragment) = entry.get(&i) {
+            for fragment in state.parts.iter() {
+                if let Some(fragment) = fragment {
                     complete_len = complete_len.saturating_add(fragment.len());
                 } else {
                     return None;
@@ -116,16 +145,13 @@ impl FragmentAssembler {
             }
 
             let mut complete = Vec::with_capacity(complete_len);
-            for i in 0..expected {
-                if let Some(fragment) = entry.get(&i) {
-                    complete.extend_from_slice(fragment);
+            for fragment in state.parts {
+                if let Some(fragment) = fragment {
+                    complete.extend_from_slice(&fragment);
                 } else {
                     return None;
                 }
             }
-
-            self.fragments.remove(&message_id);
-            self.expected_counts.remove(&message_id);
 
             return Some(complete);
         }
@@ -188,7 +214,6 @@ mod tests {
             assert_eq!(assembler.process(&framed), None);
         }
 
-        assert_eq!(assembler.expected_counts.len(), 1);
         assert_eq!(assembler.fragments.len(), 1);
         assert_eq!(assembler.next_message_id, 1);
     }
