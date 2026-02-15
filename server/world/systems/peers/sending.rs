@@ -39,11 +39,9 @@ impl<'a> System<'a> for PeersSendingSystem {
             if metadata.is_empty() {
                 continue;
             }
-            let (json_str, updated) = metadata.to_cached_str();
-
-            if !updated {
+            let Some(json_str) = metadata.to_cached_str_if_updated() else {
                 continue;
-            }
+            };
 
             peers.push(PeerProtocol {
                 id: id.0.to_owned(),

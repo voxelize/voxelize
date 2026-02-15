@@ -87,39 +87,45 @@ impl MetadataComp {
         blake3::hash(&bytes)
     }
 
-    /// Convert metadata to JSON string, also caches is current state using hash.
-    pub fn to_cached_str(&mut self) -> (String, bool) {
+    fn refresh_cached_json_if_dirty(&mut self) -> bool {
         if !self.dirty {
-            if let Some(cached_json) = self.cached_json.as_ref() {
-                return (cached_json.clone(), false);
-            }
+            return false;
         }
 
         let current_hash = self.calculate_hash();
+        let updated = match self.cache_hash {
+            Some(cache_hash) => cache_hash != current_hash,
+            None => true,
+        };
+        self.cache_hash = Some(current_hash);
+        if updated || self.cached_json.is_none() {
+            self.cached_json = Some(self.to_string());
+        }
+        self.dirty = false;
+        updated
+    }
 
-        let mut updated = false;
-        if let Some(cache_hash) = self.cache_hash {
-            if cache_hash != current_hash {
-                updated = true;
-                self.cache_hash = Some(current_hash);
-                // Invalidate JSON cache when hash changes
-                self.cached_json = None;
-            }
-        } else {
-            updated = true;
-            self.cache_hash = Some(current_hash);
-            // Invalidate JSON cache for first update
-            self.cached_json = None;
+    pub fn to_cached_str_if_updated(&mut self) -> Option<String> {
+        if self.refresh_cached_json_if_dirty() {
+            return self.cached_json.clone();
+        }
+        None
+    }
+
+    /// Convert metadata to JSON string, also caches is current state using hash.
+    pub fn to_cached_str(&mut self) -> (String, bool) {
+        let updated = self.refresh_cached_json_if_dirty();
+        if let Some(cached_json) = self.cached_json.as_ref() {
+            return (cached_json.clone(), updated);
         }
 
-        // Use cached JSON if available and not updated
-        if !updated && self.cached_json.is_some() {
-            self.dirty = false;
-            return (self.cached_json.clone().unwrap(), updated);
-        }
-
-        // Generate and cache the JSON string
+        let current_hash = self.calculate_hash();
         let json_str = self.to_string();
+        let updated = match self.cache_hash {
+            Some(cache_hash) => cache_hash != current_hash,
+            None => true,
+        };
+        self.cache_hash = Some(current_hash);
         self.cached_json = Some(json_str.clone());
         self.dirty = false;
 
@@ -182,5 +188,13 @@ mod tests {
 
         let stored: Option<TestMetadataValue> = metadata.get("test");
         assert_eq!(stored.map(|value| value.value), Some(1));
+    }
+
+    #[test]
+    fn to_cached_str_if_updated_returns_none_for_clean_state() {
+        let mut metadata = MetadataComp::new();
+        metadata.set("test", &TestMetadataValue { value: 1 });
+        assert!(metadata.to_cached_str_if_updated().is_some());
+        assert!(metadata.to_cached_str_if_updated().is_none());
     }
 }

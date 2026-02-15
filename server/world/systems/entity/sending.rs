@@ -209,9 +209,11 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             entity_positions.insert(id.0.clone(), pos);
 
             if has_clients {
-                let (json_str, updated) = metadata.to_cached_str();
-                if is_new || updated {
-                    entity_metadata_map.insert(id.0.as_str(), (etype.0.as_str(), json_str, is_new));
+                if is_new {
+                    let (json_str, _) = metadata.to_cached_str();
+                    entity_metadata_map.insert(id.0.as_str(), (etype.0.as_str(), json_str, true));
+                } else if let Some(json_str) = metadata.to_cached_str_if_updated() {
+                    entity_metadata_map.insert(id.0.as_str(), (etype.0.as_str(), json_str, false));
                 }
             }
         }
