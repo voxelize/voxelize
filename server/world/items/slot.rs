@@ -1,4 +1,4 @@
-use hashbrown::HashMap;
+use hashbrown::{hash_map::RawEntryMut, HashMap};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -95,7 +95,16 @@ impl SlotContent {
         match self {
             SlotContent::Item { data, .. } => {
                 if let Ok(json_value) = serde_json::to_value(value) {
-                    data.insert(key.to_string(), json_value);
+                    match data.raw_entry_mut().from_key(key) {
+                        RawEntryMut::Occupied(mut entry) => {
+                            if entry.get() != &json_value {
+                                *entry.get_mut() = json_value;
+                            }
+                        }
+                        RawEntryMut::Vacant(entry) => {
+                            entry.insert(key.to_owned(), json_value);
+                        }
+                    }
                     true
                 } else {
                     false
