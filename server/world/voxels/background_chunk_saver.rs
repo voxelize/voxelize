@@ -67,7 +67,7 @@ impl BackgroundChunkSaver {
     ) {
         let flush_interval = Duration::from_millis(50);
         let mut last_flush = Instant::now();
-        let mut pending: HashMap<Vec2<i32>, ChunkSaveData> = HashMap::new();
+        let mut pending: HashMap<Vec2<i32>, ChunkSaveData> = HashMap::with_capacity(64);
 
         loop {
             match receiver.try_recv() {

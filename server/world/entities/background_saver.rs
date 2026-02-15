@@ -71,7 +71,7 @@ impl BackgroundEntitiesSaver {
     ) {
         let flush_interval = Duration::from_millis(100);
         let mut last_flush = Instant::now();
-        let mut pending: HashMap<String, EntitySaveData> = HashMap::new();
+        let mut pending: HashMap<String, EntitySaveData> = HashMap::with_capacity(64);
 
         loop {
             match receiver.try_recv() {
