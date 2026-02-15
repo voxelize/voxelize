@@ -80,7 +80,9 @@ impl ChunkRequestsComp {
             self.requests.remove(0);
             return;
         }
-        self.requests.retain(|c| c != coords);
+        if let Some(index) = self.requests.iter().position(|c| c == coords) {
+            self.requests.remove(index);
+        }
     }
 }
 
