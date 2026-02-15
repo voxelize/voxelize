@@ -96,6 +96,9 @@ const voxel = Voxel.pack({
     readable indexed entries via bounded length fallback (up to 1024 entries)
   - when `length` access also traps, combination-rule child recovery can fall
     back to bounded numeric-key scans for deterministic salvage
+  - key-based recovery keeps the smallest bounded numeric index set in
+    ascending order to avoid full-list sorting overhead under sparse trap
+    inputs
 - `createBlockConditionalPart`
   - defensively clones rule, face, AABB, and transparency-array inputs to
     avoid external mutation side effects after construction
