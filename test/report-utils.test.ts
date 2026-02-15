@@ -6387,6 +6387,41 @@ describe("report-utils", () => {
       "--json": "--json",
     });
     expect(canonicalCatalogReadCount).toBe(2);
+    let aliasCatalogReadCount = 0;
+    const statefulAliasCatalog = createCliOptionCatalog({
+      canonicalOptions: ["--json"],
+      optionAliases: {
+        "--no-build": new Proxy(["--verify"], {
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              throw new Error("iterator trap");
+            }
+            if (property === "length") {
+              return 1;
+            }
+            if (property === "0") {
+              aliasCatalogReadCount += 1;
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      },
+    });
+    expect(statefulAliasCatalog.supportedCliOptions).toEqual([
+      "--json",
+      "--no-build",
+      "--verify",
+    ]);
+    expect(statefulAliasCatalog.supportedCliOptionCount).toBe(3);
+    expect(statefulAliasCatalog.availableCliOptionAliases).toEqual({
+      "--no-build": ["--verify"],
+    });
+    expect(statefulAliasCatalog.availableCliOptionCanonicalMap).toEqual({
+      "--json": "--json",
+      "--no-build": "--no-build",
+      "--verify": "--no-build",
+    });
+    expect(aliasCatalogReadCount).toBe(2);
     const fullyTrappedCanonicalOptions = createFullyTrappedStringArray([
       "--json",
       "--output",
