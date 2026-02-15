@@ -3896,6 +3896,64 @@ describe("BlockRuleEvaluator", () => {
     expect(BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access)).toBe(false);
   });
 
+  it("treats non-finite constrained coordinates as non-matches", () => {
+    const malformedOffsetRule = {
+      type: "simple" as const,
+      offset: [Number.NaN, 0, 0] as [number, number, number],
+      id: 31,
+    };
+    const malformedPositionRule = {
+      type: "simple" as const,
+      offset: [0, 0, 0] as [number, number, number],
+      id: 32,
+    };
+    const access = {
+      getVoxel: () => 32,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    expect(
+      BlockRuleEvaluator.evaluate(malformedOffsetRule, [0, 0, 0], access)
+    ).toBe(false);
+    expect(
+      BlockRuleEvaluator.evaluate(
+        malformedPositionRule,
+        [Number.NaN, 0, 0] as never,
+        access
+      )
+    ).toBe(false);
+  });
+
+  it("keeps unconstrained malformed-coordinate rules as deterministic matches", () => {
+    const rule = {
+      type: "simple" as const,
+      offset: [Number.NaN, 0, 0] as [number, number, number],
+    };
+    let getVoxelCalls = 0;
+    let getVoxelRotationCalls = 0;
+    let getVoxelStageCalls = 0;
+    const access = {
+      getVoxel: () => {
+        getVoxelCalls += 1;
+        return 0;
+      },
+      getVoxelRotation: () => {
+        getVoxelRotationCalls += 1;
+        return BlockRotation.py(0);
+      },
+      getVoxelStage: () => {
+        getVoxelStageCalls += 1;
+        return 0;
+      },
+    };
+
+    expect(BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access)).toBe(true);
+    expect(getVoxelCalls).toBe(0);
+    expect(getVoxelRotationCalls).toBe(0);
+    expect(getVoxelStageCalls).toBe(0);
+  });
+
   it("rotates offsets for negative y-rotation values", () => {
     const rule = {
       type: "simple" as const,

@@ -172,6 +172,24 @@ const areRotationsEqualSafely = (
   }
 };
 
+const toRoundedFiniteCoordinateOrNull = (value: number): number | null => {
+  return Number.isFinite(value) ? Math.round(value) : null;
+};
+
+const toRoundedCheckPositionOrNull = (
+  position: Vec3,
+  offset: Vec3
+): Vec3 | null => {
+  const checkX = toRoundedFiniteCoordinateOrNull(position[0] + offset[0]);
+  const checkY = toRoundedFiniteCoordinateOrNull(position[1] + offset[1]);
+  const checkZ = toRoundedFiniteCoordinateOrNull(position[2] + offset[2]);
+  if (checkX === null || checkY === null || checkZ === null) {
+    return null;
+  }
+
+  return [checkX, checkY, checkZ];
+};
+
 const rotateOffsetY = (offset: Vec3, rotationY: number): Vec3 => {
   const rot = normalizeRuleYRotation(rotationY);
 
@@ -212,16 +230,19 @@ export class BlockRuleEvaluator {
 
     if (rule.type === "simple") {
       let offset: Vec3 = [...rule.offset];
+      const hasRuleConstraint =
+        (rule.id !== undefined && rule.id !== null) ||
+        (rule.rotation !== undefined && rule.rotation !== null) ||
+        (rule.stage !== undefined && rule.stage !== null);
 
       if (yRotatable && !worldSpace) {
         offset = rotateOffsetY(offset, rotationY);
       }
 
-      const checkPosition: Vec3 = [
-        position[0] + Math.round(offset[0]),
-        position[1] + Math.round(offset[1]),
-        position[2] + Math.round(offset[2]),
-      ];
+      const checkPosition = toRoundedCheckPositionOrNull(position, offset);
+      if (checkPosition === null) {
+        return !hasRuleConstraint;
+      }
 
       if (rule.id !== undefined && rule.id !== null) {
         const actualId = readVoxelIdSafely(
