@@ -152,6 +152,61 @@ describe("Chat command parsing", () => {
     expect(parsed).toEqual({ first: "hello world", second: "test" });
   });
 
+  it("parses unmatched quoted input without dropping trailing text", () => {
+    const chat = new Chat();
+    initializeChat(chat);
+    let parsed: { first: string; second?: string } | null = null;
+
+    chat.addCommand(
+      "echo",
+      (args) => {
+        parsed = args;
+      },
+      {
+        description: "Echo command",
+        args: z.object({
+          first: z.string(),
+          second: z.string().optional(),
+        }),
+      }
+    );
+
+    const message: ChatProtocol = {
+      type: "CLIENT",
+      body: `/echo hello "quoted segment`,
+    };
+    chat.send(message);
+
+    expect(parsed).toEqual({ first: "hello", second: "quoted segment" });
+  });
+
+  it("parses tokens with quoted segments adjacent to text", () => {
+    const chat = new Chat();
+    initializeChat(chat);
+    let parsed: { first: string } | null = null;
+
+    chat.addCommand(
+      "echo",
+      (args) => {
+        parsed = args;
+      },
+      {
+        description: "Echo command",
+        args: z.object({
+          first: z.string(),
+        }),
+      }
+    );
+
+    const message: ChatProtocol = {
+      type: "CLIENT",
+      body: `/echo pre"quoted text"post`,
+    };
+    chat.send(message);
+
+    expect(parsed).toEqual({ first: "prequoted textpost" });
+  });
+
   it("parses commands with multi-character command symbols", () => {
     const chat = new Chat();
     initializeChatWithSymbol(chat, "::");

@@ -289,36 +289,17 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   }
 
   private splitQuotedTokens(raw: string): string[] {
-    const length = raw.length;
-    let hasQuote = false;
-    let hasWhitespace = false;
-    for (let index = 0; index < length; index++) {
-      const code = raw.charCodeAt(index);
-      if (code === 34 || code === 39) {
-        hasQuote = true;
-        break;
-      }
-      if (isWhitespaceCode(code)) {
-        hasWhitespace = true;
-      }
-    }
-    if (!hasQuote) {
-      if (!hasWhitespace) {
-        const tokens = this.quotedTokensBuffer;
-        tokens.length = 0;
-        if (length > 0) {
-          tokens.push(raw);
-        }
-        return tokens;
-      }
-      return this.splitUnquotedTokens(raw);
-    }
-
     const tokens = this.quotedTokensBuffer;
     tokens.length = 0;
+    const length = raw.length;
+    if (length === 0) {
+      return tokens;
+    }
     let current = "";
     let quoteCharCode = 0;
     let segmentStart = -1;
+    let sawWhitespace = false;
+    let sawQuote = false;
 
     for (let i = 0; i < length; i++) {
       const code = raw.charCodeAt(i);
@@ -331,13 +312,21 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
           }
           quoteCharCode = 0;
         }
-      } else if (code === 34 || code === 39) {
+        continue;
+      }
+
+      if (code === 34 || code === 39) {
+        sawQuote = true;
         if (segmentStart >= 0) {
           current += raw.substring(segmentStart, i);
         }
         quoteCharCode = code;
         segmentStart = i + 1;
-      } else if (isWhitespaceCode(code)) {
+        continue;
+      }
+
+      if (isWhitespaceCode(code)) {
+        sawWhitespace = true;
         if (segmentStart >= 0) {
           current += raw.substring(segmentStart, i);
           segmentStart = -1;
@@ -346,7 +335,10 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
           tokens.push(current);
           current = "";
         }
-      } else if (segmentStart < 0) {
+        continue;
+      }
+
+      if (segmentStart < 0) {
         segmentStart = i;
       }
     }
@@ -359,33 +351,13 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       tokens.push(current);
     }
 
-    return tokens;
-  }
-
-  private splitUnquotedTokens(raw: string): string[] {
-    const tokens = this.quotedTokensBuffer;
-    tokens.length = 0;
-    const rawLength = raw.length;
-    let segmentStart = -1;
-    let sawWhitespace = false;
-    for (let index = 0; index < rawLength; index++) {
-      if (isWhitespaceCode(raw.charCodeAt(index))) {
-        sawWhitespace = true;
-        if (segmentStart >= 0) {
-          tokens.push(raw.substring(segmentStart, index));
-          segmentStart = -1;
-        }
-      } else if (segmentStart < 0) {
-        segmentStart = index;
-      }
-    }
-
-    if (segmentStart >= 0) {
-      if (!sawWhitespace && segmentStart === 0) {
-        tokens.push(raw);
-      } else {
-        tokens.push(raw.substring(segmentStart, rawLength));
-      }
+    if (
+      !sawQuote &&
+      !sawWhitespace &&
+      tokens.length === 1 &&
+      tokens[0].length === length
+    ) {
+      tokens[0] = raw;
     }
 
     return tokens;
