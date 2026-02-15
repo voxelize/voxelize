@@ -263,10 +263,11 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 let (entity_id, etype, metadata_str) = &self.deleted_entities_buffer[0];
                 for client_id in clients.keys() {
                     let client_id = client_id.as_str();
-                    let known_entities = get_or_insert_client_known_entities(
-                        &mut bookkeeping.client_known_entities,
-                        client_id,
-                    );
+                    let Some(known_entities) =
+                        bookkeeping.client_known_entities.get_mut(client_id)
+                    else {
+                        continue;
+                    };
                     if !known_entities.remove(entity_id) {
                         continue;
                     }
@@ -285,10 +286,11 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             } else if self.deleted_entities_buffer.len() <= 4 {
                 for client_id in clients.keys() {
                     let client_id = client_id.as_str();
-                    let known_entities = get_or_insert_client_known_entities(
-                        &mut bookkeeping.client_known_entities,
-                        client_id,
-                    );
+                    let Some(known_entities) =
+                        bookkeeping.client_known_entities.get_mut(client_id)
+                    else {
+                        continue;
+                    };
                     let entities_to_delete = &mut self.known_entities_to_delete_buffer;
                     entities_to_delete.clear();
 
@@ -332,10 +334,11 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
                 for client_id in clients.keys() {
                     let client_id = client_id.as_str();
-                    let known_entities = get_or_insert_client_known_entities(
-                        &mut bookkeeping.client_known_entities,
-                        client_id,
-                    );
+                    let Some(known_entities) =
+                        bookkeeping.client_known_entities.get_mut(client_id)
+                    else {
+                        continue;
+                    };
                     let entities_to_delete = &mut self.known_entities_to_delete_buffer;
                     entities_to_delete.clear();
 
@@ -372,10 +375,10 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 None => continue,
             };
 
-            let known_entities = get_or_insert_client_known_entities(
-                &mut bookkeeping.client_known_entities,
-                client_id.as_str(),
-            );
+            let Some(known_entities) = bookkeeping.client_known_entities.get_mut(client_id)
+            else {
+                continue;
+            };
             let entities_to_delete = &mut self.known_entities_to_delete_buffer;
             entities_to_delete.clear();
             for entity_id in known_entities.iter() {
