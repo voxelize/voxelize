@@ -549,11 +549,7 @@ impl Handler<Connect> for Server {
     type Result = MessageResult<Connect>;
 
     fn handle(&mut self, msg: Connect, _: &mut Context<Self>) -> Self::Result {
-        let id = if msg.id.is_none() {
-            nanoid!()
-        } else {
-            msg.id.unwrap()
-        };
+        let id = msg.id.unwrap_or_else(|| nanoid!());
 
         let token = nanoid!();
 
