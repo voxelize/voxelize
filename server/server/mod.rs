@@ -299,7 +299,7 @@ impl Server {
 
     /// Prepare all worlds on the server to start.
     pub async fn prepare(&mut self) {
-        for world in self.worlds.values_mut() {
+        for world in self.worlds.values() {
             world.do_send(Prepare);
         }
     }
@@ -519,7 +519,7 @@ impl Handler<Connect> for Server {
         let token = nanoid!();
 
         if msg.is_transport {
-            self.worlds.values_mut().for_each(|world| {
+            self.worlds.values().for_each(|world| {
                 world.do_send(TransportJoinRequest {
                     id: id.clone(),
                     sender: msg.sender.clone(),
@@ -581,7 +581,7 @@ impl Handler<Disconnect> for Server {
         }
 
         if let Some(_) = self.transport_sessions.remove(&msg.id) {
-            self.worlds.values_mut().for_each(|world| {
+            self.worlds.values().for_each(|world| {
                 world.do_send(TransportLeaveRequest { id: msg.id.clone() });
             });
 
