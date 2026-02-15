@@ -3251,6 +3251,34 @@ describe("report-utils", () => {
     expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(1);
   });
 
+  it("tracks active options when metadata tokens are whitespace-padded", () => {
+    const activeMetadata = parseActiveCliOptionMetadata(["--verify"], {
+      canonicalOptions: [" --json "],
+      optionAliases: {
+        " --no-build ": [" --verify "],
+      },
+    });
+
+    expect(activeMetadata.activeCliOptions).toEqual(["--no-build"]);
+    expect(activeMetadata.activeCliOptionCount).toBe(1);
+    expect(activeMetadata.activeCliOptionTokens).toEqual(["--verify"]);
+    expect(activeMetadata.activeCliOptionResolutions).toEqual([
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionResolutionCount).toBe(1);
+    expect(activeMetadata.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--verify",
+        canonicalOption: "--no-build",
+        index: 0,
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(1);
+  });
+
   it("tracks alias-defined canonical options that consume values", () => {
     const activeMetadata = parseActiveCliOptionMetadata(
       ["--output", "./report.json", "--mystery"],
