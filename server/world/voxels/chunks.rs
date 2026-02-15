@@ -249,16 +249,14 @@ impl Chunks {
     /// Update a chunk, removing the old chunk instance and updating with a new one.
     pub fn renew(&mut self, chunk: Chunk, renew_mesh_only: bool) {
         if renew_mesh_only {
-            if let Some(mut old_chunk) = self.map.remove(&chunk.coords) {
+            if let Some(old_chunk) = self.map.get_mut(&chunk.coords) {
                 old_chunk.meshes = chunk.meshes;
                 old_chunk.status = chunk.status;
-                self.map.insert(chunk.coords, old_chunk);
             }
 
             return;
         }
 
-        self.map.remove(&chunk.coords);
         self.map.insert(chunk.coords, chunk);
     }
 
