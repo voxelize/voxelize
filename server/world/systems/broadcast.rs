@@ -54,7 +54,6 @@ fn ids_contains_target(ids: &[String], target: &str) -> bool {
         0 => false,
         1 => ids[0] == target,
         2 => ids[0] == target || ids[1] == target,
-        _ if ids_are_strictly_sorted(ids) => sorted_ids_contains(ids, target),
         _ => ids.iter().any(|id| id.as_str() == target),
     }
 }
