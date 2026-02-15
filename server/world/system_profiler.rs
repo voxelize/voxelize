@@ -46,6 +46,22 @@ impl SystemTimings {
             if samples.is_empty() {
                 continue;
             }
+            let sample_count = samples.len();
+            if sample_count == 1 {
+                if let Some(sample) = samples.front() {
+                    let duration = sample.duration_ms;
+                    summary.insert(
+                        name.clone(),
+                        SystemStats {
+                            avg: duration,
+                            max: duration,
+                            min: duration,
+                            samples: 1,
+                        },
+                    );
+                }
+                continue;
+            }
 
             let mut sum = 0.0;
             let mut max = f64::NEG_INFINITY;
@@ -56,7 +72,6 @@ impl SystemTimings {
                 max = max.max(duration);
                 min = min.min(duration);
             }
-            let sample_count = samples.len();
             let avg = sum / sample_count as f64;
             summary.insert(
                 name.clone(),
