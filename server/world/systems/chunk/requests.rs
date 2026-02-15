@@ -111,16 +111,16 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     clients_to_send.insert(coords);
                 } else {
                     if !interests.has_interests(&coords) {
-                        for coords in chunks.light_traversed_chunks(&coords) {
-                            match chunks.raw(&coords) {
+                        chunks.for_each_light_traversed_chunk(&coords, |neighbor_coords| {
+                            match chunks.raw(&neighbor_coords) {
                                 Some(chunk) if matches!(chunk.status, ChunkStatus::Meshing) => {
-                                    mesher.add_chunk(&coords, false);
+                                    mesher.add_chunk(&neighbor_coords, false);
                                 }
                                 None | Some(_) => {
-                                    pipeline.add_chunk(&coords, false);
+                                    pipeline.add_chunk(&neighbor_coords, false);
                                 }
                             }
-                        }
+                        });
                     }
                     interests.add(&id.0, &coords);
                 }
