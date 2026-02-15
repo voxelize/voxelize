@@ -252,14 +252,14 @@ impl Chunks {
             if let Some(mut old_chunk) = self.map.remove(&chunk.coords) {
                 old_chunk.meshes = chunk.meshes;
                 old_chunk.status = chunk.status;
-                self.map.insert(chunk.coords.to_owned(), old_chunk);
+                self.map.insert(chunk.coords, old_chunk);
             }
 
             return;
         }
 
         self.map.remove(&chunk.coords);
-        self.map.insert(chunk.coords.to_owned(), chunk);
+        self.map.insert(chunk.coords, chunk);
     }
 
     /// Add a new chunk, synonym for `chunks.renew`
@@ -282,7 +282,7 @@ impl Chunks {
             return None;
         }
 
-        self.cache.insert(coords.to_owned());
+        self.cache.insert(*coords);
         self.map.get_mut(coords)
     }
 
@@ -303,7 +303,7 @@ impl Chunks {
             return None;
         }
 
-        self.cache.insert(coords.to_owned());
+        self.cache.insert(*coords);
         self.map.get_mut(coords)
     }
 
@@ -411,7 +411,7 @@ impl Chunks {
     pub fn make_space<'a>(&'a self, coords: &Vec2<i32>, margin: usize) -> SpaceBuilder<'a> {
         SpaceBuilder {
             chunks: self,
-            coords: coords.to_owned(),
+            coords: *coords,
             options: SpaceOptions {
                 margin,
                 chunk_size: self.config.chunk_size,
@@ -452,7 +452,7 @@ impl Chunks {
     /// and sending the chunk to the interested clients. This process is not instant, and will
     /// be done in the background.
     pub fn update_voxel(&mut self, voxel: &Vec3<i32>, val: u32) {
-        self.updates_staging.insert(voxel.to_owned(), val);
+        self.updates_staging.insert(*voxel, val);
     }
 
     /// Flush staged updates into the processing queue. Called before processing updates.
@@ -479,10 +479,10 @@ impl Chunks {
         if self.active_voxel_set.contains_key(voxel) {
             return;
         }
-        self.active_voxel_set.insert(voxel.clone(), active_at);
+        self.active_voxel_set.insert(*voxel, active_at);
         self.active_voxel_heap.push(Reverse(ActiveVoxel {
             tick: active_at,
-            voxel: voxel.clone(),
+            voxel: *voxel,
         }));
     }
 
@@ -490,9 +490,9 @@ impl Chunks {
     pub fn add_chunk_to_save(&mut self, coords: &Vec2<i32>, prioritized: bool) {
         if !self.to_save.contains(coords) {
             if prioritized {
-                self.to_save.push_front(coords.to_owned());
+                self.to_save.push_front(*coords);
             } else {
-                self.to_save.push_back(coords.to_owned());
+                self.to_save.push_back(*coords);
             }
         }
     }
@@ -508,18 +508,18 @@ impl Chunks {
             return;
         }
         if prioritized {
-            self.to_send.push_front((coords.to_owned(), r#type.clone()));
+            self.to_send.push_front((*coords, r#type.clone()));
         } else {
-            self.to_send.push_back((coords.to_owned(), r#type.clone()));
+            self.to_send.push_back((*coords, r#type.clone()));
         }
     }
 
     /// Add a listener to a chunk.
     pub fn add_listener(&mut self, coords: &Vec2<i32>, listener: &Vec2<i32>) {
         self.listeners
-            .entry(coords.to_owned())
+            .entry(*coords)
             .or_default()
-            .push(listener.to_owned());
+            .push(*listener);
     }
 
     fn get_chunk_file_path(&self, chunk_name: &str) -> PathBuf {
