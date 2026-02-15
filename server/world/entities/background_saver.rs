@@ -122,7 +122,14 @@ impl BackgroundEntitiesSaver {
             metadata: &data.metadata,
         };
 
-        let sanitized_filename = etype_value.replace("::", "-").replace(' ', "-");
+        let mut sanitized_filename = if etype_value.contains("::") {
+            etype_value.replace("::", "-")
+        } else {
+            etype_value.clone()
+        };
+        if sanitized_filename.contains(' ') {
+            sanitized_filename = sanitized_filename.replace(' ', "-");
+        }
         let new_filename = format!("{}-{}.json", sanitized_filename, id);
         let old_filename = format!("{}.json", id);
 
