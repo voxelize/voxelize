@@ -4824,6 +4824,62 @@ describe("BlockRuleEvaluator", () => {
     ).toBe(true);
   });
 
+  it("preserves duplicate-value rule entries across fallback merging", () => {
+    let zeroReadCount = 0;
+    const duplicateRules: BlockRule[] = [];
+    duplicateRules[0] = {
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 54,
+    };
+    duplicateRules[5_000] = {
+      type: "simple",
+      offset: [0, 0, 0],
+      id: 54,
+    };
+    const trappedRules = new Proxy(duplicateRules, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (propertyKey === "0") {
+          zeroReadCount += 1;
+          if (zeroReadCount > 1) {
+            throw new Error("read trap");
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    let voxelReadCount = 0;
+    const access = {
+      getVoxel: () => {
+        voxelReadCount += 1;
+        return 0;
+      },
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.Or,
+          rules: trappedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(false);
+    expect(voxelReadCount).toBe(2);
+  });
+
   it("skips sparse hole placeholders during combination length fallback", () => {
     const sparseRules: BlockRule[] = [];
     sparseRules[1] = {

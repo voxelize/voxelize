@@ -204,7 +204,14 @@ const toRuleEntryOrNone = (value: RuleOptionValue): BlockRule => {
     : BLOCK_RULE_NONE;
 };
 
-const toRuleEntriesFromLengthFallback = (value: RuleOptionValue): BlockRule[] => {
+type IndexedRuleEntry = {
+  index: number;
+  rule: BlockRule;
+};
+
+const toRuleEntriesFromLengthFallback = (
+  value: RuleOptionValue
+): IndexedRuleEntry[] => {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -221,7 +228,7 @@ const toRuleEntriesFromLengthFallback = (value: RuleOptionValue): BlockRule[] =>
   }
 
   const boundedLength = Math.min(lengthValue, MAX_RULE_ENTRY_FALLBACK_SCAN);
-  const recoveredRules: BlockRule[] = [];
+  const recoveredRules: IndexedRuleEntry[] = [];
   let canProbeOwnProperty = true;
   for (let index = 0; index < boundedLength; index += 1) {
     let indexPresent = false;
@@ -252,7 +259,10 @@ const toRuleEntriesFromLengthFallback = (value: RuleOptionValue): BlockRule[] =>
       continue;
     }
 
-    recoveredRules.push(toRuleEntryOrNone(entryValue));
+    recoveredRules.push({
+      index,
+      rule: toRuleEntryOrNone(entryValue),
+    });
   }
 
   return recoveredRules;
@@ -299,7 +309,9 @@ const insertBoundedSortedRuleIndex = (
   }
 };
 
-const toRuleEntriesFromKeyFallback = (value: RuleOptionValue): BlockRule[] => {
+const toRuleEntriesFromKeyFallback = (
+  value: RuleOptionValue
+): IndexedRuleEntry[] => {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -324,7 +336,7 @@ const toRuleEntriesFromKeyFallback = (value: RuleOptionValue): BlockRule[] => {
       MAX_RULE_ENTRY_FALLBACK_SCAN
     );
   }
-  const recoveredRules: BlockRule[] = [];
+  const recoveredRules: IndexedRuleEntry[] = [];
 
   for (const ruleIndex of ruleIndices) {
     let entryValue: RuleOptionValue = undefined;
@@ -334,46 +346,50 @@ const toRuleEntriesFromKeyFallback = (value: RuleOptionValue): BlockRule[] => {
       continue;
     }
 
-    recoveredRules.push(toRuleEntryOrNone(entryValue));
+    recoveredRules.push({
+      index: ruleIndex,
+      rule: toRuleEntryOrNone(entryValue),
+    });
   }
 
   return recoveredRules;
 };
 
-const toRuleEntryFallbackSignature = (rule: BlockRule): string => {
-  try {
-    return JSON.stringify(rule);
-  } catch {
-    return rule.type;
-  }
+const toRuleEntriesFromIndexedEntries = (
+  entries: IndexedRuleEntry[]
+): BlockRule[] => {
+  return entries.map((entry) => {
+    return entry.rule;
+  });
 };
 
-const mergeDistinctRuleEntries = (
-  primaryEntries: BlockRule[],
-  supplementalEntries: BlockRule[]
-): BlockRule[] => {
-  const mergedEntries: BlockRule[] = [];
-  const seenSignatures = new Set<string>();
-
-  const pushDistinctEntry = (entry: BlockRule): void => {
-    const signature = toRuleEntryFallbackSignature(entry);
-    if (seenSignatures.has(signature)) {
-      return;
-    }
-
-    seenSignatures.add(signature);
-    mergedEntries.push(entry);
-  };
-
+const mergeIndexedRuleEntries = (
+  primaryEntries: IndexedRuleEntry[],
+  supplementalEntries: IndexedRuleEntry[]
+): IndexedRuleEntry[] => {
+  const mergedEntries = new Map<number, BlockRule>();
   for (const entry of primaryEntries) {
-    pushDistinctEntry(entry);
+    if (!mergedEntries.has(entry.index)) {
+      mergedEntries.set(entry.index, entry.rule);
+    }
   }
 
   for (const entry of supplementalEntries) {
-    pushDistinctEntry(entry);
+    if (!mergedEntries.has(entry.index)) {
+      mergedEntries.set(entry.index, entry.rule);
+    }
   }
 
-  return mergedEntries;
+  return Array.from(mergedEntries.entries())
+    .sort((left, right) => {
+      return left[0] - right[0];
+    })
+    .map(([index, rule]) => {
+      return {
+        index,
+        rule,
+      };
+    });
 };
 
 const toRuleEntriesOrEmpty = (
@@ -395,24 +411,28 @@ const toRuleEntriesOrEmpty = (
       return toRuleEntryOrNone(entry as RuleOptionValue);
     });
   } catch {
-    const lengthFallbackRules = toRuleEntriesFromLengthFallback(rawRules);
-    const hasNonNoneLengthFallbackRule = lengthFallbackRules.some((entry) => {
-      return entry.type !== "none";
+    const lengthFallbackRuleEntries = toRuleEntriesFromLengthFallback(rawRules);
+    const hasNonNoneLengthFallbackRule = lengthFallbackRuleEntries.some((entry) => {
+      return entry.rule.type !== "none";
     });
-    if (lengthFallbackRules.length >= MAX_RULE_ENTRY_FALLBACK_SCAN) {
-      return lengthFallbackRules;
+    if (lengthFallbackRuleEntries.length >= MAX_RULE_ENTRY_FALLBACK_SCAN) {
+      return toRuleEntriesFromIndexedEntries(lengthFallbackRuleEntries);
     }
 
-    const keyFallbackRules = toRuleEntriesFromKeyFallback(rawRules);
-    if (keyFallbackRules.length > 0) {
+    const keyFallbackRuleEntries = toRuleEntriesFromKeyFallback(rawRules);
+    if (keyFallbackRuleEntries.length > 0) {
       if (hasNonNoneLengthFallbackRule) {
-        return mergeDistinctRuleEntries(lengthFallbackRules, keyFallbackRules);
+        const mergedRuleEntries = mergeIndexedRuleEntries(
+          lengthFallbackRuleEntries,
+          keyFallbackRuleEntries
+        );
+        return toRuleEntriesFromIndexedEntries(mergedRuleEntries);
       }
 
-      return keyFallbackRules;
+      return toRuleEntriesFromIndexedEntries(keyFallbackRuleEntries);
     }
 
-    return lengthFallbackRules;
+    return toRuleEntriesFromIndexedEntries(lengthFallbackRuleEntries);
   }
 };
 

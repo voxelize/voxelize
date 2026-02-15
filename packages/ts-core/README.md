@@ -110,7 +110,8 @@ const voxel = Voxel.pack({
     high-index rules
   - if key-fallback recovery omits readable prefix rules (for example due
     stateful low-index read traps), bounded-prefix and key-fallback recoveries
-    are merged before evaluation with equivalent sanitized rules de-duplicated
+    are merged by numeric index before evaluation, preserving duplicate-value
+    rule entries that originate from distinct indices
   - throwing bounded direct reads are skipped during fallback scans so key
     recovery can still salvage readable high-index rules
   - throwing key-fallback reads are skipped so malformed low-index entries do
