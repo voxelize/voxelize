@@ -3543,6 +3543,79 @@ describe("report-utils", () => {
     ).toBe(
       "Unsupported option(s): --mystery. Supported options: --json, --output."
     );
+    const lengthAndOwnKeysTrapSupportedTokens = new Proxy(
+      ["--json", "--output"],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            throw new Error("length trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const lengthAndOwnKeysTrapPrecomputedSupportedTokens =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        supportedCliOptions: lengthAndOwnKeysTrapSupportedTokens as never,
+      });
+    expect(lengthAndOwnKeysTrapPrecomputedSupportedTokens.supportedCliOptions).toEqual(
+      []
+    );
+    expect(
+      lengthAndOwnKeysTrapPrecomputedSupportedTokens.supportedCliOptionCount
+    ).toBe(0);
+    expect(
+      lengthAndOwnKeysTrapPrecomputedSupportedTokens.unsupportedOptionsError
+    ).toBe("Unsupported option(s): --mystery. Supported options: (none).");
+    const fullyRecoverableLengthTrappedSupportedTokens =
+      createLengthTrappedPartiallyRecoveredStringArray(
+        ["--json", "--output"],
+        2
+      );
+    const fullyRecoverableLengthTrappedPrecomputedSupportedTokens =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        supportedCliOptions:
+          fullyRecoverableLengthTrappedSupportedTokens as never,
+      });
+    expect(
+      fullyRecoverableLengthTrappedPrecomputedSupportedTokens.supportedCliOptions
+    ).toEqual(["--json", "--output"]);
+    expect(
+      fullyRecoverableLengthTrappedPrecomputedSupportedTokens.supportedCliOptionCount
+    ).toBe(2);
+    expect(
+      fullyRecoverableLengthTrappedPrecomputedSupportedTokens.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
+    const partiallyRecoverableLengthTrappedSupportedTokens =
+      createLengthTrappedPartiallyRecoveredStringArray(["--json", "--output"]);
+    const partiallyRecoverableLengthTrappedPrecomputedSupportedTokens =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        supportedCliOptions:
+          partiallyRecoverableLengthTrappedSupportedTokens as never,
+      });
+    expect(
+      partiallyRecoverableLengthTrappedPrecomputedSupportedTokens.supportedCliOptions
+    ).toEqual(["--json"]);
+    expect(
+      partiallyRecoverableLengthTrappedPrecomputedSupportedTokens.supportedCliOptionCount
+    ).toBe(1);
+    expect(
+      partiallyRecoverableLengthTrappedPrecomputedSupportedTokens.unsupportedOptionsError
+    ).toBe("Unsupported option(s): --mystery. Supported options: --json.");
 
     const outputErrorPriority = createCliOptionValidation(
       ["--json", "--mystery"],
