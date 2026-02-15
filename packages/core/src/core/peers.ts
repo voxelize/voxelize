@@ -2,6 +2,7 @@ import { MessageProtocol, PeerProtocol } from "@voxelize/protocol";
 import { Group, Object3D, Quaternion, Vector3 } from "three";
 
 import { Character } from "../libs";
+import { toLowerCaseIfNeeded } from "../utils/string-utils";
 
 import { NetIntercept } from "./network";
 
@@ -15,25 +16,7 @@ const normalizePeerEventName = (name: string) => {
   if (name === "vox-builtin:arm-swing") {
     return name;
   }
-  let hasNonAscii = false;
-  for (let index = 0; index < name.length; index++) {
-    const code = name.charCodeAt(index);
-    if (code >= 65 && code <= 90) {
-      return name.toLowerCase();
-    }
-    if (code > 127) {
-      hasNonAscii = true;
-    }
-  }
-  if (!hasNonAscii) {
-    return name;
-  }
-  for (const char of name) {
-    if (char.toLowerCase() !== char.toUpperCase() && char === char.toUpperCase()) {
-      return name.toLowerCase();
-    }
-  }
-  return name;
+  return toLowerCaseIfNeeded(name);
 };
 
 /**

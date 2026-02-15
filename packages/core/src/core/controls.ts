@@ -15,6 +15,7 @@ import {
 import { Arm, Character } from "../libs";
 import { Coords3 } from "../types";
 import { ChunkUtils } from "../utils";
+import { toLowerCaseIfNeeded } from "../utils/string-utils";
 
 import { Inputs } from "./inputs";
 import { NetIntercept } from "./network";
@@ -31,25 +32,7 @@ const normalizeControlEventName = (name: string) => {
   ) {
     return name;
   }
-  let hasNonAscii = false;
-  for (let index = 0; index < name.length; index++) {
-    const code = name.charCodeAt(index);
-    if (code >= 65 && code <= 90) {
-      return name.toLowerCase();
-    }
-    if (code > 127) {
-      hasNonAscii = true;
-    }
-  }
-  if (!hasNonAscii) {
-    return name;
-  }
-  for (const char of name) {
-    if (char.toLowerCase() !== char.toUpperCase() && char === char.toUpperCase()) {
-      return name.toLowerCase();
-    }
-  }
-  return name;
+  return toLowerCaseIfNeeded(name);
 };
 
 /**

@@ -2,29 +2,11 @@ import { MessageProtocol } from "@voxelize/protocol";
 import { Group, Vector3 } from "three";
 
 import { JsonValue } from "../types";
+import { toLowerCaseIfNeeded } from "../utils/string-utils";
 import { NetIntercept } from "./network";
 
 const normalizeEntityType = (type: string): string => {
-  let hasNonAscii = false;
-  const length = type.length;
-  for (let index = 0; index < length; index++) {
-    const code = type.charCodeAt(index);
-    if (code >= 65 && code <= 90) {
-      return type.toLowerCase();
-    }
-    if (code > 127) {
-      hasNonAscii = true;
-    }
-  }
-  if (!hasNonAscii) {
-    return type;
-  }
-  for (const char of type) {
-    if (char.toLowerCase() !== char.toUpperCase() && char === char.toUpperCase()) {
-      return type.toLowerCase();
-    }
-  }
-  return type;
+  return toLowerCaseIfNeeded(type);
 };
 
 export class Entity<T = JsonValue> extends Group {

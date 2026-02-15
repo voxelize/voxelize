@@ -3,27 +3,10 @@ import { Color, PerspectiveCamera, Uniform, Vector3 } from "three";
 
 import { World } from "../../core/world";
 import OverlayFragmentShader from "../../shaders/effects/overlay.frag.glsl?raw";
+import { toLowerCaseIfNeeded } from "../../utils/string-utils";
 
 const normalizeOverlayName = (name: string) => {
-  let hasNonAscii = false;
-  for (let i = 0; i < name.length; i++) {
-    const code = name.charCodeAt(i);
-    if (code >= 65 && code <= 90) {
-      return name.toLowerCase();
-    }
-    if (code > 127) {
-      hasNonAscii = true;
-    }
-  }
-  if (!hasNonAscii) {
-    return name;
-  }
-  for (const char of name) {
-    if (char.toLowerCase() !== char.toUpperCase() && char === char.toUpperCase()) {
-      return name.toLowerCase();
-    }
-  }
-  return name;
+  return toLowerCaseIfNeeded(name);
 };
 
 /**

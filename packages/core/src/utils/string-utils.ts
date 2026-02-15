@@ -2,7 +2,7 @@ export type FindSimilarOptions = {
   maxSuggestions?: number;
 };
 
-const normalizeCaseIfNeeded = (value: string): string => {
+export const toLowerCaseIfNeeded = (value: string): string => {
   let hasNonAscii = false;
   for (let index = 0; index < value.length; index++) {
     const code = value.charCodeAt(index);
@@ -57,13 +57,13 @@ export function findSimilar(
   options: FindSimilarOptions = {}
 ): string[] {
   const { maxSuggestions = 3 } = options;
-  const targetLower = normalizeCaseIfNeeded(target);
+  const targetLower = toLowerCaseIfNeeded(target);
   const targetParts = splitOnDashOrUnderscore(targetLower);
   const scored: Array<{ name: string; score: number }> = [];
 
   for (let nameIndex = 0; nameIndex < available.length; nameIndex++) {
     const name = available[nameIndex];
-    const nameLower = normalizeCaseIfNeeded(name);
+    const nameLower = toLowerCaseIfNeeded(name);
     let score = 0;
 
     if (nameLower.includes(targetLower) || targetLower.includes(nameLower)) {
