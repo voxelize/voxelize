@@ -2473,6 +2473,40 @@ describe("report-utils", () => {
     expect(
       unknownDashPathWithUnavailableValueMetadataAndUnsupportedStrictMetadataForOnly
     ).toEqual([]);
+    const partiallyRecoveredValueOptions = new Proxy(["--output", "--only"], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 2;
+        }
+        if (property === "1") {
+          throw new Error("read trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const unknownWithPartiallyRecoveredValueMetadataForOutput =
+      parseUnknownCliOptions(["--output", "-l"], {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: partiallyRecoveredValueOptions as never,
+      });
+    expect(unknownWithPartiallyRecoveredValueMetadataForOutput).toEqual(["-l"]);
+    const unknownWithPartiallyRecoveredValueMetadataForOnly =
+      parseUnknownCliOptions(["--only", "-l"], {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: partiallyRecoveredValueOptions as never,
+      });
+    expect(unknownWithPartiallyRecoveredValueMetadataForOnly).toEqual(["-l"]);
+    const unknownDashPathWithPartiallyRecoveredValueMetadataForOnly =
+      parseUnknownCliOptions(["--only", "-artifact-report.json"], {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: partiallyRecoveredValueOptions as never,
+      });
+    expect(unknownDashPathWithPartiallyRecoveredValueMetadataForOnly).toEqual([
+      "-artifact-report.json",
+    ]);
     const unknownWithUnresolvedValueMetadataAndSupportedStrictMetadata =
       parseUnknownCliOptions(["--output", "-l"], {
         canonicalOptions: ["--output"],
@@ -3243,6 +3277,73 @@ describe("report-utils", () => {
     expect(
       mixedValueMetadataWithoutStrictSubsetOnlyDashPathValidation.validationErrorCode
     ).toBeNull();
+    const partiallyRecoveredValueOptions = new Proxy(["--output", "--only"], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 2;
+        }
+        if (property === "1") {
+          throw new Error("read trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const partiallyRecoveredValueMetadataOutputValidation =
+      createCliOptionValidation(["--output", "-l"], {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: partiallyRecoveredValueOptions as never,
+      });
+    expect(partiallyRecoveredValueMetadataOutputValidation.unknownOptions).toEqual([
+      "-l",
+    ]);
+    expect(partiallyRecoveredValueMetadataOutputValidation.unknownOptionCount).toBe(
+      1
+    );
+    expect(
+      partiallyRecoveredValueMetadataOutputValidation.unsupportedOptionsError
+    ).toBe("Unsupported option(s): -l. Supported options: --output, --only.");
+    expect(partiallyRecoveredValueMetadataOutputValidation.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    const partiallyRecoveredValueMetadataOnlyValidation =
+      createCliOptionValidation(["--only", "-l"], {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: partiallyRecoveredValueOptions as never,
+      });
+    expect(partiallyRecoveredValueMetadataOnlyValidation.unknownOptions).toEqual([
+      "-l",
+    ]);
+    expect(partiallyRecoveredValueMetadataOnlyValidation.unknownOptionCount).toBe(
+      1
+    );
+    expect(
+      partiallyRecoveredValueMetadataOnlyValidation.unsupportedOptionsError
+    ).toBe("Unsupported option(s): -l. Supported options: --output, --only.");
+    expect(partiallyRecoveredValueMetadataOnlyValidation.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    const partiallyRecoveredValueMetadataOnlyDashPathValidation =
+      createCliOptionValidation(["--only", "-artifact-report.json"], {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: partiallyRecoveredValueOptions as never,
+      });
+    expect(
+      partiallyRecoveredValueMetadataOnlyDashPathValidation.unknownOptions
+    ).toEqual(["-artifact-report.json"]);
+    expect(
+      partiallyRecoveredValueMetadataOnlyDashPathValidation.unknownOptionCount
+    ).toBe(1);
+    expect(
+      partiallyRecoveredValueMetadataOnlyDashPathValidation.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): -artifact-report.json. Supported options: --output, --only."
+    );
+    expect(
+      partiallyRecoveredValueMetadataOnlyDashPathValidation.validationErrorCode
+    ).toBe("unsupported_options");
     const unavailableValueMetadataAndRecoverableStrictSubsetOutputValidation =
       createCliOptionValidation(["--output", "-l"], {
         canonicalOptions: ["--output", "--only"],
@@ -4992,6 +5093,117 @@ describe("report-utils", () => {
     expect(onlyDashPathDiagnostics.unknownOptionCount).toBe(0);
     expect(onlyDashPathDiagnostics.unsupportedOptionsError).toBeNull();
     expect(onlyDashPathDiagnostics.validationErrorCode).toBeNull();
+  });
+
+  it("applies partial strict guards when value metadata is partially recovered from traps", () => {
+    const partiallyRecoveredValueOptions = new Proxy(["--output", "--only"], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 2;
+        }
+        if (property === "1") {
+          throw new Error("read trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const outputDiagnostics = createCliDiagnostics(["--output", "-l"], {
+      canonicalOptions: ["--output", "--only"],
+      optionsWithValues: partiallyRecoveredValueOptions as never,
+    });
+
+    expect(outputDiagnostics.activeCliOptions).toEqual(["--output"]);
+    expect(outputDiagnostics.activeCliOptionCount).toBe(1);
+    expect(outputDiagnostics.activeCliOptionTokens).toEqual(["--output"]);
+    expect(outputDiagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(outputDiagnostics.activeCliOptionResolutionCount).toBe(1);
+    expect(outputDiagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+    ]);
+    expect(outputDiagnostics.activeCliOptionOccurrenceCount).toBe(1);
+    expect(outputDiagnostics.unknownOptions).toEqual(["-l"]);
+    expect(outputDiagnostics.unknownOptionCount).toBe(1);
+    expect(outputDiagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): -l. Supported options: --output, --only."
+    );
+    expect(outputDiagnostics.validationErrorCode).toBe("unsupported_options");
+
+    const onlyDiagnostics = createCliDiagnostics(["--only", "-l"], {
+      canonicalOptions: ["--output", "--only"],
+      optionsWithValues: partiallyRecoveredValueOptions as never,
+    });
+
+    expect(onlyDiagnostics.activeCliOptions).toEqual(["--only"]);
+    expect(onlyDiagnostics.activeCliOptionCount).toBe(1);
+    expect(onlyDiagnostics.activeCliOptionTokens).toEqual(["--only"]);
+    expect(onlyDiagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+      },
+    ]);
+    expect(onlyDiagnostics.activeCliOptionResolutionCount).toBe(1);
+    expect(onlyDiagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+        index: 0,
+      },
+    ]);
+    expect(onlyDiagnostics.activeCliOptionOccurrenceCount).toBe(1);
+    expect(onlyDiagnostics.unknownOptions).toEqual(["-l"]);
+    expect(onlyDiagnostics.unknownOptionCount).toBe(1);
+    expect(onlyDiagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): -l. Supported options: --output, --only."
+    );
+    expect(onlyDiagnostics.validationErrorCode).toBe("unsupported_options");
+
+    const onlyDashPathDiagnostics = createCliDiagnostics(
+      ["--only", "-artifact-report.json"],
+      {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: partiallyRecoveredValueOptions as never,
+      }
+    );
+
+    expect(onlyDashPathDiagnostics.activeCliOptions).toEqual(["--only"]);
+    expect(onlyDashPathDiagnostics.activeCliOptionCount).toBe(1);
+    expect(onlyDashPathDiagnostics.activeCliOptionTokens).toEqual(["--only"]);
+    expect(onlyDashPathDiagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+      },
+    ]);
+    expect(onlyDashPathDiagnostics.activeCliOptionResolutionCount).toBe(1);
+    expect(onlyDashPathDiagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+        index: 0,
+      },
+    ]);
+    expect(onlyDashPathDiagnostics.activeCliOptionOccurrenceCount).toBe(1);
+    expect(onlyDashPathDiagnostics.unknownOptions).toEqual([
+      "-artifact-report.json",
+    ]);
+    expect(onlyDashPathDiagnostics.unknownOptionCount).toBe(1);
+    expect(onlyDashPathDiagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): -artifact-report.json. Supported options: --output, --only."
+    );
+    expect(onlyDashPathDiagnostics.validationErrorCode).toBe("unsupported_options");
   });
 
   it("preserves recoverable strict subsets when value metadata is unavailable", () => {
@@ -6919,6 +7131,61 @@ describe("report-utils", () => {
         canonicalOptions: ["--output", "--only"],
         optionsWithValues: ["--output", "--only", 1] as never,
         optionsWithStrictValues: ["--only"],
+      }
+    );
+
+    expect(activeMetadata.activeCliOptions).toEqual(["--output", "--only"]);
+    expect(activeMetadata.activeCliOptionCount).toBe(2);
+    expect(activeMetadata.activeCliOptionTokens).toEqual([
+      "--only",
+      "--output",
+    ]);
+    expect(activeMetadata.activeCliOptionResolutions).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionResolutionCount).toBe(2);
+    expect(activeMetadata.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+        index: 0,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 2,
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(2);
+  });
+
+  it("applies partial strict guards for active metadata when value metadata is partially recovered", () => {
+    const partiallyRecoveredValueOptions = new Proxy(["--output", "--only"], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 2;
+        }
+        if (property === "1") {
+          throw new Error("read trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const activeMetadata = parseActiveCliOptionMetadata(
+      ["--only", "-l", "--output", "-s"],
+      {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: partiallyRecoveredValueOptions as never,
       }
     );
 
