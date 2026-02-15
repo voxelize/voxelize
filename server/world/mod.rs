@@ -1557,7 +1557,7 @@ impl World {
     /// Handler for `Peer` type messages.
     fn on_peer(&mut self, client_id: &str, data: Message) {
         let client_ent = if let Some(client) = self.clients().get(client_id) {
-            client.entity.to_owned()
+            client.entity
         } else {
             return;
         };
@@ -1585,7 +1585,7 @@ impl World {
     /// Handler for `Load` type messages.
     fn on_load(&mut self, client_id: &str, data: Message) {
         let client_ent = if let Some(client) = self.clients().get(client_id) {
-            client.entity.to_owned()
+            client.entity
         } else {
             return;
         };
@@ -1628,7 +1628,7 @@ impl World {
     /// Handler for `Unload` type messages.
     fn on_unload(&mut self, client_id: &str, data: Message) {
         let client_ent = if let Some(client) = self.clients().get(client_id) {
-            client.entity.to_owned()
+            client.entity
         } else {
             return;
         };
@@ -1737,14 +1737,14 @@ impl World {
 
     /// Handler for `Event` type messages.
     fn on_event(&mut self, client_id: &str, data: Message) {
-        let client_ent = self.clients().get(client_id).map(|c| c.entity.to_owned());
+        let client_ent = self.clients().get(client_id).map(|c| c.entity);
 
         data.events.into_iter().for_each(|event| {
             if !self.event_handles.contains_key(&event.name.to_lowercase()) {
                 let location = client_ent.and_then(|ent| {
                     self.read_component::<CurrentChunkComp>()
                         .get(ent)
-                        .map(|c| c.coords.clone())
+                        .map(|c| c.coords)
                 });
 
                 let mut event_builder = Event::new(&event.name).payload(event.payload);
