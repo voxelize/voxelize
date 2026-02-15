@@ -1195,12 +1195,13 @@ const dedupeStringList = (tokens) => {
   const uniqueTokens = [];
 
   for (const token of tokens) {
-    if (token.length === 0 || seenTokens.has(token)) {
+    const normalizedToken = token.trim();
+    if (normalizedToken.length === 0 || seenTokens.has(normalizedToken)) {
       continue;
     }
 
-    seenTokens.add(token);
-    uniqueTokens.push(token);
+    seenTokens.add(normalizedToken);
+    uniqueTokens.push(normalizedToken);
   }
 
   return uniqueTokens;
@@ -1215,27 +1216,32 @@ const normalizeCliOptionAliases = (optionAliases) => {
     return {};
   }
 
-  const aliasEntries = safeObjectKeys(optionAliases)
-    .map((canonicalOption) => {
-      if (canonicalOption.length === 0) {
-        return null;
-      }
+  const normalizedAliasMap = new Map();
 
-      const aliases = safeReadProperty(optionAliases, canonicalOption);
-      if (aliases === undefined) {
-        return null;
-      }
+  for (const canonicalOption of safeObjectKeys(optionAliases)) {
+    const normalizedCanonicalOption = canonicalOption.trim();
+    if (normalizedCanonicalOption.length === 0) {
+      continue;
+    }
 
-      return [
-        canonicalOption,
-        normalizeCliOptionTokenList(aliases),
-      ];
-    })
-    .filter((entry) => {
-      return entry !== null;
-    });
+    const aliases = safeReadProperty(optionAliases, canonicalOption);
+    if (aliases === undefined) {
+      continue;
+    }
 
-  return Object.fromEntries(aliasEntries);
+    const normalizedAliases = normalizeCliOptionTokenList(aliases);
+    const existingAliases =
+      normalizedAliasMap.get(normalizedCanonicalOption) ?? [];
+    normalizedAliasMap.set(
+      normalizedCanonicalOption,
+      dedupeStringList([
+        ...existingAliases,
+        ...normalizedAliases,
+      ])
+    );
+  }
+
+  return Object.fromEntries(normalizedAliasMap.entries());
 };
 
 const createCanonicalOptionMap = (canonicalOptions, optionAliases = {}) => {

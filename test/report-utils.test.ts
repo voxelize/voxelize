@@ -1376,6 +1376,17 @@ describe("report-utils", () => {
       }
     );
     expect(unknownFromLargeLengthTrapArgs).toEqual(["--mystery"]);
+
+    const unknownFromWhitespacePaddedMetadata = parseUnknownCliOptions(
+      ["--json", "--verify", "--mystery"],
+      {
+        canonicalOptions: [" --json "],
+        optionAliases: {
+          " --no-build ": [" --verify "],
+        },
+      }
+    );
+    expect(unknownFromWhitespacePaddedMetadata).toEqual(["--mystery"]);
   });
 
   it("sanitizes malformed metadata inputs in unknown option parsing", () => {
@@ -1676,6 +1687,32 @@ describe("report-utils", () => {
     expect(catalog.supportedCliOptionCount).toBe(3);
     expect(catalog.availableCliOptionCanonicalMap).toEqual({
       "--json": "--json",
+      "--no-build": "--no-build",
+      "--verify": "--no-build",
+    });
+  });
+
+  it("normalizes whitespace-padded cli option metadata tokens", () => {
+    const catalog = createCliOptionCatalog({
+      canonicalOptions: [" --json ", " --output ", "   "],
+      optionAliases: {
+        " --no-build ": [" --verify ", " "],
+      },
+    });
+
+    expect(catalog.supportedCliOptions).toEqual([
+      "--json",
+      "--output",
+      "--no-build",
+      "--verify",
+    ]);
+    expect(catalog.supportedCliOptionCount).toBe(4);
+    expect(catalog.availableCliOptionAliases).toEqual({
+      "--no-build": ["--verify"],
+    });
+    expect(catalog.availableCliOptionCanonicalMap).toEqual({
+      "--json": "--json",
+      "--output": "--output",
       "--no-build": "--no-build",
       "--verify": "--no-build",
     });
