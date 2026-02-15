@@ -846,72 +846,124 @@ export const deriveWasmPackCheckStatus = ({
 };
 
 export const summarizeStepFailureResults = (steps) => {
-  return steps
-    .filter((step) => {
-      return !step.passed && step.skipped === false;
-    })
-    .map((step) => {
-      const reportMessage = deriveFailureMessageFromReport(step.report);
-      const outputMessage =
-        typeof step.output === "string" && step.output.length > 0
-          ? step.output
-          : null;
-      const normalizedExitCode = toNonNegativeIntegerOrNull(step.exitCode);
-      const defaultMessage =
-        normalizedExitCode !== null
-          ? `Step failed with exit code ${normalizedExitCode}.`
-          : "Step failed.";
-      const checkArgs = toStringArrayOrEmpty(step.checkArgs);
-      const checkArgCount =
-        toNonNegativeIntegerOrNull(step.checkArgCount) ?? checkArgs.length;
+  const stepEntries = cloneArraySafely(steps) ?? [];
+  const failureSummaries = [];
 
-      return {
-        name: step.name,
-        scriptName: step.scriptName,
-        supportsNoBuild: step.supportsNoBuild === true,
-        stepIndex: step.stepIndex,
-        checkCommand:
-          typeof step.checkCommand === "string" ? step.checkCommand : "",
-        checkArgs,
-        checkArgCount,
-        exitCode: normalizedExitCode ?? 1,
-        message: reportMessage ?? outputMessage ?? defaultMessage,
-      };
+  for (const step of stepEntries) {
+    if (!isObjectRecord(step)) {
+      continue;
+    }
+
+    const passed = safeReadProperty(step, "passed");
+    if (passed !== false) {
+      continue;
+    }
+
+    const skipped = safeReadProperty(step, "skipped");
+    if (skipped !== false) {
+      continue;
+    }
+
+    const name = safeReadProperty(step, "name");
+    if (typeof name !== "string") {
+      continue;
+    }
+
+    const reportMessage = deriveFailureMessageFromReport(
+      safeReadProperty(step, "report")
+    );
+    const output = safeReadProperty(step, "output");
+    const outputMessage =
+      typeof output === "string" && output.length > 0 ? output : null;
+    const normalizedExitCode = toNonNegativeIntegerOrNull(
+      safeReadProperty(step, "exitCode")
+    );
+    const defaultMessage =
+      normalizedExitCode !== null
+        ? `Step failed with exit code ${normalizedExitCode}.`
+        : "Step failed.";
+    const checkArgs = toStringArrayOrEmpty(safeReadProperty(step, "checkArgs"));
+    const checkArgCount =
+      toNonNegativeIntegerOrNull(safeReadProperty(step, "checkArgCount")) ??
+      checkArgs.length;
+    const scriptNameValue = safeReadProperty(step, "scriptName");
+    const stepIndexValue = safeReadProperty(step, "stepIndex");
+    const checkCommandValue = safeReadProperty(step, "checkCommand");
+
+    failureSummaries.push({
+      name,
+      scriptName: typeof scriptNameValue === "string" ? scriptNameValue : "",
+      supportsNoBuild: safeReadProperty(step, "supportsNoBuild") === true,
+      stepIndex: toNonNegativeIntegerOrNull(stepIndexValue),
+      checkCommand:
+        typeof checkCommandValue === "string" ? checkCommandValue : "",
+      checkArgs,
+      checkArgCount,
+      exitCode: normalizedExitCode ?? 1,
+      message: reportMessage ?? outputMessage ?? defaultMessage,
     });
+  }
+
+  return failureSummaries;
 };
 
 export const summarizeCheckFailureResults = (checks) => {
-  return checks
-    .filter((check) => !check.passed)
-    .map((check) => {
-      const reportMessage = deriveFailureMessageFromReport(check.report);
-      const outputMessage =
-        typeof check.output === "string" && check.output.length > 0
-          ? check.output
-          : null;
-      const normalizedExitCode = toNonNegativeIntegerOrNull(check.exitCode);
-      const defaultMessage =
-        normalizedExitCode !== null
-          ? `Preflight check failed with exit code ${normalizedExitCode}.`
-          : "Preflight check failed.";
-      const checkArgs = toStringArrayOrEmpty(check.checkArgs);
-      const checkArgCount =
-        toNonNegativeIntegerOrNull(check.checkArgCount) ?? checkArgs.length;
-      const checkIndex = toNonNegativeIntegerOrNull(check.checkIndex);
+  const checkEntries = cloneArraySafely(checks) ?? [];
+  const failureSummaries = [];
 
-      return {
-        name: check.name,
-        scriptName: check.scriptName,
-        supportsNoBuild: check.supportsNoBuild === true,
-        checkIndex,
-        checkCommand:
-          typeof check.checkCommand === "string" ? check.checkCommand : "",
-        checkArgs,
-        checkArgCount,
-        exitCode: normalizedExitCode ?? 1,
-        message: reportMessage ?? outputMessage ?? defaultMessage,
-      };
+  for (const check of checkEntries) {
+    if (!isObjectRecord(check)) {
+      continue;
+    }
+
+    const passed = safeReadProperty(check, "passed");
+    if (passed !== false) {
+      continue;
+    }
+
+    const name = safeReadProperty(check, "name");
+    if (typeof name !== "string") {
+      continue;
+    }
+
+    const reportMessage = deriveFailureMessageFromReport(
+      safeReadProperty(check, "report")
+    );
+    const output = safeReadProperty(check, "output");
+    const outputMessage =
+      typeof output === "string" && output.length > 0 ? output : null;
+    const normalizedExitCode = toNonNegativeIntegerOrNull(
+      safeReadProperty(check, "exitCode")
+    );
+    const defaultMessage =
+      normalizedExitCode !== null
+        ? `Preflight check failed with exit code ${normalizedExitCode}.`
+        : "Preflight check failed.";
+    const checkArgs = toStringArrayOrEmpty(safeReadProperty(check, "checkArgs"));
+    const checkArgCount =
+      toNonNegativeIntegerOrNull(safeReadProperty(check, "checkArgCount")) ??
+      checkArgs.length;
+    const checkIndex = toNonNegativeIntegerOrNull(
+      safeReadProperty(check, "checkIndex")
+    );
+    const scriptNameValue = safeReadProperty(check, "scriptName");
+    const checkCommandValue = safeReadProperty(check, "checkCommand");
+
+    failureSummaries.push({
+      name,
+      scriptName: typeof scriptNameValue === "string" ? scriptNameValue : "",
+      supportsNoBuild: safeReadProperty(check, "supportsNoBuild") === true,
+      checkIndex,
+      checkCommand:
+        typeof checkCommandValue === "string" ? checkCommandValue : "",
+      checkArgs,
+      checkArgCount,
+      exitCode: normalizedExitCode ?? 1,
+      message: reportMessage ?? outputMessage ?? defaultMessage,
     });
+  }
+
+  return failureSummaries;
 };
 
 export const splitCliArgs = (args) => {

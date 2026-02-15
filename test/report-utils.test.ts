@@ -3574,6 +3574,186 @@ describe("report-utils", () => {
     ]);
   });
 
+  it("sanitizes malformed step/check failure entries with trap inputs", () => {
+    const stepWithTrapPassed = Object.create(null) as {
+      readonly name: string;
+      readonly passed: boolean;
+      readonly skipped: boolean;
+    };
+    Object.defineProperty(stepWithTrapPassed, "name", {
+      configurable: true,
+      enumerable: true,
+      value: "step-trap-passed",
+    });
+    Object.defineProperty(stepWithTrapPassed, "passed", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("passed trap");
+      },
+    });
+    Object.defineProperty(stepWithTrapPassed, "skipped", {
+      configurable: true,
+      enumerable: true,
+      value: false,
+    });
+
+    const stepWithTrapName = Object.create(null) as {
+      readonly name: string;
+      readonly passed: boolean;
+      readonly skipped: boolean;
+    };
+    Object.defineProperty(stepWithTrapName, "name", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("name trap");
+      },
+    });
+    Object.defineProperty(stepWithTrapName, "passed", {
+      configurable: true,
+      enumerable: true,
+      value: false,
+    });
+    Object.defineProperty(stepWithTrapName, "skipped", {
+      configurable: true,
+      enumerable: true,
+      value: false,
+    });
+
+    expect(
+      summarizeStepFailureResults([
+        stepWithTrapPassed,
+        stepWithTrapName,
+        {
+          name: "step-valid",
+          scriptName: "check-valid.mjs",
+          supportsNoBuild: true,
+          stepIndex: 1,
+          passed: false,
+          skipped: false,
+          exitCode: 2,
+          report: null,
+          output: null,
+        },
+      ])
+    ).toEqual([
+      {
+        name: "step-valid",
+        scriptName: "check-valid.mjs",
+        supportsNoBuild: true,
+        stepIndex: 1,
+        checkCommand: "",
+        checkArgs: [],
+        checkArgCount: 0,
+        exitCode: 2,
+        message: "Step failed with exit code 2.",
+      },
+    ]);
+
+    const iteratorTrapSteps = [
+      {
+        name: "step-valid",
+        scriptName: "check-valid.mjs",
+        supportsNoBuild: true,
+        stepIndex: 1,
+        passed: false,
+        skipped: false,
+        exitCode: 2,
+      },
+    ];
+    Object.defineProperty(iteratorTrapSteps, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    expect(summarizeStepFailureResults(iteratorTrapSteps as never)).toEqual([]);
+
+    const checkWithTrapPassed = Object.create(null) as {
+      readonly name: string;
+      readonly passed: boolean;
+    };
+    Object.defineProperty(checkWithTrapPassed, "name", {
+      configurable: true,
+      enumerable: true,
+      value: "check-trap-passed",
+    });
+    Object.defineProperty(checkWithTrapPassed, "passed", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("passed trap");
+      },
+    });
+
+    const checkWithTrapName = Object.create(null) as {
+      readonly name: string;
+      readonly passed: boolean;
+    };
+    Object.defineProperty(checkWithTrapName, "name", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("name trap");
+      },
+    });
+    Object.defineProperty(checkWithTrapName, "passed", {
+      configurable: true,
+      enumerable: true,
+      value: false,
+    });
+
+    expect(
+      summarizeCheckFailureResults([
+        checkWithTrapPassed,
+        checkWithTrapName,
+        {
+          name: "check-valid",
+          scriptName: "check-valid.mjs",
+          supportsNoBuild: true,
+          checkIndex: 1,
+          passed: false,
+          exitCode: 2,
+          report: null,
+          output: null,
+        },
+      ])
+    ).toEqual([
+      {
+        name: "check-valid",
+        scriptName: "check-valid.mjs",
+        supportsNoBuild: true,
+        checkIndex: 1,
+        checkCommand: "",
+        checkArgs: [],
+        checkArgCount: 0,
+        exitCode: 2,
+        message: "Preflight check failed with exit code 2.",
+      },
+    ]);
+
+    const iteratorTrapChecks = [
+      {
+        name: "check-valid",
+        scriptName: "check-valid.mjs",
+        supportsNoBuild: true,
+        checkIndex: 1,
+        passed: false,
+        exitCode: 2,
+      },
+    ];
+    Object.defineProperty(iteratorTrapChecks, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    expect(summarizeCheckFailureResults(iteratorTrapChecks as never)).toEqual([]);
+  });
+
   it("summarizes check outcomes for aggregate preflight reports", () => {
     const summary = summarizeCheckResults([
       { name: "devEnvironment", passed: false },
