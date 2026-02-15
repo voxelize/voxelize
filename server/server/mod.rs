@@ -557,12 +557,12 @@ impl Handler<Connect> for Server {
         let token = nanoid!();
 
         if msg.is_transport {
-            self.worlds.values().for_each(|world| {
+            for world in self.worlds.values() {
                 world.do_send(TransportJoinRequest {
                     id: id.clone(),
                     sender: msg.sender.clone(),
-                })
-            });
+                });
+            }
 
             self.transport_sessions.insert(id.to_owned(), msg.sender);
 
@@ -619,10 +619,10 @@ impl Handler<Disconnect> for Server {
             }
         }
 
-        if let Some(_) = self.transport_sessions.remove(&msg.id) {
-            self.worlds.values().for_each(|world| {
+        if self.transport_sessions.remove(&msg.id).is_some() {
+            for world in self.worlds.values() {
                 world.do_send(TransportLeaveRequest { id: msg.id.clone() });
-            });
+            }
 
             info!("A transport server connection has ended.")
         }
