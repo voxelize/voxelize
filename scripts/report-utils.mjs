@@ -1575,9 +1575,13 @@ const normalizeCliOptionTokenList = (tokens) => {
 
 const normalizeCliOptionTokenListWithAvailability = (tokens) => {
   if (!Array.isArray(tokens)) {
+    const normalizedTokens = normalizeCliOptionTokenList(tokens);
     return {
-      tokens: normalizeCliOptionTokenList(tokens),
-      unavailable: false,
+      tokens: normalizedTokens,
+      unavailable:
+        tokens !== null &&
+        typeof tokens === "object" &&
+        normalizedTokens.length === 0,
     };
   }
 

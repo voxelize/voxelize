@@ -441,6 +441,25 @@ describe("report-utils", () => {
     expect(recognizedOnlyInlineTokenBeforeTrailingOutput.outputPath).toBe(
       "/workspace/final-report.json"
     );
+    const nonArrayRecognizedOutputTokens = new Set(["-l"]);
+    const nonArrayRecognizedOutputTokenResult = resolveOutputPath(
+      ["--output", "-l"],
+      "/workspace",
+      nonArrayRecognizedOutputTokens as never
+    );
+    expect(nonArrayRecognizedOutputTokenResult.error).toBe(
+      "Missing value for --output option."
+    );
+    expect(nonArrayRecognizedOutputTokenResult.outputPath).toBeNull();
+    const nonArrayRecognizedOutputDashValueResult = resolveOutputPath(
+      ["--output", "-artifact-report.json"],
+      "/workspace",
+      nonArrayRecognizedOutputTokens as never
+    );
+    expect(nonArrayRecognizedOutputDashValueResult.error).toBeNull();
+    expect(nonArrayRecognizedOutputDashValueResult.outputPath).toBe(
+      "/workspace/-artifact-report.json"
+    );
 
     const malformedRecognizedOutputTokens = new Proxy(
       ["--list-checks", "-l"],
@@ -901,6 +920,30 @@ describe("report-utils", () => {
       "client"
     );
     expect(recognizedOutputInlineTokenBeforeTrailingOnlyValue.error).toBeNull();
+    const nonArrayRecognizedOptionTokens = new Set(["-l"]);
+    const resolvedFromNonArrayRecognizedOptionTokens = resolveLastOptionValue(
+      ["--output", "-l"],
+      "--output",
+      nonArrayRecognizedOptionTokens as never
+    );
+    expect(resolvedFromNonArrayRecognizedOptionTokens.hasOption).toBe(true);
+    expect(resolvedFromNonArrayRecognizedOptionTokens.value).toBeNull();
+    expect(resolvedFromNonArrayRecognizedOptionTokens.error).toBe(
+      "Missing value for --output option."
+    );
+    const resolvedUnknownDashValueFromNonArrayRecognizedOptionTokens =
+      resolveLastOptionValue(
+        ["--output", "-artifact-report.json"],
+        "--output",
+        nonArrayRecognizedOptionTokens as never
+      );
+    expect(resolvedUnknownDashValueFromNonArrayRecognizedOptionTokens.hasOption).toBe(
+      true
+    );
+    expect(resolvedUnknownDashValueFromNonArrayRecognizedOptionTokens.value).toBe(
+      "-artifact-report.json"
+    );
+    expect(resolvedUnknownDashValueFromNonArrayRecognizedOptionTokens.error).toBeNull();
 
     const lengthAndOwnKeysTrapOptionArgs = new Proxy(
       ["--output", "./report.json"],
