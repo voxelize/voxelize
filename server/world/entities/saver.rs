@@ -47,7 +47,14 @@ impl EntitiesSaver {
             "metadata": metadata,
         });
 
-        let sanitized_filename = etype_value.replace("::", "-").replace(' ', "-");
+        let mut sanitized_filename = if etype_value.contains("::") {
+            etype_value.replace("::", "-")
+        } else {
+            etype_value.clone()
+        };
+        if sanitized_filename.contains(' ') {
+            sanitized_filename = sanitized_filename.replace(' ', "-");
+        }
         let new_filename = format!("{}-{}.json", sanitized_filename, id);
         let old_filename = format!("{}.json", id);
 
@@ -73,6 +80,7 @@ impl EntitiesSaver {
         }
         let suffixed_file_name = format!("-{}.json", id);
         let legacy_file_name = format!("{}.json", id);
+        let mut removed_any = false;
 
         if let Ok(entries) = fs::read_dir(&self.folder) {
             for entry in entries.flatten() {
@@ -86,14 +94,17 @@ impl EntitiesSaver {
                                 "Failed to remove entity file: {}. Entity could still be saving?",
                                 e
                             );
+                        } else {
+                            removed_any = true;
                         }
-                        return;
                     }
                 }
             }
         }
 
-        warn!("Could not find entity file to remove for id: {}", id);
+        if !removed_any {
+            warn!("Could not find entity file to remove for id: {}", id);
+        }
     }
 }
 
