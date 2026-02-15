@@ -89,6 +89,8 @@ const voxel = Voxel.pack({
   - ignores invalid/non-plain `faces`/`aabbs` entries (including malformed
     `BlockFace`/`AABB` instances and malformed/non-finite AABB init values)
     instead of throwing
+  - malformed `faces`/`aabbs` collection iterators sanitize to deterministic
+    empty collections
   - malformed optional face fields (such as invalid `dir`/`corners`/`range`)
     fall back to default face values
   - malformed rule inputs fall back to `BLOCK_RULE_NONE`, and malformed
@@ -102,6 +104,7 @@ const voxel = Voxel.pack({
   - only plain-object rule nodes are interpreted; non-plain objects normalize
     to `none`
   - breaks cyclic rule graphs safely by replacing cycle edges with `none`
+  - malformed combination-rule collections sanitize to deterministic `none`
   - accepts readonly/frozen rule-tree arrays/tuples for ergonomic literal input
   - normalizes nullable combination sub-rules to deterministic `none` entries
   - keeps optional `id`/`stage` only when values match voxel ranges
@@ -125,6 +128,8 @@ const voxel = Voxel.pack({
     (plain/null-prototype/readonly/frozen object) or `BlockFace` input
   - malformed inputs (including malformed `BlockFace` instances) fall back to a
     deterministic default face (`name: "Face"`)
+  - malformed optional `dir`/`corners` collection access falls back to default
+    face-field values while preserving other valid fields
 - `createAABB`
   - ergonomic constructor helper for `AABB` or plain/readonly/frozen `AABB`
     init input

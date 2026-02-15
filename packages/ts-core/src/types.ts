@@ -266,6 +266,18 @@ const readArrayEntry = (
   }
 };
 
+const cloneArrayEntriesSafely = (value: DynamicValue): DynamicValue[] | null => {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  try {
+    return Array.from(value);
+  } catch {
+    return null;
+  }
+};
+
 const readObjectEntry = (
   value: Record<string, DynamicValue>,
   key: string
@@ -329,22 +341,46 @@ export const createFaceTransparency = (
 };
 
 const isVec2Value = (value: DynamicValue): value is Vec2 => {
-  return (
-    Array.isArray(value) &&
-    value.length === 2 &&
-    isFiniteNumberValue(value[0]) &&
-    isFiniteNumberValue(value[1])
-  );
+  if (!Array.isArray(value)) {
+    return false;
+  }
+
+  let length = 0;
+  try {
+    length = value.length;
+  } catch {
+    return false;
+  }
+
+  if (length !== 2) {
+    return false;
+  }
+
+  const x = readArrayEntry(value, 0);
+  const y = readArrayEntry(value, 1);
+  return isFiniteNumberValue(x) && isFiniteNumberValue(y);
 };
 
 const isVec3Value = (value: DynamicValue): value is Vec3 => {
-  return (
-    Array.isArray(value) &&
-    value.length === 3 &&
-    isFiniteNumberValue(value[0]) &&
-    isFiniteNumberValue(value[1]) &&
-    isFiniteNumberValue(value[2])
-  );
+  if (!Array.isArray(value)) {
+    return false;
+  }
+
+  let length = 0;
+  try {
+    length = value.length;
+  } catch {
+    return false;
+  }
+
+  if (length !== 3) {
+    return false;
+  }
+
+  const x = readArrayEntry(value, 0);
+  const y = readArrayEntry(value, 1);
+  const z = readArrayEntry(value, 2);
+  return isFiniteNumberValue(x) && isFiniteNumberValue(y) && isFiniteNumberValue(z);
 };
 
 const isUvValue = (value: DynamicValue): value is UV => {
@@ -381,24 +417,29 @@ const isCornerDataValue = (value: DynamicValue): value is CornerData => {
 const toCornerTuple = (
   value: DynamicValue
 ): [CornerData, CornerData, CornerData, CornerData] | undefined => {
-  if (!Array.isArray(value) || value.length !== 4) {
+  const cornerEntries = cloneArrayEntriesSafely(value);
+  if (cornerEntries === null || cornerEntries.length !== 4) {
     return undefined;
   }
 
+  const corner0 = readArrayEntry(cornerEntries, 0);
+  const corner1 = readArrayEntry(cornerEntries, 1);
+  const corner2 = readArrayEntry(cornerEntries, 2);
+  const corner3 = readArrayEntry(cornerEntries, 3);
   if (
-    !isCornerDataValue(value[0]) ||
-    !isCornerDataValue(value[1]) ||
-    !isCornerDataValue(value[2]) ||
-    !isCornerDataValue(value[3])
+    !isCornerDataValue(corner0) ||
+    !isCornerDataValue(corner1) ||
+    !isCornerDataValue(corner2) ||
+    !isCornerDataValue(corner3)
   ) {
     return undefined;
   }
 
   return [
-    createCornerData(value[0].pos, value[0].uv),
-    createCornerData(value[1].pos, value[1].uv),
-    createCornerData(value[2].pos, value[2].uv),
-    createCornerData(value[3].pos, value[3].uv),
+    createCornerData(corner0.pos, corner0.uv),
+    createCornerData(corner1.pos, corner1.uv),
+    createCornerData(corner2.pos, corner2.uv),
+    createCornerData(corner3.pos, corner3.uv),
   ];
 };
 
@@ -508,14 +549,15 @@ const toBlockRule = (
         maybeRule.logic === BlockRuleLogic.Not
           ? maybeRule.logic
           : null;
-      if (logic === null || !Array.isArray(maybeRule.rules)) {
+      const nestedRules = cloneArrayEntriesSafely(maybeRule.rules);
+      if (logic === null || nestedRules === null) {
         return { type: "none" };
       }
 
       return {
         type: "combination",
         logic,
-        rules: maybeRule.rules.map((nestedRule) => toBlockRule(nestedRule, path)),
+        rules: nestedRules.map((nestedRule) => toBlockRule(nestedRule, path)),
       };
     }
 
@@ -698,26 +740,30 @@ export const createBlockConditionalPart = (
   const isTransparentValue = readObjectEntry(normalizedPart, "isTransparent");
   const ruleValue = readObjectEntry(normalizedPart, "rule");
   const worldSpaceValue = readObjectEntry(normalizedPart, "worldSpace");
-  const faces = Array.isArray(facesValue)
-    ? facesValue.reduce<BlockFace[]>((clonedFaces, face) => {
-        const clonedFace = cloneBlockFace(face);
+  const faceEntries = cloneArrayEntriesSafely(facesValue);
+  const faces = faceEntries === null
+    ? []
+    : faceEntries.reduce<BlockFace[]>((clonedFaces, face) => {
+        const clonedFace = cloneBlockFace(
+          face as BlockFaceInput | null | undefined
+        );
         if (clonedFace !== null) {
           clonedFaces.push(clonedFace);
         }
 
         return clonedFaces;
-      }, [])
-    : [];
-  const aabbs = Array.isArray(aabbsValue)
-    ? aabbsValue.reduce<AABB[]>((clonedAabbs, aabb) => {
-        const clonedAabb = cloneAabb(aabb);
+      }, []);
+  const aabbEntries = cloneArrayEntriesSafely(aabbsValue);
+  const aabbs = aabbEntries === null
+    ? []
+    : aabbEntries.reduce<AABB[]>((clonedAabbs, aabb) => {
+        const clonedAabb = cloneAabb(aabb as AABBInput | null | undefined);
         if (clonedAabb !== null) {
           clonedAabbs.push(clonedAabb);
         }
 
         return clonedAabbs;
-      }, [])
-    : [];
+      }, []);
   const isTransparent = createFaceTransparency(
     isTransparentValue as FaceTransparencyLike
   );
@@ -741,15 +787,16 @@ export const createBlockDynamicPattern = (
     ? pattern
     : {};
   const partsValue = readObjectEntry(normalizedPattern, "parts");
-  const parts = Array.isArray(partsValue)
-    ? partsValue.reduce<BlockConditionalPart[]>((clonedParts, part) => {
+  const partEntries = cloneArrayEntriesSafely(partsValue);
+  const parts = partEntries === null
+    ? []
+    : partEntries.reduce<BlockConditionalPart[]>((clonedParts, part) => {
         if (isPlainObjectValue(part)) {
           clonedParts.push(createBlockConditionalPart(part as BlockConditionalPartInput));
         }
 
         return clonedParts;
-      }, [])
-    : [];
+      }, []);
 
   return {
     parts,

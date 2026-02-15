@@ -1424,6 +1424,33 @@ describe("Type builders", () => {
     expect(part.aabbs[0]).not.toBe(validAabb);
   });
 
+  it("sanitizes malformed face and aabb entry iterators during conditional part cloning", () => {
+    const faces = [{ name: "IteratorFace" } as BlockFaceInit];
+    Object.defineProperty(faces, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    const aabbs = [AABB.create(0, 0, 0, 1, 1, 1)];
+    Object.defineProperty(aabbs, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+
+    const part = createBlockConditionalPart({
+      faces,
+      aabbs,
+    });
+
+    expect(part.faces).toEqual([]);
+    expect(part.aabbs).toEqual([]);
+  });
+
   it("accepts null-prototype face init objects during conditional part cloning", () => {
     const nullPrototypeFace = Object.create(null) as {
       name: string;
@@ -1733,6 +1760,31 @@ describe("Type builders", () => {
         },
       ],
     });
+  });
+
+  it("sanitizes malformed combination rule iterators to none rules", () => {
+    const rules: BlockRuleInput[] = [
+      {
+        type: "simple",
+        offset: [1, 0, 0],
+        id: 5,
+      },
+    ];
+    Object.defineProperty(rules, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+
+    expect(
+      createBlockRule({
+        type: "combination",
+        logic: BlockRuleLogic.And,
+        rules,
+      })
+    ).toEqual(BLOCK_RULE_NONE);
   });
 
   it("accepts null-prototype rule inputs with createBlockRule", () => {
@@ -2414,6 +2466,22 @@ describe("Type builders", () => {
     expect(pattern.parts[0].rule).not.toBe(BLOCK_RULE_NONE);
   });
 
+  it("sanitizes malformed dynamic pattern part iterators", () => {
+    const parts: BlockConditionalPartInput[] = [{ worldSpace: true }];
+    Object.defineProperty(parts, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    const pattern = createBlockDynamicPattern({
+      parts,
+    });
+
+    expect(pattern.parts).toEqual([]);
+  });
+
   it("accepts partial dynamic pattern part inputs", () => {
     const sourceRule = {
       type: "simple" as const,
@@ -2824,6 +2892,44 @@ describe("Type builders", () => {
 
     expect(createBlockFace(faceWithThrowingName as never)).toEqual(
       new BlockFace({ name: "Face" })
+    );
+  });
+
+  it("sanitizes malformed vector and corner access traps in createBlockFace", () => {
+    const dirWithLengthTrap = new Proxy([1, 0, 0], {
+      get: (target, property, receiver) => {
+        if (property === "length") {
+          throw new Error("length trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const cornersWithIteratorTrap = [
+      createCornerData([0, 0, 0], [0, 0]),
+      createCornerData([1, 0, 0], [1, 0]),
+      createCornerData([1, 1, 0], [1, 1]),
+      createCornerData([0, 1, 0], [0, 1]),
+    ];
+    Object.defineProperty(cornersWithIteratorTrap, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+
+    const face = createBlockFace({
+      name: "TrapFace",
+      dir: dirWithLengthTrap as never,
+      corners: cornersWithIteratorTrap as never,
+    });
+
+    expect(face.name).toBe("TrapFace");
+    expect(face.dir).toEqual([0, 0, 0]);
+    expect(face.corners).toEqual(
+      new BlockFace({
+        name: "Defaults",
+      }).corners
     );
   });
 
