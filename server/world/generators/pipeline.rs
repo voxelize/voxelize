@@ -2,6 +2,7 @@ use std::{collections::VecDeque, sync::Arc};
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use hashbrown::{HashMap, HashSet};
+use log::warn;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 
 use crate::{
@@ -378,14 +379,27 @@ impl Pipeline {
         let mut processes_with_stages: Vec<(Chunk, Option<Space>, Arc<dyn ChunkStage + Send + Sync>)> =
             Vec::with_capacity(processes.len());
         for (chunk, space) in processes {
-            self.chunks.insert(chunk.coords);
             let index = if let ChunkStatus::Generating(index) = chunk.status {
                 index
             } else {
-                panic!("Chunk in pipeline does not have a generating status.");
+                warn!(
+                    "Skipping pipeline chunk {:?} without generating status",
+                    chunk.coords
+                );
+                continue;
             };
-            let stage = self.stages.get(index).unwrap().clone();
+            let Some(stage) = self.stages.get(index).cloned() else {
+                warn!(
+                    "Skipping pipeline chunk {:?} with missing stage index {}",
+                    chunk.coords, index
+                );
+                continue;
+            };
+            self.chunks.insert(chunk.coords);
             processes_with_stages.push((chunk, space, stage));
+        }
+        if processes_with_stages.is_empty() {
+            return;
         }
 
         let sender = Arc::clone(&self.sender);
