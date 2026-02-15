@@ -1932,7 +1932,6 @@ impl World {
 
         /* -------------------------- Loading all entities -------------------------- */
         let etypes = self.read_component::<ETypeComp>();
-        let metadatas = self.read_component::<MetadataComp>();
 
         let mut entities = Vec::with_capacity(entity_capacity_hint);
         let mut entity_ids = Vec::with_capacity(entity_capacity_hint);
