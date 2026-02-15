@@ -1766,6 +1766,16 @@ const shouldConsumeSplitOptionValue = (
   return !isLikelyShortOptionToken(nextArg);
 };
 
+const resolveCanonicalOptionTokens = (optionTokens, canonicalOptionMap) => {
+  return optionTokens
+    .map((optionToken) => {
+      return canonicalOptionMap.get(optionToken);
+    })
+    .filter((canonicalOption) => {
+      return canonicalOption !== undefined;
+    });
+};
+
 const createValueOptionMetadata = (
   optionsWithValues,
   optionsWithStrictValues,
@@ -1780,13 +1790,7 @@ const createValueOptionMetadata = (
     unavailable: strictValueOptionsUnavailable,
   } = normalizeCliOptionTokenListWithAvailability(optionsWithStrictValues);
   let canonicalValueOptions = new Set(
-    normalizedOptionsWithValues
-      .map((optionWithValue) => {
-        return canonicalOptionMap.get(optionWithValue);
-      })
-      .filter((canonicalOption) => {
-        return canonicalOption !== undefined;
-      })
+    resolveCanonicalOptionTokens(normalizedOptionsWithValues, canonicalOptionMap)
   );
   const valueOptionMetadataUnresolved =
     normalizedOptionsWithValues.length > 0 && canonicalValueOptions.size === 0;
@@ -1795,25 +1799,20 @@ const createValueOptionMetadata = (
     normalizedOptionsWithStrictValues.length > 0
   ) {
     const fallbackStrictValueOptions = new Set(
-      normalizedOptionsWithStrictValues.map((strictValueOption) => {
-        return canonicalOptionMap.get(strictValueOption);
-      }).filter((canonicalOption) => {
-        return canonicalOption !== undefined;
-      })
+      resolveCanonicalOptionTokens(
+        normalizedOptionsWithStrictValues,
+        canonicalOptionMap
+      )
     );
     canonicalValueOptions = new Set([
       ...canonicalValueOptions,
       ...fallbackStrictValueOptions,
     ]);
   }
-  const resolvedCanonicalStrictValueOptions =
-    normalizedOptionsWithStrictValues
-      .map((strictValueOption) => {
-        return canonicalOptionMap.get(strictValueOption);
-      })
-      .filter((canonicalOption) => {
-        return canonicalOption !== undefined;
-      });
+  const resolvedCanonicalStrictValueOptions = resolveCanonicalOptionTokens(
+    normalizedOptionsWithStrictValues,
+    canonicalOptionMap
+  );
   if (
     canonicalValueOptions.size === 0 &&
     resolvedCanonicalStrictValueOptions.length > 0
