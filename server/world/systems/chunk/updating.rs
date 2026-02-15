@@ -695,7 +695,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         chunks.clear_cache();
 
         // Collect all due active voxels
-        let mut due_voxels = Vec::new();
+        let mut due_voxels = Vec::with_capacity(chunks.active_voxel_heap.len().min(256));
         while let Some(Reverse(active)) = chunks.active_voxel_heap.peek() {
             if active.tick > current_tick {
                 break;
@@ -707,13 +707,15 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         }
 
         // Sort by position for deterministic ordering when multiple voxels are due at the same tick
-        due_voxels.sort_by(|a, b| (a.0, a.1, a.2).cmp(&(b.0, b.1, b.2)));
+        if due_voxels.len() > 1 {
+            due_voxels.sort_by(|a, b| (a.0, a.1, a.2).cmp(&(b.0, b.1, b.2)));
+        }
 
         // Process active voxels sequentially with immediate state application.
         // After each active voxel queues its updates, we fully process those updates
         // so the next active voxel sees the updated world state.
         // This is required for correct cellular automaton behavior (e.g., water removal cascades).
-        let mut all_results = Vec::new();
+        let mut all_results = Vec::with_capacity(due_voxels.len());
 
         for voxel in due_voxels.iter() {
             let Vec3(vx, vy, vz) = *voxel;
