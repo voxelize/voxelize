@@ -134,6 +134,9 @@ impl<'a> System<'a> for EventsSystem {
                         }
                     }
                     ClientFilter::Include(ids) => {
+                        if ids.is_empty() {
+                            continue;
+                        }
                         if ids.len() <= 4 {
                             for (id, client) in clients.iter() {
                                 if ids.iter().any(|included_id| included_id == id) {
@@ -161,6 +164,12 @@ impl<'a> System<'a> for EventsSystem {
                         }
                     }
                     ClientFilter::Exclude(ids) => {
+                        if ids.is_empty() {
+                            for (id, client) in clients.iter() {
+                                send_to_client(id, client.entity);
+                            }
+                            continue;
+                        }
                         if ids.len() <= 4 {
                             for (id, client) in clients.iter() {
                                 if !ids.iter().any(|excluded_id| excluded_id == id) {
