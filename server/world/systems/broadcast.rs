@@ -138,6 +138,9 @@ impl<'a> System<'a> for BroadcastSystem {
         let world_name = &*timing.world_name;
 
         let pending_messages = queues.drain_prioritized();
+        if pending_messages.is_empty() {
+            return;
+        }
         let pending_messages_count = pending_messages.len();
         let mut immediate_messages = Vec::with_capacity(pending_messages_count);
         let mut deferred_messages = Vec::with_capacity(pending_messages_count);
