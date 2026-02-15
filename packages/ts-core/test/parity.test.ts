@@ -1122,6 +1122,21 @@ describe("Type builders", () => {
     expect(createdTransparency[0]).toBe(true);
   });
 
+  it("supports frozen transparency arrays in createFaceTransparency", () => {
+    const frozenTransparency = Object.freeze([true, false, true, false, true, false] as const);
+    const createdTransparency = createFaceTransparency(frozenTransparency);
+
+    expect(createdTransparency).toEqual([
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+    ]);
+    expect(createdTransparency).not.toBe(frozenTransparency);
+  });
+
   it("clones transparency helper outputs in conditional parts", () => {
     const transparency = createFaceTransparency([true, false, false, false, false, false]);
     const part = createBlockConditionalPart({

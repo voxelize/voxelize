@@ -128,8 +128,8 @@ const voxel = Voxel.pack({
     plain/readonly/frozen rotation literals (`value`/`yRotation`)
   - malformed inputs fall back to identity `BlockRotation.py(0)`
 - `createFaceTransparency`
-  - builds normalized 6-face transparency tuples from optional/null/partial
-    boolean arrays
+  - builds normalized 6-face transparency tuples from
+    optional/null/partial/readonly/frozen boolean arrays
   - ignores extra entries beyond the six face slots
 - `VoxelAccess`
   - interface contract for meshing/generation-style data access
