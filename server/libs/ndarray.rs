@@ -27,7 +27,7 @@ where
         let d = shape.len();
 
         let mut size = 1;
-        for x in shape.iter() {
+        for &x in shape {
             size *= x;
         }
 
@@ -58,8 +58,8 @@ where
             self.stride.len()
         );
         let mut index = 0;
-        for (coord, stride) in coords.iter().zip(self.stride.iter()) {
-            index += coord * stride;
+        for dim in 0..coords.len() {
+            index += coords[dim] * self.stride[dim];
         }
         index
     }
@@ -69,8 +69,8 @@ where
         if coords.len() != self.shape.len() {
             return false;
         }
-        for (coord, bound) in coords.iter().zip(self.shape.iter()) {
-            if coord >= bound {
+        for dim in 0..coords.len() {
+            if coords[dim] >= self.shape[dim] {
                 return false;
             }
         }
