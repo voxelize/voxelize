@@ -1269,9 +1269,11 @@ export const parseActiveCliOptionMetadata = (
   } = {}
 ) => {
   const { optionArgs } = splitCliArgs(args);
+  const normalizedCanonicalOptions = normalizeCliOptionTokenList(canonicalOptions);
+  const normalizedOptionAliases = normalizeCliOptionAliases(optionAliases);
   const canonicalOptionMap = createCanonicalOptionMap(
-    canonicalOptions,
-    optionAliases
+    normalizedCanonicalOptions,
+    normalizedOptionAliases
   );
   const {
     canonicalValueOptions,
@@ -1327,12 +1329,9 @@ export const parseActiveCliOptionMetadata = (
     }
   }
 
-  const uniqueCanonicalOptions = canonicalOptions.filter((optionToken, index) => {
-    return canonicalOptions.indexOf(optionToken) === index;
-  });
   const canonicalOptionCandidates = createSupportedCliOptions(
-    uniqueCanonicalOptions,
-    optionAliases
+    normalizedCanonicalOptions,
+    normalizedOptionAliases
   )
     .map((optionToken) => {
       return canonicalOptionMap.get(optionToken) ?? optionToken;
@@ -1409,7 +1408,9 @@ export const resolveLastOptionValue = (
   recognizedOptionTokens = []
 ) => {
   const { optionArgs } = splitCliArgs(args);
-  const recognizedOptionTokenSet = new Set(recognizedOptionTokens);
+  const recognizedOptionTokenSet = new Set(
+    normalizeCliOptionTokenList(recognizedOptionTokens)
+  );
   const isRecognizedOptionTokenLike = (optionToken) => {
     if (recognizedOptionTokenSet.has(optionToken)) {
       return true;

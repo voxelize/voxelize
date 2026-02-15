@@ -726,6 +726,27 @@ describe("report-utils", () => {
     expect(recognizedOutputInlineTokenBeforeTrailingOnlyValue.error).toBeNull();
   });
 
+  it("sanitizes malformed recognized option token lists in resolveLastOptionValue", () => {
+    const recognizedOptionTokens = ["--list-checks", "-l"];
+    Object.defineProperty(recognizedOptionTokens, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+
+    const resolved = resolveLastOptionValue(
+      ["--output", "-l"],
+      "--output",
+      recognizedOptionTokens as never
+    );
+
+    expect(resolved.hasOption).toBe(true);
+    expect(resolved.value).toBe("-l");
+    expect(resolved.error).toBeNull();
+  });
+
   it("splits option and positional args using option terminator", () => {
     const withoutTerminator = splitCliArgs(["--json", "--output", "report.json"]);
     expect(withoutTerminator.optionArgs).toEqual([
@@ -2494,6 +2515,52 @@ describe("report-utils", () => {
       },
     ]);
     expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(5);
+  });
+
+  it("sanitizes malformed active-cli option metadata inputs", () => {
+    const canonicalOptions = ["--json", "--output"];
+    Object.defineProperty(canonicalOptions, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    const optionAliases = Object.create(null) as {
+      readonly "--no-build": string[];
+    };
+    Object.defineProperty(optionAliases, "--no-build", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("alias trap");
+      },
+    });
+    const optionsWithValues = ["--output"];
+    Object.defineProperty(optionsWithValues, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+
+    const activeMetadata = parseActiveCliOptionMetadata(
+      ["--json", "--output", "./report.json"],
+      {
+        canonicalOptions: canonicalOptions as never,
+        optionAliases: optionAliases as never,
+        optionsWithValues: optionsWithValues as never,
+      }
+    );
+
+    expect(activeMetadata.activeCliOptions).toEqual([]);
+    expect(activeMetadata.activeCliOptionCount).toBe(0);
+    expect(activeMetadata.activeCliOptionTokens).toEqual([]);
+    expect(activeMetadata.activeCliOptionResolutions).toEqual([]);
+    expect(activeMetadata.activeCliOptionResolutionCount).toBe(0);
+    expect(activeMetadata.activeCliOptionOccurrences).toEqual([]);
+    expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(0);
   });
 
   it("tracks active canonical options when aliases are configured outside canonical list", () => {
