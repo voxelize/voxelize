@@ -70,10 +70,10 @@ export class Entities extends Group implements NetIntercept {
     type: string,
     entity: (new (id: string) => Entity) | ((id: string) => Entity)
   ) => {
+    const isEntityClass =
+      typeof entity === "function" && entity.prototype instanceof Entity;
     const factory =
-      typeof entity === "function" &&
-      entity.prototype &&
-      entity.prototype.constructor
+      isEntityClass
         ? (id: string) => new (entity as new (id: string) => Entity)(id)
         : (entity as (id: string) => Entity);
 
