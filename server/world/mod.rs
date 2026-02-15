@@ -1957,8 +1957,8 @@ impl World {
             Message::new(&MessageType::Init)
                 .world_name(&self.name)
                 .json(&serde_json::to_string(&json).unwrap())
-                .peers(&peers)
-                .entities(&entities)
+                .peers_owned(peers)
+                .entities_owned(entities)
                 .build(),
             entity_ids,
         )

@@ -200,6 +200,12 @@ impl MessageBuilder {
         self
     }
 
+    /// Configure owned peers data of the protocol.
+    pub fn peers_owned(mut self, peers: Vec<PeerProtocol>) -> Self {
+        self.peers = Some(peers);
+        self
+    }
+
     /// Configure the entities data of the protocol.
     pub fn entities(mut self, entities: &[EntityProtocol]) -> Self {
         self.entities = Some(entities.to_vec());
