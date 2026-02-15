@@ -1776,14 +1776,20 @@ const createValueOptionMetadata = (
     unavailable: strictValueOptionsUnavailable,
   } = normalizeCliOptionTokenListWithAvailability(optionsWithStrictValues);
   let canonicalValueOptions = new Set(
-    normalizedOptionsWithValues.map((optionWithValue) => {
-      return canonicalOptionMap.get(optionWithValue) ?? optionWithValue;
-    })
+    normalizedOptionsWithValues
+      .map((optionWithValue) => {
+        return canonicalOptionMap.get(optionWithValue);
+      })
+      .filter((canonicalOption) => {
+        return canonicalOption !== undefined;
+      })
   );
   if (valueOptionsUnavailable && normalizedOptionsWithStrictValues.length > 0) {
     canonicalValueOptions = new Set(
       normalizedOptionsWithStrictValues.map((strictValueOption) => {
-        return canonicalOptionMap.get(strictValueOption) ?? strictValueOption;
+        return canonicalOptionMap.get(strictValueOption);
+      }).filter((canonicalOption) => {
+        return canonicalOption !== undefined;
       })
     );
   }

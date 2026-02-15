@@ -2208,6 +2208,14 @@ describe("report-utils", () => {
       }
     );
     expect(unknownWithInlineValues).toEqual(["--mystery", "-x"]);
+    const unknownWithUnsupportedValueOptionMetadata = parseUnknownCliOptions(
+      ["--mystery=alpha"],
+      {
+        canonicalOptions: ["--json"],
+        optionsWithValues: ["--mystery"],
+      }
+    );
+    expect(unknownWithUnsupportedValueOptionMetadata).toEqual(["--mystery"]);
 
     const unknownWithInlineValueOnKnownFlag = parseUnknownCliOptions(
       ["--json=1", "--json=2", "--mystery=alpha"],
@@ -2547,6 +2555,23 @@ describe("report-utils", () => {
       "Unsupported option(s): --mystery. Supported options: --json, --output."
     );
     expect(unsupportedInlineUnknownOption.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    const unsupportedWithUnknownValueOptionMetadata = createCliOptionValidation(
+      ["--mystery=alpha"],
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--mystery"],
+      }
+    );
+    expect(unsupportedWithUnknownValueOptionMetadata.unknownOptions).toEqual([
+      "--mystery",
+    ]);
+    expect(unsupportedWithUnknownValueOptionMetadata.unknownOptionCount).toBe(1);
+    expect(unsupportedWithUnknownValueOptionMetadata.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
+    expect(unsupportedWithUnknownValueOptionMetadata.validationErrorCode).toBe(
       "unsupported_options"
     );
 
@@ -3571,6 +3596,27 @@ describe("report-utils", () => {
     expect(diagnostics.unsupportedOptionsError).toBe(
       "Unsupported option(s): --mystery, -x. Supported options: --json."
     );
+  });
+
+  it("ignores unsupported value-option metadata tokens in diagnostics", () => {
+    const diagnostics = createCliDiagnostics(["--mystery=alpha"], {
+      canonicalOptions: ["--json"],
+      optionsWithValues: ["--mystery"],
+    });
+
+    expect(diagnostics.activeCliOptions).toEqual([]);
+    expect(diagnostics.activeCliOptionCount).toBe(0);
+    expect(diagnostics.activeCliOptionTokens).toEqual([]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([]);
+    expect(diagnostics.activeCliOptionResolutionCount).toBe(0);
+    expect(diagnostics.activeCliOptionOccurrences).toEqual([]);
+    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(0);
+    expect(diagnostics.unknownOptions).toEqual(["--mystery"]);
+    expect(diagnostics.unknownOptionCount).toBe(1);
+    expect(diagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json."
+    );
+    expect(diagnostics.validationErrorCode).toBe("unsupported_options");
   });
 
   it("redacts inline known-flag misuse tokens in diagnostics", () => {
@@ -5049,6 +5095,21 @@ describe("report-utils", () => {
       },
     ]);
     expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(2);
+  });
+
+  it("ignores unsupported value-option metadata tokens in active metadata parsing", () => {
+    const activeMetadata = parseActiveCliOptionMetadata(["--mystery=alpha"], {
+      canonicalOptions: ["--json"],
+      optionsWithValues: ["--mystery"],
+    });
+
+    expect(activeMetadata.activeCliOptions).toEqual([]);
+    expect(activeMetadata.activeCliOptionCount).toBe(0);
+    expect(activeMetadata.activeCliOptionTokens).toEqual([]);
+    expect(activeMetadata.activeCliOptionResolutions).toEqual([]);
+    expect(activeMetadata.activeCliOptionResolutionCount).toBe(0);
+    expect(activeMetadata.activeCliOptionOccurrences).toEqual([]);
+    expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(0);
   });
 
   it("keeps pre-terminator aliases active while ignoring post-terminator alias misuse", () => {
