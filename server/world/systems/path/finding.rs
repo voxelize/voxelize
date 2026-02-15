@@ -1,8 +1,8 @@
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
+use hashbrown::HashMap;
 use crate::{
     world::system_profiler::WorldTimingContext, AStar, Chunks, PathComp, PathNode, Registry,
     RigidBodyComp, TargetComp, Vec3, VoxelAccess, WorldConfig,
