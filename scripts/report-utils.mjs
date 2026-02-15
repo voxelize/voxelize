@@ -232,59 +232,20 @@ export const summarizeCheckResults = (checks) => {
   };
 };
 
-export const deriveFailureMessageFromReport = (report) => {
-  if (report === null || typeof report !== "object") {
-    return null;
+const isObjectRecord = (value) => {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+};
+
+const safeReadProperty = (value, key) => {
+  if (!isObjectRecord(value)) {
+    return undefined;
   }
 
-  if ("message" in report && typeof report.message === "string") {
-    return report.message;
+  try {
+    return value[key];
+  } catch {
+    return undefined;
   }
-
-  if (
-    "requiredFailures" in report &&
-    typeof report.requiredFailures === "number"
-  ) {
-    return `${report.requiredFailures} required check(s) failed.`;
-  }
-
-  if ("steps" in report && Array.isArray(report.steps)) {
-    const firstFailedStep = report.steps.find((step) => {
-      return (
-        step !== null &&
-        typeof step === "object" &&
-        "passed" in step &&
-        step.passed === false &&
-        (!("skipped" in step) || step.skipped !== true)
-      );
-    });
-
-    if (
-      firstFailedStep !== undefined &&
-      firstFailedStep !== null &&
-      typeof firstFailedStep === "object" &&
-      "name" in firstFailedStep &&
-      typeof firstFailedStep.name === "string"
-    ) {
-      if (
-        "report" in firstFailedStep &&
-        firstFailedStep.report !== null &&
-        typeof firstFailedStep.report === "object" &&
-        "message" in firstFailedStep.report &&
-        typeof firstFailedStep.report.message === "string"
-      ) {
-        return `${firstFailedStep.name}: ${firstFailedStep.report.message}`;
-      }
-
-      if ("reason" in firstFailedStep && typeof firstFailedStep.reason === "string") {
-        return `${firstFailedStep.name}: ${firstFailedStep.reason}`;
-      }
-
-      return `${firstFailedStep.name} failed.`;
-    }
-  }
-
-  return null;
 };
 
 const cloneArraySafely = (value) => {
@@ -297,6 +258,70 @@ const cloneArraySafely = (value) => {
   } catch {
     return null;
   }
+};
+
+const toNonNegativeIntegerOrNull = (value) => {
+  return Number.isInteger(value) && value >= 0 ? value : null;
+};
+
+const toFiniteNumberOrNull = (value) => {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+};
+
+export const deriveFailureMessageFromReport = (report) => {
+  if (!isObjectRecord(report)) {
+    return null;
+  }
+
+  const reportMessage = safeReadProperty(report, "message");
+  if (typeof reportMessage === "string") {
+    return reportMessage;
+  }
+
+  const requiredFailures = safeReadProperty(report, "requiredFailures");
+  if (typeof requiredFailures === "number") {
+    return `${requiredFailures} required check(s) failed.`;
+  }
+
+  const steps = cloneArraySafely(safeReadProperty(report, "steps"));
+  if (steps !== null) {
+    for (const step of steps) {
+      if (!isObjectRecord(step)) {
+        continue;
+      }
+
+      const passedValue = safeReadProperty(step, "passed");
+      if (passedValue !== false) {
+        continue;
+      }
+
+      if (safeReadProperty(step, "skipped") === true) {
+        continue;
+      }
+
+      const stepName = safeReadProperty(step, "name");
+      if (typeof stepName !== "string") {
+        continue;
+      }
+
+      const stepReportMessage = safeReadProperty(
+        safeReadProperty(step, "report"),
+        "message"
+      );
+      if (typeof stepReportMessage === "string") {
+        return `${stepName}: ${stepReportMessage}`;
+      }
+
+      const stepReason = safeReadProperty(step, "reason");
+      if (typeof stepReason === "string") {
+        return `${stepName}: ${stepReason}`;
+      }
+
+      return `${stepName} failed.`;
+    }
+  }
+
+  return null;
 };
 
 const toStringArrayOrNull = (value) => {
@@ -315,11 +340,7 @@ const toStringArrayOrEmpty = (value) => {
 };
 
 export const extractWasmPackCheckSummaryFromReport = (report) => {
-  if (
-    report === null ||
-    typeof report !== "object" ||
-    Array.isArray(report)
-  ) {
+  if (!isObjectRecord(report)) {
     return {
       wasmPackCheckStatus: null,
       wasmPackCheckCommand: null,
@@ -330,26 +351,34 @@ export const extractWasmPackCheckSummaryFromReport = (report) => {
     };
   }
 
+  const wasmPackCheckStatusValue = safeReadProperty(report, "wasmPackCheckStatus");
   const wasmPackCheckStatus =
-    typeof report.wasmPackCheckStatus === "string"
-      ? report.wasmPackCheckStatus
+    typeof wasmPackCheckStatusValue === "string"
+      ? wasmPackCheckStatusValue
       : null;
+  const wasmPackCheckCommandValue = safeReadProperty(report, "wasmPackCheckCommand");
   const wasmPackCheckCommand =
-    typeof report.wasmPackCheckCommand === "string"
-      ? report.wasmPackCheckCommand
+    typeof wasmPackCheckCommandValue === "string"
+      ? wasmPackCheckCommandValue
       : null;
-  const wasmPackCheckArgs = toStringArrayOrNull(report.wasmPackCheckArgs);
+  const wasmPackCheckArgs = toStringArrayOrNull(
+    safeReadProperty(report, "wasmPackCheckArgs")
+  );
+  const wasmPackCheckArgCountValue = safeReadProperty(report, "wasmPackCheckArgCount");
   const wasmPackCheckArgCount =
-    typeof report.wasmPackCheckArgCount === "number"
-      ? report.wasmPackCheckArgCount
-      : wasmPackCheckArgs?.length ?? null;
+    toNonNegativeIntegerOrNull(wasmPackCheckArgCountValue) ??
+    wasmPackCheckArgs?.length ??
+    null;
+  const wasmPackCheckExitCodeValue = safeReadProperty(report, "wasmPackCheckExitCode");
   const wasmPackCheckExitCode =
-    typeof report.wasmPackCheckExitCode === "number"
-      ? report.wasmPackCheckExitCode
-      : null;
+    toNonNegativeIntegerOrNull(wasmPackCheckExitCodeValue);
+  const wasmPackCheckOutputLineValue = safeReadProperty(
+    report,
+    "wasmPackCheckOutputLine"
+  );
   const wasmPackCheckOutputLine =
-    typeof report.wasmPackCheckOutputLine === "string"
-      ? report.wasmPackCheckOutputLine
+    typeof wasmPackCheckOutputLineValue === "string"
+      ? wasmPackCheckOutputLineValue
       : null;
 
   return {
@@ -384,13 +413,14 @@ export const createPrefixedWasmPackCheckSummary = (report, prefix = "") => {
 };
 
 export const normalizeTsCorePayloadIssues = (payloadIssues) => {
-  if (!Array.isArray(payloadIssues)) {
+  const clonedPayloadIssues = cloneArraySafely(payloadIssues);
+  if (clonedPayloadIssues === null) {
     return null;
   }
 
   const seenPayloadIssues = new Set();
   const normalizedPayloadIssues = [];
-  for (const payloadIssue of payloadIssues) {
+  for (const payloadIssue of clonedPayloadIssues) {
     if (typeof payloadIssue !== "string") {
       continue;
     }
@@ -412,11 +442,7 @@ export const normalizeTsCorePayloadIssues = (payloadIssues) => {
 };
 
 export const extractTsCoreExampleSummaryFromReport = (report) => {
-  if (
-    report === null ||
-    typeof report !== "object" ||
-    Array.isArray(report)
-  ) {
+  if (!isObjectRecord(report)) {
     return {
       exampleCommand: null,
       exampleArgs: null,
@@ -433,43 +459,52 @@ export const extractTsCoreExampleSummaryFromReport = (report) => {
     };
   }
 
+  const exampleCommandValue = safeReadProperty(report, "exampleCommand");
   const exampleCommand =
-    typeof report.exampleCommand === "string" ? report.exampleCommand : null;
-  const exampleArgs = toStringArrayOrNull(report.exampleArgs);
+    typeof exampleCommandValue === "string" ? exampleCommandValue : null;
+  const exampleArgs = toStringArrayOrNull(safeReadProperty(report, "exampleArgs"));
+  const exampleArgCountValue = safeReadProperty(report, "exampleArgCount");
   const exampleArgCount =
-    typeof report.exampleArgCount === "number"
-      ? report.exampleArgCount
-      : exampleArgs?.length ?? null;
+    toNonNegativeIntegerOrNull(exampleArgCountValue) ?? exampleArgs?.length ?? null;
+  const exampleAttemptedValue = safeReadProperty(report, "exampleAttempted");
   const exampleAttempted =
-    typeof report.exampleAttempted === "boolean" ? report.exampleAttempted : null;
+    typeof exampleAttemptedValue === "boolean" ? exampleAttemptedValue : null;
+  const exampleExitCodeValue = safeReadProperty(report, "exampleExitCode");
   const exampleExitCode =
-    typeof report.exampleExitCode === "number" ? report.exampleExitCode : null;
+    toNonNegativeIntegerOrNull(exampleExitCodeValue);
+  const exampleDurationMsValue = safeReadProperty(report, "exampleDurationMs");
   const exampleDurationMs =
-    typeof report.exampleDurationMs === "number" ? report.exampleDurationMs : null;
+    toFiniteNumberOrNull(exampleDurationMsValue);
+  const exampleOutputLineValue = safeReadProperty(report, "exampleOutputLine");
   const exampleOutputLine =
-    typeof report.exampleOutputLine === "string" ? report.exampleOutputLine : null;
+    typeof exampleOutputLineValue === "string" ? exampleOutputLineValue : null;
+  const exampleRuleMatchedValue = safeReadProperty(report, "exampleRuleMatched");
   const exampleRuleMatched =
-    typeof report.exampleRuleMatched === "boolean" ? report.exampleRuleMatched : null;
+    typeof exampleRuleMatchedValue === "boolean" ? exampleRuleMatchedValue : null;
+  const examplePayloadValidValue = safeReadProperty(report, "examplePayloadValid");
   const examplePayloadValid =
-    typeof report.examplePayloadValid === "boolean"
-      ? report.examplePayloadValid
+    typeof examplePayloadValidValue === "boolean"
+      ? examplePayloadValidValue
       : null;
   const rawExamplePayloadIssues = normalizeTsCorePayloadIssues(
-    report.examplePayloadIssues
+    safeReadProperty(report, "examplePayloadIssues")
+  );
+  const examplePayloadIssueCountValue = safeReadProperty(
+    report,
+    "examplePayloadIssueCount"
   );
   const examplePayloadIssues =
     examplePayloadValid === true ? [] : rawExamplePayloadIssues;
   const examplePayloadIssueCount =
     examplePayloadIssues === null
-      ? typeof report.examplePayloadIssueCount === "number"
-        ? report.examplePayloadIssueCount
-        : null
+      ? toNonNegativeIntegerOrNull(examplePayloadIssueCountValue)
       : examplePayloadIssues.length;
+  const exampleStatusValue = safeReadProperty(report, "exampleStatus");
   const exampleStatus =
-    report.exampleStatus === "ok" ||
-    report.exampleStatus === "failed" ||
-    report.exampleStatus === "skipped"
-      ? report.exampleStatus
+    exampleStatusValue === "ok" ||
+    exampleStatusValue === "failed" ||
+    exampleStatusValue === "skipped"
+      ? exampleStatusValue
       : exampleAttempted === null
         ? null
         : exampleAttempted
@@ -730,29 +765,21 @@ export const summarizeTsCoreExampleOutput = (output) => {
 };
 
 export const extractWasmPackStatusFromReport = (report) => {
-  if (
-    report === null ||
-    typeof report !== "object" ||
-    Array.isArray(report)
-  ) {
+  if (!isObjectRecord(report)) {
     return null;
   }
 
-  if (typeof report.wasmPackCheckStatus === "string") {
-    return report.wasmPackCheckStatus;
+  const directStatus = safeReadProperty(report, "wasmPackCheckStatus");
+  if (typeof directStatus === "string") {
+    return directStatus;
   }
 
-  const checkStatusMap =
-    report.checkStatusMap !== null &&
-    typeof report.checkStatusMap === "object" &&
-    !Array.isArray(report.checkStatusMap)
-      ? report.checkStatusMap
-      : null;
-  if (checkStatusMap === null) {
+  const checkStatusMap = safeReadProperty(report, "checkStatusMap");
+  if (!isObjectRecord(checkStatusMap)) {
     return null;
   }
 
-  const wasmPackStatus = checkStatusMap["wasm-pack"];
+  const wasmPackStatus = safeReadProperty(checkStatusMap, "wasm-pack");
   return typeof wasmPackStatus === "string" ? wasmPackStatus : null;
 };
 
@@ -787,11 +814,14 @@ export const summarizeStepFailureResults = (steps) => {
         typeof step.output === "string" && step.output.length > 0
           ? step.output
           : null;
+      const normalizedExitCode = toNonNegativeIntegerOrNull(step.exitCode);
       const defaultMessage =
-        typeof step.exitCode === "number"
-          ? `Step failed with exit code ${step.exitCode}.`
+        normalizedExitCode !== null
+          ? `Step failed with exit code ${normalizedExitCode}.`
           : "Step failed.";
       const checkArgs = toStringArrayOrEmpty(step.checkArgs);
+      const checkArgCount =
+        toNonNegativeIntegerOrNull(step.checkArgCount) ?? checkArgs.length;
 
       return {
         name: step.name,
@@ -801,11 +831,8 @@ export const summarizeStepFailureResults = (steps) => {
         checkCommand:
           typeof step.checkCommand === "string" ? step.checkCommand : "",
         checkArgs,
-        checkArgCount:
-          typeof step.checkArgCount === "number"
-            ? step.checkArgCount
-            : checkArgs.length,
-        exitCode: typeof step.exitCode === "number" ? step.exitCode : 1,
+        checkArgCount,
+        exitCode: normalizedExitCode ?? 1,
         message: reportMessage ?? outputMessage ?? defaultMessage,
       };
     });
@@ -820,25 +847,26 @@ export const summarizeCheckFailureResults = (checks) => {
         typeof check.output === "string" && check.output.length > 0
           ? check.output
           : null;
+      const normalizedExitCode = toNonNegativeIntegerOrNull(check.exitCode);
       const defaultMessage =
-        typeof check.exitCode === "number"
-          ? `Preflight check failed with exit code ${check.exitCode}.`
+        normalizedExitCode !== null
+          ? `Preflight check failed with exit code ${normalizedExitCode}.`
           : "Preflight check failed.";
       const checkArgs = toStringArrayOrEmpty(check.checkArgs);
+      const checkArgCount =
+        toNonNegativeIntegerOrNull(check.checkArgCount) ?? checkArgs.length;
+      const checkIndex = toNonNegativeIntegerOrNull(check.checkIndex);
 
       return {
         name: check.name,
         scriptName: check.scriptName,
         supportsNoBuild: check.supportsNoBuild === true,
-        checkIndex: typeof check.checkIndex === "number" ? check.checkIndex : null,
+        checkIndex,
         checkCommand:
           typeof check.checkCommand === "string" ? check.checkCommand : "",
         checkArgs,
-        checkArgCount:
-          typeof check.checkArgCount === "number"
-            ? check.checkArgCount
-            : checkArgs.length,
-        exitCode: typeof check.exitCode === "number" ? check.exitCode : 1,
+        checkArgCount,
+        exitCode: normalizedExitCode ?? 1,
         message: reportMessage ?? outputMessage ?? defaultMessage,
       };
     });

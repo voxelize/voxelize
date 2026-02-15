@@ -600,6 +600,9 @@ Each step entry in `steps[]` includes `scriptName`, `supportsNoBuild`,
 `checkCommand`, `checkArgs`, `checkArgCount`, and `stepIndex`.
 Each step failure summary in `failureSummaries[]` includes `checkCommand`,
 `checkArgs`, and `checkArgCount` for deterministic command diagnostics.
+Arg-array summary fields (`checkArgs`, `wasmPackCheckArgs`,
+`tsCoreExampleArgs`) are normalized to string arrays; malformed/trap
+inputs fall back to deterministic null/empty defaults.
 Client JSON reports additionally expose top-level wasm preflight summary
 fields `wasmPackCheckStatus`, `wasmPackCheckCommand`,
 `wasmPackCheckArgs`, `wasmPackCheckArgCount`, `wasmPackCheckExitCode`,

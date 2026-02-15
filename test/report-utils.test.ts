@@ -3155,6 +3155,36 @@ describe("report-utils", () => {
         message: "Step failed with exit code 2.",
       },
     ]);
+    expect(
+      summarizeStepFailureResults([
+        {
+          name: "step-invalid-count",
+          scriptName: "check-invalid-count.mjs",
+          supportsNoBuild: false,
+          checkCommand: "node",
+          checkArgs: ["check-invalid-count.mjs", "--json"],
+          checkArgCount: Number.NaN,
+          stepIndex: 0,
+          passed: false,
+          skipped: false,
+          exitCode: Number.NaN,
+          report: null,
+          output: null,
+        },
+      ])
+    ).toEqual([
+      {
+        name: "step-invalid-count",
+        scriptName: "check-invalid-count.mjs",
+        supportsNoBuild: false,
+        stepIndex: 0,
+        checkCommand: "node",
+        checkArgs: ["check-invalid-count.mjs", "--json"],
+        checkArgCount: 2,
+        exitCode: 1,
+        message: "Step failed.",
+      },
+    ]);
 
     expect(
       summarizeCheckFailureResults([
@@ -3182,6 +3212,35 @@ describe("report-utils", () => {
         checkArgCount: 1,
         exitCode: 2,
         message: "Preflight check failed with exit code 2.",
+      },
+    ]);
+    expect(
+      summarizeCheckFailureResults([
+        {
+          name: "check-invalid-count",
+          scriptName: "check-invalid-count.mjs",
+          supportsNoBuild: false,
+          checkCommand: "node",
+          checkArgs: ["check-invalid-count.mjs", "--json"],
+          checkArgCount: -1,
+          checkIndex: Number.NaN,
+          passed: false,
+          exitCode: Number.NaN,
+          report: null,
+          output: null,
+        },
+      ])
+    ).toEqual([
+      {
+        name: "check-invalid-count",
+        scriptName: "check-invalid-count.mjs",
+        supportsNoBuild: false,
+        checkIndex: null,
+        checkCommand: "node",
+        checkArgs: ["check-invalid-count.mjs", "--json"],
+        checkArgCount: 2,
+        exitCode: 1,
+        message: "Preflight check failed.",
       },
     ]);
   });
@@ -3242,6 +3301,47 @@ describe("report-utils", () => {
         steps: [{ name: "Client checks", passed: false, skipped: false }],
       })
     ).toBe("Client checks failed.");
+  });
+
+  it("derives failure messages when malformed getters throw", () => {
+    const reportWithThrowingMessage = Object.create(null) as {
+      readonly message: string;
+      readonly steps: Array<Record<string, string | boolean>>;
+    };
+    Object.defineProperty(reportWithThrowingMessage, "message", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("message trap");
+      },
+    });
+    Object.defineProperty(reportWithThrowingMessage, "steps", {
+      configurable: true,
+      enumerable: true,
+      value: [
+        {
+          name: "WASM artifact preflight",
+          passed: false,
+          skipped: false,
+          reason: "artifact missing",
+        },
+      ],
+    });
+    const reportWithThrowingSteps = Object.create(null) as {
+      readonly steps: Array<Record<string, string | boolean>>;
+    };
+    Object.defineProperty(reportWithThrowingSteps, "steps", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("steps trap");
+      },
+    });
+
+    expect(deriveFailureMessageFromReport(reportWithThrowingMessage)).toBe(
+      "WASM artifact preflight: artifact missing"
+    );
+    expect(deriveFailureMessageFromReport(reportWithThrowingSteps)).toBeNull();
   });
 
   it("extracts wasm pack summary fields from nested reports", () => {
@@ -3311,6 +3411,8 @@ describe("report-utils", () => {
     expect(
       extractWasmPackCheckSummaryFromReport({
         wasmPackCheckArgs: ["check-wasm-pack.mjs", 1, null],
+        wasmPackCheckArgCount: -1,
+        wasmPackCheckExitCode: Number.NaN,
       })
     ).toEqual({
       wasmPackCheckStatus: null,
@@ -3381,6 +3483,15 @@ describe("report-utils", () => {
     expect(
       normalizeTsCorePayloadIssues(["light.red", "voxel.id", "light.red"])
     ).toEqual(["light.red", "voxel.id"]);
+    const iteratorTrapIssues = ["voxel.id"];
+    Object.defineProperty(iteratorTrapIssues, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    expect(normalizeTsCorePayloadIssues(iteratorTrapIssues)).toBeNull();
   });
 
   it("extracts ts-core example summary fields from reports", () => {
@@ -3551,8 +3662,10 @@ describe("report-utils", () => {
     expect(
       extractTsCoreExampleSummaryFromReport({
         exampleArgs: ["packages/ts-core/examples/end-to-end.mjs", 4, null],
+        exampleArgCount: -1,
         exampleAttempted: true,
         exampleExitCode: 1,
+        exampleDurationMs: Number.NaN,
       })
     ).toEqual({
       exampleCommand: null,
@@ -3991,6 +4104,35 @@ describe("report-utils", () => {
   });
 
   it("extracts wasm pack status from nested summary or check map reports", () => {
+    const reportWithThrowingDirectStatus = Object.create(null) as {
+      readonly wasmPackCheckStatus: string;
+      readonly checkStatusMap: Record<string, string>;
+    };
+    Object.defineProperty(reportWithThrowingDirectStatus, "wasmPackCheckStatus", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("status trap");
+      },
+    });
+    Object.defineProperty(reportWithThrowingDirectStatus, "checkStatusMap", {
+      configurable: true,
+      enumerable: true,
+      value: {
+        "wasm-pack": "ok",
+      },
+    });
+    const reportWithThrowingCheckMap = Object.create(null) as {
+      readonly checkStatusMap: Record<string, string>;
+    };
+    Object.defineProperty(reportWithThrowingCheckMap, "checkStatusMap", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("check map trap");
+      },
+    });
+
     expect(
       extractWasmPackStatusFromReport({
         wasmPackCheckStatus: "missing",
@@ -4003,6 +4145,8 @@ describe("report-utils", () => {
         },
       })
     ).toBe("ok");
+    expect(extractWasmPackStatusFromReport(reportWithThrowingDirectStatus)).toBe("ok");
+    expect(extractWasmPackStatusFromReport(reportWithThrowingCheckMap)).toBeNull();
     expect(extractWasmPackStatusFromReport({ checkStatusMap: {} })).toBeNull();
     expect(extractWasmPackStatusFromReport(null)).toBeNull();
   });
