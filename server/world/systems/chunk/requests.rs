@@ -77,29 +77,34 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     .reserve(requests.requests.len() - to_add_back_to_requested.capacity());
             }
             let mut touched_client = false;
-            let mut clients_to_send = if can_send_responses {
-                let clients_to_send = match to_send.raw_entry_mut().from_key(id.0.as_str()) {
-                    RawEntryMut::Occupied(entry) => entry.into_mut(),
-                    RawEntryMut::Vacant(entry) => {
-                        entry
-                            .insert(
-                                id.0.clone(),
-                                HashSet::with_capacity(initial_send_set_capacity),
-                            )
-                            .1
-                    }
-                };
-                touched_client = !clients_to_send.is_empty();
-                Some(clients_to_send)
-            } else {
-                None
-            };
+            let mut clients_to_send: Option<&mut HashSet<Vec2<i32>>> = None;
 
             for coords in requests.requests.drain(..) {
                 if chunks.is_chunk_ready(&coords) {
-                    let Some(clients_to_send) = clients_to_send.as_deref_mut() else {
+                    if !can_send_responses {
                         to_add_back_to_requested.insert(coords);
                         continue;
+                    }
+
+                    let clients_to_send = if let Some(clients_to_send) = clients_to_send.as_deref_mut()
+                    {
+                        clients_to_send
+                    } else {
+                        let fetched_clients_to_send =
+                            match to_send.raw_entry_mut().from_key(id.0.as_str()) {
+                                RawEntryMut::Occupied(entry) => entry.into_mut(),
+                                RawEntryMut::Vacant(entry) => {
+                                    entry
+                                        .insert(
+                                            id.0.clone(),
+                                            HashSet::with_capacity(initial_send_set_capacity),
+                                        )
+                                        .1
+                                }
+                            };
+                        touched_client = !fetched_clients_to_send.is_empty();
+                        clients_to_send = Some(fetched_clients_to_send);
+                        clients_to_send.as_deref_mut().unwrap()
                     };
 
                     if clients_to_send.len() >= max_response_per_tick {
