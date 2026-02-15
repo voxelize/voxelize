@@ -322,7 +322,7 @@ const cloneArrayFromLengthFallback = (value) => {
     let indexPresent = false;
     let hasProbeFailed = false;
     try {
-      indexPresent = arrayIndex in value;
+      indexPresent = Object.prototype.hasOwnProperty.call(value, arrayIndex);
     } catch {
       hasProbeFailed = true;
     }

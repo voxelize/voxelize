@@ -891,7 +891,7 @@ describe("report-utils", () => {
     ]);
     expect(oversizedOwnKeysTrapResult.positionalArgs).toEqual([]);
     expect(oversizedOwnKeysTrapResult.optionTerminatorUsed).toBe(false);
-    expect(oversizedOwnKeysIndexProbeCount).toBe(1_024);
+    expect(oversizedOwnKeysIndexProbeCount).toBe(0);
     expect(oversizedOwnKeysIndexReadCount).toBe(2);
 
     let hasTrapFallbackReadCount = 0;
@@ -922,7 +922,7 @@ describe("report-utils", () => {
     expect(hasTrapFallbackResult.optionArgs).toEqual(["--json", "--mystery"]);
     expect(hasTrapFallbackResult.positionalArgs).toEqual([]);
     expect(hasTrapFallbackResult.optionTerminatorUsed).toBe(false);
-    expect(hasTrapFallbackReadCount).toBe(1_024);
+    expect(hasTrapFallbackReadCount).toBe(2);
 
     const sparseHighIndexArgs: string[] = [];
     sparseHighIndexArgs[5_000] = "--json";
@@ -1056,6 +1056,30 @@ describe("report-utils", () => {
     expect(keyScanCapResult.optionArgs[1_023]).toBe("--k1023");
     expect(keyScanCapResult.positionalArgs).toEqual([]);
     expect(keyScanCapResult.optionTerminatorUsed).toBe(false);
+
+    const inheritedIndexArgs: string[] = [];
+    inheritedIndexArgs.length = 1;
+    const inheritedIndexPrototype = Object.create(Array.prototype) as {
+      readonly 0: string;
+    };
+    Object.defineProperty(inheritedIndexPrototype, 0, {
+      configurable: true,
+      enumerable: true,
+      value: "--proto",
+    });
+    Object.setPrototypeOf(inheritedIndexArgs, inheritedIndexPrototype);
+    Object.defineProperty(inheritedIndexArgs, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    const inheritedIndexResult = splitCliArgs(inheritedIndexArgs as never);
+    expect(inheritedIndexResult.optionArgs).toEqual([]);
+    expect(inheritedIndexResult.positionalArgs).toEqual([]);
+    expect(inheritedIndexResult.optionTerminatorUsed).toBe(false);
+    Object.setPrototypeOf(inheritedIndexArgs, Array.prototype);
 
     let densePrefixOwnKeysCallCount = 0;
     const densePrefixArgsTarget: string[] = [];
@@ -5298,6 +5322,26 @@ describe("report-utils", () => {
     expect(normalizeTsCorePayloadIssues(ownKeysHasTrapIssues)).toEqual([
       "voxel.id",
     ]);
+    const inheritedIndexIssues: string[] = [];
+    inheritedIndexIssues.length = 1;
+    const inheritedIndexIssuesPrototype = Object.create(Array.prototype) as {
+      readonly 0: string;
+    };
+    Object.defineProperty(inheritedIndexIssuesPrototype, 0, {
+      configurable: true,
+      enumerable: true,
+      value: " voxel.id ",
+    });
+    Object.setPrototypeOf(inheritedIndexIssues, inheritedIndexIssuesPrototype);
+    Object.defineProperty(inheritedIndexIssues, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    expect(normalizeTsCorePayloadIssues(inheritedIndexIssues)).toEqual([]);
+    Object.setPrototypeOf(inheritedIndexIssues, Array.prototype);
     const sparseHighIndexIssues: string[] = [];
     sparseHighIndexIssues[5_000] = " voxel.id ";
     Object.defineProperty(sparseHighIndexIssues, Symbol.iterator, {
