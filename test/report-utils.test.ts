@@ -495,6 +495,41 @@ describe("report-utils", () => {
     expect(malformedRecognizedSingleDashValueResult.outputPath).toBe(
       "/workspace/-"
     );
+    const partiallyRecoveredRecognizedOutputTokens = new Proxy(
+      ["--list-checks", "-l"],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (property === "1") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const partiallyRecoveredRecognizedOutputTokenResult = resolveOutputPath(
+      ["--output", "-l"],
+      "/workspace",
+      partiallyRecoveredRecognizedOutputTokens as never
+    );
+    expect(partiallyRecoveredRecognizedOutputTokenResult.error).toBe(
+      "Missing value for --output option."
+    );
+    expect(partiallyRecoveredRecognizedOutputTokenResult.outputPath).toBeNull();
+    const partiallyRecoveredRecognizedDashValueResult = resolveOutputPath(
+      ["--output", "-artifact-report.json"],
+      "/workspace",
+      partiallyRecoveredRecognizedOutputTokens as never
+    );
+    expect(partiallyRecoveredRecognizedDashValueResult.error).toBeNull();
+    expect(partiallyRecoveredRecognizedDashValueResult.outputPath).toBe(
+      "/workspace/-artifact-report.json"
+    );
 
     const lengthAndOwnKeysTrapOutputArgs = new Proxy(
       ["--output", "./report.json"],
@@ -915,6 +950,51 @@ describe("report-utils", () => {
     );
     expect(resolvedSingleDashValueFromCombinedRecognizedOptionTraps.value).toBe("-");
     expect(resolvedSingleDashValueFromCombinedRecognizedOptionTraps.error).toBeNull();
+    const partiallyRecoveredRecognizedOptionTokens = new Proxy(
+      ["--list-checks", "-l"],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (property === "1") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const resolvedFromPartiallyRecoveredRecognizedOptionTokens =
+      resolveLastOptionValue(
+        ["--output", "-l"],
+        "--output",
+        partiallyRecoveredRecognizedOptionTokens as never
+      );
+    expect(resolvedFromPartiallyRecoveredRecognizedOptionTokens.hasOption).toBe(
+      true
+    );
+    expect(resolvedFromPartiallyRecoveredRecognizedOptionTokens.value).toBeNull();
+    expect(resolvedFromPartiallyRecoveredRecognizedOptionTokens.error).toBe(
+      "Missing value for --output option."
+    );
+    const resolvedUnknownDashValueFromPartiallyRecoveredRecognizedOptionTokens =
+      resolveLastOptionValue(
+        ["--output", "-artifact-report.json"],
+        "--output",
+        partiallyRecoveredRecognizedOptionTokens as never
+      );
+    expect(
+      resolvedUnknownDashValueFromPartiallyRecoveredRecognizedOptionTokens.hasOption
+    ).toBe(true);
+    expect(
+      resolvedUnknownDashValueFromPartiallyRecoveredRecognizedOptionTokens.value
+    ).toBe("-artifact-report.json");
+    expect(
+      resolvedUnknownDashValueFromPartiallyRecoveredRecognizedOptionTokens.error
+    ).toBeNull();
   });
 
   it("splits option and positional args using option terminator", () => {

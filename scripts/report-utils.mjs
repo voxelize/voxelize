@@ -1569,17 +1569,32 @@ const normalizeCliOptionTokenList = (tokens) => {
 };
 
 const normalizeCliOptionTokenListWithAvailability = (tokens) => {
+  if (!Array.isArray(tokens)) {
+    return {
+      tokens: normalizeCliOptionTokenList(tokens),
+      unavailable: false,
+    };
+  }
+
+  const clonedIndexedTokens = cloneIndexedArraySafelyWithMetadata(tokens);
+  if (clonedIndexedTokens === null) {
+    return {
+      tokens: [],
+      unavailable: true,
+    };
+  }
+
   const normalizedTokens = toStringArrayOrNull(tokens);
   if (normalizedTokens === null) {
     return {
       tokens: [],
-      unavailable: Array.isArray(tokens),
+      unavailable: true,
     };
   }
 
   return {
     tokens: dedupeStringList(normalizedTokens),
-    unavailable: false,
+    unavailable: clonedIndexedTokens.fromIndexedFallback,
   };
 };
 
