@@ -1048,7 +1048,7 @@ impl World {
         handle: F,
     ) {
         self.method_handles
-            .insert(method.to_lowercase(), Arc::new(handle));
+            .insert(normalized_lookup_name(method).into_owned(), Arc::new(handle));
     }
 
     pub fn set_event_handle<F: Fn(&mut World, &str, &str) + Send + Sync + 'static>(
@@ -1057,7 +1057,7 @@ impl World {
         handle: F,
     ) {
         self.event_handles
-            .insert(event.to_lowercase(), Arc::new(handle));
+            .insert(normalized_lookup_name(event).into_owned(), Arc::new(handle));
     }
 
     pub fn set_transport_handle<F: Fn(&mut World, Value) + Send + Sync + 'static>(
@@ -1094,7 +1094,7 @@ impl World {
         loader: F,
     ) {
         self.entity_loaders
-            .insert(etype.to_lowercase(), Arc::new(loader));
+            .insert(normalized_lookup_name(etype).into_owned(), Arc::new(loader));
     }
 
     #[inline]
