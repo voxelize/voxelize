@@ -16,6 +16,7 @@ pub struct EntitiesSendingSystem {
     clients_with_updates_buffer: Vec<String>,
     client_updates_buffer: HashMap<String, Vec<EntityProtocol>>,
     metadata_json_cache_buffer: HashMap<String, String>,
+    bookkeeping_records_buffer: HashMap<String, (String, specs::Entity, MetadataComp, bool)>,
 }
 
 #[inline]
@@ -169,7 +170,12 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         }
 
         let mut old_entities = std::mem::take(&mut bookkeeping.entities);
-        let mut new_bookkeeping_records = HashMap::with_capacity(old_entities.len());
+        let mut new_bookkeeping_records = std::mem::take(&mut self.bookkeeping_records_buffer);
+        new_bookkeeping_records.clear();
+        if new_bookkeeping_records.capacity() < old_entities.len() {
+            new_bookkeeping_records
+                .reserve(old_entities.len() - new_bookkeeping_records.capacity());
+        }
         let mut entity_positions = std::mem::take(&mut bookkeeping.entity_positions);
         entity_positions.clear();
         if entity_positions.capacity() < old_entities.len() {
@@ -225,7 +231,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         if has_clients {
             self.deleted_entities_buffer.reserve(old_entities.len());
         }
-        for (id, (etype, ent, metadata, persisted)) in old_entities.into_iter() {
+        for (id, (etype, ent, metadata, persisted)) in old_entities.drain() {
             if persisted {
                 bg_saver.remove(&id);
             }
@@ -245,6 +251,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         if !has_clients {
             bookkeeping.client_known_entities.clear();
             bookkeeping.entities = new_bookkeeping_records;
+            self.bookkeeping_records_buffer = old_entities;
             bookkeeping.entity_positions = entity_positions;
             return;
         }
@@ -255,6 +262,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 .any(|known_entities| !known_entities.is_empty());
             if !has_known_entities {
                 bookkeeping.entities = new_bookkeeping_records;
+                self.bookkeeping_records_buffer = old_entities;
                 bookkeeping.entity_positions = entity_positions;
                 return;
             }
@@ -606,6 +614,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         }
 
         bookkeeping.entities = new_bookkeeping_records;
+        self.bookkeeping_records_buffer = old_entities;
         bookkeeping.entity_positions = entity_positions;
 
         for client_id in self.clients_with_updates_buffer.drain(..) {
