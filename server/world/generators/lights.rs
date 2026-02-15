@@ -16,6 +16,11 @@ fn clamp_usize_to_i32(value: usize) -> i32 {
 }
 
 #[inline]
+fn normalized_chunk_size(chunk_size: usize) -> usize {
+    chunk_size.max(1)
+}
+
+#[inline]
 fn clamp_i64_to_usize(value: i64) -> usize {
     if value <= 0 {
         return 0;
@@ -27,7 +32,7 @@ fn clamp_i64_to_usize(value: i64) -> usize {
 #[inline]
 fn convert_config(config: &WorldConfig) -> LightConfig {
     LightConfig {
-        chunk_size: clamp_usize_to_i32(config.chunk_size),
+        chunk_size: clamp_usize_to_i32(normalized_chunk_size(config.chunk_size)),
         max_height: clamp_usize_to_i32(config.max_height),
         max_light_level: config.max_light_level,
         min_chunk: config.min_chunk,
@@ -51,7 +56,7 @@ fn convert_bounds(
         (Some(&Vec3(start_x, start_y, start_z)), None) => {
             let max_chunk_x_exclusive = i64::from(config.max_chunk[0]).saturating_add(1);
             let max_chunk_z_exclusive = i64::from(config.max_chunk[1]).saturating_add(1);
-            let chunk_size = i64::from(config.chunk_size);
+            let chunk_size = i64::from(config.chunk_size.max(1));
 
             let max_x_exclusive = max_chunk_x_exclusive.saturating_mul(chunk_size);
             let max_z_exclusive = max_chunk_z_exclusive.saturating_mul(chunk_size);
@@ -65,6 +70,41 @@ fn convert_bounds(
             })
         }
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{convert_bounds, convert_config, normalized_chunk_size};
+    use crate::{Vec3, WorldConfig};
+
+    #[test]
+    fn convert_config_normalizes_zero_chunk_size() {
+        let world_config = WorldConfig::new().chunk_size(0).build();
+        let light_config = convert_config(&world_config);
+        assert_eq!(light_config.chunk_size, 1);
+    }
+
+    #[test]
+    fn convert_bounds_uses_normalized_chunk_size_for_shape() {
+        let world_config = WorldConfig::new()
+            .chunk_size(0)
+            .max_height(64)
+            .min_chunk([0, 0])
+            .max_chunk([0, 0])
+            .build();
+        let light_config = convert_config(&world_config);
+
+        let bounds = convert_bounds(Some(&Vec3(0, 0, 0)), None, &light_config)
+            .expect("expected bounds for explicit min and inferred shape");
+        assert_eq!(bounds.shape[0], 1);
+        assert_eq!(bounds.shape[2], 1);
+    }
+
+    #[test]
+    fn normalized_chunk_size_guards_zero() {
+        assert_eq!(normalized_chunk_size(0), 1);
+        assert_eq!(normalized_chunk_size(16), 16);
     }
 }
 
