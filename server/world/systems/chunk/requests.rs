@@ -76,35 +76,39 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                 to_add_back_to_requested
                     .reserve(requests.requests.len() - to_add_back_to_requested.capacity());
             }
+            let mut touched_client = false;
+            let mut clients_to_send = if can_send_responses {
+                let clients_to_send = match to_send.raw_entry_mut().from_key(id.0.as_str()) {
+                    RawEntryMut::Occupied(entry) => entry.into_mut(),
+                    RawEntryMut::Vacant(entry) => {
+                        entry
+                            .insert(
+                                id.0.clone(),
+                                HashSet::with_capacity(initial_send_set_capacity),
+                            )
+                            .1
+                    }
+                };
+                touched_client = !clients_to_send.is_empty();
+                Some(clients_to_send)
+            } else {
+                None
+            };
 
             for coords in requests.requests.drain(..) {
                 if chunks.is_chunk_ready(&coords) {
-                    if !can_send_responses {
+                    let Some(clients_to_send) = clients_to_send.as_deref_mut() else {
                         to_add_back_to_requested.insert(coords);
                         continue;
-                    }
-                    let clients_to_send = match to_send.raw_entry_mut().from_key(id.0.as_str()) {
-                        RawEntryMut::Occupied(entry) => {
-                            let clients_to_send = entry.into_mut();
-                            if clients_to_send.is_empty() {
-                                to_send_touched_clients.push(id.0.clone());
-                            }
-                            clients_to_send
-                        }
-                        RawEntryMut::Vacant(entry) => {
-                            to_send_touched_clients.push(id.0.clone());
-                            entry
-                                .insert(
-                                    id.0.clone(),
-                                    HashSet::with_capacity(initial_send_set_capacity),
-                                )
-                                .1
-                        }
                     };
 
                     if clients_to_send.len() >= max_response_per_tick {
                         to_add_back_to_requested.insert(coords);
                         continue;
+                    }
+                    if !touched_client {
+                        to_send_touched_clients.push(id.0.clone());
+                        touched_client = true;
                     }
 
                     interests.add(&id.0, &coords);
