@@ -191,6 +191,32 @@ impl<'a> System<'a> for EventsSystem {
                 }
                 continue;
             }
+            let include_single_target = if let Some(ClientFilter::Include(ids)) = filter.as_ref() {
+                if ids.is_empty() {
+                    None
+                } else {
+                    let first_id = ids[0].as_str();
+                    if ids.iter().all(|id| id.as_str() == first_id) {
+                        Some(first_id)
+                    } else {
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+            if let Some(target_id) = include_single_target {
+                if let Some(client) = clients.get(target_id) {
+                    let should_send = match location.as_ref() {
+                        Some(location) => is_interested(location, client.entity),
+                        None => true,
+                    };
+                    if should_send {
+                        push_dispatch_event(dispatch_map, touched_clients, target_id, serialized);
+                    }
+                }
+                continue;
+            }
 
             // Checks if location is required, otherwise just sends.
             let mut send_to_client = |id: &str, entity: Entity| {
