@@ -1783,24 +1783,10 @@ const mergeNormalizedCliOptionAliases = (
   return Object.fromEntries(mergedOptionAliases.entries());
 };
 
-const toNormalizedCliOptionCatalogOrNull = (optionCatalog) => {
-  if (!isObjectRecord(optionCatalog)) {
-    return null;
-  }
-
-  const supportedCliOptions = normalizeCliOptionTokenList(
-    safeReadProperty(optionCatalog, "supportedCliOptions")
-  );
-  const normalizedOptionAliases = normalizeCliOptionAliases(
-    safeReadProperty(optionCatalog, "availableCliOptionAliases")
-  );
-  const normalizedCanonicalMapEntries = normalizeCliOptionCanonicalMapEntries(
-    safeReadProperty(optionCatalog, "availableCliOptionCanonicalMap")
-  );
-  const catalogCanonicalOptions = dedupeStringList(
-    normalizedCanonicalMapEntries.map((entry) => entry[1])
-  );
-  const fallbackOptionAliases = Object.fromEntries(
+const createNormalizedCliOptionAliasesFromCanonicalMapEntries = (
+  normalizedCanonicalMapEntries
+) => {
+  return Object.fromEntries(
     Array.from(
       normalizedCanonicalMapEntries
         .filter((entry) => entry[0] !== entry[1])
@@ -1820,6 +1806,28 @@ const toNormalizedCliOptionCatalogOrNull = (optionCatalog) => {
     ).sort((entryA, entryB) => {
       return entryA[0].localeCompare(entryB[0]);
     })
+  );
+};
+
+const toNormalizedCliOptionCatalogOrNull = (optionCatalog) => {
+  if (!isObjectRecord(optionCatalog)) {
+    return null;
+  }
+
+  const supportedCliOptions = normalizeCliOptionTokenList(
+    safeReadProperty(optionCatalog, "supportedCliOptions")
+  );
+  const normalizedOptionAliases = normalizeCliOptionAliases(
+    safeReadProperty(optionCatalog, "availableCliOptionAliases")
+  );
+  const normalizedCanonicalMapEntries = normalizeCliOptionCanonicalMapEntries(
+    safeReadProperty(optionCatalog, "availableCliOptionCanonicalMap")
+  );
+  const catalogCanonicalOptions = dedupeStringList(
+    normalizedCanonicalMapEntries.map((entry) => entry[1])
+  );
+  const fallbackOptionAliases = createNormalizedCliOptionAliasesFromCanonicalMapEntries(
+    normalizedCanonicalMapEntries
   );
   const availableCliOptionAliases = mergeNormalizedCliOptionAliases(
     normalizedOptionAliases,
