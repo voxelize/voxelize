@@ -212,10 +212,13 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 (etype.0.to_owned(), ent, metadata.to_owned(), persisted),
             );
 
-            let pos = position
-                .map(|p| p.0)
-                .or_else(|| voxel.map(|v| Vec3(v.0 .0 as f32, v.0 .1 as f32, v.0 .2 as f32)))
-                .unwrap_or(Vec3(0.0, 0.0, 0.0));
+            let pos = if let Some(position) = position {
+                position.0
+            } else if let Some(voxel) = voxel {
+                Vec3(voxel.0 .0 as f32, voxel.0 .1 as f32, voxel.0 .2 as f32)
+            } else {
+                Vec3(0.0, 0.0, 0.0)
+            };
             entity_positions.insert(id.0.clone(), pos);
 
             if has_clients {
@@ -256,10 +259,13 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             return;
         }
         if entity_metadata_map.is_empty() && self.deleted_entities_buffer.is_empty() {
-            let has_known_entities = bookkeeping
-                .client_known_entities
-                .values()
-                .any(|known_entities| !known_entities.is_empty());
+            let mut has_known_entities = false;
+            for known_entities in bookkeeping.client_known_entities.values() {
+                if !known_entities.is_empty() {
+                    has_known_entities = true;
+                    break;
+                }
+            }
             if !has_known_entities {
                 bookkeeping.entities = new_bookkeeping_records;
                 self.bookkeeping_records_buffer = old_entities;
@@ -269,15 +275,19 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         }
         self.clients_with_updates_buffer.reserve(clients.len());
         let single_client = if clients.len() == 1 {
-            clients
-                .iter()
-                .next()
-                .map(|(client_id, client)| (client_id.as_str(), client.entity))
+            if let Some((client_id, client)) = clients.iter().next() {
+                Some((client_id.as_str(), client.entity))
+            } else {
+                None
+            }
         } else {
             None
         };
-        let single_client_position =
-            single_client.and_then(|(_, client_entity)| positions.get(client_entity).map(|p| p.0));
+        let single_client_position = if let Some((_, client_entity)) = single_client {
+            positions.get(client_entity).map(|position| position.0)
+        } else {
+            None
+        };
 
         let mut entity_to_client_id: HashMap<u32, &str> = HashMap::new();
         if single_client.is_none() && !entity_metadata_map.is_empty() {
