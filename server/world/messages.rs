@@ -162,11 +162,16 @@ impl EncodedMessageQueue {
     fn compute_rtc_eligibility(message: &Message) -> bool {
         let message_type = message.r#type;
         if message_type == MessageType::Entity as i32 {
-            !message.entities.is_empty()
-                && message
-                    .entities
-                    .iter()
-                    .all(|entity| entity.operation == EntityOperation::Update as i32)
+            if message.entities.is_empty() {
+                return false;
+            }
+            if message.entities.len() == 1 {
+                return message.entities[0].operation == EntityOperation::Update as i32;
+            }
+            message
+                .entities
+                .iter()
+                .all(|entity| entity.operation == EntityOperation::Update as i32)
         } else {
             message_type == MessageType::Peer as i32
         }
