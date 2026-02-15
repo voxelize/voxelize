@@ -51,7 +51,7 @@ fn default_info_handle(server: &Server) -> Value {
         json!(server.lost_sessions.len()),
     );
 
-    let mut connections = HashMap::new();
+    let mut connections = HashMap::with_capacity(server.connections.len());
 
     for (id, (_, world, _)) in server.connections.iter() {
         connections.insert(id.to_owned(), json!(world));
@@ -59,7 +59,7 @@ fn default_info_handle(server: &Server) -> Value {
 
     info.insert("connections".to_owned(), json!(connections));
 
-    let mut transports = vec![];
+    let mut transports = Vec::with_capacity(server.transport_sessions.len());
 
     for (id, _) in server.transport_sessions.iter() {
         transports.push(id.to_owned());
