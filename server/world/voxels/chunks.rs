@@ -158,7 +158,7 @@ impl Chunks {
             &ChunkOptions {
                 max_height: self.config.max_height,
                 sub_chunks: self.config.sub_chunks,
-                size: self.config.chunk_size,
+                size: self.chunk_size(),
             },
         );
 
@@ -309,20 +309,20 @@ impl Chunks {
 
     // Get a chunk by voxel coordinates. Returns a chunk even if chunk isn't fully instantiated.
     pub fn raw_chunk_by_voxel(&self, vx: i32, vy: i32, vz: i32) -> Option<&Chunk> {
-        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, self.config.chunk_size as usize);
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, self.chunk_size());
         self.raw(&coords)
     }
 
     /// Get a mutable chunk by voxel coordinates. Returns a chunk even if chunk isn't fully instantiated.
     pub fn raw_chunk_by_voxel_mut(&mut self, vx: i32, vy: i32, vz: i32) -> Option<&mut Chunk> {
-        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, self.config.chunk_size as usize);
+        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, self.chunk_size());
         self.raw_mut(&coords)
     }
 
     /// Get neighboring coords of a voxel coordinate.
     pub fn voxel_affected_chunks(&self, vx: i32, vy: i32, vz: i32) -> Vec<Vec2<i32>> {
         let mut neighbors = Vec::with_capacity(9);
-        let chunk_size = self.config.chunk_size.max(1);
+        let chunk_size = self.chunk_size();
 
         let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
         let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
@@ -414,7 +414,7 @@ impl Chunks {
         &self,
         coords: &Vec2<i32>,
     ) -> Option<(i32, i32, i32, i32)> {
-        let chunk_size = self.config.chunk_size.max(1);
+        let chunk_size = self.chunk_size();
         let extended = ((self.config.max_light_level as usize)
             .saturating_add(chunk_size.saturating_sub(1))
             / chunk_size)
@@ -435,7 +435,7 @@ impl Chunks {
         radius: i32,
     ) -> Option<(i32, i32, i32, i32)> {
         let clamped_radius = radius.max(0);
-        let chunk_size = self.config.chunk_size.max(1);
+        let chunk_size = self.chunk_size();
         let extended = ((self.config.max_light_level as usize)
             .saturating_add(chunk_size.saturating_sub(1))
             / chunk_size)
@@ -467,7 +467,7 @@ impl Chunks {
             coords: *coords,
             options: SpaceOptions {
                 margin,
-                chunk_size: self.config.chunk_size,
+                chunk_size: self.chunk_size(),
                 sub_chunks: self.config.sub_chunks,
                 max_height: self.config.max_height,
                 max_light_level: self.config.max_light_level,
@@ -606,6 +606,11 @@ impl Chunks {
     }
 
     #[inline]
+    fn chunk_size(&self) -> usize {
+        self.config.chunk_size.max(1)
+    }
+
+    #[inline]
     fn max_height_i32(&self) -> Option<i32> {
         if self.config.max_height > i32::MAX as usize {
             None
@@ -628,7 +633,7 @@ impl Chunks {
         if self.is_y_out_of_world_height(vy) {
             return;
         }
-        let chunk_size = self.config.chunk_size.max(1);
+        let chunk_size = self.chunk_size();
         let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
         let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
 
@@ -691,7 +696,7 @@ impl VoxelAccess for Chunks {
         if self.is_y_out_of_world_height(vy) {
             return 0;
         }
-        let chunk_size = self.config.chunk_size;
+        let chunk_size = self.chunk_size();
         let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
         if let Some(chunk) = self.raw(&coords) {
             let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
@@ -709,7 +714,7 @@ impl VoxelAccess for Chunks {
         if self.is_y_out_of_world_height(vy) {
             return false;
         }
-        let chunk_size = self.config.chunk_size;
+        let chunk_size = self.chunk_size();
         let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
 
         {
@@ -742,7 +747,7 @@ impl VoxelAccess for Chunks {
         if vy < 0 {
             return 0;
         }
-        let chunk_size = self.config.chunk_size;
+        let chunk_size = self.chunk_size();
         let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
         if let Some(chunk) = self.raw(&coords) {
             let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
@@ -760,7 +765,7 @@ impl VoxelAccess for Chunks {
         if self.is_y_out_of_world_height(vy) {
             return false;
         }
-        let chunk_size = self.config.chunk_size;
+        let chunk_size = self.chunk_size();
         let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
 
         {
@@ -790,7 +795,7 @@ impl VoxelAccess for Chunks {
         if vy < 0 {
             return 0;
         }
-        let chunk_size = self.config.chunk_size;
+        let chunk_size = self.chunk_size();
         let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
         if let Some(chunk) = self.raw(&coords) {
             let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
@@ -805,7 +810,7 @@ impl VoxelAccess for Chunks {
 
     /// Get the max height at a voxel column. Returns 0 if column does not exist.
     fn get_max_height(&self, vx: i32, vz: i32) -> u32 {
-        let chunk_size = self.config.chunk_size;
+        let chunk_size = self.chunk_size();
         let coords = ChunkUtils::map_voxel_to_chunk(vx, 0, vz, chunk_size);
         if let Some(chunk) = self.raw(&coords) {
             let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, 0, vz, chunk_size);
@@ -820,7 +825,7 @@ impl VoxelAccess for Chunks {
 
     /// Set the max height at a voxel column. Does nothing if column does not exist.
     fn set_max_height(&mut self, vx: i32, vz: i32, height: u32) -> bool {
-        let chunk_size = self.config.chunk_size;
+        let chunk_size = self.chunk_size();
         let coords = ChunkUtils::map_voxel_to_chunk(vx, 0, vz, chunk_size);
 
         if let Some(chunk) = self.raw_mut(&coords) {
@@ -843,7 +848,7 @@ impl VoxelAccess for Chunks {
             return false;
         }
 
-        let chunk_size = self.config.chunk_size;
+        let chunk_size = self.chunk_size();
         let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
         if let Some(chunk) = self.raw(&coords) {
             let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
