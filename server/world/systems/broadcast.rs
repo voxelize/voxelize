@@ -26,6 +26,22 @@ enum BatchFilterKey {
     ExcludeMany(Vec<String>),
 }
 
+#[inline]
+fn ids_are_strictly_sorted(ids: &[String]) -> bool {
+    if ids.len() < 2 {
+        return true;
+    }
+    let mut prev = ids[0].as_str();
+    for id in ids.iter().skip(1) {
+        let id = id.as_str();
+        if id <= prev {
+            return false;
+        }
+        prev = id;
+    }
+    true
+}
+
 fn filter_key(filter: &ClientFilter) -> BatchFilterKey {
     match filter {
         ClientFilter::All => BatchFilterKey::All,
@@ -47,6 +63,9 @@ fn filter_key(filter: &ClientFilter) -> BatchFilterKey {
                     return BatchFilterKey::IncludeOne(first.clone());
                 }
                 return BatchFilterKey::IncludePair(first.clone(), second.clone());
+            }
+            if ids_are_strictly_sorted(ids) {
+                return BatchFilterKey::IncludeMany(ids.clone());
             }
             let mut sorted = ids.clone();
             sorted.sort_unstable();
@@ -73,6 +92,9 @@ fn filter_key(filter: &ClientFilter) -> BatchFilterKey {
                     return BatchFilterKey::ExcludeOne(first.clone());
                 }
                 return BatchFilterKey::ExcludePair(first.clone(), second.clone());
+            }
+            if ids_are_strictly_sorted(ids) {
+                return BatchFilterKey::ExcludeMany(ids.clone());
             }
             let mut sorted = ids.clone();
             sorted.sort_unstable();
