@@ -4511,6 +4511,60 @@ describe("report-utils", () => {
     expect(dedupedAliasCatalogOverrideValidation.unknownOptionCount).toBe(0);
     expect(dedupedAliasCatalogOverrideValidation.unsupportedOptionsError).toBeNull();
     expect(dedupedAliasCatalogOverrideValidation.validationErrorCode).toBeNull();
+    const strictOptionCatalogOverrideValidation = createCliOptionValidation(
+      ["--output", "-j"],
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+        optionCatalog: {
+          availableCliOptionCanonicalMap: {
+            "--output": "--output",
+            "--json": "--json",
+            "-j": "--json",
+          },
+        } as never,
+      }
+    );
+    expect(strictOptionCatalogOverrideValidation.supportedCliOptions).toEqual([
+      "--output",
+      "--json",
+      "-j",
+    ]);
+    expect(strictOptionCatalogOverrideValidation.supportedCliOptionCount).toBe(3);
+    expect(strictOptionCatalogOverrideValidation.unknownOptions).toEqual([]);
+    expect(strictOptionCatalogOverrideValidation.unknownOptionCount).toBe(0);
+    expect(strictOptionCatalogOverrideValidation.unsupportedOptionsError).toBeNull();
+    expect(strictOptionCatalogOverrideValidation.validationErrorCode).toBeNull();
+    const strictOptionCatalogOverrideUnknownValidation =
+      createCliOptionValidation(["--output", "-l"], {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+        optionCatalog: {
+          availableCliOptionCanonicalMap: {
+            "--output": "--output",
+            "--json": "--json",
+            "-j": "--json",
+          },
+        } as never,
+      });
+    expect(strictOptionCatalogOverrideUnknownValidation.supportedCliOptions).toEqual(
+      ["--output", "--json", "-j"]
+    );
+    expect(strictOptionCatalogOverrideUnknownValidation.supportedCliOptionCount).toBe(
+      3
+    );
+    expect(strictOptionCatalogOverrideUnknownValidation.unknownOptions).toEqual([
+      "-l",
+    ]);
+    expect(strictOptionCatalogOverrideUnknownValidation.unknownOptionCount).toBe(1);
+    expect(strictOptionCatalogOverrideUnknownValidation.unsupportedOptionsError).toBe(
+      "Unsupported option(s): -l. Supported options: --output, --json, -j."
+    );
+    expect(strictOptionCatalogOverrideUnknownValidation.validationErrorCode).toBe(
+      "unsupported_options"
+    );
     let malformedOptionCatalogOverrideCanonicalReadCount = 0;
     const malformedOptionCatalogOverrideCanonicalOptions = new Proxy(
       ["--json"],
