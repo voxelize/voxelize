@@ -615,7 +615,7 @@ impl World {
             let stats_json = world.stats().get_stats();
             world.write_resource::<MessageQueues>().push((
                 Message::new(&MessageType::Stats)
-                    .json(&serde_json::to_string(&stats_json).unwrap())
+                    .json_owned(serde_json::to_string(&stats_json).unwrap())
                     .build(),
                 ClientFilter::Direct(client_id.to_owned()),
             ));
@@ -1960,7 +1960,7 @@ impl World {
         (
             Message::new(&MessageType::Init)
                 .world_name(&self.name)
-                .json(&serde_json::to_string(&json).unwrap())
+                .json_owned(serde_json::to_string(&json).unwrap())
                 .peers_owned(peers)
                 .entities_owned(entities)
                 .build(),

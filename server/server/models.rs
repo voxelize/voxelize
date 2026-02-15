@@ -182,6 +182,12 @@ impl MessageBuilder {
         self
     }
 
+    /// Configure owned json data of the protocol.
+    pub fn json_owned(mut self, json: String) -> Self {
+        self.json = Some(json);
+        self
+    }
+
     /// Configure the text data of the protocol.
     pub fn text(mut self, text: &str) -> Self {
         self.text = Some(text.to_owned());
