@@ -68,6 +68,15 @@ impl FragmentAssembler {
         let total = u32::from_le_bytes([data[1], data[2], data[3], data[4]]) as usize;
         let index = u32::from_le_bytes([data[5], data[6], data[7], data[8]]) as usize;
         let payload = &data[FRAGMENT_HEADER_SIZE..];
+        if total == 0 || index >= total {
+            return None;
+        }
+        if total == 1 {
+            if index == 0 {
+                return Some(payload.to_vec());
+            }
+            return None;
+        }
 
         let message_id = if index == 0 {
             let id = self.next_message_id;
@@ -112,5 +121,37 @@ impl FragmentAssembler {
         }
 
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{fragment_message, FragmentAssembler};
+
+    #[test]
+    fn process_accepts_single_fragment_header_without_buffering() {
+        let payload = vec![7, 8, 9];
+        let mut framed = vec![1];
+        framed.extend_from_slice(&(1u32).to_le_bytes());
+        framed.extend_from_slice(&(0u32).to_le_bytes());
+        framed.extend_from_slice(&payload);
+
+        let mut assembler = FragmentAssembler::new();
+        assert_eq!(assembler.process(&framed), Some(payload));
+    }
+
+    #[test]
+    fn process_reassembles_fragmented_messages() {
+        let payload = vec![42u8; 20_000];
+        let fragments = fragment_message(&payload);
+        assert!(fragments.len() > 1);
+
+        let mut assembler = FragmentAssembler::new();
+        let mut reconstructed = None;
+        for fragment in fragments {
+            reconstructed = assembler.process(&fragment);
+        }
+
+        assert_eq!(reconstructed, Some(payload));
     }
 }
