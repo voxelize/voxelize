@@ -208,7 +208,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         let mut to_load = Vec::with_capacity(pipeline.queue.len());
         if !pipeline.stages.is_empty() {
             while let Some(coords) = pipeline.get() {
-                let chunk = chunks.raw(&coords);
+                let mut chunk = chunks.raw(&coords);
 
                 if chunk.is_none() {
                     let can_load = chunks.test_load(&coords);
@@ -232,9 +232,10 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
                     chunks.freshly_created.insert(coords);
                     chunks.renew(new_chunk, false);
+                    chunk = chunks.raw(&coords);
                 }
 
-                let index = match chunks.raw(&coords) {
+                let index = match chunk {
                     Some(chunk) => {
                         if let ChunkStatus::Generating(index) = chunk.status {
                             index
