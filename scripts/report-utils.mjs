@@ -569,6 +569,23 @@ const toTrimmedStringOrNull = (value) => {
   return normalizedValue.length > 0 ? normalizedValue : null;
 };
 
+const toSanitizedOutputLineOrNull = (value) => {
+  if (typeof value !== "string" || value.length === 0) {
+    return null;
+  }
+
+  const nonEmptyLines = sanitizeOutputForJsonParsing(value)
+    .split(/\r?\n/)
+    .map((line) => {
+      return line.trim();
+    })
+    .filter((line) => {
+      return line.length > 0;
+    });
+  const [firstNonEmptyLine] = nonEmptyLines;
+  return firstNonEmptyLine ?? null;
+};
+
 const KNOWN_WASM_PACK_STATUSES = new Set([
   "ok",
   "missing",
@@ -714,7 +731,7 @@ export const extractWasmPackCheckSummaryFromReport = (report) => {
     report,
     "wasmPackCheckOutputLine"
   );
-  const wasmPackCheckOutputLine = toTrimmedStringOrNull(
+  const wasmPackCheckOutputLine = toSanitizedOutputLineOrNull(
     wasmPackCheckOutputLineValue
   );
 
@@ -808,7 +825,7 @@ export const extractTsCoreExampleSummaryFromReport = (report) => {
   const exampleDurationMs =
     toNonNegativeFiniteNumberOrNull(exampleDurationMsValue);
   const exampleOutputLineValue = safeReadProperty(report, "exampleOutputLine");
-  const exampleOutputLine = toTrimmedStringOrNull(exampleOutputLineValue);
+  const exampleOutputLine = toSanitizedOutputLineOrNull(exampleOutputLineValue);
   const exampleRuleMatchedValue = safeReadProperty(report, "exampleRuleMatched");
   const exampleRuleMatched =
     typeof exampleRuleMatchedValue === "boolean" ? exampleRuleMatchedValue : null;
@@ -888,20 +905,7 @@ export const createPrefixedTsCoreExampleSummary = (report, prefix = "") => {
 };
 
 const resolveFirstNonEmptyOutputLine = (output) => {
-  if (typeof output !== "string" || output.length === 0) {
-    return null;
-  }
-
-  const nonEmptyLines = sanitizeOutputForJsonParsing(output)
-    .split(/\r?\n/)
-    .map((line) => {
-      return line.trim();
-    })
-    .filter((line) => {
-      return line.length > 0;
-    });
-  const [firstNonEmptyLine] = nonEmptyLines;
-  return firstNonEmptyLine ?? null;
+  return toSanitizedOutputLineOrNull(output);
 };
 const isNumberVec3 = (value) => {
   return (
