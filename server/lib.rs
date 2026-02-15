@@ -2,7 +2,6 @@ mod common;
 mod errors;
 mod libs;
 mod server;
-mod types;
 pub mod webrtc;
 mod world;
 
@@ -24,7 +23,6 @@ use tokio::sync::{mpsc, Mutex};
 pub use common::*;
 pub use libs::*;
 pub use server::*;
-pub use types::*;
 pub use webrtc::signaling::{rtc_candidate, rtc_offer, WebRTCPeers};
 pub use webrtc::{create_webrtc_api, datachannel::fragment_message};
 pub use world::system_profiler::{
