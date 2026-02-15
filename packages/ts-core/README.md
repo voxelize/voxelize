@@ -156,8 +156,14 @@ const voxel = Voxel.pack({
     sanitize to deterministic `none`
   - bounded key-fallback scans can supplement readable high-index rules when
     bounded prefixes contain malformed/noisy entries
+  - bounded key-enumeration fallback is skipped when bounded length recovery
+    already fills the scan window
+  - inherited numeric prototype entries are ignored during bounded fallback
+    scans
   - bounded direct-read traps are skipped during fallback scans so key
     recovery can still salvage readable high-index rules
+  - throwing key-fallback reads are skipped so malformed low-index entries do
+    not force placeholder `none` rules in recovered rule lists
   - accepts readonly/frozen rule-tree arrays/tuples for ergonomic literal input
   - normalizes nullable combination sub-rules to deterministic `none` entries
   - keeps optional `id`/`stage` only when values match voxel ranges
