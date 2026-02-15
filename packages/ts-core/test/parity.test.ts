@@ -1628,6 +1628,34 @@ describe("Type builders", () => {
     expect(part.faces).toEqual([new BlockFace({ name: "GoodFace" })]);
   });
 
+  it("skips throwing key-fallback reads while salvaging aabb entries", () => {
+    const sparseAabbs: AABB[] = [];
+    sparseAabbs[0] = AABB.create(0, 0, 0, 1, 1, 1);
+    sparseAabbs[5_000] = AABB.create(1, 1, 1, 2, 2, 2);
+    const trappedAabbs = new Proxy(sparseAabbs, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          throw new Error("length trap");
+        }
+        if (propertyKey === "0") {
+          throw new Error("read trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    const part = createBlockConditionalPart({
+      aabbs: trappedAabbs as never,
+    });
+
+    expect(part.aabbs).toEqual([AABB.create(1, 1, 1, 2, 2, 2)]);
+  });
+
   it("caps bounded face-entry fallback scans when iterator access traps", () => {
     let boundedReadCount = 0;
     const oversizedFaces = new Proxy([] as Array<BlockFaceInit | undefined>, {
@@ -3228,6 +3256,41 @@ describe("Type builders", () => {
           if (propertyKey === "5000") {
             return target[5_000];
           }
+          throw new Error("read trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const pattern = createBlockDynamicPattern({
+      parts: trappedParts as never,
+    });
+
+    expect(pattern.parts).toEqual([
+      {
+        rule: BLOCK_RULE_NONE,
+        faces: [],
+        aabbs: [],
+        isTransparent: [false, false, false, false, false, false],
+        worldSpace: true,
+      },
+    ]);
+  });
+
+  it("skips throwing key-fallback reads while salvaging part entries", () => {
+    const sparseParts: BlockConditionalPartInput[] = [];
+    sparseParts[0] = { worldSpace: false };
+    sparseParts[5_000] = { worldSpace: true };
+    const trappedParts = new Proxy(sparseParts, {
+      get(target, property, receiver) {
+        const propertyKey =
+          typeof property === "number" ? String(property) : property;
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          throw new Error("length trap");
+        }
+        if (propertyKey === "0") {
           throw new Error("read trap");
         }
         return Reflect.get(target, property, receiver);
