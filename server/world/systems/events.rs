@@ -90,6 +90,14 @@ impl<'a> System<'a> for EventsSystem {
         if touched_clients.capacity() < client_count {
             touched_clients.reserve(client_count - touched_clients.capacity());
         }
+        let single_client = if client_count == 1 {
+            clients
+                .iter()
+                .next()
+                .map(|(id, client)| (id.as_str(), client.entity))
+        } else {
+            None
+        };
         let transports_map = &mut self.transports_map_buffer;
         if has_transports {
             transports_map.clear();
@@ -155,6 +163,27 @@ impl<'a> System<'a> for EventsSystem {
                     if should_send {
                         push_dispatch_event(dispatch_map, touched_clients, id, serialized);
                     }
+                }
+                continue;
+            }
+            if let Some((single_client_id, single_client_entity)) = single_client {
+                let mut should_send = match filter.as_ref() {
+                    None | Some(ClientFilter::All) => true,
+                    Some(ClientFilter::Include(ids)) => {
+                        ids.iter().any(|id| id.as_str() == single_client_id)
+                    }
+                    Some(ClientFilter::Exclude(ids)) => {
+                        !ids.iter().any(|id| id.as_str() == single_client_id)
+                    }
+                    Some(_) => false,
+                };
+                if should_send {
+                    if let Some(location) = location.as_ref() {
+                        should_send = is_interested(location, single_client_entity);
+                    }
+                }
+                if should_send {
+                    push_dispatch_event(dispatch_map, touched_clients, single_client_id, serialized);
                 }
                 continue;
             }
