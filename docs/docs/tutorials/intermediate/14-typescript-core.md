@@ -67,6 +67,8 @@ Iterator-trapped face/AABB collections can still recover readable indexed
 entries via bounded fallback scans (up to 1024 indexed reads);
 irrecoverable trap combinations sanitize to deterministic empty
 collections.
+Fallback scans ignore inherited numeric prototype entries while recovering
+readable indexed face/AABB values.
 Malformed dynamic-pattern part entries (including `null`/`undefined`) are
 skipped during helper cloning.
 Non-plain object part entries are also skipped during helper cloning.
@@ -74,6 +76,8 @@ Iterator-trapped dynamic-pattern `parts` collections can still recover
 readable indexed entries via bounded fallback scans (up to 1024 indexed
 reads); irrecoverable trap combinations sanitize to deterministic empty
 collections.
+Fallback scans ignore inherited numeric prototype entries while recovering
+readable indexed part entries.
 Malformed optional face fields fall back to default face values.
 Malformed rules fall back to `BLOCK_RULE_NONE`, and malformed transparency
 inputs (including `null`/non-array values) fall back to `false` defaults.

@@ -119,6 +119,8 @@ const voxel = Voxel.pack({
     indexed entries via bounded length/key fallback scans (up to 1024 indexed
     reads); irrecoverable trap combinations sanitize to deterministic empty
     collections
+  - fallback scans ignore inherited numeric prototype entries while recovering
+    readable indexed face/AABB values
   - malformed optional face fields (such as invalid `dir`/`corners`/`range`)
     fall back to default face values
   - malformed rule inputs fall back to `BLOCK_RULE_NONE`, and malformed
@@ -156,6 +158,8 @@ const voxel = Voxel.pack({
   - iterator-trapped `parts` collections can recover readable indexed entries
     via bounded fallback scans (up to 1024 indexed reads); irrecoverable trap
     combinations sanitize to deterministic empty collections
+  - fallback scans ignore inherited numeric prototype entries while recovering
+    readable indexed part entries
 - `createBlockFace`
   - ergonomic constructor helper for `BlockFaceInit`
     (plain/null-prototype/readonly/frozen object) or `BlockFace` input
