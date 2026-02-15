@@ -3915,6 +3915,66 @@ describe("report-utils", () => {
     expect(primitivePrecomputedSupportedTokens.unsupportedOptionsError).toBe(
       "Unsupported option(s): --mystery. Supported options: (none)."
     );
+    let statefulCanonicalOptionReadCount = 0;
+    const statefulCanonicalOptions = new Proxy(["--json"], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (property === "0") {
+          statefulCanonicalOptionReadCount += 1;
+          if (statefulCanonicalOptionReadCount > 1) {
+            return undefined;
+          }
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const statefulCanonicalValidation = createCliOptionValidation(["--json"], {
+      canonicalOptions: statefulCanonicalOptions as never,
+    });
+    expect(statefulCanonicalValidation.supportedCliOptions).toEqual(["--json"]);
+    expect(statefulCanonicalValidation.supportedCliOptionCount).toBe(1);
+    expect(statefulCanonicalValidation.unknownOptions).toEqual([]);
+    expect(statefulCanonicalValidation.unknownOptionCount).toBe(0);
+    expect(statefulCanonicalValidation.unsupportedOptionsError).toBeNull();
+    expect(statefulCanonicalValidation.validationErrorCode).toBeNull();
+    let statefulAliasTokenReadCount = 0;
+    const statefulAliasValidation = createCliOptionValidation(["--verify"], {
+      canonicalOptions: ["--json"],
+      optionAliases: {
+        "--no-build": new Proxy(["--verify"], {
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              throw new Error("iterator trap");
+            }
+            if (property === "length") {
+              return 1;
+            }
+            if (property === "0") {
+              statefulAliasTokenReadCount += 1;
+              if (statefulAliasTokenReadCount > 1) {
+                return undefined;
+              }
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      },
+    });
+    expect(statefulAliasValidation.supportedCliOptions).toEqual([
+      "--json",
+      "--no-build",
+      "--verify",
+    ]);
+    expect(statefulAliasValidation.supportedCliOptionCount).toBe(3);
+    expect(statefulAliasValidation.unknownOptions).toEqual([]);
+    expect(statefulAliasValidation.unknownOptionCount).toBe(0);
+    expect(statefulAliasValidation.unsupportedOptionsError).toBeNull();
+    expect(statefulAliasValidation.validationErrorCode).toBeNull();
 
     const iteratorTrapSupportedTokens = ["--json", "--output"];
     Object.defineProperty(iteratorTrapSupportedTokens, Symbol.iterator, {

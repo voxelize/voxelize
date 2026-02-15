@@ -1987,16 +1987,20 @@ export const createCliOptionValidation = (
     supportedCliOptions: precomputedSupportedCliOptions = null,
   } = {}
 ) => {
-  const supportedCliOptions =
-    precomputedSupportedCliOptions === null
-      ? createCliOptionCatalog({
-          canonicalOptions,
-          optionAliases,
-        }).supportedCliOptions
-      : normalizeCliOptionTokenList(precomputedSupportedCliOptions);
-  const unknownOptions = parseUnknownCliOptions(args, {
+  const optionCatalog = createCliOptionCatalog({
     canonicalOptions,
     optionAliases,
+  });
+  const catalogCanonicalOptions =
+    createCanonicalOptionSnapshotFromCatalog(optionCatalog);
+  const catalogOptionAliases = optionCatalog.availableCliOptionAliases;
+  const supportedCliOptions =
+    precomputedSupportedCliOptions === null
+      ? optionCatalog.supportedCliOptions
+      : normalizeCliOptionTokenList(precomputedSupportedCliOptions);
+  const unknownOptions = parseUnknownCliOptions(args, {
+    canonicalOptions: catalogCanonicalOptions,
+    optionAliases: catalogOptionAliases,
     optionsWithValues,
     optionsWithStrictValues,
   });
