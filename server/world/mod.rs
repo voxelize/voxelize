@@ -1069,6 +1069,17 @@ impl World {
             .insert(etype.to_lowercase(), Arc::new(loader));
     }
 
+    #[inline]
+    fn entity_loader_for_type(
+        &self,
+        etype: &str,
+    ) -> Option<Arc<dyn Fn(&mut World, MetadataComp) -> EntityBuilder + Send + Sync>> {
+        self.entity_loaders.get(etype).cloned().or_else(|| {
+            let lower = etype.to_lowercase();
+            self.entity_loaders.get(&lower).cloned()
+        })
+    }
+
     /// Handler for protobuf requests from clients.
     pub(crate) fn on_request(&mut self, client_id: &str, data: Message) {
         let msg_type = MessageType::from_i32(data.r#type).unwrap();
@@ -1267,16 +1278,10 @@ impl World {
 
     /// Spawn an entity of type at a location.
     pub fn spawn_entity_at(&mut self, etype: &str, position: &Vec3<f32>) -> Option<Entity> {
-        if !self.entity_loaders.contains_key(&etype.to_lowercase()) {
+        let Some(loader) = self.entity_loader_for_type(etype) else {
             warn!("Tried to spawn unknown entity type: {}", etype);
             return None;
-        }
-
-        let loader = self
-            .entity_loaders
-            .get(&etype.to_lowercase())
-            .unwrap()
-            .to_owned();
+        };
 
         let ent = loader(self, MetadataComp::default()).build();
         self.populate_entity(ent, &nanoid!(), etype, MetadataComp::default());
@@ -1293,16 +1298,10 @@ impl World {
         position: &Vec3<f32>,
         metadata: MetadataComp,
     ) -> Option<Entity> {
-        if !self.entity_loaders.contains_key(&etype.to_lowercase()) {
+        let Some(loader) = self.entity_loader_for_type(etype) else {
             warn!("Tried to spawn unknown entity type: {}", etype);
             return None;
-        }
-
-        let loader = self
-            .entity_loaders
-            .get(&etype.to_lowercase())
-            .unwrap()
-            .to_owned();
+        };
 
         let ent = loader(self, metadata.clone()).build();
         self.populate_entity(ent, &nanoid!(), etype, metadata);
@@ -1340,16 +1339,10 @@ impl World {
             return Some(entity);
         }
 
-        if !self.entity_loaders.contains_key(&etype.to_lowercase()) {
+        let Some(loader) = self.entity_loader_for_type(etype) else {
             warn!("Tried to revive unknown entity type: {}", etype);
             return None;
-        }
-
-        let loader = self
-            .entity_loaders
-            .get(&etype.to_lowercase())
-            .unwrap()
-            .to_owned();
+        };
 
         // Wrap entity creation in panic handler to catch any errors
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
