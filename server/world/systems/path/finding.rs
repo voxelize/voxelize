@@ -474,9 +474,11 @@ impl<'a> System<'a> for PathFindingSystem {
                 }
             });
 
-        if let Ok(cache_map) = voxel_cache.into_inner() {
-            self.voxel_cache_buffer = cache_map;
-        }
+        let cache_map = match voxel_cache.into_inner() {
+            Ok(cache_map) => cache_map,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        self.voxel_cache_buffer = cache_map;
     }
 }
 
