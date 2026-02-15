@@ -1718,6 +1718,45 @@ describe("report-utils", () => {
     });
   });
 
+  it("merges duplicate canonical alias keys after whitespace normalization", () => {
+    const optionAliases = Object.create(null) as {
+      readonly "--no-build": string[];
+      readonly " --no-build ": string[];
+    };
+    Object.defineProperty(optionAliases, " --no-build ", {
+      configurable: true,
+      enumerable: true,
+      value: [" --verify "],
+    });
+    Object.defineProperty(optionAliases, "--no-build", {
+      configurable: true,
+      enumerable: true,
+      value: [" -n ", " --verify "],
+    });
+
+    const catalog = createCliOptionCatalog({
+      canonicalOptions: ["--json"],
+      optionAliases: optionAliases as never,
+    });
+
+    expect(catalog.supportedCliOptions).toEqual([
+      "--json",
+      "--no-build",
+      "--verify",
+      "-n",
+    ]);
+    expect(catalog.supportedCliOptionCount).toBe(4);
+    expect(catalog.availableCliOptionAliases).toEqual({
+      "--no-build": ["--verify", "-n"],
+    });
+    expect(catalog.availableCliOptionCanonicalMap).toEqual({
+      "--json": "--json",
+      "--no-build": "--no-build",
+      "--verify": "--no-build",
+      "-n": "--no-build",
+    });
+  });
+
   it("sanitizes malformed cli option catalog inputs", () => {
     const canonicalOptions = ["--json", "--output"];
     Object.defineProperty(canonicalOptions, Symbol.iterator, {
