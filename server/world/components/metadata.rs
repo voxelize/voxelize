@@ -1,6 +1,6 @@
 use bincode;
 use blake3::Hash;
-use hashbrown::{hash_map::Entry, HashMap};
+use hashbrown::{hash_map::RawEntryMut, HashMap};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
 use specs::{Component, VecStorage};
@@ -37,22 +37,29 @@ impl MetadataComp {
     /// Set a component's metadata (dynamic - sent every update)
     pub fn set<T: Component + Serialize>(&mut self, component: &str, data: &T) {
         let value = json!(data);
-        if self
-            .map
-            .get(component)
-            .is_some_and(|existing| *existing == value)
-        {
-            return;
+        match self.map.raw_entry_mut().from_key(component) {
+            RawEntryMut::Occupied(mut entry) => {
+                if entry.get() == &value {
+                    return;
+                }
+                *entry.get_mut() = value;
+                self.cached_json = None;
+            }
+            RawEntryMut::Vacant(entry) => {
+                entry.insert(component.to_owned(), value);
+                self.cached_json = None;
+            }
         }
-        self.map.insert(component.to_owned(), value);
-        self.cached_json = None;
     }
 
     /// Set static metadata only if it doesn't already exist (sent on CREATE, not every UPDATE)
     pub fn set_once<T: Component + Serialize>(&mut self, component: &str, data: &T) {
-        if let Entry::Vacant(entry) = self.map.entry(component.to_owned()) {
-            entry.insert(json!(data));
-            self.cached_json = None;
+        match self.map.raw_entry_mut().from_key(component) {
+            RawEntryMut::Occupied(_) => {}
+            RawEntryMut::Vacant(entry) => {
+                entry.insert(component.to_owned(), json!(data));
+                self.cached_json = None;
+            }
         }
     }
 
@@ -116,5 +123,43 @@ impl MetadataComp {
     /// Reset this metadata
     pub fn reset(&mut self) {
         self.map.clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde::{Deserialize, Serialize};
+    use specs::{Component, VecStorage};
+
+    use super::MetadataComp;
+
+    #[derive(Component, Deserialize, Serialize)]
+    #[storage(VecStorage)]
+    struct TestMetadataValue {
+        value: i32,
+    }
+
+    #[test]
+    fn set_keeps_cache_when_value_unchanged() {
+        let mut metadata = MetadataComp::new();
+        metadata.set("test", &TestMetadataValue { value: 1 });
+        let (first_json, first_updated) = metadata.to_cached_str();
+        assert!(first_updated);
+
+        metadata.set("test", &TestMetadataValue { value: 1 });
+        let (second_json, second_updated) = metadata.to_cached_str();
+
+        assert!(!second_updated);
+        assert_eq!(first_json, second_json);
+    }
+
+    #[test]
+    fn set_once_does_not_overwrite_existing_value() {
+        let mut metadata = MetadataComp::new();
+        metadata.set_once("test", &TestMetadataValue { value: 1 });
+        metadata.set_once("test", &TestMetadataValue { value: 2 });
+
+        let stored: Option<TestMetadataValue> = metadata.get("test");
+        assert_eq!(stored.map(|value| value.value), Some(1));
     }
 }
