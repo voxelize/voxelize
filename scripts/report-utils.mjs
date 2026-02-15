@@ -555,6 +555,12 @@ const toFiniteNumberOrNull = (value) => {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 };
 
+const toNonNegativeFiniteNumberOrNull = (value) => {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? value
+    : null;
+};
+
 const toTrimmedStringOrNull = (value) => {
   if (typeof value !== "string") {
     return null;
@@ -802,7 +808,7 @@ export const extractTsCoreExampleSummaryFromReport = (report) => {
     toNonNegativeIntegerOrNull(exampleExitCodeValue);
   const exampleDurationMsValue = safeReadProperty(report, "exampleDurationMs");
   const exampleDurationMs =
-    toFiniteNumberOrNull(exampleDurationMsValue);
+    toNonNegativeFiniteNumberOrNull(exampleDurationMsValue);
   const exampleOutputLineValue = safeReadProperty(report, "exampleOutputLine");
   const exampleOutputLine =
     typeof exampleOutputLineValue === "string" ? exampleOutputLineValue : null;
