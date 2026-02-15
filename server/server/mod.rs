@@ -297,8 +297,7 @@ impl Server {
                 );
             };
 
-            let world_name = world_name.clone();
-            if let Some(world) = self.get_world_mut(&world_name) {
+            if let Some(world) = self.get_world(world_name) {
                 world.do_send(ClientRequest {
                     client_id: id.to_owned(),
                     data,
