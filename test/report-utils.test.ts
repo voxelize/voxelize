@@ -1081,6 +1081,46 @@ describe("report-utils", () => {
     ]);
   });
 
+  it("sanitizes malformed metadata inputs in unknown option parsing", () => {
+    const canonicalOptions = ["--json", "--output"];
+    Object.defineProperty(canonicalOptions, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    const optionAliases = Object.create(null) as {
+      readonly "--no-build": string[];
+    };
+    Object.defineProperty(optionAliases, "--no-build", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("alias trap");
+      },
+    });
+    const optionsWithValues = ["--output"];
+    Object.defineProperty(optionsWithValues, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+
+    const unknownOptions = parseUnknownCliOptions(
+      ["--json", "--mystery", "--output", "./report.json"],
+      {
+        canonicalOptions: canonicalOptions as never,
+        optionAliases: optionAliases as never,
+        optionsWithValues: optionsWithValues as never,
+      }
+    );
+
+    expect(unknownOptions).toEqual(["--json", "--mystery", "--output"]);
+  });
+
   it("creates structured cli option validation metadata", () => {
     const noValidationErrors = createCliOptionValidation(
       ["--json", "--verify", "--output=./report.json"],
@@ -1438,6 +1478,53 @@ describe("report-utils", () => {
       },
     ]);
     expect(diagnostics.activeCliOptionOccurrenceCount).toBe(3);
+  });
+
+  it("sanitizes malformed metadata inputs in unified cli diagnostics", () => {
+    const canonicalOptions = ["--json", "--output"];
+    Object.defineProperty(canonicalOptions, Symbol.iterator, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error("iterator trap");
+      },
+    });
+    const optionAliases = Object.create(null) as {
+      readonly "--no-build": string[];
+    };
+    Object.defineProperty(optionAliases, "--no-build", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("alias trap");
+      },
+    });
+
+    const diagnostics = createCliDiagnostics(
+      ["--json", "--mystery", "--output", "./report.json"],
+      {
+        canonicalOptions: canonicalOptions as never,
+        optionAliases: optionAliases as never,
+      }
+    );
+
+    expect(diagnostics.supportedCliOptions).toEqual([]);
+    expect(diagnostics.supportedCliOptionCount).toBe(0);
+    expect(diagnostics.availableCliOptionAliases).toEqual({});
+    expect(diagnostics.availableCliOptionCanonicalMap).toEqual({});
+    expect(diagnostics.unknownOptions).toEqual(["--json", "--mystery", "--output"]);
+    expect(diagnostics.unknownOptionCount).toBe(3);
+    expect(diagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --json, --mystery, --output. Supported options: (none)."
+    );
+    expect(diagnostics.validationErrorCode).toBe("unsupported_options");
+    expect(diagnostics.activeCliOptions).toEqual([]);
+    expect(diagnostics.activeCliOptionCount).toBe(0);
+    expect(diagnostics.activeCliOptionTokens).toEqual([]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([]);
+    expect(diagnostics.activeCliOptionResolutionCount).toBe(0);
+    expect(diagnostics.activeCliOptionOccurrences).toEqual([]);
+    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(0);
   });
 
   it("keeps pre-terminator aliases active while ignoring post-terminator misuse", () => {
