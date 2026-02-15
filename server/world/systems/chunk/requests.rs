@@ -125,6 +125,9 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             }
         }
 
+        if to_send_touched_clients.is_empty() {
+            return;
+        }
         for id in to_send_touched_clients.drain(..) {
             let Some(coords_to_send) = to_send.get_mut(&id) else {
                 continue;
