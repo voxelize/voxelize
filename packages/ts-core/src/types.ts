@@ -557,41 +557,70 @@ const cloneBlockFace = (
   return new BlockFace(faceInit);
 };
 
+type AabbLikeValue = {
+  minX?: DynamicValue;
+  minY?: DynamicValue;
+  minZ?: DynamicValue;
+  maxX?: DynamicValue;
+  maxY?: DynamicValue;
+  maxZ?: DynamicValue;
+};
+
+const toFiniteAabbInit = (aabb: AabbLikeValue): AABBInit | null => {
+  if (
+    !isFiniteNumberValue(aabb.minX) ||
+    !isFiniteNumberValue(aabb.minY) ||
+    !isFiniteNumberValue(aabb.minZ) ||
+    !isFiniteNumberValue(aabb.maxX) ||
+    !isFiniteNumberValue(aabb.maxY) ||
+    !isFiniteNumberValue(aabb.maxZ)
+  ) {
+    return null;
+  }
+
+  return {
+    minX: aabb.minX,
+    minY: aabb.minY,
+    minZ: aabb.minZ,
+    maxX: aabb.maxX,
+    maxY: aabb.maxY,
+    maxZ: aabb.maxZ,
+  };
+};
+
 const cloneAabb = (aabb: AABBInput | null | undefined): AABB | null => {
   if (aabb instanceof AABB) {
-    return aabb.clone();
+    const finiteAabb = toFiniteAabbInit(aabb);
+    if (finiteAabb === null) {
+      return null;
+    }
+
+    return AABB.create(
+      finiteAabb.minX,
+      finiteAabb.minY,
+      finiteAabb.minZ,
+      finiteAabb.maxX,
+      finiteAabb.maxY,
+      finiteAabb.maxZ
+    );
   }
 
   if (!isPlainObjectValue(aabb)) {
     return null;
   }
 
-  const maybeAabb = aabb as {
-    minX?: DynamicValue;
-    minY?: DynamicValue;
-    minZ?: DynamicValue;
-    maxX?: DynamicValue;
-    maxY?: DynamicValue;
-    maxZ?: DynamicValue;
-  };
-  if (
-    !isFiniteNumberValue(maybeAabb.minX) ||
-    !isFiniteNumberValue(maybeAabb.minY) ||
-    !isFiniteNumberValue(maybeAabb.minZ) ||
-    !isFiniteNumberValue(maybeAabb.maxX) ||
-    !isFiniteNumberValue(maybeAabb.maxY) ||
-    !isFiniteNumberValue(maybeAabb.maxZ)
-  ) {
+  const finiteAabb = toFiniteAabbInit(aabb);
+  if (finiteAabb === null) {
     return null;
   }
 
   return AABB.create(
-    maybeAabb.minX,
-    maybeAabb.minY,
-    maybeAabb.minZ,
-    maybeAabb.maxX,
-    maybeAabb.maxY,
-    maybeAabb.maxZ
+    finiteAabb.minX,
+    finiteAabb.minY,
+    finiteAabb.minZ,
+    finiteAabb.maxX,
+    finiteAabb.maxY,
+    finiteAabb.maxZ
   );
 };
 

@@ -1429,6 +1429,18 @@ describe("Type builders", () => {
     expect(part.aabbs).toEqual([]);
   });
 
+  it("skips malformed AABB instances during conditional part cloning", () => {
+    const malformedAabb = AABB.create(0, 0, 0, 1, 1, 1);
+    malformedAabb.maxX = Number.POSITIVE_INFINITY;
+    const validAabb = AABB.create(1, 1, 1, 2, 2, 2);
+    const part = createBlockConditionalPart({
+      aabbs: [malformedAabb, validAabb],
+    });
+
+    expect(part.aabbs).toEqual([validAabb]);
+    expect(part.aabbs[0]).not.toBe(validAabb);
+  });
+
   it("skips non-plain face objects during conditional part cloning", () => {
     class FaceLike {
       public readonly name = "ClassFace";
@@ -2433,6 +2445,23 @@ describe("Type builders", () => {
     expect(pattern.parts[0].aabbs).toEqual([AABB.create(0, 0, 0, 1, 1, 1)]);
   });
 
+  it("skips malformed AABB instances in dynamic pattern parts", () => {
+    const malformedAabb = AABB.create(0, 0, 0, 1, 1, 1);
+    malformedAabb.maxY = Number.NaN;
+    const validAabb = AABB.create(1, 1, 1, 2, 2, 2);
+    const pattern = createBlockDynamicPattern({
+      parts: [
+        {
+          aabbs: [malformedAabb, validAabb],
+        },
+      ],
+    });
+
+    expect(pattern.parts).toHaveLength(1);
+    expect(pattern.parts[0].aabbs).toEqual([validAabb]);
+    expect(pattern.parts[0].aabbs[0]).not.toBe(validAabb);
+  });
+
   it("clones dynamic pattern parts to avoid external mutation", () => {
     const sourcePart = createBlockConditionalPart({
       rule: {
@@ -2691,10 +2720,13 @@ describe("Type builders", () => {
       public readonly maxY = 1;
       public readonly maxZ = 1;
     }
+    const malformedAabbInstance = AABB.create(0, 0, 0, 1, 1, 1);
+    malformedAabbInstance.minZ = Number.NaN;
 
     expect(createAABB()).toEqual(AABB.empty());
     expect(createAABB(null)).toEqual(AABB.empty());
     expect(createAABB(new AabbLike() as never)).toEqual(AABB.empty());
+    expect(createAABB(malformedAabbInstance)).toEqual(AABB.empty());
     expect(
       createAABB({
         minX: 0,
