@@ -60,9 +60,10 @@ impl<'a> System<'a> for EntityTreeSystem {
         let _t = timing.timer("entity-tree");
 
         self.current_ids_buffer.clear();
-        if self.current_ids_buffer.capacity() < tree.len() {
+        let initial_tree_len = tree.len();
+        if self.current_ids_buffer.capacity() < initial_tree_len {
             self.current_ids_buffer
-                .reserve(tree.len() - self.current_ids_buffer.capacity());
+                .reserve(initial_tree_len - self.current_ids_buffer.capacity());
         }
         let current_ids = &mut self.current_ids_buffer;
 
