@@ -2182,6 +2182,15 @@ describe("report-utils", () => {
       }
     );
     expect(unknownWithStrictUnknownShortValue).toEqual(["-l"]);
+    const unknownWithStrictUnknownInlineShortValue = parseUnknownCliOptions(
+      ["--output", "-l=1"],
+      {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+      }
+    );
+    expect(unknownWithStrictUnknownInlineShortValue).toEqual(["-l"]);
     const unknownWithStrictDashPrefixedPathValue = parseUnknownCliOptions(
       ["--output", "-artifact-report.json"],
       {
@@ -2614,6 +2623,22 @@ describe("report-utils", () => {
       "Unsupported option(s): -l. Supported options: --output."
     );
     expect(strictUnknownShortValueValidation.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    const strictUnknownInlineShortValueValidation = createCliOptionValidation(
+      ["--output", "-l=1"],
+      {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+      }
+    );
+    expect(strictUnknownInlineShortValueValidation.unknownOptions).toEqual(["-l"]);
+    expect(strictUnknownInlineShortValueValidation.unknownOptionCount).toBe(1);
+    expect(strictUnknownInlineShortValueValidation.unsupportedOptionsError).toBe(
+      "Unsupported option(s): -l. Supported options: --output."
+    );
+    expect(strictUnknownInlineShortValueValidation.validationErrorCode).toBe(
       "unsupported_options"
     );
     const strictDashPrefixedPathValueValidation = createCliOptionValidation(
@@ -3712,6 +3737,39 @@ describe("report-utils", () => {
 
   it("reports unknown short tokens after strict value options", () => {
     const diagnostics = createCliDiagnostics(["--output", "-l"], {
+      canonicalOptions: ["--output"],
+      optionsWithValues: ["--output"],
+      optionsWithStrictValues: ["--output"],
+    });
+
+    expect(diagnostics.activeCliOptions).toEqual(["--output"]);
+    expect(diagnostics.activeCliOptionCount).toBe(1);
+    expect(diagnostics.activeCliOptionTokens).toEqual(["--output"]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(diagnostics.activeCliOptionResolutionCount).toBe(1);
+    expect(diagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+    ]);
+    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(1);
+    expect(diagnostics.unknownOptions).toEqual(["-l"]);
+    expect(diagnostics.unknownOptionCount).toBe(1);
+    expect(diagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): -l. Supported options: --output."
+    );
+    expect(diagnostics.validationErrorCode).toBe("unsupported_options");
+  });
+
+  it("reports unknown inline short tokens after strict value options", () => {
+    const diagnostics = createCliDiagnostics(["--output", "-l=1"], {
       canonicalOptions: ["--output"],
       optionsWithValues: ["--output"],
       optionsWithStrictValues: ["--output"],
