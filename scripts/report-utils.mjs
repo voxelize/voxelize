@@ -2246,10 +2246,14 @@ export const createCliOptionValidation = (
     normalizedPrecomputedSupportedCliOptions.filter((optionToken) => {
       return catalogSupportedCliOptionSet.has(optionToken);
     });
+  const precomputedSupportedCliOptionsContainUnknownTokens =
+    filteredPrecomputedSupportedCliOptions.length <
+    normalizedPrecomputedSupportedCliOptions.length;
   const shouldFallbackToCatalogSupportedCliOptions =
     normalizedPrecomputedSupportedCliOptionMetadata !== null &&
     catalogSupportedCliOptions.length > 0 &&
     (normalizedPrecomputedSupportedCliOptionMetadata.unavailable ||
+      precomputedSupportedCliOptionsContainUnknownTokens ||
       (filteredPrecomputedSupportedCliOptions.length === 0 &&
         (normalizedPrecomputedSupportedCliOptions.length > 0 ||
           precomputedSupportedCliOptionsHasReadableEntries)));

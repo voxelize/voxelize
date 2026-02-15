@@ -4367,8 +4367,8 @@ describe("report-utils", () => {
       }
     );
     expect(staleUnknownPrecomputedSupportedTokens.supportedCliOptions).toEqual([
-      "--output",
       "--json",
+      "--output",
     ]);
     expect(staleUnknownPrecomputedSupportedTokens.supportedCliOptionCount).toBe(2);
     expect(staleUnknownPrecomputedSupportedTokens.unknownOptions).toEqual([
@@ -4376,7 +4376,7 @@ describe("report-utils", () => {
     ]);
     expect(staleUnknownPrecomputedSupportedTokens.unknownOptionCount).toBe(1);
     expect(staleUnknownPrecomputedSupportedTokens.unsupportedOptionsError).toBe(
-      "Unsupported option(s): --mystery. Supported options: --output, --json."
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
     );
     expect(staleUnknownPrecomputedSupportedTokens.validationErrorCode).toBe(
       "unsupported_options"
@@ -4390,17 +4390,17 @@ describe("report-utils", () => {
         supportedCliOptions: ["--verify", "--mystery"],
       });
     expect(staleUnknownAliasPrecomputedSupportedTokens.supportedCliOptions).toEqual(
-      ["--verify"]
+      ["--json", "--no-build", "--verify"]
     );
     expect(staleUnknownAliasPrecomputedSupportedTokens.supportedCliOptionCount).toBe(
-      1
+      3
     );
     expect(staleUnknownAliasPrecomputedSupportedTokens.unknownOptions).toEqual([
       "--mystery",
     ]);
     expect(staleUnknownAliasPrecomputedSupportedTokens.unknownOptionCount).toBe(1);
     expect(staleUnknownAliasPrecomputedSupportedTokens.unsupportedOptionsError).toBe(
-      "Unsupported option(s): --mystery. Supported options: --verify."
+      "Unsupported option(s): --mystery. Supported options: --json, --no-build, --verify."
     );
     expect(staleUnknownAliasPrecomputedSupportedTokens.validationErrorCode).toBe(
       "unsupported_options"
