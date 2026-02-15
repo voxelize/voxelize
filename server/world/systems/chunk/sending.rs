@@ -385,6 +385,15 @@ mod tests {
     }
 
     #[test]
+    fn take_updated_level_range_handles_single_level_without_drain() {
+        let mut levels = HashSet::new();
+        levels.insert(4);
+
+        assert_eq!(take_updated_level_range(&mut levels), Some((4, 5)));
+        assert!(levels.is_empty());
+    }
+
+    #[test]
     fn take_updated_level_range_saturates_exclusive_max() {
         let mut levels = HashSet::new();
         levels.insert(u32::MAX);
