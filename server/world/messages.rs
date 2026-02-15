@@ -4,7 +4,7 @@ use crossbeam_channel::{Receiver, Sender};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::{common::ClientFilter, encode_message, server::Message, EntityOperation, MessageType};
-const SYNC_ENCODE_BATCH_LIMIT: usize = 4;
+const SYNC_ENCODE_BATCH_LIMIT: usize = 8;
 
 #[derive(Clone)]
 pub struct EncodedMessage {
