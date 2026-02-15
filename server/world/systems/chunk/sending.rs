@@ -83,6 +83,50 @@ fn push_chunk_batch(
 }
 
 #[inline]
+fn push_chunk_batch_owned(
+    batches: &mut HashMap<String, Vec<ChunkProtocol>>,
+    touched_clients: &mut Vec<String>,
+    client_id: &str,
+    chunk_model: ChunkProtocol,
+) {
+    match batches.raw_entry_mut().from_key(client_id) {
+        RawEntryMut::Occupied(mut entry) => {
+            let chunk_models = entry.get_mut();
+            if chunk_models.is_empty() {
+                touched_clients.push(client_id.to_owned());
+            }
+            chunk_models.push(chunk_model);
+        }
+        RawEntryMut::Vacant(entry) => {
+            touched_clients.push(client_id.to_owned());
+            let mut chunk_models = Vec::with_capacity(1);
+            chunk_models.push(chunk_model);
+            entry.insert(client_id.to_owned(), chunk_models);
+        }
+    }
+}
+
+#[inline]
+fn fanout_chunk_model(
+    batches: &mut HashMap<String, Vec<ChunkProtocol>>,
+    touched_clients: &mut Vec<String>,
+    interested_clients: &HashSet<String>,
+    chunk_model: ChunkProtocol,
+) {
+    let Some(first_client_id) = interested_clients.iter().next() else {
+        return;
+    };
+
+    for client_id in interested_clients {
+        if client_id != first_client_id {
+            push_chunk_batch(batches, touched_clients, client_id, &chunk_model);
+        }
+    }
+
+    push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+}
+
+#[inline]
 fn prepare_chunk_batch_buffer(
     batches: &mut HashMap<String, Vec<ChunkProtocol>>,
     touched_clients: &mut Vec<String>,
@@ -219,45 +263,39 @@ impl<'a> System<'a> for ChunkSendingSystem {
                 let mesh_model = chunk.to_model(true, false, 0..sub_chunks_u32);
                 let data_model = chunk.to_model(false, true, 0..sub_chunks_u32);
 
-                for client_id in interested_clients {
-                    push_chunk_batch(
-                        client_load_mesh,
-                        client_load_mesh_touched,
-                        client_id,
-                        &mesh_model,
-                    );
-                    push_chunk_batch(
-                        client_load_data,
-                        client_load_data_touched,
-                        client_id,
-                        &data_model,
-                    );
-                }
+                fanout_chunk_model(
+                    client_load_mesh,
+                    client_load_mesh_touched,
+                    interested_clients,
+                    mesh_model,
+                );
+                fanout_chunk_model(
+                    client_load_data,
+                    client_load_data_touched,
+                    interested_clients,
+                    data_model,
+                );
             } else {
                 if let Some((min_level, max_level_exclusive)) =
                     take_updated_level_range(&mut chunk.updated_levels)
                 {
                     let mesh_model = chunk.to_model(true, false, min_level..max_level_exclusive);
 
-                    for client_id in interested_clients {
-                        push_chunk_batch(
-                            client_update_mesh,
-                            client_update_mesh_touched,
-                            client_id,
-                            &mesh_model,
-                        );
-                    }
+                    fanout_chunk_model(
+                        client_update_mesh,
+                        client_update_mesh_touched,
+                        interested_clients,
+                        mesh_model,
+                    );
                 }
 
                 let data_model = chunk.to_model(false, true, 0..0);
-                for client_id in interested_clients {
-                    push_chunk_batch(
-                        client_update_data,
-                        client_update_data_touched,
-                        client_id,
-                        &data_model,
-                    );
-                }
+                fanout_chunk_model(
+                    client_update_data,
+                    client_update_data_touched,
+                    interested_clients,
+                    data_model,
+                );
             }
         }
 
