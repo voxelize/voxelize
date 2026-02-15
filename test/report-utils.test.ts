@@ -6609,6 +6609,67 @@ describe("report-utils", () => {
       },
     ]);
     expect(statefulAliasDiagnostics.activeCliOptionOccurrenceCount).toBe(1);
+    let statefulValueOptionReadCount = 0;
+    const statefulValueOptionDiagnostics = createCliDiagnostics(
+      ["--output", "-l"],
+      {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-l"],
+        },
+        optionsWithValues: new Proxy(["--output"], {
+          get(target, property, receiver) {
+            if (property === "0") {
+              statefulValueOptionReadCount += 1;
+              if (statefulValueOptionReadCount > 1) {
+                return undefined;
+              }
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      }
+    );
+    expect(statefulValueOptionDiagnostics.supportedCliOptions).toEqual([
+      "--output",
+      "--json",
+      "-l",
+    ]);
+    expect(statefulValueOptionDiagnostics.supportedCliOptionCount).toBe(3);
+    expect(statefulValueOptionDiagnostics.availableCliOptionAliases).toEqual({
+      "--json": ["-l"],
+    });
+    expect(statefulValueOptionDiagnostics.availableCliOptionCanonicalMap).toEqual({
+      "--output": "--output",
+      "--json": "--json",
+      "-l": "--json",
+    });
+    expect(statefulValueOptionDiagnostics.unknownOptions).toEqual([]);
+    expect(statefulValueOptionDiagnostics.unknownOptionCount).toBe(0);
+    expect(statefulValueOptionDiagnostics.unsupportedOptionsError).toBeNull();
+    expect(statefulValueOptionDiagnostics.validationErrorCode).toBeNull();
+    expect(statefulValueOptionDiagnostics.activeCliOptions).toEqual([
+      "--output",
+    ]);
+    expect(statefulValueOptionDiagnostics.activeCliOptionCount).toBe(1);
+    expect(statefulValueOptionDiagnostics.activeCliOptionTokens).toEqual([
+      "--output",
+    ]);
+    expect(statefulValueOptionDiagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(statefulValueOptionDiagnostics.activeCliOptionResolutionCount).toBe(1);
+    expect(statefulValueOptionDiagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+    ]);
+    expect(statefulValueOptionDiagnostics.activeCliOptionOccurrenceCount).toBe(1);
     const nonArrayAliasMetadataDiagnostics = createCliDiagnostics(
       ["--verify", "--mystery"],
       {

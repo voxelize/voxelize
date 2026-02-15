@@ -1791,19 +1791,40 @@ const resolveCanonicalOptionTokens = (optionTokens, canonicalOptionMap) => {
     });
 };
 
-const createValueOptionMetadata = (
-  optionsWithValues,
-  optionsWithStrictValues,
+const toNormalizedCliOptionTokenMetadata = (
+  normalizedTokenMetadata,
+  fallbackTokens
+) => {
+  if (isObjectRecord(normalizedTokenMetadata)) {
+    const metadataTokens = safeReadProperty(normalizedTokenMetadata, "tokens");
+    const metadataUnavailable = safeReadProperty(
+      normalizedTokenMetadata,
+      "unavailable"
+    );
+    if (Array.isArray(metadataTokens) && typeof metadataUnavailable === "boolean") {
+      return {
+        tokens: normalizeCliOptionTokenList(metadataTokens),
+        unavailable: metadataUnavailable,
+      };
+    }
+  }
+
+  return normalizeCliOptionTokenListWithAvailability(fallbackTokens);
+};
+
+const createValueOptionMetadataFromNormalizedTokenMetadata = (
+  valueOptionTokenMetadata,
+  strictValueOptionTokenMetadata,
   canonicalOptionMap
 ) => {
   const {
     tokens: normalizedOptionsWithValues,
     unavailable: valueOptionsUnavailable,
-  } = normalizeCliOptionTokenListWithAvailability(optionsWithValues);
+  } = valueOptionTokenMetadata;
   const {
     tokens: normalizedOptionsWithStrictValues,
     unavailable: strictValueOptionsUnavailable,
-  } = normalizeCliOptionTokenListWithAvailability(optionsWithStrictValues);
+  } = strictValueOptionTokenMetadata;
   let canonicalValueOptions = new Set(
     resolveCanonicalOptionTokens(normalizedOptionsWithValues, canonicalOptionMap)
   );
@@ -1880,6 +1901,18 @@ const createValueOptionMetadata = (
   };
 };
 
+const createValueOptionMetadata = (
+  optionsWithValues,
+  optionsWithStrictValues,
+  canonicalOptionMap
+) => {
+  return createValueOptionMetadataFromNormalizedTokenMetadata(
+    normalizeCliOptionTokenListWithAvailability(optionsWithValues),
+    normalizeCliOptionTokenListWithAvailability(optionsWithStrictValues),
+    canonicalOptionMap
+  );
+};
+
 const normalizeUnknownOptionToken = (optionToken, canonicalOptionMap) => {
   const optionName = parseInlineOptionName(optionToken);
   if (optionName === null) {
@@ -1905,6 +1938,8 @@ export const parseUnknownCliOptions = (
     optionAliases = {},
     optionsWithValues = [],
     optionsWithStrictValues = [],
+    valueOptionTokenMetadata = null,
+    strictValueOptionTokenMetadata = null,
   } = {}
 ) => {
   const { optionArgs } = splitCliArgs(args);
@@ -1912,13 +1947,22 @@ export const parseUnknownCliOptions = (
     canonicalOptions,
     optionAliases
   );
+  const normalizedValueOptionTokenMetadata = toNormalizedCliOptionTokenMetadata(
+    valueOptionTokenMetadata,
+    optionsWithValues
+  );
+  const normalizedStrictValueOptionTokenMetadata =
+    toNormalizedCliOptionTokenMetadata(
+      strictValueOptionTokenMetadata,
+      optionsWithStrictValues
+    );
   const {
     canonicalValueOptions,
     canonicalStrictValueOptions,
     inlineValueTokenCanonicalMap,
-  } = createValueOptionMetadata(
-    optionsWithValues,
-    optionsWithStrictValues,
+  } = createValueOptionMetadataFromNormalizedTokenMetadata(
+    normalizedValueOptionTokenMetadata,
+    normalizedStrictValueOptionTokenMetadata,
     canonicalOptionMap
   );
   const unknownOptions = [];
@@ -1983,6 +2027,8 @@ export const createCliOptionValidation = (
     optionAliases = {},
     optionsWithValues = [],
     optionsWithStrictValues = [],
+    valueOptionTokenMetadata = null,
+    strictValueOptionTokenMetadata = null,
     outputPathError = null,
     supportedCliOptions: precomputedSupportedCliOptions = null,
   } = {}
@@ -2003,6 +2049,8 @@ export const createCliOptionValidation = (
     optionAliases: catalogOptionAliases,
     optionsWithValues,
     optionsWithStrictValues,
+    valueOptionTokenMetadata,
+    strictValueOptionTokenMetadata,
   });
   const unknownOptionCount = unknownOptions.length;
   const supportedOptionList =
@@ -2050,6 +2098,8 @@ export const parseActiveCliOptionMetadata = (
     optionAliases = {},
     optionsWithValues = [],
     optionsWithStrictValues = [],
+    valueOptionTokenMetadata = null,
+    strictValueOptionTokenMetadata = null,
   } = {}
 ) => {
   const { optionArgs } = splitCliArgs(args);
@@ -2059,13 +2109,22 @@ export const parseActiveCliOptionMetadata = (
     normalizedCanonicalOptions,
     normalizedOptionAliases
   );
+  const normalizedValueOptionTokenMetadata = toNormalizedCliOptionTokenMetadata(
+    valueOptionTokenMetadata,
+    optionsWithValues
+  );
+  const normalizedStrictValueOptionTokenMetadata =
+    toNormalizedCliOptionTokenMetadata(
+      strictValueOptionTokenMetadata,
+      optionsWithStrictValues
+    );
   const {
     canonicalValueOptions,
     canonicalStrictValueOptions,
     inlineValueTokenCanonicalMap,
-  } = createValueOptionMetadata(
-    optionsWithValues,
-    optionsWithStrictValues,
+  } = createValueOptionMetadataFromNormalizedTokenMetadata(
+    normalizedValueOptionTokenMetadata,
+    normalizedStrictValueOptionTokenMetadata,
     canonicalOptionMap
   );
   const activeCliOptionsSet = new Set();
@@ -2167,11 +2226,18 @@ export const createCliDiagnostics = (
   const catalogCanonicalOptions =
     createCanonicalOptionSnapshotFromCatalog(optionCatalog);
   const catalogOptionAliases = optionCatalog.availableCliOptionAliases;
+  const valueOptionTokenMetadata = normalizeCliOptionTokenListWithAvailability(
+    optionsWithValues
+  );
+  const strictValueOptionTokenMetadata =
+    normalizeCliOptionTokenListWithAvailability(optionsWithStrictValues);
   const optionValidation = createCliOptionValidation(args, {
     canonicalOptions: catalogCanonicalOptions,
     optionAliases: catalogOptionAliases,
     optionsWithValues,
     optionsWithStrictValues,
+    valueOptionTokenMetadata,
+    strictValueOptionTokenMetadata,
     outputPathError,
     supportedCliOptions: optionCatalog.supportedCliOptions,
   });
@@ -2180,6 +2246,8 @@ export const createCliDiagnostics = (
     optionAliases: catalogOptionAliases,
     optionsWithValues,
     optionsWithStrictValues,
+    valueOptionTokenMetadata,
+    strictValueOptionTokenMetadata,
   });
 
   return {
