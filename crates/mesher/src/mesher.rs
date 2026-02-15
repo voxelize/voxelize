@@ -3270,12 +3270,14 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     if block.is_empty {
                         continue;
                     }
+                    let mut has_dynamic_patterns_cached: Option<bool> = None;
                     if !block.is_fluid && block.faces.is_empty() {
                         let has_dynamic_patterns = if block.cache_ready {
                             block.has_dynamic_patterns
                         } else {
                             block.has_dynamic_patterns_cached()
                         };
+                        has_dynamic_patterns_cached = Some(has_dynamic_patterns);
                         if !has_dynamic_patterns {
                             continue;
                         }
@@ -3330,7 +3332,9 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         } else {
                             block.has_standard_six_faces_cached()
                         };
-                    let has_dynamic_patterns = if cache_ready {
+                    let has_dynamic_patterns = if let Some(cached) = has_dynamic_patterns_cached {
+                        cached
+                    } else if cache_ready {
                         block.has_dynamic_patterns
                     } else {
                         block.has_dynamic_patterns_cached()
