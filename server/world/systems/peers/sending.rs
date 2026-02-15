@@ -55,10 +55,11 @@ impl<'a> System<'a> for PeersSendingSystem {
         if peers.is_empty() {
             return;
         }
+        let peers_to_send = std::mem::replace(peers, Vec::with_capacity(peers.len()));
 
         queue.push((
             Message::new(&MessageType::Peer)
-                .peers_owned(peers.split_off(0))
+                .peers_owned(peers_to_send)
                 .build(),
             ClientFilter::All,
         ));
