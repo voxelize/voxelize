@@ -48,8 +48,8 @@ impl Stats {
 
         // Try to load existing stats if saving is enabled and file exists
         let (loaded_tick, loaded_time) = if saving && path.exists() {
-            match fs::read_to_string(&path) {
-                Ok(contents) => match serde_json::from_str::<StatsJson>(&contents) {
+            match fs::File::open(&path) {
+                Ok(file) => match serde_json::from_reader::<_, StatsJson>(file) {
                     Ok(stats_json) => (stats_json.tick, stats_json.time),
                     Err(e) => {
                         warn!("Failed to parse stats.json: {}", e);
@@ -57,7 +57,7 @@ impl Stats {
                     }
                 },
                 Err(e) => {
-                    warn!("Failed to read stats.json: {}", e);
+                    warn!("Failed to open stats.json: {}", e);
                     (0, default_time)
                 }
             }
