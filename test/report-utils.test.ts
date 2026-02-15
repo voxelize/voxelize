@@ -4451,6 +4451,38 @@ describe("report-utils", () => {
     expect(
       staleSupportedWithUnknownTokenCatalogOverrideValidation.validationErrorCode
     ).toBeNull();
+    const staleSupportedWithUnknownTokenCatalogOverrideUnknownValidation =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions: ["--json"],
+        optionCatalog: {
+          supportedCliOptions: ["--output", "--mystery"],
+          availableCliOptionCanonicalMap: {
+            "--output": "--output",
+            "--json": "--json",
+            "-j": "--json",
+          },
+        } as never,
+      });
+    expect(
+      staleSupportedWithUnknownTokenCatalogOverrideUnknownValidation.supportedCliOptions
+    ).toEqual(["--output", "--json", "-j"]);
+    expect(
+      staleSupportedWithUnknownTokenCatalogOverrideUnknownValidation.supportedCliOptionCount
+    ).toBe(3);
+    expect(
+      staleSupportedWithUnknownTokenCatalogOverrideUnknownValidation.unknownOptions
+    ).toEqual(["--mystery"]);
+    expect(
+      staleSupportedWithUnknownTokenCatalogOverrideUnknownValidation.unknownOptionCount
+    ).toBe(1);
+    expect(
+      staleSupportedWithUnknownTokenCatalogOverrideUnknownValidation.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --mystery. Supported options: --output, --json, -j."
+    );
+    expect(
+      staleSupportedWithUnknownTokenCatalogOverrideUnknownValidation.validationErrorCode
+    ).toBe("unsupported_options");
     let staleAliasOnlyOptionCatalogOverrideCanonicalReadCount = 0;
     const staleAliasOnlyOptionCatalogOverrideCanonicalOptions = new Proxy(
       ["--json"],
@@ -4526,6 +4558,36 @@ describe("report-utils", () => {
     expect(
       staleAliasOnlyWithUnknownTokenCatalogOverrideValidation.validationErrorCode
     ).toBeNull();
+    const staleAliasOnlyWithUnknownTokenCatalogOverrideUnknownValidation =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions: ["--json"],
+        optionCatalog: {
+          supportedCliOptions: ["--no-build", "--mystery"],
+          availableCliOptionAliases: {
+            "--no-build": ["--verify"],
+          },
+        } as never,
+      });
+    expect(
+      staleAliasOnlyWithUnknownTokenCatalogOverrideUnknownValidation.supportedCliOptions
+    ).toEqual(["--no-build", "--verify"]);
+    expect(
+      staleAliasOnlyWithUnknownTokenCatalogOverrideUnknownValidation.supportedCliOptionCount
+    ).toBe(2);
+    expect(
+      staleAliasOnlyWithUnknownTokenCatalogOverrideUnknownValidation.unknownOptions
+    ).toEqual(["--mystery"]);
+    expect(
+      staleAliasOnlyWithUnknownTokenCatalogOverrideUnknownValidation.unknownOptionCount
+    ).toBe(1);
+    expect(
+      staleAliasOnlyWithUnknownTokenCatalogOverrideUnknownValidation.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --mystery. Supported options: --no-build, --verify."
+    );
+    expect(
+      staleAliasOnlyWithUnknownTokenCatalogOverrideUnknownValidation.validationErrorCode
+    ).toBe("unsupported_options");
     let optionCatalogOverrideWithoutSupportedCanonicalReadCount = 0;
     const optionCatalogOverrideWithoutSupportedCanonicalOptions = new Proxy(
       ["--json"],
