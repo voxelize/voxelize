@@ -33,7 +33,7 @@ fn ids_are_strictly_sorted(ids: &[String]) -> bool {
 
 #[inline]
 fn sorted_ids_contains(ids: &[String], target: &str) -> bool {
-    ids.binary_search_by(|probe| probe.as_str().cmp(target))
+    ids.binary_search_by_key(&target, |probe| probe.as_str())
         .is_ok()
 }
 
