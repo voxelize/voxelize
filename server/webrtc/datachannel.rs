@@ -25,11 +25,15 @@ impl FragmentState {
 }
 
 pub fn fragment_message(data: &[u8]) -> Vec<Vec<u8>> {
-    if data.len() <= MAX_PAYLOAD_SIZE {
-        return vec![data.to_vec()];
+    if data.is_empty() {
+        let mut fragment = Vec::with_capacity(FRAGMENT_HEADER_SIZE);
+        fragment.push(FRAGMENT_MARKER);
+        fragment.extend_from_slice(&(1u32).to_le_bytes());
+        fragment.extend_from_slice(&(0u32).to_le_bytes());
+        return vec![fragment];
     }
 
-    let total_fragments = data.len().div_ceil(MAX_PAYLOAD_SIZE);
+    let total_fragments = data.len().div_ceil(MAX_PAYLOAD_SIZE).max(1);
     let mut fragments = Vec::with_capacity(total_fragments);
 
     for (i, chunk) in data.chunks(MAX_PAYLOAD_SIZE).enumerate() {
@@ -178,7 +182,7 @@ impl FragmentAssembler {
 mod tests {
     use super::{
         fragment_message, FragmentAssembler, FRAGMENT_MARKER, LEGACY_FRAGMENT_MARKER,
-        MAX_FRAGMENT_COUNT,
+        FRAGMENT_HEADER_SIZE, MAX_FRAGMENT_COUNT,
     };
 
     #[test]
@@ -191,6 +195,18 @@ mod tests {
 
         let mut assembler = FragmentAssembler::new();
         assert_eq!(assembler.process(&framed), Some(payload));
+    }
+
+    #[test]
+    fn fragment_message_frames_single_payload_with_header() {
+        let payload = vec![9u8, 8, 7, 6];
+        let fragments = fragment_message(&payload);
+        assert_eq!(fragments.len(), 1);
+        let fragment = &fragments[0];
+        assert_eq!(fragment[0], FRAGMENT_MARKER);
+        assert_eq!(u32::from_le_bytes([fragment[1], fragment[2], fragment[3], fragment[4]]), 1);
+        assert_eq!(u32::from_le_bytes([fragment[5], fragment[6], fragment[7], fragment[8]]), 0);
+        assert_eq!(&fragment[FRAGMENT_HEADER_SIZE..], payload.as_slice());
     }
 
     #[test]
