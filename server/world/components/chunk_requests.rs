@@ -27,12 +27,12 @@ impl ChunkRequestsComp {
 
     /// Set the center of the list of chunk requests.
     pub fn set_center(&mut self, center: &Vec2<i32>) {
-        self.center = center.to_owned();
+        self.center = *center;
     }
 
     /// Set the direction of the list of chunk requests.
     pub fn set_direction(&mut self, direction: &Vec2<f32>) {
-        self.direction = direction.to_owned();
+        self.direction = *direction;
     }
 
     /// Add a chunk to the list of chunks requested.
@@ -41,7 +41,7 @@ impl ChunkRequestsComp {
             return;
         }
 
-        self.requests.push(coords.to_owned());
+        self.requests.push(*coords);
     }
 
     pub fn sort(&mut self) {
