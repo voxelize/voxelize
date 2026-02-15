@@ -1,6 +1,7 @@
 use hashbrown::{hash_map::Entry, HashMap, HashSet};
 use bytes::Bytes;
 use specs::{ReadExpect, System, WriteExpect};
+use tokio::sync::mpsc;
 
 use crate::{
     common::ClientFilter,
@@ -95,6 +96,15 @@ fn is_immediate(msg_type: i32) -> bool {
 
 fn should_send_to_transport(msg_type: i32) -> bool {
     msg_type == MessageType::Entity as i32 || msg_type == MessageType::Peer as i32
+}
+
+#[inline]
+fn send_fragmented_rtc_payload(rtc_sender: &mpsc::UnboundedSender<Bytes>, payload: &[u8]) {
+    for fragment in fragment_message(payload) {
+        if rtc_sender.send(Bytes::from(fragment)).is_err() {
+            break;
+        }
+    }
 }
 
 #[inline]
@@ -238,12 +248,7 @@ impl<'a> System<'a> for BroadcastSystem {
                     if use_rtc {
                         if let Some(ref rtc_map) = rtc_map {
                             if let Some(rtc_sender) = rtc_map.get(id) {
-                                let rtc_fragments = fragment_message(&encoded.data);
-                                for fragment in rtc_fragments {
-                                    if rtc_sender.send(Bytes::from(fragment)).is_err() {
-                                        break;
-                                    }
-                                }
+                                send_fragmented_rtc_payload(rtc_sender, &encoded.data);
                                 continue;
                             }
                         }
@@ -267,11 +272,7 @@ impl<'a> System<'a> for BroadcastSystem {
                     if use_rtc {
                         if let Some(ref rtc_map) = rtc_map {
                             if let Some(rtc_sender) = rtc_map.get(single_id) {
-                                for fragment in fragment_message(&encoded.data) {
-                                    if rtc_sender.send(Bytes::from(fragment)).is_err() {
-                                        break;
-                                    }
-                                }
+                                send_fragmented_rtc_payload(rtc_sender, &encoded.data);
                                 sent_with_rtc = true;
                             }
                         }
@@ -302,11 +303,7 @@ impl<'a> System<'a> for BroadcastSystem {
                     if use_rtc {
                         if let Some(ref rtc_map) = rtc_map {
                             if let Some(rtc_sender) = rtc_map.get(target_id) {
-                                for fragment in fragment_message(&encoded.data) {
-                                    if rtc_sender.send(Bytes::from(fragment)).is_err() {
-                                        break;
-                                    }
-                                }
+                                send_fragmented_rtc_payload(rtc_sender, &encoded.data);
                                 sent_with_rtc = true;
                             }
                         }
