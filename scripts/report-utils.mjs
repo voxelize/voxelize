@@ -2422,7 +2422,6 @@ export const createCliDiagnostics = (
     strictValueOptionTokenMetadata,
     optionArgs,
     outputPathError,
-    supportedCliOptions: optionCatalog.supportedCliOptions,
   });
   const activeOptionMetadata = parseActiveCliOptionMetadata(args, {
     canonicalOptions: catalogCanonicalOptions,
