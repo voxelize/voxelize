@@ -1268,23 +1268,35 @@ pub struct BlockDynamicPattern {
 
 impl BlockDynamicPattern {
     pub fn to_mesher_pattern(&self) -> voxelize_mesher::BlockDynamicPattern {
+        let mut parts = Vec::with_capacity(self.parts.len());
+        for part in self.parts.iter() {
+            parts.push(part.to_mesher_part());
+        }
         voxelize_mesher::BlockDynamicPattern {
-            parts: self.parts.iter().map(|p| p.to_mesher_part()).collect(),
+            parts,
         }
     }
 
     pub fn to_lighter_pattern(&self) -> voxelize_lighter::LightDynamicPattern {
+        let mut parts = Vec::with_capacity(self.parts.len());
+        for part in self.parts.iter() {
+            parts.push(part.to_lighter_part());
+        }
         voxelize_lighter::LightDynamicPattern {
-            parts: self.parts.iter().map(|p| p.to_lighter_part()).collect(),
+            parts,
         }
     }
 }
 
 impl BlockConditionalPart {
     pub fn to_mesher_part(&self) -> voxelize_mesher::BlockConditionalPart {
+        let mut faces = Vec::with_capacity(self.faces.len());
+        for face in self.faces.iter() {
+            faces.push(face.to_mesher_face());
+        }
         voxelize_mesher::BlockConditionalPart {
             rule: self.rule.to_mesher_rule(),
-            faces: self.faces.iter().map(|f| f.to_mesher_face()).collect(),
+            faces,
             aabbs: self.aabbs.clone(),
             is_transparent: self.is_transparent,
             world_space: self.world_space,
@@ -1322,7 +1334,13 @@ impl BlockRule {
                     BlockRuleLogic::Or => voxelize_mesher::BlockRuleLogic::Or,
                     BlockRuleLogic::Not => voxelize_mesher::BlockRuleLogic::Not,
                 },
-                rules: rules.iter().map(|r| r.to_mesher_rule()).collect(),
+                rules: {
+                    let mut mapped_rules = Vec::with_capacity(rules.len());
+                    for rule in rules.iter() {
+                        mapped_rules.push(rule.to_mesher_rule());
+                    }
+                    mapped_rules
+                },
             },
         }
     }
@@ -1641,6 +1659,17 @@ impl Block {
     }
 
     pub fn to_mesher_block(&self) -> voxelize_mesher::Block {
+        let mut faces = Vec::with_capacity(self.faces.len());
+        for face in self.faces.iter() {
+            faces.push(face.to_mesher_face());
+        }
+        let dynamic_patterns = self.dynamic_patterns.as_ref().map(|patterns| {
+            let mut mapped_patterns = Vec::with_capacity(patterns.len());
+            for pattern in patterns.iter() {
+                mapped_patterns.push(pattern.to_mesher_pattern());
+            }
+            mapped_patterns
+        });
         voxelize_mesher::Block {
             id: self.id,
             name: self.name.clone(),
@@ -1655,16 +1684,20 @@ impl Block {
             is_transparent: self.is_transparent,
             transparent_standalone: self.transparent_standalone,
             occludes_fluid: self.occludes_fluid,
-            faces: self.faces.iter().map(|f| f.to_mesher_face()).collect(),
+            faces,
             aabbs: self.aabbs.clone(),
-            dynamic_patterns: self
-                .dynamic_patterns
-                .as_ref()
-                .map(|patterns| patterns.iter().map(|p| p.to_mesher_pattern()).collect()),
+            dynamic_patterns,
         }
     }
 
     pub fn to_lighter_block(&self) -> voxelize_lighter::LightBlock {
+        let dynamic_patterns = self.dynamic_patterns.as_ref().map(|patterns| {
+            let mut mapped_patterns = Vec::with_capacity(patterns.len());
+            for pattern in patterns.iter() {
+                mapped_patterns.push(pattern.to_lighter_pattern());
+            }
+            mapped_patterns
+        });
         voxelize_lighter::LightBlock::new(
             self.id,
             self.is_transparent,
@@ -1672,10 +1705,7 @@ impl Block {
             self.red_light_level,
             self.green_light_level,
             self.blue_light_level,
-            self
-                .dynamic_patterns
-                .as_ref()
-                .map(|patterns| patterns.iter().map(|p| p.to_lighter_pattern()).collect()),
+            dynamic_patterns,
         )
     }
 }
