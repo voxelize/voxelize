@@ -623,6 +623,8 @@ When length reads trap, fallback key scans still salvage readable
 entries.
 If bounded prefix scans find no entries, bounded key scans can still
 recover sparse high-index entries.
+Key-scan fallback keeps the lowest bounded index set in ascending order
+for deterministic output.
 Client JSON reports additionally expose top-level wasm preflight summary
 fields `wasmPackCheckStatus`, `wasmPackCheckCommand`,
 `wasmPackCheckArgs`, `wasmPackCheckArgCount`, `wasmPackCheckExitCode`,
