@@ -52,6 +52,38 @@ function hasData<T extends object>(data: T | undefined): boolean {
   return false;
 }
 
+const normalizeLookupName = (name: string): string => {
+  const length = name.length;
+  for (let index = 0; index < length; index++) {
+    const code = name.charCodeAt(index);
+    if (code >= 65 && code <= 90) {
+      return name.toLowerCase();
+    }
+  }
+  return name;
+};
+
+const normalizeRendererName = (name: string): string => {
+  const length = name.length;
+  let hasUppercase = false;
+  let hasWhitespace = false;
+  for (let index = 0; index < length; index++) {
+    const code = name.charCodeAt(index);
+    if (code >= 65 && code <= 90) {
+      hasUppercase = true;
+    } else if (code === 32) {
+      hasWhitespace = true;
+    }
+  }
+
+  if (!hasUppercase && !hasWhitespace) {
+    return name;
+  }
+
+  const normalizedCase = hasUppercase ? name.toLowerCase() : name;
+  return hasWhitespace ? normalizedCase.replaceAll(" ", "-") : normalizedCase;
+};
+
 export class ItemRegistry {
   private itemsById = new Map<number, ItemDef>();
   private itemsByName = new Map<string, ItemDef>();
@@ -94,12 +126,12 @@ export class ItemRegistry {
     for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
       const item = items[itemIndex];
       this.itemsById.set(item.id, item);
-      this.itemsByName.set(item.name.toLowerCase(), item);
+      this.itemsByName.set(normalizeLookupName(item.name), item);
     }
   }
 
   setRenderer(name: string, factory: ItemRendererFactory): void {
-    const normalizedName = name.toLowerCase().replace(/ /g, "-");
+    const normalizedName = normalizeRendererName(name);
     this.rendererFactories.set(normalizedName, factory);
   }
 
@@ -112,7 +144,7 @@ export class ItemRegistry {
     const itemDef = this.itemsById.get(itemId);
     if (!itemDef) return null;
 
-    const normalizedName = itemDef.name.toLowerCase().replace(/ /g, "-");
+    const normalizedName = normalizeRendererName(itemDef.name);
     const factory = this.rendererFactories.get(normalizedName);
 
     let renderer: ItemRenderer;
@@ -145,7 +177,7 @@ export class ItemRegistry {
   }
 
   getByName(name: string): ItemDef | undefined {
-    return this.itemsByName.get(name.toLowerCase());
+    return this.itemsByName.get(normalizeLookupName(name));
   }
 
   getAll(): ItemDef[] {
