@@ -217,12 +217,15 @@ impl KdTree {
             Some(EntityKind::Entity) => {
                 self.entities.remove(ent_id);
                 self.players.add(ent_id, pos);
+                self.kind_map.insert(ent_id, EntityKind::Player);
             }
-            None => self.players.add(ent_id, pos),
+            None => {
+                self.players.add(ent_id, pos);
+                self.kind_map.insert(ent_id, EntityKind::Player);
+            }
         }
         self.all.update(ent_id, pos);
         self.entity_map.insert(ent_id, ent);
-        self.kind_map.insert(ent_id, EntityKind::Player);
     }
 
     pub fn add_entity(&mut self, ent: Entity, point: &Vec3<f32>) {
@@ -236,12 +239,15 @@ impl KdTree {
             Some(EntityKind::Player) => {
                 self.players.remove(ent_id);
                 self.entities.add(ent_id, pos);
+                self.kind_map.insert(ent_id, EntityKind::Entity);
             }
-            None => self.entities.add(ent_id, pos),
+            None => {
+                self.entities.add(ent_id, pos);
+                self.kind_map.insert(ent_id, EntityKind::Entity);
+            }
         }
         self.all.update(ent_id, pos);
         self.entity_map.insert(ent_id, ent);
-        self.kind_map.insert(ent_id, EntityKind::Entity);
     }
 
     pub fn update_player(&mut self, ent: Entity, point: &Vec3<f32>) {
