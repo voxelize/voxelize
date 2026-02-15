@@ -401,6 +401,10 @@ impl Pipeline {
         if pending_results == 0 {
             return Vec::new();
         }
+        if self.chunks.is_empty() {
+            while self.receiver.try_recv().is_ok() {}
+            return Vec::new();
+        }
         let mut results = Vec::with_capacity(pending_results.min(self.chunks.len()));
 
         while let Ok(result) = self.receiver.try_recv() {
