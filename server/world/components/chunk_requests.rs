@@ -58,7 +58,7 @@ impl ChunkRequestsComp {
             return;
         }
         self.requests
-            .sort_by_cached_key(|coords| manhattan_distance(coords, &self.center));
+            .sort_unstable_by_key(|coords| manhattan_distance(coords, &self.center));
     }
 
     /// Remove a chunk from the list of chunks requested.
