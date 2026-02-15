@@ -1,4 +1,4 @@
-use hashbrown::HashMap;
+use hashbrown::{hash_map::Entry, HashMap};
 use kiddo::float::kdtree::KdTree as KiddoTree;
 use kiddo::SquaredEuclidean;
 use specs::Entity;
@@ -33,14 +33,21 @@ impl EntityTree {
     }
 
     fn update(&mut self, ent_id: EntityId, new_pos: [f32; 3]) {
-        if let Some(old_pos) = self.positions.get(&ent_id) {
-            if old_pos == &new_pos {
-                return;
+        match self.positions.entry(ent_id) {
+            Entry::Occupied(mut entry) => {
+                if entry.get() == &new_pos {
+                    return;
+                }
+                let old_pos = *entry.get();
+                self.tree.remove(&old_pos, ent_id);
+                self.tree.add(&new_pos, ent_id);
+                *entry.get_mut() = new_pos;
             }
-            self.tree.remove(old_pos, ent_id);
+            Entry::Vacant(entry) => {
+                self.tree.add(&new_pos, ent_id);
+                entry.insert(new_pos);
+            }
         }
-        self.tree.add(&new_pos, ent_id);
-        self.positions.insert(ent_id, new_pos);
     }
 
     fn clear(&mut self) {
@@ -487,6 +494,7 @@ impl KdTree {
 mod tests {
     use super::{
         is_finite_point, nearest_query_count, normalized_radius_squared, point_array_if_finite,
+        EntityTree,
     };
     use crate::Vec3;
 
@@ -527,5 +535,17 @@ mod tests {
     fn new_tree_starts_empty() {
         let tree = super::KdTree::new();
         assert_eq!(tree.len(), 0);
+    }
+
+    #[test]
+    fn entity_tree_update_keeps_single_entry_for_same_id() {
+        let mut tree = EntityTree::new();
+        tree.add(7, [1.0, 2.0, 3.0]);
+        tree.update(7, [1.0, 2.0, 3.0]);
+        tree.update(7, [4.0, 5.0, 6.0]);
+
+        assert_eq!(tree.positions.len(), 1);
+        assert_eq!(tree.tree.size(), 1);
+        assert_eq!(tree.positions.get(&7), Some(&[4.0, 5.0, 6.0]));
     }
 }
