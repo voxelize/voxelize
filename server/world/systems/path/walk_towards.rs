@@ -53,7 +53,8 @@ impl<'a> System<'a> for WalkTowardsSystem {
                     let mut target_index = 0;
 
                     // Find the current and next target nodes
-                    for (index, node) in nodes.iter().enumerate() {
+                    for index in 0..node_count {
+                        let node = &nodes[index];
                         let dx = (current_pos.0 - (node.0 as f32 + 0.5)).abs();
                         let dz = (current_pos.2 - (node.2 as f32 + 0.5)).abs();
 
