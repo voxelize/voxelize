@@ -1,4 +1,4 @@
-use std::io::{Cursor, Write};
+use std::io::Write;
 
 use actix::Message as ActixMessage;
 use lz4_flex::block::compress_prepend_size;
@@ -76,7 +76,7 @@ pub fn encode_message(message: &Message) -> Vec<u8> {
 
 /// Decode protocol buffers into a message struct.
 pub fn decode_message(buf: &[u8]) -> Result<Message, prost::DecodeError> {
-    Message::decode(&mut Cursor::new(buf))
+    Message::decode(buf)
 }
 
 /// Protocol buffer compatible geometry data structure.
