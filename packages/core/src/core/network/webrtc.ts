@@ -1,4 +1,5 @@
 const FRAGMENT_HEADER_SIZE = 9;
+const MAX_PENDING_MESSAGES = 64;
 const toHttpProtocol = (protocol: string) => {
   if (protocol.startsWith("wss")) {
     return "https:";
@@ -119,6 +120,11 @@ export class WebRTCConnection {
     }
     if (index !== 0 && this.nextMessageId === 0) {
       return;
+    }
+    if (index === 0 && this.expectedFragmentCounts.size >= MAX_PENDING_MESSAGES) {
+      this.fragments.clear();
+      this.expectedFragmentCounts.clear();
+      this.nextMessageId = 0;
     }
 
     const messageId =
