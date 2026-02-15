@@ -66,10 +66,11 @@ fn flush_chunk_batches_in_place(
             continue;
         }
         queue.push((
-            Message::new(message_type).chunks(chunk_models).build(),
+            Message::new(message_type)
+                .chunks_owned(chunk_models.split_off(0))
+                .build(),
             ClientFilter::Direct(client_id.clone()),
         ));
-        chunk_models.clear();
     }
 }
 
@@ -173,8 +174,9 @@ fn flush_chunk_batches_touched(
         if chunk_models.is_empty() {
             continue;
         }
-        let message = Message::new(message_type).chunks(chunk_models).build();
-        chunk_models.clear();
+        let message = Message::new(message_type)
+            .chunks_owned(chunk_models.split_off(0))
+            .build();
         queue.push((message, ClientFilter::Direct(client_id)));
     }
 }

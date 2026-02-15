@@ -218,6 +218,12 @@ impl MessageBuilder {
         self
     }
 
+    /// Configure owned chunks data of the protocol.
+    pub fn chunks_owned(mut self, chunks: Vec<ChunkProtocol>) -> Self {
+        self.chunks = Some(chunks);
+        self
+    }
+
     /// Configure the voxel update data of the protocol.
     pub fn updates(mut self, updates: &[UpdateProtocol]) -> Self {
         self.updates = Some(updates.to_vec());
