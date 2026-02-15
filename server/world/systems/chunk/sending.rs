@@ -196,6 +196,7 @@ impl<'a> System<'a> for ChunkSendingSystem {
         };
 
         if chunks.to_send.is_empty() {
+            chunks.to_send_lookup.clear();
             if clients.is_empty() {
                 self.client_load_mesh_buffer.clear();
                 self.client_load_data_buffer.clear();
@@ -210,6 +211,7 @@ impl<'a> System<'a> for ChunkSendingSystem {
         }
 
         let mut to_send = std::mem::take(&mut chunks.to_send);
+        chunks.to_send_lookup.clear();
         if clients.is_empty() {
             self.client_load_mesh_buffer.clear();
             self.client_load_data_buffer.clear();

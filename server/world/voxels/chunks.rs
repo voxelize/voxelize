@@ -65,6 +65,7 @@ pub struct Chunks {
 
     /// A list of chunks that are done meshing and ready to be sent.
     pub(crate) to_send: VecDeque<(Vec2<i32>, MessageType)>,
+    pub(crate) to_send_lookup: HashSet<Vec2<i32>>,
 
     /// A list of chunks that are done meshing and ready to be saved, if `config.save` is true.
     pub(crate) to_save: VecDeque<Vec2<i32>>,
@@ -505,10 +506,7 @@ impl Chunks {
         r#type: &MessageType,
         prioritized: bool,
     ) {
-        if self.to_send.front().is_some_and(|(front, _)| front == coords)
-            || self.to_send.back().is_some_and(|(back, _)| back == coords)
-            || self.to_send.iter().any(|(c, _)| c == coords)
-        {
+        if !self.to_send_lookup.insert(*coords) {
             return;
         }
         if prioritized {
