@@ -172,6 +172,7 @@ impl BackgroundEntitiesSaver {
         }
         let suffixed_file_name = format!("-{}.json", id);
         let legacy_file_name = format!("{}.json", id);
+        let mut removed_any = false;
 
         if let Ok(entries) = fs::read_dir(&self.folder) {
             for entry in entries.flatten() {
@@ -183,14 +184,17 @@ impl BackgroundEntitiesSaver {
                                 "Failed to remove entity file: {}. Entity could still be saving?",
                                 e
                             );
+                        } else {
+                            removed_any = true;
                         }
-                        return;
                     }
                 }
             }
         }
 
-        warn!("Could not find entity file to remove for id: {}", id);
+        if !removed_any {
+            warn!("Could not find entity file to remove for id: {}", id);
+        }
     }
 
     pub fn folder(&self) -> &PathBuf {
