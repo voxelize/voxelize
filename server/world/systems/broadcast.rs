@@ -252,6 +252,48 @@ impl<'a> System<'a> for BroadcastSystem {
                 }
                 continue;
             }
+            if client_count == 1 {
+                let (single_id, single_client) = clients.iter().next().unwrap();
+                let should_send = match &filter {
+                    ClientFilter::All => true,
+                    ClientFilter::Include(ids) => ids.iter().any(|id| id == single_id),
+                    ClientFilter::Exclude(ids) => !ids.iter().any(|id| id == single_id),
+                    _ => false,
+                };
+                if should_send {
+                    if use_rtc {
+                        let mut sent_with_rtc = false;
+                        if let Some(ref rtc_map) = rtc_map {
+                            if let Some(rtc_sender) = rtc_map.get(single_id) {
+                                for fragment in fragment_message(&encoded.data) {
+                                    if rtc_sender.send(fragment).is_err() {
+                                        break;
+                                    }
+                                }
+                                sent_with_rtc = true;
+                            }
+                        }
+                        if !sent_with_rtc {
+                            let _ = single_client.sender.send(encoded.data.clone());
+                        }
+                    } else {
+                        let _ = single_client.sender.send(encoded.data.clone());
+                    }
+                }
+                if has_transports && should_send_to_transport(encoded.msg_type) {
+                    if transport_count == 1 {
+                        if let Some(sender) = transports.values().next() {
+                            let _ = sender.send(encoded.data);
+                        }
+                    } else {
+                        let payload = &encoded.data;
+                        transports.values().for_each(|sender| {
+                            let _ = sender.send(payload.clone());
+                        });
+                    }
+                }
+                continue;
+            }
             let mut rtc_fragments_cache: Option<Vec<Vec<u8>>> = None;
             let mut send_to_client = |id: &str, client: &Client| {
                 if use_rtc {
