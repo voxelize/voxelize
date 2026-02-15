@@ -3186,6 +3186,8 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
     let y_span = (max_y - min_y).max(0) as usize;
     let z_span = (max_z - min_z).max(0) as usize;
     let yz_span = y_span * z_span;
+    let mut cached_voxel_block_id = u32::MAX;
+    let mut cached_voxel_block: Option<&Block> = None;
     let mut processed_non_greedy = vec![false; x_span * y_span * z_span];
     const OCCLUSION_UNKNOWN: u8 = 2;
     let mut fully_occluded_opaque = vec![OCCLUSION_UNKNOWN; x_span * y_span * z_span];
@@ -3262,9 +3264,24 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     if zero_is_empty && voxel_id == 0 {
                         continue;
                     }
-                    let block = match registry.get_block_by_id(voxel_id) {
-                        Some(b) => b,
-                        None => continue,
+                    let block = if cached_voxel_block_id == voxel_id {
+                        match cached_voxel_block {
+                            Some(block) => block,
+                            None => continue,
+                        }
+                    } else {
+                        match registry.get_block_by_id(voxel_id) {
+                            Some(block) => {
+                                cached_voxel_block_id = voxel_id;
+                                cached_voxel_block = Some(block);
+                                block
+                            }
+                            None => {
+                                cached_voxel_block_id = voxel_id;
+                                cached_voxel_block = None;
+                                continue;
+                            }
+                        }
                     };
 
                     if block.is_empty {
