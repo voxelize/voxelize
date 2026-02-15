@@ -765,6 +765,8 @@ by index before summary emission.
 When bounded-prefix recovery yields same-index
 `null`/`undefined`/primitive placeholders,
 same-index defined key-fallback entries are preferred during merge.
+Same-index fallback rescans preserve first-seen recovered string/object
+entries and only upgrade placeholder values.
 Merged bounded/key trap recoveries remain capped to the smallest 1024
 numeric indices for deterministic bounded output.
 Typed string/object supplementation unions keep the same bounded 1024
