@@ -2545,6 +2545,17 @@ describe("Type builders", () => {
     );
   });
 
+  it("supports createBlockRotation helper with frozen rotation init objects", () => {
+    const frozenInput = Object.freeze({
+      value: BlockRotation.PX().axis,
+      yRotation: Math.PI / 2,
+    });
+
+    expect(createBlockRotation(frozenInput)).toEqual(
+      new BlockRotation(BlockRotation.PX().axis, Math.PI / 2)
+    );
+  });
+
   it("falls back to identity for malformed createBlockRotation inputs", () => {
     class RotationLike {
       public readonly value = BlockRotation.PX().axis;
