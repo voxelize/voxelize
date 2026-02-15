@@ -182,10 +182,7 @@ export function setupTransparentSorting(object: Object3D): void {
   traversalStack.push(object);
 
   while (traversalStack.length > 0) {
-    const child = traversalStack.pop();
-    if (!child) {
-      continue;
-    }
+    const child = traversalStack.pop()!;
 
     const childChildren = child.children;
     for (let childIndex = 0; childIndex < childChildren.length; childIndex++) {
