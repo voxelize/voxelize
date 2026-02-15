@@ -6032,6 +6032,23 @@ describe("report-utils", () => {
         message: "Step failed with exit code 2.",
       },
     ]);
+    const lengthAndOwnKeysTrapSteps = new Proxy(iteratorTrapSteps, {
+      ownKeys() {
+        throw new Error("ownKeys trap");
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          throw new Error("length trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    expect(
+      summarizeStepFailureResults(lengthAndOwnKeysTrapSteps as never)
+    ).toEqual([]);
     let statefulNumericPrefixCheckReadCount = 0;
     const statefulNumericPrefixSteps = new Proxy(
       [
@@ -6378,6 +6395,23 @@ describe("report-utils", () => {
         message: "Preflight check failed with exit code 2.",
       },
     ]);
+    const lengthAndOwnKeysTrapChecks = new Proxy(iteratorTrapChecks, {
+      ownKeys() {
+        throw new Error("ownKeys trap");
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          throw new Error("length trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    expect(
+      summarizeCheckFailureResults(lengthAndOwnKeysTrapChecks as never)
+    ).toEqual([]);
     let statefulNumericPrefixReadCount = 0;
     const statefulNumericPrefixChecks = new Proxy(
       [
@@ -7957,6 +7991,32 @@ describe("report-utils", () => {
       wasmPackCheckExitCode: null,
       wasmPackCheckOutputLine: null,
     });
+    const lengthAndOwnKeysTrapWasmArgs = new Proxy(["check-wasm-pack.mjs"], {
+      ownKeys() {
+        throw new Error("ownKeys trap");
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          throw new Error("length trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    expect(
+      extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckArgs: lengthAndOwnKeysTrapWasmArgs,
+      })
+    ).toEqual({
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: null,
+      wasmPackCheckArgCount: null,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
     let statefulSparsePrefixReadCount = 0;
     const statefulSparseWasmArgsTarget: string[] = [];
     statefulSparseWasmArgsTarget[0] = "check-wasm-pack.mjs";
@@ -8419,6 +8479,21 @@ describe("report-utils", () => {
     expect(normalizeTsCorePayloadIssues(ownKeysHasTrapIssues)).toEqual([
       "voxel.id",
     ]);
+    const lengthAndOwnKeysTrapIssues = new Proxy(["voxel.id"], {
+      ownKeys() {
+        throw new Error("ownKeys trap");
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          throw new Error("length trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    expect(normalizeTsCorePayloadIssues(lengthAndOwnKeysTrapIssues)).toBeNull();
     const inheritedIndexIssues: string[] = [];
     inheritedIndexIssues.length = 1;
     const inheritedIndexIssuesPrototype = Object.create(Array.prototype) as {
@@ -9178,6 +9253,43 @@ describe("report-utils", () => {
       exampleCommand: null,
       exampleArgs: ["packages/ts-core/examples/end-to-end.mjs"],
       exampleArgCount: 1,
+      exampleAttempted: true,
+      exampleStatus: "failed",
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: 1,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    const lengthAndOwnKeysTrapExampleArgs = new Proxy(
+      ["packages/ts-core/examples/end-to-end.mjs"],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            throw new Error("length trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleArgs: lengthAndOwnKeysTrapExampleArgs,
+        exampleAttempted: true,
+        exampleExitCode: 1,
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: null,
+      exampleArgCount: null,
       exampleAttempted: true,
       exampleStatus: "failed",
       exampleRuleMatched: null,
