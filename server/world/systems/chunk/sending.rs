@@ -41,6 +41,7 @@ fn take_updated_level_range(updated_levels: &mut HashSet<u32>) -> Option<(u32, u
     Some((min_level, max_level_exclusive))
 }
 
+#[cfg(test)]
 #[inline]
 fn flush_chunk_batches_in_place(
     queue: &mut MessageQueues,
@@ -116,6 +117,7 @@ fn flush_chunk_batches_touched(
     }
 }
 
+#[cfg(test)]
 #[inline]
 fn flush_chunk_batches(
     queue: &mut MessageQueues,
