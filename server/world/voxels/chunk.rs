@@ -178,26 +178,30 @@ impl Chunk {
     /// Convert chunk to protocol model.
     pub fn to_model(&self, mesh: bool, data: bool, levels: Range<u32>) -> ChunkProtocol {
         let Range { start, end } = levels;
-        let mut meshes = if mesh {
+        let meshes = if mesh {
             if let Some(chunk_meshes) = &self.meshes {
-                let requested_levels = end.saturating_sub(start) as usize;
-                Vec::with_capacity(requested_levels.min(chunk_meshes.len()))
+                if end == start.saturating_add(1) {
+                    if let Some(single_mesh) = chunk_meshes.get(&start) {
+                        vec![single_mesh.clone()]
+                    } else {
+                        Vec::new()
+                    }
+                } else {
+                    let requested_levels = end.saturating_sub(start) as usize;
+                    let mut meshes = Vec::with_capacity(requested_levels.min(chunk_meshes.len()));
+                    for level in start..end {
+                        if let Some(mesh) = chunk_meshes.get(&level) {
+                            meshes.push(mesh.clone());
+                        }
+                    }
+                    meshes
+                }
             } else {
                 Vec::new()
             }
         } else {
             Vec::new()
         };
-
-        if mesh {
-            if let Some(chunk_meshes) = &self.meshes {
-                for level in start..end {
-                    if let Some(mesh) = chunk_meshes.get(&level) {
-                        meshes.push(mesh.clone());
-                    }
-                }
-            }
-        }
 
         ChunkProtocol {
             x: self.coords.0,
