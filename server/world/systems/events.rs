@@ -39,6 +39,18 @@ fn push_dispatch_event(
     }
 }
 
+#[inline]
+fn send_to_transports(transports: &Transports, payload: Vec<u8>) {
+    let mut senders = transports.values();
+    let Some(first_sender) = senders.next() else {
+        return;
+    };
+    for sender in senders {
+        let _ = sender.send(payload.clone());
+    }
+    let _ = first_sender.send(payload);
+}
+
 impl<'a> System<'a> for EventsSystem {
     type SystemData = (
         ReadExpect<'a, Transports>,
@@ -118,15 +130,7 @@ impl<'a> System<'a> for EventsSystem {
                 .events(&transports_map)
                 .build();
             let encoded = encode_message(&message);
-            if transport_count == 1 {
-                if let Some(sender) = transports.values().next() {
-                    let _ = sender.send(encoded);
-                }
-            } else {
-                transports.values().for_each(|sender| {
-                    let _ = sender.send(encoded.clone());
-                });
-            }
+            send_to_transports(&transports, encoded);
             return;
         }
 
@@ -363,15 +367,7 @@ impl<'a> System<'a> for EventsSystem {
                 .events(&transports_map)
                 .build();
             let encoded = encode_message(&message);
-            if transport_count == 1 {
-                if let Some(sender) = transports.values().next() {
-                    let _ = sender.send(encoded);
-                }
-            } else {
-                transports.values().for_each(|sender| {
-                    let _ = sender.send(encoded.clone());
-                });
-            }
+            send_to_transports(&transports, encoded);
         }
     }
 }

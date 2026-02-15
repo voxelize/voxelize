@@ -100,6 +100,18 @@ fn should_send_to_transport(msg_type: i32) -> bool {
     msg_type == MessageType::Entity as i32 || msg_type == MessageType::Peer as i32
 }
 
+#[inline]
+fn send_to_transports(transports: &Transports, payload: Vec<u8>) {
+    let mut senders = transports.values();
+    let Some(first_sender) = senders.next() else {
+        return;
+    };
+    for sender in senders {
+        let _ = sender.send(payload.clone());
+    }
+    let _ = first_sender.send(payload);
+}
+
 fn merge_messages(base: &mut Message, other: Message) {
     base.peers.extend(other.peers);
     base.entities.extend(other.entities);
@@ -210,21 +222,11 @@ impl<'a> System<'a> for BroadcastSystem {
         let rtc_map = rtc_senders_opt.as_ref().and_then(|rtc| rtc.try_lock().ok());
         let client_count = clients.len();
         let has_transports = !transports.is_empty();
-        let transport_count = transports.len();
         if client_count == 0 {
             if has_transports {
                 for (encoded, _) in done_messages {
                     if should_send_to_transport(encoded.msg_type) {
-                        if transport_count == 1 {
-                            if let Some(sender) = transports.values().next() {
-                                let _ = sender.send(encoded.data);
-                            }
-                        } else {
-                            let payload = &encoded.data;
-                            transports.values().for_each(|sender| {
-                                let _ = sender.send(payload.clone());
-                            });
-                        }
+                        send_to_transports(&transports, encoded.data);
                     }
                 }
             }
@@ -285,16 +287,7 @@ impl<'a> System<'a> for BroadcastSystem {
                     }
                 }
                 if should_send_transport {
-                    if transport_count == 1 {
-                        if let Some(sender) = transports.values().next() {
-                            let _ = sender.send(encoded.data);
-                        }
-                    } else {
-                        let payload = &encoded.data;
-                        transports.values().for_each(|sender| {
-                            let _ = sender.send(payload.clone());
-                        });
-                    }
+                    send_to_transports(&transports, encoded.data);
                 }
                 continue;
             }
@@ -434,16 +427,7 @@ impl<'a> System<'a> for BroadcastSystem {
             }
 
             if has_transports && should_send_to_transport(encoded.msg_type) {
-                if transport_count == 1 {
-                    if let Some(sender) = transports.values().next() {
-                        let _ = sender.send(encoded.data);
-                    }
-                } else {
-                    let payload = &encoded.data;
-                    transports.values().for_each(|sender| {
-                        let _ = sender.send(payload.clone());
-                    });
-                }
+                send_to_transports(&transports, encoded.data);
             }
         }
     }
