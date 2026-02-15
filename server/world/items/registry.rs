@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use hashbrown::{hash_map::Entry, HashMap};
 use serde_json::Value;
 
@@ -15,11 +17,20 @@ impl ItemRegistry {
         Self::default()
     }
 
+    #[inline]
+    fn normalized_name<'a>(name: &'a str) -> Cow<'a, str> {
+        if name.chars().any(|ch| ch.is_uppercase()) {
+            Cow::Owned(name.to_lowercase())
+        } else {
+            Cow::Borrowed(name)
+        }
+    }
+
     pub fn register<F>(&mut self, name: &str, builder_fn: F) -> &mut Self
     where
         F: FnOnce(ItemDefBuilder) -> ItemDefBuilder,
     {
-        let lower_name = name.to_lowercase();
+        let lower_name = Self::normalized_name(name).into_owned();
         if self.items_by_name.contains_key(&lower_name) {
             panic!("Duplicated item name: {}", name);
         }
@@ -44,7 +55,7 @@ impl ItemRegistry {
     where
         F: FnOnce(ItemDefBuilder) -> ItemDefBuilder,
     {
-        let lower_name = name.to_lowercase();
+        let lower_name = Self::normalized_name(name).into_owned();
 
         if self.items_by_id.contains_key(&id) {
             panic!("Duplicated item id: {}", id);
@@ -68,15 +79,15 @@ impl ItemRegistry {
     }
 
     pub fn get_by_name(&self, name: &str) -> Option<&ItemDef> {
-        let lower_name = name.to_lowercase();
+        let lower_name = Self::normalized_name(name);
         self.items_by_name
-            .get(&lower_name)
+            .get(lower_name.as_ref())
             .and_then(|id| self.items_by_id.get(id))
     }
 
     pub fn get_id_by_name(&self, name: &str) -> Option<u32> {
-        let lower_name = name.to_lowercase();
-        self.items_by_name.get(&lower_name).copied()
+        let lower_name = Self::normalized_name(name);
+        self.items_by_name.get(lower_name.as_ref()).copied()
     }
 
     pub fn all_ids(&self) -> Vec<u32> {
