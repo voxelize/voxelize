@@ -104,6 +104,25 @@ impl ChunkInterests {
             };
             return coords_within_region(center, single_coords);
         }
+        if self.map.len() == 2 {
+            let mut interests_iter = self.map.keys();
+            let first_coords = {
+                let Some(coords) = interests_iter.next() else {
+                    unreachable!("two-interest map length matched branch");
+                };
+                coords
+            };
+            if coords_within_region(center, first_coords) {
+                return true;
+            }
+            let second_coords = {
+                let Some(coords) = interests_iter.next() else {
+                    unreachable!("two-interest map length matched branch");
+                };
+                coords
+            };
+            return coords_within_region(center, second_coords);
+        }
         if self.map.len() <= SMALL_INTEREST_REGION_SCAN_LIMIT {
             for coords in self.map.keys() {
                 if coords_within_region(center, coords) {
@@ -146,7 +165,42 @@ impl ChunkInterests {
             }
             return HashSet::new();
         }
-        if self.map.len() <= SMALL_INTEREST_REGION_SCAN_LIMIT {
+        if self.map.len() == 2 {
+            let mut interests_iter = self.map.iter();
+            let (first_coords, first_interested) = {
+                let Some(first_interest) = interests_iter.next() else {
+                    unreachable!("two-interest map length matched branch");
+                };
+                first_interest
+            };
+            let (second_coords, second_interested) = {
+                let Some(second_interest) = interests_iter.next() else {
+                    unreachable!("two-interest map length matched branch");
+                };
+                second_interest
+            };
+            let first_in_region = coords_within_region(center, first_coords);
+            let second_in_region = coords_within_region(center, second_coords);
+            match (first_in_region, second_in_region) {
+                (false, false) => HashSet::new(),
+                (true, false) => first_interested.clone(),
+                (false, true) => second_interested.clone(),
+                (true, true) => {
+                    let (seed, other) = if first_interested.len() >= second_interested.len() {
+                        (first_interested, second_interested)
+                    } else {
+                        (second_interested, first_interested)
+                    };
+                    let mut merged = seed.clone();
+                    let remaining_capacity = merged.capacity() - merged.len();
+                    if remaining_capacity < other.len() {
+                        merged.reserve(other.len() - remaining_capacity);
+                    }
+                    merged.extend(other.iter().cloned());
+                    merged
+                }
+            }
+        } else if self.map.len() <= SMALL_INTEREST_REGION_SCAN_LIMIT {
             let mut merged_clients: Option<HashSet<String>> = None;
             let mut single_interest: Option<&HashSet<String>> = None;
             for (coords, interested) in self.map.iter() {
@@ -179,48 +233,48 @@ impl ChunkInterests {
             if let Some(interested) = single_interest {
                 return interested.clone();
             }
-            return HashSet::new();
-        }
-
-        let first_interested = self.map.get(center);
-        let mut merged_clients: Option<HashSet<String>> = None;
-        let mut single_interest = first_interested;
-        for (dx, dz) in REGION_NEIGHBOR_OFFSETS {
-            let Some(nx) = center.0.checked_add(dx) else {
-                continue;
-            };
-            let Some(nz) = center.1.checked_add(dz) else {
-                continue;
-            };
-            if let Some(interested) = self.map.get(&Vec2(nx, nz)) {
-                if let Some(clients) = merged_clients.as_mut() {
-                    let remaining_capacity = clients.capacity() - clients.len();
-                    if remaining_capacity < interested.len() {
-                        clients.reserve(interested.len() - remaining_capacity);
-                    }
-                    clients.extend(interested.iter().cloned());
+            HashSet::new()
+        } else {
+            let first_interested = self.map.get(center);
+            let mut merged_clients: Option<HashSet<String>> = None;
+            let mut single_interest = first_interested;
+            for (dx, dz) in REGION_NEIGHBOR_OFFSETS {
+                let Some(nx) = center.0.checked_add(dx) else {
                     continue;
-                }
-                if let Some(seed) = single_interest {
-                    let mut clients = seed.clone();
-                    let remaining_capacity = clients.capacity() - clients.len();
-                    if remaining_capacity < interested.len() {
-                        clients.reserve(interested.len() - remaining_capacity);
+                };
+                let Some(nz) = center.1.checked_add(dz) else {
+                    continue;
+                };
+                if let Some(interested) = self.map.get(&Vec2(nx, nz)) {
+                    if let Some(clients) = merged_clients.as_mut() {
+                        let remaining_capacity = clients.capacity() - clients.len();
+                        if remaining_capacity < interested.len() {
+                            clients.reserve(interested.len() - remaining_capacity);
+                        }
+                        clients.extend(interested.iter().cloned());
+                        continue;
                     }
-                    clients.extend(interested.iter().cloned());
-                    merged_clients = Some(clients);
-                } else {
-                    single_interest = Some(interested);
+                    if let Some(seed) = single_interest {
+                        let mut clients = seed.clone();
+                        let remaining_capacity = clients.capacity() - clients.len();
+                        if remaining_capacity < interested.len() {
+                            clients.reserve(interested.len() - remaining_capacity);
+                        }
+                        clients.extend(interested.iter().cloned());
+                        merged_clients = Some(clients);
+                    } else {
+                        single_interest = Some(interested);
+                    }
                 }
             }
+            if let Some(clients) = merged_clients {
+                return clients;
+            }
+            if let Some(interested) = single_interest {
+                return interested.clone();
+            }
+            HashSet::new()
         }
-        if let Some(clients) = merged_clients {
-            return clients;
-        }
-        if let Some(interested) = single_interest {
-            return interested.clone();
-        }
-        HashSet::new()
     }
 
     pub fn add(&mut self, client_id: &str, coords: &Vec2<i32>) {
