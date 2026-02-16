@@ -81,10 +81,15 @@ impl Profiler {
             printed.insert(label);
 
             for hierarchy in self.hierarchy_records.iter() {
-                if let Some(index) = hierarchy.iter().position(|l| l == label) {
-                    for child_label in hierarchy.iter().skip(index + 1) {
-                        self.print_hierarchy_recursive(child_label, indent + 1, printed);
+                let mut seen_label = false;
+                for child_label in hierarchy.iter() {
+                    if !seen_label {
+                        if child_label == label {
+                            seen_label = true;
+                        }
+                        continue;
                     }
+                    self.print_hierarchy_recursive(child_label, indent + 1, printed);
                 }
             }
         }
