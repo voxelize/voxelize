@@ -114,6 +114,211 @@ const toBlockFaceNameLowerOrFallback = (
   }
 };
 
+type UvLikeValue = {
+  startU?: number;
+  endU?: number;
+  startV?: number;
+  endV?: number;
+} | null | undefined;
+
+const readFiniteUvFieldOrZero = (
+  value: UvLikeValue,
+  key: "startU" | "endU" | "startV" | "endV"
+): number => {
+  if (value === null || value === undefined || typeof value !== "object") {
+    return 0;
+  }
+
+  try {
+    const numericValue = value[key];
+    return typeof numericValue === "number" && Number.isFinite(numericValue)
+      ? numericValue
+      : 0;
+  } catch {
+    return 0;
+  }
+};
+
+const cloneUvSafely = (value: UvLikeValue): UV => {
+  return {
+    startU: readFiniteUvFieldOrZero(value, "startU"),
+    endU: readFiniteUvFieldOrZero(value, "endU"),
+    startV: readFiniteUvFieldOrZero(value, "startV"),
+    endV: readFiniteUvFieldOrZero(value, "endV"),
+  };
+};
+
+type CornerLikeValue = {
+  pos?: Vec3;
+  uv?: Vec2;
+} | null | undefined;
+
+const readCornerVec3Safely = (value: CornerLikeValue): Vec3 => {
+  if (value === null || value === undefined || typeof value !== "object") {
+    return [0, 0, 0];
+  }
+
+  try {
+    return cloneCornerVec3Safely(value.pos ?? [0, 0, 0]);
+  } catch {
+    return [0, 0, 0];
+  }
+};
+
+const readCornerVec2Safely = (value: CornerLikeValue): Vec2 => {
+  if (value === null || value === undefined || typeof value !== "object") {
+    return [0, 0];
+  }
+
+  try {
+    return cloneCornerVec2Safely(value.uv ?? [0, 0]);
+  } catch {
+    return [0, 0];
+  }
+};
+
+const cloneCornerDataSafely = (value: CornerLikeValue): CornerData => {
+  return createCornerData(
+    readCornerVec3Safely(value),
+    readCornerVec2Safely(value)
+  );
+};
+
+type CornerTupleLikeValue =
+  | [CornerData, CornerData, CornerData, CornerData]
+  | readonly CornerData[]
+  | null
+  | undefined;
+
+const readCornerAtIndexSafely = (
+  value: CornerTupleLikeValue,
+  index: number
+): CornerLikeValue => {
+  if (value === null || value === undefined || typeof value !== "object") {
+    return null;
+  }
+
+  try {
+    return value[index] ?? null;
+  } catch {
+    return null;
+  }
+};
+
+const cloneFaceCornersSafely = (
+  value: CornerTupleLikeValue
+): [CornerData, CornerData, CornerData, CornerData] => {
+  return [
+    cloneCornerDataSafely(readCornerAtIndexSafely(value, 0)),
+    cloneCornerDataSafely(readCornerAtIndexSafely(value, 1)),
+    cloneCornerDataSafely(readCornerAtIndexSafely(value, 2)),
+    cloneCornerDataSafely(readCornerAtIndexSafely(value, 3)),
+  ];
+};
+
+type BlockFaceInitSnapshot = {
+  name: string;
+  independent: boolean;
+  isolated: boolean;
+  textureGroup: string | null;
+  dir: Vec3;
+  corners: [CornerData, CornerData, CornerData, CornerData];
+  range: UV;
+};
+
+type BlockFaceInitLikeValue = {
+  name?: BlockFaceNameLike;
+  independent?: boolean;
+  isolated?: boolean;
+  textureGroup?: string | null;
+  dir?: Vec3;
+  corners?: [CornerData, CornerData, CornerData, CornerData];
+  range?: UV;
+} | null | undefined;
+
+const toBlockFaceInitSnapshot = (
+  value: BlockFaceInitLikeValue
+): BlockFaceInitSnapshot => {
+  const defaultCorners = createDefaultCorners();
+  const fallbackSnapshot: BlockFaceInitSnapshot = {
+    name: "Face",
+    independent: false,
+    isolated: false,
+    textureGroup: null,
+    dir: [0, 0, 0],
+    corners: defaultCorners,
+    range: createUV(),
+  };
+  if (value === null || value === undefined || typeof value !== "object") {
+    return fallbackSnapshot;
+  }
+
+  let rawName: BlockFaceNameLike = fallbackSnapshot.name;
+  try {
+    const nameValue = value.name;
+    rawName = nameValue === undefined ? fallbackSnapshot.name : nameValue;
+  } catch {
+    rawName = fallbackSnapshot.name;
+  }
+  const normalizedName = toBlockFaceNameOrFallback(rawName, fallbackSnapshot.name);
+
+  let independent = fallbackSnapshot.independent;
+  try {
+    independent = value.independent === true;
+  } catch {
+    independent = fallbackSnapshot.independent;
+  }
+
+  let isolated = fallbackSnapshot.isolated;
+  try {
+    isolated = value.isolated === true;
+  } catch {
+    isolated = fallbackSnapshot.isolated;
+  }
+
+  let textureGroup: string | null = fallbackSnapshot.textureGroup;
+  try {
+    const textureGroupValue = value.textureGroup;
+    textureGroup =
+      textureGroupValue === null || typeof textureGroupValue === "string"
+        ? textureGroupValue
+        : fallbackSnapshot.textureGroup;
+  } catch {
+    textureGroup = fallbackSnapshot.textureGroup;
+  }
+
+  let dirValue: Vec3 = fallbackSnapshot.dir;
+  try {
+    dirValue = value.dir ?? fallbackSnapshot.dir;
+  } catch {
+    dirValue = fallbackSnapshot.dir;
+  }
+
+  let cornersValue: CornerTupleLikeValue = fallbackSnapshot.corners;
+  try {
+    cornersValue = value.corners ?? fallbackSnapshot.corners;
+  } catch {
+    cornersValue = fallbackSnapshot.corners;
+  }
+
+  let rangeValue: UvLikeValue = fallbackSnapshot.range;
+  try {
+    rangeValue = value.range ?? fallbackSnapshot.range;
+  } catch {
+    rangeValue = fallbackSnapshot.range;
+  }
+
+  return {
+    name: normalizedName,
+    independent,
+    isolated,
+    textureGroup,
+    dir: cloneCornerVec3Safely(dirValue),
+    corners: cloneFaceCornersSafely(cornersValue),
+    range: cloneUvSafely(rangeValue),
+  };
+};
+
 export class BlockFace {
   public name: string;
   public nameLower: string;
@@ -124,29 +329,16 @@ export class BlockFace {
   public corners: [CornerData, CornerData, CornerData, CornerData];
   public range: UV;
 
-  constructor({
-    name,
-    independent = false,
-    isolated = false,
-    textureGroup = null,
-    dir = [0, 0, 0],
-    corners = createDefaultCorners(),
-    range = createUV(),
-  }: BlockFaceInit) {
-    const normalizedName = toBlockFaceNameOrFallback(name, "Face");
-    this.name = normalizedName;
-    this.nameLower = toBlockFaceNameLowerOrFallback(normalizedName, "face");
-    this.independent = independent;
-    this.isolated = isolated;
-    this.textureGroup = textureGroup;
-    this.dir = [...dir];
-    this.corners = corners.map((corner) => createCornerData(corner.pos, corner.uv)) as [
-      CornerData,
-      CornerData,
-      CornerData,
-      CornerData,
-    ];
-    this.range = { ...range };
+  constructor(init: BlockFaceInit) {
+    const normalizedInit = toBlockFaceInitSnapshot(init);
+    this.name = normalizedInit.name;
+    this.nameLower = toBlockFaceNameLowerOrFallback(normalizedInit.name, "face");
+    this.independent = normalizedInit.independent;
+    this.isolated = normalizedInit.isolated;
+    this.textureGroup = normalizedInit.textureGroup;
+    this.dir = normalizedInit.dir;
+    this.corners = normalizedInit.corners;
+    this.range = normalizedInit.range;
   }
 
   computeNameLower(): void {

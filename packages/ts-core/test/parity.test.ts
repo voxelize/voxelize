@@ -6,12 +6,14 @@ import {
   BLOCK_RULE_NONE,
   type AABBInit,
   type BlockConditionalPartInput,
+  type CornerData,
   type BlockDynamicPatternInput,
   type BlockFaceInit,
   type BlockRuleEvaluationRotationInput,
   type BlockRotationInput,
   type BlockRule,
   type BlockRuleInput,
+  type UV,
   BlockFace,
   BlockRotation,
   BlockRuleEvaluator,
@@ -1780,6 +1782,140 @@ describe("Type builders", () => {
       BlockFace.prototype.getNameLower.call(revokedFace as never)
     ).not.toThrow();
     expect(BlockFace.prototype.getNameLower.call(revokedFace as never)).toBe("");
+  });
+
+  it("sanitizes malformed BlockFace constructor init payloads without throwing", () => {
+    const trappedDir = new Proxy([1, 2, 3] as [number, number, number], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("dir iterator trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const trappedCorners = new Proxy(
+      [
+        createCornerData([1, 2, 3], [0.1, 0.2]),
+        createCornerData([4, 5, 6], [0.3, 0.4]),
+        createCornerData([7, 8, 9], [0.5, 0.6]),
+        createCornerData([10, 11, 12], [0.7, 0.8]),
+      ] as [CornerData, CornerData, CornerData, CornerData],
+      {
+        get(target, property, receiver) {
+          if (property === "map") {
+            throw new Error("corners map trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const trappedRange = new Proxy(
+      {
+        startU: 1,
+        endU: 2,
+        startV: 3,
+        endV: 4,
+      } as UV,
+      {
+        get(target, property, receiver) {
+          if (property === "startU") {
+            throw new Error("startU trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const trappedInit = Object.create(null) as {
+      readonly name: string;
+      readonly dir: [number, number, number];
+      readonly corners: [CornerData, CornerData, CornerData, CornerData];
+      readonly range: UV;
+    };
+    Object.defineProperty(trappedInit, "name", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("name getter trap");
+      },
+    });
+    Object.defineProperty(trappedInit, "dir", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("dir getter trap");
+      },
+    });
+    Object.defineProperty(trappedInit, "corners", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("corners getter trap");
+      },
+    });
+    Object.defineProperty(trappedInit, "range", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("range getter trap");
+      },
+    });
+
+    expect(() =>
+      new BlockFace({ name: "Face", dir: trappedDir as never })
+    ).not.toThrow();
+    expect(new BlockFace({ name: "Face", dir: trappedDir as never }).dir).toEqual([
+      1,
+      2,
+      3,
+    ]);
+
+    expect(() =>
+      new BlockFace({ name: "Face", corners: trappedCorners as never })
+    ).not.toThrow();
+    expect(
+      new BlockFace({ name: "Face", corners: trappedCorners as never }).corners
+    ).toEqual([
+      createCornerData([1, 2, 3], [0.1, 0.2]),
+      createCornerData([4, 5, 6], [0.3, 0.4]),
+      createCornerData([7, 8, 9], [0.5, 0.6]),
+      createCornerData([10, 11, 12], [0.7, 0.8]),
+    ]);
+
+    expect(() =>
+      new BlockFace({ name: "Face", range: trappedRange as never })
+    ).not.toThrow();
+    expect(new BlockFace({ name: "Face", range: trappedRange as never }).range).toEqual({
+      startU: 0,
+      endU: 2,
+      startV: 3,
+      endV: 4,
+    });
+
+    expect(() => new BlockFace(trappedInit as never)).not.toThrow();
+    const faceFromTrappedInit = new BlockFace(trappedInit as never);
+    expect(faceFromTrappedInit.name).toBe("Face");
+    expect(faceFromTrappedInit.nameLower).toBe("face");
+    expect(faceFromTrappedInit.dir).toEqual([0, 0, 0]);
+    expect(faceFromTrappedInit.range).toEqual(createUV());
+    expect(faceFromTrappedInit.corners).toEqual([
+      createCornerData([0, 0, 0], [0, 0]),
+      createCornerData([0, 0, 0], [0, 0]),
+      createCornerData([0, 0, 0], [0, 0]),
+      createCornerData([0, 0, 0], [0, 0]),
+    ]);
+
+    expect(() => new BlockFace(7 as never)).not.toThrow();
+    const faceFromPrimitiveInit = new BlockFace(7 as never);
+    expect(faceFromPrimitiveInit.name).toBe("Face");
+    expect(faceFromPrimitiveInit.nameLower).toBe("face");
+    expect(faceFromPrimitiveInit.dir).toEqual([0, 0, 0]);
+    expect(faceFromPrimitiveInit.range).toEqual(createUV());
+    expect(faceFromPrimitiveInit.corners).toEqual([
+      createCornerData([0, 0, 0], [0, 0]),
+      createCornerData([0, 0, 0], [0, 0]),
+      createCornerData([0, 0, 0], [0, 0]),
+      createCornerData([0, 0, 0], [0, 0]),
+    ]);
   });
 
   it("clones block face corner arrays on construction", () => {
