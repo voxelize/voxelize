@@ -438,7 +438,8 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 .sort_by(|a, b| interests.compare(a, b));
         }
 
-        let mut ready_chunks = Vec::with_capacity(mesher.queue.len());
+        let ready_chunk_initial_capacity = mesher.queue.len().min(64);
+        let mut ready_chunks = None;
 
         while let Some(coords) = mesher.get() {
             let mut ready = true;
@@ -492,11 +493,13 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             let Some(chunk) = chunks.raw(&coords).cloned() else {
                 continue;
             };
-            ready_chunks.push((coords, chunk));
+            ready_chunks
+                .get_or_insert_with(|| Vec::with_capacity(ready_chunk_initial_capacity))
+                .push((coords, chunk));
         }
 
         // Process the ready chunks in parallel
-        if !ready_chunks.is_empty() {
+        if let Some(ready_chunks) = ready_chunks {
             let mut processes = Vec::with_capacity(ready_chunks.len());
             for (coords, chunk) in ready_chunks {
                 let mut space = chunks
