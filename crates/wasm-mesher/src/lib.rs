@@ -132,6 +132,12 @@ fn parse_chunk_data(chunk: JsValue, keys: &JsInteropKeys) -> Option<ChunkData> {
 
     let voxels = Uint32Array::from(voxels_val).to_vec();
     let lights = Uint32Array::from(lights_val).to_vec();
+    let voxel_count = shape[0]
+        .checked_mul(shape[1])?
+        .checked_mul(shape[2])?;
+    if voxel_count > voxels.len() || voxel_count > lights.len() {
+        return None;
+    }
     Some(ChunkData {
         voxels,
         lights,
