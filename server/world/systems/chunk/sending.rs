@@ -484,16 +484,16 @@ fn flush_chunk_batches_touched(
     }
     match touched_clients.len() {
         1 => {
-            if let Some(client_id) = touched_clients.pop() {
-                flush_chunk_batch_for_client(queue, message_type, batches, client_id);
-            }
+            let Some(first_client_id) = touched_clients.pop() else {
+                return;
+            };
+            flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
         }
         2 => {
             let Some(first_client_id) = touched_clients.pop() else {
                 return;
             };
             let Some(second_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
                 return;
             };
             flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
@@ -504,12 +504,9 @@ fn flush_chunk_batches_touched(
                 return;
             };
             let Some(second_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
                 return;
             };
             let Some(third_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
                 return;
             };
             flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
@@ -521,18 +518,12 @@ fn flush_chunk_batches_touched(
                 return;
             };
             let Some(second_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
                 return;
             };
             let Some(third_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
                 return;
             };
             let Some(fourth_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, third_client_id);
                 return;
             };
             flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
@@ -545,25 +536,15 @@ fn flush_chunk_batches_touched(
                 return;
             };
             let Some(second_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
                 return;
             };
             let Some(third_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
                 return;
             };
             let Some(fourth_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, third_client_id);
                 return;
             };
             let Some(fifth_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, third_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, fourth_client_id);
                 return;
             };
             flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
@@ -577,33 +558,18 @@ fn flush_chunk_batches_touched(
                 return;
             };
             let Some(second_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
                 return;
             };
             let Some(third_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
                 return;
             };
             let Some(fourth_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, third_client_id);
                 return;
             };
             let Some(fifth_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, third_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, fourth_client_id);
                 return;
             };
             let Some(sixth_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, third_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, fourth_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, fifth_client_id);
                 return;
             };
             flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
@@ -618,42 +584,21 @@ fn flush_chunk_batches_touched(
                 return;
             };
             let Some(second_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
                 return;
             };
             let Some(third_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
                 return;
             };
             let Some(fourth_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, third_client_id);
                 return;
             };
             let Some(fifth_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, third_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, fourth_client_id);
                 return;
             };
             let Some(sixth_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, third_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, fourth_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, fifth_client_id);
                 return;
             };
             let Some(seventh_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, third_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, fourth_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, fifth_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, sixth_client_id);
                 return;
             };
             flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
@@ -669,52 +614,24 @@ fn flush_chunk_batches_touched(
                 return;
             };
             let Some(second_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
                 return;
             };
             let Some(third_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
                 return;
             };
             let Some(fourth_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, third_client_id);
                 return;
             };
             let Some(fifth_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, third_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, fourth_client_id);
                 return;
             };
             let Some(sixth_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, third_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, fourth_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, fifth_client_id);
                 return;
             };
             let Some(seventh_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, third_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, fourth_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, fifth_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, sixth_client_id);
                 return;
             };
             let Some(eighth_client_id) = touched_clients.pop() else {
-                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, third_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, fourth_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, fifth_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, sixth_client_id);
-                flush_chunk_batch_for_client(queue, message_type, batches, seventh_client_id);
                 return;
             };
             flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
