@@ -1607,7 +1607,7 @@ fn process_face<S: VoxelAccess>(
     rotation: &BlockRotation,
     face: &BlockFace,
     block: &Block,
-    uv_map: &HashMap<String, UV>,
+    uv_range: &UV,
     registry: &Registry,
     space: &S,
     neighbors: &NeighborCache,
@@ -1702,12 +1702,10 @@ fn process_face<S: VoxelAccess>(
         return;
     }
 
-    let UV {
-        start_u,
-        end_u,
-        start_v,
-        end_v,
-    } = uv_map.get(&face.name).cloned().unwrap_or_default();
+    let start_u = uv_range.start_u;
+    let end_u = uv_range.end_u;
+    let start_v = uv_range.start_v;
+    let end_v = uv_range.end_v;
 
     let ndx = (positions.len() / 3) as i32;
     let mut face_aos = Vec::with_capacity(4);
@@ -2325,9 +2323,6 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     g
                 });
 
-                let mut uv_map = HashMap::with_capacity(1);
-                uv_map.insert(face.name.clone(), uv_range);
-
                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
                 process_face(
                     vx,
@@ -2337,7 +2332,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     &rotation,
                     &face,
                     &block,
-                    &uv_map,
+                    &uv_range,
                     registry,
                     space,
                     &neighbors,
@@ -2420,11 +2415,6 @@ pub fn mesh_space<S: VoxelAccess>(
                         block.faces.iter().cloned().map(|f| (f, false)).collect()
                     };
 
-                let mut uv_map = HashMap::with_capacity(faces.len());
-                for (face, _) in &faces {
-                    uv_map.insert(face.name.clone(), face.range.clone());
-                }
-
                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
 
                 for (face, world_space) in faces.iter() {
@@ -2462,7 +2452,7 @@ pub fn mesh_space<S: VoxelAccess>(
                         &rotation,
                         face,
                         block,
-                        &uv_map,
+                        &face.range,
                         registry,
                         space,
                         &neighbors,
