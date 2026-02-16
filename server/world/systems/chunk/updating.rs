@@ -210,6 +210,8 @@ fn process_pending_updates(
         return results;
     }
 
+    let removed_light_sources_initial_capacity = num_to_process.min(32);
+    let processed_updates_initial_capacity = num_to_process.min(64);
     let mut removed_light_sources: Option<Vec<(Vec3<i32>, u32, u32, u32, bool)>> = None;
     let mut processed_updates: Option<Vec<(
         Vec3<i32>,
@@ -328,7 +330,9 @@ fn process_pending_updates(
 
             if let Some((red_level, green_level, blue_level)) = removed_source_levels {
                 removed_light_sources
-                    .get_or_insert_with(|| Vec::with_capacity(num_to_process.min(32)))
+                    .get_or_insert_with(|| {
+                        Vec::with_capacity(removed_light_sources_initial_capacity)
+                    })
                     .push((
                         voxel,
                         red_level,
@@ -417,7 +421,9 @@ fn process_pending_updates(
             chunks.cache_voxel_affected_chunks(vx, vy, vz);
 
             processed_updates
-                .get_or_insert_with(|| Vec::with_capacity(num_to_process.min(64)))
+                .get_or_insert_with(|| {
+                    Vec::with_capacity(processed_updates_initial_capacity)
+                })
                 .push((
                     voxel,
                     rotation,
