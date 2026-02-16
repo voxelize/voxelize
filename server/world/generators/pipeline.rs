@@ -132,6 +132,29 @@ fn find_queue_index(queue: &VecDeque<Vec2<i32>>, coords: &Vec2<i32>) -> Option<u
                 None
             }
         }
+        9 => {
+            if queue[0] == *coords {
+                Some(0)
+            } else if queue[1] == *coords {
+                Some(1)
+            } else if queue[2] == *coords {
+                Some(2)
+            } else if queue[3] == *coords {
+                Some(3)
+            } else if queue[4] == *coords {
+                Some(4)
+            } else if queue[5] == *coords {
+                Some(5)
+            } else if queue[6] == *coords {
+                Some(6)
+            } else if queue[7] == *coords {
+                Some(7)
+            } else if queue[8] == *coords {
+                Some(8)
+            } else {
+                None
+            }
+        }
         _ => {
             let queue_len = queue.len();
             for queue_index in 0..queue_len {
@@ -676,12 +699,14 @@ impl Pipeline {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::VecDeque;
+
     use hashbrown::HashSet;
 
     use crate::{Chunk, ChunkOptions, Vec2};
 
     use super::Pipeline;
-    use super::{clamped_flatland_top_height, FlatlandStage};
+    use super::{clamped_flatland_top_height, find_queue_index, FlatlandStage};
 
     #[test]
     fn add_soiling_saturates_top_height_on_overflow() {
@@ -712,6 +737,25 @@ mod tests {
     fn clamped_flatland_top_height_handles_non_positive_chunk_ceiling() {
         assert_eq!(clamped_flatland_top_height(12, 0), 0);
         assert_eq!(clamped_flatland_top_height(12, -8), 0);
+    }
+
+    #[test]
+    fn find_queue_index_handles_nine_item_queue() {
+        let queue = VecDeque::from(vec![
+            Vec2(0, 0),
+            Vec2(1, 1),
+            Vec2(2, 2),
+            Vec2(3, 3),
+            Vec2(4, 4),
+            Vec2(5, 5),
+            Vec2(6, 6),
+            Vec2(7, 7),
+            Vec2(8, 8),
+        ]);
+
+        assert_eq!(find_queue_index(&queue, &Vec2(0, 0)), Some(0));
+        assert_eq!(find_queue_index(&queue, &Vec2(8, 8)), Some(8));
+        assert_eq!(find_queue_index(&queue, &Vec2(9, 9)), None);
     }
 
     #[test]
