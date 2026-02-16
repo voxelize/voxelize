@@ -1736,11 +1736,7 @@ impl World {
                 }
             }
 
-            self.preload_progress = if supposed == 0 {
-                1.0
-            } else {
-                (total as f32 / supposed as f32).min(1.0)
-            };
+            self.preload_progress = (total as f32 / supposed as f32).min(1.0);
 
             if total >= supposed {
                 self.preloading = false;
