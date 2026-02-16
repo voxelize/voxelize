@@ -230,7 +230,7 @@ impl Mesher {
 
         let sender = Arc::clone(&self.sender);
         let msg_type = *r#type;
-        let mesher_registry = registry.mesher_registry();
+        let mesher_registry = Arc::clone(registry.mesher_registry_ref());
         let registry = Arc::new(registry.clone());
         let config = Arc::new(config.clone());
         let greedy_meshing = config.greedy_meshing;
