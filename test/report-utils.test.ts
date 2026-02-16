@@ -119,15 +119,19 @@ describe("report-utils", () => {
         },
       }
     );
-    const malformedArgSets: Array<Array<null | undefined | number | string | boolean | object>> = [
+    const malformedArgSets: Array<
+      Array<null | undefined | number | string | boolean | bigint | symbol | object>
+    > = [
       [],
       [undefined],
       [null],
       [trappedValue],
       [revokedObject],
       [revokedArray],
+      [Symbol("arg-token")],
+      [BigInt(7)],
       [trappedValue, revokedObject],
-      [42, trappedValue, revokedArray],
+      [42, trappedValue, revokedArray, Symbol("arg-sentinel")],
     ];
 
     const thrownSignatures: string[] = [];
