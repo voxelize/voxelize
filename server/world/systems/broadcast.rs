@@ -130,6 +130,15 @@ fn should_send_to_transport(msg_type: i32) -> bool {
 }
 
 #[inline]
+fn targets_all_clients(filter: &ClientFilter) -> bool {
+    match filter {
+        ClientFilter::All => true,
+        ClientFilter::Exclude(ids) => ids.is_empty(),
+        _ => false,
+    }
+}
+
+#[inline]
 fn send_fragmented_rtc_payload(rtc_sender: &mpsc::UnboundedSender<Bytes>, payload: &[u8]) {
     for fragment in fragment_message(payload) {
         if rtc_sender.send(Bytes::from(fragment)).is_err() {
@@ -368,7 +377,7 @@ impl<'a> System<'a> for BroadcastSystem {
                 }
                 continue;
             }
-            if !use_rtc && matches!(&filter, ClientFilter::All) {
+            if !use_rtc && targets_all_clients(&filter) {
                 let should_send_transport =
                     has_transports && should_send_to_transport(encoded.msg_type);
                 let mut clients_iter = clients.values();
@@ -506,7 +515,10 @@ impl<'a> System<'a> for BroadcastSystem {
 
 #[cfg(test)]
 mod tests {
-    use super::{batch_messages, ids_are_strictly_sorted, ids_contains_target, sorted_ids_contains};
+    use super::{
+        batch_messages, ids_are_strictly_sorted, ids_contains_target, sorted_ids_contains,
+        targets_all_clients,
+    };
     use crate::{ClientFilter, Message, MessageType};
 
     fn ids(values: &[&str]) -> Vec<String> {
@@ -528,6 +540,15 @@ mod tests {
         assert!(!ids_contains_target(&ids(&["a", "b"]), "z"));
         assert!(ids_contains_target(&ids(&["a", "c", "d"]), "c"));
         assert!(ids_contains_target(&ids(&["d", "a", "c"]), "c"));
+    }
+
+    #[test]
+    fn targets_all_clients_detects_all_and_empty_exclude_filters() {
+        assert!(targets_all_clients(&ClientFilter::All));
+        assert!(targets_all_clients(&ClientFilter::Exclude(Vec::new())));
+        assert!(!targets_all_clients(&ClientFilter::Exclude(ids(&["a"]))));
+        assert!(!targets_all_clients(&ClientFilter::Include(ids(&["a"]))));
+        assert!(!targets_all_clients(&ClientFilter::Direct("a".to_string())));
     }
 
     #[test]
