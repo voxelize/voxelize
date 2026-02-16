@@ -42,24 +42,35 @@ fn normalized_entity_type<'a>(etype: &'a str) -> Cow<'a, str> {
 
 #[inline]
 fn sanitize_entity_filename<'a>(etype: &'a str) -> Cow<'a, str> {
-    if !etype.contains("::") && !etype.contains(' ') {
-        return Cow::Borrowed(etype);
-    }
-    let mut sanitized = String::with_capacity(etype.len());
-    let mut chars = etype.chars().peekable();
-    while let Some(ch) = chars.next() {
-        if ch == ':' && matches!(chars.peek(), Some(':')) {
+    let mut sanitized = String::new();
+    let mut chars = etype.char_indices().peekable();
+    while let Some((index, ch)) = chars.next() {
+        if ch == ':' && chars.peek().is_some_and(|(_, next)| *next == ':') {
+            if sanitized.is_empty() {
+                sanitized = String::with_capacity(etype.len());
+                sanitized.push_str(&etype[..index]);
+            }
             sanitized.push('-');
-            chars.next();
+            let _ = chars.next();
             continue;
         }
         if ch == ' ' {
+            if sanitized.is_empty() {
+                sanitized = String::with_capacity(etype.len());
+                sanitized.push_str(&etype[..index]);
+            }
             sanitized.push('-');
-        } else {
+            continue;
+        }
+        if !sanitized.is_empty() {
             sanitized.push(ch);
         }
     }
-    Cow::Owned(sanitized)
+    if sanitized.is_empty() {
+        Cow::Borrowed(etype)
+    } else {
+        Cow::Owned(sanitized)
+    }
 }
 
 #[inline]
@@ -217,7 +228,7 @@ pub fn set_position(ecs: &mut ECSWorld, entity: Entity, x: f32, y: f32, z: f32) 
 mod tests {
     use std::borrow::Cow;
 
-    use super::normalize_block_entity_type;
+    use super::{normalize_block_entity_type, sanitize_entity_filename};
 
     #[test]
     fn normalize_block_entity_type_keeps_existing_prefix() {
@@ -229,5 +240,17 @@ mod tests {
     fn normalize_block_entity_type_adds_missing_prefix() {
         let normalized = normalize_block_entity_type(Cow::Borrowed("stone"));
         assert_eq!(normalized.as_ref(), "block::stone");
+    }
+
+    #[test]
+    fn sanitize_entity_filename_keeps_clean_names_borrowed() {
+        let sanitized = sanitize_entity_filename("entity-stone");
+        assert!(matches!(sanitized, Cow::Borrowed("entity-stone")));
+    }
+
+    #[test]
+    fn sanitize_entity_filename_replaces_double_colons_and_spaces() {
+        let sanitized = sanitize_entity_filename("block::stone slab");
+        assert_eq!(sanitized.as_ref(), "block-stone-slab");
     }
 }
