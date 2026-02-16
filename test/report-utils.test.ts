@@ -23008,6 +23008,34 @@ describe("report-utils", () => {
     expect(failureMessage).not.toContain("path coercion trap");
   });
 
+  it("returns an unprintable-path fallback for blank output paths", () => {
+    const reportJson = toReportJson({ passed: false, exitCode: 1 });
+
+    expect(() => writeReportToPath(reportJson, "" as never)).not.toThrow();
+    const failureMessage = writeReportToPath(reportJson, "" as never);
+    expect(failureMessage).toContain(
+      "Failed to write report to (unprintable output path)."
+    );
+  });
+
+  it("does not coerce plain-object output paths when write fails", () => {
+    const reportJson = toReportJson({ passed: false, exitCode: 1 });
+    let didCallToString = false;
+    const outputPathObject = {
+      toString() {
+        didCallToString = true;
+        throw new Error("toString trap");
+      },
+    };
+
+    expect(() => writeReportToPath(reportJson, outputPathObject as never)).not.toThrow();
+    const failureMessage = writeReportToPath(reportJson, outputPathObject as never);
+    expect(failureMessage).toContain(
+      "Failed to write report to (unprintable output path)."
+    );
+    expect(didCallToString).toBe(false);
+  });
+
   it("returns a stable write failure message when output-path validation throws revoked errors", () => {
     const reportJson = toReportJson({ passed: false, exitCode: 1 });
     const revokedValidationError = (() => {

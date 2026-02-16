@@ -2986,17 +2986,29 @@ const FALLBACK_UNPRINTABLE_OUTPUT_PATH = "(unprintable output path)";
 
 const toOutputPathMessageValue = (outputPath) => {
   if (typeof outputPath === "string") {
-    return outputPath;
+    return outputPath.length > 0
+      ? outputPath
+      : FALLBACK_UNPRINTABLE_OUTPUT_PATH;
   }
 
-  try {
-    const normalizedOutputPath = String(outputPath);
-    return normalizedOutputPath.length > 0
-      ? normalizedOutputPath
-      : FALLBACK_UNPRINTABLE_OUTPUT_PATH;
-  } catch {
-    return FALLBACK_UNPRINTABLE_OUTPUT_PATH;
+  if (
+    typeof outputPath === "number" ||
+    typeof outputPath === "boolean" ||
+    typeof outputPath === "bigint" ||
+    typeof outputPath === "symbol" ||
+    isStringObjectValue(outputPath)
+  ) {
+    try {
+      const normalizedOutputPath = String(outputPath);
+      return normalizedOutputPath.length > 0
+        ? normalizedOutputPath
+        : FALLBACK_UNPRINTABLE_OUTPUT_PATH;
+    } catch {
+      return FALLBACK_UNPRINTABLE_OUTPUT_PATH;
+    }
   }
+
+  return FALLBACK_UNPRINTABLE_OUTPUT_PATH;
 };
 
 const toErrorMessageDetail = (error) => {
