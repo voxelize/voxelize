@@ -3011,6 +3011,60 @@ describe("Type builders", () => {
     ).toEqual(BLOCK_RULE_NONE);
   });
 
+  it("salvages later length-fallback combination entries when prefix reads trap", () => {
+    const trappedRules = new Proxy(
+      [
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 1,
+        },
+        {
+          type: "simple",
+          offset: [0, 0, 0],
+          id: 5,
+        },
+      ],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (property === "0") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+
+    expect(
+      createBlockRule({
+        type: "combination",
+        logic: BlockRuleLogic.And,
+        rules: trappedRules as never,
+      })
+    ).toEqual({
+      type: "combination",
+      logic: BlockRuleLogic.And,
+      rules: [
+        {
+          type: "simple",
+          offset: [0, 0, 0],
+          id: 5,
+        },
+      ],
+    });
+  });
+
   it("sanitizes irrecoverable combination rule iterators to none rules", () => {
     const trappedRules = new Proxy(
       [
@@ -6318,6 +6372,81 @@ describe("BlockRuleEvaluator", () => {
         access
       )
     ).toBe(true);
+  });
+
+  it("salvages later evaluator length-fallback entries when prefix reads trap", () => {
+    const access = {
+      getVoxel: () => 5,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+    const malformedRules = new Proxy(
+      [
+        {
+          type: "simple" as const,
+          offset: [1, 0, 0] as [number, number, number],
+          id: 1,
+        },
+        {
+          type: "simple" as const,
+          offset: [0, 0, 0] as [number, number, number],
+          id: 5,
+        },
+      ],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (property === "0") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.And,
+          rules: malformedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(true);
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.Or,
+          rules: malformedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(true);
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.Not,
+          rules: malformedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(false);
   });
 
   it("sanitizes ownKeys-trapped explicit-empty combination collections to empty semantics", () => {
