@@ -742,6 +742,9 @@ fn sample_fluid_neighbors<S: VoxelAccess>(
     let mut cached_ids = [0u32; 8];
     let mut cached_samples = [FluidNeighborSample::Unknown; 8];
     let mut cached_len = 0usize;
+    let mut last_neighbor_id = 0u32;
+    let mut last_neighbor_sample = FluidNeighborSample::Unknown;
+    let mut has_last_neighbor = false;
 
     for dx in -1..=1 {
         let x_index = fluid_offset_index(dx);
@@ -759,13 +762,21 @@ fn sample_fluid_neighbors<S: VoxelAccess>(
                 let stage = extract_stage(neighbor_raw);
                 FluidNeighborSample::Fluid(get_fluid_effective_height(stage))
             } else {
-                lookup_cached_neighbor_sample(
-                    registry,
-                    neighbor_id,
-                    &mut cached_ids,
-                    &mut cached_samples,
-                    &mut cached_len,
-                )
+                let sample = if has_last_neighbor && neighbor_id == last_neighbor_id {
+                    last_neighbor_sample
+                } else {
+                    lookup_cached_neighbor_sample(
+                        registry,
+                        neighbor_id,
+                        &mut cached_ids,
+                        &mut cached_samples,
+                        &mut cached_len,
+                    )
+                };
+                last_neighbor_id = neighbor_id;
+                last_neighbor_sample = sample;
+                has_last_neighbor = true;
+                sample
             };
         }
     }
