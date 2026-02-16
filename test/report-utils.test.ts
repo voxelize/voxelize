@@ -30728,6 +30728,41 @@ describe("report-utils", () => {
   });
 
   it("derives wasm pack status with report and exit-code fallbacks", () => {
+    expect(() => deriveWasmPackCheckStatus(null as never)).not.toThrow();
+    expect(deriveWasmPackCheckStatus(null as never)).toBe("skipped");
+    const metadataWithExitCodeTrap = new Proxy(Object.create(null), {
+      get(_target, property) {
+        if (property === "wasmPackCheckExitCode") {
+          throw new Error("exit trap");
+        }
+        if (property === "wasmPackCheckReport") {
+          return {
+            checkStatusMap: {
+              "wasm-pack": "ok",
+            },
+          };
+        }
+        return undefined;
+      },
+    });
+    expect(
+      deriveWasmPackCheckStatus(metadataWithExitCodeTrap as never)
+    ).toBe("ok");
+    const metadataWithReportTrap = new Proxy(Object.create(null), {
+      get(_target, property) {
+        if (property === "wasmPackCheckReport") {
+          throw new Error("report trap");
+        }
+        if (property === "wasmPackCheckExitCode") {
+          return 1;
+        }
+        return undefined;
+      },
+    });
+    expect(
+      deriveWasmPackCheckStatus(metadataWithReportTrap as never)
+    ).toBe("unavailable");
+    expect(deriveWasmPackCheckStatus("mystery" as never)).toBe("skipped");
     expect(
       deriveWasmPackCheckStatus({
         wasmPackCheckExitCode: null,

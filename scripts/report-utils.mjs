@@ -1518,10 +1518,15 @@ export const extractWasmPackStatusFromReport = (report) => {
   return null;
 };
 
-export const deriveWasmPackCheckStatus = ({
-  wasmPackCheckExitCode,
-  wasmPackCheckReport,
-}) => {
+export const deriveWasmPackCheckStatus = (wasmPackCheckMetadata = null) => {
+  const wasmPackCheckExitCode = safeReadProperty(
+    wasmPackCheckMetadata,
+    "wasmPackCheckExitCode"
+  );
+  const wasmPackCheckReport = safeReadProperty(
+    wasmPackCheckMetadata,
+    "wasmPackCheckReport"
+  );
   const reportStatus = extractWasmPackStatusFromReport(wasmPackCheckReport);
   if (reportStatus !== null) {
     return reportStatus;
