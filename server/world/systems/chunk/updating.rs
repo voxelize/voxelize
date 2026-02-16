@@ -1009,8 +1009,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         // After each active voxel queues its updates, we fully process those updates
         // so the next active voxel sees the updated world state.
         // This is required for correct cellular automaton behavior (e.g., water removal cascades).
-        let due_voxel_count = due_voxels.as_ref().map_or(0, Vec::len);
-        let mut all_results = Vec::with_capacity(due_voxel_count);
+        let mut all_results: Option<Vec<UpdateProtocol>> = None;
 
         if let Some(due_voxels) = due_voxels.as_ref() {
             for voxel in due_voxels.iter() {
@@ -1043,7 +1042,14 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     current_tick,
                     max_updates_per_tick,
                 );
-                all_results.extend(results);
+                if results.is_empty() {
+                    continue;
+                }
+                if let Some(all_results) = all_results.as_mut() {
+                    all_results.extend(results);
+                } else {
+                    all_results = Some(results);
+                }
             }
         }
 
@@ -1064,10 +1070,16 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 current_tick,
                 max_updates_per_tick,
             );
-            all_results.extend(results);
+            if !results.is_empty() {
+                if let Some(all_results) = all_results.as_mut() {
+                    all_results.extend(results);
+                } else {
+                    all_results = Some(results);
+                }
+            }
         }
 
-        if !all_results.is_empty() {
+        if let Some(all_results) = all_results {
             let new_message = Message::new(&MessageType::Update)
                 .updates_owned(all_results)
                 .build();
