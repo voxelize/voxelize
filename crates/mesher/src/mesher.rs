@@ -1225,13 +1225,22 @@ fn should_render_face<S: VoxelAccess>(
         return false;
     }
 
+    if !see_through {
+        return n_block_type.is_empty
+            || !is_opaque
+            || !n_block_type.is_opaque
+            || (is_fluid
+                && n_block_type.is_opaque
+                && !n_block_type.is_fluid
+                && !fluid_surface_above
+                && (!n_block_type.is_full_cube() || dir == [0, 1, 0]));
+    }
+
     n_block_type.is_empty
-        || (see_through
-            && !is_opaque
+        || (!is_opaque
             && !n_block_type.is_opaque
             && ((is_see_through && neighbor_id == voxel_id && n_block_type.transparent_standalone)
                 || (neighbor_id != voxel_id && (is_see_through || n_block_type.is_see_through))))
-        || (!see_through && (!is_opaque || !n_block_type.is_opaque))
         || (is_fluid
             && n_block_type.is_opaque
             && !n_block_type.is_fluid
