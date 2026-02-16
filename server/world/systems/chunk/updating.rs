@@ -489,8 +489,8 @@ fn process_pending_updates(
     let mut green_removals: Option<Vec<Vec3<i32>>> = None;
     let mut blue_removals: Option<Vec<Vec3<i32>>> = None;
 
-    if let Some(removed_light_sources) = removed_light_sources.as_ref() {
-        for &(voxel, red_level, green_level, blue_level, is_opaque) in removed_light_sources {
+    if let Some(removed_light_sources) = removed_light_sources {
+        for (voxel, red_level, green_level, blue_level, is_opaque) in removed_light_sources {
             if red_level > 0 {
                 red_removals
                     .get_or_insert_with(|| Vec::with_capacity(removal_initial_capacity))
