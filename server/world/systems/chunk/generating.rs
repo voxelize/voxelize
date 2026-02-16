@@ -133,23 +133,22 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 weights.reserve(interest_map.len() - weights.len());
             }
             if clients.len() == 1 {
-                if let Some((single_client_id, single_client)) = clients.iter().next() {
-                    if let Some(single_request) = requests.get(single_client.entity) {
-                        let center = &single_request.center;
-                        let direction = &single_request.direction;
-                        let single_client_id = single_client_id.as_str();
-                        for (coords, ids) in interest_map {
-                            if contains_single_client_interest(ids, single_client_id) {
-                                let dist = ChunkUtils::distance_squared(center, coords);
-                                let alignment = chunk_interest_alignment(center, coords, direction);
-                                let weight = accumulate_chunk_interest_weight(0.0, dist, alignment);
-                                weights.insert(*coords, weight);
-                            } else {
-                                weights.insert(*coords, 0.0);
-                            }
+                let Some((single_client_id, single_client)) = clients.iter().next() else {
+                    unreachable!("single client length matched branch");
+                };
+                if let Some(single_request) = requests.get(single_client.entity) {
+                    let center = &single_request.center;
+                    let direction = &single_request.direction;
+                    let single_client_id = single_client_id.as_str();
+                    for (coords, ids) in interest_map {
+                        if contains_single_client_interest(ids, single_client_id) {
+                            let dist = ChunkUtils::distance_squared(center, coords);
+                            let alignment = chunk_interest_alignment(center, coords, direction);
+                            let weight = accumulate_chunk_interest_weight(0.0, dist, alignment);
+                            weights.insert(*coords, weight);
+                        } else {
+                            weights.insert(*coords, 0.0);
                         }
-                    } else {
-                        weights.clear();
                     }
                 } else {
                     weights.clear();

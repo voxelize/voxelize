@@ -50,28 +50,31 @@ impl SystemTimings {
             return HashMap::new();
         }
         if self.samples.len() == 1 {
-            let Some((name, samples)) = self.samples.iter().next() else {
-                return HashMap::new();
+            let (name, samples) = {
+                let Some(single_system) = self.samples.iter().next() else {
+                    unreachable!("single-system sample length matched branch");
+                };
+                single_system
             };
             if samples.is_empty() {
                 return HashMap::new();
             }
             if samples.len() == 1 {
-                if let Some(sample) = samples.front() {
-                    let duration = sample.duration_ms;
-                    let mut summary = HashMap::with_capacity(1);
-                    summary.insert(
-                        name.clone(),
-                        SystemStats {
-                            avg: duration,
-                            max: duration,
-                            min: duration,
-                            samples: 1,
-                        },
-                    );
-                    return summary;
-                }
-                return HashMap::new();
+                let Some(sample) = samples.front() else {
+                    unreachable!("single sample length matched branch");
+                };
+                let duration = sample.duration_ms;
+                let mut summary = HashMap::with_capacity(1);
+                summary.insert(
+                    name.clone(),
+                    SystemStats {
+                        avg: duration,
+                        max: duration,
+                        min: duration,
+                        samples: 1,
+                    },
+                );
+                return summary;
             }
             let mut sum = 0.0;
             let mut max = f64::NEG_INFINITY;

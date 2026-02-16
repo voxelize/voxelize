@@ -341,11 +341,10 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         }
         self.clients_with_updates_buffer.reserve(clients.len());
         let single_client = if clients.len() == 1 {
-            if let Some((client_id, client)) = clients.iter().next() {
-                Some((client_id.as_str(), client.entity))
-            } else {
-                None
-            }
+            let Some((client_id, client)) = clients.iter().next() else {
+                unreachable!("single client length matched branch");
+            };
+            Some((client_id.as_str(), client.entity))
         } else {
             None
         };

@@ -633,9 +633,10 @@ impl Chunks {
 
         if !self.updates.is_empty() {
             if self.updates_staging.len() == 1 {
-                if let Some(staged_voxel) = self.updates_staging.keys().next().copied() {
-                    self.updates.retain(|(voxel, _)| *voxel != staged_voxel);
-                }
+                let Some(staged_voxel) = self.updates_staging.keys().next().copied() else {
+                    unreachable!("single staged update length matched branch");
+                };
+                self.updates.retain(|(voxel, _)| *voxel != staged_voxel);
             } else {
                 self.updates
                     .retain(|(voxel, _)| !self.updates_staging.contains_key(voxel));
@@ -644,15 +645,16 @@ impl Chunks {
 
         let staged_count = self.updates_staging.len();
         if staged_count == 1 {
-            if let Some((voxel, val)) = self
+            let Some((voxel, val)) = self
                 .updates_staging
                 .iter()
                 .next()
                 .map(|(voxel, val)| (*voxel, *val))
-            {
-                self.updates_staging.clear();
-                self.updates.push_back((voxel, val));
-            }
+            else {
+                unreachable!("single staged update length matched branch");
+            };
+            self.updates_staging.clear();
+            self.updates.push_back((voxel, val));
             return;
         }
         self.updates.reserve(staged_count);
