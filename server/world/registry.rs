@@ -278,9 +278,13 @@ impl Registry {
     /// Get a block reference by block name.
     pub fn get_block_by_name(&self, name: &str) -> &Block {
         let normalized_name = Self::normalized_name(name);
-        self.blocks_by_name
-            .get(normalized_name.as_ref())
-            .unwrap_or_else(|| panic!("Block name not found: {name}",))
+        if let Some(block) = self.blocks_by_name.get(normalized_name.as_ref()) {
+            return block;
+        }
+        warn!("Block name not found: {}", name);
+        self.blocks_by_id
+            .get(&0)
+            .unwrap_or_else(|| Self::fallback_air_block())
     }
 
     /// Get a block reference by block ID. Returns Air if block ID not found.
@@ -294,10 +298,11 @@ impl Registry {
     /// Get a block id by block name.
     pub fn get_id_by_name(&self, name: &str) -> u32 {
         let normalized_name = Self::normalized_name(name);
-        *self
-            .type_map
-            .get(normalized_name.as_ref())
-            .unwrap_or_else(|| panic!("Block name not found: {name}"))
+        if let Some(id) = self.type_map.get(normalized_name.as_ref()) {
+            return *id;
+        }
+        warn!("Block name not found: {}", name);
+        0
     }
 
     /// Get block fluidity by id.
@@ -365,10 +370,13 @@ impl Registry {
 
         for block in blocks {
             let normalized_name = Self::normalized_name(block);
-            let &id = self
-                .type_map
-                .get(normalized_name.as_ref())
-                .unwrap_or_else(|| panic!("Block name not found: {}", block));
+            let id = match self.type_map.get(normalized_name.as_ref()) {
+                Some(id) => *id,
+                None => {
+                    warn!("Block name not found in get_type_map: {}", block);
+                    0
+                }
+            };
 
             type_map.insert((*block).to_owned(), id);
         }
@@ -559,5 +567,28 @@ impl Registry {
     fn invalidate_cached_registries(&mut self) {
         self.mesher_registry_cache = OnceLock::new();
         self.lighter_registry_cache = OnceLock::new();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Registry;
+
+    #[test]
+    fn unknown_block_name_lookups_fall_back_to_air() {
+        let registry = Registry::new();
+
+        assert_eq!(registry.get_id_by_name("missing-block"), 0);
+        assert_eq!(registry.get_block_by_name("missing-block").id, 0);
+        assert_eq!(registry.get_block_by_name("missing-block").name, "Air");
+    }
+
+    #[test]
+    fn get_type_map_returns_zero_for_missing_blocks() {
+        let registry = Registry::new();
+        let type_map = registry.get_type_map(&["air", "missing"]);
+
+        assert_eq!(type_map.get("air"), Some(&0));
+        assert_eq!(type_map.get("missing"), Some(&0));
     }
 }
