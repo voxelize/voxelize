@@ -17,6 +17,9 @@ fn chunk_interest_alignment(center: &Vec2<i32>, coords: &Vec2<i32>, direction: &
     if !direction.0.is_finite() || !direction.1.is_finite() {
         return 0.0;
     }
+    if direction.0.abs() <= f32::EPSILON && direction.1.abs() <= f32::EPSILON {
+        return 0.0;
+    }
     let direction_to_chunk_x = f64::from(coords.0) - f64::from(center.0);
     let direction_to_chunk_z = f64::from(coords.1) - f64::from(center.1);
     let mag = direction_to_chunk_x
@@ -526,6 +529,14 @@ mod tests {
         let center = Vec2(0, 0);
         let coords = Vec2(1, 1);
         let alignment = chunk_interest_alignment(&center, &coords, &Vec2(f32::NAN, 1.0));
+        assert_eq!(alignment, 0.0);
+    }
+
+    #[test]
+    fn chunk_interest_alignment_rejects_zero_direction_vectors() {
+        let center = Vec2(0, 0);
+        let coords = Vec2(1, 1);
+        let alignment = chunk_interest_alignment(&center, &coords, &Vec2(0.0, 0.0));
         assert_eq!(alignment, 0.0);
     }
 
