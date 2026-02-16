@@ -319,6 +319,12 @@ impl KdTree {
             self.removal_buffer = to_remove;
             return;
         }
+        if to_remove.len() == self.kind_map.len() {
+            self.reset();
+            to_remove.clear();
+            self.removal_buffer = to_remove;
+            return;
+        }
 
         for &ent_id in &to_remove {
             self.remove_entity_by_id(ent_id);
