@@ -173,7 +173,7 @@ describe("report-utils", () => {
       [42, trappedValue, revokedArray, Symbol("arg-sentinel")],
     ];
 
-    const thrownSignatures: string[] = [];
+    const thrownSignatures = new Set<string>();
     for (const [exportName, exportValue] of Object.entries(reportUtilsModule)) {
       if (typeof exportValue !== "function") {
         continue;
@@ -187,7 +187,7 @@ describe("report-utils", () => {
             const errorMessage =
               error instanceof Error ? `${error.name}: ${error.message}` : String(error);
             const thisLabel = thisValue === null ? "null" : typeof thisValue;
-            thrownSignatures.push(
+            thrownSignatures.add(
               `${exportName}[this:${thisLabel}|args:${args.length}]: ${errorMessage}`
             );
           }
@@ -195,7 +195,7 @@ describe("report-utils", () => {
       }
     }
 
-    expect(thrownSignatures).toEqual([]);
+    expect([...thrownSignatures]).toEqual([]);
   });
 
   it("parses valid json output", () => {

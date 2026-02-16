@@ -1911,7 +1911,7 @@ describe("Numeric helpers", () => {
       ["assertStage", new Set(["RangeError: Maximum stage is 15"])],
       ["lightColorFromIndex", new Set(["RangeError: Invalid light color!"])],
     ]);
-    const unexpectedThrownSignatures: string[] = [];
+    const unexpectedThrownSignatures = new Set<string>();
 
     for (const [exportName, exportValue] of Object.entries(tsCoreModule)) {
       if (typeof exportValue !== "function") {
@@ -1934,7 +1934,7 @@ describe("Numeric helpers", () => {
               error instanceof Error ? `${error.name}: ${error.message}` : String(error);
             if (!allowedErrorSignatures.has(errorSignature)) {
               const thisLabel = thisValue === null ? "null" : typeof thisValue;
-              unexpectedThrownSignatures.push(
+              unexpectedThrownSignatures.add(
                 `${exportName}[this:${thisLabel}|args:${args.length}]: ${errorSignature}`
               );
             }
@@ -1943,7 +1943,7 @@ describe("Numeric helpers", () => {
       }
     }
 
-    expect(unexpectedThrownSignatures).toEqual([]);
+    expect([...unexpectedThrownSignatures]).toEqual([]);
   });
 
   it("keeps class exports deterministic under malformed invocation matrices", () => {
@@ -2043,7 +2043,7 @@ describe("Numeric helpers", () => {
       /^BlockUtils\.insertStage(?:\[this:[^|]+\|args:\d+\]|\(\d+\)): RangeError: Maximum stage is 15$/,
       /^Voxel\.withStage(?:\[this:[^|]+\|args:\d+\]|\(\d+\)): RangeError: Maximum stage is 15$/,
     ];
-    const unexpectedThrownSignatures: string[] = [];
+    const unexpectedThrownSignatures = new Set<string>();
 
     for (const [exportName, exportValue] of Object.entries(tsCoreModule)) {
       if (typeof exportValue !== "function") {
@@ -2063,7 +2063,7 @@ describe("Numeric helpers", () => {
             error instanceof Error ? `${error.name}: ${error.message}` : String(error);
           const signature = `${exportName}.construct(${args.length}): ${errorSignature}`;
           if (!allowedErrorPatterns.some((pattern) => pattern.test(signature))) {
-            unexpectedThrownSignatures.push(signature);
+            unexpectedThrownSignatures.add(signature);
           }
         }
       }
@@ -2087,7 +2087,7 @@ describe("Numeric helpers", () => {
               const thisLabel = thisValue === null ? "null" : typeof thisValue;
               const signature = `${exportName}.${staticMethodName}[this:${thisLabel}|args:${args.length}]: ${errorSignature}`;
               if (!allowedErrorPatterns.some((pattern) => pattern.test(signature))) {
-                unexpectedThrownSignatures.push(signature);
+                unexpectedThrownSignatures.add(signature);
               }
             }
           }
@@ -2115,7 +2115,7 @@ describe("Numeric helpers", () => {
               const thisLabel = thisValue === null ? "null" : typeof thisValue;
               const signature = `${exportName}.prototype.${prototypeMethodName}[this:${thisLabel}|args:${args.length}]: ${errorSignature}`;
               if (!allowedErrorPatterns.some((pattern) => pattern.test(signature))) {
-                unexpectedThrownSignatures.push(signature);
+                unexpectedThrownSignatures.add(signature);
               }
             }
           }
@@ -2123,7 +2123,7 @@ describe("Numeric helpers", () => {
       }
     }
 
-    expect(unexpectedThrownSignatures).toEqual([]);
+    expect([...unexpectedThrownSignatures]).toEqual([]);
   });
 });
 
