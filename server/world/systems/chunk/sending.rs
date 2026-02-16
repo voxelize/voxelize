@@ -288,6 +288,28 @@ fn fanout_chunk_model(
             push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
             return;
         }
+        9 => {
+            let mut interested_iter = interested_clients.iter();
+            let first_client_id = next_interested_client_id(&mut interested_iter);
+            let second_client_id = next_interested_client_id(&mut interested_iter);
+            let third_client_id = next_interested_client_id(&mut interested_iter);
+            let fourth_client_id = next_interested_client_id(&mut interested_iter);
+            let fifth_client_id = next_interested_client_id(&mut interested_iter);
+            let sixth_client_id = next_interested_client_id(&mut interested_iter);
+            let seventh_client_id = next_interested_client_id(&mut interested_iter);
+            let eighth_client_id = next_interested_client_id(&mut interested_iter);
+            let ninth_client_id = next_interested_client_id(&mut interested_iter);
+            push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, fifth_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, sixth_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, seventh_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, eighth_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, ninth_client_id, &chunk_model);
+            push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+            return;
+        }
         _ => {}
     }
 
@@ -470,6 +492,26 @@ fn flush_chunk_batches_touched(
             flush_chunk_batch_for_client(queue, message_type, batches, sixth_client_id);
             flush_chunk_batch_for_client(queue, message_type, batches, seventh_client_id);
             flush_chunk_batch_for_client(queue, message_type, batches, eighth_client_id);
+        }
+        9 => {
+            let first_client_id = pop_touched_client_id(touched_clients);
+            let second_client_id = pop_touched_client_id(touched_clients);
+            let third_client_id = pop_touched_client_id(touched_clients);
+            let fourth_client_id = pop_touched_client_id(touched_clients);
+            let fifth_client_id = pop_touched_client_id(touched_clients);
+            let sixth_client_id = pop_touched_client_id(touched_clients);
+            let seventh_client_id = pop_touched_client_id(touched_clients);
+            let eighth_client_id = pop_touched_client_id(touched_clients);
+            let ninth_client_id = pop_touched_client_id(touched_clients);
+            flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
+            flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
+            flush_chunk_batch_for_client(queue, message_type, batches, third_client_id);
+            flush_chunk_batch_for_client(queue, message_type, batches, fourth_client_id);
+            flush_chunk_batch_for_client(queue, message_type, batches, fifth_client_id);
+            flush_chunk_batch_for_client(queue, message_type, batches, sixth_client_id);
+            flush_chunk_batch_for_client(queue, message_type, batches, seventh_client_id);
+            flush_chunk_batch_for_client(queue, message_type, batches, eighth_client_id);
+            flush_chunk_batch_for_client(queue, message_type, batches, ninth_client_id);
         }
         _ => {
             while let Some(client_id) = touched_clients.pop() {
