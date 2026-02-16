@@ -5,7 +5,7 @@
  */
 export class DOMUtils {
   private static toCssKey = (key: string) => {
-    if (key.startsWith("--")) {
+    if (key.length >= 2 && key.charCodeAt(0) === 45 && key.charCodeAt(1) === 45) {
       return key;
     }
     let uppercaseCount = 0;
