@@ -138,16 +138,11 @@ fn process_pending_updates(
     registry: &Registry,
     light_registry: &voxelize_lighter::LightRegistry,
     light_cfg: &voxelize_lighter::LightConfig,
+    max_light_level: u32,
+    max_height: Option<i32>,
     current_tick: u64,
     max_updates: usize,
 ) -> Vec<UpdateProtocol> {
-    let max_light_level = config.max_light_level;
-    let max_height = if config.max_height > i32::MAX as usize {
-        None
-    } else {
-        Some(config.max_height as i32)
-    };
-
     chunks.flush_staged_updates();
 
     if chunks.updates.is_empty() {
@@ -801,6 +796,12 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
         let current_tick = stats.tick as u64;
         let max_updates_per_tick = config.max_updates_per_tick;
+        let max_light_level = config.max_light_level;
+        let max_height = if config.max_height > i32::MAX as usize {
+            None
+        } else {
+            Some(config.max_height as i32)
+        };
         let light_registry = registry.lighter_registry_ref().as_ref();
         let light_config = light_config(&config);
 
@@ -855,6 +856,8 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 &registry,
                 light_registry,
                 &light_config,
+                max_light_level,
+                max_height,
                 current_tick,
                 max_updates_per_tick,
             );
@@ -871,6 +874,8 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             &registry,
             light_registry,
             &light_config,
+            max_light_level,
+            max_height,
             current_tick,
             max_updates_per_tick,
         );
