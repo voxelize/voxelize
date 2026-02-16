@@ -1234,12 +1234,22 @@ const toNonNegativeFiniteNumberOrNull = (value) => {
 };
 
 const toTrimmedStringOrNull = (value) => {
-  if (typeof value !== "string") {
+  if (typeof value === "string") {
+    const normalizedValue = value.trim();
+    return normalizedValue.length > 0 ? normalizedValue : null;
+  }
+
+  if (!isStringObjectValue(value)) {
     return null;
   }
 
-  const normalizedValue = value.trim();
-  return normalizedValue.length > 0 ? normalizedValue : null;
+  const wrappedPrimitiveValue = toPrimitiveWrapperValueOrNull(value);
+  if (typeof wrappedPrimitiveValue !== "string") {
+    return null;
+  }
+
+  const normalizedWrappedValue = wrappedPrimitiveValue.trim();
+  return normalizedWrappedValue.length > 0 ? normalizedWrappedValue : null;
 };
 
 const toSanitizedOutputLineOrNull = (value) => {

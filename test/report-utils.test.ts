@@ -30741,6 +30741,44 @@ describe("report-utils", () => {
       wasmPackCheckExitCode: null,
       wasmPackCheckOutputLine: null,
     });
+    const crossRealmWrappedWasmCommand = vm.runInNewContext(
+      "new String(' node ')"
+    );
+    let didCallCrossRealmWrappedWasmCommandToString = false;
+    Object.defineProperty(crossRealmWrappedWasmCommand, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedWasmCommandToString = true;
+        throw new Error("cross-realm wrapped wasm command toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedWasmCommandValueOf = false;
+    Object.defineProperty(crossRealmWrappedWasmCommand, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedWasmCommandValueOf = true;
+        throw new Error("cross-realm wrapped wasm command valueOf trap");
+      },
+    });
+    expect(
+      extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckStatus: "ok",
+        wasmPackCheckCommand: crossRealmWrappedWasmCommand as never,
+      })
+    ).toEqual({
+      wasmPackCheckStatus: "ok",
+      wasmPackCheckCommand: "node",
+      wasmPackCheckArgs: null,
+      wasmPackCheckArgCount: null,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
+    expect(didCallCrossRealmWrappedWasmCommandToString).toBe(false);
+    expect(didCallCrossRealmWrappedWasmCommandValueOf).toBe(false);
     expect(
       extractWasmPackCheckSummaryFromReport({
         wasmPackCheckOutputLine: "   wasm-pack not found   ",
@@ -31635,6 +31673,45 @@ describe("report-utils", () => {
       wasmPackCheckExitCode: null,
       wasmPackCheckOutputLine: null,
     });
+
+    const crossRealmWrappedWasmPrefix = vm.runInNewContext("new String('client')");
+    let didCallCrossRealmWrappedWasmPrefixToString = false;
+    Object.defineProperty(crossRealmWrappedWasmPrefix, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedWasmPrefixToString = true;
+        throw new Error("cross-realm wrapped wasm prefix toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedWasmPrefixValueOf = false;
+    Object.defineProperty(crossRealmWrappedWasmPrefix, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedWasmPrefixValueOf = true;
+        throw new Error("cross-realm wrapped wasm prefix valueOf trap");
+      },
+    });
+    expect(
+      createPrefixedWasmPackCheckSummary(
+        {
+          wasmPackCheckStatus: "ok",
+        },
+        crossRealmWrappedWasmPrefix as never
+      )
+    ).toEqual({
+      clientWasmPackCheckStatus: "ok",
+      clientWasmPackCheckCommand: null,
+      clientWasmPackCheckArgs: null,
+      clientWasmPackCheckArgCount: null,
+      clientWasmPackCheckExitCode: null,
+      clientWasmPackCheckOutputLine: null,
+    });
+    expect(didCallCrossRealmWrappedWasmPrefixToString).toBe(false);
+    expect(didCallCrossRealmWrappedWasmPrefixValueOf).toBe(false);
   });
 
   it("normalizes ts-core payload issue lists", () => {
@@ -32199,6 +32276,51 @@ describe("report-utils", () => {
       exampleDurationMs: null,
       exampleOutputLine: null,
     });
+    const crossRealmWrappedExampleCommand = vm.runInNewContext(
+      "new String(' node ')"
+    );
+    let didCallCrossRealmWrappedExampleCommandToString = false;
+    Object.defineProperty(crossRealmWrappedExampleCommand, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedExampleCommandToString = true;
+        throw new Error("cross-realm wrapped example command toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedExampleCommandValueOf = false;
+    Object.defineProperty(crossRealmWrappedExampleCommand, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedExampleCommandValueOf = true;
+        throw new Error("cross-realm wrapped example command valueOf trap");
+      },
+    });
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleCommand: crossRealmWrappedExampleCommand as never,
+        exampleAttempted: true,
+        exampleExitCode: 1,
+      })
+    ).toEqual({
+      exampleCommand: "node",
+      exampleArgs: null,
+      exampleArgCount: null,
+      exampleAttempted: true,
+      exampleStatus: "failed",
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: 1,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    expect(didCallCrossRealmWrappedExampleCommandToString).toBe(false);
+    expect(didCallCrossRealmWrappedExampleCommandValueOf).toBe(false);
     expect(
       extractTsCoreExampleSummaryFromReport({
         exampleAttempted: false,
@@ -33561,6 +33683,51 @@ describe("report-utils", () => {
       exampleDurationMs: null,
       exampleOutputLine: null,
     });
+
+    const crossRealmWrappedExamplePrefix = vm.runInNewContext("new String('tsCore')");
+    let didCallCrossRealmWrappedExamplePrefixToString = false;
+    Object.defineProperty(crossRealmWrappedExamplePrefix, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedExamplePrefixToString = true;
+        throw new Error("cross-realm wrapped example prefix toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedExamplePrefixValueOf = false;
+    Object.defineProperty(crossRealmWrappedExamplePrefix, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedExamplePrefixValueOf = true;
+        throw new Error("cross-realm wrapped example prefix valueOf trap");
+      },
+    });
+    expect(
+      createPrefixedTsCoreExampleSummary(
+        {
+          exampleStatus: "ok",
+        },
+        crossRealmWrappedExamplePrefix as never
+      )
+    ).toEqual({
+      tsCoreExampleCommand: null,
+      tsCoreExampleArgs: null,
+      tsCoreExampleArgCount: null,
+      tsCoreExampleAttempted: null,
+      tsCoreExampleStatus: "ok",
+      tsCoreExampleRuleMatched: null,
+      tsCoreExamplePayloadValid: null,
+      tsCoreExamplePayloadIssues: null,
+      tsCoreExamplePayloadIssueCount: null,
+      tsCoreExampleExitCode: null,
+      tsCoreExampleDurationMs: null,
+      tsCoreExampleOutputLine: null,
+    });
+    expect(didCallCrossRealmWrappedExamplePrefixToString).toBe(false);
+    expect(didCallCrossRealmWrappedExamplePrefixValueOf).toBe(false);
   });
 
   it("derives ts-core example status from attempt, rule, and payload flags", () => {
