@@ -229,7 +229,7 @@ export const createTimedReportBuilder = (
       Number.isFinite(rawDurationMs) && rawDurationMs >= 0 ? rawDurationMs : 0;
 
     return {
-      ...report,
+      ...toReportSnapshotOrEmpty(report),
       startedAt,
       endedAt: resolveIsoTimestamp(endedAtMs),
       durationMs,

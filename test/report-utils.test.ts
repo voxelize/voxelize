@@ -22704,6 +22704,35 @@ describe("report-utils", () => {
     });
   });
 
+  it("sanitizes malformed timed report payloads before timestamp injection", () => {
+    const withTiming = createTimedReportBuilder(
+      () => 1_000,
+      (value) => `iso-${value}`
+    );
+    expect(withTiming("text" as never)).toEqual({
+      startedAt: "iso-1000",
+      endedAt: "iso-1000",
+      durationMs: 0,
+    });
+    expect(withTiming([1, 2, 3] as never)).toEqual({
+      startedAt: "iso-1000",
+      endedAt: "iso-1000",
+      durationMs: 0,
+    });
+
+    const trappedReport = new Proxy(Object.create(null), {
+      ownKeys() {
+        throw new Error("ownKeys trap");
+      },
+    });
+    expect(() => withTiming(trappedReport as never)).not.toThrow();
+    expect(withTiming(trappedReport as never)).toEqual({
+      startedAt: "iso-1000",
+      endedAt: "iso-1000",
+      durationMs: 0,
+    });
+  });
+
   it("builds timed reports with stable startedAt and duration", () => {
     let tick = 0;
     const now = () => {
