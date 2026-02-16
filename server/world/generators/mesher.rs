@@ -142,16 +142,24 @@ impl Mesher {
             return;
         }
 
-        if self.queued.contains(coords) {
+        if self.queued.insert(*coords) {
             if prioritized {
-                if self.queue.front().is_some_and(|front| front == coords) {
-                    return;
-                }
-            } else if self.queue.back().is_some_and(|back| back == coords) {
+                self.queue.push_front(*coords);
+            } else {
+                self.queue.push_back(*coords);
+            }
+            return;
+        }
+
+        if prioritized {
+            if self.queue.front().is_some_and(|front| front == coords) {
                 return;
             }
-            self.remove_queued_chunk(coords);
+        } else if self.queue.back().is_some_and(|back| back == coords) {
+            return;
         }
+
+        self.remove_queued_chunk(coords);
 
         if prioritized {
             self.queue.push_front(*coords);
