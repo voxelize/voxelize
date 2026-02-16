@@ -180,6 +180,8 @@ fn process_pending_updates(
             }
         } else {
             let Some(updated_type) = registry.get_known_block_by_id(updated_id) else {
+                last_updated_id = Some(updated_id);
+                last_updated_type = None;
                 continue;
             };
             last_updated_id = Some(updated_id);
