@@ -207,6 +207,21 @@ impl ChunkInterests {
         if self.map.is_empty() {
             return;
         }
+        if self.map.len() == 1 {
+            let Some(coords) = self.map.keys().next().copied() else {
+                return;
+            };
+            let mut should_remove_coords = false;
+            if let Some(clients) = self.map.get_mut(&coords) {
+                clients.remove(client_id);
+                should_remove_coords = clients.is_empty();
+            }
+            if should_remove_coords {
+                self.map.remove(&coords);
+                self.weights.remove(&coords);
+            }
+            return;
+        }
         if self.weights.is_empty() {
             self.map.retain(|_, clients| {
                 clients.remove(client_id);
@@ -388,5 +403,31 @@ mod tests {
         assert!(interests.has_interests(&retained_coords));
         assert_eq!(interests.get_weight(&removed_coords), None);
         assert_eq!(interests.get_weight(&retained_coords), Some(&7.0));
+    }
+
+    #[test]
+    fn remove_client_handles_single_entry_map() {
+        let mut interests = ChunkInterests::new();
+        let coords = Vec2(3, 4);
+        interests.add("solo", &coords);
+        interests.set_weight(&coords, 11.0);
+
+        interests.remove_client("solo");
+
+        assert!(!interests.has_interests(&coords));
+        assert_eq!(interests.get_weight(&coords), None);
+    }
+
+    #[test]
+    fn remove_client_keeps_single_entry_when_client_not_present() {
+        let mut interests = ChunkInterests::new();
+        let coords = Vec2(-3, 5);
+        interests.add("solo", &coords);
+        interests.set_weight(&coords, 3.0);
+
+        interests.remove_client("other");
+
+        assert!(interests.has_interests(&coords));
+        assert_eq!(interests.get_weight(&coords), Some(&3.0));
     }
 }
