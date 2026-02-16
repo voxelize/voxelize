@@ -23434,6 +23434,21 @@ describe("report-utils", () => {
       clientWasmPackCheckExitCode: 0,
       clientWasmPackCheckOutputLine: "wasm-pack 0.12.1",
     });
+    expect(
+      createPrefixedWasmPackCheckSummary(
+        {
+          wasmPackCheckArgs: new Array(1),
+        },
+        "client"
+      )
+    ).toEqual({
+      clientWasmPackCheckStatus: null,
+      clientWasmPackCheckCommand: null,
+      clientWasmPackCheckArgs: [],
+      clientWasmPackCheckArgCount: 0,
+      clientWasmPackCheckExitCode: null,
+      clientWasmPackCheckOutputLine: null,
+    });
     expect(createPrefixedWasmPackCheckSummary(null)).toEqual({
       wasmPackCheckStatus: null,
       wasmPackCheckCommand: null,
@@ -24855,6 +24870,29 @@ describe("report-utils", () => {
       tsCoreExampleExitCode: 0,
       tsCoreExampleDurationMs: 125,
       tsCoreExampleOutputLine: "{\"ruleMatched\":true}",
+    });
+    expect(
+      createPrefixedTsCoreExampleSummary(
+        {
+          exampleArgs: new Array(1),
+          exampleAttempted: true,
+          exampleExitCode: 1,
+        },
+        "tsCore"
+      )
+    ).toEqual({
+      tsCoreExampleCommand: null,
+      tsCoreExampleArgs: [],
+      tsCoreExampleArgCount: 0,
+      tsCoreExampleAttempted: true,
+      tsCoreExampleStatus: "failed",
+      tsCoreExampleRuleMatched: null,
+      tsCoreExamplePayloadValid: null,
+      tsCoreExamplePayloadIssues: null,
+      tsCoreExamplePayloadIssueCount: null,
+      tsCoreExampleExitCode: 1,
+      tsCoreExampleDurationMs: null,
+      tsCoreExampleOutputLine: null,
     });
     expect(createPrefixedTsCoreExampleSummary(null)).toEqual({
       exampleCommand: null,
