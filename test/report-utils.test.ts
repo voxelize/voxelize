@@ -5389,6 +5389,30 @@ describe("report-utils", () => {
     expect(
       emptyIteratorLengthZeroAndOwnKeysTrapStrictMetadataOverrideValidation.validationErrorCode
     ).toBe("unsupported_options");
+    const explicitEmptyStrictMetadataOverrideValidation =
+      createCliOptionValidation(["--output", "-l"], {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+        strictValueOptionTokenMetadata: {
+          tokens: [],
+          unavailable: false,
+        } as never,
+      });
+    expect(explicitEmptyStrictMetadataOverrideValidation.supportedCliOptions).toEqual(
+      ["--output"]
+    );
+    expect(
+      explicitEmptyStrictMetadataOverrideValidation.supportedCliOptionCount
+    ).toBe(1);
+    expect(explicitEmptyStrictMetadataOverrideValidation.unknownOptions).toEqual([]);
+    expect(explicitEmptyStrictMetadataOverrideValidation.unknownOptionCount).toBe(
+      0
+    );
+    expect(
+      explicitEmptyStrictMetadataOverrideValidation.unsupportedOptionsError
+    ).toBeNull();
+    expect(explicitEmptyStrictMetadataOverrideValidation.validationErrorCode).toBeNull();
     const explicitEmptyIteratorStrictMetadataOverrideValidation =
       createCliOptionValidation(["--output", "-l"], {
         canonicalOptions: ["--output"],
