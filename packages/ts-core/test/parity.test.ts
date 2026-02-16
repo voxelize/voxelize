@@ -10183,6 +10183,72 @@ describe("BlockRuleEvaluator", () => {
     expect(matched).toBe(true);
   });
 
+  it("salvages wrapped rule offsets during evaluation", () => {
+    const wrappedOffsetX = vm.runInNewContext("new Number(1)");
+    let didCallWrappedOffsetXToString = false;
+    Object.defineProperty(wrappedOffsetX, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedOffsetXToString = true;
+        throw new Error("wrapped offset x toString trap");
+      },
+    });
+    let didCallWrappedOffsetXValueOf = false;
+    Object.defineProperty(wrappedOffsetX, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedOffsetXValueOf = true;
+        throw new Error("wrapped offset x valueOf trap");
+      },
+    });
+    const rule = {
+      type: "simple" as const,
+      offset: [wrappedOffsetX as never, 0, 0] as [number, number, number],
+      id: 90,
+    };
+    const access = {
+      getVoxel: (x: number, y: number, z: number) =>
+        x === 1 && y === 0 && z === 0 ? 90 : 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    expect(BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access)).toBe(true);
+    expect(didCallWrappedOffsetXToString).toBe(false);
+    expect(didCallWrappedOffsetXValueOf).toBe(false);
+  });
+
+  it("salvages wrapped rule offsets when toStringTag traps", () => {
+    const wrappedOffsetX = new Number(1);
+    let didCallWrappedOffsetXToStringTag = false;
+    Object.defineProperty(wrappedOffsetX, Symbol.toStringTag, {
+      configurable: true,
+      enumerable: false,
+      get() {
+        didCallWrappedOffsetXToStringTag = true;
+        throw new Error("wrapped offset x toStringTag trap");
+      },
+    });
+    const rule = {
+      type: "simple" as const,
+      offset: [wrappedOffsetX as never, 0, 0] as [number, number, number],
+      id: 91,
+    };
+    const access = {
+      getVoxel: (x: number, y: number, z: number) =>
+        x === 1 && y === 0 && z === 0 ? 91 : 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    expect(BlockRuleEvaluator.evaluate(rule, [0, 0, 0], access)).toBe(true);
+    expect(didCallWrappedOffsetXToStringTag).toBe(false);
+  });
+
   it("normalizes large full-turn y-rotations for y-rotatable offsets", () => {
     const rule = {
       type: "simple" as const,

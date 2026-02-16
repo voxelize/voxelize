@@ -123,6 +123,23 @@ const toBooleanOrDefault = (value: RuleOptionValue, fallback: boolean): boolean 
   }
 };
 
+const toFiniteNumberOrNull = (value: RuleOptionValue): number | null => {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (value === null || typeof value !== "object") {
+    return null;
+  }
+
+  try {
+    const wrappedNumberValue = Number.prototype.valueOf.call(value);
+    return Number.isFinite(wrappedNumberValue) ? wrappedNumberValue : null;
+  } catch {
+    return null;
+  }
+};
+
 const normalizeRuleEvaluationOptions = (
   options: BlockRuleEvaluationOptions
 ): NormalizedRuleEvaluationOptions => {
@@ -305,18 +322,18 @@ const toFiniteVec3SnapshotOrNull = (value: RuleOptionValue): Vec3 | null => {
     return null;
   }
 
+  const normalizedX = toFiniteNumberOrNull(x);
+  const normalizedY = toFiniteNumberOrNull(y);
+  const normalizedZ = toFiniteNumberOrNull(z);
   if (
-    typeof x !== "number" ||
-    !Number.isFinite(x) ||
-    typeof y !== "number" ||
-    !Number.isFinite(y) ||
-    typeof z !== "number" ||
-    !Number.isFinite(z)
+    normalizedX === null ||
+    normalizedY === null ||
+    normalizedZ === null
   ) {
     return null;
   }
 
-  return [x, y, z];
+  return [normalizedX, normalizedY, normalizedZ];
 };
 
 const toRuleEntryOrNone = (value: RuleOptionValue): BlockRule => {
@@ -351,13 +368,13 @@ const toRuleEntryOrNone = (value: RuleOptionValue): BlockRule => {
       return BLOCK_RULE_NONE;
     }
 
+    const normalizedX = toFiniteNumberOrNull(x);
+    const normalizedY = toFiniteNumberOrNull(y);
+    const normalizedZ = toFiniteNumberOrNull(z);
     if (
-      typeof x !== "number" ||
-      !Number.isFinite(x) ||
-      typeof y !== "number" ||
-      !Number.isFinite(y) ||
-      typeof z !== "number" ||
-      !Number.isFinite(z)
+      normalizedX === null ||
+      normalizedY === null ||
+      normalizedZ === null
     ) {
       return BLOCK_RULE_NONE;
     }
