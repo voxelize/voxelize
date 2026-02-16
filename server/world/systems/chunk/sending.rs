@@ -849,4 +849,41 @@ mod tests {
             assert_eq!(client_chunks[0].id, "chunk-9--4");
         }
     }
+
+    #[test]
+    fn fanout_chunk_model_populates_all_nine_recipients() {
+        let mut batches: HashMap<String, Vec<ChunkProtocol>> = HashMap::new();
+        let mut touched_clients = Vec::new();
+        let interested_clients: HashSet<String> =
+            ["a", "b", "c", "d", "e", "f", "g", "h", "i"]
+                .into_iter()
+                .map(str::to_string)
+                .collect();
+        let chunk_model = ChunkProtocol {
+            x: 11,
+            z: -6,
+            id: "chunk-11--6".to_string(),
+            meshes: Vec::new(),
+            voxels: None,
+            lights: None,
+        };
+
+        fanout_chunk_model(
+            &mut batches,
+            &mut touched_clients,
+            &interested_clients,
+            chunk_model,
+        );
+
+        assert_eq!(batches.len(), interested_clients.len());
+        let touched_ids: HashSet<_> = touched_clients.into_iter().collect();
+        assert_eq!(touched_ids, interested_clients);
+        for client_id in ["a", "b", "c", "d", "e", "f", "g", "h", "i"] {
+            let client_chunks = batches
+                .get(client_id)
+                .expect("chunk fanout missing expected recipient");
+            assert_eq!(client_chunks.len(), 1);
+            assert_eq!(client_chunks[0].id, "chunk-11--6");
+        }
+    }
 }
