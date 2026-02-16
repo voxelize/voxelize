@@ -22738,6 +22738,65 @@ describe("report-utils", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("sanitizes malformed serialize-report option wrappers", () => {
+    const report = {
+      passed: true,
+      exitCode: 0,
+      outputPath: null,
+    };
+    expect(() =>
+      serializeReportWithOptionalWrite(report, null as never)
+    ).not.toThrow();
+    const nullOptionsResult = serializeReportWithOptionalWrite(
+      report,
+      null as never
+    );
+    const parsedNullOptionsResult = JSON.parse(nullOptionsResult.reportJson) as {
+      schemaVersion: number;
+      passed: boolean;
+      exitCode: number;
+      outputPath: string | null;
+    };
+    expect(nullOptionsResult.writeError).toBeNull();
+    expect(parsedNullOptionsResult.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+    expect(parsedNullOptionsResult.passed).toBe(true);
+    expect(parsedNullOptionsResult.exitCode).toBe(0);
+    expect(parsedNullOptionsResult.outputPath).toBeNull();
+
+    const trappedOptions = new Proxy(Object.create(null), {
+      get(_target, property) {
+        if (
+          property === "jsonFormat" ||
+          property === "outputPath" ||
+          property === "buildTimedReport"
+        ) {
+          throw new Error("config trap");
+        }
+        return undefined;
+      },
+    });
+    expect(() =>
+      serializeReportWithOptionalWrite(report, trappedOptions as never)
+    ).not.toThrow();
+    const trappedOptionsResult = serializeReportWithOptionalWrite(
+      report,
+      trappedOptions as never
+    );
+    const parsedTrappedOptionsResult = JSON.parse(
+      trappedOptionsResult.reportJson
+    ) as {
+      schemaVersion: number;
+      passed: boolean;
+      exitCode: number;
+      outputPath: string | null;
+    };
+    expect(trappedOptionsResult.writeError).toBeNull();
+    expect(parsedTrappedOptionsResult.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+    expect(parsedTrappedOptionsResult.passed).toBe(true);
+    expect(parsedTrappedOptionsResult.exitCode).toBe(0);
+    expect(parsedTrappedOptionsResult.outputPath).toBeNull();
+  });
+
   it("returns structured serialize fallback when output-path coercion traps", () => {
     const trappedOutputPath = {
       [Symbol.toPrimitive]() {

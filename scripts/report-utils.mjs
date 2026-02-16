@@ -2929,10 +2929,34 @@ const toTimedWriteFailureReportSnapshot = (writeFailureReport, buildTimedReport)
   }
 };
 
+const readReportSerializationConfigValue = (
+  serializationOptions,
+  key,
+  fallbackValue
+) => {
+  const configValue = safeReadProperty(serializationOptions, key);
+  return configValue === undefined ? fallbackValue : configValue;
+};
+
 export const serializeReportWithOptionalWrite = (
   report,
-  { jsonFormat, outputPath, buildTimedReport }
+  serializationOptions = null
 ) => {
+  const jsonFormat = readReportSerializationConfigValue(
+    serializationOptions,
+    "jsonFormat",
+    undefined
+  );
+  const outputPath = readReportSerializationConfigValue(
+    serializationOptions,
+    "outputPath",
+    null
+  );
+  const buildTimedReport = readReportSerializationConfigValue(
+    serializationOptions,
+    "buildTimedReport",
+    null
+  );
   const reportJson = toReportJson(report, jsonFormat);
 
   if (outputPath === null) {
