@@ -42,17 +42,29 @@ pub struct Block {
     pub has_standard_faces: bool,
     #[serde(skip, default)]
     pub has_standard_faces_computed: bool,
+    #[serde(skip, default)]
+    pub has_diagonal_faces: bool,
+    #[serde(skip, default)]
+    pub has_cardinal_faces: bool,
 }
 
 impl Block {
     pub fn compute_name_lower(&mut self) {
         self.name_lower = self.name.to_lowercase();
         let mut has_standard_faces = false;
+        let mut has_diagonal_faces = false;
+        let mut has_cardinal_faces = false;
         for face in &mut self.faces {
             face.compute_name_lower();
-            if is_cardinal_face_dir(face.dir)
-                || matches!(face.get_name_lower(), "py" | "ny" | "px" | "nx" | "pz" | "nz")
-            {
+            if face.dir == [0, 0, 0] {
+                has_diagonal_faces = true;
+            }
+            if is_cardinal_face_dir(face.dir) {
+                has_cardinal_faces = true;
+                has_standard_faces = true;
+                continue;
+            }
+            if matches!(face.get_name_lower(), "py" | "ny" | "px" | "nx" | "pz" | "nz") {
                 has_standard_faces = true;
             }
         }
@@ -67,6 +79,8 @@ impl Block {
         }
         self.has_standard_faces = has_standard_faces;
         self.has_standard_faces_computed = true;
+        self.has_diagonal_faces = has_diagonal_faces;
+        self.has_cardinal_faces = has_cardinal_faces;
     }
 
     pub fn is_full_cube(&self) -> bool {
@@ -907,6 +921,9 @@ fn create_fluid_faces<S: VoxelAccess>(
 }
 
 fn has_diagonal_faces(block: &Block) -> bool {
+    if block.has_standard_faces_computed {
+        return block.has_diagonal_faces;
+    }
     block.faces.iter().any(|f| f.dir == [0, 0, 0])
 }
 
@@ -933,6 +950,9 @@ fn plant_position_jitter(vx: i32, vy: i32, vz: i32) -> (f32, f32) {
 }
 
 fn has_cardinal_faces(block: &Block) -> bool {
+    if block.has_standard_faces_computed {
+        return block.has_cardinal_faces;
+    }
     block.faces.iter().any(|f| {
         let d = f.dir;
         (d[0].abs() + d[1].abs() + d[2].abs()) == 1
@@ -2554,9 +2574,9 @@ pub fn mesh_chunk_with_registry(input: MeshInputNoRegistry, registry: &Registry)
 mod tests {
     use super::{
         build_independent_geo_key, build_isolated_geo_key, cardinal_face_index,
-        cardinal_face_index_from_dir, collect_cardinal_face_ranges, has_standard_six_faces,
-        lowercase_if_needed, mesh_chunk, mesh_chunk_with_registry, Block, BlockFace, ChunkData,
-        MeshConfig, MeshInput,
+        cardinal_face_index_from_dir, collect_cardinal_face_ranges, has_cardinal_faces,
+        has_diagonal_faces, has_standard_six_faces, lowercase_if_needed, mesh_chunk,
+        mesh_chunk_with_registry, Block, BlockFace, ChunkData, MeshConfig, MeshInput,
         MeshInputNoRegistry, Registry, UV, VoxelSpace,
     };
     use std::borrow::Cow;
@@ -2768,6 +2788,8 @@ mod tests {
             dynamic_patterns: None,
             has_standard_faces: false,
             has_standard_faces_computed: false,
+            has_diagonal_faces: false,
+            has_cardinal_faces: false,
         }
     }
 
@@ -2778,6 +2800,24 @@ mod tests {
         block.has_standard_faces_computed = true;
 
         assert!(has_standard_six_faces(&block));
+    }
+
+    #[test]
+    fn has_diagonal_faces_uses_cached_flag_when_computed() {
+        let mut block = block_with_faces(Vec::new());
+        block.has_diagonal_faces = true;
+        block.has_standard_faces_computed = true;
+
+        assert!(has_diagonal_faces(&block));
+    }
+
+    #[test]
+    fn has_cardinal_faces_uses_cached_flag_when_computed() {
+        let mut block = block_with_faces(Vec::new());
+        block.has_cardinal_faces = true;
+        block.has_standard_faces_computed = true;
+
+        assert!(has_cardinal_faces(&block));
     }
 
     #[test]

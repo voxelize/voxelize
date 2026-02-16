@@ -1719,6 +1719,8 @@ impl Block {
             dynamic_patterns,
             has_standard_faces: false,
             has_standard_faces_computed: false,
+            has_diagonal_faces: false,
+            has_cardinal_faces: false,
         }
     }
 
