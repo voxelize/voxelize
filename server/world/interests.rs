@@ -78,6 +78,14 @@ impl ChunkInterests {
         if self.map.is_empty() {
             return false;
         }
+        if self.map.len() == 1 {
+            if let Some((coords, _)) = self.map.iter().next() {
+                let dx = (i64::from(coords.0) - i64::from(center.0)).unsigned_abs();
+                let dz = (i64::from(coords.1) - i64::from(center.1)).unsigned_abs();
+                return dx <= 1 && dz <= 1;
+            }
+            return false;
+        }
         if self.map.contains_key(center) {
             return true;
         }
@@ -97,6 +105,16 @@ impl ChunkInterests {
 
     pub fn get_interested_clients_in_region(&self, center: &Vec2<i32>) -> HashSet<String> {
         if self.map.is_empty() {
+            return HashSet::new();
+        }
+        if self.map.len() == 1 {
+            if let Some((coords, interested)) = self.map.iter().next() {
+                let dx = (i64::from(coords.0) - i64::from(center.0)).unsigned_abs();
+                let dz = (i64::from(coords.1) - i64::from(center.1)).unsigned_abs();
+                if dx <= 1 && dz <= 1 {
+                    return interested.clone();
+                }
+            }
             return HashSet::new();
         }
 
@@ -120,9 +138,11 @@ impl ChunkInterests {
                     continue;
                 }
                 if let Some(seed) = single_interest {
-                    let mut clients =
-                        HashSet::with_capacity(seed.len().saturating_add(interested.len()));
-                    clients.extend(seed.iter().cloned());
+                    let mut clients = seed.clone();
+                    let remaining_capacity = clients.capacity() - clients.len();
+                    if remaining_capacity < interested.len() {
+                        clients.reserve(interested.len() - remaining_capacity);
+                    }
                     clients.extend(interested.iter().cloned());
                     merged_clients = Some(clients);
                 } else {
@@ -134,9 +154,7 @@ impl ChunkInterests {
             return clients;
         }
         if let Some(interested) = single_interest {
-            let mut clients = HashSet::with_capacity(interested.len());
-            clients.extend(interested.iter().cloned());
-            return clients;
+            return interested.clone();
         }
         HashSet::new()
     }
@@ -237,6 +255,16 @@ mod tests {
     }
 
     #[test]
+    fn has_interests_in_region_handles_single_entry_neighbors() {
+        let mut interests = ChunkInterests::new();
+        interests.add("a", &Vec2(10, 10));
+
+        assert!(interests.has_interests_in_region(&Vec2(10, 10)));
+        assert!(interests.has_interests_in_region(&Vec2(11, 10)));
+        assert!(!interests.has_interests_in_region(&Vec2(12, 10)));
+    }
+
+    #[test]
     fn get_interested_clients_in_region_skips_overflowing_neighbors() {
         let mut interests = ChunkInterests::new();
         interests.add("center", &Vec2(i32::MAX, i32::MAX));
@@ -245,6 +273,19 @@ mod tests {
         let clients = interests.get_interested_clients_in_region(&Vec2(i32::MAX, i32::MAX));
         assert!(clients.contains("center"));
         assert!(clients.contains("left"));
+    }
+
+    #[test]
+    fn get_interested_clients_in_region_handles_single_entry_neighbors() {
+        let mut interests = ChunkInterests::new();
+        interests.add("solo", &Vec2(3, -2));
+
+        let neighbor_clients = interests.get_interested_clients_in_region(&Vec2(4, -2));
+        assert_eq!(neighbor_clients.len(), 1);
+        assert!(neighbor_clients.contains("solo"));
+
+        let distant_clients = interests.get_interested_clients_in_region(&Vec2(6, -2));
+        assert!(distant_clients.is_empty());
     }
 
     #[test]
