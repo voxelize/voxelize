@@ -1223,13 +1223,47 @@ const cloneIndexedArraySafelyWithMetadata = (value) => {
   }
 };
 
+const toNumericValueOrNull = (numericLikeValue) => {
+  if (typeof numericLikeValue === "number") {
+    return Number.isFinite(numericLikeValue) ? numericLikeValue : null;
+  }
+
+  if (typeof numericLikeValue === "bigint") {
+    const convertedNumericValue = Number(numericLikeValue);
+    return Number.isFinite(convertedNumericValue)
+      ? convertedNumericValue
+      : null;
+  }
+
+  if (numericLikeValue !== null && typeof numericLikeValue === "object") {
+    const wrappedPrimitiveValue =
+      toPrimitiveWrapperValueOrNull(numericLikeValue);
+    if (wrappedPrimitiveValue === null) {
+      return null;
+    }
+
+    return toNumericValueOrNull(wrappedPrimitiveValue);
+  }
+
+  return null;
+};
+
 const toNonNegativeIntegerOrNull = (value) => {
-  return Number.isSafeInteger(value) && value >= 0 ? value : null;
+  const normalizedNumericValue = toNumericValueOrNull(value);
+  if (normalizedNumericValue === null) {
+    return null;
+  }
+
+  return Number.isSafeInteger(normalizedNumericValue) &&
+    normalizedNumericValue >= 0
+    ? normalizedNumericValue
+    : null;
 };
 
 const toNonNegativeFiniteNumberOrNull = (value) => {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0
-    ? value
+  const normalizedNumericValue = toNumericValueOrNull(value);
+  return normalizedNumericValue !== null && normalizedNumericValue >= 0
+    ? normalizedNumericValue
     : null;
 };
 
