@@ -169,7 +169,7 @@ fn batch_messages(messages: Vec<(Message, ClientFilter)>) -> Vec<(Message, Clien
     }
     let total_messages = messages.len();
     let mut batched: HashMap<(i32, ClientFilter), Message> = HashMap::with_capacity(total_messages);
-    let mut unbatched: Vec<(Message, ClientFilter)> = Vec::with_capacity(total_messages);
+    let mut unbatched: Option<Vec<(Message, ClientFilter)>> = None;
 
     for (message, mut filter) in messages {
         let msg_type = message.r#type;
@@ -186,16 +186,21 @@ fn batch_messages(messages: Vec<(Message, ClientFilter)>) -> Vec<(Message, Clien
                 }
             }
         } else {
-            unbatched.push((message, filter));
+            unbatched
+                .get_or_insert_with(|| Vec::with_capacity(total_messages))
+                .push((message, filter));
         }
     }
 
+    let unbatched_len = unbatched.as_ref().map_or(0, Vec::len);
     let mut result: Vec<(Message, ClientFilter)> =
-        Vec::with_capacity(batched.len() + unbatched.len());
+        Vec::with_capacity(batched.len() + unbatched_len);
     for ((_, filter), message) in batched {
         result.push((message, filter));
     }
-    result.extend(unbatched);
+    if let Some(unbatched) = unbatched {
+        result.extend(unbatched);
+    }
     result
 }
 
