@@ -712,9 +712,10 @@ impl World {
 
         world.set_method_handle("vox-builtin:get-stats", |world, client_id, _| {
             let stats_json = world.stats().get_stats();
+            let payload = serde_json::to_string(&stats_json).unwrap_or_else(|_| String::from("{}"));
             world.write_resource::<MessageQueues>().push((
                 Message::new(&MessageType::Stats)
-                    .json_owned(serde_json::to_string(&stats_json).unwrap())
+                    .json_owned(payload)
                     .build(),
                 ClientFilter::Direct(client_id.to_owned()),
             ));
@@ -733,8 +734,16 @@ impl World {
         });
 
         world.set_method_handle("vox-builtin:set-time", |world, _, payload| {
-            let payload: BuiltInSetTimeMethodPayload = serde_json::from_str(payload)
-                .expect("Could not parse vox-builtin:set-time payload.");
+            let payload: BuiltInSetTimeMethodPayload = match serde_json::from_str(payload) {
+                Ok(payload) => payload,
+                Err(error) => {
+                    warn!(
+                        "Could not parse vox-builtin:set-time payload '{}': {}",
+                        payload, error
+                    );
+                    return;
+                }
+            };
             let time_per_day = world.config().time_per_day as f32;
             world.stats_mut().set_time(payload.time % time_per_day);
         });
@@ -908,7 +917,14 @@ impl World {
     /// Insert a component into an entity.
     pub fn add<T: Component>(&mut self, e: Entity, c: T) {
         let mut storage: WriteStorage<T> = SystemData::fetch(self.ecs());
-        storage.insert(e, c).unwrap();
+        if let Err(error) = storage.insert(e, c) {
+            warn!(
+                "Failed to insert component {} for entity {:?}: {:?}",
+                std::any::type_name::<T>(),
+                e,
+                error
+            );
+        }
     }
 
     /// Remove a component type from an entity.
@@ -1635,8 +1651,7 @@ impl World {
 
         let tick_timer = ProfilerSystemTimer::new("tick-total");
 
-        let dispatch_time = {
-            let mut dispatcher_guard = self.built_dispatcher.lock().unwrap();
+        let dispatch_time = if let Ok(mut dispatcher_guard) = self.built_dispatcher.lock() {
             if dispatcher_guard.is_none() {
                 let build_timer = ProfilerSystemTimer::new("dispatcher-build");
                 let dispatcher = (self.dispatcher)().build();
@@ -1644,13 +1659,16 @@ impl World {
                 record_system_timing(&self.name, "dispatcher-build", build_timer.elapsed_ms());
             }
 
-            let dispatch_timer = ProfilerSystemTimer::new("dispatcher-dispatch");
-            dispatcher_guard
-                .as_mut()
-                .unwrap()
-                .get_mut()
-                .dispatch(&self.ecs);
-            dispatch_timer.elapsed_ms()
+            if let Some(dispatcher) = dispatcher_guard.as_mut() {
+                let dispatch_timer = ProfilerSystemTimer::new("dispatcher-dispatch");
+                dispatcher.get_mut().dispatch(&self.ecs);
+                dispatch_timer.elapsed_ms()
+            } else {
+                0.0
+            }
+        } else {
+            warn!("Failed to lock built dispatcher for world {}", self.name);
+            0.0
         };
 
         self.write_resource::<Profiler>().summarize();
@@ -2095,12 +2113,16 @@ impl World {
         drop(metadatas);
 
         (
-            Message::new(&MessageType::Init)
-                .world_name(&self.name)
-                .json_owned(serde_json::to_string(&json).unwrap())
-                .peers_owned(peers)
-                .entities_owned(entities)
-                .build(),
+            {
+                let init_payload =
+                    serde_json::to_string(&json).unwrap_or_else(|_| String::from("{}"));
+                Message::new(&MessageType::Init)
+                    .world_name(&self.name)
+                    .json_owned(init_payload)
+                    .peers_owned(peers)
+                    .entities_owned(entities)
+                    .build()
+            },
             entity_ids,
         )
     }
