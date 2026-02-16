@@ -4573,6 +4573,61 @@ describe("report-utils", () => {
     expect(
       emptyIteratorKnownPrecomputedValidationWithoutCatalog.validationErrorCode
     ).toBe("unsupported_options");
+    const emptyIteratorLengthTrappedPrecomputedSupportedTokensWithoutCatalog =
+      new Proxy([] as string[], {
+        ownKeys() {
+          return ["5", "length"];
+        },
+        getOwnPropertyDescriptor(target, property) {
+          if (property === "5") {
+            return {
+              configurable: true,
+              enumerable: true,
+              writable: true,
+              value: "--json",
+            };
+          }
+          return Reflect.getOwnPropertyDescriptor(target, property);
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            throw new Error("length trap");
+          }
+          if (property === "5") {
+            return "--json";
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+    const emptyIteratorLengthTrappedPrecomputedValidationWithoutCatalog =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions: "--json" as never,
+        supportedCliOptions:
+          emptyIteratorLengthTrappedPrecomputedSupportedTokensWithoutCatalog as never,
+      });
+    expect(
+      emptyIteratorLengthTrappedPrecomputedValidationWithoutCatalog.supportedCliOptions
+    ).toEqual(["--json"]);
+    expect(
+      emptyIteratorLengthTrappedPrecomputedValidationWithoutCatalog.supportedCliOptionCount
+    ).toBe(1);
+    expect(
+      emptyIteratorLengthTrappedPrecomputedValidationWithoutCatalog.unknownOptions
+    ).toEqual(["--mystery"]);
+    expect(
+      emptyIteratorLengthTrappedPrecomputedValidationWithoutCatalog.unknownOptionCount
+    ).toBe(1);
+    expect(
+      emptyIteratorLengthTrappedPrecomputedValidationWithoutCatalog.unsupportedOptionsError
+    ).toBe("Unsupported option(s): --mystery. Supported options: --json.");
+    expect(
+      emptyIteratorLengthTrappedPrecomputedValidationWithoutCatalog.validationErrorCode
+    ).toBe("unsupported_options");
     const staleUnknownPrecomputedSupportedTokens = createCliOptionValidation(
       ["--mystery"],
       {
