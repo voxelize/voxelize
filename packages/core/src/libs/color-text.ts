@@ -29,23 +29,6 @@
  * @category Effects
  */
 export class ColorText {
-  private static findSingleSplitterIndex(
-    text: string,
-    textLength: number,
-    start: number,
-    splitterCode: number
-  ) {
-    if (start >= textLength) {
-      return -1;
-    }
-    for (let index = start; index < textLength; index++) {
-      if (text.charCodeAt(index) === splitterCode) {
-        return index;
-      }
-    }
-    return -1;
-  }
-
   private static pushSegment(
     result: { color: string; text: string }[],
     color: string,
@@ -96,13 +79,7 @@ export class ColorText {
     let endedOnColorToken = false;
 
     if (splitterLength === 1) {
-      const splitterCode = splitter.charCodeAt(0);
-      let openIndex = ColorText.findSingleSplitterIndex(
-        text,
-        textLength,
-        0,
-        splitterCode
-      );
+      let openIndex = text.indexOf(splitter, 0);
       if (openIndex === -1) {
         return [{ color: defaultColor, text }];
       }
@@ -122,12 +99,7 @@ export class ColorText {
           endedOnColorToken = false;
         }
         const tokenStart = openIndex + 1;
-        const closeIndex = ColorText.findSingleSplitterIndex(
-          text,
-          textLength,
-          tokenStart,
-          splitterCode
-        );
+        const closeIndex = text.indexOf(splitter, tokenStart);
         if (closeIndex === -1) {
           ColorText.pushSegment(result, currentColor, text.substring(openIndex));
           endedOnColorToken = false;
@@ -137,12 +109,7 @@ export class ColorText {
         currentColor = text.substring(tokenStart, closeIndex);
         cursor = closeIndex + 1;
         endedOnColorToken = cursor >= textLength;
-        openIndex = ColorText.findSingleSplitterIndex(
-          text,
-          textLength,
-          cursor,
-          splitterCode
-        );
+        openIndex = text.indexOf(splitter, cursor);
       }
     } else {
       let openIndex = text.indexOf(splitter, 0);
