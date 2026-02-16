@@ -288,6 +288,7 @@ impl Registry {
     }
 
     /// Get a block reference by block ID. Returns Air if block ID not found.
+    #[inline]
     pub fn get_block_by_id(&self, id: u32) -> &Block {
         if let Some(block) = self.blocks_by_id.get(&id) {
             return block;
@@ -349,6 +350,7 @@ impl Registry {
     }
 
     /// Get normalized block name by id.
+    #[inline]
     pub fn get_name_by_id(&self, id: u32) -> &str {
         if let Some(name) = self.name_map.get(&id) {
             return name.as_str();
@@ -360,6 +362,7 @@ impl Registry {
     }
 
     /// Check if block is air by id.
+    #[inline]
     pub fn is_air(&self, id: u32) -> bool {
         self.blocks_by_id
             .get(&id)
@@ -368,6 +371,7 @@ impl Registry {
     }
 
     /// Check if block is fluid by id.
+    #[inline]
     pub fn is_fluid(&self, id: u32) -> bool {
         self.blocks_by_id
             .get(&id)
