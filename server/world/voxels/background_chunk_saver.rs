@@ -103,19 +103,19 @@ impl BackgroundChunkSaver {
         }
     }
 
-    fn to_base_64(data: &[u32]) -> String {
+    fn to_base_64(data: &[u32]) -> Option<String> {
         if data.is_empty() {
-            return String::new();
+            return Some(String::new());
         }
         let byte_len = data.len().saturating_mul(std::mem::size_of::<u32>());
 
         #[cfg(target_endian = "little")]
         {
             let bytes = unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u8, byte_len) };
-            let mut encoder = Encoder::new(Vec::with_capacity(byte_len)).unwrap();
-            encoder.write_all(bytes).unwrap();
-            let encoded = encoder.finish().into_result().unwrap();
-            STANDARD.encode(encoded)
+            let mut encoder = Encoder::new(Vec::with_capacity(byte_len)).ok()?;
+            encoder.write_all(bytes).ok()?;
+            let encoded = encoder.finish().into_result().ok()?;
+            Some(STANDARD.encode(encoded))
         }
 
         #[cfg(not(target_endian = "little"))]
@@ -123,18 +123,32 @@ impl BackgroundChunkSaver {
             let mut bytes = vec![0; byte_len];
             LittleEndian::write_u32_into(data, &mut bytes);
 
-            let mut encoder = Encoder::new(Vec::with_capacity(byte_len)).unwrap();
-            encoder.write_all(bytes.as_slice()).unwrap();
-            let encoded = encoder.finish().into_result().unwrap();
-            STANDARD.encode(encoded)
+            let mut encoder = Encoder::new(Vec::with_capacity(byte_len)).ok()?;
+            encoder.write_all(bytes.as_slice()).ok()?;
+            let encoded = encoder.finish().into_result().ok()?;
+            Some(STANDARD.encode(encoded))
         }
     }
 
     fn save_chunk_to_disk(data: ChunkSaveData, folder: &PathBuf) {
+        let voxels = match Self::to_base_64(&data.voxels) {
+            Some(voxels) => voxels,
+            None => {
+                warn!("Failed to encode chunk voxels for {}", data.chunk_name);
+                return;
+            }
+        };
+        let height_map = match Self::to_base_64(&data.height_map) {
+            Some(height_map) => height_map,
+            None => {
+                warn!("Failed to encode chunk height map for {}", data.chunk_name);
+                return;
+            }
+        };
         let file_data = ChunkFileData {
             id: data.chunk_id,
-            voxels: Self::to_base_64(&data.voxels),
-            height_map: Self::to_base_64(&data.height_map),
+            voxels,
+            height_map,
         };
 
         let mut path = folder.clone();
