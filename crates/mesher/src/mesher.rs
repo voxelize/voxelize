@@ -4136,9 +4136,11 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         }
                     }
                     if is_non_greedy_block {
-                        if processed_non_greedy[current_voxel_index] {
+                        let processed = &mut processed_non_greedy[current_voxel_index];
+                        if *processed {
                             continue;
                         }
+                        *processed = true;
                     }
 
                     let is_see_through = block.is_see_through;
@@ -4146,13 +4148,11 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     let skip_opaque_checks = is_see_through || is_all_transparent;
 
                     if is_non_greedy_block {
-                        let non_greedy_voxel_index = current_voxel_index;
                         let block_needs_rotation = block.rotatable || block.y_rotatable;
                         let mut rotation = BlockRotation::PY(0.0);
                         if block_needs_rotation {
                             rotation = extract_rotation(raw_voxel);
                         }
-                        processed_non_greedy[non_greedy_voxel_index] = true;
                         let has_standard_six_faces = is_fluid
                             && if cache_ready {
                                 block.has_standard_six_faces
