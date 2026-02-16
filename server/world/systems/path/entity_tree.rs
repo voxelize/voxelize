@@ -44,6 +44,17 @@ fn sync_player_position(tree: &mut KdTree, ent: specs::Entity, pos: &Vec3<f32>) 
 }
 
 #[inline]
+fn next_current_id<I>(ids: &mut I) -> u32
+where
+    I: Iterator<Item = u32>,
+{
+    let Some(current_id) = ids.next() else {
+        unreachable!("current id count matched branch");
+    };
+    current_id
+}
+
+#[inline]
 fn retain_tree_entities(tree: &mut KdTree, current_ids: &HashSet<u32>) {
     match current_ids.len() {
         0 => {
@@ -52,134 +63,104 @@ fn retain_tree_entities(tree: &mut KdTree, current_ids: &HashSet<u32>) {
             }
         }
         1 => {
-            if let Some(current_id) = current_ids.iter().next().copied() {
-                tree.retain_only(current_id);
-            }
+            let mut ids = current_ids.iter().copied();
+            let current_id = next_current_id(&mut ids);
+            tree.retain_only(current_id);
         }
         2 => {
             let mut ids = current_ids.iter().copied();
-            if let (Some(first), Some(second)) = (ids.next(), ids.next()) {
-                tree.retain(|ent_id| ent_id == first || ent_id == second);
-            }
+            let first = next_current_id(&mut ids);
+            let second = next_current_id(&mut ids);
+            tree.retain(|ent_id| ent_id == first || ent_id == second);
         }
         3 => {
             let mut ids = current_ids.iter().copied();
-            if let (Some(first), Some(second), Some(third)) =
-                (ids.next(), ids.next(), ids.next())
-            {
-                tree.retain(|ent_id| ent_id == first || ent_id == second || ent_id == third);
-            }
+            let first = next_current_id(&mut ids);
+            let second = next_current_id(&mut ids);
+            let third = next_current_id(&mut ids);
+            tree.retain(|ent_id| ent_id == first || ent_id == second || ent_id == third);
         }
         4 => {
             let mut ids = current_ids.iter().copied();
-            if let (Some(first), Some(second), Some(third), Some(fourth)) =
-                (ids.next(), ids.next(), ids.next(), ids.next())
-            {
-                tree.retain(|ent_id| {
-                    ent_id == first || ent_id == second || ent_id == third || ent_id == fourth
-                });
-            }
+            let first = next_current_id(&mut ids);
+            let second = next_current_id(&mut ids);
+            let third = next_current_id(&mut ids);
+            let fourth = next_current_id(&mut ids);
+            tree.retain(|ent_id| {
+                ent_id == first || ent_id == second || ent_id == third || ent_id == fourth
+            });
         }
         5 => {
             let mut ids = current_ids.iter().copied();
-            if let (Some(first), Some(second), Some(third), Some(fourth), Some(fifth)) = (
-                ids.next(),
-                ids.next(),
-                ids.next(),
-                ids.next(),
-                ids.next(),
-            ) {
-                tree.retain(|ent_id| {
-                    ent_id == first
-                        || ent_id == second
-                        || ent_id == third
-                        || ent_id == fourth
-                        || ent_id == fifth
-                });
-            }
+            let first = next_current_id(&mut ids);
+            let second = next_current_id(&mut ids);
+            let third = next_current_id(&mut ids);
+            let fourth = next_current_id(&mut ids);
+            let fifth = next_current_id(&mut ids);
+            tree.retain(|ent_id| {
+                ent_id == first
+                    || ent_id == second
+                    || ent_id == third
+                    || ent_id == fourth
+                    || ent_id == fifth
+            });
         }
         6 => {
             let mut ids = current_ids.iter().copied();
-            if let (Some(first), Some(second), Some(third), Some(fourth), Some(fifth), Some(sixth)) = (
-                ids.next(),
-                ids.next(),
-                ids.next(),
-                ids.next(),
-                ids.next(),
-                ids.next(),
-            ) {
-                tree.retain(|ent_id| {
-                    ent_id == first
-                        || ent_id == second
-                        || ent_id == third
-                        || ent_id == fourth
-                        || ent_id == fifth
-                        || ent_id == sixth
-                });
-            }
+            let first = next_current_id(&mut ids);
+            let second = next_current_id(&mut ids);
+            let third = next_current_id(&mut ids);
+            let fourth = next_current_id(&mut ids);
+            let fifth = next_current_id(&mut ids);
+            let sixth = next_current_id(&mut ids);
+            tree.retain(|ent_id| {
+                ent_id == first
+                    || ent_id == second
+                    || ent_id == third
+                    || ent_id == fourth
+                    || ent_id == fifth
+                    || ent_id == sixth
+            });
         }
         7 => {
             let mut ids = current_ids.iter().copied();
-            if let (
-                Some(first),
-                Some(second),
-                Some(third),
-                Some(fourth),
-                Some(fifth),
-                Some(sixth),
-                Some(seventh),
-            ) = (
-                ids.next(),
-                ids.next(),
-                ids.next(),
-                ids.next(),
-                ids.next(),
-                ids.next(),
-                ids.next(),
-            ) {
-                tree.retain(|ent_id| {
-                    ent_id == first
-                        || ent_id == second
-                        || ent_id == third
-                        || ent_id == fourth
-                        || ent_id == fifth
-                        || ent_id == sixth
-                        || ent_id == seventh
-                });
-            }
+            let first = next_current_id(&mut ids);
+            let second = next_current_id(&mut ids);
+            let third = next_current_id(&mut ids);
+            let fourth = next_current_id(&mut ids);
+            let fifth = next_current_id(&mut ids);
+            let sixth = next_current_id(&mut ids);
+            let seventh = next_current_id(&mut ids);
+            tree.retain(|ent_id| {
+                ent_id == first
+                    || ent_id == second
+                    || ent_id == third
+                    || ent_id == fourth
+                    || ent_id == fifth
+                    || ent_id == sixth
+                    || ent_id == seventh
+            });
         }
         8 => {
             let mut ids = current_ids.iter().copied();
-            if let (
-                Some(first),
-                Some(second),
-                Some(third),
-                Some(fourth),
-                Some(fifth),
-                Some(sixth),
-                Some(seventh),
-                Some(eighth),
-            ) = (
-                ids.next(),
-                ids.next(),
-                ids.next(),
-                ids.next(),
-                ids.next(),
-                ids.next(),
-                ids.next(),
-                ids.next(),
-            ) {
-                tree.retain(|ent_id| {
-                    ent_id == first
-                        || ent_id == second
-                        || ent_id == third
-                        || ent_id == fourth
-                        || ent_id == fifth
-                        || ent_id == sixth
-                        || ent_id == seventh
-                        || ent_id == eighth
-                });
-            }
+            let first = next_current_id(&mut ids);
+            let second = next_current_id(&mut ids);
+            let third = next_current_id(&mut ids);
+            let fourth = next_current_id(&mut ids);
+            let fifth = next_current_id(&mut ids);
+            let sixth = next_current_id(&mut ids);
+            let seventh = next_current_id(&mut ids);
+            let eighth = next_current_id(&mut ids);
+            tree.retain(|ent_id| {
+                ent_id == first
+                    || ent_id == second
+                    || ent_id == third
+                    || ent_id == fourth
+                    || ent_id == fifth
+                    || ent_id == sixth
+                    || ent_id == seventh
+                    || ent_id == eighth
+            });
         }
         _ => {
             tree.retain(|ent_id| current_ids.contains(&ent_id));
