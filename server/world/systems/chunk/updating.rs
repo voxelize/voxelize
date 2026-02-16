@@ -927,13 +927,13 @@ fn process_pending_updates(
 
     if !chunks.cache.is_empty() {
         let cache_capacity = chunks.cache.capacity();
-        let mut cache = std::mem::replace(
+        let cache = std::mem::replace(
             &mut chunks.cache,
             hashbrown::HashSet::with_capacity(cache_capacity),
         );
         let process_initial_capacity = cache.len().min(64);
         let mut processes = None;
-        for coords in cache.drain() {
+        for coords in cache {
             chunks.add_chunk_to_save(&coords, true);
             if !chunks.is_chunk_ready(&coords) {
                 continue;
