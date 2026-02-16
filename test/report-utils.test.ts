@@ -22416,6 +22416,37 @@ describe("report-utils", () => {
       wasmPackCheckExitCode: null,
       wasmPackCheckOutputLine: null,
     });
+    const emptyIteratorLengthZeroAndOwnKeysTrapWasmArgs = new Proxy(
+      ["check-wasm-pack.mjs"],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckArgs: emptyIteratorLengthZeroAndOwnKeysTrapWasmArgs,
+      })
+    ).toEqual({
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: [],
+      wasmPackCheckArgCount: 0,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
     let statefulSparsePrefixReadCount = 0;
     const statefulSparseWasmArgsTarget: string[] = [];
     statefulSparseWasmArgsTarget[0] = "check-wasm-pack.mjs";
@@ -23689,6 +23720,45 @@ describe("report-utils", () => {
       exampleCommand: null,
       exampleArgs: null,
       exampleArgCount: null,
+      exampleAttempted: true,
+      exampleStatus: "failed",
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: 1,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    const emptyIteratorLengthZeroAndOwnKeysTrapExampleArgs = new Proxy(
+      ["packages/ts-core/examples/end-to-end.mjs"],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleArgs: emptyIteratorLengthZeroAndOwnKeysTrapExampleArgs,
+        exampleAttempted: true,
+        exampleExitCode: 1,
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: [],
+      exampleArgCount: 0,
       exampleAttempted: true,
       exampleStatus: "failed",
       exampleRuleMatched: null,
