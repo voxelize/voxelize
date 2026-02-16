@@ -1639,6 +1639,7 @@ fn process_face<S: VoxelAccess>(
     neighbors: &NeighborCache,
     see_through: bool,
     is_fluid: bool,
+    fluid_surface_above: bool,
     positions: &mut Vec<f32>,
     indices: &mut Vec<i32>,
     uvs: &mut Vec<f32>,
@@ -1763,7 +1764,6 @@ fn process_face<S: VoxelAccess>(
     } else {
         None
     };
-    let fluid_surface_above = is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space);
 
     for (corner_index, corner) in face.corners.iter().enumerate() {
         let mut pos = corner.pos;
@@ -2028,6 +2028,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
         BlockRotation,
         BlockFace,
         bool,
+        bool,
     )> = Vec::with_capacity(slice_area_capacity);
 
     for (dx, dy, dz) in directions {
@@ -2109,6 +2110,8 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         if !processed_non_greedy.insert((vx, vy, vz)) {
                             continue;
                         }
+                        let fluid_surface_above =
+                            is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space);
 
                         for_each_meshing_face(
                             block,
@@ -2126,6 +2129,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                                 voxel_id,
                                 rotation,
                                 face.clone(),
+                                fluid_surface_above,
                                 world_space,
                             ));
                             },
@@ -2152,6 +2156,8 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     let neighbors = NeighborCache::populate(vx, vy, vz, space, registry);
                     let block_aabb = AABB::union_all(&block.aabbs);
                     let mut cached_face_shading: Option<([i32; 4], [i32; 4])> = None;
+                    let fluid_surface_above =
+                        is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space);
 
                     for_each_meshing_face(
                         block,
@@ -2184,6 +2190,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                                     voxel_id,
                                     rotation,
                                     face.clone(),
+                                    fluid_surface_above,
                                     world_space,
                                 ));
                                 return;
@@ -2264,6 +2271,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                 voxel_id,
                 rotation,
                 face,
+                fluid_surface_above,
                 world_space,
             ) in non_greedy_faces.drain(..)
             {
@@ -2333,6 +2341,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     neighbors,
                     block.is_see_through,
                     block.is_fluid,
+                    fluid_surface_above,
                     &mut geometry.positions,
                     &mut geometry.indices,
                     &mut geometry.uvs,
@@ -2400,6 +2409,7 @@ pub fn mesh_space<S: VoxelAccess>(
 
                 let neighbors = NeighborCache::populate(vx, vy, vz, space, registry);
                 let block_aabb = AABB::union_all(&block.aabbs);
+                let fluid_surface_above = is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space);
                 let mut process_mesh_face = |face: &BlockFace, world_space: bool| {
                     let geometry = if face.isolated {
                         let key = build_isolated_geo_key(
@@ -2444,6 +2454,7 @@ pub fn mesh_space<S: VoxelAccess>(
                         &neighbors,
                         is_see_through,
                         is_fluid,
+                        fluid_surface_above,
                         &mut geometry.positions,
                         &mut geometry.indices,
                         &mut geometry.uvs,
