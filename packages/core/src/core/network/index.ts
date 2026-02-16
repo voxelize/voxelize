@@ -580,26 +580,40 @@ export class Network {
     if (intercepts.length === 2) {
       const firstIntercept = intercepts[0];
       const secondIntercept = intercepts[1];
+      const currentIntercepts = this.intercepts;
       if (firstIntercept === secondIntercept) {
-        let index = this.intercepts.indexOf(firstIntercept);
-        if (index !== -1) {
-          this.intercepts.splice(index, 1);
-          index = this.intercepts.indexOf(firstIntercept, index);
-          if (index !== -1) {
-            this.intercepts.splice(index, 1);
+        let removalsLeft = 2;
+        let writeIndex = 0;
+        for (let readIndex = 0; readIndex < currentIntercepts.length; readIndex++) {
+          const intercept = currentIntercepts[readIndex];
+          if (removalsLeft > 0 && intercept === firstIntercept) {
+            removalsLeft--;
+            continue;
           }
+          currentIntercepts[writeIndex] = intercept;
+          writeIndex++;
         }
+        currentIntercepts.length = writeIndex;
         return this;
       }
 
-      let firstIndex = this.intercepts.indexOf(firstIntercept);
-      if (firstIndex !== -1) {
-        this.intercepts.splice(firstIndex, 1);
+      let removeFirst = true;
+      let removeSecond = true;
+      let writeIndex = 0;
+      for (let readIndex = 0; readIndex < currentIntercepts.length; readIndex++) {
+        const intercept = currentIntercepts[readIndex];
+        if (removeFirst && intercept === firstIntercept) {
+          removeFirst = false;
+          continue;
+        }
+        if (removeSecond && intercept === secondIntercept) {
+          removeSecond = false;
+          continue;
+        }
+        currentIntercepts[writeIndex] = intercept;
+        writeIndex++;
       }
-      const secondIndex = this.intercepts.indexOf(secondIntercept);
-      if (secondIndex !== -1) {
-        this.intercepts.splice(secondIndex, 1);
-      }
+      currentIntercepts.length = writeIndex;
       return this;
     }
 
