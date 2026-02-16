@@ -79,6 +79,22 @@ impl ChunkRequestsComp {
                 }
                 return;
             }
+            5 => {
+                let first = self.requests[0];
+                let second = self.requests[1];
+                let third = self.requests[2];
+                let fourth = self.requests[3];
+                let fifth = self.requests[4];
+                if *coords != first
+                    && *coords != second
+                    && *coords != third
+                    && *coords != fourth
+                    && *coords != fifth
+                {
+                    self.requests.push(*coords);
+                }
+                return;
+            }
             _ => {}
         }
         if self.requests.last().is_some_and(|last| last == coords)
@@ -197,6 +213,32 @@ mod tests {
         assert_eq!(
             requests.requests,
             vec![Vec2(1, 1), Vec2(2, 2), Vec2(3, 3), Vec2(4, 4)]
+        );
+    }
+
+    #[test]
+    fn add_ignores_duplicate_entries_for_five_item_lists() {
+        let mut requests = ChunkRequestsComp::new();
+        requests.requests = vec![
+            Vec2(1, 1),
+            Vec2(2, 2),
+            Vec2(3, 3),
+            Vec2(4, 4),
+            Vec2(5, 5),
+        ];
+
+        requests.add(&Vec2(3, 3));
+        requests.add(&Vec2(5, 5));
+
+        assert_eq!(
+            requests.requests,
+            vec![
+                Vec2(1, 1),
+                Vec2(2, 2),
+                Vec2(3, 3),
+                Vec2(4, 4),
+                Vec2(5, 5)
+            ]
         );
     }
 
