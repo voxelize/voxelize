@@ -98,9 +98,8 @@ impl MessageQueues {
             result.append(&mut self.bulk);
             return result;
         }
-        let mut result =
-            Vec::with_capacity(self.critical.len() + self.normal.len() + self.bulk.len());
-        result.append(&mut self.critical);
+        let mut result = take_vec_with_capacity(&mut self.critical);
+        reserve_for_append(&mut result, self.normal.len().saturating_add(self.bulk.len()));
         result.append(&mut self.normal);
         result.append(&mut self.bulk);
         result
