@@ -246,9 +246,7 @@ impl<'a> System<'a> for PathFindingSystem {
                         return;
                     }
                     if start == goal {
-                        let mut path_nodes = Vec::with_capacity(1);
-                        path_nodes.push(start);
-                        set_entity_path(entity_path, Some(path_nodes));
+                        set_entity_path(entity_path, Some(vec![start]));
                         return;
                     }
 
