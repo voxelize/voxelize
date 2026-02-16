@@ -332,6 +332,38 @@ impl KdTree {
         self.removal_buffer = to_remove;
     }
 
+    pub fn retain_only(&mut self, retained_id: EntityId) {
+        if self.kind_map.is_empty() {
+            return;
+        }
+        if self.kind_map.len() == 1 && self.kind_map.contains_key(&retained_id) {
+            return;
+        }
+        if !self.kind_map.contains_key(&retained_id) {
+            self.reset();
+            return;
+        }
+        let removal_buffer_capacity = self.removal_buffer.capacity();
+        let mut to_remove = std::mem::replace(
+            &mut self.removal_buffer,
+            Vec::with_capacity(removal_buffer_capacity),
+        );
+        to_remove.clear();
+        let removable_count = self.kind_map.len().saturating_sub(1);
+        if to_remove.capacity() < removable_count {
+            to_remove.reserve(removable_count - to_remove.len());
+        }
+        for &id in self.kind_map.keys() {
+            if id != retained_id {
+                to_remove.push(id);
+            }
+        }
+        for &ent_id in &to_remove {
+            self.remove_entity_by_id(ent_id);
+        }
+        self.removal_buffer = to_remove;
+    }
+
     pub fn search(&self, point: &Vec3<f32>, count: usize) -> Vec<(f32, &Entity)> {
         if count == 0 {
             return Vec::new();
@@ -521,9 +553,10 @@ impl KdTree {
 mod tests {
     use super::{
         is_finite_point, nearest_query_count, normalized_radius_squared, point_array_if_finite,
-        EntityTree,
+        EntityTree, KdTree,
     };
     use crate::Vec3;
+    use specs::{Builder, World, WorldExt};
 
     #[test]
     fn normalized_radius_squared_rejects_invalid_inputs() {
@@ -574,5 +607,34 @@ mod tests {
         assert_eq!(tree.positions.len(), 1);
         assert_eq!(tree.tree.size(), 1);
         assert_eq!(tree.positions.get(&7), Some(&[4.0, 5.0, 6.0]));
+    }
+
+    #[test]
+    fn retain_only_keeps_requested_entity() {
+        let mut world = World::new();
+        let ent_a = world.create_entity().build();
+        let ent_b = world.create_entity().build();
+        let mut tree = KdTree::new();
+        tree.add_entity(ent_a, &Vec3(1.0, 2.0, 3.0));
+        tree.add_player(ent_b, &Vec3(4.0, 5.0, 6.0));
+
+        tree.retain_only(ent_a.id());
+
+        assert_eq!(tree.len(), 1);
+        assert!(tree.contains(ent_a));
+        assert!(!tree.contains(ent_b));
+    }
+
+    #[test]
+    fn retain_only_resets_when_target_is_missing() {
+        let mut world = World::new();
+        let ent = world.create_entity().build();
+        let mut tree = KdTree::new();
+        tree.add_entity(ent, &Vec3(1.0, 2.0, 3.0));
+
+        tree.retain_only(u32::MAX);
+
+        assert_eq!(tree.len(), 0);
+        assert!(!tree.contains(ent));
     }
 }
