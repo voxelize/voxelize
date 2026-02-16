@@ -27,9 +27,8 @@ impl Profiler {
     }
 
     pub fn time_end(&mut self, label: &str) {
-        if let Some((start, _)) = self.times.remove(label) {
-            let duration = start.elapsed();
-            self.times.insert(label.to_string(), (start, duration));
+        if let Some((start, duration)) = self.times.get_mut(label) {
+            *duration = start.elapsed();
             if let Some(last_label) = self.current_hierarchy.last() {
                 if last_label == label {
                     self.hierarchy_records.push(self.current_hierarchy.clone());
