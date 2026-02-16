@@ -14,8 +14,8 @@ const REGION_NEIGHBOR_OFFSETS: [(i32, i32); 8] = [
     (1, 0),
     (1, 1),
 ];
-const SMALL_INTEREST_REGION_SCAN_LIMIT: usize = 8;
-const SMALL_INTEREST_CLIENT_SET_SCAN_LIMIT: usize = 8;
+const SMALL_INTEREST_REGION_SCAN_LIMIT: usize = 9;
+const SMALL_INTEREST_CLIENT_SET_SCAN_LIMIT: usize = 9;
 
 #[inline]
 fn comparable_weight(weight: Option<&f32>) -> f32 {
@@ -94,6 +94,16 @@ impl ChunkInterests {
         if self.map.is_empty() {
             return false;
         }
+        if self.map.len() == 1 {
+            let mut interests_iter = self.map.keys();
+            let single_coords = {
+                let Some(coords) = interests_iter.next() else {
+                    unreachable!("single interest map length matched branch");
+                };
+                coords
+            };
+            return coords_within_region(center, single_coords);
+        }
         if self.map.len() <= SMALL_INTEREST_REGION_SCAN_LIMIT {
             for coords in self.map.keys() {
                 if coords_within_region(center, coords) {
@@ -121,6 +131,19 @@ impl ChunkInterests {
 
     pub fn get_interested_clients_in_region(&self, center: &Vec2<i32>) -> HashSet<String> {
         if self.map.is_empty() {
+            return HashSet::new();
+        }
+        if self.map.len() == 1 {
+            let mut interests_iter = self.map.iter();
+            let (coords, interested) = {
+                let Some(single_interest) = interests_iter.next() else {
+                    unreachable!("single interest map length matched branch");
+                };
+                single_interest
+            };
+            if coords_within_region(center, coords) {
+                return interested.clone();
+            }
             return HashSet::new();
         }
         if self.map.len() <= SMALL_INTEREST_REGION_SCAN_LIMIT {
