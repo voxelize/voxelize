@@ -73,6 +73,19 @@ fn include_single_target(ids: &[String]) -> Option<&str> {
 }
 
 #[inline]
+fn normalize_filter_for_dispatch(filter: &mut ClientFilter) {
+    let ids = match filter {
+        ClientFilter::Include(ids) | ClientFilter::Exclude(ids) => ids,
+        _ => return,
+    };
+    if ids.len() <= SMALL_FILTER_LINEAR_SCAN_LIMIT || ids_are_strictly_sorted(ids) {
+        return;
+    }
+    ids.sort_unstable();
+    ids.dedup();
+}
+
+#[inline]
 fn for_each_unique_id<F: FnMut(&str)>(ids: &[String], mut visit: F) {
     for index in 0..ids.len() {
         let id = ids[index].as_str();
@@ -260,7 +273,8 @@ impl<'a> System<'a> for BroadcastSystem {
             return;
         }
 
-        for (encoded, filter) in done_messages {
+        for (encoded, mut filter) in done_messages {
+            normalize_filter_for_dispatch(&mut filter);
             let use_rtc = encoded.is_rtc_eligible;
             let encoded_data = encoded.data;
             if let ClientFilter::Direct(id) = &filter {

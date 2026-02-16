@@ -75,6 +75,19 @@ fn include_single_target(ids: &[String]) -> Option<&str> {
 }
 
 #[inline]
+fn normalize_filter_for_dispatch(filter: &mut ClientFilter) {
+    let ids = match filter {
+        ClientFilter::Include(ids) | ClientFilter::Exclude(ids) => ids,
+        _ => return,
+    };
+    if ids.len() <= SMALL_FILTER_LINEAR_SCAN_LIMIT || ids_are_strictly_sorted(ids) {
+        return;
+    }
+    ids.sort_unstable();
+    ids.dedup();
+}
+
+#[inline]
 fn for_each_unique_id<F: FnMut(&str)>(ids: &[String], mut visit: F) {
     for index in 0..ids.len() {
         let id = ids[index].as_str();
@@ -227,7 +240,7 @@ impl<'a> System<'a> for EventsSystem {
             let Event {
                 name,
                 payload,
-                filter,
+                mut filter,
                 location,
             } = event;
 
@@ -235,6 +248,9 @@ impl<'a> System<'a> for EventsSystem {
                 name,
                 payload: payload.unwrap_or_else(|| String::from("{}")),
             };
+            if let Some(filter) = filter.as_mut() {
+                normalize_filter_for_dispatch(filter);
+            }
 
             if has_transports {
                 transports_map.push(serialized.clone());
