@@ -281,6 +281,16 @@ impl EncodedMessageQueue {
                     && sixth.operation == ENTITY_OPERATION_UPDATE
                     && seventh.operation == ENTITY_OPERATION_UPDATE
             }
+            [first, second, third, fourth, fifth, sixth, seventh, eighth] => {
+                first.operation == ENTITY_OPERATION_UPDATE
+                    && second.operation == ENTITY_OPERATION_UPDATE
+                    && third.operation == ENTITY_OPERATION_UPDATE
+                    && fourth.operation == ENTITY_OPERATION_UPDATE
+                    && fifth.operation == ENTITY_OPERATION_UPDATE
+                    && sixth.operation == ENTITY_OPERATION_UPDATE
+                    && seventh.operation == ENTITY_OPERATION_UPDATE
+                    && eighth.operation == ENTITY_OPERATION_UPDATE
+            }
             [first, second, rest @ ..] => {
                 if first.operation != ENTITY_OPERATION_UPDATE
                     || second.operation != ENTITY_OPERATION_UPDATE
@@ -435,6 +445,18 @@ mod tests {
                 update_entity.clone(),
             ])
             .build();
+        let octuple_update_message = Message::new(&MessageType::Entity)
+            .entities(&[
+                update_entity.clone(),
+                update_entity.clone(),
+                update_entity.clone(),
+                update_entity.clone(),
+                update_entity.clone(),
+                update_entity.clone(),
+                update_entity.clone(),
+                update_entity.clone(),
+            ])
+            .build();
         let mixed_message = Message::new(&MessageType::Entity)
             .entities(&[update_entity, delete_entity])
             .build();
@@ -486,6 +508,9 @@ mod tests {
         ));
         assert!(EncodedMessageQueue::compute_rtc_eligibility(
             &septuple_update_message
+        ));
+        assert!(EncodedMessageQueue::compute_rtc_eligibility(
+            &octuple_update_message
         ));
         assert!(!EncodedMessageQueue::compute_rtc_eligibility(&mixed_message));
         assert!(!EncodedMessageQueue::compute_rtc_eligibility(
