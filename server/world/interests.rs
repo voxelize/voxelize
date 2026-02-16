@@ -155,6 +155,7 @@ impl ChunkInterests {
             clients.remove(client_id);
             if clients.is_empty() {
                 entry.remove();
+                self.weights.remove(coords);
             }
         }
     }
@@ -175,10 +176,26 @@ impl ChunkInterests {
         if self.map.is_empty() {
             return;
         }
-        self.map.retain(|_, clients| {
+        let mut removed_coords: Option<Vec<Vec2<i32>>> = None;
+        self.map.retain(|coords, clients| {
             clients.remove(client_id);
-            !clients.is_empty()
+            if clients.is_empty() {
+                removed_coords
+                    .get_or_insert_with(|| Vec::with_capacity(8))
+                    .push(*coords);
+                false
+            } else {
+                true
+            }
         });
+        if let Some(removed_coords) = removed_coords {
+            for coords in removed_coords {
+                self.weights.remove(&coords);
+            }
+        }
+        if self.map.is_empty() {
+            self.weights.clear();
+        }
     }
 }
 
@@ -276,5 +293,38 @@ mod tests {
         let coords = Vec2(12, -9);
 
         assert_eq!(interests.compare(&coords, &coords), Ordering::Equal);
+    }
+
+    #[test]
+    fn remove_drops_weight_when_last_client_leaves_chunk() {
+        let mut interests = ChunkInterests::new();
+        let coords = Vec2(4, -2);
+
+        interests.add("a", &coords);
+        interests.set_weight(&coords, 9.0);
+        interests.remove("a", &coords);
+
+        assert!(!interests.has_interests(&coords));
+        assert_eq!(interests.get_weight(&coords), None);
+    }
+
+    #[test]
+    fn remove_client_clears_weights_for_fully_removed_chunks_only() {
+        let mut interests = ChunkInterests::new();
+        let removed_coords = Vec2(1, 1);
+        let retained_coords = Vec2(2, 2);
+
+        interests.add("a", &removed_coords);
+        interests.add("a", &retained_coords);
+        interests.add("b", &retained_coords);
+        interests.set_weight(&removed_coords, 5.0);
+        interests.set_weight(&retained_coords, 7.0);
+
+        interests.remove_client("a");
+
+        assert!(!interests.has_interests(&removed_coords));
+        assert!(interests.has_interests(&retained_coords));
+        assert_eq!(interests.get_weight(&removed_coords), None);
+        assert_eq!(interests.get_weight(&retained_coords), Some(&7.0));
     }
 }
