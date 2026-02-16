@@ -619,7 +619,10 @@ pub fn process_light_batch_fast(
     let Some(max_chunk_z) = compute_max_chunk_coordinate(grid_offset_z, chunk_grid_depth) else {
         return empty_batch_result();
     };
-    let Some(registry) = CACHED_REGISTRY.with(|cached| cached.borrow().clone()) else {
+    let Some(registry) = CACHED_REGISTRY.with(|cached| {
+        let cached = cached.borrow();
+        cached.as_ref().map(Arc::clone)
+    }) else {
         return empty_batch_result();
     };
     let (chunks, has_any_chunk) = parse_chunks(chunks_data, expected_chunk_count, expected_chunk_len);
