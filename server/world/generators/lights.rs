@@ -30,7 +30,7 @@ fn clamp_i64_to_usize(value: i64) -> usize {
 }
 
 #[inline]
-fn convert_config(config: &WorldConfig) -> LightConfig {
+pub fn light_config(config: &WorldConfig) -> LightConfig {
     LightConfig {
         chunk_size: clamp_usize_to_i32(normalized_chunk_size(config.chunk_size)),
         max_height: clamp_usize_to_i32(config.max_height),
@@ -75,13 +75,13 @@ fn convert_bounds(
 
 #[cfg(test)]
 mod tests {
-    use super::{convert_bounds, convert_config, normalized_chunk_size};
+    use super::{convert_bounds, light_config, normalized_chunk_size};
     use crate::{Vec3, WorldConfig};
 
     #[test]
     fn convert_config_normalizes_zero_chunk_size() {
         let world_config = WorldConfig::new().chunk_size(0).build();
-        let light_config = convert_config(&world_config);
+        let light_config = light_config(&world_config);
         assert_eq!(light_config.chunk_size, 1);
     }
 
@@ -93,7 +93,7 @@ mod tests {
             .min_chunk([0, 0])
             .max_chunk([0, 0])
             .build();
-        let light_config = convert_config(&world_config);
+        let light_config = light_config(&world_config);
 
         let bounds = convert_bounds(Some(&Vec3(0, 0, 0)), None, &light_config)
             .expect("expected bounds for explicit min and inferred shape");
@@ -111,6 +111,19 @@ mod tests {
 pub struct Lights;
 
 impl Lights {
+    pub fn flood_light_with_light_config(
+        space: &mut dyn LightVoxelAccess,
+        queue: VecDeque<LightNode>,
+        color: &LightColor,
+        light_registry: &LightRegistry,
+        light_config: &LightConfig,
+        min: Option<&Vec3<i32>>,
+        shape: Option<&Vec3<usize>>,
+    ) {
+        let bounds = convert_bounds(min, shape, light_config);
+        lighter_flood_light(space, queue, color, light_config, bounds.as_ref(), light_registry);
+    }
+
     pub fn flood_light_with_light_registry(
         space: &mut dyn LightVoxelAccess,
         queue: VecDeque<LightNode>,
@@ -120,9 +133,16 @@ impl Lights {
         min: Option<&Vec3<i32>>,
         shape: Option<&Vec3<usize>>,
     ) {
-        let light_config = convert_config(config);
-        let bounds = convert_bounds(min, shape, &light_config);
-        lighter_flood_light(space, queue, color, &light_config, bounds.as_ref(), light_registry);
+        let light_config = light_config(config);
+        Self::flood_light_with_light_config(
+            space,
+            queue,
+            color,
+            light_registry,
+            &light_config,
+            min,
+            shape,
+        );
     }
 
     pub fn flood_light(
@@ -153,7 +173,7 @@ impl Lights {
         registry: &Registry,
     ) {
         let light_registry = registry.lighter_registry_ref();
-        let light_config = convert_config(config);
+        let light_config = light_config(config);
         lighter_remove_light(
             space,
             [voxel.0, voxel.1, voxel.2],
@@ -171,7 +191,7 @@ impl Lights {
         registry: &Registry,
     ) {
         let light_registry = registry.lighter_registry_ref();
-        let light_config = convert_config(config);
+        let light_config = light_config(config);
         lighter_remove_lights(
             space,
             voxels.iter().map(|v| [v.0, v.1, v.2]),
@@ -204,8 +224,24 @@ impl Lights {
         light_registry: &LightRegistry,
         config: &WorldConfig,
     ) -> [VecDeque<LightNode>; 4] {
-        let light_config = convert_config(config);
-        lighter_propagate(space, [min.0, min.1, min.2], [shape.0, shape.1, shape.2], light_registry, &light_config)
+        let light_config = light_config(config);
+        Self::propagate_with_light_config(space, min, shape, light_registry, &light_config)
+    }
+
+    pub fn propagate_with_light_config(
+        space: &mut dyn LightVoxelAccess,
+        min: &Vec3<i32>,
+        shape: &Vec3<usize>,
+        light_registry: &LightRegistry,
+        light_config: &LightConfig,
+    ) -> [VecDeque<LightNode>; 4] {
+        lighter_propagate(
+            space,
+            [min.0, min.1, min.2],
+            [shape.0, shape.1, shape.2],
+            light_registry,
+            light_config,
+        )
     }
 
     pub fn can_enter_into(target: &[bool; 6], dx: i32, dy: i32, dz: i32) -> bool {

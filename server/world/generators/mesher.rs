@@ -10,7 +10,7 @@ use crate::{
     WorldConfig,
 };
 
-use super::lights::{LightNode, Lights};
+use super::lights::{light_config, LightNode, Lights};
 
 #[inline]
 fn clamp_i64_to_i32(value: i64) -> i32 {
@@ -232,7 +232,7 @@ impl Mesher {
         let msg_type = *r#type;
         let mesher_registry = Arc::clone(registry.mesher_registry_ref());
         let light_registry = Arc::clone(registry.lighter_registry_ref());
-        let config = Arc::new(config.clone());
+        let light_config = Arc::new(light_config(config));
         let greedy_meshing = config.greedy_meshing;
         let chunk_size = if config.chunk_size == 0 {
             1
@@ -283,12 +283,12 @@ impl Mesher {
                                     chunk_size_usize + if center { 2 } else { 0 },
                                 );
 
-                                let light_subqueues = Lights::propagate_with_light_registry(
+                                let light_subqueues = Lights::propagate_with_light_config(
                                     &mut space,
                                     &min,
                                     &shape,
                                     light_registry.as_ref(),
-                                    &config,
+                                    light_config.as_ref(),
                                 );
 
                                 for (queue, subqueue) in light_queues.iter_mut().zip(light_subqueues) {
@@ -299,12 +299,12 @@ impl Mesher {
 
                         for (queue, color) in light_queues.into_iter().zip(LIGHT_COLORS.iter()) {
                             if !queue.is_empty() {
-                                Lights::flood_light_with_light_registry(
+                                Lights::flood_light_with_light_config(
                                     &mut space,
                                     queue,
                                     color,
                                     light_registry.as_ref(),
-                                    &config,
+                                    light_config.as_ref(),
                                     Some(&min),
                                     Some(&shape),
                                 );
