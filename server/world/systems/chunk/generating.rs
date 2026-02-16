@@ -195,7 +195,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             pipeline
                 .queue
                 .make_contiguous()
-                .sort_by(|a, b| interests.compare(a, b));
+                .sort_unstable_by(|a, b| interests.compare(a, b));
         }
 
         let to_load_initial_capacity = pending_queue_len.min(32);
@@ -435,7 +435,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             mesher
                 .queue
                 .make_contiguous()
-                .sort_by(|a, b| interests.compare(a, b));
+                .sort_unstable_by(|a, b| interests.compare(a, b));
         }
 
         let ready_chunk_initial_capacity = mesher.queue.len().min(64);
