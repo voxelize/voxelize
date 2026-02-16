@@ -234,14 +234,14 @@ fn map_chunk_protocol(chunk: ChunkProtocol) -> protocols::Chunk {
             geometries: mapped_geometries,
         });
     }
-    let lights_data = chunk
-        .lights
-        .as_ref()
-        .map_or(&[][..], |lights| lights.data.as_slice());
-    let voxels_data = chunk
-        .voxels
-        .as_ref()
-        .map_or(&[][..], |voxels| voxels.data.as_slice());
+    let lights_data = match &chunk.lights {
+        Some(lights) => lights.data.as_slice(),
+        None => &[][..],
+    };
+    let voxels_data = match &chunk.voxels {
+        Some(voxels) => voxels.data.as_slice(),
+        None => &[][..],
+    };
     protocols::Chunk {
         id: chunk.id,
         meshes: mapped_meshes,
