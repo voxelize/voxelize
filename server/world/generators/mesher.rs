@@ -96,6 +96,7 @@ fn sub_chunk_y_bounds(min_y: i32, max_height: usize, sub_chunks: usize, level: u
 
 pub struct Mesher {
     pub(crate) queue: std::collections::VecDeque<Vec2<i32>>,
+    pub(crate) queued: HashSet<Vec2<i32>>,
     pub(crate) map: HashSet<Vec2<i32>>,
     pub(crate) pending_remesh: HashSet<Vec2<i32>>,
     sender: Arc<Sender<(Chunk, MessageType)>>,
@@ -106,7 +107,7 @@ pub struct Mesher {
 impl Mesher {
     #[inline]
     fn remove_queued_chunk(&mut self, coords: &Vec2<i32>) {
-        if self.queue.is_empty() {
+        if !self.queued.remove(coords) {
             return;
         }
         if self.queue.front().is_some_and(|front| front == coords) {
@@ -127,6 +128,7 @@ impl Mesher {
 
         Self {
             queue: std::collections::VecDeque::new(),
+            queued: HashSet::new(),
             map: HashSet::new(),
             pending_remesh: HashSet::new(),
             sender: Arc::new(sender),
@@ -140,29 +142,23 @@ impl Mesher {
             return;
         }
 
-        if self.queue.is_empty() {
+        if self.queued.contains(coords) {
             if prioritized {
-                self.queue.push_front(*coords);
-            } else {
-                self.queue.push_back(*coords);
-            }
-            return;
-        }
-        if prioritized {
-            if self.queue.front().is_some_and(|front| front == coords) {
+                if self.queue.front().is_some_and(|front| front == coords) {
+                    return;
+                }
+            } else if self.queue.back().is_some_and(|back| back == coords) {
                 return;
             }
-        } else if self.queue.back().is_some_and(|back| back == coords) {
-            return;
+            self.remove_queued_chunk(coords);
         }
-
-        self.remove_queued_chunk(coords);
 
         if prioritized {
             self.queue.push_front(*coords);
         } else {
             self.queue.push_back(*coords);
         }
+        self.queued.insert(*coords);
     }
 
     pub fn remove_chunk(&mut self, coords: &Vec2<i32>) {
@@ -175,7 +171,9 @@ impl Mesher {
     }
 
     pub fn get(&mut self) -> Option<Vec2<i32>> {
-        self.queue.pop_front()
+        let coords = self.queue.pop_front()?;
+        self.queued.remove(&coords);
+        Some(coords)
     }
 
     pub fn mark_for_remesh(&mut self, coords: &Vec2<i32>) -> bool {
@@ -508,5 +506,33 @@ mod tests {
         assert!(mesher.pending_remesh.contains(&coords));
         assert!(mesher.mark_for_remesh(&coords));
         assert_eq!(mesher.pending_remesh.len(), 1);
+    }
+
+    #[test]
+    fn add_chunk_reprioritizes_existing_queued_entry_without_duplicates() {
+        let mut mesher = Mesher::new();
+        let first = Vec2(1, 1);
+        let second = Vec2(2, 2);
+
+        mesher.add_chunk(&first, false);
+        mesher.add_chunk(&second, false);
+        mesher.add_chunk(&first, true);
+
+        assert_eq!(mesher.queue.len(), 2);
+        assert_eq!(mesher.queued.len(), 2);
+        assert_eq!(mesher.queue.front(), Some(&first));
+        assert_eq!(mesher.queue.back(), Some(&second));
+    }
+
+    #[test]
+    fn get_removes_coords_from_queued_set() {
+        let mut mesher = Mesher::new();
+        let coords = Vec2(-3, 5);
+
+        mesher.add_chunk(&coords, false);
+        assert!(mesher.queued.contains(&coords));
+
+        assert_eq!(mesher.get(), Some(coords));
+        assert!(!mesher.queued.contains(&coords));
     }
 }
