@@ -476,10 +476,15 @@ impl KdTree {
         let Some(radius_squared) = normalized_radius_squared(radius) else {
             return Vec::new();
         };
-        let mut player_ids = Vec::with_capacity(player_tree_size.min(16));
+        let initial_capacity = player_tree_size.min(16);
+        let mut player_ids: Option<Vec<u32>> = None;
         self.players
-            .for_each_within_id(&query_point, radius_squared, |ent_id| player_ids.push(ent_id));
-        player_ids
+            .for_each_within_id(&query_point, radius_squared, |ent_id| {
+                player_ids
+                    .get_or_insert_with(|| Vec::with_capacity(initial_capacity))
+                    .push(ent_id);
+            });
+        player_ids.unwrap_or_default()
     }
 
     pub fn players_within_radius(&self, point: &Vec3<f32>, radius: f32) -> Vec<&Entity> {
@@ -493,13 +498,16 @@ impl KdTree {
         let Some(radius_squared) = normalized_radius_squared(radius) else {
             return Vec::new();
         };
-        let mut entities = Vec::with_capacity(player_tree_size.min(16));
+        let initial_capacity = player_tree_size.min(16);
+        let mut entities: Option<Vec<&Entity>> = None;
         self.players.for_each_within_id(&query_point, radius_squared, |ent_id| {
             if let Some(entity) = self.entity_map.get(&ent_id) {
-                entities.push(entity);
+                entities
+                    .get_or_insert_with(|| Vec::with_capacity(initial_capacity))
+                    .push(entity);
             }
         });
-        entities
+        entities.unwrap_or_default()
     }
 }
 
