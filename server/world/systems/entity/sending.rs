@@ -458,11 +458,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     }
                 }
             } else {
-                let mut deleted_entities_lookup: HashMap<&str, (&String, &String)> =
-                    HashMap::with_capacity(self.deleted_entities_buffer.len());
-                for (entity_id, etype, metadata_str) in &self.deleted_entities_buffer {
-                    deleted_entities_lookup.insert(entity_id.as_str(), (etype, metadata_str));
-                }
+                let mut deleted_entities_lookup: Option<HashMap<&str, (&String, &String)>> = None;
 
                 for client_id in clients.keys() {
                     let client_id = client_id.as_str();
@@ -494,6 +490,13 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                         }
                         continue;
                     }
+                    let deleted_entities_lookup = deleted_entities_lookup.get_or_insert_with(|| {
+                        let mut lookup = HashMap::with_capacity(self.deleted_entities_buffer.len());
+                        for (entity_id, etype, metadata_str) in &self.deleted_entities_buffer {
+                            lookup.insert(entity_id.as_str(), (etype, metadata_str));
+                        }
+                        lookup
+                    });
                     known_entities.retain(|entity_id| {
                         let Some((etype, metadata_str)) =
                             deleted_entities_lookup.get(entity_id.as_str())
