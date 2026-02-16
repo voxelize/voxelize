@@ -7,6 +7,14 @@ use std::time::Instant;
 
 const MAX_SAMPLES: usize = 100;
 
+#[inline]
+fn unix_timestamp_millis() -> u64 {
+    match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+        Ok(duration) => duration.as_millis() as u64,
+        Err(_) => 0,
+    }
+}
+
 #[derive(Clone, Serialize)]
 pub struct SystemSample {
     pub duration_ms: f64,
@@ -33,10 +41,7 @@ impl SystemTimings {
         }
         samples.push_back(SystemSample {
             duration_ms,
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_millis() as u64,
+            timestamp: unix_timestamp_millis(),
         });
     }
 

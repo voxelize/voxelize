@@ -110,17 +110,26 @@ lazy_static::lazy_static! {
 
 #[cfg(feature = "profiling")]
 pub fn start_profiling(frequency: i32) -> Result<(), String> {
-    GLOBAL_CPU_PROFILER.lock().unwrap().start(frequency)
+    match GLOBAL_CPU_PROFILER.lock() {
+        Ok(mut profiler) => profiler.start(frequency),
+        Err(_) => Err(String::from("CPU profiler lock poisoned")),
+    }
 }
 
 #[cfg(feature = "profiling")]
 pub fn stop_profiling_json() -> Result<FlameNode, String> {
-    GLOBAL_CPU_PROFILER.lock().unwrap().stop_json()
+    match GLOBAL_CPU_PROFILER.lock() {
+        Ok(mut profiler) => profiler.stop_json(),
+        Err(_) => Err(String::from("CPU profiler lock poisoned")),
+    }
 }
 
 #[cfg(feature = "profiling")]
 pub fn is_profiling() -> bool {
-    GLOBAL_CPU_PROFILER.lock().unwrap().is_profiling()
+    match GLOBAL_CPU_PROFILER.lock() {
+        Ok(profiler) => profiler.is_profiling(),
+        Err(_) => false,
+    }
 }
 
 #[cfg(not(feature = "profiling"))]
