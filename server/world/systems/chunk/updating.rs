@@ -5,7 +5,7 @@ use log::warn;
 use nanoid::nanoid;
 use specs::{Entities, LazyUpdate, ReadExpect, System, WorldExt, WriteExpect};
 
-use crate::world::generators::light_config;
+use crate::world::{generators::light_config, is_block_entity_type};
 use super::height_updates::update_chunk_column_height_for_voxel_update;
 use crate::{
     BlockUtils, ChunkUtils, Chunks, ClientFilter, CurrentChunkComp, ETypeComp, EntityFlag, IDComp,
@@ -69,6 +69,17 @@ fn clamp_i64_to_usize(value: i64) -> usize {
 #[inline]
 fn normalized_chunk_size(chunk_size: usize) -> usize {
     chunk_size.max(1)
+}
+
+#[inline]
+fn block_entity_type_from_name(block_name: &str) -> String {
+    if is_block_entity_type(block_name) {
+        return block_name.to_owned();
+    }
+    let mut entity_type = String::with_capacity(7 + block_name.len());
+    entity_type.push_str("block::");
+    entity_type.push_str(block_name);
+    entity_type
 }
 
 fn compute_flood_bounds(
@@ -373,11 +384,7 @@ fn process_pending_updates(
                 lazy.insert(entity, IDComp::new(&nanoid!()));
                 lazy.insert(entity, EntityFlag::default());
                 let block_name = registry.get_name_by_id(updated_id);
-                let normalized_block_name = block_name.strip_prefix("block::").unwrap_or(block_name);
-                let mut entity_type = String::with_capacity(7 + normalized_block_name.len());
-                entity_type.push_str("block::");
-                entity_type.push_str(normalized_block_name);
-                lazy.insert(entity, ETypeComp(entity_type, true));
+                lazy.insert(entity, ETypeComp(block_entity_type_from_name(block_name), true));
                 lazy.insert(entity, MetadataComp::new());
                 lazy.insert(entity, VoxelComp::new(voxel.0, voxel.1, voxel.2));
                 lazy.insert(entity, CurrentChunkComp::default());
@@ -1137,7 +1144,10 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
 #[cfg(test)]
 mod tests {
-    use super::{compute_flood_bounds, normalized_chunk_size, schedule_active_tick};
+    use super::{
+        block_entity_type_from_name, compute_flood_bounds, normalized_chunk_size,
+        schedule_active_tick,
+    };
     use crate::{LightNode, Vec3};
 
     #[test]
@@ -1186,5 +1196,11 @@ mod tests {
     fn normalized_chunk_size_guards_zero() {
         assert_eq!(normalized_chunk_size(0), 1);
         assert_eq!(normalized_chunk_size(32), 32);
+    }
+
+    #[test]
+    fn block_entity_type_from_name_normalizes_prefix_once() {
+        assert_eq!(block_entity_type_from_name("block::grass"), "block::grass");
+        assert_eq!(block_entity_type_from_name("grass"), "block::grass");
     }
 }
