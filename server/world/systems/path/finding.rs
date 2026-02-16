@@ -34,14 +34,17 @@ fn set_entity_path(path: &mut PathComp, next_path: Option<Vec<Vec3<i32>>>) {
 
 #[inline]
 fn set_entity_path_single(path: &mut PathComp, point: Vec3<i32>) {
-    let should_update = match path.path.as_ref() {
-        Some(current_path) => current_path.len() != 1 || current_path[0] != point,
-        None => true,
-    };
-    if should_update {
-        path.path = Some(vec![point]);
-        path.dirty = true;
+    if let Some(current_path) = path.path.as_mut() {
+        if current_path.len() == 1 {
+            if current_path[0] != point {
+                current_path[0] = point;
+                path.dirty = true;
+            }
+            return;
+        }
     }
+    path.path = Some(vec![point]);
+    path.dirty = true;
 }
 
 impl<'a> System<'a> for PathFindingSystem {
@@ -860,9 +863,9 @@ mod tests {
     use super::{
         axis_delta_i64, can_expand_successors, clamp_f64_to_i32, clamp_usize_to_u32,
         clamped_height_scan_steps, find_path_index_from, floor_f32_to_i32, perpendicular_distance,
-        normalized_max_depth_search, squared_voxel_distance_f64,
+        normalized_max_depth_search, set_entity_path_single, squared_voxel_distance_f64,
     };
-    use crate::Vec3;
+    use crate::{PathComp, Vec3};
 
     #[test]
     fn axis_delta_i64_handles_i32_extreme_values() {
@@ -939,5 +942,32 @@ mod tests {
         assert!(!can_expand_successors(0, i32::MAX, 0));
         assert!(!can_expand_successors(0, i32::MIN, 0));
         assert!(!can_expand_successors(0, i32::MIN + 2, 0));
+    }
+
+    #[test]
+    fn set_entity_path_single_updates_in_place_for_single_node_paths() {
+        let mut path = PathComp::default();
+        path.path = Some(vec![Vec3(1, 2, 3)]);
+        path.dirty = false;
+
+        let before_ptr = path.path.as_ref().expect("path should exist").as_ptr();
+        set_entity_path_single(&mut path, Vec3(4, 5, 6));
+        let after_ptr = path.path.as_ref().expect("path should exist").as_ptr();
+
+        assert_eq!(before_ptr, after_ptr);
+        assert_eq!(path.path, Some(vec![Vec3(4, 5, 6)]));
+        assert!(path.dirty);
+    }
+
+    #[test]
+    fn set_entity_path_single_skips_dirtying_when_point_is_unchanged() {
+        let mut path = PathComp::default();
+        path.path = Some(vec![Vec3(7, 8, 9)]);
+        path.dirty = false;
+
+        set_entity_path_single(&mut path, Vec3(7, 8, 9));
+
+        assert_eq!(path.path, Some(vec![Vec3(7, 8, 9)]));
+        assert!(!path.dirty);
     }
 }
