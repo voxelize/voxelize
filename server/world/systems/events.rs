@@ -57,7 +57,14 @@ fn ids_contains_target(ids: &[String], target: &str) -> bool {
                 || third.as_str() == target
                 || fourth.as_str() == target
         }
-        _ => ids.iter().any(|id| id.as_str() == target),
+        _ => {
+            for id in ids {
+                if id.as_str() == target {
+                    return true;
+                }
+            }
+            false
+        }
     }
 }
 
@@ -78,11 +85,12 @@ fn include_single_target(ids: &[String]) -> Option<&str> {
         }
         [first, rest @ ..] => {
             let first_id = first.as_str();
-            if rest.iter().all(|id| id.as_str() == first_id) {
-                Some(first_id)
-            } else {
-                None
+            for id in rest {
+                if id.as_str() != first_id {
+                    return None;
+                }
             }
+            Some(first_id)
         }
     }
 }
