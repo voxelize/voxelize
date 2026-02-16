@@ -1021,6 +1021,34 @@ describe("BlockRotation", () => {
     ).toEqual(transparency);
   });
 
+  it("sanitizes trap-driven rotateNode vector payloads without throwing", () => {
+    const writeTrapTarget: [number, number, number] = [1, 0, 0];
+    const writeTrapNode = new Proxy(writeTrapTarget, {
+      set() {
+        throw new Error("write trap");
+      },
+    });
+    const readTrapTarget: [number, number, number] = [1, 0, 0];
+    const readTrapNode = new Proxy(readTrapTarget, {
+      get(target, property, receiver) {
+        if (property === "0") {
+          throw new Error("read trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      BlockRotation.py(Math.PI / 2).rotateNode(writeTrapNode as never, true, false)
+    ).not.toThrow();
+    expect(writeTrapTarget).toEqual([1, 0, 0]);
+
+    expect(() =>
+      BlockRotation.py(Math.PI / 2).rotateNode(readTrapNode as never, true, false)
+    ).not.toThrow();
+    expect(readTrapTarget).toEqual([1, 0, 0]);
+  });
+
   it("decodes large y-rotation angles via modulo-normalized segments", () => {
     const largeAngle = 6728604188452.013;
     const [axis, yRotation] = BlockRotation.decode(

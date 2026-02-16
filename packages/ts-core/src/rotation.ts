@@ -157,6 +157,35 @@ const readFaceTransparencySafely = (
   }
 };
 
+const readVec3SnapshotSafely = (node: Vec3): Vec3 | null => {
+  let x = 0;
+  let y = 0;
+  let z = 0;
+  try {
+    x = node[0];
+    y = node[1];
+    z = node[2];
+  } catch {
+    return null;
+  }
+
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) {
+    return null;
+  }
+
+  return [x, y, z];
+};
+
+const writeVec3SnapshotSafely = (node: Vec3, snapshot: Vec3): void => {
+  try {
+    node[0] = snapshot[0];
+    node[1] = snapshot[1];
+    node[2] = snapshot[2];
+  } catch {
+    // no-op when target vector is not writable
+  }
+};
+
 export class BlockRotation {
   constructor(
     public value = PY_ROTATION,
@@ -266,28 +295,34 @@ export class BlockRotation {
   }
 
   rotateNode(node: Vec3, yRotate = true, translate = true): void {
+    const nodeSnapshot = readVec3SnapshotSafely(node);
+    if (nodeSnapshot === null) {
+      return;
+    }
+
+    const rotatedNode: Vec3 = [...nodeSnapshot];
     const normalizedYRotation = normalizeYRotation(readRotationYSafely(this));
     const axis = readRotationAxisSafely(this);
     if (yRotate && Math.abs(normalizedYRotation) > ANGLE_EPSILON) {
-      node[0] -= 0.5;
-      node[2] -= 0.5;
-      this.rotateY(node, normalizedYRotation);
-      node[0] += 0.5;
-      node[2] += 0.5;
+      rotatedNode[0] -= 0.5;
+      rotatedNode[2] -= 0.5;
+      this.rotateY(rotatedNode, normalizedYRotation);
+      rotatedNode[0] += 0.5;
+      rotatedNode[2] += 0.5;
     }
 
     switch (axis) {
       case PX_ROTATION: {
-        this.rotateZ(node, -PI_2);
+        this.rotateZ(rotatedNode, -PI_2);
         if (translate) {
-          node[1] += 1.0;
+          rotatedNode[1] += 1.0;
         }
         break;
       }
       case NX_ROTATION: {
-        this.rotateZ(node, PI_2);
+        this.rotateZ(rotatedNode, PI_2);
         if (translate) {
-          node[0] += 1.0;
+          rotatedNode[0] += 1.0;
         }
         break;
       }
@@ -295,30 +330,32 @@ export class BlockRotation {
         break;
       }
       case NY_ROTATION: {
-        this.rotateX(node, PI_2 * 2.0);
+        this.rotateX(rotatedNode, PI_2 * 2.0);
         if (translate) {
-          node[1] += 1.0;
-          node[2] += 1.0;
+          rotatedNode[1] += 1.0;
+          rotatedNode[2] += 1.0;
         }
         break;
       }
       case PZ_ROTATION: {
-        this.rotateX(node, PI_2);
+        this.rotateX(rotatedNode, PI_2);
         if (translate) {
-          node[1] += 1.0;
+          rotatedNode[1] += 1.0;
         }
         break;
       }
       case NZ_ROTATION: {
-        this.rotateX(node, -PI_2);
+        this.rotateX(rotatedNode, -PI_2);
         if (translate) {
-          node[2] += 1.0;
+          rotatedNode[2] += 1.0;
         }
         break;
       }
       default:
         break;
     }
+
+    writeVec3SnapshotSafely(node, rotatedNode);
   }
 
   rotateAABB(aabb: AABB, yRotate = true, translate = true): AABB {
