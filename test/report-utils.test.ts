@@ -23287,29 +23287,35 @@ describe("report-utils", () => {
   it("returns stable write failure messages for boxed primitives with trapped toString", () => {
     const reportJson = toReportJson({ passed: false, exitCode: 1 });
     const numberWrapper = new Number(7);
+    let didCallNumberToString = false;
     Object.defineProperty(numberWrapper, "toString", {
       configurable: true,
       enumerable: false,
       writable: true,
       value() {
+        didCallNumberToString = true;
         throw new Error("number wrapper toString trap");
       },
     });
     const booleanWrapper = new Boolean(true);
+    let didCallBooleanToString = false;
     Object.defineProperty(booleanWrapper, "toString", {
       configurable: true,
       enumerable: false,
       writable: true,
       value() {
+        didCallBooleanToString = true;
         throw new Error("boolean wrapper toString trap");
       },
     });
     const bigintWrapper = Object(1n);
+    let didCallBigintToString = false;
     Object.defineProperty(bigintWrapper, "toString", {
       configurable: true,
       enumerable: false,
       writable: true,
       value() {
+        didCallBigintToString = true;
         throw new Error("bigint wrapper toString trap");
       },
     });
@@ -23328,6 +23334,10 @@ describe("report-utils", () => {
       );
       expect(failureMessage).not.toContain("toString trap");
     }
+
+    expect(didCallNumberToString).toBe(false);
+    expect(didCallBooleanToString).toBe(false);
+    expect(didCallBigintToString).toBe(false);
   });
 
   it("falls back to unprintable output-path messaging for trapped symbol wrappers", () => {
@@ -24197,29 +24207,35 @@ describe("report-utils", () => {
 
   it("returns structured serialize fallback for boxed primitives with trapped toString", () => {
     const numberWrapper = new Number(7);
+    let didCallNumberToString = false;
     Object.defineProperty(numberWrapper, "toString", {
       configurable: true,
       enumerable: false,
       writable: true,
       value() {
+        didCallNumberToString = true;
         throw new Error("number wrapper toString trap");
       },
     });
     const booleanWrapper = new Boolean(true);
+    let didCallBooleanToString = false;
     Object.defineProperty(booleanWrapper, "toString", {
       configurable: true,
       enumerable: false,
       writable: true,
       value() {
+        didCallBooleanToString = true;
         throw new Error("boolean wrapper toString trap");
       },
     });
     const bigintWrapper = Object(1n);
+    let didCallBigintToString = false;
     Object.defineProperty(bigintWrapper, "toString", {
       configurable: true,
       enumerable: false,
       writable: true,
       value() {
+        didCallBigintToString = true;
         throw new Error("bigint wrapper toString trap");
       },
     });
@@ -24295,6 +24311,10 @@ describe("report-utils", () => {
       expect(parsedWriteFailureResult.endedAt).toBe("iso-2000");
       expect(parsedWriteFailureResult.durationMs).toBe(1000);
     }
+
+    expect(didCallNumberToString).toBe(false);
+    expect(didCallBooleanToString).toBe(false);
+    expect(didCallBigintToString).toBe(false);
   });
 
   it("returns unprintable serialize fallback for trapped symbol wrappers", () => {

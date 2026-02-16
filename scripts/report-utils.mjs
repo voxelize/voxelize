@@ -104,15 +104,6 @@ const toPrimitiveWrapperStringOrNull = (value) => {
   }
 
   try {
-    const wrappedStringValue = String(value);
-    if (wrappedStringValue.length > 0) {
-      return wrappedStringValue;
-    }
-  } catch {
-    // fall through to valueOf coercion fallback
-  }
-
-  try {
     const valueOf = value.valueOf;
     if (typeof valueOf !== "function") {
       return null;
