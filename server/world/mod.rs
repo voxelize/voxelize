@@ -963,7 +963,8 @@ impl World {
         if let Some(id) = self.read_component::<IDComp>().get(entity) {
             id.0.to_owned()
         } else {
-            panic!("Something went wrong! An entity does not have an `IDComp` attached!");
+            warn!("Entity {:?} does not have an IDComp attached", entity);
+            String::new()
         }
     }
 
