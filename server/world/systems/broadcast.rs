@@ -306,16 +306,18 @@ impl<'a> System<'a> for BroadcastSystem {
 
         for (encoded, mut filter) in done_messages {
             normalize_filter_for_dispatch(&mut filter);
-            let use_rtc = encoded.is_rtc_eligible;
+            let rtc_map_for_message = if encoded.is_rtc_eligible {
+                rtc_map.as_ref()
+            } else {
+                None
+            };
             let encoded_data = encoded.data;
             if let ClientFilter::Direct(id) = &filter {
                 if let Some(client) = clients.get(id) {
-                    if use_rtc {
-                        if let Some(ref rtc_map) = rtc_map {
-                            if let Some(rtc_sender) = rtc_map.get(id) {
-                                send_fragmented_rtc_payload(rtc_sender, encoded_data.as_ref());
-                                continue;
-                            }
+                    if let Some(rtc_map) = rtc_map_for_message {
+                        if let Some(rtc_sender) = rtc_map.get(id) {
+                            send_fragmented_rtc_payload(rtc_sender, encoded_data.as_ref());
+                            continue;
                         }
                     }
                     let _ = client.sender.send(encoded_data);
@@ -333,12 +335,10 @@ impl<'a> System<'a> for BroadcastSystem {
                     has_transports && should_send_to_transport(encoded.msg_type);
                 let mut sent_with_rtc = false;
                 if should_send {
-                    if use_rtc {
-                        if let Some(ref rtc_map) = rtc_map {
-                            if let Some(rtc_sender) = rtc_map.get(single_id) {
-                                send_fragmented_rtc_payload(rtc_sender, encoded_data.as_ref());
-                                sent_with_rtc = true;
-                            }
+                    if let Some(rtc_map) = rtc_map_for_message {
+                        if let Some(rtc_sender) = rtc_map.get(single_id) {
+                            send_fragmented_rtc_payload(rtc_sender, encoded_data.as_ref());
+                            sent_with_rtc = true;
                         }
                     }
                     if !sent_with_rtc {
@@ -364,12 +364,10 @@ impl<'a> System<'a> for BroadcastSystem {
                     has_transports && should_send_to_transport(encoded.msg_type);
                 let mut sent_with_rtc = false;
                 if let Some(client) = clients.get(target_id) {
-                    if use_rtc {
-                        if let Some(ref rtc_map) = rtc_map {
-                            if let Some(rtc_sender) = rtc_map.get(target_id) {
-                                send_fragmented_rtc_payload(rtc_sender, encoded_data.as_ref());
-                                sent_with_rtc = true;
-                            }
+                    if let Some(rtc_map) = rtc_map_for_message {
+                        if let Some(rtc_sender) = rtc_map.get(target_id) {
+                            send_fragmented_rtc_payload(rtc_sender, encoded_data.as_ref());
+                            sent_with_rtc = true;
                         }
                     }
                     if !sent_with_rtc {
@@ -385,7 +383,7 @@ impl<'a> System<'a> for BroadcastSystem {
                 }
                 continue;
             }
-            if !use_rtc && targets_all_clients(&filter) {
+            if rtc_map_for_message.is_none() && targets_all_clients(&filter) {
                 let should_send_transport =
                     has_transports && should_send_to_transport(encoded.msg_type);
                 let mut clients_iter = clients.values();
@@ -406,23 +404,21 @@ impl<'a> System<'a> for BroadcastSystem {
             }
             let mut rtc_fragments_cache: Option<Vec<Bytes>> = None;
             let mut send_to_client = |id: &str, client: &Client| {
-                if use_rtc {
-                    if let Some(ref rtc_map) = rtc_map {
-                        if let Some(rtc_sender) = rtc_map.get(id) {
-                            let fragments = rtc_fragments_cache
-                                .get_or_insert_with(|| {
-                                    fragment_message(encoded_data.as_ref())
-                                        .into_iter()
-                                        .map(Bytes::from)
-                                        .collect()
-                                });
-                            for fragment in fragments.iter() {
-                                if rtc_sender.send(fragment.clone()).is_err() {
-                                    break;
-                                }
+                if let Some(rtc_map) = rtc_map_for_message {
+                    if let Some(rtc_sender) = rtc_map.get(id) {
+                        let fragments = rtc_fragments_cache
+                            .get_or_insert_with(|| {
+                                fragment_message(encoded_data.as_ref())
+                                    .into_iter()
+                                    .map(Bytes::from)
+                                    .collect()
+                            });
+                        for fragment in fragments.iter() {
+                            if rtc_sender.send(fragment.clone()).is_err() {
+                                break;
                             }
-                            return;
                         }
+                        return;
                     }
                 }
 
