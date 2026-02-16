@@ -5,7 +5,7 @@ use crossbeam_channel::{Receiver, Sender};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::{common::ClientFilter, encode_message, server::Message, EntityOperation, MessageType};
-const SYNC_ENCODE_BATCH_LIMIT: usize = 8;
+const SYNC_ENCODE_BATCH_LIMIT: usize = 9;
 const MESSAGE_TYPE_PEER: i32 = MessageType::Peer as i32;
 const MESSAGE_TYPE_ENTITY: i32 = MessageType::Entity as i32;
 const MESSAGE_TYPE_EVENT: i32 = MessageType::Event as i32;
@@ -544,6 +544,24 @@ mod tests {
             &mixed_quadruple_message
         ));
         assert!(!EncodedMessageQueue::compute_rtc_eligibility(&empty_message));
+    }
+
+    #[test]
+    fn process_encodes_nine_messages_synchronously() {
+        let mut queue = EncodedMessageQueue::new();
+        let mut pending = Vec::with_capacity(9);
+        for index in 0..9 {
+            pending.push((
+                Message::new(&MessageType::Peer).build(),
+                ClientFilter::Direct(format!("client-{index}")),
+            ));
+        }
+        queue.append(pending);
+
+        queue.process();
+
+        assert!(queue.pending.is_empty());
+        assert_eq!(queue.processed.len(), 9);
     }
 
     #[test]
