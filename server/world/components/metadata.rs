@@ -1,5 +1,3 @@
-use bincode;
-use blake3::Hash;
 use hashbrown::{hash_map::RawEntryMut, HashMap};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -10,10 +8,6 @@ use specs::{Component, VecStorage};
 #[storage(VecStorage)]
 pub struct MetadataComp {
     pub map: HashMap<String, Value>,
-
-    #[serde(skip_serializing)]
-    #[serde(skip_deserializing)]
-    cache_hash: Option<Hash>,
 
     #[serde(skip_serializing)]
     #[serde(skip_deserializing)]
@@ -33,7 +27,6 @@ impl MetadataComp {
     pub fn from_map(map: HashMap<String, Value>) -> Self {
         Self {
             map,
-            cache_hash: None,
             cached_json: None,
             dirty: true,
         }
@@ -80,26 +73,18 @@ impl MetadataComp {
         None
     }
 
-    /// Calculate hash of the current metadata map
-    fn calculate_hash(&self) -> Hash {
-        // Serialize to binary format which is more efficient than JSON string
-        let bytes = bincode::serialize(&self.map).unwrap_or_default();
-        blake3::hash(&bytes)
-    }
-
     fn refresh_cached_json_if_dirty(&mut self) -> bool {
         if !self.dirty {
             return false;
         }
 
-        let current_hash = self.calculate_hash();
-        let updated = match self.cache_hash {
-            Some(cache_hash) => cache_hash != current_hash,
+        let current_json = self.to_string();
+        let updated = match self.cached_json.as_ref() {
+            Some(cached_json) => cached_json != &current_json,
             None => true,
         };
-        self.cache_hash = Some(current_hash);
         if updated || self.cached_json.is_none() {
-            self.cached_json = Some(self.to_string());
+            self.cached_json = Some(current_json);
         }
         self.dirty = false;
         updated
@@ -114,13 +99,11 @@ impl MetadataComp {
 
     pub fn to_cached_str_for_new_record(&mut self) -> String {
         if let Some(cached_json) = self.cached_json.as_ref() {
-            self.cache_hash = None;
             self.dirty = false;
             return cached_json.clone();
         }
         let json_str = self.to_string();
         self.cached_json = Some(json_str.clone());
-        self.cache_hash = None;
         self.dirty = false;
         json_str
     }
@@ -132,13 +115,8 @@ impl MetadataComp {
             return (cached_json.clone(), updated);
         }
 
-        let current_hash = self.calculate_hash();
         let json_str = self.to_string();
-        let updated = match self.cache_hash {
-            Some(cache_hash) => cache_hash != current_hash,
-            None => true,
-        };
-        self.cache_hash = Some(current_hash);
+        let updated = true;
         self.cached_json = Some(json_str.clone());
         self.dirty = false;
 
