@@ -696,10 +696,13 @@ impl<'a> System<'a> for EventsSystem {
             touched_clients.reserve(client_count - touched_clients.len());
         }
         let single_client = if client_count == 1 {
-            clients
-                .iter()
-                .next()
-                .map(|(id, client)| (id.as_str(), client.entity))
+            let (single_client_id, single_client) = {
+                let Some(client) = clients.iter().next() else {
+                    unreachable!("single client length matched branch");
+                };
+                client
+            };
+            Some((single_client_id.as_str(), single_client.entity))
         } else {
             None
         };
