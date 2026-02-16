@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   AABB,
+  AABBBuilder,
   BLOCK_RULE_NONE,
   type AABBInit,
   type BlockConditionalPartInput,
@@ -781,6 +782,40 @@ describe("AABB", () => {
     expect(copyTarget).toEqual(AABB.create(10, 10, 10, 11, 11, 11));
     expect(() => copyTarget.copy(revokedAabb as never)).not.toThrow();
     expect(copyTarget).toEqual(AABB.create(10, 10, 10, 11, 11, 11));
+  });
+
+  it("sanitizes malformed AABB instance contexts without throwing", () => {
+    const revokedAabb = (() => {
+      const proxy = Proxy.revocable(AABB.create(0, 0, 0, 1, 1, 1), {});
+      proxy.revoke();
+      return proxy.proxy;
+    })();
+    const revokedBuilder = (() => {
+      const proxy = Proxy.revocable(new AABBBuilder(), {});
+      proxy.revoke();
+      return proxy.proxy;
+    })();
+
+    expect(() => AABB.prototype.width.call(revokedAabb as never)).not.toThrow();
+    expect(AABB.prototype.width.call(revokedAabb as never)).toBe(0);
+    expect(() => AABB.prototype.height.call(revokedAabb as never)).not.toThrow();
+    expect(AABB.prototype.height.call(revokedAabb as never)).toBe(0);
+    expect(() => AABB.prototype.depth.call(revokedAabb as never)).not.toThrow();
+    expect(AABB.prototype.depth.call(revokedAabb as never)).toBe(0);
+    expect(() => AABB.prototype.mag.call(revokedAabb as never)).not.toThrow();
+    expect(AABB.prototype.mag.call(revokedAabb as never)).toBe(0);
+    expect(() =>
+      AABB.prototype.translate.call(revokedAabb as never, 1, 2, 3)
+    ).not.toThrow();
+    expect(() =>
+      AABB.prototype.setPosition.call(revokedAabb as never, 4, 5, 6)
+    ).not.toThrow();
+    expect(() => AABB.prototype.clone.call(revokedAabb as never)).not.toThrow();
+    expect(AABB.prototype.clone.call(revokedAabb as never)).toEqual(AABB.empty());
+    expect(() => AABBBuilder.prototype.build.call(revokedBuilder as never)).not.toThrow();
+    expect(AABBBuilder.prototype.build.call(revokedBuilder as never)).toEqual(
+      AABB.empty()
+    );
   });
 
   it("computes geometric extents and magnitude", () => {

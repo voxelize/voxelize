@@ -37,13 +37,31 @@ export class AABBBuilder {
   }
 
   build(): AABB {
+    let scaleXValue = 1;
+    let scaleYValue = 1;
+    let scaleZValue = 1;
+    let offsetXValue = 0;
+    let offsetYValue = 0;
+    let offsetZValue = 0;
+
+    try {
+      scaleXValue = toFiniteNumberOrZero(this.scaleXValue);
+      scaleYValue = toFiniteNumberOrZero(this.scaleYValue);
+      scaleZValue = toFiniteNumberOrZero(this.scaleZValue);
+      offsetXValue = toFiniteNumberOrZero(this.offsetXValue);
+      offsetYValue = toFiniteNumberOrZero(this.offsetYValue);
+      offsetZValue = toFiniteNumberOrZero(this.offsetZValue);
+    } catch {
+      return AABB.empty();
+    }
+
     return new AABB(
-      this.offsetXValue,
-      this.offsetYValue,
-      this.offsetZValue,
-      this.offsetXValue + this.scaleXValue,
-      this.offsetYValue + this.scaleYValue,
-      this.offsetZValue + this.scaleZValue
+      offsetXValue,
+      offsetYValue,
+      offsetZValue,
+      offsetXValue + scaleXValue,
+      offsetYValue + scaleYValue,
+      offsetZValue + scaleZValue
     );
   }
 }
@@ -53,6 +71,21 @@ const isArrayValue = (value: readonly AABB[] | null | undefined): value is reado
     return Array.isArray(value);
   } catch {
     return false;
+  }
+};
+
+type NumericLikeValue = number | string | boolean | object | null | undefined;
+
+const toFiniteNumberOrZero = (value: NumericLikeValue): number => {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  try {
+    const numericValue = Number(value);
+    return Number.isFinite(numericValue) ? numericValue : 0;
+  } catch {
+    return 0;
   }
 };
 
@@ -240,41 +273,93 @@ export class AABB {
   }
 
   width(): number {
-    return this.maxX - this.minX;
+    const snapshot = readAabbSnapshotSafely(this);
+    if (snapshot === null) {
+      return 0;
+    }
+
+    return snapshot.maxX - snapshot.minX;
   }
 
   height(): number {
-    return this.maxY - this.minY;
+    const snapshot = readAabbSnapshotSafely(this);
+    if (snapshot === null) {
+      return 0;
+    }
+
+    return snapshot.maxY - snapshot.minY;
   }
 
   depth(): number {
-    return this.maxZ - this.minZ;
+    const snapshot = readAabbSnapshotSafely(this);
+    if (snapshot === null) {
+      return 0;
+    }
+
+    return snapshot.maxZ - snapshot.minZ;
   }
 
   mag(): number {
+    const snapshot = readAabbSnapshotSafely(this);
+    if (snapshot === null) {
+      return 0;
+    }
+
+    const width = snapshot.maxX - snapshot.minX;
+    const height = snapshot.maxY - snapshot.minY;
+    const depth = snapshot.maxZ - snapshot.minZ;
+
     return Math.sqrt(
-      this.width() * this.width() +
-        this.height() * this.height() +
-        this.depth() * this.depth()
+      width * width +
+        height * height +
+        depth * depth
     );
   }
 
   translate(dx: number, dy: number, dz: number): void {
-    this.minX += dx;
-    this.minY += dy;
-    this.minZ += dz;
-    this.maxX += dx;
-    this.maxY += dy;
-    this.maxZ += dz;
+    const snapshot = readAabbSnapshotSafely(this);
+    if (snapshot === null) {
+      return;
+    }
+
+    const normalizedDx = toFiniteNumberOrZero(dx);
+    const normalizedDy = toFiniteNumberOrZero(dy);
+    const normalizedDz = toFiniteNumberOrZero(dz);
+    try {
+      this.minX = snapshot.minX + normalizedDx;
+      this.minY = snapshot.minY + normalizedDy;
+      this.minZ = snapshot.minZ + normalizedDz;
+      this.maxX = snapshot.maxX + normalizedDx;
+      this.maxY = snapshot.maxY + normalizedDy;
+      this.maxZ = snapshot.maxZ + normalizedDz;
+    } catch {
+      // no-op when assignment is unavailable
+    }
   }
 
   setPosition(px: number, py: number, pz: number): void {
-    this.maxX = px + this.width();
-    this.maxY = py + this.height();
-    this.maxZ = pz + this.depth();
-    this.minX = px;
-    this.minY = py;
-    this.minZ = pz;
+    const snapshot = readAabbSnapshotSafely(this);
+    if (snapshot === null) {
+      return;
+    }
+
+    const normalizedPx = toFiniteNumberOrZero(px);
+    const normalizedPy = toFiniteNumberOrZero(py);
+    const normalizedPz = toFiniteNumberOrZero(pz);
+    const width = snapshot.maxX - snapshot.minX;
+    const height = snapshot.maxY - snapshot.minY;
+    const depth = snapshot.maxZ - snapshot.minZ;
+
+    try {
+      this.maxX = normalizedPx + width;
+      this.maxY = normalizedPy + height;
+      this.maxZ = normalizedPz + depth;
+      this.minX = normalizedPx;
+      this.minY = normalizedPy;
+      this.minZ = normalizedPz;
+    } catch {
+      // no-op when assignment is unavailable
+    }
   }
 
   copy(other: AABB): void {
@@ -344,13 +429,18 @@ export class AABB {
   }
 
   clone(): AABB {
+    const snapshot = readAabbSnapshotSafely(this);
+    if (snapshot === null) {
+      return AABB.empty();
+    }
+
     return new AABB(
-      this.minX,
-      this.minY,
-      this.minZ,
-      this.maxX,
-      this.maxY,
-      this.maxZ
+      snapshot.minX,
+      snapshot.minY,
+      snapshot.minZ,
+      snapshot.maxX,
+      snapshot.maxY,
+      snapshot.maxZ
     );
   }
 }
