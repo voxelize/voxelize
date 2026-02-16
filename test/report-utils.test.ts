@@ -23385,6 +23385,138 @@ describe("report-utils", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("surfaces primitive and wrapped write failures without coercing plain objects", () => {
+    const reportJson = toReportJson({ passed: false, exitCode: 1 });
+    const outputPath = path.resolve(
+      os.tmpdir(),
+      "report-utils-write-failure-message.json"
+    );
+
+    const wrappedStringFailure = new String("wrapped write failure");
+    let didCallWrappedStringToString = false;
+    Object.defineProperty(wrappedStringFailure, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedStringToString = true;
+        throw new Error("wrapped write string toString trap");
+      },
+    });
+
+    const wrappedSymbolFailure = Object(Symbol("wrapped-write-failure"));
+    let didCallWrappedSymbolValueOf = false;
+    Object.defineProperty(wrappedSymbolFailure, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedSymbolValueOf = true;
+        throw new Error("wrapped write symbol valueOf trap");
+      },
+    });
+
+    const wrappedErrorMessage = new String("wrapped write error message");
+    let didCallWrappedErrorMessageToString = false;
+    Object.defineProperty(wrappedErrorMessage, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedErrorMessageToString = true;
+        throw new Error("wrapped write error message toString trap");
+      },
+    });
+    const errorWithWrappedMessage = new Error("placeholder write message");
+    Object.defineProperty(errorWithWrappedMessage, "message", {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: wrappedErrorMessage,
+    });
+
+    const primitiveFailureCases: Array<{
+      readonly thrownValue: string | number | boolean | bigint | symbol | object;
+      readonly expectedDetail: string;
+    }> = [
+      {
+        thrownValue: "primitive write failure",
+        expectedDetail: "primitive write failure",
+      },
+      {
+        thrownValue: 13,
+        expectedDetail: "13",
+      },
+      {
+        thrownValue: false,
+        expectedDetail: "false",
+      },
+      {
+        thrownValue: 12n,
+        expectedDetail: "12",
+      },
+      {
+        thrownValue: Symbol("write-failure-symbol"),
+        expectedDetail: "Symbol(write-failure-symbol)",
+      },
+      {
+        thrownValue: wrappedStringFailure,
+        expectedDetail: "wrapped write failure",
+      },
+      {
+        thrownValue: wrappedSymbolFailure,
+        expectedDetail: "Symbol(wrapped-write-failure)",
+      },
+      {
+        thrownValue: errorWithWrappedMessage,
+        expectedDetail: "wrapped write error message",
+      },
+    ];
+
+    const originalMkdirSync = fs.mkdirSync;
+    const originalWriteFileSync = fs.writeFileSync;
+
+    try {
+      fs.mkdirSync = (() => undefined) as typeof fs.mkdirSync;
+
+      for (const { thrownValue, expectedDetail } of primitiveFailureCases) {
+        fs.writeFileSync = (() => {
+          throw thrownValue;
+        }) as typeof fs.writeFileSync;
+
+        expect(() => writeReportToPath(reportJson, outputPath)).not.toThrow();
+        const failureMessage = writeReportToPath(reportJson, outputPath);
+        expect(failureMessage).toContain(`Failed to write report to ${outputPath}.`);
+        expect(failureMessage).toContain(` ${expectedDetail}`);
+      }
+
+      let didCallPlainObjectToString = false;
+      const plainObjectFailure = {
+        toString() {
+          didCallPlainObjectToString = true;
+          throw new Error("plain write object toString trap");
+        },
+      };
+      fs.writeFileSync = (() => {
+        throw plainObjectFailure;
+      }) as typeof fs.writeFileSync;
+
+      expect(() => writeReportToPath(reportJson, outputPath)).not.toThrow();
+      const plainObjectFailureMessage = writeReportToPath(reportJson, outputPath);
+      expect(plainObjectFailureMessage).toBe(
+        `Failed to write report to ${outputPath}.`
+      );
+      expect(didCallPlainObjectToString).toBe(false);
+    } finally {
+      fs.mkdirSync = originalMkdirSync;
+      fs.writeFileSync = originalWriteFileSync;
+    }
+
+    expect(didCallWrappedStringToString).toBe(false);
+    expect(didCallWrappedSymbolValueOf).toBe(false);
+    expect(didCallWrappedErrorMessageToString).toBe(false);
+  });
+
   it("returns a stable write failure message when output-path coercion traps", () => {
     const reportJson = toReportJson({ passed: false, exitCode: 1 });
     const trappedOutputPath = {

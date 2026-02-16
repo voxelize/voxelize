@@ -3215,6 +3215,43 @@ const toOutputPathMessageValue = (outputPath) => {
 };
 
 const toErrorMessageDetail = (error) => {
+  const toTrimmedDetailOrNull = (value) => {
+    if (typeof value === "string") {
+      const normalizedStringValue = value.trim();
+      return normalizedStringValue.length > 0 ? normalizedStringValue : null;
+    }
+
+    if (
+      typeof value === "number" ||
+      typeof value === "boolean" ||
+      typeof value === "bigint" ||
+      typeof value === "symbol"
+    ) {
+      try {
+        const primitiveStringValue = String(value).trim();
+        return primitiveStringValue.length > 0 ? primitiveStringValue : null;
+      } catch {
+        return null;
+      }
+    }
+
+    if (value !== null && typeof value === "object") {
+      const wrappedPrimitiveValue = toPrimitiveWrapperStringOrNull(value);
+      if (wrappedPrimitiveValue === null) {
+        return null;
+      }
+
+      const normalizedWrappedPrimitiveValue = wrappedPrimitiveValue.trim();
+      return normalizedWrappedPrimitiveValue.length > 0
+        ? normalizedWrappedPrimitiveValue
+        : null;
+    }
+
+    return null;
+  };
+
+  const fallbackDetail = toTrimmedDetailOrNull(error);
+
   let isErrorValue = false;
   try {
     isErrorValue = error instanceof Error;
@@ -3223,19 +3260,22 @@ const toErrorMessageDetail = (error) => {
   }
 
   if (!isErrorValue) {
-    return "";
+    return fallbackDetail !== null ? ` ${fallbackDetail}` : "";
   }
 
   let messageValue = "";
   try {
     messageValue = error.message;
   } catch {
-    return "";
+    return fallbackDetail !== null ? ` ${fallbackDetail}` : "";
   }
 
-  return typeof messageValue === "string" && messageValue.length > 0
-    ? ` ${messageValue}`
-    : "";
+  const normalizedMessageDetail = toTrimmedDetailOrNull(messageValue);
+  if (normalizedMessageDetail !== null) {
+    return ` ${normalizedMessageDetail}`;
+  }
+
+  return fallbackDetail !== null ? ` ${fallbackDetail}` : "";
 };
 
 export const writeReportToPath = (reportJson, outputPath) => {
