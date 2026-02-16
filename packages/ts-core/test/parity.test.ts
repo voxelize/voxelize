@@ -89,6 +89,18 @@ describe("BlockUtils", () => {
     );
   });
 
+  it("rejects malformed stage payloads in insertAll", () => {
+    const trapDrivenStage = {
+      [Symbol.toPrimitive]() {
+        throw new Error("stage coercion trap");
+      },
+    };
+
+    expect(() =>
+      BlockUtils.insertAll(1, BlockRotation.py(0), trapDrivenStage as never)
+    ).toThrowError(RangeError);
+  });
+
   it("supports rotation roundtrip", () => {
     const rotation = BlockRotation.ny(Math.PI / 3);
     const voxel = BlockUtils.insertRotation(0, rotation);
