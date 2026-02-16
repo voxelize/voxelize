@@ -1116,8 +1116,11 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         if let Some(all_results) = all_results {
             let new_message = if all_results.len() == 1 {
                 let mut all_results = all_results;
-                let Some(single_update) = all_results.pop() else {
-                    return;
+                let single_update = {
+                    let Some(update) = all_results.pop() else {
+                        unreachable!("single update length matched branch");
+                    };
+                    update
                 };
                 Message::new(&MessageType::Update)
                     .update_owned(single_update)

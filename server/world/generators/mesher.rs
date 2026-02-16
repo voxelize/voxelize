@@ -342,8 +342,11 @@ impl Mesher {
     ) {
         let mut processes = processes;
         if processes.len() == 1 {
-            let Some((chunk, space)) = processes.pop() else {
-                return;
+            let (chunk, space) = {
+                let Some(process) = processes.pop() else {
+                    unreachable!("process length matched branch");
+                };
+                process
             };
             if self.map.insert(chunk.coords) {
                 processes.push((chunk, space));

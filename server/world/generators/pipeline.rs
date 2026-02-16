@@ -546,8 +546,11 @@ impl Pipeline {
         let registry = Arc::new(registry.to_owned());
         let config = Arc::new(config.to_owned());
         if processes_with_stages.len() == 1 {
-            let Some((chunk, space, stage)) = processes_with_stages.pop() else {
-                return;
+            let (chunk, space, stage) = {
+                let Some(process) = processes_with_stages.pop() else {
+                    unreachable!("single staged process length matched branch");
+                };
+                process
             };
             rayon::spawn(move || {
                 let mut chunk = stage.process(
