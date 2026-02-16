@@ -217,6 +217,15 @@ impl EncodedMessageQueue {
         if self.receiver.is_empty() {
             return result;
         }
+        let mut first_batch = match self.receiver.try_recv() {
+            Ok(messages) => messages,
+            Err(_) => return result,
+        };
+        reserve_for_append(&mut result, first_batch.len());
+        result.append(&mut first_batch);
+        if self.receiver.is_empty() {
+            return result;
+        }
         while let Ok(mut messages) = self.receiver.try_recv() {
             reserve_for_append(&mut result, messages.len());
             result.append(&mut messages);
