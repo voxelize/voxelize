@@ -54,7 +54,30 @@ fn find_queue_index(queue: &VecDeque<Vec2<i32>>, coords: &Vec2<i32>) -> Option<u
                 None
             }
         }
-        _ => queue.iter().position(|queued| queued == coords),
+        5 => {
+            if queue[0] == *coords {
+                Some(0)
+            } else if queue[1] == *coords {
+                Some(1)
+            } else if queue[2] == *coords {
+                Some(2)
+            } else if queue[3] == *coords {
+                Some(3)
+            } else if queue[4] == *coords {
+                Some(4)
+            } else {
+                None
+            }
+        }
+        _ => {
+            let queue_len = queue.len();
+            for queue_index in 0..queue_len {
+                if queue[queue_index] == *coords {
+                    return Some(queue_index);
+                }
+            }
+            None
+        }
     }
 }
 
