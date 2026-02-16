@@ -2059,10 +2059,13 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
     registry: &Registry,
 ) -> Vec<GeometryProtocol> {
     let mut map: HashMap<String, GeometryProtocol> = HashMap::new();
-    let mut processed_non_greedy: HashSet<(i32, i32, i32)> = HashSet::new();
 
     let [min_x, min_y, min_z] = *min;
     let [max_x, max_y, max_z] = *max;
+    let slice_size = (max_x - min_x).max(max_y - min_y).max(max_z - min_z) as usize;
+    let slice_area_capacity = slice_size.saturating_mul(slice_size);
+    let mut processed_non_greedy: HashSet<(i32, i32, i32)> =
+        HashSet::with_capacity(slice_area_capacity);
 
     let directions: [(i32, i32, i32); 6] = [
         (1, 0, 0),
@@ -2073,9 +2076,8 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
         (0, 0, -1),
     ];
 
-    let slice_size = (max_x - min_x).max(max_y - min_y).max(max_z - min_z) as usize;
     let mut greedy_mask: HashMap<(i32, i32), FaceData> =
-        HashMap::with_capacity(slice_size * slice_size);
+        HashMap::with_capacity(slice_area_capacity);
     let mut non_greedy_faces: Vec<(
         i32,
         i32,
@@ -2088,7 +2090,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
         bool,
         bool,
         bool,
-    )> = Vec::new();
+    )> = Vec::with_capacity(slice_area_capacity);
 
     for (dx, dy, dz) in directions {
         let dir = [dx, dy, dz];
