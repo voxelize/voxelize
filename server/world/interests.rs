@@ -28,10 +28,11 @@ impl ChunkInterests {
     }
 
     pub fn is_interested(&self, client_id: &str, coords: &Vec2<i32>) -> bool {
-        self.map
-            .get(coords)
-            .map(|clients| clients.contains(client_id))
-            .unwrap_or(false)
+        if let Some(clients) = self.map.get(coords) {
+            clients.contains(client_id)
+        } else {
+            false
+        }
     }
 
     pub fn get_interests(&self, coords: &Vec2<i32>) -> Option<&HashSet<String>> {
@@ -81,7 +82,8 @@ impl ChunkInterests {
             return HashSet::new();
         }
 
-        let mut interested_sets = Vec::with_capacity(9);
+        let mut first_interested: Option<&HashSet<String>> = None;
+        let mut additional_interested: Vec<&HashSet<String>> = Vec::new();
         let mut expected_clients = 0usize;
         for dx in -1..=1 {
             let Some(nx) = center.0.checked_add(dx) else {
@@ -93,19 +95,29 @@ impl ChunkInterests {
                 };
                 if let Some(interested) = self.get_interests(&Vec2(nx, nz)) {
                     expected_clients = expected_clients.saturating_add(interested.len());
-                    interested_sets.push(interested);
+                    if first_interested.is_none() {
+                        first_interested = Some(interested);
+                    } else {
+                        additional_interested.push(interested);
+                    }
                 }
             }
         }
         if expected_clients == 0 {
             return HashSet::new();
         }
-        if interested_sets.len() == 1 {
-            return interested_sets[0].iter().cloned().collect();
+        if additional_interested.is_empty() {
+            if let Some(interested) = first_interested {
+                return interested.iter().cloned().collect();
+            }
+            return HashSet::new();
         }
 
         let mut clients = HashSet::with_capacity(expected_clients);
-        for interested in interested_sets {
+        if let Some(interested) = first_interested {
+            clients.extend(interested.iter().cloned());
+        }
+        for interested in additional_interested {
             clients.extend(interested.iter().cloned());
         }
         clients
