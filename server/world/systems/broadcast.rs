@@ -1180,11 +1180,14 @@ impl<'a> System<'a> for BroadcastSystem {
 
 #[cfg(test)]
 mod tests {
+    use bytes::Bytes;
+    use tokio::sync::mpsc;
+
     use super::{
         batch_messages, ids_are_strictly_sorted, ids_contains_target, include_single_target,
-        sorted_ids_contains, targets_all_clients,
+        send_to_transports, sorted_ids_contains, targets_all_clients,
     };
-    use crate::{ClientFilter, Message, MessageType};
+    use crate::{ClientFilter, Message, MessageType, Transports};
 
     fn ids(values: &[&str]) -> Vec<String> {
         values.iter().map(|value| value.to_string()).collect()
@@ -1360,5 +1363,26 @@ mod tests {
             MessageType::try_from(batched[1].0.r#type),
             Ok(MessageType::Method)
         );
+    }
+
+    #[test]
+    fn send_to_transports_delivers_payload_to_nine_receivers() {
+        let mut transports = Transports::default();
+        let mut receivers = Vec::with_capacity(9);
+        for index in 0..9 {
+            let (sender, receiver) = mpsc::unbounded_channel();
+            transports.insert(format!("transport-{index}"), sender);
+            receivers.push(receiver);
+        }
+
+        let payload = Bytes::from_static(b"payload-nine");
+        send_to_transports(&transports, payload.clone());
+
+        for receiver in &mut receivers {
+            let received = receiver
+                .try_recv()
+                .expect("expected payload for every transport receiver");
+            assert_eq!(received, payload);
+        }
     }
 }
