@@ -21,7 +21,7 @@ fn contains_single_client_interest(ids: &HashSet<String>, single_client_id: &str
             .iter()
             .next()
             .is_some_and(|id| id.as_str() == single_client_id),
-        2 | 3 | 4 => {
+        2 | 3 | 4 | 5 => {
             for id in ids {
                 if id.as_str() == single_client_id {
                     return true;
