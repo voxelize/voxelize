@@ -399,7 +399,8 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
         let pending_remesh_coords = mesher.drain_pending_remesh();
         if !pending_remesh_coords.is_empty() {
-            let mut remesh_processes = Vec::with_capacity(pending_remesh_coords.len());
+            let remesh_initial_capacity = pending_remesh_coords.len().min(64);
+            let mut remesh_processes = None;
             for coords in pending_remesh_coords {
                 if !chunks.is_chunk_ready(&coords) {
                     continue;
@@ -417,9 +418,11 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                     continue;
                 };
                 chunks.add_chunk_to_save(&coords, true);
-                remesh_processes.push((chunk, space));
+                remesh_processes
+                    .get_or_insert_with(|| Vec::with_capacity(remesh_initial_capacity))
+                    .push((chunk, space));
             }
-            if !remesh_processes.is_empty() {
+            if let Some(remesh_processes) = remesh_processes {
                 mesher.process(remesh_processes, &MessageType::Update, &registry, &config);
             }
         }
