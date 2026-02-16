@@ -233,7 +233,11 @@ impl<'a> System<'a> for ChunkSendingSystem {
             return;
         }
 
-        let mut to_send = std::mem::take(&mut chunks.to_send);
+        let to_send_capacity = chunks.to_send.capacity();
+        let mut to_send = std::mem::replace(
+            &mut chunks.to_send,
+            std::collections::VecDeque::with_capacity(to_send_capacity),
+        );
         chunks.to_send_lookup.clear();
         if clients.is_empty() {
             self.client_load_mesh_buffer.clear();
