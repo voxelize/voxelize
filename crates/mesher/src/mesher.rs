@@ -3488,6 +3488,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         continue;
                     }
 
+                    let current_mask_index = (v - v_range.0) as usize * mask_width + u_mask_offset;
                     let deferred_voxel_key = (((vx - min_x) as usize) * yz_span
                         + ((vy - min_y) as usize) * z_span
                         + (vz - min_z) as usize)
@@ -3539,8 +3540,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                     uv_range,
                                     is_fluid,
                                 };
-                                let current_mask_index =
-                                    (v - v_range.0) as usize * mask_width + u_mask_offset;
                                 greedy_mask[current_mask_index] = Some(data);
                             }
                         }
@@ -3593,8 +3592,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                 uv_range,
                                 is_fluid,
                             };
-                            let current_mask_index =
-                                (v - v_range.0) as usize * mask_width + u_mask_offset;
                             greedy_mask[current_mask_index] = Some(data);
                         }
                     } else {
@@ -3652,8 +3649,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                 uv_range,
                                 is_fluid,
                             };
-                            let current_mask_index =
-                                (v - v_range.0) as usize * mask_width + u_mask_offset;
                             greedy_mask[current_mask_index] = Some(data);
                         }
                     }
