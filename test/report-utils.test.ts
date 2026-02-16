@@ -5037,6 +5037,58 @@ describe("report-utils", () => {
       optionCatalogOverrideWithKnownAliasSubsetValidation.validationErrorCode
     ).toBe("unsupported_options");
     expect(optionCatalogOverrideWithKnownAliasSubsetCanonicalReadCount).toBe(0);
+    let optionCatalogOverrideWithStaleAliasSubsetCanonicalReadCount = 0;
+    const optionCatalogOverrideWithStaleAliasSubsetCanonicalOptions = new Proxy(
+      ["--json"],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (property === "0") {
+            optionCatalogOverrideWithStaleAliasSubsetCanonicalReadCount += 1;
+            return "--json";
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const optionCatalogOverrideWithStaleAliasSubsetValidation =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions:
+          optionCatalogOverrideWithStaleAliasSubsetCanonicalOptions as never,
+        supportedCliOptions: ["-j", "--mystery"],
+        optionCatalog: {
+          availableCliOptionCanonicalMap: {
+            "--json": "--json",
+            "-j": "--json",
+          },
+        } as never,
+      });
+    expect(optionCatalogOverrideWithStaleAliasSubsetValidation.supportedCliOptions).toEqual(
+      ["--json", "-j"]
+    );
+    expect(
+      optionCatalogOverrideWithStaleAliasSubsetValidation.supportedCliOptionCount
+    ).toBe(2);
+    expect(optionCatalogOverrideWithStaleAliasSubsetValidation.unknownOptions).toEqual(
+      ["--mystery"]
+    );
+    expect(
+      optionCatalogOverrideWithStaleAliasSubsetValidation.unknownOptionCount
+    ).toBe(1);
+    expect(
+      optionCatalogOverrideWithStaleAliasSubsetValidation.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, -j."
+    );
+    expect(
+      optionCatalogOverrideWithStaleAliasSubsetValidation.validationErrorCode
+    ).toBe("unsupported_options");
+    expect(optionCatalogOverrideWithStaleAliasSubsetCanonicalReadCount).toBe(0);
     let optionCatalogOverrideWithUnavailablePrecomputedCanonicalReadCount = 0;
     const optionCatalogOverrideWithUnavailablePrecomputedCanonicalOptions =
       new Proxy(["--json"], {
