@@ -7065,6 +7065,118 @@ describe("report-utils", () => {
     expect(optionCatalogOverrideValidation.unsupportedOptionsError).toBeNull();
     expect(optionCatalogOverrideValidation.validationErrorCode).toBeNull();
     expect(optionCatalogOverrideCanonicalReadCount).toBe(0);
+    let trapDrivenCatalogFallbackCanonicalReadCount = 0;
+    const trapDrivenCatalogFallbackCanonicalOptions = new Proxy(
+      ["--json", "--output"],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (property === "0" || property === "1") {
+            trapDrivenCatalogFallbackCanonicalReadCount += 1;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const trapDrivenCatalogFallbackValidation = createCliOptionValidation(
+      ["--mystery"],
+      {
+        canonicalOptions: trapDrivenCatalogFallbackCanonicalOptions as never,
+        optionCatalog: {
+          supportedCliOptions: ["--json", "--output"],
+          availableCliOptionCanonicalMap: new Proxy(
+            Object.create(null) as Record<string, string>,
+            {
+              ownKeys() {
+                throw new Error("ownKeys trap");
+              },
+              get(target, property, receiver) {
+                if (property === "--json") {
+                  throw new Error("read trap");
+                }
+                if (property === "--output") {
+                  return "--output";
+                }
+                return Reflect.get(target, property, receiver);
+              },
+            }
+          ),
+        } as never,
+      }
+    );
+    expect(trapDrivenCatalogFallbackValidation.supportedCliOptions).toEqual([
+      "--json",
+      "--output",
+    ]);
+    expect(trapDrivenCatalogFallbackValidation.supportedCliOptionCount).toBe(2);
+    expect(trapDrivenCatalogFallbackValidation.unknownOptions).toEqual([
+      "--mystery",
+    ]);
+    expect(trapDrivenCatalogFallbackValidation.unknownOptionCount).toBe(1);
+    expect(trapDrivenCatalogFallbackValidation.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
+    expect(trapDrivenCatalogFallbackValidation.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    expect(trapDrivenCatalogFallbackCanonicalReadCount).toBeGreaterThan(0);
+    let aliasFallbackFromCanonicalMapReadCount = 0;
+    const aliasFallbackFromCanonicalMapCanonicalOptions = new Proxy(["--json"], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (property === "0") {
+          aliasFallbackFromCanonicalMapReadCount += 1;
+          return "--json";
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const aliasFallbackFromCanonicalMapValidation = createCliOptionValidation(
+      ["-j"],
+      {
+        canonicalOptions: aliasFallbackFromCanonicalMapCanonicalOptions as never,
+        optionCatalog: {
+          availableCliOptionAliases: new Proxy(
+            Object.create(null) as Record<string, readonly string[]>,
+            {
+              ownKeys() {
+                throw new Error("ownKeys trap");
+              },
+              get(target, property, receiver) {
+                if (property === "--json") {
+                  throw new Error("read trap");
+                }
+                return Reflect.get(target, property, receiver);
+              },
+            }
+          ) as never,
+          availableCliOptionCanonicalMap: {
+            "--json": "--json",
+            "-j": "--json",
+          },
+        } as never,
+      }
+    );
+    expect(aliasFallbackFromCanonicalMapValidation.supportedCliOptions).toEqual([
+      "--json",
+      "-j",
+    ]);
+    expect(aliasFallbackFromCanonicalMapValidation.supportedCliOptionCount).toBe(2);
+    expect(aliasFallbackFromCanonicalMapValidation.unknownOptions).toEqual([]);
+    expect(aliasFallbackFromCanonicalMapValidation.unknownOptionCount).toBe(0);
+    expect(aliasFallbackFromCanonicalMapValidation.unsupportedOptionsError).toBeNull();
+    expect(aliasFallbackFromCanonicalMapValidation.validationErrorCode).toBeNull();
+    expect(aliasFallbackFromCanonicalMapReadCount).toBe(0);
     let optionCatalogOverrideWithMalformedPrecomputedCanonicalReadCount = 0;
     const optionCatalogOverrideWithMalformedPrecomputedCanonicalOptions =
       new Proxy(["--json"], {
