@@ -25334,6 +25334,25 @@ describe("report-utils", () => {
       },
     });
     expect(normalizeTsCorePayloadIssues(explicitEmptyIteratorIssues)).toEqual([]);
+    const ownKeysTrappedEmptyIteratorIssues = new Proxy(["voxel.id"], {
+      ownKeys: () => {
+        throw new Error("ownKeys trap");
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          return function* () {
+            return;
+          };
+        }
+        if (property === "length") {
+          return 0;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    expect(normalizeTsCorePayloadIssues(ownKeysTrappedEmptyIteratorIssues)).toEqual(
+      []
+    );
     const ownKeysTrapIssues = new Proxy(["voxel.id"], {
       ownKeys: () => {
         throw new Error("ownKeys trap");
@@ -26074,6 +26093,42 @@ describe("report-utils", () => {
       examplePayloadValid: false,
       examplePayloadIssues: ["voxel.id", "light.red"],
       examplePayloadIssueCount: 2,
+      exampleExitCode: 1,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleAttempted: true,
+        examplePayloadValid: false,
+        examplePayloadIssues: new Proxy(["voxel.id"], {
+          ownKeys() {
+            throw new Error("ownKeys trap");
+          },
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              return function* () {
+                return;
+              };
+            }
+            if (property === "length") {
+              return 0;
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+        exampleExitCode: 1,
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: null,
+      exampleArgCount: null,
+      exampleAttempted: true,
+      exampleStatus: "failed",
+      exampleRuleMatched: null,
+      examplePayloadValid: false,
+      examplePayloadIssues: [],
+      examplePayloadIssueCount: 0,
       exampleExitCode: 1,
       exampleDurationMs: null,
       exampleOutputLine: null,
