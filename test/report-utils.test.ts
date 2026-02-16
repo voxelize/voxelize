@@ -660,6 +660,61 @@ describe("report-utils", () => {
     expect(
       emptyIteratorLengthZeroAndOwnKeysTrapRecognizedOutputInlineAliasMisuseResult.outputPath
     ).toBeNull();
+    const emptyIteratorLengthAndReadTrapRecognizedOutputTokens = new Proxy(
+      ["-l"],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (property === "0") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const emptyIteratorLengthAndReadTrapRecognizedOutputTokenResult =
+      resolveOutputPath(
+        ["--output", "-l"],
+        "/workspace",
+        emptyIteratorLengthAndReadTrapRecognizedOutputTokens as never
+      );
+    expect(emptyIteratorLengthAndReadTrapRecognizedOutputTokenResult.error).toBe(
+      "Missing value for --output option."
+    );
+    expect(emptyIteratorLengthAndReadTrapRecognizedOutputTokenResult.outputPath).toBe(
+      null
+    );
+    const emptyIteratorLengthAndReadTrapRecognizedOutputDashValueResult =
+      resolveOutputPath(
+        ["--output", "-artifact-report.json"],
+        "/workspace",
+        emptyIteratorLengthAndReadTrapRecognizedOutputTokens as never
+      );
+    expect(
+      emptyIteratorLengthAndReadTrapRecognizedOutputDashValueResult.error
+    ).toBeNull();
+    expect(
+      emptyIteratorLengthAndReadTrapRecognizedOutputDashValueResult.outputPath
+    ).toBe("/workspace/-artifact-report.json");
+    const emptyIteratorLengthAndReadTrapRecognizedOutputInlineAliasMisuseResult =
+      resolveOutputPath(
+        ["--output", "-l=1"],
+        "/workspace",
+        emptyIteratorLengthAndReadTrapRecognizedOutputTokens as never
+      );
+    expect(
+      emptyIteratorLengthAndReadTrapRecognizedOutputInlineAliasMisuseResult.error
+    ).toBe("Missing value for --output option.");
+    expect(
+      emptyIteratorLengthAndReadTrapRecognizedOutputInlineAliasMisuseResult.outputPath
+    ).toBeNull();
 
     const malformedRecognizedOutputTokens = new Proxy(
       ["--list-checks", "-l"],
@@ -1352,6 +1407,70 @@ describe("report-utils", () => {
     ).toBeNull();
     expect(
       resolvedInlineAliasMisuseFromEmptyIteratorLengthZeroAndOwnKeysTrapRecognizedOptionTokens.error
+    ).toBe("Missing value for --output option.");
+    const emptyIteratorLengthAndReadTrapRecognizedOptionTokens = new Proxy(
+      ["-l"],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (property === "0") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const resolvedFromEmptyIteratorLengthAndReadTrapRecognizedOptionTokens =
+      resolveLastOptionValue(
+        ["--output", "-l"],
+        "--output",
+        emptyIteratorLengthAndReadTrapRecognizedOptionTokens as never
+      );
+    expect(
+      resolvedFromEmptyIteratorLengthAndReadTrapRecognizedOptionTokens.hasOption
+    ).toBe(true);
+    expect(
+      resolvedFromEmptyIteratorLengthAndReadTrapRecognizedOptionTokens.value
+    ).toBeNull();
+    expect(
+      resolvedFromEmptyIteratorLengthAndReadTrapRecognizedOptionTokens.error
+    ).toBe("Missing value for --output option.");
+    const resolvedUnknownDashValueFromEmptyIteratorLengthAndReadTrapRecognizedOptionTokens =
+      resolveLastOptionValue(
+        ["--output", "-artifact-report.json"],
+        "--output",
+        emptyIteratorLengthAndReadTrapRecognizedOptionTokens as never
+      );
+    expect(
+      resolvedUnknownDashValueFromEmptyIteratorLengthAndReadTrapRecognizedOptionTokens.hasOption
+    ).toBe(true);
+    expect(
+      resolvedUnknownDashValueFromEmptyIteratorLengthAndReadTrapRecognizedOptionTokens.value
+    ).toBe("-artifact-report.json");
+    expect(
+      resolvedUnknownDashValueFromEmptyIteratorLengthAndReadTrapRecognizedOptionTokens.error
+    ).toBeNull();
+    const resolvedInlineAliasMisuseFromEmptyIteratorLengthAndReadTrapRecognizedOptionTokens =
+      resolveLastOptionValue(
+        ["--output", "-l=1"],
+        "--output",
+        emptyIteratorLengthAndReadTrapRecognizedOptionTokens as never
+      );
+    expect(
+      resolvedInlineAliasMisuseFromEmptyIteratorLengthAndReadTrapRecognizedOptionTokens.hasOption
+    ).toBe(true);
+    expect(
+      resolvedInlineAliasMisuseFromEmptyIteratorLengthAndReadTrapRecognizedOptionTokens.value
+    ).toBeNull();
+    expect(
+      resolvedInlineAliasMisuseFromEmptyIteratorLengthAndReadTrapRecognizedOptionTokens.error
     ).toBe("Missing value for --output option.");
 
     const lengthAndOwnKeysTrapOptionArgs = new Proxy(

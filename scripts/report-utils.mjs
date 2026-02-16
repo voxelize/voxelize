@@ -465,6 +465,10 @@ const cloneArrayFromIndexedKeys = (value) => {
     }
   }
 
+  if (orderedIndices.length > 0 && clonedArray.length === 0) {
+    return null;
+  }
+
   return clonedArray;
 };
 
