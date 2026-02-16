@@ -20,17 +20,16 @@ use crate::{
 };
 
 #[inline]
-fn for_each_voxel_affected_chunk<F: FnMut(Vec2<i32>)>(
-    vx: i32,
-    vy: i32,
-    vz: i32,
+fn for_each_voxel_affected_chunk_from_mapped<F: FnMut(Vec2<i32>)>(
+    cx: i32,
+    cz: i32,
+    lx: usize,
+    lz: usize,
     chunk_size: usize,
     min_chunk: [i32; 2],
     max_chunk: [i32; 2],
     mut visit: F,
 ) {
-    let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
-    let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
     let mut push_with_offset = |offset_x: i32, offset_z: i32| {
         let Some(nx) = cx.checked_add(offset_x) else {
             return;
@@ -439,10 +438,11 @@ impl Chunks {
             return vec![Vec2(cx, cz)];
         }
         let mut neighbors = Vec::with_capacity(9);
-        for_each_voxel_affected_chunk(
-            vx,
-            vy,
-            vz,
+        for_each_voxel_affected_chunk_from_mapped(
+            cx,
+            cz,
+            lx,
+            lz,
             chunk_size,
             self.config.min_chunk,
             self.config.max_chunk,
@@ -466,10 +466,11 @@ impl Chunks {
             self.cache.insert(Vec2(cx, cz));
             return;
         }
-        for_each_voxel_affected_chunk(
-            vx,
-            vy,
-            vz,
+        for_each_voxel_affected_chunk_from_mapped(
+            cx,
+            cz,
+            lx,
+            lz,
             chunk_size,
             min_chunk,
             max_chunk,
