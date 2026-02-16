@@ -48,6 +48,15 @@ fn ids_contains_target(ids: &[String], target: &str) -> bool {
         [] => false,
         [id] => id.as_str() == target,
         [first, second] => first.as_str() == target || second.as_str() == target,
+        [first, second, third] => {
+            first.as_str() == target || second.as_str() == target || third.as_str() == target
+        }
+        [first, second, third, fourth] => {
+            first.as_str() == target
+                || second.as_str() == target
+                || third.as_str() == target
+                || fourth.as_str() == target
+        }
         _ => ids.iter().any(|id| id.as_str() == target),
     }
 }
