@@ -1606,7 +1606,13 @@ describe("BlockRotation", () => {
     expect(rotation.value).toBe(PY_ROTATION);
     expect(rotation.axis).toBe(PY_ROTATION);
 
+    rotation.axis = 16 as never;
+    expect(rotation.value).toBe(PY_ROTATION);
+    expect(rotation.axis).toBe(PY_ROTATION);
+
     rotation.value = Number.NaN as never;
+    expect(rotation.axis).toBe(PY_ROTATION);
+    rotation.value = 16 as never;
     expect(rotation.axis).toBe(PY_ROTATION);
   });
 
@@ -5412,7 +5418,7 @@ describe("Type builders", () => {
       },
     });
     const invalidInstance = BlockRotation.py(Math.PI / 2);
-    invalidInstance.axis = 16;
+    invalidInstance.value = 16;
     const invalidInstanceRule = createBlockRule({
       type: "simple",
       offset: [0, 0, 0],
@@ -5847,7 +5853,8 @@ describe("Type builders", () => {
         },
       },
     });
-    const invalidInstanceRotation = new BlockRotation(16, Math.PI / 2);
+    const invalidInstanceRotation = BlockRotation.py(Math.PI / 2);
+    invalidInstanceRotation.value = 16;
     const invalidInstancePart = createBlockConditionalPart({
       rule: {
         type: "simple",
@@ -7650,7 +7657,7 @@ describe("Type builders", () => {
       public readonly yRotation = Math.PI / 2;
     }
     const malformedInstance = BlockRotation.py(Math.PI / 2);
-    malformedInstance.axis = 16;
+    malformedInstance.value = 16;
     const malformedYRotationInstance = BlockRotation.py(Math.PI / 2);
     malformedYRotationInstance.yRotation = Number.POSITIVE_INFINITY;
     const throwingPrototypeProxy = new Proxy(

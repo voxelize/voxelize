@@ -71,10 +71,21 @@ const mapTransparencyValue = (
   return nz;
 };
 
+const isKnownRotationAxis = (value: number): boolean => {
+  return (
+    value === PX_ROTATION ||
+    value === NX_ROTATION ||
+    value === PY_ROTATION ||
+    value === NY_ROTATION ||
+    value === PZ_ROTATION ||
+    value === NZ_ROTATION
+  );
+};
+
 const readRotationAxisSafely = (rotation: BlockRotation): number => {
   try {
     const axisValue = rotation.axis;
-    if (typeof axisValue === "number") {
+    if (typeof axisValue === "number" && isKnownRotationAxis(axisValue)) {
       return axisValue;
     }
   } catch {
@@ -83,7 +94,7 @@ const readRotationAxisSafely = (rotation: BlockRotation): number => {
 
   try {
     const value = rotation.value;
-    if (typeof value === "number") {
+    if (typeof value === "number" && isKnownRotationAxis(value)) {
       return value;
     }
   } catch {
@@ -292,16 +303,21 @@ export class BlockRotation {
     value = PY_ROTATION,
     yRotation = 0
   ) {
-    this.value = typeof value === "number" && Number.isFinite(value)
-      ? value
-      : PY_ROTATION;
+    this.value =
+      typeof value === "number" &&
+      Number.isFinite(value) &&
+      isKnownRotationAxis(value)
+        ? value
+        : PY_ROTATION;
     this.yRotation = toFiniteNumberOrZero(yRotation);
   }
 
   get axis(): number {
     try {
       const axisValue = this.value;
-      return typeof axisValue === "number" && Number.isFinite(axisValue)
+      return typeof axisValue === "number" &&
+        Number.isFinite(axisValue) &&
+        isKnownRotationAxis(axisValue)
         ? axisValue
         : PY_ROTATION;
     } catch {
@@ -311,7 +327,11 @@ export class BlockRotation {
 
   set axis(axis: number) {
     const normalizedAxis =
-      typeof axis === "number" && Number.isFinite(axis) ? axis : PY_ROTATION;
+      typeof axis === "number" &&
+      Number.isFinite(axis) &&
+      isKnownRotationAxis(axis)
+        ? axis
+        : PY_ROTATION;
     try {
       this.value = normalizedAxis;
     } catch {
