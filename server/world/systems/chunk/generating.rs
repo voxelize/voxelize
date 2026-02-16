@@ -151,7 +151,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 if next_stage >= pipeline.stages.len() {
                     chunk.status = ChunkStatus::Meshing;
                     mesher.add_chunk(&chunk.coords, false);
-                    pipeline.remove_chunk(&chunk.coords);
+                    pipeline.remove_chunk_tracking(&chunk.coords);
                 } else {
                     chunk.status = ChunkStatus::Generating(next_stage);
                     pipeline.add_chunk(&chunk.coords, false);
