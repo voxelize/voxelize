@@ -1250,6 +1250,192 @@ impl<'a> System<'a> for EventsSystem {
                 flush_events_for_client(dispatch_map, &clients, third_client_id);
                 flush_events_for_client(dispatch_map, &clients, fourth_client_id);
             }
+            5 => {
+                let Some(first_client_id) = touched_clients.pop() else {
+                    return;
+                };
+                let Some(second_client_id) = touched_clients.pop() else {
+                    flush_events_for_client(dispatch_map, &clients, first_client_id);
+                    return;
+                };
+                let Some(third_client_id) = touched_clients.pop() else {
+                    flush_events_for_client(dispatch_map, &clients, first_client_id);
+                    flush_events_for_client(dispatch_map, &clients, second_client_id);
+                    return;
+                };
+                let Some(fourth_client_id) = touched_clients.pop() else {
+                    flush_events_for_client(dispatch_map, &clients, first_client_id);
+                    flush_events_for_client(dispatch_map, &clients, second_client_id);
+                    flush_events_for_client(dispatch_map, &clients, third_client_id);
+                    return;
+                };
+                let Some(fifth_client_id) = touched_clients.pop() else {
+                    flush_events_for_client(dispatch_map, &clients, first_client_id);
+                    flush_events_for_client(dispatch_map, &clients, second_client_id);
+                    flush_events_for_client(dispatch_map, &clients, third_client_id);
+                    flush_events_for_client(dispatch_map, &clients, fourth_client_id);
+                    return;
+                };
+                flush_events_for_client(dispatch_map, &clients, first_client_id);
+                flush_events_for_client(dispatch_map, &clients, second_client_id);
+                flush_events_for_client(dispatch_map, &clients, third_client_id);
+                flush_events_for_client(dispatch_map, &clients, fourth_client_id);
+                flush_events_for_client(dispatch_map, &clients, fifth_client_id);
+            }
+            6 => {
+                let Some(first_client_id) = touched_clients.pop() else {
+                    return;
+                };
+                let Some(second_client_id) = touched_clients.pop() else {
+                    flush_events_for_client(dispatch_map, &clients, first_client_id);
+                    return;
+                };
+                let Some(third_client_id) = touched_clients.pop() else {
+                    flush_events_for_client(dispatch_map, &clients, first_client_id);
+                    flush_events_for_client(dispatch_map, &clients, second_client_id);
+                    return;
+                };
+                let Some(fourth_client_id) = touched_clients.pop() else {
+                    flush_events_for_client(dispatch_map, &clients, first_client_id);
+                    flush_events_for_client(dispatch_map, &clients, second_client_id);
+                    flush_events_for_client(dispatch_map, &clients, third_client_id);
+                    return;
+                };
+                let Some(fifth_client_id) = touched_clients.pop() else {
+                    flush_events_for_client(dispatch_map, &clients, first_client_id);
+                    flush_events_for_client(dispatch_map, &clients, second_client_id);
+                    flush_events_for_client(dispatch_map, &clients, third_client_id);
+                    flush_events_for_client(dispatch_map, &clients, fourth_client_id);
+                    return;
+                };
+                let Some(sixth_client_id) = touched_clients.pop() else {
+                    flush_events_for_client(dispatch_map, &clients, first_client_id);
+                    flush_events_for_client(dispatch_map, &clients, second_client_id);
+                    flush_events_for_client(dispatch_map, &clients, third_client_id);
+                    flush_events_for_client(dispatch_map, &clients, fourth_client_id);
+                    flush_events_for_client(dispatch_map, &clients, fifth_client_id);
+                    return;
+                };
+                flush_events_for_client(dispatch_map, &clients, first_client_id);
+                flush_events_for_client(dispatch_map, &clients, second_client_id);
+                flush_events_for_client(dispatch_map, &clients, third_client_id);
+                flush_events_for_client(dispatch_map, &clients, fourth_client_id);
+                flush_events_for_client(dispatch_map, &clients, fifth_client_id);
+                flush_events_for_client(dispatch_map, &clients, sixth_client_id);
+            }
+            7 => {
+                let Some(first_client_id) = touched_clients.pop() else {
+                    return;
+                };
+                let Some(second_client_id) = touched_clients.pop() else {
+                    flush_events_for_client(dispatch_map, &clients, first_client_id);
+                    return;
+                };
+                let Some(third_client_id) = touched_clients.pop() else {
+                    flush_events_for_client(dispatch_map, &clients, first_client_id);
+                    flush_events_for_client(dispatch_map, &clients, second_client_id);
+                    return;
+                };
+                let Some(fourth_client_id) = touched_clients.pop() else {
+                    flush_events_for_client(dispatch_map, &clients, first_client_id);
+                    flush_events_for_client(dispatch_map, &clients, second_client_id);
+                    flush_events_for_client(dispatch_map, &clients, third_client_id);
+                    return;
+                };
+                let Some(fifth_client_id) = touched_clients.pop() else {
+                    flush_events_for_client(dispatch_map, &clients, first_client_id);
+                    flush_events_for_client(dispatch_map, &clients, second_client_id);
+                    flush_events_for_client(dispatch_map, &clients, third_client_id);
+                    flush_events_for_client(dispatch_map, &clients, fourth_client_id);
+                    return;
+                };
+                let Some(sixth_client_id) = touched_clients.pop() else {
+                    flush_events_for_client(dispatch_map, &clients, first_client_id);
+                    flush_events_for_client(dispatch_map, &clients, second_client_id);
+                    flush_events_for_client(dispatch_map, &clients, third_client_id);
+                    flush_events_for_client(dispatch_map, &clients, fourth_client_id);
+                    flush_events_for_client(dispatch_map, &clients, fifth_client_id);
+                    return;
+                };
+                let Some(seventh_client_id) = touched_clients.pop() else {
+                    flush_events_for_client(dispatch_map, &clients, first_client_id);
+                    flush_events_for_client(dispatch_map, &clients, second_client_id);
+                    flush_events_for_client(dispatch_map, &clients, third_client_id);
+                    flush_events_for_client(dispatch_map, &clients, fourth_client_id);
+                    flush_events_for_client(dispatch_map, &clients, fifth_client_id);
+                    flush_events_for_client(dispatch_map, &clients, sixth_client_id);
+                    return;
+                };
+                flush_events_for_client(dispatch_map, &clients, first_client_id);
+                flush_events_for_client(dispatch_map, &clients, second_client_id);
+                flush_events_for_client(dispatch_map, &clients, third_client_id);
+                flush_events_for_client(dispatch_map, &clients, fourth_client_id);
+                flush_events_for_client(dispatch_map, &clients, fifth_client_id);
+                flush_events_for_client(dispatch_map, &clients, sixth_client_id);
+                flush_events_for_client(dispatch_map, &clients, seventh_client_id);
+            }
+            8 => {
+                let Some(first_client_id) = touched_clients.pop() else {
+                    return;
+                };
+                let Some(second_client_id) = touched_clients.pop() else {
+                    flush_events_for_client(dispatch_map, &clients, first_client_id);
+                    return;
+                };
+                let Some(third_client_id) = touched_clients.pop() else {
+                    flush_events_for_client(dispatch_map, &clients, first_client_id);
+                    flush_events_for_client(dispatch_map, &clients, second_client_id);
+                    return;
+                };
+                let Some(fourth_client_id) = touched_clients.pop() else {
+                    flush_events_for_client(dispatch_map, &clients, first_client_id);
+                    flush_events_for_client(dispatch_map, &clients, second_client_id);
+                    flush_events_for_client(dispatch_map, &clients, third_client_id);
+                    return;
+                };
+                let Some(fifth_client_id) = touched_clients.pop() else {
+                    flush_events_for_client(dispatch_map, &clients, first_client_id);
+                    flush_events_for_client(dispatch_map, &clients, second_client_id);
+                    flush_events_for_client(dispatch_map, &clients, third_client_id);
+                    flush_events_for_client(dispatch_map, &clients, fourth_client_id);
+                    return;
+                };
+                let Some(sixth_client_id) = touched_clients.pop() else {
+                    flush_events_for_client(dispatch_map, &clients, first_client_id);
+                    flush_events_for_client(dispatch_map, &clients, second_client_id);
+                    flush_events_for_client(dispatch_map, &clients, third_client_id);
+                    flush_events_for_client(dispatch_map, &clients, fourth_client_id);
+                    flush_events_for_client(dispatch_map, &clients, fifth_client_id);
+                    return;
+                };
+                let Some(seventh_client_id) = touched_clients.pop() else {
+                    flush_events_for_client(dispatch_map, &clients, first_client_id);
+                    flush_events_for_client(dispatch_map, &clients, second_client_id);
+                    flush_events_for_client(dispatch_map, &clients, third_client_id);
+                    flush_events_for_client(dispatch_map, &clients, fourth_client_id);
+                    flush_events_for_client(dispatch_map, &clients, fifth_client_id);
+                    flush_events_for_client(dispatch_map, &clients, sixth_client_id);
+                    return;
+                };
+                let Some(eighth_client_id) = touched_clients.pop() else {
+                    flush_events_for_client(dispatch_map, &clients, first_client_id);
+                    flush_events_for_client(dispatch_map, &clients, second_client_id);
+                    flush_events_for_client(dispatch_map, &clients, third_client_id);
+                    flush_events_for_client(dispatch_map, &clients, fourth_client_id);
+                    flush_events_for_client(dispatch_map, &clients, fifth_client_id);
+                    flush_events_for_client(dispatch_map, &clients, sixth_client_id);
+                    flush_events_for_client(dispatch_map, &clients, seventh_client_id);
+                    return;
+                };
+                flush_events_for_client(dispatch_map, &clients, first_client_id);
+                flush_events_for_client(dispatch_map, &clients, second_client_id);
+                flush_events_for_client(dispatch_map, &clients, third_client_id);
+                flush_events_for_client(dispatch_map, &clients, fourth_client_id);
+                flush_events_for_client(dispatch_map, &clients, fifth_client_id);
+                flush_events_for_client(dispatch_map, &clients, sixth_client_id);
+                flush_events_for_client(dispatch_map, &clients, seventh_client_id);
+                flush_events_for_client(dispatch_map, &clients, eighth_client_id);
+            }
             _ => {
                 while let Some(client_id) = touched_clients.pop() {
                     flush_events_for_client(dispatch_map, &clients, client_id);
