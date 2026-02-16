@@ -2649,6 +2649,33 @@ describe("Type builders", () => {
     ).toEqual(BLOCK_RULE_NONE);
   });
 
+  it("normalizes ownKeys-trapped explicit-empty combination rule entries to none", () => {
+    const ownKeysTrappedExplicitEmptyRules = new Proxy([] as BlockRuleInput[], {
+      ownKeys() {
+        throw new Error("ownKeys trap");
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          return function* () {
+            return;
+          };
+        }
+        if (property === "length") {
+          return 0;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(
+      createBlockRule({
+        type: "combination",
+        logic: BlockRuleLogic.And,
+        rules: ownKeysTrappedExplicitEmptyRules as never,
+      })
+    ).toEqual(BLOCK_RULE_NONE);
+  });
+
   it("clones nested rules with createBlockRule", () => {
     const sourceRule: BlockRule = {
       type: "combination",
