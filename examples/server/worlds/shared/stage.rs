@@ -1,10 +1,5 @@
 use voxelize::{Chunk, ChunkStage, NoiseOptions, Resources, SeededNoise, Space, VoxelAccess};
 
-pub const MOUNTAIN_HEIGHT: f64 = 0.6;
-pub const RIVER_HEIGHT: f64 = 0.16;
-pub const PLAINS_HEIGHT: f64 = 0.24;
-pub const RIVER_TO_PLAINS: f64 = 0.2;
-
 pub const VARIANCE: f64 = 3.0;
 pub const SNOW_HEIGHT: f64 = 0.6;
 pub const STONE_HEIGHT: f64 = 0.5;

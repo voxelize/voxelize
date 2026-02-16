@@ -1,5 +1,3 @@
-pub mod biomes;
-
 use log::warn;
 use serde::{Deserialize, Serialize};
 use std::f64;
