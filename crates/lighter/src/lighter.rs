@@ -476,9 +476,13 @@ pub fn remove_lights<I>(
         return;
     }
     if voxel_count_lower == 1 && voxel_count_upper == Some(1) {
-        if let Some(voxel) = voxels.next() {
-            remove_light(space, voxel, color, config, registry);
-        }
+        let voxel = {
+            let Some(single_voxel) = voxels.next() else {
+                unreachable!("single voxel size_hint matched branch");
+            };
+            single_voxel
+        };
+        remove_light(space, voxel, color, config, registry);
         return;
     }
     let voxel_capacity = voxel_count_upper.unwrap_or(voxel_count_lower);
