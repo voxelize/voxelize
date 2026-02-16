@@ -10,6 +10,12 @@ use crate::{
     WorldConfig,
 };
 
+#[inline]
+fn take_vec_with_capacity<T>(buffer: &mut Vec<T>) -> Vec<T> {
+    let capacity = buffer.capacity();
+    std::mem::replace(buffer, Vec::with_capacity(capacity))
+}
+
 #[derive(Clone, Copy)]
 pub struct Resources<'a> {
     pub registry: &'a Registry,
@@ -431,7 +437,7 @@ impl Pipeline {
                     space,
                 );
                 chunk.calculate_max_height(&registry);
-                let changes = std::mem::take(&mut chunk.extra_changes);
+                let changes = take_vec_with_capacity(&mut chunk.extra_changes);
                 let _ = sender.send((chunk, changes));
             });
             return;
@@ -453,7 +459,7 @@ impl Pipeline {
                     // Calculate the max height after processing each chunk.
                     chunk.calculate_max_height(&registry);
 
-                    let changes = std::mem::take(&mut chunk.extra_changes);
+                    let changes = take_vec_with_capacity(&mut chunk.extra_changes);
 
                     let _ = sender.send((chunk, changes));
                 });
