@@ -11587,6 +11587,184 @@ describe("report-utils", () => {
     expect(diagnostics.activeCliOptionOccurrenceCount).toBe(1);
   });
 
+  it("recovers trapped canonical tokens through alias metadata fallbacks", () => {
+    const ownKeysTrappedLengthReadableReadTrapCanonicalOptions = new Proxy(
+      ["--json", "--output"],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (property === "0") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const optionAliases = {
+      "--json": ["-j"],
+    };
+
+    const catalog = createCliOptionCatalog({
+      canonicalOptions:
+        ownKeysTrappedLengthReadableReadTrapCanonicalOptions as never,
+      optionAliases,
+    });
+    expect(catalog.supportedCliOptions).toEqual(["--output", "--json", "-j"]);
+    expect(catalog.supportedCliOptionCount).toBe(3);
+    expect(catalog.availableCliOptionAliases).toEqual({
+      "--json": ["-j"],
+    });
+    expect(catalog.availableCliOptionCanonicalMap).toEqual({
+      "--output": "--output",
+      "--json": "--json",
+      "-j": "--json",
+    });
+
+    const unknownOptions = parseUnknownCliOptions(
+      ["-j", "--json", "--output"],
+      {
+        canonicalOptions:
+          ownKeysTrappedLengthReadableReadTrapCanonicalOptions as never,
+        optionAliases,
+      }
+    );
+    expect(unknownOptions).toEqual([]);
+
+    const activeMetadata = parseActiveCliOptionMetadata(
+      ["-j", "--json", "--output"],
+      {
+        canonicalOptions:
+          ownKeysTrappedLengthReadableReadTrapCanonicalOptions as never,
+        optionAliases,
+      }
+    );
+    expect(activeMetadata.activeCliOptions).toEqual(["--output", "--json"]);
+    expect(activeMetadata.activeCliOptionCount).toBe(2);
+    expect(activeMetadata.activeCliOptionTokens).toEqual([
+      "-j",
+      "--json",
+      "--output",
+    ]);
+    expect(activeMetadata.activeCliOptionResolutions).toEqual([
+      {
+        token: "-j",
+        canonicalOption: "--json",
+      },
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionResolutionCount).toBe(3);
+    expect(activeMetadata.activeCliOptionOccurrences).toEqual([
+      {
+        token: "-j",
+        canonicalOption: "--json",
+        index: 0,
+      },
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 1,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 2,
+      },
+    ]);
+    expect(activeMetadata.activeCliOptionOccurrenceCount).toBe(3);
+
+    const validation = createCliOptionValidation(
+      ["-j", "--json", "--output"],
+      {
+        canonicalOptions:
+          ownKeysTrappedLengthReadableReadTrapCanonicalOptions as never,
+        optionAliases,
+      }
+    );
+    expect(validation.supportedCliOptions).toEqual(["--output", "--json", "-j"]);
+    expect(validation.supportedCliOptionCount).toBe(3);
+    expect(validation.unknownOptions).toEqual([]);
+    expect(validation.unknownOptionCount).toBe(0);
+    expect(validation.unsupportedOptionsError).toBeNull();
+    expect(validation.validationErrorCode).toBeNull();
+
+    const diagnostics = createCliDiagnostics(["-j", "--json", "--output"], {
+      canonicalOptions:
+        ownKeysTrappedLengthReadableReadTrapCanonicalOptions as never,
+      optionAliases,
+    });
+    expect(diagnostics.supportedCliOptions).toEqual(["--output", "--json", "-j"]);
+    expect(diagnostics.supportedCliOptionCount).toBe(3);
+    expect(diagnostics.availableCliOptionAliases).toEqual({
+      "--json": ["-j"],
+    });
+    expect(diagnostics.availableCliOptionCanonicalMap).toEqual({
+      "--output": "--output",
+      "--json": "--json",
+      "-j": "--json",
+    });
+    expect(diagnostics.unknownOptions).toEqual([]);
+    expect(diagnostics.unknownOptionCount).toBe(0);
+    expect(diagnostics.unsupportedOptionsError).toBeNull();
+    expect(diagnostics.validationErrorCode).toBeNull();
+    expect(diagnostics.activeCliOptions).toEqual(["--output", "--json"]);
+    expect(diagnostics.activeCliOptionCount).toBe(2);
+    expect(diagnostics.activeCliOptionTokens).toEqual([
+      "-j",
+      "--json",
+      "--output",
+    ]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "-j",
+        canonicalOption: "--json",
+      },
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(diagnostics.activeCliOptionResolutionCount).toBe(3);
+    expect(diagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "-j",
+        canonicalOption: "--json",
+        index: 0,
+      },
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 1,
+      },
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 2,
+      },
+    ]);
+    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(3);
+  });
+
   it("creates unified cli diagnostics metadata", () => {
     const diagnostics = createCliDiagnostics(
       ["--json", "--verify", "--output", "./report.json", "--mystery"],
