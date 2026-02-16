@@ -132,11 +132,10 @@ impl ItemRegistry {
 
     fn next_id(&mut self) -> u32 {
         if self.next_auto_id == 0 {
-            self.next_auto_id = self
-                .items_by_id
-                .keys()
-                .max()
-                .map_or(1, |max| max.saturating_add(1));
+            self.next_auto_id = match self.items_by_id.keys().max().copied() {
+                Some(max_id) => max_id.saturating_add(1),
+                None => 1,
+            };
         }
 
         while self.items_by_id.contains_key(&self.next_auto_id) {
