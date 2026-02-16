@@ -268,8 +268,7 @@ impl Mesher {
                     if should_store_lights {
                         let min = space.min;
                         let shape = space.shape;
-                        let mut light_queues: [Vec<LightNode>; LIGHT_COLORS.len()] =
-                            std::array::from_fn(|_| Vec::new());
+                        let mut light_queues: Option<[Vec<LightNode>; LIGHT_COLORS.len()]> = None;
 
                         for dx in -1..=1 {
                             for dz in -1..=1 {
@@ -303,12 +302,20 @@ impl Mesher {
                                     light_config,
                                 );
 
-                                for (queue, subqueue) in light_queues.iter_mut().zip(light_subqueues) {
-                                    queue.extend(subqueue);
+                                if let Some(light_queues) = light_queues.as_mut() {
+                                    for (queue, subqueue) in
+                                        light_queues.iter_mut().zip(light_subqueues)
+                                    {
+                                        queue.extend(subqueue);
+                                    }
+                                } else {
+                                    light_queues = Some(light_subqueues);
                                 }
                             }
                         }
 
+                        let light_queues =
+                            light_queues.unwrap_or_else(|| std::array::from_fn(|_| Vec::new()));
                         for (queue, color) in light_queues.into_iter().zip(LIGHT_COLORS.iter()) {
                             if !queue.is_empty() {
                                 Lights::flood_light_nodes_with_light_config(
