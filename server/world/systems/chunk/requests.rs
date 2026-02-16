@@ -147,7 +147,9 @@ impl<'a> System<'a> for ChunkRequestsSystem {
 
                     interests.add(client_id, &coords);
                 } else {
-                    if !interests.has_interests(&coords) {
+                    let chunk_was_uninterested =
+                        interests.add_with_vacancy(client_id, &coords);
+                    if chunk_was_uninterested {
                         if let Some((min_x, max_x, min_z, max_z)) =
                             chunks.light_traversed_bounds(&coords)
                         {
@@ -168,7 +170,6 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                             }
                         }
                     }
-                    interests.add(client_id, &coords);
                 }
             }
 

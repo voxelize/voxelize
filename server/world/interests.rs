@@ -142,15 +142,22 @@ impl ChunkInterests {
     }
 
     pub fn add(&mut self, client_id: &str, coords: &Vec2<i32>) {
+        self.add_with_vacancy(client_id, coords);
+    }
+
+    #[inline]
+    pub fn add_with_vacancy(&mut self, client_id: &str, coords: &Vec2<i32>) -> bool {
         match self.map.entry(*coords) {
             Entry::Occupied(mut entry) => {
                 let clients = entry.get_mut();
                 clients.get_or_insert_owned(client_id);
+                false
             }
             Entry::Vacant(entry) => {
                 let mut clients = HashSet::with_capacity(1);
                 clients.insert(client_id.to_owned());
                 entry.insert(clients);
+                true
             }
         }
     }
