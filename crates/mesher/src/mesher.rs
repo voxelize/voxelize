@@ -2195,10 +2195,9 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     let is_non_greedy_block = !can_greedy_mesh_block(block, &rotation);
 
                     if is_non_greedy_block {
-                        if processed_non_greedy.contains(&(vx, vy, vz)) {
+                        if !processed_non_greedy.insert((vx, vy, vz)) {
                             continue;
                         }
-                        processed_non_greedy.insert((vx, vy, vz));
 
                         for_each_meshing_face(
                             block,
