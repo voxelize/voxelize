@@ -2341,10 +2341,15 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                                 cached_face_shading = Some(shading);
                                 shading
                             };
+                            let face_name = if face.independent {
+                                face.name.clone()
+                            } else {
+                                String::new()
+                            };
 
                             let key = FaceKey {
                                 block_id: block.id,
-                                face_name: face.name.clone(),
+                                face_name,
                                 independent: face.independent,
                                 ao: aos,
                                 light: lights,
