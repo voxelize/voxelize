@@ -507,6 +507,10 @@ impl Chunks {
         let Some((min_x, max_x, min_z, max_z)) = self.light_traversed_bounds(coords) else {
             return;
         };
+        if min_x == max_x && min_z == max_z {
+            f(Vec2(min_x, min_z));
+            return;
+        }
         for x in min_x..=max_x {
             for z in min_z..=max_z {
                 f(Vec2(x, z));
