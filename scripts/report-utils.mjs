@@ -2759,6 +2759,39 @@ export const writeReportToPath = (reportJson, outputPath) => {
   }
 };
 
+const createWriteFailureReportSnapshot = (report, outputPath, writeError) => {
+  return {
+    ...toReportSnapshotOrEmpty(report),
+    passed: false,
+    exitCode: 1,
+    outputPath: toOutputPathMessageValue(outputPath),
+    writeError,
+    message: writeError,
+  };
+};
+
+const toTimedWriteFailureReportSnapshot = (writeFailureReport, buildTimedReport) => {
+  if (typeof buildTimedReport !== "function") {
+    return writeFailureReport;
+  }
+
+  try {
+    const timedReportSnapshot = toReportSnapshotOrEmpty(
+      buildTimedReport(writeFailureReport)
+    );
+    if (Object.keys(timedReportSnapshot).length === 0) {
+      return writeFailureReport;
+    }
+
+    return {
+      ...writeFailureReport,
+      ...timedReportSnapshot,
+    };
+  } catch {
+    return writeFailureReport;
+  }
+};
+
 export const serializeReportWithOptionalWrite = (
   report,
   { jsonFormat, outputPath, buildTimedReport }
@@ -2780,18 +2813,18 @@ export const serializeReportWithOptionalWrite = (
     };
   }
 
+  const writeFailureReport = createWriteFailureReportSnapshot(
+    report,
+    outputPath,
+    writeError
+  );
+  const timedWriteFailureReport = toTimedWriteFailureReportSnapshot(
+    writeFailureReport,
+    buildTimedReport
+  );
+
   return {
-    reportJson: toReportJson(
-      buildTimedReport({
-        ...report,
-        passed: false,
-        exitCode: 1,
-        outputPath: toOutputPathMessageValue(outputPath),
-        writeError,
-        message: writeError,
-      }),
-      jsonFormat
-    ),
+    reportJson: toReportJson(timedWriteFailureReport, jsonFormat),
     writeError,
   };
 };

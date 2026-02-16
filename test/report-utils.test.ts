@@ -22639,6 +22639,120 @@ describe("report-utils", () => {
     expect(parsedWriteFailureResult.durationMs).toBe(1000);
   });
 
+  it("falls back to untimed write-failure snapshots when timed builders are malformed", () => {
+    const outputPath = "/tmp";
+    const report = {
+      passed: true,
+      exitCode: 0,
+      outputPath,
+    };
+
+    const nullBuilderResult = serializeReportWithOptionalWrite(report, {
+      jsonFormat: { compact: true },
+      outputPath,
+      buildTimedReport: null as never,
+    });
+    const parsedNullBuilderResult = JSON.parse(nullBuilderResult.reportJson) as {
+      schemaVersion: number;
+      passed: boolean;
+      exitCode: number;
+      outputPath: string;
+      writeError: string;
+      message: string;
+      startedAt?: string;
+      endedAt?: string;
+      durationMs?: number;
+    };
+    expect(nullBuilderResult.writeError).toContain(
+      "Failed to write report to /tmp."
+    );
+    expect(parsedNullBuilderResult.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+    expect(parsedNullBuilderResult.passed).toBe(false);
+    expect(parsedNullBuilderResult.exitCode).toBe(1);
+    expect(parsedNullBuilderResult.outputPath).toBe(outputPath);
+    expect(parsedNullBuilderResult.writeError).toContain(
+      "Failed to write report to /tmp."
+    );
+    expect(parsedNullBuilderResult.message).toContain(
+      "Failed to write report to /tmp."
+    );
+    expect(parsedNullBuilderResult.startedAt).toBeUndefined();
+    expect(parsedNullBuilderResult.endedAt).toBeUndefined();
+    expect(parsedNullBuilderResult.durationMs).toBeUndefined();
+
+    const throwingBuilderResult = serializeReportWithOptionalWrite(report, {
+      jsonFormat: { compact: true },
+      outputPath,
+      buildTimedReport: () => {
+        throw new Error("timed trap");
+      },
+    });
+    const parsedThrowingBuilderResult = JSON.parse(
+      throwingBuilderResult.reportJson
+    ) as {
+      schemaVersion: number;
+      passed: boolean;
+      exitCode: number;
+      outputPath: string;
+      writeError: string;
+      message: string;
+      startedAt?: string;
+      endedAt?: string;
+      durationMs?: number;
+    };
+    expect(throwingBuilderResult.writeError).toContain(
+      "Failed to write report to /tmp."
+    );
+    expect(parsedThrowingBuilderResult.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+    expect(parsedThrowingBuilderResult.passed).toBe(false);
+    expect(parsedThrowingBuilderResult.exitCode).toBe(1);
+    expect(parsedThrowingBuilderResult.outputPath).toBe(outputPath);
+    expect(parsedThrowingBuilderResult.writeError).toContain(
+      "Failed to write report to /tmp."
+    );
+    expect(parsedThrowingBuilderResult.message).toContain(
+      "Failed to write report to /tmp."
+    );
+    expect(parsedThrowingBuilderResult.startedAt).toBeUndefined();
+    expect(parsedThrowingBuilderResult.endedAt).toBeUndefined();
+    expect(parsedThrowingBuilderResult.durationMs).toBeUndefined();
+
+    const primitiveBuilderResult = serializeReportWithOptionalWrite(report, {
+      jsonFormat: { compact: true },
+      outputPath,
+      buildTimedReport: () => 42 as never,
+    });
+    const parsedPrimitiveBuilderResult = JSON.parse(
+      primitiveBuilderResult.reportJson
+    ) as {
+      schemaVersion: number;
+      passed: boolean;
+      exitCode: number;
+      outputPath: string;
+      writeError: string;
+      message: string;
+      startedAt?: string;
+      endedAt?: string;
+      durationMs?: number;
+    };
+    expect(primitiveBuilderResult.writeError).toContain(
+      "Failed to write report to /tmp."
+    );
+    expect(parsedPrimitiveBuilderResult.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+    expect(parsedPrimitiveBuilderResult.passed).toBe(false);
+    expect(parsedPrimitiveBuilderResult.exitCode).toBe(1);
+    expect(parsedPrimitiveBuilderResult.outputPath).toBe(outputPath);
+    expect(parsedPrimitiveBuilderResult.writeError).toContain(
+      "Failed to write report to /tmp."
+    );
+    expect(parsedPrimitiveBuilderResult.message).toContain(
+      "Failed to write report to /tmp."
+    );
+    expect(parsedPrimitiveBuilderResult.startedAt).toBeUndefined();
+    expect(parsedPrimitiveBuilderResult.endedAt).toBeUndefined();
+    expect(parsedPrimitiveBuilderResult.durationMs).toBeUndefined();
+  });
+
   it("returns a structured fallback report when output write fails", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "report-utils-serialize-failure-")
