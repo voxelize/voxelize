@@ -1,6 +1,7 @@
 use kiddo::float::kdtree::KdTree as KiddoTree;
 use kiddo::SquaredEuclidean;
 use serde::Serialize;
+use std::sync::OnceLock;
 
 use crate::WorldConfig;
 
@@ -80,6 +81,11 @@ pub struct Terrain {
 }
 
 impl Terrain {
+    fn fallback_biome() -> &'static Biome {
+        static FALLBACK_BIOME: OnceLock<Biome> = OnceLock::new();
+        FALLBACK_BIOME.get_or_init(|| Biome::new("default", "air"))
+    }
+
     pub fn new(config: &WorldConfig) -> Self {
         Self {
             config: config.to_owned(),
@@ -191,7 +197,7 @@ impl Terrain {
 
         self.biome_tree
             .nearest(&values[..dimensions])
-            .expect("No biomes registered")
+            .unwrap_or_else(|| Self::fallback_biome())
     }
 }
 
@@ -239,6 +245,17 @@ mod tests {
 
         assert_eq!(terrain.biome_tree.dimensions, MAX_BIOME_LAYERS);
         assert_eq!(terrain.get_biome_at(0, 0, 0).name, "capped");
+    }
+
+    #[test]
+    fn get_biome_at_returns_fallback_when_no_biomes_registered() {
+        let config = WorldConfig::new().build();
+        let terrain = Terrain::new(&config);
+
+        let biome = terrain.get_biome_at(0, 0, 0);
+
+        assert_eq!(biome.name, "default");
+        assert_eq!(biome.test_block, "air");
     }
 }
 
