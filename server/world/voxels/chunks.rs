@@ -94,19 +94,19 @@ pub struct Chunks {
 
 impl Chunks {
     #[inline]
-    fn encode_base64_u32(data: &[u32]) -> String {
+    fn encode_base64_u32(data: &[u32]) -> Option<String> {
         if data.is_empty() {
-            return String::new();
+            return Some(String::new());
         }
         let byte_len = data.len().saturating_mul(std::mem::size_of::<u32>());
 
         #[cfg(target_endian = "little")]
         {
             let bytes = unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u8, byte_len) };
-            let mut encoder = Encoder::new(Vec::with_capacity(byte_len)).unwrap();
-            encoder.write_all(bytes).unwrap();
-            let encoded = encoder.finish().into_result().unwrap();
-            STANDARD.encode(encoded)
+            let mut encoder = Encoder::new(Vec::with_capacity(byte_len)).ok()?;
+            encoder.write_all(bytes).ok()?;
+            let encoded = encoder.finish().into_result().ok()?;
+            Some(STANDARD.encode(encoded))
         }
 
         #[cfg(not(target_endian = "little"))]
@@ -114,35 +114,32 @@ impl Chunks {
             let mut bytes = vec![0; byte_len];
             LittleEndian::write_u32_into(data, &mut bytes);
 
-            let mut encoder = Encoder::new(Vec::with_capacity(byte_len)).unwrap();
-            encoder.write_all(bytes.as_slice()).unwrap();
-            let encoded = encoder.finish().into_result().unwrap();
-            STANDARD.encode(encoded)
+            let mut encoder = Encoder::new(Vec::with_capacity(byte_len)).ok()?;
+            encoder.write_all(bytes.as_slice()).ok()?;
+            let encoded = encoder.finish().into_result().ok()?;
+            Some(STANDARD.encode(encoded))
         }
     }
 
     #[inline]
-    fn decode_base64_u32(base: &str, expected_u32_len: usize) -> Vec<u32> {
+    fn decode_base64_u32(base: &str, expected_u32_len: usize) -> Option<Vec<u32>> {
         if base.is_empty() {
-            return Vec::new();
+            return Some(Vec::new());
         }
 
-        let decoded = STANDARD.decode(base).expect("Failed to decode base64");
-        let mut decoder = Decoder::new(&decoded[..]).expect("Failed to create decoder");
+        let decoded = STANDARD.decode(base).ok()?;
+        let mut decoder = Decoder::new(&decoded[..]).ok()?;
         let mut buf = Vec::with_capacity(expected_u32_len.saturating_mul(4));
-        decoder
-            .read_to_end(&mut buf)
-            .expect("Failed to decode data");
-        let aligned_len = buf.len() & !3;
-        if aligned_len == 0 {
-            return Vec::new();
+        decoder.read_to_end(&mut buf).ok()?;
+        if buf.is_empty() {
+            return Some(Vec::new());
         }
-        if aligned_len < buf.len() {
-            buf.truncate(aligned_len);
+        if buf.len() % 4 != 0 {
+            return None;
         }
-        let mut data = vec![0; aligned_len / 4];
+        let mut data = vec![0; buf.len() / 4];
         LittleEndian::read_u32_into(&buf, &mut data);
-        data
+        Some(data)
     }
 
     /// Create a new instance of a chunk manager.
@@ -192,6 +189,14 @@ impl Chunks {
             || Self::decode_base64_u32(&data.voxels, expected_voxel_len),
             || Self::decode_base64_u32(&data.height_map, expected_height_map_len),
         );
+        let voxels = match voxels {
+            Some(voxels) if voxels.len() == expected_voxel_len => voxels,
+            _ => return None,
+        };
+        let height_map = match height_map {
+            Some(height_map) if height_map.len() == expected_height_map_len => Some(height_map),
+            _ => None,
+        };
 
         let mut chunk = Chunk::new(
             &data.id,
@@ -206,7 +211,7 @@ impl Chunks {
 
         Arc::make_mut(&mut chunk.voxels).data = voxels;
 
-        if !height_map.is_empty() {
+        if let Some(height_map) = height_map {
             Arc::make_mut(&mut chunk.height_map).data = height_map;
         } else {
             chunk.calculate_max_height(registry);
@@ -231,10 +236,18 @@ impl Chunks {
         let path = self.get_chunk_file_path(&chunk.name);
         let tmp_path = path.with_extension("json.tmp");
 
+        let voxels = match Self::encode_base64_u32(&chunk.voxels.data) {
+            Some(voxels) => voxels,
+            None => return false,
+        };
+        let height_map = match Self::encode_base64_u32(&chunk.height_map.data) {
+            Some(height_map) => height_map,
+            None => return false,
+        };
         let data = ChunkFileData {
             id: chunk.id.clone(),
-            voxels: Self::encode_base64_u32(&chunk.voxels.data),
-            height_map: Self::encode_base64_u32(&chunk.height_map.data),
+            voxels,
+            height_map,
         };
 
         let mut file = match File::create(&tmp_path) {
@@ -1007,15 +1020,20 @@ mod tests {
 
     #[test]
     fn encode_base64_u32_returns_empty_for_empty_input() {
-        assert!(Chunks::encode_base64_u32(&[]).is_empty());
+        assert_eq!(Chunks::encode_base64_u32(&[]), Some(String::new()));
     }
 
     #[test]
     fn encode_decode_base64_u32_roundtrip_restores_values() {
         let raw = vec![0, 1, u32::MAX, 12345];
-        let encoded = Chunks::encode_base64_u32(&raw);
+        let encoded = Chunks::encode_base64_u32(&raw).expect("encode should succeed");
         let decoded = Chunks::decode_base64_u32(&encoded, raw.len());
 
-        assert_eq!(decoded, raw);
+        assert_eq!(decoded, Some(raw));
+    }
+
+    #[test]
+    fn decode_base64_u32_rejects_invalid_payloads() {
+        assert!(Chunks::decode_base64_u32("not-base64", 4).is_none());
     }
 }
