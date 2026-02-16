@@ -264,6 +264,7 @@ pub struct MessageBuilder {
     chat: Option<ChatMessageProtocol>,
     method: Option<MethodProtocol>,
 
+    single_peer: Option<PeerProtocol>,
     peers: Option<Vec<PeerProtocol>>,
     single_entity: Option<EntityProtocol>,
     entities: Option<Vec<EntityProtocol>>,
@@ -328,6 +329,7 @@ impl MessageBuilder {
 
     /// Configure the peers data of the protocol.
     pub fn peers(mut self, peers: &[PeerProtocol]) -> Self {
+        self.single_peer = None;
         if peers.is_empty() {
             self.peers = None;
         } else {
@@ -336,8 +338,15 @@ impl MessageBuilder {
         self
     }
 
+    pub fn peer_owned(mut self, peer: PeerProtocol) -> Self {
+        self.single_peer = Some(peer);
+        self.peers = None;
+        self
+    }
+
     /// Configure owned peers data of the protocol.
     pub fn peers_owned(mut self, peers: Vec<PeerProtocol>) -> Self {
+        self.single_peer = None;
         if peers.is_empty() {
             self.peers = None;
         } else {
@@ -481,7 +490,13 @@ impl MessageBuilder {
         message.text = self.text.unwrap_or_default();
         message.world_name = self.world_name.unwrap_or_default();
 
-        if let Some(peers) = self.peers {
+        if let Some(peer) = self.single_peer {
+            message.peers = vec![protocols::Peer {
+                id: peer.id,
+                username: peer.username,
+                metadata: peer.metadata,
+            }];
+        } else if let Some(peers) = self.peers {
             let mut mapped = Vec::with_capacity(peers.len());
             for peer in peers {
                 mapped.push(protocols::Peer {
@@ -789,5 +804,40 @@ mod tests {
         assert_eq!(message.updates.len(), 1);
         assert_eq!(message.updates[0].vx, 7);
         assert_eq!(message.updates[0].light, 11);
+    }
+
+    #[test]
+    fn peer_owned_sets_single_peer_payload() {
+        let message = Message::new(&MessageType::Peer)
+            .peer_owned(PeerProtocol {
+                id: "peer-1".to_owned(),
+                username: "name".to_owned(),
+                metadata: "{\"ok\":true}".to_owned(),
+            })
+            .build();
+
+        assert_eq!(message.peers.len(), 1);
+        assert_eq!(message.peers[0].id, "peer-1");
+        assert_eq!(message.peers[0].username, "name");
+        assert_eq!(message.peers[0].metadata, "{\"ok\":true}");
+    }
+
+    #[test]
+    fn peer_owned_overrides_previous_peer_list() {
+        let message = Message::new(&MessageType::Peer)
+            .peers_owned(vec![PeerProtocol {
+                id: "old".to_owned(),
+                username: "old-name".to_owned(),
+                metadata: "{}".to_owned(),
+            }])
+            .peer_owned(PeerProtocol {
+                id: "new".to_owned(),
+                username: "new-name".to_owned(),
+                metadata: "{}".to_owned(),
+            })
+            .build();
+
+        assert_eq!(message.peers.len(), 1);
+        assert_eq!(message.peers[0].id, "new");
     }
 }
