@@ -48,6 +48,61 @@ export class AABBBuilder {
   }
 }
 
+const isArrayValue = (value: readonly AABB[] | null | undefined): value is readonly AABB[] => {
+  try {
+    return Array.isArray(value);
+  } catch {
+    return false;
+  }
+};
+
+type AabbSnapshot = {
+  minX: number;
+  minY: number;
+  minZ: number;
+  maxX: number;
+  maxY: number;
+  maxZ: number;
+};
+
+const readAabbSnapshotSafely = (
+  value: AABB | null | undefined
+): AabbSnapshot | null => {
+  if (value === null || value === undefined || typeof value !== "object") {
+    return null;
+  }
+
+  try {
+    const minX = value.minX;
+    const minY = value.minY;
+    const minZ = value.minZ;
+    const maxX = value.maxX;
+    const maxY = value.maxY;
+    const maxZ = value.maxZ;
+    if (
+      !Number.isFinite(minX) ||
+      !Number.isFinite(minY) ||
+      !Number.isFinite(minZ) ||
+      !Number.isFinite(maxX) ||
+      !Number.isFinite(maxY) ||
+      !Number.isFinite(maxZ)
+    ) {
+      return null;
+    }
+
+    return {
+      minX,
+      minY,
+      minZ,
+      maxX,
+      maxY,
+      maxZ,
+    };
+  } catch {
+    return null;
+  }
+};
+
 export class AABB {
   constructor(
     public minX = 0,
@@ -78,44 +133,83 @@ export class AABB {
   }
 
   static unionAll(all: readonly AABB[]): AABB {
-    if (all.length === 0) {
+    if (!isArrayValue(all)) {
       return AABB.empty();
     }
 
-    let minX = all[0].minX;
-    let minY = all[0].minY;
-    let minZ = all[0].minZ;
-    let maxX = all[0].maxX;
-    let maxY = all[0].maxY;
-    let maxZ = all[0].maxZ;
+    let length = 0;
+    try {
+      length = all.length;
+    } catch {
+      return AABB.empty();
+    }
+    if (!Number.isSafeInteger(length) || length <= 0) {
+      return AABB.empty();
+    }
 
-    for (const aabb of all) {
-      if (aabb.minX < minX) {
-        minX = aabb.minX;
+    let unionSnapshot: AabbSnapshot | null = null;
+
+    for (let index = 0; index < length; index += 1) {
+      let entry: AABB | null = null;
+      try {
+        entry = all[index] ?? null;
+      } catch {
+        continue;
+      }
+      const snapshot = readAabbSnapshotSafely(entry);
+      if (snapshot === null) {
+        continue;
       }
 
-      if (aabb.minY < minY) {
-        minY = aabb.minY;
+      if (unionSnapshot === null) {
+        unionSnapshot = {
+          minX: snapshot.minX,
+          minY: snapshot.minY,
+          minZ: snapshot.minZ,
+          maxX: snapshot.maxX,
+          maxY: snapshot.maxY,
+          maxZ: snapshot.maxZ,
+        };
+        continue;
       }
 
-      if (aabb.minZ < minZ) {
-        minZ = aabb.minZ;
+      if (snapshot.minX < unionSnapshot.minX) {
+        unionSnapshot.minX = snapshot.minX;
       }
 
-      if (aabb.maxX > maxX) {
-        maxX = aabb.maxX;
+      if (snapshot.minY < unionSnapshot.minY) {
+        unionSnapshot.minY = snapshot.minY;
       }
 
-      if (aabb.maxY > maxY) {
-        maxY = aabb.maxY;
+      if (snapshot.minZ < unionSnapshot.minZ) {
+        unionSnapshot.minZ = snapshot.minZ;
       }
 
-      if (aabb.maxZ > maxZ) {
-        maxZ = aabb.maxZ;
+      if (snapshot.maxX > unionSnapshot.maxX) {
+        unionSnapshot.maxX = snapshot.maxX;
+      }
+
+      if (snapshot.maxY > unionSnapshot.maxY) {
+        unionSnapshot.maxY = snapshot.maxY;
+      }
+
+      if (snapshot.maxZ > unionSnapshot.maxZ) {
+        unionSnapshot.maxZ = snapshot.maxZ;
       }
     }
 
-    return new AABB(minX, minY, minZ, maxX, maxY, maxZ);
+    if (unionSnapshot === null) {
+      return AABB.empty();
+    }
+
+    return new AABB(
+      unionSnapshot.minX,
+      unionSnapshot.minY,
+      unionSnapshot.minZ,
+      unionSnapshot.maxX,
+      unionSnapshot.maxY,
+      unionSnapshot.maxZ
+    );
   }
 
   union(other: AABB): AABB {

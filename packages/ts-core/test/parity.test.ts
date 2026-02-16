@@ -548,6 +548,82 @@ describe("AABB", () => {
     expect(emptyUnion.mag()).toBe(0);
   });
 
+  it("sanitizes malformed unionAll inputs without throwing", () => {
+    const minTrapAabb = Object.create(null) as {
+      readonly minX: number;
+      readonly minY: number;
+      readonly minZ: number;
+      readonly maxX: number;
+      readonly maxY: number;
+      readonly maxZ: number;
+    };
+    Object.defineProperty(minTrapAabb, "minX", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("minX trap");
+      },
+    });
+    Object.defineProperty(minTrapAabb, "minY", {
+      configurable: true,
+      enumerable: true,
+      value: 0,
+    });
+    Object.defineProperty(minTrapAabb, "minZ", {
+      configurable: true,
+      enumerable: true,
+      value: 0,
+    });
+    Object.defineProperty(minTrapAabb, "maxX", {
+      configurable: true,
+      enumerable: true,
+      value: 1,
+    });
+    Object.defineProperty(minTrapAabb, "maxY", {
+      configurable: true,
+      enumerable: true,
+      value: 1,
+    });
+    Object.defineProperty(minTrapAabb, "maxZ", {
+      configurable: true,
+      enumerable: true,
+      value: 1,
+    });
+    const entryTrapAabbs = new Proxy(
+      [
+        AABB.create(-2, -2, -2, -1, -1, -1),
+        AABB.create(0, 0, 0, 1, 1, 1),
+      ],
+      {
+        get(target, property, receiver) {
+          if (property === "0") {
+            throw new Error("entry trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const revokedAabbs = (() => {
+      const proxy = Proxy.revocable([AABB.create(0, 0, 0, 1, 1, 1)], {});
+      proxy.revoke();
+      return proxy.proxy;
+    })();
+
+    expect(() => AABB.unionAll(null as never)).not.toThrow();
+    expect(AABB.unionAll(null as never)).toEqual(AABB.empty());
+
+    expect(() => AABB.unionAll([minTrapAabb as never])).not.toThrow();
+    expect(AABB.unionAll([minTrapAabb as never])).toEqual(AABB.empty());
+
+    expect(() => AABB.unionAll(entryTrapAabbs as never)).not.toThrow();
+    expect(AABB.unionAll(entryTrapAabbs as never)).toEqual(
+      AABB.create(0, 0, 0, 1, 1, 1)
+    );
+
+    expect(() => AABB.unionAll(revokedAabbs as never)).not.toThrow();
+    expect(AABB.unionAll(revokedAabbs as never)).toEqual(AABB.empty());
+  });
+
   it("computes geometric extents and magnitude", () => {
     const aabb = AABB.create(1, 2, 3, 4, 6, 15);
     expect(aabb.width()).toBe(3);
