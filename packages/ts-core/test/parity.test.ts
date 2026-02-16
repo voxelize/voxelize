@@ -5135,6 +5135,33 @@ describe("Type builders", () => {
     ]);
   });
 
+  it("normalizes explicit-empty iterator corner collections in createBlockFace", () => {
+    const explicitEmptyCorners = new Proxy([] as CornerData[], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          return function* () {
+            return;
+          };
+        }
+        if (property === "length") {
+          return 0;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    const face = createBlockFace({
+      name: "TrapFace",
+      corners: explicitEmptyCorners as never,
+    });
+
+    expect(face.corners).toEqual(
+      new BlockFace({
+        name: "Defaults",
+      }).corners
+    );
+  });
+
   it("sanitizes irrecoverable corner collection traps in createBlockFace", () => {
     const trappedCorners = new Proxy(
       [
