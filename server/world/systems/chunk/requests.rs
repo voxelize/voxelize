@@ -15,7 +15,7 @@ pub struct ChunkRequestsSystem {
     chunk_models_buffer: Vec<crate::ChunkProtocol>,
 }
 
-const SMALL_CHUNK_REQUEST_BATCH_CLEAR_LIMIT: usize = 8;
+const SMALL_CHUNK_REQUEST_BATCH_CLEAR_LIMIT: usize = 9;
 
 #[inline]
 fn take_vec_with_capacity<T>(buffer: &mut Vec<T>) -> Vec<T> {
@@ -183,7 +183,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
 
         let max_response_per_tick = config.max_response_per_tick;
         let can_send_responses = max_response_per_tick > 0;
-        let initial_send_set_capacity = max_response_per_tick.min(8).max(1);
+        let initial_send_set_capacity = max_response_per_tick.min(9).max(1);
         let sub_chunks_u32 = if config.sub_chunks > u32::MAX as usize {
             u32::MAX
         } else {
@@ -657,6 +657,89 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     chunk_models_buffer,
                     to_send,
                     eighth_id,
+                    sub_chunks_u32,
+                );
+            }
+            9 => {
+                let first_id = pop_touched_client_id(to_send_touched_clients);
+                let second_id = pop_touched_client_id(to_send_touched_clients);
+                let third_id = pop_touched_client_id(to_send_touched_clients);
+                let fourth_id = pop_touched_client_id(to_send_touched_clients);
+                let fifth_id = pop_touched_client_id(to_send_touched_clients);
+                let sixth_id = pop_touched_client_id(to_send_touched_clients);
+                let seventh_id = pop_touched_client_id(to_send_touched_clients);
+                let eighth_id = pop_touched_client_id(to_send_touched_clients);
+                let ninth_id = pop_touched_client_id(to_send_touched_clients);
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    to_send,
+                    first_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    to_send,
+                    second_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    to_send,
+                    third_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    to_send,
+                    fourth_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    to_send,
+                    fifth_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    to_send,
+                    sixth_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    to_send,
+                    seventh_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    to_send,
+                    eighth_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    to_send,
+                    ninth_id,
                     sub_chunks_u32,
                 );
             }
