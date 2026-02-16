@@ -344,6 +344,66 @@ impl EncodedMessageQueue {
                 .push(Self::encode_pending_message(sixth_message, sixth_filter));
             return;
         }
+        if pending_len == 7 {
+            reserve_for_append(&mut self.processed, 7);
+            let (seventh_message, seventh_filter) = {
+                let Some(seventh_pending) = self.pending.pop() else {
+                    unreachable!("septuple pending message length matched branch");
+                };
+                seventh_pending
+            };
+            let (sixth_message, sixth_filter) = {
+                let Some(sixth_pending) = self.pending.pop() else {
+                    unreachable!("septuple pending message length matched branch");
+                };
+                sixth_pending
+            };
+            let (fifth_message, fifth_filter) = {
+                let Some(fifth_pending) = self.pending.pop() else {
+                    unreachable!("septuple pending message length matched branch");
+                };
+                fifth_pending
+            };
+            let (fourth_message, fourth_filter) = {
+                let Some(fourth_pending) = self.pending.pop() else {
+                    unreachable!("septuple pending message length matched branch");
+                };
+                fourth_pending
+            };
+            let (third_message, third_filter) = {
+                let Some(third_pending) = self.pending.pop() else {
+                    unreachable!("septuple pending message length matched branch");
+                };
+                third_pending
+            };
+            let (second_message, second_filter) = {
+                let Some(second_pending) = self.pending.pop() else {
+                    unreachable!("septuple pending message length matched branch");
+                };
+                second_pending
+            };
+            let (first_message, first_filter) = {
+                let Some(first_pending) = self.pending.pop() else {
+                    unreachable!("septuple pending message length matched branch");
+                };
+                first_pending
+            };
+            self.processed
+                .push(Self::encode_pending_message(first_message, first_filter));
+            self.processed
+                .push(Self::encode_pending_message(second_message, second_filter));
+            self.processed
+                .push(Self::encode_pending_message(third_message, third_filter));
+            self.processed
+                .push(Self::encode_pending_message(fourth_message, fourth_filter));
+            self.processed
+                .push(Self::encode_pending_message(fifth_message, fifth_filter));
+            self.processed
+                .push(Self::encode_pending_message(sixth_message, sixth_filter));
+            self.processed
+                .push(Self::encode_pending_message(seventh_message, seventh_filter));
+            return;
+        }
         if pending_len <= SYNC_ENCODE_BATCH_LIMIT {
             reserve_for_append(&mut self.processed, pending_len);
             let pending = take_vec_with_capacity(&mut self.pending);
@@ -956,6 +1016,74 @@ mod tests {
         assert!(matches!(
             queue.processed.get(5).map(|(_, filter)| filter),
             Some(ClientFilter::Direct(id)) if id == "sixth"
+        ));
+    }
+
+    #[test]
+    fn process_encodes_seven_messages_synchronously_in_order() {
+        let mut queue = EncodedMessageQueue::new();
+        queue.append(vec![
+            (
+                Message::new(&MessageType::Peer).build(),
+                ClientFilter::Direct("first".to_string()),
+            ),
+            (
+                Message::new(&MessageType::Peer).build(),
+                ClientFilter::Direct("second".to_string()),
+            ),
+            (
+                Message::new(&MessageType::Peer).build(),
+                ClientFilter::Direct("third".to_string()),
+            ),
+            (
+                Message::new(&MessageType::Peer).build(),
+                ClientFilter::Direct("fourth".to_string()),
+            ),
+            (
+                Message::new(&MessageType::Peer).build(),
+                ClientFilter::Direct("fifth".to_string()),
+            ),
+            (
+                Message::new(&MessageType::Peer).build(),
+                ClientFilter::Direct("sixth".to_string()),
+            ),
+            (
+                Message::new(&MessageType::Peer).build(),
+                ClientFilter::Direct("seventh".to_string()),
+            ),
+        ]);
+
+        queue.process();
+
+        assert!(queue.pending.is_empty());
+        assert_eq!(queue.processed.len(), 7);
+        assert!(matches!(
+            queue.processed.first().map(|(_, filter)| filter),
+            Some(ClientFilter::Direct(id)) if id == "first"
+        ));
+        assert!(matches!(
+            queue.processed.get(1).map(|(_, filter)| filter),
+            Some(ClientFilter::Direct(id)) if id == "second"
+        ));
+        assert!(matches!(
+            queue.processed.get(2).map(|(_, filter)| filter),
+            Some(ClientFilter::Direct(id)) if id == "third"
+        ));
+        assert!(matches!(
+            queue.processed.get(3).map(|(_, filter)| filter),
+            Some(ClientFilter::Direct(id)) if id == "fourth"
+        ));
+        assert!(matches!(
+            queue.processed.get(4).map(|(_, filter)| filter),
+            Some(ClientFilter::Direct(id)) if id == "fifth"
+        ));
+        assert!(matches!(
+            queue.processed.get(5).map(|(_, filter)| filter),
+            Some(ClientFilter::Direct(id)) if id == "sixth"
+        ));
+        assert!(matches!(
+            queue.processed.get(6).map(|(_, filter)| filter),
+            Some(ClientFilter::Direct(id)) if id == "seventh"
         ));
     }
 
