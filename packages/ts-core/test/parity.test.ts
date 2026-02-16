@@ -816,6 +816,38 @@ describe("AABB", () => {
     expect(AABBBuilder.prototype.build.call(revokedBuilder as never)).toEqual(
       AABB.empty()
     );
+    expect(() =>
+      AABBBuilder.prototype.scaleX.call(revokedBuilder as never, 2)
+    ).not.toThrow();
+    expect(() =>
+      AABBBuilder.prototype.scaleY.call(revokedBuilder as never, 2)
+    ).not.toThrow();
+    expect(() =>
+      AABBBuilder.prototype.scaleZ.call(revokedBuilder as never, 2)
+    ).not.toThrow();
+    expect(() =>
+      AABBBuilder.prototype.offsetX.call(revokedBuilder as never, 2)
+    ).not.toThrow();
+    expect(() =>
+      AABBBuilder.prototype.offsetY.call(revokedBuilder as never, 2)
+    ).not.toThrow();
+    expect(() =>
+      AABBBuilder.prototype.offsetZ.call(revokedBuilder as never, 2)
+    ).not.toThrow();
+
+    const trapValue = {
+      [Symbol.toPrimitive]() {
+        throw new Error("coercion trap");
+      },
+    };
+    const sanitizedBuilder = AABB.new()
+      .scaleX(trapValue as never)
+      .scaleY(trapValue as never)
+      .scaleZ(trapValue as never)
+      .offsetX(trapValue as never)
+      .offsetY(trapValue as never)
+      .offsetZ(trapValue as never);
+    expect(sanitizedBuilder.build()).toEqual(AABB.empty());
   });
 
   it("computes geometric extents and magnitude", () => {

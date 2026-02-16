@@ -7,32 +7,56 @@ export class AABBBuilder {
   private offsetZValue = 0;
 
   scaleX(scaleX: number): this {
-    this.scaleXValue = scaleX;
+    try {
+      this.scaleXValue = toFiniteNumberOrZero(scaleX);
+    } catch {
+      // no-op when assignment is unavailable
+    }
     return this;
   }
 
   scaleY(scaleY: number): this {
-    this.scaleYValue = scaleY;
+    try {
+      this.scaleYValue = toFiniteNumberOrZero(scaleY);
+    } catch {
+      // no-op when assignment is unavailable
+    }
     return this;
   }
 
   scaleZ(scaleZ: number): this {
-    this.scaleZValue = scaleZ;
+    try {
+      this.scaleZValue = toFiniteNumberOrZero(scaleZ);
+    } catch {
+      // no-op when assignment is unavailable
+    }
     return this;
   }
 
   offsetX(offsetX: number): this {
-    this.offsetXValue = offsetX;
+    try {
+      this.offsetXValue = toFiniteNumberOrZero(offsetX);
+    } catch {
+      // no-op when assignment is unavailable
+    }
     return this;
   }
 
   offsetY(offsetY: number): this {
-    this.offsetYValue = offsetY;
+    try {
+      this.offsetYValue = toFiniteNumberOrZero(offsetY);
+    } catch {
+      // no-op when assignment is unavailable
+    }
     return this;
   }
 
   offsetZ(offsetZ: number): this {
-    this.offsetZValue = offsetZ;
+    try {
+      this.offsetZValue = toFiniteNumberOrZero(offsetZ);
+    } catch {
+      // no-op when assignment is unavailable
+    }
     return this;
   }
 
