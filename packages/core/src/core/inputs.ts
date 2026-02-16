@@ -263,27 +263,28 @@ export class Inputs<T extends string = string> extends EventEmitter {
     const unbind = () => {
       const callbacks = callbackMap.get(name);
       if (callbacks) {
-        const index = callbacks.indexOf(callbackWrapper);
-        if (index !== -1) callbacks.splice(index, 1);
-      }
-
-      // Remove key from callbacks if it is empty.
-      if (callbackMap.get(name)?.length === 0) callbackMap.delete(name);
-
-      const boundItems = this.keyBounds.get(name) || [];
-      let index = -1;
-      for (let boundItemIndex = 0; boundItemIndex < boundItems.length; boundItemIndex++) {
-        if (boundItems[boundItemIndex].identifier === identifier) {
-          index = boundItemIndex;
-          break;
+        for (let callbackIndex = 0; callbackIndex < callbacks.length; callbackIndex++) {
+          if (callbacks[callbackIndex] === callbackWrapper) {
+            callbacks.splice(callbackIndex, 1);
+            break;
+          }
+        }
+        if (callbacks.length === 0) {
+          callbackMap.delete(name);
         }
       }
-      if (index !== -1) {
-        boundItems.splice(index, 1);
-        if (boundItems.length === 0) {
-          this.keyBounds.delete(name);
-        } else {
-          this.keyBounds.set(name, boundItems);
+
+      const boundItems = this.keyBounds.get(name);
+      if (!boundItems) {
+        return;
+      }
+      for (let boundItemIndex = 0; boundItemIndex < boundItems.length; boundItemIndex++) {
+        if (boundItems[boundItemIndex].identifier === identifier) {
+          boundItems.splice(boundItemIndex, 1);
+          if (boundItems.length === 0) {
+            this.keyBounds.delete(name);
+          }
+          break;
         }
       }
     };
