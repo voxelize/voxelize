@@ -452,6 +452,33 @@ const mergeIndexedRuleEntries = (
     });
 };
 
+const toRuleEntriesFromIndexedFallback = (
+  rawRules: RuleOptionValue
+): BlockRule[] => {
+  const lengthFallbackRuleEntries = toRuleEntriesFromLengthFallback(rawRules);
+  const hasNonNoneLengthFallbackRule = lengthFallbackRuleEntries.some((entry) => {
+    return entry.rule.type !== "none";
+  });
+  if (lengthFallbackRuleEntries.length >= MAX_RULE_ENTRY_FALLBACK_SCAN) {
+    return toRuleEntriesFromIndexedEntries(lengthFallbackRuleEntries);
+  }
+
+  const keyFallbackRuleEntries = toRuleEntriesFromKeyFallback(rawRules);
+  if (keyFallbackRuleEntries.length > 0) {
+    if (hasNonNoneLengthFallbackRule) {
+      const mergedRuleEntries = mergeIndexedRuleEntries(
+        lengthFallbackRuleEntries,
+        keyFallbackRuleEntries
+      );
+      return toRuleEntriesFromIndexedEntries(mergedRuleEntries);
+    }
+
+    return toRuleEntriesFromIndexedEntries(keyFallbackRuleEntries);
+  }
+
+  return toRuleEntriesFromIndexedEntries(lengthFallbackRuleEntries);
+};
+
 const toRuleEntriesOrEmpty = (
   rule: Extract<BlockRule, { type: "combination" }>
 ): BlockRule[] => {
@@ -467,32 +494,20 @@ const toRuleEntriesOrEmpty = (
   }
 
   try {
-    return Array.from(rawRules).map((entry) => {
+    const iteratorRuleEntries = Array.from(rawRules).map((entry) => {
       return toRuleEntryOrNone(entry as RuleOptionValue);
     });
-  } catch {
-    const lengthFallbackRuleEntries = toRuleEntriesFromLengthFallback(rawRules);
-    const hasNonNoneLengthFallbackRule = lengthFallbackRuleEntries.some((entry) => {
-      return entry.rule.type !== "none";
-    });
-    if (lengthFallbackRuleEntries.length >= MAX_RULE_ENTRY_FALLBACK_SCAN) {
-      return toRuleEntriesFromIndexedEntries(lengthFallbackRuleEntries);
-    }
-
-    const keyFallbackRuleEntries = toRuleEntriesFromKeyFallback(rawRules);
-    if (keyFallbackRuleEntries.length > 0) {
-      if (hasNonNoneLengthFallbackRule) {
-        const mergedRuleEntries = mergeIndexedRuleEntries(
-          lengthFallbackRuleEntries,
-          keyFallbackRuleEntries
-        );
-        return toRuleEntriesFromIndexedEntries(mergedRuleEntries);
+    if (iteratorRuleEntries.length === 0) {
+      const indexedFallbackRuleEntries =
+        toRuleEntriesFromIndexedFallback(rawRules);
+      if (indexedFallbackRuleEntries.length > 0) {
+        return indexedFallbackRuleEntries;
       }
-
-      return toRuleEntriesFromIndexedEntries(keyFallbackRuleEntries);
     }
 
-    return toRuleEntriesFromIndexedEntries(lengthFallbackRuleEntries);
+    return iteratorRuleEntries;
+  } catch {
+    return toRuleEntriesFromIndexedFallback(rawRules);
   }
 };
 

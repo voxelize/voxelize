@@ -518,7 +518,18 @@ const cloneArrayEntriesSafely = (value: DynamicValue): DynamicValue[] | null => 
   }
 
   try {
-    return Array.from(value);
+    const iteratorEntries = Array.from(value);
+    if (iteratorEntries.length === 0) {
+      const indexedFallbackEntries = cloneArrayFromIndexedAccess(value);
+      if (indexedFallbackEntries === null) {
+        return null;
+      }
+      if (indexedFallbackEntries.length > 0) {
+        return indexedFallbackEntries;
+      }
+    }
+
+    return iteratorEntries;
   } catch {
     return cloneArrayFromIndexedAccess(value);
   }
