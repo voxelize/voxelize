@@ -1440,17 +1440,22 @@ const toTrustedOptionArgsOverrideOrNull = (optionArgsOverride) => {
   const clonedOptionArgs = cloneIndexedArraySafelyWithMetadata(optionArgsOverride);
   if (
     clonedOptionArgs === null ||
-    clonedOptionArgs.fromIndexedFallback ||
-    clonedOptionArgs.entries.some((entry) => {
-      return typeof entry.value !== "string";
-    })
+    clonedOptionArgs.fromIndexedFallback
   ) {
     return null;
   }
 
-  return clonedOptionArgs.entries.map((entry) => {
-    return entry.value;
-  });
+  const normalizedOptionArgs = [];
+  for (const entry of clonedOptionArgs.entries) {
+    const normalizedOptionArg = toStringEntryValueOrNull(entry.value);
+    if (normalizedOptionArg === null) {
+      return null;
+    }
+
+    normalizedOptionArgs.push(normalizedOptionArg);
+  }
+
+  return normalizedOptionArgs;
 };
 
 const resolveSupportedCliOptionsForValidation = (

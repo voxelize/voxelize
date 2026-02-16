@@ -4434,6 +4434,37 @@ describe("report-utils", () => {
       }
     );
     expect(unknownWithMixedArrayOptionArgsOverride).toEqual(["--mystery"]);
+    const crossRealmWrappedOptionArg = vm.runInNewContext("new String('--json')");
+    let didCallCrossRealmWrappedOptionArgToString = false;
+    Object.defineProperty(crossRealmWrappedOptionArg, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedOptionArgToString = true;
+        throw new Error("cross-realm wrapped option arg toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedOptionArgValueOf = false;
+    Object.defineProperty(crossRealmWrappedOptionArg, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedOptionArgValueOf = true;
+        throw new Error("cross-realm wrapped option arg valueOf trap");
+      },
+    });
+    const unknownWithCrossRealmWrappedOptionArgsOverride = parseUnknownCliOptions(
+      ["--mystery"],
+      {
+        canonicalOptions: ["--json"],
+        optionArgs: [crossRealmWrappedOptionArg as never] as never,
+      }
+    );
+    expect(unknownWithCrossRealmWrappedOptionArgsOverride).toEqual([]);
+    expect(didCallCrossRealmWrappedOptionArgToString).toBe(false);
+    expect(didCallCrossRealmWrappedOptionArgValueOf).toBe(false);
     const unknownWithSparseHoleOptionArgsOverride = parseUnknownCliOptions(
       ["--mystery"],
       {
@@ -13385,6 +13416,161 @@ describe("report-utils", () => {
     expect(
       diagnosticsFromOwnKeysLengthReadableAndReadTrapOptionArgsOverride.activeCliOptionOccurrenceCount
     ).toBe(1);
+    const crossRealmWrappedDiagnosticsOptionArg = vm.runInNewContext(
+      "new String('--output')"
+    );
+    let didCallCrossRealmWrappedDiagnosticsOptionArgToString = false;
+    Object.defineProperty(
+      crossRealmWrappedDiagnosticsOptionArg,
+      "toString",
+      {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value() {
+          didCallCrossRealmWrappedDiagnosticsOptionArgToString = true;
+          throw new Error(
+            "cross-realm wrapped diagnostics option arg toString trap"
+          );
+        },
+      }
+    );
+    let didCallCrossRealmWrappedDiagnosticsOptionArgValueOf = false;
+    Object.defineProperty(
+      crossRealmWrappedDiagnosticsOptionArg,
+      "valueOf",
+      {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value() {
+          didCallCrossRealmWrappedDiagnosticsOptionArgValueOf = true;
+          throw new Error(
+            "cross-realm wrapped diagnostics option arg valueOf trap"
+          );
+        },
+      }
+    );
+    const diagnosticsFromCrossRealmWrappedArgs = createCliDiagnostics(
+      [crossRealmWrappedDiagnosticsOptionArg as never, "--mystery"],
+      {
+        canonicalOptions: ["--json", "--output"],
+      }
+    );
+    expect(
+      diagnosticsFromCrossRealmWrappedArgs.supportedCliOptions
+    ).toEqual(["--json", "--output"]);
+    expect(
+      diagnosticsFromCrossRealmWrappedArgs.supportedCliOptionCount
+    ).toBe(2);
+    expect(diagnosticsFromCrossRealmWrappedArgs.unknownOptions).toEqual(
+      ["--mystery"]
+    );
+    expect(
+      diagnosticsFromCrossRealmWrappedArgs.unknownOptionCount
+    ).toBe(1);
+    expect(
+      diagnosticsFromCrossRealmWrappedArgs.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
+    expect(
+      diagnosticsFromCrossRealmWrappedArgs.validationErrorCode
+    ).toBe("unsupported_options");
+    expect(
+      diagnosticsFromCrossRealmWrappedArgs.activeCliOptions
+    ).toEqual(["--output"]);
+    expect(
+      diagnosticsFromCrossRealmWrappedArgs.activeCliOptionCount
+    ).toBe(1);
+    expect(
+      diagnosticsFromCrossRealmWrappedArgs.activeCliOptionTokens
+    ).toEqual(["--output"]);
+    expect(
+      diagnosticsFromCrossRealmWrappedArgs.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(
+      diagnosticsFromCrossRealmWrappedArgs.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      diagnosticsFromCrossRealmWrappedArgs.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+    ]);
+    expect(
+      diagnosticsFromCrossRealmWrappedArgs.activeCliOptionOccurrenceCount
+    ).toBe(1);
+    expect(didCallCrossRealmWrappedDiagnosticsOptionArgToString).toBe(false);
+    expect(didCallCrossRealmWrappedDiagnosticsOptionArgValueOf).toBe(false);
+    const diagnosticsFromCrossRealmWrappedOptionArgsOverride =
+      createCliDiagnostics(["--json", "--mystery"], {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        optionArgs: [crossRealmWrappedDiagnosticsOptionArg as never] as never,
+      });
+    expect(
+      diagnosticsFromCrossRealmWrappedOptionArgsOverride.supportedCliOptions
+    ).toEqual(["--json", "--output"]);
+    expect(
+      diagnosticsFromCrossRealmWrappedOptionArgsOverride.supportedCliOptionCount
+    ).toBe(2);
+    expect(diagnosticsFromCrossRealmWrappedOptionArgsOverride.unknownOptions).toEqual(
+      ["--mystery"]
+    );
+    expect(
+      diagnosticsFromCrossRealmWrappedOptionArgsOverride.unknownOptionCount
+    ).toBe(1);
+    expect(
+      diagnosticsFromCrossRealmWrappedOptionArgsOverride.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
+    expect(
+      diagnosticsFromCrossRealmWrappedOptionArgsOverride.validationErrorCode
+    ).toBe("unsupported_options");
+    expect(
+      diagnosticsFromCrossRealmWrappedOptionArgsOverride.activeCliOptions
+    ).toEqual(["--json"]);
+    expect(
+      diagnosticsFromCrossRealmWrappedOptionArgsOverride.activeCliOptionCount
+    ).toBe(1);
+    expect(
+      diagnosticsFromCrossRealmWrappedOptionArgsOverride.activeCliOptionTokens
+    ).toEqual(["--json"]);
+    expect(
+      diagnosticsFromCrossRealmWrappedOptionArgsOverride.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(
+      diagnosticsFromCrossRealmWrappedOptionArgsOverride.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      diagnosticsFromCrossRealmWrappedOptionArgsOverride.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+    ]);
+    expect(
+      diagnosticsFromCrossRealmWrappedOptionArgsOverride.activeCliOptionOccurrenceCount
+    ).toBe(1);
+    expect(didCallCrossRealmWrappedDiagnosticsOptionArgToString).toBe(false);
+    expect(didCallCrossRealmWrappedDiagnosticsOptionArgValueOf).toBe(false);
     const diagnosticsFromOwnKeysLengthReadableAndReadTrapValueMetadataOverride =
       createCliDiagnostics(["--only", "-x"], {
         canonicalOptions: ["--output", "--only"],
@@ -19493,6 +19679,68 @@ describe("report-utils", () => {
     expect(
       activeMetadataWithMixedArrayOptionArgsOverride.activeCliOptionOccurrenceCount
     ).toBe(1);
+    const crossRealmWrappedActiveOptionArg = vm.runInNewContext(
+      "new String('--output')"
+    );
+    let didCallCrossRealmWrappedActiveOptionArgToString = false;
+    Object.defineProperty(crossRealmWrappedActiveOptionArg, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedActiveOptionArgToString = true;
+        throw new Error("cross-realm wrapped active option arg toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedActiveOptionArgValueOf = false;
+    Object.defineProperty(crossRealmWrappedActiveOptionArg, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedActiveOptionArgValueOf = true;
+        throw new Error("cross-realm wrapped active option arg valueOf trap");
+      },
+    });
+    const activeMetadataWithCrossRealmWrappedOptionArgsOverride =
+      parseActiveCliOptionMetadata(["--json"], {
+        canonicalOptions: ["--json", "--output"],
+        optionArgs: [crossRealmWrappedActiveOptionArg as never] as never,
+      });
+    expect(
+      activeMetadataWithCrossRealmWrappedOptionArgsOverride.activeCliOptions
+    ).toEqual(["--output"]);
+    expect(
+      activeMetadataWithCrossRealmWrappedOptionArgsOverride.activeCliOptionCount
+    ).toBe(1);
+    expect(
+      activeMetadataWithCrossRealmWrappedOptionArgsOverride.activeCliOptionTokens
+    ).toEqual(["--output"]);
+    expect(
+      activeMetadataWithCrossRealmWrappedOptionArgsOverride.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(
+      activeMetadataWithCrossRealmWrappedOptionArgsOverride.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      activeMetadataWithCrossRealmWrappedOptionArgsOverride.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+    ]);
+    expect(
+      activeMetadataWithCrossRealmWrappedOptionArgsOverride.activeCliOptionOccurrenceCount
+    ).toBe(1);
+    expect(didCallCrossRealmWrappedActiveOptionArgToString).toBe(false);
+    expect(didCallCrossRealmWrappedActiveOptionArgValueOf).toBe(false);
     const activeMetadataWithSparseHoleOptionArgsOverride =
       parseActiveCliOptionMetadata(["--json"], {
         canonicalOptions: ["--json", "--output"],
