@@ -1129,7 +1129,7 @@ export const extractWasmPackCheckSummaryFromReport = (report) => {
 };
 
 export const createPrefixedWasmPackCheckSummary = (report, prefix = "") => {
-  const keyPrefix = typeof prefix === "string" ? prefix : "";
+  const keyPrefix = toTrimmedStringOrNull(prefix) ?? "";
   const createKey = (suffix) => {
     if (keyPrefix.length === 0) {
       return `wasmPackCheck${suffix}`;
@@ -1261,7 +1261,7 @@ export const extractTsCoreExampleSummaryFromReport = (report) => {
 };
 
 export const createPrefixedTsCoreExampleSummary = (report, prefix = "") => {
-  const keyPrefix = typeof prefix === "string" ? prefix : "";
+  const keyPrefix = toTrimmedStringOrNull(prefix) ?? "";
   const createKey = (suffix) => {
     if (keyPrefix.length === 0) {
       return `example${suffix}`;

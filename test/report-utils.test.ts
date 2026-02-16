@@ -28411,6 +28411,49 @@ describe("report-utils", () => {
       wasmPackCheckExitCode: null,
       wasmPackCheckOutputLine: null,
     });
+    expect(
+      createPrefixedWasmPackCheckSummary(
+        {
+          wasmPackCheckStatus: "ok",
+        },
+        "   "
+      )
+    ).toEqual({
+      wasmPackCheckStatus: "ok",
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: null,
+      wasmPackCheckArgCount: null,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
+    const trappedWasmPrefix = {
+      [Symbol.toPrimitive]() {
+        throw new Error("prefix trap");
+      },
+    };
+    expect(() =>
+      createPrefixedWasmPackCheckSummary(
+        {
+          wasmPackCheckStatus: "ok",
+        },
+        trappedWasmPrefix as never
+      )
+    ).not.toThrow();
+    expect(
+      createPrefixedWasmPackCheckSummary(
+        {
+          wasmPackCheckStatus: "ok",
+        },
+        trappedWasmPrefix as never
+      )
+    ).toEqual({
+      wasmPackCheckStatus: "ok",
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: null,
+      wasmPackCheckArgCount: null,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
   });
 
   it("normalizes ts-core payload issue lists", () => {
@@ -30217,6 +30260,61 @@ describe("report-utils", () => {
       exampleArgCount: null,
       exampleAttempted: null,
       exampleStatus: null,
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: null,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    expect(
+      createPrefixedTsCoreExampleSummary(
+        {
+          exampleStatus: "ok",
+        },
+        "   "
+      )
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: null,
+      exampleArgCount: null,
+      exampleAttempted: null,
+      exampleStatus: "ok",
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: null,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    const trappedExamplePrefix = {
+      [Symbol.toPrimitive]() {
+        throw new Error("prefix trap");
+      },
+    };
+    expect(() =>
+      createPrefixedTsCoreExampleSummary(
+        {
+          exampleStatus: "ok",
+        },
+        trappedExamplePrefix as never
+      )
+    ).not.toThrow();
+    expect(
+      createPrefixedTsCoreExampleSummary(
+        {
+          exampleStatus: "ok",
+        },
+        trappedExamplePrefix as never
+      )
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: null,
+      exampleArgCount: null,
+      exampleAttempted: null,
+      exampleStatus: "ok",
       exampleRuleMatched: null,
       examplePayloadValid: null,
       examplePayloadIssues: null,
