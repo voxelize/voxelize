@@ -238,9 +238,10 @@ impl Registry {
             let Some(block) = self.blocks_by_id.get(block_id) else {
                 continue;
             };
-            let block_by_name = self.blocks_by_name.get_mut(block_name).unwrap();
-            block_by_name.faces = block.faces.clone();
-            block_by_name.dynamic_patterns = block.dynamic_patterns.clone();
+            if let Some(block_by_name) = self.blocks_by_name.get_mut(block_name) {
+                block_by_name.faces = block.faces.clone();
+                block_by_name.dynamic_patterns = block.dynamic_patterns.clone();
+            }
         }
     }
 
