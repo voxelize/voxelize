@@ -492,15 +492,18 @@ impl Pipeline {
         if self.receiver.is_empty() {
             return Vec::new();
         }
-        let mut results = Vec::with_capacity(self.receiver.len().min(self.chunks.len()));
+        let initial_capacity = self.receiver.len().min(self.chunks.len());
+        let mut results = None;
 
         while let Ok(result) = self.receiver.try_recv() {
             if self.chunks.remove(&result.0.coords) {
-                results.push(result);
+                results
+                    .get_or_insert_with(|| Vec::with_capacity(initial_capacity))
+                    .push(result);
             }
         }
 
-        results
+        results.unwrap_or_default()
     }
 
     /// Merge consecutive chunk stages that don't require spaces together into meta stages.

@@ -418,15 +418,18 @@ impl Mesher {
         if self.receiver.is_empty() {
             return Vec::new();
         }
-        let mut results = Vec::with_capacity(self.receiver.len().min(self.map.len()));
+        let initial_capacity = self.receiver.len().min(self.map.len());
+        let mut results = None;
 
         while let Ok(result) = self.receiver.try_recv() {
             if self.map.remove(&result.0.coords) {
-                results.push(result);
+                results
+                    .get_or_insert_with(|| Vec::with_capacity(initial_capacity))
+                    .push(result);
             }
         }
 
-        results
+        results.unwrap_or_default()
     }
 }
 
