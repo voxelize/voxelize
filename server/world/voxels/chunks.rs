@@ -230,7 +230,7 @@ impl Chunks {
 
     pub fn save(&self, coords: &Vec2<i32>) -> bool {
         if !self.config.saving {
-            panic!("Calling `chunks.save` when saving mode is not on.");
+            return false;
         }
 
         let chunk = if let Some(chunk) = self.get(coords) {
