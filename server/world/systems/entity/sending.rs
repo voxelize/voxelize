@@ -637,7 +637,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             if updates.is_empty() {
                 continue;
             }
-            let next_update_capacity = updates.len();
+            let next_update_capacity = updates.capacity();
             let updates_to_send = std::mem::replace(updates, Vec::with_capacity(next_update_capacity));
             queue.push((
                 Message::new(&MessageType::Entity)

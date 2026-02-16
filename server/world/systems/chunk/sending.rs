@@ -65,7 +65,7 @@ fn flush_chunk_batches_in_place(
         if chunk_models.is_empty() {
             continue;
         }
-        let next_chunk_capacity = chunk_models.len();
+        let next_chunk_capacity = chunk_models.capacity();
         let chunk_models_to_send =
             std::mem::replace(chunk_models, Vec::with_capacity(next_chunk_capacity));
         queue.push((
@@ -177,7 +177,7 @@ fn flush_chunk_batches_touched(
         if chunk_models.is_empty() {
             continue;
         }
-        let next_chunk_capacity = chunk_models.len();
+        let next_chunk_capacity = chunk_models.capacity();
         let chunk_models_to_send =
             std::mem::replace(chunk_models, Vec::with_capacity(next_chunk_capacity));
         let message = Message::new(message_type)
