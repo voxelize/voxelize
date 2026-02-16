@@ -724,17 +724,41 @@ impl Chunks {
     }
 
     pub fn update_voxels(&mut self, voxels: &[(Vec3<i32>, u32)]) {
-        if voxels.is_empty() {
-            return;
-        }
-        if voxels.len() == 1 {
-            let (voxel, val) = voxels[0];
-            self.updates_staging.insert(voxel, val);
-            return;
-        }
-        self.updates_staging.reserve(voxels.len());
-        for (voxel, val) in voxels {
-            self.updates_staging.insert(*voxel, *val);
+        match voxels {
+            [] => {}
+            [(first_voxel, first_val)] => {
+                self.updates_staging.insert(*first_voxel, *first_val);
+            }
+            [(first_voxel, first_val), (second_voxel, second_val)] => {
+                self.updates_staging.insert(*first_voxel, *first_val);
+                self.updates_staging.insert(*second_voxel, *second_val);
+            }
+            [
+                (first_voxel, first_val),
+                (second_voxel, second_val),
+                (third_voxel, third_val),
+            ] => {
+                self.updates_staging.insert(*first_voxel, *first_val);
+                self.updates_staging.insert(*second_voxel, *second_val);
+                self.updates_staging.insert(*third_voxel, *third_val);
+            }
+            [
+                (first_voxel, first_val),
+                (second_voxel, second_val),
+                (third_voxel, third_val),
+                (fourth_voxel, fourth_val),
+            ] => {
+                self.updates_staging.insert(*first_voxel, *first_val);
+                self.updates_staging.insert(*second_voxel, *second_val);
+                self.updates_staging.insert(*third_voxel, *third_val);
+                self.updates_staging.insert(*fourth_voxel, *fourth_val);
+            }
+            _ => {
+                self.updates_staging.reserve(voxels.len());
+                for (voxel, val) in voxels {
+                    self.updates_staging.insert(*voxel, *val);
+                }
+            }
         }
     }
 
@@ -1268,6 +1292,37 @@ mod tests {
         assert_eq!(merged_updates.get(&second_voxel), Some(&22));
         assert_eq!(merged_updates.get(&third_voxel), Some(&33));
         assert_eq!(merged_updates.get(&fourth_voxel), Some(&44));
+    }
+
+    #[test]
+    fn update_voxels_handles_four_entry_batches() {
+        let config = WorldConfig::new().build();
+        let mut chunks = Chunks::new(&config);
+        let updates = [
+            (Vec3(1, 2, 3), 11),
+            (Vec3(4, 5, 6), 22),
+            (Vec3(7, 8, 9), 33),
+            (Vec3(10, 11, 12), 44),
+        ];
+
+        chunks.update_voxels(&updates);
+
+        assert_eq!(chunks.updates_staging.len(), 4);
+        for (voxel, value) in updates {
+            assert_eq!(chunks.updates_staging.get(&voxel), Some(&value));
+        }
+    }
+
+    #[test]
+    fn update_voxels_keeps_latest_value_for_duplicate_entries() {
+        let config = WorldConfig::new().build();
+        let mut chunks = Chunks::new(&config);
+        let voxel = Vec3(3, 3, 3);
+
+        chunks.update_voxels(&[(voxel, 1), (voxel, 2)]);
+
+        assert_eq!(chunks.updates_staging.len(), 1);
+        assert_eq!(chunks.updates_staging.get(&voxel), Some(&2));
     }
 
     #[test]
