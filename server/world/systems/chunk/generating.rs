@@ -440,6 +440,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
         let ready_chunk_initial_capacity = mesher.queue.len().min(64);
         let mut ready_chunks = None;
+        let has_leftovers = !pipeline.leftovers.is_empty();
 
         while let Some(coords) = mesher.get() {
             let mut ready = true;
@@ -458,19 +459,21 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                             break 'neighbors;
                         }
 
-                        if let Some(blocks) = pipeline.leftovers.get(&n_coords) {
-                            for (voxel, val) in blocks.iter() {
-                                let Vec3(vx, vy, vz) = *voxel;
-                                if chunks.set_raw_voxel(vx, vy, vz, *val) {
-                                    let id = BlockUtils::extract_id(*val);
-                                    update_chunk_column_height_for_voxel_update(
-                                        &mut chunks,
-                                        &registry,
-                                        vx,
-                                        vy,
-                                        vz,
-                                        id,
-                                    );
+                        if has_leftovers {
+                            if let Some(blocks) = pipeline.leftovers.get(&n_coords) {
+                                for (voxel, val) in blocks.iter() {
+                                    let Vec3(vx, vy, vz) = *voxel;
+                                    if chunks.set_raw_voxel(vx, vy, vz, *val) {
+                                        let id = BlockUtils::extract_id(*val);
+                                        update_chunk_column_height_for_voxel_update(
+                                            &mut chunks,
+                                            &registry,
+                                            vx,
+                                            vy,
+                                            vz,
+                                            id,
+                                        );
+                                    }
                                 }
                             }
                         }
