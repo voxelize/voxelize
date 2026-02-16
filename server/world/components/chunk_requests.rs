@@ -95,6 +95,24 @@ impl ChunkRequestsComp {
                 }
                 return;
             }
+            6 => {
+                let first = self.requests[0];
+                let second = self.requests[1];
+                let third = self.requests[2];
+                let fourth = self.requests[3];
+                let fifth = self.requests[4];
+                let sixth = self.requests[5];
+                if *coords != first
+                    && *coords != second
+                    && *coords != third
+                    && *coords != fourth
+                    && *coords != fifth
+                    && *coords != sixth
+                {
+                    self.requests.push(*coords);
+                }
+                return;
+            }
             _ => {}
         }
         let last_request_index = self.requests.len() - 1;
@@ -157,6 +175,24 @@ impl ChunkRequestsComp {
             }
             if self.requests[3] == *coords {
                 self.requests.remove(3);
+            }
+            return;
+        }
+        if self.requests.len() == 6 {
+            if self.requests[1] == *coords {
+                self.requests.remove(1);
+                return;
+            }
+            if self.requests[2] == *coords {
+                self.requests.remove(2);
+                return;
+            }
+            if self.requests[3] == *coords {
+                self.requests.remove(3);
+                return;
+            }
+            if self.requests[4] == *coords {
+                self.requests.remove(4);
             }
             return;
         }
