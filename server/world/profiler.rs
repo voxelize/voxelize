@@ -47,7 +47,7 @@ impl Profiler {
     }
 
     pub fn summarize(&mut self) {
-        let mut printed = HashSet::new();
+        let mut printed = HashSet::with_capacity(self.times.len());
         let threshold_secs = self.threshold.as_secs_f32();
 
         for hierarchy in self.hierarchy_records.iter() {
