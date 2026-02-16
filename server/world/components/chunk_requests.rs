@@ -221,6 +221,37 @@ impl ChunkRequestsComp {
                 }
                 return;
             }
+            4 => {
+                let mut first_distance =
+                    manhattan_distance(&self.requests[0], &self.center);
+                let mut second_distance =
+                    manhattan_distance(&self.requests[1], &self.center);
+                let mut third_distance =
+                    manhattan_distance(&self.requests[2], &self.center);
+                let mut fourth_distance =
+                    manhattan_distance(&self.requests[3], &self.center);
+
+                if first_distance > second_distance {
+                    self.requests.swap(0, 1);
+                    std::mem::swap(&mut first_distance, &mut second_distance);
+                }
+                if third_distance > fourth_distance {
+                    self.requests.swap(2, 3);
+                    std::mem::swap(&mut third_distance, &mut fourth_distance);
+                }
+                if first_distance > third_distance {
+                    self.requests.swap(0, 2);
+                    std::mem::swap(&mut first_distance, &mut third_distance);
+                }
+                if second_distance > fourth_distance {
+                    self.requests.swap(1, 3);
+                    std::mem::swap(&mut second_distance, &mut fourth_distance);
+                }
+                if second_distance > third_distance {
+                    self.requests.swap(1, 2);
+                }
+                return;
+            }
             _ => {}
         }
         self.requests
@@ -430,6 +461,20 @@ mod tests {
         assert_eq!(
             requests.requests,
             vec![Vec2(1, 0), Vec2(2, 0), Vec2(3, 0)]
+        );
+    }
+
+    #[test]
+    fn sort_orders_four_requests_without_generic_sort() {
+        let mut requests = ChunkRequestsComp::new();
+        requests.center = Vec2(0, 0);
+        requests.requests = vec![Vec2(4, 0), Vec2(2, 0), Vec2(1, 0), Vec2(3, 0)];
+
+        requests.sort();
+
+        assert_eq!(
+            requests.requests,
+            vec![Vec2(1, 0), Vec2(2, 0), Vec2(3, 0), Vec2(4, 0)]
         );
     }
 
