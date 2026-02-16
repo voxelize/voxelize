@@ -244,6 +244,7 @@ impl ChunkInterests {
             let Some(coords) = self.map.keys().next().copied() else {
                 return;
             };
+            let has_weights = !self.weights.is_empty();
             let mut should_remove_coords = false;
             if let Some(clients) = self.map.get_mut(&coords) {
                 clients.remove(client_id);
@@ -251,7 +252,9 @@ impl ChunkInterests {
             }
             if should_remove_coords {
                 self.map.remove(&coords);
-                self.weights.remove(&coords);
+                if has_weights {
+                    self.weights.remove(&coords);
+                }
             }
             return;
         }
@@ -263,6 +266,7 @@ impl ChunkInterests {
             let Some(second_coords) = coords_iter.next() else {
                 return;
             };
+            let has_weights = !self.weights.is_empty();
 
             let mut should_remove_first = false;
             if let Some(clients) = self.map.get_mut(&first_coords) {
@@ -276,11 +280,15 @@ impl ChunkInterests {
             }
             if should_remove_first {
                 self.map.remove(&first_coords);
-                self.weights.remove(&first_coords);
+                if has_weights {
+                    self.weights.remove(&first_coords);
+                }
             }
             if should_remove_second {
                 self.map.remove(&second_coords);
-                self.weights.remove(&second_coords);
+                if has_weights {
+                    self.weights.remove(&second_coords);
+                }
             }
             return;
         }
