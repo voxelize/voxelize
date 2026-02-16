@@ -215,6 +215,44 @@ pub struct MethodProtocol {
 }
 
 #[inline]
+fn map_peer_protocol(peer: PeerProtocol) -> protocols::Peer {
+    protocols::Peer {
+        id: peer.id,
+        username: peer.username,
+        metadata: peer.metadata,
+    }
+}
+
+#[inline]
+fn map_entity_protocol(entity: EntityProtocol) -> protocols::Entity {
+    protocols::Entity {
+        operation: entity.operation as i32,
+        id: entity.id,
+        r#type: entity.r#type,
+        metadata: entity.metadata.unwrap_or_default(),
+    }
+}
+
+#[inline]
+fn map_event_protocol(event: EventProtocol) -> protocols::Event {
+    protocols::Event {
+        name: event.name,
+        payload: event.payload,
+    }
+}
+
+#[inline]
+fn map_update_protocol(update: UpdateProtocol) -> protocols::Update {
+    protocols::Update {
+        vx: update.vx,
+        vy: update.vy,
+        vz: update.vz,
+        light: update.light,
+        voxel: update.voxel,
+    }
+}
+
+#[inline]
 fn map_geometry_protocol(geo: GeometryProtocol) -> protocols::Geometry {
     protocols::Geometry {
         voxel: geo.voxel,
@@ -544,90 +582,108 @@ impl MessageBuilder {
         message.world_name = self.world_name.unwrap_or_default();
 
         if let Some(peer) = self.single_peer {
-            message.peers = vec![protocols::Peer {
-                id: peer.id,
-                username: peer.username,
-                metadata: peer.metadata,
-            }];
+            message.peers = vec![map_peer_protocol(peer)];
         } else if let Some(peers) = self.peers {
-            let mut mapped = Vec::with_capacity(peers.len());
-            for peer in peers {
-                mapped.push(protocols::Peer {
-                    id: peer.id,
-                    username: peer.username,
-                    metadata: peer.metadata,
-                });
+            if peers.len() == 1 {
+                let mut peers = peers;
+                let single_peer = {
+                    let Some(peer) = peers.pop() else {
+                        unreachable!("single peer list length matched branch");
+                    };
+                    peer
+                };
+                message.peers = vec![map_peer_protocol(single_peer)];
+            } else {
+                let mut mapped = Vec::with_capacity(peers.len());
+                for peer in peers {
+                    mapped.push(map_peer_protocol(peer));
+                }
+                message.peers = mapped;
             }
-            message.peers = mapped;
         }
 
         if let Some(entity) = self.single_entity {
-            message.entities = vec![protocols::Entity {
-                operation: entity.operation as i32,
-                id: entity.id,
-                r#type: entity.r#type,
-                metadata: entity.metadata.unwrap_or_default(),
-            }];
+            message.entities = vec![map_entity_protocol(entity)];
         } else if let Some(entities) = self.entities {
-            let mut mapped = Vec::with_capacity(entities.len());
-            for entity in entities {
-                mapped.push(protocols::Entity {
-                    operation: entity.operation as i32,
-                    id: entity.id,
-                    r#type: entity.r#type,
-                    metadata: entity.metadata.unwrap_or_default(),
-                });
+            if entities.len() == 1 {
+                let mut entities = entities;
+                let single_entity = {
+                    let Some(entity) = entities.pop() else {
+                        unreachable!("single entity list length matched branch");
+                    };
+                    entity
+                };
+                message.entities = vec![map_entity_protocol(single_entity)];
+            } else {
+                let mut mapped = Vec::with_capacity(entities.len());
+                for entity in entities {
+                    mapped.push(map_entity_protocol(entity));
+                }
+                message.entities = mapped;
             }
-            message.entities = mapped;
         }
 
         if let Some(event) = self.single_event {
-            message.events = vec![protocols::Event {
-                name: event.name,
-                payload: event.payload,
-            }];
+            message.events = vec![map_event_protocol(event)];
         } else if let Some(events) = self.events {
-            let mut mapped = Vec::with_capacity(events.len());
-            for event in events {
-                mapped.push(protocols::Event {
-                    name: event.name,
-                    // Convert payload from json to struct
-                    payload: event.payload,
-                });
+            if events.len() == 1 {
+                let mut events = events;
+                let single_event = {
+                    let Some(event) = events.pop() else {
+                        unreachable!("single event list length matched branch");
+                    };
+                    event
+                };
+                message.events = vec![map_event_protocol(single_event)];
+            } else {
+                let mut mapped = Vec::with_capacity(events.len());
+                for event in events {
+                    mapped.push(map_event_protocol(event));
+                }
+                message.events = mapped;
             }
-            message.events = mapped;
         }
 
         if let Some(chunk) = self.single_chunk {
             message.chunks = vec![map_chunk_protocol(chunk)];
         } else if let Some(chunks) = self.chunks {
-            let mut mapped_chunks = Vec::with_capacity(chunks.len());
-            for chunk in chunks {
-                mapped_chunks.push(map_chunk_protocol(chunk));
+            if chunks.len() == 1 {
+                let mut chunks = chunks;
+                let single_chunk = {
+                    let Some(chunk) = chunks.pop() else {
+                        unreachable!("single chunk list length matched branch");
+                    };
+                    chunk
+                };
+                message.chunks = vec![map_chunk_protocol(single_chunk)];
+            } else {
+                let mut mapped_chunks = Vec::with_capacity(chunks.len());
+                for chunk in chunks {
+                    mapped_chunks.push(map_chunk_protocol(chunk));
+                }
+                message.chunks = mapped_chunks;
             }
-            message.chunks = mapped_chunks;
         }
 
         if let Some(update) = self.single_update {
-            message.updates = vec![protocols::Update {
-                vx: update.vx,
-                vy: update.vy,
-                vz: update.vz,
-                light: update.light,
-                voxel: update.voxel,
-            }];
+            message.updates = vec![map_update_protocol(update)];
         } else if let Some(updates) = self.updates {
-            let mut mapped = Vec::with_capacity(updates.len());
-            for update in updates {
-                mapped.push(protocols::Update {
-                    vx: update.vx,
-                    vy: update.vy,
-                    vz: update.vz,
-                    light: update.light,
-                    voxel: update.voxel,
-                });
+            if updates.len() == 1 {
+                let mut updates = updates;
+                let single_update = {
+                    let Some(update) = updates.pop() else {
+                        unreachable!("single update list length matched branch");
+                    };
+                    update
+                };
+                message.updates = vec![map_update_protocol(single_update)];
+            } else {
+                let mut mapped = Vec::with_capacity(updates.len());
+                for update in updates {
+                    mapped.push(map_update_protocol(update));
+                }
+                message.updates = mapped;
             }
-            message.updates = mapped;
         }
 
         if let Some(method) = self.method {
