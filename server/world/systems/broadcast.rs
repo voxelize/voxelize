@@ -241,9 +241,8 @@ impl<'a> System<'a> for BroadcastSystem {
             return;
         }
         let pending_messages_count = pending_messages.len();
-        let mut immediate_encoded: Vec<(EncodedMessage, ClientFilter)> =
-            Vec::with_capacity(pending_messages_count);
-        let mut deferred_messages = Vec::with_capacity(pending_messages_count);
+        let mut immediate_encoded: Option<Vec<(EncodedMessage, ClientFilter)>> = None;
+        let mut deferred_messages: Option<Vec<(Message, ClientFilter)>> = None;
         for (mut message, filter) in pending_messages {
             message.world_name.clear();
             message.world_name.push_str(world_name);
@@ -255,31 +254,37 @@ impl<'a> System<'a> for BroadcastSystem {
                     is_rtc_eligible: false,
                     is_transport_eligible: should_send_to_transport(msg_type),
                 };
-                immediate_encoded.push((encoded, filter));
+                immediate_encoded
+                    .get_or_insert_with(|| Vec::with_capacity(pending_messages_count))
+                    .push((encoded, filter));
             } else {
-                deferred_messages.push((message, filter));
+                deferred_messages
+                    .get_or_insert_with(|| Vec::with_capacity(pending_messages_count))
+                    .push((message, filter));
             }
         }
 
-        if !deferred_messages.is_empty() {
+        if let Some(deferred_messages) = deferred_messages {
             let batched_messages = batch_messages(deferred_messages);
             encoded_queue.append(batched_messages);
             encoded_queue.process();
         }
 
         let mut async_messages = encoded_queue.receive();
-        let done_messages = if immediate_encoded.is_empty() {
-            async_messages
-        } else if async_messages.is_empty() {
-            immediate_encoded
-        } else {
-            let mut done_messages = immediate_encoded;
-            let remaining_capacity = done_messages.capacity() - done_messages.len();
-            if remaining_capacity < async_messages.len() {
-                done_messages.reserve(async_messages.len() - remaining_capacity);
+        let done_messages = if let Some(immediate_encoded) = immediate_encoded {
+            if async_messages.is_empty() {
+                immediate_encoded
+            } else {
+                let mut done_messages = immediate_encoded;
+                let remaining_capacity = done_messages.capacity() - done_messages.len();
+                if remaining_capacity < async_messages.len() {
+                    done_messages.reserve(async_messages.len() - remaining_capacity);
+                }
+                done_messages.append(&mut async_messages);
+                done_messages
             }
-            done_messages.append(&mut async_messages);
-            done_messages
+        } else {
+            async_messages
         };
 
         if done_messages.is_empty() {
