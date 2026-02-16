@@ -25,6 +25,13 @@ fn comparable_weight(weight: Option<&f32>) -> f32 {
     }
 }
 
+#[inline]
+fn coords_within_region(center: &Vec2<i32>, coords: &Vec2<i32>) -> bool {
+    let dx = (i64::from(coords.0) - i64::from(center.0)).unsigned_abs();
+    let dz = (i64::from(coords.1) - i64::from(center.1)).unsigned_abs();
+    dx <= 1 && dz <= 1
+}
+
 #[derive(Debug, Default)]
 pub struct ChunkInterests {
     pub map: HashMap<Vec2<i32>, HashSet<String>>,
@@ -78,11 +85,11 @@ impl ChunkInterests {
         if self.map.is_empty() {
             return false;
         }
-        if self.map.len() == 1 {
-            if let Some((coords, _)) = self.map.iter().next() {
-                let dx = (i64::from(coords.0) - i64::from(center.0)).unsigned_abs();
-                let dz = (i64::from(coords.1) - i64::from(center.1)).unsigned_abs();
-                return dx <= 1 && dz <= 1;
+        if self.map.len() <= 2 {
+            for coords in self.map.keys() {
+                if coords_within_region(center, coords) {
+                    return true;
+                }
             }
             return false;
         }
@@ -109,13 +116,30 @@ impl ChunkInterests {
         }
         if self.map.len() == 1 {
             if let Some((coords, interested)) = self.map.iter().next() {
-                let dx = (i64::from(coords.0) - i64::from(center.0)).unsigned_abs();
-                let dz = (i64::from(coords.1) - i64::from(center.1)).unsigned_abs();
-                if dx <= 1 && dz <= 1 {
+                if coords_within_region(center, coords) {
                     return interested.clone();
                 }
             }
             return HashSet::new();
+        }
+        if self.map.len() == 2 {
+            let mut interested_in_region = self
+                .map
+                .iter()
+                .filter(|(coords, _)| coords_within_region(center, coords));
+            let Some((_, first_set)) = interested_in_region.next() else {
+                return HashSet::new();
+            };
+            let Some((_, second_set)) = interested_in_region.next() else {
+                return first_set.clone();
+            };
+            let mut merged = first_set.clone();
+            let remaining_capacity = merged.capacity() - merged.len();
+            if remaining_capacity < second_set.len() {
+                merged.reserve(second_set.len() - remaining_capacity);
+            }
+            merged.extend(second_set.iter().cloned());
+            return merged;
         }
 
         let first_interested = self.map.get(center);
@@ -309,6 +333,16 @@ mod tests {
     }
 
     #[test]
+    fn has_interests_in_region_handles_two_entry_neighbors() {
+        let mut interests = ChunkInterests::new();
+        interests.add("a", &Vec2(10, 10));
+        interests.add("b", &Vec2(14, 14));
+
+        assert!(interests.has_interests_in_region(&Vec2(11, 11)));
+        assert!(!interests.has_interests_in_region(&Vec2(12, 12)));
+    }
+
+    #[test]
     fn get_interested_clients_in_region_skips_overflowing_neighbors() {
         let mut interests = ChunkInterests::new();
         interests.add("center", &Vec2(i32::MAX, i32::MAX));
@@ -330,6 +364,24 @@ mod tests {
 
         let distant_clients = interests.get_interested_clients_in_region(&Vec2(6, -2));
         assert!(distant_clients.is_empty());
+    }
+
+    #[test]
+    fn get_interested_clients_in_region_handles_two_entry_neighbors() {
+        let mut interests = ChunkInterests::new();
+        interests.add("near", &Vec2(3, -2));
+        interests.add("far", &Vec2(8, -2));
+
+        let near_clients = interests.get_interested_clients_in_region(&Vec2(4, -2));
+        assert_eq!(near_clients.len(), 1);
+        assert!(near_clients.contains("near"));
+
+        let far_clients = interests.get_interested_clients_in_region(&Vec2(9, -2));
+        assert_eq!(far_clients.len(), 1);
+        assert!(far_clients.contains("far"));
+
+        let empty_clients = interests.get_interested_clients_in_region(&Vec2(6, -2));
+        assert!(empty_clients.is_empty());
     }
 
     #[test]
