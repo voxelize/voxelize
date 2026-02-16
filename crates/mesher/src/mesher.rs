@@ -637,8 +637,9 @@ fn has_standard_six_faces(block: &Block) -> bool {
         }
     }
     for face in &block.faces {
+        let face_name = lowercase_if_needed(face.get_name_lower());
         if matches!(
-            face.get_name_lower(),
+            face_name.as_ref(),
             "py" | "ny" | "px" | "nx" | "pz" | "nz"
         ) {
             return true;
@@ -683,7 +684,8 @@ fn collect_cardinal_face_ranges(original_faces: &[BlockFace]) -> [UV; 6] {
         let face_index = if let Some(face_index) = cardinal_face_index_from_dir(face.dir) {
             Some(face_index)
         } else {
-            cardinal_face_index(face.get_name_lower())
+            let face_name = lowercase_if_needed(face.get_name_lower());
+            cardinal_face_index(face_name.as_ref())
         };
         if let Some(face_index) = face_index {
             ranges[face_index] = face.range.clone();
@@ -2778,6 +2780,33 @@ mod tests {
         }]);
 
         assert!(has_standard_six_faces(&block));
+    }
+
+    #[test]
+    fn has_standard_six_faces_handles_uppercase_names_without_precompute() {
+        let block = block_with_faces(vec![BlockFace {
+            name: "PZ".to_string(),
+            ..BlockFace::default()
+        }]);
+
+        assert!(has_standard_six_faces(&block));
+    }
+
+    #[test]
+    fn collect_cardinal_face_ranges_handles_uppercase_names_without_precompute() {
+        let py_range = UV {
+            start_u: 0.9,
+            end_u: 1.0,
+            start_v: 0.7,
+            end_v: 0.8,
+        };
+        let ranges = collect_cardinal_face_ranges(&[BlockFace {
+            name: "PY".to_string(),
+            range: py_range.clone(),
+            ..BlockFace::default()
+        }]);
+
+        assert_eq!(ranges[0], py_range);
     }
 
     #[test]
