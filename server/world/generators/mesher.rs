@@ -36,6 +36,12 @@ fn mesh_protocol_level(level: u32) -> i32 {
 }
 
 #[inline]
+fn take_set_with_capacity<T>(buffer: &mut HashSet<T>) -> HashSet<T> {
+    let capacity = buffer.capacity();
+    std::mem::replace(buffer, HashSet::with_capacity(capacity))
+}
+
+#[inline]
 fn find_queue_index(queue: &VecDeque<Vec2<i32>>, coords: &Vec2<i32>) -> Option<usize> {
     match queue.len() {
         0 => None,
@@ -328,8 +334,9 @@ impl Mesher {
             return vec![coords];
         }
 
+        let pending_remesh = take_set_with_capacity(&mut self.pending_remesh);
         let mut drained = Vec::with_capacity(pending_len);
-        drained.extend(self.pending_remesh.drain());
+        drained.extend(pending_remesh);
         drained
     }
 
