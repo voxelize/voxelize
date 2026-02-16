@@ -54,6 +54,10 @@ pub struct Block {
     pub combined_aabb: AABB,
     #[serde(skip, default)]
     pub combined_aabb_computed: bool,
+    #[serde(skip, default)]
+    pub is_all_transparent: bool,
+    #[serde(skip, default)]
+    pub is_all_transparent_computed: bool,
 }
 
 impl Block {
@@ -99,6 +103,8 @@ impl Block {
         self.cardinal_face_ranges_computed = true;
         self.combined_aabb = AABB::union_all(&self.aabbs);
         self.combined_aabb_computed = true;
+        self.is_all_transparent = self.is_transparent.iter().all(|value| *value);
+        self.is_all_transparent_computed = true;
     }
 
     pub fn is_full_cube(&self) -> bool {
@@ -144,6 +150,7 @@ impl Registry {
                 || !block.has_standard_faces_computed
                 || !block.cardinal_face_ranges_computed
                 || !block.combined_aabb_computed
+                || !block.is_all_transparent_computed
             {
                 block.compute_name_lower();
             }
@@ -1032,6 +1039,15 @@ fn get_block_combined_aabb(block: &Block) -> AABB {
     }
 }
 
+#[inline]
+fn is_block_all_transparent(block: &Block) -> bool {
+    if block.is_all_transparent_computed {
+        block.is_all_transparent
+    } else {
+        block.is_transparent.iter().all(|value| *value)
+    }
+}
+
 fn should_render_face<S: VoxelAccess>(
     vx: i32,
     vy: i32,
@@ -1104,12 +1120,7 @@ fn compute_face_ao_and_light(
     neighbors: &NeighborCache,
 ) -> ([i32; 4], [i32; 4]) {
     let is_see_through = block.is_see_through;
-    let is_all_transparent = block.is_transparent[0]
-        && block.is_transparent[1]
-        && block.is_transparent[2]
-        && block.is_transparent[3]
-        && block.is_transparent[4]
-        && block.is_transparent[5];
+    let is_all_transparent = is_block_all_transparent(block);
 
     let corner_positions: [[f32; 3]; 4] = match dir {
         [1, 0, 0] => [
@@ -1715,15 +1726,9 @@ fn process_face<S: VoxelAccess>(
     let is_see_through = block.is_see_through;
     let rotatable = block.rotatable;
     let y_rotatable = block.y_rotatable;
-    let is_transparent = block.is_transparent;
 
     let mut dir = [face.dir[0] as f32, face.dir[1] as f32, face.dir[2] as f32];
-    let is_all_transparent = is_transparent[0]
-        && is_transparent[1]
-        && is_transparent[2]
-        && is_transparent[3]
-        && is_transparent[4]
-        && is_transparent[5];
+    let is_all_transparent = is_block_all_transparent(block);
 
     if (rotatable || y_rotatable) && !world_space {
         rotation.rotate_node(&mut dir, y_rotatable, false);
@@ -2812,6 +2817,8 @@ mod tests {
             cardinal_face_ranges_computed: false,
             combined_aabb: AABB::default(),
             combined_aabb_computed: false,
+            is_all_transparent: false,
+            is_all_transparent_computed: false,
         }
     }
 

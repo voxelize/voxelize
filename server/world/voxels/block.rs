@@ -1725,6 +1725,8 @@ impl Block {
             cardinal_face_ranges_computed: false,
             combined_aabb: voxelize_core::AABB::default(),
             combined_aabb_computed: false,
+            is_all_transparent: false,
+            is_all_transparent_computed: false,
         }
     }
 
