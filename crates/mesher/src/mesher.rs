@@ -1607,6 +1607,7 @@ fn process_face<S: VoxelAccess>(
     rotation: &BlockRotation,
     face: &BlockFace,
     block: &Block,
+    block_aabb: &AABB,
     uv_range: &UV,
     registry: &Registry,
     space: &S,
@@ -1712,8 +1713,6 @@ fn process_face<S: VoxelAccess>(
     let mut four_red_lights = [0u32; 4];
     let mut four_green_lights = [0u32; 4];
     let mut four_blue_lights = [0u32; 4];
-
-    let block_aabb = AABB::union_all(&block.aabbs);
 
     let is_diagonal = dir == [0, 0, 0];
     let has_diagonals = is_see_through && has_diagonal_faces(block);
@@ -2321,6 +2320,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     g
                 });
 
+                let block_aabb = AABB::union_all(&block.aabbs);
                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
                 process_face(
                     vx,
@@ -2330,6 +2330,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     &rotation,
                     &face,
                     &block,
+                    &block_aabb,
                     &uv_range,
                     registry,
                     space,
@@ -2414,6 +2415,7 @@ pub fn mesh_space<S: VoxelAccess>(
                     };
 
                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                let block_aabb = AABB::union_all(&block.aabbs);
 
                 for (face, world_space) in faces.iter() {
                     let key = if face.isolated {
@@ -2450,6 +2452,7 @@ pub fn mesh_space<S: VoxelAccess>(
                         &rotation,
                         face,
                         block,
+                        &block_aabb,
                         &face.range,
                         registry,
                         space,
