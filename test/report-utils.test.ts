@@ -4987,6 +4987,56 @@ describe("report-utils", () => {
       "unsupported_options"
     );
     expect(optionCatalogOverrideWithKnownSubsetCanonicalReadCount).toBe(0);
+    let optionCatalogOverrideWithKnownAliasSubsetCanonicalReadCount = 0;
+    const optionCatalogOverrideWithKnownAliasSubsetCanonicalOptions = new Proxy(
+      ["--json"],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (property === "0") {
+            optionCatalogOverrideWithKnownAliasSubsetCanonicalReadCount += 1;
+            return "--json";
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const optionCatalogOverrideWithKnownAliasSubsetValidation =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions:
+          optionCatalogOverrideWithKnownAliasSubsetCanonicalOptions as never,
+        supportedCliOptions: ["-j"],
+        optionCatalog: {
+          availableCliOptionCanonicalMap: {
+            "--json": "--json",
+            "-j": "--json",
+          },
+        } as never,
+      });
+    expect(optionCatalogOverrideWithKnownAliasSubsetValidation.supportedCliOptions).toEqual(
+      ["-j"]
+    );
+    expect(
+      optionCatalogOverrideWithKnownAliasSubsetValidation.supportedCliOptionCount
+    ).toBe(1);
+    expect(optionCatalogOverrideWithKnownAliasSubsetValidation.unknownOptions).toEqual(
+      ["--mystery"]
+    );
+    expect(
+      optionCatalogOverrideWithKnownAliasSubsetValidation.unknownOptionCount
+    ).toBe(1);
+    expect(
+      optionCatalogOverrideWithKnownAliasSubsetValidation.unsupportedOptionsError
+    ).toBe("Unsupported option(s): --mystery. Supported options: -j.");
+    expect(
+      optionCatalogOverrideWithKnownAliasSubsetValidation.validationErrorCode
+    ).toBe("unsupported_options");
+    expect(optionCatalogOverrideWithKnownAliasSubsetCanonicalReadCount).toBe(0);
     let optionCatalogOverrideWithUnavailablePrecomputedCanonicalReadCount = 0;
     const optionCatalogOverrideWithUnavailablePrecomputedCanonicalOptions =
       new Proxy(["--json"], {
