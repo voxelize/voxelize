@@ -6167,6 +6167,76 @@ describe("report-utils", () => {
     expect(
       emptyIteratorLengthZeroAndIndexedPrecomputedWithoutCatalogValidation.validationErrorCode
     ).toBe("unsupported_options");
+    const ownKeysTrappedEmptyIteratorPrecomputedSupportedTokens = new Proxy(
+      ["--json"],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const ownKeysTrappedEmptyIteratorPrecomputedValidation =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        supportedCliOptions:
+          ownKeysTrappedEmptyIteratorPrecomputedSupportedTokens as never,
+      });
+    expect(
+      ownKeysTrappedEmptyIteratorPrecomputedValidation.supportedCliOptions
+    ).toEqual(["--json", "--output"]);
+    expect(
+      ownKeysTrappedEmptyIteratorPrecomputedValidation.supportedCliOptionCount
+    ).toBe(2);
+    expect(
+      ownKeysTrappedEmptyIteratorPrecomputedValidation.unknownOptions
+    ).toEqual(["--mystery"]);
+    expect(
+      ownKeysTrappedEmptyIteratorPrecomputedValidation.unknownOptionCount
+    ).toBe(1);
+    expect(
+      ownKeysTrappedEmptyIteratorPrecomputedValidation.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
+    expect(
+      ownKeysTrappedEmptyIteratorPrecomputedValidation.validationErrorCode
+    ).toBe("unsupported_options");
+    const ownKeysTrappedEmptyIteratorPrecomputedWithoutCatalogValidation =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions: "--json" as never,
+        supportedCliOptions:
+          ownKeysTrappedEmptyIteratorPrecomputedSupportedTokens as never,
+      });
+    expect(
+      ownKeysTrappedEmptyIteratorPrecomputedWithoutCatalogValidation.supportedCliOptions
+    ).toEqual([]);
+    expect(
+      ownKeysTrappedEmptyIteratorPrecomputedWithoutCatalogValidation.supportedCliOptionCount
+    ).toBe(0);
+    expect(
+      ownKeysTrappedEmptyIteratorPrecomputedWithoutCatalogValidation.unknownOptions
+    ).toEqual(["--mystery"]);
+    expect(
+      ownKeysTrappedEmptyIteratorPrecomputedWithoutCatalogValidation.unknownOptionCount
+    ).toBe(1);
+    expect(
+      ownKeysTrappedEmptyIteratorPrecomputedWithoutCatalogValidation.unsupportedOptionsError
+    ).toBe("Unsupported option(s): --mystery. Supported options: (none).");
+    expect(
+      ownKeysTrappedEmptyIteratorPrecomputedWithoutCatalogValidation.validationErrorCode
+    ).toBe("unsupported_options");
     const iteratorOnlyWhitespacePrecomputedSupportedTokens = new Proxy(
       ["   "],
       {
