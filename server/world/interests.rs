@@ -14,6 +14,7 @@ const REGION_NEIGHBOR_OFFSETS: [(i32, i32); 8] = [
     (1, 0),
     (1, 1),
 ];
+const SMALL_INTEREST_REGION_SCAN_LIMIT: usize = 8;
 
 #[inline]
 fn comparable_weight(weight: Option<&f32>) -> f32 {
@@ -85,7 +86,7 @@ impl ChunkInterests {
         if self.map.is_empty() {
             return false;
         }
-        if self.map.len() <= 2 {
+        if self.map.len() <= SMALL_INTEREST_REGION_SCAN_LIMIT {
             for coords in self.map.keys() {
                 if coords_within_region(center, coords) {
                     return true;
@@ -114,32 +115,40 @@ impl ChunkInterests {
         if self.map.is_empty() {
             return HashSet::new();
         }
-        if self.map.len() == 1 {
-            if let Some((coords, interested)) = self.map.iter().next() {
-                if coords_within_region(center, coords) {
-                    return interested.clone();
+        if self.map.len() <= SMALL_INTEREST_REGION_SCAN_LIMIT {
+            let mut merged_clients: Option<HashSet<String>> = None;
+            let mut single_interest: Option<&HashSet<String>> = None;
+            for (coords, interested) in self.map.iter() {
+                if !coords_within_region(center, coords) {
+                    continue;
+                }
+                if let Some(clients) = merged_clients.as_mut() {
+                    let remaining_capacity = clients.capacity() - clients.len();
+                    if remaining_capacity < interested.len() {
+                        clients.reserve(interested.len() - remaining_capacity);
+                    }
+                    clients.extend(interested.iter().cloned());
+                    continue;
+                }
+                if let Some(seed) = single_interest {
+                    let mut clients = seed.clone();
+                    let remaining_capacity = clients.capacity() - clients.len();
+                    if remaining_capacity < interested.len() {
+                        clients.reserve(interested.len() - remaining_capacity);
+                    }
+                    clients.extend(interested.iter().cloned());
+                    merged_clients = Some(clients);
+                } else {
+                    single_interest = Some(interested);
                 }
             }
-            return HashSet::new();
-        }
-        if self.map.len() == 2 {
-            let mut interested_in_region = self
-                .map
-                .iter()
-                .filter(|(coords, _)| coords_within_region(center, coords));
-            let Some((_, first_set)) = interested_in_region.next() else {
-                return HashSet::new();
-            };
-            let Some((_, second_set)) = interested_in_region.next() else {
-                return first_set.clone();
-            };
-            let mut merged = first_set.clone();
-            let remaining_capacity = merged.capacity() - merged.len();
-            if remaining_capacity < second_set.len() {
-                merged.reserve(second_set.len() - remaining_capacity);
+            if let Some(clients) = merged_clients {
+                return clients;
             }
-            merged.extend(second_set.iter().cloned());
-            return merged;
+            if let Some(interested) = single_interest {
+                return interested.clone();
+            }
+            return HashSet::new();
         }
 
         let first_interested = self.map.get(center);
