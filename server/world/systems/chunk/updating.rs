@@ -259,10 +259,7 @@ fn process_pending_updates(
                 let mut entity_type = String::with_capacity(7 + normalized_block_name.len());
                 entity_type.push_str("block::");
                 entity_type.push_str(normalized_block_name);
-                lazy.insert(
-                    entity,
-                    ETypeComp::new(&entity_type, true),
-                );
+                lazy.insert(entity, ETypeComp(entity_type, true));
                 lazy.insert(entity, MetadataComp::new());
                 lazy.insert(entity, VoxelComp::new(voxel.0, voxel.1, voxel.2));
                 lazy.insert(entity, CurrentChunkComp::default());
