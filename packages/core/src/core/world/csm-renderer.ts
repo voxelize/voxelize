@@ -424,9 +424,38 @@ export class CSMRenderer {
   }
 
   removeSkipShadowObject(object: Object3D) {
-    const idx = this.skipShadowObjectsCache.indexOf(object);
-    if (idx !== -1) {
-      this.skipShadowObjectsCache.splice(idx, 1);
+    const cache = this.skipShadowObjectsCache;
+    const cacheLength = cache.length;
+    if (cacheLength === 0) {
+      return;
+    }
+    const lastIndex = cacheLength - 1;
+    if (cache[lastIndex] === object) {
+      cache.pop();
+      return;
+    }
+    if (cacheLength === 1) {
+      return;
+    }
+    if (cacheLength === 2) {
+      if (cache[0] === object) {
+        cache.splice(0, 1);
+      }
+      return;
+    }
+    if (cacheLength === 3) {
+      if (cache[0] === object) {
+        cache.splice(0, 1);
+      } else if (cache[1] === object) {
+        cache.splice(1, 1);
+      }
+      return;
+    }
+    for (let objectIndex = 0; objectIndex < lastIndex; objectIndex++) {
+      if (cache[objectIndex] === object) {
+        cache.splice(objectIndex, 1);
+        return;
+      }
     }
   }
 
