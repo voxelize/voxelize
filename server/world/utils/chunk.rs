@@ -39,6 +39,32 @@ fn first_segment(value: &str) -> &str {
 }
 
 impl ChunkUtils {
+    /// Map a voxel coordinate to both chunk and chunk-local coordinates.
+    pub fn map_voxel_to_chunk_and_local(
+        vx: i32,
+        vy: i32,
+        vz: i32,
+        chunk_size: usize,
+    ) -> (Vec2<i32>, Vec3<usize>) {
+        let cs = normalized_chunk_size(chunk_size);
+        let ly = if vy < 0 { 0 } else { vy as usize };
+        if cs == 1 {
+            return (Vec2(vx, vz), Vec3(0, ly, 0));
+        }
+        if let Some(shift) = chunk_shift_if_power_of_two(cs) {
+            let mask = (1_i32 << shift) - 1;
+            return (
+                Vec2(vx >> shift, vz >> shift),
+                Vec3((vx & mask) as usize, ly, (vz & mask) as usize),
+            );
+        }
+
+        (
+            Vec2(vx.div_euclid(cs), vz.div_euclid(cs)),
+            Vec3(vx.rem_euclid(cs) as usize, ly, vz.rem_euclid(cs) as usize),
+        )
+    }
+
     /// Generate a chunk representation from a chunk coordinate.
     pub fn get_chunk_name(cx: i32, cz: i32) -> String {
         format!("{}{}{}", cx, CHUNK_NAME_SEPARATOR, cz)
@@ -249,5 +275,25 @@ mod tests {
         let distance = ChunkUtils::distance_squared(&a, &b);
         assert!(distance.is_finite());
         assert!(distance > 0.0);
+    }
+
+    #[test]
+    fn map_voxel_to_chunk_and_local_matches_individual_mappers() {
+        let samples = [
+            (5, 7, -3, 0usize),
+            (-1, -2, -17, 16usize),
+            (i32::MAX, 9, i32::MIN, 1usize),
+            (-11, 7, 19, 10usize),
+            (i32::MIN, 7, i32::MAX, usize::MAX),
+        ];
+        for (vx, vy, vz, chunk_size) in samples {
+            let combined =
+                ChunkUtils::map_voxel_to_chunk_and_local(vx, vy, vz, chunk_size);
+            let separate = (
+                ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size),
+                ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size),
+            );
+            assert_eq!(combined, separate);
+        }
     }
 }

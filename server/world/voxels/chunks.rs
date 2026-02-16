@@ -428,7 +428,9 @@ impl Chunks {
     /// Get neighboring coords of a voxel coordinate.
     pub fn voxel_affected_chunks(&self, vx: i32, vy: i32, vz: i32) -> Vec<Vec2<i32>> {
         let chunk_size = self.chunk_size();
-        let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        let (chunk_coords, local_coords) =
+            ChunkUtils::map_voxel_to_chunk_and_local(vx, vy, vz, chunk_size);
+        let Vec2(cx, cz) = chunk_coords;
         if cx < self.config.min_chunk[0]
             || cx > self.config.max_chunk[0]
             || cz < self.config.min_chunk[1]
@@ -436,9 +438,9 @@ impl Chunks {
         {
             return Vec::new();
         }
-        let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+        let Vec3(lx, _, lz) = local_coords;
         if lx > 0 && lz > 0 && lx < chunk_size - 1 && lz < chunk_size - 1 {
-            return vec![Vec2(cx, cz)];
+            return vec![chunk_coords];
         }
         let mut neighbors = Vec::with_capacity(9);
         for_each_voxel_affected_chunk_from_mapped(
@@ -458,15 +460,17 @@ impl Chunks {
     #[inline]
     pub fn cache_voxel_affected_chunks(&mut self, vx: i32, vy: i32, vz: i32) {
         let chunk_size = self.chunk_size();
-        let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        let (chunk_coords, local_coords) =
+            ChunkUtils::map_voxel_to_chunk_and_local(vx, vy, vz, chunk_size);
+        let Vec2(cx, cz) = chunk_coords;
         let min_chunk = self.config.min_chunk;
         let max_chunk = self.config.max_chunk;
         if cx < min_chunk[0] || cx > max_chunk[0] || cz < min_chunk[1] || cz > max_chunk[1] {
             return;
         }
-        let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+        let Vec3(lx, _, lz) = local_coords;
         if lx > 0 && lz > 0 && lx < chunk_size - 1 && lz < chunk_size - 1 {
-            self.cache.insert(Vec2(cx, cz));
+            self.cache.insert(chunk_coords);
             return;
         }
         for_each_voxel_affected_chunk_from_mapped(
