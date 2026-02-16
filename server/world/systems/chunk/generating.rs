@@ -131,14 +131,10 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                             }
                         }
                     } else {
-                        for coords in interest_map.keys() {
-                            weights.insert(*coords, 0.0);
-                        }
+                        weights.clear();
                     }
                 } else {
-                    for coords in interest_map.keys() {
-                        weights.insert(*coords, 0.0);
-                    }
+                    weights.clear();
                 }
             } else {
                 for (coords, ids) in interest_map {
