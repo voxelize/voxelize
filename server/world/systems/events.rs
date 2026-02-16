@@ -1,6 +1,7 @@
 use hashbrown::{hash_map::RawEntryMut, HashMap};
 use bytes::Bytes;
 use specs::{Entity, ReadExpect, ReadStorage, System, WriteExpect};
+use tokio::sync::mpsc;
 
 use crate::{
     encode_message, world::metadata::WorldMetadata, ChunkInterests, ChunkRequestsComp,
@@ -427,64 +428,47 @@ fn retain_active_dispatch_clients(
 }
 
 #[inline]
+fn next_transport_sender<'a, I>(senders: &mut I) -> &'a mpsc::UnboundedSender<Bytes>
+where
+    I: Iterator<Item = &'a mpsc::UnboundedSender<Bytes>>,
+{
+    let Some(sender) = senders.next() else {
+        unreachable!("transport length matched branch");
+    };
+    sender
+}
+
+#[inline]
 fn send_to_transports(transports: &Transports, payload: Bytes) {
     match transports.len() {
         0 => {}
         1 => {
-            if let Some(sender) = transports.values().next() {
-                let _ = sender.send(payload);
-            }
+            let mut senders = transports.values();
+            let first_sender = next_transport_sender(&mut senders);
+            let _ = first_sender.send(payload);
         }
         2 => {
             let mut senders = transports.values();
-            let Some(first_sender) = senders.next() else {
-                return;
-            };
-            let Some(second_sender) = senders.next() else {
-                let _ = first_sender.send(payload);
-                return;
-            };
+            let first_sender = next_transport_sender(&mut senders);
+            let second_sender = next_transport_sender(&mut senders);
             let _ = second_sender.send(payload.clone());
             let _ = first_sender.send(payload);
         }
         3 => {
             let mut senders = transports.values();
-            let Some(first_sender) = senders.next() else {
-                return;
-            };
-            let Some(second_sender) = senders.next() else {
-                let _ = first_sender.send(payload);
-                return;
-            };
-            let Some(third_sender) = senders.next() else {
-                let _ = second_sender.send(payload.clone());
-                let _ = first_sender.send(payload);
-                return;
-            };
+            let first_sender = next_transport_sender(&mut senders);
+            let second_sender = next_transport_sender(&mut senders);
+            let third_sender = next_transport_sender(&mut senders);
             let _ = second_sender.send(payload.clone());
             let _ = third_sender.send(payload.clone());
             let _ = first_sender.send(payload);
         }
         4 => {
             let mut senders = transports.values();
-            let Some(first_sender) = senders.next() else {
-                return;
-            };
-            let Some(second_sender) = senders.next() else {
-                let _ = first_sender.send(payload);
-                return;
-            };
-            let Some(third_sender) = senders.next() else {
-                let _ = second_sender.send(payload.clone());
-                let _ = first_sender.send(payload);
-                return;
-            };
-            let Some(fourth_sender) = senders.next() else {
-                let _ = second_sender.send(payload.clone());
-                let _ = third_sender.send(payload.clone());
-                let _ = first_sender.send(payload);
-                return;
-            };
+            let first_sender = next_transport_sender(&mut senders);
+            let second_sender = next_transport_sender(&mut senders);
+            let third_sender = next_transport_sender(&mut senders);
+            let fourth_sender = next_transport_sender(&mut senders);
             let _ = second_sender.send(payload.clone());
             let _ = third_sender.send(payload.clone());
             let _ = fourth_sender.send(payload.clone());
@@ -492,31 +476,11 @@ fn send_to_transports(transports: &Transports, payload: Bytes) {
         }
         5 => {
             let mut senders = transports.values();
-            let Some(first_sender) = senders.next() else {
-                return;
-            };
-            let Some(second_sender) = senders.next() else {
-                let _ = first_sender.send(payload);
-                return;
-            };
-            let Some(third_sender) = senders.next() else {
-                let _ = second_sender.send(payload.clone());
-                let _ = first_sender.send(payload);
-                return;
-            };
-            let Some(fourth_sender) = senders.next() else {
-                let _ = second_sender.send(payload.clone());
-                let _ = third_sender.send(payload.clone());
-                let _ = first_sender.send(payload);
-                return;
-            };
-            let Some(fifth_sender) = senders.next() else {
-                let _ = second_sender.send(payload.clone());
-                let _ = third_sender.send(payload.clone());
-                let _ = fourth_sender.send(payload.clone());
-                let _ = first_sender.send(payload);
-                return;
-            };
+            let first_sender = next_transport_sender(&mut senders);
+            let second_sender = next_transport_sender(&mut senders);
+            let third_sender = next_transport_sender(&mut senders);
+            let fourth_sender = next_transport_sender(&mut senders);
+            let fifth_sender = next_transport_sender(&mut senders);
             let _ = second_sender.send(payload.clone());
             let _ = third_sender.send(payload.clone());
             let _ = fourth_sender.send(payload.clone());
@@ -525,39 +489,12 @@ fn send_to_transports(transports: &Transports, payload: Bytes) {
         }
         6 => {
             let mut senders = transports.values();
-            let Some(first_sender) = senders.next() else {
-                return;
-            };
-            let Some(second_sender) = senders.next() else {
-                let _ = first_sender.send(payload);
-                return;
-            };
-            let Some(third_sender) = senders.next() else {
-                let _ = second_sender.send(payload.clone());
-                let _ = first_sender.send(payload);
-                return;
-            };
-            let Some(fourth_sender) = senders.next() else {
-                let _ = second_sender.send(payload.clone());
-                let _ = third_sender.send(payload.clone());
-                let _ = first_sender.send(payload);
-                return;
-            };
-            let Some(fifth_sender) = senders.next() else {
-                let _ = second_sender.send(payload.clone());
-                let _ = third_sender.send(payload.clone());
-                let _ = fourth_sender.send(payload.clone());
-                let _ = first_sender.send(payload);
-                return;
-            };
-            let Some(sixth_sender) = senders.next() else {
-                let _ = second_sender.send(payload.clone());
-                let _ = third_sender.send(payload.clone());
-                let _ = fourth_sender.send(payload.clone());
-                let _ = fifth_sender.send(payload.clone());
-                let _ = first_sender.send(payload);
-                return;
-            };
+            let first_sender = next_transport_sender(&mut senders);
+            let second_sender = next_transport_sender(&mut senders);
+            let third_sender = next_transport_sender(&mut senders);
+            let fourth_sender = next_transport_sender(&mut senders);
+            let fifth_sender = next_transport_sender(&mut senders);
+            let sixth_sender = next_transport_sender(&mut senders);
             let _ = second_sender.send(payload.clone());
             let _ = third_sender.send(payload.clone());
             let _ = fourth_sender.send(payload.clone());
@@ -567,48 +504,13 @@ fn send_to_transports(transports: &Transports, payload: Bytes) {
         }
         7 => {
             let mut senders = transports.values();
-            let Some(first_sender) = senders.next() else {
-                return;
-            };
-            let Some(second_sender) = senders.next() else {
-                let _ = first_sender.send(payload);
-                return;
-            };
-            let Some(third_sender) = senders.next() else {
-                let _ = second_sender.send(payload.clone());
-                let _ = first_sender.send(payload);
-                return;
-            };
-            let Some(fourth_sender) = senders.next() else {
-                let _ = second_sender.send(payload.clone());
-                let _ = third_sender.send(payload.clone());
-                let _ = first_sender.send(payload);
-                return;
-            };
-            let Some(fifth_sender) = senders.next() else {
-                let _ = second_sender.send(payload.clone());
-                let _ = third_sender.send(payload.clone());
-                let _ = fourth_sender.send(payload.clone());
-                let _ = first_sender.send(payload);
-                return;
-            };
-            let Some(sixth_sender) = senders.next() else {
-                let _ = second_sender.send(payload.clone());
-                let _ = third_sender.send(payload.clone());
-                let _ = fourth_sender.send(payload.clone());
-                let _ = fifth_sender.send(payload.clone());
-                let _ = first_sender.send(payload);
-                return;
-            };
-            let Some(seventh_sender) = senders.next() else {
-                let _ = second_sender.send(payload.clone());
-                let _ = third_sender.send(payload.clone());
-                let _ = fourth_sender.send(payload.clone());
-                let _ = fifth_sender.send(payload.clone());
-                let _ = sixth_sender.send(payload.clone());
-                let _ = first_sender.send(payload);
-                return;
-            };
+            let first_sender = next_transport_sender(&mut senders);
+            let second_sender = next_transport_sender(&mut senders);
+            let third_sender = next_transport_sender(&mut senders);
+            let fourth_sender = next_transport_sender(&mut senders);
+            let fifth_sender = next_transport_sender(&mut senders);
+            let sixth_sender = next_transport_sender(&mut senders);
+            let seventh_sender = next_transport_sender(&mut senders);
             let _ = second_sender.send(payload.clone());
             let _ = third_sender.send(payload.clone());
             let _ = fourth_sender.send(payload.clone());
@@ -619,58 +521,14 @@ fn send_to_transports(transports: &Transports, payload: Bytes) {
         }
         8 => {
             let mut senders = transports.values();
-            let Some(first_sender) = senders.next() else {
-                return;
-            };
-            let Some(second_sender) = senders.next() else {
-                let _ = first_sender.send(payload);
-                return;
-            };
-            let Some(third_sender) = senders.next() else {
-                let _ = second_sender.send(payload.clone());
-                let _ = first_sender.send(payload);
-                return;
-            };
-            let Some(fourth_sender) = senders.next() else {
-                let _ = second_sender.send(payload.clone());
-                let _ = third_sender.send(payload.clone());
-                let _ = first_sender.send(payload);
-                return;
-            };
-            let Some(fifth_sender) = senders.next() else {
-                let _ = second_sender.send(payload.clone());
-                let _ = third_sender.send(payload.clone());
-                let _ = fourth_sender.send(payload.clone());
-                let _ = first_sender.send(payload);
-                return;
-            };
-            let Some(sixth_sender) = senders.next() else {
-                let _ = second_sender.send(payload.clone());
-                let _ = third_sender.send(payload.clone());
-                let _ = fourth_sender.send(payload.clone());
-                let _ = fifth_sender.send(payload.clone());
-                let _ = first_sender.send(payload);
-                return;
-            };
-            let Some(seventh_sender) = senders.next() else {
-                let _ = second_sender.send(payload.clone());
-                let _ = third_sender.send(payload.clone());
-                let _ = fourth_sender.send(payload.clone());
-                let _ = fifth_sender.send(payload.clone());
-                let _ = sixth_sender.send(payload.clone());
-                let _ = first_sender.send(payload);
-                return;
-            };
-            let Some(eighth_sender) = senders.next() else {
-                let _ = second_sender.send(payload.clone());
-                let _ = third_sender.send(payload.clone());
-                let _ = fourth_sender.send(payload.clone());
-                let _ = fifth_sender.send(payload.clone());
-                let _ = sixth_sender.send(payload.clone());
-                let _ = seventh_sender.send(payload.clone());
-                let _ = first_sender.send(payload);
-                return;
-            };
+            let first_sender = next_transport_sender(&mut senders);
+            let second_sender = next_transport_sender(&mut senders);
+            let third_sender = next_transport_sender(&mut senders);
+            let fourth_sender = next_transport_sender(&mut senders);
+            let fifth_sender = next_transport_sender(&mut senders);
+            let sixth_sender = next_transport_sender(&mut senders);
+            let seventh_sender = next_transport_sender(&mut senders);
+            let eighth_sender = next_transport_sender(&mut senders);
             let _ = second_sender.send(payload.clone());
             let _ = third_sender.send(payload.clone());
             let _ = fourth_sender.send(payload.clone());
@@ -682,9 +540,7 @@ fn send_to_transports(transports: &Transports, payload: Bytes) {
         }
         _ => {
             let mut senders = transports.values();
-            let Some(first_sender) = senders.next() else {
-                return;
-            };
+            let first_sender = next_transport_sender(&mut senders);
             for sender in senders {
                 let _ = sender.send(payload.clone());
             }
