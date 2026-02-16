@@ -501,7 +501,16 @@ impl Registry {
                 }
                 block.id = next_available;
             } else if occupied_ids.contains(&block.id) {
-                panic!("Duplicated key: {}-{}", block.name, block.id);
+                warn!(
+                    "Duplicated block id detected for '{}': {}. Reassigning.",
+                    block.name, block.id
+                );
+                while occupied_ids.contains(&next_available)
+                    || reserved_explicit_ids.contains(&next_available)
+                {
+                    next_available += 1;
+                }
+                block.id = next_available;
             }
 
             if let Some(existing_id) = existing_id_for_name {
@@ -573,6 +582,7 @@ impl Registry {
 #[cfg(test)]
 mod tests {
     use super::Registry;
+    use crate::Block;
 
     #[test]
     fn unknown_block_name_lookups_fall_back_to_air() {
@@ -590,5 +600,20 @@ mod tests {
 
         assert_eq!(type_map.get("air"), Some(&0));
         assert_eq!(type_map.get("missing"), Some(&0));
+    }
+
+    #[test]
+    fn register_blocks_reassigns_duplicate_explicit_ids() {
+        let mut registry = Registry::new();
+        let first = Block::new("first").id(7).build();
+        let second = Block::new("second").id(7).build();
+
+        registry.register_blocks(&[first, second]);
+
+        let first_id = registry.get_id_by_name("first");
+        let second_id = registry.get_id_by_name("second");
+        assert_eq!(first_id, 7);
+        assert_ne!(second_id, 7);
+        assert_ne!(first_id, second_id);
     }
 }
