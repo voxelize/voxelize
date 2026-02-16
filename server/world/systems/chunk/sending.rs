@@ -452,6 +452,26 @@ fn take_chunk_models_to_send(
 }
 
 #[inline]
+fn flush_chunk_batch_for_client(
+    queue: &mut MessageQueues,
+    message_type: &MessageType,
+    batches: &mut HashMap<String, Vec<ChunkProtocol>>,
+    client_id: String,
+) {
+    let Some(chunk_models) = batches.get_mut(&client_id) else {
+        return;
+    };
+    let Some(chunk_models_to_send) = take_chunk_models_to_send(chunk_models) else {
+        return;
+    };
+    let message = match chunk_models_to_send {
+        Ok(many_models) => Message::new(message_type).chunks_owned(many_models).build(),
+        Err(single_model) => Message::new(message_type).chunk_owned(single_model).build(),
+    };
+    queue.push((message, ClientFilter::Direct(client_id)));
+}
+
+#[inline]
 fn flush_chunk_batches_touched(
     queue: &mut MessageQueues,
     message_type: &MessageType,
@@ -461,35 +481,45 @@ fn flush_chunk_batches_touched(
     if touched_clients.is_empty() {
         return;
     }
-    if touched_clients.len() == 1 {
-        let Some(client_id) = touched_clients.pop() else {
-            return;
-        };
-        let Some(chunk_models) = batches.get_mut(&client_id) else {
-            return;
-        };
-        let Some(chunk_models_to_send) = take_chunk_models_to_send(chunk_models) else {
-            return;
-        };
-        let message = match chunk_models_to_send {
-            Ok(many_models) => Message::new(message_type).chunks_owned(many_models).build(),
-            Err(single_model) => Message::new(message_type).chunk_owned(single_model).build(),
-        };
-        queue.push((message, ClientFilter::Direct(client_id)));
-        return;
-    }
-    for client_id in touched_clients.drain(..) {
-        let Some(chunk_models) = batches.get_mut(&client_id) else {
-            continue;
-        };
-        let Some(chunk_models_to_send) = take_chunk_models_to_send(chunk_models) else {
-            continue;
-        };
-        let message = match chunk_models_to_send {
-            Ok(many_models) => Message::new(message_type).chunks_owned(many_models).build(),
-            Err(single_model) => Message::new(message_type).chunk_owned(single_model).build(),
-        };
-        queue.push((message, ClientFilter::Direct(client_id)));
+    match touched_clients.len() {
+        1 => {
+            if let Some(client_id) = touched_clients.pop() {
+                flush_chunk_batch_for_client(queue, message_type, batches, client_id);
+            }
+        }
+        2 => {
+            let Some(first_client_id) = touched_clients.pop() else {
+                return;
+            };
+            let Some(second_client_id) = touched_clients.pop() else {
+                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
+                return;
+            };
+            flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
+            flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
+        }
+        3 => {
+            let Some(first_client_id) = touched_clients.pop() else {
+                return;
+            };
+            let Some(second_client_id) = touched_clients.pop() else {
+                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
+                return;
+            };
+            let Some(third_client_id) = touched_clients.pop() else {
+                flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
+                flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
+                return;
+            };
+            flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
+            flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
+            flush_chunk_batch_for_client(queue, message_type, batches, third_client_id);
+        }
+        _ => {
+            for client_id in touched_clients.drain(..) {
+                flush_chunk_batch_for_client(queue, message_type, batches, client_id);
+            }
+        }
     }
 }
 
