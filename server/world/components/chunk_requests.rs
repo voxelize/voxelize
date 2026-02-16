@@ -97,11 +97,14 @@ impl ChunkRequestsComp {
             }
             _ => {}
         }
-        if self.requests.last().is_some_and(|last| last == coords)
-            || self.requests.first().is_some_and(|first| first == coords)
-            || self.requests.contains(coords)
-        {
+        let last_request_index = self.requests.len() - 1;
+        if self.requests[last_request_index] == *coords || self.requests[0] == *coords {
             return;
+        }
+        for request_index in 1..last_request_index {
+            if self.requests[request_index] == *coords {
+                return;
+            }
         }
         self.requests.push(*coords);
     }
@@ -157,8 +160,12 @@ impl ChunkRequestsComp {
             }
             return;
         }
-        if let Some(index) = self.requests.iter().position(|c| c == coords) {
-            self.requests.remove(index);
+        let last_request_index = self.requests.len() - 1;
+        for request_index in 1..last_request_index {
+            if self.requests[request_index] == *coords {
+                self.requests.remove(request_index);
+                return;
+            }
         }
     }
 }
@@ -243,6 +250,33 @@ mod tests {
     }
 
     #[test]
+    fn add_ignores_duplicate_middle_entries_for_large_lists() {
+        let mut requests = ChunkRequestsComp::new();
+        requests.requests = vec![
+            Vec2(1, 1),
+            Vec2(2, 2),
+            Vec2(3, 3),
+            Vec2(4, 4),
+            Vec2(5, 5),
+            Vec2(6, 6),
+        ];
+
+        requests.add(&Vec2(4, 4));
+
+        assert_eq!(
+            requests.requests,
+            vec![
+                Vec2(1, 1),
+                Vec2(2, 2),
+                Vec2(3, 3),
+                Vec2(4, 4),
+                Vec2(5, 5),
+                Vec2(6, 6)
+            ]
+        );
+    }
+
+    #[test]
     fn remove_handles_first_and_tail_entries() {
         let mut requests = ChunkRequestsComp::new();
         requests.requests = vec![Vec2(1, 1), Vec2(2, 2), Vec2(3, 3)];
@@ -285,5 +319,25 @@ mod tests {
 
         requests.remove(&Vec2(4, 4));
         assert_eq!(requests.requests, vec![Vec2(1, 1), Vec2(2, 2), Vec2(5, 5)]);
+    }
+
+    #[test]
+    fn remove_handles_large_list_middle_entries() {
+        let mut requests = ChunkRequestsComp::new();
+        requests.requests = vec![
+            Vec2(1, 1),
+            Vec2(2, 2),
+            Vec2(3, 3),
+            Vec2(4, 4),
+            Vec2(5, 5),
+            Vec2(6, 6),
+        ];
+
+        requests.remove(&Vec2(4, 4));
+
+        assert_eq!(
+            requests.requests,
+            vec![Vec2(1, 1), Vec2(2, 2), Vec2(3, 3), Vec2(5, 5), Vec2(6, 6)]
+        );
     }
 }
