@@ -1425,6 +1425,16 @@ describe("Type builders", () => {
     expect(part.aabbs[0]).not.toBe(validAabb);
   });
 
+  it("normalizes sparse-hole face and aabb entries to empty arrays", () => {
+    const part = createBlockConditionalPart({
+      faces: new Array(1) as never,
+      aabbs: new Array(1) as never,
+    });
+
+    expect(part.faces).toEqual([]);
+    expect(part.aabbs).toEqual([]);
+  });
+
   it("salvages iterator-trapped face and aabb entries during conditional part cloning", () => {
     const faces = [{ name: "IteratorFace" } as BlockFaceInit];
     Object.defineProperty(faces, Symbol.iterator, {
@@ -2333,6 +2343,24 @@ describe("Type builders", () => {
     const rule = createBlockRule();
     expect(rule).toEqual(BLOCK_RULE_NONE);
     expect(rule).not.toBe(BLOCK_RULE_NONE);
+  });
+
+  it("normalizes sparse-hole combination rule entries to none placeholders", () => {
+    expect(
+      createBlockRule({
+        type: "combination",
+        logic: BlockRuleLogic.And,
+        rules: new Array(1) as never,
+      })
+    ).toEqual({
+      type: "combination",
+      logic: BlockRuleLogic.And,
+      rules: [
+        {
+          type: "none",
+        },
+      ],
+    });
   });
 
   it("clones nested rules with createBlockRule", () => {
@@ -3848,6 +3876,14 @@ describe("Type builders", () => {
       },
     ]);
     expect(pattern.parts[0].rule).not.toBe(BLOCK_RULE_NONE);
+  });
+
+  it("normalizes sparse-hole dynamic pattern part entries to empty lists", () => {
+    const pattern = createBlockDynamicPattern({
+      parts: new Array(1) as never,
+    });
+
+    expect(pattern.parts).toEqual([]);
   });
 
   it("salvages iterator-trapped dynamic pattern part entries", () => {
