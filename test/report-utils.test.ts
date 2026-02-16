@@ -2784,6 +2784,14 @@ describe("report-utils", () => {
       }
     );
     expect(unknownWithMixedArrayOptionArgsOverride).toEqual(["--mystery"]);
+    const unknownWithSparseHoleOptionArgsOverride = parseUnknownCliOptions(
+      ["--mystery"],
+      {
+        canonicalOptions: ["--json"],
+        optionArgs: new Array(1) as never,
+      }
+    );
+    expect(unknownWithSparseHoleOptionArgsOverride).toEqual(["--mystery"]);
     const unknownWithEmptyIteratorOptionArgsOverride = parseUnknownCliOptions(
       ["--mystery"],
       {
@@ -4774,6 +4782,27 @@ describe("report-utils", () => {
       "Unsupported option(s): --mystery. Supported options: --json, --output."
     );
     expect(mixedArrayOptionArgsValidation.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    const sparseHoleOptionArgsValidation = createCliOptionValidation(
+      ["--mystery"],
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        optionArgs: new Array(1) as never,
+      }
+    );
+    expect(sparseHoleOptionArgsValidation.supportedCliOptions).toEqual([
+      "--json",
+      "--output",
+    ]);
+    expect(sparseHoleOptionArgsValidation.supportedCliOptionCount).toBe(2);
+    expect(sparseHoleOptionArgsValidation.unknownOptions).toEqual(["--mystery"]);
+    expect(sparseHoleOptionArgsValidation.unknownOptionCount).toBe(1);
+    expect(sparseHoleOptionArgsValidation.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
+    expect(sparseHoleOptionArgsValidation.validationErrorCode).toBe(
       "unsupported_options"
     );
     const emptyIteratorOptionArgsValidation = createCliOptionValidation(
@@ -15376,6 +15405,43 @@ describe("report-utils", () => {
     ]);
     expect(
       activeMetadataWithMixedArrayOptionArgsOverride.activeCliOptionOccurrenceCount
+    ).toBe(1);
+    const activeMetadataWithSparseHoleOptionArgsOverride =
+      parseActiveCliOptionMetadata(["--json"], {
+        canonicalOptions: ["--json", "--output"],
+        optionArgs: new Array(1) as never,
+      });
+    expect(activeMetadataWithSparseHoleOptionArgsOverride.activeCliOptions).toEqual(
+      ["--json"]
+    );
+    expect(activeMetadataWithSparseHoleOptionArgsOverride.activeCliOptionCount).toBe(
+      1
+    );
+    expect(
+      activeMetadataWithSparseHoleOptionArgsOverride.activeCliOptionTokens
+    ).toEqual(["--json"]);
+    expect(
+      activeMetadataWithSparseHoleOptionArgsOverride.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(
+      activeMetadataWithSparseHoleOptionArgsOverride.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      activeMetadataWithSparseHoleOptionArgsOverride.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+    ]);
+    expect(
+      activeMetadataWithSparseHoleOptionArgsOverride.activeCliOptionOccurrenceCount
     ).toBe(1);
     const activeMetadataWithEmptyIteratorOptionArgsOverride =
       parseActiveCliOptionMetadata(["--json"], {
