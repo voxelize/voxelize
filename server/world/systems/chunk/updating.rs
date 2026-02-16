@@ -181,6 +181,23 @@ fn sort_due_voxels(due_voxels: &mut Vec<Vec3<i32>>) {
                 due_voxels.swap(0, 1);
             }
         }
+        4 => {
+            if compare_voxel_positions(&due_voxels[0], &due_voxels[1]).is_gt() {
+                due_voxels.swap(0, 1);
+            }
+            if compare_voxel_positions(&due_voxels[2], &due_voxels[3]).is_gt() {
+                due_voxels.swap(2, 3);
+            }
+            if compare_voxel_positions(&due_voxels[0], &due_voxels[2]).is_gt() {
+                due_voxels.swap(0, 2);
+            }
+            if compare_voxel_positions(&due_voxels[1], &due_voxels[3]).is_gt() {
+                due_voxels.swap(1, 3);
+            }
+            if compare_voxel_positions(&due_voxels[1], &due_voxels[2]).is_gt() {
+                due_voxels.swap(1, 2);
+            }
+        }
         _ => due_voxels.sort_unstable_by(compare_voxel_positions),
     }
 }
@@ -1244,6 +1261,18 @@ mod tests {
         assert_eq!(
             due_voxels,
             vec![Vec3(1, 0, 0), Vec3(2, 0, 0), Vec3(3, 0, 0)]
+        );
+    }
+
+    #[test]
+    fn sort_due_voxels_orders_four_positions() {
+        let mut due_voxels = vec![Vec3(4, 0, 0), Vec3(2, 0, 0), Vec3(1, 0, 0), Vec3(3, 0, 0)];
+
+        sort_due_voxels(&mut due_voxels);
+
+        assert_eq!(
+            due_voxels,
+            vec![Vec3(1, 0, 0), Vec3(2, 0, 0), Vec3(3, 0, 0), Vec3(4, 0, 0)]
         );
     }
 }
