@@ -30,15 +30,6 @@ fn chunk_shift_if_power_of_two(chunk_size: i32) -> Option<u32> {
 }
 
 #[inline]
-fn chunk_mask_if_power_of_two(chunk_size: i32) -> Option<i32> {
-    if (chunk_size as u32).is_power_of_two() {
-        Some(chunk_size - 1)
-    } else {
-        None
-    }
-}
-
-#[inline]
 fn first_segment(value: &str) -> &str {
     if let Some((segment, _)) = value.split_once(CHUNK_NAME_SEPARATOR) {
         segment
@@ -106,7 +97,8 @@ impl ChunkUtils {
         if cs == 1 {
             return Vec3(0, ly, 0);
         }
-        let (lx, lz) = if let Some(mask) = chunk_mask_if_power_of_two(cs) {
+        let (lx, lz) = if let Some(shift) = chunk_shift_if_power_of_two(cs) {
+            let mask = (1_i32 << shift) - 1;
             ((vx & mask) as usize, (vz & mask) as usize)
         } else {
             (vx.rem_euclid(cs) as usize, vz.rem_euclid(cs) as usize)
