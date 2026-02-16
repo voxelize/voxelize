@@ -3551,7 +3551,9 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                     world_space: false,
                                 });
                             } else {
-                                let (aos, lights) = *cached_ao_light.get_or_insert_with(|| {
+                                let (aos, lights) = if let Some(ao_light) = cached_ao_light {
+                                    ao_light
+                                } else {
                                     let neighbors = cached_neighbors.get_or_insert_with(|| {
                                         populate_neighbors_for_face_processing(
                                             vx,
@@ -3562,7 +3564,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                         )
                                     });
                                     compute_face_ao_and_light(dir_index, block, neighbors, registry)
-                                });
+                                };
                                 let [uv_start_u, uv_end_u, uv_start_v, uv_end_v] = if cache_ready {
                                     block.greedy_face_uv_quantized[dir_index]
                                 } else {
@@ -3612,7 +3614,9 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                 });
                                 continue;
                             }
-                            let (aos, lights) = *cached_ao_light.get_or_insert_with(|| {
+                            let (aos, lights) = if let Some(ao_light) = cached_ao_light {
+                                ao_light
+                            } else {
                                 let neighbors = cached_neighbors.get_or_insert_with(|| {
                                     populate_neighbors_for_face_processing(
                                         vx,
@@ -3622,8 +3626,12 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                         skip_opaque_checks,
                                     )
                                 });
-                                compute_face_ao_and_light(dir_index, block, neighbors, registry)
-                            });
+                                let ao_light = compute_face_ao_and_light(
+                                    dir_index, block, neighbors, registry,
+                                );
+                                cached_ao_light = Some(ao_light);
+                                ao_light
+                            };
                             let [uv_start_u, uv_end_u, uv_start_v, uv_end_v] = if cache_ready {
                                 if let Some(face_dir_index) = cardinal_dir_index(face.dir) {
                                     if block.greedy_face_indices[face_dir_index]
@@ -3680,7 +3688,9 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                 });
                                 continue;
                             }
-                            let (aos, lights) = *cached_ao_light.get_or_insert_with(|| {
+                            let (aos, lights) = if let Some(ao_light) = cached_ao_light {
+                                ao_light
+                            } else {
                                 let neighbors = cached_neighbors.get_or_insert_with(|| {
                                     populate_neighbors_for_face_processing(
                                         vx,
@@ -3690,8 +3700,12 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                         skip_opaque_checks,
                                     )
                                 });
-                                compute_face_ao_and_light(dir_index, block, neighbors, registry)
-                            });
+                                let ao_light = compute_face_ao_and_light(
+                                    dir_index, block, neighbors, registry,
+                                );
+                                cached_ao_light = Some(ao_light);
+                                ao_light
+                            };
                             let [uv_start_u, uv_end_u, uv_start_v, uv_end_v] =
                                 quantize_uv_range(uv_range);
                             let key = FaceKey {
@@ -4524,8 +4538,10 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                             return;
                         }
 
-                        let (aos, lights) = *cached_ao_light.get_or_insert_with(|| {
-                            if skip_opaque_checks {
+                        let (aos, lights) = if let Some(ao_light) = cached_ao_light {
+                            ao_light
+                        } else {
+                            let ao_light = if skip_opaque_checks {
                                 let (_, center_light) =
                                     space.get_raw_voxel_and_raw_light(vx, vy, vz);
                                 let light = (center_light & 0xFFFF) as i32;
@@ -4540,8 +4556,10 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                     neighbors_ref,
                                     registry,
                                 )
-                            }
-                        });
+                            };
+                            cached_ao_light = Some(ao_light);
+                            ao_light
+                        };
                         let uv_range = face.range;
                         let [uv_start_u, uv_end_u, uv_start_v, uv_end_v] = if cache_ready {
                             block.greedy_face_uv_quantized[dir_index]
