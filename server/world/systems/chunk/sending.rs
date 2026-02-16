@@ -68,9 +68,10 @@ fn flush_chunk_batches_in_place(
             continue;
         };
         queue.push((
-            Message::new(message_type)
-                .chunks_owned(chunk_models_to_send)
-                .build(),
+            match chunk_models_to_send {
+                Ok(many_models) => Message::new(message_type).chunks_owned(many_models).build(),
+                Err(single_model) => Message::new(message_type).chunk_owned(single_model).build(),
+            },
             ClientFilter::Direct(client_id.clone()),
         ));
     }
@@ -167,21 +168,23 @@ fn prepare_chunk_batch_buffer(
 }
 
 #[inline]
-fn take_chunk_models_to_send(chunk_models: &mut Vec<ChunkProtocol>) -> Option<Vec<ChunkProtocol>> {
+fn take_chunk_models_to_send(
+    chunk_models: &mut Vec<ChunkProtocol>,
+) -> Option<Result<Vec<ChunkProtocol>, ChunkProtocol>> {
     if chunk_models.is_empty() {
         return None;
     }
     if chunk_models.len() == 1 {
         if let Some(single_model) = chunk_models.pop() {
-            return Some(vec![single_model]);
+            return Some(Err(single_model));
         }
         return None;
     }
     let next_chunk_capacity = chunk_models.capacity();
-    Some(std::mem::replace(
+    Some(Ok(std::mem::replace(
         chunk_models,
         Vec::with_capacity(next_chunk_capacity),
-    ))
+    )))
 }
 
 #[inline]
@@ -204,9 +207,10 @@ fn flush_chunk_batches_touched(
         let Some(chunk_models_to_send) = take_chunk_models_to_send(chunk_models) else {
             return;
         };
-        let message = Message::new(message_type)
-            .chunks_owned(chunk_models_to_send)
-            .build();
+        let message = match chunk_models_to_send {
+            Ok(many_models) => Message::new(message_type).chunks_owned(many_models).build(),
+            Err(single_model) => Message::new(message_type).chunk_owned(single_model).build(),
+        };
         queue.push((message, ClientFilter::Direct(client_id)));
         return;
     }
@@ -217,9 +221,10 @@ fn flush_chunk_batches_touched(
         let Some(chunk_models_to_send) = take_chunk_models_to_send(chunk_models) else {
             continue;
         };
-        let message = Message::new(message_type)
-            .chunks_owned(chunk_models_to_send)
-            .build();
+        let message = match chunk_models_to_send {
+            Ok(many_models) => Message::new(message_type).chunks_owned(many_models).build(),
+            Err(single_model) => Message::new(message_type).chunk_owned(single_model).build(),
+        };
         queue.push((message, ClientFilter::Direct(client_id)));
     }
 }
