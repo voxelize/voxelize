@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
 use log::{info, warn};
@@ -42,7 +42,7 @@ impl Profiler {
     }
 
     pub fn summarize(&mut self) {
-        let mut printed = std::collections::HashSet::new();
+        let mut printed = HashSet::new();
         let threshold_secs = self.threshold.as_secs_f32();
 
         for hierarchy in self.hierarchy_records.iter() {
@@ -61,11 +61,11 @@ impl Profiler {
         self.hierarchy_records.clear();
     }
 
-    fn print_hierarchy_recursive(
-        &self,
-        label: &str,
+    fn print_hierarchy_recursive<'a>(
+        &'a self,
+        label: &'a str,
         indent: usize,
-        printed: &mut std::collections::HashSet<String>,
+        printed: &mut HashSet<&'a str>,
     ) {
         if printed.contains(label) {
             return;
@@ -73,7 +73,7 @@ impl Profiler {
 
         if let Some((_, duration)) = self.times.get(label) {
             info!("{}{} took {:?}", " ".repeat(indent * 2), label, duration);
-            printed.insert(label.to_string());
+            printed.insert(label);
 
             for hierarchy in self.hierarchy_records.iter() {
                 if let Some(index) = hierarchy.iter().position(|l| l == label) {
