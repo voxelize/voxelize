@@ -1011,7 +1011,12 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         // Sort by position for deterministic ordering when multiple voxels are due at the same tick
         if let Some(due_voxels) = due_voxels.as_mut() {
             if due_voxels.len() > 1 {
-                due_voxels.sort_unstable_by(|a, b| (a.0, a.1, a.2).cmp(&(b.0, b.1, b.2)));
+                due_voxels.sort_unstable_by(|a, b| {
+                    a.0
+                        .cmp(&b.0)
+                        .then_with(|| a.1.cmp(&b.1))
+                        .then_with(|| a.2.cmp(&b.2))
+                });
             }
         }
 
