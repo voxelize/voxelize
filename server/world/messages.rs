@@ -227,6 +227,7 @@ impl EncodedMessageQueue {
         }
         if pending_batches == 1 {
             if let Ok(mut messages) = self.receiver.try_recv() {
+                reserve_for_append(&mut result, messages.len());
                 result.append(&mut messages);
             }
             return result;
