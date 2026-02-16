@@ -161,6 +161,12 @@ fn batch_messages(messages: Vec<(Message, ClientFilter)>) -> Vec<(Message, Clien
     if messages.len() <= 1 {
         return messages;
     }
+    if !messages
+        .iter()
+        .any(|(message, _)| can_batch(message.r#type))
+    {
+        return messages;
+    }
     let total_messages = messages.len();
     let mut batched: HashMap<(i32, ClientFilter), Message> = HashMap::with_capacity(total_messages);
     let mut unbatched: Vec<(Message, ClientFilter)> = Vec::with_capacity(total_messages);
@@ -566,5 +572,27 @@ mod tests {
             &batched[0].1,
             ClientFilter::Exclude(values) if values == &ids(&["x", "y"])
         ));
+    }
+
+    #[test]
+    fn batch_messages_returns_unbatchable_messages_unchanged() {
+        let messages = vec![
+            (
+                Message::new(&MessageType::Chat).build(),
+                ClientFilter::Direct("a".to_string()),
+            ),
+            (
+                Message::new(&MessageType::Method).build(),
+                ClientFilter::Direct("b".to_string()),
+            ),
+        ];
+
+        let batched = batch_messages(messages);
+        assert_eq!(batched.len(), 2);
+        assert_eq!(MessageType::try_from(batched[0].0.r#type), Ok(MessageType::Chat));
+        assert_eq!(
+            MessageType::try_from(batched[1].0.r#type),
+            Ok(MessageType::Method)
+        );
     }
 }
