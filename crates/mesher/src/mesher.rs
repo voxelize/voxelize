@@ -2325,7 +2325,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     g
                 });
 
-                let mut uv_map = HashMap::new();
+                let mut uv_map = HashMap::with_capacity(1);
                 uv_map.insert(face.name.clone(), uv_range);
 
                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
@@ -2420,7 +2420,7 @@ pub fn mesh_space<S: VoxelAccess>(
                         block.faces.iter().cloned().map(|f| (f, false)).collect()
                     };
 
-                let mut uv_map = HashMap::new();
+                let mut uv_map = HashMap::with_capacity(faces.len());
                 for (face, _) in &faces {
                     uv_map.insert(face.name.clone(), face.range.clone());
                 }
