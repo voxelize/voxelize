@@ -7019,7 +7019,7 @@ describe("Type builders", () => {
     expect(createAABB(readonlyInit)).toEqual(AABB.create(0, 0, 0, 1, 1, 1));
   });
 
-  it("falls back to empty AABB for malformed createAABB inputs", () => {
+  it("sanitizes malformed createAABB inputs with constrained fallbacks", () => {
     class AabbLike {
       public readonly minX = 0;
       public readonly minY = 0;
@@ -7082,9 +7082,13 @@ describe("Type builders", () => {
     expect(createAABB()).toEqual(AABB.empty());
     expect(createAABB(null)).toEqual(AABB.empty());
     expect(createAABB(new AabbLike() as never)).toEqual(AABB.empty());
-    expect(createAABB(malformedAabbInstance)).toEqual(AABB.empty());
+    expect(createAABB(malformedAabbInstance)).toEqual(
+      AABB.create(0, 0, 0, 1, 1, 1)
+    );
     expect(createAABB(throwingPrototypeProxy as never)).toEqual(AABB.empty());
-    expect(createAABB(aabbWithThrowingMinX as never)).toEqual(AABB.empty());
+    expect(createAABB(aabbWithThrowingMinX as never)).toEqual(
+      AABB.create(0, 0, 0, 1, 1, 1)
+    );
     expect(
       createAABB({
         minX: 0,
@@ -7094,7 +7098,7 @@ describe("Type builders", () => {
         maxY: 1,
         maxZ: 1,
       } as never)
-    ).toEqual(AABB.empty());
+    ).toEqual(AABB.create(0, 0, 0, 0, 1, 1));
   });
 
   it("supports createBlockRotation helper with cloned rotation values", () => {

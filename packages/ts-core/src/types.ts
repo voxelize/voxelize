@@ -1328,7 +1328,29 @@ const cloneAabb = (aabb: AABBInput | null | undefined): AABB | null => {
 
 export const createAABB = (aabb: AABBInput | null | undefined = null): AABB => {
   const clonedAabb = cloneAabb(aabb);
-  return clonedAabb ?? AABB.empty();
+  if (clonedAabb !== null) {
+    return clonedAabb;
+  }
+
+  if (!isAabbInstance(aabb) && !isPlainObjectValue(aabb)) {
+    return AABB.empty();
+  }
+
+  const aabbRecord = aabb as Record<string, DynamicValue>;
+  const minX = readObjectEntry(aabbRecord, "minX");
+  const minY = readObjectEntry(aabbRecord, "minY");
+  const minZ = readObjectEntry(aabbRecord, "minZ");
+  const maxX = readObjectEntry(aabbRecord, "maxX");
+  const maxY = readObjectEntry(aabbRecord, "maxY");
+  const maxZ = readObjectEntry(aabbRecord, "maxZ");
+  return AABB.create(
+    isFiniteNumberValue(minX) ? minX : 0,
+    isFiniteNumberValue(minY) ? minY : 0,
+    isFiniteNumberValue(minZ) ? minZ : 0,
+    isFiniteNumberValue(maxX) ? maxX : 0,
+    isFiniteNumberValue(maxY) ? maxY : 0,
+    isFiniteNumberValue(maxZ) ? maxZ : 0
+  );
 };
 
 export const createBlockConditionalPart = (
