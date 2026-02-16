@@ -46,6 +46,26 @@ fn enqueue_chunk_models_for_client(
     queue.push((message, ClientFilter::Direct(client_id)));
 }
 
+#[inline]
+fn retain_active_request_batches(
+    to_send: &mut HashMap<String, HashSet<Vec2<i32>>>,
+    clients: &Clients,
+) {
+    if to_send.len() <= clients.len() {
+        return;
+    }
+    if clients.len() == 1 {
+        if let Some((single_client_id, _)) = clients.iter().next() {
+            let single_client_id = single_client_id.as_str();
+            to_send.retain(|client_id, _| client_id.as_str() == single_client_id);
+        } else {
+            to_send.clear();
+        }
+        return;
+    }
+    to_send.retain(|client_id, _| clients.contains_key(client_id));
+}
+
 impl<'a> System<'a> for ChunkRequestsSystem {
     type SystemData = (
         ReadExpect<'a, Chunks>,
@@ -109,8 +129,8 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             if to_send_touched_clients.capacity() < client_count {
                 to_send_touched_clients.reserve(client_count - to_send_touched_clients.len());
             }
-            if !to_send.is_empty() && to_send.len() > clients.len() {
-                to_send.retain(|client_id, _| clients.contains_key(client_id));
+            if !to_send.is_empty() {
+                retain_active_request_batches(to_send, &clients);
             }
         } else {
             to_send.clear();
