@@ -2016,7 +2016,13 @@ const toNormalizedCliOptionTokenMetadata = (
         normalizeCliOptionTokenListWithAvailability(metadataTokens);
       const metadataOverrideIsInconsistent =
         metadataUnavailable === false &&
-        normalizedMetadataTokensWithAvailability.unavailable;
+        (
+          normalizedMetadataTokensWithAvailability.unavailable ||
+          (
+            normalizedMetadataTokensWithAvailability.hadArrayEntries === true &&
+            normalizedMetadataTokensWithAvailability.tokens.length === 0
+          )
+        );
       if (metadataOverrideIsInconsistent) {
         return normalizeCliOptionTokenListWithAvailability(fallbackTokens);
       }
