@@ -7,6 +7,7 @@ use crate::{
     ClientFilter, Clients, Event, EventProtocol, Events, IDComp, Message, MessageType, Transports,
     Vec2, WorldTimingContext,
 };
+use crate::world::systems::retain_active_client_batches_map;
 
 #[derive(Default)]
 pub struct EventsSystem {
@@ -244,94 +245,7 @@ fn retain_active_dispatch_clients(
     dispatch_map: &mut HashMap<String, Vec<EventProtocol>>,
     clients: &Clients,
 ) {
-    if dispatch_map.len() <= clients.len() {
-        return;
-    }
-    match clients.len() {
-        0 => {
-            dispatch_map.clear();
-        }
-        1 => {
-            if let Some((single_client_id, _)) = clients.iter().next() {
-                let single_client_id = single_client_id.as_str();
-                dispatch_map.retain(|id, _| id.as_str() == single_client_id);
-            } else {
-                dispatch_map.clear();
-            }
-        }
-        2 => {
-            let mut client_ids = clients.keys();
-            let Some(first_client_id) = client_ids.next().map(String::as_str) else {
-                dispatch_map.clear();
-                return;
-            };
-            let Some(second_client_id) = client_ids.next().map(String::as_str) else {
-                dispatch_map.retain(|id, _| id.as_str() == first_client_id);
-                return;
-            };
-            dispatch_map.retain(|id, _| {
-                let id = id.as_str();
-                id == first_client_id || id == second_client_id
-            });
-        }
-        3 => {
-            let mut client_ids = clients.keys();
-            let Some(first_client_id) = client_ids.next().map(String::as_str) else {
-                dispatch_map.clear();
-                return;
-            };
-            let Some(second_client_id) = client_ids.next().map(String::as_str) else {
-                dispatch_map.retain(|id, _| id.as_str() == first_client_id);
-                return;
-            };
-            let Some(third_client_id) = client_ids.next().map(String::as_str) else {
-                dispatch_map.retain(|id, _| {
-                    let id = id.as_str();
-                    id == first_client_id || id == second_client_id
-                });
-                return;
-            };
-            dispatch_map.retain(|id, _| {
-                let id = id.as_str();
-                id == first_client_id || id == second_client_id || id == third_client_id
-            });
-        }
-        4 => {
-            let mut client_ids = clients.keys();
-            let Some(first_client_id) = client_ids.next().map(String::as_str) else {
-                dispatch_map.clear();
-                return;
-            };
-            let Some(second_client_id) = client_ids.next().map(String::as_str) else {
-                dispatch_map.retain(|id, _| id.as_str() == first_client_id);
-                return;
-            };
-            let Some(third_client_id) = client_ids.next().map(String::as_str) else {
-                dispatch_map.retain(|id, _| {
-                    let id = id.as_str();
-                    id == first_client_id || id == second_client_id
-                });
-                return;
-            };
-            let Some(fourth_client_id) = client_ids.next().map(String::as_str) else {
-                dispatch_map.retain(|id, _| {
-                    let id = id.as_str();
-                    id == first_client_id || id == second_client_id || id == third_client_id
-                });
-                return;
-            };
-            dispatch_map.retain(|id, _| {
-                let id = id.as_str();
-                id == first_client_id
-                    || id == second_client_id
-                    || id == third_client_id
-                    || id == fourth_client_id
-            });
-        }
-        _ => {
-            dispatch_map.retain(|id, _| clients.contains_key(id));
-        }
-    }
+    retain_active_client_batches_map(dispatch_map, clients);
 }
 
 #[inline]

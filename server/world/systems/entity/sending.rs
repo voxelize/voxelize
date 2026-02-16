@@ -9,6 +9,7 @@ use crate::{
     IDComp, InteractorComp, KdTree, Message, MessageQueues, MessageType, MetadataComp, Physics,
     PositionComp, Vec3, VoxelComp, WorldConfig,
 };
+use crate::world::systems::retain_active_client_batches_map;
 
 #[derive(Default)]
 pub struct EntitiesSendingSystem {
@@ -123,98 +124,7 @@ fn retain_active_client_updates(
     client_updates: &mut HashMap<String, Vec<EntityProtocol>>,
     clients: &Clients,
 ) {
-    if client_updates.len() <= clients.len() {
-        return;
-    }
-    match clients.len() {
-        0 => {
-            client_updates.clear();
-        }
-        1 => {
-            if let Some((single_client_id, _)) = clients.iter().next() {
-                let single_client_id = single_client_id.as_str();
-                client_updates.retain(|client_id, _| client_id.as_str() == single_client_id);
-            } else {
-                client_updates.clear();
-            }
-        }
-        2 => {
-            let mut client_ids = clients.keys();
-            let Some(first_client_id) = client_ids.next().map(String::as_str) else {
-                client_updates.clear();
-                return;
-            };
-            let Some(second_client_id) = client_ids.next().map(String::as_str) else {
-                client_updates.retain(|client_id, _| client_id.as_str() == first_client_id);
-                return;
-            };
-            client_updates.retain(|client_id, _| {
-                let client_id = client_id.as_str();
-                client_id == first_client_id || client_id == second_client_id
-            });
-        }
-        3 => {
-            let mut client_ids = clients.keys();
-            let Some(first_client_id) = client_ids.next().map(String::as_str) else {
-                client_updates.clear();
-                return;
-            };
-            let Some(second_client_id) = client_ids.next().map(String::as_str) else {
-                client_updates.retain(|client_id, _| client_id.as_str() == first_client_id);
-                return;
-            };
-            let Some(third_client_id) = client_ids.next().map(String::as_str) else {
-                client_updates.retain(|client_id, _| {
-                    let client_id = client_id.as_str();
-                    client_id == first_client_id || client_id == second_client_id
-                });
-                return;
-            };
-            client_updates.retain(|client_id, _| {
-                let client_id = client_id.as_str();
-                client_id == first_client_id
-                    || client_id == second_client_id
-                    || client_id == third_client_id
-            });
-        }
-        4 => {
-            let mut client_ids = clients.keys();
-            let Some(first_client_id) = client_ids.next().map(String::as_str) else {
-                client_updates.clear();
-                return;
-            };
-            let Some(second_client_id) = client_ids.next().map(String::as_str) else {
-                client_updates.retain(|client_id, _| client_id.as_str() == first_client_id);
-                return;
-            };
-            let Some(third_client_id) = client_ids.next().map(String::as_str) else {
-                client_updates.retain(|client_id, _| {
-                    let client_id = client_id.as_str();
-                    client_id == first_client_id || client_id == second_client_id
-                });
-                return;
-            };
-            let Some(fourth_client_id) = client_ids.next().map(String::as_str) else {
-                client_updates.retain(|client_id, _| {
-                    let client_id = client_id.as_str();
-                    client_id == first_client_id
-                        || client_id == second_client_id
-                        || client_id == third_client_id
-                });
-                return;
-            };
-            client_updates.retain(|client_id, _| {
-                let client_id = client_id.as_str();
-                client_id == first_client_id
-                    || client_id == second_client_id
-                    || client_id == third_client_id
-                    || client_id == fourth_client_id
-            });
-        }
-        _ => {
-            client_updates.retain(|client_id, _| clients.contains_key(client_id));
-        }
-    }
+    retain_active_client_batches_map(client_updates, clients);
 }
 
 impl<'a> System<'a> for EntitiesSendingSystem {

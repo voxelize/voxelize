@@ -1,4 +1,5 @@
 mod broadcast;
+mod client_batch_retention;
 mod chunk;
 mod cleanup;
 mod entity;
@@ -19,3 +20,5 @@ pub use peers::*;
 pub use physics::PhysicsSystem;
 pub use saving::*;
 pub use stats::*;
+
+pub(crate) use client_batch_retention::retain_active_client_batches_map;
