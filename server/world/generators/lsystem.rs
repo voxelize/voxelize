@@ -28,8 +28,10 @@ impl LSystem {
 
     pub fn set_rules(&mut self, rules: &[(&str, &str)]) {
         for &(key, value) in rules {
-            self.rules
-                .insert(key.chars().next().unwrap(), value.to_string());
+            let Some(rule_key) = key.chars().next() else {
+                continue;
+            };
+            self.rules.insert(rule_key, value.to_string());
         }
     }
 
@@ -98,5 +100,28 @@ impl LSystemBuilder {
             rules: self.rules,
             iterations: self.iterations,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::LSystem;
+
+    #[test]
+    fn set_rules_skips_empty_rule_keys() {
+        let mut system = LSystem::default();
+        system.set_rules(&[("", "AB"), ("F", "FX")]);
+
+        assert_eq!(system.rules.len(), 1);
+        assert_eq!(system.rules.get(&'F'), Some(&String::from("FX")));
+    }
+
+    #[test]
+    fn set_rules_uses_first_character_of_rule_key() {
+        let mut system = LSystem::default();
+        system.set_rules(&[("FG", "X")]);
+
+        assert_eq!(system.rules.get(&'F'), Some(&String::from("X")));
+        assert!(!system.rules.contains_key(&'G'));
     }
 }
