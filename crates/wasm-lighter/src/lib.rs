@@ -100,7 +100,11 @@ impl BatchSpace {
         } else {
             None
         };
-        let chunk_mask = chunk_shift.map(|_| chunk_size - 1);
+        let chunk_mask = if chunk_shift.is_some() {
+            Some(chunk_size - 1)
+        } else {
+            None
+        };
         Self {
             chunks,
             chunk_grid_depth,
