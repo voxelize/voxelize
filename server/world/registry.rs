@@ -364,6 +364,9 @@ impl Registry {
     /// Check if block is air by id.
     #[inline]
     pub fn is_air(&self, id: u32) -> bool {
+        if id == 0 {
+            return true;
+        }
         self.blocks_by_id
             .get(&id)
             .map(|block| block.name == "Air")
@@ -373,6 +376,9 @@ impl Registry {
     /// Check if block is fluid by id.
     #[inline]
     pub fn is_fluid(&self, id: u32) -> bool {
+        if id == 0 {
+            return false;
+        }
         self.blocks_by_id
             .get(&id)
             .map(|block| block.is_fluid)
