@@ -101,8 +101,10 @@ impl Physics {
             Vec::with_capacity(collision_capacity),
         );
         collisions.clear();
-        if collisions.capacity() < self.collision_recv.len().saturating_add(1) {
-            collisions.reserve(self.collision_recv.len().saturating_add(1) - collisions.len());
+        let pending_collisions = self.collision_recv.len();
+        let required_collision_capacity = pending_collisions.saturating_add(1);
+        if collisions.capacity() < required_collision_capacity {
+            collisions.reserve(required_collision_capacity);
         }
         collisions.push(first_collision);
 
