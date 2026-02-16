@@ -641,7 +641,7 @@ export const summarizeStepResults = (steps) => {
       continue;
     }
 
-    const skipped = safeReadProperty(step, "skipped");
+    const skipped = toBooleanOrNull(safeReadProperty(step, "skipped"));
     if (skipped === true) {
       skippedSteps.push(name);
       continue;
@@ -651,8 +651,8 @@ export const summarizeStepResults = (steps) => {
       continue;
     }
 
-    const passed = safeReadProperty(step, "passed");
-    if (Boolean(passed)) {
+    const passed = toBooleanOrNull(safeReadProperty(step, "passed"));
+    if (passed === true) {
       passedSteps.push(name);
       continue;
     }
@@ -698,7 +698,8 @@ export const summarizeCheckResults = (checks) => {
       continue;
     }
 
-    if (Boolean(safeReadProperty(check, "passed"))) {
+    const passed = toBooleanOrNull(safeReadProperty(check, "passed"));
+    if (passed === true) {
       passedChecks.push(name);
       continue;
     }
@@ -1379,12 +1380,13 @@ export const deriveFailureMessageFromReport = (report) => {
       clonedStepEntries.fromIndexedFallback
     );
     for (const step of stepRecordEntries) {
-      const passedValue = safeReadProperty(step, "passed");
+      const passedValue = toBooleanOrNull(safeReadProperty(step, "passed"));
       if (passedValue !== false) {
         continue;
       }
 
-      if (safeReadProperty(step, "skipped") === true) {
+      const skippedValue = toBooleanOrNull(safeReadProperty(step, "skipped"));
+      if (skippedValue === true) {
         continue;
       }
 
@@ -2014,12 +2016,12 @@ export const summarizeStepFailureResults = (steps) => {
   const failureSummaries = [];
 
   for (const step of stepRecordEntries) {
-    const passed = safeReadProperty(step, "passed");
+    const passed = toBooleanOrNull(safeReadProperty(step, "passed"));
     if (passed !== false) {
       continue;
     }
 
-    const skipped = safeReadProperty(step, "skipped");
+    const skipped = toBooleanOrNull(safeReadProperty(step, "skipped"));
     if (skipped !== false) {
       continue;
     }
@@ -2057,7 +2059,8 @@ export const summarizeStepFailureResults = (steps) => {
     failureSummaries.push({
       name,
       scriptName: scriptNameValue ?? "",
-      supportsNoBuild: safeReadProperty(step, "supportsNoBuild") === true,
+      supportsNoBuild:
+        toBooleanOrNull(safeReadProperty(step, "supportsNoBuild")) === true,
       stepIndex: toNonNegativeIntegerOrNull(stepIndexValue),
       checkCommand: checkCommandValue ?? "",
       checkArgs,
@@ -2081,7 +2084,7 @@ export const summarizeCheckFailureResults = (checks) => {
   const failureSummaries = [];
 
   for (const check of checkRecordEntries) {
-    const passed = safeReadProperty(check, "passed");
+    const passed = toBooleanOrNull(safeReadProperty(check, "passed"));
     if (passed !== false) {
       continue;
     }
@@ -2121,7 +2124,8 @@ export const summarizeCheckFailureResults = (checks) => {
     failureSummaries.push({
       name,
       scriptName: scriptNameValue ?? "",
-      supportsNoBuild: safeReadProperty(check, "supportsNoBuild") === true,
+      supportsNoBuild:
+        toBooleanOrNull(safeReadProperty(check, "supportsNoBuild")) === true,
       checkIndex,
       checkCommand: checkCommandValue ?? "",
       checkArgs,

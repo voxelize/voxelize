@@ -26592,6 +26592,104 @@ describe("report-utils", () => {
       failedSteps: ["step-b"],
       skippedSteps: ["step-c"],
     });
+
+    const crossRealmWrappedStepPassed = vm.runInNewContext("new Boolean(true)");
+    let didCallCrossRealmWrappedStepPassedToString = false;
+    Object.defineProperty(crossRealmWrappedStepPassed, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedStepPassedToString = true;
+        throw new Error("cross-realm wrapped step passed toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedStepPassedValueOf = false;
+    Object.defineProperty(crossRealmWrappedStepPassed, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedStepPassedValueOf = true;
+        throw new Error("cross-realm wrapped step passed valueOf trap");
+      },
+    });
+    const crossRealmWrappedStepFailed = vm.runInNewContext("new Boolean(false)");
+    let didCallCrossRealmWrappedStepFailedToString = false;
+    Object.defineProperty(crossRealmWrappedStepFailed, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedStepFailedToString = true;
+        throw new Error("cross-realm wrapped step failed toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedStepFailedValueOf = false;
+    Object.defineProperty(crossRealmWrappedStepFailed, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedStepFailedValueOf = true;
+        throw new Error("cross-realm wrapped step failed valueOf trap");
+      },
+    });
+    const crossRealmWrappedStepSkipped = vm.runInNewContext("new Boolean(true)");
+    let didCallCrossRealmWrappedStepSkippedToString = false;
+    Object.defineProperty(crossRealmWrappedStepSkipped, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedStepSkippedToString = true;
+        throw new Error("cross-realm wrapped step skipped toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedStepSkippedValueOf = false;
+    Object.defineProperty(crossRealmWrappedStepSkipped, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedStepSkippedValueOf = true;
+        throw new Error("cross-realm wrapped step skipped valueOf trap");
+      },
+    });
+    expect(
+      summarizeStepResults([
+        {
+          name: "step-pass",
+          passed: crossRealmWrappedStepPassed as never,
+          skipped: vm.runInNewContext("new Boolean(false)"),
+        },
+        {
+          name: "step-fail",
+          passed: crossRealmWrappedStepFailed as never,
+          skipped: vm.runInNewContext("new Boolean(false)"),
+        },
+        {
+          name: "step-skip",
+          passed: vm.runInNewContext("new Boolean(false)"),
+          skipped: crossRealmWrappedStepSkipped as never,
+        },
+      ])
+    ).toEqual({
+      totalSteps: 3,
+      passedStepCount: 1,
+      failedStepCount: 1,
+      skippedStepCount: 1,
+      firstFailedStep: "step-fail",
+      passedSteps: ["step-pass"],
+      failedSteps: ["step-fail"],
+      skippedSteps: ["step-skip"],
+    });
+    expect(didCallCrossRealmWrappedStepPassedToString).toBe(false);
+    expect(didCallCrossRealmWrappedStepPassedValueOf).toBe(false);
+    expect(didCallCrossRealmWrappedStepFailedToString).toBe(false);
+    expect(didCallCrossRealmWrappedStepFailedValueOf).toBe(false);
+    expect(didCallCrossRealmWrappedStepSkippedToString).toBe(false);
+    expect(didCallCrossRealmWrappedStepSkippedValueOf).toBe(false);
   });
 
   it("summarizes step outcomes with malformed/trap step entries", () => {
@@ -27320,6 +27418,125 @@ describe("report-utils", () => {
         message: "Step failed.",
       },
     ]);
+
+    const crossRealmWrappedStepFailurePassed = vm.runInNewContext(
+      "new Boolean(false)"
+    );
+    let didCallCrossRealmWrappedStepFailurePassedToString = false;
+    Object.defineProperty(crossRealmWrappedStepFailurePassed, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedStepFailurePassedToString = true;
+        throw new Error("cross-realm wrapped step failure passed toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedStepFailurePassedValueOf = false;
+    Object.defineProperty(crossRealmWrappedStepFailurePassed, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedStepFailurePassedValueOf = true;
+        throw new Error("cross-realm wrapped step failure passed valueOf trap");
+      },
+    });
+    const crossRealmWrappedStepFailureSkipped = vm.runInNewContext(
+      "new Boolean(false)"
+    );
+    let didCallCrossRealmWrappedStepFailureSkippedToString = false;
+    Object.defineProperty(crossRealmWrappedStepFailureSkipped, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedStepFailureSkippedToString = true;
+        throw new Error("cross-realm wrapped step failure skipped toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedStepFailureSkippedValueOf = false;
+    Object.defineProperty(crossRealmWrappedStepFailureSkipped, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedStepFailureSkippedValueOf = true;
+        throw new Error("cross-realm wrapped step failure skipped valueOf trap");
+      },
+    });
+    const crossRealmWrappedStepFailureSupportsNoBuild = vm.runInNewContext(
+      "new Boolean(true)"
+    );
+    let didCallCrossRealmWrappedStepFailureSupportsNoBuildToString = false;
+    Object.defineProperty(
+      crossRealmWrappedStepFailureSupportsNoBuild,
+      "toString",
+      {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value() {
+          didCallCrossRealmWrappedStepFailureSupportsNoBuildToString = true;
+          throw new Error(
+            "cross-realm wrapped step failure supportsNoBuild toString trap"
+          );
+        },
+      }
+    );
+    let didCallCrossRealmWrappedStepFailureSupportsNoBuildValueOf = false;
+    Object.defineProperty(
+      crossRealmWrappedStepFailureSupportsNoBuild,
+      "valueOf",
+      {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value() {
+          didCallCrossRealmWrappedStepFailureSupportsNoBuildValueOf = true;
+          throw new Error(
+            "cross-realm wrapped step failure supportsNoBuild valueOf trap"
+          );
+        },
+      }
+    );
+    expect(
+      summarizeStepFailureResults([
+        {
+          name: "wrapped-step-failure",
+          scriptName: "check-wrapped-step.mjs",
+          supportsNoBuild: crossRealmWrappedStepFailureSupportsNoBuild as never,
+          stepIndex: 0,
+          passed: crossRealmWrappedStepFailurePassed as never,
+          skipped: crossRealmWrappedStepFailureSkipped as never,
+          exitCode: 2,
+          report: null,
+          output: "wrapped step output failure",
+        },
+      ])
+    ).toEqual([
+      {
+        name: "wrapped-step-failure",
+        scriptName: "check-wrapped-step.mjs",
+        supportsNoBuild: true,
+        stepIndex: 0,
+        checkCommand: "",
+        checkArgs: [],
+        checkArgCount: 0,
+        exitCode: 2,
+        message: "wrapped step output failure",
+      },
+    ]);
+    expect(didCallCrossRealmWrappedStepFailurePassedToString).toBe(false);
+    expect(didCallCrossRealmWrappedStepFailurePassedValueOf).toBe(false);
+    expect(didCallCrossRealmWrappedStepFailureSkippedToString).toBe(false);
+    expect(didCallCrossRealmWrappedStepFailureSkippedValueOf).toBe(false);
+    expect(didCallCrossRealmWrappedStepFailureSupportsNoBuildToString).toBe(
+      false
+    );
+    expect(didCallCrossRealmWrappedStepFailureSupportsNoBuildValueOf).toBe(
+      false
+    );
   });
 
   it("summarizes failed check entries with message fallbacks", () => {
@@ -27407,6 +27624,99 @@ describe("report-utils", () => {
         message: "Preflight check failed.",
       },
     ]);
+
+    const crossRealmWrappedCheckFailurePassed = vm.runInNewContext(
+      "new Boolean(false)"
+    );
+    let didCallCrossRealmWrappedCheckFailurePassedToString = false;
+    Object.defineProperty(crossRealmWrappedCheckFailurePassed, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedCheckFailurePassedToString = true;
+        throw new Error("cross-realm wrapped check failure passed toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedCheckFailurePassedValueOf = false;
+    Object.defineProperty(crossRealmWrappedCheckFailurePassed, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedCheckFailurePassedValueOf = true;
+        throw new Error("cross-realm wrapped check failure passed valueOf trap");
+      },
+    });
+    const crossRealmWrappedCheckFailureSupportsNoBuild = vm.runInNewContext(
+      "new Boolean(true)"
+    );
+    let didCallCrossRealmWrappedCheckFailureSupportsNoBuildToString = false;
+    Object.defineProperty(
+      crossRealmWrappedCheckFailureSupportsNoBuild,
+      "toString",
+      {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value() {
+          didCallCrossRealmWrappedCheckFailureSupportsNoBuildToString = true;
+          throw new Error(
+            "cross-realm wrapped check failure supportsNoBuild toString trap"
+          );
+        },
+      }
+    );
+    let didCallCrossRealmWrappedCheckFailureSupportsNoBuildValueOf = false;
+    Object.defineProperty(
+      crossRealmWrappedCheckFailureSupportsNoBuild,
+      "valueOf",
+      {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value() {
+          didCallCrossRealmWrappedCheckFailureSupportsNoBuildValueOf = true;
+          throw new Error(
+            "cross-realm wrapped check failure supportsNoBuild valueOf trap"
+          );
+        },
+      }
+    );
+    expect(
+      summarizeCheckFailureResults([
+        {
+          name: "wrapped-check-failure",
+          scriptName: "check-wrapped-check.mjs",
+          supportsNoBuild: crossRealmWrappedCheckFailureSupportsNoBuild as never,
+          checkIndex: 1,
+          passed: crossRealmWrappedCheckFailurePassed as never,
+          exitCode: 2,
+          report: null,
+          output: "wrapped check output failure",
+        },
+      ])
+    ).toEqual([
+      {
+        name: "wrapped-check-failure",
+        scriptName: "check-wrapped-check.mjs",
+        supportsNoBuild: true,
+        checkIndex: 1,
+        checkCommand: "",
+        checkArgs: [],
+        checkArgCount: 0,
+        exitCode: 2,
+        message: "wrapped check output failure",
+      },
+    ]);
+    expect(didCallCrossRealmWrappedCheckFailurePassedToString).toBe(false);
+    expect(didCallCrossRealmWrappedCheckFailurePassedValueOf).toBe(false);
+    expect(didCallCrossRealmWrappedCheckFailureSupportsNoBuildToString).toBe(
+      false
+    );
+    expect(didCallCrossRealmWrappedCheckFailureSupportsNoBuildValueOf).toBe(
+      false
+    );
   });
 
   it("normalizes whitespace-only summary name and command fields", () => {
@@ -29693,6 +30003,66 @@ describe("report-utils", () => {
       passedChecks: ["wasmPack"],
       failedChecks: ["devEnvironment", "client"],
     });
+
+    const crossRealmWrappedCheckPassed = vm.runInNewContext("new Boolean(true)");
+    let didCallCrossRealmWrappedCheckPassedToString = false;
+    Object.defineProperty(crossRealmWrappedCheckPassed, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedCheckPassedToString = true;
+        throw new Error("cross-realm wrapped check passed toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedCheckPassedValueOf = false;
+    Object.defineProperty(crossRealmWrappedCheckPassed, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedCheckPassedValueOf = true;
+        throw new Error("cross-realm wrapped check passed valueOf trap");
+      },
+    });
+    const crossRealmWrappedCheckFailed = vm.runInNewContext("new Boolean(false)");
+    let didCallCrossRealmWrappedCheckFailedToString = false;
+    Object.defineProperty(crossRealmWrappedCheckFailed, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedCheckFailedToString = true;
+        throw new Error("cross-realm wrapped check failed toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedCheckFailedValueOf = false;
+    Object.defineProperty(crossRealmWrappedCheckFailed, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedCheckFailedValueOf = true;
+        throw new Error("cross-realm wrapped check failed valueOf trap");
+      },
+    });
+    expect(
+      summarizeCheckResults([
+        { name: "check-pass", passed: crossRealmWrappedCheckPassed as never },
+        { name: "check-fail", passed: crossRealmWrappedCheckFailed as never },
+      ])
+    ).toEqual({
+      totalChecks: 2,
+      passedCheckCount: 1,
+      failedCheckCount: 1,
+      firstFailedCheck: "check-fail",
+      passedChecks: ["check-pass"],
+      failedChecks: ["check-fail"],
+    });
+    expect(didCallCrossRealmWrappedCheckPassedToString).toBe(false);
+    expect(didCallCrossRealmWrappedCheckPassedValueOf).toBe(false);
+    expect(didCallCrossRealmWrappedCheckFailedToString).toBe(false);
+    expect(didCallCrossRealmWrappedCheckFailedValueOf).toBe(false);
   });
 
   it("summarizes check outcomes with malformed/trap check entries", () => {
@@ -30363,6 +30733,98 @@ describe("report-utils", () => {
     ).toBe("2 required check(s) failed.");
     expect(didCallCrossRealmRequiredFailuresToString).toBe(false);
     expect(didCallCrossRealmRequiredFailuresValueOf).toBe(false);
+    const crossRealmWrappedFailureStepPassed = vm.runInNewContext(
+      "new Boolean(false)"
+    );
+    let didCallCrossRealmWrappedFailureStepPassedToString = false;
+    Object.defineProperty(crossRealmWrappedFailureStepPassed, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedFailureStepPassedToString = true;
+        throw new Error("cross-realm wrapped failure step passed toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedFailureStepPassedValueOf = false;
+    Object.defineProperty(crossRealmWrappedFailureStepPassed, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedFailureStepPassedValueOf = true;
+        throw new Error("cross-realm wrapped failure step passed valueOf trap");
+      },
+    });
+    const crossRealmWrappedFailureStepSkipped = vm.runInNewContext(
+      "new Boolean(false)"
+    );
+    let didCallCrossRealmWrappedFailureStepSkippedToString = false;
+    Object.defineProperty(crossRealmWrappedFailureStepSkipped, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedFailureStepSkippedToString = true;
+        throw new Error("cross-realm wrapped failure step skipped toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedFailureStepSkippedValueOf = false;
+    Object.defineProperty(crossRealmWrappedFailureStepSkipped, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedFailureStepSkippedValueOf = true;
+        throw new Error("cross-realm wrapped failure step skipped valueOf trap");
+      },
+    });
+    const crossRealmWrappedSkippedStepFlag = vm.runInNewContext(
+      "new Boolean(true)"
+    );
+    let didCallCrossRealmWrappedSkippedStepFlagToString = false;
+    Object.defineProperty(crossRealmWrappedSkippedStepFlag, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedSkippedStepFlagToString = true;
+        throw new Error("cross-realm wrapped skipped step toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedSkippedStepFlagValueOf = false;
+    Object.defineProperty(crossRealmWrappedSkippedStepFlag, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedSkippedStepFlagValueOf = true;
+        throw new Error("cross-realm wrapped skipped step valueOf trap");
+      },
+    });
+    expect(
+      deriveFailureMessageFromReport({
+        steps: [
+          {
+            name: "Skipped step",
+            passed: vm.runInNewContext("new Boolean(false)"),
+            skipped: crossRealmWrappedSkippedStepFlag as never,
+          },
+          {
+            name: "Wrapped step",
+            passed: crossRealmWrappedFailureStepPassed as never,
+            skipped: crossRealmWrappedFailureStepSkipped as never,
+            reason: "wrapped boolean reason",
+          },
+        ],
+      })
+    ).toBe("Wrapped step: wrapped boolean reason");
+    expect(didCallCrossRealmWrappedFailureStepPassedToString).toBe(false);
+    expect(didCallCrossRealmWrappedFailureStepPassedValueOf).toBe(false);
+    expect(didCallCrossRealmWrappedFailureStepSkippedToString).toBe(false);
+    expect(didCallCrossRealmWrappedFailureStepSkippedValueOf).toBe(false);
+    expect(didCallCrossRealmWrappedSkippedStepFlagToString).toBe(false);
+    expect(didCallCrossRealmWrappedSkippedStepFlagValueOf).toBe(false);
     expect(deriveFailureMessageFromReport({ requiredFailures: 0 })).toBeNull();
     expect(
       deriveFailureMessageFromReport({ requiredFailures: Number.NaN })
