@@ -529,6 +529,40 @@ describe("report-utils", () => {
     expect(parsedTrappedSerializationErrorReport.serializationError).toBe(
       "Unknown report serialization error."
     );
+
+    const revokedSerializationError = (() => {
+      const errorProxy = Proxy.revocable(new Error("revoked serialization trap"), {});
+      errorProxy.revoke();
+      return errorProxy.proxy;
+    })();
+    const reportWithRevokedSerializationError = {
+      toJSON() {
+        throw revokedSerializationError;
+      },
+    };
+    expect(() =>
+      toReportJson(reportWithRevokedSerializationError as never)
+    ).not.toThrow();
+    const parsedRevokedSerializationErrorReport = JSON.parse(
+      toReportJson(reportWithRevokedSerializationError as never)
+    ) as {
+      schemaVersion: number;
+      passed: boolean;
+      exitCode: number;
+      message: string;
+      serializationError: string;
+    };
+    expect(parsedRevokedSerializationErrorReport.schemaVersion).toBe(
+      REPORT_SCHEMA_VERSION
+    );
+    expect(parsedRevokedSerializationErrorReport.passed).toBe(false);
+    expect(parsedRevokedSerializationErrorReport.exitCode).toBe(1);
+    expect(parsedRevokedSerializationErrorReport.message).toBe(
+      "Failed to serialize report JSON."
+    );
+    expect(parsedRevokedSerializationErrorReport.serializationError).toBe(
+      "Unknown report serialization error."
+    );
   });
 
   it("supports compact json serialization option", () => {

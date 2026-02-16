@@ -190,7 +190,14 @@ const isCompactJsonSerializationEnabled = (options) => {
 };
 
 const toSerializationErrorMessage = (error) => {
-  if (!(error instanceof Error)) {
+  let isErrorValue = false;
+  try {
+    isErrorValue = error instanceof Error;
+  } catch {
+    isErrorValue = false;
+  }
+
+  if (!isErrorValue) {
     return "Unknown report serialization error.";
   }
 
