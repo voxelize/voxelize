@@ -199,7 +199,7 @@ impl<'a> System<'a> for EventsSystem {
         let touched_clients = &mut self.touched_clients_buffer;
         touched_clients.clear();
         if touched_clients.capacity() < client_count {
-            touched_clients.reserve(client_count - touched_clients.capacity());
+            touched_clients.reserve(client_count - touched_clients.len());
         }
         let single_client = if client_count == 1 {
             clients
@@ -213,7 +213,7 @@ impl<'a> System<'a> for EventsSystem {
         if has_transports {
             transports_map.clear();
             if transports_map.capacity() < queued_events_count {
-                transports_map.reserve(queued_events_count - transports_map.capacity());
+                transports_map.reserve(queued_events_count - transports_map.len());
             }
         }
         if client_count == 0 {

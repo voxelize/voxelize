@@ -76,7 +76,7 @@ impl<'a> System<'a> for PhysicsSystem {
         let collision_map = &mut self.collision_map_buffer;
         collision_map.clear();
         if collision_map.capacity() < physics.entity_to_handlers.len() {
-            collision_map.reserve(physics.entity_to_handlers.len() - collision_map.capacity());
+            collision_map.reserve(physics.entity_to_handlers.len() - collision_map.len());
         }
 
         // Tick the voxel physics of all entities (non-clients).

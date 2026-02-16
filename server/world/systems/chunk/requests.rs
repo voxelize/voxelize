@@ -62,7 +62,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         }
         to_send_touched_clients.clear();
         if to_send_touched_clients.capacity() < client_count {
-            to_send_touched_clients.reserve(client_count - to_send_touched_clients.capacity());
+            to_send_touched_clients.reserve(client_count - to_send_touched_clients.len());
         }
         if clients.is_empty() {
             to_send.clear();
@@ -81,7 +81,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             to_add_back_to_requested.clear();
             if to_add_back_to_requested.capacity() < requests.requests.len() {
                 to_add_back_to_requested
-                    .reserve(requests.requests.len() - to_add_back_to_requested.capacity());
+                    .reserve(requests.requests.len() - to_add_back_to_requested.len());
             }
             let mut touched_client = false;
             let mut clients_to_send: Option<&mut HashSet<Vec2<i32>>> = None;
@@ -172,7 +172,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             }
             chunk_models_buffer.clear();
             if chunk_models_buffer.capacity() < coords_to_send.len() {
-                chunk_models_buffer.reserve(coords_to_send.len() - chunk_models_buffer.capacity());
+                chunk_models_buffer.reserve(coords_to_send.len() - chunk_models_buffer.len());
             }
             for coords in coords_to_send.drain() {
                 if let Some(chunk) = chunks.get(&coords) {

@@ -104,7 +104,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             weights.retain(|coords, _| interest_map.contains_key(coords));
         }
         if weights.capacity() < interest_map.len() {
-            weights.reserve(interest_map.len() - weights.capacity());
+            weights.reserve(interest_map.len() - weights.len());
         }
 
         for (coords, ids) in interest_map {

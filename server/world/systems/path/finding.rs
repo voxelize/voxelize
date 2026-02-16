@@ -43,7 +43,7 @@ impl<'a> System<'a> for PathFindingSystem {
         let mut voxel_cache_map = std::mem::take(&mut self.voxel_cache_buffer);
         voxel_cache_map.clear();
         if voxel_cache_map.capacity() < 256 {
-            voxel_cache_map.reserve(256 - voxel_cache_map.capacity());
+            voxel_cache_map.reserve(256 - voxel_cache_map.len());
         }
         let voxel_cache = RwLock::new(voxel_cache_map);
 

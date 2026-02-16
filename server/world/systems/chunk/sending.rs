@@ -161,7 +161,7 @@ fn prepare_chunk_batch_buffer(
     }
     touched_clients.clear();
     if touched_clients.capacity() < client_capacity_hint {
-        touched_clients.reserve(client_capacity_hint - touched_clients.capacity());
+        touched_clients.reserve(client_capacity_hint - touched_clients.len());
     }
 }
 

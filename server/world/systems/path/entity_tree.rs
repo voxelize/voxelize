@@ -63,7 +63,7 @@ impl<'a> System<'a> for EntityTreeSystem {
         let initial_tree_len = tree.len();
         if self.current_ids_buffer.capacity() < initial_tree_len {
             self.current_ids_buffer
-                .reserve(initial_tree_len - self.current_ids_buffer.capacity());
+                .reserve(initial_tree_len - self.current_ids_buffer.len());
         }
         let current_ids = &mut self.current_ids_buffer;
 

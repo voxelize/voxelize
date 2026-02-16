@@ -33,7 +33,7 @@ impl<'a> System<'a> for PeersSendingSystem {
             return;
         }
         if peers.capacity() < clients.len() {
-            peers.reserve(clients.len() - peers.capacity());
+            peers.reserve(clients.len() - peers.len());
         }
         for (id, name, metadata, _) in (&ids, &names, &mut metadatas, &flag).join() {
             if metadata.is_empty() {

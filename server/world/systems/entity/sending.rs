@@ -174,12 +174,12 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         new_bookkeeping_records.clear();
         if new_bookkeeping_records.capacity() < old_entities.len() {
             new_bookkeeping_records
-                .reserve(old_entities.len() - new_bookkeeping_records.capacity());
+                .reserve(old_entities.len() - new_bookkeeping_records.len());
         }
         let mut entity_positions = std::mem::take(&mut bookkeeping.entity_positions);
         entity_positions.clear();
         if entity_positions.capacity() < old_entities.len() {
-            entity_positions.reserve(old_entities.len() - entity_positions.capacity());
+            entity_positions.reserve(old_entities.len() - entity_positions.len());
         }
         let has_clients = !clients.is_empty();
         let mut entity_metadata_map: HashMap<&str, (&str, String, bool)> = if has_clients {
