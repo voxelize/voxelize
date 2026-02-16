@@ -725,6 +725,13 @@ fn build_neighbor_opaque_mask(neighbors: &NeighborCache, registry: &Registry) ->
         return mask;
     }
 
+    build_neighbor_opaque_mask_linear(neighbors, registry)
+}
+
+#[cold]
+#[inline(never)]
+fn build_neighbor_opaque_mask_linear(neighbors: &NeighborCache, registry: &Registry) -> [bool; 27] {
+    let mut mask = [false; 27];
     let mut idx = 0usize;
     while idx < 27 {
         let voxel_id = neighbors.data[idx][0] & 0xFFFF;
