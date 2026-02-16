@@ -264,6 +264,7 @@ const FLUID_SURFACE_OFFSET: f32 = 0.005;
 
 struct NeighborCache {
     data: [[u32; 2]; 27],
+    opaque: [bool; 27],
 }
 
 impl NeighborCache {
@@ -272,32 +273,28 @@ impl NeighborCache {
         ((x + 1) + (y + 1) * 3 + (z + 1) * 9) as usize
     }
 
-    fn populate<S: VoxelAccess>(vx: i32, vy: i32, vz: i32, space: &S) -> Self {
+    fn populate<S: VoxelAccess>(vx: i32, vy: i32, vz: i32, space: &S, registry: &Registry) -> Self {
         let mut data = [[0u32; 2]; 27];
+        let mut opaque = [false; 27];
 
         for x in -1..=1 {
             for y in -1..=1 {
                 for z in -1..=1 {
                     let idx = Self::offset_to_index(x, y, z);
-                    data[idx][0] = space.get_raw_voxel(vx + x, vy + y, vz + z);
+                    let raw_voxel = space.get_raw_voxel(vx + x, vy + y, vz + z);
+                    data[idx][0] = raw_voxel;
+                    let voxel_id = extract_id(raw_voxel);
+                    opaque[idx] = registry
+                        .get_block_by_id(voxel_id)
+                        .map(|block| block.is_opaque)
+                        .unwrap_or(false);
                     let (sun, red, green, blue) = space.get_all_lights(vx + x, vy + y, vz + z);
                     data[idx][1] = (sun << 12) | (red << 8) | (green << 4) | blue;
                 }
             }
         }
 
-        Self { data }
-    }
-
-    #[inline]
-    fn get_raw_voxel(&self, dx: i32, dy: i32, dz: i32) -> u32 {
-        let idx = Self::offset_to_index(dx, dy, dz);
-        self.data[idx][0]
-    }
-
-    #[inline]
-    fn get_voxel(&self, dx: i32, dy: i32, dz: i32) -> u32 {
-        extract_id(self.get_raw_voxel(dx, dy, dz))
+        Self { data, opaque }
     }
 
     #[inline]
@@ -310,6 +307,12 @@ impl NeighborCache {
     fn get_all_lights(&self, dx: i32, dy: i32, dz: i32) -> (u32, u32, u32, u32) {
         let light = self.get_raw_light(dx, dy, dz);
         LightUtils::extract_all(light)
+    }
+
+    #[inline]
+    fn get_is_opaque(&self, dx: i32, dy: i32, dz: i32) -> bool {
+        let idx = Self::offset_to_index(dx, dy, dz);
+        self.opaque[idx]
     }
 }
 
@@ -1038,7 +1041,6 @@ fn compute_face_ao_and_light(
     block: &Block,
     block_aabb: &AABB,
     neighbors: &NeighborCache,
-    registry: &Registry,
 ) -> ([i32; 4], [i32; 4]) {
     let is_see_through = block.is_see_through;
     let is_all_transparent = block.is_transparent[0]
@@ -1090,21 +1092,6 @@ fn compute_face_ao_and_light(
 
     let mut aos = [0i32; 4];
     let mut lights = [0i32; 4];
-    let mut opaque_cache = [u8::MAX; 27];
-    let mut get_block_opaque = |ox: i32, oy: i32, oz: i32| -> bool {
-        let cache_index = NeighborCache::offset_to_index(ox, oy, oz);
-        let cached = opaque_cache[cache_index];
-        if cached != u8::MAX {
-            return cached == 1;
-        }
-        let id = neighbors.get_voxel(ox, oy, oz);
-        let is_opaque = registry
-            .get_block_by_id(id)
-            .map(|b| b.is_opaque)
-            .unwrap_or(false);
-        opaque_cache[cache_index] = if is_opaque { 1 } else { 0 };
-        is_opaque
-    };
 
     for (i, pos) in corner_positions.iter().enumerate() {
         let dx = if pos[0] <= block_aabb.min_x + 0.01 {
@@ -1123,10 +1110,10 @@ fn compute_face_ao_and_light(
             1
         };
 
-        let b011 = !get_block_opaque(0, dy, dz);
-        let b101 = !get_block_opaque(dx, 0, dz);
-        let b110 = !get_block_opaque(dx, dy, 0);
-        let b111 = !get_block_opaque(dx, dy, dz);
+        let b011 = !neighbors.get_is_opaque(0, dy, dz);
+        let b101 = !neighbors.get_is_opaque(dx, 0, dz);
+        let b110 = !neighbors.get_is_opaque(dx, dy, 0);
+        let b111 = !neighbors.get_is_opaque(dx, dy, dz);
 
         let ao = if is_see_through || is_all_transparent {
             3
@@ -1166,44 +1153,44 @@ fn compute_face_ao_and_light(
                             continue;
                         }
 
-                        if get_block_opaque(ddx, ddy, ddz) {
+                        if neighbors.get_is_opaque(ddx, ddy, ddz) {
                             continue;
                         }
 
                         if dir[0] * ddx + dir[1] * ddy + dir[2] * ddz == 0 {
-                            if get_block_opaque(ddx * dir[0], ddy * dir[1], ddz * dir[2]) {
+                            if neighbors.get_is_opaque(ddx * dir[0], ddy * dir[1], ddz * dir[2]) {
                                 continue;
                             }
                         }
 
                         if ddx.abs() + ddy.abs() + ddz.abs() == 3 {
-                            let diagonal_yz_opaque = get_block_opaque(0, ddy, ddz);
-                            let diagonal_xz_opaque = get_block_opaque(ddx, 0, ddz);
-                            let diagonal_xy_opaque = get_block_opaque(ddx, ddy, 0);
+                            let diagonal_yz_opaque = neighbors.get_is_opaque(0, ddy, ddz);
+                            let diagonal_xz_opaque = neighbors.get_is_opaque(ddx, 0, ddz);
+                            let diagonal_xy_opaque = neighbors.get_is_opaque(ddx, ddy, 0);
 
                             if diagonal_yz_opaque && diagonal_xz_opaque && diagonal_xy_opaque {
                                 continue;
                             }
 
                             if diagonal_xy_opaque && diagonal_xz_opaque {
-                                let neighbor_y_opaque = get_block_opaque(0, ddy, 0);
-                                let neighbor_z_opaque = get_block_opaque(0, 0, ddz);
+                                let neighbor_y_opaque = neighbors.get_is_opaque(0, ddy, 0);
+                                let neighbor_z_opaque = neighbors.get_is_opaque(0, 0, ddz);
                                 if neighbor_y_opaque && neighbor_z_opaque {
                                     continue;
                                 }
                             }
 
                             if diagonal_xy_opaque && diagonal_yz_opaque {
-                                let neighbor_x_opaque = get_block_opaque(ddx, 0, 0);
-                                let neighbor_z_opaque = get_block_opaque(0, 0, ddz);
+                                let neighbor_x_opaque = neighbors.get_is_opaque(ddx, 0, 0);
+                                let neighbor_z_opaque = neighbors.get_is_opaque(0, 0, ddz);
                                 if neighbor_x_opaque && neighbor_z_opaque {
                                     continue;
                                 }
                             }
 
                             if diagonal_xz_opaque && diagonal_yz_opaque {
-                                let neighbor_x_opaque = get_block_opaque(ddx, 0, 0);
-                                let neighbor_y_opaque = get_block_opaque(0, ddy, 0);
+                                let neighbor_x_opaque = neighbors.get_is_opaque(ddx, 0, 0);
+                                let neighbor_y_opaque = neighbors.get_is_opaque(0, ddy, 0);
                                 if neighbor_x_opaque && neighbor_y_opaque {
                                     continue;
                                 }
@@ -1746,21 +1733,6 @@ fn process_face<S: VoxelAccess>(
     let mut four_red_lights = [0u32; 4];
     let mut four_green_lights = [0u32; 4];
     let mut four_blue_lights = [0u32; 4];
-    let mut opaque_cache = [u8::MAX; 27];
-    let mut get_block_opaque = |ox: i32, oy: i32, oz: i32| -> bool {
-        let cache_index = NeighborCache::offset_to_index(ox, oy, oz);
-        let cached = opaque_cache[cache_index];
-        if cached != u8::MAX {
-            return cached == 1;
-        }
-        let id = neighbors.get_voxel(ox, oy, oz);
-        let is_opaque = registry
-            .get_block_by_id(id)
-            .map(|b| b.is_opaque)
-            .unwrap_or(false);
-        opaque_cache[cache_index] = if is_opaque { 1 } else { 0 };
-        is_opaque
-    };
 
     let is_diagonal = dir == [0, 0, 0];
     let has_diagonals = is_see_through && has_diagonal_faces(block);
@@ -1816,10 +1788,10 @@ fn process_face<S: VoxelAccess>(
             1
         };
 
-        let b011 = !get_block_opaque(0, dy, dz);
-        let b101 = !get_block_opaque(dx, 0, dz);
-        let b110 = !get_block_opaque(dx, dy, 0);
-        let b111 = !get_block_opaque(dx, dy, dz);
+        let b011 = !neighbors.get_is_opaque(0, dy, dz);
+        let b101 = !neighbors.get_is_opaque(dx, 0, dz);
+        let b110 = !neighbors.get_is_opaque(dx, dy, 0);
+        let b111 = !neighbors.get_is_opaque(dx, dy, dz);
 
         let ao = if is_see_through || is_all_transparent {
             3
@@ -1867,44 +1839,44 @@ fn process_face<S: VoxelAccess>(
                             continue;
                         }
 
-                        if get_block_opaque(ddx, ddy, ddz) {
+                        if neighbors.get_is_opaque(ddx, ddy, ddz) {
                             continue;
                         }
 
                         if dir[0] * ddx + dir[1] * ddy + dir[2] * ddz == 0 {
-                            if get_block_opaque(ddx * dir[0], ddy * dir[1], ddz * dir[2]) {
+                            if neighbors.get_is_opaque(ddx * dir[0], ddy * dir[1], ddz * dir[2]) {
                                 continue;
                             }
                         }
 
                         if ddx.abs() + ddy.abs() + ddz.abs() == 3 {
-                            let diagonal_yz_opaque = get_block_opaque(0, ddy, ddz);
-                            let diagonal_xz_opaque = get_block_opaque(ddx, 0, ddz);
-                            let diagonal_xy_opaque = get_block_opaque(ddx, ddy, 0);
+                            let diagonal_yz_opaque = neighbors.get_is_opaque(0, ddy, ddz);
+                            let diagonal_xz_opaque = neighbors.get_is_opaque(ddx, 0, ddz);
+                            let diagonal_xy_opaque = neighbors.get_is_opaque(ddx, ddy, 0);
 
                             if diagonal_yz_opaque && diagonal_xz_opaque && diagonal_xy_opaque {
                                 continue;
                             }
 
                             if diagonal_xy_opaque && diagonal_xz_opaque {
-                                let neighbor_y_opaque = get_block_opaque(0, ddy, 0);
-                                let neighbor_z_opaque = get_block_opaque(0, 0, ddz);
+                                let neighbor_y_opaque = neighbors.get_is_opaque(0, ddy, 0);
+                                let neighbor_z_opaque = neighbors.get_is_opaque(0, 0, ddz);
                                 if neighbor_y_opaque && neighbor_z_opaque {
                                     continue;
                                 }
                             }
 
                             if diagonal_xy_opaque && diagonal_yz_opaque {
-                                let neighbor_x_opaque = get_block_opaque(ddx, 0, 0);
-                                let neighbor_z_opaque = get_block_opaque(0, 0, ddz);
+                                let neighbor_x_opaque = neighbors.get_is_opaque(ddx, 0, 0);
+                                let neighbor_z_opaque = neighbors.get_is_opaque(0, 0, ddz);
                                 if neighbor_x_opaque && neighbor_z_opaque {
                                     continue;
                                 }
                             }
 
                             if diagonal_xz_opaque && diagonal_yz_opaque {
-                                let neighbor_x_opaque = get_block_opaque(ddx, 0, 0);
-                                let neighbor_y_opaque = get_block_opaque(0, ddy, 0);
+                                let neighbor_x_opaque = neighbors.get_is_opaque(ddx, 0, 0);
+                                let neighbor_y_opaque = neighbors.get_is_opaque(0, ddy, 0);
                                 if neighbor_x_opaque && neighbor_y_opaque {
                                     continue;
                                 }
@@ -2168,7 +2140,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     if !should_render {
                         continue;
                     }
-                    let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                    let neighbors = NeighborCache::populate(vx, vy, vz, space, registry);
                     let block_aabb = AABB::union_all(&block.aabbs);
 
                     for_each_meshing_face(
@@ -2212,7 +2184,6 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                                     block,
                                     &block_aabb,
                                     &neighbors,
-                                    registry,
                                 );
 
                             let key = FaceKey {
@@ -2296,7 +2267,8 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
 
                 let coords = (vx, vy, vz);
                 if cached_non_greedy_coords != Some(coords) {
-                    cached_non_greedy_neighbors = Some(NeighborCache::populate(vx, vy, vz, space));
+                    cached_non_greedy_neighbors =
+                        Some(NeighborCache::populate(vx, vy, vz, space, registry));
                     cached_non_greedy_coords = Some(coords);
                 }
                 let Some(neighbors) = cached_non_greedy_neighbors.as_ref() else {
@@ -2411,7 +2383,7 @@ pub fn mesh_space<S: VoxelAccess>(
                     }
                 }
 
-                let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                let neighbors = NeighborCache::populate(vx, vy, vz, space, registry);
                 let block_aabb = AABB::union_all(&block.aabbs);
                 let mut process_mesh_face = |face: &BlockFace, world_space: bool| {
                     let geometry = if face.isolated {
