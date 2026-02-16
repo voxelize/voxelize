@@ -38,6 +38,9 @@ fn sorted_ids_contains(ids: &[String], target: &str) -> bool {
 
 #[inline]
 fn ids_contains_target(ids: &[String], target: &str) -> bool {
+    if ids.len() > SMALL_FILTER_LINEAR_SCAN_LIMIT && ids_are_strictly_sorted(ids) {
+        return sorted_ids_contains(ids, target);
+    }
     match ids {
         [] => false,
         [id] => id.as_str() == target,
@@ -48,6 +51,9 @@ fn ids_contains_target(ids: &[String], target: &str) -> bool {
 
 #[inline]
 fn include_single_target(ids: &[String]) -> Option<&str> {
+    if ids.len() > SMALL_FILTER_LINEAR_SCAN_LIMIT {
+        return None;
+    }
     match ids {
         [] => None,
         [id] => Some(id.as_str()),
