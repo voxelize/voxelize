@@ -952,6 +952,63 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     eighth_client_id,
                 );
             }
+            9 => {
+                let first_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
+                let second_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
+                let third_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
+                let fourth_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
+                let fifth_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
+                let sixth_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
+                let seventh_client_id =
+                    pop_touched_client_id(&mut self.clients_with_updates_buffer);
+                let eighth_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
+                let ninth_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
+                flush_entity_updates_for_client(
+                    &mut queue,
+                    &mut self.client_updates_buffer,
+                    first_client_id,
+                );
+                flush_entity_updates_for_client(
+                    &mut queue,
+                    &mut self.client_updates_buffer,
+                    second_client_id,
+                );
+                flush_entity_updates_for_client(
+                    &mut queue,
+                    &mut self.client_updates_buffer,
+                    third_client_id,
+                );
+                flush_entity_updates_for_client(
+                    &mut queue,
+                    &mut self.client_updates_buffer,
+                    fourth_client_id,
+                );
+                flush_entity_updates_for_client(
+                    &mut queue,
+                    &mut self.client_updates_buffer,
+                    fifth_client_id,
+                );
+                flush_entity_updates_for_client(
+                    &mut queue,
+                    &mut self.client_updates_buffer,
+                    sixth_client_id,
+                );
+                flush_entity_updates_for_client(
+                    &mut queue,
+                    &mut self.client_updates_buffer,
+                    seventh_client_id,
+                );
+                flush_entity_updates_for_client(
+                    &mut queue,
+                    &mut self.client_updates_buffer,
+                    eighth_client_id,
+                );
+                flush_entity_updates_for_client(
+                    &mut queue,
+                    &mut self.client_updates_buffer,
+                    ninth_client_id,
+                );
+            }
             _ => {
                 while let Some(client_id) = self.clients_with_updates_buffer.pop() {
                     flush_entity_updates_for_client(

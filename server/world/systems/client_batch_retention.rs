@@ -141,6 +141,30 @@ pub(crate) fn retain_active_client_batches_map<T>(
                     || client_id == eighth_client_id
             });
         }
+        9 => {
+            let mut client_ids = clients.keys();
+            let first_client_id = next_client_id(&mut client_ids);
+            let second_client_id = next_client_id(&mut client_ids);
+            let third_client_id = next_client_id(&mut client_ids);
+            let fourth_client_id = next_client_id(&mut client_ids);
+            let fifth_client_id = next_client_id(&mut client_ids);
+            let sixth_client_id = next_client_id(&mut client_ids);
+            let seventh_client_id = next_client_id(&mut client_ids);
+            let eighth_client_id = next_client_id(&mut client_ids);
+            let ninth_client_id = next_client_id(&mut client_ids);
+            batches.retain(|client_id, _| {
+                let client_id = client_id.as_str();
+                client_id == first_client_id
+                    || client_id == second_client_id
+                    || client_id == third_client_id
+                    || client_id == fourth_client_id
+                    || client_id == fifth_client_id
+                    || client_id == sixth_client_id
+                    || client_id == seventh_client_id
+                    || client_id == eighth_client_id
+                    || client_id == ninth_client_id
+            });
+        }
         _ => {
             batches.retain(|client_id, _| clients.contains_key(client_id));
         }
