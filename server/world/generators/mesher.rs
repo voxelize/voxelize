@@ -321,7 +321,8 @@ impl Mesher {
             return Vec::new();
         }
         if pending_len == 1 {
-            if let Some(coords) = self.pending_remesh.drain().next() {
+            if let Some(coords) = self.pending_remesh.iter().next().copied() {
+                self.pending_remesh.clear();
                 return vec![coords];
             }
             return Vec::new();

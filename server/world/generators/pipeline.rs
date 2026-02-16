@@ -424,7 +424,8 @@ impl Pipeline {
             return Vec::new();
         }
         if pending_len == 1 {
-            if let Some(coords) = self.pending_regenerate.drain().next() {
+            if let Some(coords) = self.pending_regenerate.iter().next().copied() {
+                self.pending_regenerate.clear();
                 return vec![coords];
             }
             return Vec::new();
