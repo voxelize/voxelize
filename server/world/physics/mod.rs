@@ -39,6 +39,7 @@ pub struct Physics {
     multibody_joint_set: MultibodyJointSet,
     ccd_solver: CCDSolver,
     collision_recv: Receiver<CollisionEvent>,
+    collision_buffer: Vec<CollisionEvent>,
     event_handler: ChannelEventCollector,
     gravity: Vector3<f32>,
     pub entity_to_handlers: HashMap<Entity, (ColliderHandle, RapierBodyHandle)>,
@@ -52,6 +53,7 @@ impl Physics {
 
         Self {
             collision_recv,
+            collision_buffer: Vec::new(),
             body_set: RapierBodySet::default(),
             broad_phase: DefaultBroadPhase::new(),
             ccd_solver: CCDSolver::default(),
@@ -93,7 +95,15 @@ impl Physics {
             Ok(collision_event) => collision_event,
             Err(_) => return Vec::new(),
         };
-        let mut collisions = Vec::with_capacity(self.collision_recv.len().saturating_add(1));
+        let collision_capacity = self.collision_buffer.capacity();
+        let mut collisions = std::mem::replace(
+            &mut self.collision_buffer,
+            Vec::with_capacity(collision_capacity),
+        );
+        collisions.clear();
+        if collisions.capacity() < self.collision_recv.len().saturating_add(1) {
+            collisions.reserve(self.collision_recv.len().saturating_add(1) - collisions.len());
+        }
         collisions.push(first_collision);
 
         while let Ok(collision_event) = self.collision_recv.try_recv() {
