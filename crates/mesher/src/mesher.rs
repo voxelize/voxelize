@@ -582,6 +582,14 @@ fn calculate_fluid_corner_height<S: VoxelAccess>(
 fn has_standard_six_faces(faces: &[BlockFace]) -> bool {
     for face in faces {
         if matches!(
+            face.dir,
+            [0, 1, 0] | [0, -1, 0] | [1, 0, 0] | [-1, 0, 0] | [0, 0, 1] | [0, 0, -1]
+        ) {
+            return true;
+        }
+    }
+    for face in faces {
+        if matches!(
             face.get_name_lower(),
             "py" | "ny" | "px" | "nx" | "pz" | "nz"
         ) {
@@ -589,6 +597,19 @@ fn has_standard_six_faces(faces: &[BlockFace]) -> bool {
         }
     }
     false
+}
+
+#[inline]
+fn cardinal_face_index_from_dir(dir: [i32; 3]) -> Option<usize> {
+    match dir {
+        [0, 1, 0] => Some(FACE_RANGE_PY),
+        [0, -1, 0] => Some(FACE_RANGE_NY),
+        [1, 0, 0] => Some(FACE_RANGE_PX),
+        [-1, 0, 0] => Some(FACE_RANGE_NX),
+        [0, 0, 1] => Some(FACE_RANGE_PZ),
+        [0, 0, -1] => Some(FACE_RANGE_NZ),
+        _ => None,
+    }
 }
 
 #[inline]
@@ -608,7 +629,12 @@ fn cardinal_face_index(name: &str) -> Option<usize> {
 fn collect_cardinal_face_ranges(original_faces: &[BlockFace]) -> [UV; 6] {
     let mut ranges = std::array::from_fn(|_| UV::default());
     for face in original_faces {
-        if let Some(face_index) = cardinal_face_index(face.get_name_lower()) {
+        let face_index = if let Some(face_index) = cardinal_face_index_from_dir(face.dir) {
+            Some(face_index)
+        } else {
+            cardinal_face_index(face.get_name_lower())
+        };
+        if let Some(face_index) = face_index {
             ranges[face_index] = face.range.clone();
         }
     }
@@ -2470,7 +2496,8 @@ pub fn mesh_chunk_with_registry(input: MeshInputNoRegistry, registry: &Registry)
 #[cfg(test)]
 mod tests {
     use super::{
-        cardinal_face_index, collect_cardinal_face_ranges, lowercase_if_needed, mesh_chunk,
+        cardinal_face_index, cardinal_face_index_from_dir, collect_cardinal_face_ranges,
+        lowercase_if_needed, mesh_chunk,
         mesh_chunk_with_registry, BlockFace, ChunkData, MeshConfig, MeshInput,
         MeshInputNoRegistry, Registry, UV, VoxelSpace,
     };
@@ -2613,6 +2640,17 @@ mod tests {
         assert_eq!(cardinal_face_index("pz"), Some(4));
         assert_eq!(cardinal_face_index("nz"), Some(5));
         assert_eq!(cardinal_face_index("diag"), None);
+    }
+
+    #[test]
+    fn cardinal_face_index_from_dir_maps_expected_directions() {
+        assert_eq!(cardinal_face_index_from_dir([0, 1, 0]), Some(0));
+        assert_eq!(cardinal_face_index_from_dir([0, -1, 0]), Some(1));
+        assert_eq!(cardinal_face_index_from_dir([1, 0, 0]), Some(2));
+        assert_eq!(cardinal_face_index_from_dir([-1, 0, 0]), Some(3));
+        assert_eq!(cardinal_face_index_from_dir([0, 0, 1]), Some(4));
+        assert_eq!(cardinal_face_index_from_dir([0, 0, -1]), Some(5));
+        assert_eq!(cardinal_face_index_from_dir([1, 1, 0]), None);
     }
 
     #[test]
