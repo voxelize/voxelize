@@ -2523,6 +2523,108 @@ describe("Type builders", () => {
     });
   });
 
+  it("salvages wrapped UV numeric payloads", () => {
+    const wrappedStartU = vm.runInNewContext("new Number(1)");
+    let didCallWrappedStartUToString = false;
+    Object.defineProperty(wrappedStartU, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedStartUToString = true;
+        throw new Error("wrapped startU toString trap");
+      },
+    });
+    let didCallWrappedStartUValueOf = false;
+    Object.defineProperty(wrappedStartU, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedStartUValueOf = true;
+        throw new Error("wrapped startU valueOf trap");
+      },
+    });
+    const wrappedEndU = vm.runInNewContext("new Number(2)");
+    let didCallWrappedEndUToString = false;
+    Object.defineProperty(wrappedEndU, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedEndUToString = true;
+        throw new Error("wrapped endU toString trap");
+      },
+    });
+    let didCallWrappedEndUValueOf = false;
+    Object.defineProperty(wrappedEndU, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedEndUValueOf = true;
+        throw new Error("wrapped endU valueOf trap");
+      },
+    });
+
+    expect(
+      createUV(
+        wrappedStartU as never,
+        wrappedEndU as never,
+        "3.5",
+        "4.5"
+      )
+    ).toEqual({
+      startU: 1,
+      endU: 2,
+      startV: 3.5,
+      endV: 4.5,
+    });
+    expect(didCallWrappedStartUToString).toBe(false);
+    expect(didCallWrappedStartUValueOf).toBe(false);
+    expect(didCallWrappedEndUToString).toBe(false);
+    expect(didCallWrappedEndUValueOf).toBe(false);
+  });
+
+  it("salvages wrapped UV numeric payloads when toStringTag traps", () => {
+    const wrappedStartU = new Number(1);
+    let didCallWrappedStartUToStringTag = false;
+    Object.defineProperty(wrappedStartU, Symbol.toStringTag, {
+      configurable: true,
+      enumerable: false,
+      get() {
+        didCallWrappedStartUToStringTag = true;
+        throw new Error("wrapped startU toStringTag trap");
+      },
+    });
+    const wrappedEndU = new Number(2);
+    let didCallWrappedEndUToStringTag = false;
+    Object.defineProperty(wrappedEndU, Symbol.toStringTag, {
+      configurable: true,
+      enumerable: false,
+      get() {
+        didCallWrappedEndUToStringTag = true;
+        throw new Error("wrapped endU toStringTag trap");
+      },
+    });
+
+    expect(
+      createUV(
+        wrappedStartU as never,
+        wrappedEndU as never,
+        "3.5",
+        "4.5"
+      )
+    ).toEqual({
+      startU: 1,
+      endU: 2,
+      startV: 3.5,
+      endV: 4.5,
+    });
+    expect(didCallWrappedStartUToStringTag).toBe(false);
+    expect(didCallWrappedEndUToStringTag).toBe(false);
+  });
+
   it("clones corner vector inputs", () => {
     const pos: [number, number, number] = [1, 2, 3];
     const uv: [number, number] = [0.25, 0.75];

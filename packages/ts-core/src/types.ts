@@ -16,6 +16,17 @@ const toFiniteNumberOrZero = (value: NumericLikeValue): number => {
     return Number.isFinite(value) ? value : 0;
   }
 
+  if (value !== null && typeof value === "object") {
+    try {
+      const wrappedNumberValue = Number.prototype.valueOf.call(value);
+      if (Number.isFinite(wrappedNumberValue)) {
+        return wrappedNumberValue;
+      }
+    } catch {
+      // fall through to generic numeric coercion
+    }
+  }
+
   try {
     const numericValue = Number(value);
     return Number.isFinite(numericValue) ? numericValue : 0;
