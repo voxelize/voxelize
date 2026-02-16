@@ -2815,6 +2815,26 @@ describe("report-utils", () => {
       }
     );
     expect(unknownWithEmptyIteratorOptionArgsOverride).toEqual(["--mystery"]);
+    const unknownWithEmptyIteratorLengthZeroAndIndexedOptionArgsOverride =
+      parseUnknownCliOptions(["--mystery"], {
+        canonicalOptions: ["--json"],
+        optionArgs: new Proxy(["--json"], {
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              return function* () {
+                return;
+              };
+            }
+            if (property === "length") {
+              return 0;
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      });
+    expect(
+      unknownWithEmptyIteratorLengthZeroAndIndexedOptionArgsOverride
+    ).toEqual(["--mystery"]);
     const unknownWithEmptyIteratorLengthAndOwnKeysTrapOptionArgsOverride =
       parseUnknownCliOptions(["--mystery"], {
         canonicalOptions: ["--json"],
@@ -4950,6 +4970,44 @@ describe("report-utils", () => {
     expect(emptyIteratorOptionArgsValidation.validationErrorCode).toBe(
       "unsupported_options"
     );
+    const emptyIteratorLengthZeroAndIndexedOptionArgsValidation =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        optionArgs: new Proxy(["--json"], {
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              return function* () {
+                return;
+              };
+            }
+            if (property === "length") {
+              return 0;
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      });
+    expect(
+      emptyIteratorLengthZeroAndIndexedOptionArgsValidation.supportedCliOptions
+    ).toEqual(["--json", "--output"]);
+    expect(
+      emptyIteratorLengthZeroAndIndexedOptionArgsValidation.supportedCliOptionCount
+    ).toBe(2);
+    expect(
+      emptyIteratorLengthZeroAndIndexedOptionArgsValidation.unknownOptions
+    ).toEqual(["--mystery"]);
+    expect(
+      emptyIteratorLengthZeroAndIndexedOptionArgsValidation.unknownOptionCount
+    ).toBe(1);
+    expect(
+      emptyIteratorLengthZeroAndIndexedOptionArgsValidation.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
+    expect(
+      emptyIteratorLengthZeroAndIndexedOptionArgsValidation.validationErrorCode
+    ).toBe("unsupported_options");
     const emptyIteratorLengthAndOwnKeysTrapOptionArgsValidation =
       createCliOptionValidation(["--mystery"], {
         canonicalOptions: ["--json", "--output"],
@@ -16186,6 +16244,55 @@ describe("report-utils", () => {
     ]);
     expect(
       activeMetadataWithEmptyIteratorOptionArgsOverride.activeCliOptionOccurrenceCount
+    ).toBe(1);
+    const activeMetadataWithEmptyIteratorLengthZeroAndIndexedOptionArgsOverride =
+      parseActiveCliOptionMetadata(["--json"], {
+        canonicalOptions: ["--json", "--output"],
+        optionArgs: new Proxy(["--output"], {
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              return function* () {
+                return;
+              };
+            }
+            if (property === "length") {
+              return 0;
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      });
+    expect(
+      activeMetadataWithEmptyIteratorLengthZeroAndIndexedOptionArgsOverride.activeCliOptions
+    ).toEqual(["--json"]);
+    expect(
+      activeMetadataWithEmptyIteratorLengthZeroAndIndexedOptionArgsOverride.activeCliOptionCount
+    ).toBe(1);
+    expect(
+      activeMetadataWithEmptyIteratorLengthZeroAndIndexedOptionArgsOverride.activeCliOptionTokens
+    ).toEqual(["--json"]);
+    expect(
+      activeMetadataWithEmptyIteratorLengthZeroAndIndexedOptionArgsOverride.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(
+      activeMetadataWithEmptyIteratorLengthZeroAndIndexedOptionArgsOverride.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      activeMetadataWithEmptyIteratorLengthZeroAndIndexedOptionArgsOverride.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+    ]);
+    expect(
+      activeMetadataWithEmptyIteratorLengthZeroAndIndexedOptionArgsOverride.activeCliOptionOccurrenceCount
     ).toBe(1);
     const activeMetadataWithEmptyIteratorLengthAndOwnKeysTrapOptionArgsOverride =
       parseActiveCliOptionMetadata(["--json"], {
