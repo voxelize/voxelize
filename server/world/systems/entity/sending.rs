@@ -120,6 +120,31 @@ fn take_entity_updates_to_send(
 }
 
 #[inline]
+fn flush_entity_updates_for_client(
+    queue: &mut MessageQueues,
+    client_updates_buffer: &mut HashMap<String, Vec<EntityProtocol>>,
+    client_id: String,
+) {
+    let Some(updates) = client_updates_buffer.get_mut(&client_id) else {
+        return;
+    };
+    let Some(updates_to_send) = take_entity_updates_to_send(updates) else {
+        return;
+    };
+    queue.push((
+        match updates_to_send {
+            Ok(many_updates) => Message::new(&MessageType::Entity)
+                .entities_owned(many_updates)
+                .build(),
+            Err(single_update) => Message::new(&MessageType::Entity)
+                .entity_owned(single_update)
+                .build(),
+        },
+        ClientFilter::Direct(client_id),
+    ));
+}
+
+#[inline]
 fn retain_active_client_updates(
     client_updates: &mut HashMap<String, Vec<EntityProtocol>>,
     clients: &Clients,
@@ -671,44 +696,88 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             return;
         }
 
-        if self.clients_with_updates_buffer.len() == 1 {
-            if let Some(client_id) = self.clients_with_updates_buffer.pop() {
-                if let Some(updates) = self.client_updates_buffer.get_mut(&client_id) {
-                    if let Some(updates_to_send) = take_entity_updates_to_send(updates) {
-                        queue.push((
-                            match updates_to_send {
-                                Ok(many_updates) => Message::new(&MessageType::Entity)
-                                    .entities_owned(many_updates)
-                                    .build(),
-                                Err(single_update) => Message::new(&MessageType::Entity)
-                                    .entity_owned(single_update)
-                                    .build(),
-                            },
-                            ClientFilter::Direct(client_id),
-                        ));
-                    }
+        match self.clients_with_updates_buffer.len() {
+            1 => {
+                if let Some(client_id) = self.clients_with_updates_buffer.pop() {
+                    flush_entity_updates_for_client(
+                        &mut queue,
+                        &mut self.client_updates_buffer,
+                        client_id,
+                    );
                 }
             }
-        } else {
-            for client_id in self.clients_with_updates_buffer.drain(..) {
-                let updates = match self.client_updates_buffer.get_mut(&client_id) {
-                    Some(updates) => updates,
-                    None => continue,
+            2 => {
+                let Some(first_client_id) = self.clients_with_updates_buffer.pop() else {
+                    return;
                 };
-                let Some(updates_to_send) = take_entity_updates_to_send(updates) else {
-                    continue;
+                let Some(second_client_id) = self.clients_with_updates_buffer.pop() else {
+                    flush_entity_updates_for_client(
+                        &mut queue,
+                        &mut self.client_updates_buffer,
+                        first_client_id,
+                    );
+                    return;
                 };
-                queue.push((
-                    match updates_to_send {
-                        Ok(many_updates) => Message::new(&MessageType::Entity)
-                            .entities_owned(many_updates)
-                            .build(),
-                        Err(single_update) => Message::new(&MessageType::Entity)
-                            .entity_owned(single_update)
-                            .build(),
-                    },
-                    ClientFilter::Direct(client_id),
-                ));
+                flush_entity_updates_for_client(
+                    &mut queue,
+                    &mut self.client_updates_buffer,
+                    first_client_id,
+                );
+                flush_entity_updates_for_client(
+                    &mut queue,
+                    &mut self.client_updates_buffer,
+                    second_client_id,
+                );
+            }
+            3 => {
+                let Some(first_client_id) = self.clients_with_updates_buffer.pop() else {
+                    return;
+                };
+                let Some(second_client_id) = self.clients_with_updates_buffer.pop() else {
+                    flush_entity_updates_for_client(
+                        &mut queue,
+                        &mut self.client_updates_buffer,
+                        first_client_id,
+                    );
+                    return;
+                };
+                let Some(third_client_id) = self.clients_with_updates_buffer.pop() else {
+                    flush_entity_updates_for_client(
+                        &mut queue,
+                        &mut self.client_updates_buffer,
+                        first_client_id,
+                    );
+                    flush_entity_updates_for_client(
+                        &mut queue,
+                        &mut self.client_updates_buffer,
+                        second_client_id,
+                    );
+                    return;
+                };
+                flush_entity_updates_for_client(
+                    &mut queue,
+                    &mut self.client_updates_buffer,
+                    first_client_id,
+                );
+                flush_entity_updates_for_client(
+                    &mut queue,
+                    &mut self.client_updates_buffer,
+                    second_client_id,
+                );
+                flush_entity_updates_for_client(
+                    &mut queue,
+                    &mut self.client_updates_buffer,
+                    third_client_id,
+                );
+            }
+            _ => {
+                for client_id in self.clients_with_updates_buffer.drain(..) {
+                    flush_entity_updates_for_client(
+                        &mut queue,
+                        &mut self.client_updates_buffer,
+                        client_id,
+                    );
+                }
             }
         }
     }
