@@ -155,6 +155,30 @@ impl ChunkRequestsComp {
                 }
                 return;
             }
+            9 => {
+                let first = self.requests[0];
+                let second = self.requests[1];
+                let third = self.requests[2];
+                let fourth = self.requests[3];
+                let fifth = self.requests[4];
+                let sixth = self.requests[5];
+                let seventh = self.requests[6];
+                let eighth = self.requests[7];
+                let ninth = self.requests[8];
+                if *coords != first
+                    && *coords != second
+                    && *coords != third
+                    && *coords != fourth
+                    && *coords != fifth
+                    && *coords != sixth
+                    && *coords != seventh
+                    && *coords != eighth
+                    && *coords != ninth
+                {
+                    self.requests.push(*coords);
+                }
+                return;
+            }
             _ => {}
         }
         let last_request_index = self.requests.len() - 1;
@@ -284,6 +308,36 @@ impl ChunkRequestsComp {
                 }
                 if self.requests[6] == *coords {
                     self.requests.remove(6);
+                }
+                return;
+            }
+            9 => {
+                if self.requests[1] == *coords {
+                    self.requests.remove(1);
+                    return;
+                }
+                if self.requests[2] == *coords {
+                    self.requests.remove(2);
+                    return;
+                }
+                if self.requests[3] == *coords {
+                    self.requests.remove(3);
+                    return;
+                }
+                if self.requests[4] == *coords {
+                    self.requests.remove(4);
+                    return;
+                }
+                if self.requests[5] == *coords {
+                    self.requests.remove(5);
+                    return;
+                }
+                if self.requests[6] == *coords {
+                    self.requests.remove(6);
+                    return;
+                }
+                if self.requests[7] == *coords {
+                    self.requests.remove(7);
                 }
                 return;
             }
@@ -439,6 +493,40 @@ mod tests {
     }
 
     #[test]
+    fn add_ignores_duplicate_entries_for_nine_item_lists() {
+        let mut requests = ChunkRequestsComp::new();
+        requests.requests = vec![
+            Vec2(1, 1),
+            Vec2(2, 2),
+            Vec2(3, 3),
+            Vec2(4, 4),
+            Vec2(5, 5),
+            Vec2(6, 6),
+            Vec2(7, 7),
+            Vec2(8, 8),
+            Vec2(9, 9),
+        ];
+
+        requests.add(&Vec2(5, 5));
+        requests.add(&Vec2(9, 9));
+
+        assert_eq!(
+            requests.requests,
+            vec![
+                Vec2(1, 1),
+                Vec2(2, 2),
+                Vec2(3, 3),
+                Vec2(4, 4),
+                Vec2(5, 5),
+                Vec2(6, 6),
+                Vec2(7, 7),
+                Vec2(8, 8),
+                Vec2(9, 9),
+            ]
+        );
+    }
+
+    #[test]
     fn remove_handles_first_and_tail_entries() {
         let mut requests = ChunkRequestsComp::new();
         requests.requests = vec![Vec2(1, 1), Vec2(2, 2), Vec2(3, 3)];
@@ -529,6 +617,38 @@ mod tests {
                 Vec2(4, 4),
                 Vec2(6, 6),
                 Vec2(8, 8)
+            ]
+        );
+    }
+
+    #[test]
+    fn remove_handles_nine_item_middle_entries() {
+        let mut requests = ChunkRequestsComp::new();
+        requests.requests = vec![
+            Vec2(1, 1),
+            Vec2(2, 2),
+            Vec2(3, 3),
+            Vec2(4, 4),
+            Vec2(5, 5),
+            Vec2(6, 6),
+            Vec2(7, 7),
+            Vec2(8, 8),
+            Vec2(9, 9),
+        ];
+
+        requests.remove(&Vec2(6, 6));
+        requests.remove(&Vec2(8, 8));
+
+        assert_eq!(
+            requests.requests,
+            vec![
+                Vec2(1, 1),
+                Vec2(2, 2),
+                Vec2(3, 3),
+                Vec2(4, 4),
+                Vec2(5, 5),
+                Vec2(7, 7),
+                Vec2(9, 9),
             ]
         );
     }
