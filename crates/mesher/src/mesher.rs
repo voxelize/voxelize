@@ -902,12 +902,13 @@ fn face_name_lower(face: &BlockFace) -> Cow<'_, str> {
 
 #[inline]
 fn canonical_or_face_name_lower(face: &BlockFace) -> Cow<'_, str> {
+    let face_name_lower = face_name_lower(face);
     if let Some(canonical) = canonical_face_name_from_dir(face.dir) {
-        if face.name.is_empty() || face.get_name_lower() == canonical {
+        if face.name.is_empty() || face_name_lower.as_ref() == canonical {
             return Cow::Borrowed(canonical);
         }
     }
-    face_name_lower(face)
+    face_name_lower
 }
 
 #[inline]
