@@ -118,6 +118,26 @@ fn take_entity_updates_to_send(
     )))
 }
 
+#[inline]
+fn retain_active_client_updates(
+    client_updates: &mut HashMap<String, Vec<EntityProtocol>>,
+    clients: &Clients,
+) {
+    if client_updates.len() <= clients.len() {
+        return;
+    }
+    if clients.len() == 1 {
+        if let Some((single_client_id, _)) = clients.iter().next() {
+            let single_client_id = single_client_id.as_str();
+            client_updates.retain(|client_id, _| client_id.as_str() == single_client_id);
+        } else {
+            client_updates.clear();
+        }
+        return;
+    }
+    client_updates.retain(|client_id, _| clients.contains_key(client_id));
+}
+
 impl<'a> System<'a> for EntitiesSendingSystem {
     type SystemData = (
         Entities<'a>,
@@ -168,9 +188,8 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         self.metadata_json_cache_buffer.clear();
         if clients.is_empty() {
             self.client_updates_buffer.clear();
-        } else if self.client_updates_buffer.len() > clients.len() {
-            self.client_updates_buffer
-                .retain(|client_id, _| clients.contains_key(client_id));
+        } else {
+            retain_active_client_updates(&mut self.client_updates_buffer, &clients);
         }
 
         let (entity_visible_radius, entity_visible_radius_sq) =
