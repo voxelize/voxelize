@@ -163,17 +163,27 @@ fn normalized_lookup_name<'a>(name: &'a str) -> Cow<'a, str> {
 #[inline]
 fn strip_command_prefix<'a>(body: &'a str, command_symbol: &str) -> Option<&'a str> {
     let symbol_bytes = command_symbol.as_bytes();
+    let body_bytes = body.as_bytes();
     match symbol_bytes.len() {
         0 => Some(body),
         1 => {
-            let body_bytes = body.as_bytes();
             if body_bytes.first().copied() == Some(symbol_bytes[0]) {
                 body.get(1..)
             } else {
                 None
             }
         }
-        _ => body.strip_prefix(command_symbol),
+        symbol_len => {
+            if body_bytes.len() < symbol_len {
+                return None;
+            }
+            for index in 0..symbol_len {
+                if body_bytes[index] != symbol_bytes[index] {
+                    return None;
+                }
+            }
+            body.get(symbol_len..)
+        }
     }
 }
 
