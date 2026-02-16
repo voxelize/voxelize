@@ -33,6 +33,7 @@ import {
   createFaceTransparency,
   createCornerData,
   createUV,
+  toUint32,
   toSaturatedUint32,
   lightColorFromIndex,
   Voxel,
@@ -1628,6 +1629,17 @@ describe("Numeric helpers", () => {
     expect(toSaturatedUint32(12.9)).toBe(12);
     expect(toSaturatedUint32(0xffffffff + 1)).toBe(0xffffffff);
   });
+
+  it("sanitizes trap-driven toUint32 coercion inputs", () => {
+    const trapValue = {
+      [Symbol.toPrimitive]() {
+        throw new Error("uint32 coercion trap");
+      },
+    };
+
+    expect(() => toUint32(trapValue as never)).not.toThrow();
+    expect(toUint32(trapValue as never)).toBe(0);
+  });
 });
 
 describe("Type builders", () => {
@@ -1656,6 +1668,56 @@ describe("Type builders", () => {
     expect(corner).toEqual({
       pos: [1, 2, 3],
       uv: [0.25, 0.75],
+    });
+  });
+
+  it("sanitizes malformed corner vector inputs without throwing", () => {
+    const trappedPos = new Proxy([1, 2, 3] as [number, number, number], {
+      get(target, property, receiver) {
+        if (property === "1") {
+          throw new Error("pos trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const trappedUv = new Proxy([0.25, 0.75] as [number, number], {
+      get(target, property, receiver) {
+        if (property === "0") {
+          throw new Error("uv trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    expect(() => createCornerData(trappedPos as never, trappedUv as never)).not.toThrow();
+    expect(createCornerData(trappedPos as never, trappedUv as never)).toEqual({
+      pos: [0, 0, 0],
+      uv: [0, 0],
+    });
+
+    const revokedPos = (() => {
+      const posProxy = Proxy.revocable([1, 2, 3], {});
+      posProxy.revoke();
+      return posProxy.proxy;
+    })();
+    const revokedUv = (() => {
+      const uvProxy = Proxy.revocable([0.25, 0.75], {});
+      uvProxy.revoke();
+      return uvProxy.proxy;
+    })();
+    expect(() => createCornerData(revokedPos as never, revokedUv as never)).not.toThrow();
+    expect(createCornerData(revokedPos as never, revokedUv as never)).toEqual({
+      pos: [0, 0, 0],
+      uv: [0, 0],
+    });
+
+    expect(() =>
+      createCornerData([1, Number.NaN, Number.POSITIVE_INFINITY], [0.25, Number.NaN])
+    ).not.toThrow();
+    expect(
+      createCornerData([1, Number.NaN, Number.POSITIVE_INFINITY], [0.25, Number.NaN])
+    ).toEqual({
+      pos: [1, 0, 0],
+      uv: [0.25, 0],
     });
   });
 
@@ -1705,6 +1767,19 @@ describe("Type builders", () => {
     });
     expect(malformedNameFace.name).toBe("Face");
     expect(malformedNameFace.nameLower).toBe("face");
+
+    const revokedFace = (() => {
+      const faceProxy = Proxy.revocable(new BlockFace({ name: "Face" }), {});
+      faceProxy.revoke();
+      return faceProxy.proxy;
+    })();
+    expect(() =>
+      BlockFace.prototype.computeNameLower.call(revokedFace as never)
+    ).not.toThrow();
+    expect(() =>
+      BlockFace.prototype.getNameLower.call(revokedFace as never)
+    ).not.toThrow();
+    expect(BlockFace.prototype.getNameLower.call(revokedFace as never)).toBe("");
   });
 
   it("clones block face corner arrays on construction", () => {

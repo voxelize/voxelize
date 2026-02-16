@@ -36,7 +36,13 @@ for (let i = 0; i < Y_ROT_SEGMENTS; i += 1) {
 
 const UINT32_MAX = 0xffffffff;
 
-export const toUint32 = (value: number): number => value >>> 0;
+export const toUint32 = (value: number): number => {
+  try {
+    return value >>> 0;
+  } catch {
+    return 0;
+  }
+};
 
 export const toSaturatedUint32 = (value: number): number => {
   if (!Number.isFinite(value) || value <= 0) {

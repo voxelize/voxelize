@@ -26,9 +26,41 @@ export interface CornerData {
   uv: Vec2;
 }
 
+const cloneCornerVec3Safely = (value: Vec3): Vec3 => {
+  let x = 0;
+  let y = 0;
+  let z = 0;
+  try {
+    x = value[0];
+    y = value[1];
+    z = value[2];
+  } catch {
+    return [0, 0, 0];
+  }
+
+  return [
+    Number.isFinite(x) ? x : 0,
+    Number.isFinite(y) ? y : 0,
+    Number.isFinite(z) ? z : 0,
+  ];
+};
+
+const cloneCornerVec2Safely = (value: Vec2): Vec2 => {
+  let x = 0;
+  let y = 0;
+  try {
+    x = value[0];
+    y = value[1];
+  } catch {
+    return [0, 0];
+  }
+
+  return [Number.isFinite(x) ? x : 0, Number.isFinite(y) ? y : 0];
+};
+
 export const createCornerData = (pos: Vec3, uv: Vec2): CornerData => ({
-  pos: [...pos],
-  uv: [...uv],
+  pos: cloneCornerVec3Safely(pos),
+  uv: cloneCornerVec2Safely(uv),
 });
 
 const createDefaultCorner = (): CornerData => ({
@@ -118,19 +150,48 @@ export class BlockFace {
   }
 
   computeNameLower(): void {
-    const fallbackNameLower =
-      typeof this.nameLower === "string" ? this.nameLower : "face";
-    this.nameLower = toBlockFaceNameLowerOrFallback(
-      this.name,
-      fallbackNameLower
-    );
+    let fallbackNameLower = "face";
+    try {
+      fallbackNameLower = typeof this.nameLower === "string"
+        ? this.nameLower
+        : "face";
+    } catch {
+      fallbackNameLower = "face";
+    }
+
+    let nextNameLower = fallbackNameLower;
+    try {
+      nextNameLower = toBlockFaceNameLowerOrFallback(
+        this.name,
+        fallbackNameLower
+      );
+    } catch {
+      nextNameLower = fallbackNameLower;
+    }
+
+    try {
+      this.nameLower = nextNameLower;
+    } catch {
+      // no-op when context is not writable
+    }
   }
 
   getNameLower(): string {
-    const normalizedNameLower =
-      typeof this.nameLower === "string" ? this.nameLower : "";
+    let normalizedNameLower = "";
+    try {
+      normalizedNameLower = typeof this.nameLower === "string"
+        ? this.nameLower
+        : "";
+    } catch {
+      normalizedNameLower = "";
+    }
+
     if (normalizedNameLower.length === 0) {
-      return toBlockFaceNameOrFallback(this.name, "");
+      try {
+        return toBlockFaceNameOrFallback(this.name, "");
+      } catch {
+        return "";
+      }
     }
 
     return normalizedNameLower;
