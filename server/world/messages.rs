@@ -257,21 +257,16 @@ impl EncodedMessageQueue {
             return message_type == MESSAGE_TYPE_PEER;
         }
         let entities = &message.entities;
-        match entities.len() {
-            0 => false,
-            1 => entities[0].operation == ENTITY_OPERATION_UPDATE,
-            2 => {
-                entities[0].operation == ENTITY_OPERATION_UPDATE
-                    && entities[1].operation == ENTITY_OPERATION_UPDATE
+        match entities.as_slice() {
+            [] => false,
+            [entity] => entity.operation == ENTITY_OPERATION_UPDATE,
+            [first, second] => {
+                first.operation == ENTITY_OPERATION_UPDATE
+                    && second.operation == ENTITY_OPERATION_UPDATE
             }
-            _ => {
-                for entity in entities {
-                    if entity.operation != ENTITY_OPERATION_UPDATE {
-                        return false;
-                    }
-                }
-                true
-            }
+            _ => entities
+                .iter()
+                .all(|entity| entity.operation == ENTITY_OPERATION_UPDATE),
         }
     }
 }
