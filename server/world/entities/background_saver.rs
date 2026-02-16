@@ -216,7 +216,13 @@ impl BackgroundEntitiesSaver {
         if !self.saving {
             return;
         }
-        let metadata_json = metadata.to_persisted_json_snapshot();
+        let metadata_json = match metadata.to_persisted_json_snapshot() {
+            Some(metadata_json) => metadata_json,
+            None => {
+                warn!("Failed to serialize entity metadata snapshot for {}", id);
+                return;
+            }
+        };
 
         let data = EntitySaveData {
             etype: etype.to_string(),

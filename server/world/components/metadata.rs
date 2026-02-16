@@ -138,13 +138,13 @@ impl MetadataComp {
     }
 
     /// Build persisted metadata JSON without mutating cache/dirty state.
-    pub fn to_persisted_json_snapshot(&self) -> String {
+    pub fn to_persisted_json_snapshot(&self) -> Option<String> {
         if !self.dirty {
             if let Some(cached_json) = self.cached_json.as_ref() {
-                return Self::wrap_map_json_for_persistence(cached_json);
+                return Some(Self::wrap_map_json_for_persistence(cached_json));
             }
         }
-        serde_json::to_string(self).unwrap_or_else(|_| String::from("{\"map\":{}}"))
+        serde_json::to_string(self).ok()
     }
 
     /// Is the metadata empty?
@@ -225,7 +225,9 @@ mod tests {
         metadata.set("test", &TestMetadataValue { value: 1 });
         let _ = metadata.to_cached_str();
 
-        let persisted = metadata.to_persisted_json_snapshot();
+        let persisted = metadata
+            .to_persisted_json_snapshot()
+            .expect("snapshot should serialize");
 
         assert_eq!(persisted, String::from("{\"map\":{\"test\":{\"value\":1}}}"));
     }
@@ -235,8 +237,12 @@ mod tests {
         let mut metadata = MetadataComp::new();
         metadata.set("test", &TestMetadataValue { value: 1 });
 
-        let persisted_before = metadata.to_persisted_json_snapshot();
-        let persisted_after = metadata.to_persisted_json_snapshot();
+        let persisted_before = metadata
+            .to_persisted_json_snapshot()
+            .expect("snapshot should serialize");
+        let persisted_after = metadata
+            .to_persisted_json_snapshot()
+            .expect("snapshot should serialize");
 
         assert_eq!(persisted_before, persisted_after);
         assert_eq!(
