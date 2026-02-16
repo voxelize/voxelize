@@ -7149,7 +7149,7 @@ describe("Type builders", () => {
     );
   });
 
-  it("falls back to identity for malformed createBlockRotation inputs", () => {
+  it("sanitizes malformed createBlockRotation inputs with constrained fallbacks", () => {
     class RotationLike {
       public readonly value = BlockRotation.PX().axis;
       public readonly yRotation = Math.PI / 2;
@@ -7201,26 +7201,28 @@ describe("Type builders", () => {
         value: -1,
         yRotation: Math.PI / 2,
       } as never)
-    ).toEqual(BlockRotation.py(0));
+    ).toEqual(BlockRotation.py(Math.PI / 2));
     expect(
       createBlockRotation({
         value: 16,
         yRotation: Math.PI / 2,
       } as never)
-    ).toEqual(BlockRotation.py(0));
+    ).toEqual(BlockRotation.py(Math.PI / 2));
     expect(
       createBlockRotation({
         value: 1.5,
         yRotation: Math.PI / 2,
       } as never)
-    ).toEqual(BlockRotation.py(0));
+    ).toEqual(BlockRotation.py(Math.PI / 2));
     expect(
       createBlockRotation({
         value: BlockRotation.PX().axis,
         yRotation: Number.POSITIVE_INFINITY,
       } as never)
-    ).toEqual(BlockRotation.py(0));
-    expect(createBlockRotation(malformedInstance)).toEqual(BlockRotation.py(0));
+    ).toEqual(new BlockRotation(BlockRotation.PX().axis, 0));
+    expect(createBlockRotation(malformedInstance)).toEqual(
+      BlockRotation.py(Math.PI / 2)
+    );
     expect(createBlockRotation(malformedYRotationInstance)).toEqual(
       BlockRotation.py(0)
     );
@@ -7228,10 +7230,10 @@ describe("Type builders", () => {
       BlockRotation.py(0)
     );
     expect(createBlockRotation(valueTrapRotation as never)).toEqual(
-      BlockRotation.py(0)
+      BlockRotation.py(Math.PI / 2)
     );
     expect(createBlockRotation(proxyRotation as never)).toEqual(
-      BlockRotation.py(0)
+      BlockRotation.py(Math.PI / 2)
     );
   });
 

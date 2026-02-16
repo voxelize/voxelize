@@ -1086,7 +1086,22 @@ const toBlockRotation = (value: DynamicValue): BlockRotation | null => {
 export const createBlockRotation = (
   rotation: BlockRotation | BlockRotationInput | null | undefined = BlockRotation.py(0)
 ): BlockRotation => {
-  return toBlockRotation(rotation) ?? BlockRotation.py(0);
+  const normalizedRotation = toBlockRotation(rotation);
+  if (normalizedRotation !== null) {
+    return normalizedRotation;
+  }
+
+  if (!isBlockRotationInstance(rotation) && !isPlainObjectValue(rotation)) {
+    return BlockRotation.py(0);
+  }
+
+  const rotationRecord = rotation as Record<string, DynamicValue>;
+  const axisValue = readObjectEntry(rotationRecord, "value");
+  const yRotationValue = readObjectEntry(rotationRecord, "yRotation");
+  return new BlockRotation(
+    isRotationValue(axisValue) ? axisValue : 0,
+    isFiniteNumberValue(yRotationValue) ? yRotationValue : 0
+  );
 };
 
 const toOptionalRuleRotation = (
