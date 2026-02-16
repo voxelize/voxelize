@@ -132,6 +132,23 @@ fn sort_chunk_coords_by_interest(
                 coords.swap(0, 1);
             }
         }
+        4 => {
+            if compare_chunk_interest_weights(weights, &coords[0], &coords[1]).is_gt() {
+                coords.swap(0, 1);
+            }
+            if compare_chunk_interest_weights(weights, &coords[2], &coords[3]).is_gt() {
+                coords.swap(2, 3);
+            }
+            if compare_chunk_interest_weights(weights, &coords[0], &coords[2]).is_gt() {
+                coords.swap(0, 2);
+            }
+            if compare_chunk_interest_weights(weights, &coords[1], &coords[3]).is_gt() {
+                coords.swap(1, 3);
+            }
+            if compare_chunk_interest_weights(weights, &coords[1], &coords[2]).is_gt() {
+                coords.swap(1, 2);
+            }
+        }
         _ => coords.sort_unstable_by(|a, b| compare_chunk_interest_weights(weights, a, b)),
     }
 }
@@ -796,5 +813,23 @@ mod tests {
         sort_chunk_coords_by_interest(&mut coords, &weights);
 
         assert_eq!(coords, vec![second, third, first]);
+    }
+
+    #[test]
+    fn sort_chunk_coords_by_interest_orders_four_entries() {
+        let mut weights = HashMap::new();
+        let first = Vec2(0, 0);
+        let second = Vec2(1, 1);
+        let third = Vec2(2, 2);
+        let fourth = Vec2(3, 3);
+        weights.insert(first, 4.0);
+        weights.insert(second, 1.0);
+        weights.insert(third, 3.0);
+        weights.insert(fourth, 2.0);
+
+        let mut coords = vec![first, second, third, fourth];
+        sort_chunk_coords_by_interest(&mut coords, &weights);
+
+        assert_eq!(coords, vec![second, fourth, third, first]);
     }
 }
