@@ -12,6 +12,7 @@ struct FragmentState {
     parts: Vec<Option<Vec<u8>>>,
     received: usize,
     total: usize,
+    total_payload_bytes: usize,
 }
 
 impl FragmentState {
@@ -20,6 +21,7 @@ impl FragmentState {
             parts: vec![None; total],
             received: 0,
             total,
+            total_payload_bytes: 0,
         }
     }
 }
@@ -151,8 +153,24 @@ impl FragmentAssembler {
                 return None;
             }
 
-            if state.parts[index].is_none() {
-                state.received = state.received.saturating_add(1);
+            let payload_len = payload.len();
+            match state.parts[index].as_ref() {
+                Some(existing) => {
+                    if payload_len > existing.len() {
+                        state.total_payload_bytes = state
+                            .total_payload_bytes
+                            .saturating_add(payload_len - existing.len());
+                    } else {
+                        state.total_payload_bytes = state
+                            .total_payload_bytes
+                            .saturating_sub(existing.len() - payload_len);
+                    }
+                }
+                None => {
+                    state.received = state.received.saturating_add(1);
+                    state.total_payload_bytes =
+                        state.total_payload_bytes.saturating_add(payload_len);
+                }
             }
             state.parts[index] = Some(payload.to_vec());
             state.received == state.total
@@ -160,16 +178,7 @@ impl FragmentAssembler {
 
         if is_complete {
             let state = self.fragments.remove(&message_id)?;
-            let mut complete_len = 0usize;
-            for fragment in state.parts.iter() {
-                if let Some(fragment) = fragment {
-                    complete_len = complete_len.saturating_add(fragment.len());
-                } else {
-                    return None;
-                }
-            }
-
-            let mut complete = Vec::with_capacity(complete_len);
+            let mut complete = Vec::with_capacity(state.total_payload_bytes);
             for fragment in state.parts {
                 if let Some(fragment) = fragment {
                     complete.extend_from_slice(&fragment);
@@ -236,6 +245,30 @@ mod tests {
         }
 
         assert_eq!(reconstructed, Some(payload));
+    }
+
+    #[test]
+    fn process_reassembles_with_duplicate_fragment_replacement() {
+        let mut assembler = FragmentAssembler::new();
+
+        let mut first_fragment = vec![FRAGMENT_MARKER];
+        first_fragment.extend_from_slice(&(2u32).to_le_bytes());
+        first_fragment.extend_from_slice(&(0u32).to_le_bytes());
+        first_fragment.extend_from_slice(b"AA");
+        assert_eq!(assembler.process(&first_fragment), None);
+
+        let mut duplicate_fragment = vec![FRAGMENT_MARKER];
+        duplicate_fragment.extend_from_slice(&(2u32).to_le_bytes());
+        duplicate_fragment.extend_from_slice(&(0u32).to_le_bytes());
+        duplicate_fragment.extend_from_slice(b"BBB");
+        assert_eq!(assembler.process(&duplicate_fragment), None);
+
+        let mut second_fragment = vec![FRAGMENT_MARKER];
+        second_fragment.extend_from_slice(&(2u32).to_le_bytes());
+        second_fragment.extend_from_slice(&(1u32).to_le_bytes());
+        second_fragment.extend_from_slice(b"CC");
+
+        assert_eq!(assembler.process(&second_fragment), Some(b"BBBCC".to_vec()));
     }
 
     #[test]
