@@ -331,8 +331,9 @@ impl Mesher {
                     }
 
                     if should_store_lights {
-                        let lights = space.take_lights(coords.0, coords.1).unwrap();
-                        chunk.lights = Arc::new(lights);
+                        if let Some(lights) = space.take_lights(coords.0, coords.1) {
+                            chunk.lights = Arc::new(lights);
+                        }
                     }
 
                     let _ = sender.send((chunk, msg_type));
