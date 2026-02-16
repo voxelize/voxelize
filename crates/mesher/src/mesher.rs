@@ -3193,6 +3193,10 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
     let x_span = (max_x - min_x).max(0) as usize;
     let y_span = (max_y - min_y).max(0) as usize;
     let z_span = (max_z - min_z).max(0) as usize;
+    let max_mask_len = y_span
+        .saturating_mul(z_span)
+        .max(x_span.saturating_mul(z_span))
+        .max(x_span.saturating_mul(y_span));
     let yz_span = y_span * z_span;
     let mut cached_voxel_block_id = u32::MAX;
     let mut cached_voxel_block: Option<&Block> = None;
@@ -3203,7 +3207,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
     let slice_size = (max_x - min_x).max(max_y - min_y).max(max_z - min_z) as usize;
     let mut greedy_mask: Vec<Option<FaceData>> = vec![None; slice_size * slice_size];
     let mut non_greedy_faces: Vec<DeferredNonGreedyFace> = Vec::new();
-    let mut non_greedy_owned_faces: Vec<BlockFace> = Vec::new();
+    let mut non_greedy_owned_faces: Vec<BlockFace> = Vec::with_capacity((max_mask_len / 4).max(16));
     let mut uncached_greedy_face_indices_by_block: HashMap<u32, [i16; 6]> =
         HashMap::with_capacity(16);
 
@@ -3241,11 +3245,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
         let mask_len = mask_width * mask_height;
         if non_greedy_faces.capacity() < mask_len {
             non_greedy_faces.reserve(mask_len - non_greedy_faces.capacity());
-        }
-        let owned_faces_capacity_hint = (mask_len / 4).max(16);
-        if non_greedy_owned_faces.capacity() < owned_faces_capacity_hint {
-            non_greedy_owned_faces
-                .reserve(owned_faces_capacity_hint - non_greedy_owned_faces.capacity());
         }
         let mut quads: Vec<GreedyQuad> = Vec::with_capacity(quads_capacity_hint(mask_len));
         let mut faces: Vec<(BlockFace, bool)> = Vec::with_capacity(8);
