@@ -179,6 +179,25 @@ fn flush_chunk_batches_touched(
     if touched_clients.is_empty() {
         return;
     }
+    if touched_clients.len() == 1 {
+        let Some(client_id) = touched_clients.pop() else {
+            return;
+        };
+        let Some(chunk_models) = batches.get_mut(&client_id) else {
+            return;
+        };
+        if chunk_models.is_empty() {
+            return;
+        }
+        let next_chunk_capacity = chunk_models.capacity();
+        let chunk_models_to_send =
+            std::mem::replace(chunk_models, Vec::with_capacity(next_chunk_capacity));
+        let message = Message::new(message_type)
+            .chunks_owned(chunk_models_to_send)
+            .build();
+        queue.push((message, ClientFilter::Direct(client_id)));
+        return;
+    }
     for client_id in touched_clients.drain(..) {
         let Some(chunk_models) = batches.get_mut(&client_id) else {
             continue;
