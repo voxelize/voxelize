@@ -89,9 +89,6 @@ impl Physics {
             &self.event_handler,
         );
 
-        if self.collision_recv.is_empty() {
-            return Vec::new();
-        }
         let first_collision = match self.collision_recv.try_recv() {
             Ok(collision_event) => collision_event,
             Err(_) => return Vec::new(),
