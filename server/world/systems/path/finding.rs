@@ -310,6 +310,10 @@ impl<'a> System<'a> for PathFindingSystem {
                             let pzpy = !walkable(vx, vy + 1, vz + 1, height_steps);
                             let nxpy = !walkable(vx - 1, vy + 1, vz, height_steps);
                             let nzpy = !walkable(vx, vy + 1, vz - 1, height_steps);
+                            let side_px_passable = get_is_voxel_passable(vx + 1, vy, vz);
+                            let side_nx_passable = get_is_voxel_passable(vx - 1, vy, vz);
+                            let side_pz_passable = get_is_voxel_passable(vx, vy, vz + 1);
+                            let side_nz_passable = get_is_voxel_passable(vx, vy, vz - 1);
 
                             // +X direction
                             if walkable(vx + 1, vy - 1, vz, height_steps) {
@@ -383,8 +387,8 @@ impl<'a> System<'a> for PathFindingSystem {
                             if walkable(vx + 1, vy - 1, vz + 1, height_steps)
                                 && px
                                 && pz
-                                && get_is_voxel_passable(vx + 1, vy, vz)
-                                && get_is_voxel_passable(vx, vy, vz + 1)
+                                && side_px_passable
+                                && side_pz_passable
                             {
                                 let mut cost = 2;
                                 if has_wall_nearby(vx + 1, vy, vz + 1) {
@@ -405,8 +409,8 @@ impl<'a> System<'a> for PathFindingSystem {
                             if walkable(vx + 1, vy - 1, vz - 1, height_steps)
                                 && px
                                 && nz
-                                && get_is_voxel_passable(vx + 1, vy, vz)
-                                && get_is_voxel_passable(vx, vy, vz - 1)
+                                && side_px_passable
+                                && side_nz_passable
                             {
                                 let mut cost = 2;
                                 if has_wall_nearby(vx + 1, vy, vz - 1) {
@@ -427,8 +431,8 @@ impl<'a> System<'a> for PathFindingSystem {
                             if walkable(vx - 1, vy - 1, vz + 1, height_steps)
                                 && nx
                                 && pz
-                                && get_is_voxel_passable(vx - 1, vy, vz)
-                                && get_is_voxel_passable(vx, vy, vz + 1)
+                                && side_nx_passable
+                                && side_pz_passable
                             {
                                 let mut cost = 2;
                                 if has_wall_nearby(vx - 1, vy, vz + 1) {
@@ -449,8 +453,8 @@ impl<'a> System<'a> for PathFindingSystem {
                             if walkable(vx - 1, vy - 1, vz - 1, height_steps)
                                 && nx
                                 && nz
-                                && get_is_voxel_passable(vx - 1, vy, vz)
-                                && get_is_voxel_passable(vx, vy, vz - 1)
+                                && side_nx_passable
+                                && side_nz_passable
                             {
                                 let mut cost = 2;
                                 if has_wall_nearby(vx - 1, vy, vz - 1) {
