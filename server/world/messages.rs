@@ -133,6 +133,10 @@ impl EncodedMessageQueue {
             return;
         }
         if self.pending.is_empty() {
+            if self.pending.capacity() >= list.len() {
+                self.pending.append(&mut list);
+                return;
+            }
             self.pending = list;
             return;
         }
