@@ -17,11 +17,6 @@ const MESSAGE_TYPE_UNLOAD: i32 = MessageType::Unload as i32;
 const ENTITY_OPERATION_UPDATE: i32 = EntityOperation::Update as i32;
 
 #[inline]
-fn compute_transport_eligibility(msg_type: i32) -> bool {
-    msg_type == MESSAGE_TYPE_ENTITY || msg_type == MESSAGE_TYPE_PEER
-}
-
-#[inline]
 fn reserve_for_append<T>(buffer: &mut Vec<T>, additional: usize) {
     let remaining_capacity = buffer.capacity() - buffer.len();
     if remaining_capacity < additional {
@@ -148,12 +143,12 @@ impl EncodedMessageQueue {
         if pending_len == 1 {
             reserve_for_append(&mut self.processed, 1);
             if let Some((message, filter)) = self.pending.pop() {
-                let msg_type = message.r#type;
-                let is_rtc_eligible = Self::compute_rtc_eligibility(&message);
+                let (is_rtc_eligible, is_transport_eligible) =
+                    Self::compute_delivery_eligibility(&message);
                 let encoded = EncodedMessage {
                     data: Bytes::from(encode_message(&message)),
                     is_rtc_eligible,
-                    is_transport_eligible: compute_transport_eligibility(msg_type),
+                    is_transport_eligible,
                 };
                 self.processed.push((encoded, filter));
             }
@@ -162,12 +157,12 @@ impl EncodedMessageQueue {
         if pending_len <= SYNC_ENCODE_BATCH_LIMIT {
             reserve_for_append(&mut self.processed, pending_len);
             for (message, filter) in self.pending.drain(..) {
-                let msg_type = message.r#type;
-                let is_rtc_eligible = Self::compute_rtc_eligibility(&message);
+                let (is_rtc_eligible, is_transport_eligible) =
+                    Self::compute_delivery_eligibility(&message);
                 let encoded = EncodedMessage {
                     data: Bytes::from(encode_message(&message)),
                     is_rtc_eligible,
-                    is_transport_eligible: compute_transport_eligibility(msg_type),
+                    is_transport_eligible,
                 };
                 self.processed.push((encoded, filter));
             }
@@ -180,12 +175,12 @@ impl EncodedMessageQueue {
             let encoded: Vec<(EncodedMessage, ClientFilter)> = all_pending
                 .into_par_iter()
                 .map(|(message, filter)| {
-                    let msg_type = message.r#type;
-                    let is_rtc_eligible = Self::compute_rtc_eligibility(&message);
+                    let (is_rtc_eligible, is_transport_eligible) =
+                        Self::compute_delivery_eligibility(&message);
                     let encoded = EncodedMessage {
                         data: Bytes::from(encode_message(&message)),
                         is_rtc_eligible,
-                        is_transport_eligible: compute_transport_eligibility(msg_type),
+                        is_transport_eligible,
                     };
                     (encoded, filter)
                 })
@@ -214,13 +209,15 @@ impl EncodedMessageQueue {
         result
     }
 
-    fn compute_rtc_eligibility(message: &Message) -> bool {
+    fn compute_delivery_eligibility(message: &Message) -> (bool, bool) {
         let message_type = message.r#type;
+        let is_transport_eligible =
+            message_type == MESSAGE_TYPE_ENTITY || message_type == MESSAGE_TYPE_PEER;
         if message_type != MESSAGE_TYPE_ENTITY {
-            return message_type == MESSAGE_TYPE_PEER;
+            return (message_type == MESSAGE_TYPE_PEER, is_transport_eligible);
         }
         let entities = &message.entities;
-        match entities.as_slice() {
+        let is_rtc_eligible = match entities.as_slice() {
             [] => false,
             [entity] => entity.operation == ENTITY_OPERATION_UPDATE,
             [first, second] => {
@@ -234,7 +231,13 @@ impl EncodedMessageQueue {
                         .iter()
                         .all(|entity| entity.operation == ENTITY_OPERATION_UPDATE)
             }
-        }
+        };
+
+        (is_rtc_eligible, is_transport_eligible)
+    }
+
+    fn compute_rtc_eligibility(message: &Message) -> bool {
+        Self::compute_delivery_eligibility(message).0
     }
 }
 
