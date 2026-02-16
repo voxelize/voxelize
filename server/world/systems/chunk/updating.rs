@@ -552,8 +552,12 @@ fn process_pending_updates(
 
                 let n_raw = chunks.get_raw_voxel(nvx, nvy, nvz);
                 let n_block = registry.get_block_by_id(BlockUtils::extract_id(n_raw));
-                let n_rotation = BlockUtils::extract_rotation(n_raw);
-                let n_transparency = n_block.get_rotated_transparency(&n_rotation);
+                let n_transparency = if n_block.rotatable || n_block.y_rotatable {
+                    let n_rotation = BlockUtils::extract_rotation(n_raw);
+                    n_block.get_rotated_transparency(&n_rotation)
+                } else {
+                    n_block.is_transparent
+                };
 
                 if !(Lights::can_enter(&current_transparency, &n_transparency, ox, oy, oz)
                     && !Lights::can_enter(&updated_transparency, &n_transparency, ox, oy, oz))
@@ -695,8 +699,12 @@ fn process_pending_updates(
 
                 let n_raw = chunks.get_raw_voxel(nvx, nvy, nvz);
                 let n_block = registry.get_block_by_id(BlockUtils::extract_id(n_raw));
-                let n_rotation = BlockUtils::extract_rotation(n_raw);
-                let n_transparency = n_block.get_rotated_transparency(&n_rotation);
+                let n_transparency = if n_block.rotatable || n_block.y_rotatable {
+                    let n_rotation = BlockUtils::extract_rotation(n_raw);
+                    n_block.get_rotated_transparency(&n_rotation)
+                } else {
+                    n_block.is_transparent
+                };
 
                 let n_voxel = [nvx, nvy, nvz];
 
