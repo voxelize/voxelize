@@ -1700,17 +1700,30 @@ impl World {
             let mut remesh_coords: Option<Vec<Vec2<i32>>> = None;
             {
                 let chunks = self.chunks();
-                for x in -check_radius..=check_radius {
-                    for z in -check_radius..=check_radius {
-                        let coords = Vec2(x, z);
+                if check_radius == 0 {
+                    let coords = Vec2(0, 0);
+                    if chunks.is_chunk_ready(&coords) {
+                        total += 1;
+                    } else if let Some(chunk) = chunks.raw(&coords) {
+                        if chunk.status == ChunkStatus::Meshing {
+                            remesh_coords
+                                .get_or_insert_with(|| Vec::with_capacity(remesh_initial_capacity))
+                                .push(coords);
+                        }
+                    }
+                } else {
+                    for x in -check_radius..=check_radius {
+                        for z in -check_radius..=check_radius {
+                            let coords = Vec2(x, z);
 
-                        if chunks.is_chunk_ready(&coords) {
-                            total += 1;
-                        } else if let Some(chunk) = chunks.raw(&coords) {
-                            if chunk.status == ChunkStatus::Meshing {
-                                remesh_coords
-                                    .get_or_insert_with(|| Vec::with_capacity(remesh_initial_capacity))
-                                    .push(coords);
+                            if chunks.is_chunk_ready(&coords) {
+                                total += 1;
+                            } else if let Some(chunk) = chunks.raw(&coords) {
+                                if chunk.status == ChunkStatus::Meshing {
+                                    remesh_coords
+                                        .get_or_insert_with(|| Vec::with_capacity(remesh_initial_capacity))
+                                        .push(coords);
+                                }
                             }
                         }
                     }
