@@ -1320,6 +1320,51 @@ describe("Type builders", () => {
     ]);
   });
 
+  it("salvages ownKeys-trapped length-readable transparency arrays when prefix reads trap", () => {
+    const ownKeysReadTrapTransparency = new Proxy(
+      [true, false, true, false, true, false],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 6;
+          }
+          if (property === "0") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+
+    expect(createFaceTransparency(ownKeysReadTrapTransparency as never)).toEqual([
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+    ]);
+    const part = createBlockConditionalPart({
+      isTransparent: ownKeysReadTrapTransparency as never,
+    });
+    expect(part.isTransparent).toEqual([
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+    ]);
+  });
+
   it("normalizes explicit-empty iterator transparency arrays in conditional parts", () => {
     const explicitEmptyTransparency = new Proxy([] as boolean[], {
       get(target, property, receiver) {
