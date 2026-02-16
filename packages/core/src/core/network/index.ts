@@ -627,13 +627,68 @@ export class Network {
       return this;
     }
 
+    const currentIntercepts = this.intercepts;
+    if (intercepts.length <= 4) {
+      const removalTargets: NetIntercept[] = [];
+      const removalCounts: number[] = [];
+      for (
+        let interceptIndex = 0;
+        interceptIndex < intercepts.length;
+        interceptIndex++
+      ) {
+        const intercept = intercepts[interceptIndex];
+        let targetIndex = -1;
+        for (let index = 0; index < removalTargets.length; index++) {
+          if (removalTargets[index] === intercept) {
+            targetIndex = index;
+            break;
+          }
+        }
+        if (targetIndex === -1) {
+          removalTargets.push(intercept);
+          removalCounts.push(1);
+        } else {
+          removalCounts[targetIndex]++;
+        }
+      }
+
+      let writeIndex = 0;
+      for (
+        let readIndex = 0;
+        readIndex < currentIntercepts.length;
+        readIndex++
+      ) {
+        const intercept = currentIntercepts[readIndex];
+        let removed = false;
+        for (let targetIndex = 0; targetIndex < removalTargets.length; targetIndex++) {
+          if (
+            removalCounts[targetIndex] > 0 &&
+            removalTargets[targetIndex] === intercept
+          ) {
+            removalCounts[targetIndex]--;
+            removed = true;
+            break;
+          }
+        }
+        if (!removed) {
+          currentIntercepts[writeIndex] = intercept;
+          writeIndex++;
+        }
+      }
+      currentIntercepts.length = writeIndex;
+      return this;
+    }
+
     const removalCounts = new Map<NetIntercept, number>();
-    for (let interceptIndex = 0; interceptIndex < intercepts.length; interceptIndex++) {
+    for (
+      let interceptIndex = 0;
+      interceptIndex < intercepts.length;
+      interceptIndex++
+    ) {
       const intercept = intercepts[interceptIndex];
       removalCounts.set(intercept, (removalCounts.get(intercept) ?? 0) + 1);
     }
 
-    const currentIntercepts = this.intercepts;
     let writeIndex = 0;
     for (let readIndex = 0; readIndex < currentIntercepts.length; readIndex++) {
       const intercept = currentIntercepts[readIndex];
