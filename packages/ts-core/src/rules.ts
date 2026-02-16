@@ -90,8 +90,39 @@ const toObjectRecordOrNull = (value: RuleOptionValue): RuleOptionRecord | null =
     : null;
 };
 
+const isBooleanObjectValue = (value: RuleOptionValue): value is Boolean => {
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+
+  try {
+    return (
+      Object.prototype.toString.call(value) === "[object Boolean]" ||
+      value instanceof Boolean
+    );
+  } catch {
+    return false;
+  }
+};
+
 const toFiniteNumberOrDefault = (value: RuleOptionValue, fallback: number): number => {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+};
+
+const toBooleanOrDefault = (value: RuleOptionValue, fallback: boolean): boolean => {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (!isBooleanObjectValue(value)) {
+    return fallback;
+  }
+
+  try {
+    return Boolean.prototype.valueOf.call(value);
+  } catch {
+    return fallback;
+  }
 };
 
 const normalizeRuleEvaluationOptions = (
@@ -113,8 +144,14 @@ const normalizeRuleEvaluationOptions = (
 
   return {
     rotationY,
-    yRotatable: safeReadRecordValue(optionRecord, "yRotatable") === true,
-    worldSpace: safeReadRecordValue(optionRecord, "worldSpace") === true,
+    yRotatable: toBooleanOrDefault(
+      safeReadRecordValue(optionRecord, "yRotatable"),
+      false
+    ),
+    worldSpace: toBooleanOrDefault(
+      safeReadRecordValue(optionRecord, "worldSpace"),
+      false
+    ),
   };
 };
 
@@ -141,8 +178,14 @@ const toNormalizedRuleEvaluationOptionSnapshot = (
       safeReadRecordValue(optionRecord, "rotationY"),
       0
     ),
-    yRotatable: safeReadRecordValue(optionRecord, "yRotatable") === true,
-    worldSpace: safeReadRecordValue(optionRecord, "worldSpace") === true,
+    yRotatable: toBooleanOrDefault(
+      safeReadRecordValue(optionRecord, "yRotatable"),
+      false
+    ),
+    worldSpace: toBooleanOrDefault(
+      safeReadRecordValue(optionRecord, "worldSpace"),
+      false
+    ),
   };
 };
 

@@ -9943,6 +9943,121 @@ describe("BlockRuleEvaluator", () => {
     expect(matched).toBe(true);
   });
 
+  it("normalizes wrapped rule-evaluation boolean options", () => {
+    const rule = {
+      type: "simple" as const,
+      offset: [1, 0, 0] as [number, number, number],
+      id: 25,
+    };
+
+    const wrappedYRotatableTrue = vm.runInNewContext("new Boolean(true)");
+    let didCallWrappedYRotatableTrueToString = false;
+    Object.defineProperty(wrappedYRotatableTrue, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedYRotatableTrueToString = true;
+        throw new Error("wrapped yRotatable=true toString trap");
+      },
+    });
+    let didCallWrappedYRotatableTrueValueOf = false;
+    Object.defineProperty(wrappedYRotatableTrue, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedYRotatableTrueValueOf = true;
+        throw new Error("wrapped yRotatable=true valueOf trap");
+      },
+    });
+
+    const wrappedWorldSpaceFalse = vm.runInNewContext("new Boolean(false)");
+    let didCallWrappedWorldSpaceFalseToString = false;
+    Object.defineProperty(wrappedWorldSpaceFalse, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedWorldSpaceFalseToString = true;
+        throw new Error("wrapped worldSpace=false toString trap");
+      },
+    });
+    let didCallWrappedWorldSpaceFalseValueOf = false;
+    Object.defineProperty(wrappedWorldSpaceFalse, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedWorldSpaceFalseValueOf = true;
+        throw new Error("wrapped worldSpace=false valueOf trap");
+      },
+    });
+
+    const wrappedWorldSpaceTrue = vm.runInNewContext("new Boolean(true)");
+    let didCallWrappedWorldSpaceTrueToString = false;
+    Object.defineProperty(wrappedWorldSpaceTrue, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedWorldSpaceTrueToString = true;
+        throw new Error("wrapped worldSpace=true toString trap");
+      },
+    });
+    let didCallWrappedWorldSpaceTrueValueOf = false;
+    Object.defineProperty(wrappedWorldSpaceTrue, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedWorldSpaceTrueValueOf = true;
+        throw new Error("wrapped worldSpace=true valueOf trap");
+      },
+    });
+
+    const matchedWithWrappedWorldSpaceFalse = BlockRuleEvaluator.evaluate(
+      rule,
+      [0, 0, 0],
+      {
+        getVoxel: (x: number, y: number, z: number) =>
+          x === 0 && y === 0 && z === 1 ? 25 : 0,
+        getVoxelRotation: () => BlockRotation.py(0),
+        getVoxelStage: () => 0,
+      },
+      {
+        rotation: BlockRotation.py(Math.PI / 2),
+        yRotatable: wrappedYRotatableTrue as never,
+        worldSpace: wrappedWorldSpaceFalse as never,
+      }
+    );
+    expect(matchedWithWrappedWorldSpaceFalse).toBe(true);
+
+    const matchedWithWrappedWorldSpaceTrue = BlockRuleEvaluator.evaluate(
+      rule,
+      [0, 0, 0],
+      {
+        getVoxel: (x: number, y: number, z: number) =>
+          x === 1 && y === 0 && z === 0 ? 25 : 0,
+        getVoxelRotation: () => BlockRotation.py(0),
+        getVoxelStage: () => 0,
+      },
+      {
+        rotation: BlockRotation.py(Math.PI / 2),
+        yRotatable: wrappedYRotatableTrue as never,
+        worldSpace: wrappedWorldSpaceTrue as never,
+      }
+    );
+    expect(matchedWithWrappedWorldSpaceTrue).toBe(true);
+
+    expect(didCallWrappedYRotatableTrueToString).toBe(false);
+    expect(didCallWrappedYRotatableTrueValueOf).toBe(false);
+    expect(didCallWrappedWorldSpaceFalseToString).toBe(false);
+    expect(didCallWrappedWorldSpaceFalseValueOf).toBe(false);
+    expect(didCallWrappedWorldSpaceTrueToString).toBe(false);
+    expect(didCallWrappedWorldSpaceTrueValueOf).toBe(false);
+  });
+
   it("guards option getter traps while evaluating rules", () => {
     const rule = {
       type: "simple" as const,
