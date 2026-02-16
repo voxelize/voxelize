@@ -102,12 +102,26 @@ impl Stats {
             return;
         }
 
-        let mut file = fs::OpenOptions::new()
+        let mut file = match fs::OpenOptions::new()
             .write(true)
             .truncate(true)
             .create(true)
             .open(&self.path)
-            .expect("Unable to open stats file for write...");
-        serde_json::to_writer(&mut file, &self.get_stats()).expect("Unable to write stats file.");
+        {
+            Ok(file) => file,
+            Err(error) => {
+                warn!(
+                    "Unable to open stats file for write {:?}: {}",
+                    self.path, error
+                );
+                return;
+            }
+        };
+        if let Err(error) = serde_json::to_writer(&mut file, &self.get_stats()) {
+            warn!(
+                "Unable to write stats file {:?}: {}",
+                self.path, error
+            );
+        }
     }
 }
