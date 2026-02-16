@@ -153,6 +153,27 @@ fn for_each_unique_id<F: FnMut(&str)>(ids: &[String], mut visit: F) {
             }
             return;
         }
+        [first, second, third, fourth, fifth] => {
+            let first = first.as_str();
+            let second = second.as_str();
+            let third = third.as_str();
+            let fourth = fourth.as_str();
+            let fifth = fifth.as_str();
+            visit(first);
+            if second != first {
+                visit(second);
+            }
+            if third != first && third != second {
+                visit(third);
+            }
+            if fourth != first && fourth != second && fourth != third {
+                visit(fourth);
+            }
+            if fifth != first && fifth != second && fifth != third && fifth != fourth {
+                visit(fifth);
+            }
+            return;
+        }
         _ => {}
     }
     for index in 0..ids.len() {
