@@ -10682,6 +10682,79 @@ describe("report-utils", () => {
       "--output",
       "-l",
     ]);
+    const explicitEmptyValueOptionDiagnostics = createCliDiagnostics(
+      ["--output", "-l"],
+      {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-l"],
+        },
+        optionsWithValues: [],
+      }
+    );
+    expect(explicitEmptyValueOptionDiagnostics.supportedCliOptions).toEqual([
+      "--output",
+      "--json",
+      "-l",
+    ]);
+    expect(explicitEmptyValueOptionDiagnostics.supportedCliOptionCount).toBe(3);
+    expect(explicitEmptyValueOptionDiagnostics.unknownOptions).toEqual([]);
+    expect(explicitEmptyValueOptionDiagnostics.unknownOptionCount).toBe(0);
+    expect(explicitEmptyValueOptionDiagnostics.unsupportedOptionsError).toBeNull();
+    expect(explicitEmptyValueOptionDiagnostics.validationErrorCode).toBeNull();
+    expect(explicitEmptyValueOptionDiagnostics.activeCliOptions).toEqual([
+      "--output",
+      "--json",
+    ]);
+    expect(explicitEmptyValueOptionDiagnostics.activeCliOptionCount).toBe(2);
+    expect(explicitEmptyValueOptionDiagnostics.activeCliOptionTokens).toEqual([
+      "--output",
+      "-l",
+    ]);
+    const explicitEmptyIteratorValueOptionDiagnostics = createCliDiagnostics(
+      ["--output", "-l"],
+      {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-l"],
+        },
+        optionsWithValues: new Proxy([], {
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              return function* () {
+                return;
+              };
+            }
+            if (property === "length") {
+              return 0;
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      }
+    );
+    expect(explicitEmptyIteratorValueOptionDiagnostics.supportedCliOptions).toEqual(
+      ["--output", "--json", "-l"]
+    );
+    expect(
+      explicitEmptyIteratorValueOptionDiagnostics.supportedCliOptionCount
+    ).toBe(3);
+    expect(explicitEmptyIteratorValueOptionDiagnostics.unknownOptions).toEqual([]);
+    expect(explicitEmptyIteratorValueOptionDiagnostics.unknownOptionCount).toBe(0);
+    expect(
+      explicitEmptyIteratorValueOptionDiagnostics.unsupportedOptionsError
+    ).toBeNull();
+    expect(
+      explicitEmptyIteratorValueOptionDiagnostics.validationErrorCode
+    ).toBeNull();
+    expect(explicitEmptyIteratorValueOptionDiagnostics.activeCliOptions).toEqual([
+      "--output",
+      "--json",
+    ]);
+    expect(explicitEmptyIteratorValueOptionDiagnostics.activeCliOptionCount).toBe(2);
+    expect(
+      explicitEmptyIteratorValueOptionDiagnostics.activeCliOptionTokens
+    ).toEqual(["--output", "-l"]);
     const emptyIteratorLengthAndReadTrapValueOptionDiagnostics =
       createCliDiagnostics(["--output", "-l"], {
         canonicalOptions: ["--output", "--json"],
@@ -11045,6 +11118,86 @@ describe("report-utils", () => {
       "--output",
       "-j",
     ]);
+    const explicitEmptyStrictValueOptionDiagnostics = createCliDiagnostics(
+      ["--output", "-j"],
+      {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-j"],
+        },
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: [],
+      }
+    );
+    expect(explicitEmptyStrictValueOptionDiagnostics.supportedCliOptions).toEqual([
+      "--output",
+      "--json",
+      "-j",
+    ]);
+    expect(explicitEmptyStrictValueOptionDiagnostics.supportedCliOptionCount).toBe(
+      3
+    );
+    expect(explicitEmptyStrictValueOptionDiagnostics.unknownOptions).toEqual([]);
+    expect(explicitEmptyStrictValueOptionDiagnostics.unknownOptionCount).toBe(0);
+    expect(explicitEmptyStrictValueOptionDiagnostics.unsupportedOptionsError).toBe(
+      null
+    );
+    expect(explicitEmptyStrictValueOptionDiagnostics.validationErrorCode).toBeNull();
+    expect(explicitEmptyStrictValueOptionDiagnostics.activeCliOptions).toEqual([
+      "--output",
+    ]);
+    expect(explicitEmptyStrictValueOptionDiagnostics.activeCliOptionCount).toBe(1);
+    expect(explicitEmptyStrictValueOptionDiagnostics.activeCliOptionTokens).toEqual(
+      ["--output"]
+    );
+    const explicitEmptyIteratorStrictValueOptionDiagnostics =
+      createCliDiagnostics(["--output", "-j"], {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-j"],
+        },
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: new Proxy([], {
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              return function* () {
+                return;
+              };
+            }
+            if (property === "length") {
+              return 0;
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      });
+    expect(
+      explicitEmptyIteratorStrictValueOptionDiagnostics.supportedCliOptions
+    ).toEqual(["--output", "--json", "-j"]);
+    expect(
+      explicitEmptyIteratorStrictValueOptionDiagnostics.supportedCliOptionCount
+    ).toBe(3);
+    expect(
+      explicitEmptyIteratorStrictValueOptionDiagnostics.unknownOptions
+    ).toEqual([]);
+    expect(
+      explicitEmptyIteratorStrictValueOptionDiagnostics.unknownOptionCount
+    ).toBe(0);
+    expect(
+      explicitEmptyIteratorStrictValueOptionDiagnostics.unsupportedOptionsError
+    ).toBeNull();
+    expect(
+      explicitEmptyIteratorStrictValueOptionDiagnostics.validationErrorCode
+    ).toBeNull();
+    expect(
+      explicitEmptyIteratorStrictValueOptionDiagnostics.activeCliOptions
+    ).toEqual(["--output"]);
+    expect(
+      explicitEmptyIteratorStrictValueOptionDiagnostics.activeCliOptionCount
+    ).toBe(1);
+    expect(
+      explicitEmptyIteratorStrictValueOptionDiagnostics.activeCliOptionTokens
+    ).toEqual(["--output"]);
     const nonArrayAliasMetadataDiagnostics = createCliDiagnostics(
       ["--verify", "--mystery"],
       {
