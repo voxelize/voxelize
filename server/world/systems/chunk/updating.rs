@@ -525,10 +525,14 @@ fn process_pending_updates(
         );
     }
 
-    let mut red_flood = VecDeque::new();
-    let mut green_flood = VecDeque::new();
-    let mut blue_flood = VecDeque::new();
-    let mut sun_flood = VecDeque::new();
+    let flood_initial_capacity = processed_updates
+        .as_ref()
+        .map_or(0, Vec::len)
+        .min(64);
+    let mut red_flood = VecDeque::with_capacity(flood_initial_capacity);
+    let mut green_flood = VecDeque::with_capacity(flood_initial_capacity);
+    let mut blue_flood = VecDeque::with_capacity(flood_initial_capacity);
+    let mut sun_flood = VecDeque::with_capacity(flood_initial_capacity);
 
     if let Some(processed_updates) = processed_updates {
         for (
