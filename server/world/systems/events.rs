@@ -891,6 +891,52 @@ impl<'a> System<'a> for EventsSystem {
                                         }
                                     }
                                 }
+                                [first_id, second_id, third_id, fourth_id, fifth_id, sixth_id, seventh_id] => {
+                                    let first_id = first_id.as_str();
+                                    let second_id = second_id.as_str();
+                                    let third_id = third_id.as_str();
+                                    let fourth_id = fourth_id.as_str();
+                                    let fifth_id = fifth_id.as_str();
+                                    let sixth_id = sixth_id.as_str();
+                                    let seventh_id = seventh_id.as_str();
+                                    for (id, client) in clients.iter() {
+                                        let id = id.as_str();
+                                        if id != first_id
+                                            && id != second_id
+                                            && id != third_id
+                                            && id != fourth_id
+                                            && id != fifth_id
+                                            && id != sixth_id
+                                            && id != seventh_id
+                                        {
+                                            send_to_client(id, client.entity);
+                                        }
+                                    }
+                                }
+                                [first_id, second_id, third_id, fourth_id, fifth_id, sixth_id, seventh_id, eighth_id] => {
+                                    let first_id = first_id.as_str();
+                                    let second_id = second_id.as_str();
+                                    let third_id = third_id.as_str();
+                                    let fourth_id = fourth_id.as_str();
+                                    let fifth_id = fifth_id.as_str();
+                                    let sixth_id = sixth_id.as_str();
+                                    let seventh_id = seventh_id.as_str();
+                                    let eighth_id = eighth_id.as_str();
+                                    for (id, client) in clients.iter() {
+                                        let id = id.as_str();
+                                        if id != first_id
+                                            && id != second_id
+                                            && id != third_id
+                                            && id != fourth_id
+                                            && id != fifth_id
+                                            && id != sixth_id
+                                            && id != seventh_id
+                                            && id != eighth_id
+                                        {
+                                            send_to_client(id, client.entity);
+                                        }
+                                    }
+                                }
                                 _ => {
                                     for (id, client) in clients.iter() {
                                         if !ids_contains_target(ids, id.as_str()) {
