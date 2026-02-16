@@ -1621,15 +1621,15 @@ fn evaluate_block_rule<S: VoxelAccess>(
     }
 }
 
-fn get_dynamic_faces<S: VoxelAccess>(
+fn for_each_dynamic_face<S: VoxelAccess, F: FnMut(&BlockFace, bool)>(
     block: &Block,
     pos: [i32; 3],
     space: &S,
     rotation: &BlockRotation,
-) -> Vec<(BlockFace, bool)> {
+    mut visit: F,
+) {
     if let Some(dynamic_patterns) = &block.dynamic_patterns {
         for pattern in dynamic_patterns {
-            let mut matched_faces: Vec<(BlockFace, bool)> = Vec::new();
             let mut any_matched = false;
 
             for part in &pattern.parts {
@@ -1643,17 +1643,21 @@ fn get_dynamic_faces<S: VoxelAccess>(
                 );
                 if rule_result {
                     any_matched = true;
-                    matched_faces.extend(part.faces.iter().cloned().map(|f| (f, part.world_space)));
+                    for face in &part.faces {
+                        visit(face, part.world_space);
+                    }
                 }
             }
 
             if any_matched {
-                return matched_faces;
+                return;
             }
         }
     }
 
-    block.faces.iter().cloned().map(|f| (f, false)).collect()
+    for face in &block.faces {
+        visit(face, false);
+    }
 }
 
 #[inline]
@@ -1673,10 +1677,7 @@ fn for_each_meshing_face<S: VoxelAccess, F: FnMut(&BlockFace, bool)>(
             visit(face, false);
         }
     } else if block.dynamic_patterns.is_some() {
-        let faces = get_dynamic_faces(block, [vx, vy, vz], space, rotation);
-        for (face, world_space) in faces.iter() {
-            visit(face, *world_space);
-        }
+        for_each_dynamic_face(block, [vx, vy, vz], space, rotation, visit);
     } else {
         for face in block.faces.iter() {
             visit(face, false);
@@ -2505,21 +2506,16 @@ pub fn mesh_space<S: VoxelAccess>(
                     );
                 };
 
-                if is_fluid && has_standard_six_faces(block) {
-                    let faces = create_fluid_faces(vx, vy, vz, block.id, space, block, registry);
-                    for face in faces.iter() {
-                        process_mesh_face(face, false);
-                    }
-                } else if block.dynamic_patterns.is_some() {
-                    let faces = get_dynamic_faces(block, [vx, vy, vz], space, &rotation);
-                    for (face, world_space) in faces.iter() {
-                        process_mesh_face(face, *world_space);
-                    }
-                } else {
-                    for face in block.faces.iter() {
-                        process_mesh_face(face, false);
-                    }
-                }
+                for_each_meshing_face(
+                    block,
+                    vx,
+                    vy,
+                    vz,
+                    space,
+                    &rotation,
+                    registry,
+                    |face, world_space| process_mesh_face(face, world_space),
+                );
             }
         }
     }
