@@ -337,7 +337,14 @@ impl KdTree {
             return;
         }
         if self.kind_map.len() == 1 {
-            if self.kind_map.keys().next().copied() == Some(retained_id) {
+            let mut ids = self.kind_map.keys().copied();
+            let single_id = {
+                let Some(kind_id) = ids.next() else {
+                    unreachable!("single kind-map length matched branch");
+                };
+                kind_id
+            };
+            if single_id == retained_id {
                 return;
             }
             self.reset();
@@ -349,16 +356,24 @@ impl KdTree {
         }
         if self.kind_map.len() == 2 {
             let mut ids = self.kind_map.keys().copied();
-            let first_id = ids.next();
-            let second_id = ids.next();
-            let other_id = if first_id == Some(retained_id) {
+            let first_id = {
+                let Some(kind_id) = ids.next() else {
+                    unreachable!("two kind-map length matched branch");
+                };
+                kind_id
+            };
+            let second_id = {
+                let Some(kind_id) = ids.next() else {
+                    unreachable!("two kind-map length matched branch");
+                };
+                kind_id
+            };
+            let other_id = if first_id == retained_id {
                 second_id
             } else {
                 first_id
             };
-            if let Some(other_id) = other_id {
-                self.remove_entity_by_id(other_id);
-            }
+            self.remove_entity_by_id(other_id);
             self.removal_buffer.clear();
             return;
         }
