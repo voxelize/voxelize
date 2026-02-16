@@ -271,6 +271,7 @@ pub struct MessageBuilder {
     events: Option<Vec<EventProtocol>>,
     single_chunk: Option<ChunkProtocol>,
     chunks: Option<Vec<ChunkProtocol>>,
+    single_update: Option<UpdateProtocol>,
     updates: Option<Vec<UpdateProtocol>>,
 }
 
@@ -431,6 +432,7 @@ impl MessageBuilder {
 
     /// Configure the voxel update data of the protocol.
     pub fn updates(mut self, updates: &[UpdateProtocol]) -> Self {
+        self.single_update = None;
         if updates.is_empty() {
             self.updates = None;
         } else {
@@ -439,8 +441,15 @@ impl MessageBuilder {
         self
     }
 
+    pub fn update_owned(mut self, update: UpdateProtocol) -> Self {
+        self.single_update = Some(update);
+        self.updates = None;
+        self
+    }
+
     /// Configure owned voxel update data of the protocol.
     pub fn updates_owned(mut self, updates: Vec<UpdateProtocol>) -> Self {
+        self.single_update = None;
         if updates.is_empty() {
             self.updates = None;
         } else {
@@ -531,7 +540,15 @@ impl MessageBuilder {
             message.chunks = mapped_chunks;
         }
 
-        if let Some(updates) = self.updates {
+        if let Some(update) = self.single_update {
+            message.updates = vec![protocols::Update {
+                vx: update.vx,
+                vy: update.vy,
+                vz: update.vz,
+                light: update.light,
+                voxel: update.voxel,
+            }];
+        } else if let Some(updates) = self.updates {
             let mut mapped = Vec::with_capacity(updates.len());
             for update in updates {
                 mapped.push(protocols::Update {
@@ -728,5 +745,49 @@ mod tests {
             EntityOperation::try_from(message.entities[0].operation),
             Ok(EntityOperation::Delete)
         );
+    }
+
+    #[test]
+    fn update_owned_sets_single_update_payload() {
+        let message = Message::new(&MessageType::Update)
+            .update_owned(UpdateProtocol {
+                vx: 1,
+                vy: 2,
+                vz: 3,
+                voxel: 4,
+                light: 5,
+            })
+            .build();
+
+        assert_eq!(message.updates.len(), 1);
+        assert_eq!(message.updates[0].vx, 1);
+        assert_eq!(message.updates[0].vy, 2);
+        assert_eq!(message.updates[0].vz, 3);
+        assert_eq!(message.updates[0].voxel, 4);
+        assert_eq!(message.updates[0].light, 5);
+    }
+
+    #[test]
+    fn update_owned_overrides_previous_update_list() {
+        let message = Message::new(&MessageType::Update)
+            .updates_owned(vec![UpdateProtocol {
+                vx: 10,
+                vy: 11,
+                vz: 12,
+                voxel: 13,
+                light: 14,
+            }])
+            .update_owned(UpdateProtocol {
+                vx: 7,
+                vy: 8,
+                vz: 9,
+                voxel: 10,
+                light: 11,
+            })
+            .build();
+
+        assert_eq!(message.updates.len(), 1);
+        assert_eq!(message.updates[0].vx, 7);
+        assert_eq!(message.updates[0].light, 11);
     }
 }
