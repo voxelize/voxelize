@@ -298,6 +298,9 @@ impl KdTree {
     where
         F: Fn(EntityId) -> bool,
     {
+        if self.kind_map.is_empty() {
+            return;
+        }
         let mut to_remove = std::mem::take(&mut self.removal_buffer);
         to_remove.clear();
         if to_remove.capacity() < self.kind_map.len() {
@@ -307,6 +310,10 @@ impl KdTree {
             if !f(id) {
                 to_remove.push(id);
             }
+        }
+        if to_remove.is_empty() {
+            self.removal_buffer = to_remove;
+            return;
         }
 
         for &ent_id in &to_remove {
