@@ -223,7 +223,11 @@ fn process_pending_updates(
 
         for (voxel, raw, updated_id, updated_type) in chunk_updates {
             let Vec3(vx, vy, vz) = voxel;
-            let current_id = chunks.get_voxel(vx, vy, vz);
+            let current_raw = chunks.get_raw_voxel(vx, vy, vz);
+            if current_raw == raw {
+                continue;
+            }
+            let current_id = BlockUtils::extract_id(current_raw);
             let current_type = registry.get_block_by_id(current_id);
             if updated_type.id == 0 && current_type.id == 0 {
                 continue;
