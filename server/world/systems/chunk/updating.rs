@@ -338,9 +338,19 @@ fn process_pending_updates(
     let mut blue_removals = Vec::with_capacity(removed_light_sources.len());
 
     for (voxel, light_block) in &removed_light_sources {
-        let red_level = light_block.get_torch_light_level_at(voxel, &*chunks, &RED);
-        let green_level = light_block.get_torch_light_level_at(voxel, &*chunks, &GREEN);
-        let blue_level = light_block.get_torch_light_level_at(voxel, &*chunks, &BLUE);
+        let (red_level, green_level, blue_level) = if light_block.dynamic_patterns.is_some() {
+            (
+                light_block.get_torch_light_level_at(voxel, &*chunks, &RED),
+                light_block.get_torch_light_level_at(voxel, &*chunks, &GREEN),
+                light_block.get_torch_light_level_at(voxel, &*chunks, &BLUE),
+            )
+        } else {
+            (
+                light_block.red_light_level,
+                light_block.green_light_level,
+                light_block.blue_light_level,
+            )
+        };
 
         if red_level > 0 {
             red_removals.push(*voxel);
@@ -587,9 +597,19 @@ fn process_pending_updates(
         }
 
         if updated_is_light {
-            let red_level = updated_type.get_torch_light_level_at(&voxel, &*chunks, &RED);
-            let green_level = updated_type.get_torch_light_level_at(&voxel, &*chunks, &GREEN);
-            let blue_level = updated_type.get_torch_light_level_at(&voxel, &*chunks, &BLUE);
+            let (red_level, green_level, blue_level) = if updated_type.dynamic_patterns.is_some() {
+                (
+                    updated_type.get_torch_light_level_at(&voxel, &*chunks, &RED),
+                    updated_type.get_torch_light_level_at(&voxel, &*chunks, &GREEN),
+                    updated_type.get_torch_light_level_at(&voxel, &*chunks, &BLUE),
+                )
+            } else {
+                (
+                    updated_type.red_light_level,
+                    updated_type.green_light_level,
+                    updated_type.blue_light_level,
+                )
+            };
 
             if red_level > 0 {
                 chunks.set_torch_light(vx, vy, vz, red_level, &RED);
