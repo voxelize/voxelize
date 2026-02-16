@@ -18,6 +18,12 @@ pub struct ChunkRequestsSystem {
 const SMALL_CHUNK_REQUEST_BATCH_CLEAR_LIMIT: usize = 8;
 
 #[inline]
+fn take_vec_with_capacity<T>(buffer: &mut Vec<T>) -> Vec<T> {
+    let capacity = buffer.capacity();
+    std::mem::replace(buffer, Vec::with_capacity(capacity))
+}
+
+#[inline]
 fn enqueue_chunk_models_for_client(
     queue: &mut MessageQueues,
     chunk_models_buffer: &mut Vec<crate::ChunkProtocol>,
@@ -222,8 +228,8 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             }
             let mut touched_client = false;
             let mut clients_to_send: Option<&mut HashSet<Vec2<i32>>> = None;
-
-            for coords in requests.requests.drain(..) {
+            let pending_requests = take_vec_with_capacity(&mut requests.requests);
+            for coords in pending_requests {
                 if chunks.is_chunk_ready(&coords) {
                     if !can_send_responses {
                         to_add_back_to_requested.push(coords);
