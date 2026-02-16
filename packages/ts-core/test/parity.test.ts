@@ -78,6 +78,15 @@ describe("BlockUtils", () => {
     expect(() => BlockUtils.insertStage(0, Number.NEGATIVE_INFINITY)).toThrowError(
       RangeError
     );
+
+    const trapDrivenStage = {
+      [Symbol.toPrimitive]() {
+        throw new Error("stage coercion trap");
+      },
+    };
+    expect(() => BlockUtils.insertStage(0, trapDrivenStage as never)).toThrowError(
+      RangeError
+    );
   });
 
   it("supports rotation roundtrip", () => {
@@ -248,6 +257,18 @@ describe("BlockUtils", () => {
       stage: 12,
     });
     expect(Voxel.rotation(updated).equals(rotation)).toBe(true);
+  });
+
+  it("rejects malformed stage payloads for chained voxel stage updates", () => {
+    const trapDrivenStage = {
+      [Symbol.toPrimitive]() {
+        throw new Error("stage coercion trap");
+      },
+    };
+
+    expect(() => Voxel.withStage(Voxel.pack({ id: 1 }), trapDrivenStage as never)).toThrowError(
+      RangeError
+    );
   });
 
   it("masks packed voxel ids to 16 bits", () => {
