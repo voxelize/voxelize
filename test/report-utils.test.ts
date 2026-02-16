@@ -22361,6 +22361,25 @@ describe("report-utils", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("returns a stable write failure message when output-path coercion traps", () => {
+    const reportJson = toReportJson({ passed: false, exitCode: 1 });
+    const trappedOutputPath = {
+      [Symbol.toPrimitive]() {
+        throw new Error("path coercion trap");
+      },
+    };
+
+    expect(() => writeReportToPath(reportJson, trappedOutputPath as never)).not.toThrow();
+    const failureMessage = writeReportToPath(reportJson, trappedOutputPath as never);
+    expect(failureMessage).toContain(
+      "Failed to write report to (unprintable output path)."
+    );
+    expect(failureMessage).toContain(
+      'The "path" argument must be of type string.'
+    );
+    expect(failureMessage).not.toContain("path coercion trap");
+  });
+
   it("serializes reports with optional output writes", () => {
     const report = {
       passed: true,
@@ -22412,6 +22431,78 @@ describe("report-utils", () => {
     expect(fileReport.passed).toBe(true);
 
     fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("returns structured serialize fallback when output-path coercion traps", () => {
+    const trappedOutputPath = {
+      [Symbol.toPrimitive]() {
+        throw new Error("path coercion trap");
+      },
+    };
+    const timedReportBuilder = createTimedReportBuilder(
+      (() => {
+        let tick = 0;
+        return () => {
+          tick += 1;
+          return tick * 1000;
+        };
+      })(),
+      (value) => `iso-${value}`
+    );
+    const writeFailureResult = serializeReportWithOptionalWrite(
+      {
+        passed: true,
+        exitCode: 0,
+        outputPath: trappedOutputPath as never,
+      },
+      {
+        jsonFormat: { compact: true },
+        outputPath: trappedOutputPath as never,
+        buildTimedReport: timedReportBuilder,
+      }
+    );
+    const parsedWriteFailureResult = JSON.parse(
+      writeFailureResult.reportJson
+    ) as {
+      schemaVersion: number;
+      passed: boolean;
+      exitCode: number;
+      outputPath: string;
+      writeError: string;
+      message: string;
+      startedAt: string;
+      endedAt: string;
+      durationMs: number;
+    };
+
+    expect(writeFailureResult.writeError).toContain(
+      "Failed to write report to (unprintable output path)."
+    );
+    expect(writeFailureResult.writeError).toContain(
+      'The "path" argument must be of type string.'
+    );
+    expect(writeFailureResult.writeError).not.toContain("path coercion trap");
+    expect(parsedWriteFailureResult.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+    expect(parsedWriteFailureResult.passed).toBe(false);
+    expect(parsedWriteFailureResult.exitCode).toBe(1);
+    expect(parsedWriteFailureResult.outputPath).toBe("(unprintable output path)");
+    expect(parsedWriteFailureResult.writeError).toContain(
+      "Failed to write report to (unprintable output path)."
+    );
+    expect(parsedWriteFailureResult.writeError).toContain(
+      'The "path" argument must be of type string.'
+    );
+    expect(parsedWriteFailureResult.writeError).not.toContain("path coercion trap");
+    expect(parsedWriteFailureResult.message).toContain(
+      "Failed to write report to (unprintable output path)."
+    );
+    expect(parsedWriteFailureResult.message).toContain(
+      'The "path" argument must be of type string.'
+    );
+    expect(parsedWriteFailureResult.message).not.toContain("path coercion trap");
+    expect(parsedWriteFailureResult.startedAt).toBe("iso-1000");
+    expect(parsedWriteFailureResult.endedAt).toBe("iso-2000");
+    expect(parsedWriteFailureResult.durationMs).toBe(1000);
   });
 
   it("returns a structured fallback report when output write fails", () => {

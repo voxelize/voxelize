@@ -2634,6 +2634,23 @@ export const resolveOutputPath = (
   };
 };
 
+const FALLBACK_UNPRINTABLE_OUTPUT_PATH = "(unprintable output path)";
+
+const toOutputPathMessageValue = (outputPath) => {
+  if (typeof outputPath === "string") {
+    return outputPath;
+  }
+
+  try {
+    const normalizedOutputPath = String(outputPath);
+    return normalizedOutputPath.length > 0
+      ? normalizedOutputPath
+      : FALLBACK_UNPRINTABLE_OUTPUT_PATH;
+  } catch {
+    return FALLBACK_UNPRINTABLE_OUTPUT_PATH;
+  }
+};
+
 export const writeReportToPath = (reportJson, outputPath) => {
   if (outputPath === null) {
     return null;
@@ -2648,7 +2665,7 @@ export const writeReportToPath = (reportJson, outputPath) => {
       error instanceof Error && error.message.length > 0
         ? ` ${error.message}`
         : "";
-    return `Failed to write report to ${outputPath}.${detail}`;
+    return `Failed to write report to ${toOutputPathMessageValue(outputPath)}.${detail}`;
   }
 };
 
@@ -2679,6 +2696,7 @@ export const serializeReportWithOptionalWrite = (
         ...report,
         passed: false,
         exitCode: 1,
+        outputPath: toOutputPathMessageValue(outputPath),
         writeError,
         message: writeError,
       }),
