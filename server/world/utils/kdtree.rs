@@ -343,6 +343,18 @@ impl KdTree {
             self.reset();
             return;
         }
+        if self.kind_map.len() == 2 {
+            let other_id = self
+                .kind_map
+                .keys()
+                .copied()
+                .find(|candidate_id| *candidate_id != retained_id);
+            if let Some(other_id) = other_id {
+                self.remove_entity_by_id(other_id);
+            }
+            self.removal_buffer.clear();
+            return;
+        }
         let removal_buffer_capacity = self.removal_buffer.capacity();
         let mut to_remove = std::mem::replace(
             &mut self.removal_buffer,
@@ -636,5 +648,21 @@ mod tests {
 
         assert_eq!(tree.len(), 0);
         assert!(!tree.contains(ent));
+    }
+
+    #[test]
+    fn retain_only_removes_second_entity_without_buffer_rebuild() {
+        let mut world = World::new();
+        let ent_a = world.create_entity().build();
+        let ent_b = world.create_entity().build();
+        let mut tree = KdTree::new();
+        tree.add_entity(ent_a, &Vec3(1.0, 2.0, 3.0));
+        tree.add_player(ent_b, &Vec3(4.0, 5.0, 6.0));
+
+        tree.retain_only(ent_b.id());
+
+        assert_eq!(tree.len(), 1);
+        assert!(!tree.contains(ent_a));
+        assert!(tree.contains(ent_b));
     }
 }
