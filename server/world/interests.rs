@@ -249,8 +249,11 @@ impl ChunkInterests {
             return;
         }
         if self.map.len() == 1 {
-            let Some(coords) = self.map.keys().next().copied() else {
-                return;
+            let coords = {
+                let Some(single_coords) = self.map.keys().next().copied() else {
+                    unreachable!("single interest map length matched branch");
+                };
+                single_coords
             };
             let has_weights = !self.weights.is_empty();
             let mut should_remove_coords = false;
@@ -268,11 +271,17 @@ impl ChunkInterests {
         }
         if self.map.len() == 2 {
             let mut coords_iter = self.map.keys().copied();
-            let Some(first_coords) = coords_iter.next() else {
-                return;
+            let first_coords = {
+                let Some(first) = coords_iter.next() else {
+                    unreachable!("two-interest map length matched branch");
+                };
+                first
             };
-            let Some(second_coords) = coords_iter.next() else {
-                return;
+            let second_coords = {
+                let Some(second) = coords_iter.next() else {
+                    unreachable!("two-interest map length matched branch");
+                };
+                second
             };
             let has_weights = !self.weights.is_empty();
 
