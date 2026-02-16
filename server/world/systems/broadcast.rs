@@ -173,6 +173,7 @@ fn batch_messages(messages: Vec<(Message, ClientFilter)>) -> Vec<(Message, Clien
         return messages;
     }
     let total_messages = messages.len();
+    let initial_bucket_capacity = total_messages.min(64);
     let mut batched: Option<HashMap<(i32, ClientFilter), Message>> = None;
     let mut unbatched: Option<Vec<(Message, ClientFilter)>> = None;
 
@@ -182,7 +183,7 @@ fn batch_messages(messages: Vec<(Message, ClientFilter)>) -> Vec<(Message, Clien
         if can_batch(msg_type) {
             normalize_filter_for_batching(&mut filter);
             let batched = batched
-                .get_or_insert_with(|| HashMap::with_capacity(total_messages));
+                .get_or_insert_with(|| HashMap::with_capacity(initial_bucket_capacity));
 
             match batched.entry((msg_type, filter)) {
                 Entry::Occupied(mut entry) => {
@@ -194,7 +195,7 @@ fn batch_messages(messages: Vec<(Message, ClientFilter)>) -> Vec<(Message, Clien
             }
         } else {
             unbatched
-                .get_or_insert_with(|| Vec::with_capacity(total_messages))
+                .get_or_insert_with(|| Vec::with_capacity(initial_bucket_capacity))
                 .push((message, filter));
         }
     }
@@ -243,6 +244,7 @@ impl<'a> System<'a> for BroadcastSystem {
             return;
         }
         let pending_messages_count = pending_messages.len();
+        let initial_encode_bucket_capacity = pending_messages_count.min(64);
         let mut immediate_encoded: Option<Vec<(EncodedMessage, ClientFilter)>> = None;
         let mut deferred_messages: Option<Vec<(Message, ClientFilter)>> = None;
         for (mut message, filter) in pending_messages {
@@ -256,11 +258,11 @@ impl<'a> System<'a> for BroadcastSystem {
                     is_transport_eligible: should_send_to_transport(msg_type),
                 };
                 immediate_encoded
-                    .get_or_insert_with(|| Vec::with_capacity(pending_messages_count))
+                    .get_or_insert_with(|| Vec::with_capacity(initial_encode_bucket_capacity))
                     .push((encoded, filter));
             } else {
                 deferred_messages
-                    .get_or_insert_with(|| Vec::with_capacity(pending_messages_count))
+                    .get_or_insert_with(|| Vec::with_capacity(initial_encode_bucket_capacity))
                     .push((message, filter));
             }
         }
