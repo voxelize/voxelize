@@ -25526,6 +25526,55 @@ describe("report-utils", () => {
     expect(followUpReport.durationMs).toBe(2000);
   });
 
+  it("normalizes wrapped timestamp values from custom clocks", () => {
+    const wrappedStartTimestamp = new Number(1_000);
+    let didCallWrappedStartValueOf = false;
+    Object.defineProperty(wrappedStartTimestamp, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedStartValueOf = true;
+        throw new Error("wrapped start valueOf trap");
+      },
+    });
+
+    const wrappedEndTimestamp = Object(2_000n);
+    let didCallWrappedEndValueOf = false;
+    Object.defineProperty(wrappedEndTimestamp, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedEndValueOf = true;
+        throw new Error("wrapped end valueOf trap");
+      },
+    });
+
+    const wrappedNowValues = [wrappedStartTimestamp, wrappedEndTimestamp];
+    let wrappedNowIndex = 0;
+    const withTiming = createTimedReportBuilder(
+      () => {
+        const currentValue =
+          wrappedNowValues[wrappedNowIndex] ??
+          wrappedNowValues[wrappedNowValues.length - 1];
+        wrappedNowIndex += 1;
+        return currentValue as never;
+      },
+      (value) => `iso-${value}`
+    );
+
+    expect(withTiming({ passed: true, exitCode: 0 })).toEqual({
+      passed: true,
+      exitCode: 0,
+      startedAt: "iso-1000",
+      endedAt: "iso-2000",
+      durationMs: 1000,
+    });
+    expect(didCallWrappedStartValueOf).toBe(false);
+    expect(didCallWrappedEndValueOf).toBe(false);
+  });
+
   it("clamps timed report duration when clock regresses", () => {
     const nowValues = [2_000, 1_000];
     let nowIndex = 0;

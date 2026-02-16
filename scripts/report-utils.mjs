@@ -495,6 +495,28 @@ export const createTimedReportBuilder = (
   now = () => Date.now(),
   toIsoString = (value) => new Date(value).toISOString()
 ) => {
+  const toFiniteTimestampOrNull = (value) => {
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? value : null;
+    }
+
+    if (typeof value === "bigint") {
+      const numericValue = Number(value);
+      return Number.isFinite(numericValue) ? numericValue : null;
+    }
+
+    if (value !== null && typeof value === "object") {
+      const wrappedPrimitiveValue = toPrimitiveWrapperValueOrNull(value);
+      if (wrappedPrimitiveValue === null) {
+        return null;
+      }
+
+      return toFiniteTimestampOrNull(wrappedPrimitiveValue);
+    }
+
+    return null;
+  };
+
   const resolveNowMs = () => {
     let nowValue = 0;
     try {
@@ -503,7 +525,13 @@ export const createTimedReportBuilder = (
       nowValue = Date.now();
     }
 
-    return Number.isFinite(nowValue) ? nowValue : Date.now();
+    const normalizedNowValue = toFiniteTimestampOrNull(nowValue);
+    if (normalizedNowValue !== null) {
+      return normalizedNowValue;
+    }
+
+    const fallbackNowValue = toFiniteTimestampOrNull(Date.now());
+    return fallbackNowValue ?? 0;
   };
 
   const resolveIsoTimestamp = (value) => {
