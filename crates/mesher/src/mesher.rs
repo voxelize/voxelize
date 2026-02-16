@@ -734,7 +734,7 @@ fn create_fluid_faces<S: VoxelAccess>(
     space: &S,
     original_faces: &[BlockFace],
     registry: &Registry,
-) -> Vec<BlockFace> {
+) -> [BlockFace; 6] {
     let corner_nxnz: [[i32; 2]; 3] = [[-1, 0], [0, -1], [-1, -1]];
     let corner_pxnz: [[i32; 2]; 3] = [[1, 0], [0, -1], [1, -1]];
     let corner_nxpz: [[i32; 2]; 3] = [[-1, 0], [0, 1], [-1, 1]];
@@ -754,7 +754,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             - FLUID_SURFACE_OFFSET;
     let ranges = collect_cardinal_face_ranges(original_faces);
 
-    vec![
+    [
         BlockFace {
             name: "py".to_string(),
             name_lower: "py".to_string(),
