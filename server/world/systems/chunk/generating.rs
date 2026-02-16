@@ -149,6 +149,20 @@ fn sort_chunk_coords_by_interest(
                 coords.swap(1, 2);
             }
         }
+        5 => {
+            for i in 1..5 {
+                let mut j = i;
+                while j > 0 {
+                    if !compare_chunk_interest_weights(weights, &coords[j - 1], &coords[j])
+                        .is_gt()
+                    {
+                        break;
+                    }
+                    coords.swap(j - 1, j);
+                    j -= 1;
+                }
+            }
+        }
         _ => coords.sort_unstable_by(|a, b| compare_chunk_interest_weights(weights, a, b)),
     }
 }
@@ -831,5 +845,25 @@ mod tests {
         sort_chunk_coords_by_interest(&mut coords, &weights);
 
         assert_eq!(coords, vec![second, fourth, third, first]);
+    }
+
+    #[test]
+    fn sort_chunk_coords_by_interest_orders_five_entries() {
+        let mut weights = HashMap::new();
+        let first = Vec2(0, 0);
+        let second = Vec2(1, 1);
+        let third = Vec2(2, 2);
+        let fourth = Vec2(3, 3);
+        let fifth = Vec2(4, 4);
+        weights.insert(first, 5.0);
+        weights.insert(second, 1.0);
+        weights.insert(third, 4.0);
+        weights.insert(fourth, 2.0);
+        weights.insert(fifth, 3.0);
+
+        let mut coords = vec![first, second, third, fourth, fifth];
+        sort_chunk_coords_by_interest(&mut coords, &weights);
+
+        assert_eq!(coords, vec![second, fourth, fifth, third, first]);
     }
 }
