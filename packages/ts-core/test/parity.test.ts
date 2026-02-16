@@ -1,3 +1,5 @@
+import vm from "node:vm";
+
 import { describe, expect, it } from "vitest";
 import * as tsCoreModule from "../src";
 
@@ -2750,6 +2752,66 @@ describe("Type builders", () => {
     expect(createdTransparency[0]).toBe(true);
   });
 
+  it("normalizes wrapped boolean transparency entries", () => {
+    const crossRealmWrappedTrue = vm.runInNewContext("new Boolean(true)");
+    let didCallCrossRealmWrappedTrueToString = false;
+    Object.defineProperty(crossRealmWrappedTrue, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedTrueToString = true;
+        throw new Error("cross-realm transparency true toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedTrueValueOf = false;
+    Object.defineProperty(crossRealmWrappedTrue, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedTrueValueOf = true;
+        throw new Error("cross-realm transparency true valueOf trap");
+      },
+    });
+    const crossRealmWrappedFalse = vm.runInNewContext("new Boolean(false)");
+    let didCallCrossRealmWrappedFalseToString = false;
+    Object.defineProperty(crossRealmWrappedFalse, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedFalseToString = true;
+        throw new Error("cross-realm transparency false toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedFalseValueOf = false;
+    Object.defineProperty(crossRealmWrappedFalse, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedFalseValueOf = true;
+        throw new Error("cross-realm transparency false valueOf trap");
+      },
+    });
+
+    expect(
+      createFaceTransparency([
+        crossRealmWrappedTrue as never,
+        crossRealmWrappedFalse as never,
+        crossRealmWrappedTrue as never,
+        crossRealmWrappedFalse as never,
+        crossRealmWrappedTrue as never,
+        crossRealmWrappedFalse as never,
+      ])
+    ).toEqual([true, false, true, false, true, false]);
+    expect(didCallCrossRealmWrappedTrueToString).toBe(false);
+    expect(didCallCrossRealmWrappedTrueValueOf).toBe(false);
+    expect(didCallCrossRealmWrappedFalseToString).toBe(false);
+    expect(didCallCrossRealmWrappedFalseValueOf).toBe(false);
+  });
+
   it("supports frozen transparency arrays in createFaceTransparency", () => {
     const frozenTransparency = Object.freeze([true, false, true, false, true, false] as const);
     const createdTransparency = createFaceTransparency(frozenTransparency);
@@ -3037,10 +3099,37 @@ describe("Type builders", () => {
     const validWorldSpacePart = createBlockConditionalPart({
       worldSpace: true,
     });
+    const crossRealmWrappedWorldSpaceTrue = vm.runInNewContext("new Boolean(true)");
+    let didCallCrossRealmWrappedWorldSpaceTrueToString = false;
+    Object.defineProperty(crossRealmWrappedWorldSpaceTrue, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedWorldSpaceTrueToString = true;
+        throw new Error("cross-realm worldSpace true toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedWorldSpaceTrueValueOf = false;
+    Object.defineProperty(crossRealmWrappedWorldSpaceTrue, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedWorldSpaceTrueValueOf = true;
+        throw new Error("cross-realm worldSpace true valueOf trap");
+      },
+    });
+    const wrappedWorldSpacePart = createBlockConditionalPart({
+      worldSpace: crossRealmWrappedWorldSpaceTrue as never,
+    });
 
     expect(malformedWorldSpacePart.worldSpace).toBe(false);
     expect(nullWorldSpacePart.worldSpace).toBe(false);
     expect(validWorldSpacePart.worldSpace).toBe(true);
+    expect(wrappedWorldSpacePart.worldSpace).toBe(true);
+    expect(didCallCrossRealmWrappedWorldSpaceTrueToString).toBe(false);
+    expect(didCallCrossRealmWrappedWorldSpaceTrueValueOf).toBe(false);
   });
 
   it("preserves provided conditional part fields", () => {
@@ -6969,6 +7058,64 @@ describe("Type builders", () => {
       startV: 2,
       endV: 3,
     });
+  });
+
+  it("normalizes wrapped block-face boolean option fields", () => {
+    const crossRealmWrappedIndependent = vm.runInNewContext("new Boolean(true)");
+    let didCallCrossRealmWrappedIndependentToString = false;
+    Object.defineProperty(crossRealmWrappedIndependent, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedIndependentToString = true;
+        throw new Error("cross-realm face independent toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedIndependentValueOf = false;
+    Object.defineProperty(crossRealmWrappedIndependent, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedIndependentValueOf = true;
+        throw new Error("cross-realm face independent valueOf trap");
+      },
+    });
+    const crossRealmWrappedIsolated = vm.runInNewContext("new Boolean(true)");
+    let didCallCrossRealmWrappedIsolatedToString = false;
+    Object.defineProperty(crossRealmWrappedIsolated, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedIsolatedToString = true;
+        throw new Error("cross-realm face isolated toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedIsolatedValueOf = false;
+    Object.defineProperty(crossRealmWrappedIsolated, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedIsolatedValueOf = true;
+        throw new Error("cross-realm face isolated valueOf trap");
+      },
+    });
+
+    const face = createBlockFace({
+      name: "WrappedFace",
+      independent: crossRealmWrappedIndependent as never,
+      isolated: crossRealmWrappedIsolated as never,
+    });
+
+    expect(face.independent).toBe(true);
+    expect(face.isolated).toBe(true);
+    expect(didCallCrossRealmWrappedIndependentToString).toBe(false);
+    expect(didCallCrossRealmWrappedIndependentValueOf).toBe(false);
+    expect(didCallCrossRealmWrappedIsolatedToString).toBe(false);
+    expect(didCallCrossRealmWrappedIsolatedValueOf).toBe(false);
   });
 
   it("supports createBlockFace helper with cloned init fields", () => {

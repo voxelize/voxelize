@@ -275,19 +275,22 @@ const toBlockFaceInitSnapshot = (
   }
   const normalizedName = toBlockFaceNameOrFallback(rawName, fallbackSnapshot.name);
 
-  let independent = fallbackSnapshot.independent;
+  let independentValue: DynamicValue = fallbackSnapshot.independent;
   try {
-    independent = value.independent === true;
+    independentValue = value.independent as DynamicValue;
   } catch {
-    independent = fallbackSnapshot.independent;
+    independentValue = fallbackSnapshot.independent;
   }
+  const independent =
+    toBooleanValueOrNull(independentValue) ?? fallbackSnapshot.independent;
 
-  let isolated = fallbackSnapshot.isolated;
+  let isolatedValue: DynamicValue = fallbackSnapshot.isolated;
   try {
-    isolated = value.isolated === true;
+    isolatedValue = value.isolated as DynamicValue;
   } catch {
-    isolated = fallbackSnapshot.isolated;
+    isolatedValue = fallbackSnapshot.isolated;
   }
+  const isolated = toBooleanValueOrNull(isolatedValue) ?? fallbackSnapshot.isolated;
 
   let textureGroup: string | null = fallbackSnapshot.textureGroup;
   try {
@@ -540,8 +543,35 @@ const isRotationValue = (value: DynamicValue): value is number => {
   return isNonNegativeIntegerValue(value) && value <= 0x0f;
 };
 
-const isBooleanValue = (value: DynamicValue): value is boolean => {
-  return typeof value === "boolean";
+const isBooleanObjectValue = (value: DynamicValue): value is Boolean => {
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+
+  try {
+    return (
+      Object.prototype.toString.call(value) === "[object Boolean]" ||
+      value instanceof Boolean
+    );
+  } catch {
+    return false;
+  }
+};
+
+const toBooleanValueOrNull = (value: DynamicValue): boolean | null => {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (!isBooleanObjectValue(value)) {
+    return null;
+  }
+
+  try {
+    return Boolean.prototype.valueOf.call(value);
+  } catch {
+    return null;
+  }
 };
 
 const isArrayValue = (value: DynamicValue): value is readonly DynamicValue[] => {
@@ -917,12 +947,12 @@ export const createFaceTransparency = (
   const face5 = readArrayEntry(transparencyValues, 5);
 
   return [
-    isBooleanValue(face0) ? face0 : false,
-    isBooleanValue(face1) ? face1 : false,
-    isBooleanValue(face2) ? face2 : false,
-    isBooleanValue(face3) ? face3 : false,
-    isBooleanValue(face4) ? face4 : false,
-    isBooleanValue(face5) ? face5 : false,
+    toBooleanValueOrNull(face0) ?? false,
+    toBooleanValueOrNull(face1) ?? false,
+    toBooleanValueOrNull(face2) ?? false,
+    toBooleanValueOrNull(face3) ?? false,
+    toBooleanValueOrNull(face4) ?? false,
+    toBooleanValueOrNull(face5) ?? false,
   ];
 };
 
@@ -1223,8 +1253,8 @@ const toBlockFaceInit = (face: BlockFaceInput): BlockFaceInit | null => {
 
   return {
     name: nameValue,
-    independent: typeof independentValue === "boolean" ? independentValue : undefined,
-    isolated: typeof isolatedValue === "boolean" ? isolatedValue : undefined,
+    independent: toBooleanValueOrNull(independentValue) ?? undefined,
+    isolated: toBooleanValueOrNull(isolatedValue) ?? undefined,
     textureGroup,
     dir: toVec3SnapshotOrNull(dirValue) ?? undefined,
     corners: toCornerTuple(cornersValue),
@@ -1396,9 +1426,7 @@ export const createBlockConditionalPart = (
     faces,
     aabbs,
     isTransparent,
-    worldSpace: isBooleanValue(worldSpaceValue)
-      ? worldSpaceValue
-      : false,
+    worldSpace: toBooleanValueOrNull(worldSpaceValue) ?? false,
   };
 };
 
