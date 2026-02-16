@@ -25478,6 +25478,98 @@ describe("report-utils", () => {
     });
   });
 
+  it("accepts wrapped-string formatter outputs when building timed reports", () => {
+    const nowValues = [1_000, 2_000];
+    let nowIndex = 0;
+    let didCallStartToString = false;
+    let didCallEndToString = false;
+    const withTiming = createTimedReportBuilder(
+      () => {
+        const currentValue =
+          nowValues[nowIndex] ?? nowValues[nowValues.length - 1];
+        nowIndex += 1;
+        return currentValue;
+      },
+      (value) => {
+        const wrappedIsoTimestamp = new String(`iso-${value}`);
+        Object.defineProperty(wrappedIsoTimestamp, "toString", {
+          configurable: true,
+          enumerable: false,
+          writable: true,
+          value() {
+            if (value === 1_000) {
+              didCallStartToString = true;
+            } else {
+              didCallEndToString = true;
+            }
+            throw new Error("wrapped formatter toString trap");
+          },
+        });
+        return wrappedIsoTimestamp as never;
+      }
+    );
+
+    expect(withTiming({ passed: true, exitCode: 0 })).toEqual({
+      passed: true,
+      exitCode: 0,
+      startedAt: "iso-1000",
+      endedAt: "iso-2000",
+      durationMs: 1_000,
+    });
+    expect(didCallStartToString).toBe(false);
+    expect(didCallEndToString).toBe(false);
+  });
+
+  it("falls back to default ISO timestamps for trapped wrapped formatter proxies", () => {
+    const nowValues = [1_000, 2_000];
+    let nowIndex = 0;
+    const withTiming = createTimedReportBuilder(
+      () => {
+        const currentValue =
+          nowValues[nowIndex] ?? nowValues[nowValues.length - 1];
+        nowIndex += 1;
+        return currentValue;
+      },
+      (value) => {
+        const wrappedIsoTimestamp = new String(`iso-${value}`);
+        return new Proxy(wrappedIsoTimestamp, {
+          get(target, property, receiver) {
+            if (property === "valueOf") {
+              return () => {
+                throw new Error("wrapped formatter valueOf trap");
+              };
+            }
+            if (property === "toString") {
+              return () => {
+                throw new Error("wrapped formatter toString trap");
+              };
+            }
+
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never;
+      }
+    );
+
+    let timingReport: {
+      passed: boolean;
+      exitCode: number;
+      startedAt: string;
+      endedAt: string;
+      durationMs: number;
+    } | null = null;
+    expect(() => {
+      timingReport = withTiming({ passed: true, exitCode: 0 });
+    }).not.toThrow();
+    expect(timingReport).toEqual({
+      passed: true,
+      exitCode: 0,
+      startedAt: new Date(1_000).toISOString(),
+      endedAt: new Date(2_000).toISOString(),
+      durationMs: 1_000,
+    });
+  });
+
   it("sanitizes malformed timed report payloads before timestamp injection", () => {
     const withTiming = createTimedReportBuilder(
       () => 1_000,

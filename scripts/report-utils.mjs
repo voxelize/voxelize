@@ -495,6 +495,23 @@ export const createTimedReportBuilder = (
   now = () => Date.now(),
   toIsoString = (value) => new Date(value).toISOString()
 ) => {
+  const toIsoTimestampStringOrNull = (value) => {
+    if (typeof value === "string") {
+      return value.length > 0 ? value : null;
+    }
+
+    if (!isStringObjectValue(value)) {
+      return null;
+    }
+
+    const wrappedIsoTimestamp = toPrimitiveWrapperStringOrNull(value);
+    if (wrappedIsoTimestamp === null || wrappedIsoTimestamp.length === 0) {
+      return null;
+    }
+
+    return wrappedIsoTimestamp;
+  };
+
   const toFiniteTimestampOrNull = (value) => {
     if (typeof value === "number") {
       return Number.isFinite(value) ? value : null;
@@ -537,8 +554,10 @@ export const createTimedReportBuilder = (
   const resolveIsoTimestamp = (value) => {
     const normalizedValue = Number.isFinite(value) ? value : Date.now();
     try {
-      const isoTimestamp = toIsoString(normalizedValue);
-      if (typeof isoTimestamp === "string" && isoTimestamp.length > 0) {
+      const isoTimestamp = toIsoTimestampStringOrNull(
+        toIsoString(normalizedValue)
+      );
+      if (isoTimestamp !== null) {
         return isoTimestamp;
       }
     } catch {
