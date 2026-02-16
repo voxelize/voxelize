@@ -1,9 +1,6 @@
-use log::info;
+use log::{error, info};
 use registry::setup_registry;
-use specs::{Component, NullStorage};
-use voxelize::{
-    ChunkStage, FlatlandStage, LSystem, Server, Vec3, VoxelAccess, Voxelize, WorldConfig,
-};
+use voxelize::{ChunkStage, Server, Vec3, VoxelAccess, Voxelize, WorldConfig};
 use worlds::{flat::setup_flat_world, terrain::setup_terrain_world, test::setup_test_world};
 
 mod registry;
@@ -63,22 +60,32 @@ async fn main() -> std::io::Result<()> {
 
     server
         .add_world(setup_test_world())
-        .expect("Could not create test world.");
+        .map_err(|error| std::io::Error::other(format!("Could not create test world: {error}")))?;
 
     server
         .add_world(setup_terrain_world())
-        .expect("Could not create terrain world.");
+        .map_err(|error| {
+            std::io::Error::other(format!("Could not create terrain world: {error}"))
+        })?;
 
     server
         .add_world(setup_flat_world(&registry))
-        .expect("Could not create flat world.");
+        .map_err(|error| std::io::Error::other(format!("Could not create flat world: {error}")))?;
 
     server.set_action_handle("create_world", |value, server| {
         info!("World creating...");
-        let name: String = serde_json::from_value(value).expect("Can't understand name.");
+        let name: String = match serde_json::from_value(value) {
+            Ok(name) => name,
+            Err(error) => {
+                error!("Invalid world creation payload: {}", error);
+                return;
+            }
+        };
         let config = WorldConfig::default();
         let world = voxelize::World::new(&name, &config);
-        server.add_world(world).expect("Could not create world");
+        if let Err(error) = server.add_world(world) {
+            error!("Could not create world '{}': {}", name, error);
+        }
     });
 
     // let config2 = WorldConfig::new()

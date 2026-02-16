@@ -1,4 +1,5 @@
 use kdtree::{distance::squared_euclidean, KdTree};
+use log::warn;
 use voxelize::{
     Chunk, ChunkStage, NoiseOptions, Resources, SeededNoise, Space, Vec3, VoxelAccess, WorldConfig,
 };
@@ -18,16 +19,15 @@ impl<T: std::cmp::PartialEq> Biomes<T> {
         }
     }
 
-    pub fn query(&self, vx: i32, vz: i32) -> &T {
+    pub fn query(&self, vx: i32, vz: i32) -> Option<&T> {
         let values = self
             .criteria
             .iter()
             .map(|c| c.get2d(vx, vz))
             .collect::<Vec<f64>>();
 
-        let result = self.tree.nearest(&values, 1, &squared_euclidean).unwrap()[0];
-
-        result.1
+        let nearest = self.tree.nearest(&values, 1, &squared_euclidean).ok()?;
+        nearest.first().map(|(_, biome)| *biome)
     }
 
     pub fn add_criterion(mut self, name: &str, options: &NoiseOptions) -> Self {
@@ -38,7 +38,9 @@ impl<T: std::cmp::PartialEq> Biomes<T> {
     }
 
     pub fn add_biome(mut self, point: &[f64], biome: T) -> Self {
-        self.tree.add(point.to_vec(), biome).unwrap();
+        if let Err(error) = self.tree.add(point.to_vec(), biome) {
+            warn!("Failed to add biome point {:?}: {}", point, error);
+        }
         self
     }
 }
@@ -76,7 +78,9 @@ impl ChunkStage for BiomeStage {
 
         for vx in min_x..max_x {
             for vz in min_z..max_z {
-                let biome = self.biomes.query(vx, vz);
+                let Some(biome) = self.biomes.query(vx, vz) else {
+                    continue;
+                };
                 let block = registry.get_block_by_name(&biome.block);
                 let block_id = block.id;
 
