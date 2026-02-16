@@ -20,24 +20,25 @@ fn enqueue_chunk_models_for_client(
     chunk_models_buffer: &mut Vec<crate::ChunkProtocol>,
     client_id: String,
 ) {
-    let chunk_models_to_send = if chunk_models_buffer.is_empty() {
-        return;
-    } else if chunk_models_buffer.len() == 1 {
-        if let Some(single_model) = chunk_models_buffer.pop() {
-            vec![single_model]
-        } else {
-            return;
-        }
-    } else {
-        let next_chunk_buffer_capacity = chunk_models_buffer.capacity();
-        std::mem::replace(
-            chunk_models_buffer,
-            Vec::with_capacity(next_chunk_buffer_capacity),
-        )
-    };
-    if chunk_models_to_send.is_empty() {
+    if chunk_models_buffer.is_empty() {
         return;
     }
+    if chunk_models_buffer.len() == 1 {
+        if let Some(single_model) = chunk_models_buffer.pop() {
+            queue.push((
+                Message::new(&MessageType::Load)
+                    .chunk_owned(single_model)
+                    .build(),
+                ClientFilter::Direct(client_id),
+            ));
+        }
+        return;
+    }
+    let next_chunk_buffer_capacity = chunk_models_buffer.capacity();
+    let chunk_models_to_send = std::mem::replace(
+        chunk_models_buffer,
+        Vec::with_capacity(next_chunk_buffer_capacity),
+    );
 
     let message = Message::new(&MessageType::Load)
         .chunks_owned(chunk_models_to_send)

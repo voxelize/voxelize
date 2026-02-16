@@ -214,6 +214,44 @@ pub struct MethodProtocol {
     pub payload: String,
 }
 
+fn map_chunk_protocol(chunk: ChunkProtocol) -> protocols::Chunk {
+    let mut mapped_meshes = Vec::with_capacity(chunk.meshes.len());
+    for mesh in chunk.meshes {
+        let mut mapped_geometries = Vec::with_capacity(mesh.geometries.len());
+        for geo in mesh.geometries {
+            mapped_geometries.push(protocols::Geometry {
+                voxel: geo.voxel,
+                at: geo.at,
+                face_name: geo.face_name,
+                indices: compress_i32_array(&geo.indices),
+                positions: compress_f32_array(&geo.positions),
+                lights: compress_i32_array(&geo.lights),
+                uvs: compress_f32_array(&geo.uvs),
+            });
+        }
+        mapped_meshes.push(protocols::Mesh {
+            level: mesh.level,
+            geometries: mapped_geometries,
+        });
+    }
+    let lights_data = chunk
+        .lights
+        .as_ref()
+        .map_or(&[][..], |lights| lights.data.as_slice());
+    let voxels_data = chunk
+        .voxels
+        .as_ref()
+        .map_or(&[][..], |voxels| voxels.data.as_slice());
+    protocols::Chunk {
+        id: chunk.id,
+        meshes: mapped_meshes,
+        lights: compress_u32_array(lights_data),
+        voxels: compress_u32_array(voxels_data),
+        x: chunk.x,
+        z: chunk.z,
+    }
+}
+
 /// Builder for a protocol buffer message.
 #[derive(Default)]
 pub struct MessageBuilder {
@@ -229,6 +267,7 @@ pub struct MessageBuilder {
     peers: Option<Vec<PeerProtocol>>,
     entities: Option<Vec<EntityProtocol>>,
     events: Option<Vec<EventProtocol>>,
+    single_chunk: Option<ChunkProtocol>,
     chunks: Option<Vec<ChunkProtocol>>,
     updates: Option<Vec<UpdateProtocol>>,
 }
@@ -346,6 +385,7 @@ impl MessageBuilder {
 
     /// Configure the chunks data of the protocol.
     pub fn chunks(mut self, chunks: &[ChunkProtocol]) -> Self {
+        self.single_chunk = None;
         if chunks.is_empty() {
             self.chunks = None;
         } else {
@@ -354,8 +394,15 @@ impl MessageBuilder {
         self
     }
 
+    pub fn chunk_owned(mut self, chunk: ChunkProtocol) -> Self {
+        self.single_chunk = Some(chunk);
+        self.chunks = None;
+        self
+    }
+
     /// Configure owned chunks data of the protocol.
     pub fn chunks_owned(mut self, chunks: Vec<ChunkProtocol>) -> Self {
+        self.single_chunk = None;
         if chunks.is_empty() {
             self.chunks = None;
         } else {
@@ -444,38 +491,12 @@ impl MessageBuilder {
             message.events = mapped;
         }
 
-        if let Some(chunks) = self.chunks {
+        if let Some(chunk) = self.single_chunk {
+            message.chunks = vec![map_chunk_protocol(chunk)];
+        } else if let Some(chunks) = self.chunks {
             let mut mapped_chunks = Vec::with_capacity(chunks.len());
             for chunk in chunks {
-                let mut mapped_meshes = Vec::with_capacity(chunk.meshes.len());
-                for mesh in chunk.meshes {
-                    let mut mapped_geometries = Vec::with_capacity(mesh.geometries.len());
-                    for geo in mesh.geometries {
-                        mapped_geometries.push(protocols::Geometry {
-                            voxel: geo.voxel,
-                            at: geo.at,
-                            face_name: geo.face_name,
-                            indices: compress_i32_array(&geo.indices),
-                            positions: compress_f32_array(&geo.positions),
-                            lights: compress_i32_array(&geo.lights),
-                            uvs: compress_f32_array(&geo.uvs),
-                        });
-                    }
-                    mapped_meshes.push(protocols::Mesh {
-                        level: mesh.level,
-                        geometries: mapped_geometries,
-                    });
-                }
-                let lights_data = chunk.lights.as_ref().map_or(&[][..], |lights| lights.data.as_slice());
-                let voxels_data = chunk.voxels.as_ref().map_or(&[][..], |voxels| voxels.data.as_slice());
-                mapped_chunks.push(protocols::Chunk {
-                    id: chunk.id,
-                    meshes: mapped_meshes,
-                    lights: compress_u32_array(lights_data),
-                    voxels: compress_u32_array(voxels_data),
-                    x: chunk.x,
-                    z: chunk.z,
-                });
+                mapped_chunks.push(map_chunk_protocol(chunk));
             }
             message.chunks = mapped_chunks;
         }
@@ -574,5 +595,35 @@ mod tests {
         assert_eq!(message.events.len(), 1);
         assert_eq!(message.chunks.len(), 1);
         assert_eq!(message.updates.len(), 1);
+    }
+
+    #[test]
+    fn chunk_owned_sets_single_chunk_payload() {
+        let message = Message::new(&MessageType::Load)
+            .chunk_owned(ChunkProtocol {
+                id: "chunk-0-0".to_owned(),
+                ..Default::default()
+            })
+            .build();
+
+        assert_eq!(message.chunks.len(), 1);
+        assert_eq!(message.chunks[0].id, "chunk-0-0");
+    }
+
+    #[test]
+    fn chunk_owned_overrides_previous_chunk_list() {
+        let message = Message::new(&MessageType::Load)
+            .chunks_owned(vec![ChunkProtocol {
+                id: "chunk-old".to_owned(),
+                ..Default::default()
+            }])
+            .chunk_owned(ChunkProtocol {
+                id: "chunk-new".to_owned(),
+                ..Default::default()
+            })
+            .build();
+
+        assert_eq!(message.chunks.len(), 1);
+        assert_eq!(message.chunks[0].id, "chunk-new");
     }
 }
