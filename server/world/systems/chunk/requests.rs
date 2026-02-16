@@ -233,7 +233,8 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                 return;
             }
             if coords_to_send.len() == 1 {
-                if let Some(coords) = coords_to_send.drain().next() {
+                if let Some(coords) = coords_to_send.iter().next().copied() {
+                    coords_to_send.clear();
                     if let Some(chunk) = chunks.get(&coords) {
                         chunk_models_buffer.clear();
                         chunk_models_buffer.push(chunk.to_model(true, true, 0..sub_chunks_u32));
@@ -262,7 +263,8 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                 continue;
             }
             if coords_to_send.len() == 1 {
-                if let Some(coords) = coords_to_send.drain().next() {
+                if let Some(coords) = coords_to_send.iter().next().copied() {
+                    coords_to_send.clear();
                     if let Some(chunk) = chunks.get(&coords) {
                         chunk_models_buffer.clear();
                         chunk_models_buffer.push(chunk.to_model(true, true, 0..sub_chunks_u32));
