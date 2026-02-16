@@ -170,3 +170,48 @@ pub(crate) fn retain_active_client_batches_map<T>(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use bytes::Bytes;
+    use hashbrown::HashMap;
+    use specs::{Builder, World, WorldExt};
+    use tokio::sync::mpsc;
+
+    use super::retain_active_client_batches_map;
+    use crate::{Client, Clients};
+
+    fn make_client(world: &mut World, id: &str) -> Client {
+        let entity = world.create_entity().build();
+        let (sender, _receiver) = mpsc::unbounded_channel::<Bytes>();
+        Client {
+            id: id.to_string(),
+            username: id.to_string(),
+            entity,
+            sender,
+        }
+    }
+
+    #[test]
+    fn retain_active_client_batches_map_keeps_only_nine_active_clients() {
+        let mut world = World::new();
+        let mut clients = Clients::new();
+        for id in ["a", "b", "c", "d", "e", "f", "g", "h", "i"] {
+            clients.insert(id.to_string(), make_client(&mut world, id));
+        }
+
+        let mut batches: HashMap<String, i32> = HashMap::new();
+        for id in ["a", "b", "c", "d", "e", "f", "g", "h", "i"] {
+            batches.insert(id.to_string(), 1);
+        }
+        batches.insert("stale".to_string(), 1);
+
+        retain_active_client_batches_map(&mut batches, &clients);
+
+        assert_eq!(batches.len(), 9);
+        for id in ["a", "b", "c", "d", "e", "f", "g", "h", "i"] {
+            assert!(batches.contains_key(id));
+        }
+        assert!(!batches.contains_key("stale"));
+    }
+}
