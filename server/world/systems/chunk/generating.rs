@@ -17,10 +17,16 @@ const SMALL_PARALLEL_CHUNK_LOAD_LIMIT: usize = 2;
 fn contains_single_client_interest(ids: &HashSet<String>, single_client_id: &str) -> bool {
     match ids.len() {
         0 => false,
-        1 => ids
-            .iter()
-            .next()
-            .is_some_and(|id| id.as_str() == single_client_id),
+        1 => {
+            let mut ids_iter = ids.iter();
+            let single_id = {
+                let Some(id) = ids_iter.next() else {
+                    unreachable!("single client-interest length matched branch");
+                };
+                id
+            };
+            single_id.as_str() == single_client_id
+        }
         2 | 3 | 4 | 5 | 6 | 7 | 8 => {
             for id in ids {
                 if id.as_str() == single_client_id {
