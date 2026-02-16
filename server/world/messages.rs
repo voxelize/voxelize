@@ -217,9 +217,6 @@ impl EncodedMessageQueue {
             return first_batch;
         }
         let mut result = take_vec_with_capacity(&mut self.processed);
-        if self.receiver.is_empty() {
-            return result;
-        }
         let mut first_batch = match self.receiver.try_recv() {
             Ok(messages) => messages,
             Err(_) => return result,
