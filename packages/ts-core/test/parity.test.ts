@@ -2850,6 +2850,52 @@ describe("Type builders", () => {
     });
   });
 
+  it("salvages ownKeys-trapped empty-iterator combination rule entries when length is readable", () => {
+    const rules = new Proxy(
+      [
+        {
+          type: "simple" as const,
+          offset: [1, 0, 0] as [number, number, number],
+          id: 5,
+        },
+      ],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 1;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+
+    expect(
+      createBlockRule({
+        type: "combination",
+        logic: BlockRuleLogic.And,
+        rules: rules as never,
+      })
+    ).toEqual({
+      type: "combination",
+      logic: BlockRuleLogic.And,
+      rules: [
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 5,
+        },
+      ],
+    });
+  });
+
   it("salvages empty-iterator length-zero combination rule entries via keys", () => {
     const rules = new Proxy(
       [
@@ -6108,6 +6154,73 @@ describe("BlockRuleEvaluator", () => {
           }
           if (property === "length") {
             return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.And,
+          rules: malformedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(true);
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.Or,
+          rules: malformedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(true);
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.Not,
+          rules: malformedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(false);
+  });
+
+  it("salvages ownKeys-trapped empty-iterator combination collections when length is readable", () => {
+    const access = {
+      getVoxel: () => 5,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+    const malformedRules = new Proxy(
+      [
+        {
+          type: "simple" as const,
+          offset: [0, 0, 0] as [number, number, number],
+          id: 5,
+        },
+      ],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 1;
           }
           return Reflect.get(target, property, receiver);
         },
