@@ -30,6 +30,10 @@ fn for_each_voxel_affected_chunk_from_mapped<F: FnMut(Vec2<i32>)>(
     max_chunk: [i32; 2],
     mut visit: F,
 ) {
+    let min_x = min_chunk[0];
+    let max_x = max_chunk[0];
+    let min_z = min_chunk[1];
+    let max_z = max_chunk[1];
     let mut push_with_offset = |offset_x: i32, offset_z: i32| {
         let Some(nx) = cx.checked_add(offset_x) else {
             return;
@@ -37,7 +41,7 @@ fn for_each_voxel_affected_chunk_from_mapped<F: FnMut(Vec2<i32>)>(
         let Some(nz) = cz.checked_add(offset_z) else {
             return;
         };
-        if nx >= min_chunk[0] && nx <= max_chunk[0] && nz >= min_chunk[1] && nz <= max_chunk[1] {
+        if nx >= min_x && nx <= max_x && nz >= min_z && nz <= max_z {
             visit(Vec2(nx, nz));
         }
     };
