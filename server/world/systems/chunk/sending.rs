@@ -238,7 +238,7 @@ impl<'a> System<'a> for ChunkSendingSystem {
         }
 
         let to_send_capacity = chunks.to_send.capacity();
-        let mut to_send = std::mem::replace(
+        let to_send = std::mem::replace(
             &mut chunks.to_send,
             std::collections::VecDeque::with_capacity(to_send_capacity),
         );
@@ -253,7 +253,7 @@ impl<'a> System<'a> for ChunkSendingSystem {
             self.client_update_mesh_touched.clear();
             self.client_update_data_touched.clear();
 
-            while let Some((coords, msg_type)) = to_send.pop_front() {
+            for (coords, msg_type) in to_send {
                 if msg_type == MessageType::Update {
                     if let Some(chunk) = chunks.get_mut(&coords) {
                         chunk.updated_levels.clear();
@@ -297,7 +297,7 @@ impl<'a> System<'a> for ChunkSendingSystem {
             client_count,
         );
 
-        while let Some((coords, msg_type)) = to_send.pop_front() {
+        for (coords, msg_type) in to_send {
             let Some(chunk) = chunks.get_mut(&coords) else {
                 continue;
             };
