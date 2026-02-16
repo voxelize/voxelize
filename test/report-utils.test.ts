@@ -5093,6 +5093,47 @@ describe("report-utils", () => {
     expect(explicitEmptyValueMetadataOverrideValidation.validationErrorCode).toBe(
       "unsupported_options"
     );
+    const explicitEmptyIteratorValueMetadataOverrideValidation =
+      createCliOptionValidation(["--output", "-artifact-report.json"], {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        valueOptionTokenMetadata: {
+          tokens: new Proxy([], {
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 0;
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+          unavailable: false,
+        } as never,
+      });
+    expect(
+      explicitEmptyIteratorValueMetadataOverrideValidation.supportedCliOptions
+    ).toEqual(["--output"]);
+    expect(
+      explicitEmptyIteratorValueMetadataOverrideValidation.supportedCliOptionCount
+    ).toBe(1);
+    expect(
+      explicitEmptyIteratorValueMetadataOverrideValidation.unknownOptions
+    ).toEqual(["-artifact-report.json"]);
+    expect(
+      explicitEmptyIteratorValueMetadataOverrideValidation.unknownOptionCount
+    ).toBe(1);
+    expect(
+      explicitEmptyIteratorValueMetadataOverrideValidation.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): -artifact-report.json. Supported options: --output."
+    );
+    expect(
+      explicitEmptyIteratorValueMetadataOverrideValidation.validationErrorCode
+    ).toBe("unsupported_options");
     const unavailableValueMetadataOverrideValidation = createCliOptionValidation(
       ["--output", "-l"],
       {
@@ -5288,6 +5329,46 @@ describe("report-utils", () => {
     expect(
       emptyIteratorLengthZeroAndOwnKeysTrapStrictMetadataOverrideValidation.validationErrorCode
     ).toBe("unsupported_options");
+    const explicitEmptyIteratorStrictMetadataOverrideValidation =
+      createCliOptionValidation(["--output", "-l"], {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+        strictValueOptionTokenMetadata: {
+          tokens: new Proxy([], {
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 0;
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+          unavailable: false,
+        } as never,
+      });
+    expect(
+      explicitEmptyIteratorStrictMetadataOverrideValidation.supportedCliOptions
+    ).toEqual(["--output"]);
+    expect(
+      explicitEmptyIteratorStrictMetadataOverrideValidation.supportedCliOptionCount
+    ).toBe(1);
+    expect(
+      explicitEmptyIteratorStrictMetadataOverrideValidation.unknownOptions
+    ).toEqual([]);
+    expect(
+      explicitEmptyIteratorStrictMetadataOverrideValidation.unknownOptionCount
+    ).toBe(0);
+    expect(
+      explicitEmptyIteratorStrictMetadataOverrideValidation.unsupportedOptionsError
+    ).toBeNull();
+    expect(
+      explicitEmptyIteratorStrictMetadataOverrideValidation.validationErrorCode
+    ).toBeNull();
     const unavailableStrictMetadataOverrideAliasValidation =
       createCliOptionValidation(["--output", "-j"], {
         canonicalOptions: ["--output", "--json"],
