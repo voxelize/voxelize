@@ -1,28 +1,22 @@
 use crossbeam_channel::{bounded, Receiver, Sender, TryRecvError};
 use hashbrown::HashMap;
 use log::warn;
-use serde::Serialize;
 use std::borrow::Cow;
 use std::fs::{self, File};
+use std::io::Write;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use crate::{MetadataComp, WorldConfig};
+use crate::WorldConfig;
 
 #[derive(Clone)]
 pub struct EntitySaveData {
     pub etype: String,
     pub is_block: bool,
-    pub metadata: MetadataComp,
-}
-
-#[derive(Serialize)]
-struct SavedEntityFile<'a> {
-    etype: &'a str,
-    metadata: &'a MetadataComp,
+    pub metadata_json: String,
 }
 
 #[inline]
@@ -68,6 +62,19 @@ fn sanitize_entity_filename<'a>(etype: &'a str) -> Cow<'a, str> {
         }
     }
     Cow::Owned(sanitized)
+}
+
+#[inline]
+fn build_entity_payload_json(etype: &str, metadata_json: &str) -> Option<String> {
+    let escaped_etype = serde_json::to_string(etype).ok()?;
+    let mut payload =
+        String::with_capacity(escaped_etype.len() + metadata_json.len() + 22);
+    payload.push_str("{\"etype\":");
+    payload.push_str(&escaped_etype);
+    payload.push_str(",\"metadata\":");
+    payload.push_str(metadata_json);
+    payload.push('}');
+    Some(payload)
 }
 
 pub struct BackgroundEntitiesSaver {
@@ -168,9 +175,11 @@ impl BackgroundEntitiesSaver {
         } else {
             normalized_etype
         };
-        let payload = SavedEntityFile {
-            etype: etype_value.as_ref(),
-            metadata: &data.metadata,
+        let Some(payload_json) =
+            build_entity_payload_json(etype_value.as_ref(), &data.metadata_json)
+        else {
+            warn!("Failed to build persisted entity payload for {}", id);
+            return;
         };
 
         let sanitized_filename = sanitize_entity_filename(etype_value.as_ref());
@@ -197,7 +206,7 @@ impl BackgroundEntitiesSaver {
 
         match File::create(&path_to_use) {
             Ok(mut file) => {
-                if let Err(e) = serde_json::to_writer(&mut file, &payload) {
+                if let Err(e) = file.write_all(payload_json.as_bytes()) {
                     warn!("Failed to write entity file: {}", e);
                 }
             }
@@ -207,7 +216,7 @@ impl BackgroundEntitiesSaver {
         }
     }
 
-    pub fn queue_save(&self, id: &str, etype: &str, is_block: bool, metadata: &MetadataComp) {
+    pub fn queue_save(&self, id: &str, etype: &str, is_block: bool, metadata_json: String) {
         if !self.saving {
             return;
         }
@@ -215,7 +224,7 @@ impl BackgroundEntitiesSaver {
         let data = EntitySaveData {
             etype: etype.to_string(),
             is_block,
-            metadata: metadata.clone(),
+            metadata_json,
         };
 
         if let Err(e) = self.sender.try_send((id.to_string(), data)) {

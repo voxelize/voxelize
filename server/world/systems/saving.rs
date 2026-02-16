@@ -34,7 +34,8 @@ impl<'a> System<'a> for DataSavingSystem {
         if config.save_entities {
             for (id, etype, _, metadata) in (&ids, &etypes, !&do_not_persist, &mut metadatas).join()
             {
-                bg_saver.queue_save(&id.0, &etype.0, etype.1, &metadata);
+                let metadata_json = metadata.to_cached_str_for_new_record();
+                bg_saver.queue_save(&id.0, &etype.0, etype.1, metadata_json);
             }
         }
 
