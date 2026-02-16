@@ -129,10 +129,7 @@ impl ChunkInterests {
         match self.map.entry(*coords) {
             Entry::Occupied(mut entry) => {
                 let clients = entry.get_mut();
-                if clients.contains(client_id) {
-                    return;
-                }
-                clients.insert(client_id.to_owned());
+                clients.get_or_insert_owned(client_id);
             }
             Entry::Vacant(entry) => {
                 let mut clients = HashSet::with_capacity(1);
