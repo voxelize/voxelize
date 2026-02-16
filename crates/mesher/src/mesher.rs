@@ -550,15 +550,25 @@ fn calculate_fluid_corner_height<S: VoxelAccess>(
 }
 
 fn has_standard_six_faces(faces: &[BlockFace]) -> bool {
-    faces.iter().any(|f| {
-        let name_lower = f.name.to_lowercase();
-        name_lower == "py"
-            || name_lower == "ny"
-            || name_lower == "px"
-            || name_lower == "nx"
-            || name_lower == "pz"
-            || name_lower == "nz"
-    })
+    for face in faces {
+        if matches!(
+            face.get_name_lower(),
+            "py" | "ny" | "px" | "nx" | "pz" | "nz"
+        ) {
+            return true;
+        }
+    }
+    false
+}
+
+#[inline]
+fn get_face_range(original_faces: &[BlockFace], name: &str) -> UV {
+    for face in original_faces {
+        if face.get_name_lower() == name {
+            return face.range.clone();
+        }
+    }
+    UV::default()
 }
 
 fn create_fluid_faces<S: VoxelAccess>(
@@ -588,12 +598,6 @@ fn create_fluid_faces<S: VoxelAccess>(
         calculate_fluid_corner_height(vx, vy, vz, 1, 1, &corner_pxpz, fluid_id, space, registry)
             - FLUID_SURFACE_OFFSET;
 
-    let mut uv_map: HashMap<String, UV> = HashMap::new();
-    for face in original_faces {
-        uv_map.insert(face.name.clone(), face.range.clone());
-    }
-    let get_range = |name: &str| uv_map.get(name).cloned().unwrap_or_default();
-
     vec![
         BlockFace {
             name: "py".to_string(),
@@ -602,7 +606,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: true,
             isolated: false,
             texture_group: None,
-            range: get_range("py"),
+            range: get_face_range(original_faces, "py"),
             corners: [
                 CornerData {
                     pos: [0.0, h_nxpz, 1.0],
@@ -629,7 +633,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: false,
             isolated: false,
             texture_group: None,
-            range: get_range("ny"),
+            range: get_face_range(original_faces, "ny"),
             corners: [
                 CornerData {
                     pos: [1.0, 0.0, 1.0],
@@ -656,7 +660,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: true,
             isolated: false,
             texture_group: None,
-            range: get_range("px"),
+            range: get_face_range(original_faces, "px"),
             corners: [
                 CornerData {
                     pos: [1.0, h_pxpz, 1.0],
@@ -683,7 +687,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: true,
             isolated: false,
             texture_group: None,
-            range: get_range("nx"),
+            range: get_face_range(original_faces, "nx"),
             corners: [
                 CornerData {
                     pos: [0.0, h_nxnz, 0.0],
@@ -710,7 +714,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: true,
             isolated: false,
             texture_group: None,
-            range: get_range("pz"),
+            range: get_face_range(original_faces, "pz"),
             corners: [
                 CornerData {
                     pos: [0.0, 0.0, 1.0],
@@ -737,7 +741,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: true,
             isolated: false,
             texture_group: None,
-            range: get_range("nz"),
+            range: get_face_range(original_faces, "nz"),
             corners: [
                 CornerData {
                     pos: [1.0, 0.0, 0.0],
