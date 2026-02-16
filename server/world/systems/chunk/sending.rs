@@ -127,6 +127,17 @@ fn push_chunk_batch_owned(
 }
 
 #[inline]
+fn next_interested_client_id<'a, I>(interested_iter: &mut I) -> &'a str
+where
+    I: Iterator<Item = &'a String>,
+{
+    let Some(client_id) = interested_iter.next() else {
+        unreachable!("interested client count matched branch");
+    };
+    client_id.as_str()
+}
+
+#[inline]
 fn fanout_chunk_model(
     batches: &mut HashMap<String, Vec<ChunkProtocol>>,
     touched_clients: &mut Vec<String>,
@@ -136,39 +147,24 @@ fn fanout_chunk_model(
     match interested_clients.len() {
         0 => return,
         1 => {
-            let Some(first_client_id) = interested_clients.iter().next() else {
-                return;
-            };
+            let mut interested_iter = interested_clients.iter();
+            let first_client_id = next_interested_client_id(&mut interested_iter);
             push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
             return;
         }
         2 => {
             let mut interested_iter = interested_clients.iter();
-            let Some(first_client_id) = interested_iter.next() else {
-                return;
-            };
-            let Some(second_client_id) = interested_iter.next() else {
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
+            let first_client_id = next_interested_client_id(&mut interested_iter);
+            let second_client_id = next_interested_client_id(&mut interested_iter);
             push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
             push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
             return;
         }
         3 => {
             let mut interested_iter = interested_clients.iter();
-            let Some(first_client_id) = interested_iter.next() else {
-                return;
-            };
-            let Some(second_client_id) = interested_iter.next() else {
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
-            let Some(third_client_id) = interested_iter.next() else {
-                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
+            let first_client_id = next_interested_client_id(&mut interested_iter);
+            let second_client_id = next_interested_client_id(&mut interested_iter);
+            let third_client_id = next_interested_client_id(&mut interested_iter);
             push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
             push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
             push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
@@ -176,24 +172,10 @@ fn fanout_chunk_model(
         }
         4 => {
             let mut interested_iter = interested_clients.iter();
-            let Some(first_client_id) = interested_iter.next() else {
-                return;
-            };
-            let Some(second_client_id) = interested_iter.next() else {
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
-            let Some(third_client_id) = interested_iter.next() else {
-                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
-            let Some(fourth_client_id) = interested_iter.next() else {
-                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
+            let first_client_id = next_interested_client_id(&mut interested_iter);
+            let second_client_id = next_interested_client_id(&mut interested_iter);
+            let third_client_id = next_interested_client_id(&mut interested_iter);
+            let fourth_client_id = next_interested_client_id(&mut interested_iter);
             push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
             push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
             push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
@@ -202,31 +184,11 @@ fn fanout_chunk_model(
         }
         5 => {
             let mut interested_iter = interested_clients.iter();
-            let Some(first_client_id) = interested_iter.next() else {
-                return;
-            };
-            let Some(second_client_id) = interested_iter.next() else {
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
-            let Some(third_client_id) = interested_iter.next() else {
-                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
-            let Some(fourth_client_id) = interested_iter.next() else {
-                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
-            let Some(fifth_client_id) = interested_iter.next() else {
-                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
+            let first_client_id = next_interested_client_id(&mut interested_iter);
+            let second_client_id = next_interested_client_id(&mut interested_iter);
+            let third_client_id = next_interested_client_id(&mut interested_iter);
+            let fourth_client_id = next_interested_client_id(&mut interested_iter);
+            let fifth_client_id = next_interested_client_id(&mut interested_iter);
             push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
             push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
             push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
@@ -236,39 +198,12 @@ fn fanout_chunk_model(
         }
         6 => {
             let mut interested_iter = interested_clients.iter();
-            let Some(first_client_id) = interested_iter.next() else {
-                return;
-            };
-            let Some(second_client_id) = interested_iter.next() else {
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
-            let Some(third_client_id) = interested_iter.next() else {
-                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
-            let Some(fourth_client_id) = interested_iter.next() else {
-                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
-            let Some(fifth_client_id) = interested_iter.next() else {
-                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
-            let Some(sixth_client_id) = interested_iter.next() else {
-                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, fifth_client_id, &chunk_model);
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
+            let first_client_id = next_interested_client_id(&mut interested_iter);
+            let second_client_id = next_interested_client_id(&mut interested_iter);
+            let third_client_id = next_interested_client_id(&mut interested_iter);
+            let fourth_client_id = next_interested_client_id(&mut interested_iter);
+            let fifth_client_id = next_interested_client_id(&mut interested_iter);
+            let sixth_client_id = next_interested_client_id(&mut interested_iter);
             push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
             push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
             push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
@@ -279,48 +214,13 @@ fn fanout_chunk_model(
         }
         7 => {
             let mut interested_iter = interested_clients.iter();
-            let Some(first_client_id) = interested_iter.next() else {
-                return;
-            };
-            let Some(second_client_id) = interested_iter.next() else {
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
-            let Some(third_client_id) = interested_iter.next() else {
-                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
-            let Some(fourth_client_id) = interested_iter.next() else {
-                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
-            let Some(fifth_client_id) = interested_iter.next() else {
-                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
-            let Some(sixth_client_id) = interested_iter.next() else {
-                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, fifth_client_id, &chunk_model);
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
-            let Some(seventh_client_id) = interested_iter.next() else {
-                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, fifth_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, sixth_client_id, &chunk_model);
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
+            let first_client_id = next_interested_client_id(&mut interested_iter);
+            let second_client_id = next_interested_client_id(&mut interested_iter);
+            let third_client_id = next_interested_client_id(&mut interested_iter);
+            let fourth_client_id = next_interested_client_id(&mut interested_iter);
+            let fifth_client_id = next_interested_client_id(&mut interested_iter);
+            let sixth_client_id = next_interested_client_id(&mut interested_iter);
+            let seventh_client_id = next_interested_client_id(&mut interested_iter);
             push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
             push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
             push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
@@ -332,58 +232,14 @@ fn fanout_chunk_model(
         }
         8 => {
             let mut interested_iter = interested_clients.iter();
-            let Some(first_client_id) = interested_iter.next() else {
-                return;
-            };
-            let Some(second_client_id) = interested_iter.next() else {
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
-            let Some(third_client_id) = interested_iter.next() else {
-                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
-            let Some(fourth_client_id) = interested_iter.next() else {
-                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
-            let Some(fifth_client_id) = interested_iter.next() else {
-                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
-            let Some(sixth_client_id) = interested_iter.next() else {
-                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, fifth_client_id, &chunk_model);
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
-            let Some(seventh_client_id) = interested_iter.next() else {
-                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, fifth_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, sixth_client_id, &chunk_model);
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
-            let Some(eighth_client_id) = interested_iter.next() else {
-                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, fifth_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, sixth_client_id, &chunk_model);
-                push_chunk_batch(batches, touched_clients, seventh_client_id, &chunk_model);
-                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-                return;
-            };
+            let first_client_id = next_interested_client_id(&mut interested_iter);
+            let second_client_id = next_interested_client_id(&mut interested_iter);
+            let third_client_id = next_interested_client_id(&mut interested_iter);
+            let fourth_client_id = next_interested_client_id(&mut interested_iter);
+            let fifth_client_id = next_interested_client_id(&mut interested_iter);
+            let sixth_client_id = next_interested_client_id(&mut interested_iter);
+            let seventh_client_id = next_interested_client_id(&mut interested_iter);
+            let eighth_client_id = next_interested_client_id(&mut interested_iter);
             push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
             push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
             push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
@@ -398,9 +254,7 @@ fn fanout_chunk_model(
     }
 
     let mut interested_iter = interested_clients.iter();
-    let Some(first_client_id) = interested_iter.next() else {
-        return;
-    };
+    let first_client_id = next_interested_client_id(&mut interested_iter);
 
     for client_id in interested_iter {
         push_chunk_batch(batches, touched_clients, client_id, &chunk_model);
