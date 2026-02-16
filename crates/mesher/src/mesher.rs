@@ -2151,6 +2151,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     }
                     let neighbors = NeighborCache::populate(vx, vy, vz, space, registry);
                     let block_aabb = AABB::union_all(&block.aabbs);
+                    let mut cached_face_shading: Option<([i32; 4], [i32; 4])> = None;
 
                     for_each_meshing_face(
                         block,
@@ -2187,13 +2188,18 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                                 ));
                                 return;
                             }
-                            let (aos, lights) =
-                                compute_face_ao_and_light(
+                            let (aos, lights) = if let Some(shading) = cached_face_shading {
+                                shading
+                            } else {
+                                let shading = compute_face_ao_and_light(
                                     dir,
                                     block,
                                     &block_aabb,
                                     &neighbors,
                                 );
+                                cached_face_shading = Some(shading);
+                                shading
+                            };
 
                             let key = FaceKey {
                                 block_id: block.id,
