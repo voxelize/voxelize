@@ -770,6 +770,14 @@ fn flush_events_for_client(
     let _ = client.sender.send(encoded);
 }
 
+#[inline]
+fn pop_touched_client_id(touched_clients: &mut Vec<String>) -> String {
+    let Some(client_id) = touched_clients.pop() else {
+        unreachable!("touched-client length matched branch");
+    };
+    client_id
+}
+
 impl<'a> System<'a> for EventsSystem {
     type SystemData = (
         ReadExpect<'a, Transports>,
@@ -1194,69 +1202,39 @@ impl<'a> System<'a> for EventsSystem {
         // Process the dispatch map, sending them directly for fastest event responses.
         match touched_clients.len() {
             1 => {
-                let Some(first_client_id) = touched_clients.pop() else {
-                    return;
-                };
+                let first_client_id = pop_touched_client_id(touched_clients);
                 flush_events_for_client(dispatch_map, &clients, first_client_id);
             }
             2 => {
-                let Some(first_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(second_client_id) = touched_clients.pop() else {
-                    return;
-                };
+                let first_client_id = pop_touched_client_id(touched_clients);
+                let second_client_id = pop_touched_client_id(touched_clients);
                 flush_events_for_client(dispatch_map, &clients, first_client_id);
                 flush_events_for_client(dispatch_map, &clients, second_client_id);
             }
             3 => {
-                let Some(first_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(second_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(third_client_id) = touched_clients.pop() else {
-                    return;
-                };
+                let first_client_id = pop_touched_client_id(touched_clients);
+                let second_client_id = pop_touched_client_id(touched_clients);
+                let third_client_id = pop_touched_client_id(touched_clients);
                 flush_events_for_client(dispatch_map, &clients, first_client_id);
                 flush_events_for_client(dispatch_map, &clients, second_client_id);
                 flush_events_for_client(dispatch_map, &clients, third_client_id);
             }
             4 => {
-                let Some(first_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(second_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(third_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(fourth_client_id) = touched_clients.pop() else {
-                    return;
-                };
+                let first_client_id = pop_touched_client_id(touched_clients);
+                let second_client_id = pop_touched_client_id(touched_clients);
+                let third_client_id = pop_touched_client_id(touched_clients);
+                let fourth_client_id = pop_touched_client_id(touched_clients);
                 flush_events_for_client(dispatch_map, &clients, first_client_id);
                 flush_events_for_client(dispatch_map, &clients, second_client_id);
                 flush_events_for_client(dispatch_map, &clients, third_client_id);
                 flush_events_for_client(dispatch_map, &clients, fourth_client_id);
             }
             5 => {
-                let Some(first_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(second_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(third_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(fourth_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(fifth_client_id) = touched_clients.pop() else {
-                    return;
-                };
+                let first_client_id = pop_touched_client_id(touched_clients);
+                let second_client_id = pop_touched_client_id(touched_clients);
+                let third_client_id = pop_touched_client_id(touched_clients);
+                let fourth_client_id = pop_touched_client_id(touched_clients);
+                let fifth_client_id = pop_touched_client_id(touched_clients);
                 flush_events_for_client(dispatch_map, &clients, first_client_id);
                 flush_events_for_client(dispatch_map, &clients, second_client_id);
                 flush_events_for_client(dispatch_map, &clients, third_client_id);
@@ -1264,24 +1242,12 @@ impl<'a> System<'a> for EventsSystem {
                 flush_events_for_client(dispatch_map, &clients, fifth_client_id);
             }
             6 => {
-                let Some(first_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(second_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(third_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(fourth_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(fifth_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(sixth_client_id) = touched_clients.pop() else {
-                    return;
-                };
+                let first_client_id = pop_touched_client_id(touched_clients);
+                let second_client_id = pop_touched_client_id(touched_clients);
+                let third_client_id = pop_touched_client_id(touched_clients);
+                let fourth_client_id = pop_touched_client_id(touched_clients);
+                let fifth_client_id = pop_touched_client_id(touched_clients);
+                let sixth_client_id = pop_touched_client_id(touched_clients);
                 flush_events_for_client(dispatch_map, &clients, first_client_id);
                 flush_events_for_client(dispatch_map, &clients, second_client_id);
                 flush_events_for_client(dispatch_map, &clients, third_client_id);
@@ -1290,27 +1256,13 @@ impl<'a> System<'a> for EventsSystem {
                 flush_events_for_client(dispatch_map, &clients, sixth_client_id);
             }
             7 => {
-                let Some(first_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(second_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(third_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(fourth_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(fifth_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(sixth_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(seventh_client_id) = touched_clients.pop() else {
-                    return;
-                };
+                let first_client_id = pop_touched_client_id(touched_clients);
+                let second_client_id = pop_touched_client_id(touched_clients);
+                let third_client_id = pop_touched_client_id(touched_clients);
+                let fourth_client_id = pop_touched_client_id(touched_clients);
+                let fifth_client_id = pop_touched_client_id(touched_clients);
+                let sixth_client_id = pop_touched_client_id(touched_clients);
+                let seventh_client_id = pop_touched_client_id(touched_clients);
                 flush_events_for_client(dispatch_map, &clients, first_client_id);
                 flush_events_for_client(dispatch_map, &clients, second_client_id);
                 flush_events_for_client(dispatch_map, &clients, third_client_id);
@@ -1320,30 +1272,14 @@ impl<'a> System<'a> for EventsSystem {
                 flush_events_for_client(dispatch_map, &clients, seventh_client_id);
             }
             8 => {
-                let Some(first_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(second_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(third_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(fourth_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(fifth_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(sixth_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(seventh_client_id) = touched_clients.pop() else {
-                    return;
-                };
-                let Some(eighth_client_id) = touched_clients.pop() else {
-                    return;
-                };
+                let first_client_id = pop_touched_client_id(touched_clients);
+                let second_client_id = pop_touched_client_id(touched_clients);
+                let third_client_id = pop_touched_client_id(touched_clients);
+                let fourth_client_id = pop_touched_client_id(touched_clients);
+                let fifth_client_id = pop_touched_client_id(touched_clients);
+                let sixth_client_id = pop_touched_client_id(touched_clients);
+                let seventh_client_id = pop_touched_client_id(touched_clients);
+                let eighth_client_id = pop_touched_client_id(touched_clients);
                 flush_events_for_client(dispatch_map, &clients, first_client_id);
                 flush_events_for_client(dispatch_map, &clients, second_client_id);
                 flush_events_for_client(dispatch_map, &clients, third_client_id);
