@@ -6218,6 +6218,59 @@ describe("report-utils", () => {
     expect(optionCatalogOverrideWithSparseHolePrecomputedCanonicalReadCount).toBe(
       0
     );
+    let optionCatalogOverrideWithSparseHoleAliasOnlyPrecomputedCanonicalReadCount = 0;
+    const optionCatalogOverrideWithSparseHoleAliasOnlyPrecomputedCanonicalOptions =
+      new Proxy(["--json"], {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (property === "0") {
+            optionCatalogOverrideWithSparseHoleAliasOnlyPrecomputedCanonicalReadCount +=
+              1;
+            return "--json";
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+    const optionCatalogOverrideWithSparseHoleAliasOnlyPrecomputedValidation =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions:
+          optionCatalogOverrideWithSparseHoleAliasOnlyPrecomputedCanonicalOptions as never,
+        supportedCliOptions: new Array(1) as never,
+        optionCatalog: {
+          supportedCliOptions: ["--no-build"],
+          availableCliOptionAliases: {
+            "--no-build": ["--verify"],
+          },
+        } as never,
+      });
+    expect(
+      optionCatalogOverrideWithSparseHoleAliasOnlyPrecomputedValidation.supportedCliOptions
+    ).toEqual(["--no-build", "--verify"]);
+    expect(
+      optionCatalogOverrideWithSparseHoleAliasOnlyPrecomputedValidation.supportedCliOptionCount
+    ).toBe(2);
+    expect(
+      optionCatalogOverrideWithSparseHoleAliasOnlyPrecomputedValidation.unknownOptions
+    ).toEqual(["--mystery"]);
+    expect(
+      optionCatalogOverrideWithSparseHoleAliasOnlyPrecomputedValidation.unknownOptionCount
+    ).toBe(1);
+    expect(
+      optionCatalogOverrideWithSparseHoleAliasOnlyPrecomputedValidation.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --mystery. Supported options: --no-build, --verify."
+    );
+    expect(
+      optionCatalogOverrideWithSparseHoleAliasOnlyPrecomputedValidation.validationErrorCode
+    ).toBe("unsupported_options");
+    expect(
+      optionCatalogOverrideWithSparseHoleAliasOnlyPrecomputedCanonicalReadCount
+    ).toBe(0);
     let optionCatalogOverrideWithMixedWhitespacePrecomputedCanonicalReadCount = 0;
     const optionCatalogOverrideWithMixedWhitespacePrecomputedCanonicalOptions =
       new Proxy(["--json"], {
