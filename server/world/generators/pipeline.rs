@@ -16,6 +16,54 @@ fn take_vec_with_capacity<T>(buffer: &mut Vec<T>) -> Vec<T> {
     std::mem::replace(buffer, Vec::with_capacity(capacity))
 }
 
+#[inline]
+fn find_queue_index(queue: &VecDeque<Vec2<i32>>, coords: &Vec2<i32>) -> Option<usize> {
+    match queue.len() {
+        0 => None,
+        1 => {
+            if queue.front().is_some_and(|queued| queued == coords) {
+                Some(0)
+            } else {
+                None
+            }
+        }
+        2 => {
+            if queue.front().is_some_and(|queued| queued == coords) {
+                Some(0)
+            } else if queue.get(1).is_some_and(|queued| queued == coords) {
+                Some(1)
+            } else {
+                None
+            }
+        }
+        3 => {
+            if queue.front().is_some_and(|queued| queued == coords) {
+                Some(0)
+            } else if queue.get(1).is_some_and(|queued| queued == coords) {
+                Some(1)
+            } else if queue.get(2).is_some_and(|queued| queued == coords) {
+                Some(2)
+            } else {
+                None
+            }
+        }
+        4 => {
+            if queue.front().is_some_and(|queued| queued == coords) {
+                Some(0)
+            } else if queue.get(1).is_some_and(|queued| queued == coords) {
+                Some(1)
+            } else if queue.get(2).is_some_and(|queued| queued == coords) {
+                Some(2)
+            } else if queue.get(3).is_some_and(|queued| queued == coords) {
+                Some(3)
+            } else {
+                None
+            }
+        }
+        _ => queue.iter().position(|queued| queued == coords),
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct Resources<'a> {
     pub registry: &'a Registry,
@@ -269,7 +317,7 @@ impl Pipeline {
             self.queue.pop_back();
             return;
         }
-        if let Some(index) = self.queue.iter().position(|c| c == coords) {
+        if let Some(index) = find_queue_index(&self.queue, coords) {
             self.queue.remove(index);
         }
     }
