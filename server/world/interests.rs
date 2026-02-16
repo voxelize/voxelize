@@ -64,11 +64,17 @@ impl ChunkInterests {
         if self.map.is_empty() {
             return false;
         }
+        if self.map.contains_key(center) {
+            return true;
+        }
         for dx in -1..=1 {
             let Some(nx) = center.0.checked_add(dx) else {
                 continue;
             };
             for dz in -1..=1 {
+                if dx == 0 && dz == 0 {
+                    continue;
+                }
                 let Some(nz) = center.1.checked_add(dz) else {
                     continue;
                 };
@@ -85,26 +91,25 @@ impl ChunkInterests {
             return HashSet::new();
         }
 
-        let mut first_interested: Option<&HashSet<String>> = None;
+        let first_interested = self.map.get(center);
         let mut additional_interested: Option<Vec<&HashSet<String>>> = None;
-        let mut expected_clients = 0usize;
+        let mut expected_clients = first_interested.map_or(0, |clients| clients.len());
         for dx in -1..=1 {
             let Some(nx) = center.0.checked_add(dx) else {
                 continue;
             };
             for dz in -1..=1 {
+                if dx == 0 && dz == 0 {
+                    continue;
+                }
                 let Some(nz) = center.1.checked_add(dz) else {
                     continue;
                 };
                 if let Some(interested) = self.map.get(&Vec2(nx, nz)) {
                     expected_clients = expected_clients.saturating_add(interested.len());
-                    if first_interested.is_none() {
-                        first_interested = Some(interested);
-                    } else {
-                        additional_interested
-                            .get_or_insert_with(|| Vec::with_capacity(8))
-                            .push(interested);
-                    }
+                    additional_interested
+                        .get_or_insert_with(|| Vec::with_capacity(8))
+                        .push(interested);
                 }
             }
         }
