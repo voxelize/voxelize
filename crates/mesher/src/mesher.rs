@@ -1043,6 +1043,7 @@ fn should_render_face<S: VoxelAccess>(
     registry: &Registry,
     see_through: bool,
     is_fluid: bool,
+    fluid_surface_above: bool,
 ) -> bool {
     let nvx = vx + dir[0];
     let nvy = vy + dir[1];
@@ -1092,7 +1093,7 @@ fn should_render_face<S: VoxelAccess>(
         || (is_fluid
             && n_block_type.is_opaque
             && !n_block_type.is_fluid
-            && !has_fluid_above(vx, vy, vz, voxel_id, space)
+            && !fluid_surface_above
             && (!n_block_type.is_full_cube() || dir == [0, 1, 0]))
 }
 
@@ -2221,6 +2222,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
 
                     let is_fluid = block.is_fluid;
                     let is_see_through = block.is_see_through;
+                    let fluid_surface_above = is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space);
 
                     let is_non_greedy_block = !can_greedy_mesh_block(block, &rotation);
 
@@ -2230,8 +2232,6 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         }
                         let neighbors = NeighborCache::populate(vx, vy, vz, space, registry);
                         let block_aabb = get_block_combined_aabb(block);
-                        let fluid_surface_above =
-                            is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space);
 
                         for_each_meshing_face(
                             block,
@@ -2275,6 +2275,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         registry,
                         is_see_through,
                         is_fluid,
+                        fluid_surface_above,
                     );
 
                     if !should_render {
@@ -2283,9 +2284,6 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     let neighbors = NeighborCache::populate(vx, vy, vz, space, registry);
                     let block_aabb = get_block_combined_aabb(block);
                     let mut cached_face_shading: Option<([i32; 4], [i32; 4])> = None;
-                    let fluid_surface_above =
-                        is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space);
-
                     for_each_meshing_face(
                         block,
                         vx,
