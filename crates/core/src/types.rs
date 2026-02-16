@@ -303,6 +303,7 @@ impl BlockFace {
 }
 
 const PI_2: f32 = PI / 2.0;
+const TRANSPARENCY_FACE_MARKERS: [f32; 6] = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum BlockRotation {
@@ -409,10 +410,11 @@ impl BlockRotation {
         let mut min = [aabb.min_x, aabb.min_y, aabb.min_z];
         let mut max = [aabb.max_x, aabb.max_y, aabb.max_z];
 
-        let mut min_x = None;
-        let mut min_z = None;
-        let mut max_x = None;
-        let mut max_z = None;
+        let mut has_rotated_bounds = false;
+        let mut min_x = f32::INFINITY;
+        let mut min_z = f32::INFINITY;
+        let mut max_x = f32::NEG_INFINITY;
+        let mut max_z = f32::NEG_INFINITY;
 
         if y_rotate
             && (matches!(self, BlockRotation::PY(_)) || matches!(self, BlockRotation::NY(_)))
@@ -422,46 +424,56 @@ impl BlockRotation {
             let min3 = [aabb.max_x, aabb.min_y, aabb.min_z];
             let min4 = [aabb.max_x, aabb.min_y, aabb.max_z];
 
-            [min1, min2, min3, min4].into_iter().for_each(|mut node| {
+            for mut node in [min1, min2, min3, min4] {
                 self.rotate_node(&mut node, true, true);
-
-                if min_x.is_none() || node[0] < min_x.unwrap() {
-                    min_x = Some(node[0]);
-                }
-
-                if min_z.is_none() || node[2] < min_z.unwrap() {
-                    min_z = Some(node[2]);
-                }
-            });
+                has_rotated_bounds = true;
+                min_x = min_x.min(node[0]);
+                min_z = min_z.min(node[2]);
+            }
 
             let max1 = [aabb.min_x, aabb.max_y, aabb.min_z];
             let max2 = [aabb.min_x, aabb.max_y, aabb.max_z];
             let max3 = [aabb.max_x, aabb.max_y, aabb.min_z];
             let max4 = [aabb.max_x, aabb.max_y, aabb.max_z];
 
-            [max1, max2, max3, max4].into_iter().for_each(|mut node| {
+            for mut node in [max1, max2, max3, max4] {
                 self.rotate_node(&mut node, true, true);
-
-                if max_x.is_none() || node[0] > max_x.unwrap() {
-                    max_x = Some(node[0]);
-                }
-
-                if max_z.is_none() || node[2] > max_z.unwrap() {
-                    max_z = Some(node[2]);
-                }
-            });
+                max_x = max_x.max(node[0]);
+                max_z = max_z.max(node[2]);
+            }
         }
 
         self.rotate_node(&mut min, false, translate);
         self.rotate_node(&mut max, false, translate);
 
+        let fallback_min_x = min[0].min(max[0]);
+        let fallback_min_z = min[2].min(max[2]);
+        let fallback_max_x = min[0].max(max[0]);
+        let fallback_max_z = min[2].max(max[2]);
+
         AABB {
-            min_x: min_x.unwrap_or(min[0].min(max[0])),
+            min_x: if has_rotated_bounds {
+                min_x
+            } else {
+                fallback_min_x
+            },
             min_y: min[1].min(max[1]),
-            min_z: min_z.unwrap_or(min[2].min(max[2])),
-            max_x: max_x.unwrap_or(min[0].max(max[0])),
+            min_z: if has_rotated_bounds {
+                min_z
+            } else {
+                fallback_min_z
+            },
+            max_x: if has_rotated_bounds {
+                max_x
+            } else {
+                fallback_max_x
+            },
             max_y: max[1].max(min[1]),
-            max_z: max_z.unwrap_or(min[2].max(max[2])),
+            max_z: if has_rotated_bounds {
+                max_z
+            } else {
+                fallback_max_z
+            },
         }
     }
 
@@ -474,49 +486,31 @@ impl BlockRotation {
 
         let mut positive = [1.0, 2.0, 3.0];
         let mut negative = [4.0, 5.0, 6.0];
+        let source_faces = [px, py, pz, nx, ny, nz];
 
         self.rotate_node(&mut positive, true, false);
         self.rotate_node(&mut negative, true, false);
 
-        let p: Vec<bool> = positive
-            .into_iter()
-            .map(|n| {
-                if n == 1.0 {
-                    px
-                } else if n == 2.0 {
-                    py
-                } else if n == 3.0 {
-                    pz
-                } else if n == 4.0 {
-                    nx
-                } else if n == 5.0 {
-                    ny
-                } else {
-                    nz
-                }
-            })
-            .collect();
+        let mut rotated = [false; 6];
+        for index in 0..3 {
+            rotated[index] = Self::transparency_for_marker(positive[index], &source_faces);
+            rotated[index + 3] = Self::transparency_for_marker(negative[index], &source_faces);
+        }
+        rotated
+    }
 
-        let n: Vec<bool> = negative
-            .into_iter()
-            .map(|n| {
-                if n == 1.0 {
-                    px
-                } else if n == 2.0 {
-                    py
-                } else if n == 3.0 {
-                    pz
-                } else if n == 4.0 {
-                    nx
-                } else if n == 5.0 {
-                    ny
-                } else {
-                    nz
-                }
-            })
-            .collect();
-
-        [p[0], p[1], p[2], n[0], n[1], n[2]]
+    #[inline]
+    fn transparency_for_marker(marker: f32, source_faces: &[bool; 6]) -> bool {
+        let mut nearest_face = 0usize;
+        let mut nearest_distance = (marker - TRANSPARENCY_FACE_MARKERS[0]).abs();
+        for (face_index, face_marker) in TRANSPARENCY_FACE_MARKERS.iter().enumerate().skip(1) {
+            let distance = (marker - *face_marker).abs();
+            if distance < nearest_distance {
+                nearest_distance = distance;
+                nearest_face = face_index;
+            }
+        }
+        source_faces[nearest_face]
     }
 
     fn rotate_x(&self, node: &mut [f32; 3], theta: f32) {
