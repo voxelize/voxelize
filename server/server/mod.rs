@@ -24,7 +24,7 @@ use crate::{
     world::{Registry, World},
     ClientJoinRequest, ClientLeaveRequest, ClientRequest, GetInfo, GetWorldStats, Preload,
     Prepare, RtcSenders, SyncWorld, Tick, TransportJoinRequest, TransportLeaveRequest,
-    WorldStatsResponse,
+    WorldConfig, WorldInfo, WorldStatsResponse,
 };
 
 pub use models::*;
@@ -113,7 +113,7 @@ fn default_info_handle(server: &Server) -> Value {
 
     info.insert("transports".to_owned(), json!(transports));
 
-    serde_json::to_value(info).unwrap()
+    serde_json::to_value(info).unwrap_or_else(|_| json!({}))
 }
 
 /// A websocket server for Voxelize, holds all worlds data, and runs as a background
@@ -212,7 +212,10 @@ impl Server {
             }
         );
 
-        Ok(self.worlds.get_mut(&name).unwrap())
+        match self.worlds.get_mut(&name) {
+            Some(world) => Ok(world),
+            None => Err(AddWorldError),
+        }
     }
 
     // /// Create a world in the server. Different worlds have different configurations, and can hold
@@ -246,8 +249,15 @@ impl Server {
     /// Handler for client's message.
     pub(crate) fn on_request(&mut self, id: &str, data: Message) -> Option<String> {
         if data.r#type == MessageType::Join as i32 {
-            let json: OnJoinRequest = serde_json::from_str(&data.json)
-                .expect("`on_join` error. Could not read JSON string.");
+            let json: OnJoinRequest = match serde_json::from_str(&data.json) {
+                Ok(json) => json,
+                Err(error) => {
+                    return Some(format!(
+                        "`on_join` error. Could not read JSON string: {} ({})",
+                        data.json, error
+                    ));
+                }
+            };
 
             let Some((sender, token)) = self.lost_sessions.remove(id) else {
                 return Some(format!(
@@ -352,16 +362,31 @@ impl Server {
     /// Preload all the worlds.
     pub async fn preload(&mut self) {
         let m = MultiProgress::new();
-        let sty = ProgressStyle::with_template(
+        let sty = match ProgressStyle::with_template(
             "[{elapsed_precise}] [{bar:40.cyan/blue}] {msg} {spinner:.green} {percent:>7}%",
-        )
-        .unwrap()
-        .progress_chars("#>-");
+        ) {
+            Ok(style) => style.progress_chars("#>-"),
+            Err(error) => {
+                warn!("Failed to create preload progress style: {}", error);
+                return;
+            }
+        };
 
         let info_results = join_all(self.worlds.values().map(|world| world.send(GetInfo))).await;
         let mut infos = Vec::with_capacity(info_results.len());
         for info_result in info_results {
-            infos.push(info_result.unwrap());
+            match info_result {
+                Ok(info) => infos.push(info),
+                Err(error) => {
+                    warn!("Failed to fetch world preload info: {}", error);
+                    infos.push(WorldInfo {
+                        name: String::new(),
+                        config: WorldConfig::new().build(),
+                        preloading: false,
+                        preload_progress: 0.0,
+                    });
+                }
+            }
         }
 
         let mut bars = Vec::with_capacity(self.worlds.len());
@@ -387,7 +412,18 @@ impl Server {
                 join_all(self.worlds.values().map(|world| world.send(GetInfo))).await;
             let mut infos = Vec::with_capacity(info_results.len());
             for info_result in info_results {
-                infos.push(info_result.unwrap());
+                match info_result {
+                    Ok(info) => infos.push(info),
+                    Err(error) => {
+                        warn!("Failed to refresh world preload info: {}", error);
+                        infos.push(WorldInfo {
+                            name: String::new(),
+                            config: WorldConfig::new().build(),
+                            preloading: false,
+                            preload_progress: 0.0,
+                        });
+                    }
+                }
             }
 
             let mut done = true;
@@ -397,7 +433,9 @@ impl Server {
                     continue;
                 }
 
-                let bar = bars[i].as_mut().unwrap();
+                let Some(bar) = bars[i].as_mut() else {
+                    continue;
+                };
 
                 if !info.preloading || info.preload_progress >= 1.0 {
                     bar.finish_and_clear();
@@ -413,7 +451,9 @@ impl Server {
             }
 
             if done {
-                m.clear().unwrap();
+                if let Err(error) = m.clear() {
+                    warn!("Failed to clear preload progress bars: {}", error);
+                }
                 break;
             }
         }
@@ -475,8 +515,16 @@ impl Server {
 
     /// Handler for `Action` type messages.
     fn on_action(&mut self, _: &str, data: &Message) {
-        let json: OnActionRequest = serde_json::from_str(&data.json)
-            .expect("`on_action` error. Could not read JSON string.");
+        let json: OnActionRequest = match serde_json::from_str(&data.json) {
+            Ok(json) => json,
+            Err(error) => {
+                warn!(
+                    "`on_action` error. Could not read JSON string: {} ({})",
+                    data.json, error
+                );
+                return;
+            }
+        };
         let action = normalized_action_name(&json.action);
 
         if let Some(handle) = self.action_handles.get(action.as_ref()) {
