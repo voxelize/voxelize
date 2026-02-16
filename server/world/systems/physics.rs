@@ -22,6 +22,7 @@ use crate::{
 #[derive(Default)]
 pub struct PhysicsSystem {
     collision_map_buffer: HashMap<ColliderHandle, specs::Entity>,
+    collision_events_buffer: Vec<CollisionEvent>,
 }
 
 impl<'a> System<'a> for PhysicsSystem {
@@ -132,8 +133,9 @@ impl<'a> System<'a> for PhysicsSystem {
         }
 
         // Tick the rapier physics engine, and add the collisions to individual entities.
-        let collision_events = physics.step(stats.delta);
-        for event in collision_events {
+        let collision_events = &mut self.collision_events_buffer;
+        physics.step_into(stats.delta, collision_events);
+        for event in collision_events.drain(..) {
             let (ch1, ch2) = match event {
                 CollisionEvent::Started(ch1, ch2, _) => (ch1, ch2),
                 CollisionEvent::Stopped(ch1, ch2, _) => (ch1, ch2),

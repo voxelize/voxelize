@@ -39,7 +39,6 @@ pub struct Physics {
     multibody_joint_set: MultibodyJointSet,
     ccd_solver: CCDSolver,
     collision_recv: Receiver<CollisionEvent>,
-    collision_buffer: Vec<CollisionEvent>,
     event_handler: ChannelEventCollector,
     gravity: Vector3<f32>,
     pub entity_to_handlers: HashMap<Entity, (ColliderHandle, RapierBodyHandle)>,
@@ -53,7 +52,6 @@ impl Physics {
 
         Self {
             collision_recv,
-            collision_buffer: Vec::new(),
             body_set: RapierBodySet::default(),
             broad_phase: DefaultBroadPhase::new(),
             ccd_solver: CCDSolver::default(),
@@ -71,6 +69,12 @@ impl Physics {
     }
 
     pub fn step(&mut self, dt: f32) -> Vec<CollisionEvent> {
+        let mut collisions = Vec::new();
+        self.step_into(dt, &mut collisions);
+        collisions
+    }
+
+    pub fn step_into(&mut self, dt: f32, collisions: &mut Vec<CollisionEvent>) {
         self.integration_options.dt = dt;
 
         let physics_hooks = ();
@@ -91,20 +95,15 @@ impl Physics {
             &self.event_handler,
         );
 
+        collisions.clear();
         let first_collision = match self.collision_recv.try_recv() {
             Ok(collision_event) => collision_event,
-            Err(_) => return Vec::new(),
+            Err(_) => return,
         };
-        let collision_capacity = self.collision_buffer.capacity();
-        let mut collisions = std::mem::replace(
-            &mut self.collision_buffer,
-            Vec::with_capacity(collision_capacity),
-        );
-        collisions.clear();
         let pending_collisions = self.collision_recv.len();
         let required_collision_capacity = pending_collisions.saturating_add(1);
         if collisions.capacity() < required_collision_capacity {
-            collisions.reserve(required_collision_capacity);
+            collisions.reserve(required_collision_capacity - collisions.len());
         }
         collisions.push(first_collision);
 
@@ -112,8 +111,6 @@ impl Physics {
             // Handle the collision event.
             collisions.push(collision_event);
         }
-
-        collisions
     }
 
     pub fn register(&mut self, body: &RigidBody) -> (RapierBodyHandle, ColliderHandle) {
