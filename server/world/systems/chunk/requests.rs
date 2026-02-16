@@ -93,10 +93,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                         continue;
                     }
 
-                    let clients_to_send = if let Some(clients_to_send) = clients_to_send.as_deref_mut()
-                    {
-                        clients_to_send
-                    } else {
+                    if clients_to_send.is_none() {
                         let fetched_clients_to_send =
                             match to_send.raw_entry_mut().from_key(client_id) {
                                 RawEntryMut::Occupied(entry) => entry.into_mut(),
@@ -116,7 +113,9 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                             touched_client = false;
                         }
                         clients_to_send = Some(fetched_clients_to_send);
-                        clients_to_send.as_deref_mut().unwrap()
+                    }
+                    let Some(clients_to_send) = clients_to_send.as_deref_mut() else {
+                        continue;
                     };
 
                     if clients_to_send.len() >= max_response_per_tick {
