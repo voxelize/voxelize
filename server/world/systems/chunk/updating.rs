@@ -232,11 +232,10 @@ fn process_pending_updates(
             let current_is_light = current_type.is_light_at(&voxel, &*chunks);
             let updated_is_light = updated_type.is_light_at(&voxel, &*chunks);
 
-            let stage = BlockUtils::extract_stage(raw);
-
             if !chunks.set_voxel(vx, vy, vz, updated_id) {
                 continue;
             }
+            let stage = BlockUtils::extract_stage(raw);
             chunks.set_voxel_stage(vx, vy, vz, stage);
 
             if current_is_light && !updated_is_light {
