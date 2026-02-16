@@ -8,6 +8,15 @@ use voxelize_core::{
     BlockDynamicPattern, BlockFace, BlockRotation, BlockRule, BlockRuleLogic, CornerData,
     LightColor, LightUtils, VoxelAccess, AABB, UV,
 };
+
+#[inline]
+fn is_cardinal_face_dir(dir: [i32; 3]) -> bool {
+    matches!(
+        dir,
+        [0, 1, 0] | [0, -1, 0] | [1, 0, 0] | [-1, 0, 0] | [0, 0, 1] | [0, 0, -1]
+    )
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Block {
@@ -29,13 +38,23 @@ pub struct Block {
     pub faces: Vec<BlockFace>,
     pub aabbs: Vec<AABB>,
     pub dynamic_patterns: Option<Vec<BlockDynamicPattern>>,
+    #[serde(skip, default)]
+    has_standard_faces: bool,
+    #[serde(skip, default)]
+    has_standard_faces_computed: bool,
 }
 
 impl Block {
     pub fn compute_name_lower(&mut self) {
         self.name_lower = self.name.to_lowercase();
+        let mut has_standard_faces = false;
         for face in &mut self.faces {
             face.compute_name_lower();
+            if is_cardinal_face_dir(face.dir)
+                || matches!(face.get_name_lower(), "py" | "ny" | "px" | "nx" | "pz" | "nz")
+            {
+                has_standard_faces = true;
+            }
         }
         if let Some(patterns) = &mut self.dynamic_patterns {
             for pattern in patterns {
@@ -46,6 +65,8 @@ impl Block {
                 }
             }
         }
+        self.has_standard_faces = has_standard_faces;
+        self.has_standard_faces_computed = true;
     }
 
     pub fn is_full_cube(&self) -> bool {
@@ -606,16 +627,16 @@ fn calculate_fluid_corner_height<S: VoxelAccess>(
     total_height / count
 }
 
-fn has_standard_six_faces(faces: &[BlockFace]) -> bool {
-    for face in faces {
-        if matches!(
-            face.dir,
-            [0, 1, 0] | [0, -1, 0] | [1, 0, 0] | [-1, 0, 0] | [0, 0, 1] | [0, 0, -1]
-        ) {
+fn has_standard_six_faces(block: &Block) -> bool {
+    if block.has_standard_faces_computed {
+        return block.has_standard_faces;
+    }
+    for face in &block.faces {
+        if is_cardinal_face_dir(face.dir) {
             return true;
         }
     }
-    for face in faces {
+    for face in &block.faces {
         if matches!(
             face.get_name_lower(),
             "py" | "ny" | "px" | "nx" | "pz" | "nz"
@@ -628,6 +649,9 @@ fn has_standard_six_faces(faces: &[BlockFace]) -> bool {
 
 #[inline]
 fn cardinal_face_index_from_dir(dir: [i32; 3]) -> Option<usize> {
+    if !is_cardinal_face_dir(dir) {
+        return None;
+    }
     match dir {
         [0, 1, 0] => Some(FACE_RANGE_PY),
         [0, -1, 0] => Some(FACE_RANGE_NY),
@@ -2104,7 +2128,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     let is_see_through = block.is_see_through;
 
                     let faces: Vec<(BlockFace, bool)> =
-                        if is_fluid && has_standard_six_faces(&block.faces) {
+                        if is_fluid && has_standard_six_faces(block) {
                             create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
                                 .into_iter()
                                 .map(|f| (f, false))
@@ -2383,7 +2407,7 @@ pub fn mesh_space<S: VoxelAccess>(
                 }
 
                 let faces: Vec<(BlockFace, bool)> =
-                    if is_fluid && has_standard_six_faces(&block.faces) {
+                    if is_fluid && has_standard_six_faces(block) {
                         create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
                             .into_iter()
                             .map(|f| (f, false))
@@ -2522,8 +2546,9 @@ pub fn mesh_chunk_with_registry(input: MeshInputNoRegistry, registry: &Registry)
 mod tests {
     use super::{
         build_independent_geo_key, build_isolated_geo_key, cardinal_face_index,
-        cardinal_face_index_from_dir, collect_cardinal_face_ranges, lowercase_if_needed, mesh_chunk,
-        mesh_chunk_with_registry, BlockFace, ChunkData, MeshConfig, MeshInput,
+        cardinal_face_index_from_dir, collect_cardinal_face_ranges, has_standard_six_faces,
+        lowercase_if_needed, mesh_chunk, mesh_chunk_with_registry, Block, BlockFace, ChunkData,
+        MeshConfig, MeshInput,
         MeshInputNoRegistry, Registry, UV, VoxelSpace,
     };
     use std::borrow::Cow;
@@ -2713,6 +2738,48 @@ mod tests {
         assert_eq!(ranges[2], UV::default());
         assert_eq!(ranges[3], UV::default());
         assert_eq!(ranges[5], UV::default());
+    }
+
+    fn block_with_faces(faces: Vec<BlockFace>) -> Block {
+        Block {
+            id: 1,
+            name: "test".to_string(),
+            name_lower: String::new(),
+            rotatable: false,
+            y_rotatable: false,
+            is_empty: false,
+            is_fluid: true,
+            is_waterlogged: false,
+            is_opaque: false,
+            is_see_through: false,
+            is_transparent: [false; 6],
+            transparent_standalone: false,
+            occludes_fluid: false,
+            faces,
+            aabbs: Vec::new(),
+            dynamic_patterns: None,
+            has_standard_faces: false,
+            has_standard_faces_computed: false,
+        }
+    }
+
+    #[test]
+    fn has_standard_six_faces_uses_cached_flag_when_computed() {
+        let mut block = block_with_faces(Vec::new());
+        block.has_standard_faces = true;
+        block.has_standard_faces_computed = true;
+
+        assert!(has_standard_six_faces(&block));
+    }
+
+    #[test]
+    fn has_standard_six_faces_falls_back_to_face_scan() {
+        let block = block_with_faces(vec![BlockFace {
+            dir: [0, 0, 1],
+            ..BlockFace::default()
+        }]);
+
+        assert!(has_standard_six_faces(&block));
     }
 
     #[test]
