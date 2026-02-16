@@ -187,7 +187,8 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /*                       PUSHING CHUNKS TO BE PROCESSED                       */
         /* -------------------------------------------------------------------------- */
 
-        let mut processes = Vec::with_capacity(pipeline.queue.len());
+        let pending_queue_len = pipeline.queue.len();
+        let mut processes = Vec::with_capacity(pending_queue_len);
 
         if pipeline.queue.len() > 1 && !interests.weights.is_empty() {
             pipeline
@@ -196,7 +197,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 .sort_by(|a, b| interests.compare(a, b));
         }
 
-        let mut to_load = Vec::with_capacity(pipeline.queue.len());
+        let mut to_load: Option<Vec<Vec2<i32>>> = None;
         if !pipeline.stages.is_empty() {
             while let Some(coords) = pipeline.get() {
                 let mut chunk = chunks.raw(&coords);
@@ -206,7 +207,9 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                     if can_load {
                         pipeline.remove_chunk_tracking(&coords);
                         mesher.add_chunk(&coords, false);
-                        to_load.push(coords);
+                        to_load
+                            .get_or_insert_with(|| Vec::with_capacity(pending_queue_len))
+                            .push(coords);
                         continue;
                     }
 
@@ -320,28 +323,30 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         }
 
         // parallelize loading
-        if to_load.len() <= SMALL_PARALLEL_CHUNK_LOAD_LIMIT {
-            for coords in to_load {
-                if let Some(chunk) = chunks.try_load(&coords, &registry) {
-                    chunks.renew(chunk, false);
-                } else {
-                    pipeline.add_chunk(&coords, false);
+        if let Some(to_load) = to_load {
+            if to_load.len() <= SMALL_PARALLEL_CHUNK_LOAD_LIMIT {
+                for coords in to_load {
+                    if let Some(chunk) = chunks.try_load(&coords, &registry) {
+                        chunks.renew(chunk, false);
+                    } else {
+                        pipeline.add_chunk(&coords, false);
+                    }
                 }
-            }
-        } else {
-            let loaded_chunks: Vec<(Vec2<i32>, Option<Chunk>)> = to_load
-                .into_par_iter()
-                .map(|coords| {
-                    let loaded = chunks.try_load(&coords, &registry);
-                    (coords, loaded)
-                })
-                .collect();
+            } else {
+                let loaded_chunks: Vec<(Vec2<i32>, Option<Chunk>)> = to_load
+                    .into_par_iter()
+                    .map(|coords| {
+                        let loaded = chunks.try_load(&coords, &registry);
+                        (coords, loaded)
+                    })
+                    .collect();
 
-            for (coords, loaded_chunk) in loaded_chunks {
-                if let Some(chunk) = loaded_chunk {
-                    chunks.renew(chunk, false);
-                } else {
-                    pipeline.add_chunk(&coords, false);
+                for (coords, loaded_chunk) in loaded_chunks {
+                    if let Some(chunk) = loaded_chunk {
+                        chunks.renew(chunk, false);
+                    } else {
+                        pipeline.add_chunk(&coords, false);
+                    }
                 }
             }
         }
