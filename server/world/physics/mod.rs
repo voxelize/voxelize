@@ -92,7 +92,15 @@ impl Physics {
         if self.collision_recv.is_empty() {
             return Vec::new();
         }
-        let mut collisions = Vec::with_capacity(self.collision_recv.len());
+        let first_collision = match self.collision_recv.try_recv() {
+            Ok(collision_event) => collision_event,
+            Err(_) => return Vec::new(),
+        };
+        if self.collision_recv.is_empty() {
+            return vec![first_collision];
+        }
+        let mut collisions = Vec::with_capacity(self.collision_recv.len().saturating_add(1));
+        collisions.push(first_collision);
 
         while let Ok(collision_event) = self.collision_recv.try_recv() {
             // Handle the collision event.
