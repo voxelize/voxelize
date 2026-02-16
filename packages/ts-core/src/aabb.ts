@@ -213,13 +213,29 @@ export class AABB {
   }
 
   union(other: AABB): AABB {
+    const sourceSnapshot = readAabbSnapshotSafely(this);
+    if (sourceSnapshot === null) {
+      return AABB.empty();
+    }
+    const otherSnapshot = readAabbSnapshotSafely(other);
+    if (otherSnapshot === null) {
+      return AABB.create(
+        sourceSnapshot.minX,
+        sourceSnapshot.minY,
+        sourceSnapshot.minZ,
+        sourceSnapshot.maxX,
+        sourceSnapshot.maxY,
+        sourceSnapshot.maxZ
+      );
+    }
+
     return new AABB(
-      Math.min(this.minX, other.minX),
-      Math.min(this.minY, other.minY),
-      Math.min(this.minZ, other.minZ),
-      Math.max(this.maxX, other.maxX),
-      Math.max(this.maxY, other.maxY),
-      Math.max(this.maxZ, other.maxZ)
+      Math.min(sourceSnapshot.minX, otherSnapshot.minX),
+      Math.min(sourceSnapshot.minY, otherSnapshot.minY),
+      Math.min(sourceSnapshot.minZ, otherSnapshot.minZ),
+      Math.max(sourceSnapshot.maxX, otherSnapshot.maxX),
+      Math.max(sourceSnapshot.maxY, otherSnapshot.maxY),
+      Math.max(sourceSnapshot.maxZ, otherSnapshot.maxZ)
     );
   }
 
@@ -262,45 +278,68 @@ export class AABB {
   }
 
   copy(other: AABB): void {
-    this.minX = other.minX;
-    this.minY = other.minY;
-    this.minZ = other.minZ;
-    this.maxX = other.maxX;
-    this.maxY = other.maxY;
-    this.maxZ = other.maxZ;
+    const otherSnapshot = readAabbSnapshotSafely(other);
+    if (otherSnapshot === null) {
+      return;
+    }
+
+    this.minX = otherSnapshot.minX;
+    this.minY = otherSnapshot.minY;
+    this.minZ = otherSnapshot.minZ;
+    this.maxX = otherSnapshot.maxX;
+    this.maxY = otherSnapshot.maxY;
+    this.maxZ = otherSnapshot.maxZ;
   }
 
   intersection(other: AABB): AABB {
+    const sourceSnapshot = readAabbSnapshotSafely(this);
+    const otherSnapshot = readAabbSnapshotSafely(other);
+    if (sourceSnapshot === null || otherSnapshot === null) {
+      return AABB.empty();
+    }
+
     return new AABB(
-      Math.max(this.minX, other.minX),
-      Math.max(this.minY, other.minY),
-      Math.max(this.minZ, other.minZ),
-      Math.min(this.maxX, other.maxX),
-      Math.min(this.maxY, other.maxY),
-      Math.min(this.maxZ, other.maxZ)
+      Math.max(sourceSnapshot.minX, otherSnapshot.minX),
+      Math.max(sourceSnapshot.minY, otherSnapshot.minY),
+      Math.max(sourceSnapshot.minZ, otherSnapshot.minZ),
+      Math.min(sourceSnapshot.maxX, otherSnapshot.maxX),
+      Math.min(sourceSnapshot.maxY, otherSnapshot.maxY),
+      Math.min(sourceSnapshot.maxZ, otherSnapshot.maxZ)
     );
   }
 
   touches(other: AABB): boolean {
+    const sourceSnapshot = readAabbSnapshotSafely(this);
+    const otherSnapshot = readAabbSnapshotSafely(other);
+    if (sourceSnapshot === null || otherSnapshot === null) {
+      return false;
+    }
+
     const epsilon = 0.0001;
     return (
-      Math.abs(this.maxX - other.minX) < epsilon ||
-      Math.abs(this.minX - other.maxX) < epsilon ||
-      Math.abs(this.maxY - other.minY) < epsilon ||
-      Math.abs(this.minY - other.maxY) < epsilon ||
-      Math.abs(this.maxZ - other.minZ) < epsilon ||
-      Math.abs(this.minZ - other.maxZ) < epsilon
+      Math.abs(sourceSnapshot.maxX - otherSnapshot.minX) < epsilon ||
+      Math.abs(sourceSnapshot.minX - otherSnapshot.maxX) < epsilon ||
+      Math.abs(sourceSnapshot.maxY - otherSnapshot.minY) < epsilon ||
+      Math.abs(sourceSnapshot.minY - otherSnapshot.maxY) < epsilon ||
+      Math.abs(sourceSnapshot.maxZ - otherSnapshot.minZ) < epsilon ||
+      Math.abs(sourceSnapshot.minZ - otherSnapshot.maxZ) < epsilon
     );
   }
 
   intersects(other: AABB): boolean {
+    const sourceSnapshot = readAabbSnapshotSafely(this);
+    const otherSnapshot = readAabbSnapshotSafely(other);
+    if (sourceSnapshot === null || otherSnapshot === null) {
+      return false;
+    }
+
     return (
-      this.minX < other.maxX &&
-      this.maxX > other.minX &&
-      this.minY < other.maxY &&
-      this.maxY > other.minY &&
-      this.minZ < other.maxZ &&
-      this.maxZ > other.minZ
+      sourceSnapshot.minX < otherSnapshot.maxX &&
+      sourceSnapshot.maxX > otherSnapshot.minX &&
+      sourceSnapshot.minY < otherSnapshot.maxY &&
+      sourceSnapshot.maxY > otherSnapshot.minY &&
+      sourceSnapshot.minZ < otherSnapshot.maxZ &&
+      sourceSnapshot.maxZ > otherSnapshot.minZ
     );
   }
 

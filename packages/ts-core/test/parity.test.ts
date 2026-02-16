@@ -624,6 +624,81 @@ describe("AABB", () => {
     expect(AABB.unionAll(revokedAabbs as never)).toEqual(AABB.empty());
   });
 
+  it("sanitizes malformed binary AABB operations without throwing", () => {
+    const source = AABB.create(0, 0, 0, 1, 1, 1);
+    const minTrapAabb = Object.create(null) as {
+      readonly minX: number;
+      readonly minY: number;
+      readonly minZ: number;
+      readonly maxX: number;
+      readonly maxY: number;
+      readonly maxZ: number;
+    };
+    Object.defineProperty(minTrapAabb, "minX", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("minX trap");
+      },
+    });
+    Object.defineProperty(minTrapAabb, "minY", {
+      configurable: true,
+      enumerable: true,
+      value: 0,
+    });
+    Object.defineProperty(minTrapAabb, "minZ", {
+      configurable: true,
+      enumerable: true,
+      value: 0,
+    });
+    Object.defineProperty(minTrapAabb, "maxX", {
+      configurable: true,
+      enumerable: true,
+      value: 1,
+    });
+    Object.defineProperty(minTrapAabb, "maxY", {
+      configurable: true,
+      enumerable: true,
+      value: 1,
+    });
+    Object.defineProperty(minTrapAabb, "maxZ", {
+      configurable: true,
+      enumerable: true,
+      value: 1,
+    });
+    const revokedAabb = (() => {
+      const proxy = Proxy.revocable(AABB.create(0, 0, 0, 1, 1, 1), {});
+      proxy.revoke();
+      return proxy.proxy;
+    })();
+    const copyTarget = AABB.create(10, 10, 10, 11, 11, 11);
+
+    expect(() => source.union(minTrapAabb as never)).not.toThrow();
+    expect(source.union(minTrapAabb as never)).toEqual(source.clone());
+    expect(() => source.union(revokedAabb as never)).not.toThrow();
+    expect(source.union(revokedAabb as never)).toEqual(source.clone());
+
+    expect(() => source.intersection(minTrapAabb as never)).not.toThrow();
+    expect(source.intersection(minTrapAabb as never)).toEqual(AABB.empty());
+    expect(() => source.intersection(revokedAabb as never)).not.toThrow();
+    expect(source.intersection(revokedAabb as never)).toEqual(AABB.empty());
+
+    expect(() => source.touches(minTrapAabb as never)).not.toThrow();
+    expect(source.touches(minTrapAabb as never)).toBe(false);
+    expect(() => source.touches(revokedAabb as never)).not.toThrow();
+    expect(source.touches(revokedAabb as never)).toBe(false);
+
+    expect(() => source.intersects(minTrapAabb as never)).not.toThrow();
+    expect(source.intersects(minTrapAabb as never)).toBe(false);
+    expect(() => source.intersects(revokedAabb as never)).not.toThrow();
+    expect(source.intersects(revokedAabb as never)).toBe(false);
+
+    expect(() => copyTarget.copy(minTrapAabb as never)).not.toThrow();
+    expect(copyTarget).toEqual(AABB.create(10, 10, 10, 11, 11, 11));
+    expect(() => copyTarget.copy(revokedAabb as never)).not.toThrow();
+    expect(copyTarget).toEqual(AABB.create(10, 10, 10, 11, 11, 11));
+  });
+
   it("computes geometric extents and magnitude", () => {
     const aabb = AABB.create(1, 2, 3, 4, 6, 15);
     expect(aabb.width()).toBe(3);
@@ -823,6 +898,77 @@ describe("BlockRotation", () => {
     expect(pxWithNaN.maxX).toBeCloseTo(pxBaseline.maxX, 10);
     expect(pxWithNaN.maxY).toBeCloseTo(pxBaseline.maxY, 10);
     expect(pxWithNaN.maxZ).toBeCloseTo(pxBaseline.maxZ, 10);
+  });
+
+  it("sanitizes malformed rotateAABB and rotateTransparency inputs without throwing", () => {
+    const rotation = BlockRotation.py(Math.PI / 2);
+    const minTrapAabb = Object.create(null) as {
+      readonly minX: number;
+      readonly minY: number;
+      readonly minZ: number;
+      readonly maxX: number;
+      readonly maxY: number;
+      readonly maxZ: number;
+    };
+    Object.defineProperty(minTrapAabb, "minX", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("minX trap");
+      },
+    });
+    Object.defineProperty(minTrapAabb, "minY", {
+      configurable: true,
+      enumerable: true,
+      value: 0,
+    });
+    Object.defineProperty(minTrapAabb, "minZ", {
+      configurable: true,
+      enumerable: true,
+      value: 0,
+    });
+    Object.defineProperty(minTrapAabb, "maxX", {
+      configurable: true,
+      enumerable: true,
+      value: 1,
+    });
+    Object.defineProperty(minTrapAabb, "maxY", {
+      configurable: true,
+      enumerable: true,
+      value: 1,
+    });
+    Object.defineProperty(minTrapAabb, "maxZ", {
+      configurable: true,
+      enumerable: true,
+      value: 1,
+    });
+    const revokedAabb = (() => {
+      const proxy = Proxy.revocable(AABB.create(0, 0, 0, 1, 1, 1), {});
+      proxy.revoke();
+      return proxy.proxy;
+    })();
+    const revokedTransparency = (() => {
+      const proxy = Proxy.revocable([true, false, true, false, true, false], {});
+      proxy.revoke();
+      return proxy.proxy;
+    })();
+
+    expect(() => rotation.rotateAABB(minTrapAabb as never)).not.toThrow();
+    expect(rotation.rotateAABB(minTrapAabb as never)).toEqual(AABB.empty());
+    expect(() => rotation.rotateAABB(revokedAabb as never)).not.toThrow();
+    expect(rotation.rotateAABB(revokedAabb as never)).toEqual(AABB.empty());
+
+    expect(() =>
+      rotation.rotateTransparency(revokedTransparency as never)
+    ).not.toThrow();
+    expect(rotation.rotateTransparency(revokedTransparency as never)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
   });
 
   it("rotates transparency for non-zero y rotation on PY axis", () => {

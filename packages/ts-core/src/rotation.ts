@@ -88,6 +88,75 @@ const readRotationYSafely = (rotation: BlockRotation): number => {
   }
 };
 
+type AabbSnapshot = {
+  minX: number;
+  minY: number;
+  minZ: number;
+  maxX: number;
+  maxY: number;
+  maxZ: number;
+};
+
+const readAabbSnapshotSafely = (aabb: AABB): AabbSnapshot | null => {
+  if (aabb === null || typeof aabb !== "object") {
+    return null;
+  }
+
+  try {
+    const minX = aabb.minX;
+    const minY = aabb.minY;
+    const minZ = aabb.minZ;
+    const maxX = aabb.maxX;
+    const maxY = aabb.maxY;
+    const maxZ = aabb.maxZ;
+    if (
+      !Number.isFinite(minX) ||
+      !Number.isFinite(minY) ||
+      !Number.isFinite(minZ) ||
+      !Number.isFinite(maxX) ||
+      !Number.isFinite(maxY) ||
+      !Number.isFinite(maxZ)
+    ) {
+      return null;
+    }
+
+    return {
+      minX,
+      minY,
+      minZ,
+      maxX,
+      maxY,
+      maxZ,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const readFaceTransparencySafely = (
+  transparency: FaceTransparency
+): FaceTransparency => {
+  try {
+    const px = transparency[0];
+    const py = transparency[1];
+    const pz = transparency[2];
+    const nx = transparency[3];
+    const ny = transparency[4];
+    const nz = transparency[5];
+
+    return [
+      px === true,
+      py === true,
+      pz === true,
+      nx === true,
+      ny === true,
+      nz === true,
+    ];
+  } catch {
+    return [false, false, false, false, false, false];
+  }
+};
+
 export class BlockRotation {
   constructor(
     public value = PY_ROTATION,
@@ -252,8 +321,13 @@ export class BlockRotation {
   }
 
   rotateAABB(aabb: AABB, yRotate = true, translate = true): AABB {
-    const min: Vec3 = [aabb.minX, aabb.minY, aabb.minZ];
-    const max: Vec3 = [aabb.maxX, aabb.maxY, aabb.maxZ];
+    const aabbSnapshot = readAabbSnapshotSafely(aabb);
+    if (aabbSnapshot === null) {
+      return AABB.empty();
+    }
+
+    const min: Vec3 = [aabbSnapshot.minX, aabbSnapshot.minY, aabbSnapshot.minZ];
+    const max: Vec3 = [aabbSnapshot.maxX, aabbSnapshot.maxY, aabbSnapshot.maxZ];
 
     let minX: number | null = null;
     let minZ: number | null = null;
@@ -265,10 +339,10 @@ export class BlockRotation {
       (this.axis === PY_ROTATION || this.axis === NY_ROTATION)
     ) {
       const minNodes: Vec3[] = [
-        [aabb.minX, aabb.minY, aabb.minZ],
-        [aabb.minX, aabb.minY, aabb.maxZ],
-        [aabb.maxX, aabb.minY, aabb.minZ],
-        [aabb.maxX, aabb.minY, aabb.maxZ],
+        [aabbSnapshot.minX, aabbSnapshot.minY, aabbSnapshot.minZ],
+        [aabbSnapshot.minX, aabbSnapshot.minY, aabbSnapshot.maxZ],
+        [aabbSnapshot.maxX, aabbSnapshot.minY, aabbSnapshot.minZ],
+        [aabbSnapshot.maxX, aabbSnapshot.minY, aabbSnapshot.maxZ],
       ];
 
       for (const node of minNodes) {
@@ -284,10 +358,10 @@ export class BlockRotation {
       }
 
       const maxNodes: Vec3[] = [
-        [aabb.minX, aabb.maxY, aabb.minZ],
-        [aabb.minX, aabb.maxY, aabb.maxZ],
-        [aabb.maxX, aabb.maxY, aabb.minZ],
-        [aabb.maxX, aabb.maxY, aabb.maxZ],
+        [aabbSnapshot.minX, aabbSnapshot.maxY, aabbSnapshot.minZ],
+        [aabbSnapshot.minX, aabbSnapshot.maxY, aabbSnapshot.maxZ],
+        [aabbSnapshot.maxX, aabbSnapshot.maxY, aabbSnapshot.minZ],
+        [aabbSnapshot.maxX, aabbSnapshot.maxY, aabbSnapshot.maxZ],
       ];
 
       for (const node of maxNodes) {
@@ -316,9 +390,9 @@ export class BlockRotation {
     );
   }
 
-  rotateTransparency(
-    [px, py, pz, nx, ny, nz]: FaceTransparency
-  ): FaceTransparency {
+  rotateTransparency(transparency: FaceTransparency): FaceTransparency {
+    const [px, py, pz, nx, ny, nz] = readFaceTransparencySafely(transparency);
+
     if (
       this.axis === PY_ROTATION &&
       Math.abs(normalizeYRotation(this.yRotation)) <= ANGLE_EPSILON
@@ -332,9 +406,13 @@ export class BlockRotation {
     this.rotateNode(positive, true, false);
     this.rotateNode(negative, true, false);
 
-    const transparency: FaceTransparency = [px, py, pz, nx, ny, nz];
-    const p = positive.map((value) => mapTransparencyValue(value, transparency));
-    const n = negative.map((value) => mapTransparencyValue(value, transparency));
+    const normalizedTransparency: FaceTransparency = [px, py, pz, nx, ny, nz];
+    const p = positive.map((value) => {
+      return mapTransparencyValue(value, normalizedTransparency);
+    });
+    const n = negative.map((value) => {
+      return mapTransparencyValue(value, normalizedTransparency);
+    });
 
     return [p[0], p[1], p[2], n[0], n[1], n[2]];
   }
