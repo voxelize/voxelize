@@ -122,6 +122,14 @@ fn flush_chunk_requests_for_touched_client(
 }
 
 #[inline]
+fn pop_touched_client_id(touched_clients: &mut Vec<String>) -> String {
+    let Some(client_id) = touched_clients.pop() else {
+        unreachable!("touched-client length matched branch");
+    };
+    client_id
+}
+
+#[inline]
 fn retain_active_request_batches(
     to_send: &mut HashMap<String, HashSet<Vec2<i32>>>,
     clients: &Clients,
@@ -167,7 +175,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             config.sub_chunks as u32
         };
 
-        let mut to_send = &mut self.to_send_buffer;
+        let to_send = &mut self.to_send_buffer;
         let to_send_touched_clients = &mut self.to_send_touched_clients_buffer;
         let to_add_back_to_requested = &mut self.to_add_back_to_requested_buffer;
         let chunk_models_buffer = &mut self.chunk_models_buffer;
@@ -298,30 +306,24 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         }
         match to_send_touched_clients.len() {
             1 => {
-                let Some(first_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
+                let first_id = pop_touched_client_id(to_send_touched_clients);
                 flush_chunk_requests_for_touched_client(
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     first_id,
                     sub_chunks_u32,
                 );
             }
             2 => {
-                let Some(first_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(second_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
+                let first_id = pop_touched_client_id(to_send_touched_clients);
+                let second_id = pop_touched_client_id(to_send_touched_clients);
                 flush_chunk_requests_for_touched_client(
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     first_id,
                     sub_chunks_u32,
                 );
@@ -329,26 +331,20 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     second_id,
                     sub_chunks_u32,
                 );
             }
             3 => {
-                let Some(first_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(second_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(third_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
+                let first_id = pop_touched_client_id(to_send_touched_clients);
+                let second_id = pop_touched_client_id(to_send_touched_clients);
+                let third_id = pop_touched_client_id(to_send_touched_clients);
                 flush_chunk_requests_for_touched_client(
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     first_id,
                     sub_chunks_u32,
                 );
@@ -356,7 +352,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     second_id,
                     sub_chunks_u32,
                 );
@@ -364,29 +360,21 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     third_id,
                     sub_chunks_u32,
                 );
             }
             4 => {
-                let Some(first_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(second_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(third_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(fourth_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
+                let first_id = pop_touched_client_id(to_send_touched_clients);
+                let second_id = pop_touched_client_id(to_send_touched_clients);
+                let third_id = pop_touched_client_id(to_send_touched_clients);
+                let fourth_id = pop_touched_client_id(to_send_touched_clients);
                 flush_chunk_requests_for_touched_client(
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     first_id,
                     sub_chunks_u32,
                 );
@@ -394,7 +382,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     second_id,
                     sub_chunks_u32,
                 );
@@ -402,7 +390,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     third_id,
                     sub_chunks_u32,
                 );
@@ -410,32 +398,22 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     fourth_id,
                     sub_chunks_u32,
                 );
             }
             5 => {
-                let Some(first_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(second_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(third_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(fourth_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(fifth_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
+                let first_id = pop_touched_client_id(to_send_touched_clients);
+                let second_id = pop_touched_client_id(to_send_touched_clients);
+                let third_id = pop_touched_client_id(to_send_touched_clients);
+                let fourth_id = pop_touched_client_id(to_send_touched_clients);
+                let fifth_id = pop_touched_client_id(to_send_touched_clients);
                 flush_chunk_requests_for_touched_client(
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     first_id,
                     sub_chunks_u32,
                 );
@@ -443,7 +421,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     second_id,
                     sub_chunks_u32,
                 );
@@ -451,7 +429,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     third_id,
                     sub_chunks_u32,
                 );
@@ -459,7 +437,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     fourth_id,
                     sub_chunks_u32,
                 );
@@ -467,35 +445,23 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     fifth_id,
                     sub_chunks_u32,
                 );
             }
             6 => {
-                let Some(first_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(second_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(third_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(fourth_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(fifth_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(sixth_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
+                let first_id = pop_touched_client_id(to_send_touched_clients);
+                let second_id = pop_touched_client_id(to_send_touched_clients);
+                let third_id = pop_touched_client_id(to_send_touched_clients);
+                let fourth_id = pop_touched_client_id(to_send_touched_clients);
+                let fifth_id = pop_touched_client_id(to_send_touched_clients);
+                let sixth_id = pop_touched_client_id(to_send_touched_clients);
                 flush_chunk_requests_for_touched_client(
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     first_id,
                     sub_chunks_u32,
                 );
@@ -503,7 +469,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     second_id,
                     sub_chunks_u32,
                 );
@@ -511,7 +477,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     third_id,
                     sub_chunks_u32,
                 );
@@ -519,7 +485,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     fourth_id,
                     sub_chunks_u32,
                 );
@@ -527,7 +493,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     fifth_id,
                     sub_chunks_u32,
                 );
@@ -535,38 +501,24 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     sixth_id,
                     sub_chunks_u32,
                 );
             }
             7 => {
-                let Some(first_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(second_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(third_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(fourth_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(fifth_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(sixth_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(seventh_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
+                let first_id = pop_touched_client_id(to_send_touched_clients);
+                let second_id = pop_touched_client_id(to_send_touched_clients);
+                let third_id = pop_touched_client_id(to_send_touched_clients);
+                let fourth_id = pop_touched_client_id(to_send_touched_clients);
+                let fifth_id = pop_touched_client_id(to_send_touched_clients);
+                let sixth_id = pop_touched_client_id(to_send_touched_clients);
+                let seventh_id = pop_touched_client_id(to_send_touched_clients);
                 flush_chunk_requests_for_touched_client(
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     first_id,
                     sub_chunks_u32,
                 );
@@ -574,7 +526,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     second_id,
                     sub_chunks_u32,
                 );
@@ -582,7 +534,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     third_id,
                     sub_chunks_u32,
                 );
@@ -590,7 +542,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     fourth_id,
                     sub_chunks_u32,
                 );
@@ -598,7 +550,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     fifth_id,
                     sub_chunks_u32,
                 );
@@ -606,7 +558,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     sixth_id,
                     sub_chunks_u32,
                 );
@@ -614,41 +566,25 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     seventh_id,
                     sub_chunks_u32,
                 );
             }
             8 => {
-                let Some(first_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(second_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(third_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(fourth_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(fifth_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(sixth_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(seventh_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
-                let Some(eighth_id) = to_send_touched_clients.pop() else {
-                    return;
-                };
+                let first_id = pop_touched_client_id(to_send_touched_clients);
+                let second_id = pop_touched_client_id(to_send_touched_clients);
+                let third_id = pop_touched_client_id(to_send_touched_clients);
+                let fourth_id = pop_touched_client_id(to_send_touched_clients);
+                let fifth_id = pop_touched_client_id(to_send_touched_clients);
+                let sixth_id = pop_touched_client_id(to_send_touched_clients);
+                let seventh_id = pop_touched_client_id(to_send_touched_clients);
+                let eighth_id = pop_touched_client_id(to_send_touched_clients);
                 flush_chunk_requests_for_touched_client(
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     first_id,
                     sub_chunks_u32,
                 );
@@ -656,7 +592,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     second_id,
                     sub_chunks_u32,
                 );
@@ -664,7 +600,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     third_id,
                     sub_chunks_u32,
                 );
@@ -672,7 +608,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     fourth_id,
                     sub_chunks_u32,
                 );
@@ -680,7 +616,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     fifth_id,
                     sub_chunks_u32,
                 );
@@ -688,7 +624,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     sixth_id,
                     sub_chunks_u32,
                 );
@@ -696,7 +632,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     seventh_id,
                     sub_chunks_u32,
                 );
@@ -704,7 +640,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     &mut queue,
                     &chunks,
                     chunk_models_buffer,
-                    &mut to_send,
+                    to_send,
                     eighth_id,
                     sub_chunks_u32,
                 );
@@ -715,7 +651,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                         &mut queue,
                         &chunks,
                         chunk_models_buffer,
-                        &mut to_send,
+                        to_send,
                         id,
                         sub_chunks_u32,
                     );
