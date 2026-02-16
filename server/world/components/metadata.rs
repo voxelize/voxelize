@@ -19,6 +19,15 @@ pub struct MetadataComp {
 }
 
 impl MetadataComp {
+    #[inline]
+    fn wrap_map_json_for_persistence(map_json: &str) -> String {
+        let mut wrapped = String::with_capacity(map_json.len() + 8);
+        wrapped.push_str("{\"map\":");
+        wrapped.push_str(map_json);
+        wrapped.push('}');
+        wrapped
+    }
+
     /// Create a component of a new list of chunk requests.
     pub fn new() -> Self {
         Self::default()
@@ -128,6 +137,16 @@ impl MetadataComp {
         serde_json::to_string(&self.map).unwrap()
     }
 
+    /// Build persisted metadata JSON without mutating cache/dirty state.
+    pub fn to_persisted_json_snapshot(&self) -> String {
+        if !self.dirty {
+            if let Some(cached_json) = self.cached_json.as_ref() {
+                return Self::wrap_map_json_for_persistence(cached_json);
+            }
+        }
+        serde_json::to_string(self).unwrap_or_else(|_| String::from("{\"map\":{}}"))
+    }
+
     /// Is the metadata empty?
     pub fn is_empty(&self) -> bool {
         self.map.is_empty()
@@ -198,5 +217,31 @@ mod tests {
 
         assert_eq!(first, second);
         assert!(metadata.to_cached_str_if_updated().is_none());
+    }
+
+    #[test]
+    fn persisted_json_snapshot_wraps_cached_map_json() {
+        let mut metadata = MetadataComp::new();
+        metadata.set("test", &TestMetadataValue { value: 1 });
+        let _ = metadata.to_cached_str();
+
+        let persisted = metadata.to_persisted_json_snapshot();
+
+        assert_eq!(persisted, String::from("{\"map\":{\"test\":{\"value\":1}}}"));
+    }
+
+    #[test]
+    fn persisted_json_snapshot_serializes_dirty_metadata_without_mutation() {
+        let mut metadata = MetadataComp::new();
+        metadata.set("test", &TestMetadataValue { value: 1 });
+
+        let persisted_before = metadata.to_persisted_json_snapshot();
+        let persisted_after = metadata.to_persisted_json_snapshot();
+
+        assert_eq!(persisted_before, persisted_after);
+        assert_eq!(
+            persisted_before,
+            String::from("{\"map\":{\"test\":{\"value\":1}}}")
+        );
     }
 }

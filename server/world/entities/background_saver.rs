@@ -216,13 +216,7 @@ impl BackgroundEntitiesSaver {
         if !self.saving {
             return;
         }
-        let metadata_json = match serde_json::to_string(metadata) {
-            Ok(metadata_json) => metadata_json,
-            Err(error) => {
-                warn!("Failed to serialize entity metadata {}: {}", id, error);
-                return;
-            }
-        };
+        let metadata_json = metadata.to_persisted_json_snapshot();
 
         let data = EntitySaveData {
             etype: etype.to_string(),
