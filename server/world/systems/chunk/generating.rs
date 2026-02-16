@@ -99,40 +99,44 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /*                     RECALCULATE CHUNK INTEREST WEIGHTS                     */
         /* -------------------------------------------------------------------------- */
 
-        let weights_capacity = interests.weights.capacity();
-        let mut weights = std::mem::replace(
-            &mut interests.weights,
-            hashbrown::HashMap::with_capacity(weights_capacity),
-        );
-        let interest_map = &interests.map;
-        if !weights.is_empty() {
-            weights.retain(|coords, _| interest_map.contains_key(coords));
-        }
-        if weights.capacity() < interest_map.len() {
-            weights.reserve(interest_map.len() - weights.len());
-        }
-
-        for (coords, ids) in interest_map {
-            let mut weight = 0.0;
-
-            for id in ids {
-                if weight >= f32::MAX {
-                    break;
-                }
-                if let Some(client) = clients.get(id) {
-                    if let Some(request) = requests.get(client.entity) {
-                        let dist = ChunkUtils::distance_squared(&request.center, &coords);
-                        let alignment =
-                            chunk_interest_alignment(&request.center, coords, &request.direction);
-                        weight = accumulate_chunk_interest_weight(weight, dist, alignment);
-                    }
-                }
+        if interests.map.is_empty() {
+            interests.weights.clear();
+        } else {
+            let weights_capacity = interests.weights.capacity();
+            let mut weights = std::mem::replace(
+                &mut interests.weights,
+                hashbrown::HashMap::with_capacity(weights_capacity),
+            );
+            let interest_map = &interests.map;
+            if !weights.is_empty() {
+                weights.retain(|coords, _| interest_map.contains_key(coords));
+            }
+            if weights.capacity() < interest_map.len() {
+                weights.reserve(interest_map.len() - weights.len());
             }
 
-            weights.insert(*coords, weight);
-        }
+            for (coords, ids) in interest_map {
+                let mut weight = 0.0;
 
-        interests.weights = weights;
+                for id in ids {
+                    if weight >= f32::MAX {
+                        break;
+                    }
+                    if let Some(client) = clients.get(id) {
+                        if let Some(request) = requests.get(client.entity) {
+                            let dist = ChunkUtils::distance_squared(&request.center, &coords);
+                            let alignment =
+                                chunk_interest_alignment(&request.center, coords, &request.direction);
+                            weight = accumulate_chunk_interest_weight(weight, dist, alignment);
+                        }
+                    }
+                }
+
+                weights.insert(*coords, weight);
+            }
+
+            interests.weights = weights;
+        }
 
         /* -------------------------------------------------------------------------- */
         /*                          HANDLING PIPELINE RESULTS                         */
