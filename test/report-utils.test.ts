@@ -20661,6 +20661,32 @@ describe("report-utils", () => {
         skippedSteps: [],
       }
     );
+    const explicitEmptyIteratorSteps = new Proxy(
+      [] as Array<{ readonly name: string; readonly passed: boolean; readonly skipped: boolean }>,
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(summarizeStepResults(explicitEmptyIteratorSteps as never)).toEqual({
+      totalSteps: 0,
+      passedStepCount: 0,
+      failedStepCount: 0,
+      skippedStepCount: 0,
+      firstFailedStep: null,
+      passedSteps: [],
+      failedSteps: [],
+      skippedSteps: [],
+    });
 
     const ownKeysHasTrapSteps = new Proxy(
       [{ name: "step-a", passed: true, skipped: false }],
@@ -22199,6 +22225,33 @@ describe("report-utils", () => {
         message: "Step failed with exit code 2.",
       },
     ]);
+    const explicitEmptyIteratorStepFailures = new Proxy(
+      [] as Array<{
+        readonly name: string;
+        readonly scriptName: string;
+        readonly supportsNoBuild: boolean;
+        readonly stepIndex: number;
+        readonly passed: boolean;
+        readonly skipped: boolean;
+        readonly exitCode: number;
+      }>,
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      summarizeStepFailureResults(explicitEmptyIteratorStepFailures as never)
+    ).toEqual([]);
     const emptyIteratorLengthZeroIndexedSteps = new Proxy(iteratorTrapSteps, {
       get(target, property, receiver) {
         if (property === Symbol.iterator) {
@@ -22590,6 +22643,32 @@ describe("report-utils", () => {
         message: "Preflight check failed with exit code 2.",
       },
     ]);
+    const explicitEmptyIteratorCheckFailures = new Proxy(
+      [] as Array<{
+        readonly name: string;
+        readonly scriptName: string;
+        readonly supportsNoBuild: boolean;
+        readonly checkIndex: number;
+        readonly passed: boolean;
+        readonly exitCode: number;
+      }>,
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      summarizeCheckFailureResults(explicitEmptyIteratorCheckFailures as never)
+    ).toEqual([]);
     const emptyIteratorLengthZeroIndexedChecks = new Proxy(iteratorTrapChecks, {
       get(target, property, receiver) {
         if (property === Symbol.iterator) {
@@ -23399,6 +23478,30 @@ describe("report-utils", () => {
       failedCheckCount: 0,
       firstFailedCheck: null,
       passedChecks: ["devEnvironment"],
+      failedChecks: [],
+    });
+    const explicitEmptyIteratorChecks = new Proxy(
+      [] as Array<{ readonly name: string; readonly passed: boolean }>,
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(summarizeCheckResults(explicitEmptyIteratorChecks as never)).toEqual({
+      totalChecks: 0,
+      passedCheckCount: 0,
+      failedCheckCount: 0,
+      firstFailedCheck: null,
+      passedChecks: [],
       failedChecks: [],
     });
 
