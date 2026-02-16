@@ -2239,6 +2239,9 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     if block.is_opaque {
                         let all_neighbors_opaque = VOXEL_NEIGHBORS.iter().all(|&[nx, ny, nz]| {
                             let id = space.get_voxel(vx + nx, vy + ny, vz + nz);
+                            if id == voxel_id {
+                                return true;
+                            }
                             registry
                                 .get_block_by_id(id)
                                 .map(|b| b.is_opaque)
@@ -2470,6 +2473,9 @@ pub fn mesh_space<S: VoxelAccess>(
                 if is_opaque {
                     let all_neighbors_opaque = VOXEL_NEIGHBORS.iter().all(|&[nx, ny, nz]| {
                         let id = space.get_voxel(vx + nx, vy + ny, vz + nz);
+                        if id == voxel_id {
+                            return true;
+                        }
                         registry
                             .get_block_by_id(id)
                             .map(|b| b.is_opaque)
