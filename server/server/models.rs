@@ -423,6 +423,15 @@ impl MessageBuilder {
         self.single_peer = None;
         if peers.is_empty() {
             self.peers = None;
+        } else if peers.len() == 1 {
+            let single_peer = {
+                let Some(peer) = peers.first().cloned() else {
+                    unreachable!("single peer slice length matched branch");
+                };
+                peer
+            };
+            self.single_peer = Some(single_peer);
+            self.peers = None;
         } else {
             self.peers = Some(peers.to_vec());
         }
@@ -440,6 +449,16 @@ impl MessageBuilder {
         self.single_peer = None;
         if peers.is_empty() {
             self.peers = None;
+        } else if peers.len() == 1 {
+            let mut peers = peers;
+            let single_peer = {
+                let Some(peer) = peers.pop() else {
+                    unreachable!("single peer list length matched branch");
+                };
+                peer
+            };
+            self.single_peer = Some(single_peer);
+            self.peers = None;
         } else {
             self.peers = Some(peers);
         }
@@ -450,6 +469,15 @@ impl MessageBuilder {
     pub fn entities(mut self, entities: &[EntityProtocol]) -> Self {
         self.single_entity = None;
         if entities.is_empty() {
+            self.entities = None;
+        } else if entities.len() == 1 {
+            let single_entity = {
+                let Some(entity) = entities.first().cloned() else {
+                    unreachable!("single entity slice length matched branch");
+                };
+                entity
+            };
+            self.single_entity = Some(single_entity);
             self.entities = None;
         } else {
             self.entities = Some(entities.to_vec());
@@ -468,6 +496,16 @@ impl MessageBuilder {
         self.single_entity = None;
         if entities.is_empty() {
             self.entities = None;
+        } else if entities.len() == 1 {
+            let mut entities = entities;
+            let single_entity = {
+                let Some(entity) = entities.pop() else {
+                    unreachable!("single entity list length matched branch");
+                };
+                entity
+            };
+            self.single_entity = Some(single_entity);
+            self.entities = None;
         } else {
             self.entities = Some(entities);
         }
@@ -478,6 +516,15 @@ impl MessageBuilder {
     pub fn events(mut self, events: &[EventProtocol]) -> Self {
         self.single_event = None;
         if events.is_empty() {
+            self.events = None;
+        } else if events.len() == 1 {
+            let single_event = {
+                let Some(event) = events.first().cloned() else {
+                    unreachable!("single event slice length matched branch");
+                };
+                event
+            };
+            self.single_event = Some(single_event);
             self.events = None;
         } else {
             self.events = Some(events.to_vec());
@@ -496,6 +543,16 @@ impl MessageBuilder {
         self.single_event = None;
         if events.is_empty() {
             self.events = None;
+        } else if events.len() == 1 {
+            let mut events = events;
+            let single_event = {
+                let Some(event) = events.pop() else {
+                    unreachable!("single event list length matched branch");
+                };
+                event
+            };
+            self.single_event = Some(single_event);
+            self.events = None;
         } else {
             self.events = Some(events);
         }
@@ -506,6 +563,15 @@ impl MessageBuilder {
     pub fn chunks(mut self, chunks: &[ChunkProtocol]) -> Self {
         self.single_chunk = None;
         if chunks.is_empty() {
+            self.chunks = None;
+        } else if chunks.len() == 1 {
+            let single_chunk = {
+                let Some(chunk) = chunks.first().cloned() else {
+                    unreachable!("single chunk slice length matched branch");
+                };
+                chunk
+            };
+            self.single_chunk = Some(single_chunk);
             self.chunks = None;
         } else {
             self.chunks = Some(chunks.to_vec());
@@ -524,6 +590,16 @@ impl MessageBuilder {
         self.single_chunk = None;
         if chunks.is_empty() {
             self.chunks = None;
+        } else if chunks.len() == 1 {
+            let mut chunks = chunks;
+            let single_chunk = {
+                let Some(chunk) = chunks.pop() else {
+                    unreachable!("single chunk list length matched branch");
+                };
+                chunk
+            };
+            self.single_chunk = Some(single_chunk);
+            self.chunks = None;
         } else {
             self.chunks = Some(chunks);
         }
@@ -534,6 +610,15 @@ impl MessageBuilder {
     pub fn updates(mut self, updates: &[UpdateProtocol]) -> Self {
         self.single_update = None;
         if updates.is_empty() {
+            self.updates = None;
+        } else if updates.len() == 1 {
+            let single_update = {
+                let Some(update) = updates.first().cloned() else {
+                    unreachable!("single update slice length matched branch");
+                };
+                update
+            };
+            self.single_update = Some(single_update);
             self.updates = None;
         } else {
             self.updates = Some(updates.to_vec());
@@ -551,6 +636,16 @@ impl MessageBuilder {
     pub fn updates_owned(mut self, updates: Vec<UpdateProtocol>) -> Self {
         self.single_update = None;
         if updates.is_empty() {
+            self.updates = None;
+        } else if updates.len() == 1 {
+            let mut updates = updates;
+            let single_update = {
+                let Some(update) = updates.pop() else {
+                    unreachable!("single update list length matched branch");
+                };
+                update
+            };
+            self.single_update = Some(single_update);
             self.updates = None;
         } else {
             self.updates = Some(updates);
@@ -948,6 +1043,66 @@ mod tests {
 
         assert_eq!(message.peers.len(), 1);
         assert_eq!(message.peers[0].id, "new");
+    }
+
+    #[test]
+    fn single_item_slice_setters_emit_single_payloads() {
+        let peer = PeerProtocol {
+            id: "peer-slice".to_owned(),
+            username: "slice-user".to_owned(),
+            metadata: "{}".to_owned(),
+        };
+        let peer_message = Message::new(&MessageType::Peer)
+            .peers(std::slice::from_ref(&peer))
+            .build();
+        assert_eq!(peer_message.peers.len(), 1);
+        assert_eq!(peer_message.peers[0].id, "peer-slice");
+
+        let entity = EntityProtocol {
+            operation: EntityOperation::Update,
+            id: "entity-slice".to_owned(),
+            r#type: "npc".to_owned(),
+            metadata: Some("{\"hp\":1}".to_owned()),
+        };
+        let entity_message = Message::new(&MessageType::Entity)
+            .entities(std::slice::from_ref(&entity))
+            .build();
+        assert_eq!(entity_message.entities.len(), 1);
+        assert_eq!(entity_message.entities[0].id, "entity-slice");
+
+        let event = EventProtocol {
+            name: "event-slice".to_owned(),
+            payload: "{}".to_owned(),
+        };
+        let event_message = Message::new(&MessageType::Event)
+            .events(std::slice::from_ref(&event))
+            .build();
+        assert_eq!(event_message.events.len(), 1);
+        assert_eq!(event_message.events[0].name, "event-slice");
+
+        let chunk = ChunkProtocol {
+            id: "chunk-slice".to_owned(),
+            ..Default::default()
+        };
+        let chunk_message = Message::new(&MessageType::Load)
+            .chunks(std::slice::from_ref(&chunk))
+            .build();
+        assert_eq!(chunk_message.chunks.len(), 1);
+        assert_eq!(chunk_message.chunks[0].id, "chunk-slice");
+
+        let update = UpdateProtocol {
+            vx: 1,
+            vy: 2,
+            vz: 3,
+            voxel: 4,
+            light: 5,
+        };
+        let update_message = Message::new(&MessageType::Update)
+            .updates(std::slice::from_ref(&update))
+            .build();
+        assert_eq!(update_message.updates.len(), 1);
+        assert_eq!(update_message.updates[0].vx, 1);
+        assert_eq!(update_message.updates[0].light, 5);
     }
 
     #[test]
