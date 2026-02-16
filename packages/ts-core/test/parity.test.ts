@@ -1499,6 +1499,43 @@ describe("Type builders", () => {
     expect(part.aabbs).toEqual([AABB.create(0, 0, 0, 1, 1, 1)]);
   });
 
+  it("salvages empty-iterator length-zero face and aabb entries via keys", () => {
+    const faces = new Proxy([{ name: "IteratorFace" } as BlockFaceInit], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          return function* () {
+            return;
+          };
+        }
+        if (property === "length") {
+          return 0;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const aabbs = new Proxy([AABB.create(0, 0, 0, 1, 1, 1)], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          return function* () {
+            return;
+          };
+        }
+        if (property === "length") {
+          return 0;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    const part = createBlockConditionalPart({
+      faces: faces as never,
+      aabbs: aabbs as never,
+    });
+
+    expect(part.faces).toEqual([new BlockFace({ name: "IteratorFace" })]);
+    expect(part.aabbs).toEqual([AABB.create(0, 0, 0, 1, 1, 1)]);
+  });
+
   it("sanitizes irrecoverable face and aabb iterators during conditional part cloning", () => {
     const trappedFaces = new Proxy([{ name: "IteratorFace" }], {
       ownKeys() {
@@ -2540,6 +2577,49 @@ describe("Type builders", () => {
           }
           if (property === "length") {
             return 1;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+
+    expect(
+      createBlockRule({
+        type: "combination",
+        logic: BlockRuleLogic.And,
+        rules: rules as never,
+      })
+    ).toEqual({
+      type: "combination",
+      logic: BlockRuleLogic.And,
+      rules: [
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 5,
+        },
+      ],
+    });
+  });
+
+  it("salvages empty-iterator length-zero combination rule entries via keys", () => {
+    const rules = new Proxy(
+      [
+        {
+          type: "simple" as const,
+          offset: [1, 0, 0] as [number, number, number],
+          id: 5,
+        },
+      ],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
           }
           return Reflect.get(target, property, receiver);
         },
@@ -3948,6 +4028,35 @@ describe("Type builders", () => {
         }
         if (property === "length") {
           return 1;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const pattern = createBlockDynamicPattern({
+      parts: parts as never,
+    });
+
+    expect(pattern.parts).toEqual([
+      {
+        rule: BLOCK_RULE_NONE,
+        faces: [],
+        aabbs: [],
+        isTransparent: [false, false, false, false, false, false],
+        worldSpace: true,
+      },
+    ]);
+  });
+
+  it("salvages empty-iterator length-zero dynamic pattern part entries via keys", () => {
+    const parts = new Proxy([{ worldSpace: true }], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          return function* () {
+            return;
+          };
+        }
+        if (property === "length") {
+          return 0;
         }
         return Reflect.get(target, property, receiver);
       },
@@ -5604,6 +5713,70 @@ describe("BlockRuleEvaluator", () => {
         access
       )
     ).toBe(true);
+  });
+
+  it("salvages empty-iterator length-zero combination collections via keys", () => {
+    const access = {
+      getVoxel: () => 5,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+    const malformedRules = new Proxy(
+      [
+        {
+          type: "simple",
+          offset: [0, 0, 0],
+          id: 5,
+        },
+      ],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.And,
+          rules: malformedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(true);
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.Or,
+          rules: malformedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(true);
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.Not,
+          rules: malformedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(false);
   });
 
   it("sanitizes empty-iterator ownKeys-trapped combination collections to empty semantics", () => {
