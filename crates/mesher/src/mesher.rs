@@ -46,6 +46,10 @@ pub struct Block {
     pub has_diagonal_faces: bool,
     #[serde(skip, default)]
     pub has_cardinal_faces: bool,
+    #[serde(skip, default)]
+    pub cardinal_face_ranges: [UV; 6],
+    #[serde(skip, default)]
+    pub cardinal_face_ranges_computed: bool,
 }
 
 impl Block {
@@ -54,6 +58,7 @@ impl Block {
         let mut has_standard_faces = false;
         let mut has_diagonal_faces = false;
         let mut has_cardinal_faces = false;
+        let mut cardinal_face_ranges = std::array::from_fn(|_| UV::default());
         for face in &mut self.faces {
             face.compute_name_lower();
             if face.dir == [0, 0, 0] {
@@ -61,11 +66,16 @@ impl Block {
             }
             if is_cardinal_face_dir(face.dir) {
                 has_cardinal_faces = true;
-                has_standard_faces = true;
-                continue;
             }
-            if matches!(face.get_name_lower(), "py" | "ny" | "px" | "nx" | "pz" | "nz") {
+
+            let face_index = if let Some(face_index) = cardinal_face_index_from_dir(face.dir) {
+                Some(face_index)
+            } else {
+                cardinal_face_index(face.get_name_lower())
+            };
+            if let Some(face_index) = face_index {
                 has_standard_faces = true;
+                cardinal_face_ranges[face_index] = face.range;
             }
         }
         if let Some(patterns) = &mut self.dynamic_patterns {
@@ -81,6 +91,8 @@ impl Block {
         self.has_standard_faces_computed = true;
         self.has_diagonal_faces = has_diagonal_faces;
         self.has_cardinal_faces = has_cardinal_faces;
+        self.cardinal_face_ranges = cardinal_face_ranges;
+        self.cardinal_face_ranges_computed = true;
     }
 
     pub fn is_full_cube(&self) -> bool {
@@ -729,13 +741,22 @@ fn collect_cardinal_face_ranges(original_faces: &[BlockFace]) -> [UV; 6] {
     ranges
 }
 
+#[inline]
+fn get_cardinal_face_ranges(block: &Block) -> [UV; 6] {
+    if block.cardinal_face_ranges_computed {
+        block.cardinal_face_ranges
+    } else {
+        collect_cardinal_face_ranges(&block.faces)
+    }
+}
+
 fn create_fluid_faces<S: VoxelAccess>(
     vx: i32,
     vy: i32,
     vz: i32,
     fluid_id: u32,
     space: &S,
-    original_faces: &[BlockFace],
+    block: &Block,
     registry: &Registry,
 ) -> [BlockFace; 6] {
     let corner_nxnz: [[i32; 2]; 3] = [[-1, 0], [0, -1], [-1, -1]];
@@ -755,7 +776,7 @@ fn create_fluid_faces<S: VoxelAccess>(
     let h_pxpz =
         calculate_fluid_corner_height(vx, vy, vz, 1, 1, &corner_pxpz, fluid_id, space, registry)
             - FLUID_SURFACE_OFFSET;
-    let ranges = collect_cardinal_face_ranges(original_faces);
+    let ranges = get_cardinal_face_ranges(block);
 
     [
         BlockFace {
@@ -1608,7 +1629,7 @@ fn for_each_meshing_face<S: VoxelAccess, F: FnMut(&BlockFace, bool)>(
     mut visit: F,
 ) {
     if block.is_fluid && has_standard_six_faces(block) {
-        let faces = create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry);
+        let faces = create_fluid_faces(vx, vy, vz, block.id, space, block, registry);
         for face in faces.iter() {
             visit(face, false);
         }
@@ -2465,7 +2486,7 @@ pub fn mesh_space<S: VoxelAccess>(
                 };
 
                 if is_fluid && has_standard_six_faces(block) {
-                    let faces = create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry);
+                    let faces = create_fluid_faces(vx, vy, vz, block.id, space, block, registry);
                     for face in faces.iter() {
                         process_mesh_face(face, false);
                     }
@@ -2724,13 +2745,13 @@ mod tests {
             BlockFace {
                 name: "PY".to_string(),
                 name_lower: "py".to_string(),
-                range: py_range.clone(),
+                range: py_range,
                 ..BlockFace::default()
             },
             BlockFace {
                 name: "pz".to_string(),
                 name_lower: "pz".to_string(),
-                range: pz_range.clone(),
+                range: pz_range,
                 ..BlockFace::default()
             },
         ]);
@@ -2765,6 +2786,8 @@ mod tests {
             has_standard_faces_computed: false,
             has_diagonal_faces: false,
             has_cardinal_faces: false,
+            cardinal_face_ranges: std::array::from_fn(|_| UV::default()),
+            cardinal_face_ranges_computed: false,
         }
     }
 
@@ -2825,7 +2848,7 @@ mod tests {
         };
         let ranges = collect_cardinal_face_ranges(&[BlockFace {
             name: "PY".to_string(),
-            range: py_range.clone(),
+            range: py_range,
             ..BlockFace::default()
         }]);
 

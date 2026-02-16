@@ -1721,6 +1721,8 @@ impl Block {
             has_standard_faces_computed: false,
             has_diagonal_faces: false,
             has_cardinal_faces: false,
+            cardinal_face_ranges: std::array::from_fn(|_| voxelize_core::UV::default()),
+            cardinal_face_ranges_computed: false,
         }
     }
 
