@@ -46,6 +46,9 @@ impl SystemTimings {
     }
 
     pub fn get_summary(&self) -> HashMap<String, SystemStats> {
+        if self.samples.is_empty() {
+            return HashMap::new();
+        }
         let mut summary = HashMap::with_capacity(self.samples.len());
         for (name, samples) in self.samples.iter() {
             if samples.is_empty() {
@@ -195,13 +198,7 @@ pub fn get_timing_summary_for_world(world_name: &str) -> HashMap<String, SystemS
 pub fn get_all_world_names() -> Vec<String> {
     WORLD_TIMINGS
         .read()
-        .map(|wt| {
-            let mut world_names = Vec::with_capacity(wt.len());
-            for name in wt.keys() {
-                world_names.push(name.clone());
-            }
-            world_names
-        })
+        .map(|wt| wt.keys().cloned().collect())
         .unwrap_or_default()
 }
 
