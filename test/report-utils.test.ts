@@ -132,6 +132,20 @@ describe("report-utils", () => {
     expect(parseJsonOutput(revokedStringWrapper as never)).toBeNull();
   });
 
+  it("does not coerce non-string objects during output parsing", () => {
+    let didCallToString = false;
+    const nonStringObject = {
+      toString() {
+        didCallToString = true;
+        throw new Error("toString trap");
+      },
+    };
+
+    expect(() => parseJsonOutput(nonStringObject as never)).not.toThrow();
+    expect(parseJsonOutput(nonStringObject as never)).toBeNull();
+    expect(didCallToString).toBe(false);
+  });
+
   it("ignores primitive json values in output parsing", () => {
     expect(parseJsonOutput("true")).toBeNull();
     expect(parseJsonOutput("123")).toBeNull();

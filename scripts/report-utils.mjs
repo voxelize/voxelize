@@ -32,14 +32,22 @@ const isArrayValue = (value) => {
   }
 };
 
+const isStringObjectValue = (value) => {
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+
+  try {
+    return value instanceof String;
+  } catch {
+    return false;
+  }
+};
+
 export const parseJsonOutput = (value) => {
   let outputValue = value;
   if (typeof outputValue !== "string") {
-    if (
-      outputValue === null ||
-      outputValue === undefined ||
-      typeof outputValue !== "object"
-    ) {
+    if (!isStringObjectValue(outputValue)) {
       return null;
     }
 
