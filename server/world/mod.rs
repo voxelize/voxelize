@@ -750,7 +750,16 @@ impl World {
                 }
             };
             let time_per_day = world.config().time_per_day as f32;
-            world.stats_mut().set_time(payload.time % time_per_day);
+            if !time_per_day.is_finite() || time_per_day <= 0.0 {
+                warn!(
+                    "Ignoring set-time request because time_per_day is invalid: {}",
+                    time_per_day
+                );
+                return;
+            }
+            world
+                .stats_mut()
+                .set_time(payload.time.rem_euclid(time_per_day));
         });
 
         world.set_method_handle("vox-builtin:update-block-entity", |world, _, payload| {
