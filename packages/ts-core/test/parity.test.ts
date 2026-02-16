@@ -1549,6 +1549,35 @@ describe("BlockRotation", () => {
     expect(rotation.axis).toBe(2);
   });
 
+  it("sanitizes axis setter payloads and malformed contexts without throwing", () => {
+    const rotation = BlockRotation.py(Math.PI / 2);
+    const trapDrivenAxis = {
+      [Symbol.toPrimitive]() {
+        throw new Error("axis setter trap");
+      },
+    };
+
+    expect(() => {
+      rotation.axis = trapDrivenAxis as never;
+    }).not.toThrow();
+    expect(rotation.axis).toBe(PY_ROTATION);
+
+    const axisSetter = Object.getOwnPropertyDescriptor(
+      BlockRotation.prototype,
+      "axis"
+    )?.set;
+    if (typeof axisSetter !== "function") {
+      throw new Error("Expected BlockRotation axis setter.");
+    }
+    const revokedRotation = (() => {
+      const rotationProxy = Proxy.revocable(BlockRotation.py(0), {});
+      rotationProxy.revoke();
+      return rotationProxy.proxy;
+    })();
+
+    expect(() => axisSetter.call(revokedRotation as never, 4)).not.toThrow();
+  });
+
   it("supports uppercase constructor aliases", () => {
     expect(BlockRotation.PX(0).axis).toBe(2);
     expect(BlockRotation.NX(0).axis).toBe(3);

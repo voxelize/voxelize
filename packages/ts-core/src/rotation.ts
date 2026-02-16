@@ -303,7 +303,13 @@ export class BlockRotation {
   }
 
   set axis(axis: number) {
-    this.value = axis;
+    const normalizedAxis =
+      typeof axis === "number" && Number.isFinite(axis) ? axis : PY_ROTATION;
+    try {
+      this.value = normalizedAxis;
+    } catch {
+      // no-op when context is not writable
+    }
   }
 
   static px(yRotation = 0): BlockRotation {
