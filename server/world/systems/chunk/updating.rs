@@ -228,7 +228,11 @@ fn process_pending_updates(
                 continue;
             }
             let current_id = BlockUtils::extract_id(current_raw);
-            let current_type = registry.get_block_by_id(current_id);
+            let current_type = if current_id == updated_id {
+                updated_type
+            } else {
+                registry.get_block_by_id(current_id)
+            };
             if updated_type.id == 0 && current_type.id == 0 {
                 continue;
             }
