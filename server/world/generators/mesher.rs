@@ -351,13 +351,13 @@ impl Mesher {
                                 );
 
                                 if let Some(light_queues) = light_queues.as_mut() {
-                                    for (queue, subqueue) in
+                                    for (queue, mut subqueue) in
                                         light_queues.iter_mut().zip(light_subqueues)
                                     {
                                         if queue.is_empty() {
                                             *queue = subqueue;
                                         } else if !subqueue.is_empty() {
-                                            queue.extend(subqueue);
+                                            queue.append(&mut subqueue);
                                         }
                                     }
                                 } else {
