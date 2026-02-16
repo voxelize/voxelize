@@ -164,21 +164,23 @@ fn send_to_transports(transports: &Transports, payload: Bytes) {
 }
 
 #[inline]
-fn take_client_events_to_send(client_events: &mut Vec<EventProtocol>) -> Option<Vec<EventProtocol>> {
+fn take_client_events_to_send(
+    client_events: &mut Vec<EventProtocol>,
+) -> Option<Result<Vec<EventProtocol>, EventProtocol>> {
     if client_events.is_empty() {
         return None;
     }
     if client_events.len() == 1 {
         if let Some(single_event) = client_events.pop() {
-            return Some(vec![single_event]);
+            return Some(Err(single_event));
         }
         return None;
     }
     let next_client_event_capacity = client_events.capacity();
-    Some(std::mem::replace(
+    Some(Ok(std::mem::replace(
         client_events,
         Vec::with_capacity(next_client_event_capacity),
-    ))
+    )))
 }
 
 impl<'a> System<'a> for EventsSystem {
@@ -495,11 +497,21 @@ impl<'a> System<'a> for EventsSystem {
         if touched_clients.len() == 1 {
             if let Some(id) = touched_clients.pop() {
                 if let Some(client_events) = dispatch_map.get_mut(&id) {
-                    if let Some(client_events_to_send) = take_client_events_to_send(client_events) {
+                    if let Some(client_events_to_send) = take_client_events_to_send(client_events)
+                    {
                         if let Some(client) = clients.get(&id) {
-                            let message = Message::new(&MessageType::Event)
-                                .events_owned(client_events_to_send)
-                                .build();
+                            let message = match client_events_to_send {
+                                Ok(events_to_send) => {
+                                    Message::new(&MessageType::Event)
+                                        .events_owned(events_to_send)
+                                        .build()
+                                }
+                                Err(single_event) => {
+                                    Message::new(&MessageType::Event)
+                                        .event_owned(single_event)
+                                        .build()
+                                }
+                            };
                             let encoded = Bytes::from(encode_message(&message));
                             let _ = client.sender.send(encoded);
                         }
@@ -516,9 +528,14 @@ impl<'a> System<'a> for EventsSystem {
                 continue;
             };
             if let Some(client) = clients.get(&id) {
-                let message = Message::new(&MessageType::Event)
-                    .events_owned(client_events_to_send)
-                    .build();
+                let message = match client_events_to_send {
+                    Ok(events_to_send) => Message::new(&MessageType::Event)
+                        .events_owned(events_to_send)
+                        .build(),
+                    Err(single_event) => Message::new(&MessageType::Event)
+                        .event_owned(single_event)
+                        .build(),
+                };
                 let encoded = Bytes::from(encode_message(&message));
                 let _ = client.sender.send(encoded);
             }

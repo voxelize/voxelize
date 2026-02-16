@@ -266,6 +266,7 @@ pub struct MessageBuilder {
 
     peers: Option<Vec<PeerProtocol>>,
     entities: Option<Vec<EntityProtocol>>,
+    single_event: Option<EventProtocol>,
     events: Option<Vec<EventProtocol>>,
     single_chunk: Option<ChunkProtocol>,
     chunks: Option<Vec<ChunkProtocol>>,
@@ -365,6 +366,7 @@ impl MessageBuilder {
 
     /// Configure the set of events to send in this message.
     pub fn events(mut self, events: &[EventProtocol]) -> Self {
+        self.single_event = None;
         if events.is_empty() {
             self.events = None;
         } else {
@@ -373,8 +375,15 @@ impl MessageBuilder {
         self
     }
 
+    pub fn event_owned(mut self, event: EventProtocol) -> Self {
+        self.single_event = Some(event);
+        self.events = None;
+        self
+    }
+
     /// Configure owned events data of the protocol.
     pub fn events_owned(mut self, events: Vec<EventProtocol>) -> Self {
+        self.single_event = None;
         if events.is_empty() {
             self.events = None;
         } else {
@@ -479,7 +488,12 @@ impl MessageBuilder {
             message.entities = mapped;
         }
 
-        if let Some(events) = self.events {
+        if let Some(event) = self.single_event {
+            message.events = vec![protocols::Event {
+                name: event.name,
+                payload: event.payload,
+            }];
+        } else if let Some(events) = self.events {
             let mut mapped = Vec::with_capacity(events.len());
             for event in events {
                 mapped.push(protocols::Event {
@@ -625,5 +639,36 @@ mod tests {
 
         assert_eq!(message.chunks.len(), 1);
         assert_eq!(message.chunks[0].id, "chunk-new");
+    }
+
+    #[test]
+    fn event_owned_sets_single_event_payload() {
+        let message = Message::new(&MessageType::Event)
+            .event_owned(EventProtocol {
+                name: "evt".to_owned(),
+                payload: "{\"ok\":true}".to_owned(),
+            })
+            .build();
+
+        assert_eq!(message.events.len(), 1);
+        assert_eq!(message.events[0].name, "evt");
+        assert_eq!(message.events[0].payload, "{\"ok\":true}");
+    }
+
+    #[test]
+    fn event_owned_overrides_previous_event_list() {
+        let message = Message::new(&MessageType::Event)
+            .events_owned(vec![EventProtocol {
+                name: "old".to_owned(),
+                payload: "{}".to_owned(),
+            }])
+            .event_owned(EventProtocol {
+                name: "new".to_owned(),
+                payload: "{}".to_owned(),
+            })
+            .build();
+
+        assert_eq!(message.events.len(), 1);
+        assert_eq!(message.events[0].name, "new");
     }
 }
