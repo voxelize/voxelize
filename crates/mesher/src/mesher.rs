@@ -1285,7 +1285,7 @@ fn extract_greedy_quads(
     min_v: i32,
     max_v: i32,
 ) -> Vec<GreedyQuad> {
-    let mut quads = Vec::new();
+    let mut quads = Vec::with_capacity(mask.len());
 
     for v in min_v..max_v {
         for u in min_u..max_u {
