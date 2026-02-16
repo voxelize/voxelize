@@ -1,6 +1,7 @@
 pub mod biomes;
 
 use noise::{Curve, Fbm, HybridMulti, MultiFractal, NoiseFn, Perlin, ScaleBias};
+use log::warn;
 use serde::{Deserialize, Serialize};
 use std::f64;
 use voxelize::{
@@ -452,8 +453,23 @@ pub fn setup_terrain_world() -> World {
 
     world.set_method_handle("time", |world, _, payload| {
         let time_per_day = world.config().time_per_day as f32;
-        let new_time: TimeMethodPayload = serde_json::from_str(&payload).unwrap();
-        world.stats_mut().set_time(new_time.time % time_per_day);
+        if !time_per_day.is_finite() || time_per_day <= 0.0 {
+            warn!(
+                "Ignoring terrain time update because time_per_day is invalid: {}",
+                time_per_day
+            );
+            return;
+        }
+        let parsed_time: TimeMethodPayload = match serde_json::from_str(payload) {
+            Ok(parsed_time) => parsed_time,
+            Err(error) => {
+                warn!("Ignoring invalid terrain time payload '{}': {}", payload, error);
+                return;
+            }
+        };
+        world
+            .stats_mut()
+            .set_time(parsed_time.time.rem_euclid(time_per_day));
     });
 
     world

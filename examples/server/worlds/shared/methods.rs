@@ -1,3 +1,4 @@
+use log::warn;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use specs::{Builder, Join, WorldExt};
@@ -32,12 +33,33 @@ struct SpawnMethodPayload {
 pub fn setup_methods(world: &mut World) {
     world.set_method_handle("time", |world, _, payload| {
         let time_per_day = world.config().time_per_day as f32;
-        let new_time: TimeMethodPayload = serde_json::from_str(&payload).unwrap();
-        world.stats_mut().set_time(new_time.time % time_per_day);
+        if !time_per_day.is_finite() || time_per_day <= 0.0 {
+            warn!(
+                "Ignoring time update because time_per_day is invalid: {}",
+                time_per_day
+            );
+            return;
+        }
+        let parsed_time: TimeMethodPayload = match serde_json::from_str(payload) {
+            Ok(parsed_time) => parsed_time,
+            Err(error) => {
+                warn!("Ignoring invalid time payload '{}': {}", payload, error);
+                return;
+            }
+        };
+        world
+            .stats_mut()
+            .set_time(parsed_time.time.rem_euclid(time_per_day));
     });
 
     world.set_method_handle("spawn-bot", |world, _, payload| {
-        let data: SpawnMethodPayload = serde_json::from_str(&payload).unwrap();
+        let data: SpawnMethodPayload = match serde_json::from_str(payload) {
+            Ok(data) => data,
+            Err(error) => {
+                warn!("Ignoring invalid spawn-bot payload '{}': {}", payload, error);
+                return;
+            }
+        };
         world.spawn_entity_at("bot", &data.position);
     });
 
@@ -56,28 +78,50 @@ pub fn setup_methods(world: &mut World) {
             .collect::<Vec<_>>();
 
         for entity in bot_entities {
-            world
-                .ecs_mut()
-                .delete_entity(entity)
-                .expect("Failed to delete entity");
+            if let Err(error) = world.ecs_mut().delete_entity(entity) {
+                warn!("Failed to delete bot entity {:?}: {:?}", entity, error);
+            }
         }
     });
 
     world.set_method_handle("add-floating-text", |world, _, payload| {
-        let data: AddFloatingTextPayload = serde_json::from_str(&payload).unwrap();
+        let data: AddFloatingTextPayload = match serde_json::from_str(payload) {
+            Ok(data) => data,
+            Err(error) => {
+                warn!(
+                    "Ignoring invalid add-floating-text payload '{}': {}",
+                    payload, error
+                );
+                return;
+            }
+        };
         let text = data.text;
 
         if let Some(entity) = world.spawn_entity_at("floating-text", &data.position) {
-            world
+            if let Err(error) = world
                 .ecs_mut()
                 .write_storage::<TextComp>()
                 .insert(entity, TextComp::new(&text))
-                .unwrap();
+            {
+                warn!(
+                    "Failed to insert TextComp for floating text entity {:?}: {:?}",
+                    entity, error
+                );
+            }
         }
     });
 
     world.set_method_handle("remove-floating-text", |world, _, payload| {
-        let data: RemoveFloatingTextPayload = serde_json::from_str(&payload).unwrap();
+        let data: RemoveFloatingTextPayload = match serde_json::from_str(payload) {
+            Ok(data) => data,
+            Err(error) => {
+                warn!(
+                    "Ignoring invalid remove-floating-text payload '{}': {}",
+                    payload, error
+                );
+                return;
+            }
+        };
         let id = data.id;
         let entities = world.ecs().entities();
         let ids = world.ecs().read_storage::<IDComp>();
@@ -93,10 +137,12 @@ pub fn setup_methods(world: &mut World) {
         drop((entities, ids));
 
         for entity in to_delete {
-            world
-                .ecs_mut()
-                .delete_entity(entity)
-                .expect("Failed to delete entity");
+            if let Err(error) = world.ecs_mut().delete_entity(entity) {
+                warn!(
+                    "Failed to delete floating text entity {:?}: {:?}",
+                    entity, error
+                );
+            }
         }
     });
 }

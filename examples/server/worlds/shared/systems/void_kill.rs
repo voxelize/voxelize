@@ -1,3 +1,4 @@
+use log::warn;
 use specs::{Entities, ReadStorage, System};
 use voxelize::RigidBodyComp;
 
@@ -15,7 +16,9 @@ impl<'a> System<'a> for VoidKillSystem {
             let pos = body.0.get_position();
 
             if pos.1 < -100.0 {
-                entities.delete(ent).unwrap();
+                if let Err(error) = entities.delete(ent) {
+                    warn!("Failed to delete voided entity {:?}: {:?}", ent, error);
+                }
             }
         }
     }

@@ -1,3 +1,4 @@
+use log::warn;
 use specs::{Entities, Join, System, WriteStorage};
 
 use crate::worlds::flat::comps::CountdownComp;
@@ -14,7 +15,12 @@ impl<'a> System<'a> for CountdownSystem {
             countdown.tick();
 
             if countdown.finished {
-                entities.delete(entity).unwrap();
+                if let Err(error) = entities.delete(entity) {
+                    warn!(
+                        "Failed to delete countdown entity {:?}: {:?}",
+                        entity, error
+                    );
+                }
             }
         }
     }

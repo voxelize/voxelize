@@ -2,6 +2,7 @@ mod comps;
 mod systems;
 
 use log::info;
+use log::warn;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use specs::{Builder, Component, DispatcherBuilder, NullStorage, VecStorage, WorldExt};
@@ -88,7 +89,13 @@ pub fn setup_flat_world(registry: &Registry) -> World {
     });
 
     world.set_method_handle("spawn", |world, _, payload| {
-        let data: SpawnMethodPayload = serde_json::from_str(&payload).unwrap();
+        let data: SpawnMethodPayload = match serde_json::from_str(payload) {
+            Ok(data) => data,
+            Err(error) => {
+                warn!("Ignoring invalid spawn payload '{}': {}", payload, error);
+                return;
+            }
+        };
         world.spawn_entity_at("box", &data.position);
     });
 
