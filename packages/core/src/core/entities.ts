@@ -2,6 +2,7 @@ import { MessageProtocol } from "@voxelize/protocol";
 import { Group, Vector3 } from "three";
 
 import { JsonValue } from "../types";
+import { BlockUtils } from "../utils/block-utils";
 import { toLowerCaseIfNeeded } from "../utils/string-utils";
 import { NetIntercept } from "./network";
 
@@ -94,7 +95,7 @@ export class Entities extends Group implements NetIntercept {
       const { id, type, metadata, operation } = entity;
 
       // ignore all block entities as they are handled by world
-      if (type.startsWith("block::")) {
+      if (BlockUtils.isBlockEntityType(type)) {
         continue;
       }
 

@@ -24,4 +24,12 @@ describe("BlockUtils.insertStage", () => {
     expect((raw >> 20) & 0xf).toBe(0xb);
     expect(BlockUtils.extractStage(raw)).toBe(0xf);
   });
+
+  it("detects block entity type prefix", () => {
+    expect(BlockUtils.isBlockEntityType("block::stone::1::2::3")).toBe(true);
+    expect(BlockUtils.isBlockEntityType("block::")).toBe(true);
+    expect(BlockUtils.isBlockEntityType("entity::block::stone")).toBe(false);
+    expect(BlockUtils.isBlockEntityType("block:stone")).toBe(false);
+    expect(BlockUtils.isBlockEntityType("")).toBe(false);
+  });
 });

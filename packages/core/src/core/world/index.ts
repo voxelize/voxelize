@@ -4161,7 +4161,7 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
       const entity = entities[entityIndex];
       const { id, type, metadata, operation } = entity;
 
-      if (!type.startsWith("block::")) {
+      if (!BlockUtils.isBlockEntityType(type)) {
         continue;
       }
 

@@ -12,6 +12,7 @@ const ROTATION_MASK = 0xfff0ffff;
 const Y_ROTATION_MASK = 0xff0fffff;
 const ROTATION_VALUES_MASK = ROTATION_MASK & Y_ROTATION_MASK;
 const STAGE_MASK = 0xf0ffffff;
+const BLOCK_ENTITY_PREFIX_LENGTH = 7;
 
 /**
  * A utility class for extracting and inserting voxel data from and into numbers.
@@ -223,6 +224,19 @@ export class BlockUtils {
   static getBlockEntityId(id: string, voxel: Coords3) {
     const [vx, vy, vz] = voxel;
     return `block::${id}::${vx}::${vy}::${vz}`;
+  }
+
+  static isBlockEntityType(type: string) {
+    return (
+      type.length >= BLOCK_ENTITY_PREFIX_LENGTH &&
+      type.charCodeAt(0) === 98 &&
+      type.charCodeAt(1) === 108 &&
+      type.charCodeAt(2) === 111 &&
+      type.charCodeAt(3) === 99 &&
+      type.charCodeAt(4) === 107 &&
+      type.charCodeAt(5) === 58 &&
+      type.charCodeAt(6) === 58
+    );
   }
 
   private constructor() {
