@@ -2663,9 +2663,35 @@ export const resolveLastOptionValue = (
 
 export const resolveOutputPath = (
   args,
-  cwd = process.cwd(),
+  cwd = null,
   recognizedOptionTokens = []
 ) => {
+  const resolveFallbackCwd = () => {
+    try {
+      const processCwd = process.cwd();
+      if (typeof processCwd === "string" && processCwd.length > 0) {
+        return processCwd;
+      }
+      if (typeof processCwd === "string") {
+        return processCwd;
+      }
+    } catch {
+      // fall through to root fallback
+    }
+
+    try {
+      const executableRoot = path.parse(process.execPath).root;
+      if (typeof executableRoot === "string" && executableRoot.length > 0) {
+        return executableRoot;
+      }
+    } catch {
+      // fall through to static root fallback
+    }
+
+    return "/";
+  };
+
+  const resolvedCwd = typeof cwd === "string" ? cwd : resolveFallbackCwd();
   const outputPathValue = resolveLastOptionValue(
     args,
     "--output",
@@ -2685,8 +2711,15 @@ export const resolveOutputPath = (
     };
   }
 
+  let resolvedOutputPath = null;
+  try {
+    resolvedOutputPath = path.resolve(resolvedCwd, outputPathValue.value);
+  } catch {
+    resolvedOutputPath = path.resolve(resolveFallbackCwd(), outputPathValue.value);
+  }
+
   return {
-    outputPath: path.resolve(cwd, outputPathValue.value),
+    outputPath: resolvedOutputPath,
     error: null,
   };
 };

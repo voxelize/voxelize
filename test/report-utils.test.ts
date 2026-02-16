@@ -421,6 +421,47 @@ describe("report-utils", () => {
     );
     expect(resolved.error).toBeNull();
     expect(resolved.outputPath).toBe("/workspace/report.json");
+    const trapDrivenCwd = {
+      [Symbol.toPrimitive]() {
+        throw new Error("cwd trap");
+      },
+    };
+    const resolvedFromTrapDrivenCwd = resolveOutputPath(
+      ["--json", "--output", "./report.json"],
+      trapDrivenCwd as never
+    );
+    expect(resolvedFromTrapDrivenCwd.error).toBeNull();
+    expect(resolvedFromTrapDrivenCwd.outputPath).not.toBeNull();
+    if (resolvedFromTrapDrivenCwd.outputPath === null) {
+      throw new Error("Expected fallback output path from trap-driven cwd.");
+    }
+    expect(path.basename(resolvedFromTrapDrivenCwd.outputPath)).toBe("report.json");
+    const originalProcessCwdDescriptor = Object.getOwnPropertyDescriptor(
+      process,
+      "cwd"
+    );
+    Object.defineProperty(process, "cwd", {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new Error("cwd trap");
+      },
+    });
+    try {
+      const resolvedFromThrowingProcessCwd = resolveOutputPath([
+        "--json",
+        "--output",
+        "./report.json",
+      ]);
+      expect(resolvedFromThrowingProcessCwd.error).toBeNull();
+      expect(resolvedFromThrowingProcessCwd.outputPath).toBe(
+        path.resolve(path.parse(process.execPath).root || "/", "./report.json")
+      );
+    } finally {
+      if (originalProcessCwdDescriptor !== undefined) {
+        Object.defineProperty(process, "cwd", originalProcessCwdDescriptor);
+      }
+    }
 
     const missingValue = resolveOutputPath(["--json", "--output"], "/workspace");
     expect(missingValue.error).toBe("Missing value for --output option.");
