@@ -8128,6 +8128,79 @@ describe("report-utils", () => {
     expect(
       emptyIteratorLengthAndReadTrapPrecomputedValidation.validationErrorCode
     ).toBe("unsupported_options");
+    const ownKeysTrappedLengthReadableAndReadTrapSupportedTokens = new Proxy(
+      ["--json", "--output"],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (property === "0") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const ownKeysTrappedLengthReadableAndReadTrapPrecomputedValidation =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        supportedCliOptions:
+          ownKeysTrappedLengthReadableAndReadTrapSupportedTokens as never,
+      });
+    expect(
+      ownKeysTrappedLengthReadableAndReadTrapPrecomputedValidation.supportedCliOptions
+    ).toEqual(["--json", "--output"]);
+    expect(
+      ownKeysTrappedLengthReadableAndReadTrapPrecomputedValidation.supportedCliOptionCount
+    ).toBe(2);
+    expect(
+      ownKeysTrappedLengthReadableAndReadTrapPrecomputedValidation.unknownOptions
+    ).toEqual(["--mystery"]);
+    expect(
+      ownKeysTrappedLengthReadableAndReadTrapPrecomputedValidation.unknownOptionCount
+    ).toBe(1);
+    expect(
+      ownKeysTrappedLengthReadableAndReadTrapPrecomputedValidation.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
+    expect(
+      ownKeysTrappedLengthReadableAndReadTrapPrecomputedValidation.validationErrorCode
+    ).toBe("unsupported_options");
+    const ownKeysTrappedLengthReadableAndReadTrapPrecomputedWithoutCatalogValidation =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions: "--json" as never,
+        supportedCliOptions:
+          ownKeysTrappedLengthReadableAndReadTrapSupportedTokens as never,
+      });
+    expect(
+      ownKeysTrappedLengthReadableAndReadTrapPrecomputedWithoutCatalogValidation.supportedCliOptions
+    ).toEqual(["--output"]);
+    expect(
+      ownKeysTrappedLengthReadableAndReadTrapPrecomputedWithoutCatalogValidation.supportedCliOptionCount
+    ).toBe(1);
+    expect(
+      ownKeysTrappedLengthReadableAndReadTrapPrecomputedWithoutCatalogValidation.unknownOptions
+    ).toEqual(["--mystery"]);
+    expect(
+      ownKeysTrappedLengthReadableAndReadTrapPrecomputedWithoutCatalogValidation.unknownOptionCount
+    ).toBe(1);
+    expect(
+      ownKeysTrappedLengthReadableAndReadTrapPrecomputedWithoutCatalogValidation.unsupportedOptionsError
+    ).toBe("Unsupported option(s): --mystery. Supported options: --output.");
+    expect(
+      ownKeysTrappedLengthReadableAndReadTrapPrecomputedWithoutCatalogValidation.validationErrorCode
+    ).toBe("unsupported_options");
     const emptyIteratorLengthAndOwnKeysTrapSupportedTokens = new Proxy(
       ["--json", "--output"],
       {
