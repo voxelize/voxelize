@@ -2439,22 +2439,9 @@ pub fn mesh_space<S: VoxelAccess>(
                     }
                 }
 
-                let faces: Vec<(BlockFace, bool)> =
-                    if is_fluid && has_standard_six_faces(block) {
-                        create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
-                            .into_iter()
-                            .map(|f| (f, false))
-                            .collect()
-                    } else if block.dynamic_patterns.is_some() {
-                        get_dynamic_faces(block, [vx, vy, vz], space, &rotation)
-                    } else {
-                        block.faces.iter().cloned().map(|f| (f, false)).collect()
-                    };
-
                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
                 let block_aabb = AABB::union_all(&block.aabbs);
-
-                for (face, world_space) in faces.iter() {
+                let mut process_mesh_face = |face: &BlockFace, world_space: bool| {
                     let geometry = if face.isolated {
                         let key = build_isolated_geo_key(
                             block.get_name_lower(),
@@ -2503,8 +2490,24 @@ pub fn mesh_space<S: VoxelAccess>(
                         &mut geometry.uvs,
                         &mut geometry.lights,
                         min,
-                        *world_space,
+                        world_space,
                     );
+                };
+
+                if is_fluid && has_standard_six_faces(block) {
+                    let faces = create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry);
+                    for face in faces.iter() {
+                        process_mesh_face(face, false);
+                    }
+                } else if block.dynamic_patterns.is_some() {
+                    let faces = get_dynamic_faces(block, [vx, vy, vz], space, &rotation);
+                    for (face, world_space) in faces.iter() {
+                        process_mesh_face(face, *world_space);
+                    }
+                } else {
+                    for face in block.faces.iter() {
+                        process_mesh_face(face, false);
+                    }
                 }
             }
         }
