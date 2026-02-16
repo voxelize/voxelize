@@ -1934,6 +1934,18 @@ impl World {
                 .min(bulk.vy.len())
                 .min(bulk.vz.len())
                 .min(bulk.voxels.len());
+            if max_bulk_len == 1 {
+                let vx = bulk.vx[0];
+                let vy = bulk.vy[0];
+                let vz = bulk.vz[0];
+                let voxel = bulk.voxels[0];
+                let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+
+                if chunks.is_within_world(&coords) {
+                    chunks.update_voxel(&Vec3(vx, vy, vz), voxel);
+                }
+                return;
+            }
             let bulk_updates_initial_capacity = max_bulk_len.min(128);
             let mut bulk_updates: Option<Vec<(Vec3<i32>, u32)>> = None;
             for (((&vx, &vy), &vz), &voxel) in bulk
@@ -1957,6 +1969,16 @@ impl World {
                 chunks.update_voxels(&bulk_updates);
             }
         } else {
+            if data.updates.len() == 1 {
+                let update = &data.updates[0];
+                let coords =
+                    ChunkUtils::map_voxel_to_chunk(update.vx, update.vy, update.vz, chunk_size);
+
+                if chunks.is_within_world(&coords) {
+                    chunks.update_voxel(&Vec3(update.vx, update.vy, update.vz), update.voxel);
+                }
+                return;
+            }
             let updates_initial_capacity = data.updates.len().min(64);
             let mut staged_updates: Option<Vec<(Vec3<i32>, u32)>> = None;
             for update in data.updates {
