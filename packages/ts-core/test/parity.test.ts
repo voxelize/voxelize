@@ -561,6 +561,15 @@ describe("LightUtils", () => {
   it("rejects invalid light channel indices", () => {
     expect(() => lightColorFromIndex(-1)).toThrowError(RangeError);
     expect(() => lightColorFromIndex(4)).toThrowError(RangeError);
+
+    const trapDrivenIndex = {
+      [Symbol.toPrimitive]() {
+        throw new Error("index coercion trap");
+      },
+    };
+    expect(() => lightColorFromIndex(trapDrivenIndex as never)).toThrowError(
+      RangeError
+    );
   });
 });
 
