@@ -2,6 +2,7 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use byteorder::{ByteOrder, LittleEndian};
 use hashbrown::{hash_map::Entry, HashMap, HashSet};
 use libflate::zlib::{Decoder, Encoder};
+use log::warn;
 use serde::{Deserialize, Serialize};
 use specs::Entity;
 use std::sync::Arc;
@@ -144,20 +145,25 @@ impl Chunks {
 
     /// Create a new instance of a chunk manager.
     pub fn new(config: &WorldConfig) -> Self {
-        let folder = if config.saving {
+        let mut config_copy = config.to_owned();
+        let folder = if config_copy.saving {
             let mut folder = PathBuf::from(&config.save_dir);
             folder.push("chunks");
 
-            fs::create_dir_all(&folder).expect("Unable to create chunks directory...");
-
-            Some(folder)
+            if let Err(error) = fs::create_dir_all(&folder) {
+                warn!("Unable to create chunks directory {:?}: {}", folder, error);
+                config_copy.saving = false;
+                None
+            } else {
+                Some(folder)
+            }
         } else {
             None
         };
 
         Self {
             folder,
-            config: config.to_owned(),
+            config: config_copy,
             ..Default::default()
         }
     }
