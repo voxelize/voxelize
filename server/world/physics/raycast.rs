@@ -143,8 +143,13 @@ pub fn trace(
     let ds = (*dx * *dx + *dy * *dy + *dz * *dz).sqrt();
 
     if approx_equals(ds, 0.0) {
-        // ?should return an error?
-        panic!("Can't raycast along a zero vector");
+        hit_norm.0 = 0;
+        hit_norm.1 = 0;
+        hit_norm.2 = 0;
+        hit_pos.0 = *px;
+        hit_pos.1 = *py;
+        hit_pos.2 = *pz;
+        return false;
     }
 
     *dx /= ds;
@@ -154,4 +159,54 @@ pub fn trace(
     trace_ray(
         get_voxel, *px, *py, *pz, *dx, *dy, *dz, max_d, hit_pos, hit_norm,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::trace;
+    use crate::Vec3;
+
+    #[test]
+    fn trace_returns_false_for_zero_direction_without_panicking() {
+        let mut origin = Vec3(0.0, 0.0, 0.0);
+        let mut direction = Vec3(0.0, 0.0, 0.0);
+        let mut hit_pos = Vec3(99.0, 99.0, 99.0);
+        let mut hit_norm = Vec3(1, 1, 1);
+        let get_voxel = |_x: i32, _y: i32, _z: i32| false;
+
+        let hit = trace(
+            10.0,
+            &get_voxel,
+            &mut origin,
+            &mut direction,
+            &mut hit_pos,
+            &mut hit_norm,
+        );
+
+        assert!(!hit);
+        assert_eq!(hit_pos, origin);
+        assert_eq!(hit_norm, Vec3(0, 0, 0));
+    }
+
+    #[test]
+    fn trace_hits_expected_voxel_and_surface_normal() {
+        let mut origin = Vec3(0.5, 0.5, 0.5);
+        let mut direction = Vec3(1.0, 0.0, 0.0);
+        let mut hit_pos = Vec3(0.0, 0.0, 0.0);
+        let mut hit_norm = Vec3(0, 0, 0);
+        let get_voxel = |x: i32, y: i32, z: i32| x == 2 && y == 0 && z == 0;
+
+        let hit = trace(
+            10.0,
+            &get_voxel,
+            &mut origin,
+            &mut direction,
+            &mut hit_pos,
+            &mut hit_norm,
+        );
+
+        assert!(hit);
+        assert_eq!(hit_norm, Vec3(-1, 0, 0));
+        assert!(hit_pos.0 >= 2.0 && hit_pos.0 <= 3.0);
+    }
 }
