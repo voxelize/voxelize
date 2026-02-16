@@ -22199,6 +22199,34 @@ describe("report-utils", () => {
         message: "Step failed with exit code 2.",
       },
     ]);
+    const emptyIteratorLengthZeroIndexedSteps = new Proxy(iteratorTrapSteps, {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          return function* () {
+            return;
+          };
+        }
+        if (property === "length") {
+          return 0;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    expect(
+      summarizeStepFailureResults(emptyIteratorLengthZeroIndexedSteps as never)
+    ).toEqual([
+      {
+        name: "step-valid",
+        scriptName: "check-valid.mjs",
+        supportsNoBuild: true,
+        stepIndex: 1,
+        checkCommand: "",
+        checkArgs: [],
+        checkArgCount: 0,
+        exitCode: 2,
+        message: "Step failed with exit code 2.",
+      },
+    ]);
     const lengthAndOwnKeysTrapSteps = new Proxy(iteratorTrapSteps, {
       ownKeys() {
         throw new Error("ownKeys trap");
@@ -22550,6 +22578,34 @@ describe("report-utils", () => {
       },
     });
     expect(summarizeCheckFailureResults(iteratorTrapChecks as never)).toEqual([
+      {
+        name: "check-valid",
+        scriptName: "check-valid.mjs",
+        supportsNoBuild: true,
+        checkIndex: 1,
+        checkCommand: "",
+        checkArgs: [],
+        checkArgCount: 0,
+        exitCode: 2,
+        message: "Preflight check failed with exit code 2.",
+      },
+    ]);
+    const emptyIteratorLengthZeroIndexedChecks = new Proxy(iteratorTrapChecks, {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          return function* () {
+            return;
+          };
+        }
+        if (property === "length") {
+          return 0;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    expect(
+      summarizeCheckFailureResults(emptyIteratorLengthZeroIndexedChecks as never)
+    ).toEqual([
       {
         name: "check-valid",
         scriptName: "check-valid.mjs",
