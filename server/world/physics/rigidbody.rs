@@ -162,7 +162,7 @@ impl RigidBodyBuilder {
     /// Create a new RigidBody with the builder pattern.
     pub fn new(aabb: &AABB) -> Self {
         Self {
-            aabb: aabb.to_owned(),
+            aabb: *aabb,
 
             mass: 1.0,
             friction: 1.0,

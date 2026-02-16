@@ -263,7 +263,7 @@ impl Physics {
 
         // cache old position for use in autostepping
         let tmp_box = if body.auto_step {
-            Some(body.aabb.clone())
+            Some(body.aabb)
         } else {
             None
         };
