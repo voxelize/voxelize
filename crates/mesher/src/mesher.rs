@@ -2112,7 +2112,6 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
         i32,
         u32,
         BlockRotation,
-        Block,
         BlockFace,
         UV,
         bool,
@@ -2217,7 +2216,6 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                                 vz,
                                 voxel_id,
                                 rotation.clone(),
-                                block.clone(),
                                 face.clone(),
                                 uv_range,
                                 is_see_through,
@@ -2276,7 +2274,6 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                                     vz,
                                     voxel_id,
                                     rotation.clone(),
-                                    block.clone(),
                                     face.clone(),
                                     uv_range,
                                     is_see_through,
@@ -2347,7 +2344,6 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                 vz,
                 voxel_id,
                 rotation,
-                block,
                 face,
                 uv_range,
                 is_see_through,
@@ -2355,6 +2351,10 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                 world_space,
             ) in non_greedy_faces.drain(..)
             {
+                let block = match registry.get_block_by_id(voxel_id) {
+                    Some(block) => block,
+                    None => continue,
+                };
                 let geometry = if face.isolated {
                     let geo_key = build_isolated_geo_key(
                         block.get_name_lower(),
