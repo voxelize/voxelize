@@ -5417,6 +5417,64 @@ describe("BlockRuleEvaluator", () => {
     ).toBe(true);
   });
 
+  it("sanitizes empty-iterator read-trapped combination collections to empty semantics", () => {
+    const access = {
+      getVoxel: () => 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+    const malformedRules = new Proxy([BLOCK_RULE_NONE], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          return function* () {
+            return;
+          };
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (property === "0") {
+          throw new Error("read trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.And,
+          rules: malformedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(true);
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.Or,
+          rules: malformedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(false);
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.Not,
+          rules: malformedRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(true);
+  });
+
   it("salvages key-based combination entries when length access traps", () => {
     const access = {
       getVoxel: (x: number, y: number, z: number) =>
