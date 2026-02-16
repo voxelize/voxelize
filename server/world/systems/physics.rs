@@ -19,6 +19,12 @@ use crate::{
     Vec3,
 };
 
+#[inline]
+fn take_vec_with_capacity<T>(buffer: &mut Vec<T>) -> Vec<T> {
+    let capacity = buffer.capacity();
+    std::mem::replace(buffer, Vec::with_capacity(capacity))
+}
+
 #[derive(Default)]
 pub struct PhysicsSystem {
     collision_map_buffer: HashMap<ColliderHandle, specs::Entity>,
@@ -138,7 +144,8 @@ impl<'a> System<'a> for PhysicsSystem {
         // Tick the rapier physics engine, and add the collisions to individual entities.
         let collision_events = &mut self.collision_events_buffer;
         physics.step_into(stats.delta, collision_events);
-        for event in collision_events.drain(..) {
+        let collision_events = take_vec_with_capacity(collision_events);
+        for event in collision_events {
             let (ch1, ch2) = match event {
                 CollisionEvent::Started(ch1, ch2, _) => (ch1, ch2),
                 CollisionEvent::Stopped(ch1, ch2, _) => (ch1, ch2),
