@@ -39,9 +39,9 @@ pub struct Block {
     pub aabbs: Vec<AABB>,
     pub dynamic_patterns: Option<Vec<BlockDynamicPattern>>,
     #[serde(skip, default)]
-    has_standard_faces: bool,
+    pub has_standard_faces: bool,
     #[serde(skip, default)]
-    has_standard_faces_computed: bool,
+    pub has_standard_faces_computed: bool,
 }
 
 impl Block {

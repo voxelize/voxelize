@@ -1717,6 +1717,8 @@ impl Block {
             faces,
             aabbs: self.aabbs.clone(),
             dynamic_patterns,
+            has_standard_faces: false,
+            has_standard_faces_computed: false,
         }
     }
 
