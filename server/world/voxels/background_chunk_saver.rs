@@ -105,7 +105,7 @@ impl BackgroundChunkSaver {
 
     fn flush_pending(pending: &mut HashMap<Vec2<i32>, ChunkSaveData>, folder: &PathBuf) {
         let pending = take_map_with_capacity(pending);
-        for (_, data) in pending {
+        for data in pending.into_values() {
             Self::save_chunk_to_disk(data, folder);
         }
     }
