@@ -82,8 +82,9 @@ impl Trees {
 
     pub fn generate(&self, name: &str, at: &Vec3<i32>) -> Vec<VoxelUpdate> {
         let normalized_name = Self::normalized_tree_name(name);
-        let tree = self.trees.get(normalized_name.as_ref()).unwrap();
-        // Panic if the tree doesn't exist
+        let Some(tree) = self.trees.get(normalized_name.as_ref()) else {
+            return Vec::new();
+        };
         let &Tree {
             leaf_radius,
             leaf_height,
@@ -177,14 +178,15 @@ impl Trees {
                     rot_angle,
                     leaf_scale,
                 });
-            } else if symbol == ']' && !stack.is_empty() {
-                let state = stack.pop().unwrap();
-                base = state.base;
-                length = state.length;
-                radius = state.radius;
-                y_angle = state.y_angle;
-                rot_angle = state.rot_angle;
-                leaf_scale = state.leaf_scale;
+            } else if symbol == ']' {
+                if let Some(state) = stack.pop() {
+                    base = state.base;
+                    length = state.length;
+                    radius = state.radius;
+                    y_angle = state.y_angle;
+                    rot_angle = state.rot_angle;
+                    leaf_scale = state.leaf_scale;
+                }
             }
         }
 
@@ -485,5 +487,32 @@ impl TreeBuilder {
             rules: self.rules,
             system_result: system.generate(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{TreeBuilder, Trees};
+    use crate::{LSystem, NoiseOptions, Vec3};
+
+    #[test]
+    fn generate_returns_empty_when_tree_name_is_missing() {
+        let trees = Trees::new(1, &NoiseOptions::default());
+
+        let generated = trees.generate("missing-tree", &Vec3(0, 0, 0));
+
+        assert!(generated.is_empty());
+    }
+
+    #[test]
+    fn generate_ignores_unbalanced_stack_pop_symbols() {
+        let mut trees = Trees::new(1, &NoiseOptions::default());
+        let system = LSystem::new().axiom("]").iterations(0).build();
+        let tree = TreeBuilder::new(1, 2).system(system).build();
+        trees.register("test", tree);
+
+        let generated = trees.generate("test", &Vec3(0, 0, 0));
+
+        assert!(generated.is_empty());
     }
 }
