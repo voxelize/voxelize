@@ -148,6 +148,24 @@ fn send_to_transports(transports: &Transports, payload: Bytes) {
     let _ = first_sender.send(payload);
 }
 
+#[inline]
+fn take_client_events_to_send(client_events: &mut Vec<EventProtocol>) -> Option<Vec<EventProtocol>> {
+    if client_events.is_empty() {
+        return None;
+    }
+    if client_events.len() == 1 {
+        if let Some(single_event) = client_events.pop() {
+            return Some(vec![single_event]);
+        }
+        return None;
+    }
+    let next_client_event_capacity = client_events.capacity();
+    Some(std::mem::replace(
+        client_events,
+        Vec::with_capacity(next_client_event_capacity),
+    ))
+}
+
 impl<'a> System<'a> for EventsSystem {
     type SystemData = (
         ReadExpect<'a, Transports>,
@@ -462,13 +480,8 @@ impl<'a> System<'a> for EventsSystem {
         if touched_clients.len() == 1 {
             if let Some(id) = touched_clients.pop() {
                 if let Some(client_events) = dispatch_map.get_mut(&id) {
-                    if !client_events.is_empty() {
+                    if let Some(client_events_to_send) = take_client_events_to_send(client_events) {
                         if let Some(client) = clients.get(&id) {
-                            let next_client_event_capacity = client_events.capacity();
-                            let client_events_to_send = std::mem::replace(
-                                client_events,
-                                Vec::with_capacity(next_client_event_capacity),
-                            );
                             let message = Message::new(&MessageType::Event)
                                 .events_owned(client_events_to_send)
                                 .build();
@@ -484,12 +497,10 @@ impl<'a> System<'a> for EventsSystem {
                 Some(events) => events,
                 None => continue,
             };
+            let Some(client_events_to_send) = take_client_events_to_send(client_events) else {
+                continue;
+            };
             if let Some(client) = clients.get(&id) {
-                let next_client_event_capacity = client_events.capacity();
-                let client_events_to_send = std::mem::replace(
-                    client_events,
-                    Vec::with_capacity(next_client_event_capacity),
-                );
                 let message = Message::new(&MessageType::Event)
                     .events_owned(client_events_to_send)
                     .build();
