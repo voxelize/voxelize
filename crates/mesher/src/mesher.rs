@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use hashbrown::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 
@@ -147,6 +149,28 @@ pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
     [0, 0, 1],
     [0, 0, -1],
 ];
+
+#[inline]
+fn lowercase_if_needed<'a>(value: &'a str) -> Cow<'a, str> {
+    let mut has_non_ascii = false;
+    for &byte in value.as_bytes() {
+        if byte.is_ascii_uppercase() {
+            return Cow::Owned(value.to_lowercase());
+        }
+        if !byte.is_ascii() {
+            has_non_ascii = true;
+        }
+    }
+    if !has_non_ascii {
+        return Cow::Borrowed(value);
+    }
+    for ch in value.chars() {
+        if ch.is_uppercase() {
+            return Cow::Owned(value.to_lowercase());
+        }
+    }
+    Cow::Borrowed(value)
+}
 
 const FLUID_BASE_HEIGHT: f32 = 0.875;
 const FLUID_STAGE_DROPOFF: f32 = 0.1;
@@ -2138,10 +2162,12 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     None => continue,
                 };
                 let geo_key = if quad.data.key.independent {
+                    let face_name_lower =
+                        lowercase_if_needed(quad.data.key.face_name.as_str());
                     format!(
                         "{}::{}",
                         block.get_name_lower(),
-                        quad.data.key.face_name.to_lowercase()
+                        face_name_lower
                     )
                 } else {
                     block.get_name_lower().to_string()
@@ -2424,8 +2450,9 @@ pub fn mesh_chunk_with_registry(input: MeshInputNoRegistry, registry: &Registry)
 mod tests {
     use super::{
         mesh_chunk, mesh_chunk_with_registry, ChunkData, MeshConfig, MeshInput, MeshInputNoRegistry,
-        Registry, VoxelSpace,
+        Registry, VoxelSpace, lowercase_if_needed,
     };
+    use std::borrow::Cow;
 
     fn centered_chunks() -> Vec<Option<ChunkData>> {
         let mut chunks: Vec<Option<ChunkData>> = std::iter::repeat_with(|| None).take(9).collect();
@@ -2540,5 +2567,18 @@ mod tests {
         };
         assert_eq!(space.get_index(center_chunk, 0, 0, 0), None);
         assert_eq!(space.get_voxel(0, 0, 0), 0);
+    }
+
+    #[test]
+    fn lowercase_if_needed_borrows_when_ascii_lowercase() {
+        assert!(matches!(lowercase_if_needed("px"), Cow::Borrowed("px")));
+    }
+
+    #[test]
+    fn lowercase_if_needed_allocates_when_uppercase_present() {
+        assert_eq!(
+            lowercase_if_needed("PZ").as_ref(),
+            "pz"
+        );
     }
 }
