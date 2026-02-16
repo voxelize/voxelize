@@ -3103,8 +3103,7 @@ const toOutputPathMessageValue = (outputPath) => {
     typeof outputPath === "number" ||
     typeof outputPath === "boolean" ||
     typeof outputPath === "bigint" ||
-    typeof outputPath === "symbol" ||
-    isStringObjectValue(outputPath)
+    typeof outputPath === "symbol"
   ) {
     try {
       const normalizedOutputPath = String(outputPath);
