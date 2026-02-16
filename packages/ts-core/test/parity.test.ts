@@ -8827,6 +8827,81 @@ describe("BlockRuleEvaluator", () => {
     expect(getVoxelStageCalls).toBe(0);
   });
 
+  it("sanitizes trap-driven position coordinate reads as deterministic non-matches", () => {
+    const constrainedRule = {
+      type: "simple" as const,
+      offset: [0, 0, 0] as [number, number, number],
+      id: 21,
+    };
+    const unconstrainedRule = {
+      type: "simple" as const,
+      offset: [0, 0, 0] as [number, number, number],
+    };
+    const access = {
+      getVoxel: () => 21,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+    const positionReadTrap = new Proxy([0, 0, 0], {
+      get(target, property, receiver) {
+        if (property === "0") {
+          throw new Error("position trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const revokedPosition = (() => {
+      const positionProxy = Proxy.revocable([0, 0, 0], {});
+      positionProxy.revoke();
+      return positionProxy.proxy;
+    })();
+
+    expect(() =>
+      BlockRuleEvaluator.evaluate(
+        constrainedRule,
+        positionReadTrap as never,
+        access
+      )
+    ).not.toThrow();
+    expect(
+      BlockRuleEvaluator.evaluate(
+        constrainedRule,
+        positionReadTrap as never,
+        access
+      )
+    ).toBe(false);
+
+    expect(() =>
+      BlockRuleEvaluator.evaluate(
+        constrainedRule,
+        revokedPosition as never,
+        access
+      )
+    ).not.toThrow();
+    expect(
+      BlockRuleEvaluator.evaluate(
+        constrainedRule,
+        revokedPosition as never,
+        access
+      )
+    ).toBe(false);
+
+    expect(() =>
+      BlockRuleEvaluator.evaluate(
+        unconstrainedRule,
+        positionReadTrap as never,
+        access
+      )
+    ).not.toThrow();
+    expect(
+      BlockRuleEvaluator.evaluate(
+        unconstrainedRule,
+        positionReadTrap as never,
+        access
+      )
+    ).toBe(true);
+  });
+
   it("rotates offsets for negative y-rotation values", () => {
     const rule = {
       type: "simple" as const,

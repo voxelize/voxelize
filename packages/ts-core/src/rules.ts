@@ -189,9 +189,20 @@ const toRoundedCheckPositionOrNull = (
   position: Vec3,
   offset: Vec3
 ): Vec3 | null => {
-  const checkX = toRoundedFiniteCoordinateOrNull(position[0] + offset[0]);
-  const checkY = toRoundedFiniteCoordinateOrNull(position[1] + offset[1]);
-  const checkZ = toRoundedFiniteCoordinateOrNull(position[2] + offset[2]);
+  let checkXValue = 0;
+  let checkYValue = 0;
+  let checkZValue = 0;
+  try {
+    checkXValue = position[0] + offset[0];
+    checkYValue = position[1] + offset[1];
+    checkZValue = position[2] + offset[2];
+  } catch {
+    return null;
+  }
+
+  const checkX = toRoundedFiniteCoordinateOrNull(checkXValue);
+  const checkY = toRoundedFiniteCoordinateOrNull(checkYValue);
+  const checkZ = toRoundedFiniteCoordinateOrNull(checkZValue);
   if (checkX === null || checkY === null || checkZ === null) {
     return null;
   }
