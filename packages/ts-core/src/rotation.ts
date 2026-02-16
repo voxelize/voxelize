@@ -28,6 +28,24 @@ const toFiniteNumberOrZero = (value: NumericLikeValue): number => {
   }
 };
 
+const toBooleanOrFalse = (
+  value: boolean | object | null | undefined
+): boolean => {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+
+  try {
+    return Boolean.prototype.valueOf.call(value);
+  } catch {
+    return false;
+  }
+};
+
 const normalizeYRotation = (rotation: number): number => {
   if (!Number.isFinite(rotation)) {
     return 0;
@@ -163,7 +181,12 @@ const readFaceTransparencySafely = (
 ): FaceTransparency => {
   const readTransparencyChannelSafely = (index: number): boolean => {
     try {
-      return transparency[index] === true;
+      const channelValue = transparency[index] as
+        | boolean
+        | object
+        | null
+        | undefined;
+      return toBooleanOrFalse(channelValue);
     } catch {
       return false;
     }

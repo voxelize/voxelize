@@ -1415,6 +1415,102 @@ describe("BlockRotation", () => {
     ).toEqual([true, false, false, false, true, false]);
   });
 
+  it("normalizes wrapped transparency channels in rotateTransparency", () => {
+    const wrappedTrue = vm.runInNewContext("new Boolean(true)");
+    let didCallWrappedTrueToString = false;
+    Object.defineProperty(wrappedTrue, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedTrueToString = true;
+        throw new Error("wrapped transparency true toString trap");
+      },
+    });
+    let didCallWrappedTrueValueOf = false;
+    Object.defineProperty(wrappedTrue, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedTrueValueOf = true;
+        throw new Error("wrapped transparency true valueOf trap");
+      },
+    });
+    const wrappedFalse = vm.runInNewContext("new Boolean(false)");
+    let didCallWrappedFalseToString = false;
+    Object.defineProperty(wrappedFalse, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedFalseToString = true;
+        throw new Error("wrapped transparency false toString trap");
+      },
+    });
+    let didCallWrappedFalseValueOf = false;
+    Object.defineProperty(wrappedFalse, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedFalseValueOf = true;
+        throw new Error("wrapped transparency false valueOf trap");
+      },
+    });
+
+    expect(
+      BlockRotation.py(0).rotateTransparency([
+        wrappedTrue as never,
+        wrappedFalse as never,
+        wrappedTrue as never,
+        wrappedFalse as never,
+        wrappedTrue as never,
+        wrappedFalse as never,
+      ])
+    ).toEqual([true, false, true, false, true, false]);
+    expect(didCallWrappedTrueToString).toBe(false);
+    expect(didCallWrappedTrueValueOf).toBe(false);
+    expect(didCallWrappedFalseToString).toBe(false);
+    expect(didCallWrappedFalseValueOf).toBe(false);
+  });
+
+  it("normalizes wrapped transparency channels when toStringTag traps", () => {
+    const wrappedTrue = new Boolean(true);
+    let didCallWrappedTrueToStringTag = false;
+    Object.defineProperty(wrappedTrue, Symbol.toStringTag, {
+      configurable: true,
+      enumerable: false,
+      get() {
+        didCallWrappedTrueToStringTag = true;
+        throw new Error("wrapped transparency true toStringTag trap");
+      },
+    });
+    const wrappedFalse = new Boolean(false);
+    let didCallWrappedFalseToStringTag = false;
+    Object.defineProperty(wrappedFalse, Symbol.toStringTag, {
+      configurable: true,
+      enumerable: false,
+      get() {
+        didCallWrappedFalseToStringTag = true;
+        throw new Error("wrapped transparency false toStringTag trap");
+      },
+    });
+
+    expect(
+      BlockRotation.py(0).rotateTransparency([
+        wrappedTrue as never,
+        wrappedFalse as never,
+        wrappedTrue as never,
+        wrappedFalse as never,
+        wrappedTrue as never,
+        wrappedFalse as never,
+      ])
+    ).toEqual([true, false, true, false, true, false]);
+    expect(didCallWrappedTrueToStringTag).toBe(false);
+    expect(didCallWrappedFalseToStringTag).toBe(false);
+  });
+
   it("rotates transparency for non-zero y rotation on PY axis", () => {
     const rotation = BlockRotation.encode(PY_ROTATION, 4);
     const input: [boolean, boolean, boolean, boolean, boolean, boolean] = [
