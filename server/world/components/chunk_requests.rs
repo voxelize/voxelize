@@ -37,29 +37,56 @@ impl ChunkRequestsComp {
 
     /// Add a chunk to the list of chunks requested.
     pub fn add(&mut self, coords: &Vec2<i32>) {
-        if self.requests.is_empty() {
-            self.requests.push(*coords);
-            return;
-        }
-        if self.requests.len() == 1 {
-            if self.requests[0] != *coords {
+        match self.requests.len() {
+            0 => {
                 self.requests.push(*coords);
+                return;
             }
-            return;
+            1 => {
+                if self.requests[0] != *coords {
+                    self.requests.push(*coords);
+                }
+                return;
+            }
+            2 => {
+                let first = self.requests[0];
+                let second = self.requests[1];
+                if *coords != first && *coords != second {
+                    self.requests.push(*coords);
+                }
+                return;
+            }
+            3 => {
+                let first = self.requests[0];
+                let second = self.requests[1];
+                let third = self.requests[2];
+                if *coords != first && *coords != second && *coords != third {
+                    self.requests.push(*coords);
+                }
+                return;
+            }
+            4 => {
+                let first = self.requests[0];
+                let second = self.requests[1];
+                let third = self.requests[2];
+                let fourth = self.requests[3];
+                if *coords != first
+                    && *coords != second
+                    && *coords != third
+                    && *coords != fourth
+                {
+                    self.requests.push(*coords);
+                }
+                return;
+            }
+            _ => {}
         }
         if self.requests.last().is_some_and(|last| last == coords)
             || self.requests.first().is_some_and(|first| first == coords)
+            || self.requests.contains(coords)
         {
             return;
         }
-        if self.requests.len() <= 2 {
-            self.requests.push(*coords);
-            return;
-        }
-        if self.requests.contains(coords) {
-            return;
-        }
-
         self.requests.push(*coords);
     }
 
@@ -82,6 +109,22 @@ impl ChunkRequestsComp {
         }
         if self.requests.first().is_some_and(|first| first == coords) {
             self.requests.remove(0);
+            return;
+        }
+        if self.requests.len() == 3 {
+            if self.requests[1] == *coords {
+                self.requests.remove(1);
+            }
+            return;
+        }
+        if self.requests.len() == 4 {
+            if self.requests[1] == *coords {
+                self.requests.remove(1);
+                return;
+            }
+            if self.requests[2] == *coords {
+                self.requests.remove(2);
+            }
             return;
         }
         if let Some(index) = self.requests.iter().position(|c| c == coords) {
@@ -130,6 +173,20 @@ mod tests {
     }
 
     #[test]
+    fn add_ignores_duplicate_middle_entries_for_small_lists() {
+        let mut requests = ChunkRequestsComp::new();
+        requests.requests = vec![Vec2(1, 1), Vec2(2, 2), Vec2(3, 3), Vec2(4, 4)];
+
+        requests.add(&Vec2(2, 2));
+        requests.add(&Vec2(3, 3));
+
+        assert_eq!(
+            requests.requests,
+            vec![Vec2(1, 1), Vec2(2, 2), Vec2(3, 3), Vec2(4, 4)]
+        );
+    }
+
+    #[test]
     fn remove_handles_first_and_tail_entries() {
         let mut requests = ChunkRequestsComp::new();
         requests.requests = vec![Vec2(1, 1), Vec2(2, 2), Vec2(3, 3)];
@@ -139,5 +196,17 @@ mod tests {
 
         requests.remove(&Vec2(3, 3));
         assert_eq!(requests.requests, vec![Vec2(2, 2)]);
+    }
+
+    #[test]
+    fn remove_handles_small_list_middle_entries() {
+        let mut requests = ChunkRequestsComp::new();
+        requests.requests = vec![Vec2(1, 1), Vec2(2, 2), Vec2(3, 3), Vec2(4, 4)];
+
+        requests.remove(&Vec2(2, 2));
+        assert_eq!(requests.requests, vec![Vec2(1, 1), Vec2(3, 3), Vec2(4, 4)]);
+
+        requests.remove(&Vec2(3, 3));
+        assert_eq!(requests.requests, vec![Vec2(1, 1), Vec2(4, 4)]);
     }
 }
