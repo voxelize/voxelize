@@ -3563,7 +3563,11 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         }
                     } else if use_static_faces {
                         for (face_index, face) in block.faces.iter().enumerate() {
-                            if !face_matches_direction(face, false) {
+                            if !block_needs_face_rotation {
+                                if face.dir != dir {
+                                    continue;
+                                }
+                            } else if !face_matches_direction(face, false) {
                                 continue;
                             }
                             let uv_range = face.range;
