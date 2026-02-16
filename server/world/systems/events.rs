@@ -624,6 +624,27 @@ fn send_to_transports(transports: &Transports, payload: Bytes) {
             let _ = eighth_sender.send(payload.clone());
             let _ = first_sender.send(payload);
         }
+        9 => {
+            let mut senders = transports.values();
+            let first_sender = next_transport_sender(&mut senders);
+            let second_sender = next_transport_sender(&mut senders);
+            let third_sender = next_transport_sender(&mut senders);
+            let fourth_sender = next_transport_sender(&mut senders);
+            let fifth_sender = next_transport_sender(&mut senders);
+            let sixth_sender = next_transport_sender(&mut senders);
+            let seventh_sender = next_transport_sender(&mut senders);
+            let eighth_sender = next_transport_sender(&mut senders);
+            let ninth_sender = next_transport_sender(&mut senders);
+            let _ = second_sender.send(payload.clone());
+            let _ = third_sender.send(payload.clone());
+            let _ = fourth_sender.send(payload.clone());
+            let _ = fifth_sender.send(payload.clone());
+            let _ = sixth_sender.send(payload.clone());
+            let _ = seventh_sender.send(payload.clone());
+            let _ = eighth_sender.send(payload.clone());
+            let _ = ninth_sender.send(payload.clone());
+            let _ = first_sender.send(payload);
+        }
         _ => {
             let mut senders = transports.values();
             let first_sender = next_transport_sender(&mut senders);
@@ -1268,6 +1289,26 @@ impl<'a> System<'a> for EventsSystem {
                 flush_events_for_client(dispatch_map, &clients, sixth_client_id);
                 flush_events_for_client(dispatch_map, &clients, seventh_client_id);
                 flush_events_for_client(dispatch_map, &clients, eighth_client_id);
+            }
+            9 => {
+                let first_client_id = pop_touched_client_id(touched_clients);
+                let second_client_id = pop_touched_client_id(touched_clients);
+                let third_client_id = pop_touched_client_id(touched_clients);
+                let fourth_client_id = pop_touched_client_id(touched_clients);
+                let fifth_client_id = pop_touched_client_id(touched_clients);
+                let sixth_client_id = pop_touched_client_id(touched_clients);
+                let seventh_client_id = pop_touched_client_id(touched_clients);
+                let eighth_client_id = pop_touched_client_id(touched_clients);
+                let ninth_client_id = pop_touched_client_id(touched_clients);
+                flush_events_for_client(dispatch_map, &clients, first_client_id);
+                flush_events_for_client(dispatch_map, &clients, second_client_id);
+                flush_events_for_client(dispatch_map, &clients, third_client_id);
+                flush_events_for_client(dispatch_map, &clients, fourth_client_id);
+                flush_events_for_client(dispatch_map, &clients, fifth_client_id);
+                flush_events_for_client(dispatch_map, &clients, sixth_client_id);
+                flush_events_for_client(dispatch_map, &clients, seventh_client_id);
+                flush_events_for_client(dispatch_map, &clients, eighth_client_id);
+                flush_events_for_client(dispatch_map, &clients, ninth_client_id);
             }
             _ => {
                 while let Some(client_id) = touched_clients.pop() {

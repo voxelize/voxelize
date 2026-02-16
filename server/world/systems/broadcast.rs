@@ -627,6 +627,27 @@ fn send_to_transports(transports: &Transports, payload: Bytes) {
             let _ = eighth_sender.send(payload.clone());
             let _ = first_sender.send(payload);
         }
+        9 => {
+            let mut senders = transports.values();
+            let first_sender = next_transport_sender(&mut senders);
+            let second_sender = next_transport_sender(&mut senders);
+            let third_sender = next_transport_sender(&mut senders);
+            let fourth_sender = next_transport_sender(&mut senders);
+            let fifth_sender = next_transport_sender(&mut senders);
+            let sixth_sender = next_transport_sender(&mut senders);
+            let seventh_sender = next_transport_sender(&mut senders);
+            let eighth_sender = next_transport_sender(&mut senders);
+            let ninth_sender = next_transport_sender(&mut senders);
+            let _ = second_sender.send(payload.clone());
+            let _ = third_sender.send(payload.clone());
+            let _ = fourth_sender.send(payload.clone());
+            let _ = fifth_sender.send(payload.clone());
+            let _ = sixth_sender.send(payload.clone());
+            let _ = seventh_sender.send(payload.clone());
+            let _ = eighth_sender.send(payload.clone());
+            let _ = ninth_sender.send(payload.clone());
+            let _ = first_sender.send(payload);
+        }
         _ => {
             let mut senders = transports.values();
             let first_sender = next_transport_sender(&mut senders);
