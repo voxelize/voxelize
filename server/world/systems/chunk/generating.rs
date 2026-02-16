@@ -444,7 +444,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
         let ready_chunk_initial_capacity = mesher.queue.len().min(64);
         let mut ready_chunks = None;
-        let has_leftovers = !pipeline.leftovers.is_empty();
+        let mut has_leftovers = !pipeline.leftovers.is_empty();
 
         while let Some(coords) = mesher.get() {
             let mut ready = true;
@@ -493,6 +493,9 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
             if has_leftovers {
                 pipeline.leftovers.remove(&coords);
+                if pipeline.leftovers.is_empty() {
+                    has_leftovers = false;
+                }
             }
 
             if config.saving {
