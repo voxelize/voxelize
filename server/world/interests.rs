@@ -51,6 +51,9 @@ impl ChunkInterests {
         if coords_a == coords_b {
             return Ordering::Equal;
         }
+        if self.weights.is_empty() {
+            return Ordering::Equal;
+        }
         let weight_a = comparable_weight(self.get_weight(coords_a));
         let weight_b = comparable_weight(self.get_weight(coords_b));
         weight_a.total_cmp(&weight_b)
