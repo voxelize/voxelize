@@ -483,13 +483,12 @@ fn process_pending_updates(
         updates
     };
 
-    let removed_light_source_count = removed_light_sources.as_ref().map_or(0, Vec::len);
-    let removal_initial_capacity = removed_light_source_count.min(32);
     let mut red_removals: Option<Vec<Vec3<i32>>> = None;
     let mut green_removals: Option<Vec<Vec3<i32>>> = None;
     let mut blue_removals: Option<Vec<Vec3<i32>>> = None;
 
     if let Some(removed_light_sources) = removed_light_sources {
+        let removal_initial_capacity = removed_light_sources.len().min(32);
         for (voxel, red_level, green_level, blue_level, is_opaque) in removed_light_sources {
             if red_level > 0 {
                 red_removals
