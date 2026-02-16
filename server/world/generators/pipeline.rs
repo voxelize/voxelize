@@ -489,6 +489,9 @@ impl Pipeline {
             }
             return results;
         }
+        if self.receiver.is_empty() {
+            return Vec::new();
+        }
         let mut results = Vec::with_capacity(self.receiver.len().min(self.chunks.len()));
 
         while let Ok(result) = self.receiver.try_recv() {
@@ -663,6 +666,31 @@ mod tests {
         assert_eq!(results[0].0.coords, coords);
         assert!(results[0].1.is_empty());
         assert!(!pipeline.chunks.contains(&coords));
+    }
+
+    #[test]
+    fn results_discards_single_stale_message_without_tracked_removal() {
+        let mut pipeline = Pipeline::new();
+        let tracked_coords = Vec2(8, -3);
+        pipeline.chunks.insert(tracked_coords);
+        let stale_coords = Vec2(-1, -9);
+        let chunk = Chunk::new(
+            "stale-pipeline-result",
+            stale_coords.0,
+            stale_coords.1,
+            &ChunkOptions {
+                size: 1,
+                max_height: 1,
+                sub_chunks: 1,
+            },
+        );
+        assert!(pipeline.sender.send((chunk, Vec::new())).is_ok());
+
+        let results = pipeline.results();
+
+        assert!(results.is_empty());
+        assert!(pipeline.chunks.contains(&tracked_coords));
+        assert!(!pipeline.chunks.contains(&stale_coords));
     }
 
     #[test]

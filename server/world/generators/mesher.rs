@@ -415,6 +415,9 @@ impl Mesher {
             }
             return results;
         }
+        if self.receiver.is_empty() {
+            return Vec::new();
+        }
         let mut results = Vec::with_capacity(self.receiver.len().min(self.map.len()));
 
         while let Ok(result) = self.receiver.try_recv() {
@@ -574,6 +577,31 @@ mod tests {
         assert_eq!(results[0].0.coords, coords);
         assert_eq!(results[0].1, MessageType::Load);
         assert!(!mesher.map.contains(&coords));
+    }
+
+    #[test]
+    fn results_discards_single_stale_message_without_tracked_removal() {
+        let mut mesher = Mesher::new();
+        let tracked_coords = Vec2(9, 4);
+        mesher.map.insert(tracked_coords);
+        let stale_coords = Vec2(-2, 7);
+        let chunk = Chunk::new(
+            "stale-mesher-result",
+            stale_coords.0,
+            stale_coords.1,
+            &ChunkOptions {
+                size: 1,
+                max_height: 1,
+                sub_chunks: 1,
+            },
+        );
+        assert!(mesher.sender.send((chunk, MessageType::Load)).is_ok());
+
+        let results = mesher.results();
+
+        assert!(results.is_empty());
+        assert!(mesher.map.contains(&tracked_coords));
+        assert!(!mesher.map.contains(&stale_coords));
     }
 
     #[test]
