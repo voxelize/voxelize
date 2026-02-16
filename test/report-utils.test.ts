@@ -22658,6 +22658,52 @@ describe("report-utils", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("falls back to default ISO timestamps when custom formatter traps", () => {
+    const nowValues = [1_000, 2_000];
+    let nowIndex = 0;
+    const withTiming = createTimedReportBuilder(
+      () => {
+        const currentValue =
+          nowValues[nowIndex] ?? nowValues[nowValues.length - 1];
+        nowIndex += 1;
+        return currentValue;
+      },
+      () => {
+        throw new Error("iso trap");
+      }
+    );
+
+    expect(withTiming({ passed: true, exitCode: 0 })).toEqual({
+      passed: true,
+      exitCode: 0,
+      startedAt: new Date(1_000).toISOString(),
+      endedAt: new Date(2_000).toISOString(),
+      durationMs: 1_000,
+    });
+  });
+
+  it("falls back to default ISO timestamps when custom formatter returns non-string values", () => {
+    const nowValues = [1_000, 2_000];
+    let nowIndex = 0;
+    const withTiming = createTimedReportBuilder(
+      () => {
+        const currentValue =
+          nowValues[nowIndex] ?? nowValues[nowValues.length - 1];
+        nowIndex += 1;
+        return currentValue;
+      },
+      () => null as never
+    );
+
+    expect(withTiming({ passed: true, exitCode: 0 })).toEqual({
+      passed: true,
+      exitCode: 0,
+      startedAt: new Date(1_000).toISOString(),
+      endedAt: new Date(2_000).toISOString(),
+      durationMs: 1_000,
+    });
+  });
+
   it("builds timed reports with stable startedAt and duration", () => {
     let tick = 0;
     const now = () => {

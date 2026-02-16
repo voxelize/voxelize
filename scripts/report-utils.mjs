@@ -190,11 +190,40 @@ export const createTimedReportBuilder = (
   now = () => Date.now(),
   toIsoString = (value) => new Date(value).toISOString()
 ) => {
-  const startedAtMs = now();
-  const startedAt = toIsoString(startedAtMs);
+  const resolveNowMs = () => {
+    let nowValue = 0;
+    try {
+      nowValue = now();
+    } catch {
+      nowValue = Date.now();
+    }
+
+    return Number.isFinite(nowValue) ? nowValue : Date.now();
+  };
+
+  const resolveIsoTimestamp = (value) => {
+    const normalizedValue = Number.isFinite(value) ? value : Date.now();
+    try {
+      const isoTimestamp = toIsoString(normalizedValue);
+      if (typeof isoTimestamp === "string" && isoTimestamp.length > 0) {
+        return isoTimestamp;
+      }
+    } catch {
+      // fall through to default ISO serialization
+    }
+
+    try {
+      return new Date(normalizedValue).toISOString();
+    } catch {
+      return "1970-01-01T00:00:00.000Z";
+    }
+  };
+
+  const startedAtMs = resolveNowMs();
+  const startedAt = resolveIsoTimestamp(startedAtMs);
 
   return (report) => {
-    const endedAtMs = now();
+    const endedAtMs = resolveNowMs();
     const rawDurationMs = endedAtMs - startedAtMs;
     const durationMs =
       Number.isFinite(rawDurationMs) && rawDurationMs >= 0 ? rawDurationMs : 0;
@@ -202,7 +231,7 @@ export const createTimedReportBuilder = (
     return {
       ...report,
       startedAt,
-      endedAt: toIsoString(endedAtMs),
+      endedAt: resolveIsoTimestamp(endedAtMs),
       durationMs,
     };
   };
