@@ -1660,6 +1660,36 @@ describe("Type builders", () => {
     });
   });
 
+  it("sanitizes malformed UV payloads without throwing", () => {
+    const trapValue = {
+      [Symbol.toPrimitive]() {
+        throw new Error("uv coercion trap");
+      },
+    };
+
+    expect(() =>
+      createUV(
+        Number.NaN as never,
+        Number.POSITIVE_INFINITY as never,
+        trapValue as never,
+        "4.5" as never
+      )
+    ).not.toThrow();
+    expect(
+      createUV(
+        Number.NaN as never,
+        Number.POSITIVE_INFINITY as never,
+        trapValue as never,
+        "4.5" as never
+      )
+    ).toEqual({
+      startU: 0,
+      endU: 0,
+      startV: 0,
+      endV: 4.5,
+    });
+  });
+
   it("clones corner vector inputs", () => {
     const pos: [number, number, number] = [1, 2, 3];
     const uv: [number, number] = [0.25, 0.75];

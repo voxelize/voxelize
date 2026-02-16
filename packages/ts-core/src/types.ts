@@ -9,16 +9,31 @@ export interface UV {
   endV: number;
 }
 
+type NumericLikeValue = number | string | boolean | object | null | undefined;
+
+const toFiniteNumberOrZero = (value: NumericLikeValue): number => {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  try {
+    const numericValue = Number(value);
+    return Number.isFinite(numericValue) ? numericValue : 0;
+  } catch {
+    return 0;
+  }
+};
+
 export const createUV = (
   startU = 0,
   endU = 0,
   startV = 0,
   endV = 0
 ): UV => ({
-  startU,
-  endU,
-  startV,
-  endV,
+  startU: toFiniteNumberOrZero(startU),
+  endU: toFiniteNumberOrZero(endU),
+  startV: toFiniteNumberOrZero(startV),
+  endV: toFiniteNumberOrZero(endV),
 });
 
 export interface CornerData {
