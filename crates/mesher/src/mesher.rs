@@ -283,6 +283,10 @@ fn get_or_insert_shared_geometry<'a>(
 const FLUID_BASE_HEIGHT: f32 = 0.875;
 const FLUID_STAGE_DROPOFF: f32 = 0.1;
 const FLUID_SURFACE_OFFSET: f32 = 0.005;
+const FLUID_CORNER_OFFSETS_NXNZ: [[i32; 2]; 3] = [[-1, 0], [0, -1], [-1, -1]];
+const FLUID_CORNER_OFFSETS_PXNZ: [[i32; 2]; 3] = [[1, 0], [0, -1], [1, -1]];
+const FLUID_CORNER_OFFSETS_NXPZ: [[i32; 2]; 3] = [[-1, 0], [0, 1], [-1, 1]];
+const FLUID_CORNER_OFFSETS_PXPZ: [[i32; 2]; 3] = [[1, 0], [0, 1], [1, 1]];
 
 struct NeighborCache {
     data: [[u32; 2]; 27],
@@ -621,17 +625,12 @@ fn calculate_fluid_corner_height<S: VoxelAccess>(
     space: &S,
     registry: &Registry,
 ) -> f32 {
-    let upper_check_offsets: [[i32; 2]; 4] = [
-        [corner_x - 1, corner_z - 1],
-        [corner_x - 1, corner_z],
-        [corner_x, corner_z - 1],
-        [corner_x, corner_z],
-    ];
-
-    for [dx, dz] in upper_check_offsets {
-        if space.get_voxel(vx + dx, vy + 1, vz + dz) == fluid_id {
-            return 1.0;
-        }
+    if space.get_voxel(vx + corner_x - 1, vy + 1, vz + corner_z - 1) == fluid_id
+        || space.get_voxel(vx + corner_x - 1, vy + 1, vz + corner_z) == fluid_id
+        || space.get_voxel(vx + corner_x, vy + 1, vz + corner_z - 1) == fluid_id
+        || space.get_voxel(vx + corner_x, vy + 1, vz + corner_z) == fluid_id
+    {
+        return 1.0;
     }
 
     let mut total_height = self_height;
@@ -753,10 +752,6 @@ fn create_fluid_faces<S: VoxelAccess>(
     block: &Block,
     registry: &Registry,
 ) -> [BlockFace; 6] {
-    let corner_nxnz: [[i32; 2]; 3] = [[-1, 0], [0, -1], [-1, -1]];
-    let corner_pxnz: [[i32; 2]; 3] = [[1, 0], [0, -1], [1, -1]];
-    let corner_nxpz: [[i32; 2]; 3] = [[-1, 0], [0, 1], [-1, 1]];
-    let corner_pxpz: [[i32; 2]; 3] = [[1, 0], [0, 1], [1, 1]];
     let self_height = get_fluid_effective_height(space.get_voxel_stage(vx, vy, vz));
 
     let h_nxnz =
@@ -766,7 +761,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             vz,
             0,
             0,
-            &corner_nxnz,
+            &FLUID_CORNER_OFFSETS_NXNZ,
             fluid_id,
             self_height,
             space,
@@ -779,7 +774,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             vz,
             1,
             0,
-            &corner_pxnz,
+            &FLUID_CORNER_OFFSETS_PXNZ,
             fluid_id,
             self_height,
             space,
@@ -792,7 +787,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             vz,
             0,
             1,
-            &corner_nxpz,
+            &FLUID_CORNER_OFFSETS_NXPZ,
             fluid_id,
             self_height,
             space,
@@ -805,7 +800,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             vz,
             1,
             1,
-            &corner_pxpz,
+            &FLUID_CORNER_OFFSETS_PXPZ,
             fluid_id,
             self_height,
             space,
