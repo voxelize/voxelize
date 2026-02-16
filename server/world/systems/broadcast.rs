@@ -249,7 +249,6 @@ impl<'a> System<'a> for BroadcastSystem {
                 let msg_type = message.r#type;
                 let encoded = EncodedMessage {
                     data: Bytes::from(encode_message(&message)),
-                    msg_type,
                     is_rtc_eligible: false,
                     is_transport_eligible: should_send_to_transport(msg_type),
                 };

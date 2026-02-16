@@ -32,7 +32,6 @@ fn reserve_for_append<T>(buffer: &mut Vec<T>, additional: usize) {
 #[derive(Clone)]
 pub struct EncodedMessage {
     pub data: Bytes,
-    pub msg_type: i32,
     pub is_rtc_eligible: bool,
     pub is_transport_eligible: bool,
 }
@@ -153,7 +152,6 @@ impl EncodedMessageQueue {
                 let is_rtc_eligible = Self::compute_rtc_eligibility(&message);
                 let encoded = EncodedMessage {
                     data: Bytes::from(encode_message(&message)),
-                    msg_type,
                     is_rtc_eligible,
                     is_transport_eligible: compute_transport_eligibility(msg_type),
                 };
@@ -168,7 +166,6 @@ impl EncodedMessageQueue {
                 let is_rtc_eligible = Self::compute_rtc_eligibility(&message);
                 let encoded = EncodedMessage {
                     data: Bytes::from(encode_message(&message)),
-                    msg_type,
                     is_rtc_eligible,
                     is_transport_eligible: compute_transport_eligibility(msg_type),
                 };
@@ -187,7 +184,6 @@ impl EncodedMessageQueue {
                     let is_rtc_eligible = Self::compute_rtc_eligibility(&message);
                     let encoded = EncodedMessage {
                         data: Bytes::from(encode_message(&message)),
-                        msg_type,
                         is_rtc_eligible,
                         is_transport_eligible: compute_transport_eligibility(msg_type),
                     };
@@ -252,7 +248,6 @@ mod tests {
     fn encoded_marker(marker: u8) -> EncodedMessage {
         EncodedMessage {
             data: Bytes::from(vec![marker]),
-            msg_type: MessageType::Peer as i32,
             is_rtc_eligible: true,
             is_transport_eligible: true,
         }
