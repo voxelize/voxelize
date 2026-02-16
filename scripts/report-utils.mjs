@@ -2526,10 +2526,14 @@ export const resolveLastOptionValue = (
   recognizedOptionTokens = []
 ) => {
   const { optionArgs } = splitCliArgs(args);
-  const {
-    tokens: normalizedRecognizedOptionTokens,
-    unavailable: recognizedOptionTokensUnavailable,
-  } = normalizeCliOptionTokenListWithAvailability(recognizedOptionTokens);
+  const normalizedRecognizedOptionTokenMetadata =
+    normalizeCliOptionTokenListWithAvailability(recognizedOptionTokens);
+  const normalizedRecognizedOptionTokens =
+    normalizedRecognizedOptionTokenMetadata.tokens;
+  const recognizedOptionTokensUnavailable =
+    normalizedRecognizedOptionTokenMetadata.unavailable ||
+    (normalizedRecognizedOptionTokenMetadata.hadArrayEntries === true &&
+      normalizedRecognizedOptionTokens.length === 0);
   const recognizedOptionTokenSet = new Set(
     normalizedRecognizedOptionTokens
   );

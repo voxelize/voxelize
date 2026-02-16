@@ -579,6 +579,34 @@ describe("report-utils", () => {
     expect(malformedArrayRecognizedOutputDashValueResult.outputPath).toBe(
       "/workspace/-artifact-report.json"
     );
+    const whitespaceRecognizedOutputTokens = ["   "];
+    const whitespaceRecognizedOutputTokenResult = resolveOutputPath(
+      ["--output", "-l"],
+      "/workspace",
+      whitespaceRecognizedOutputTokens as never
+    );
+    expect(whitespaceRecognizedOutputTokenResult.error).toBe(
+      "Missing value for --output option."
+    );
+    expect(whitespaceRecognizedOutputTokenResult.outputPath).toBeNull();
+    const whitespaceRecognizedOutputDashValueResult = resolveOutputPath(
+      ["--output", "-artifact-report.json"],
+      "/workspace",
+      whitespaceRecognizedOutputTokens as never
+    );
+    expect(whitespaceRecognizedOutputDashValueResult.error).toBeNull();
+    expect(whitespaceRecognizedOutputDashValueResult.outputPath).toBe(
+      "/workspace/-artifact-report.json"
+    );
+    const whitespaceRecognizedOutputInlineAliasMisuseResult = resolveOutputPath(
+      ["--output", "-l=1"],
+      "/workspace",
+      whitespaceRecognizedOutputTokens as never
+    );
+    expect(whitespaceRecognizedOutputInlineAliasMisuseResult.error).toBe(
+      "Missing value for --output option."
+    );
+    expect(whitespaceRecognizedOutputInlineAliasMisuseResult.outputPath).toBeNull();
 
     const malformedRecognizedOutputTokens = new Proxy(
       ["--list-checks", "-l"],
@@ -1169,6 +1197,47 @@ describe("report-utils", () => {
     expect(
       resolvedUnknownDashValueFromMalformedArrayRecognizedOptionTokens.error
     ).toBeNull();
+    const whitespaceRecognizedOptionTokens = ["   "];
+    const resolvedFromWhitespaceRecognizedOptionTokens = resolveLastOptionValue(
+      ["--output", "-l"],
+      "--output",
+      whitespaceRecognizedOptionTokens as never
+    );
+    expect(resolvedFromWhitespaceRecognizedOptionTokens.hasOption).toBe(true);
+    expect(resolvedFromWhitespaceRecognizedOptionTokens.value).toBeNull();
+    expect(resolvedFromWhitespaceRecognizedOptionTokens.error).toBe(
+      "Missing value for --output option."
+    );
+    const resolvedUnknownDashValueFromWhitespaceRecognizedOptionTokens =
+      resolveLastOptionValue(
+        ["--output", "-artifact-report.json"],
+        "--output",
+        whitespaceRecognizedOptionTokens as never
+      );
+    expect(
+      resolvedUnknownDashValueFromWhitespaceRecognizedOptionTokens.hasOption
+    ).toBe(true);
+    expect(
+      resolvedUnknownDashValueFromWhitespaceRecognizedOptionTokens.value
+    ).toBe("-artifact-report.json");
+    expect(
+      resolvedUnknownDashValueFromWhitespaceRecognizedOptionTokens.error
+    ).toBeNull();
+    const resolvedInlineAliasMisuseFromWhitespaceRecognizedOptionTokens =
+      resolveLastOptionValue(
+        ["--output", "-l=1"],
+        "--output",
+        whitespaceRecognizedOptionTokens as never
+      );
+    expect(
+      resolvedInlineAliasMisuseFromWhitespaceRecognizedOptionTokens.hasOption
+    ).toBe(true);
+    expect(
+      resolvedInlineAliasMisuseFromWhitespaceRecognizedOptionTokens.value
+    ).toBeNull();
+    expect(
+      resolvedInlineAliasMisuseFromWhitespaceRecognizedOptionTokens.error
+    ).toBe("Missing value for --output option.");
 
     const lengthAndOwnKeysTrapOptionArgs = new Proxy(
       ["--output", "./report.json"],
