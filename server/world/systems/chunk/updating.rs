@@ -299,13 +299,10 @@ fn process_pending_updates(
 
                 if should_activate {
                     if let Some(active_ticker) = neighbor_block.active_ticker.as_ref() {
-                        let ticks = active_ticker(
-                            Vec3(nx, ny, nz),
-                            &*chunks,
-                            registry,
-                        );
+                        let neighbor_voxel = Vec3(nx, ny, nz);
+                        let ticks = active_ticker(neighbor_voxel, &*chunks, registry);
                         chunks.mark_voxel_active(
-                            &Vec3(nx, ny, nz),
+                            &neighbor_voxel,
                             schedule_active_tick(current_tick, ticks),
                         );
                     }
