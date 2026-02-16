@@ -1863,6 +1863,23 @@ describe("Numeric helpers", () => {
         return Reflect.get(target, property, receiver);
       },
     });
+    const malformedThisValues: Array<
+      null | undefined | number | string | boolean | bigint | symbol | object
+    > = [
+      undefined,
+      null,
+      7,
+      "ctx",
+      true,
+      BigInt(5),
+      Symbol("ctx"),
+      {},
+      trappedObject,
+      ownKeysTrappedObject,
+      ownKeysTrappedArray,
+      revokedObject,
+      revokedArray,
+    ];
     type MalformedArg =
       | null
       | undefined
@@ -1908,16 +1925,19 @@ describe("Numeric helpers", () => {
 
       const allowedErrorSignatures =
         allowedErrorSignaturesByExportName.get(exportName) ?? new Set<string>();
-      for (const args of malformedArgSets) {
-        try {
-          Reflect.apply(exportValue, undefined, args);
-        } catch (error) {
-          const errorSignature =
-            error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-          if (!allowedErrorSignatures.has(errorSignature)) {
-            unexpectedThrownSignatures.push(
-              `${exportName}(${args.length}): ${errorSignature}`
-            );
+      for (const thisValue of malformedThisValues) {
+        for (const args of malformedArgSets) {
+          try {
+            Reflect.apply(exportValue, thisValue, args);
+          } catch (error) {
+            const errorSignature =
+              error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+            if (!allowedErrorSignatures.has(errorSignature)) {
+              const thisLabel = thisValue === null ? "null" : typeof thisValue;
+              unexpectedThrownSignatures.push(
+                `${exportName}[this:${thisLabel}|args:${args.length}]: ${errorSignature}`
+              );
+            }
           }
         }
       }
