@@ -114,25 +114,33 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             if weights.capacity() < interest_map.len() {
                 weights.reserve(interest_map.len() - weights.len());
             }
+            if clients.is_empty() {
+                for coords in interest_map.keys() {
+                    weights.insert(*coords, 0.0);
+                }
+            } else {
+                for (coords, ids) in interest_map {
+                    let mut weight = 0.0;
 
-            for (coords, ids) in interest_map {
-                let mut weight = 0.0;
-
-                for id in ids {
-                    if weight >= f32::MAX {
-                        break;
-                    }
-                    if let Some(client) = clients.get(id) {
-                        if let Some(request) = requests.get(client.entity) {
-                            let dist = ChunkUtils::distance_squared(&request.center, &coords);
-                            let alignment =
-                                chunk_interest_alignment(&request.center, coords, &request.direction);
-                            weight = accumulate_chunk_interest_weight(weight, dist, alignment);
+                    for id in ids {
+                        if weight >= f32::MAX {
+                            break;
+                        }
+                        if let Some(client) = clients.get(id) {
+                            if let Some(request) = requests.get(client.entity) {
+                                let dist = ChunkUtils::distance_squared(&request.center, &coords);
+                                let alignment = chunk_interest_alignment(
+                                    &request.center,
+                                    coords,
+                                    &request.direction,
+                                );
+                                weight = accumulate_chunk_interest_weight(weight, dist, alignment);
+                            }
                         }
                     }
-                }
 
-                weights.insert(*coords, weight);
+                    weights.insert(*coords, weight);
+                }
             }
 
             interests.weights = weights;
