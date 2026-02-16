@@ -74,6 +74,15 @@ fn include_single_target(ids: &[String]) -> Option<&str> {
 }
 
 #[inline]
+fn filter_targets_all_clients(filter: Option<&ClientFilter>) -> bool {
+    match filter {
+        None | Some(ClientFilter::All) => true,
+        Some(ClientFilter::Exclude(ids)) => ids.is_empty(),
+        _ => false,
+    }
+}
+
+#[inline]
 fn normalize_filter_for_dispatch(filter: &mut ClientFilter) {
     let ids = match filter {
         ClientFilter::Include(ids) | ClientFilter::Exclude(ids) => ids,
@@ -300,7 +309,7 @@ impl<'a> System<'a> for EventsSystem {
                 }
                 continue;
             }
-            if location.is_none() && matches!(filter.as_ref(), None | Some(ClientFilter::All)) {
+            if location.is_none() && filter_targets_all_clients(filter.as_ref()) {
                 let mut client_ids = clients.keys();
                 if let Some(first_client_id) = client_ids.next() {
                     for client_id in client_ids {
@@ -482,7 +491,11 @@ impl<'a> System<'a> for EventsSystem {
 
 #[cfg(test)]
 mod tests {
-    use super::{ids_are_strictly_sorted, ids_contains_target, sorted_ids_contains};
+    use super::{
+        filter_targets_all_clients, ids_are_strictly_sorted, ids_contains_target,
+        sorted_ids_contains,
+    };
+    use crate::ClientFilter;
 
     fn ids(values: &[&str]) -> Vec<String> {
         values.iter().map(|value| value.to_string()).collect()
@@ -503,6 +516,21 @@ mod tests {
         assert!(!ids_contains_target(&ids(&["a", "b"]), "z"));
         assert!(ids_contains_target(&ids(&["a", "c", "d"]), "c"));
         assert!(ids_contains_target(&ids(&["d", "a", "c"]), "c"));
+    }
+
+    #[test]
+    fn filter_targets_all_clients_detects_none_all_and_empty_exclude() {
+        assert!(filter_targets_all_clients(None));
+        assert!(filter_targets_all_clients(Some(&ClientFilter::All)));
+        assert!(filter_targets_all_clients(Some(&ClientFilter::Exclude(
+            Vec::new()
+        ))));
+        assert!(!filter_targets_all_clients(Some(&ClientFilter::Exclude(ids(&[
+            "a"
+        ])))));
+        assert!(!filter_targets_all_clients(Some(&ClientFilter::Include(ids(&[
+            "a"
+        ])))));
     }
 
     #[test]
