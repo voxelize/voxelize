@@ -417,7 +417,16 @@ export const createBlockFace = (
   }
 
   const normalizedFace = toBlockFaceInit(init);
-  return new BlockFace(normalizedFace ?? DEFAULT_BLOCK_FACE_INIT);
+  if (normalizedFace !== null) {
+    return new BlockFace(normalizedFace);
+  }
+
+  const fallbackSnapshot = toBlockFaceInitSnapshot(
+    isBlockFaceInstance(init) || isPlainObjectValue(init)
+      ? (init as BlockFaceInitLikeValue)
+      : null
+  );
+  return new BlockFace(fallbackSnapshot);
 };
 
 export type OptionalRuleValue<T> = T | null | undefined;

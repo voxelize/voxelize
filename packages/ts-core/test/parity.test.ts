@@ -6570,6 +6570,43 @@ describe("Type builders", () => {
     );
   });
 
+  it("salvages readable createBlockFace fields for malformed direct name payloads", () => {
+    const corner = createCornerData([0, 0, 0], [0, 0]);
+    const malformedFace = {
+      name: 42,
+      independent: true,
+      isolated: true,
+      textureGroup: "group-a",
+      dir: [0, 1, 0],
+      corners: [corner, corner, corner, corner],
+      range: {
+        startU: 1,
+        endU: 2,
+        startV: "x",
+        endV: 4,
+      },
+    };
+
+    const face = createBlockFace(malformedFace as never);
+    expect(face.name).toBe("Face");
+    expect(face.independent).toBe(true);
+    expect(face.isolated).toBe(true);
+    expect(face.textureGroup).toBe("group-a");
+    expect(face.dir).toEqual([0, 1, 0]);
+    expect(face.corners).toEqual([
+      createCornerData([0, 0, 0], [0, 0]),
+      createCornerData([0, 0, 0], [0, 0]),
+      createCornerData([0, 0, 0], [0, 0]),
+      createCornerData([0, 0, 0], [0, 0]),
+    ]);
+    expect(face.range).toEqual({
+      startU: 1,
+      endU: 2,
+      startV: 0,
+      endV: 4,
+    });
+  });
+
   it("salvages readable createBlockFace fields when optional getters trap", () => {
     const trappedRange = new Proxy(
       {
