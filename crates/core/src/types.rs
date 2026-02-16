@@ -304,7 +304,7 @@ impl BlockFace {
 
 const PI_2: f32 = PI / 2.0;
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
 pub enum BlockRotation {
     PX(f32),
     NX(f32),
