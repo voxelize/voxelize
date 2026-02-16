@@ -23177,6 +23177,20 @@ describe("report-utils", () => {
     );
   });
 
+  it("returns a stable write failure message for wrapped-string output paths", () => {
+    const reportJson = toReportJson({ passed: false, exitCode: 1 });
+    const wrappedOutputPath = new String("wrapped-output-path");
+
+    expect(() => writeReportToPath(reportJson, wrappedOutputPath as never)).not.toThrow();
+    const failureMessage = writeReportToPath(reportJson, wrappedOutputPath as never);
+    expect(failureMessage).toContain(
+      "Failed to write report to wrapped-output-path."
+    );
+    expect(failureMessage).toContain(
+      'The "path" argument must be of type string.'
+    );
+  });
+
   it("returns an unprintable-path fallback for blank output paths", () => {
     const reportJson = toReportJson({ passed: false, exitCode: 1 });
 
@@ -23585,6 +23599,71 @@ describe("report-utils", () => {
     );
     expect(parsedWriteFailureResult.message).toContain(
       "Failed to write report to 7."
+    );
+    expect(parsedWriteFailureResult.message).toContain(
+      'The "path" argument must be of type string.'
+    );
+    expect(parsedWriteFailureResult.startedAt).toBe("iso-1000");
+    expect(parsedWriteFailureResult.endedAt).toBe("iso-2000");
+    expect(parsedWriteFailureResult.durationMs).toBe(1000);
+  });
+
+  it("returns structured serialize fallback for wrapped-string output paths", () => {
+    const wrappedOutputPath = new String("wrapped-output-path");
+    const timedReportBuilder = createTimedReportBuilder(
+      (() => {
+        let tick = 0;
+        return () => {
+          tick += 1;
+          return tick * 1000;
+        };
+      })(),
+      (value) => `iso-${value}`
+    );
+    const writeFailureResult = serializeReportWithOptionalWrite(
+      {
+        passed: true,
+        exitCode: 0,
+        outputPath: wrappedOutputPath as never,
+      },
+      {
+        jsonFormat: { compact: true },
+        outputPath: wrappedOutputPath as never,
+        buildTimedReport: timedReportBuilder,
+      }
+    );
+    const parsedWriteFailureResult = JSON.parse(
+      writeFailureResult.reportJson
+    ) as {
+      schemaVersion: number;
+      passed: boolean;
+      exitCode: number;
+      outputPath: string;
+      writeError: string;
+      message: string;
+      startedAt: string;
+      endedAt: string;
+      durationMs: number;
+    };
+
+    expect(writeFailureResult.writeError).toContain(
+      "Failed to write report to wrapped-output-path."
+    );
+    expect(writeFailureResult.writeError).toContain(
+      'The "path" argument must be of type string.'
+    );
+    expect(parsedWriteFailureResult.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+    expect(parsedWriteFailureResult.passed).toBe(false);
+    expect(parsedWriteFailureResult.exitCode).toBe(1);
+    expect(parsedWriteFailureResult.outputPath).toBe("wrapped-output-path");
+    expect(parsedWriteFailureResult.writeError).toContain(
+      "Failed to write report to wrapped-output-path."
+    );
+    expect(parsedWriteFailureResult.writeError).toContain(
+      'The "path" argument must be of type string.'
+    );
+    expect(parsedWriteFailureResult.message).toContain(
+      "Failed to write report to wrapped-output-path."
     );
     expect(parsedWriteFailureResult.message).toContain(
       'The "path" argument must be of type string.'
