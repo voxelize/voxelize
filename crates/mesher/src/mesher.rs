@@ -904,9 +904,9 @@ fn canonical_or_face_name_lower(face: &BlockFace) -> Cow<'_, str> {
 }
 
 #[inline]
-fn canonical_or_face_name_owned(face: &BlockFace) -> String {
+fn canonical_or_face_name_owned_with_lower(face: &BlockFace, face_name_lower: &str) -> String {
     if let Some(canonical) = canonical_face_name_from_dir(face.dir) {
-        if face.name.is_empty() || face.get_name_lower() == canonical {
+        if face.name.is_empty() || face_name_lower == canonical {
             return canonical.to_string();
         }
     }
@@ -2229,7 +2229,10 @@ fn process_non_greedy_face<S: VoxelAccess>(
         map.entry(geo_key).or_insert_with(|| {
             let mut g = GeometryProtocol::default();
             g.voxel = voxel_id;
-            g.face_name = Some(canonical_or_face_name_owned(face));
+            g.face_name = Some(canonical_or_face_name_owned_with_lower(
+                face,
+                face_name_lower.as_ref(),
+            ));
             g.at = Some([vx, vy, vz]);
             g
         })
@@ -2239,7 +2242,10 @@ fn process_non_greedy_face<S: VoxelAccess>(
         map.entry(geo_key).or_insert_with(|| {
             let mut g = GeometryProtocol::default();
             g.voxel = voxel_id;
-            g.face_name = Some(canonical_or_face_name_owned(face));
+            g.face_name = Some(canonical_or_face_name_owned_with_lower(
+                face,
+                face_name_lower.as_ref(),
+            ));
             g
         })
     } else {
@@ -2640,7 +2646,10 @@ pub fn mesh_space<S: VoxelAccess>(
                         map.entry(key).or_insert_with(|| {
                             let mut g = GeometryProtocol::default();
                             g.voxel = block.id;
-                            g.face_name = Some(canonical_or_face_name_owned(face));
+                            g.face_name = Some(canonical_or_face_name_owned_with_lower(
+                                face,
+                                face_name_lower.as_ref(),
+                            ));
                             g.at = Some([vx, vy, vz]);
                             g
                         })
@@ -2651,7 +2660,10 @@ pub fn mesh_space<S: VoxelAccess>(
                         map.entry(key).or_insert_with(|| {
                             let mut g = GeometryProtocol::default();
                             g.voxel = block.id;
-                            g.face_name = Some(canonical_or_face_name_owned(face));
+                            g.face_name = Some(canonical_or_face_name_owned_with_lower(
+                                face,
+                                face_name_lower.as_ref(),
+                            ));
                             g
                         })
                     } else {
