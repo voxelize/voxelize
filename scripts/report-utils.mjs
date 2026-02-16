@@ -92,34 +92,93 @@ const isSymbolObjectValue = (value) => {
   }
 };
 
-const toPrimitiveWrapperStringOrNull = (value) => {
-  const isSupportedWrapper =
-    isStringObjectValue(value) ||
-    isNumberObjectValue(value) ||
-    isBooleanObjectValue(value) ||
-    isBigIntObjectValue(value) ||
-    isSymbolObjectValue(value);
-  if (!isSupportedWrapper) {
+const toPrimitiveWrapperKindOrNull = (value) => {
+  if (isStringObjectValue(value)) {
+    return "string";
+  }
+  if (isNumberObjectValue(value)) {
+    return "number";
+  }
+  if (isBooleanObjectValue(value)) {
+    return "boolean";
+  }
+  if (isBigIntObjectValue(value)) {
+    return "bigint";
+  }
+  if (isSymbolObjectValue(value)) {
+    return "symbol";
+  }
+
+  return null;
+};
+
+const isPrimitiveWrapperPrimitiveValue = (value) => {
+  return (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "bigint" ||
+    typeof value === "symbol"
+  );
+};
+
+const toIntrinsicWrapperPrimitiveOrNull = (wrapperKind, value) => {
+  try {
+    switch (wrapperKind) {
+      case "string":
+        return String.prototype.valueOf.call(value);
+      case "number":
+        return Number.prototype.valueOf.call(value);
+      case "boolean":
+        return Boolean.prototype.valueOf.call(value);
+      case "bigint":
+        return BigInt.prototype.valueOf.call(value);
+      case "symbol":
+        return Symbol.prototype.valueOf.call(value);
+      default:
+        return null;
+    }
+  } catch {
     return null;
+  }
+};
+
+const toPrimitiveWrapperValueOrNull = (value) => {
+  const wrapperKind = toPrimitiveWrapperKindOrNull(value);
+  if (wrapperKind === null) {
+    return null;
+  }
+
+  const intrinsicPrimitiveValue = toIntrinsicWrapperPrimitiveOrNull(
+    wrapperKind,
+    value
+  );
+  if (isPrimitiveWrapperPrimitiveValue(intrinsicPrimitiveValue)) {
+    return intrinsicPrimitiveValue;
   }
 
   try {
     const valueOf = value.valueOf;
-    if (typeof valueOf !== "function") {
-      return null;
+    if (typeof valueOf === "function") {
+      const primitiveValue = valueOf.call(value);
+      if (isPrimitiveWrapperPrimitiveValue(primitiveValue)) {
+        return primitiveValue;
+      }
     }
+  } catch {
+    return null;
+  }
 
-    const primitiveValue = valueOf.call(value);
-    if (
-      typeof primitiveValue !== "string" &&
-      typeof primitiveValue !== "number" &&
-      typeof primitiveValue !== "boolean" &&
-      typeof primitiveValue !== "bigint" &&
-      typeof primitiveValue !== "symbol"
-    ) {
-      return null;
-    }
+  return null;
+};
 
+const toPrimitiveWrapperStringOrNull = (value) => {
+  const primitiveValue = toPrimitiveWrapperValueOrNull(value);
+  if (primitiveValue === null) {
+    return null;
+  }
+
+  try {
     const primitiveStringValue = String(primitiveValue);
     return primitiveStringValue.length > 0 ? primitiveStringValue : null;
   } catch {

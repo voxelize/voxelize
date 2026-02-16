@@ -253,7 +253,9 @@ describe("report-utils", () => {
       },
     });
     expect(() => parseJsonOutput(trappedValueOfWrapper as never)).not.toThrow();
-    expect(parseJsonOutput(trappedValueOfWrapper as never)).toBeNull();
+    expect(parseJsonOutput(trappedValueOfWrapper as never)).toEqual({
+      ok: true,
+    });
     expect(didCallTrappedValueOfToString).toBe(false);
 
     const trappedStringWrapper = {
@@ -23256,22 +23258,26 @@ describe("report-utils", () => {
     expect(failureMessage).not.toContain("string wrapper toString trap");
   });
 
-  it("falls back to unprintable output-path messaging when wrapped-string coercion is fully trapped", () => {
+  it("salvages wrapped-string output-path messaging when wrapper methods are fully trapped", () => {
     const reportJson = toReportJson({ passed: false, exitCode: 1 });
     const wrappedOutputPath = new String("wrapped-output-path");
+    let didCallWrappedToString = false;
     Object.defineProperty(wrappedOutputPath, "toString", {
       configurable: true,
       enumerable: false,
       writable: true,
       value() {
+        didCallWrappedToString = true;
         throw new Error("string wrapper toString trap");
       },
     });
+    let didCallWrappedValueOf = false;
     Object.defineProperty(wrappedOutputPath, "valueOf", {
       configurable: true,
       enumerable: false,
       writable: true,
       value() {
+        didCallWrappedValueOf = true;
         throw new Error("string wrapper valueOf trap");
       },
     });
@@ -23279,13 +23285,15 @@ describe("report-utils", () => {
     expect(() => writeReportToPath(reportJson, wrappedOutputPath as never)).not.toThrow();
     const failureMessage = writeReportToPath(reportJson, wrappedOutputPath as never);
     expect(failureMessage).toContain(
-      "Failed to write report to (unprintable output path)."
+      "Failed to write report to wrapped-output-path."
     );
     expect(failureMessage).toContain(
       'The "path" argument must be of type string.'
     );
     expect(failureMessage).not.toContain("string wrapper toString trap");
     expect(failureMessage).not.toContain("string wrapper valueOf trap");
+    expect(didCallWrappedToString).toBe(false);
+    expect(didCallWrappedValueOf).toBe(false);
   });
 
   it("returns stable write failure messages for numeric and boolean output paths", () => {
@@ -23382,14 +23390,16 @@ describe("report-utils", () => {
     expect(didCallBigintToString).toBe(false);
   });
 
-  it("falls back to unprintable output-path messaging for trapped symbol wrappers", () => {
+  it("salvages trapped symbol wrappers in output-path messaging", () => {
     const reportJson = toReportJson({ passed: false, exitCode: 1 });
     const trappedSymbolWrapper = Object(Symbol("boxed-output-path"));
+    let didCallWrappedValueOf = false;
     Object.defineProperty(trappedSymbolWrapper, "valueOf", {
       configurable: true,
       enumerable: false,
       writable: true,
       value() {
+        didCallWrappedValueOf = true;
         throw new Error("symbol wrapper valueOf trap");
       },
     });
@@ -23399,30 +23409,35 @@ describe("report-utils", () => {
     ).not.toThrow();
     const failureMessage = writeReportToPath(reportJson, trappedSymbolWrapper as never);
     expect(failureMessage).toContain(
-      "Failed to write report to (unprintable output path)."
+      "Failed to write report to Symbol(boxed-output-path)."
     );
     expect(failureMessage).toContain(
       'The "path" argument must be of type string.'
     );
     expect(failureMessage).not.toContain("symbol wrapper valueOf trap");
+    expect(didCallWrappedValueOf).toBe(false);
   });
 
-  it("falls back to unprintable output-path messaging when boxed coercion is fully trapped", () => {
+  it("salvages boxed output-path messaging when wrapper methods are fully trapped", () => {
     const reportJson = toReportJson({ passed: false, exitCode: 1 });
     const fullyTrappedNumberWrapper = new Number(7);
+    let didCallNumberToString = false;
     Object.defineProperty(fullyTrappedNumberWrapper, "toString", {
       configurable: true,
       enumerable: false,
       writable: true,
       value() {
+        didCallNumberToString = true;
         throw new Error("number wrapper toString trap");
       },
     });
+    let didCallNumberValueOf = false;
     Object.defineProperty(fullyTrappedNumberWrapper, "valueOf", {
       configurable: true,
       enumerable: false,
       writable: true,
       value() {
+        didCallNumberValueOf = true;
         throw new Error("number wrapper valueOf trap");
       },
     });
@@ -23435,13 +23450,15 @@ describe("report-utils", () => {
       fullyTrappedNumberWrapper as never
     );
     expect(failureMessage).toContain(
-      "Failed to write report to (unprintable output path)."
+      "Failed to write report to 7."
     );
     expect(failureMessage).toContain(
       'The "path" argument must be of type string.'
     );
     expect(failureMessage).not.toContain("number wrapper toString trap");
     expect(failureMessage).not.toContain("number wrapper valueOf trap");
+    expect(didCallNumberToString).toBe(false);
+    expect(didCallNumberValueOf).toBe(false);
   });
 
   it("returns an unprintable-path fallback for blank output paths", () => {
@@ -23877,7 +23894,7 @@ describe("report-utils", () => {
       {
         passed: true,
         exitCode: 0,
-        outputPath: wrappedOutputPath as never,
+        outputPath: null,
       },
       {
         jsonFormat: { compact: true },
@@ -23950,7 +23967,7 @@ describe("report-utils", () => {
       {
         passed: true,
         exitCode: 0,
-        outputPath: wrappedOutputPath as never,
+        outputPath: null,
       },
       {
         jsonFormat: { compact: true },
@@ -24006,21 +24023,25 @@ describe("report-utils", () => {
     expect(parsedWriteFailureResult.durationMs).toBe(1000);
   });
 
-  it("returns unprintable serialize fallback when wrapped-string coercion is fully trapped", () => {
+  it("salvages wrapped-string serialize fallback when wrapper methods are fully trapped", () => {
     const wrappedOutputPath = new String("wrapped-output-path");
+    let didCallWrappedToString = false;
     Object.defineProperty(wrappedOutputPath, "toString", {
       configurable: true,
       enumerable: false,
       writable: true,
       value() {
+        didCallWrappedToString = true;
         throw new Error("string wrapper toString trap");
       },
     });
+    let didCallWrappedValueOf = false;
     Object.defineProperty(wrappedOutputPath, "valueOf", {
       configurable: true,
       enumerable: false,
       writable: true,
       value() {
+        didCallWrappedValueOf = true;
         throw new Error("string wrapper valueOf trap");
       },
     });
@@ -24038,7 +24059,7 @@ describe("report-utils", () => {
       {
         passed: true,
         exitCode: 0,
-        outputPath: wrappedOutputPath as never,
+        outputPath: null,
       },
       {
         jsonFormat: { compact: true },
@@ -24061,7 +24082,7 @@ describe("report-utils", () => {
     };
 
     expect(writeFailureResult.writeError).toContain(
-      "Failed to write report to (unprintable output path)."
+      "Failed to write report to wrapped-output-path."
     );
     expect(writeFailureResult.writeError).toContain(
       'The "path" argument must be of type string.'
@@ -24071,9 +24092,9 @@ describe("report-utils", () => {
     expect(parsedWriteFailureResult.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
     expect(parsedWriteFailureResult.passed).toBe(false);
     expect(parsedWriteFailureResult.exitCode).toBe(1);
-    expect(parsedWriteFailureResult.outputPath).toBe("(unprintable output path)");
+    expect(parsedWriteFailureResult.outputPath).toBe("wrapped-output-path");
     expect(parsedWriteFailureResult.writeError).toContain(
-      "Failed to write report to (unprintable output path)."
+      "Failed to write report to wrapped-output-path."
     );
     expect(parsedWriteFailureResult.writeError).toContain(
       'The "path" argument must be of type string.'
@@ -24085,7 +24106,7 @@ describe("report-utils", () => {
       "string wrapper valueOf trap"
     );
     expect(parsedWriteFailureResult.message).toContain(
-      "Failed to write report to (unprintable output path)."
+      "Failed to write report to wrapped-output-path."
     );
     expect(parsedWriteFailureResult.message).toContain(
       'The "path" argument must be of type string.'
@@ -24099,6 +24120,8 @@ describe("report-utils", () => {
     expect(parsedWriteFailureResult.startedAt).toBe("iso-1000");
     expect(parsedWriteFailureResult.endedAt).toBe("iso-2000");
     expect(parsedWriteFailureResult.durationMs).toBe(1000);
+    expect(didCallWrappedToString).toBe(false);
+    expect(didCallWrappedValueOf).toBe(false);
   });
 
   it("returns structured serialize fallback for numeric and boolean output paths", () => {
@@ -24359,13 +24382,15 @@ describe("report-utils", () => {
     expect(didCallBigintToString).toBe(false);
   });
 
-  it("returns unprintable serialize fallback for trapped symbol wrappers", () => {
+  it("salvages trapped symbol wrappers in serialize fallback", () => {
     const trappedSymbolWrapper = Object(Symbol("boxed-output-path"));
+    let didCallWrappedValueOf = false;
     Object.defineProperty(trappedSymbolWrapper, "valueOf", {
       configurable: true,
       enumerable: false,
       writable: true,
       value() {
+        didCallWrappedValueOf = true;
         throw new Error("symbol wrapper valueOf trap");
       },
     });
@@ -24383,7 +24408,7 @@ describe("report-utils", () => {
       {
         passed: true,
         exitCode: 0,
-        outputPath: trappedSymbolWrapper as never,
+        outputPath: null,
       },
       {
         jsonFormat: { compact: true },
@@ -24406,7 +24431,7 @@ describe("report-utils", () => {
     };
 
     expect(writeFailureResult.writeError).toContain(
-      "Failed to write report to (unprintable output path)."
+      "Failed to write report to Symbol(boxed-output-path)."
     );
     expect(writeFailureResult.writeError).toContain(
       'The "path" argument must be of type string.'
@@ -24417,9 +24442,9 @@ describe("report-utils", () => {
     expect(parsedWriteFailureResult.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
     expect(parsedWriteFailureResult.passed).toBe(false);
     expect(parsedWriteFailureResult.exitCode).toBe(1);
-    expect(parsedWriteFailureResult.outputPath).toBe("(unprintable output path)");
+    expect(parsedWriteFailureResult.outputPath).toBe("Symbol(boxed-output-path)");
     expect(parsedWriteFailureResult.writeError).toContain(
-      "Failed to write report to (unprintable output path)."
+      "Failed to write report to Symbol(boxed-output-path)."
     );
     expect(parsedWriteFailureResult.writeError).toContain(
       'The "path" argument must be of type string.'
@@ -24428,7 +24453,7 @@ describe("report-utils", () => {
       "symbol wrapper valueOf trap"
     );
     expect(parsedWriteFailureResult.message).toContain(
-      "Failed to write report to (unprintable output path)."
+      "Failed to write report to Symbol(boxed-output-path)."
     );
     expect(parsedWriteFailureResult.message).toContain(
       'The "path" argument must be of type string.'
@@ -24439,23 +24464,28 @@ describe("report-utils", () => {
     expect(parsedWriteFailureResult.startedAt).toBe("iso-1000");
     expect(parsedWriteFailureResult.endedAt).toBe("iso-2000");
     expect(parsedWriteFailureResult.durationMs).toBe(1000);
+    expect(didCallWrappedValueOf).toBe(false);
   });
 
-  it("returns unprintable serialize fallback when boxed coercion is fully trapped", () => {
+  it("salvages boxed serialize fallback when wrapper methods are fully trapped", () => {
     const fullyTrappedNumberWrapper = new Number(7);
+    let didCallNumberToString = false;
     Object.defineProperty(fullyTrappedNumberWrapper, "toString", {
       configurable: true,
       enumerable: false,
       writable: true,
       value() {
+        didCallNumberToString = true;
         throw new Error("number wrapper toString trap");
       },
     });
+    let didCallNumberValueOf = false;
     Object.defineProperty(fullyTrappedNumberWrapper, "valueOf", {
       configurable: true,
       enumerable: false,
       writable: true,
       value() {
+        didCallNumberValueOf = true;
         throw new Error("number wrapper valueOf trap");
       },
     });
@@ -24473,7 +24503,7 @@ describe("report-utils", () => {
       {
         passed: true,
         exitCode: 0,
-        outputPath: fullyTrappedNumberWrapper as never,
+        outputPath: null,
       },
       {
         jsonFormat: { compact: true },
@@ -24496,7 +24526,7 @@ describe("report-utils", () => {
     };
 
     expect(writeFailureResult.writeError).toContain(
-      "Failed to write report to (unprintable output path)."
+      "Failed to write report to 7."
     );
     expect(writeFailureResult.writeError).toContain(
       'The "path" argument must be of type string.'
@@ -24506,9 +24536,9 @@ describe("report-utils", () => {
     expect(parsedWriteFailureResult.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
     expect(parsedWriteFailureResult.passed).toBe(false);
     expect(parsedWriteFailureResult.exitCode).toBe(1);
-    expect(parsedWriteFailureResult.outputPath).toBe("(unprintable output path)");
+    expect(parsedWriteFailureResult.outputPath).toBe("7");
     expect(parsedWriteFailureResult.writeError).toContain(
-      "Failed to write report to (unprintable output path)."
+      "Failed to write report to 7."
     );
     expect(parsedWriteFailureResult.writeError).toContain(
       'The "path" argument must be of type string.'
@@ -24520,7 +24550,7 @@ describe("report-utils", () => {
       "number wrapper valueOf trap"
     );
     expect(parsedWriteFailureResult.message).toContain(
-      "Failed to write report to (unprintable output path)."
+      "Failed to write report to 7."
     );
     expect(parsedWriteFailureResult.message).toContain(
       'The "path" argument must be of type string.'
@@ -24534,6 +24564,8 @@ describe("report-utils", () => {
     expect(parsedWriteFailureResult.startedAt).toBe("iso-1000");
     expect(parsedWriteFailureResult.endedAt).toBe("iso-2000");
     expect(parsedWriteFailureResult.durationMs).toBe(1000);
+    expect(didCallNumberToString).toBe(false);
+    expect(didCallNumberValueOf).toBe(false);
   });
 
   it("returns structured serialize fallback for blank output paths", () => {
