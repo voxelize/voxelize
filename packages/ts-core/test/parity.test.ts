@@ -1844,6 +1844,25 @@ describe("Numeric helpers", () => {
         },
       }
     );
+    const ownKeysTrappedObject = new Proxy(
+      {},
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+      }
+    );
+    const ownKeysTrappedArray = new Proxy([1, 2, 3], {
+      ownKeys() {
+        throw new Error("array ownKeys trap");
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("array iterator trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
     type MalformedArg =
       | null
       | undefined
@@ -1860,10 +1879,13 @@ describe("Numeric helpers", () => {
       [trappedObject],
       [revokedObject],
       [revokedArray],
+      [ownKeysTrappedObject],
+      [ownKeysTrappedArray],
       [Number.NaN],
       [Number.POSITIVE_INFINITY],
       [Symbol("arg-token")],
       [BigInt(7)],
+      [trappedObject, ownKeysTrappedObject],
       ["text"],
       [trappedObject, revokedObject],
       [42, trappedObject, revokedArray, Symbol("arg-sentinel")],
@@ -1923,7 +1945,26 @@ describe("Numeric helpers", () => {
         },
       }
     );
+    const ownKeysTrappedObject = new Proxy(
+      {},
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+      }
+    );
     const trappedArray = new Proxy([1, 2, 3], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator || property === "length") {
+          throw new Error("array trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const ownKeysTrappedArray = new Proxy([1, 2, 3], {
+      ownKeys() {
+        throw new Error("array ownKeys trap");
+      },
       get(target, property, receiver) {
         if (property === Symbol.iterator || property === "length") {
           throw new Error("array trap");
@@ -1947,11 +1988,14 @@ describe("Numeric helpers", () => {
       [trappedObject],
       [revokedObject],
       [revokedArray],
+      [ownKeysTrappedObject],
+      [ownKeysTrappedArray],
       [Number.NaN],
       [Number.POSITIVE_INFINITY],
       [Symbol("arg-token")],
       [BigInt(7)],
       ["text"],
+      [trappedObject, ownKeysTrappedObject],
       [trappedObject, revokedObject],
       [42, trappedObject, revokedArray, Symbol("arg-sentinel")],
       [trappedArray],
@@ -1968,9 +2012,11 @@ describe("Numeric helpers", () => {
       Symbol("ctx"),
       {},
       trappedObject,
+      ownKeysTrappedObject,
       revokedObject,
       revokedArray,
       trappedArray,
+      ownKeysTrappedArray,
     ];
     const allowedErrorPatterns = [
       /^BlockUtils\.insertAll(?:\[this:[^|]+\|args:\d+\]|\(\d+\)): RangeError: Maximum stage is 15$/,
