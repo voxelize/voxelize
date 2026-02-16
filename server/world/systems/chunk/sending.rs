@@ -156,8 +156,8 @@ fn prepare_chunk_batch_buffer(
     touched_clients: &mut Vec<String>,
     client_capacity_hint: usize,
 ) {
-    if batches.capacity() < client_capacity_hint {
-        batches.reserve(client_capacity_hint - batches.capacity());
+    if batches.capacity() < client_capacity_hint && batches.len() < client_capacity_hint {
+        batches.reserve(client_capacity_hint - batches.len());
     }
     touched_clients.clear();
     if touched_clients.capacity() < client_capacity_hint {
