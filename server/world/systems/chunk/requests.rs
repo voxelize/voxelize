@@ -15,6 +15,8 @@ pub struct ChunkRequestsSystem {
     chunk_models_buffer: Vec<crate::ChunkProtocol>,
 }
 
+const SMALL_CHUNK_REQUEST_BATCH_CLEAR_LIMIT: usize = 8;
+
 #[inline]
 fn enqueue_chunk_models_for_client(
     queue: &mut MessageQueues,
@@ -70,9 +72,24 @@ fn flush_chunk_requests_for_client(
         }
         return;
     }
+    let coords_to_send_len = coords_to_send.len();
+    if coords_to_send_len <= SMALL_CHUNK_REQUEST_BATCH_CLEAR_LIMIT {
+        chunk_models_buffer.clear();
+        if chunk_models_buffer.capacity() < coords_to_send_len {
+            chunk_models_buffer.reserve(coords_to_send_len - chunk_models_buffer.len());
+        }
+        for coords in coords_to_send.iter() {
+            if let Some(chunk) = chunks.get(coords) {
+                chunk_models_buffer.push(chunk.to_model(true, true, 0..sub_chunks_u32));
+            }
+        }
+        coords_to_send.clear();
+        enqueue_chunk_models_for_client(queue, chunk_models_buffer, client_id);
+        return;
+    }
     chunk_models_buffer.clear();
-    if chunk_models_buffer.capacity() < coords_to_send.len() {
-        chunk_models_buffer.reserve(coords_to_send.len() - chunk_models_buffer.len());
+    if chunk_models_buffer.capacity() < coords_to_send_len {
+        chunk_models_buffer.reserve(coords_to_send_len - chunk_models_buffer.len());
     }
     for coords in coords_to_send.drain() {
         if let Some(chunk) = chunks.get(&coords) {
