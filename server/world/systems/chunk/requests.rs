@@ -48,6 +48,41 @@ fn enqueue_chunk_models_for_client(
 }
 
 #[inline]
+fn flush_chunk_requests_for_client(
+    queue: &mut MessageQueues,
+    chunks: &Chunks,
+    chunk_models_buffer: &mut Vec<crate::ChunkProtocol>,
+    client_id: String,
+    coords_to_send: &mut HashSet<Vec2<i32>>,
+    sub_chunks_u32: u32,
+) {
+    if coords_to_send.is_empty() {
+        return;
+    }
+    if coords_to_send.len() == 1 {
+        if let Some(coords) = coords_to_send.iter().next().copied() {
+            coords_to_send.clear();
+            if let Some(chunk) = chunks.get(&coords) {
+                chunk_models_buffer.clear();
+                chunk_models_buffer.push(chunk.to_model(true, true, 0..sub_chunks_u32));
+                enqueue_chunk_models_for_client(queue, chunk_models_buffer, client_id);
+            }
+        }
+        return;
+    }
+    chunk_models_buffer.clear();
+    if chunk_models_buffer.capacity() < coords_to_send.len() {
+        chunk_models_buffer.reserve(coords_to_send.len() - chunk_models_buffer.len());
+    }
+    for coords in coords_to_send.drain() {
+        if let Some(chunk) = chunks.get(&coords) {
+            chunk_models_buffer.push(chunk.to_model(true, true, 0..sub_chunks_u32));
+        }
+    }
+    enqueue_chunk_models_for_client(queue, chunk_models_buffer, client_id);
+}
+
+#[inline]
 fn retain_active_request_batches(
     to_send: &mut HashMap<String, HashSet<Vec2<i32>>>,
     clients: &Clients,
@@ -222,67 +257,146 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         if to_send_touched_clients.is_empty() {
             return;
         }
-        if to_send_touched_clients.len() == 1 {
-            let Some(id) = to_send_touched_clients.pop() else {
-                return;
-            };
-            let Some(coords_to_send) = to_send.get_mut(&id) else {
-                return;
-            };
-            if coords_to_send.is_empty() {
-                return;
+        match to_send_touched_clients.len() {
+            1 => {
+                let Some(id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                if let Some(coords_to_send) = to_send.get_mut(&id) {
+                    flush_chunk_requests_for_client(
+                        &mut queue,
+                        &chunks,
+                        chunk_models_buffer,
+                        id,
+                        coords_to_send,
+                        sub_chunks_u32,
+                    );
+                }
             }
-            if coords_to_send.len() == 1 {
-                if let Some(coords) = coords_to_send.iter().next().copied() {
-                    coords_to_send.clear();
-                    if let Some(chunk) = chunks.get(&coords) {
-                        chunk_models_buffer.clear();
-                        chunk_models_buffer.push(chunk.to_model(true, true, 0..sub_chunks_u32));
-                        enqueue_chunk_models_for_client(&mut queue, chunk_models_buffer, id);
+            2 => {
+                let Some(first_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                let Some(second_id) = to_send_touched_clients.pop() else {
+                    if let Some(coords_to_send) = to_send.get_mut(&first_id) {
+                        flush_chunk_requests_for_client(
+                            &mut queue,
+                            &chunks,
+                            chunk_models_buffer,
+                            first_id,
+                            coords_to_send,
+                            sub_chunks_u32,
+                        );
                     }
+                    return;
+                };
+                if let Some(coords_to_send) = to_send.get_mut(&first_id) {
+                    flush_chunk_requests_for_client(
+                        &mut queue,
+                        &chunks,
+                        chunk_models_buffer,
+                        first_id,
+                        coords_to_send,
+                        sub_chunks_u32,
+                    );
                 }
-                return;
-            }
-            chunk_models_buffer.clear();
-            if chunk_models_buffer.capacity() < coords_to_send.len() {
-                chunk_models_buffer.reserve(coords_to_send.len() - chunk_models_buffer.len());
-            }
-            for coords in coords_to_send.drain() {
-                if let Some(chunk) = chunks.get(&coords) {
-                    chunk_models_buffer.push(chunk.to_model(true, true, 0..sub_chunks_u32));
+                if let Some(coords_to_send) = to_send.get_mut(&second_id) {
+                    flush_chunk_requests_for_client(
+                        &mut queue,
+                        &chunks,
+                        chunk_models_buffer,
+                        second_id,
+                        coords_to_send,
+                        sub_chunks_u32,
+                    );
                 }
             }
-            enqueue_chunk_models_for_client(&mut queue, chunk_models_buffer, id);
-            return;
-        }
-        for id in to_send_touched_clients.drain(..) {
-            let Some(coords_to_send) = to_send.get_mut(&id) else {
-                continue;
-            };
-            if coords_to_send.is_empty() {
-                continue;
-            }
-            if coords_to_send.len() == 1 {
-                if let Some(coords) = coords_to_send.iter().next().copied() {
-                    coords_to_send.clear();
-                    if let Some(chunk) = chunks.get(&coords) {
-                        chunk_models_buffer.clear();
-                        chunk_models_buffer.push(chunk.to_model(true, true, 0..sub_chunks_u32));
-                        enqueue_chunk_models_for_client(&mut queue, chunk_models_buffer, id);
+            3 => {
+                let Some(first_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                let Some(second_id) = to_send_touched_clients.pop() else {
+                    if let Some(coords_to_send) = to_send.get_mut(&first_id) {
+                        flush_chunk_requests_for_client(
+                            &mut queue,
+                            &chunks,
+                            chunk_models_buffer,
+                            first_id,
+                            coords_to_send,
+                            sub_chunks_u32,
+                        );
                     }
+                    return;
+                };
+                let Some(third_id) = to_send_touched_clients.pop() else {
+                    if let Some(coords_to_send) = to_send.get_mut(&first_id) {
+                        flush_chunk_requests_for_client(
+                            &mut queue,
+                            &chunks,
+                            chunk_models_buffer,
+                            first_id,
+                            coords_to_send,
+                            sub_chunks_u32,
+                        );
+                    }
+                    if let Some(coords_to_send) = to_send.get_mut(&second_id) {
+                        flush_chunk_requests_for_client(
+                            &mut queue,
+                            &chunks,
+                            chunk_models_buffer,
+                            second_id,
+                            coords_to_send,
+                            sub_chunks_u32,
+                        );
+                    }
+                    return;
+                };
+                if let Some(coords_to_send) = to_send.get_mut(&first_id) {
+                    flush_chunk_requests_for_client(
+                        &mut queue,
+                        &chunks,
+                        chunk_models_buffer,
+                        first_id,
+                        coords_to_send,
+                        sub_chunks_u32,
+                    );
                 }
-                continue;
-            }
-            chunk_models_buffer.clear();
-            if chunk_models_buffer.capacity() < coords_to_send.len() {
-                chunk_models_buffer.reserve(coords_to_send.len() - chunk_models_buffer.len());
-            }
-            for coords in coords_to_send.drain() {
-                if let Some(chunk) = chunks.get(&coords) {
-                    chunk_models_buffer.push(chunk.to_model(true, true, 0..sub_chunks_u32));
+                if let Some(coords_to_send) = to_send.get_mut(&second_id) {
+                    flush_chunk_requests_for_client(
+                        &mut queue,
+                        &chunks,
+                        chunk_models_buffer,
+                        second_id,
+                        coords_to_send,
+                        sub_chunks_u32,
+                    );
+                }
+                if let Some(coords_to_send) = to_send.get_mut(&third_id) {
+                    flush_chunk_requests_for_client(
+                        &mut queue,
+                        &chunks,
+                        chunk_models_buffer,
+                        third_id,
+                        coords_to_send,
+                        sub_chunks_u32,
+                    );
                 }
             }
-            enqueue_chunk_models_for_client(&mut queue, chunk_models_buffer, id);
+            _ => {
+                for id in to_send_touched_clients.drain(..) {
+                    let Some(coords_to_send) = to_send.get_mut(&id) else {
+                        continue;
+                    };
+                    flush_chunk_requests_for_client(
+                        &mut queue,
+                        &chunks,
+                        chunk_models_buffer,
+                        id,
+                        coords_to_send,
+                        sub_chunks_u32,
+                    );
+                }
+            }
         }
     }
 }
