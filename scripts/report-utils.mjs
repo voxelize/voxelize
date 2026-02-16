@@ -1814,10 +1814,26 @@ const createSupportedCliOptionsFromNormalizedMetadata = (
   ]);
 };
 
-export const createCliOptionCatalog = ({
-  canonicalOptions = [],
-  optionAliases = {},
-} = {}) => {
+const readCliOptionConfigValue = (
+  config,
+  key,
+  fallbackValue
+) => {
+  const configValue = safeReadProperty(config, key);
+  return configValue === undefined ? fallbackValue : configValue;
+};
+
+export const createCliOptionCatalog = (optionMetadata = null) => {
+  const canonicalOptions = readCliOptionConfigValue(
+    optionMetadata,
+    "canonicalOptions",
+    []
+  );
+  const optionAliases = readCliOptionConfigValue(
+    optionMetadata,
+    "optionAliases",
+    {}
+  );
   const normalizedCanonicalOptions = normalizeCliOptionTokenList(canonicalOptions);
   const normalizedOptionAliases = normalizeCliOptionAliases(optionAliases);
   const supportedCliOptions = createSupportedCliOptionsFromNormalizedMetadata(
@@ -2224,16 +2240,43 @@ const normalizeUnknownOptionToken = (optionToken, canonicalOptionMap) => {
 
 export const parseUnknownCliOptions = (
   args,
-  {
-    canonicalOptions = [],
-    optionAliases = {},
-    optionsWithValues = [],
-    optionsWithStrictValues = [],
-    valueOptionTokenMetadata = null,
-    strictValueOptionTokenMetadata = null,
-    optionArgs: normalizedOptionArgs = null,
-  } = {}
+  optionMetadata = null
 ) => {
+  const canonicalOptions = readCliOptionConfigValue(
+    optionMetadata,
+    "canonicalOptions",
+    []
+  );
+  const optionAliases = readCliOptionConfigValue(
+    optionMetadata,
+    "optionAliases",
+    {}
+  );
+  const optionsWithValues = readCliOptionConfigValue(
+    optionMetadata,
+    "optionsWithValues",
+    []
+  );
+  const optionsWithStrictValues = readCliOptionConfigValue(
+    optionMetadata,
+    "optionsWithStrictValues",
+    []
+  );
+  const valueOptionTokenMetadata = readCliOptionConfigValue(
+    optionMetadata,
+    "valueOptionTokenMetadata",
+    null
+  );
+  const strictValueOptionTokenMetadata = readCliOptionConfigValue(
+    optionMetadata,
+    "strictValueOptionTokenMetadata",
+    null
+  );
+  const normalizedOptionArgs = readCliOptionConfigValue(
+    optionMetadata,
+    "optionArgs",
+    null
+  );
   const optionArgsFromOverride =
     toTrustedOptionArgsOverrideOrNull(normalizedOptionArgs);
   const optionArgs =
@@ -2321,19 +2364,58 @@ export const parseUnknownCliOptions = (
 
 export const createCliOptionValidation = (
   args,
-  {
-    canonicalOptions = [],
-    optionAliases = {},
-    optionsWithValues = [],
-    optionsWithStrictValues = [],
-    valueOptionTokenMetadata = null,
-    strictValueOptionTokenMetadata = null,
-    optionArgs = null,
-    outputPathError = null,
-    supportedCliOptions: precomputedSupportedCliOptions = null,
-    optionCatalog = null,
-  } = {}
+  optionMetadata = null
 ) => {
+  const canonicalOptions = readCliOptionConfigValue(
+    optionMetadata,
+    "canonicalOptions",
+    []
+  );
+  const optionAliases = readCliOptionConfigValue(
+    optionMetadata,
+    "optionAliases",
+    {}
+  );
+  const optionsWithValues = readCliOptionConfigValue(
+    optionMetadata,
+    "optionsWithValues",
+    []
+  );
+  const optionsWithStrictValues = readCliOptionConfigValue(
+    optionMetadata,
+    "optionsWithStrictValues",
+    []
+  );
+  const valueOptionTokenMetadata = readCliOptionConfigValue(
+    optionMetadata,
+    "valueOptionTokenMetadata",
+    null
+  );
+  const strictValueOptionTokenMetadata = readCliOptionConfigValue(
+    optionMetadata,
+    "strictValueOptionTokenMetadata",
+    null
+  );
+  const optionArgs = readCliOptionConfigValue(
+    optionMetadata,
+    "optionArgs",
+    null
+  );
+  const outputPathError = readCliOptionConfigValue(
+    optionMetadata,
+    "outputPathError",
+    null
+  );
+  const precomputedSupportedCliOptions = readCliOptionConfigValue(
+    optionMetadata,
+    "supportedCliOptions",
+    null
+  );
+  const optionCatalog = readCliOptionConfigValue(
+    optionMetadata,
+    "optionCatalog",
+    null
+  );
   const normalizedOptionCatalogOverride =
     toNormalizedCliOptionCatalogOrNull(optionCatalog);
   const resolvedOptionCatalog =
@@ -2391,10 +2473,19 @@ export const createCliOptionValidation = (
   };
 };
 
-export const deriveCliValidationFailureMessage = ({
-  outputPathError = null,
-  unsupportedOptionsError = null,
-} = {}) => {
+export const deriveCliValidationFailureMessage = (
+  failureMetadata = null
+) => {
+  const outputPathError = readCliOptionConfigValue(
+    failureMetadata,
+    "outputPathError",
+    null
+  );
+  const unsupportedOptionsError = readCliOptionConfigValue(
+    failureMetadata,
+    "unsupportedOptionsError",
+    null
+  );
   if (outputPathError !== null) {
     return outputPathError;
   }
@@ -2408,16 +2499,43 @@ export const deriveCliValidationFailureMessage = ({
 
 export const parseActiveCliOptionMetadata = (
   args,
-  {
-    canonicalOptions = [],
-    optionAliases = {},
-    optionsWithValues = [],
-    optionsWithStrictValues = [],
-    valueOptionTokenMetadata = null,
-    strictValueOptionTokenMetadata = null,
-    optionArgs: normalizedOptionArgs = null,
-  } = {}
+  optionMetadata = null
 ) => {
+  const canonicalOptions = readCliOptionConfigValue(
+    optionMetadata,
+    "canonicalOptions",
+    []
+  );
+  const optionAliases = readCliOptionConfigValue(
+    optionMetadata,
+    "optionAliases",
+    {}
+  );
+  const optionsWithValues = readCliOptionConfigValue(
+    optionMetadata,
+    "optionsWithValues",
+    []
+  );
+  const optionsWithStrictValues = readCliOptionConfigValue(
+    optionMetadata,
+    "optionsWithStrictValues",
+    []
+  );
+  const valueOptionTokenMetadata = readCliOptionConfigValue(
+    optionMetadata,
+    "valueOptionTokenMetadata",
+    null
+  );
+  const strictValueOptionTokenMetadata = readCliOptionConfigValue(
+    optionMetadata,
+    "strictValueOptionTokenMetadata",
+    null
+  );
+  const normalizedOptionArgs = readCliOptionConfigValue(
+    optionMetadata,
+    "optionArgs",
+    null
+  );
   const optionArgsFromOverride =
     toTrustedOptionArgsOverrideOrNull(normalizedOptionArgs);
   const optionArgs =
@@ -2532,14 +2650,33 @@ export const parseActiveCliOptionMetadata = (
 
 export const createCliDiagnostics = (
   args,
-  {
-    canonicalOptions = [],
-    optionAliases = {},
-    optionsWithValues = [],
-    optionsWithStrictValues = [],
-    outputPathError = null,
-  } = {}
+  optionMetadata = null
 ) => {
+  const canonicalOptions = readCliOptionConfigValue(
+    optionMetadata,
+    "canonicalOptions",
+    []
+  );
+  const optionAliases = readCliOptionConfigValue(
+    optionMetadata,
+    "optionAliases",
+    {}
+  );
+  const optionsWithValues = readCliOptionConfigValue(
+    optionMetadata,
+    "optionsWithValues",
+    []
+  );
+  const optionsWithStrictValues = readCliOptionConfigValue(
+    optionMetadata,
+    "optionsWithStrictValues",
+    []
+  );
+  const outputPathError = readCliOptionConfigValue(
+    optionMetadata,
+    "outputPathError",
+    null
+  );
   const { optionArgs } = splitCliArgs(args);
   const optionCatalog = createCliOptionCatalog({
     canonicalOptions,

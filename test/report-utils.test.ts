@@ -3257,6 +3257,177 @@ describe("report-utils", () => {
     ).toBe(false);
   });
 
+  it("sanitizes malformed metadata wrappers across cli helper entrypoints", () => {
+    expect(createCliOptionCatalog(null as never)).toEqual({
+      supportedCliOptions: [],
+      supportedCliOptionCount: 0,
+      availableCliOptionAliases: {},
+      availableCliOptionCanonicalMap: {},
+    });
+    expect(parseUnknownCliOptions(["--json"], null as never)).toEqual(["--json"]);
+    expect(parseActiveCliOptionMetadata(["--json"], null as never)).toEqual({
+      activeCliOptions: [],
+      activeCliOptionCount: 0,
+      activeCliOptionTokens: [],
+      activeCliOptionResolutions: [],
+      activeCliOptionResolutionCount: 0,
+      activeCliOptionOccurrences: [],
+      activeCliOptionOccurrenceCount: 0,
+    });
+    expect(createCliOptionValidation(["--json"], null as never)).toEqual({
+      supportedCliOptions: [],
+      supportedCliOptionCount: 0,
+      unknownOptions: ["--json"],
+      unknownOptionCount: 1,
+      unsupportedOptionsError:
+        "Unsupported option(s): --json. Supported options: (none).",
+      validationErrorCode: "unsupported_options",
+    });
+    expect(createCliDiagnostics(["--json"], null as never)).toEqual({
+      supportedCliOptions: [],
+      supportedCliOptionCount: 0,
+      availableCliOptionAliases: {},
+      availableCliOptionCanonicalMap: {},
+      unknownOptions: ["--json"],
+      unknownOptionCount: 1,
+      unsupportedOptionsError:
+        "Unsupported option(s): --json. Supported options: (none).",
+      validationErrorCode: "unsupported_options",
+      activeCliOptions: [],
+      activeCliOptionCount: 0,
+      activeCliOptionTokens: [],
+      activeCliOptionResolutions: [],
+      activeCliOptionResolutionCount: 0,
+      activeCliOptionOccurrences: [],
+      activeCliOptionOccurrenceCount: 0,
+    });
+    expect(deriveCliValidationFailureMessage(null as never)).toBeNull();
+
+    const aliasMetadataWithCanonicalTrap = new Proxy(Object.create(null), {
+      get(_target, property) {
+        if (property === "canonicalOptions") {
+          throw new Error("canonical trap");
+        }
+        if (property === "optionAliases") {
+          return {
+            "--no-build": ["--verify"],
+          };
+        }
+        return undefined;
+      },
+    });
+    const catalog = createCliOptionCatalog(aliasMetadataWithCanonicalTrap as never);
+    expect(catalog).toEqual({
+      supportedCliOptions: ["--no-build", "--verify"],
+      supportedCliOptionCount: 2,
+      availableCliOptionAliases: {
+        "--no-build": ["--verify"],
+      },
+      availableCliOptionCanonicalMap: {
+        "--no-build": "--no-build",
+        "--verify": "--no-build",
+      },
+    });
+    expect(
+      parseUnknownCliOptions(
+        ["--verify", "--mystery"],
+        aliasMetadataWithCanonicalTrap as never
+      )
+    ).toEqual(["--mystery"]);
+    expect(
+      parseActiveCliOptionMetadata(
+        ["--verify"],
+        aliasMetadataWithCanonicalTrap as never
+      )
+    ).toEqual({
+      activeCliOptions: ["--no-build"],
+      activeCliOptionCount: 1,
+      activeCliOptionTokens: ["--verify"],
+      activeCliOptionResolutions: [
+        {
+          token: "--verify",
+          canonicalOption: "--no-build",
+        },
+      ],
+      activeCliOptionResolutionCount: 1,
+      activeCliOptionOccurrences: [
+        {
+          token: "--verify",
+          canonicalOption: "--no-build",
+          index: 0,
+        },
+      ],
+      activeCliOptionOccurrenceCount: 1,
+    });
+    expect(
+      createCliOptionValidation(
+        ["--verify"],
+        aliasMetadataWithCanonicalTrap as never
+      )
+    ).toEqual({
+      supportedCliOptions: ["--no-build", "--verify"],
+      supportedCliOptionCount: 2,
+      unknownOptions: [],
+      unknownOptionCount: 0,
+      unsupportedOptionsError: null,
+      validationErrorCode: null,
+    });
+    expect(
+      createCliDiagnostics(
+        ["--verify", "--mystery"],
+        aliasMetadataWithCanonicalTrap as never
+      )
+    ).toEqual({
+      supportedCliOptions: ["--no-build", "--verify"],
+      supportedCliOptionCount: 2,
+      availableCliOptionAliases: {
+        "--no-build": ["--verify"],
+      },
+      availableCliOptionCanonicalMap: {
+        "--no-build": "--no-build",
+        "--verify": "--no-build",
+      },
+      unknownOptions: ["--mystery"],
+      unknownOptionCount: 1,
+      unsupportedOptionsError:
+        "Unsupported option(s): --mystery. Supported options: --no-build, --verify.",
+      validationErrorCode: "unsupported_options",
+      activeCliOptions: ["--no-build"],
+      activeCliOptionCount: 1,
+      activeCliOptionTokens: ["--verify"],
+      activeCliOptionResolutions: [
+        {
+          token: "--verify",
+          canonicalOption: "--no-build",
+        },
+      ],
+      activeCliOptionResolutionCount: 1,
+      activeCliOptionOccurrences: [
+        {
+          token: "--verify",
+          canonicalOption: "--no-build",
+          index: 0,
+        },
+      ],
+      activeCliOptionOccurrenceCount: 1,
+    });
+
+    const failureMetadata = new Proxy(Object.create(null), {
+      get(_target, property) {
+        if (property === "outputPathError") {
+          throw new Error("output trap");
+        }
+        if (property === "unsupportedOptionsError") {
+          return "Unsupported option(s): --mystery.";
+        }
+        return undefined;
+      },
+    });
+    expect(
+      deriveCliValidationFailureMessage(failureMetadata as never)
+    ).toBe("Unsupported option(s): --mystery.");
+  });
+
   it("parses unknown cli options with alias and value support", () => {
     const unknownFromMixedArgs = parseUnknownCliOptions(
       [
