@@ -287,12 +287,21 @@ fn process_pending_updates(
             } else {
                 current_type.is_light
             };
-            let updated_is_light = if updated_has_dynamic_patterns {
-                updated_type.is_light_at(&voxel, &*chunks)
+            let stored_updated_is_light = if updated_has_dynamic_patterns {
+                false
             } else {
                 updated_type.is_light
             };
-            let is_removed_light_source = current_is_light && !updated_is_light;
+            let updated_is_light_for_removal = if current_is_light {
+                if updated_has_dynamic_patterns {
+                    updated_type.is_light_at(&voxel, &*chunks)
+                } else {
+                    stored_updated_is_light
+                }
+            } else {
+                false
+            };
+            let is_removed_light_source = current_is_light && !updated_is_light_for_removal;
             let removed_source_levels = if is_removed_light_source {
                 if current_has_dynamic_patterns {
                     Some((
@@ -414,7 +423,7 @@ fn process_pending_updates(
                     rotation,
                     current_type,
                     updated_type,
-                    updated_is_light,
+                    stored_updated_is_light,
                     is_removed_light_source,
                     current_rotatable,
                     updated_rotatable,
