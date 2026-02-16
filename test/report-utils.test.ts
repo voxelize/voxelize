@@ -7177,6 +7177,139 @@ describe("report-utils", () => {
     expect(aliasFallbackFromCanonicalMapValidation.unsupportedOptionsError).toBeNull();
     expect(aliasFallbackFromCanonicalMapValidation.validationErrorCode).toBeNull();
     expect(aliasFallbackFromCanonicalMapReadCount).toBe(0);
+    let partialCatalogSupportedSnapshotCanonicalReadCount = 0;
+    const partialCatalogSupportedSnapshotCanonicalOptions = new Proxy(["--json"], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("iterator trap");
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (property === "0") {
+          partialCatalogSupportedSnapshotCanonicalReadCount += 1;
+          return "--json";
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const partialCatalogSupportedSnapshotValidation = createCliOptionValidation(
+      ["--mystery"],
+      {
+        canonicalOptions: partialCatalogSupportedSnapshotCanonicalOptions as never,
+        optionCatalog: {
+          supportedCliOptions: new Proxy(["--json", "--output"], {
+            ownKeys() {
+              throw new Error("ownKeys trap");
+            },
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 2;
+              }
+              if (property === "0") {
+                throw new Error("read trap");
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+          availableCliOptionCanonicalMap: {
+            "--json": "--json",
+            "--output": "--output",
+          },
+        } as never,
+      }
+    );
+    expect(partialCatalogSupportedSnapshotValidation.supportedCliOptions).toEqual([
+      "--output",
+      "--json",
+    ]);
+    expect(partialCatalogSupportedSnapshotValidation.supportedCliOptionCount).toBe(2);
+    expect(partialCatalogSupportedSnapshotValidation.unknownOptions).toEqual([
+      "--mystery",
+    ]);
+    expect(partialCatalogSupportedSnapshotValidation.unknownOptionCount).toBe(1);
+    expect(partialCatalogSupportedSnapshotValidation.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --output, --json."
+    );
+    expect(partialCatalogSupportedSnapshotValidation.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    expect(partialCatalogSupportedSnapshotCanonicalReadCount).toBe(0);
+    let unrecoverableCatalogSupportedSnapshotCanonicalReadCount = 0;
+    const unrecoverableCatalogSupportedSnapshotCanonicalOptions = new Proxy(
+      ["--json"],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (property === "0") {
+            unrecoverableCatalogSupportedSnapshotCanonicalReadCount += 1;
+            return "--json";
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const unrecoverableCatalogSupportedSnapshotValidation =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions:
+          unrecoverableCatalogSupportedSnapshotCanonicalOptions as never,
+        optionCatalog: {
+          supportedCliOptions: new Proxy(["--json", "--output"], {
+            ownKeys() {
+              throw new Error("ownKeys trap");
+            },
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 2;
+              }
+              if (property === "0" || property === "1") {
+                throw new Error("read trap");
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+          availableCliOptionCanonicalMap: {
+            "--json": "--json",
+            "--output": "--output",
+          },
+        } as never,
+      });
+    expect(unrecoverableCatalogSupportedSnapshotValidation.supportedCliOptions).toEqual(
+      ["--json", "--output"]
+    );
+    expect(
+      unrecoverableCatalogSupportedSnapshotValidation.supportedCliOptionCount
+    ).toBe(2);
+    expect(unrecoverableCatalogSupportedSnapshotValidation.unknownOptions).toEqual([
+      "--mystery",
+    ]);
+    expect(
+      unrecoverableCatalogSupportedSnapshotValidation.unknownOptionCount
+    ).toBe(1);
+    expect(
+      unrecoverableCatalogSupportedSnapshotValidation.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
+    expect(unrecoverableCatalogSupportedSnapshotValidation.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    expect(unrecoverableCatalogSupportedSnapshotCanonicalReadCount).toBe(0);
     let optionCatalogOverrideWithMalformedPrecomputedCanonicalReadCount = 0;
     const optionCatalogOverrideWithMalformedPrecomputedCanonicalOptions =
       new Proxy(["--json"], {
