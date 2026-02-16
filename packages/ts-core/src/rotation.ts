@@ -57,6 +57,37 @@ const mapTransparencyValue = (
   return nz;
 };
 
+const readRotationAxisSafely = (rotation: BlockRotation): number => {
+  try {
+    const axisValue = rotation.axis;
+    if (typeof axisValue === "number") {
+      return axisValue;
+    }
+  } catch {
+    // fall through to value fallback
+  }
+
+  try {
+    const value = rotation.value;
+    if (typeof value === "number") {
+      return value;
+    }
+  } catch {
+    // fall through to PY fallback
+  }
+
+  return PY_ROTATION;
+};
+
+const readRotationYSafely = (rotation: BlockRotation): number => {
+  try {
+    const yRotation = rotation.yRotation;
+    return typeof yRotation === "number" ? yRotation : 0;
+  } catch {
+    return 0;
+  }
+};
+
 export class BlockRotation {
   constructor(
     public value = PY_ROTATION,
@@ -141,12 +172,13 @@ export class BlockRotation {
   }
 
   static decode(rotation: BlockRotation): [number, number] {
-    const normalizedYRotation = normalizeYRotation(rotation.yRotation);
+    const normalizedYRotation = normalizeYRotation(readRotationYSafely(rotation));
     const converted = Math.round((normalizedYRotation * Y_ROT_SEGMENTS) / TWO_PI);
     const yRotation =
       ((converted % Y_ROT_SEGMENTS) + Y_ROT_SEGMENTS) % Y_ROT_SEGMENTS;
+    const axis = readRotationAxisSafely(rotation);
 
-    switch (rotation.axis) {
+    switch (axis) {
       case PX_ROTATION:
         return [PX_ROTATION, yRotation];
       case NX_ROTATION:

@@ -628,6 +628,54 @@ describe("BlockRotation", () => {
     expect(yRotation).toBe(4);
   });
 
+  it("sanitizes decode and equality checks for trap-driven rotations", () => {
+    const axisTrapRotation = Object.create(null) as {
+      readonly axis: number;
+      readonly value: number;
+      readonly yRotation: number;
+    };
+    Object.defineProperty(axisTrapRotation, "axis", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("axis trap");
+      },
+    });
+    Object.defineProperty(axisTrapRotation, "value", {
+      configurable: true,
+      enumerable: true,
+      value: 99,
+    });
+    Object.defineProperty(axisTrapRotation, "yRotation", {
+      configurable: true,
+      enumerable: true,
+      value: Math.PI / 2,
+    });
+    const revokedRotation = (() => {
+      const rotationProxy = Proxy.revocable(BlockRotation.py(Math.PI / 2), {});
+      rotationProxy.revoke();
+      return rotationProxy.proxy;
+    })();
+
+    expect(() => BlockRotation.decode(axisTrapRotation as never)).not.toThrow();
+    const [axisFromTrap, segmentFromTrap] = BlockRotation.decode(
+      axisTrapRotation as never
+    );
+    expect(axisFromTrap).toBe(PY_ROTATION);
+    expect(segmentFromTrap).toBe(4);
+
+    expect(() => BlockRotation.decode(revokedRotation as never)).not.toThrow();
+    const [axisFromRevoked, segmentFromRevoked] = BlockRotation.decode(
+      revokedRotation as never
+    );
+    expect(axisFromRevoked).toBe(PY_ROTATION);
+    expect(segmentFromRevoked).toBe(0);
+
+    const baseRotation = BlockRotation.py(Math.PI / 2);
+    expect(() => baseRotation.equals(revokedRotation as never)).not.toThrow();
+    expect(baseRotation.equals(revokedRotation as never)).toBe(false);
+  });
+
   it("decodes large y-rotation angles via modulo-normalized segments", () => {
     const largeAngle = 6728604188452.013;
     const [axis, yRotation] = BlockRotation.decode(
