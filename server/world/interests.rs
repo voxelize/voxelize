@@ -200,13 +200,14 @@ impl ChunkInterests {
                 true
             }
         });
+        if self.map.is_empty() {
+            self.weights.clear();
+            return;
+        }
         if let Some(removed_coords) = removed_coords {
             for coords in removed_coords {
                 self.weights.remove(&coords);
             }
-        }
-        if self.map.is_empty() {
-            self.weights.clear();
         }
     }
 }
