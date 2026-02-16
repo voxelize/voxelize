@@ -48,6 +48,28 @@ fn normalized_entity_type<'a>(etype: &'a str) -> Cow<'a, str> {
     }
 }
 
+#[inline]
+fn sanitize_entity_filename<'a>(etype: &'a str) -> Cow<'a, str> {
+    if !etype.contains("::") && !etype.contains(' ') {
+        return Cow::Borrowed(etype);
+    }
+    let mut sanitized = String::with_capacity(etype.len());
+    let mut chars = etype.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == ':' && matches!(chars.peek(), Some(':')) {
+            sanitized.push('-');
+            chars.next();
+            continue;
+        }
+        if ch == ' ' {
+            sanitized.push('-');
+        } else {
+            sanitized.push(ch);
+        }
+    }
+    Cow::Owned(sanitized)
+}
+
 pub struct BackgroundEntitiesSaver {
     sender: Sender<(String, EntitySaveData)>,
     folder: PathBuf,
@@ -151,17 +173,15 @@ impl BackgroundEntitiesSaver {
             metadata: &data.metadata,
         };
 
-        let etype_value = etype_value.as_ref();
-        let mut sanitized_filename = if etype_value.contains("::") {
-            etype_value.replace("::", "-")
-        } else {
-            etype_value.to_owned()
-        };
-        if sanitized_filename.contains(' ') {
-            sanitized_filename = sanitized_filename.replace(' ', "-");
-        }
-        let new_filename = format!("{}-{}.json", sanitized_filename, id);
-        let old_filename = format!("{}.json", id);
+        let sanitized_filename = sanitize_entity_filename(etype_value.as_ref());
+        let mut new_filename = String::with_capacity(sanitized_filename.len() + id.len() + 6);
+        new_filename.push_str(sanitized_filename.as_ref());
+        new_filename.push('-');
+        new_filename.push_str(id);
+        new_filename.push_str(".json");
+        let mut old_filename = String::with_capacity(id.len() + 5);
+        old_filename.push_str(id);
+        old_filename.push_str(".json");
 
         let mut new_path = folder.clone();
         new_path.push(&new_filename);
