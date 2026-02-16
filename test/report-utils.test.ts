@@ -1927,6 +1927,30 @@ describe("report-utils", () => {
     expect(emptyIteratorResult.optionArgs).toEqual(["--json"]);
     expect(emptyIteratorResult.positionalArgs).toEqual(["--no-build"]);
     expect(emptyIteratorResult.optionTerminatorUsed).toBe(true);
+    const emptyIteratorLengthZeroIndexedArgs = new Proxy(
+      ["--json", "--", "--no-build"],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const emptyIteratorLengthZeroIndexedResult = splitCliArgs(
+      emptyIteratorLengthZeroIndexedArgs as never
+    );
+    expect(emptyIteratorLengthZeroIndexedResult.optionArgs).toEqual(["--json"]);
+    expect(emptyIteratorLengthZeroIndexedResult.positionalArgs).toEqual([
+      "--no-build",
+    ]);
+    expect(emptyIteratorLengthZeroIndexedResult.optionTerminatorUsed).toBe(true);
     const emptyIteratorLengthTrappedArgs = new Proxy(
       ["--json", "--", "--no-build"],
       {
