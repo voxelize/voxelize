@@ -1096,6 +1096,68 @@ describe("BlockRotation", () => {
     expect(trappedCtorRotation.yRotation).toBe(0);
   });
 
+  it("salvages wrapped y-rotation values in constructors and encode", () => {
+    const wrappedEncodedSegment = vm.runInNewContext("new Number(4)");
+    let didCallWrappedEncodedSegmentToString = false;
+    Object.defineProperty(wrappedEncodedSegment, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedEncodedSegmentToString = true;
+        throw new Error("wrapped encoded segment toString trap");
+      },
+    });
+    let didCallWrappedEncodedSegmentValueOf = false;
+    Object.defineProperty(wrappedEncodedSegment, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedEncodedSegmentValueOf = true;
+        throw new Error("wrapped encoded segment valueOf trap");
+      },
+    });
+    const wrappedRadians = vm.runInNewContext("new Number(Math.PI / 2)");
+    let didCallWrappedRadiansToString = false;
+    Object.defineProperty(wrappedRadians, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedRadiansToString = true;
+        throw new Error("wrapped radians toString trap");
+      },
+    });
+    let didCallWrappedRadiansValueOf = false;
+    Object.defineProperty(wrappedRadians, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedRadiansValueOf = true;
+        throw new Error("wrapped radians valueOf trap");
+      },
+    });
+
+    const encodedWrappedRotation = BlockRotation.encode(
+      PY_ROTATION,
+      wrappedEncodedSegment as never
+    );
+    expect(BlockRotation.decode(encodedWrappedRotation)).toEqual([PY_ROTATION, 4]);
+    expect(BlockRotation.py(wrappedRadians as never).yRotation).toBeCloseTo(
+      Math.PI / 2,
+      10
+    );
+    expect(
+      new BlockRotation(PY_ROTATION, wrappedRadians as never).yRotation
+    ).toBeCloseTo(Math.PI / 2, 10);
+    expect(didCallWrappedEncodedSegmentToString).toBe(false);
+    expect(didCallWrappedEncodedSegmentValueOf).toBe(false);
+    expect(didCallWrappedRadiansToString).toBe(false);
+    expect(didCallWrappedRadiansValueOf).toBe(false);
+  });
+
   it("sanitizes trap-driven rotation transform access without throwing", () => {
     const axisTrapRotation = new Proxy(BlockRotation.py(Math.PI / 2), {
       get(target, property, receiver) {
