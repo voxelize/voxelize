@@ -1,3 +1,4 @@
+use hashbrown::hash_map::RawEntryMut;
 use nanoid::nanoid;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use specs::{ReadExpect, ReadStorage, System, WriteExpect};
@@ -144,11 +145,16 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 if chunks.is_chunk_ready(&coords) {
                     chunks.update_voxel(&voxel, id);
                 } else {
-                    pipeline
-                        .leftovers
-                        .entry(coords)
-                        .or_default()
-                        .push((voxel, id));
+                    match pipeline.leftovers.raw_entry_mut().from_key(&coords) {
+                        RawEntryMut::Occupied(mut entry) => {
+                            entry.get_mut().push((voxel, id));
+                        }
+                        RawEntryMut::Vacant(entry) => {
+                            let mut leftover_updates = Vec::with_capacity(1);
+                            leftover_updates.push((voxel, id));
+                            entry.insert(coords, leftover_updates);
+                        }
+                    }
                 }
             }
 
