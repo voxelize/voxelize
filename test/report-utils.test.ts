@@ -24284,6 +24284,205 @@ describe("report-utils", () => {
     expect(parsedWriteFailureResult.durationMs).toBe(1000);
   });
 
+  it("propagates primitive and wrapped write failure details in serialize fallbacks", () => {
+    const outputPath = path.resolve(
+      os.tmpdir(),
+      "report-utils-serialize-write-failure-message.json"
+    );
+
+    const wrappedStringFailure = new String("wrapped serialize write failure");
+    let didCallWrappedStringToString = false;
+    Object.defineProperty(wrappedStringFailure, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedStringToString = true;
+        throw new Error("wrapped serialize write string toString trap");
+      },
+    });
+
+    const wrappedSymbolFailure = Object(Symbol("wrapped-serialize-write-failure"));
+    let didCallWrappedSymbolValueOf = false;
+    Object.defineProperty(wrappedSymbolFailure, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedSymbolValueOf = true;
+        throw new Error("wrapped serialize write symbol valueOf trap");
+      },
+    });
+
+    const wrappedErrorMessage = new String("wrapped serialize write error message");
+    let didCallWrappedErrorMessageToString = false;
+    Object.defineProperty(wrappedErrorMessage, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedErrorMessageToString = true;
+        throw new Error("wrapped serialize write error message toString trap");
+      },
+    });
+    const errorWithWrappedMessage = new Error("placeholder serialize write message");
+    Object.defineProperty(errorWithWrappedMessage, "message", {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: wrappedErrorMessage,
+    });
+
+    const failureCases: Array<{
+      readonly thrownValue: string | number | boolean | bigint | symbol | object;
+      readonly expectedDetail: string;
+    }> = [
+      {
+        thrownValue: "primitive serialize write failure",
+        expectedDetail: "primitive serialize write failure",
+      },
+      {
+        thrownValue: 23,
+        expectedDetail: "23",
+      },
+      {
+        thrownValue: false,
+        expectedDetail: "false",
+      },
+      {
+        thrownValue: 22n,
+        expectedDetail: "22",
+      },
+      {
+        thrownValue: Symbol("serialize-write-failure-symbol"),
+        expectedDetail: "Symbol(serialize-write-failure-symbol)",
+      },
+      {
+        thrownValue: wrappedStringFailure,
+        expectedDetail: "wrapped serialize write failure",
+      },
+      {
+        thrownValue: wrappedSymbolFailure,
+        expectedDetail: "Symbol(wrapped-serialize-write-failure)",
+      },
+      {
+        thrownValue: errorWithWrappedMessage,
+        expectedDetail: "wrapped serialize write error message",
+      },
+    ];
+
+    const originalMkdirSync = fs.mkdirSync;
+    const originalWriteFileSync = fs.writeFileSync;
+
+    try {
+      fs.mkdirSync = (() => undefined) as typeof fs.mkdirSync;
+
+      for (const { thrownValue, expectedDetail } of failureCases) {
+        fs.writeFileSync = (() => {
+          throw thrownValue;
+        }) as typeof fs.writeFileSync;
+
+        const writeFailureResult = serializeReportWithOptionalWrite(
+          {
+            passed: true,
+            exitCode: 0,
+            outputPath: null,
+          },
+          {
+            jsonFormat: { compact: true },
+            outputPath,
+          }
+        );
+        const parsedWriteFailureResult = JSON.parse(
+          writeFailureResult.reportJson
+        ) as {
+          schemaVersion: number;
+          passed: boolean;
+          exitCode: number;
+          outputPath: string;
+          writeError: string;
+          message: string;
+        };
+
+        expect(writeFailureResult.writeError).toContain(
+          `Failed to write report to ${outputPath}.`
+        );
+        expect(writeFailureResult.writeError).toContain(` ${expectedDetail}`);
+        expect(parsedWriteFailureResult.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+        expect(parsedWriteFailureResult.passed).toBe(false);
+        expect(parsedWriteFailureResult.exitCode).toBe(1);
+        expect(parsedWriteFailureResult.outputPath).toBe(outputPath);
+        expect(parsedWriteFailureResult.writeError).toContain(
+          `Failed to write report to ${outputPath}.`
+        );
+        expect(parsedWriteFailureResult.writeError).toContain(
+          ` ${expectedDetail}`
+        );
+        expect(parsedWriteFailureResult.message).toContain(
+          `Failed to write report to ${outputPath}.`
+        );
+        expect(parsedWriteFailureResult.message).toContain(` ${expectedDetail}`);
+      }
+
+      let didCallPlainObjectToString = false;
+      const plainObjectFailure = {
+        toString() {
+          didCallPlainObjectToString = true;
+          throw new Error("plain serialize write object toString trap");
+        },
+      };
+      fs.writeFileSync = (() => {
+        throw plainObjectFailure;
+      }) as typeof fs.writeFileSync;
+
+      const plainObjectWriteFailureResult = serializeReportWithOptionalWrite(
+        {
+          passed: true,
+          exitCode: 0,
+          outputPath: null,
+        },
+        {
+          jsonFormat: { compact: true },
+          outputPath,
+        }
+      );
+      const parsedPlainObjectWriteFailureResult = JSON.parse(
+        plainObjectWriteFailureResult.reportJson
+      ) as {
+        schemaVersion: number;
+        passed: boolean;
+        exitCode: number;
+        outputPath: string;
+        writeError: string;
+        message: string;
+      };
+
+      expect(plainObjectWriteFailureResult.writeError).toBe(
+        `Failed to write report to ${outputPath}.`
+      );
+      expect(parsedPlainObjectWriteFailureResult.schemaVersion).toBe(
+        REPORT_SCHEMA_VERSION
+      );
+      expect(parsedPlainObjectWriteFailureResult.passed).toBe(false);
+      expect(parsedPlainObjectWriteFailureResult.exitCode).toBe(1);
+      expect(parsedPlainObjectWriteFailureResult.outputPath).toBe(outputPath);
+      expect(parsedPlainObjectWriteFailureResult.writeError).toBe(
+        `Failed to write report to ${outputPath}.`
+      );
+      expect(parsedPlainObjectWriteFailureResult.message).toBe(
+        `Failed to write report to ${outputPath}.`
+      );
+      expect(didCallPlainObjectToString).toBe(false);
+    } finally {
+      fs.mkdirSync = originalMkdirSync;
+      fs.writeFileSync = originalWriteFileSync;
+    }
+
+    expect(didCallWrappedStringToString).toBe(false);
+    expect(didCallWrappedSymbolValueOf).toBe(false);
+    expect(didCallWrappedErrorMessageToString).toBe(false);
+  });
+
   it("salvages wrapped-string serialize fallback when toString traps", () => {
     const wrappedOutputPath = new String("wrapped-output-path");
     Object.defineProperty(wrappedOutputPath, "toString", {
