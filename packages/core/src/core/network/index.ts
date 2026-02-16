@@ -636,6 +636,111 @@ export class Network {
       currentIntercepts.length = writeIndex;
       return this;
     }
+    if (intercepts.length === 3) {
+      const firstIntercept = intercepts[0];
+      const secondIntercept = intercepts[1];
+      const thirdIntercept = intercepts[2];
+      const currentIntercepts = this.intercepts;
+      if (firstIntercept === secondIntercept && firstIntercept === thirdIntercept) {
+        let removalsLeft = 3;
+        let writeIndex = 0;
+        for (let readIndex = 0; readIndex < currentIntercepts.length; readIndex++) {
+          const intercept = currentIntercepts[readIndex];
+          if (removalsLeft > 0 && intercept === firstIntercept) {
+            removalsLeft--;
+            continue;
+          }
+          currentIntercepts[writeIndex] = intercept;
+          writeIndex++;
+        }
+        currentIntercepts.length = writeIndex;
+        return this;
+      }
+      if (firstIntercept === secondIntercept) {
+        let firstRemovalsLeft = 2;
+        let thirdRemovalsLeft = 1;
+        let writeIndex = 0;
+        for (let readIndex = 0; readIndex < currentIntercepts.length; readIndex++) {
+          const intercept = currentIntercepts[readIndex];
+          if (firstRemovalsLeft > 0 && intercept === firstIntercept) {
+            firstRemovalsLeft--;
+            continue;
+          }
+          if (thirdRemovalsLeft > 0 && intercept === thirdIntercept) {
+            thirdRemovalsLeft--;
+            continue;
+          }
+          currentIntercepts[writeIndex] = intercept;
+          writeIndex++;
+        }
+        currentIntercepts.length = writeIndex;
+        return this;
+      }
+      if (firstIntercept === thirdIntercept) {
+        let firstRemovalsLeft = 2;
+        let secondRemovalsLeft = 1;
+        let writeIndex = 0;
+        for (let readIndex = 0; readIndex < currentIntercepts.length; readIndex++) {
+          const intercept = currentIntercepts[readIndex];
+          if (firstRemovalsLeft > 0 && intercept === firstIntercept) {
+            firstRemovalsLeft--;
+            continue;
+          }
+          if (secondRemovalsLeft > 0 && intercept === secondIntercept) {
+            secondRemovalsLeft--;
+            continue;
+          }
+          currentIntercepts[writeIndex] = intercept;
+          writeIndex++;
+        }
+        currentIntercepts.length = writeIndex;
+        return this;
+      }
+      if (secondIntercept === thirdIntercept) {
+        let secondRemovalsLeft = 2;
+        let firstRemovalsLeft = 1;
+        let writeIndex = 0;
+        for (let readIndex = 0; readIndex < currentIntercepts.length; readIndex++) {
+          const intercept = currentIntercepts[readIndex];
+          if (firstRemovalsLeft > 0 && intercept === firstIntercept) {
+            firstRemovalsLeft--;
+            continue;
+          }
+          if (secondRemovalsLeft > 0 && intercept === secondIntercept) {
+            secondRemovalsLeft--;
+            continue;
+          }
+          currentIntercepts[writeIndex] = intercept;
+          writeIndex++;
+        }
+        currentIntercepts.length = writeIndex;
+        return this;
+      }
+
+      let removeFirst = true;
+      let removeSecond = true;
+      let removeThird = true;
+      let writeIndex = 0;
+      for (let readIndex = 0; readIndex < currentIntercepts.length; readIndex++) {
+        const intercept = currentIntercepts[readIndex];
+        if (removeFirst && intercept === firstIntercept) {
+          removeFirst = false;
+          continue;
+        }
+        if (removeSecond && intercept === secondIntercept) {
+          removeSecond = false;
+          continue;
+        }
+        if (removeThird && intercept === thirdIntercept) {
+          removeThird = false;
+          continue;
+        }
+        currentIntercepts[writeIndex] = intercept;
+        writeIndex++;
+      }
+      currentIntercepts.length = writeIndex;
+      return this;
+    }
 
     const currentIntercepts = this.intercepts;
     if (intercepts.length <= 4) {
