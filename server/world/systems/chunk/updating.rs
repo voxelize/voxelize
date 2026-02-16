@@ -331,7 +331,7 @@ fn process_pending_updates(
                 chunks.cache.insert(coords);
             }
 
-            processed_updates.push((voxel, raw, current_id, updated_id));
+            processed_updates.push((voxel, raw, current_type, updated_type));
 
             results.push(UpdateProtocol {
                 vx,
@@ -384,11 +384,8 @@ fn process_pending_updates(
     let mut blue_flood = VecDeque::new();
     let mut sun_flood = VecDeque::new();
 
-    for (voxel, raw, current_id, updated_id) in processed_updates {
+    for (voxel, raw, current_type, updated_type) in processed_updates {
         let Vec3(vx, vy, vz) = voxel;
-
-        let current_type = registry.get_block_by_id(current_id);
-        let updated_type = registry.get_block_by_id(updated_id);
 
         let current_is_light = current_type.is_light_at(&voxel, &*chunks);
         let updated_is_light = updated_type.is_light_at(&voxel, &*chunks);
