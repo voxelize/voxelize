@@ -3,7 +3,7 @@ use std::f32::consts::PI;
 
 use crate::block::Y_ROT_SEGMENTS;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct UV {
     pub start_u: f32,

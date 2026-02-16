@@ -723,7 +723,7 @@ fn collect_cardinal_face_ranges(original_faces: &[BlockFace]) -> [UV; 6] {
             cardinal_face_index(face_name.as_ref())
         };
         if let Some(face_index) = face_index {
-            ranges[face_index] = face.range.clone();
+            ranges[face_index] = face.range;
         }
     }
     ranges
@@ -765,7 +765,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: true,
             isolated: false,
             texture_group: None,
-            range: ranges[FACE_RANGE_PY].clone(),
+            range: ranges[FACE_RANGE_PY],
             corners: [
                 CornerData {
                     pos: [0.0, h_nxpz, 1.0],
@@ -792,7 +792,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: false,
             isolated: false,
             texture_group: None,
-            range: ranges[FACE_RANGE_NY].clone(),
+            range: ranges[FACE_RANGE_NY],
             corners: [
                 CornerData {
                     pos: [1.0, 0.0, 1.0],
@@ -819,7 +819,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: true,
             isolated: false,
             texture_group: None,
-            range: ranges[FACE_RANGE_PX].clone(),
+            range: ranges[FACE_RANGE_PX],
             corners: [
                 CornerData {
                     pos: [1.0, h_pxpz, 1.0],
@@ -846,7 +846,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: true,
             isolated: false,
             texture_group: None,
-            range: ranges[FACE_RANGE_NX].clone(),
+            range: ranges[FACE_RANGE_NX],
             corners: [
                 CornerData {
                     pos: [0.0, h_nxnz, 0.0],
@@ -873,7 +873,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: true,
             isolated: false,
             texture_group: None,
-            range: ranges[FACE_RANGE_PZ].clone(),
+            range: ranges[FACE_RANGE_PZ],
             corners: [
                 CornerData {
                     pos: [0.0, 0.0, 1.0],
@@ -900,7 +900,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: true,
             isolated: false,
             texture_group: None,
-            range: ranges[FACE_RANGE_NZ].clone(),
+            range: ranges[FACE_RANGE_NZ],
             corners: [
                 CornerData {
                     pos: [1.0, 0.0, 0.0],
@@ -1311,7 +1311,7 @@ fn process_greedy_quad(
         end_u,
         start_v,
         end_v,
-    } = quad.data.uv_range.clone();
+    } = quad.data.uv_range;
 
     let scale = if is_opaque { 0.0 } else { 0.0001 };
 
@@ -2181,7 +2181,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                                 return;
                             }
 
-                            let uv_range = face.range.clone();
+                            let uv_range = face.range;
                             if face.isolated {
                                 non_greedy_faces.push((
                                     vx,
