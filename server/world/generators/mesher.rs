@@ -389,6 +389,9 @@ impl Mesher {
 
     pub fn results(&mut self) -> Vec<(Chunk, MessageType)> {
         if self.map.is_empty() {
+            if self.receiver.is_empty() {
+                return Vec::new();
+            }
             while self.receiver.try_recv().is_ok() {}
             return Vec::new();
         }

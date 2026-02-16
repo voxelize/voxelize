@@ -463,6 +463,9 @@ impl Pipeline {
     /// Attempt to retrieve the results from `pipeline.process`
     pub fn results(&mut self) -> Vec<(Chunk, Vec<VoxelUpdate>)> {
         if self.chunks.is_empty() {
+            if self.receiver.is_empty() {
+                return Vec::new();
+            }
             while self.receiver.try_recv().is_ok() {}
             return Vec::new();
         }
