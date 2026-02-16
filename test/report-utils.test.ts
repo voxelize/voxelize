@@ -22972,6 +22972,36 @@ describe("report-utils", () => {
     expect(failureMessage).not.toContain("path coercion trap");
   });
 
+  it("returns a stable write failure message when output-path validation throws revoked errors", () => {
+    const reportJson = toReportJson({ passed: false, exitCode: 1 });
+    const revokedValidationError = (() => {
+      const errorProxy = Proxy.revocable(new Error("revoked validation trap"), {});
+      errorProxy.revoke();
+      return errorProxy.proxy;
+    })();
+    const constructorTrapPath = Object.create(null) as {
+      readonly constructor: object;
+    };
+    Object.defineProperty(constructorTrapPath, "constructor", {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw revokedValidationError;
+      },
+    });
+
+    expect(() =>
+      writeReportToPath(reportJson, constructorTrapPath as never)
+    ).not.toThrow();
+    const failureMessage = writeReportToPath(
+      reportJson,
+      constructorTrapPath as never
+    );
+    expect(failureMessage).toBe(
+      "Failed to write report to (unprintable output path)."
+    );
+  });
+
   it("serializes reports with optional output writes", () => {
     const report = {
       passed: true,

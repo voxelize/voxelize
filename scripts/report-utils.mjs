@@ -2974,6 +2974,30 @@ const toOutputPathMessageValue = (outputPath) => {
   }
 };
 
+const toErrorMessageDetail = (error) => {
+  let isErrorValue = false;
+  try {
+    isErrorValue = error instanceof Error;
+  } catch {
+    isErrorValue = false;
+  }
+
+  if (!isErrorValue) {
+    return "";
+  }
+
+  let messageValue = "";
+  try {
+    messageValue = error.message;
+  } catch {
+    return "";
+  }
+
+  return typeof messageValue === "string" && messageValue.length > 0
+    ? ` ${messageValue}`
+    : "";
+};
+
 export const writeReportToPath = (reportJson, outputPath) => {
   if (outputPath === null) {
     return null;
@@ -2984,10 +3008,7 @@ export const writeReportToPath = (reportJson, outputPath) => {
     fs.writeFileSync(outputPath, reportJson);
     return null;
   } catch (error) {
-    const detail =
-      error instanceof Error && error.message.length > 0
-        ? ` ${error.message}`
-        : "";
+    const detail = toErrorMessageDetail(error);
     return `Failed to write report to ${toOutputPathMessageValue(outputPath)}.${detail}`;
   }
 };
