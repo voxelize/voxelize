@@ -749,6 +749,13 @@ impl World {
                     return;
                 }
             };
+            if !payload.time.is_finite() {
+                warn!(
+                    "Ignoring set-time request because payload time is invalid: {}",
+                    payload.time
+                );
+                return;
+            }
             let time_per_day = world.config().time_per_day as f32;
             if !time_per_day.is_finite() || time_per_day <= 0.0 {
                 warn!(
