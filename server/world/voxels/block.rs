@@ -1627,8 +1627,10 @@ impl Block {
 
         for part in &pattern.parts {
             if Self::evaluate_rule(&part.rule, pos, space) {
-                combined_faces.extend(part.faces.clone());
-                combined_aabbs.extend(part.aabbs.clone());
+                combined_faces.reserve(part.faces.len());
+                combined_faces.extend(part.faces.iter().cloned());
+                combined_aabbs.reserve(part.aabbs.len());
+                combined_aabbs.extend(part.aabbs.iter().cloned());
                 for (i, &is_transparent) in part.is_transparent.iter().enumerate() {
                     combined_transparency[i] = combined_transparency[i] || is_transparent;
                 }
@@ -1636,6 +1638,26 @@ impl Block {
         }
 
         (combined_faces, combined_aabbs, combined_transparency)
+    }
+
+    #[inline]
+    fn evaluate_all_rules(rules: &[BlockRule], pos: &Vec3<i32>, space: &dyn VoxelAccess) -> bool {
+        for nested_rule in rules {
+            if !Self::evaluate_rule(nested_rule, pos, space) {
+                return false;
+            }
+        }
+        true
+    }
+
+    #[inline]
+    fn evaluate_any_rule(rules: &[BlockRule], pos: &Vec3<i32>, space: &dyn VoxelAccess) -> bool {
+        for nested_rule in rules {
+            if Self::evaluate_rule(nested_rule, pos, space) {
+                return true;
+            }
+        }
+        false
     }
 
     fn evaluate_rule(rule: &BlockRule, pos: &Vec3<i32>, space: &dyn VoxelAccess) -> bool {
@@ -1663,20 +1685,11 @@ impl Block {
 
                 id_match && rotation_match && stage_match
             }
-            BlockRule::Combination { logic, rules } => {
-                match logic {
-                    BlockRuleLogic::And => rules
-                        .iter()
-                        .all(|rule| Self::evaluate_rule(rule, pos, space)),
-                    BlockRuleLogic::Or => rules
-                        .iter()
-                        .any(|rule| Self::evaluate_rule(rule, pos, space)),
-                    BlockRuleLogic::Not => !rules
-                        .iter()
-                        .any(|rule| Self::evaluate_rule(rule, pos, space)),
-                    // Extend with other logic types as needed
-                }
-            }
+            BlockRule::Combination { logic, rules } => match logic {
+                BlockRuleLogic::And => Self::evaluate_all_rules(rules, pos, space),
+                BlockRuleLogic::Or => Self::evaluate_any_rule(rules, pos, space),
+                BlockRuleLogic::Not => !Self::evaluate_any_rule(rules, pos, space),
+            },
         }
     }
 
