@@ -643,6 +643,12 @@ impl Chunks {
         }
 
         let staged_count = self.updates_staging.len();
+        if staged_count == 1 {
+            if let Some((voxel, val)) = self.updates_staging.drain().next() {
+                self.updates.push_back((voxel, val));
+            }
+            return;
+        }
         self.updates.reserve(staged_count);
 
         for (voxel, val) in self.updates_staging.drain() {
