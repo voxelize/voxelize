@@ -397,7 +397,9 @@ impl Pipeline {
                 );
                 continue;
             };
-            self.chunks.insert(chunk.coords);
+            if !self.chunks.insert(chunk.coords) {
+                continue;
+            }
             processes_with_stages.push((chunk, space, stage));
         }
         if processes_with_stages.is_empty() {
