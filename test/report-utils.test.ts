@@ -23926,6 +23926,60 @@ describe("report-utils", () => {
         steps: iteratorTrapSteps,
       })
     ).toBe("TypeScript typecheck: previous step failed");
+    const emptyIteratorLengthZeroIndexedFailureSteps = new Proxy(
+      [
+        {
+          name: "WASM artifact preflight",
+          passed: false,
+          skipped: false,
+          reason: "artifact missing",
+        },
+      ],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      deriveFailureMessageFromReport({
+        steps: emptyIteratorLengthZeroIndexedFailureSteps,
+      })
+    ).toBe("WASM artifact preflight: artifact missing");
+    const explicitEmptyIteratorFailureSteps = new Proxy(
+      [] as Array<{
+        readonly name: string;
+        readonly passed: boolean;
+        readonly skipped: boolean;
+        readonly reason: string;
+      }>,
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      deriveFailureMessageFromReport({
+        steps: explicitEmptyIteratorFailureSteps,
+      })
+    ).toBeNull();
 
     const lengthAndOwnKeysTrapSteps = new Proxy(
       [
