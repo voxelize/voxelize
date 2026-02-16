@@ -72,6 +72,9 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         if !can_send_responses {
             to_send.clear();
         }
+        if (&ids, &requests).join().next().is_none() {
+            return;
+        }
 
         for (id, requests) in (&ids, &mut requests).join() {
             let client_id = id.0.as_str();
