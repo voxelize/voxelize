@@ -262,19 +262,21 @@ fn process_pending_updates(
                 None
             };
 
-            let current_is_light = if current_type.dynamic_patterns.is_some() {
+            let current_has_dynamic_patterns = current_type.dynamic_patterns.is_some();
+            let updated_has_dynamic_patterns = updated_type.dynamic_patterns.is_some();
+            let current_is_light = if current_has_dynamic_patterns {
                 current_type.is_light_at(&voxel, &*chunks)
             } else {
                 current_type.is_light
             };
-            let updated_is_light = if updated_type.dynamic_patterns.is_some() {
+            let updated_is_light = if updated_has_dynamic_patterns {
                 updated_type.is_light_at(&voxel, &*chunks)
             } else {
                 updated_type.is_light
             };
             let is_removed_light_source = current_is_light && !updated_is_light;
             let removed_source_levels = if is_removed_light_source {
-                if current_type.dynamic_patterns.is_some() {
+                if current_has_dynamic_patterns {
                     Some((
                         current_type.get_torch_light_level_at(&voxel, &*chunks, &RED),
                         current_type.get_torch_light_level_at(&voxel, &*chunks, &GREEN),

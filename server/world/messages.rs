@@ -236,6 +236,7 @@ impl EncodedMessageQueue {
         (is_rtc_eligible, is_transport_eligible)
     }
 
+    #[cfg(test)]
     fn compute_rtc_eligibility(message: &Message) -> bool {
         Self::compute_delivery_eligibility(message).0
     }
