@@ -946,6 +946,42 @@ describe("BlockRotation", () => {
     expect(baseRotation.equals(revokedRotation as never)).toBe(false);
   });
 
+  it("sanitizes trap-driven y-rotation coercion in constructors and encode", () => {
+    const trappedYRotation = {
+      [Symbol.toPrimitive]() {
+        throw new Error("yRotation trap");
+      },
+    };
+    const trappedAxis = {
+      [Symbol.toPrimitive]() {
+        throw new Error("axis trap");
+      },
+    };
+
+    expect(() =>
+      BlockRotation.encode(PY_ROTATION, trappedYRotation as never)
+    ).not.toThrow();
+    const encodedTrapRotation = BlockRotation.encode(
+      PY_ROTATION,
+      trappedYRotation as never
+    );
+    expect(BlockRotation.decode(encodedTrapRotation)).toEqual([PY_ROTATION, 0]);
+
+    expect(() => BlockRotation.py(trappedYRotation as never)).not.toThrow();
+    expect(BlockRotation.py(trappedYRotation as never).yRotation).toBe(0);
+    expect(() => BlockRotation.px(trappedYRotation as never)).not.toThrow();
+    expect(BlockRotation.px(trappedYRotation as never).yRotation).toBe(0);
+    expect(() =>
+      new BlockRotation(trappedAxis as never, trappedYRotation as never)
+    ).not.toThrow();
+    const trappedCtorRotation = new BlockRotation(
+      trappedAxis as never,
+      trappedYRotation as never
+    );
+    expect(trappedCtorRotation.axis).toBe(PY_ROTATION);
+    expect(trappedCtorRotation.yRotation).toBe(0);
+  });
+
   it("sanitizes trap-driven rotation transform access without throwing", () => {
     const axisTrapRotation = new Proxy(BlockRotation.py(Math.PI / 2), {
       get(target, property, receiver) {

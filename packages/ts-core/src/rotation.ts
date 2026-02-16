@@ -13,6 +13,20 @@ import { FaceTransparency, Vec3 } from "./vectors";
 
 const TWO_PI = Math.PI * 2.0;
 const ANGLE_EPSILON = 1e-12;
+type NumericLikeValue = number | string | boolean | object | null | undefined;
+
+const toFiniteNumberOrZero = (value: NumericLikeValue): number => {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  try {
+    const numericValue = Number(value);
+    return Number.isFinite(numericValue) ? numericValue : 0;
+  } catch {
+    return 0;
+  }
+};
 
 const normalizeYRotation = (rotation: number): number => {
   if (!Number.isFinite(rotation)) {
@@ -187,10 +201,18 @@ const writeVec3SnapshotSafely = (node: Vec3, snapshot: Vec3): void => {
 };
 
 export class BlockRotation {
+  public value: number;
+  public yRotation: number;
+
   constructor(
-    public value = PY_ROTATION,
-    public yRotation = 0
-  ) {}
+    value = PY_ROTATION,
+    yRotation = 0
+  ) {
+    this.value = typeof value === "number" && Number.isFinite(value)
+      ? value
+      : PY_ROTATION;
+    this.yRotation = toFiniteNumberOrZero(yRotation);
+  }
 
   get axis(): number {
     return this.value;
@@ -249,7 +271,8 @@ export class BlockRotation {
   }
 
   static encode(value: number, yRotation = 0): BlockRotation {
-    const encodedYRotation = (yRotation * TWO_PI) / Y_ROT_SEGMENTS;
+    const encodedYRotation =
+      (toFiniteNumberOrZero(yRotation) * TWO_PI) / Y_ROT_SEGMENTS;
 
     switch (value) {
       case PX_ROTATION:
