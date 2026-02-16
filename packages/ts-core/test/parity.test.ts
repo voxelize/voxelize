@@ -1278,6 +1278,48 @@ describe("Type builders", () => {
     ]);
   });
 
+  it("salvages ownKeys-trapped keyed transparency arrays", () => {
+    const ownKeysTrappedTransparency = new Proxy(
+      [true, false, true, false, true, false],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+
+    expect(createFaceTransparency(ownKeysTrappedTransparency as never)).toEqual([
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+    ]);
+    const part = createBlockConditionalPart({
+      isTransparent: ownKeysTrappedTransparency as never,
+    });
+    expect(part.isTransparent).toEqual([
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+    ]);
+  });
+
   it("normalizes explicit-empty iterator transparency arrays in conditional parts", () => {
     const explicitEmptyTransparency = new Proxy([] as boolean[], {
       get(target, property, receiver) {
