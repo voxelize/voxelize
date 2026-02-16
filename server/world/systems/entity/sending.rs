@@ -156,10 +156,14 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         let (entity_visible_radius, entity_visible_radius_sq) =
             normalized_visible_radius(config.entity_visible_radius);
 
-        let mut entity_handlers = std::mem::take(&mut physics.entity_to_handlers);
+        let entity_handler_capacity = physics.entity_to_handlers.capacity();
+        let mut old_entity_handlers = std::mem::replace(
+            &mut physics.entity_to_handlers,
+            HashMap::with_capacity(entity_handler_capacity),
+        );
 
         for (ent, interactor) in (&entities, &interactors).join() {
-            entity_handlers.insert(
+            physics.entity_to_handlers.insert(
                 ent,
                 (
                     *interactor.collider_handle(),
@@ -240,7 +244,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             }
             entity_ids.remove(&id);
 
-            if let Some((collider_handle, body_handle)) = entity_handlers.remove(&ent) {
+            if let Some((collider_handle, body_handle)) = old_entity_handlers.remove(&ent) {
                 physics.unregister(&body_handle, &collider_handle);
             }
 
@@ -249,8 +253,6 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 self.deleted_entities_buffer.push((id, etype, metadata_json));
             }
         }
-        physics.entity_to_handlers = entity_handlers;
-
         if !has_clients {
             bookkeeping.client_known_entities.clear();
             bookkeeping.entities = new_bookkeeping_records;
