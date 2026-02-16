@@ -266,16 +266,13 @@ impl<'a> System<'a> for EventsSystem {
             );
             let message = if transports_events_to_send.len() == 1 {
                 let mut transports_events_to_send = transports_events_to_send;
-                if let Some(single_event) = transports_events_to_send.pop() {
-                    Message::new(&MessageType::Event)
-                        .world_name(&world_metadata.world_name)
-                        .event_owned(single_event)
-                        .build()
-                } else {
-                    Message::new(&MessageType::Event)
-                        .world_name(&world_metadata.world_name)
-                        .build()
-                }
+                let Some(single_event) = transports_events_to_send.pop() else {
+                    return;
+                };
+                Message::new(&MessageType::Event)
+                    .world_name(&world_metadata.world_name)
+                    .event_owned(single_event)
+                    .build()
             } else {
                 Message::new(&MessageType::Event)
                     .world_name(&world_metadata.world_name)
@@ -564,16 +561,13 @@ impl<'a> System<'a> for EventsSystem {
             );
             let message = if transports_events_to_send.len() == 1 {
                 let mut transports_events_to_send = transports_events_to_send;
-                if let Some(single_event) = transports_events_to_send.pop() {
-                    Message::new(&MessageType::Event)
-                        .world_name(&world_metadata.world_name)
-                        .event_owned(single_event)
-                        .build()
-                } else {
-                    Message::new(&MessageType::Event)
-                        .world_name(&world_metadata.world_name)
-                        .build()
-                }
+                let Some(single_event) = transports_events_to_send.pop() else {
+                    return;
+                };
+                Message::new(&MessageType::Event)
+                    .world_name(&world_metadata.world_name)
+                    .event_owned(single_event)
+                    .build()
             } else {
                 Message::new(&MessageType::Event)
                     .world_name(&world_metadata.world_name)
