@@ -52,21 +52,15 @@ impl MessageQueues {
 
     pub fn push(&mut self, item: (Message, ClientFilter)) {
         let (message, filter) = item;
-        let message_type = message.r#type;
-        if message_type == MESSAGE_TYPE_PEER
-            || message_type == MESSAGE_TYPE_ENTITY
-            || message_type == MESSAGE_TYPE_EVENT
-            || message_type == MESSAGE_TYPE_CHAT
-            || message_type == MESSAGE_TYPE_JOIN
-            || message_type == MESSAGE_TYPE_LEAVE
-        {
-            self.critical.push((message, filter));
-        } else if message_type == MESSAGE_TYPE_LOAD
-            || message_type == MESSAGE_TYPE_UNLOAD
-        {
-            self.bulk.push((message, filter));
-        } else {
-            self.normal.push((message, filter));
+        match message.r#type {
+            MESSAGE_TYPE_PEER
+            | MESSAGE_TYPE_ENTITY
+            | MESSAGE_TYPE_EVENT
+            | MESSAGE_TYPE_CHAT
+            | MESSAGE_TYPE_JOIN
+            | MESSAGE_TYPE_LEAVE => self.critical.push((message, filter)),
+            MESSAGE_TYPE_LOAD | MESSAGE_TYPE_UNLOAD => self.bulk.push((message, filter)),
+            _ => self.normal.push((message, filter)),
         }
     }
 
@@ -259,26 +253,25 @@ impl EncodedMessageQueue {
 
     fn compute_rtc_eligibility(message: &Message) -> bool {
         let message_type = message.r#type;
-        if message_type == MESSAGE_TYPE_ENTITY {
-            let entities = &message.entities;
-            if entities.is_empty() {
-                return false;
+        if message_type != MESSAGE_TYPE_ENTITY {
+            return message_type == MESSAGE_TYPE_PEER;
+        }
+        let entities = &message.entities;
+        match entities.len() {
+            0 => false,
+            1 => entities[0].operation == ENTITY_OPERATION_UPDATE,
+            2 => {
+                entities[0].operation == ENTITY_OPERATION_UPDATE
+                    && entities[1].operation == ENTITY_OPERATION_UPDATE
             }
-            if entities.len() == 1 {
-                return entities[0].operation == ENTITY_OPERATION_UPDATE;
-            }
-            if entities.len() == 2 {
-                return entities[0].operation == ENTITY_OPERATION_UPDATE
-                    && entities[1].operation == ENTITY_OPERATION_UPDATE;
-            }
-            for entity in entities {
-                if entity.operation != ENTITY_OPERATION_UPDATE {
-                    return false;
+            _ => {
+                for entity in entities {
+                    if entity.operation != ENTITY_OPERATION_UPDATE {
+                        return false;
+                    }
                 }
+                true
             }
-            true
-        } else {
-            message_type == MESSAGE_TYPE_PEER
         }
     }
 }
