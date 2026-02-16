@@ -1,4 +1,4 @@
-use hashbrown::{hash_map::RawEntryMut, HashMap, HashSet};
+use hashbrown::{hash_map::RawEntryMut, HashMap};
 use bytes::Bytes;
 use specs::{Entity, ReadExpect, ReadStorage, System, WriteExpect};
 
@@ -15,7 +15,6 @@ pub struct EventsSystem {
     transports_map_buffer: Vec<EventProtocol>,
 }
 const SMALL_FILTER_LINEAR_SCAN_LIMIT: usize = 8;
-const MEDIUM_FILTER_LINEAR_SCAN_LIMIT: usize = 16;
 
 #[inline]
 fn ids_are_strictly_sorted(ids: &[String]) -> bool {
@@ -365,45 +364,15 @@ impl<'a> System<'a> for EventsSystem {
                         if ids.len() <= SMALL_FILTER_LINEAR_SCAN_LIMIT {
                             for_each_unique_id(ids, |include_id| send_to_id(include_id));
                         } else if ids.len() < client_count {
-                            if ids_are_strictly_sorted(ids) {
-                                for include_id in ids.iter() {
-                                    send_to_id(include_id);
-                                }
-                            } else if ids.len() <= MEDIUM_FILTER_LINEAR_SCAN_LIMIT {
-                                for_each_unique_id(ids, |include_id| send_to_id(include_id));
-                            } else {
-                                let mut seen_ids: HashSet<&str> =
-                                    HashSet::with_capacity(ids.len());
-                                for include_id in ids.iter() {
-                                    let include_id = include_id.as_str();
-                                    if seen_ids.insert(include_id) {
-                                        send_to_id(include_id);
-                                    }
-                                }
+                            debug_assert!(ids_are_strictly_sorted(ids));
+                            for include_id in ids.iter() {
+                                send_to_id(include_id);
                             }
                         } else {
-                            if ids_are_strictly_sorted(ids) {
-                                for (id, client) in clients.iter() {
-                                    if sorted_ids_contains(ids, id.as_str()) {
-                                        send_to_client(id, client.entity);
-                                    }
-                                }
-                            } else if ids.len() <= MEDIUM_FILTER_LINEAR_SCAN_LIMIT {
-                                for (id, client) in clients.iter() {
-                                    if ids_contains_target(ids, id.as_str()) {
-                                        send_to_client(id, client.entity);
-                                    }
-                                }
-                            } else {
-                                let mut include_ids: HashSet<&str> =
-                                    HashSet::with_capacity(ids.len());
-                                for include_id in ids.iter() {
-                                    include_ids.insert(include_id.as_str());
-                                }
-                                for (id, client) in clients.iter() {
-                                    if include_ids.contains(id.as_str()) {
-                                        send_to_client(id, client.entity);
-                                    }
+                            debug_assert!(ids_are_strictly_sorted(ids));
+                            for (id, client) in clients.iter() {
+                                if sorted_ids_contains(ids, id.as_str()) {
+                                    send_to_client(id, client.entity);
                                 }
                             }
                         }
@@ -450,28 +419,10 @@ impl<'a> System<'a> for EventsSystem {
                                 }
                             }
                         } else {
-                            if ids_are_strictly_sorted(ids) {
-                                for (id, client) in clients.iter() {
-                                    if !sorted_ids_contains(ids, id.as_str()) {
-                                        send_to_client(id, client.entity);
-                                    }
-                                }
-                            } else if ids.len() <= MEDIUM_FILTER_LINEAR_SCAN_LIMIT {
-                                for (id, client) in clients.iter() {
-                                    if !ids_contains_target(ids, id.as_str()) {
-                                        send_to_client(id, client.entity);
-                                    }
-                                }
-                            } else {
-                                let mut exclude_ids: HashSet<&str> =
-                                    HashSet::with_capacity(ids.len());
-                                for exclude_id in ids.iter() {
-                                    exclude_ids.insert(exclude_id.as_str());
-                                }
-                                for (id, client) in clients.iter() {
-                                    if !exclude_ids.contains(id.as_str()) {
-                                        send_to_client(id, client.entity);
-                                    }
+                            debug_assert!(ids_are_strictly_sorted(ids));
+                            for (id, client) in clients.iter() {
+                                if !sorted_ids_contains(ids, id.as_str()) {
+                                    send_to_client(id, client.entity);
                                 }
                             }
                         }
