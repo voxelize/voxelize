@@ -161,7 +161,9 @@ fn process_pending_updates(
     let chunk_size = normalized_chunk_size(config.chunk_size);
 
     for _ in 0..num_to_process {
-        let (voxel, raw) = chunks.updates.pop_front().unwrap();
+        let Some((voxel, raw)) = chunks.updates.pop_front() else {
+            break;
+        };
         let Vec3(vx, vy, vz) = voxel;
 
         let updated_id = BlockUtils::extract_id(raw);
