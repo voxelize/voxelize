@@ -24,6 +24,14 @@ const isObjectLikeJsonValue = (value) => {
   return value !== null && typeof value === "object";
 };
 
+const isArrayValue = (value) => {
+  try {
+    return Array.isArray(value);
+  } catch {
+    return false;
+  }
+};
+
 export const parseJsonOutput = (value) => {
   if (typeof value !== "string" || value.length === 0) {
     return null;
@@ -152,7 +160,7 @@ const toReportSnapshotOrEmpty = (report) => {
   }
 
   try {
-    if (Array.isArray(report)) {
+    if (isArrayValue(report)) {
       return {};
     }
 
@@ -293,7 +301,7 @@ export const createTimedReportBuilder = (
 };
 
 export const countRecordEntries = (value) => {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+  if (value === null || typeof value !== "object" || isArrayValue(value)) {
     return 0;
   }
 
@@ -398,7 +406,7 @@ export const summarizeCheckResults = (checks) => {
 };
 
 const isObjectRecord = (value) => {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
+  return value !== null && typeof value === "object" && !isArrayValue(value);
 };
 
 const isEmptyPlaceholderEntry = (entryValue) => {
@@ -669,7 +677,7 @@ const mergeIndexedFallbackEntries = (primaryEntries, supplementalEntries) => {
 };
 
 const cloneStringEntriesFromIndexedKeys = (value) => {
-  if (!Array.isArray(value)) {
+  if (!isArrayValue(value)) {
     return null;
   }
 
@@ -735,7 +743,7 @@ const cloneStringEntriesFromIndexedKeys = (value) => {
 };
 
 const cloneObjectEntriesFromIndexedKeys = (value) => {
-  if (!Array.isArray(value)) {
+  if (!isArrayValue(value)) {
     return null;
   }
 
@@ -801,7 +809,7 @@ const cloneObjectEntriesFromIndexedKeys = (value) => {
 };
 
 const cloneIndexedArrayFromIndexedAccess = (value) => {
-  if (!Array.isArray(value)) {
+  if (!isArrayValue(value)) {
     return null;
   }
 
@@ -847,7 +855,7 @@ const cloneIndexedArrayFromIndexedAccess = (value) => {
 };
 
 const cloneIndexedArraySafelyWithMetadata = (value) => {
-  if (!Array.isArray(value)) {
+  if (!isArrayValue(value)) {
     return null;
   }
 
@@ -1080,7 +1088,7 @@ const toStringArrayOrEmpty = (value) => {
 };
 
 const toTrustedOptionArgsOverrideOrNull = (optionArgsOverride) => {
-  if (!Array.isArray(optionArgsOverride)) {
+  if (!isArrayValue(optionArgsOverride)) {
     return null;
   }
 
@@ -1347,7 +1355,7 @@ const resolveFirstNonEmptyOutputLine = (output) => {
 };
 const isNumberVec3 = (value) => {
   return (
-    Array.isArray(value) &&
+    isArrayValue(value) &&
     value.length === 3 &&
     value.every((entry) => {
       return typeof entry === "number" && Number.isFinite(entry);
@@ -1367,7 +1375,7 @@ export const summarizeTsCoreExampleOutput = (output) => {
       exampleOutputLine: resolveFirstNonEmptyOutputLine(output),
     };
   }
-  if (Array.isArray(parsedOutput)) {
+  if (isArrayValue(parsedOutput)) {
     return {
       exampleRuleMatched: null,
       examplePayloadValid: null,
@@ -1385,7 +1393,7 @@ export const summarizeTsCoreExampleOutput = (output) => {
   const voxelObjectValid =
     voxelValue !== null &&
     typeof voxelValue === "object" &&
-    !Array.isArray(voxelValue);
+    !isArrayValue(voxelValue);
   let voxelValid = false;
   if (!voxelObjectValid) {
     examplePayloadIssues.push("voxel");
@@ -1405,7 +1413,7 @@ export const summarizeTsCoreExampleOutput = (output) => {
     const voxelRotationObjectValid =
       voxelRotationValue !== null &&
       typeof voxelRotationValue === "object" &&
-      !Array.isArray(voxelRotationValue);
+      !isArrayValue(voxelRotationValue);
     if (!voxelRotationObjectValid) {
       examplePayloadIssues.push("voxel.rotation");
     }
@@ -1441,7 +1449,7 @@ export const summarizeTsCoreExampleOutput = (output) => {
   const lightObjectValid =
     lightValue !== null &&
     typeof lightValue === "object" &&
-    !Array.isArray(lightValue);
+    !isArrayValue(lightValue);
   let lightValid = false;
   if (!lightObjectValid) {
     examplePayloadIssues.push("light");
@@ -1477,7 +1485,7 @@ export const summarizeTsCoreExampleOutput = (output) => {
   const rotatedAabbObjectValid =
     rotatedAabbValue !== null &&
     typeof rotatedAabbValue === "object" &&
-    !Array.isArray(rotatedAabbValue);
+    !isArrayValue(rotatedAabbValue);
   let rotatedAabbValid = false;
   if (!rotatedAabbObjectValid) {
     examplePayloadIssues.push("rotatedAabb");
@@ -1781,7 +1789,7 @@ const normalizeCliOptionTokenList = (tokens) => {
 };
 
 const normalizeCliOptionTokenListWithAvailability = (tokens) => {
-  if (!Array.isArray(tokens)) {
+  if (!isArrayValue(tokens)) {
     const normalizedTokens = normalizeCliOptionTokenList(tokens);
     return {
       tokens: normalizedTokens,
@@ -2164,7 +2172,7 @@ const toNormalizedCliOptionTokenMetadata = (
       normalizedTokenMetadata,
       "unavailable"
     );
-    if (Array.isArray(metadataTokens) && typeof metadataUnavailable === "boolean") {
+    if (isArrayValue(metadataTokens) && typeof metadataUnavailable === "boolean") {
       const normalizedMetadataTokensWithAvailability =
         normalizeCliOptionTokenListWithAvailability(metadataTokens);
       const metadataOverrideIsInconsistent =

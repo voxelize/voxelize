@@ -327,6 +327,111 @@ describe("report-utils", () => {
     });
   });
 
+  it("sanitizes revoked proxy inputs across report and cli helpers", () => {
+    const revokedObject = (() => {
+      const objectProxy = Proxy.revocable({}, {});
+      objectProxy.revoke();
+      return objectProxy.proxy;
+    })();
+    const revokedArray = (() => {
+      const arrayProxy = Proxy.revocable([], {});
+      arrayProxy.revoke();
+      return arrayProxy.proxy;
+    })();
+
+    expect(() => countRecordEntries(revokedObject as never)).not.toThrow();
+    expect(countRecordEntries(revokedObject as never)).toBe(0);
+    expect(() =>
+      deriveFailureMessageFromReport(revokedObject as never)
+    ).not.toThrow();
+    expect(deriveFailureMessageFromReport(revokedObject as never)).toBeNull();
+    expect(() =>
+      extractWasmPackCheckSummaryFromReport(revokedObject as never)
+    ).not.toThrow();
+    expect(extractWasmPackCheckSummaryFromReport(revokedObject as never)).toEqual({
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: null,
+      wasmPackCheckArgCount: null,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
+    expect(() =>
+      extractTsCoreExampleSummaryFromReport(revokedObject as never)
+    ).not.toThrow();
+    expect(extractTsCoreExampleSummaryFromReport(revokedObject as never)).toEqual({
+      exampleCommand: null,
+      exampleArgs: null,
+      exampleArgCount: null,
+      exampleAttempted: null,
+      exampleStatus: null,
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: null,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    expect(() => deriveWasmPackCheckStatus(revokedObject as never)).not.toThrow();
+    expect(deriveWasmPackCheckStatus(revokedObject as never)).toBe("skipped");
+
+    expect(() => createCliOptionCatalog(revokedObject as never)).not.toThrow();
+    expect(createCliOptionCatalog(revokedObject as never)).toEqual({
+      supportedCliOptions: [],
+      supportedCliOptionCount: 0,
+      availableCliOptionAliases: {},
+      availableCliOptionCanonicalMap: {},
+    });
+    expect(() =>
+      parseUnknownCliOptions(revokedArray as never, revokedObject as never)
+    ).not.toThrow();
+    expect(
+      parseUnknownCliOptions(revokedArray as never, revokedObject as never)
+    ).toEqual([]);
+    expect(() =>
+      createCliDiagnostics(revokedArray as never, revokedObject as never)
+    ).not.toThrow();
+    expect(
+      createCliDiagnostics(revokedArray as never, revokedObject as never)
+    ).toEqual({
+      supportedCliOptions: [],
+      supportedCliOptionCount: 0,
+      availableCliOptionAliases: {},
+      availableCliOptionCanonicalMap: {},
+      unknownOptions: [],
+      unknownOptionCount: 0,
+      unsupportedOptionsError: null,
+      validationErrorCode: null,
+      activeCliOptions: [],
+      activeCliOptionCount: 0,
+      activeCliOptionTokens: [],
+      activeCliOptionResolutions: [],
+      activeCliOptionResolutionCount: 0,
+      activeCliOptionOccurrences: [],
+      activeCliOptionOccurrenceCount: 0,
+    });
+    expect(() => splitCliArgs(revokedArray as never)).not.toThrow();
+    expect(splitCliArgs(revokedArray as never)).toEqual({
+      optionArgs: [],
+      positionalArgs: [],
+      optionTerminatorUsed: false,
+    });
+    expect(() =>
+      resolveLastOptionValue(revokedArray as never, "--output")
+    ).not.toThrow();
+    expect(resolveLastOptionValue(revokedArray as never, "--output")).toEqual({
+      hasOption: false,
+      value: null,
+      error: null,
+    });
+    expect(() => resolveOutputPath(revokedArray as never)).not.toThrow();
+    expect(resolveOutputPath(revokedArray as never)).toEqual({
+      outputPath: null,
+      error: null,
+    });
+  });
+
   it("serializes report payloads with schema version", () => {
     const serialized = toReportJson({ passed: false, exitCode: 1 });
     const parsed = JSON.parse(serialized) as {
