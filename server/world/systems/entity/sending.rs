@@ -353,13 +353,9 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                         &mut bookkeeping.client_known_entities,
                         single_client_id,
                     );
-                    let entity_id_owned = entity_id.to_owned();
-                    let is_new_for_client = if known_entities.contains(entity_id) {
-                        false
-                    } else {
-                        known_entities.insert(entity_id_owned.clone());
-                        true
-                    };
+                    let known_entities_len = known_entities.len();
+                    known_entities.get_or_insert_owned(entity_id);
+                    let is_new_for_client = known_entities.len() != known_entities_len;
                     let operation = if is_new_for_client || *is_new {
                         EntityOperation::Create
                     } else {
@@ -371,7 +367,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                         single_client_id,
                         EntityProtocol {
                             operation,
-                            id: entity_id_owned,
+                                id: entity_id.to_owned(),
                             r#type: (*etype).to_owned(),
                             metadata: Some(metadata_str.clone()),
                         },
@@ -388,13 +384,9 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                             &mut bookkeeping.client_known_entities,
                             client_id,
                         );
-                        let entity_id_owned = entity_id.to_owned();
-                        let is_new_for_client = if known_entities.contains(entity_id) {
-                            false
-                        } else {
-                            known_entities.insert(entity_id_owned.clone());
-                            true
-                        };
+                        let known_entities_len = known_entities.len();
+                        known_entities.get_or_insert_owned(entity_id);
+                        let is_new_for_client = known_entities.len() != known_entities_len;
                         let operation = if is_new_for_client || *is_new {
                             EntityOperation::Create
                         } else {
@@ -407,7 +399,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                             client_id,
                             EntityProtocol {
                                 operation,
-                                id: entity_id_owned,
+                                id: entity_id.to_owned(),
                                 r#type: (*etype).to_owned(),
                                 metadata: Some(metadata_str.clone()),
                             },
