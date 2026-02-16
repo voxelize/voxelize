@@ -557,8 +557,18 @@ export class Network {
   };
 
   register = (...intercepts: NetIntercept[]) => {
-    for (let index = 0; index < intercepts.length; index++) {
-      this.intercepts.push(intercepts[index]);
+    const interceptCount = intercepts.length;
+    if (interceptCount === 0) {
+      return this;
+    }
+    if (interceptCount === 1) {
+      this.intercepts.push(intercepts[0]);
+      return this;
+    }
+    this.intercepts.length += interceptCount;
+    const targetOffset = this.intercepts.length - interceptCount;
+    for (let index = 0; index < interceptCount; index++) {
+      this.intercepts[targetOffset + index] = intercepts[index];
     }
 
     return this;
