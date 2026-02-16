@@ -984,6 +984,12 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         let light_config = light_config(&config);
 
         chunks.clear_cache();
+        if chunks.active_voxel_heap.is_empty()
+            && chunks.updates_staging.is_empty()
+            && chunks.updates.is_empty()
+        {
+            return;
+        }
 
         // Collect all due active voxels
         let due_voxels_initial_capacity = chunks.active_voxel_heap.len().min(256);
