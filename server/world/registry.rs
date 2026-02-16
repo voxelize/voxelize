@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::sync::{Arc, OnceLock};
 
 use hashbrown::{HashMap, HashSet};
+use log::warn;
 use serde::{Deserialize, Serialize};
 
 use crate::{BlockFace, Vec3, VoxelAccess, VoxelUpdate};
@@ -75,6 +76,21 @@ impl Clone for Registry {
 
 impl Registry {
     #[inline]
+    fn fallback_air_block() -> &'static Block {
+        static AIR_BLOCK: OnceLock<Block> = OnceLock::new();
+        AIR_BLOCK.get_or_init(|| {
+            Block::new("Air")
+                .is_empty(true)
+                .is_passable(true)
+                .is_x_transparent(true)
+                .is_y_transparent(true)
+                .is_z_transparent(true)
+                .aabbs(&[])
+                .build()
+        })
+    }
+
+    #[inline]
     fn normalized_name<'a>(name: &'a str) -> Cow<'a, str> {
         let mut has_non_ascii = false;
         for &byte in name.as_bytes() {
@@ -99,14 +115,7 @@ impl Registry {
 
     /// Create a registry instance. By default, the "Air" block is registered at ID of 0.
     pub fn new() -> Self {
-        let air = Block::new("Air")
-            .is_empty(true)
-            .is_passable(true)
-            .is_x_transparent(true)
-            .is_y_transparent(true)
-            .is_z_transparent(true)
-            .aabbs(&[])
-            .build();
+        let air = Self::fallback_air_block().clone();
 
         let mut instance = Self::default();
         instance.record_block(&air);
@@ -122,11 +131,10 @@ impl Registry {
         active_ticker: F1,
         active_updater: F2,
     ) {
-        let mut air = self
-            .blocks_by_id
-            .get(&0)
-            .cloned()
-            .expect("Air block must exist");
+        let Some(mut air) = self.blocks_by_id.get(&0).cloned() else {
+            warn!("Air block missing; skipping air active function registration");
+            return;
+        };
 
         air.active_ticker = Some(Arc::new(active_ticker));
         air.active_updater = Some(Arc::new(active_updater));
@@ -279,7 +287,8 @@ impl Registry {
     pub fn get_block_by_id(&self, id: u32) -> &Block {
         self.blocks_by_id
             .get(&id)
-            .unwrap_or_else(|| self.blocks_by_id.get(&0).expect("Air block must exist"))
+            .or_else(|| self.blocks_by_id.get(&0))
+            .unwrap_or_else(|| Self::fallback_air_block())
     }
 
     /// Get a block id by block name.
@@ -436,10 +445,15 @@ impl Registry {
     }
 
     fn prepare_block_for_registration(&self, block: &Block) -> Block {
-        self.prepare_blocks_for_registration(std::slice::from_ref(block))
+        if let Some(prepared) = self
+            .prepare_blocks_for_registration(std::slice::from_ref(block))
             .into_iter()
             .next()
-            .expect("single-block preparation should always return one block")
+        {
+            prepared
+        } else {
+            block.clone()
+        }
     }
 
     fn prepare_blocks_for_registration(&self, blocks: &[Block]) -> Vec<Block> {
