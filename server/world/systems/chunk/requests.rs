@@ -163,6 +163,40 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         if to_send_touched_clients.is_empty() {
             return;
         }
+        if to_send_touched_clients.len() == 1 {
+            let Some(id) = to_send_touched_clients.pop() else {
+                return;
+            };
+            let Some(coords_to_send) = to_send.get_mut(&id) else {
+                return;
+            };
+            if coords_to_send.is_empty() {
+                return;
+            }
+            chunk_models_buffer.clear();
+            if chunk_models_buffer.capacity() < coords_to_send.len() {
+                chunk_models_buffer.reserve(coords_to_send.len() - chunk_models_buffer.len());
+            }
+            for coords in coords_to_send.drain() {
+                if let Some(chunk) = chunks.get(&coords) {
+                    chunk_models_buffer.push(chunk.to_model(true, true, 0..sub_chunks_u32));
+                }
+            }
+            if chunk_models_buffer.is_empty() {
+                return;
+            }
+            let next_chunk_buffer_capacity = chunk_models_buffer.capacity();
+            let chunk_models_to_send = std::mem::replace(
+                chunk_models_buffer,
+                Vec::with_capacity(next_chunk_buffer_capacity),
+            );
+
+            let message = Message::new(&MessageType::Load)
+                .chunks_owned(chunk_models_to_send)
+                .build();
+            queue.push((message, ClientFilter::Direct(id)));
+            return;
+        }
         for id in to_send_touched_clients.drain(..) {
             let Some(coords_to_send) = to_send.get_mut(&id) else {
                 continue;
