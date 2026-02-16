@@ -419,7 +419,23 @@ export class CSMRenderer {
       (object as { material: { userData?: { skipShadow?: boolean } } }).material
         ?.userData?.skipShadow === true
     ) {
-      this.skipShadowObjectsCache.push(object);
+      const cache = this.skipShadowObjectsCache;
+      const cacheLength = cache.length;
+      if (cacheLength > 0) {
+        if (cache[cacheLength - 1] === object) {
+          return;
+        }
+        if (cacheLength <= 4) {
+          for (let objectIndex = 0; objectIndex < cacheLength; objectIndex++) {
+            if (cache[objectIndex] === object) {
+              return;
+            }
+          }
+        } else if (cache.includes(object)) {
+          return;
+        }
+      }
+      cache.push(object);
     }
   }
 
