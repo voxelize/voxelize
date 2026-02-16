@@ -190,59 +190,17 @@ impl EncodedMessageQueue {
     }
 
     pub fn receive(&mut self) -> Vec<(EncodedMessage, ClientFilter)> {
-        let pending_batches = self.receiver.len();
-        if self.processed.is_empty() && pending_batches == 0 {
-            return Vec::new();
-        }
         let mut result = std::mem::take(&mut self.processed);
-        if pending_batches == 0 {
-            return result;
-        }
         if result.is_empty() {
             let mut first_batch = match self.receiver.try_recv() {
                 Ok(messages) => messages,
-                Err(_) => return Vec::new(),
+                Err(_) => return result,
             };
-            if pending_batches == 1 {
-                return first_batch;
-            }
-            if pending_batches == 2 {
-                if let Ok(mut second_batch) = self.receiver.try_recv() {
-                    reserve_for_append(&mut first_batch, second_batch.len());
-                    first_batch.append(&mut second_batch);
-                }
-                return first_batch;
-            }
             while let Ok(mut messages) = self.receiver.try_recv() {
                 reserve_for_append(&mut first_batch, messages.len());
                 first_batch.append(&mut messages);
             }
             return first_batch;
-        }
-        if pending_batches == 1 {
-            if let Ok(mut messages) = self.receiver.try_recv() {
-                reserve_for_append(&mut result, messages.len());
-                result.append(&mut messages);
-            }
-            return result;
-        }
-        if pending_batches == 2 {
-            let mut first_messages = match self.receiver.try_recv() {
-                Ok(messages) => messages,
-                Err(_) => return result,
-            };
-            let mut second_messages = match self.receiver.try_recv() {
-                Ok(messages) => messages,
-                Err(_) => {
-                    reserve_for_append(&mut result, first_messages.len());
-                    result.append(&mut first_messages);
-                    return result;
-                }
-            };
-            reserve_for_append(&mut result, first_messages.len() + second_messages.len());
-            result.append(&mut first_messages);
-            result.append(&mut second_messages);
-            return result;
         }
         while let Ok(mut messages) = self.receiver.try_recv() {
             reserve_for_append(&mut result, messages.len());
