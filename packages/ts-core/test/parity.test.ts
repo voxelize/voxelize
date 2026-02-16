@@ -5553,6 +5553,47 @@ describe("Type builders", () => {
     );
   });
 
+  it("normalizes ownKeys-trapped empty-iterator corner collections when prefix reads trap", () => {
+    const trappedCorners = new Proxy(
+      [
+        createCornerData([0, 0, 0], [0, 0]),
+        createCornerData([1, 0, 0], [1, 0]),
+        createCornerData([1, 1, 0], [1, 1]),
+        createCornerData([0, 1, 0], [0, 1]),
+      ],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 4;
+          }
+          if (property === "0") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+
+    const face = createBlockFace({
+      name: "TrapFace",
+      corners: trappedCorners as never,
+    });
+
+    expect(face.corners).toEqual(
+      new BlockFace({
+        name: "Defaults",
+      }).corners
+    );
+  });
+
   it("sanitizes irrecoverable corner collection traps in createBlockFace", () => {
     const trappedCorners = new Proxy(
       [
