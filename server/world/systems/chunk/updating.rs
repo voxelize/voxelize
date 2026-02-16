@@ -202,7 +202,8 @@ fn process_pending_updates(
         }
     }
 
-    let mut removed_light_sources = Vec::with_capacity(num_to_process);
+    let mut removed_light_sources =
+        Vec::with_capacity(num_to_process);
     let mut processed_updates = Vec::with_capacity(num_to_process);
 
     for (coords, chunk_updates) in updates_by_chunk {
@@ -271,6 +272,23 @@ fn process_pending_updates(
                 updated_type.is_light
             };
             let is_removed_light_source = current_is_light && !updated_is_light;
+            let removed_source_levels = if is_removed_light_source {
+                if current_type.dynamic_patterns.is_some() {
+                    Some((
+                        current_type.get_torch_light_level_at(&voxel, &*chunks, &RED),
+                        current_type.get_torch_light_level_at(&voxel, &*chunks, &GREEN),
+                        current_type.get_torch_light_level_at(&voxel, &*chunks, &BLUE),
+                    ))
+                } else {
+                    Some((
+                        current_type.red_light_level,
+                        current_type.green_light_level,
+                        current_type.blue_light_level,
+                    ))
+                }
+            } else {
+                None
+            };
 
             if !chunks.set_voxel(vx, vy, vz, updated_id) {
                 continue;
@@ -278,8 +296,14 @@ fn process_pending_updates(
             let stage = BlockUtils::extract_stage(raw);
             chunks.set_voxel_stage(vx, vy, vz, stage);
 
-            if is_removed_light_source {
-                removed_light_sources.push((voxel, current_type));
+            if let Some((red_level, green_level, blue_level)) = removed_source_levels {
+                removed_light_sources.push((
+                    voxel,
+                    red_level,
+                    green_level,
+                    blue_level,
+                    current_type.is_opaque,
+                ));
             }
 
             let existing_entity = chunks.block_entities.remove(&voxel);
@@ -388,36 +412,22 @@ fn process_pending_updates(
     let mut green_removals = Vec::with_capacity(removed_light_sources.len());
     let mut blue_removals = Vec::with_capacity(removed_light_sources.len());
 
-    for (voxel, light_block) in &removed_light_sources {
-        let (red_level, green_level, blue_level) = if light_block.dynamic_patterns.is_some() {
-            (
-                light_block.get_torch_light_level_at(voxel, &*chunks, &RED),
-                light_block.get_torch_light_level_at(voxel, &*chunks, &GREEN),
-                light_block.get_torch_light_level_at(voxel, &*chunks, &BLUE),
-            )
-        } else {
-            (
-                light_block.red_light_level,
-                light_block.green_light_level,
-                light_block.blue_light_level,
-            )
-        };
-
+    for &(voxel, red_level, green_level, blue_level, is_opaque) in &removed_light_sources {
         if red_level > 0 {
-            red_removals.push(*voxel);
+            red_removals.push(voxel);
         }
         if green_level > 0 {
-            green_removals.push(*voxel);
+            green_removals.push(voxel);
         }
         if blue_level > 0 {
-            blue_removals.push(*voxel);
+            blue_removals.push(voxel);
         }
 
-        let Vec3(vx, vy, vz) = *voxel;
-        if light_block.is_opaque && chunks.get_sunlight(vx, vy, vz) != 0 {
+        let Vec3(vx, vy, vz) = voxel;
+        if is_opaque && chunks.get_sunlight(vx, vy, vz) != 0 {
             Lights::remove_light_with_light_config(
                 &mut *chunks,
-                voxel,
+                &voxel,
                 &SUNLIGHT,
                 light_registry,
                 light_cfg,
