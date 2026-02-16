@@ -1,4 +1,4 @@
-use hashbrown::hash_map::RawEntryMut;
+use hashbrown::{hash_map::RawEntryMut, HashSet};
 use nanoid::nanoid;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use specs::{ReadExpect, ReadStorage, System, WriteExpect};
@@ -12,6 +12,17 @@ use crate::{
     WorldConfig,
 };
 const SMALL_PARALLEL_CHUNK_LOAD_LIMIT: usize = 2;
+
+#[inline]
+fn contains_single_client_interest(ids: &HashSet<String>, single_client_id: &str) -> bool {
+    if ids.len() == 1 {
+        return ids
+            .iter()
+            .next()
+            .is_some_and(|id| id.as_str() == single_client_id);
+    }
+    ids.contains(single_client_id)
+}
 
 #[inline]
 fn chunk_interest_alignment(center: &Vec2<i32>, coords: &Vec2<i32>, direction: &Vec2<f32>) -> f32 {
@@ -121,7 +132,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                         let direction = &single_request.direction;
                         let single_client_id = single_client_id.as_str();
                         for (coords, ids) in interest_map {
-                            if ids.contains(single_client_id) {
+                            if contains_single_client_interest(ids, single_client_id) {
                                 let dist = ChunkUtils::distance_squared(center, coords);
                                 let alignment = chunk_interest_alignment(center, coords, direction);
                                 let weight = accumulate_chunk_interest_weight(0.0, dist, alignment);
