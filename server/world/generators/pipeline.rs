@@ -514,7 +514,7 @@ impl Pipeline {
 
     /// Merge consecutive chunk stages that don't require spaces together into meta stages.
     pub(crate) fn merge_stages(&mut self) {
-        let stages = std::mem::take(&mut self.stages);
+        let stages = take_vec_with_capacity(&mut self.stages);
         let mut new_stages: Vec<Arc<dyn ChunkStage + Send + Sync>> =
             Vec::with_capacity(stages.len());
 
