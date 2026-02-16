@@ -2992,6 +2992,30 @@ describe("report-utils", () => {
     expect(unknownWithExplicitEmptyValueMetadataOverride).toEqual([
       "-artifact-report.json",
     ]);
+    const unknownWithExplicitEmptyIteratorValueMetadataOverride =
+      parseUnknownCliOptions(["--output", "-artifact-report.json"], {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        valueOptionTokenMetadata: {
+          tokens: new Proxy([], {
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 0;
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+          unavailable: false,
+        } as never,
+      });
+    expect(unknownWithExplicitEmptyIteratorValueMetadataOverride).toEqual([
+      "-artifact-report.json",
+    ]);
     const unknownWithUnavailableValueMetadataOverride = parseUnknownCliOptions(
       ["--output", "-l"],
       {
@@ -3154,6 +3178,42 @@ describe("report-utils", () => {
     expect(unknownWithEmptyIteratorLengthAndReadTrapStrictMetadataOverride).toEqual(
       ["-l"]
     );
+    const unknownWithExplicitEmptyStrictMetadataOverride = parseUnknownCliOptions(
+      ["--output", "-l"],
+      {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+        strictValueOptionTokenMetadata: {
+          tokens: [],
+          unavailable: false,
+        } as never,
+      }
+    );
+    expect(unknownWithExplicitEmptyStrictMetadataOverride).toEqual([]);
+    const unknownWithExplicitEmptyIteratorStrictMetadataOverride =
+      parseUnknownCliOptions(["--output", "-l"], {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+        strictValueOptionTokenMetadata: {
+          tokens: new Proxy([], {
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 0;
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+          unavailable: false,
+        } as never,
+      });
+    expect(unknownWithExplicitEmptyIteratorStrictMetadataOverride).toEqual([]);
 
     const unknownWithInlineMisuseAfterTerminator = parseUnknownCliOptions(
       ["--json", "--", "--json=1", "--verify=2", "--=secret", "--mystery=alpha"],
@@ -16081,6 +16141,124 @@ describe("report-utils", () => {
     expect(
       activeMetadataWithEmptyIteratorLengthZeroAndOwnKeysTrapValueMetadataOverride.activeCliOptionOccurrenceCount
     ).toBe(1);
+    const activeMetadataWithExplicitEmptyValueMetadataOverride =
+      parseActiveCliOptionMetadata(["--output", "-j"], {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-j"],
+        },
+        optionsWithValues: ["--output"],
+        valueOptionTokenMetadata: {
+          tokens: [],
+          unavailable: false,
+        } as never,
+      });
+    expect(activeMetadataWithExplicitEmptyValueMetadataOverride.activeCliOptions).toEqual(
+      ["--output", "--json"]
+    );
+    expect(
+      activeMetadataWithExplicitEmptyValueMetadataOverride.activeCliOptionCount
+    ).toBe(2);
+    expect(
+      activeMetadataWithExplicitEmptyValueMetadataOverride.activeCliOptionTokens
+    ).toEqual(["--output", "-j"]);
+    expect(
+      activeMetadataWithExplicitEmptyValueMetadataOverride.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+      {
+        token: "-j",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(
+      activeMetadataWithExplicitEmptyValueMetadataOverride.activeCliOptionResolutionCount
+    ).toBe(2);
+    expect(
+      activeMetadataWithExplicitEmptyValueMetadataOverride.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+      {
+        token: "-j",
+        canonicalOption: "--json",
+        index: 1,
+      },
+    ]);
+    expect(
+      activeMetadataWithExplicitEmptyValueMetadataOverride.activeCliOptionOccurrenceCount
+    ).toBe(2);
+    const activeMetadataWithExplicitEmptyIteratorValueMetadataOverride =
+      parseActiveCliOptionMetadata(["--output", "-j"], {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-j"],
+        },
+        optionsWithValues: ["--output"],
+        valueOptionTokenMetadata: {
+          tokens: new Proxy([], {
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 0;
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+          unavailable: false,
+        } as never,
+      });
+    expect(
+      activeMetadataWithExplicitEmptyIteratorValueMetadataOverride.activeCliOptions
+    ).toEqual(["--output", "--json"]);
+    expect(
+      activeMetadataWithExplicitEmptyIteratorValueMetadataOverride.activeCliOptionCount
+    ).toBe(2);
+    expect(
+      activeMetadataWithExplicitEmptyIteratorValueMetadataOverride.activeCliOptionTokens
+    ).toEqual(["--output", "-j"]);
+    expect(
+      activeMetadataWithExplicitEmptyIteratorValueMetadataOverride.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+      {
+        token: "-j",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(
+      activeMetadataWithExplicitEmptyIteratorValueMetadataOverride.activeCliOptionResolutionCount
+    ).toBe(2);
+    expect(
+      activeMetadataWithExplicitEmptyIteratorValueMetadataOverride.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+      {
+        token: "-j",
+        canonicalOption: "--json",
+        index: 1,
+      },
+    ]);
+    expect(
+      activeMetadataWithExplicitEmptyIteratorValueMetadataOverride.activeCliOptionOccurrenceCount
+    ).toBe(2);
     const activeMetadataWithUnavailableValueMetadataOverride =
       parseActiveCliOptionMetadata(["--output", "-j"], {
         canonicalOptions: ["--output", "--json"],
@@ -16601,6 +16779,63 @@ describe("report-utils", () => {
     ]);
     expect(
       activeMetadataWithExplicitEmptyStrictMetadataOverride.activeCliOptionOccurrenceCount
+    ).toBe(1);
+    const activeMetadataWithExplicitEmptyIteratorStrictMetadataOverride =
+      parseActiveCliOptionMetadata(["--output", "-j"], {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-j"],
+        },
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+        strictValueOptionTokenMetadata: {
+          tokens: new Proxy([], {
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 0;
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+          unavailable: false,
+        } as never,
+      });
+    expect(
+      activeMetadataWithExplicitEmptyIteratorStrictMetadataOverride.activeCliOptions
+    ).toEqual(["--output"]);
+    expect(
+      activeMetadataWithExplicitEmptyIteratorStrictMetadataOverride.activeCliOptionCount
+    ).toBe(1);
+    expect(
+      activeMetadataWithExplicitEmptyIteratorStrictMetadataOverride.activeCliOptionTokens
+    ).toEqual(["--output"]);
+    expect(
+      activeMetadataWithExplicitEmptyIteratorStrictMetadataOverride.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(
+      activeMetadataWithExplicitEmptyIteratorStrictMetadataOverride.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      activeMetadataWithExplicitEmptyIteratorStrictMetadataOverride.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+    ]);
+    expect(
+      activeMetadataWithExplicitEmptyIteratorStrictMetadataOverride.activeCliOptionOccurrenceCount
     ).toBe(1);
 
     const iteratorTrapArgs = ["--json", "--output", "./report.json"];
