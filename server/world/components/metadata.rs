@@ -132,7 +132,7 @@ impl MetadataComp {
 
     /// Get a clean JSON string with no side-effects.
     pub fn to_string(&self) -> String {
-        serde_json::to_string(&self.map).unwrap()
+        serde_json::to_string(&self.map).unwrap_or_else(|_| String::from("{}"))
     }
 
     /// Build persisted metadata JSON without mutating cache/dirty state.
