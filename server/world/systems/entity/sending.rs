@@ -182,11 +182,8 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             entity_positions.reserve(old_entities.len() - entity_positions.len());
         }
         let has_clients = !clients.is_empty();
-        let mut entity_metadata_map: HashMap<&str, (&str, String, bool)> = if has_clients {
-            HashMap::with_capacity(old_entities.len())
-        } else {
-            HashMap::new()
-        };
+        let entity_metadata_initial_capacity = old_entities.len().min(64);
+        let mut entity_metadata_map: Option<HashMap<&str, (&str, String, bool)>> = None;
 
         for (ent, id, metadata, etype, _, do_not_persist, position, voxel) in (
             &entities,
@@ -224,9 +221,13 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             if has_clients {
                 if is_new {
                     let json_str = metadata.to_cached_str_for_new_record();
-                    entity_metadata_map.insert(id.0.as_str(), (etype.0.as_str(), json_str, true));
+                    entity_metadata_map
+                        .get_or_insert_with(|| HashMap::with_capacity(entity_metadata_initial_capacity))
+                        .insert(id.0.as_str(), (etype.0.as_str(), json_str, true));
                 } else if let Some(json_str) = metadata.to_cached_str_if_updated() {
-                    entity_metadata_map.insert(id.0.as_str(), (etype.0.as_str(), json_str, false));
+                    entity_metadata_map
+                        .get_or_insert_with(|| HashMap::with_capacity(entity_metadata_initial_capacity))
+                        .insert(id.0.as_str(), (etype.0.as_str(), json_str, false));
                 }
             }
         }
@@ -258,7 +259,10 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             bookkeeping.entity_positions = entity_positions;
             return;
         }
-        if entity_metadata_map.is_empty() && self.deleted_entities_buffer.is_empty() {
+        let has_entity_metadata_updates = entity_metadata_map
+            .as_ref()
+            .map_or(false, |metadata_map| !metadata_map.is_empty());
+        if !has_entity_metadata_updates && self.deleted_entities_buffer.is_empty() {
             let mut has_known_entities = false;
             for known_entities in bookkeeping.client_known_entities.values() {
                 if !known_entities.is_empty() {
@@ -290,7 +294,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         };
 
         let mut entity_to_client_id: HashMap<u32, &str> = HashMap::new();
-        if single_client.is_none() && !entity_metadata_map.is_empty() {
+        if single_client.is_none() && has_entity_metadata_updates {
             entity_to_client_id.reserve(clients.len());
             for (client_id, client) in clients.iter() {
                 entity_to_client_id.insert(client.entity.id(), client_id.as_str());
@@ -299,52 +303,23 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         let default_pos = Vec3(0.0, 0.0, 0.0);
 
-        for (entity_id, (etype, metadata_str, is_new)) in &entity_metadata_map {
-            let entity_id = *entity_id;
-            let pos = entity_positions.get(entity_id).unwrap_or(&default_pos);
-            if let Some((single_client_id, _)) = single_client {
-                let Some(client_pos) = single_client_position else {
-                    continue;
-                };
-                let dx = pos.0 - client_pos.0;
-                let dy = pos.1 - client_pos.1;
-                let dz = pos.2 - client_pos.2;
-                if is_outside_visible_radius_sq(dx, dy, dz, entity_visible_radius_sq) {
-                    continue;
-                }
-                let known_entities = get_or_insert_client_known_entities(
-                    &mut bookkeeping.client_known_entities,
-                    single_client_id,
-                );
-                let client_known = known_entities.contains(entity_id);
-                let entity_id_owned = entity_id.to_owned();
-                if !client_known {
-                    known_entities.insert(entity_id_owned.clone());
-                }
-                let operation = if !client_known || *is_new {
-                    EntityOperation::Create
-                } else {
-                    EntityOperation::Update
-                };
-                push_client_update(
-                    &mut self.client_updates_buffer,
-                    &mut self.clients_with_updates_buffer,
-                    single_client_id,
-                    EntityProtocol {
-                        operation,
-                        id: entity_id_owned,
-                        r#type: (*etype).to_owned(),
-                        metadata: Some(metadata_str.clone()),
-                    },
-                );
-                continue;
-            }
-            kdtree.for_each_player_id_within_radius(pos, entity_visible_radius, |player_entity_id| {
-                if let Some(client_id) = entity_to_client_id.get(&player_entity_id) {
-                    let client_id = *client_id;
+        if let Some(entity_metadata_map) = entity_metadata_map.as_ref() {
+            for (entity_id, (etype, metadata_str, is_new)) in entity_metadata_map {
+                let entity_id = *entity_id;
+                let pos = entity_positions.get(entity_id).unwrap_or(&default_pos);
+                if let Some((single_client_id, _)) = single_client {
+                    let Some(client_pos) = single_client_position else {
+                        continue;
+                    };
+                    let dx = pos.0 - client_pos.0;
+                    let dy = pos.1 - client_pos.1;
+                    let dz = pos.2 - client_pos.2;
+                    if is_outside_visible_radius_sq(dx, dy, dz, entity_visible_radius_sq) {
+                        continue;
+                    }
                     let known_entities = get_or_insert_client_known_entities(
                         &mut bookkeeping.client_known_entities,
-                        client_id,
+                        single_client_id,
                     );
                     let client_known = known_entities.contains(entity_id);
                     let entity_id_owned = entity_id.to_owned();
@@ -356,11 +331,10 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     } else {
                         EntityOperation::Update
                     };
-
                     push_client_update(
                         &mut self.client_updates_buffer,
                         &mut self.clients_with_updates_buffer,
-                        client_id,
+                        single_client_id,
                         EntityProtocol {
                             operation,
                             id: entity_id_owned,
@@ -368,8 +342,40 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                             metadata: Some(metadata_str.clone()),
                         },
                     );
+                    continue;
                 }
-            });
+                kdtree.for_each_player_id_within_radius(pos, entity_visible_radius, |player_entity_id| {
+                    if let Some(client_id) = entity_to_client_id.get(&player_entity_id) {
+                        let client_id = *client_id;
+                        let known_entities = get_or_insert_client_known_entities(
+                            &mut bookkeeping.client_known_entities,
+                            client_id,
+                        );
+                        let client_known = known_entities.contains(entity_id);
+                        let entity_id_owned = entity_id.to_owned();
+                        if !client_known {
+                            known_entities.insert(entity_id_owned.clone());
+                        }
+                        let operation = if !client_known || *is_new {
+                            EntityOperation::Create
+                        } else {
+                            EntityOperation::Update
+                        };
+
+                        push_client_update(
+                            &mut self.client_updates_buffer,
+                            &mut self.clients_with_updates_buffer,
+                            client_id,
+                            EntityProtocol {
+                                operation,
+                                id: entity_id_owned,
+                                r#type: (*etype).to_owned(),
+                                metadata: Some(metadata_str.clone()),
+                            },
+                        );
+                    }
+                });
+            }
         }
 
         if !self.deleted_entities_buffer.is_empty() {
