@@ -729,6 +729,23 @@ impl Chunks {
                     return;
                 }
             }
+            3 => {
+                if listeners[0] == *listener
+                    || listeners[1] == *listener
+                    || listeners[2] == *listener
+                {
+                    return;
+                }
+            }
+            4 => {
+                if listeners[0] == *listener
+                    || listeners[1] == *listener
+                    || listeners[2] == *listener
+                    || listeners[3] == *listener
+                {
+                    return;
+                }
+            }
             _ => {
                 if listeners.last().is_some_and(|existing| existing == listener)
                     || listeners.contains(listener)
