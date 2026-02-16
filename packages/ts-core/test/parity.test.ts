@@ -1846,6 +1846,61 @@ describe("Type builders", () => {
     expect(part.aabbs).toEqual([]);
   });
 
+  it("salvages later empty-iterator ownKeys-trapped face and aabb entries when prefix reads trap", () => {
+    const trappedFaces = new Proxy(
+      [{ name: "IgnoredFace" }, { name: "RecoveredFace" }],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (property === "0") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const trappedAabbs = new Proxy(
+      [AABB.create(9, 9, 9, 10, 10, 10), AABB.create(0, 0, 0, 1, 1, 1)],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (property === "0") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+
+    const part = createBlockConditionalPart({
+      faces: trappedFaces as never,
+      aabbs: trappedAabbs as never,
+    });
+
+    expect(part.faces).toEqual([new BlockFace({ name: "RecoveredFace" })]);
+    expect(part.aabbs).toEqual([AABB.create(0, 0, 0, 1, 1, 1)]);
+  });
+
   it("salvages key-based face and aabb entries when length access traps", () => {
     const sparseFaces = [] as Array<BlockFaceInit | undefined>;
     sparseFaces[5_000] = { name: "SparseFace" };
@@ -4513,6 +4568,41 @@ describe("Type builders", () => {
     });
 
     expect(pattern.parts).toEqual([]);
+  });
+
+  it("salvages later empty-iterator ownKeys-trapped dynamic pattern part entries when prefix reads trap", () => {
+    const trappedParts = new Proxy([{ worldSpace: false }, { worldSpace: true }], {
+      ownKeys() {
+        throw new Error("ownKeys trap");
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          return function* () {
+            return;
+          };
+        }
+        if (property === "length") {
+          return 2;
+        }
+        if (property === "0") {
+          throw new Error("read trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const pattern = createBlockDynamicPattern({
+      parts: trappedParts as never,
+    });
+
+    expect(pattern.parts).toEqual([
+      {
+        rule: BLOCK_RULE_NONE,
+        faces: [],
+        aabbs: [],
+        isTransparent: [false, false, false, false, false, false],
+        worldSpace: true,
+      },
+    ]);
   });
 
   it("ignores inherited numeric prototype part entries in fallback scans", () => {
