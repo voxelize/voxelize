@@ -158,10 +158,29 @@ const readRotationAxisSafely = (rotation: BlockRotation): number => {
   return PY_ROTATION;
 };
 
+const toFiniteRotationNumberOrZero = (
+  value: number | object | null | undefined
+): number => {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (value === null || typeof value !== "object") {
+    return 0;
+  }
+
+  try {
+    const wrappedRotationValue = Number.prototype.valueOf.call(value);
+    return Number.isFinite(wrappedRotationValue) ? wrappedRotationValue : 0;
+  } catch {
+    return 0;
+  }
+};
+
 const readRotationYSafely = (rotation: BlockRotation): number => {
   try {
-    const yRotation = rotation.yRotation;
-    return typeof yRotation === "number" ? yRotation : 0;
+    const yRotation = rotation.yRotation as number | object | null | undefined;
+    return toFiniteRotationNumberOrZero(yRotation);
   } catch {
     return 0;
   }

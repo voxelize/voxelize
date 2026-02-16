@@ -1112,6 +1112,53 @@ describe("BlockRotation", () => {
     expect(didCallWrappedAxisToStringTag).toBe(false);
   });
 
+  it("salvages wrapped y-rotation values from direct mutations", () => {
+    const rotation = BlockRotation.py(0);
+    const wrappedYRotation = vm.runInNewContext("new Number(Math.PI / 2)");
+    let didCallWrappedYRotationToString = false;
+    Object.defineProperty(wrappedYRotation, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedYRotationToString = true;
+        throw new Error("wrapped mutated yRotation toString trap");
+      },
+    });
+    let didCallWrappedYRotationValueOf = false;
+    Object.defineProperty(wrappedYRotation, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedYRotationValueOf = true;
+        throw new Error("wrapped mutated yRotation valueOf trap");
+      },
+    });
+    let didCallWrappedYRotationToStringTag = false;
+    Object.defineProperty(wrappedYRotation, Symbol.toStringTag, {
+      configurable: true,
+      enumerable: false,
+      get() {
+        didCallWrappedYRotationToStringTag = true;
+        throw new Error("wrapped mutated yRotation toStringTag trap");
+      },
+    });
+
+    (rotation as { yRotation: number | object }).yRotation =
+      wrappedYRotation as never;
+
+    expect(BlockRotation.decode(rotation)).toEqual([PY_ROTATION, 4]);
+    const node: [number, number, number] = [1, 0, 0];
+    rotation.rotateNode(node, true, false);
+    expect(node[0]).toBeCloseTo(0, 10);
+    expect(node[1]).toBeCloseTo(0, 10);
+    expect(node[2]).toBeCloseTo(0, 10);
+    expect(didCallWrappedYRotationToString).toBe(false);
+    expect(didCallWrappedYRotationValueOf).toBe(false);
+    expect(didCallWrappedYRotationToStringTag).toBe(false);
+  });
+
   it("sanitizes decode and equality checks for trap-driven rotations", () => {
     const axisTrapRotation = Object.create(null) as {
       readonly axis: number;
