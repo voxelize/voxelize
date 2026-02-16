@@ -197,6 +197,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 .sort_by(|a, b| interests.compare(a, b));
         }
 
+        let to_load_initial_capacity = pending_queue_len.min(32);
         let mut to_load: Option<Vec<Vec2<i32>>> = None;
         if !pipeline.stages.is_empty() {
             while let Some(coords) = pipeline.get() {
@@ -208,7 +209,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                         pipeline.remove_chunk_tracking(&coords);
                         mesher.add_chunk(&coords, false);
                         to_load
-                            .get_or_insert_with(|| Vec::with_capacity(pending_queue_len))
+                            .get_or_insert_with(|| Vec::with_capacity(to_load_initial_capacity))
                             .push(coords);
                         continue;
                     }
