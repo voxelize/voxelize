@@ -476,9 +476,12 @@ fn process_pending_updates(
         }
     }
 
-    if processed_updates.is_none() {
-        return results.unwrap_or_default();
-    }
+    let processed_updates = {
+        let Some(updates) = processed_updates else {
+            return results.unwrap_or_default();
+        };
+        updates
+    };
 
     let removed_light_source_count = removed_light_sources.as_ref().map_or(0, Vec::len);
     let removal_initial_capacity = removed_light_source_count.min(32);
@@ -545,29 +548,25 @@ fn process_pending_updates(
         );
     }
 
-    let flood_initial_capacity = processed_updates
-        .as_ref()
-        .map_or(0, Vec::len)
-        .min(64);
+    let flood_initial_capacity = processed_updates.len().min(64);
     let mut red_flood = Vec::with_capacity(flood_initial_capacity);
     let mut green_flood = Vec::with_capacity(flood_initial_capacity);
     let mut blue_flood = Vec::with_capacity(flood_initial_capacity);
     let mut sun_flood = Vec::with_capacity(flood_initial_capacity);
 
-    if let Some(processed_updates) = processed_updates {
-        for (
-            voxel,
-            rotation,
-            current_type,
-            updated_type,
-            stored_updated_is_light,
-            is_removed_light_source,
-            current_rotatable,
-            updated_rotatable,
-            needs_transparency,
-            updated_has_dynamic_patterns,
-        ) in processed_updates
-        {
+    for (
+        voxel,
+        rotation,
+        current_type,
+        updated_type,
+        stored_updated_is_light,
+        is_removed_light_source,
+        current_rotatable,
+        updated_rotatable,
+        needs_transparency,
+        updated_has_dynamic_patterns,
+    ) in processed_updates
+    {
             let Vec3(vx, vy, vz) = voxel;
             let updated_is_light = if updated_has_dynamic_patterns {
                 updated_type.is_light_at(&voxel, &*chunks)
@@ -870,7 +869,6 @@ fn process_pending_updates(
                     }
                 }
             }
-        }
     }
 
     if !red_flood.is_empty() {
