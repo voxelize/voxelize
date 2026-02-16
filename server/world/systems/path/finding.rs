@@ -49,16 +49,21 @@ impl<'a> System<'a> for PathFindingSystem {
 
         let get_is_voxel_passable = |vx: i32, vy: i32, vz: i32| {
             let key = (vx, vy, vz);
-            if let Some(is_passable) = voxel_cache.read().unwrap().get(&key).copied() {
-                return is_passable;
+            if let Ok(cache) = voxel_cache.read() {
+                if let Some(is_passable) = cache.get(&key).copied() {
+                    return is_passable;
+                }
             }
 
             let voxel = chunks.get_voxel(vx, vy, vz);
             let block = registry.get_block_by_id(voxel);
             let is_passable = block.is_passable || block.is_fluid;
 
-            let mut cache = voxel_cache.write().unwrap();
-            *cache.entry(key).or_insert(is_passable)
+            if let Ok(mut cache) = voxel_cache.write() {
+                *cache.entry(key).or_insert(is_passable)
+            } else {
+                is_passable
+            }
         };
 
         // Returns whether or not a block can be stepped on
