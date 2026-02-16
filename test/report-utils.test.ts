@@ -23229,6 +23229,52 @@ describe("report-utils", () => {
     }
   });
 
+  it("returns stable write failure messages for boxed primitives with trapped toString", () => {
+    const reportJson = toReportJson({ passed: false, exitCode: 1 });
+    const numberWrapper = new Number(7);
+    Object.defineProperty(numberWrapper, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        throw new Error("number wrapper toString trap");
+      },
+    });
+    const booleanWrapper = new Boolean(true);
+    Object.defineProperty(booleanWrapper, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        throw new Error("boolean wrapper toString trap");
+      },
+    });
+    const bigintWrapper = Object(1n);
+    Object.defineProperty(bigintWrapper, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        throw new Error("bigint wrapper toString trap");
+      },
+    });
+    const cases: Array<{ readonly outputPath: object; readonly label: string }> = [
+      { outputPath: numberWrapper, label: "7" },
+      { outputPath: booleanWrapper, label: "true" },
+      { outputPath: bigintWrapper, label: "1" },
+    ];
+
+    for (const { outputPath, label } of cases) {
+      expect(() => writeReportToPath(reportJson, outputPath as never)).not.toThrow();
+      const failureMessage = writeReportToPath(reportJson, outputPath as never);
+      expect(failureMessage).toContain(`Failed to write report to ${label}.`);
+      expect(failureMessage).toContain(
+        'The "path" argument must be of type string.'
+      );
+      expect(failureMessage).not.toContain("toString trap");
+    }
+  });
+
   it("falls back to unprintable output-path messaging for trapped symbol wrappers", () => {
     const reportJson = toReportJson({ passed: false, exitCode: 1 });
     const trappedSymbolWrapper = Object(Symbol("boxed-output-path"));
@@ -23876,6 +23922,108 @@ describe("report-utils", () => {
       expect(parsedWriteFailureResult.message).toContain(
         'The "path" argument must be of type string.'
       );
+      expect(parsedWriteFailureResult.startedAt).toBe("iso-1000");
+      expect(parsedWriteFailureResult.endedAt).toBe("iso-2000");
+      expect(parsedWriteFailureResult.durationMs).toBe(1000);
+    }
+  });
+
+  it("returns structured serialize fallback for boxed primitives with trapped toString", () => {
+    const numberWrapper = new Number(7);
+    Object.defineProperty(numberWrapper, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        throw new Error("number wrapper toString trap");
+      },
+    });
+    const booleanWrapper = new Boolean(true);
+    Object.defineProperty(booleanWrapper, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        throw new Error("boolean wrapper toString trap");
+      },
+    });
+    const bigintWrapper = Object(1n);
+    Object.defineProperty(bigintWrapper, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        throw new Error("bigint wrapper toString trap");
+      },
+    });
+    const cases: Array<{ readonly outputPath: object; readonly label: string }> = [
+      { outputPath: numberWrapper, label: "7" },
+      { outputPath: booleanWrapper, label: "true" },
+      { outputPath: bigintWrapper, label: "1" },
+    ];
+
+    for (const { outputPath, label } of cases) {
+      const timedReportBuilder = createTimedReportBuilder(
+        (() => {
+          let tick = 0;
+          return () => {
+            tick += 1;
+            return tick * 1000;
+          };
+        })(),
+        (value) => `iso-${value}`
+      );
+      const writeFailureResult = serializeReportWithOptionalWrite(
+        {
+          passed: true,
+          exitCode: 0,
+          outputPath: outputPath as never,
+        },
+        {
+          jsonFormat: { compact: true },
+          outputPath: outputPath as never,
+          buildTimedReport: timedReportBuilder,
+        }
+      );
+      const parsedWriteFailureResult = JSON.parse(
+        writeFailureResult.reportJson
+      ) as {
+        schemaVersion: number;
+        passed: boolean;
+        exitCode: number;
+        outputPath: string;
+        writeError: string;
+        message: string;
+        startedAt: string;
+        endedAt: string;
+        durationMs: number;
+      };
+
+      expect(writeFailureResult.writeError).toContain(
+        `Failed to write report to ${label}.`
+      );
+      expect(writeFailureResult.writeError).toContain(
+        'The "path" argument must be of type string.'
+      );
+      expect(writeFailureResult.writeError).not.toContain("toString trap");
+      expect(parsedWriteFailureResult.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+      expect(parsedWriteFailureResult.passed).toBe(false);
+      expect(parsedWriteFailureResult.exitCode).toBe(1);
+      expect(parsedWriteFailureResult.outputPath).toBe(label);
+      expect(parsedWriteFailureResult.writeError).toContain(
+        `Failed to write report to ${label}.`
+      );
+      expect(parsedWriteFailureResult.writeError).toContain(
+        'The "path" argument must be of type string.'
+      );
+      expect(parsedWriteFailureResult.writeError).not.toContain("toString trap");
+      expect(parsedWriteFailureResult.message).toContain(
+        `Failed to write report to ${label}.`
+      );
+      expect(parsedWriteFailureResult.message).toContain(
+        'The "path" argument must be of type string.'
+      );
+      expect(parsedWriteFailureResult.message).not.toContain("toString trap");
       expect(parsedWriteFailureResult.startedAt).toBe("iso-1000");
       expect(parsedWriteFailureResult.endedAt).toBe("iso-2000");
       expect(parsedWriteFailureResult.durationMs).toBe(1000);

@@ -1002,6 +1002,14 @@ describe("BlockRotation", () => {
     expect(yRotation).toBe(4);
   });
 
+  it("normalizes invalid constructor axis values to PY", () => {
+    const rotation = new BlockRotation(99, Math.PI / 2);
+
+    expect(rotation.value).toBe(PY_ROTATION);
+    expect(rotation.axis).toBe(PY_ROTATION);
+    expect(BlockRotation.decode(rotation)).toEqual([PY_ROTATION, 4]);
+  });
+
   it("sanitizes decode and equality checks for trap-driven rotations", () => {
     const axisTrapRotation = Object.create(null) as {
       readonly axis: number;
