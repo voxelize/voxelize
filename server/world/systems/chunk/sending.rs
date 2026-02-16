@@ -30,10 +30,9 @@ fn take_updated_level_range(updated_levels: &mut HashSet<u32>) -> Option<(u32, u
         return None;
     }
     if updated_levels.len() == 1 {
-        let Some(level) = updated_levels.iter().next().copied() else {
+        let Some(level) = updated_levels.drain().next() else {
             return None;
         };
-        updated_levels.clear();
         let max_level_exclusive = level.saturating_add(1);
         if max_level_exclusive <= level {
             return None;
@@ -439,7 +438,7 @@ mod tests {
     }
 
     #[test]
-    fn take_updated_level_range_handles_single_level_without_drain() {
+    fn take_updated_level_range_handles_single_level() {
         let mut levels = HashSet::new();
         levels.insert(4);
 
