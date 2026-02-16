@@ -118,6 +118,16 @@ const normalizeRuleEvaluationOptions = (
   };
 };
 
+const toActiveCombinationRuleSet = (
+  value: Set<BlockRule>
+): Set<BlockRule> => {
+  try {
+    return value instanceof Set ? value : new Set<BlockRule>();
+  } catch {
+    return new Set<BlockRule>();
+  }
+};
+
 const isBlockRotationInstance = (value: RuleOptionValue): value is BlockRotation => {
   try {
     return value instanceof BlockRotation;
@@ -608,6 +618,8 @@ export class BlockRuleEvaluator {
     activeCombinationRules: Set<BlockRule> = new Set<BlockRule>()
   ): boolean {
     const { rotationY, yRotatable, worldSpace } = options;
+    const normalizedActiveCombinationRules =
+      toActiveCombinationRuleSet(activeCombinationRules);
     const ruleRecord = rule as RuleOptionRecord;
     const ruleType = safeReadRecordValue(ruleRecord, "type");
 
@@ -682,14 +694,14 @@ export class BlockRuleEvaluator {
       return true;
     }
 
-    if (activeCombinationRules.has(rule)) {
+    if (normalizedActiveCombinationRules.has(rule)) {
       return true;
     }
 
     const combinationRule = rule as Extract<BlockRule, { type: "combination" }>;
     const ruleEntries = toRuleEntriesOrEmpty(combinationRule);
     const logic = safeReadRecordValue(ruleRecord, "logic");
-    activeCombinationRules.add(rule);
+    normalizedActiveCombinationRules.add(rule);
     try {
       switch (logic) {
         case BlockRuleLogic.And:
@@ -699,7 +711,7 @@ export class BlockRuleEvaluator {
               position,
               access,
               options,
-              activeCombinationRules
+              normalizedActiveCombinationRules
             )
           );
         case BlockRuleLogic.Or:
@@ -709,7 +721,7 @@ export class BlockRuleEvaluator {
               position,
               access,
               options,
-              activeCombinationRules
+              normalizedActiveCombinationRules
             )
           );
         case BlockRuleLogic.Not: {
@@ -723,14 +735,14 @@ export class BlockRuleEvaluator {
             position,
             access,
             options,
-            activeCombinationRules
+            normalizedActiveCombinationRules
           );
         }
         default:
           return false;
       }
     } finally {
-      activeCombinationRules.delete(rule);
+      normalizedActiveCombinationRules.delete(rule);
     }
   }
 

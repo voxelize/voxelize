@@ -392,12 +392,16 @@ export class AABB {
       return;
     }
 
-    this.minX = otherSnapshot.minX;
-    this.minY = otherSnapshot.minY;
-    this.minZ = otherSnapshot.minZ;
-    this.maxX = otherSnapshot.maxX;
-    this.maxY = otherSnapshot.maxY;
-    this.maxZ = otherSnapshot.maxZ;
+    try {
+      this.minX = otherSnapshot.minX;
+      this.minY = otherSnapshot.minY;
+      this.minZ = otherSnapshot.minZ;
+      this.maxX = otherSnapshot.maxX;
+      this.maxY = otherSnapshot.maxY;
+      this.maxZ = otherSnapshot.maxZ;
+    } catch {
+      // no-op when assignment is unavailable
+    }
   }
 
   intersection(other: AABB): AABB {

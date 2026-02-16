@@ -860,6 +860,9 @@ describe("AABB", () => {
     expect(() =>
       AABB.prototype.setPosition.call(revokedAabb as never, 4, 5, 6)
     ).not.toThrow();
+    expect(() =>
+      AABB.prototype.copy.call(null as never, AABB.create(1, 1, 1, 2, 2, 2) as never)
+    ).not.toThrow();
     expect(() => AABB.prototype.clone.call(revokedAabb as never)).not.toThrow();
     expect(AABB.prototype.clone.call(revokedAabb as never)).toEqual(AABB.empty());
     expect(() => AABBBuilder.prototype.build.call(revokedBuilder as never)).not.toThrow();
@@ -7357,11 +7360,75 @@ describe("BlockRuleEvaluator", () => {
       offset: [0, 0, 0] as [number, number, number],
       id: 7,
     };
+    const combinationRule = {
+      type: "combination" as const,
+      logic: BlockRuleLogic.And,
+      rules: [{ type: "none" } as const],
+    };
+    const access = {
+      getVoxel: () => 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+    const normalizedOptions = {
+      rotationY: 0,
+      yRotatable: false,
+      worldSpace: false,
+    };
+    const trappedActiveSet = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error("active set trap");
+        },
+      }
+    );
+    const revokedActiveSet = (() => {
+      const setProxy = Proxy.revocable(new Set<BlockRule>(), {});
+      setProxy.revoke();
+      return setProxy.proxy;
+    })();
 
     expect(() => evaluateWithNormalizedOptions(BLOCK_RULE_NONE as never)).not.toThrow();
     expect(evaluateWithNormalizedOptions(BLOCK_RULE_NONE as never)).toBe(true);
     expect(() => evaluateWithNormalizedOptions(simpleRule as never)).not.toThrow();
     expect(evaluateWithNormalizedOptions(simpleRule as never)).toBe(false);
+    expect(() =>
+      evaluateWithNormalizedOptions(
+        combinationRule as never,
+        [0, 0, 0] as never,
+        access as never,
+        normalizedOptions as never,
+        trappedActiveSet as never
+      )
+    ).not.toThrow();
+    expect(
+      evaluateWithNormalizedOptions(
+        combinationRule as never,
+        [0, 0, 0] as never,
+        access as never,
+        normalizedOptions as never,
+        trappedActiveSet as never
+      )
+    ).toBe(true);
+    expect(() =>
+      evaluateWithNormalizedOptions(
+        combinationRule as never,
+        [0, 0, 0] as never,
+        access as never,
+        normalizedOptions as never,
+        revokedActiveSet as never
+      )
+    ).not.toThrow();
+    expect(
+      evaluateWithNormalizedOptions(
+        combinationRule as never,
+        [0, 0, 0] as never,
+        access as never,
+        normalizedOptions as never,
+        revokedActiveSet as never
+      )
+    ).toBe(true);
   });
 
   it("sanitizes revoked combination rule arrays without throwing", () => {
