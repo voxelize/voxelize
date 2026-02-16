@@ -212,9 +212,6 @@ impl EncodedMessageQueue {
                 Ok(messages) => messages,
                 Err(_) => return Vec::new(),
             };
-            if self.receiver.len() == 0 {
-                return first_batch;
-            }
             while let Ok(mut messages) = self.receiver.try_recv() {
                 reserve_for_append(&mut first_batch, messages.len());
                 first_batch.append(&mut messages);
@@ -222,18 +219,13 @@ impl EncodedMessageQueue {
             return first_batch;
         }
         let mut result = take_vec_with_capacity(&mut self.processed);
-        let mut first_batch = match self.receiver.try_recv() {
-            Ok(messages) => messages,
-            Err(_) => return result,
-        };
-        reserve_for_append(&mut result, first_batch.len());
-        result.append(&mut first_batch);
-        if self.receiver.len() == 0 {
-            return result;
-        }
-        while let Ok(mut messages) = self.receiver.try_recv() {
-            reserve_for_append(&mut result, messages.len());
-            result.append(&mut messages);
+        if let Ok(mut first_batch) = self.receiver.try_recv() {
+            reserve_for_append(&mut result, first_batch.len());
+            result.append(&mut first_batch);
+            while let Ok(mut messages) = self.receiver.try_recv() {
+                reserve_for_append(&mut result, messages.len());
+                result.append(&mut messages);
+            }
         }
         result
     }
