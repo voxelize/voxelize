@@ -24,6 +24,12 @@ fn reserve_for_append<T>(buffer: &mut Vec<T>, additional: usize) {
     }
 }
 
+#[inline]
+fn take_vec_with_capacity<T>(buffer: &mut Vec<T>) -> Vec<T> {
+    let capacity = buffer.capacity();
+    std::mem::replace(buffer, Vec::with_capacity(capacity))
+}
+
 #[derive(Clone)]
 pub struct EncodedMessage {
     pub data: Bytes,
@@ -67,27 +73,27 @@ impl MessageQueues {
     pub fn drain_prioritized(&mut self) -> Vec<(Message, ClientFilter)> {
         if self.normal.is_empty() {
             if self.bulk.is_empty() {
-                return std::mem::take(&mut self.critical);
+                return take_vec_with_capacity(&mut self.critical);
             }
             if self.critical.is_empty() {
-                return std::mem::take(&mut self.bulk);
+                return take_vec_with_capacity(&mut self.bulk);
             }
-            let mut result = std::mem::take(&mut self.critical);
+            let mut result = take_vec_with_capacity(&mut self.critical);
             reserve_for_append(&mut result, self.bulk.len());
             result.append(&mut self.bulk);
             return result;
         }
         if self.bulk.is_empty() {
             if self.critical.is_empty() {
-                return std::mem::take(&mut self.normal);
+                return take_vec_with_capacity(&mut self.normal);
             }
-            let mut result = std::mem::take(&mut self.critical);
+            let mut result = take_vec_with_capacity(&mut self.critical);
             reserve_for_append(&mut result, self.normal.len());
             result.append(&mut self.normal);
             return result;
         }
         if self.critical.is_empty() {
-            let mut result = std::mem::take(&mut self.normal);
+            let mut result = take_vec_with_capacity(&mut self.normal);
             reserve_for_append(&mut result, self.bulk.len());
             result.append(&mut self.bulk);
             return result;
@@ -168,7 +174,7 @@ impl EncodedMessageQueue {
             }
             return;
         }
-        let all_pending = std::mem::take(&mut self.pending);
+        let all_pending = take_vec_with_capacity(&mut self.pending);
 
         let sender = Arc::clone(&self.sender);
         rayon::spawn_fifo(move || {
@@ -204,7 +210,7 @@ impl EncodedMessageQueue {
             }
             return first_batch;
         }
-        let mut result = std::mem::take(&mut self.processed);
+        let mut result = take_vec_with_capacity(&mut self.processed);
         if self.receiver.is_empty() {
             return result;
         }
