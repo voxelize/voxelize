@@ -9678,6 +9678,56 @@ describe("report-utils", () => {
       },
     ]);
     expect(emptyIteratorValueOptionDiagnostics.activeCliOptionOccurrenceCount).toBe(2);
+    const emptyIteratorLengthZeroAndOwnKeysTrapValueOptionDiagnostics =
+      createCliDiagnostics(["--output", "-l"], {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-l"],
+        },
+        optionsWithValues: new Proxy(["--output"], {
+          ownKeys() {
+            throw new Error("ownKeys trap");
+          },
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              return function* () {
+                return;
+              };
+            }
+            if (property === "length") {
+              return 0;
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      });
+    expect(
+      emptyIteratorLengthZeroAndOwnKeysTrapValueOptionDiagnostics.supportedCliOptions
+    ).toEqual(["--output", "--json", "-l"]);
+    expect(
+      emptyIteratorLengthZeroAndOwnKeysTrapValueOptionDiagnostics.supportedCliOptionCount
+    ).toBe(3);
+    expect(
+      emptyIteratorLengthZeroAndOwnKeysTrapValueOptionDiagnostics.unknownOptions
+    ).toEqual([]);
+    expect(
+      emptyIteratorLengthZeroAndOwnKeysTrapValueOptionDiagnostics.unknownOptionCount
+    ).toBe(0);
+    expect(
+      emptyIteratorLengthZeroAndOwnKeysTrapValueOptionDiagnostics.unsupportedOptionsError
+    ).toBeNull();
+    expect(
+      emptyIteratorLengthZeroAndOwnKeysTrapValueOptionDiagnostics.validationErrorCode
+    ).toBeNull();
+    expect(
+      emptyIteratorLengthZeroAndOwnKeysTrapValueOptionDiagnostics.activeCliOptions
+    ).toEqual(["--output", "--json"]);
+    expect(
+      emptyIteratorLengthZeroAndOwnKeysTrapValueOptionDiagnostics.activeCliOptionCount
+    ).toBe(2);
+    expect(
+      emptyIteratorLengthZeroAndOwnKeysTrapValueOptionDiagnostics.activeCliOptionTokens
+    ).toEqual(["--output", "-l"]);
     let statefulStrictValueOptionReadCount = 0;
     const statefulStrictValueOptionDiagnostics = createCliDiagnostics(
       ["--output", "-j"],
@@ -9859,6 +9909,57 @@ describe("report-utils", () => {
     expect(
       emptyIteratorStrictValueOptionDiagnostics.activeCliOptionOccurrenceCount
     ).toBe(2);
+    const emptyIteratorLengthZeroAndOwnKeysTrapStrictValueOptionDiagnostics =
+      createCliDiagnostics(["--output", "-j"], {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-j"],
+        },
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: new Proxy(["--output"], {
+          ownKeys() {
+            throw new Error("ownKeys trap");
+          },
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              return function* () {
+                return;
+              };
+            }
+            if (property === "length") {
+              return 0;
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      });
+    expect(
+      emptyIteratorLengthZeroAndOwnKeysTrapStrictValueOptionDiagnostics.supportedCliOptions
+    ).toEqual(["--output", "--json", "-j"]);
+    expect(
+      emptyIteratorLengthZeroAndOwnKeysTrapStrictValueOptionDiagnostics.supportedCliOptionCount
+    ).toBe(3);
+    expect(
+      emptyIteratorLengthZeroAndOwnKeysTrapStrictValueOptionDiagnostics.unknownOptions
+    ).toEqual([]);
+    expect(
+      emptyIteratorLengthZeroAndOwnKeysTrapStrictValueOptionDiagnostics.unknownOptionCount
+    ).toBe(0);
+    expect(
+      emptyIteratorLengthZeroAndOwnKeysTrapStrictValueOptionDiagnostics.unsupportedOptionsError
+    ).toBeNull();
+    expect(
+      emptyIteratorLengthZeroAndOwnKeysTrapStrictValueOptionDiagnostics.validationErrorCode
+    ).toBeNull();
+    expect(
+      emptyIteratorLengthZeroAndOwnKeysTrapStrictValueOptionDiagnostics.activeCliOptions
+    ).toEqual(["--output", "--json"]);
+    expect(
+      emptyIteratorLengthZeroAndOwnKeysTrapStrictValueOptionDiagnostics.activeCliOptionCount
+    ).toBe(2);
+    expect(
+      emptyIteratorLengthZeroAndOwnKeysTrapStrictValueOptionDiagnostics.activeCliOptionTokens
+    ).toEqual(["--output", "-j"]);
     const nonArrayAliasMetadataDiagnostics = createCliDiagnostics(
       ["--verify", "--mystery"],
       {
