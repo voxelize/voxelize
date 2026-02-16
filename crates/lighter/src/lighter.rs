@@ -179,9 +179,15 @@ fn flood_light_from_nodes(
     let chunk_shift = resolve_chunk_shift(chunk_size);
     let [start_cx, start_cz] = config.min_chunk;
     let [end_cx, end_cz] = config.max_chunk;
-    let bounds_xz = bounds.map(|limit| {
-        let start_x = i64::from(limit.min[0]);
-        let start_z = i64::from(limit.min[2]);
+    let mut has_bounds_xz = false;
+    let mut bounds_start_x = 0i64;
+    let mut bounds_start_z = 0i64;
+    let mut bounds_end_x = 0i64;
+    let mut bounds_end_z = 0i64;
+    if let Some(limit) = bounds {
+        has_bounds_xz = true;
+        bounds_start_x = i64::from(limit.min[0]);
+        bounds_start_z = i64::from(limit.min[2]);
         let shape_x = if limit.shape[0] > MAX_I64_USIZE {
             i64::MAX
         } else {
@@ -192,16 +198,9 @@ fn flood_light_from_nodes(
         } else {
             limit.shape[2] as i64
         };
-        let end_x = start_x.saturating_add(shape_x);
-        let end_z = start_z.saturating_add(shape_z);
-        (start_x, start_z, end_x, end_z)
-    });
-    let (has_bounds_xz, bounds_start_x, bounds_start_z, bounds_end_x, bounds_end_z) =
-        if let Some((start_x, start_z, end_x, end_z)) = bounds_xz {
-            (true, start_x, start_z, end_x, end_z)
-        } else {
-            (false, 0, 0, 0, 0)
-        };
+        bounds_end_x = bounds_start_x.saturating_add(shape_x);
+        bounds_end_z = bounds_start_z.saturating_add(shape_z);
+    }
     let mut head = 0usize;
 
     while head < nodes.len() {
