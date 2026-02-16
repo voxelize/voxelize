@@ -15,7 +15,7 @@ import {
   WebGLRenderer,
 } from "three";
 
-import { CameraPerspective, noop } from "../common";
+import { CameraPerspective, getCameraPerspectiveFactors, noop } from "../common";
 import { Inputs } from "../core/inputs";
 import { DOMUtils, ThreeUtils } from "../utils";
 
@@ -237,11 +237,8 @@ export class ItemSlot<T = number> {
   };
 
   setPerspective = (perspective: CameraPerspective) => {
-    const negative = perspective.startsWith("n") ? -1 : 1;
-
-    const xFactor = perspective.includes("x") ? 1 : 0;
-    const yFactor = perspective.includes("y") ? 1 : 0;
-    const zFactor = perspective.includes("z") ? 1 : 0;
+    const { negative, xFactor, yFactor, zFactor } =
+      getCameraPerspectiveFactors(perspective);
 
     this.offset.set(xFactor, yFactor, zFactor).multiplyScalar(negative);
 

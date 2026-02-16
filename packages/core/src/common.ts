@@ -168,3 +168,26 @@ export type CameraPerspective =
   | "nyz"
   | "pxyz"
   | "nxyz";
+
+export const getCameraPerspectiveFactors = (perspective: CameraPerspective) => {
+  let negative = 1;
+  let xFactor = 0;
+  let yFactor = 0;
+  let zFactor = 0;
+
+  const perspectiveLength = perspective.length;
+  for (let index = 0; index < perspectiveLength; index++) {
+    const charCode = perspective.charCodeAt(index);
+    if (charCode === 110) {
+      negative = -1;
+    } else if (charCode === 120) {
+      xFactor = 1;
+    } else if (charCode === 121) {
+      yFactor = 1;
+    } else if (charCode === 122) {
+      zFactor = 1;
+    }
+  }
+
+  return { negative, xFactor, yFactor, zFactor };
+};

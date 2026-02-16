@@ -9,7 +9,7 @@ import {
   WebGLRenderer,
 } from "three";
 
-import { CameraPerspective } from "../common";
+import { CameraPerspective, getCameraPerspectiveFactors } from "../common";
 
 /**
  * Parameters to create a portrait with.
@@ -153,10 +153,8 @@ export class Portrait {
 
     this.scene = new Scene();
 
-    const negative = perspective.includes("n") ? -1 : 1;
-    const xFactor = perspective.includes("x") ? 1 : 0;
-    const yFactor = perspective.includes("y") ? 1 : 0;
-    const zFactor = perspective.includes("z") ? 1 : 0;
+    const { negative, xFactor, yFactor, zFactor } =
+      getCameraPerspectiveFactors(perspective);
 
     this.camera = new OrthographicCamera(-zoom, zoom, zoom, -zoom);
     this.camera.far = zoom * 10 + 1;
