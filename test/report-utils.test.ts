@@ -916,6 +916,87 @@ describe("report-utils", () => {
     expect(didCallPlainObjectToString).toBe(false);
   });
 
+  it("salvages wrapped error.message payloads in serialization fallbacks", () => {
+    const wrappedMessage = new String("wrapped error message");
+    let didCallWrappedMessageToString = false;
+    Object.defineProperty(wrappedMessage, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedMessageToString = true;
+        throw new Error("wrapped message toString trap");
+      },
+    });
+
+    const wrappedSymbolMessage = Object(Symbol("wrapped-error-symbol"));
+    let didCallWrappedSymbolMessageValueOf = false;
+    Object.defineProperty(wrappedSymbolMessage, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedSymbolMessageValueOf = true;
+        throw new Error("wrapped symbol message valueOf trap");
+      },
+    });
+
+    const messageCases: Array<{
+      readonly messageValue: string | object;
+      readonly expectedSerializationError: string;
+    }> = [
+      {
+        messageValue: wrappedMessage,
+        expectedSerializationError: "wrapped error message",
+      },
+      {
+        messageValue: wrappedSymbolMessage,
+        expectedSerializationError: "Symbol(wrapped-error-symbol)",
+      },
+    ];
+
+    for (const { messageValue, expectedSerializationError } of messageCases) {
+      const thrownError = new Error("placeholder message");
+      Object.defineProperty(thrownError, "message", {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value: messageValue,
+      });
+      const reportWithWrappedErrorMessage = {
+        toJSON() {
+          throw thrownError;
+        },
+      };
+
+      expect(() =>
+        toReportJson(reportWithWrappedErrorMessage as never)
+      ).not.toThrow();
+      const parsedWrappedMessageReport = JSON.parse(
+        toReportJson(reportWithWrappedErrorMessage as never)
+      ) as {
+        schemaVersion: number;
+        passed: boolean;
+        exitCode: number;
+        message: string;
+        serializationError: string;
+      };
+
+      expect(parsedWrappedMessageReport.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+      expect(parsedWrappedMessageReport.passed).toBe(false);
+      expect(parsedWrappedMessageReport.exitCode).toBe(1);
+      expect(parsedWrappedMessageReport.message).toBe(
+        "Failed to serialize report JSON."
+      );
+      expect(parsedWrappedMessageReport.serializationError).toBe(
+        expectedSerializationError
+      );
+    }
+
+    expect(didCallWrappedMessageToString).toBe(false);
+    expect(didCallWrappedSymbolMessageValueOf).toBe(false);
+  });
+
   it("supports compact json serialization option", () => {
     const compactSerialized = toReportJson(
       { passed: true, exitCode: 0 },

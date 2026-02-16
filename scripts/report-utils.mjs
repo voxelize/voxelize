@@ -430,6 +430,7 @@ const toSerializationErrorMessage = (error) => {
 
   if (typeof rawMessage !== "string") {
     return (
+      toPrimitiveErrorMessageOrNull(rawMessage) ??
       toPrimitiveErrorMessageOrNull(error) ??
       "Unknown report serialization error."
     );
