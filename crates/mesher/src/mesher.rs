@@ -2113,8 +2113,6 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
         BlockRotation,
         BlockFace,
         bool,
-        bool,
-        bool,
     )> = Vec::with_capacity(slice_area_capacity);
 
     for (dx, dy, dz) in directions {
@@ -2213,8 +2211,6 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                                 voxel_id,
                                 rotation,
                                 face.clone(),
-                                is_see_through,
-                                is_fluid,
                                 world_space,
                             ));
                             },
@@ -2272,8 +2268,6 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                                     voxel_id,
                                     rotation,
                                     face.clone(),
-                                    is_see_through,
-                                    is_fluid,
                                     world_space,
                                 ));
                                 return;
@@ -2350,8 +2344,6 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                 voxel_id,
                 rotation,
                 face,
-                is_see_through,
-                is_fluid,
                 world_space,
             ) in non_greedy_faces.drain(..)
             {
@@ -2418,8 +2410,8 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     registry,
                     space,
                     neighbors,
-                    is_see_through,
-                    is_fluid,
+                    block.is_see_through,
+                    block.is_fluid,
                     &mut geometry.positions,
                     &mut geometry.indices,
                     &mut geometry.uvs,
