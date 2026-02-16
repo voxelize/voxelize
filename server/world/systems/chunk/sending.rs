@@ -64,12 +64,9 @@ fn flush_chunk_batches_in_place(
     batches: &mut HashMap<String, Vec<ChunkProtocol>>,
 ) {
     for (client_id, chunk_models) in batches.iter_mut() {
-        if chunk_models.is_empty() {
+        let Some(chunk_models_to_send) = take_chunk_models_to_send(chunk_models) else {
             continue;
-        }
-        let next_chunk_capacity = chunk_models.capacity();
-        let chunk_models_to_send =
-            std::mem::replace(chunk_models, Vec::with_capacity(next_chunk_capacity));
+        };
         queue.push((
             Message::new(message_type)
                 .chunks_owned(chunk_models_to_send)
