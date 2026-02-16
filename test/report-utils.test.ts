@@ -28589,6 +28589,28 @@ describe("report-utils", () => {
         checkStatusMap: ownKeysTrappedIndirectWasmPackMap,
       })
     ).toBeNull();
+    const ownKeysTrappedReadTrapWasmPackMap = new Proxy(
+      Object.create(null) as Record<string, string>,
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === "wasm-pack") {
+            throw new Error("read trap");
+          }
+          if (property === " WASM-PACK ") {
+            return " missing ";
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      extractWasmPackStatusFromReport({
+        checkStatusMap: ownKeysTrappedReadTrapWasmPackMap,
+      })
+    ).toBeNull();
     const reportWithTrimmedWasmPackMapKey = Object.create(null) as {
       readonly checkStatusMap: Record<string, string>;
     };
@@ -28721,6 +28743,39 @@ describe("report-utils", () => {
         },
       })
     ).toBe("unavailable");
+    const ownKeysTrappedReadTrapWasmPackMap = new Proxy(
+      Object.create(null) as Record<string, string>,
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === "wasm-pack") {
+            throw new Error("read trap");
+          }
+          if (property === " WASM-PACK ") {
+            return "missing";
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      deriveWasmPackCheckStatus({
+        wasmPackCheckExitCode: 1,
+        wasmPackCheckReport: {
+          checkStatusMap: ownKeysTrappedReadTrapWasmPackMap,
+        },
+      })
+    ).toBe("unavailable");
+    expect(
+      deriveWasmPackCheckStatus({
+        wasmPackCheckExitCode: 0,
+        wasmPackCheckReport: {
+          checkStatusMap: ownKeysTrappedReadTrapWasmPackMap,
+        },
+      })
+    ).toBe("ok");
     expect(
       deriveWasmPackCheckStatus({
         wasmPackCheckExitCode: 0,
