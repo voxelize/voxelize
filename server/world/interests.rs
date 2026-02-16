@@ -108,6 +108,40 @@ impl ChunkInterests {
                 };
                 first_client_id.as_str() == client_id || second_client_id.as_str() == client_id
             }
+            3 => {
+                let mut clients_iter = clients.iter();
+                let Some(first_client_id) = clients_iter.next() else {
+                    unreachable!("three-interest client length matched branch");
+                };
+                let Some(second_client_id) = clients_iter.next() else {
+                    unreachable!("three-interest client length matched branch");
+                };
+                let Some(third_client_id) = clients_iter.next() else {
+                    unreachable!("three-interest client length matched branch");
+                };
+                first_client_id.as_str() == client_id
+                    || second_client_id.as_str() == client_id
+                    || third_client_id.as_str() == client_id
+            }
+            4 => {
+                let mut clients_iter = clients.iter();
+                let Some(first_client_id) = clients_iter.next() else {
+                    unreachable!("four-interest client length matched branch");
+                };
+                let Some(second_client_id) = clients_iter.next() else {
+                    unreachable!("four-interest client length matched branch");
+                };
+                let Some(third_client_id) = clients_iter.next() else {
+                    unreachable!("four-interest client length matched branch");
+                };
+                let Some(fourth_client_id) = clients_iter.next() else {
+                    unreachable!("four-interest client length matched branch");
+                };
+                first_client_id.as_str() == client_id
+                    || second_client_id.as_str() == client_id
+                    || third_client_id.as_str() == client_id
+                    || fourth_client_id.as_str() == client_id
+            }
             _ if clients.len() <= SMALL_INTEREST_CLIENT_SET_SCAN_LIMIT => {
                 for existing_client_id in clients {
                     if existing_client_id.as_str() == client_id {
@@ -1238,6 +1272,27 @@ mod tests {
         assert!(interests.is_interested("first", &pair_coords));
         assert!(interests.is_interested("second", &pair_coords));
         assert!(!interests.is_interested("other", &pair_coords));
+    }
+
+    #[test]
+    fn is_interested_handles_three_and_four_client_sets() {
+        let mut interests = ChunkInterests::new();
+        let triple_coords = Vec2(11, 12);
+        interests.add("first", &triple_coords);
+        interests.add("second", &triple_coords);
+        interests.add("third", &triple_coords);
+        assert!(interests.is_interested("first", &triple_coords));
+        assert!(interests.is_interested("third", &triple_coords));
+        assert!(!interests.is_interested("other", &triple_coords));
+
+        let quad_coords = Vec2(13, 14);
+        interests.add("one", &quad_coords);
+        interests.add("two", &quad_coords);
+        interests.add("three", &quad_coords);
+        interests.add("four", &quad_coords);
+        assert!(interests.is_interested("two", &quad_coords));
+        assert!(interests.is_interested("four", &quad_coords));
+        assert!(!interests.is_interested("other", &quad_coords));
     }
 
     #[test]
