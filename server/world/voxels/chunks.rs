@@ -31,12 +31,6 @@ fn for_each_voxel_affected_chunk<F: FnMut(Vec2<i32>)>(
 ) {
     let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
     let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
-    let is_within_world = |coords: &Vec2<i32>| {
-        coords.0 >= min_chunk[0]
-            && coords.0 <= max_chunk[0]
-            && coords.1 >= min_chunk[1]
-            && coords.1 <= max_chunk[1]
-    };
     let mut push_with_offset = |offset_x: i32, offset_z: i32| {
         let Some(nx) = cx.checked_add(offset_x) else {
             return;
@@ -44,9 +38,8 @@ fn for_each_voxel_affected_chunk<F: FnMut(Vec2<i32>)>(
         let Some(nz) = cz.checked_add(offset_z) else {
             return;
         };
-        let coords = Vec2(nx, nz);
-        if is_within_world(&coords) {
-            visit(coords);
+        if nx >= min_chunk[0] && nx <= max_chunk[0] && nz >= min_chunk[1] && nz <= max_chunk[1] {
+            visit(Vec2(nx, nz));
         }
     };
 
