@@ -110,6 +110,28 @@ describe("report-utils", () => {
     expect(parseJsonOutput(42)).toBeNull();
   });
 
+  it("supports string-wrapper parsing and sanitizes string-coercion traps", () => {
+    expect(parseJsonOutput(new String("{\"ok\":true}") as never)).toEqual({
+      ok: true,
+    });
+
+    const trappedStringWrapper = {
+      [Symbol.toPrimitive]() {
+        throw new Error("string coercion trap");
+      },
+    };
+    expect(() => parseJsonOutput(trappedStringWrapper as never)).not.toThrow();
+    expect(parseJsonOutput(trappedStringWrapper as never)).toBeNull();
+
+    const revokedStringWrapper = (() => {
+      const stringProxy = Proxy.revocable(new String("{\"ok\":true}"), {});
+      stringProxy.revoke();
+      return stringProxy.proxy;
+    })();
+    expect(() => parseJsonOutput(revokedStringWrapper as never)).not.toThrow();
+    expect(parseJsonOutput(revokedStringWrapper as never)).toBeNull();
+  });
+
   it("ignores primitive json values in output parsing", () => {
     expect(parseJsonOutput("true")).toBeNull();
     expect(parseJsonOutput("123")).toBeNull();

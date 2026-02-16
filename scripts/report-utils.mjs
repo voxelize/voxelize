@@ -33,10 +33,27 @@ const isArrayValue = (value) => {
 };
 
 export const parseJsonOutput = (value) => {
-  if (typeof value !== "string" || value.length === 0) {
+  let outputValue = value;
+  if (typeof outputValue !== "string") {
+    if (
+      outputValue === null ||
+      outputValue === undefined ||
+      typeof outputValue !== "object"
+    ) {
+      return null;
+    }
+
+    try {
+      outputValue = String(outputValue);
+    } catch {
+      return null;
+    }
+  }
+
+  if (typeof outputValue !== "string" || outputValue.length === 0) {
     return null;
   }
-  const sanitizedValue = sanitizeOutputForJsonParsing(value);
+  const sanitizedValue = sanitizeOutputForJsonParsing(outputValue);
 
   try {
     const parsedValue = JSON.parse(sanitizedValue);
