@@ -13798,6 +13798,141 @@ describe("report-utils", () => {
     ).toBe(1);
   });
 
+  it("normalizes wrapped metadata availability flags across cli helpers", () => {
+    const crossRealmWrappedMetadataUnavailableTrue = vm.runInNewContext(
+      "new Boolean(true)"
+    );
+    let didCallCrossRealmMetadataUnavailableTrueToString = false;
+    Object.defineProperty(
+      crossRealmWrappedMetadataUnavailableTrue,
+      "toString",
+      {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value() {
+          didCallCrossRealmMetadataUnavailableTrueToString = true;
+          throw new Error("cross-realm metadata unavailable=true toString trap");
+        },
+      }
+    );
+    let didCallCrossRealmMetadataUnavailableTrueValueOf = false;
+    Object.defineProperty(
+      crossRealmWrappedMetadataUnavailableTrue,
+      "valueOf",
+      {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value() {
+          didCallCrossRealmMetadataUnavailableTrueValueOf = true;
+          throw new Error("cross-realm metadata unavailable=true valueOf trap");
+        },
+      }
+    );
+    const crossRealmWrappedMetadataUnavailableFalse = vm.runInNewContext(
+      "new Boolean(false)"
+    );
+    let didCallCrossRealmMetadataUnavailableFalseToString = false;
+    Object.defineProperty(
+      crossRealmWrappedMetadataUnavailableFalse,
+      "toString",
+      {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value() {
+          didCallCrossRealmMetadataUnavailableFalseToString = true;
+          throw new Error("cross-realm metadata unavailable=false toString trap");
+        },
+      }
+    );
+    let didCallCrossRealmMetadataUnavailableFalseValueOf = false;
+    Object.defineProperty(
+      crossRealmWrappedMetadataUnavailableFalse,
+      "valueOf",
+      {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value() {
+          didCallCrossRealmMetadataUnavailableFalseValueOf = true;
+          throw new Error("cross-realm metadata unavailable=false valueOf trap");
+        },
+      }
+    );
+
+    expect(
+      parseUnknownCliOptions(["--output", "-l"], {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        valueOptionTokenMetadata: {
+          tokens: ["--output"],
+          unavailable: crossRealmWrappedMetadataUnavailableTrue as never,
+        } as never,
+      })
+    ).toEqual(["-l"]);
+    expect(
+      parseUnknownCliOptions(["--output", "-artifact-report.json"], {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        valueOptionTokenMetadata: {
+          tokens: [],
+          unavailable: crossRealmWrappedMetadataUnavailableFalse as never,
+        } as never,
+      })
+    ).toEqual(["-artifact-report.json"]);
+
+    const activeMetadataFromWrappedStrictUnavailable = parseActiveCliOptionMetadata(
+      ["--output", "-j"],
+      {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-j"],
+        },
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+        strictValueOptionTokenMetadata: {
+          tokens: [],
+          unavailable: crossRealmWrappedMetadataUnavailableTrue as never,
+        } as never,
+      }
+    );
+    expect(activeMetadataFromWrappedStrictUnavailable.activeCliOptions).toEqual([
+      "--output",
+      "--json",
+    ]);
+    expect(activeMetadataFromWrappedStrictUnavailable.activeCliOptionCount).toBe(2);
+    expect(activeMetadataFromWrappedStrictUnavailable.activeCliOptionTokens).toEqual([
+      "--output",
+      "-j",
+    ]);
+
+    const validationFromWrappedUnavailableMetadata = createCliOptionValidation(
+      ["--output", "-l"],
+      {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        valueOptionTokenMetadata: {
+          tokens: ["--output"],
+          unavailable: crossRealmWrappedMetadataUnavailableTrue as never,
+        } as never,
+      }
+    );
+    expect(validationFromWrappedUnavailableMetadata.unknownOptions).toEqual([
+      "-l",
+    ]);
+    expect(validationFromWrappedUnavailableMetadata.unknownOptionCount).toBe(1);
+    expect(validationFromWrappedUnavailableMetadata.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+
+    expect(didCallCrossRealmMetadataUnavailableTrueToString).toBe(false);
+    expect(didCallCrossRealmMetadataUnavailableTrueValueOf).toBe(false);
+    expect(didCallCrossRealmMetadataUnavailableFalseToString).toBe(false);
+    expect(didCallCrossRealmMetadataUnavailableFalseValueOf).toBe(false);
+  });
+
   it("sanitizes malformed metadata inputs in unified cli diagnostics", () => {
     const canonicalOptions = ["--json", "--output"];
     Object.defineProperty(canonicalOptions, Symbol.iterator, {

@@ -2564,11 +2564,12 @@ const toNormalizedCliOptionTokenMetadata = (
 ) => {
   if (isObjectRecord(normalizedTokenMetadata)) {
     const metadataTokens = safeReadProperty(normalizedTokenMetadata, "tokens");
-    const metadataUnavailable = safeReadProperty(
+    const metadataUnavailableValue = safeReadProperty(
       normalizedTokenMetadata,
       "unavailable"
     );
-    if (isArrayValue(metadataTokens) && typeof metadataUnavailable === "boolean") {
+    const metadataUnavailable = toBooleanOrNull(metadataUnavailableValue);
+    if (isArrayValue(metadataTokens) && metadataUnavailable !== null) {
       const normalizedMetadataTokensWithAvailability =
         normalizeCliOptionTokenListWithAvailability(metadataTokens);
       const metadataOverrideIsInconsistent =
