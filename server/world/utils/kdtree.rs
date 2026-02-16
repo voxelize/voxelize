@@ -301,7 +301,11 @@ impl KdTree {
         if self.kind_map.is_empty() {
             return;
         }
-        let mut to_remove = std::mem::take(&mut self.removal_buffer);
+        let removal_buffer_capacity = self.removal_buffer.capacity();
+        let mut to_remove = std::mem::replace(
+            &mut self.removal_buffer,
+            Vec::with_capacity(removal_buffer_capacity),
+        );
         to_remove.clear();
         if to_remove.capacity() < self.kind_map.len() {
             to_remove.reserve(self.kind_map.len() - to_remove.len());
