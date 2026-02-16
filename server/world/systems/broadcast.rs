@@ -259,7 +259,9 @@ impl<'a> System<'a> for BroadcastSystem {
                 continue;
             }
             if client_count == 1 {
-                let (single_id, single_client) = clients.iter().next().unwrap();
+                let Some((single_id, single_client)) = clients.iter().next() else {
+                    continue;
+                };
                 let should_send = match &filter {
                     ClientFilter::All => true,
                     ClientFilter::Include(ids) => ids_contains_target(ids, single_id),
