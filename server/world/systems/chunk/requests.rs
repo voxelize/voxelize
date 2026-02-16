@@ -14,6 +14,27 @@ pub struct ChunkRequestsSystem {
     chunk_models_buffer: Vec<crate::ChunkProtocol>,
 }
 
+#[inline]
+fn enqueue_chunk_models_for_client(
+    queue: &mut MessageQueues,
+    chunk_models_buffer: &mut Vec<crate::ChunkProtocol>,
+    client_id: String,
+) {
+    if chunk_models_buffer.is_empty() {
+        return;
+    }
+    let next_chunk_buffer_capacity = chunk_models_buffer.capacity();
+    let chunk_models_to_send = std::mem::replace(
+        chunk_models_buffer,
+        Vec::with_capacity(next_chunk_buffer_capacity),
+    );
+
+    let message = Message::new(&MessageType::Load)
+        .chunks_owned(chunk_models_to_send)
+        .build();
+    queue.push((message, ClientFilter::Direct(client_id)));
+}
+
 impl<'a> System<'a> for ChunkRequestsSystem {
     type SystemData = (
         ReadExpect<'a, Chunks>,
@@ -196,12 +217,9 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                 coords_to_send.clear();
                 if let Some(coords) = single_coords {
                     if let Some(chunk) = chunks.get(&coords) {
-                        queue.push((
-                            Message::new(&MessageType::Load)
-                                .chunks_owned(vec![chunk.to_model(true, true, 0..sub_chunks_u32)])
-                                .build(),
-                            ClientFilter::Direct(id),
-                        ));
+                        chunk_models_buffer.clear();
+                        chunk_models_buffer.push(chunk.to_model(true, true, 0..sub_chunks_u32));
+                        enqueue_chunk_models_for_client(&mut queue, chunk_models_buffer, id);
                     }
                 }
                 return;
@@ -215,19 +233,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     chunk_models_buffer.push(chunk.to_model(true, true, 0..sub_chunks_u32));
                 }
             }
-            if chunk_models_buffer.is_empty() {
-                return;
-            }
-            let next_chunk_buffer_capacity = chunk_models_buffer.capacity();
-            let chunk_models_to_send = std::mem::replace(
-                chunk_models_buffer,
-                Vec::with_capacity(next_chunk_buffer_capacity),
-            );
-
-            let message = Message::new(&MessageType::Load)
-                .chunks_owned(chunk_models_to_send)
-                .build();
-            queue.push((message, ClientFilter::Direct(id)));
+            enqueue_chunk_models_for_client(&mut queue, chunk_models_buffer, id);
             return;
         }
         for id in to_send_touched_clients.drain(..) {
@@ -242,12 +248,9 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                 coords_to_send.clear();
                 if let Some(coords) = single_coords {
                     if let Some(chunk) = chunks.get(&coords) {
-                        queue.push((
-                            Message::new(&MessageType::Load)
-                                .chunks_owned(vec![chunk.to_model(true, true, 0..sub_chunks_u32)])
-                                .build(),
-                            ClientFilter::Direct(id),
-                        ));
+                        chunk_models_buffer.clear();
+                        chunk_models_buffer.push(chunk.to_model(true, true, 0..sub_chunks_u32));
+                        enqueue_chunk_models_for_client(&mut queue, chunk_models_buffer, id);
                     }
                 }
                 continue;
@@ -261,19 +264,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     chunk_models_buffer.push(chunk.to_model(true, true, 0..sub_chunks_u32));
                 }
             }
-            if chunk_models_buffer.is_empty() {
-                continue;
-            }
-            let next_chunk_buffer_capacity = chunk_models_buffer.capacity();
-            let chunk_models_to_send = std::mem::replace(
-                chunk_models_buffer,
-                Vec::with_capacity(next_chunk_buffer_capacity),
-            );
-
-            let message = Message::new(&MessageType::Load)
-                .chunks_owned(chunk_models_to_send)
-                .build();
-            queue.push((message, ClientFilter::Direct(id)));
+            enqueue_chunk_models_for_client(&mut queue, chunk_models_buffer, id);
         }
     }
 }
