@@ -2423,7 +2423,7 @@ describe("Type builders", () => {
     });
   });
 
-  it("normalizes unrecoverable empty-iterator combination rule entries to empty combinations", () => {
+  it("sanitizes unrecoverable empty-iterator combination rule entries to none rules", () => {
     const trappedRules = new Proxy(
       [
         {
@@ -2456,11 +2456,43 @@ describe("Type builders", () => {
         logic: BlockRuleLogic.And,
         rules: trappedRules as never,
       })
-    ).toEqual({
-      type: "combination",
-      logic: BlockRuleLogic.And,
-      rules: [],
-    });
+    ).toEqual(BLOCK_RULE_NONE);
+  });
+
+  it("sanitizes empty-iterator combination entries with indexed read traps to none rules", () => {
+    const trappedRules = new Proxy(
+      [
+        {
+          type: "simple",
+          offset: [1, 0, 0],
+          id: 5,
+        },
+      ],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (property === "0") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+
+    expect(
+      createBlockRule({
+        type: "combination",
+        logic: BlockRuleLogic.And,
+        rules: trappedRules as never,
+      })
+    ).toEqual(BLOCK_RULE_NONE);
   });
 
   it("sanitizes irrecoverable combination rule iterators to none rules", () => {
@@ -3037,7 +3069,7 @@ describe("Type builders", () => {
     expect(ownKeysCount).toBe(0);
   });
 
-  it("ignores inherited numeric prototype entries in createBlockRule fallbacks", () => {
+  it("sanitizes inherited-prototype-only trapped createBlockRule fallbacks to none", () => {
     Object.defineProperty(Array.prototype, "0", {
       configurable: true,
       enumerable: true,
@@ -3071,11 +3103,7 @@ describe("Type builders", () => {
           logic: BlockRuleLogic.Or,
           rules: trappedRules as never,
         })
-      ).toEqual({
-        type: "combination",
-        logic: BlockRuleLogic.Or,
-        rules: [],
-      });
+      ).toEqual(BLOCK_RULE_NONE);
     } finally {
       delete (Array.prototype as Record<string, BlockRuleInput>)["0"];
     }

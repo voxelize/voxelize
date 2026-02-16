@@ -403,6 +403,10 @@ const cloneArrayFromKeyFallback = (
     }
   }
 
+  if (boundedIndices.length > 0 && recoveredEntries.length === 0) {
+    return null;
+  }
+
   return recoveredEntries;
 };
 
@@ -493,6 +497,16 @@ const cloneArrayFromIndexedAccess = (
   }
 
   const keyFallbackEntries = cloneArrayFromKeyFallback(value);
+  const lengthFallbackEntriesAreEmptyArray =
+    lengthFallbackEntries !== null && lengthFallbackEntries.length === 0;
+  if (
+    keyFallbackEntries === null &&
+    !hasNonUndefinedLengthFallbackEntry &&
+    lengthFallbackEntriesAreEmptyArray
+  ) {
+    return null;
+  }
+
   if (keyFallbackEntries !== null && keyFallbackEntries.length > 0) {
     if (hasNonUndefinedLengthFallbackEntry && lengthFallbackEntries !== null) {
       const mergedEntries = mergeIndexedFallbackEntries(
