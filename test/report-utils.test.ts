@@ -119,6 +119,21 @@ describe("report-utils", () => {
         },
       }
     );
+    const malformedThisValues: Array<
+      null | undefined | number | string | boolean | bigint | symbol | object
+    > = [
+      undefined,
+      null,
+      7,
+      "ctx",
+      true,
+      BigInt(5),
+      Symbol("ctx"),
+      {},
+      trappedValue,
+      revokedObject,
+      revokedArray,
+    ];
     const malformedArgSets: Array<
       Array<null | undefined | number | string | boolean | bigint | symbol | object>
     > = [
@@ -140,13 +155,18 @@ describe("report-utils", () => {
         continue;
       }
 
-      for (const args of malformedArgSets) {
-        try {
-          Reflect.apply(exportValue, undefined, args);
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-          thrownSignatures.push(`${exportName}(${args.length}): ${errorMessage}`);
+      for (const thisValue of malformedThisValues) {
+        for (const args of malformedArgSets) {
+          try {
+            Reflect.apply(exportValue, thisValue, args);
+          } catch (error) {
+            const errorMessage =
+              error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+            const thisLabel = thisValue === null ? "null" : typeof thisValue;
+            thrownSignatures.push(
+              `${exportName}[this:${thisLabel}|args:${args.length}]: ${errorMessage}`
+            );
+          }
         }
       }
     }
