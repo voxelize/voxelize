@@ -118,6 +118,69 @@ fn retain_tree_entities(tree: &mut KdTree, current_ids: &HashSet<u32>) {
                 });
             }
         }
+        7 => {
+            let mut ids = current_ids.iter().copied();
+            if let (
+                Some(first),
+                Some(second),
+                Some(third),
+                Some(fourth),
+                Some(fifth),
+                Some(sixth),
+                Some(seventh),
+            ) = (
+                ids.next(),
+                ids.next(),
+                ids.next(),
+                ids.next(),
+                ids.next(),
+                ids.next(),
+                ids.next(),
+            ) {
+                tree.retain(|ent_id| {
+                    ent_id == first
+                        || ent_id == second
+                        || ent_id == third
+                        || ent_id == fourth
+                        || ent_id == fifth
+                        || ent_id == sixth
+                        || ent_id == seventh
+                });
+            }
+        }
+        8 => {
+            let mut ids = current_ids.iter().copied();
+            if let (
+                Some(first),
+                Some(second),
+                Some(third),
+                Some(fourth),
+                Some(fifth),
+                Some(sixth),
+                Some(seventh),
+                Some(eighth),
+            ) = (
+                ids.next(),
+                ids.next(),
+                ids.next(),
+                ids.next(),
+                ids.next(),
+                ids.next(),
+                ids.next(),
+                ids.next(),
+            ) {
+                tree.retain(|ent_id| {
+                    ent_id == first
+                        || ent_id == second
+                        || ent_id == third
+                        || ent_id == fourth
+                        || ent_id == fifth
+                        || ent_id == sixth
+                        || ent_id == seventh
+                        || ent_id == eighth
+                });
+            }
+        }
         _ => {
             tree.retain(|ent_id| current_ids.contains(&ent_id));
         }
@@ -272,5 +335,52 @@ mod tests {
         assert!(tree.contains(ent_e));
         assert!(tree.contains(ent_f));
         assert!(!tree.contains(ent_g));
+    }
+
+    #[test]
+    fn retain_tree_entities_keeps_only_requested_ids_for_eight_item_set() {
+        let mut world = World::new();
+        let ent_a = world.create_entity().build();
+        let ent_b = world.create_entity().build();
+        let ent_c = world.create_entity().build();
+        let ent_d = world.create_entity().build();
+        let ent_e = world.create_entity().build();
+        let ent_f = world.create_entity().build();
+        let ent_g = world.create_entity().build();
+        let ent_h = world.create_entity().build();
+        let ent_i = world.create_entity().build();
+        let mut tree = KdTree::new();
+        tree.add_entity(ent_a, &Vec3(1.0, 0.0, 0.0));
+        tree.add_entity(ent_b, &Vec3(2.0, 0.0, 0.0));
+        tree.add_entity(ent_c, &Vec3(3.0, 0.0, 0.0));
+        tree.add_entity(ent_d, &Vec3(4.0, 0.0, 0.0));
+        tree.add_entity(ent_e, &Vec3(5.0, 0.0, 0.0));
+        tree.add_entity(ent_f, &Vec3(6.0, 0.0, 0.0));
+        tree.add_entity(ent_g, &Vec3(7.0, 0.0, 0.0));
+        tree.add_entity(ent_h, &Vec3(8.0, 0.0, 0.0));
+        tree.add_entity(ent_i, &Vec3(9.0, 0.0, 0.0));
+
+        let mut retained_ids = hashbrown::HashSet::with_capacity(8);
+        retained_ids.insert(ent_a.id());
+        retained_ids.insert(ent_b.id());
+        retained_ids.insert(ent_c.id());
+        retained_ids.insert(ent_d.id());
+        retained_ids.insert(ent_e.id());
+        retained_ids.insert(ent_f.id());
+        retained_ids.insert(ent_g.id());
+        retained_ids.insert(ent_h.id());
+
+        retain_tree_entities(&mut tree, &retained_ids);
+
+        assert_eq!(tree.len(), 8);
+        assert!(tree.contains(ent_a));
+        assert!(tree.contains(ent_b));
+        assert!(tree.contains(ent_c));
+        assert!(tree.contains(ent_d));
+        assert!(tree.contains(ent_e));
+        assert!(tree.contains(ent_f));
+        assert!(tree.contains(ent_g));
+        assert!(tree.contains(ent_h));
+        assert!(!tree.contains(ent_i));
     }
 }
