@@ -127,7 +127,7 @@ impl Physics {
         let body_handle = self.body_set.insert(rapier_body);
         let collider_handle =
             self.collider_set
-                .insert_with_parent(collider, body_handle.clone(), &mut self.body_set);
+                .insert_with_parent(collider, body_handle, &mut self.body_set);
 
         (body_handle, collider_handle)
     }
@@ -204,7 +204,7 @@ impl Physics {
         }
         body.sleep_frame_count -= 1;
 
-        let old_resting = body.resting.clone();
+        let old_resting = body.resting;
 
         // Check if under water, if so apply buoyancy and drag forces
         Physics::apply_fluid_forces(space, registry, config, body);
@@ -302,7 +302,7 @@ impl Physics {
             // body's restitution depending on what terrain it hit
             // event argument is impulse J = m * dv
             impacts = impacts.scale(body.mass);
-            body.collision = Some(impacts.clone().to_arr());
+            body.collision = Some(impacts.to_arr());
 
             // bounce depending on restitution and min_bounce_impulse
             if body.restitution > 0.0 && mag > config.min_bounce_impulse {
@@ -517,7 +517,7 @@ impl Physics {
         }
 
         // current vel lateral to friction axis
-        let mut lateral_vel = body.velocity.clone();
+        let mut lateral_vel = body.velocity;
         lateral_vel[axis] = 0.0;
         let v_curr = lateral_vel.len();
         if approx_equals(v_curr, 0.0) {
