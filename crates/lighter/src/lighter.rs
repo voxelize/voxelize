@@ -62,15 +62,7 @@ fn map_voxel_to_chunk_with_shift(
 }
 
 #[inline]
-fn get_light_level(
-    space: &dyn LightVoxelAccess,
-    vx: i32,
-    vy: i32,
-    vz: i32,
-    color: &LightColor,
-    is_sunlight: bool,
-) -> u32 {
-    let raw = space.get_raw_light(vx, vy, vz);
+fn extract_light_level(raw: u32, color: &LightColor, is_sunlight: bool) -> u32 {
     if is_sunlight {
         LightUtils::extract_sunlight(raw)
     } else {
@@ -80,6 +72,50 @@ fn get_light_level(
             LightColor::Blue => LightUtils::extract_blue_light(raw),
             LightColor::Sunlight => panic!("Getting torch light for sunlight channel."),
         }
+    }
+}
+
+#[inline]
+fn get_light_level(
+    space: &dyn LightVoxelAccess,
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    color: &LightColor,
+    is_sunlight: bool,
+) -> u32 {
+    let raw = space.get_raw_light(vx, vy, vz);
+    extract_light_level(raw, color, is_sunlight)
+}
+
+#[inline]
+fn insert_light_level(raw: u32, level: u32, color: &LightColor, is_sunlight: bool) -> u32 {
+    if is_sunlight {
+        LightUtils::insert_sunlight(raw, level)
+    } else {
+        match color {
+            LightColor::Red => LightUtils::insert_red_light(raw, level),
+            LightColor::Green => LightUtils::insert_green_light(raw, level),
+            LightColor::Blue => LightUtils::insert_blue_light(raw, level),
+            LightColor::Sunlight => panic!("Setting torch light for sunlight channel."),
+        }
+    }
+}
+
+#[inline]
+fn set_light_level_from_raw(
+    space: &mut dyn LightVoxelAccess,
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    raw: u32,
+    level: u32,
+    color: &LightColor,
+    is_sunlight: bool,
+) {
+    let inserted = insert_light_level(raw, level, color, is_sunlight);
+    if inserted != raw {
+        space.set_raw_light(vx, vy, vz, inserted);
     }
 }
 
@@ -94,21 +130,9 @@ fn set_light_level(
     is_sunlight: bool,
 ) {
     let raw = space.get_raw_light(vx, vy, vz);
-    if is_sunlight {
-        let inserted = LightUtils::insert_sunlight(raw, level);
-        if inserted != raw {
-            space.set_raw_light(vx, vy, vz, inserted);
-        }
-    } else {
-        let inserted = match color {
-            LightColor::Red => LightUtils::insert_red_light(raw, level),
-            LightColor::Green => LightUtils::insert_green_light(raw, level),
-            LightColor::Blue => LightUtils::insert_blue_light(raw, level),
-            LightColor::Sunlight => panic!("Setting torch light for sunlight channel."),
-        };
-        if inserted != raw {
-            space.set_raw_light(vx, vy, vz, inserted);
-        }
+    let inserted = insert_light_level(raw, level, color, is_sunlight);
+    if inserted != raw {
+        space.set_raw_light(vx, vy, vz, inserted);
     }
 }
 
@@ -263,7 +287,9 @@ fn flood_light_from_nodes(
                 }
             }
 
-            let current_neighbor = get_light_level(space, nvx, nvy, nvz, color, is_sunlight);
+            let neighbor_raw_light = space.get_raw_light(nvx, nvy, nvz);
+            let current_neighbor =
+                extract_light_level(neighbor_raw_light, color, is_sunlight);
             let (n_raw_voxel, n_block, next_level) = if keeps_max_sunlight && oy == -1 {
                 let n_raw_voxel = space.get_raw_voxel(nvx, nvy, nvz);
                 let n_block = registry.get_block_by_id(n_raw_voxel & 0xFFFF);
@@ -291,7 +317,16 @@ fn flood_light_from_nodes(
                 continue;
             }
 
-            set_light_level(space, nvx, nvy, nvz, next_level, color, is_sunlight);
+            set_light_level_from_raw(
+                space,
+                nvx,
+                nvy,
+                nvz,
+                neighbor_raw_light,
+                next_level,
+                color,
+                is_sunlight,
+            );
             nodes.push(LightNode {
                 voxel: [nvx, nvy, nvz],
                 level: next_level,
