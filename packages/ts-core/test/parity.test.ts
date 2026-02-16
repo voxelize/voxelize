@@ -7370,11 +7370,26 @@ describe("BlockRuleEvaluator", () => {
       getVoxelRotation: () => BlockRotation.py(0),
       getVoxelStage: () => 0,
     };
-    const normalizedOptions = {
-      rotationY: 0,
-      yRotatable: false,
-      worldSpace: false,
-    };
+    const trappedOptions = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error("options trap");
+        },
+      }
+    );
+    const revokedOptions = (() => {
+      const optionsProxy = Proxy.revocable(
+        {
+          rotationY: Math.PI / 2,
+          yRotatable: true,
+          worldSpace: false,
+        },
+        {}
+      );
+      optionsProxy.revoke();
+      return optionsProxy.proxy;
+    })();
     const trappedActiveSet = new Proxy(
       {},
       {
@@ -7398,7 +7413,7 @@ describe("BlockRuleEvaluator", () => {
         combinationRule as never,
         [0, 0, 0] as never,
         access as never,
-        normalizedOptions as never,
+        trappedOptions as never,
         trappedActiveSet as never
       )
     ).not.toThrow();
@@ -7407,7 +7422,7 @@ describe("BlockRuleEvaluator", () => {
         combinationRule as never,
         [0, 0, 0] as never,
         access as never,
-        normalizedOptions as never,
+        trappedOptions as never,
         trappedActiveSet as never
       )
     ).toBe(true);
@@ -7416,7 +7431,7 @@ describe("BlockRuleEvaluator", () => {
         combinationRule as never,
         [0, 0, 0] as never,
         access as never,
-        normalizedOptions as never,
+        revokedOptions as never,
         revokedActiveSet as never
       )
     ).not.toThrow();
@@ -7425,7 +7440,7 @@ describe("BlockRuleEvaluator", () => {
         combinationRule as never,
         [0, 0, 0] as never,
         access as never,
-        normalizedOptions as never,
+        revokedOptions as never,
         revokedActiveSet as never
       )
     ).toBe(true);

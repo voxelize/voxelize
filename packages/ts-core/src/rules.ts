@@ -128,6 +128,24 @@ const toActiveCombinationRuleSet = (
   }
 };
 
+const toNormalizedRuleEvaluationOptionSnapshot = (
+  options: NormalizedRuleEvaluationOptions
+): NormalizedRuleEvaluationOptions => {
+  const optionRecord = toObjectRecordOrNull(options as RuleOptionValue);
+  if (optionRecord === null) {
+    return DEFAULT_NORMALIZED_RULE_EVALUATION_OPTIONS;
+  }
+
+  return {
+    rotationY: toFiniteNumberOrDefault(
+      safeReadRecordValue(optionRecord, "rotationY"),
+      0
+    ),
+    yRotatable: safeReadRecordValue(optionRecord, "yRotatable") === true,
+    worldSpace: safeReadRecordValue(optionRecord, "worldSpace") === true,
+  };
+};
+
 const isBlockRotationInstance = (value: RuleOptionValue): value is BlockRotation => {
   try {
     return value instanceof BlockRotation;
@@ -617,7 +635,9 @@ export class BlockRuleEvaluator {
     options: NormalizedRuleEvaluationOptions = DEFAULT_NORMALIZED_RULE_EVALUATION_OPTIONS,
     activeCombinationRules: Set<BlockRule> = new Set<BlockRule>()
   ): boolean {
-    const { rotationY, yRotatable, worldSpace } = options;
+    const normalizedOptionsSnapshot =
+      toNormalizedRuleEvaluationOptionSnapshot(options);
+    const { rotationY, yRotatable, worldSpace } = normalizedOptionsSnapshot;
     const normalizedActiveCombinationRules =
       toActiveCombinationRuleSet(activeCombinationRules);
     const ruleRecord = rule as RuleOptionRecord;
@@ -710,7 +730,7 @@ export class BlockRuleEvaluator {
               subRule,
               position,
               access,
-              options,
+              normalizedOptionsSnapshot,
               normalizedActiveCombinationRules
             )
           );
@@ -720,7 +740,7 @@ export class BlockRuleEvaluator {
               subRule,
               position,
               access,
-              options,
+              normalizedOptionsSnapshot,
               normalizedActiveCombinationRules
             )
           );
@@ -734,7 +754,7 @@ export class BlockRuleEvaluator {
             firstRule,
             position,
             access,
-            options,
+            normalizedOptionsSnapshot,
             normalizedActiveCombinationRules
           );
         }
