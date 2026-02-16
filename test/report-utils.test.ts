@@ -2428,6 +2428,33 @@ describe("report-utils", () => {
       }
     );
     expect(unknownWithMalformedValueMetadataOverride).toEqual([]);
+    const unknownWithEmptyIteratorValueMetadataOverride = parseUnknownCliOptions(
+      ["--output", "-artifact-report.json"],
+      {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        valueOptionTokenMetadata: {
+          tokens: new Proxy(["--output"], {
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 1;
+              }
+              if (property === "0") {
+                return "--output";
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+          unavailable: false,
+        } as never,
+      }
+    );
+    expect(unknownWithEmptyIteratorValueMetadataOverride).toEqual([]);
     const unknownWithUnavailableValueMetadataOverride = parseUnknownCliOptions(
       ["--output", "-l"],
       {
@@ -2480,6 +2507,34 @@ describe("report-utils", () => {
       }
     );
     expect(unknownWithMalformedStrictMetadataOverride).toEqual(["-l"]);
+    const unknownWithEmptyIteratorStrictMetadataOverride = parseUnknownCliOptions(
+      ["--output", "-l"],
+      {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+        strictValueOptionTokenMetadata: {
+          tokens: new Proxy(["--output"], {
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 1;
+              }
+              if (property === "0") {
+                return "--output";
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+          unavailable: false,
+        } as never,
+      }
+    );
+    expect(unknownWithEmptyIteratorStrictMetadataOverride).toEqual(["-l"]);
 
     const unknownWithInlineMisuseAfterTerminator = parseUnknownCliOptions(
       ["--json", "--", "--json=1", "--verify=2", "--=secret", "--mystery=alpha"],
