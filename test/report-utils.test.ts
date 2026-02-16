@@ -10821,6 +10821,92 @@ describe("report-utils", () => {
       "--verify": "--no-build",
     });
     expect(aliasCatalogReadCount).toBe(2);
+    const ownKeysTrappedLengthReadableAndReadTrapCanonicalCatalog =
+      createCliOptionCatalog({
+        canonicalOptions: new Proxy(["--json", "--output"], {
+          ownKeys() {
+            throw new Error("ownKeys trap");
+          },
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              return function* () {
+                return;
+              };
+            }
+            if (property === "length") {
+              return 2;
+            }
+            if (property === "0") {
+              throw new Error("read trap");
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+      });
+    expect(
+      ownKeysTrappedLengthReadableAndReadTrapCanonicalCatalog.supportedCliOptions
+    ).toEqual(["--output", "--no-build", "--verify"]);
+    expect(
+      ownKeysTrappedLengthReadableAndReadTrapCanonicalCatalog.supportedCliOptionCount
+    ).toBe(3);
+    expect(
+      ownKeysTrappedLengthReadableAndReadTrapCanonicalCatalog.availableCliOptionAliases
+    ).toEqual({
+      "--no-build": ["--verify"],
+    });
+    expect(
+      ownKeysTrappedLengthReadableAndReadTrapCanonicalCatalog.availableCliOptionCanonicalMap
+    ).toEqual({
+      "--output": "--output",
+      "--no-build": "--no-build",
+      "--verify": "--no-build",
+    });
+    const ownKeysTrappedLengthReadableAndReadTrapAliasCatalog =
+      createCliOptionCatalog({
+        canonicalOptions: ["--json"],
+        optionAliases: {
+          "--no-build": new Proxy(["--verify", "-n"], {
+            ownKeys() {
+              throw new Error("ownKeys trap");
+            },
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 2;
+              }
+              if (property === "0") {
+                throw new Error("read trap");
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+        },
+      });
+    expect(
+      ownKeysTrappedLengthReadableAndReadTrapAliasCatalog.supportedCliOptions
+    ).toEqual(["--json", "--no-build", "-n"]);
+    expect(
+      ownKeysTrappedLengthReadableAndReadTrapAliasCatalog.supportedCliOptionCount
+    ).toBe(3);
+    expect(
+      ownKeysTrappedLengthReadableAndReadTrapAliasCatalog.availableCliOptionAliases
+    ).toEqual({
+      "--no-build": ["-n"],
+    });
+    expect(
+      ownKeysTrappedLengthReadableAndReadTrapAliasCatalog.availableCliOptionCanonicalMap
+    ).toEqual({
+      "--json": "--json",
+      "--no-build": "--no-build",
+      "-n": "--no-build",
+    });
     const fullyTrappedCanonicalOptions = createFullyTrappedStringArray([
       "--json",
       "--output",
