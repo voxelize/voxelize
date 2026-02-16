@@ -131,12 +131,48 @@ fn fanout_chunk_model(
     interested_clients: &HashSet<String>,
     chunk_model: ChunkProtocol,
 ) {
-    if interested_clients.len() == 1 {
-        let Some(first_client_id) = interested_clients.iter().next() else {
+    match interested_clients.len() {
+        0 => return,
+        1 => {
+            let Some(first_client_id) = interested_clients.iter().next() else {
+                return;
+            };
+            push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
             return;
-        };
-        push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
-        return;
+        }
+        2 => {
+            let mut interested_iter = interested_clients.iter();
+            let Some(first_client_id) = interested_iter.next() else {
+                return;
+            };
+            let Some(second_client_id) = interested_iter.next() else {
+                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+                return;
+            };
+            push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+            push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+            return;
+        }
+        3 => {
+            let mut interested_iter = interested_clients.iter();
+            let Some(first_client_id) = interested_iter.next() else {
+                return;
+            };
+            let Some(second_client_id) = interested_iter.next() else {
+                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+                return;
+            };
+            let Some(third_client_id) = interested_iter.next() else {
+                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+                return;
+            };
+            push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
+            push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+            return;
+        }
+        _ => {}
     }
 
     let mut interested_iter = interested_clients.iter();
