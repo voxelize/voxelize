@@ -56,14 +56,15 @@ impl<'a> System<'a> for PeersSendingSystem {
             return;
         }
         if peers.len() == 1 {
-            if let Some(single_peer) = peers.pop() {
-                queue.push((
-                    Message::new(&MessageType::Peer)
-                        .peer_owned(single_peer)
-                        .build(),
-                    ClientFilter::All,
-                ));
-            }
+            let Some(single_peer) = peers.pop() else {
+                unreachable!("single peer length matched branch");
+            };
+            queue.push((
+                Message::new(&MessageType::Peer)
+                    .peer_owned(single_peer)
+                    .build(),
+                ClientFilter::All,
+            ));
             return;
         }
         let next_capacity = peers.capacity();

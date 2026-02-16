@@ -2258,16 +2258,18 @@ impl World {
                     .world_name(&self.name)
                     .json_owned(init_payload);
                 if peers.len() == 1 {
-                    if let Some(single_peer) = peers.pop() {
-                        init_builder = init_builder.peer_owned(single_peer);
-                    }
+                    let Some(single_peer) = peers.pop() else {
+                        unreachable!("single peer length matched branch");
+                    };
+                    init_builder = init_builder.peer_owned(single_peer);
                 } else {
                     init_builder = init_builder.peers_owned(peers);
                 }
                 if entities.len() == 1 {
-                    if let Some(single_entity) = entities.pop() {
-                        init_builder = init_builder.entity_owned(single_entity);
-                    }
+                    let Some(single_entity) = entities.pop() else {
+                        unreachable!("single entity length matched branch");
+                    };
+                    init_builder = init_builder.entity_owned(single_entity);
                 } else {
                     init_builder = init_builder.entities_owned(entities);
                 }
