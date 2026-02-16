@@ -43,6 +43,49 @@ fn sync_player_position(tree: &mut KdTree, ent: specs::Entity, pos: &Vec3<f32>) 
     tree.add_player(ent, pos);
 }
 
+#[inline]
+fn retain_tree_entities(tree: &mut KdTree, current_ids: &HashSet<u32>) {
+    match current_ids.len() {
+        0 => {
+            if tree.len() != 0 {
+                tree.reset();
+            }
+        }
+        1 => {
+            if let Some(current_id) = current_ids.iter().next().copied() {
+                tree.retain_only(current_id);
+            }
+        }
+        2 => {
+            let mut ids = current_ids.iter().copied();
+            if let (Some(first), Some(second)) = (ids.next(), ids.next()) {
+                tree.retain(|ent_id| ent_id == first || ent_id == second);
+            }
+        }
+        3 => {
+            let mut ids = current_ids.iter().copied();
+            if let (Some(first), Some(second), Some(third)) =
+                (ids.next(), ids.next(), ids.next())
+            {
+                tree.retain(|ent_id| ent_id == first || ent_id == second || ent_id == third);
+            }
+        }
+        4 => {
+            let mut ids = current_ids.iter().copied();
+            if let (Some(first), Some(second), Some(third), Some(fourth)) =
+                (ids.next(), ids.next(), ids.next(), ids.next())
+            {
+                tree.retain(|ent_id| {
+                    ent_id == first || ent_id == second || ent_id == third || ent_id == fourth
+                });
+            }
+        }
+        _ => {
+            tree.retain(|ent_id| current_ids.contains(&ent_id));
+        }
+    }
+}
+
 impl<'a> System<'a> for EntityTreeSystem {
     type SystemData = (
         Entities<'a>,
@@ -84,20 +127,8 @@ impl<'a> System<'a> for EntityTreeSystem {
             }
         }
 
-        if current_ids.is_empty() {
-            if tree.len() != 0 {
-                tree.reset();
-            }
-            return;
-        }
         if tree.len() > current_ids.len() {
-            if current_ids.len() == 1 {
-                if let Some(current_id) = current_ids.iter().next().copied() {
-                    tree.retain_only(current_id);
-                }
-            } else {
-                tree.retain(|ent_id| current_ids.contains(&ent_id));
-            }
+            retain_tree_entities(&mut tree, current_ids);
         }
     }
 }
@@ -106,7 +137,7 @@ impl<'a> System<'a> for EntityTreeSystem {
 mod tests {
     use specs::{Builder, RunNow, World, WorldExt};
 
-    use super::{should_update_position, EntityTreeSystem};
+    use super::{retain_tree_entities, should_update_position, EntityTreeSystem};
     use crate::{EntityFlag, KdTree, PositionComp, Vec3, WorldTimingContext};
 
     #[test]
@@ -141,5 +172,28 @@ mod tests {
 
         let tree = world.read_resource::<KdTree>();
         assert!(!tree.contains(ent));
+    }
+
+    #[test]
+    fn retain_tree_entities_keeps_only_requested_ids_for_small_sets() {
+        let mut world = World::new();
+        let ent_a = world.create_entity().build();
+        let ent_b = world.create_entity().build();
+        let ent_c = world.create_entity().build();
+        let mut tree = KdTree::new();
+        tree.add_entity(ent_a, &Vec3(1.0, 2.0, 3.0));
+        tree.add_entity(ent_b, &Vec3(4.0, 5.0, 6.0));
+        tree.add_entity(ent_c, &Vec3(7.0, 8.0, 9.0));
+
+        let mut retained_ids = hashbrown::HashSet::with_capacity(2);
+        retained_ids.insert(ent_a.id());
+        retained_ids.insert(ent_c.id());
+
+        retain_tree_entities(&mut tree, &retained_ids);
+
+        assert_eq!(tree.len(), 2);
+        assert!(tree.contains(ent_a));
+        assert!(!tree.contains(ent_b));
+        assert!(tree.contains(ent_c));
     }
 }
