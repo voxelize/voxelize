@@ -30278,6 +30278,36 @@ describe("report-utils", () => {
     expect(
       deriveFailureMessageFromReport({ message: "top-level failure message" })
     ).toBe("top-level failure message");
+    const crossRealmWrappedFailureMessage = vm.runInNewContext(
+      "new String('  cross-realm failure message  ')"
+    );
+    let didCallCrossRealmFailureMessageToString = false;
+    Object.defineProperty(crossRealmWrappedFailureMessage, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmFailureMessageToString = true;
+        throw new Error("cross-realm failure message toString trap");
+      },
+    });
+    let didCallCrossRealmFailureMessageValueOf = false;
+    Object.defineProperty(crossRealmWrappedFailureMessage, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmFailureMessageValueOf = true;
+        throw new Error("cross-realm failure message valueOf trap");
+      },
+    });
+    expect(
+      deriveFailureMessageFromReport({
+        message: crossRealmWrappedFailureMessage as never,
+      })
+    ).toBe("cross-realm failure message");
+    expect(didCallCrossRealmFailureMessageToString).toBe(false);
+    expect(didCallCrossRealmFailureMessageValueOf).toBe(false);
     expect(
       deriveFailureMessageFromReport({
         message: "   ",
@@ -31027,6 +31057,81 @@ describe("report-utils", () => {
     });
     expect(didCallCrossRealmWrappedWasmCommandToString).toBe(false);
     expect(didCallCrossRealmWrappedWasmCommandValueOf).toBe(false);
+
+    const crossRealmWrappedWasmStatus = vm.runInNewContext("new String(' OK ')");
+    let didCallCrossRealmWrappedWasmStatusToString = false;
+    Object.defineProperty(crossRealmWrappedWasmStatus, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedWasmStatusToString = true;
+        throw new Error("cross-realm wrapped wasm status toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedWasmStatusValueOf = false;
+    Object.defineProperty(crossRealmWrappedWasmStatus, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedWasmStatusValueOf = true;
+        throw new Error("cross-realm wrapped wasm status valueOf trap");
+      },
+    });
+    expect(
+      extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckStatus: crossRealmWrappedWasmStatus as never,
+      })
+    ).toEqual({
+      wasmPackCheckStatus: "ok",
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: null,
+      wasmPackCheckArgCount: null,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
+    expect(didCallCrossRealmWrappedWasmStatusToString).toBe(false);
+    expect(didCallCrossRealmWrappedWasmStatusValueOf).toBe(false);
+
+    const crossRealmWrappedWasmOutputLine = vm.runInNewContext(
+      "new String('\\u001b[31m  wasm-pack not found  \\u001b[0m')"
+    );
+    let didCallCrossRealmWrappedWasmOutputLineToString = false;
+    Object.defineProperty(crossRealmWrappedWasmOutputLine, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedWasmOutputLineToString = true;
+        throw new Error("cross-realm wrapped wasm output line toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedWasmOutputLineValueOf = false;
+    Object.defineProperty(crossRealmWrappedWasmOutputLine, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedWasmOutputLineValueOf = true;
+        throw new Error("cross-realm wrapped wasm output line valueOf trap");
+      },
+    });
+    expect(
+      extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckOutputLine: crossRealmWrappedWasmOutputLine as never,
+      })
+    ).toEqual({
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: null,
+      wasmPackCheckArgCount: null,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: "wasm-pack not found",
+    });
+    expect(didCallCrossRealmWrappedWasmOutputLineToString).toBe(false);
+    expect(didCallCrossRealmWrappedWasmOutputLineValueOf).toBe(false);
+
     expect(
       extractWasmPackCheckSummaryFromReport({
         wasmPackCheckOutputLine: "   wasm-pack not found   ",
@@ -32569,6 +32674,95 @@ describe("report-utils", () => {
     });
     expect(didCallCrossRealmWrappedExampleCommandToString).toBe(false);
     expect(didCallCrossRealmWrappedExampleCommandValueOf).toBe(false);
+
+    const crossRealmWrappedExampleStatus = vm.runInNewContext(
+      "new String(' OK ')"
+    );
+    let didCallCrossRealmWrappedExampleStatusToString = false;
+    Object.defineProperty(crossRealmWrappedExampleStatus, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedExampleStatusToString = true;
+        throw new Error("cross-realm wrapped example status toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedExampleStatusValueOf = false;
+    Object.defineProperty(crossRealmWrappedExampleStatus, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedExampleStatusValueOf = true;
+        throw new Error("cross-realm wrapped example status valueOf trap");
+      },
+    });
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleStatus: crossRealmWrappedExampleStatus as never,
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: null,
+      exampleArgCount: null,
+      exampleAttempted: null,
+      exampleStatus: "ok",
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: null,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    expect(didCallCrossRealmWrappedExampleStatusToString).toBe(false);
+    expect(didCallCrossRealmWrappedExampleStatusValueOf).toBe(false);
+
+    const crossRealmWrappedExampleOutputLine = vm.runInNewContext(
+      "new String('\\u001b[32m  ruleMatched=true  \\u001b[0m')"
+    );
+    let didCallCrossRealmWrappedExampleOutputLineToString = false;
+    Object.defineProperty(crossRealmWrappedExampleOutputLine, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedExampleOutputLineToString = true;
+        throw new Error("cross-realm wrapped example output line toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedExampleOutputLineValueOf = false;
+    Object.defineProperty(crossRealmWrappedExampleOutputLine, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedExampleOutputLineValueOf = true;
+        throw new Error("cross-realm wrapped example output line valueOf trap");
+      },
+    });
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleOutputLine: crossRealmWrappedExampleOutputLine as never,
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: null,
+      exampleArgCount: null,
+      exampleAttempted: null,
+      exampleStatus: null,
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: null,
+      exampleDurationMs: null,
+      exampleOutputLine: "ruleMatched=true",
+    });
+    expect(didCallCrossRealmWrappedExampleOutputLineToString).toBe(false);
+    expect(didCallCrossRealmWrappedExampleOutputLineValueOf).toBe(false);
+
     expect(
       extractTsCoreExampleSummaryFromReport({
         exampleAttempted: false,

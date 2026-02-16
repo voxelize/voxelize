@@ -1253,11 +1253,12 @@ const toTrimmedStringOrNull = (value) => {
 };
 
 const toSanitizedOutputLineOrNull = (value) => {
-  if (typeof value !== "string" || value.length === 0) {
+  const normalizedOutputValue = toStringEntryValueOrNull(value);
+  if (normalizedOutputValue === null || normalizedOutputValue.length === 0) {
     return null;
   }
 
-  const nonEmptyLines = sanitizeOutputForJsonParsing(value)
+  const nonEmptyLines = sanitizeOutputForJsonParsing(normalizedOutputValue)
     .split(/\r?\n/)
     .map((line) => {
       return line.trim();
