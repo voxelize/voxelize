@@ -169,25 +169,33 @@ export type CameraPerspective =
   | "pxyz"
   | "nxyz";
 
+type CameraPerspectiveFactors = Readonly<{
+  negative: number;
+  xFactor: number;
+  yFactor: number;
+  zFactor: number;
+}>;
+
+const CAMERA_PERSPECTIVE_FACTORS: Record<
+  CameraPerspective,
+  CameraPerspectiveFactors
+> = {
+  px: { negative: 1, xFactor: 1, yFactor: 0, zFactor: 0 },
+  nx: { negative: -1, xFactor: 1, yFactor: 0, zFactor: 0 },
+  py: { negative: 1, xFactor: 0, yFactor: 1, zFactor: 0 },
+  ny: { negative: -1, xFactor: 0, yFactor: 1, zFactor: 0 },
+  pz: { negative: 1, xFactor: 0, yFactor: 0, zFactor: 1 },
+  nz: { negative: -1, xFactor: 0, yFactor: 0, zFactor: 1 },
+  pxy: { negative: 1, xFactor: 1, yFactor: 1, zFactor: 0 },
+  nxy: { negative: -1, xFactor: 1, yFactor: 1, zFactor: 0 },
+  pxz: { negative: 1, xFactor: 1, yFactor: 0, zFactor: 1 },
+  nxz: { negative: -1, xFactor: 1, yFactor: 0, zFactor: 1 },
+  pyz: { negative: 1, xFactor: 0, yFactor: 1, zFactor: 1 },
+  nyz: { negative: -1, xFactor: 0, yFactor: 1, zFactor: 1 },
+  pxyz: { negative: 1, xFactor: 1, yFactor: 1, zFactor: 1 },
+  nxyz: { negative: -1, xFactor: 1, yFactor: 1, zFactor: 1 },
+};
+
 export const getCameraPerspectiveFactors = (perspective: CameraPerspective) => {
-  let negative = 1;
-  let xFactor = 0;
-  let yFactor = 0;
-  let zFactor = 0;
-
-  const perspectiveLength = perspective.length;
-  for (let index = 0; index < perspectiveLength; index++) {
-    const charCode = perspective.charCodeAt(index);
-    if (charCode === 110) {
-      negative = -1;
-    } else if (charCode === 120) {
-      xFactor = 1;
-    } else if (charCode === 121) {
-      yFactor = 1;
-    } else if (charCode === 122) {
-      zFactor = 1;
-    }
-  }
-
-  return { negative, xFactor, yFactor, zFactor };
+  return CAMERA_PERSPECTIVE_FACTORS[perspective];
 };
