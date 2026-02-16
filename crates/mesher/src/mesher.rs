@@ -636,22 +636,74 @@ fn has_fluid_above<S: VoxelAccess>(vx: i32, vy: i32, vz: i32, fluid_id: u32, spa
     space.get_voxel(vx, vy + 1, vz) == fluid_id
 }
 
-fn calculate_fluid_corner_height<S: VoxelAccess>(
+#[derive(Clone, Copy)]
+enum FluidNeighborSample {
+    Fluid(f32),
+    Empty,
+    Solid,
+    Unknown,
+}
+
+#[inline]
+fn fluid_offset_index(offset: i32) -> usize {
+    (offset + 1) as usize
+}
+
+fn sample_fluid_neighbors<S: VoxelAccess>(
     vx: i32,
     vy: i32,
     vz: i32,
+    fluid_id: u32,
+    space: &S,
+    registry: &Registry,
+) -> ([[bool; 3]; 3], [[FluidNeighborSample; 3]; 3]) {
+    let mut upper_fluid = [[false; 3]; 3];
+    let mut neighbors = [[FluidNeighborSample::Unknown; 3]; 3];
+
+    for dx in -1..=1 {
+        let x_index = fluid_offset_index(dx);
+        for dz in -1..=1 {
+            let z_index = fluid_offset_index(dz);
+            let nx = vx + dx;
+            let nz = vz + dz;
+
+            upper_fluid[x_index][z_index] = space.get_voxel(nx, vy + 1, nz) == fluid_id;
+
+            let neighbor_id = space.get_voxel(nx, vy, nz);
+            neighbors[x_index][z_index] = if neighbor_id == fluid_id {
+                let stage = space.get_voxel_stage(nx, vy, nz);
+                FluidNeighborSample::Fluid(get_fluid_effective_height(stage))
+            } else if let Some(neighbor_block) = registry.get_block_by_id(neighbor_id) {
+                if neighbor_block.is_empty {
+                    FluidNeighborSample::Empty
+                } else {
+                    FluidNeighborSample::Solid
+                }
+            } else {
+                FluidNeighborSample::Unknown
+            };
+        }
+    }
+
+    (upper_fluid, neighbors)
+}
+
+fn calculate_fluid_corner_height(
     corner_x: i32,
     corner_z: i32,
     corner_offsets: &[[i32; 2]; 3],
-    fluid_id: u32,
     self_height: f32,
-    space: &S,
-    registry: &Registry,
+    upper_fluid: &[[bool; 3]; 3],
+    neighbors: &[[FluidNeighborSample; 3]; 3],
 ) -> f32 {
-    if space.get_voxel(vx + corner_x - 1, vy + 1, vz + corner_z - 1) == fluid_id
-        || space.get_voxel(vx + corner_x - 1, vy + 1, vz + corner_z) == fluid_id
-        || space.get_voxel(vx + corner_x, vy + 1, vz + corner_z - 1) == fluid_id
-        || space.get_voxel(vx + corner_x, vy + 1, vz + corner_z) == fluid_id
+    let corner_min_x = fluid_offset_index(corner_x - 1);
+    let corner_min_z = fluid_offset_index(corner_z - 1);
+    let corner_x = fluid_offset_index(corner_x);
+    let corner_z = fluid_offset_index(corner_z);
+    if upper_fluid[corner_min_x][corner_min_z]
+        || upper_fluid[corner_min_x][corner_z]
+        || upper_fluid[corner_x][corner_min_z]
+        || upper_fluid[corner_x][corner_z]
     {
         return 1.0;
     }
@@ -662,24 +714,24 @@ fn calculate_fluid_corner_height<S: VoxelAccess>(
     let mut has_solid_neighbor = false;
 
     for [dx, dz] in corner_offsets {
-        let nx = vx + dx;
-        let nz = vz + dz;
-
-        if has_fluid_above(nx, vy, nz, fluid_id, space) {
+        let x_index = fluid_offset_index(*dx);
+        let z_index = fluid_offset_index(*dz);
+        if upper_fluid[x_index][z_index] {
             total_height += 1.0;
             count += 1.0;
         } else {
-            let neighbor_id = space.get_voxel(nx, vy, nz);
-            if neighbor_id == fluid_id {
-                let stage = space.get_voxel_stage(nx, vy, nz);
-                total_height += get_fluid_effective_height(stage);
-                count += 1.0;
-            } else if let Some(neighbor_block) = registry.get_block_by_id(neighbor_id) {
-                if neighbor_block.is_empty {
+            match neighbors[x_index][z_index] {
+                FluidNeighborSample::Fluid(height) => {
+                    total_height += height;
+                    count += 1.0;
+                }
+                FluidNeighborSample::Empty => {
                     has_air_neighbor = true;
-                } else {
+                }
+                FluidNeighborSample::Solid => {
                     has_solid_neighbor = true;
                 }
+                FluidNeighborSample::Unknown => {}
             }
         }
     }
@@ -775,59 +827,47 @@ fn create_fluid_faces<S: VoxelAccess>(
     block: &Block,
     registry: &Registry,
 ) -> [BlockFace; 6] {
-    let self_height = get_fluid_effective_height(space.get_voxel_stage(vx, vy, vz));
+    let (upper_fluid, neighbors) = sample_fluid_neighbors(vx, vy, vz, fluid_id, space, registry);
+    let self_height = match neighbors[1][1] {
+        FluidNeighborSample::Fluid(height) => height,
+        _ => get_fluid_effective_height(space.get_voxel_stage(vx, vy, vz)),
+    };
 
     let h_nxnz =
         calculate_fluid_corner_height(
-            vx,
-            vy,
-            vz,
             0,
             0,
             &FLUID_CORNER_OFFSETS_NXNZ,
-            fluid_id,
             self_height,
-            space,
-            registry,
+            &upper_fluid,
+            &neighbors,
         ) - FLUID_SURFACE_OFFSET;
     let h_pxnz =
         calculate_fluid_corner_height(
-            vx,
-            vy,
-            vz,
             1,
             0,
             &FLUID_CORNER_OFFSETS_PXNZ,
-            fluid_id,
             self_height,
-            space,
-            registry,
+            &upper_fluid,
+            &neighbors,
         ) - FLUID_SURFACE_OFFSET;
     let h_nxpz =
         calculate_fluid_corner_height(
-            vx,
-            vy,
-            vz,
             0,
             1,
             &FLUID_CORNER_OFFSETS_NXPZ,
-            fluid_id,
             self_height,
-            space,
-            registry,
+            &upper_fluid,
+            &neighbors,
         ) - FLUID_SURFACE_OFFSET;
     let h_pxpz =
         calculate_fluid_corner_height(
-            vx,
-            vy,
-            vz,
             1,
             1,
             &FLUID_CORNER_OFFSETS_PXPZ,
-            fluid_id,
             self_height,
-            space,
-            registry,
+            &upper_fluid,
+            &neighbors,
         ) - FLUID_SURFACE_OFFSET;
     let ranges = get_cardinal_face_ranges(block);
 
