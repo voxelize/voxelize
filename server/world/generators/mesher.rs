@@ -363,23 +363,25 @@ impl Mesher {
     }
 
     pub fn results(&mut self) -> Vec<(Chunk, MessageType)> {
-        let pending_results = self.receiver.len();
-        if pending_results == 0 {
-            return Vec::new();
-        }
         if self.map.is_empty() {
             while self.receiver.try_recv().is_ok() {}
             return Vec::new();
         }
-        if pending_results == 1 {
-            if let Ok(result) = self.receiver.try_recv() {
+        let first_result = match self.receiver.try_recv() {
+            Ok(result) => result,
+            Err(_) => return Vec::new(),
+        };
+        if self.map.remove(&first_result.0.coords) {
+            let mut results = Vec::with_capacity(4.min(self.map.len().saturating_add(1)));
+            results.push(first_result);
+            while let Ok(result) = self.receiver.try_recv() {
                 if self.map.remove(&result.0.coords) {
-                    return vec![result];
+                    results.push(result);
                 }
             }
-            return Vec::new();
+            return results;
         }
-        let mut results = Vec::with_capacity(pending_results.min(self.map.len()));
+        let mut results = Vec::with_capacity(4.min(self.map.len()));
 
         while let Ok(result) = self.receiver.try_recv() {
             if self.map.remove(&result.0.coords) {
