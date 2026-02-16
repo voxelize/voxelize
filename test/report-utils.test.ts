@@ -832,6 +832,13 @@ describe("report-utils", () => {
       },
     });
 
+    const crossRealmWrappedStringFailure = vm.runInNewContext(
+      "new String('cross-realm wrapped serialization trap')"
+    );
+    const crossRealmWrappedSymbolFailure = vm.runInNewContext(
+      "Object(Symbol('cross-realm-wrapped-serialization-symbol'))"
+    );
+
     const primitiveFailureCases: Array<{
       readonly thrownValue: string | number | boolean | bigint | symbol | object;
       readonly expectedSerializationError: string;
@@ -863,6 +870,15 @@ describe("report-utils", () => {
       {
         thrownValue: wrappedSymbolFailure,
         expectedSerializationError: "Symbol(wrapped-serialization-symbol)",
+      },
+      {
+        thrownValue: crossRealmWrappedStringFailure as object,
+        expectedSerializationError: "cross-realm wrapped serialization trap",
+      },
+      {
+        thrownValue: crossRealmWrappedSymbolFailure as object,
+        expectedSerializationError:
+          "Symbol(cross-realm-wrapped-serialization-symbol)",
       },
     ];
 
@@ -960,6 +976,13 @@ describe("report-utils", () => {
       },
     });
 
+    const crossRealmWrappedMessage = vm.runInNewContext(
+      "new String('cross-realm wrapped error message')"
+    );
+    const crossRealmWrappedSymbolMessage = vm.runInNewContext(
+      "Object(Symbol('cross-realm-wrapped-error-symbol'))"
+    );
+
     const messageCases: Array<{
       readonly messageValue: string | object;
       readonly expectedSerializationError: string;
@@ -971,6 +994,14 @@ describe("report-utils", () => {
       {
         messageValue: wrappedSymbolMessage,
         expectedSerializationError: "Symbol(wrapped-error-symbol)",
+      },
+      {
+        messageValue: crossRealmWrappedMessage as object,
+        expectedSerializationError: "cross-realm wrapped error message",
+      },
+      {
+        messageValue: crossRealmWrappedSymbolMessage as object,
+        expectedSerializationError: "Symbol(cross-realm-wrapped-error-symbol)",
       },
     ];
 
@@ -23454,6 +23485,25 @@ describe("report-utils", () => {
       value: wrappedErrorMessage,
     });
 
+    const crossRealmWrappedStringFailure = vm.runInNewContext(
+      "new String('cross-realm wrapped write failure')"
+    );
+    const crossRealmWrappedSymbolFailure = vm.runInNewContext(
+      "Object(Symbol('cross-realm-wrapped-write-failure'))"
+    );
+    const crossRealmWrappedErrorMessage = vm.runInNewContext(
+      "new String('cross-realm wrapped write error message')"
+    );
+    const errorWithCrossRealmWrappedMessage = new Error(
+      "placeholder cross-realm write message"
+    );
+    Object.defineProperty(errorWithCrossRealmWrappedMessage, "message", {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: crossRealmWrappedErrorMessage,
+    });
+
     const primitiveFailureCases: Array<{
       readonly thrownValue: string | number | boolean | bigint | symbol | object;
       readonly expectedDetail: string;
@@ -23489,6 +23539,18 @@ describe("report-utils", () => {
       {
         thrownValue: errorWithWrappedMessage,
         expectedDetail: "wrapped write error message",
+      },
+      {
+        thrownValue: crossRealmWrappedStringFailure as object,
+        expectedDetail: "cross-realm wrapped write failure",
+      },
+      {
+        thrownValue: crossRealmWrappedSymbolFailure as object,
+        expectedDetail: "Symbol(cross-realm-wrapped-write-failure)",
+      },
+      {
+        thrownValue: errorWithCrossRealmWrappedMessage,
+        expectedDetail: "cross-realm wrapped write error message",
       },
     ];
 
@@ -24373,6 +24435,25 @@ describe("report-utils", () => {
       value: wrappedErrorMessage,
     });
 
+    const crossRealmWrappedStringFailure = vm.runInNewContext(
+      "new String('cross-realm wrapped serialize write failure')"
+    );
+    const crossRealmWrappedSymbolFailure = vm.runInNewContext(
+      "Object(Symbol('cross-realm-wrapped-serialize-write-failure'))"
+    );
+    const crossRealmWrappedErrorMessage = vm.runInNewContext(
+      "new String('cross-realm wrapped serialize write error message')"
+    );
+    const errorWithCrossRealmWrappedMessage = new Error(
+      "placeholder cross-realm serialize write message"
+    );
+    Object.defineProperty(errorWithCrossRealmWrappedMessage, "message", {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: crossRealmWrappedErrorMessage,
+    });
+
     const failureCases: Array<{
       readonly thrownValue: string | number | boolean | bigint | symbol | object;
       readonly expectedDetail: string;
@@ -24408,6 +24489,18 @@ describe("report-utils", () => {
       {
         thrownValue: errorWithWrappedMessage,
         expectedDetail: "wrapped serialize write error message",
+      },
+      {
+        thrownValue: crossRealmWrappedStringFailure as object,
+        expectedDetail: "cross-realm wrapped serialize write failure",
+      },
+      {
+        thrownValue: crossRealmWrappedSymbolFailure as object,
+        expectedDetail: "Symbol(cross-realm-wrapped-serialize-write-failure)",
+      },
+      {
+        thrownValue: errorWithCrossRealmWrappedMessage,
+        expectedDetail: "cross-realm wrapped serialize write error message",
       },
     ];
 
