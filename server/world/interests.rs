@@ -34,6 +34,27 @@ fn coords_within_region(center: &Vec2<i32>, coords: &Vec2<i32>) -> bool {
     dx <= 1 && dz <= 1
 }
 
+#[inline]
+fn extend_interest_set(target: &mut HashSet<String>, source: &HashSet<String>) {
+    let remaining_capacity = target.capacity() - target.len();
+    if remaining_capacity < source.len() {
+        target.reserve(source.len() - remaining_capacity);
+    }
+    target.extend(source.iter().cloned());
+}
+
+#[inline]
+fn merge_interest_sets(first: &HashSet<String>, second: &HashSet<String>) -> HashSet<String> {
+    let (seed, other) = if first.len() >= second.len() {
+        (first, second)
+    } else {
+        (second, first)
+    };
+    let mut merged = seed.clone();
+    extend_interest_set(&mut merged, other);
+    merged
+}
+
 #[derive(Debug, Default)]
 pub struct ChunkInterests {
     pub map: HashMap<Vec2<i32>, HashSet<String>>,
@@ -233,18 +254,43 @@ impl ChunkInterests {
                 (false, false) => HashSet::new(),
                 (true, false) => first_interested.clone(),
                 (false, true) => second_interested.clone(),
-                (true, true) => {
-                    let (seed, other) = if first_interested.len() >= second_interested.len() {
-                        (first_interested, second_interested)
-                    } else {
-                        (second_interested, first_interested)
-                    };
-                    let mut merged = seed.clone();
-                    let remaining_capacity = merged.capacity() - merged.len();
-                    if remaining_capacity < other.len() {
-                        merged.reserve(other.len() - remaining_capacity);
-                    }
-                    merged.extend(other.iter().cloned());
+                (true, true) => merge_interest_sets(first_interested, second_interested),
+            }
+        } else if self.map.len() == 3 {
+            let mut interests_iter = self.map.iter();
+            let (first_coords, first_interested) = {
+                let Some(first_interest) = interests_iter.next() else {
+                    unreachable!("three-interest map length matched branch");
+                };
+                first_interest
+            };
+            let (second_coords, second_interested) = {
+                let Some(second_interest) = interests_iter.next() else {
+                    unreachable!("three-interest map length matched branch");
+                };
+                second_interest
+            };
+            let (third_coords, third_interested) = {
+                let Some(third_interest) = interests_iter.next() else {
+                    unreachable!("three-interest map length matched branch");
+                };
+                third_interest
+            };
+            let first_in_region = coords_within_region(center, first_coords);
+            let second_in_region = coords_within_region(center, second_coords);
+            let third_in_region = coords_within_region(center, third_coords);
+
+            match (first_in_region, second_in_region, third_in_region) {
+                (false, false, false) => HashSet::new(),
+                (true, false, false) => first_interested.clone(),
+                (false, true, false) => second_interested.clone(),
+                (false, false, true) => third_interested.clone(),
+                (true, true, false) => merge_interest_sets(first_interested, second_interested),
+                (true, false, true) => merge_interest_sets(first_interested, third_interested),
+                (false, true, true) => merge_interest_sets(second_interested, third_interested),
+                (true, true, true) => {
+                    let mut merged = merge_interest_sets(first_interested, second_interested);
+                    extend_interest_set(&mut merged, third_interested);
                     merged
                 }
             }
@@ -620,6 +666,24 @@ mod tests {
 
         let empty_clients = interests.get_interested_clients_in_region(&Vec2(6, -2));
         assert!(empty_clients.is_empty());
+    }
+
+    #[test]
+    fn get_interested_clients_in_region_handles_three_entry_neighbors() {
+        let mut interests = ChunkInterests::new();
+        interests.add("near", &Vec2(3, -2));
+        interests.add("also-near", &Vec2(4, -2));
+        interests.add("far", &Vec2(8, -2));
+
+        let near_clients = interests.get_interested_clients_in_region(&Vec2(4, -2));
+        assert_eq!(near_clients.len(), 2);
+        assert!(near_clients.contains("near"));
+        assert!(near_clients.contains("also-near"));
+        assert!(!near_clients.contains("far"));
+
+        let far_clients = interests.get_interested_clients_in_region(&Vec2(9, -2));
+        assert_eq!(far_clients.len(), 1);
+        assert!(far_clients.contains("far"));
     }
 
     #[test]
