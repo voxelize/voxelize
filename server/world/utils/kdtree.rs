@@ -310,7 +310,7 @@ impl KdTree {
         if to_remove.capacity() < self.kind_map.len() {
             to_remove.reserve(self.kind_map.len() - to_remove.len());
         }
-        for (&id, _) in self.kind_map.iter() {
+        for &id in self.kind_map.keys() {
             if !f(id) {
                 to_remove.push(id);
             }
