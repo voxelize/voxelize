@@ -594,6 +594,17 @@ fn batch_messages(messages: Vec<(Message, ClientFilter)>) -> Vec<(Message, Clien
     let Some(batched) = batched else {
         return unbatched.unwrap_or_default();
     };
+    if unbatched.is_none() && batched.len() == 1 {
+        let mut batched_iter = batched.into_iter();
+        let single_entry = {
+            let Some(entry) = batched_iter.next() else {
+                unreachable!("single batched message length matched branch");
+            };
+            entry
+        };
+        let ((_, filter), message) = single_entry;
+        return vec![(message, filter)];
+    }
     let unbatched_len = unbatched.as_ref().map_or(0, Vec::len);
     let mut result: Vec<(Message, ClientFilter)> =
         Vec::with_capacity(batched.len() + unbatched_len);
