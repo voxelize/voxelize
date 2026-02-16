@@ -3223,8 +3223,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
     let mut greedy_mask: Vec<Option<FaceData>> = vec![None; slice_size * slice_size];
     let mut non_greedy_faces: Vec<DeferredNonGreedyFace> = Vec::new();
     let mut non_greedy_owned_faces: Vec<BlockFace> = Vec::with_capacity((max_mask_len / 4).max(16));
-    let mut uncached_greedy_face_indices_by_block: HashMap<u32, [i16; 6]> =
-        HashMap::with_capacity(16);
+    let mut uncached_greedy_face_indices_by_block: Option<HashMap<u32, [i16; 6]>> = None;
 
     for (dir, dir_index) in GREEDY_DIRECTIONS_WITH_INDEX {
         let [dx, dy, dz] = dir;
@@ -3381,8 +3380,10 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     };
                     let use_static_faces = !has_standard_six_faces && !has_dynamic_patterns;
                     let uncached_face_indices = if use_static_faces && !cache_ready {
+                        let face_indices_by_block = uncached_greedy_face_indices_by_block
+                            .get_or_insert_with(|| HashMap::with_capacity(16));
                         Some(
-                            *uncached_greedy_face_indices_by_block
+                            *face_indices_by_block
                                 .entry(block.id)
                                 .or_insert_with(|| compute_greedy_face_indices(&block.faces)),
                         )
