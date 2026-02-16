@@ -1689,7 +1689,12 @@ impl World {
 
             let mut total = 0_i64;
             let supposed = preload_expected_chunk_count(check_radius);
-            let mut remesh_coords = Vec::new();
+            let remesh_initial_capacity = if supposed <= 0 {
+                0
+            } else {
+                (supposed as usize).min(64)
+            };
+            let mut remesh_coords: Option<Vec<Vec2<i32>>> = None;
             {
                 let chunks = self.chunks();
                 for x in -check_radius..=check_radius {
@@ -1700,13 +1705,15 @@ impl World {
                             total += 1;
                         } else if let Some(chunk) = chunks.raw(&coords) {
                             if chunk.status == ChunkStatus::Meshing {
-                                remesh_coords.push(coords);
+                                remesh_coords
+                                    .get_or_insert_with(|| Vec::with_capacity(remesh_initial_capacity))
+                                    .push(coords);
                             }
                         }
                     }
                 }
             }
-            if !remesh_coords.is_empty() {
+            if let Some(remesh_coords) = remesh_coords {
                 let mut mesher = self.mesher_mut();
                 for coords in remesh_coords {
                     mesher.add_chunk(&coords, false);
