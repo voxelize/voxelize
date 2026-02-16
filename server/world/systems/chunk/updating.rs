@@ -136,6 +136,8 @@ fn process_pending_updates(
     entities: &Entities,
     config: &WorldConfig,
     registry: &Registry,
+    light_registry: &voxelize_lighter::LightRegistry,
+    light_cfg: &voxelize_lighter::LightConfig,
     current_tick: u64,
     max_updates: usize,
 ) -> Vec<UpdateProtocol> {
@@ -145,8 +147,6 @@ fn process_pending_updates(
     } else {
         Some(config.max_height as i32)
     };
-    let light_registry = registry.lighter_registry_ref();
-    let light_config = light_config(config);
 
     chunks.flush_staged_updates();
 
@@ -372,8 +372,8 @@ fn process_pending_updates(
                 &mut *chunks,
                 voxel,
                 &SUNLIGHT,
-                light_registry.as_ref(),
-                &light_config,
+                light_registry,
+                light_cfg,
             );
         }
     }
@@ -383,8 +383,8 @@ fn process_pending_updates(
             &mut *chunks,
             &red_removals,
             &RED,
-            light_registry.as_ref(),
-            &light_config,
+            light_registry,
+            light_cfg,
         );
     }
     if !green_removals.is_empty() {
@@ -392,8 +392,8 @@ fn process_pending_updates(
             &mut *chunks,
             &green_removals,
             &GREEN,
-            light_registry.as_ref(),
-            &light_config,
+            light_registry,
+            light_cfg,
         );
     }
     if !blue_removals.is_empty() {
@@ -401,8 +401,8 @@ fn process_pending_updates(
             &mut *chunks,
             &blue_removals,
             &BLUE,
-            light_registry.as_ref(),
-            &light_config,
+            light_registry,
+            light_cfg,
         );
     }
 
@@ -452,8 +452,8 @@ fn process_pending_updates(
                     &mut *chunks,
                     &voxel,
                     &SUNLIGHT,
-                    light_registry.as_ref(),
-                    &light_config,
+                    light_registry,
+                    light_cfg,
                 );
             }
             if chunks.get_torch_light(vx, vy, vz, &RED) != 0 {
@@ -461,8 +461,8 @@ fn process_pending_updates(
                     &mut *chunks,
                     &voxel,
                     &RED,
-                    light_registry.as_ref(),
-                    &light_config,
+                    light_registry,
+                    light_cfg,
                 );
             }
             if chunks.get_torch_light(vx, vy, vz, &GREEN) != 0 {
@@ -470,8 +470,8 @@ fn process_pending_updates(
                     &mut *chunks,
                     &voxel,
                     &GREEN,
-                    light_registry.as_ref(),
-                    &light_config,
+                    light_registry,
+                    light_cfg,
                 );
             }
             if chunks.get_torch_light(vx, vy, vz, &BLUE) != 0 {
@@ -479,8 +479,8 @@ fn process_pending_updates(
                     &mut *chunks,
                     &voxel,
                     &BLUE,
-                    light_registry.as_ref(),
-                    &light_config,
+                    light_registry,
+                    light_cfg,
                 );
             }
         } else {
@@ -538,8 +538,8 @@ fn process_pending_updates(
                             &mut *chunks,
                             &Vec3(nvx, nvy, nvz),
                             color,
-                            light_registry.as_ref(),
-                            &light_config,
+                            light_registry,
+                            light_cfg,
                         );
                     }
                 }
@@ -551,8 +551,8 @@ fn process_pending_updates(
                         &mut *chunks,
                         &voxel,
                         &SUNLIGHT,
-                        light_registry.as_ref(),
-                        &light_config,
+                        light_registry,
+                        light_cfg,
                     );
                 }
                 if chunks.get_torch_light(vx, vy, vz, &RED) != 0 {
@@ -560,8 +560,8 @@ fn process_pending_updates(
                         &mut *chunks,
                         &voxel,
                         &RED,
-                        light_registry.as_ref(),
-                        &light_config,
+                        light_registry,
+                        light_cfg,
                     );
                 }
                 if chunks.get_torch_light(vx, vy, vz, &GREEN) != 0 {
@@ -569,8 +569,8 @@ fn process_pending_updates(
                         &mut *chunks,
                         &voxel,
                         &GREEN,
-                        light_registry.as_ref(),
-                        &light_config,
+                        light_registry,
+                        light_cfg,
                     );
                 }
                 if chunks.get_torch_light(vx, vy, vz, &BLUE) != 0 {
@@ -578,8 +578,8 @@ fn process_pending_updates(
                         &mut *chunks,
                         &voxel,
                         &BLUE,
-                        light_registry.as_ref(),
-                        &light_config,
+                        light_registry,
+                        light_cfg,
                     );
                 }
             }
@@ -691,8 +691,8 @@ fn process_pending_updates(
             &mut *chunks,
             red_flood,
             &RED,
-            light_registry.as_ref(),
-            &light_config,
+            light_registry,
+            light_cfg,
             bounds.as_ref().map(|b| &b.0),
             bounds.as_ref().map(|b| &b.1),
         );
@@ -704,8 +704,8 @@ fn process_pending_updates(
             &mut *chunks,
             green_flood,
             &GREEN,
-            light_registry.as_ref(),
-            &light_config,
+            light_registry,
+            light_cfg,
             bounds.as_ref().map(|b| &b.0),
             bounds.as_ref().map(|b| &b.1),
         );
@@ -717,8 +717,8 @@ fn process_pending_updates(
             &mut *chunks,
             blue_flood,
             &BLUE,
-            light_registry.as_ref(),
-            &light_config,
+            light_registry,
+            light_cfg,
             bounds.as_ref().map(|b| &b.0),
             bounds.as_ref().map(|b| &b.1),
         );
@@ -730,8 +730,8 @@ fn process_pending_updates(
             &mut *chunks,
             sun_flood,
             &SUNLIGHT,
-            light_registry.as_ref(),
-            &light_config,
+            light_registry,
+            light_cfg,
             bounds.as_ref().map(|b| &b.0),
             bounds.as_ref().map(|b| &b.1),
         );
@@ -801,6 +801,8 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
         let current_tick = stats.tick as u64;
         let max_updates_per_tick = config.max_updates_per_tick;
+        let light_registry = registry.lighter_registry_ref().as_ref();
+        let light_config = light_config(&config);
 
         chunks.clear_cache();
 
@@ -851,6 +853,8 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 &entities,
                 &config,
                 &registry,
+                light_registry,
+                &light_config,
                 current_tick,
                 max_updates_per_tick,
             );
@@ -865,6 +869,8 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             &entities,
             &config,
             &registry,
+            light_registry,
+            &light_config,
             current_tick,
             max_updates_per_tick,
         );
