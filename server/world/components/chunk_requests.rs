@@ -190,107 +190,111 @@ impl ChunkRequestsComp {
             self.requests.remove(0);
             return;
         }
-        if self.requests.len() == 3 {
-            if self.requests[1] == *coords {
-                self.requests.remove(1);
-            }
-            return;
-        }
-        if self.requests.len() == 4 {
-            if self.requests[1] == *coords {
-                self.requests.remove(1);
+        match self.requests.len() {
+            3 => {
+                if self.requests[1] == *coords {
+                    self.requests.remove(1);
+                }
                 return;
             }
-            if self.requests[2] == *coords {
-                self.requests.remove(2);
-            }
-            return;
-        }
-        if self.requests.len() == 5 {
-            if self.requests[1] == *coords {
-                self.requests.remove(1);
+            4 => {
+                if self.requests[1] == *coords {
+                    self.requests.remove(1);
+                    return;
+                }
+                if self.requests[2] == *coords {
+                    self.requests.remove(2);
+                }
                 return;
             }
-            if self.requests[2] == *coords {
-                self.requests.remove(2);
+            5 => {
+                if self.requests[1] == *coords {
+                    self.requests.remove(1);
+                    return;
+                }
+                if self.requests[2] == *coords {
+                    self.requests.remove(2);
+                    return;
+                }
+                if self.requests[3] == *coords {
+                    self.requests.remove(3);
+                }
                 return;
             }
-            if self.requests[3] == *coords {
-                self.requests.remove(3);
-            }
-            return;
-        }
-        if self.requests.len() == 6 {
-            if self.requests[1] == *coords {
-                self.requests.remove(1);
+            6 => {
+                if self.requests[1] == *coords {
+                    self.requests.remove(1);
+                    return;
+                }
+                if self.requests[2] == *coords {
+                    self.requests.remove(2);
+                    return;
+                }
+                if self.requests[3] == *coords {
+                    self.requests.remove(3);
+                    return;
+                }
+                if self.requests[4] == *coords {
+                    self.requests.remove(4);
+                }
                 return;
             }
-            if self.requests[2] == *coords {
-                self.requests.remove(2);
+            7 => {
+                if self.requests[1] == *coords {
+                    self.requests.remove(1);
+                    return;
+                }
+                if self.requests[2] == *coords {
+                    self.requests.remove(2);
+                    return;
+                }
+                if self.requests[3] == *coords {
+                    self.requests.remove(3);
+                    return;
+                }
+                if self.requests[4] == *coords {
+                    self.requests.remove(4);
+                    return;
+                }
+                if self.requests[5] == *coords {
+                    self.requests.remove(5);
+                }
                 return;
             }
-            if self.requests[3] == *coords {
-                self.requests.remove(3);
+            8 => {
+                if self.requests[1] == *coords {
+                    self.requests.remove(1);
+                    return;
+                }
+                if self.requests[2] == *coords {
+                    self.requests.remove(2);
+                    return;
+                }
+                if self.requests[3] == *coords {
+                    self.requests.remove(3);
+                    return;
+                }
+                if self.requests[4] == *coords {
+                    self.requests.remove(4);
+                    return;
+                }
+                if self.requests[5] == *coords {
+                    self.requests.remove(5);
+                    return;
+                }
+                if self.requests[6] == *coords {
+                    self.requests.remove(6);
+                }
                 return;
             }
-            if self.requests[4] == *coords {
-                self.requests.remove(4);
-            }
-            return;
-        }
-        if self.requests.len() == 7 {
-            if self.requests[1] == *coords {
-                self.requests.remove(1);
-                return;
-            }
-            if self.requests[2] == *coords {
-                self.requests.remove(2);
-                return;
-            }
-            if self.requests[3] == *coords {
-                self.requests.remove(3);
-                return;
-            }
-            if self.requests[4] == *coords {
-                self.requests.remove(4);
-                return;
-            }
-            if self.requests[5] == *coords {
-                self.requests.remove(5);
-            }
-            return;
-        }
-        if self.requests.len() == 8 {
-            if self.requests[1] == *coords {
-                self.requests.remove(1);
-                return;
-            }
-            if self.requests[2] == *coords {
-                self.requests.remove(2);
-                return;
-            }
-            if self.requests[3] == *coords {
-                self.requests.remove(3);
-                return;
-            }
-            if self.requests[4] == *coords {
-                self.requests.remove(4);
-                return;
-            }
-            if self.requests[5] == *coords {
-                self.requests.remove(5);
-                return;
-            }
-            if self.requests[6] == *coords {
-                self.requests.remove(6);
-            }
-            return;
-        }
-        let last_request_index = self.requests.len() - 1;
-        for request_index in 1..last_request_index {
-            if self.requests[request_index] == *coords {
-                self.requests.remove(request_index);
-                return;
+            _ => {
+                let last_request_index = self.requests.len() - 1;
+                for request_index in 1..last_request_index {
+                    if self.requests[request_index] == *coords {
+                        self.requests.remove(request_index);
+                        return;
+                    }
+                }
             }
         }
     }
