@@ -251,11 +251,12 @@ fn process_pending_updates(
                 continue;
             }
 
-            let updated_rotatable = updated_type.rotatable || updated_type.y_rotatable;
-            let current_rotatable = current_type.rotatable || current_type.y_rotatable;
             let needs_transparency =
                 !updated_type.is_opaque && (!updated_type.light_reduce || current_type.is_opaque);
-            let rotation = if updated_rotatable || (needs_transparency && current_rotatable) {
+            let updated_rotatable = updated_type.rotatable || updated_type.y_rotatable;
+            let current_rotatable =
+                needs_transparency && (current_type.rotatable || current_type.y_rotatable);
+            let rotation = if updated_rotatable || current_rotatable {
                 Some(BlockUtils::extract_rotation(raw))
             } else {
                 None
