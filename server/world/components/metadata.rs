@@ -75,11 +75,9 @@ impl MetadataComp {
 
     /// Get a component's metadata
     pub fn get<T: Component + DeserializeOwned>(&self, component: &str) -> Option<T> {
-        if let Some(component) = self.map.get(component) {
-            return Some(serde_json::from_value(component.to_owned()).unwrap());
-        }
-
-        None
+        self.map
+            .get(component)
+            .and_then(|component| serde_json::from_value(component.to_owned()).ok())
     }
 
     fn refresh_cached_json_if_dirty(&mut self) -> bool {
@@ -176,6 +174,12 @@ mod tests {
         value: i32,
     }
 
+    #[derive(Component, Deserialize, Serialize)]
+    #[storage(VecStorage)]
+    struct TestMetadataString {
+        value: String,
+    }
+
     #[test]
     fn set_keeps_cache_when_value_unchanged() {
         let mut metadata = MetadataComp::new();
@@ -249,5 +253,15 @@ mod tests {
             persisted_before,
             String::from("{\"map\":{\"test\":{\"value\":1}}}")
         );
+    }
+
+    #[test]
+    fn get_returns_none_for_type_mismatches_instead_of_panicking() {
+        let mut metadata = MetadataComp::new();
+        metadata.set_once("test", &TestMetadataValue { value: 1 });
+
+        let mismatched: Option<TestMetadataString> = metadata.get("test");
+
+        assert!(mismatched.is_none());
     }
 }
