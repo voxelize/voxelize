@@ -11898,6 +11898,86 @@ describe("report-utils", () => {
     ]);
     expect(statefulCanonicalDiagnostics.activeCliOptionOccurrenceCount).toBe(1);
     expect(statefulCanonicalOptionReadCount).toBe(2);
+    const diagnosticsFromOwnKeysLengthReadableAndReadTrapCanonicalOptions =
+      createCliDiagnostics(["--output", "--json"], {
+        canonicalOptions: new Proxy(["--json", "--output"], {
+          ownKeys() {
+            throw new Error("ownKeys trap");
+          },
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              return function* () {
+                return;
+              };
+            }
+            if (property === "length") {
+              return 2;
+            }
+            if (property === "0") {
+              throw new Error("read trap");
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      });
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapCanonicalOptions.supportedCliOptions
+    ).toEqual(["--output"]);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapCanonicalOptions.supportedCliOptionCount
+    ).toBe(1);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapCanonicalOptions.availableCliOptionAliases
+    ).toEqual({});
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapCanonicalOptions.availableCliOptionCanonicalMap
+    ).toEqual({
+      "--output": "--output",
+    });
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapCanonicalOptions.unknownOptions
+    ).toEqual(["--json"]);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapCanonicalOptions.unknownOptionCount
+    ).toBe(1);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapCanonicalOptions.unsupportedOptionsError
+    ).toBe("Unsupported option(s): --json. Supported options: --output.");
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapCanonicalOptions.validationErrorCode
+    ).toBe("unsupported_options");
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapCanonicalOptions.activeCliOptions
+    ).toEqual(["--output"]);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapCanonicalOptions.activeCliOptionCount
+    ).toBe(1);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapCanonicalOptions.activeCliOptionTokens
+    ).toEqual(["--output"]);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapCanonicalOptions.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapCanonicalOptions.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapCanonicalOptions.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+    ]);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapCanonicalOptions.activeCliOptionOccurrenceCount
+    ).toBe(1);
     let statefulAliasTokenReadCount = 0;
     const statefulAliasDiagnostics = createCliDiagnostics(["--verify"], {
       canonicalOptions: ["--json"],
@@ -11960,6 +12040,92 @@ describe("report-utils", () => {
     ]);
     expect(statefulAliasDiagnostics.activeCliOptionOccurrenceCount).toBe(1);
     expect(statefulAliasTokenReadCount).toBe(2);
+    const diagnosticsFromOwnKeysLengthReadableAndReadTrapAliasTokens =
+      createCliDiagnostics(["-n", "--verify"], {
+        canonicalOptions: ["--no-build"],
+        optionAliases: {
+          "--no-build": new Proxy(["--verify", "-n"], {
+            ownKeys() {
+              throw new Error("ownKeys trap");
+            },
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 2;
+              }
+              if (property === "0") {
+                throw new Error("read trap");
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+        },
+      });
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapAliasTokens.supportedCliOptions
+    ).toEqual(["--no-build", "-n"]);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapAliasTokens.supportedCliOptionCount
+    ).toBe(2);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapAliasTokens.availableCliOptionAliases
+    ).toEqual({
+      "--no-build": ["-n"],
+    });
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapAliasTokens.availableCliOptionCanonicalMap
+    ).toEqual({
+      "--no-build": "--no-build",
+      "-n": "--no-build",
+    });
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapAliasTokens.unknownOptions
+    ).toEqual(["--verify"]);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapAliasTokens.unknownOptionCount
+    ).toBe(1);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapAliasTokens.unsupportedOptionsError
+    ).toBe("Unsupported option(s): --verify. Supported options: --no-build, -n.");
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapAliasTokens.validationErrorCode
+    ).toBe("unsupported_options");
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapAliasTokens.activeCliOptions
+    ).toEqual(["--no-build"]);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapAliasTokens.activeCliOptionCount
+    ).toBe(1);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapAliasTokens.activeCliOptionTokens
+    ).toEqual(["-n"]);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapAliasTokens.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "-n",
+        canonicalOption: "--no-build",
+      },
+    ]);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapAliasTokens.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapAliasTokens.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "-n",
+        canonicalOption: "--no-build",
+        index: 0,
+      },
+    ]);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapAliasTokens.activeCliOptionOccurrenceCount
+    ).toBe(1);
     let statefulArgsReadCount = 0;
     const statefulArgsDiagnostics = createCliDiagnostics(
       new Proxy(["--json"], {
