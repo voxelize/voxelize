@@ -266,7 +266,8 @@ export class BlockRotation {
   }
 
   rotateNode(node: Vec3, yRotate = true, translate = true): void {
-    const normalizedYRotation = normalizeYRotation(this.yRotation);
+    const normalizedYRotation = normalizeYRotation(readRotationYSafely(this));
+    const axis = readRotationAxisSafely(this);
     if (yRotate && Math.abs(normalizedYRotation) > ANGLE_EPSILON) {
       node[0] -= 0.5;
       node[2] -= 0.5;
@@ -275,7 +276,7 @@ export class BlockRotation {
       node[2] += 0.5;
     }
 
-    switch (this.axis) {
+    switch (axis) {
       case PX_ROTATION: {
         this.rotateZ(node, -PI_2);
         if (translate) {
@@ -321,6 +322,7 @@ export class BlockRotation {
   }
 
   rotateAABB(aabb: AABB, yRotate = true, translate = true): AABB {
+    const axis = readRotationAxisSafely(this);
     const aabbSnapshot = readAabbSnapshotSafely(aabb);
     if (aabbSnapshot === null) {
       return AABB.empty();
@@ -336,7 +338,7 @@ export class BlockRotation {
 
     if (
       yRotate &&
-      (this.axis === PY_ROTATION || this.axis === NY_ROTATION)
+      (axis === PY_ROTATION || axis === NY_ROTATION)
     ) {
       const minNodes: Vec3[] = [
         [aabbSnapshot.minX, aabbSnapshot.minY, aabbSnapshot.minZ],
@@ -392,10 +394,12 @@ export class BlockRotation {
 
   rotateTransparency(transparency: FaceTransparency): FaceTransparency {
     const [px, py, pz, nx, ny, nz] = readFaceTransparencySafely(transparency);
+    const axis = readRotationAxisSafely(this);
+    const normalizedYRotation = normalizeYRotation(readRotationYSafely(this));
 
     if (
-      this.axis === PY_ROTATION &&
-      Math.abs(normalizeYRotation(this.yRotation)) <= ANGLE_EPSILON
+      axis === PY_ROTATION &&
+      Math.abs(normalizedYRotation) <= ANGLE_EPSILON
     ) {
       return [px, py, pz, nx, ny, nz];
     }

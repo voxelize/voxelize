@@ -827,6 +827,81 @@ describe("BlockRotation", () => {
     expect(baseRotation.equals(revokedRotation as never)).toBe(false);
   });
 
+  it("sanitizes trap-driven rotation transform access without throwing", () => {
+    const axisTrapRotation = new Proxy(BlockRotation.py(Math.PI / 2), {
+      get(target, property, receiver) {
+        if (property === "axis") {
+          throw new Error("axis trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const yRotationTrapRotation = new Proxy(BlockRotation.py(Math.PI / 2), {
+      get(target, property, receiver) {
+        if (property === "yRotation") {
+          throw new Error("yRotation trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    const axisTrapNode: [number, number, number] = [1, 0, 0];
+    expect(() =>
+      (axisTrapRotation as never).rotateNode(axisTrapNode, true, false)
+    ).not.toThrow();
+    expect(axisTrapNode[0]).toBeCloseTo(0, 10);
+    expect(axisTrapNode[1]).toBeCloseTo(0, 10);
+    expect(axisTrapNode[2]).toBeCloseTo(0, 10);
+
+    const yTrapNode: [number, number, number] = [1, 0, 0];
+    expect(() =>
+      (yRotationTrapRotation as never).rotateNode(yTrapNode, true, false)
+    ).not.toThrow();
+    expect(yTrapNode).toEqual([1, 0, 0]);
+
+    const sourceAabb = AABB.create(0, 0, 0, 1, 1, 1);
+    const expectedAxisTrapAabb = BlockRotation.py(Math.PI / 2).rotateAABB(
+      sourceAabb,
+      true,
+      true
+    );
+    expect(() =>
+      (axisTrapRotation as never).rotateAABB(sourceAabb, true, true)
+    ).not.toThrow();
+    expect((axisTrapRotation as never).rotateAABB(sourceAabb, true, true)).toEqual(
+      expectedAxisTrapAabb
+    );
+    expect(() =>
+      (yRotationTrapRotation as never).rotateAABB(sourceAabb, true, true)
+    ).not.toThrow();
+    expect(
+      (yRotationTrapRotation as never).rotateAABB(sourceAabb, true, true)
+    ).toEqual(BlockRotation.py(0).rotateAABB(sourceAabb, true, true));
+
+    const transparency: [boolean, boolean, boolean, boolean, boolean, boolean] = [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ];
+    const expectedAxisTrapTransparency = BlockRotation.py(Math.PI / 2)
+      .rotateTransparency(transparency);
+    expect(() =>
+      (axisTrapRotation as never).rotateTransparency(transparency)
+    ).not.toThrow();
+    expect(
+      (axisTrapRotation as never).rotateTransparency(transparency)
+    ).toEqual(expectedAxisTrapTransparency);
+    expect(() =>
+      (yRotationTrapRotation as never).rotateTransparency(transparency)
+    ).not.toThrow();
+    expect(
+      (yRotationTrapRotation as never).rotateTransparency(transparency)
+    ).toEqual(transparency);
+  });
+
   it("decodes large y-rotation angles via modulo-normalized segments", () => {
     const largeAngle = 6728604188452.013;
     const [axis, yRotation] = BlockRotation.decode(
