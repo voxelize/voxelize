@@ -289,10 +289,13 @@ impl Registry {
 
     /// Get a block reference by block ID. Returns Air if block ID not found.
     pub fn get_block_by_id(&self, id: u32) -> &Block {
-        self.blocks_by_id
-            .get(&id)
-            .or_else(|| self.blocks_by_id.get(&0))
-            .unwrap_or_else(|| Self::fallback_air_block())
+        if let Some(block) = self.blocks_by_id.get(&id) {
+            return block;
+        }
+        if let Some(block) = self.blocks_by_id.get(&0) {
+            return block;
+        }
+        Self::fallback_air_block()
     }
 
     /// Get a block id by block name.
@@ -347,11 +350,13 @@ impl Registry {
 
     /// Get normalized block name by id.
     pub fn get_name_by_id(&self, id: u32) -> &str {
-        self.name_map
-            .get(&id)
-            .or_else(|| self.name_map.get(&0))
-            .map(|name| name.as_str())
-            .unwrap_or("air")
+        if let Some(name) = self.name_map.get(&id) {
+            return name.as_str();
+        }
+        if let Some(name) = self.name_map.get(&0) {
+            return name.as_str();
+        }
+        "air"
     }
 
     /// Check if block is air by id.
