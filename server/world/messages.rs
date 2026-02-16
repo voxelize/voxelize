@@ -249,12 +249,29 @@ impl EncodedMessageQueue {
                 first.operation == ENTITY_OPERATION_UPDATE
                     && second.operation == ENTITY_OPERATION_UPDATE
             }
-            [first, second, rest @ ..] => {
+            [first, second, third] => {
                 first.operation == ENTITY_OPERATION_UPDATE
                     && second.operation == ENTITY_OPERATION_UPDATE
-                    && rest
-                        .iter()
-                        .all(|entity| entity.operation == ENTITY_OPERATION_UPDATE)
+                    && third.operation == ENTITY_OPERATION_UPDATE
+            }
+            [first, second, third, fourth] => {
+                first.operation == ENTITY_OPERATION_UPDATE
+                    && second.operation == ENTITY_OPERATION_UPDATE
+                    && third.operation == ENTITY_OPERATION_UPDATE
+                    && fourth.operation == ENTITY_OPERATION_UPDATE
+            }
+            [first, second, rest @ ..] => {
+                if first.operation != ENTITY_OPERATION_UPDATE
+                    || second.operation != ENTITY_OPERATION_UPDATE
+                {
+                    return (false, is_transport_eligible);
+                }
+                for entity in rest {
+                    if entity.operation != ENTITY_OPERATION_UPDATE {
+                        return (false, is_transport_eligible);
+                    }
+                }
+                true
             }
         };
 
@@ -352,8 +369,51 @@ mod tests {
         let double_update_message = Message::new(&MessageType::Entity)
             .entities(&[update_entity.clone(), update_entity.clone()])
             .build();
+        let triple_update_message = Message::new(&MessageType::Entity)
+            .entities(&[
+                update_entity.clone(),
+                update_entity.clone(),
+                update_entity.clone(),
+            ])
+            .build();
+        let quadruple_update_message = Message::new(&MessageType::Entity)
+            .entities(&[
+                update_entity.clone(),
+                update_entity.clone(),
+                update_entity.clone(),
+                update_entity.clone(),
+            ])
+            .build();
         let mixed_message = Message::new(&MessageType::Entity)
             .entities(&[update_entity, delete_entity])
+            .build();
+        let mixed_quadruple_message = Message::new(&MessageType::Entity)
+            .entities(&[
+                EntityProtocol {
+                    operation: EntityOperation::Update,
+                    id: "id-1".to_string(),
+                    r#type: "kind".to_string(),
+                    metadata: None,
+                },
+                EntityProtocol {
+                    operation: EntityOperation::Update,
+                    id: "id-2".to_string(),
+                    r#type: "kind".to_string(),
+                    metadata: None,
+                },
+                EntityProtocol {
+                    operation: EntityOperation::Delete,
+                    id: "id-3".to_string(),
+                    r#type: "kind".to_string(),
+                    metadata: None,
+                },
+                EntityProtocol {
+                    operation: EntityOperation::Update,
+                    id: "id-4".to_string(),
+                    r#type: "kind".to_string(),
+                    metadata: None,
+                },
+            ])
             .build();
         let empty_message = Message::new(&MessageType::Entity).build();
 
@@ -361,7 +421,16 @@ mod tests {
         assert!(EncodedMessageQueue::compute_rtc_eligibility(
             &double_update_message
         ));
+        assert!(EncodedMessageQueue::compute_rtc_eligibility(
+            &triple_update_message
+        ));
+        assert!(EncodedMessageQueue::compute_rtc_eligibility(
+            &quadruple_update_message
+        ));
         assert!(!EncodedMessageQueue::compute_rtc_eligibility(&mixed_message));
+        assert!(!EncodedMessageQueue::compute_rtc_eligibility(
+            &mixed_quadruple_message
+        ));
         assert!(!EncodedMessageQueue::compute_rtc_eligibility(&empty_message));
     }
 
