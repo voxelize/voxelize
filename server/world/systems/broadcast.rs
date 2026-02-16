@@ -237,7 +237,8 @@ impl<'a> System<'a> for BroadcastSystem {
             Vec::with_capacity(pending_messages_count);
         let mut deferred_messages = Vec::with_capacity(pending_messages_count);
         for (mut message, filter) in pending_messages {
-            message.world_name = world_name.clone();
+            message.world_name.clear();
+            message.world_name.push_str(world_name);
             if is_immediate(message.r#type) {
                 let msg_type = message.r#type;
                 let encoded = EncodedMessage {
