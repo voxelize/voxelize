@@ -223,10 +223,10 @@ impl Voxelize {
         server.preload().await;
         server.started = true;
 
-        let addr = server.addr.to_owned();
-        let port = server.port.to_owned();
-        let serve = server.serve.to_owned();
-        let secret = server.secret.to_owned();
+        let addr = server.addr.clone();
+        let port = server.port;
+        let serve = server.serve.clone();
+        let secret = server.secret.clone();
 
         let server_addr = server.start();
 
@@ -235,8 +235,8 @@ impl Voxelize {
         }
 
         let srv = HttpServer::new(move || {
-            let serve = serve.to_owned();
-            let secret = secret.to_owned();
+            let serve = serve.clone();
+            let secret = secret.clone();
             let cors = Cors::permissive();
 
             let app = App::new()
@@ -244,7 +244,7 @@ impl Voxelize {
                 .app_data(web::Data::new(secret))
                 .app_data(web::Data::new(server_addr.clone()))
                 .app_data(web::Data::new(Config {
-                    serve: serve.to_owned(),
+                    serve: serve.clone(),
                 }))
                 .route("/", web::get().to(index))
                 .route("/ws/", web::get().to(ws_route))
@@ -256,7 +256,7 @@ impl Voxelize {
                 app.service(Files::new("/", serve).show_files_listing())
             }
         })
-        .bind((addr.to_owned(), port.to_owned()))?;
+        .bind((addr.as_str(), port))?;
 
         info!("Voxelize backend running on http://{}:{}", addr, port);
 

@@ -381,7 +381,7 @@ impl WorldConfigBuilder {
 
     /// Configure the saving interval of the world.
     pub fn save_interval(mut self, save_interval: usize) -> Self {
-        self.save_interval = save_interval.to_owned();
+        self.save_interval = save_interval;
         self
     }
 
