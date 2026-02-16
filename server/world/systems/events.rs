@@ -459,6 +459,26 @@ impl<'a> System<'a> for EventsSystem {
         }
 
         // Process the dispatch map, sending them directly for fastest event responses.
+        if touched_clients.len() == 1 {
+            if let Some(id) = touched_clients.pop() {
+                if let Some(client_events) = dispatch_map.get_mut(&id) {
+                    if !client_events.is_empty() {
+                        if let Some(client) = clients.get(&id) {
+                            let next_client_event_capacity = client_events.capacity();
+                            let client_events_to_send = std::mem::replace(
+                                client_events,
+                                Vec::with_capacity(next_client_event_capacity),
+                            );
+                            let message = Message::new(&MessageType::Event)
+                                .events_owned(client_events_to_send)
+                                .build();
+                            let encoded = Bytes::from(encode_message(&message));
+                            let _ = client.sender.send(encoded);
+                        }
+                    }
+                }
+            }
+        } else {
         for id in touched_clients.drain(..) {
             let client_events = match dispatch_map.get_mut(&id) {
                 Some(events) => events,
@@ -476,6 +496,7 @@ impl<'a> System<'a> for EventsSystem {
                 let encoded = Bytes::from(encode_message(&message));
                 let _ = client.sender.send(encoded);
             }
+        }
         }
 
         if has_transports {
