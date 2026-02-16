@@ -4,10 +4,11 @@ use specs::{
 };
 
 use crate::{
-    world::system_profiler::WorldTimingContext, BackgroundEntitiesSaver, Bookkeeping, ClientFilter,
-    Clients, DoNotPersistComp, ETypeComp, EntityFlag, EntityIDs, EntityOperation, EntityProtocol,
-    IDComp, InteractorComp, KdTree, Message, MessageQueues, MessageType, MetadataComp, Physics,
-    PositionComp, Vec3, VoxelComp, WorldConfig,
+    world::{is_block_entity_type, system_profiler::WorldTimingContext},
+    BackgroundEntitiesSaver, Bookkeeping, ClientFilter, Clients, DoNotPersistComp, ETypeComp,
+    EntityFlag, EntityIDs, EntityOperation, EntityProtocol, IDComp, InteractorComp, KdTree,
+    Message, MessageQueues, MessageType, MetadataComp, Physics, PositionComp, Vec3, VoxelComp,
+    WorldConfig,
 };
 use crate::world::systems::retain_active_client_batches_map;
 
@@ -599,7 +600,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                         known_entities.retain(|entity_id| {
                             let record = new_bookkeeping_records.get(entity_id);
                             if let Some((etype, ..)) = record {
-                                if etype.starts_with("block::") {
+                                if is_block_entity_type(etype) {
                                     return true;
                                 }
                             }
@@ -657,7 +658,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 known_entities.retain(|entity_id| {
                     let record = new_bookkeeping_records.get(entity_id);
                     if let Some((etype, ..)) = record {
-                        if etype.starts_with("block::") {
+                        if is_block_entity_type(etype) {
                             return true;
                         }
                     }

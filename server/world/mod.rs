@@ -82,6 +82,20 @@ pub use utils::*;
 pub use voxels::*;
 
 pub type Transports = HashMap<String, WsSender>;
+const BLOCK_ENTITY_PREFIX_LENGTH: usize = 7;
+
+#[inline]
+pub(crate) fn is_block_entity_type(etype: &str) -> bool {
+    let bytes = etype.as_bytes();
+    bytes.len() >= BLOCK_ENTITY_PREFIX_LENGTH
+        && bytes[0] == b'b'
+        && bytes[1] == b'l'
+        && bytes[2] == b'o'
+        && bytes[3] == b'c'
+        && bytes[4] == b'k'
+        && bytes[5] == b':'
+        && bytes[6] == b':'
+}
 
 /// The default client metadata parser, parses PositionComp and DirectionComp, and updates RigidBodyComp.
 pub fn default_client_parser(world: &mut World, metadata: &str, client_ent: Entity) {
@@ -1479,7 +1493,7 @@ impl World {
         etype: &str,
         metadata: MetadataComp,
     ) -> Option<Entity> {
-        if etype.starts_with("block::") {
+        if is_block_entity_type(etype) {
             let voxel_meta = metadata.get::<VoxelComp>("voxel").unwrap_or_default();
             let voxel = voxel_meta.0;
             if self.chunks_mut().block_entities.contains_key(&voxel) {
@@ -1545,7 +1559,7 @@ impl World {
             insertion_failed = true;
         }
 
-        let (entity_type, is_block) = if etype.starts_with("block::") {
+        let (entity_type, is_block) = if is_block_entity_type(etype) {
             (etype, true)
         } else {
             (etype, false)
@@ -2229,7 +2243,7 @@ impl World {
         let mut entity_ids = Vec::with_capacity(entity_capacity_hint);
 
         for (id, etype, metadata) in (&ids, &etypes, &metadatas).join() {
-            if !etype.0.starts_with("block::") && metadata.is_empty() {
+            if !is_block_entity_type(&etype.0) && metadata.is_empty() {
                 continue;
             }
 
