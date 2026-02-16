@@ -27541,6 +27541,45 @@ describe("report-utils", () => {
     ).toBe("ok");
     expect(
       deriveWasmPackCheckStatus({
+        wasmPackCheckExitCode: 1,
+        wasmPackCheckReport: {
+          checkStatusMap: new Proxy(Object.create(null) as Record<string, string>, {
+            ownKeys() {
+              throw new Error("ownKeys trap");
+            },
+            get(target, property, receiver) {
+              if (property === "wasm-pack") {
+                return "missing";
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }),
+        },
+      })
+    ).toBe("missing");
+    expect(
+      deriveWasmPackCheckStatus({
+        wasmPackCheckExitCode: 1,
+        wasmPackCheckReport: {
+          checkStatusMap: new Proxy(Object.create(null) as Record<string, string>, {
+            ownKeys() {
+              throw new Error("ownKeys trap");
+            },
+            get(target, property, receiver) {
+              if (property === "wasm-pack") {
+                return "mystery";
+              }
+              if (property === " WASM-PACK ") {
+                return "missing";
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }),
+        },
+      })
+    ).toBe("unavailable");
+    expect(
+      deriveWasmPackCheckStatus({
         wasmPackCheckExitCode: 0,
         wasmPackCheckReport: {
           wasmPackCheckStatus: " missing ",
