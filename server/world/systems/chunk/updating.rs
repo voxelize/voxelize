@@ -386,6 +386,9 @@ fn process_pending_updates(
                 let Some(ny) = vy.checked_add(oy) else {
                     continue;
                 };
+                if ny < 0 || (has_max_height_limit && ny >= max_height_limit) {
+                    continue;
+                }
                 let Some(nz) = vz.checked_add(oz) else {
                     continue;
                 };
