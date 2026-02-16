@@ -190,6 +190,21 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             if coords_to_send.is_empty() {
                 return;
             }
+            if coords_to_send.len() == 1 {
+                let single_coords = coords_to_send.iter().next().copied();
+                coords_to_send.clear();
+                if let Some(coords) = single_coords {
+                    if let Some(chunk) = chunks.get(&coords) {
+                        queue.push((
+                            Message::new(&MessageType::Load)
+                                .chunks_owned(vec![chunk.to_model(true, true, 0..sub_chunks_u32)])
+                                .build(),
+                            ClientFilter::Direct(id),
+                        ));
+                    }
+                }
+                return;
+            }
             chunk_models_buffer.clear();
             if chunk_models_buffer.capacity() < coords_to_send.len() {
                 chunk_models_buffer.reserve(coords_to_send.len() - chunk_models_buffer.len());
@@ -219,6 +234,21 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                 continue;
             };
             if coords_to_send.is_empty() {
+                continue;
+            }
+            if coords_to_send.len() == 1 {
+                let single_coords = coords_to_send.iter().next().copied();
+                coords_to_send.clear();
+                if let Some(coords) = single_coords {
+                    if let Some(chunk) = chunks.get(&coords) {
+                        queue.push((
+                            Message::new(&MessageType::Load)
+                                .chunks_owned(vec![chunk.to_model(true, true, 0..sub_chunks_u32)])
+                                .build(),
+                            ClientFilter::Direct(id),
+                        ));
+                    }
+                }
                 continue;
             }
             chunk_models_buffer.clear();
