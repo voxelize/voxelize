@@ -337,7 +337,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         }
         let has_entity_metadata_updates = entity_metadata_map
             .as_ref()
-            .map_or(false, |metadata_map| !metadata_map.is_empty());
+            .is_some_and(|metadata_map| !metadata_map.is_empty());
         if !has_entity_metadata_updates && self.deleted_entities_buffer.is_empty() {
             let mut has_known_entities = false;
             for known_entities in bookkeeping.client_known_entities.values() {
