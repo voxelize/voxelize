@@ -363,6 +363,50 @@ describe("report-utils", () => {
     });
   });
 
+  it("salvages readable report payload fields when sibling getters trap", () => {
+    const trappedReport = Object.create(null) as {
+      readonly passed: boolean;
+      readonly message: string;
+      readonly exitCode: number;
+    };
+    Object.defineProperty(trappedReport, "passed", {
+      configurable: true,
+      enumerable: true,
+      value: true,
+    });
+    Object.defineProperty(trappedReport, "message", {
+      configurable: true,
+      enumerable: true,
+      value: "kept",
+    });
+    Object.defineProperty(trappedReport, "exitCode", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("exitCode trap");
+      },
+    });
+
+    expect(() => toReport(trappedReport as never)).not.toThrow();
+    expect(toReport(trappedReport as never)).toEqual({
+      passed: true,
+      message: "kept",
+      schemaVersion: REPORT_SCHEMA_VERSION,
+    });
+    expect(() => toReportJson(trappedReport as never)).not.toThrow();
+    expect(
+      JSON.parse(toReportJson(trappedReport as never)) as {
+        passed: boolean;
+        message: string;
+        schemaVersion: number;
+      }
+    ).toEqual({
+      passed: true,
+      message: "kept",
+      schemaVersion: REPORT_SCHEMA_VERSION,
+    });
+  });
+
   it("sanitizes revoked proxy inputs across report and cli helpers", () => {
     const revokedObject = (() => {
       const objectProxy = Proxy.revocable({}, {});

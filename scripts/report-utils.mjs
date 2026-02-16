@@ -188,11 +188,27 @@ const toReportSnapshotOrEmpty = (report) => {
     if (isArrayValue(report)) {
       return {};
     }
-
-    return { ...report };
   } catch {
     return {};
   }
+
+  let reportKeys = [];
+  try {
+    reportKeys = Object.keys(report);
+  } catch {
+    return {};
+  }
+
+  const reportSnapshot = Object.create(null);
+  for (const reportKey of reportKeys) {
+    try {
+      reportSnapshot[reportKey] = report[reportKey];
+    } catch {
+      continue;
+    }
+  }
+
+  return reportSnapshot;
 };
 
 export const toReport = (report) => {
