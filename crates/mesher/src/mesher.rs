@@ -1156,6 +1156,7 @@ fn is_block_all_transparent(block: &Block) -> bool {
     }
 }
 
+#[inline]
 fn should_render_face<S: VoxelAccess>(
     vx: i32,
     vy: i32,
@@ -1840,50 +1841,19 @@ fn process_face<S: VoxelAccess>(
         dir[2].round() as i32,
     ];
 
-    let nvx = vx + dir[0];
-    let nvy = vy + dir[1];
-    let nvz = vz + dir[2];
-
-    let neighbor_id = space.get_voxel(nvx, nvy, nvz);
-    let n_is_void = !space.contains(nvx, nvy, nvz);
-    let should_mesh = if n_is_void {
-        true
-    } else {
-        let n_block_type = if neighbor_id == voxel_id {
-            block
-        } else {
-            match registry.get_block_by_id(neighbor_id) {
-                Some(b) => b,
-                None => return,
-            }
-        };
-
-        if is_fluid && !block.is_waterlogged && n_block_type.is_waterlogged {
-            return;
-        }
-
-        if is_fluid && n_block_type.occludes_fluid {
-            return;
-        }
-
-        n_block_type.is_empty
-            || (see_through
-                && !is_opaque
-                && !n_block_type.is_opaque
-                && ((is_see_through
-                    && neighbor_id == voxel_id
-                    && n_block_type.transparent_standalone)
-                    || (neighbor_id != voxel_id
-                        && (is_see_through || n_block_type.is_see_through))))
-            || (!see_through && (!is_opaque || !n_block_type.is_opaque))
-            || (is_fluid
-                && n_block_type.is_opaque
-                && !n_block_type.is_fluid
-                && !fluid_surface_above
-                && (!n_block_type.is_full_cube() || dir == [0, 1, 0]))
-    };
-
-    if !should_mesh {
+    if !should_render_face(
+        vx,
+        vy,
+        vz,
+        voxel_id,
+        dir,
+        block,
+        space,
+        registry,
+        see_through,
+        is_fluid,
+        fluid_surface_above,
+    ) {
         return;
     }
 
