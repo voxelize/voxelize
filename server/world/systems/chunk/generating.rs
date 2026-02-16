@@ -1,4 +1,3 @@
-use hashbrown::hash_map::RawEntryMut;
 use nanoid::nanoid;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use specs::{ReadExpect, ReadStorage, System, WriteExpect};
@@ -126,14 +125,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 }
             }
 
-            match weights.raw_entry_mut().from_key(coords) {
-                RawEntryMut::Occupied(mut entry) => {
-                    *entry.get_mut() = weight;
-                }
-                RawEntryMut::Vacant(entry) => {
-                    entry.insert(*coords, weight);
-                }
-            }
+            weights.insert(*coords, weight);
         }
 
         interests.weights = weights;
