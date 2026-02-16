@@ -129,13 +129,28 @@ impl EntitiesSaver {
             new_path
         };
 
-        let mut file = File::create(&path_to_use).expect("Could not create entity file...");
-        file.write_all(b"{\"etype\":")
-            .and_then(|_| file.write_all(escaped_etype.as_bytes()))
-            .and_then(|_| file.write_all(b",\"metadata\":"))
-            .and_then(|_| file.write_all(metadata_json.as_bytes()))
-            .and_then(|_| file.write_all(b"}"))
-            .expect("Unable to write entity file.");
+        match File::create(&path_to_use) {
+            Ok(mut file) => {
+                if let Err(error) = file
+                    .write_all(b"{\"etype\":")
+                    .and_then(|_| file.write_all(escaped_etype.as_bytes()))
+                    .and_then(|_| file.write_all(b",\"metadata\":"))
+                    .and_then(|_| file.write_all(metadata_json.as_bytes()))
+                    .and_then(|_| file.write_all(b"}"))
+                {
+                    warn!(
+                        "Unable to write persisted entity file {:?}: {}",
+                        path_to_use, error
+                    );
+                }
+            }
+            Err(error) => {
+                warn!(
+                    "Could not create persisted entity file {:?}: {}",
+                    path_to_use, error
+                );
+            }
+        }
     }
 
     pub fn remove(&self, id: &str) {
