@@ -65,6 +65,14 @@ fn ids_contains_target(ids: &[String], target: &str) -> bool {
                 || fourth.as_str() == target
                 || fifth.as_str() == target
         }
+        [first, second, third, fourth, fifth, sixth] => {
+            first.as_str() == target
+                || second.as_str() == target
+                || third.as_str() == target
+                || fourth.as_str() == target
+                || fifth.as_str() == target
+                || sixth.as_str() == target
+        }
         _ => {
             for id in ids {
                 if id.as_str() == target {
@@ -93,6 +101,15 @@ fn include_single_target(ids: &[String]) -> Option<&str> {
         }
         [first, second, third, fourth, fifth]
             if first == second && first == third && first == fourth && first == fifth =>
+        {
+            Some(first.as_str())
+        }
+        [first, second, third, fourth, fifth, sixth]
+            if first == second
+                && first == third
+                && first == fourth
+                && first == fifth
+                && first == sixth =>
         {
             Some(first.as_str())
         }
@@ -195,6 +212,36 @@ fn for_each_unique_id<F: FnMut(&str)>(ids: &[String], mut visit: F) {
             }
             if fifth != first && fifth != second && fifth != third && fifth != fourth {
                 visit(fifth);
+            }
+            return;
+        }
+        [first, second, third, fourth, fifth, sixth] => {
+            let first = first.as_str();
+            let second = second.as_str();
+            let third = third.as_str();
+            let fourth = fourth.as_str();
+            let fifth = fifth.as_str();
+            let sixth = sixth.as_str();
+            visit(first);
+            if second != first {
+                visit(second);
+            }
+            if third != first && third != second {
+                visit(third);
+            }
+            if fourth != first && fourth != second && fourth != third {
+                visit(fourth);
+            }
+            if fifth != first && fifth != second && fifth != third && fifth != fourth {
+                visit(fifth);
+            }
+            if sixth != first
+                && sixth != second
+                && sixth != third
+                && sixth != fourth
+                && sixth != fifth
+            {
+                visit(sixth);
             }
             return;
         }
@@ -705,6 +752,14 @@ mod tests {
         assert!(ids_contains_target(&ids(&["d", "a", "c"]), "c"));
         assert!(ids_contains_target(&ids(&["e", "d", "c", "b", "a"]), "c"));
         assert!(!ids_contains_target(&ids(&["e", "d", "c", "b", "a"]), "z"));
+        assert!(ids_contains_target(
+            &ids(&["f", "e", "d", "c", "b", "a"]),
+            "c"
+        ));
+        assert!(!ids_contains_target(
+            &ids(&["f", "e", "d", "c", "b", "a"]),
+            "z"
+        ));
     }
 
     #[test]
@@ -715,6 +770,18 @@ mod tests {
         );
         assert_eq!(
             include_single_target(&ids(&["k", "k", "k", "k", "z"])),
+            None
+        );
+    }
+
+    #[test]
+    fn include_single_target_detects_uniform_six_item_filters() {
+        assert_eq!(
+            include_single_target(&ids(&["k", "k", "k", "k", "k", "k"])),
+            Some("k")
+        );
+        assert_eq!(
+            include_single_target(&ids(&["k", "k", "k", "k", "k", "z"])),
             None
         );
     }

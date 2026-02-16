@@ -233,6 +233,49 @@ fn fanout_chunk_model(
             push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
             return;
         }
+        6 => {
+            let mut interested_iter = interested_clients.iter();
+            let Some(first_client_id) = interested_iter.next() else {
+                return;
+            };
+            let Some(second_client_id) = interested_iter.next() else {
+                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+                return;
+            };
+            let Some(third_client_id) = interested_iter.next() else {
+                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+                return;
+            };
+            let Some(fourth_client_id) = interested_iter.next() else {
+                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
+                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+                return;
+            };
+            let Some(fifth_client_id) = interested_iter.next() else {
+                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
+                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+                return;
+            };
+            let Some(sixth_client_id) = interested_iter.next() else {
+                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, fifth_client_id, &chunk_model);
+                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+                return;
+            };
+            push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, fifth_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, sixth_client_id, &chunk_model);
+            push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+            return;
+        }
         _ => {}
     }
 
@@ -515,7 +558,7 @@ mod tests {
 
     use crate::{ChunkProtocol, ClientFilter, MessageQueues, MessageType};
 
-    use super::{flush_chunk_batches, take_updated_level_range};
+    use super::{fanout_chunk_model, flush_chunk_batches, take_updated_level_range};
 
     #[test]
     fn take_updated_level_range_returns_none_for_empty_sets() {
@@ -576,6 +619,43 @@ mod tests {
         match filter {
             ClientFilter::Direct(id) => assert_eq!(id, "b"),
             _ => panic!("expected direct client filter"),
+        }
+    }
+
+    #[test]
+    fn fanout_chunk_model_populates_all_six_recipients() {
+        let mut batches: HashMap<String, Vec<ChunkProtocol>> = HashMap::new();
+        let mut touched_clients = Vec::new();
+        let interested_clients: HashSet<String> =
+            ["a", "b", "c", "d", "e", "f"]
+                .into_iter()
+                .map(str::to_string)
+                .collect();
+        let chunk_model = ChunkProtocol {
+            x: 7,
+            z: -3,
+            id: "chunk-7--3".to_string(),
+            meshes: Vec::new(),
+            voxels: None,
+            lights: None,
+        };
+
+        fanout_chunk_model(
+            &mut batches,
+            &mut touched_clients,
+            &interested_clients,
+            chunk_model,
+        );
+
+        assert_eq!(batches.len(), interested_clients.len());
+        let touched_ids: HashSet<_> = touched_clients.into_iter().collect();
+        assert_eq!(touched_ids, interested_clients);
+        for client_id in ["a", "b", "c", "d", "e", "f"] {
+            let client_chunks = batches
+                .get(client_id)
+                .expect("chunk fanout missing expected recipient");
+            assert_eq!(client_chunks.len(), 1);
+            assert_eq!(client_chunks[0].id, "chunk-7--3");
         }
     }
 }
