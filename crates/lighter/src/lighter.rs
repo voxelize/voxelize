@@ -76,19 +76,6 @@ fn extract_light_level(raw: u32, color: &LightColor, is_sunlight: bool) -> u32 {
 }
 
 #[inline]
-fn get_light_level(
-    space: &dyn LightVoxelAccess,
-    vx: i32,
-    vy: i32,
-    vz: i32,
-    color: &LightColor,
-    is_sunlight: bool,
-) -> u32 {
-    let raw = space.get_raw_light(vx, vy, vz);
-    extract_light_level(raw, color, is_sunlight)
-}
-
-#[inline]
 fn insert_light_level(raw: u32, level: u32, color: &LightColor, is_sunlight: bool) -> u32 {
     if is_sunlight {
         LightUtils::insert_sunlight(raw, level)
@@ -113,23 +100,6 @@ fn set_light_level_from_raw(
     color: &LightColor,
     is_sunlight: bool,
 ) {
-    let inserted = insert_light_level(raw, level, color, is_sunlight);
-    if inserted != raw {
-        space.set_raw_light(vx, vy, vz, inserted);
-    }
-}
-
-#[inline]
-fn set_light_level(
-    space: &mut dyn LightVoxelAccess,
-    vx: i32,
-    vy: i32,
-    vz: i32,
-    level: u32,
-    color: &LightColor,
-    is_sunlight: bool,
-) {
-    let raw = space.get_raw_light(vx, vy, vz);
     let inserted = insert_light_level(raw, level, color, is_sunlight);
     if inserted != raw {
         space.set_raw_light(vx, vy, vz, inserted);
@@ -372,7 +342,8 @@ pub fn remove_light(
 ) {
     let is_sunlight = *color == LightColor::Sunlight;
     let [vx, vy, vz] = voxel;
-    let source_level = get_light_level(space, vx, vy, vz, color, is_sunlight);
+    let source_raw_light = space.get_raw_light(vx, vy, vz);
+    let source_level = extract_light_level(source_raw_light, color, is_sunlight);
     if source_level == 0 {
         return;
     }
@@ -382,7 +353,7 @@ pub fn remove_light(
         level: source_level,
     }];
 
-    set_light_level(space, vx, vy, vz, 0, color, is_sunlight);
+    set_light_level_from_raw(space, vx, vy, vz, source_raw_light, 0, color, is_sunlight);
 
     let fill = collect_refill_nodes_after_removals(
         space,
@@ -434,7 +405,8 @@ fn collect_refill_nodes_after_removals(
                 continue;
             }
 
-            let n_level = get_light_level(space, nvx, nvy, nvz, color, is_sunlight);
+            let n_raw_light = space.get_raw_light(nvx, nvy, nvz);
+            let n_level = extract_light_level(n_raw_light, color, is_sunlight);
             if n_level == 0 {
                 continue;
             }
@@ -462,7 +434,16 @@ fn collect_refill_nodes_after_removals(
                     voxel: [nvx, nvy, nvz],
                     level: n_level,
                 });
-                set_light_level(space, nvx, nvy, nvz, 0, color, is_sunlight);
+                set_light_level_from_raw(
+                    space,
+                    nvx,
+                    nvy,
+                    nvz,
+                    n_raw_light,
+                    0,
+                    color,
+                    is_sunlight,
+                );
             } else if if is_sunlight && oy == -1 {
                 n_level > level
             } else {
@@ -499,7 +480,8 @@ pub fn remove_lights<I>(
 
     for voxel in voxels {
         let [vx, vy, vz] = voxel;
-        let level = get_light_level(space, vx, vy, vz, color, is_sunlight);
+        let raw_light = space.get_raw_light(vx, vy, vz);
+        let level = extract_light_level(raw_light, color, is_sunlight);
         if level == 0 {
             continue;
         }
@@ -508,7 +490,7 @@ pub fn remove_lights<I>(
             voxel,
             level,
         });
-        set_light_level(space, vx, vy, vz, 0, color, is_sunlight);
+        set_light_level_from_raw(space, vx, vy, vz, raw_light, 0, color, is_sunlight);
     }
 
     if remove.is_empty() {
