@@ -54,16 +54,95 @@ fn retain_active_request_batches(
     if to_send.len() <= clients.len() {
         return;
     }
-    if clients.len() == 1 {
-        if let Some((single_client_id, _)) = clients.iter().next() {
-            let single_client_id = single_client_id.as_str();
-            to_send.retain(|client_id, _| client_id.as_str() == single_client_id);
-        } else {
+    match clients.len() {
+        0 => {
             to_send.clear();
         }
-        return;
+        1 => {
+            if let Some((single_client_id, _)) = clients.iter().next() {
+                let single_client_id = single_client_id.as_str();
+                to_send.retain(|client_id, _| client_id.as_str() == single_client_id);
+            } else {
+                to_send.clear();
+            }
+        }
+        2 => {
+            let mut client_ids = clients.keys();
+            let Some(first_client_id) = client_ids.next().map(String::as_str) else {
+                to_send.clear();
+                return;
+            };
+            let Some(second_client_id) = client_ids.next().map(String::as_str) else {
+                to_send.retain(|client_id, _| client_id.as_str() == first_client_id);
+                return;
+            };
+            to_send.retain(|client_id, _| {
+                let client_id = client_id.as_str();
+                client_id == first_client_id || client_id == second_client_id
+            });
+        }
+        3 => {
+            let mut client_ids = clients.keys();
+            let Some(first_client_id) = client_ids.next().map(String::as_str) else {
+                to_send.clear();
+                return;
+            };
+            let Some(second_client_id) = client_ids.next().map(String::as_str) else {
+                to_send.retain(|client_id, _| client_id.as_str() == first_client_id);
+                return;
+            };
+            let Some(third_client_id) = client_ids.next().map(String::as_str) else {
+                to_send.retain(|client_id, _| {
+                    let client_id = client_id.as_str();
+                    client_id == first_client_id || client_id == second_client_id
+                });
+                return;
+            };
+            to_send.retain(|client_id, _| {
+                let client_id = client_id.as_str();
+                client_id == first_client_id
+                    || client_id == second_client_id
+                    || client_id == third_client_id
+            });
+        }
+        4 => {
+            let mut client_ids = clients.keys();
+            let Some(first_client_id) = client_ids.next().map(String::as_str) else {
+                to_send.clear();
+                return;
+            };
+            let Some(second_client_id) = client_ids.next().map(String::as_str) else {
+                to_send.retain(|client_id, _| client_id.as_str() == first_client_id);
+                return;
+            };
+            let Some(third_client_id) = client_ids.next().map(String::as_str) else {
+                to_send.retain(|client_id, _| {
+                    let client_id = client_id.as_str();
+                    client_id == first_client_id || client_id == second_client_id
+                });
+                return;
+            };
+            let Some(fourth_client_id) = client_ids.next().map(String::as_str) else {
+                to_send.retain(|client_id, _| {
+                    let client_id = client_id.as_str();
+                    client_id == first_client_id
+                        || client_id == second_client_id
+                        || client_id == third_client_id
+                });
+                return;
+            };
+            to_send.retain(|client_id, _| {
+                let client_id = client_id.as_str();
+                client_id == first_client_id
+                    || client_id == second_client_id
+                    || client_id == third_client_id
+                    || client_id == fourth_client_id
+            });
+        }
+        _ => {
+            to_send.retain(|client_id, _| clients.contains_key(client_id));
+        }
     }
-    to_send.retain(|client_id, _| clients.contains_key(client_id));
 }
 
 impl<'a> System<'a> for ChunkRequestsSystem {
