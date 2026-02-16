@@ -1245,6 +1245,37 @@ describe("report-utils", () => {
     );
     expect(resolved.error).toBeNull();
     expect(resolved.outputPath).toBe("/workspace/report.json");
+    const crossRealmWrappedCwd = vm.runInNewContext("new String('/workspace')");
+    let didCallCrossRealmWrappedCwdToString = false;
+    Object.defineProperty(crossRealmWrappedCwd, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedCwdToString = true;
+        throw new Error("cross-realm cwd toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedCwdValueOf = false;
+    Object.defineProperty(crossRealmWrappedCwd, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedCwdValueOf = true;
+        throw new Error("cross-realm cwd valueOf trap");
+      },
+    });
+    const resolvedFromCrossRealmWrappedCwd = resolveOutputPath(
+      ["--json", "--output", "./report.json"],
+      crossRealmWrappedCwd as never
+    );
+    expect(resolvedFromCrossRealmWrappedCwd.error).toBeNull();
+    expect(resolvedFromCrossRealmWrappedCwd.outputPath).toBe(
+      "/workspace/report.json"
+    );
+    expect(didCallCrossRealmWrappedCwdToString).toBe(false);
+    expect(didCallCrossRealmWrappedCwdValueOf).toBe(false);
     const trapDrivenCwd = {
       [Symbol.toPrimitive]() {
         throw new Error("cwd trap");
@@ -1272,6 +1303,48 @@ describe("report-utils", () => {
       process,
       "cwd"
     );
+    const crossRealmWrappedProcessCwd = vm.runInNewContext("new String('/workspace')");
+    let didCallCrossRealmWrappedProcessCwdToString = false;
+    Object.defineProperty(crossRealmWrappedProcessCwd, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedProcessCwdToString = true;
+        throw new Error("cross-realm process.cwd toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedProcessCwdValueOf = false;
+    Object.defineProperty(crossRealmWrappedProcessCwd, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedProcessCwdValueOf = true;
+        throw new Error("cross-realm process.cwd valueOf trap");
+      },
+    });
+    Object.defineProperty(process, "cwd", {
+      configurable: true,
+      writable: true,
+      value: () => crossRealmWrappedProcessCwd,
+    });
+    try {
+      const resolvedFromWrappedProcessCwd = resolveOutputPath(
+        ["--json", "--output", "./report.json"],
+        ""
+      );
+      expect(resolvedFromWrappedProcessCwd.error).toBeNull();
+      expect(resolvedFromWrappedProcessCwd.outputPath).toBe(
+        "/workspace/report.json"
+      );
+    } finally {
+      if (originalProcessCwdDescriptor !== undefined) {
+        Object.defineProperty(process, "cwd", originalProcessCwdDescriptor);
+      }
+    }
+    expect(didCallCrossRealmWrappedProcessCwdToString).toBe(false);
+    expect(didCallCrossRealmWrappedProcessCwdValueOf).toBe(false);
     Object.defineProperty(process, "cwd", {
       configurable: true,
       writable: true,

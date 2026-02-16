@@ -3285,10 +3285,25 @@ export const resolveOutputPath = (
   cwd = null,
   recognizedOptionTokens = []
 ) => {
+  const toNonEmptyCwdStringOrNull = (value) => {
+    if (typeof value === "string") {
+      return value.length > 0 ? value : null;
+    }
+
+    if (!isStringObjectValue(value)) {
+      return null;
+    }
+
+    const wrappedCwdValue = toPrimitiveWrapperStringOrNull(value);
+    return wrappedCwdValue !== null && wrappedCwdValue.length > 0
+      ? wrappedCwdValue
+      : null;
+  };
+
   const resolveFallbackCwd = () => {
     try {
-      const processCwd = process.cwd();
-      if (typeof processCwd === "string" && processCwd.length > 0) {
+      const processCwd = toNonEmptyCwdStringOrNull(process.cwd());
+      if (processCwd !== null) {
         return processCwd;
       }
     } catch {
@@ -3307,8 +3322,7 @@ export const resolveOutputPath = (
     return "/";
   };
 
-  const resolvedCwd =
-    typeof cwd === "string" && cwd.length > 0 ? cwd : resolveFallbackCwd();
+  const resolvedCwd = toNonEmptyCwdStringOrNull(cwd) ?? resolveFallbackCwd();
   const outputPathValue = resolveLastOptionValue(
     args,
     "--output",
