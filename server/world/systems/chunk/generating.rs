@@ -189,7 +189,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
         let mut processes = Vec::with_capacity(pipeline.queue.len());
 
-        if pipeline.queue.len() > 1 {
+        if pipeline.queue.len() > 1 && !interests.weights.is_empty() {
             pipeline
                 .queue
                 .make_contiguous()
@@ -417,7 +417,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /*                         PUSHING CHUNKS TO BE MESHED                        */
         /* -------------------------------------------------------------------------- */
 
-        if mesher.queue.len() > 1 {
+        if mesher.queue.len() > 1 && !interests.weights.is_empty() {
             mesher
                 .queue
                 .make_contiguous()
