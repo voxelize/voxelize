@@ -14,9 +14,7 @@ pub struct ChunkRequestsComp {
 
 #[inline]
 fn manhattan_distance(a: &Vec2<i32>, b: &Vec2<i32>) -> u64 {
-    (i64::from(a.0) - i64::from(b.0))
-        .unsigned_abs()
-        .saturating_add((i64::from(a.1) - i64::from(b.1)).unsigned_abs())
+    u64::from(a.0.abs_diff(b.0)).saturating_add(u64::from(a.1.abs_diff(b.1)))
 }
 
 impl ChunkRequestsComp {

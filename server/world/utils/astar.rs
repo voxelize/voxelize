@@ -5,7 +5,7 @@ use crate::Vec3;
 use pathfinding::prelude::astar;
 
 fn absdiff(a: i32, b: i32) -> u32 {
-    (i64::from(a) - i64::from(b)).unsigned_abs() as u32
+    a.abs_diff(b)
 }
 
 #[inline]

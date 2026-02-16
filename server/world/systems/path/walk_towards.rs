@@ -13,7 +13,7 @@ fn axis_delta_f64(to: i32, from: i32) -> f64 {
 
 #[inline]
 fn axis_abs_delta_u64(a: i32, b: i32) -> u64 {
-    (i64::from(a) - i64::from(b)).unsigned_abs()
+    u64::from(a.abs_diff(b))
 }
 
 pub struct WalkTowardsSystem;
