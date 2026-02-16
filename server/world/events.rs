@@ -1,3 +1,4 @@
+use log::warn;
 use serde::Serialize;
 
 use crate::{ClientFilter, Vec2};
@@ -48,9 +49,13 @@ impl EventBuilder {
     }
 
     pub fn payload<T: Serialize>(mut self, payload: T) -> Self {
-        self.payload = Some(
-            serde_json::to_string(&payload).expect("Failed to serialize event payload"),
-        );
+        match serde_json::to_string(&payload) {
+            Ok(payload) => self.payload = Some(payload),
+            Err(error) => {
+                warn!("Failed to serialize event payload: {}", error);
+                self.payload = None;
+            }
+        }
         self
     }
 
@@ -96,7 +101,21 @@ impl Events {
 
 #[cfg(test)]
 mod tests {
+    use serde::ser::Error as SerdeError;
+    use serde::Serialize;
+
     use super::Event;
+
+    struct FailingPayload;
+
+    impl Serialize for FailingPayload {
+        fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            Err(S::Error::custom("serialize failure"))
+        }
+    }
 
     #[test]
     fn event_builder_without_payload_keeps_payload_empty() {
@@ -108,6 +127,14 @@ mod tests {
     fn event_builder_serializes_payload_when_provided() {
         let event = Event::new("vox-builtin:test").payload(42).build();
         assert_eq!(event.payload.as_deref(), Some("42"));
+    }
+
+    #[test]
+    fn event_builder_skips_payload_when_serialization_fails() {
+        let event = Event::new("vox-builtin:test")
+            .payload(FailingPayload)
+            .build();
+        assert!(event.payload.is_none());
     }
 
     #[test]
