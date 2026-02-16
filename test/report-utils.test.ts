@@ -340,6 +340,55 @@ describe("report-utils", () => {
     expect(parsed.exitCode).toBe(1);
   });
 
+  it("falls back to deterministic failure reports for unstringifiable payloads", () => {
+    const reportWithBigInt = {
+      passed: true,
+      exitCode: 0,
+      hugeCounter: 1n,
+    };
+    expect(() => toReportJson(reportWithBigInt as never)).not.toThrow();
+    const serializedBigIntReport = toReportJson(reportWithBigInt as never);
+    const parsedBigIntReport = JSON.parse(serializedBigIntReport) as {
+      schemaVersion: number;
+      passed: boolean;
+      exitCode: number;
+      message: string;
+      serializationError: string;
+    };
+    expect(parsedBigIntReport.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+    expect(parsedBigIntReport.passed).toBe(false);
+    expect(parsedBigIntReport.exitCode).toBe(1);
+    expect(parsedBigIntReport.message).toBe("Failed to serialize report JSON.");
+    expect(parsedBigIntReport.serializationError.length).toBeGreaterThan(0);
+    expect(serializedBigIntReport).toContain("\n");
+
+    const circularReport: { self?: object } = {};
+    circularReport.self = circularReport;
+    expect(() => toReportJson(circularReport as never)).not.toThrow();
+    const serializedCircularReport = toReportJson(circularReport as never);
+    const parsedCircularReport = JSON.parse(serializedCircularReport) as {
+      schemaVersion: number;
+      passed: boolean;
+      exitCode: number;
+      message: string;
+      serializationError: string;
+    };
+    expect(parsedCircularReport.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+    expect(parsedCircularReport.passed).toBe(false);
+    expect(parsedCircularReport.exitCode).toBe(1);
+    expect(parsedCircularReport.message).toBe("Failed to serialize report JSON.");
+    expect(parsedCircularReport.serializationError.length).toBeGreaterThan(0);
+    expect(serializedCircularReport).toContain("\n");
+
+    const compactSerializedBigIntReport = toReportJson(
+      reportWithBigInt as never,
+      {
+        compact: true,
+      }
+    );
+    expect(compactSerializedBigIntReport).not.toContain("\n");
+  });
+
   it("supports compact json serialization option", () => {
     const compactSerialized = toReportJson(
       { passed: true, exitCode: 0 },
@@ -22857,6 +22906,41 @@ describe("report-utils", () => {
     expect(parsedTrappedOptionsResult.passed).toBe(true);
     expect(parsedTrappedOptionsResult.exitCode).toBe(0);
     expect(parsedTrappedOptionsResult.outputPath).toBeNull();
+  });
+
+  it("serializes optional-write responses for unstringifiable report payloads", () => {
+    const reportWithBigInt = {
+      passed: true,
+      exitCode: 0,
+      hugeCounter: 1n,
+    };
+
+    expect(() =>
+      serializeReportWithOptionalWrite(reportWithBigInt as never, {
+        outputPath: null,
+      })
+    ).not.toThrow();
+    const serializationResult = serializeReportWithOptionalWrite(
+      reportWithBigInt as never,
+      {
+        outputPath: null,
+      }
+    );
+    expect(serializationResult.writeError).toBeNull();
+    const parsedSerializationResult = JSON.parse(serializationResult.reportJson) as {
+      schemaVersion: number;
+      passed: boolean;
+      exitCode: number;
+      message: string;
+      serializationError: string;
+    };
+    expect(parsedSerializationResult.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+    expect(parsedSerializationResult.passed).toBe(false);
+    expect(parsedSerializationResult.exitCode).toBe(1);
+    expect(parsedSerializationResult.message).toBe(
+      "Failed to serialize report JSON."
+    );
+    expect(parsedSerializationResult.serializationError.length).toBeGreaterThan(0);
   });
 
   it("returns structured serialize fallback when output-path coercion traps", () => {

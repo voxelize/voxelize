@@ -181,9 +181,64 @@ const isCompactJsonSerializationEnabled = (options) => {
   }
 };
 
+const toSerializationErrorMessage = (error) => {
+  if (!(error instanceof Error)) {
+    return "Unknown report serialization error.";
+  }
+
+  const normalizedMessage = error.message.trim();
+  return normalizedMessage.length > 0
+    ? normalizedMessage
+    : "Unknown report serialization error.";
+};
+
+const serializeJsonSafely = (value, compact) => {
+  try {
+    const serializedValue = JSON.stringify(value, null, compact ? 0 : 2);
+    return {
+      json: typeof serializedValue === "string" ? serializedValue : null,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      json: null,
+      error,
+    };
+  }
+};
+
 export const toReportJson = (report, options = {}) => {
   const compact = isCompactJsonSerializationEnabled(options);
-  return JSON.stringify(toReport(report), null, compact ? 0 : 2);
+  const reportSnapshot = toReport(report);
+  const serializedReport = serializeJsonSafely(reportSnapshot, compact);
+  if (serializedReport.json !== null) {
+    return serializedReport.json;
+  }
+
+  const serializationFailureReport = {
+    schemaVersion: REPORT_SCHEMA_VERSION,
+    passed: false,
+    exitCode: 1,
+    message: "Failed to serialize report JSON.",
+    serializationError: toSerializationErrorMessage(serializedReport.error),
+  };
+  const serializedFailureReport = serializeJsonSafely(
+    serializationFailureReport,
+    compact
+  );
+  if (serializedFailureReport.json !== null) {
+    return serializedFailureReport.json;
+  }
+
+  return compact
+    ? `{"schemaVersion":${REPORT_SCHEMA_VERSION},"passed":false,"exitCode":1,"message":"Failed to serialize report JSON.","serializationError":"Unknown report serialization error."}`
+    : `{
+  "schemaVersion": ${REPORT_SCHEMA_VERSION},
+  "passed": false,
+  "exitCode": 1,
+  "message": "Failed to serialize report JSON.",
+  "serializationError": "Unknown report serialization error."
+}`;
 };
 
 export const createTimedReportBuilder = (
