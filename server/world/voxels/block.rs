@@ -1525,7 +1525,11 @@ impl Block {
                 return self.aabbs.clone();
             }
 
-            (self.dynamic_fn.as_ref().unwrap())(*pos, space, registry).1
+            if let Some(dynamic_fn) = self.dynamic_fn.as_ref() {
+                dynamic_fn(*pos, space, registry).1
+            } else {
+                self.aabbs.clone()
+            }
         } else {
             self.aabbs.clone()
         }
@@ -1548,7 +1552,11 @@ impl Block {
                 return self.faces.clone();
             }
 
-            (self.dynamic_fn.as_ref().unwrap())(*pos, space, registry).0
+            if let Some(dynamic_fn) = self.dynamic_fn.as_ref() {
+                dynamic_fn(*pos, space, registry).0
+            } else {
+                self.faces.clone()
+            }
         } else {
             self.faces.clone()
         }
