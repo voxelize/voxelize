@@ -51,6 +51,13 @@ const splitOnDashOrUnderscore = (value: string): string[] | null => {
   return parts;
 };
 
+const hasSubstringOverlap = (first: string, second: string): boolean => {
+  if (first.length >= second.length) {
+    return first.indexOf(second) >= 0;
+  }
+  return second.indexOf(first) >= 0;
+};
+
 export function findSimilar(
   target: string,
   available: string[],
@@ -66,7 +73,7 @@ export function findSimilar(
     const nameLower = toLowerCaseIfNeeded(name);
     let score = 0;
 
-    if (nameLower.includes(targetLower) || targetLower.includes(nameLower)) {
+    if (hasSubstringOverlap(nameLower, targetLower)) {
       score += 10;
     }
 
@@ -78,25 +85,25 @@ export function findSimilar(
           for (let namePartIndex = 0; namePartIndex < nameParts.length; namePartIndex++) {
             const np = nameParts[namePartIndex];
             if (tp === np) score += 5;
-            else if (tp.includes(np) || np.includes(tp)) score += 2;
+            else if (hasSubstringOverlap(tp, np)) score += 2;
           }
         }
       } else {
         for (let targetPartIndex = 0; targetPartIndex < targetParts.length; targetPartIndex++) {
           const tp = targetParts[targetPartIndex];
           if (tp === nameLower) score += 5;
-          else if (tp.includes(nameLower) || nameLower.includes(tp)) score += 2;
+          else if (hasSubstringOverlap(tp, nameLower)) score += 2;
         }
       }
     } else if (nameParts) {
       for (let namePartIndex = 0; namePartIndex < nameParts.length; namePartIndex++) {
         const np = nameParts[namePartIndex];
         if (targetLower === np) score += 5;
-        else if (targetLower.includes(np) || np.includes(targetLower)) score += 2;
+        else if (hasSubstringOverlap(targetLower, np)) score += 2;
       }
     } else {
       if (targetLower === nameLower) score += 5;
-      else if (targetLower.includes(nameLower) || nameLower.includes(targetLower)) score += 2;
+      else if (hasSubstringOverlap(targetLower, nameLower)) score += 2;
     }
 
     if (targetLower[0] === nameLower[0]) score += 1;
