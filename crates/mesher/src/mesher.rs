@@ -1092,6 +1092,11 @@ fn compute_face_ao_and_light(
 
     let mut aos = [0i32; 4];
     let mut lights = [0i32; 4];
+    let center_light = if is_see_through || is_all_transparent {
+        Some(neighbors.get_all_lights(0, 0, 0))
+    } else {
+        None
+    };
 
     for (i, pos) in corner_positions.iter().enumerate() {
         let dx = if pos[0] <= block_aabb.min_x + 0.01 {
@@ -1125,9 +1130,9 @@ fn compute_face_ao_and_light(
             vertex_ao(b011, b101, b111)
         };
 
-        let (sunlight, red_light, green_light, blue_light) = if is_see_through || is_all_transparent
+        let (sunlight, red_light, green_light, blue_light) = if let Some(center_light) = center_light
         {
-            neighbors.get_all_lights(0, 0, 0)
+            center_light
         } else {
             let mut sum_sunlights = 0u32;
             let mut sum_red_lights = 0u32;
@@ -1753,6 +1758,12 @@ fn process_face<S: VoxelAccess>(
     } else {
         0.0001
     };
+    let center_light = if is_see_through || is_all_transparent {
+        Some(neighbors.get_all_lights(0, 0, 0))
+    } else {
+        None
+    };
+    let fluid_surface_above = is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space);
 
     for (corner_index, corner) in face.corners.iter().enumerate() {
         let mut pos = corner.pos;
@@ -1808,8 +1819,7 @@ fn process_face<S: VoxelAccess>(
         let green_light;
         let blue_light;
 
-        if is_see_through || is_all_transparent {
-            let (s, r, g, b) = neighbors.get_all_lights(0, 0, 0);
+        if let Some((s, r, g, b)) = center_light {
             sunlight = s;
             red_light = r;
             green_light = g;
@@ -1912,7 +1922,6 @@ fn process_face<S: VoxelAccess>(
         light = LightUtils::insert_blue_light(light, blue_light);
         light = LightUtils::insert_sunlight(light, sunlight);
         let fluid_bit = if is_fluid { 1 << 18 } else { 0 };
-        let fluid_surface_above = is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space);
         let wave_bit = if is_fluid && dy == 1 && !fluid_surface_above {
             1 << 20
         } else {
