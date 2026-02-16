@@ -107,10 +107,10 @@ fn take_entity_updates_to_send(
         return None;
     }
     if updates.len() == 1 {
-        if let Some(single_update) = updates.pop() {
-            return Some(Err(single_update));
-        }
-        return None;
+        let Some(single_update) = updates.pop() else {
+            unreachable!("single entity update length matched branch");
+        };
+        return Some(Err(single_update));
     }
     let next_update_capacity = updates.capacity();
     Some(Ok(std::mem::replace(

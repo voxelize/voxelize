@@ -27,14 +27,15 @@ fn enqueue_chunk_models_for_client(
         return;
     }
     if chunk_models_buffer.len() == 1 {
-        if let Some(single_model) = chunk_models_buffer.pop() {
-            queue.push((
-                Message::new(&MessageType::Load)
-                    .chunk_owned(single_model)
-                    .build(),
-                ClientFilter::Direct(client_id),
-            ));
-        }
+        let Some(single_model) = chunk_models_buffer.pop() else {
+            unreachable!("single chunk request model length matched branch");
+        };
+        queue.push((
+            Message::new(&MessageType::Load)
+                .chunk_owned(single_model)
+                .build(),
+            ClientFilter::Direct(client_id),
+        ));
         return;
     }
     let next_chunk_buffer_capacity = chunk_models_buffer.capacity();
@@ -62,13 +63,14 @@ fn flush_chunk_requests_for_client(
         return;
     }
     if coords_to_send.len() == 1 {
-        if let Some(coords) = coords_to_send.iter().next().copied() {
-            coords_to_send.clear();
-            if let Some(chunk) = chunks.get(&coords) {
-                chunk_models_buffer.clear();
-                chunk_models_buffer.push(chunk.to_model(true, true, 0..sub_chunks_u32));
-                enqueue_chunk_models_for_client(queue, chunk_models_buffer, client_id);
-            }
+        let Some(coords) = coords_to_send.iter().next().copied() else {
+            unreachable!("single chunk request coords length matched branch");
+        };
+        coords_to_send.clear();
+        if let Some(chunk) = chunks.get(&coords) {
+            chunk_models_buffer.clear();
+            chunk_models_buffer.push(chunk.to_model(true, true, 0..sub_chunks_u32));
+            enqueue_chunk_models_for_client(queue, chunk_models_buffer, client_id);
         }
         return;
     }

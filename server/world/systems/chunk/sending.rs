@@ -440,10 +440,10 @@ fn take_chunk_models_to_send(
         return None;
     }
     if chunk_models.len() == 1 {
-        if let Some(single_model) = chunk_models.pop() {
-            return Some(Err(single_model));
-        }
-        return None;
+        let Some(single_model) = chunk_models.pop() else {
+            unreachable!("single chunk model length matched branch");
+        };
+        return Some(Err(single_model));
     }
     let next_chunk_capacity = chunk_models.capacity();
     Some(Ok(std::mem::replace(

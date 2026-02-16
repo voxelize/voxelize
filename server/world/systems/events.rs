@@ -558,7 +558,9 @@ fn build_transport_events_message(
         return None;
     }
     if transports_map.len() == 1 {
-        let single_event = transports_map.pop()?;
+        let Some(single_event) = transports_map.pop() else {
+            unreachable!("single transport event length matched branch");
+        };
         return Some(
             Message::new(&MessageType::Event)
                 .world_name(world_name)
@@ -587,10 +589,10 @@ fn take_client_events_to_send(
         return None;
     }
     if client_events.len() == 1 {
-        if let Some(single_event) = client_events.pop() {
-            return Some(Err(single_event));
-        }
-        return None;
+        let Some(single_event) = client_events.pop() else {
+            unreachable!("single client event length matched branch");
+        };
+        return Some(Err(single_event));
     }
     let next_client_event_capacity = client_events.capacity();
     Some(Ok(std::mem::replace(
