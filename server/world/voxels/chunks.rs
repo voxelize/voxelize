@@ -751,10 +751,12 @@ impl Chunks {
             return;
         }
         let chunk_size = self.chunk_size();
-        let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
-        let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+        let (chunk_coords, local_coords) =
+            ChunkUtils::map_voxel_to_chunk_and_local(vx, vy, vz, chunk_size);
+        let Vec2(cx, cz) = chunk_coords;
+        let Vec3(lx, _, lz) = local_coords;
 
-        self.add_updated_level_for_chunk(Vec2(cx, cz), vy);
+        self.add_updated_level_for_chunk(chunk_coords, vy);
 
         let touches_min_x = lx == 0;
         let touches_min_z = lz == 0;
@@ -814,9 +816,10 @@ impl VoxelAccess for Chunks {
             return 0;
         }
         let chunk_size = self.chunk_size();
-        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        let (coords, local_coords) =
+            ChunkUtils::map_voxel_to_chunk_and_local(vx, vy, vz, chunk_size);
         if let Some(chunk) = self.raw(&coords) {
-            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            let Vec3(lx, ly, lz) = local_coords;
             if !Self::local_is_within_chunk(chunk, lx, ly, lz) {
                 return 0;
             }
@@ -832,13 +835,14 @@ impl VoxelAccess for Chunks {
             return false;
         }
         let chunk_size = self.chunk_size();
-        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        let (coords, local_coords) =
+            ChunkUtils::map_voxel_to_chunk_and_local(vx, vy, vz, chunk_size);
 
         {
             let Some(chunk) = self.raw_mut(&coords) else {
                 return false;
             };
-            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            let Vec3(lx, ly, lz) = local_coords;
             if !Self::local_is_within_chunk(chunk, lx, ly, lz) {
                 if vy >= 0 && (vy as usize) < chunk.options.max_height {
                     chunk.extra_changes.push((Vec3(vx, vy, vz), id));
@@ -865,9 +869,10 @@ impl VoxelAccess for Chunks {
             return 0;
         }
         let chunk_size = self.chunk_size();
-        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        let (coords, local_coords) =
+            ChunkUtils::map_voxel_to_chunk_and_local(vx, vy, vz, chunk_size);
         if let Some(chunk) = self.raw(&coords) {
-            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            let Vec3(lx, ly, lz) = local_coords;
             if !Self::local_is_within_chunk(chunk, lx, ly, lz) {
                 return 0;
             }
@@ -883,13 +888,14 @@ impl VoxelAccess for Chunks {
             return false;
         }
         let chunk_size = self.chunk_size();
-        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        let (coords, local_coords) =
+            ChunkUtils::map_voxel_to_chunk_and_local(vx, vy, vz, chunk_size);
 
         {
             let Some(chunk) = self.raw_mut(&coords) else {
                 return false;
             };
-            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            let Vec3(lx, ly, lz) = local_coords;
             if !Self::local_is_within_chunk(chunk, lx, ly, lz) {
                 return false;
             }
@@ -913,9 +919,10 @@ impl VoxelAccess for Chunks {
             return 0;
         }
         let chunk_size = self.chunk_size();
-        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        let (coords, local_coords) =
+            ChunkUtils::map_voxel_to_chunk_and_local(vx, vy, vz, chunk_size);
         if let Some(chunk) = self.raw(&coords) {
-            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            let Vec3(lx, ly, lz) = local_coords;
             if !Self::local_is_within_chunk(chunk, lx, ly, lz) {
                 return 0;
             }
@@ -928,9 +935,10 @@ impl VoxelAccess for Chunks {
     /// Get the max height at a voxel column. Returns 0 if column does not exist.
     fn get_max_height(&self, vx: i32, vz: i32) -> u32 {
         let chunk_size = self.chunk_size();
-        let coords = ChunkUtils::map_voxel_to_chunk(vx, 0, vz, chunk_size);
+        let (coords, local_coords) =
+            ChunkUtils::map_voxel_to_chunk_and_local(vx, 0, vz, chunk_size);
         if let Some(chunk) = self.raw(&coords) {
-            let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, 0, vz, chunk_size);
+            let Vec3(lx, _, lz) = local_coords;
             if !Self::local_column_is_within_chunk(chunk, lx, lz) {
                 return 0;
             }
@@ -943,10 +951,11 @@ impl VoxelAccess for Chunks {
     /// Set the max height at a voxel column. Does nothing if column does not exist.
     fn set_max_height(&mut self, vx: i32, vz: i32, height: u32) -> bool {
         let chunk_size = self.chunk_size();
-        let coords = ChunkUtils::map_voxel_to_chunk(vx, 0, vz, chunk_size);
+        let (coords, local_coords) =
+            ChunkUtils::map_voxel_to_chunk_and_local(vx, 0, vz, chunk_size);
 
         if let Some(chunk) = self.raw_mut(&coords) {
-            let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, 0, vz, chunk_size);
+            let Vec3(lx, _, lz) = local_coords;
             if !Self::local_column_is_within_chunk(chunk, lx, lz) {
                 return false;
             }
@@ -966,9 +975,10 @@ impl VoxelAccess for Chunks {
         }
 
         let chunk_size = self.chunk_size();
-        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        let (coords, local_coords) =
+            ChunkUtils::map_voxel_to_chunk_and_local(vx, vy, vz, chunk_size);
         if let Some(chunk) = self.raw(&coords) {
-            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            let Vec3(lx, ly, lz) = local_coords;
             return Self::local_is_within_chunk(chunk, lx, ly, lz);
         }
 
