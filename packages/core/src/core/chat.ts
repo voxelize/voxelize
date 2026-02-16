@@ -48,6 +48,25 @@ const assignParsedArg = (
   rawObj[key] = value;
 };
 
+const hasCommandPrefix = (
+  body: string,
+  commandSymbol: string,
+  commandBodyStart: number
+) => {
+  if (commandBodyStart <= 1 || body.length < commandBodyStart) {
+    return false;
+  }
+  if (body.charCodeAt(0) !== commandSymbol.charCodeAt(0)) {
+    return false;
+  }
+  for (let index = 1; index < commandBodyStart; index++) {
+    if (body.charCodeAt(index) !== commandSymbol.charCodeAt(index)) {
+      return false;
+    }
+  }
+  return true;
+};
+
 /**
  * Options for adding a command.
  */
@@ -186,10 +205,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     const isCommand =
       commandSymbolFirstCode >= 0
         ? body.charCodeAt(0) === commandSymbolFirstCode
-        : commandBodyStart > 1 &&
-          body.length >= commandBodyStart &&
-          body.charCodeAt(0) === commandSymbol.charCodeAt(0) &&
-          body.startsWith(commandSymbol);
+        : hasCommandPrefix(body, commandSymbol, commandBodyStart);
     if (isCommand) {
       this.parseCommandBody(body, commandBodyStart);
       const trigger = this.parsedCommandTrigger || undefined;
