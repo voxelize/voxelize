@@ -159,6 +159,8 @@ fn process_pending_updates(
 
     let mut updates_by_chunk: HashMap<Vec2<i32>, Vec<(Vec3<i32>, u32, u32, &crate::Block)>> =
         HashMap::with_capacity(num_to_process);
+    let mut last_updated_id: Option<u32> = None;
+    let mut last_updated_type: Option<&crate::Block> = None;
 
     for _ in 0..num_to_process {
         let Some((voxel, raw)) = chunks.updates.pop_front() else {
@@ -170,8 +172,19 @@ fn process_pending_updates(
         if vy < 0 || (has_max_height_limit && vy >= max_height_limit) {
             continue;
         }
-        let Some(updated_type) = registry.get_known_block_by_id(updated_id) else {
-            continue;
+        let updated_type = if last_updated_id == Some(updated_id) {
+            if let Some(updated_type) = last_updated_type {
+                updated_type
+            } else {
+                continue;
+            }
+        } else {
+            let Some(updated_type) = registry.get_known_block_by_id(updated_id) else {
+                continue;
+            };
+            last_updated_id = Some(updated_id);
+            last_updated_type = Some(updated_type);
+            updated_type
         };
 
         let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
