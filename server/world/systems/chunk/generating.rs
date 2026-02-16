@@ -42,11 +42,7 @@ fn accumulate_chunk_interest_weight(weight: f32, distance: f32, alignment: f32) 
     if alignment <= 0.0 {
         return weight;
     }
-    let contribution = distance * alignment;
-    if !contribution.is_finite() {
-        return f32::MAX;
-    }
-    let next = weight + contribution;
+    let next = distance.mul_add(alignment, weight);
     if next.is_finite() {
         next
     } else {
