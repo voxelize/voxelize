@@ -2532,7 +2532,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
             let quads =
                 extract_greedy_quads(&mut greedy_mask, u_range.0, u_range.1, v_range.0, v_range.1);
 
-            for quad in quads {
+            for mut quad in quads {
                 let block = match registry.get_block_by_id(quad.data.key.block_id) {
                     Some(b) => b,
                     None => continue,
@@ -2552,16 +2552,16 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                             g
                         })
                     } else {
-                        let face_name_lower =
-                            lowercase_if_needed(quad.data.key.face_name.as_str());
+                        let face_name = std::mem::take(&mut quad.data.key.face_name);
+                        let face_name_lower = lowercase_if_needed(face_name.as_str());
                         let geo_key = build_independent_geo_key(
                             block.get_name_lower(),
                             face_name_lower.as_ref(),
                         );
-                        map.entry(geo_key).or_insert_with(|| {
+                        map.entry(geo_key).or_insert_with(move || {
                             let mut g = GeometryProtocol::default();
                             g.voxel = quad.data.key.block_id;
-                            g.face_name = Some(quad.data.key.face_name.clone());
+                            g.face_name = Some(face_name);
                             g
                         })
                     }
