@@ -704,17 +704,98 @@ impl Chunks {
         }
 
         let staged_count = self.updates_staging.len();
-        if staged_count == 1 {
-            let (voxel, val) = {
-                let mut staged_updates = self.updates_staging.iter();
-                let Some((voxel, val)) = staged_updates.next() else {
-                    unreachable!("single staged update length matched branch");
+        match staged_count {
+            1 => {
+                let (voxel, val) = {
+                    let mut staged_updates = self.updates_staging.iter();
+                    let Some((voxel, val)) = staged_updates.next() else {
+                        unreachable!("single staged update length matched branch");
+                    };
+                    (*voxel, *val)
                 };
-                (*voxel, *val)
-            };
-            self.updates_staging.clear();
-            self.updates.push_back((voxel, val));
-            return;
+                self.updates_staging.clear();
+                self.updates.push_back((voxel, val));
+                return;
+            }
+            2 => {
+                let ((first_voxel, first_val), (second_voxel, second_val)) = {
+                    let mut staged_updates = self.updates_staging.iter();
+                    let Some((first_voxel, first_val)) = staged_updates.next() else {
+                        unreachable!("two staged updates length matched branch");
+                    };
+                    let Some((second_voxel, second_val)) = staged_updates.next() else {
+                        unreachable!("two staged updates length matched branch");
+                    };
+                    ((*first_voxel, *first_val), (*second_voxel, *second_val))
+                };
+                self.updates_staging.clear();
+                self.updates.push_back((first_voxel, first_val));
+                self.updates.push_back((second_voxel, second_val));
+                return;
+            }
+            3 => {
+                let (
+                    (first_voxel, first_val),
+                    (second_voxel, second_val),
+                    (third_voxel, third_val),
+                ) = {
+                    let mut staged_updates = self.updates_staging.iter();
+                    let Some((first_voxel, first_val)) = staged_updates.next() else {
+                        unreachable!("three staged updates length matched branch");
+                    };
+                    let Some((second_voxel, second_val)) = staged_updates.next() else {
+                        unreachable!("three staged updates length matched branch");
+                    };
+                    let Some((third_voxel, third_val)) = staged_updates.next() else {
+                        unreachable!("three staged updates length matched branch");
+                    };
+                    (
+                        (*first_voxel, *first_val),
+                        (*second_voxel, *second_val),
+                        (*third_voxel, *third_val),
+                    )
+                };
+                self.updates_staging.clear();
+                self.updates.push_back((first_voxel, first_val));
+                self.updates.push_back((second_voxel, second_val));
+                self.updates.push_back((third_voxel, third_val));
+                return;
+            }
+            4 => {
+                let (
+                    (first_voxel, first_val),
+                    (second_voxel, second_val),
+                    (third_voxel, third_val),
+                    (fourth_voxel, fourth_val),
+                ) = {
+                    let mut staged_updates = self.updates_staging.iter();
+                    let Some((first_voxel, first_val)) = staged_updates.next() else {
+                        unreachable!("four staged updates length matched branch");
+                    };
+                    let Some((second_voxel, second_val)) = staged_updates.next() else {
+                        unreachable!("four staged updates length matched branch");
+                    };
+                    let Some((third_voxel, third_val)) = staged_updates.next() else {
+                        unreachable!("four staged updates length matched branch");
+                    };
+                    let Some((fourth_voxel, fourth_val)) = staged_updates.next() else {
+                        unreachable!("four staged updates length matched branch");
+                    };
+                    (
+                        (*first_voxel, *first_val),
+                        (*second_voxel, *second_val),
+                        (*third_voxel, *third_val),
+                        (*fourth_voxel, *fourth_val),
+                    )
+                };
+                self.updates_staging.clear();
+                self.updates.push_back((first_voxel, first_val));
+                self.updates.push_back((second_voxel, second_val));
+                self.updates.push_back((third_voxel, third_val));
+                self.updates.push_back((fourth_voxel, fourth_val));
+                return;
+            }
+            _ => {}
         }
         self.updates.reserve(staged_count);
         let staged_updates = take_map_with_capacity(&mut self.updates_staging);
@@ -1292,6 +1373,32 @@ mod tests {
         assert_eq!(merged_updates.get(&second_voxel), Some(&22));
         assert_eq!(merged_updates.get(&third_voxel), Some(&33));
         assert_eq!(merged_updates.get(&fourth_voxel), Some(&44));
+    }
+
+    #[test]
+    fn flush_staged_updates_moves_three_staged_voxels_when_queue_empty() {
+        let config = WorldConfig::new().build();
+        let mut chunks = Chunks::new(&config);
+        let first_voxel = Vec3(1, 2, 3);
+        let second_voxel = Vec3(4, 5, 6);
+        let third_voxel = Vec3(7, 8, 9);
+
+        chunks.updates_staging.insert(first_voxel, 10);
+        chunks.updates_staging.insert(second_voxel, 20);
+        chunks.updates_staging.insert(third_voxel, 30);
+
+        chunks.flush_staged_updates();
+
+        assert!(chunks.updates_staging.is_empty());
+        assert_eq!(chunks.updates.len(), 3);
+
+        let mut drained_updates = HashMap::with_capacity(chunks.updates.len());
+        for (voxel, val) in chunks.updates.iter().copied() {
+            assert!(drained_updates.insert(voxel, val).is_none());
+        }
+        assert_eq!(drained_updates.get(&first_voxel), Some(&10));
+        assert_eq!(drained_updates.get(&second_voxel), Some(&20));
+        assert_eq!(drained_updates.get(&third_voxel), Some(&30));
     }
 
     #[test]
