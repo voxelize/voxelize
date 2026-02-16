@@ -846,8 +846,6 @@ fn has_standard_six_faces(block: &Block) -> bool {
         if is_cardinal_face_dir(face.dir) {
             return true;
         }
-    }
-    for face in &block.faces {
         let face_name = face_name_lower(face);
         if matches!(
             face_name.as_ref(),
