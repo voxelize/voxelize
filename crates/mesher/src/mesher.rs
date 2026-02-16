@@ -609,21 +609,6 @@ fn has_fluid_above<S: VoxelAccess>(vx: i32, vy: i32, vz: i32, fluid_id: u32, spa
     space.get_voxel(vx, vy + 1, vz) == fluid_id
 }
 
-fn get_fluid_height_at<S: VoxelAccess>(
-    vx: i32,
-    vy: i32,
-    vz: i32,
-    fluid_id: u32,
-    space: &S,
-) -> Option<f32> {
-    if space.get_voxel(vx, vy, vz) == fluid_id {
-        let stage = space.get_voxel_stage(vx, vy, vz);
-        Some(get_fluid_effective_height(stage))
-    } else {
-        None
-    }
-}
-
 fn calculate_fluid_corner_height<S: VoxelAccess>(
     vx: i32,
     vy: i32,
@@ -661,12 +646,13 @@ fn calculate_fluid_corner_height<S: VoxelAccess>(
         if has_fluid_above(nx, vy, nz, fluid_id, space) {
             total_height += 1.0;
             count += 1.0;
-        } else if let Some(h) = get_fluid_height_at(nx, vy, nz, fluid_id, space) {
-            total_height += h;
-            count += 1.0;
         } else {
             let neighbor_id = space.get_voxel(nx, vy, nz);
-            if let Some(neighbor_block) = registry.get_block_by_id(neighbor_id) {
+            if neighbor_id == fluid_id {
+                let stage = space.get_voxel_stage(nx, vy, nz);
+                total_height += get_fluid_effective_height(stage);
+                count += 1.0;
+            } else if let Some(neighbor_block) = registry.get_block_by_id(neighbor_id) {
                 if neighbor_block.is_empty {
                     has_air_neighbor = true;
                 } else {
