@@ -20520,6 +20520,34 @@ describe("report-utils", () => {
       failedSteps: [],
       skippedSteps: [],
     });
+    const emptyIteratorLengthZeroIndexedSteps = new Proxy(
+      [{ name: "step-a", passed: true, skipped: false }],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(summarizeStepResults(emptyIteratorLengthZeroIndexedSteps as never)).toEqual(
+      {
+        totalSteps: 1,
+        passedStepCount: 1,
+        failedStepCount: 0,
+        skippedStepCount: 0,
+        firstFailedStep: null,
+        passedSteps: ["step-a"],
+        failedSteps: [],
+        skippedSteps: [],
+      }
+    );
 
     const ownKeysHasTrapSteps = new Proxy(
       [{ name: "step-a", passed: true, skipped: false }],
@@ -23171,6 +23199,32 @@ describe("report-utils", () => {
       }
     );
     expect(summarizeCheckResults(ownKeysTrapChecks as never)).toEqual({
+      totalChecks: 1,
+      passedCheckCount: 1,
+      failedCheckCount: 0,
+      firstFailedCheck: null,
+      passedChecks: ["devEnvironment"],
+      failedChecks: [],
+    });
+    const emptyIteratorLengthZeroIndexedChecks = new Proxy(
+      [{ name: "devEnvironment", passed: true }],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      summarizeCheckResults(emptyIteratorLengthZeroIndexedChecks as never)
+    ).toEqual({
       totalChecks: 1,
       passedCheckCount: 1,
       failedCheckCount: 0,
