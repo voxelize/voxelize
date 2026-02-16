@@ -2951,6 +2951,30 @@ describe("report-utils", () => {
     expect(
       unknownWithEmptyIteratorLengthZeroAndOwnKeysTrapValueMetadataOverride
     ).toEqual([]);
+    const unknownWithEmptyIteratorLengthZeroAndIndexedValueMetadataOverride =
+      parseUnknownCliOptions(["--output", "-artifact-report.json"], {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        valueOptionTokenMetadata: {
+          tokens: new Proxy(["--output"], {
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 0;
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+          unavailable: false,
+        } as never,
+      });
+    expect(
+      unknownWithEmptyIteratorLengthZeroAndIndexedValueMetadataOverride
+    ).toEqual([]);
     const unknownWithEmptyIteratorLengthAndReadTrapValueMetadataOverride =
       parseUnknownCliOptions(["--output", "-artifact-report.json"], {
         canonicalOptions: ["--output"],
@@ -3149,6 +3173,31 @@ describe("report-utils", () => {
       });
     expect(
       unknownWithEmptyIteratorLengthZeroAndOwnKeysTrapStrictMetadataOverride
+    ).toEqual(["-l"]);
+    const unknownWithEmptyIteratorLengthZeroAndIndexedStrictMetadataOverride =
+      parseUnknownCliOptions(["--output", "-l"], {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+        strictValueOptionTokenMetadata: {
+          tokens: new Proxy(["--output"], {
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 0;
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+          unavailable: false,
+        } as never,
+      });
+    expect(
+      unknownWithEmptyIteratorLengthZeroAndIndexedStrictMetadataOverride
     ).toEqual(["-l"]);
     const unknownWithEmptyIteratorLengthAndReadTrapStrictMetadataOverride =
       parseUnknownCliOptions(["--output", "-l"], {
@@ -5126,6 +5175,45 @@ describe("report-utils", () => {
     expect(
       emptyIteratorLengthZeroAndOwnKeysTrapValueMetadataOverrideValidation.validationErrorCode
     ).toBeNull();
+    const emptyIteratorLengthZeroAndIndexedValueMetadataOverrideValidation =
+      createCliOptionValidation(["--output", "-artifact-report.json"], {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        valueOptionTokenMetadata: {
+          tokens: new Proxy(["--output"], {
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 0;
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+          unavailable: false,
+        } as never,
+      });
+    expect(
+      emptyIteratorLengthZeroAndIndexedValueMetadataOverrideValidation.supportedCliOptions
+    ).toEqual(["--output"]);
+    expect(
+      emptyIteratorLengthZeroAndIndexedValueMetadataOverrideValidation.supportedCliOptionCount
+    ).toBe(1);
+    expect(
+      emptyIteratorLengthZeroAndIndexedValueMetadataOverrideValidation.unknownOptions
+    ).toEqual([]);
+    expect(
+      emptyIteratorLengthZeroAndIndexedValueMetadataOverrideValidation.unknownOptionCount
+    ).toBe(0);
+    expect(
+      emptyIteratorLengthZeroAndIndexedValueMetadataOverrideValidation.unsupportedOptionsError
+    ).toBeNull();
+    expect(
+      emptyIteratorLengthZeroAndIndexedValueMetadataOverrideValidation.validationErrorCode
+    ).toBeNull();
     const explicitEmptyValueMetadataOverrideValidation = createCliOptionValidation(
       ["--output", "-artifact-report.json"],
       {
@@ -5388,6 +5476,46 @@ describe("report-utils", () => {
     ).toBe("Unsupported option(s): -l. Supported options: --output.");
     expect(
       emptyIteratorLengthZeroAndOwnKeysTrapStrictMetadataOverrideValidation.validationErrorCode
+    ).toBe("unsupported_options");
+    const emptyIteratorLengthZeroAndIndexedStrictMetadataOverrideValidation =
+      createCliOptionValidation(["--output", "-l"], {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+        strictValueOptionTokenMetadata: {
+          tokens: new Proxy(["--output"], {
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 0;
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+          unavailable: false,
+        } as never,
+      });
+    expect(
+      emptyIteratorLengthZeroAndIndexedStrictMetadataOverrideValidation.supportedCliOptions
+    ).toEqual(["--output"]);
+    expect(
+      emptyIteratorLengthZeroAndIndexedStrictMetadataOverrideValidation.supportedCliOptionCount
+    ).toBe(1);
+    expect(
+      emptyIteratorLengthZeroAndIndexedStrictMetadataOverrideValidation.unknownOptions
+    ).toEqual(["-l"]);
+    expect(
+      emptyIteratorLengthZeroAndIndexedStrictMetadataOverrideValidation.unknownOptionCount
+    ).toBe(1);
+    expect(
+      emptyIteratorLengthZeroAndIndexedStrictMetadataOverrideValidation.unsupportedOptionsError
+    ).toBe("Unsupported option(s): -l. Supported options: --output.");
+    expect(
+      emptyIteratorLengthZeroAndIndexedStrictMetadataOverrideValidation.validationErrorCode
     ).toBe("unsupported_options");
     const explicitEmptyStrictMetadataOverrideValidation =
       createCliOptionValidation(["--output", "-l"], {
@@ -10677,6 +10805,53 @@ describe("report-utils", () => {
     expect(
       emptyIteratorLengthZeroAndOwnKeysTrapValueOptionDiagnostics.activeCliOptionTokens
     ).toEqual(["--output", "-l"]);
+    const emptyIteratorLengthZeroAndIndexedValueOptionDiagnostics =
+      createCliDiagnostics(["--output", "-l"], {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-l"],
+        },
+        optionsWithValues: new Proxy(["--output"], {
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              return function* () {
+                return;
+              };
+            }
+            if (property === "length") {
+              return 0;
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      });
+    expect(
+      emptyIteratorLengthZeroAndIndexedValueOptionDiagnostics.supportedCliOptions
+    ).toEqual(["--output", "--json", "-l"]);
+    expect(
+      emptyIteratorLengthZeroAndIndexedValueOptionDiagnostics.supportedCliOptionCount
+    ).toBe(3);
+    expect(
+      emptyIteratorLengthZeroAndIndexedValueOptionDiagnostics.unknownOptions
+    ).toEqual([]);
+    expect(
+      emptyIteratorLengthZeroAndIndexedValueOptionDiagnostics.unknownOptionCount
+    ).toBe(0);
+    expect(
+      emptyIteratorLengthZeroAndIndexedValueOptionDiagnostics.unsupportedOptionsError
+    ).toBeNull();
+    expect(
+      emptyIteratorLengthZeroAndIndexedValueOptionDiagnostics.validationErrorCode
+    ).toBeNull();
+    expect(
+      emptyIteratorLengthZeroAndIndexedValueOptionDiagnostics.activeCliOptions
+    ).toEqual(["--output", "--json"]);
+    expect(
+      emptyIteratorLengthZeroAndIndexedValueOptionDiagnostics.activeCliOptionCount
+    ).toBe(2);
+    expect(
+      emptyIteratorLengthZeroAndIndexedValueOptionDiagnostics.activeCliOptionTokens
+    ).toEqual(["--output", "-l"]);
     const sparseHoleValueOptionDiagnostics = createCliDiagnostics(
       ["--output", "-l"],
       {
@@ -11060,6 +11235,54 @@ describe("report-utils", () => {
     ).toBe(2);
     expect(
       emptyIteratorLengthZeroAndOwnKeysTrapStrictValueOptionDiagnostics.activeCliOptionTokens
+    ).toEqual(["--output", "-j"]);
+    const emptyIteratorLengthZeroAndIndexedStrictValueOptionDiagnostics =
+      createCliDiagnostics(["--output", "-j"], {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-j"],
+        },
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: new Proxy(["--output"], {
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              return function* () {
+                return;
+              };
+            }
+            if (property === "length") {
+              return 0;
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      });
+    expect(
+      emptyIteratorLengthZeroAndIndexedStrictValueOptionDiagnostics.supportedCliOptions
+    ).toEqual(["--output", "--json", "-j"]);
+    expect(
+      emptyIteratorLengthZeroAndIndexedStrictValueOptionDiagnostics.supportedCliOptionCount
+    ).toBe(3);
+    expect(
+      emptyIteratorLengthZeroAndIndexedStrictValueOptionDiagnostics.unknownOptions
+    ).toEqual([]);
+    expect(
+      emptyIteratorLengthZeroAndIndexedStrictValueOptionDiagnostics.unknownOptionCount
+    ).toBe(0);
+    expect(
+      emptyIteratorLengthZeroAndIndexedStrictValueOptionDiagnostics.unsupportedOptionsError
+    ).toBeNull();
+    expect(
+      emptyIteratorLengthZeroAndIndexedStrictValueOptionDiagnostics.validationErrorCode
+    ).toBeNull();
+    expect(
+      emptyIteratorLengthZeroAndIndexedStrictValueOptionDiagnostics.activeCliOptions
+    ).toEqual(["--output", "--json"]);
+    expect(
+      emptyIteratorLengthZeroAndIndexedStrictValueOptionDiagnostics.activeCliOptionCount
+    ).toBe(2);
+    expect(
+      emptyIteratorLengthZeroAndIndexedStrictValueOptionDiagnostics.activeCliOptionTokens
     ).toEqual(["--output", "-j"]);
     const emptyIteratorLengthAndReadTrapStrictValueOptionDiagnostics =
       createCliDiagnostics(["--output", "-j"], {
@@ -16318,6 +16541,62 @@ describe("report-utils", () => {
     expect(
       activeMetadataWithEmptyIteratorLengthZeroAndOwnKeysTrapValueMetadataOverride.activeCliOptionOccurrenceCount
     ).toBe(1);
+    const activeMetadataWithEmptyIteratorLengthZeroAndIndexedValueMetadataOverride =
+      parseActiveCliOptionMetadata(["--output", "-j"], {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-j"],
+        },
+        optionsWithValues: ["--output"],
+        valueOptionTokenMetadata: {
+          tokens: new Proxy(["--output"], {
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 0;
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+          unavailable: false,
+        } as never,
+      });
+    expect(
+      activeMetadataWithEmptyIteratorLengthZeroAndIndexedValueMetadataOverride.activeCliOptions
+    ).toEqual(["--output"]);
+    expect(
+      activeMetadataWithEmptyIteratorLengthZeroAndIndexedValueMetadataOverride.activeCliOptionCount
+    ).toBe(1);
+    expect(
+      activeMetadataWithEmptyIteratorLengthZeroAndIndexedValueMetadataOverride.activeCliOptionTokens
+    ).toEqual(["--output"]);
+    expect(
+      activeMetadataWithEmptyIteratorLengthZeroAndIndexedValueMetadataOverride.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(
+      activeMetadataWithEmptyIteratorLengthZeroAndIndexedValueMetadataOverride.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      activeMetadataWithEmptyIteratorLengthZeroAndIndexedValueMetadataOverride.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+    ]);
+    expect(
+      activeMetadataWithEmptyIteratorLengthZeroAndIndexedValueMetadataOverride.activeCliOptionOccurrenceCount
+    ).toBe(1);
     const activeMetadataWithExplicitEmptyValueMetadataOverride =
       parseActiveCliOptionMetadata(["--output", "-j"], {
         canonicalOptions: ["--output", "--json"],
@@ -16842,6 +17121,72 @@ describe("report-utils", () => {
     ]);
     expect(
       activeMetadataWithEmptyIteratorLengthZeroAndOwnKeysTrapStrictMetadataOverride.activeCliOptionOccurrenceCount
+    ).toBe(2);
+    const activeMetadataWithEmptyIteratorLengthZeroAndIndexedStrictMetadataOverride =
+      parseActiveCliOptionMetadata(["--output", "-j"], {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-j"],
+        },
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+        strictValueOptionTokenMetadata: {
+          tokens: new Proxy(["--output"], {
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 0;
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+          unavailable: false,
+        } as never,
+      });
+    expect(
+      activeMetadataWithEmptyIteratorLengthZeroAndIndexedStrictMetadataOverride.activeCliOptions
+    ).toEqual(["--output", "--json"]);
+    expect(
+      activeMetadataWithEmptyIteratorLengthZeroAndIndexedStrictMetadataOverride.activeCliOptionCount
+    ).toBe(2);
+    expect(
+      activeMetadataWithEmptyIteratorLengthZeroAndIndexedStrictMetadataOverride.activeCliOptionTokens
+    ).toEqual(["--output", "-j"]);
+    expect(
+      activeMetadataWithEmptyIteratorLengthZeroAndIndexedStrictMetadataOverride.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+      {
+        token: "-j",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(
+      activeMetadataWithEmptyIteratorLengthZeroAndIndexedStrictMetadataOverride.activeCliOptionResolutionCount
+    ).toBe(2);
+    expect(
+      activeMetadataWithEmptyIteratorLengthZeroAndIndexedStrictMetadataOverride.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+      {
+        token: "-j",
+        canonicalOption: "--json",
+        index: 1,
+      },
+    ]);
+    expect(
+      activeMetadataWithEmptyIteratorLengthZeroAndIndexedStrictMetadataOverride.activeCliOptionOccurrenceCount
     ).toBe(2);
     const activeMetadataWithEmptyIteratorLengthAndReadTrapStrictMetadataOverride =
       parseActiveCliOptionMetadata(["--output", "-j"], {
