@@ -206,8 +206,13 @@ async fn index(path: web::Data<Config>) -> Result<NamedFile> {
 }
 
 async fn info(server: web::Data<Addr<Server>>) -> Result<HttpResponse> {
-    let info = server.send(Info).await.unwrap();
-    Ok(HttpResponse::Ok().json(info))
+    match server.send(Info).await {
+        Ok(info) => Ok(HttpResponse::Ok().json(info)),
+        Err(error) => {
+            warn!("Failed to fetch server info: {}", error);
+            Ok(HttpResponse::InternalServerError().finish())
+        }
+    }
 }
 
 pub struct Voxelize;
