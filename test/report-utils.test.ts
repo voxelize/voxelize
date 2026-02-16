@@ -5566,6 +5566,52 @@ describe("report-utils", () => {
     expect(mixedWhitespacePrecomputedSupportedTokens.validationErrorCode).toBe(
       "unsupported_options"
     );
+    const sparseHolePrecomputedSupportedTokens = createCliOptionValidation(
+      ["--mystery"],
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        supportedCliOptions: new Array(1) as never,
+      }
+    );
+    expect(sparseHolePrecomputedSupportedTokens.supportedCliOptions).toEqual([
+      "--json",
+      "--output",
+    ]);
+    expect(sparseHolePrecomputedSupportedTokens.supportedCliOptionCount).toBe(2);
+    expect(sparseHolePrecomputedSupportedTokens.unknownOptions).toEqual([
+      "--mystery",
+    ]);
+    expect(sparseHolePrecomputedSupportedTokens.unknownOptionCount).toBe(1);
+    expect(sparseHolePrecomputedSupportedTokens.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
+    expect(sparseHolePrecomputedSupportedTokens.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    const sparseHolePrecomputedSupportedTokensWithoutCatalog =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions: "--json" as never,
+        supportedCliOptions: new Array(1) as never,
+      });
+    expect(
+      sparseHolePrecomputedSupportedTokensWithoutCatalog.supportedCliOptions
+    ).toEqual([]);
+    expect(
+      sparseHolePrecomputedSupportedTokensWithoutCatalog.supportedCliOptionCount
+    ).toBe(0);
+    expect(sparseHolePrecomputedSupportedTokensWithoutCatalog.unknownOptions).toEqual(
+      ["--mystery"]
+    );
+    expect(
+      sparseHolePrecomputedSupportedTokensWithoutCatalog.unknownOptionCount
+    ).toBe(1);
+    expect(
+      sparseHolePrecomputedSupportedTokensWithoutCatalog.unsupportedOptionsError
+    ).toBe("Unsupported option(s): --mystery. Supported options: (none).");
+    expect(
+      sparseHolePrecomputedSupportedTokensWithoutCatalog.validationErrorCode
+    ).toBe("unsupported_options");
     const iteratorOnlyWhitespacePrecomputedSupportedTokens = new Proxy(
       ["   "],
       {
