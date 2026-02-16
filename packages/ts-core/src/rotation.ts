@@ -111,20 +111,45 @@ const isKnownRotationAxis = (value: number): boolean => {
   );
 };
 
+const toKnownRotationAxisOrNull = (
+  value: number | object | null | undefined
+): number | null => {
+  if (typeof value === "number") {
+    return Number.isFinite(value) && isKnownRotationAxis(value)
+      ? value
+      : null;
+  }
+
+  if (value === null || typeof value !== "object") {
+    return null;
+  }
+
+  try {
+    const wrappedAxisValue = Number.prototype.valueOf.call(value);
+    return Number.isFinite(wrappedAxisValue) && isKnownRotationAxis(wrappedAxisValue)
+      ? wrappedAxisValue
+      : null;
+  } catch {
+    return null;
+  }
+};
+
 const readRotationAxisSafely = (rotation: BlockRotation): number => {
   try {
-    const axisValue = rotation.axis;
-    if (typeof axisValue === "number" && isKnownRotationAxis(axisValue)) {
-      return axisValue;
+    const axisValue = rotation.axis as number | object | null | undefined;
+    const normalizedAxis = toKnownRotationAxisOrNull(axisValue);
+    if (normalizedAxis !== null) {
+      return normalizedAxis;
     }
   } catch {
     // fall through to value fallback
   }
 
   try {
-    const value = rotation.value;
-    if (typeof value === "number" && isKnownRotationAxis(value)) {
-      return value;
+    const value = rotation.value as number | object | null | undefined;
+    const normalizedValue = toKnownRotationAxisOrNull(value);
+    if (normalizedValue !== null) {
+      return normalizedValue;
     }
   } catch {
     // fall through to PY fallback
@@ -338,11 +363,8 @@ export class BlockRotation {
     yRotation = 0
   ) {
     this.value =
-      typeof value === "number" &&
-      Number.isFinite(value) &&
-      isKnownRotationAxis(value)
-        ? value
-        : PY_ROTATION;
+      toKnownRotationAxisOrNull(value as number | object | null | undefined) ??
+      PY_ROTATION;
     this.yRotation = toFiniteNumberOrZero(yRotation);
   }
 
@@ -361,11 +383,8 @@ export class BlockRotation {
 
   set axis(axis: number) {
     const normalizedAxis =
-      typeof axis === "number" &&
-      Number.isFinite(axis) &&
-      isKnownRotationAxis(axis)
-        ? axis
-        : PY_ROTATION;
+      toKnownRotationAxisOrNull(axis as number | object | null | undefined) ??
+      PY_ROTATION;
     try {
       this.value = normalizedAxis;
     } catch {
@@ -424,8 +443,11 @@ export class BlockRotation {
   static encode(value: number, yRotation = 0): BlockRotation {
     const encodedYRotation =
       (toFiniteNumberOrZero(yRotation) * TWO_PI) / Y_ROT_SEGMENTS;
+    const normalizedAxis =
+      toKnownRotationAxisOrNull(value as number | object | null | undefined) ??
+      PY_ROTATION;
 
-    switch (value) {
+    switch (normalizedAxis) {
       case PX_ROTATION:
         return BlockRotation.px(encodedYRotation);
       case NX_ROTATION:

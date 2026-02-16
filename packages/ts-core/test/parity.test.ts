@@ -1012,6 +1012,63 @@ describe("BlockRotation", () => {
     expect(BlockRotation.decode(rotation)).toEqual([PY_ROTATION, 4]);
   });
 
+  it("salvages wrapped axis values in constructors and encode", () => {
+    const pxAxis = BlockRotation.PX().axis;
+    const wrappedAxis = vm.runInNewContext(`new Number(${pxAxis})`);
+    let didCallWrappedAxisToString = false;
+    Object.defineProperty(wrappedAxis, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedAxisToString = true;
+        throw new Error("wrapped axis toString trap");
+      },
+    });
+    let didCallWrappedAxisValueOf = false;
+    Object.defineProperty(wrappedAxis, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedAxisValueOf = true;
+        throw new Error("wrapped axis valueOf trap");
+      },
+    });
+
+    const encodedRotation = BlockRotation.encode(
+      wrappedAxis as never,
+      0
+    );
+    expect(encodedRotation.axis).toBe(pxAxis);
+    expect(BlockRotation.decode(encodedRotation)).toEqual([pxAxis, 0]);
+    expect(new BlockRotation(wrappedAxis as never, 0).axis).toBe(pxAxis);
+    expect(didCallWrappedAxisToString).toBe(false);
+    expect(didCallWrappedAxisValueOf).toBe(false);
+  });
+
+  it("salvages wrapped axis values when toStringTag traps", () => {
+    const nxAxis = BlockRotation.NX().axis;
+    const wrappedAxis = new Number(nxAxis);
+    let didCallWrappedAxisToStringTag = false;
+    Object.defineProperty(wrappedAxis, Symbol.toStringTag, {
+      configurable: true,
+      enumerable: false,
+      get() {
+        didCallWrappedAxisToStringTag = true;
+        throw new Error("wrapped axis toStringTag trap");
+      },
+    });
+
+    const encodedRotation = BlockRotation.encode(
+      wrappedAxis as never,
+      0
+    );
+    expect(encodedRotation.axis).toBe(nxAxis);
+    expect(new BlockRotation(wrappedAxis as never, 0).axis).toBe(nxAxis);
+    expect(didCallWrappedAxisToStringTag).toBe(false);
+  });
+
   it("sanitizes decode and equality checks for trap-driven rotations", () => {
     const axisTrapRotation = Object.create(null) as {
       readonly axis: number;
