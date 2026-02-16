@@ -279,6 +279,15 @@ describe("BlockUtils", () => {
       fieldsProxy.revoke();
       return fieldsProxy.proxy;
     })();
+    const stageValueTrap = {
+      [Symbol.toPrimitive]() {
+        throw new Error("stage coercion trap");
+      },
+    };
+    const fieldsWithNonNumericStage = {
+      id: 12,
+      stage: stageValueTrap as never,
+    };
 
     expect(() => Voxel.pack(null as never)).not.toThrow();
     const packedFromNull = Voxel.pack(null as never);
@@ -295,6 +304,11 @@ describe("BlockUtils", () => {
     const packedFromRevokedFields = Voxel.pack(revokedFields as never);
     expect(Voxel.id(packedFromRevokedFields)).toBe(0);
     expect(Voxel.stage(packedFromRevokedFields)).toBe(0);
+
+    expect(() => Voxel.pack(fieldsWithNonNumericStage as never)).not.toThrow();
+    const packedFromNonNumericStage = Voxel.pack(fieldsWithNonNumericStage as never);
+    expect(Voxel.id(packedFromNonNumericStage)).toBe(12);
+    expect(Voxel.stage(packedFromNonNumericStage)).toBe(0);
   });
 });
 

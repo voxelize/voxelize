@@ -116,7 +116,8 @@ const safeReadVoxelPackStage = (
   }
 
   try {
-    return fields.stage;
+    const stageValue = fields.stage;
+    return typeof stageValue === "number" ? stageValue : undefined;
   } catch {
     return undefined;
   }
