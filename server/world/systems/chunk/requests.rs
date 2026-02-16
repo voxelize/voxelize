@@ -382,6 +382,120 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     );
                 }
             }
+            4 => {
+                let Some(first_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                let Some(second_id) = to_send_touched_clients.pop() else {
+                    if let Some(coords_to_send) = to_send.get_mut(&first_id) {
+                        flush_chunk_requests_for_client(
+                            &mut queue,
+                            &chunks,
+                            chunk_models_buffer,
+                            first_id,
+                            coords_to_send,
+                            sub_chunks_u32,
+                        );
+                    }
+                    return;
+                };
+                let Some(third_id) = to_send_touched_clients.pop() else {
+                    if let Some(coords_to_send) = to_send.get_mut(&first_id) {
+                        flush_chunk_requests_for_client(
+                            &mut queue,
+                            &chunks,
+                            chunk_models_buffer,
+                            first_id,
+                            coords_to_send,
+                            sub_chunks_u32,
+                        );
+                    }
+                    if let Some(coords_to_send) = to_send.get_mut(&second_id) {
+                        flush_chunk_requests_for_client(
+                            &mut queue,
+                            &chunks,
+                            chunk_models_buffer,
+                            second_id,
+                            coords_to_send,
+                            sub_chunks_u32,
+                        );
+                    }
+                    return;
+                };
+                let Some(fourth_id) = to_send_touched_clients.pop() else {
+                    if let Some(coords_to_send) = to_send.get_mut(&first_id) {
+                        flush_chunk_requests_for_client(
+                            &mut queue,
+                            &chunks,
+                            chunk_models_buffer,
+                            first_id,
+                            coords_to_send,
+                            sub_chunks_u32,
+                        );
+                    }
+                    if let Some(coords_to_send) = to_send.get_mut(&second_id) {
+                        flush_chunk_requests_for_client(
+                            &mut queue,
+                            &chunks,
+                            chunk_models_buffer,
+                            second_id,
+                            coords_to_send,
+                            sub_chunks_u32,
+                        );
+                    }
+                    if let Some(coords_to_send) = to_send.get_mut(&third_id) {
+                        flush_chunk_requests_for_client(
+                            &mut queue,
+                            &chunks,
+                            chunk_models_buffer,
+                            third_id,
+                            coords_to_send,
+                            sub_chunks_u32,
+                        );
+                    }
+                    return;
+                };
+                if let Some(coords_to_send) = to_send.get_mut(&first_id) {
+                    flush_chunk_requests_for_client(
+                        &mut queue,
+                        &chunks,
+                        chunk_models_buffer,
+                        first_id,
+                        coords_to_send,
+                        sub_chunks_u32,
+                    );
+                }
+                if let Some(coords_to_send) = to_send.get_mut(&second_id) {
+                    flush_chunk_requests_for_client(
+                        &mut queue,
+                        &chunks,
+                        chunk_models_buffer,
+                        second_id,
+                        coords_to_send,
+                        sub_chunks_u32,
+                    );
+                }
+                if let Some(coords_to_send) = to_send.get_mut(&third_id) {
+                    flush_chunk_requests_for_client(
+                        &mut queue,
+                        &chunks,
+                        chunk_models_buffer,
+                        third_id,
+                        coords_to_send,
+                        sub_chunks_u32,
+                    );
+                }
+                if let Some(coords_to_send) = to_send.get_mut(&fourth_id) {
+                    flush_chunk_requests_for_client(
+                        &mut queue,
+                        &chunks,
+                        chunk_models_buffer,
+                        fourth_id,
+                        coords_to_send,
+                        sub_chunks_u32,
+                    );
+                }
+            }
             _ => {
                 for id in to_send_touched_clients.drain(..) {
                     let Some(coords_to_send) = to_send.get_mut(&id) else {
