@@ -21,7 +21,7 @@ fn contains_single_client_interest(ids: &HashSet<String>, single_client_id: &str
             .iter()
             .next()
             .is_some_and(|id| id.as_str() == single_client_id),
-        2 | 3 | 4 | 5 | 6 => {
+        2 | 3 | 4 | 5 | 6 | 7 | 8 => {
             for id in ids {
                 if id.as_str() == single_client_id {
                     return true;
@@ -672,7 +672,7 @@ mod tests {
         assert!(!contains_single_client_interest(&tiny, "z"));
 
         let mut larger = HashSet::with_capacity(8);
-        for id in ["a", "b", "c", "d", "e", "f"] {
+        for id in ["a", "b", "c", "d", "e", "f", "g", "h"] {
             larger.insert(id.to_string());
         }
         assert!(contains_single_client_interest(&larger, "d"));
