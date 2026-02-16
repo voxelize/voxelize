@@ -39,41 +39,35 @@ fn mesh_protocol_level(level: u32) -> i32 {
 fn find_queue_index(queue: &VecDeque<Vec2<i32>>, coords: &Vec2<i32>) -> Option<usize> {
     match queue.len() {
         0 => None,
-        1 => {
-            if queue.front().is_some_and(|queued| queued == coords) {
-                Some(0)
-            } else {
-                None
-            }
-        }
+        1 => (queue[0] == *coords).then_some(0),
         2 => {
-            if queue.front().is_some_and(|queued| queued == coords) {
+            if queue[0] == *coords {
                 Some(0)
-            } else if queue.get(1).is_some_and(|queued| queued == coords) {
+            } else if queue[1] == *coords {
                 Some(1)
             } else {
                 None
             }
         }
         3 => {
-            if queue.front().is_some_and(|queued| queued == coords) {
+            if queue[0] == *coords {
                 Some(0)
-            } else if queue.get(1).is_some_and(|queued| queued == coords) {
+            } else if queue[1] == *coords {
                 Some(1)
-            } else if queue.get(2).is_some_and(|queued| queued == coords) {
+            } else if queue[2] == *coords {
                 Some(2)
             } else {
                 None
             }
         }
         4 => {
-            if queue.front().is_some_and(|queued| queued == coords) {
+            if queue[0] == *coords {
                 Some(0)
-            } else if queue.get(1).is_some_and(|queued| queued == coords) {
+            } else if queue[1] == *coords {
                 Some(1)
-            } else if queue.get(2).is_some_and(|queued| queued == coords) {
+            } else if queue[2] == *coords {
                 Some(2)
-            } else if queue.get(3).is_some_and(|queued| queued == coords) {
+            } else if queue[3] == *coords {
                 Some(3)
             } else {
                 None
