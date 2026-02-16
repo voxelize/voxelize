@@ -23127,6 +23127,20 @@ describe("report-utils", () => {
     expect(failureMessage).not.toContain("path coercion trap");
   });
 
+  it("returns a stable write failure message for symbol output paths", () => {
+    const reportJson = toReportJson({ passed: false, exitCode: 1 });
+    const symbolOutputPath = Symbol("report-output");
+
+    expect(() => writeReportToPath(reportJson, symbolOutputPath as never)).not.toThrow();
+    const failureMessage = writeReportToPath(reportJson, symbolOutputPath as never);
+    expect(failureMessage).toContain(
+      "Failed to write report to Symbol(report-output)."
+    );
+    expect(failureMessage).toContain(
+      'The "path" argument must be of type string.'
+    );
+  });
+
   it("returns an unprintable-path fallback for blank output paths", () => {
     const reportJson = toReportJson({ passed: false, exitCode: 1 });
 
@@ -23409,6 +23423,71 @@ describe("report-utils", () => {
       'The "path" argument must be of type string.'
     );
     expect(parsedWriteFailureResult.message).not.toContain("path coercion trap");
+    expect(parsedWriteFailureResult.startedAt).toBe("iso-1000");
+    expect(parsedWriteFailureResult.endedAt).toBe("iso-2000");
+    expect(parsedWriteFailureResult.durationMs).toBe(1000);
+  });
+
+  it("returns structured serialize fallback for symbol output paths", () => {
+    const symbolOutputPath = Symbol("report-output");
+    const timedReportBuilder = createTimedReportBuilder(
+      (() => {
+        let tick = 0;
+        return () => {
+          tick += 1;
+          return tick * 1000;
+        };
+      })(),
+      (value) => `iso-${value}`
+    );
+    const writeFailureResult = serializeReportWithOptionalWrite(
+      {
+        passed: true,
+        exitCode: 0,
+        outputPath: symbolOutputPath as never,
+      },
+      {
+        jsonFormat: { compact: true },
+        outputPath: symbolOutputPath as never,
+        buildTimedReport: timedReportBuilder,
+      }
+    );
+    const parsedWriteFailureResult = JSON.parse(
+      writeFailureResult.reportJson
+    ) as {
+      schemaVersion: number;
+      passed: boolean;
+      exitCode: number;
+      outputPath: string;
+      writeError: string;
+      message: string;
+      startedAt: string;
+      endedAt: string;
+      durationMs: number;
+    };
+
+    expect(writeFailureResult.writeError).toContain(
+      "Failed to write report to Symbol(report-output)."
+    );
+    expect(writeFailureResult.writeError).toContain(
+      'The "path" argument must be of type string.'
+    );
+    expect(parsedWriteFailureResult.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+    expect(parsedWriteFailureResult.passed).toBe(false);
+    expect(parsedWriteFailureResult.exitCode).toBe(1);
+    expect(parsedWriteFailureResult.outputPath).toBe("Symbol(report-output)");
+    expect(parsedWriteFailureResult.writeError).toContain(
+      "Failed to write report to Symbol(report-output)."
+    );
+    expect(parsedWriteFailureResult.writeError).toContain(
+      'The "path" argument must be of type string.'
+    );
+    expect(parsedWriteFailureResult.message).toContain(
+      "Failed to write report to Symbol(report-output)."
+    );
+    expect(parsedWriteFailureResult.message).toContain(
+      'The "path" argument must be of type string.'
+    );
     expect(parsedWriteFailureResult.startedAt).toBe("iso-1000");
     expect(parsedWriteFailureResult.endedAt).toBe("iso-2000");
     expect(parsedWriteFailureResult.durationMs).toBe(1000);
