@@ -184,6 +184,34 @@ impl EncodedMessageQueue {
                 .push(Self::encode_pending_message(second_message, second_filter));
             return;
         }
+        if pending_len == 3 {
+            reserve_for_append(&mut self.processed, 3);
+            let (third_message, third_filter) = {
+                let Some(third_pending) = self.pending.pop() else {
+                    unreachable!("triple pending message length matched branch");
+                };
+                third_pending
+            };
+            let (second_message, second_filter) = {
+                let Some(second_pending) = self.pending.pop() else {
+                    unreachable!("triple pending message length matched branch");
+                };
+                second_pending
+            };
+            let (first_message, first_filter) = {
+                let Some(first_pending) = self.pending.pop() else {
+                    unreachable!("triple pending message length matched branch");
+                };
+                first_pending
+            };
+            self.processed
+                .push(Self::encode_pending_message(first_message, first_filter));
+            self.processed
+                .push(Self::encode_pending_message(second_message, second_filter));
+            self.processed
+                .push(Self::encode_pending_message(third_message, third_filter));
+            return;
+        }
         if pending_len <= SYNC_ENCODE_BATCH_LIMIT {
             reserve_for_append(&mut self.processed, pending_len);
             let pending = take_vec_with_capacity(&mut self.pending);
@@ -604,6 +632,42 @@ mod tests {
         assert!(matches!(
             queue.processed.get(1).map(|(_, filter)| filter),
             Some(ClientFilter::Direct(id)) if id == "second"
+        ));
+    }
+
+    #[test]
+    fn process_encodes_three_messages_synchronously_in_order() {
+        let mut queue = EncodedMessageQueue::new();
+        queue.append(vec![
+            (
+                Message::new(&MessageType::Peer).build(),
+                ClientFilter::Direct("first".to_string()),
+            ),
+            (
+                Message::new(&MessageType::Peer).build(),
+                ClientFilter::Direct("second".to_string()),
+            ),
+            (
+                Message::new(&MessageType::Peer).build(),
+                ClientFilter::Direct("third".to_string()),
+            ),
+        ]);
+
+        queue.process();
+
+        assert!(queue.pending.is_empty());
+        assert_eq!(queue.processed.len(), 3);
+        assert!(matches!(
+            queue.processed.first().map(|(_, filter)| filter),
+            Some(ClientFilter::Direct(id)) if id == "first"
+        ));
+        assert!(matches!(
+            queue.processed.get(1).map(|(_, filter)| filter),
+            Some(ClientFilter::Direct(id)) if id == "second"
+        ));
+        assert!(matches!(
+            queue.processed.get(2).map(|(_, filter)| filter),
+            Some(ClientFilter::Direct(id)) if id == "third"
         ));
     }
 
