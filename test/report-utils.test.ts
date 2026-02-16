@@ -214,6 +214,25 @@ describe("report-utils", () => {
       ok: true,
     });
 
+    const trappedToStringWrapper = new String("{\"ok\":true}");
+    let didCallWrappedToString = false;
+    Object.defineProperty(trappedToStringWrapper, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedToString = true;
+        throw new Error("wrapped-string toString trap");
+      },
+    });
+    expect(() =>
+      parseJsonOutput(trappedToStringWrapper as never)
+    ).not.toThrow();
+    expect(parseJsonOutput(trappedToStringWrapper as never)).toEqual({
+      ok: true,
+    });
+    expect(didCallWrappedToString).toBe(false);
+
     const trappedStringWrapper = {
       [Symbol.toPrimitive]() {
         throw new Error("string coercion trap");

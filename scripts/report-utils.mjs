@@ -134,11 +134,11 @@ export const parseJsonOutput = (value) => {
       return null;
     }
 
-    try {
-      outputValue = String(outputValue);
-    } catch {
+    const wrappedStringValue = toPrimitiveWrapperStringOrNull(outputValue);
+    if (wrappedStringValue === null) {
       return null;
     }
+    outputValue = wrappedStringValue;
   }
 
   if (typeof outputValue !== "string" || outputValue.length === 0) {
