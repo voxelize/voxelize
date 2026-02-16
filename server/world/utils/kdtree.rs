@@ -344,7 +344,7 @@ impl KdTree {
             return Vec::new();
         }
         let max_results = count.min(tree_size - 1);
-        let mut entities: Option<Vec<(f32, &Entity)>> = None;
+        let mut entities = Vec::with_capacity(max_results);
         let mut skipped = 0usize;
         self.all
             .for_each_nearest(&query_point, nearest_query_count(count, 1), |dist, ent_id| {
@@ -353,12 +353,10 @@ impl KdTree {
                     return;
                 }
                 if let Some(entity) = self.entity_map.get(&ent_id) {
-                    entities
-                        .get_or_insert_with(|| Vec::with_capacity(max_results))
-                        .push((dist, entity));
+                    entities.push((dist, entity));
                 }
             });
-        entities.unwrap_or_default()
+        entities
     }
 
     pub fn search_first(&self, point: &Vec3<f32>) -> Option<&Entity> {
@@ -388,7 +386,7 @@ impl KdTree {
             return Vec::new();
         }
         let max_results = count.min(tree_size - skip);
-        let mut entities: Option<Vec<(f32, &Entity)>> = None;
+        let mut entities = Vec::with_capacity(max_results);
         let mut skipped = 0usize;
         self.players
             .for_each_nearest(&query_point, nearest_query_count(count, skip), |dist, ent_id| {
@@ -397,12 +395,10 @@ impl KdTree {
                     return;
                 }
                 if let Some(entity) = self.entity_map.get(&ent_id) {
-                    entities
-                        .get_or_insert_with(|| Vec::with_capacity(max_results))
-                        .push((dist, entity));
+                    entities.push((dist, entity));
                 }
             });
-        entities.unwrap_or_default()
+        entities
     }
 
     pub fn search_first_player(&self, point: &Vec3<f32>, is_player: bool) -> Option<&Entity> {
@@ -435,7 +431,7 @@ impl KdTree {
             return Vec::new();
         }
         let max_results = count.min(tree_size - skip);
-        let mut entities: Option<Vec<(f32, &Entity)>> = None;
+        let mut entities = Vec::with_capacity(max_results);
         let mut skipped = 0usize;
         self.entities
             .for_each_nearest(&query_point, nearest_query_count(count, skip), |dist, ent_id| {
@@ -444,12 +440,10 @@ impl KdTree {
                     return;
                 }
                 if let Some(entity) = self.entity_map.get(&ent_id) {
-                    entities
-                        .get_or_insert_with(|| Vec::with_capacity(max_results))
-                        .push((dist, entity));
+                    entities.push((dist, entity));
                 }
             });
-        entities.unwrap_or_default()
+        entities
     }
 
     pub fn search_first_entity(&self, point: &Vec3<f32>, is_entity: bool) -> Option<&Entity> {
