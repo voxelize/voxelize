@@ -70,6 +70,25 @@ fn ids_contains_target(ids: &[String], target: &str) -> bool {
                 || fifth.as_str() == target
                 || sixth.as_str() == target
         }
+        [first, second, third, fourth, fifth, sixth, seventh] => {
+            first.as_str() == target
+                || second.as_str() == target
+                || third.as_str() == target
+                || fourth.as_str() == target
+                || fifth.as_str() == target
+                || sixth.as_str() == target
+                || seventh.as_str() == target
+        }
+        [first, second, third, fourth, fifth, sixth, seventh, eighth] => {
+            first.as_str() == target
+                || second.as_str() == target
+                || third.as_str() == target
+                || fourth.as_str() == target
+                || fifth.as_str() == target
+                || sixth.as_str() == target
+                || seventh.as_str() == target
+                || eighth.as_str() == target
+        }
         _ => {
             for id in ids {
                 if id.as_str() == target {
@@ -107,6 +126,27 @@ fn include_single_target(ids: &[String]) -> Option<&str> {
                 && first == fourth
                 && first == fifth
                 && first == sixth =>
+        {
+            Some(first.as_str())
+        }
+        [first, second, third, fourth, fifth, sixth, seventh]
+            if first == second
+                && first == third
+                && first == fourth
+                && first == fifth
+                && first == sixth
+                && first == seventh =>
+        {
+            Some(first.as_str())
+        }
+        [first, second, third, fourth, fifth, sixth, seventh, eighth]
+            if first == second
+                && first == third
+                && first == fourth
+                && first == fifth
+                && first == sixth
+                && first == seventh
+                && first == eighth =>
         {
             Some(first.as_str())
         }
@@ -230,6 +270,97 @@ fn for_each_unique_id<F: FnMut(&str)>(ids: &[String], mut visit: F) {
                 && sixth != fifth
             {
                 visit(sixth);
+            }
+            return;
+        }
+        [first, second, third, fourth, fifth, sixth, seventh] => {
+            let first = first.as_str();
+            let second = second.as_str();
+            let third = third.as_str();
+            let fourth = fourth.as_str();
+            let fifth = fifth.as_str();
+            let sixth = sixth.as_str();
+            let seventh = seventh.as_str();
+            visit(first);
+            if second != first {
+                visit(second);
+            }
+            if third != first && third != second {
+                visit(third);
+            }
+            if fourth != first && fourth != second && fourth != third {
+                visit(fourth);
+            }
+            if fifth != first && fifth != second && fifth != third && fifth != fourth {
+                visit(fifth);
+            }
+            if sixth != first
+                && sixth != second
+                && sixth != third
+                && sixth != fourth
+                && sixth != fifth
+            {
+                visit(sixth);
+            }
+            if seventh != first
+                && seventh != second
+                && seventh != third
+                && seventh != fourth
+                && seventh != fifth
+                && seventh != sixth
+            {
+                visit(seventh);
+            }
+            return;
+        }
+        [first, second, third, fourth, fifth, sixth, seventh, eighth] => {
+            let first = first.as_str();
+            let second = second.as_str();
+            let third = third.as_str();
+            let fourth = fourth.as_str();
+            let fifth = fifth.as_str();
+            let sixth = sixth.as_str();
+            let seventh = seventh.as_str();
+            let eighth = eighth.as_str();
+            visit(first);
+            if second != first {
+                visit(second);
+            }
+            if third != first && third != second {
+                visit(third);
+            }
+            if fourth != first && fourth != second && fourth != third {
+                visit(fourth);
+            }
+            if fifth != first && fifth != second && fifth != third && fifth != fourth {
+                visit(fifth);
+            }
+            if sixth != first
+                && sixth != second
+                && sixth != third
+                && sixth != fourth
+                && sixth != fifth
+            {
+                visit(sixth);
+            }
+            if seventh != first
+                && seventh != second
+                && seventh != third
+                && seventh != fourth
+                && seventh != fifth
+                && seventh != sixth
+            {
+                visit(seventh);
+            }
+            if eighth != first
+                && eighth != second
+                && eighth != third
+                && eighth != fourth
+                && eighth != fifth
+                && eighth != sixth
+                && eighth != seventh
+            {
+                visit(eighth);
             }
             return;
         }
@@ -777,6 +908,14 @@ mod tests {
             &ids(&["f", "e", "d", "c", "b", "a"]),
             "z"
         ));
+        assert!(ids_contains_target(
+            &ids(&["h", "g", "f", "e", "d", "c", "b", "a"]),
+            "d"
+        ));
+        assert!(!ids_contains_target(
+            &ids(&["h", "g", "f", "e", "d", "c", "b", "a"]),
+            "z"
+        ));
     }
 
     #[test]
@@ -799,6 +938,18 @@ mod tests {
         );
         assert_eq!(
             include_single_target(&ids(&["k", "k", "k", "k", "k", "z"])),
+            None
+        );
+    }
+
+    #[test]
+    fn include_single_target_detects_uniform_eight_item_filters() {
+        assert_eq!(
+            include_single_target(&ids(&["k", "k", "k", "k", "k", "k", "k", "k"])),
+            Some("k")
+        );
+        assert_eq!(
+            include_single_target(&ids(&["k", "k", "k", "k", "k", "k", "k", "z"])),
             None
         );
     }
