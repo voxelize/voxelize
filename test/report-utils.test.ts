@@ -607,6 +607,34 @@ describe("report-utils", () => {
       "Missing value for --output option."
     );
     expect(whitespaceRecognizedOutputInlineAliasMisuseResult.outputPath).toBeNull();
+    const sparseRecognizedOutputTokens = new Array(1);
+    const sparseRecognizedOutputTokenResult = resolveOutputPath(
+      ["--output", "-l"],
+      "/workspace",
+      sparseRecognizedOutputTokens as never
+    );
+    expect(sparseRecognizedOutputTokenResult.error).toBe(
+      "Missing value for --output option."
+    );
+    expect(sparseRecognizedOutputTokenResult.outputPath).toBeNull();
+    const sparseRecognizedOutputDashValueResult = resolveOutputPath(
+      ["--output", "-artifact-report.json"],
+      "/workspace",
+      sparseRecognizedOutputTokens as never
+    );
+    expect(sparseRecognizedOutputDashValueResult.error).toBeNull();
+    expect(sparseRecognizedOutputDashValueResult.outputPath).toBe(
+      "/workspace/-artifact-report.json"
+    );
+    const sparseRecognizedOutputInlineAliasMisuseResult = resolveOutputPath(
+      ["--output", "-l=1"],
+      "/workspace",
+      sparseRecognizedOutputTokens as never
+    );
+    expect(sparseRecognizedOutputInlineAliasMisuseResult.error).toBe(
+      "Missing value for --output option."
+    );
+    expect(sparseRecognizedOutputInlineAliasMisuseResult.outputPath).toBeNull();
     const emptyIteratorLengthZeroAndOwnKeysTrapRecognizedOutputTokens =
       new Proxy(["-l"], {
         ownKeys() {
@@ -1346,6 +1374,43 @@ describe("report-utils", () => {
     expect(
       resolvedInlineAliasMisuseFromWhitespaceRecognizedOptionTokens.error
     ).toBe("Missing value for --output option.");
+    const sparseRecognizedOptionTokens = new Array(1);
+    const resolvedFromSparseRecognizedOptionTokens = resolveLastOptionValue(
+      ["--output", "-l"],
+      "--output",
+      sparseRecognizedOptionTokens as never
+    );
+    expect(resolvedFromSparseRecognizedOptionTokens.hasOption).toBe(true);
+    expect(resolvedFromSparseRecognizedOptionTokens.value).toBeNull();
+    expect(resolvedFromSparseRecognizedOptionTokens.error).toBe(
+      "Missing value for --output option."
+    );
+    const resolvedUnknownDashValueFromSparseRecognizedOptionTokens =
+      resolveLastOptionValue(
+        ["--output", "-artifact-report.json"],
+        "--output",
+        sparseRecognizedOptionTokens as never
+      );
+    expect(resolvedUnknownDashValueFromSparseRecognizedOptionTokens.hasOption).toBe(
+      true
+    );
+    expect(resolvedUnknownDashValueFromSparseRecognizedOptionTokens.value).toBe(
+      "-artifact-report.json"
+    );
+    expect(resolvedUnknownDashValueFromSparseRecognizedOptionTokens.error).toBeNull();
+    const resolvedInlineAliasMisuseFromSparseRecognizedOptionTokens =
+      resolveLastOptionValue(
+        ["--output", "-l=1"],
+        "--output",
+        sparseRecognizedOptionTokens as never
+      );
+    expect(resolvedInlineAliasMisuseFromSparseRecognizedOptionTokens.hasOption).toBe(
+      true
+    );
+    expect(resolvedInlineAliasMisuseFromSparseRecognizedOptionTokens.value).toBeNull();
+    expect(resolvedInlineAliasMisuseFromSparseRecognizedOptionTokens.error).toBe(
+      "Missing value for --output option."
+    );
     const emptyIteratorLengthZeroAndOwnKeysTrapRecognizedOptionTokens =
       new Proxy(["-l"], {
         ownKeys() {
