@@ -50,6 +50,10 @@ pub struct Block {
     pub cardinal_face_ranges: [UV; 6],
     #[serde(skip, default)]
     pub cardinal_face_ranges_computed: bool,
+    #[serde(skip, default)]
+    pub combined_aabb: AABB,
+    #[serde(skip, default)]
+    pub combined_aabb_computed: bool,
 }
 
 impl Block {
@@ -93,6 +97,8 @@ impl Block {
         self.has_cardinal_faces = has_cardinal_faces;
         self.cardinal_face_ranges = cardinal_face_ranges;
         self.cardinal_face_ranges_computed = true;
+        self.combined_aabb = AABB::union_all(&self.aabbs);
+        self.combined_aabb_computed = true;
     }
 
     pub fn is_full_cube(&self) -> bool {
@@ -134,7 +140,11 @@ impl Registry {
         let mut cache = HashMap::with_capacity(self.blocks_by_id.len());
         for (idx, (id, block)) in self.blocks_by_id.iter_mut().enumerate() {
             cache.insert(*id, idx);
-            if block.name_lower.is_empty() || !block.has_standard_faces_computed {
+            if block.name_lower.is_empty()
+                || !block.has_standard_faces_computed
+                || !block.cardinal_face_ranges_computed
+                || !block.combined_aabb_computed
+            {
                 block.compute_name_lower();
             }
         }
@@ -993,6 +1003,15 @@ fn can_greedy_mesh_block(block: &Block, rotation: &BlockRotation) -> bool {
         && !(has_diagonal_faces(block) && has_cardinal_faces(block))
 }
 
+#[inline]
+fn get_block_combined_aabb(block: &Block) -> AABB {
+    if block.combined_aabb_computed {
+        block.combined_aabb
+    } else {
+        AABB::union_all(&block.aabbs)
+    }
+}
+
 fn should_render_face<S: VoxelAccess>(
     vx: i32,
     vy: i32,
@@ -1040,8 +1059,8 @@ fn should_render_face<S: VoxelAccess>(
                 || (neighbor_id != voxel_id && (is_see_through || n_block_type.is_see_through))
                 || ({
                     if is_see_through && !is_opaque && n_block_type.is_opaque {
-                        let self_bounding = AABB::union_all(&block.aabbs);
-                        let mut n_bounding = AABB::union_all(&n_block_type.aabbs);
+                        let self_bounding = get_block_combined_aabb(block);
+                        let mut n_bounding = get_block_combined_aabb(n_block_type);
                         n_bounding.translate(dir[0] as f32, dir[1] as f32, dir[2] as f32);
                         !(self_bounding.intersects(&n_bounding)
                             || self_bounding.touches(&n_bounding))
@@ -1730,7 +1749,7 @@ fn process_face<S: VoxelAccess>(
                 || (neighbor_id != voxel_id && (is_see_through || n_block_type.is_see_through))
                 || ({
                     if is_see_through && !is_opaque && n_block_type.is_opaque {
-                        let mut n_bounding = AABB::union_all(&n_block_type.aabbs);
+                        let mut n_bounding = get_block_combined_aabb(n_block_type);
                         n_bounding.translate(dir[0] as f32, dir[1] as f32, dir[2] as f32);
                         !(block_aabb.intersects(&n_bounding) || block_aabb.touches(&n_bounding))
                     } else {
@@ -2173,7 +2192,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         continue;
                     }
                     let neighbors = NeighborCache::populate(vx, vy, vz, space, registry);
-                    let block_aabb = AABB::union_all(&block.aabbs);
+                    let block_aabb = get_block_combined_aabb(block);
                     let mut cached_face_shading: Option<([i32; 4], [i32; 4])> = None;
                     let fluid_surface_above =
                         is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space);
@@ -2297,7 +2316,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                 if cached_non_greedy_block_id != Some(voxel_id) {
                     cached_non_greedy_block = registry.get_block_by_id(voxel_id);
                     cached_non_greedy_block_aabb =
-                        cached_non_greedy_block.map(|block| AABB::union_all(&block.aabbs));
+                        cached_non_greedy_block.map(get_block_combined_aabb);
                     cached_non_greedy_block_id = Some(voxel_id);
                 }
                 let Some(block) = cached_non_greedy_block else {
@@ -2427,7 +2446,7 @@ pub fn mesh_space<S: VoxelAccess>(
                 }
 
                 let neighbors = NeighborCache::populate(vx, vy, vz, space, registry);
-                let block_aabb = AABB::union_all(&block.aabbs);
+                let block_aabb = get_block_combined_aabb(block);
                 let fluid_surface_above = is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space);
                 let mut process_mesh_face = |face: &BlockFace, world_space: bool| {
                     let geometry = if face.isolated {
@@ -2571,7 +2590,7 @@ mod tests {
         cardinal_face_index_from_dir, collect_cardinal_face_ranges, has_cardinal_faces,
         has_diagonal_faces, has_standard_six_faces, lowercase_if_needed, mesh_chunk,
         mesh_chunk_with_registry, Block, BlockFace, ChunkData, MeshConfig, MeshInput,
-        MeshInputNoRegistry, Registry, UV, VoxelSpace,
+        MeshInputNoRegistry, Registry, AABB, UV, VoxelSpace,
     };
     use std::borrow::Cow;
 
@@ -2786,6 +2805,8 @@ mod tests {
             has_cardinal_faces: false,
             cardinal_face_ranges: std::array::from_fn(|_| UV::default()),
             cardinal_face_ranges_computed: false,
+            combined_aabb: AABB::default(),
+            combined_aabb_computed: false,
         }
     }
 

@@ -12,7 +12,7 @@ pub struct UV {
     pub end_v: f32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct AABB {
     pub min_x: f32,

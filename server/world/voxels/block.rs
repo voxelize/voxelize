@@ -1723,6 +1723,8 @@ impl Block {
             has_cardinal_faces: false,
             cardinal_face_ranges: std::array::from_fn(|_| voxelize_core::UV::default()),
             cardinal_face_ranges_computed: false,
+            combined_aabb: voxelize_core::AABB::default(),
+            combined_aabb_computed: false,
         }
     }
 
