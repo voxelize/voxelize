@@ -311,6 +311,8 @@ impl<'a> System<'a> for BroadcastSystem {
             } else {
                 None
             };
+            let should_send_transport =
+                has_transports && should_send_to_transport(encoded.msg_type);
             let encoded_data = encoded.data;
             if let ClientFilter::Direct(id) = &filter {
                 if let Some(client) = clients.get(id) {
@@ -331,8 +333,6 @@ impl<'a> System<'a> for BroadcastSystem {
                     ClientFilter::Exclude(ids) => !ids_contains_target(ids, single_id),
                     _ => false,
                 };
-                let should_send_transport =
-                    has_transports && should_send_to_transport(encoded.msg_type);
                 let mut sent_with_rtc = false;
                 if should_send {
                     if let Some(rtc_map) = rtc_map_for_message {
@@ -360,8 +360,6 @@ impl<'a> System<'a> for BroadcastSystem {
                 None
             };
             if let Some(target_id) = include_single_target {
-                let should_send_transport =
-                    has_transports && should_send_to_transport(encoded.msg_type);
                 let mut sent_with_rtc = false;
                 if let Some(client) = clients.get(target_id) {
                     if let Some(rtc_map) = rtc_map_for_message {
@@ -384,8 +382,6 @@ impl<'a> System<'a> for BroadcastSystem {
                 continue;
             }
             if rtc_map_for_message.is_none() && targets_all_clients(&filter) {
-                let should_send_transport =
-                    has_transports && should_send_to_transport(encoded.msg_type);
                 let mut clients_iter = clients.values();
                 if let Some(first_client) = clients_iter.next() {
                     for client in clients_iter {
@@ -510,7 +506,7 @@ impl<'a> System<'a> for BroadcastSystem {
                 _ => {}
             }
 
-            if has_transports && should_send_to_transport(encoded.msg_type) {
+            if should_send_transport {
                 send_to_transports(&transports, encoded_data);
             }
         }
