@@ -62,6 +62,13 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             to_send_touched_clients.clear();
             return;
         }
+        if (&requests).join().next().is_none() {
+            to_send_touched_clients.clear();
+            if !can_send_responses {
+                to_send.clear();
+            }
+            return;
+        }
         if can_send_responses {
             if to_send.capacity() < client_count && to_send.len() < client_count {
                 to_send.reserve(client_count - to_send.len());
@@ -76,9 +83,6 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         } else {
             to_send.clear();
             to_send_touched_clients.clear();
-        }
-        if (&requests).join().next().is_none() {
-            return;
         }
 
         for (id, requests) in (&ids, &mut requests).join() {
