@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use crate::WorldConfig;
+use crate::{MetadataComp, WorldConfig};
 
 #[derive(Clone)]
 pub struct EntitySaveData {
@@ -212,10 +212,17 @@ impl BackgroundEntitiesSaver {
         }
     }
 
-    pub fn queue_save(&self, id: &str, etype: &str, is_block: bool, metadata_json: String) {
+    pub fn queue_save(&self, id: &str, etype: &str, is_block: bool, metadata: &MetadataComp) {
         if !self.saving {
             return;
         }
+        let metadata_json = match serde_json::to_string(metadata) {
+            Ok(metadata_json) => metadata_json,
+            Err(error) => {
+                warn!("Failed to serialize entity metadata {}: {}", id, error);
+                return;
+            }
+        };
 
         let data = EntitySaveData {
             etype: etype.to_string(),

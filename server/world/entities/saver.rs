@@ -1,8 +1,8 @@
 use log::warn;
-use serde::Serialize;
 use specs::{Entity, World as ECSWorld, WorldExt};
 use std::borrow::Cow;
 use std::fs::{self, File};
+use std::io::Write;
 use std::path::PathBuf;
 
 use crate::{MetadataComp, PositionComp, RigidBodyComp, WorldConfig};
@@ -13,12 +13,6 @@ use crate::{MetadataComp, PositionComp, RigidBodyComp, WorldConfig};
 pub struct EntitiesSaver {
     pub folder: PathBuf,
     pub saving: bool,
-}
-
-#[derive(Serialize)]
-struct SavedEntityFile<'a> {
-    etype: &'a str,
-    metadata: &'a MetadataComp,
 }
 
 #[inline]
@@ -66,6 +60,16 @@ fn sanitize_entity_filename<'a>(etype: &'a str) -> Cow<'a, str> {
     Cow::Owned(sanitized)
 }
 
+#[inline]
+fn escaped_json_string(value: &str) -> Option<String> {
+    serde_json::to_string(value).ok()
+}
+
+#[inline]
+fn serialized_metadata_json(metadata: &MetadataComp) -> Option<String> {
+    serde_json::to_string(metadata).ok()
+}
+
 impl EntitiesSaver {
     pub fn new(config: &WorldConfig) -> Self {
         let mut folder = PathBuf::from(&config.save_dir);
@@ -99,9 +103,13 @@ impl EntitiesSaver {
         } else {
             normalized_etype
         };
-        let payload = SavedEntityFile {
-            etype: etype_value.as_ref(),
-            metadata,
+        let Some(escaped_etype) = escaped_json_string(etype_value.as_ref()) else {
+            warn!("Unable to serialize persisted entity type for {}", id);
+            return;
+        };
+        let Some(metadata_json) = serialized_metadata_json(metadata) else {
+            warn!("Unable to serialize persisted entity metadata for {}", id);
+            return;
         };
 
         let sanitized_filename = sanitize_entity_filename(etype_value.as_ref());
@@ -127,7 +135,12 @@ impl EntitiesSaver {
         };
 
         let mut file = File::create(&path_to_use).expect("Could not create entity file...");
-        serde_json::to_writer(&mut file, &payload).expect("Unable to write entity file.");
+        file.write_all(b"{\"etype\":")
+            .and_then(|_| file.write_all(escaped_etype.as_bytes()))
+            .and_then(|_| file.write_all(b",\"metadata\":"))
+            .and_then(|_| file.write_all(metadata_json.as_bytes()))
+            .and_then(|_| file.write_all(b"}"))
+            .expect("Unable to write entity file.");
     }
 
     pub fn remove(&self, id: &str) {

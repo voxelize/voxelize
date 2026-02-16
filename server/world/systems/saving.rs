@@ -1,4 +1,4 @@
-use specs::{Join, ReadExpect, ReadStorage, System, WriteStorage};
+use specs::{Join, ReadExpect, ReadStorage, System};
 
 use crate::{
     BackgroundEntitiesSaver, DoNotPersistComp, ETypeComp, IDComp, MetadataComp, Stats, WorldConfig,
@@ -15,12 +15,12 @@ impl<'a> System<'a> for DataSavingSystem {
         ReadStorage<'a, IDComp>,
         ReadStorage<'a, ETypeComp>,
         ReadStorage<'a, DoNotPersistComp>,
-        WriteStorage<'a, MetadataComp>,
+        ReadStorage<'a, MetadataComp>,
         ReadExpect<'a, WorldTimingContext>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (stats, config, bg_saver, ids, etypes, do_not_persist, mut metadatas, timing) = data;
+        let (stats, config, bg_saver, ids, etypes, do_not_persist, metadatas, timing) = data;
         let _t = timing.timer("data-saving");
 
         if !config.saving {
@@ -32,10 +32,9 @@ impl<'a> System<'a> for DataSavingSystem {
         }
 
         if config.save_entities {
-            for (id, etype, _, metadata) in (&ids, &etypes, !&do_not_persist, &mut metadatas).join()
+            for (id, etype, _, metadata) in (&ids, &etypes, !&do_not_persist, &metadatas).join()
             {
-                let metadata_json = metadata.to_cached_str_for_new_record();
-                bg_saver.queue_save(&id.0, &etype.0, etype.1, metadata_json);
+                bg_saver.queue_save(&id.0, &etype.0, etype.1, &metadata);
             }
         }
 
