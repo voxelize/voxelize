@@ -70,6 +70,9 @@ fn parse_usize_triplet(value: &JsValue) -> Option<[usize; 3]> {
         || x > usize::MAX as f64
         || y > usize::MAX as f64
         || z > usize::MAX as f64
+        || x.fract() != 0.0
+        || y.fract() != 0.0
+        || z.fract() != 0.0
     {
         return None;
     }
@@ -91,6 +94,9 @@ fn parse_i32_triplet(value: &JsValue) -> Option<[i32; 3]> {
         || x > i32::MAX as f64
         || y > i32::MAX as f64
         || z > i32::MAX as f64
+        || x.fract() != 0.0
+        || y.fract() != 0.0
+        || z.fract() != 0.0
     {
         return None;
     }
