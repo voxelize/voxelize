@@ -276,6 +276,123 @@ fn fanout_chunk_model(
             push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
             return;
         }
+        7 => {
+            let mut interested_iter = interested_clients.iter();
+            let Some(first_client_id) = interested_iter.next() else {
+                return;
+            };
+            let Some(second_client_id) = interested_iter.next() else {
+                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+                return;
+            };
+            let Some(third_client_id) = interested_iter.next() else {
+                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+                return;
+            };
+            let Some(fourth_client_id) = interested_iter.next() else {
+                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
+                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+                return;
+            };
+            let Some(fifth_client_id) = interested_iter.next() else {
+                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
+                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+                return;
+            };
+            let Some(sixth_client_id) = interested_iter.next() else {
+                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, fifth_client_id, &chunk_model);
+                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+                return;
+            };
+            let Some(seventh_client_id) = interested_iter.next() else {
+                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, fifth_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, sixth_client_id, &chunk_model);
+                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+                return;
+            };
+            push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, fifth_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, sixth_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, seventh_client_id, &chunk_model);
+            push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+            return;
+        }
+        8 => {
+            let mut interested_iter = interested_clients.iter();
+            let Some(first_client_id) = interested_iter.next() else {
+                return;
+            };
+            let Some(second_client_id) = interested_iter.next() else {
+                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+                return;
+            };
+            let Some(third_client_id) = interested_iter.next() else {
+                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+                return;
+            };
+            let Some(fourth_client_id) = interested_iter.next() else {
+                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
+                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+                return;
+            };
+            let Some(fifth_client_id) = interested_iter.next() else {
+                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
+                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+                return;
+            };
+            let Some(sixth_client_id) = interested_iter.next() else {
+                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, fifth_client_id, &chunk_model);
+                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+                return;
+            };
+            let Some(seventh_client_id) = interested_iter.next() else {
+                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, fifth_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, sixth_client_id, &chunk_model);
+                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+                return;
+            };
+            let Some(eighth_client_id) = interested_iter.next() else {
+                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, fifth_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, sixth_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, seventh_client_id, &chunk_model);
+                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+                return;
+            };
+            push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, fifth_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, sixth_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, seventh_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, eighth_client_id, &chunk_model);
+            push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+            return;
+        }
         _ => {}
     }
 
@@ -656,6 +773,42 @@ mod tests {
                 .expect("chunk fanout missing expected recipient");
             assert_eq!(client_chunks.len(), 1);
             assert_eq!(client_chunks[0].id, "chunk-7--3");
+        }
+    }
+
+    #[test]
+    fn fanout_chunk_model_populates_all_eight_recipients() {
+        let mut batches: HashMap<String, Vec<ChunkProtocol>> = HashMap::new();
+        let mut touched_clients = Vec::new();
+        let interested_clients: HashSet<String> = ["a", "b", "c", "d", "e", "f", "g", "h"]
+            .into_iter()
+            .map(str::to_string)
+            .collect();
+        let chunk_model = ChunkProtocol {
+            x: 9,
+            z: -4,
+            id: "chunk-9--4".to_string(),
+            meshes: Vec::new(),
+            voxels: None,
+            lights: None,
+        };
+
+        fanout_chunk_model(
+            &mut batches,
+            &mut touched_clients,
+            &interested_clients,
+            chunk_model,
+        );
+
+        assert_eq!(batches.len(), interested_clients.len());
+        let touched_ids: HashSet<_> = touched_clients.into_iter().collect();
+        assert_eq!(touched_ids, interested_clients);
+        for client_id in ["a", "b", "c", "d", "e", "f", "g", "h"] {
+            let client_chunks = batches
+                .get(client_id)
+                .expect("chunk fanout missing expected recipient");
+            assert_eq!(client_chunks.len(), 1);
+            assert_eq!(client_chunks[0].id, "chunk-9--4");
         }
     }
 }
