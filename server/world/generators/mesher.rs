@@ -224,8 +224,10 @@ impl Mesher {
 
         let sender = Arc::clone(&self.sender);
         let msg_type = *r#type;
+        let mesher_registry = registry.mesher_registry();
         let registry = Arc::new(registry.clone());
         let config = Arc::new(config.clone());
+        let greedy_meshing = config.greedy_meshing;
         let chunk_size = if config.chunk_size == 0 {
             1
         } else if config.chunk_size > i32::MAX as usize {
@@ -234,7 +236,6 @@ impl Mesher {
             config.chunk_size as i32
         };
         let chunk_size_usize = chunk_size as usize;
-        let mesher_registry = registry.mesher_registry();
 
         self.pool.spawn(move || {
             processes
@@ -318,7 +319,7 @@ impl Mesher {
                         let min_arr = [min.0, min.1, min.2];
                         let max_arr = [max.0, max.1, max.2];
 
-                        let mesher_geometries = if config.greedy_meshing {
+                        let mesher_geometries = if greedy_meshing {
                             voxelize_mesher::mesh_space_greedy(
                                 &min_arr,
                                 &max_arr,
