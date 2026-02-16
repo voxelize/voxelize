@@ -22,8 +22,14 @@ impl Profiler {
 
     pub fn time(&mut self, label: &str) {
         self.current_hierarchy.push(label.to_string());
-        self.times
-            .insert(label.to_string(), (Instant::now(), Duration::new(0, 0)));
+        let now = Instant::now();
+        if let Some((start, duration)) = self.times.get_mut(label) {
+            *start = now;
+            *duration = Duration::ZERO;
+        } else {
+            self.times
+                .insert(label.to_string(), (now, Duration::ZERO));
+        }
     }
 
     pub fn time_end(&mut self, label: &str) {
