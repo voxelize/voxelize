@@ -160,28 +160,36 @@ impl EncodedMessageQueue {
                 };
                 single_pending
             };
-            let (is_rtc_eligible, is_transport_eligible) =
-                Self::compute_delivery_eligibility(&message);
-            let encoded = EncodedMessage {
-                data: Bytes::from(encode_message(&message)),
-                is_rtc_eligible,
-                is_transport_eligible,
+            self.processed
+                .push(Self::encode_pending_message(message, filter));
+            return;
+        }
+        if pending_len == 2 {
+            reserve_for_append(&mut self.processed, 2);
+            let (second_message, second_filter) = {
+                let Some(second_pending) = self.pending.pop() else {
+                    unreachable!("double pending message length matched branch");
+                };
+                second_pending
             };
-            self.processed.push((encoded, filter));
+            let (first_message, first_filter) = {
+                let Some(first_pending) = self.pending.pop() else {
+                    unreachable!("double pending message length matched branch");
+                };
+                first_pending
+            };
+            self.processed
+                .push(Self::encode_pending_message(first_message, first_filter));
+            self.processed
+                .push(Self::encode_pending_message(second_message, second_filter));
             return;
         }
         if pending_len <= SYNC_ENCODE_BATCH_LIMIT {
             reserve_for_append(&mut self.processed, pending_len);
             let pending = take_vec_with_capacity(&mut self.pending);
             for (message, filter) in pending {
-                let (is_rtc_eligible, is_transport_eligible) =
-                    Self::compute_delivery_eligibility(&message);
-                let encoded = EncodedMessage {
-                    data: Bytes::from(encode_message(&message)),
-                    is_rtc_eligible,
-                    is_transport_eligible,
-                };
-                self.processed.push((encoded, filter));
+                self.processed
+                    .push(Self::encode_pending_message(message, filter));
             }
             return;
         }
@@ -191,19 +199,26 @@ impl EncodedMessageQueue {
         rayon::spawn_fifo(move || {
             let encoded: Vec<(EncodedMessage, ClientFilter)> = all_pending
                 .into_par_iter()
-                .map(|(message, filter)| {
-                    let (is_rtc_eligible, is_transport_eligible) =
-                        Self::compute_delivery_eligibility(&message);
-                    let encoded = EncodedMessage {
-                        data: Bytes::from(encode_message(&message)),
-                        is_rtc_eligible,
-                        is_transport_eligible,
-                    };
-                    (encoded, filter)
-                })
+                .map(|(message, filter)| Self::encode_pending_message(message, filter))
                 .collect();
             let _ = sender.send(encoded);
         });
+    }
+
+    #[inline]
+    fn encode_pending_message(
+        message: Message,
+        filter: ClientFilter,
+    ) -> (EncodedMessage, ClientFilter) {
+        let (is_rtc_eligible, is_transport_eligible) = Self::compute_delivery_eligibility(&message);
+        (
+            EncodedMessage {
+                data: Bytes::from(encode_message(&message)),
+                is_rtc_eligible,
+                is_transport_eligible,
+            },
+            filter,
+        )
     }
 
     pub fn receive(&mut self) -> Vec<(EncodedMessage, ClientFilter)> {
@@ -562,6 +577,34 @@ mod tests {
 
         assert!(queue.pending.is_empty());
         assert_eq!(queue.processed.len(), 9);
+    }
+
+    #[test]
+    fn process_encodes_two_messages_synchronously_in_order() {
+        let mut queue = EncodedMessageQueue::new();
+        queue.append(vec![
+            (
+                Message::new(&MessageType::Peer).build(),
+                ClientFilter::Direct("first".to_string()),
+            ),
+            (
+                Message::new(&MessageType::Peer).build(),
+                ClientFilter::Direct("second".to_string()),
+            ),
+        ]);
+
+        queue.process();
+
+        assert!(queue.pending.is_empty());
+        assert_eq!(queue.processed.len(), 2);
+        assert!(matches!(
+            queue.processed.first().map(|(_, filter)| filter),
+            Some(ClientFilter::Direct(id)) if id == "first"
+        ));
+        assert!(matches!(
+            queue.processed.get(1).map(|(_, filter)| filter),
+            Some(ClientFilter::Direct(id)) if id == "second"
+        ));
     }
 
     #[test]
