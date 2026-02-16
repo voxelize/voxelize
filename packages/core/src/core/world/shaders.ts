@@ -852,6 +852,10 @@ vec3 sunContribution = vec3(sunExposure * sunExposure * uSunlightIntensity);`
     .replace(`if (vIsFluid > 0.5) {`, `if (false) {`),
 };
 
+const SNOISE_MARKER = "snoise";
+const BEGIN_VERTEX_INCLUDE_MARKER = "#include <begin_vertex>";
+const TRANSFORMED_VERTEX_MARKER = "vec3 transformed = vec3(position);";
+
 export function createSwayShader(
   baseShaders: { vertex: string; fragment: string },
   options: Partial<{
@@ -890,23 +894,23 @@ transformed.z += rootScale * ${scale.toFixed(
 
   let vertexShader = baseShaders.vertex;
 
-  if (!vertexShader.includes("snoise")) {
+  if (vertexShader.indexOf(SNOISE_MARKER) < 0) {
     vertexShader = vertexShader.replace(
       "#include <common>",
       `${SIMPLEX_NOISE_GLSL}\n#include <common>`
     );
   }
 
-  if (vertexShader.includes("#include <begin_vertex>")) {
+  if (vertexShader.indexOf(BEGIN_VERTEX_INCLUDE_MARKER) >= 0) {
     vertexShader = vertexShader.replace(
-      "#include <begin_vertex>",
+      BEGIN_VERTEX_INCLUDE_MARKER,
       `
 vec3 transformed = vec3(position);
 ${swayCode}`
     );
-  } else if (vertexShader.includes("vec3 transformed = vec3(position);")) {
+  } else if (vertexShader.indexOf(TRANSFORMED_VERTEX_MARKER) >= 0) {
     vertexShader = vertexShader.replace(
-      "vec3 transformed = vec3(position);",
+      TRANSFORMED_VERTEX_MARKER,
       `vec3 transformed = vec3(position);
 ${swayCode}`
     );
