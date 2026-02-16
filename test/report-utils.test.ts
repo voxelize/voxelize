@@ -23191,6 +23191,25 @@ describe("report-utils", () => {
     );
   });
 
+  it("returns stable write failure messages for numeric and boolean output paths", () => {
+    const reportJson = toReportJson({ passed: false, exitCode: 1 });
+    const cases: Array<{ readonly outputPath: number | boolean; readonly label: string }> = [
+      { outputPath: 0, label: "0" },
+      { outputPath: 7, label: "7" },
+      { outputPath: true, label: "true" },
+      { outputPath: false, label: "false" },
+    ];
+
+    for (const { outputPath, label } of cases) {
+      expect(() => writeReportToPath(reportJson, outputPath as never)).not.toThrow();
+      const failureMessage = writeReportToPath(reportJson, outputPath as never);
+      expect(failureMessage).toContain(`Failed to write report to ${label}.`);
+      expect(failureMessage).toContain(
+        'The "path" argument must be of type string.'
+      );
+    }
+  });
+
   it("returns an unprintable-path fallback for blank output paths", () => {
     const reportJson = toReportJson({ passed: false, exitCode: 1 });
 
@@ -23671,6 +23690,79 @@ describe("report-utils", () => {
     expect(parsedWriteFailureResult.startedAt).toBe("iso-1000");
     expect(parsedWriteFailureResult.endedAt).toBe("iso-2000");
     expect(parsedWriteFailureResult.durationMs).toBe(1000);
+  });
+
+  it("returns structured serialize fallback for numeric and boolean output paths", () => {
+    const cases: Array<{ readonly outputPath: number | boolean; readonly label: string }> = [
+      { outputPath: 0, label: "0" },
+      { outputPath: 7, label: "7" },
+      { outputPath: true, label: "true" },
+      { outputPath: false, label: "false" },
+    ];
+
+    for (const { outputPath, label } of cases) {
+      const timedReportBuilder = createTimedReportBuilder(
+        (() => {
+          let tick = 0;
+          return () => {
+            tick += 1;
+            return tick * 1000;
+          };
+        })(),
+        (value) => `iso-${value}`
+      );
+      const writeFailureResult = serializeReportWithOptionalWrite(
+        {
+          passed: true,
+          exitCode: 0,
+          outputPath: outputPath as never,
+        },
+        {
+          jsonFormat: { compact: true },
+          outputPath: outputPath as never,
+          buildTimedReport: timedReportBuilder,
+        }
+      );
+      const parsedWriteFailureResult = JSON.parse(
+        writeFailureResult.reportJson
+      ) as {
+        schemaVersion: number;
+        passed: boolean;
+        exitCode: number;
+        outputPath: string;
+        writeError: string;
+        message: string;
+        startedAt: string;
+        endedAt: string;
+        durationMs: number;
+      };
+
+      expect(writeFailureResult.writeError).toContain(
+        `Failed to write report to ${label}.`
+      );
+      expect(writeFailureResult.writeError).toContain(
+        'The "path" argument must be of type string.'
+      );
+      expect(parsedWriteFailureResult.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+      expect(parsedWriteFailureResult.passed).toBe(false);
+      expect(parsedWriteFailureResult.exitCode).toBe(1);
+      expect(parsedWriteFailureResult.outputPath).toBe(label);
+      expect(parsedWriteFailureResult.writeError).toContain(
+        `Failed to write report to ${label}.`
+      );
+      expect(parsedWriteFailureResult.writeError).toContain(
+        'The "path" argument must be of type string.'
+      );
+      expect(parsedWriteFailureResult.message).toContain(
+        `Failed to write report to ${label}.`
+      );
+      expect(parsedWriteFailureResult.message).toContain(
+        'The "path" argument must be of type string.'
+      );
+      expect(parsedWriteFailureResult.startedAt).toBe("iso-1000");
+      expect(parsedWriteFailureResult.endedAt).toBe("iso-2000");
+      expect(parsedWriteFailureResult.durationMs).toBe(1000);
+    }
   });
 
   it("returns structured serialize fallback for blank output paths", () => {
