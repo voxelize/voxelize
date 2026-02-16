@@ -214,41 +214,94 @@ pub struct MethodProtocol {
     pub payload: String,
 }
 
-fn map_chunk_protocol(chunk: ChunkProtocol) -> protocols::Chunk {
-    let mut mapped_meshes = Vec::with_capacity(chunk.meshes.len());
-    for mesh in chunk.meshes {
-        let mut mapped_geometries = Vec::with_capacity(mesh.geometries.len());
-        for geo in mesh.geometries {
-            mapped_geometries.push(protocols::Geometry {
-                voxel: geo.voxel,
-                at: geo.at,
-                face_name: geo.face_name,
-                indices: compress_i32_array(&geo.indices),
-                positions: compress_f32_array(&geo.positions),
-                lights: compress_i32_array(&geo.lights),
-                uvs: compress_f32_array(&geo.uvs),
-            });
-        }
-        mapped_meshes.push(protocols::Mesh {
-            level: mesh.level,
-            geometries: mapped_geometries,
-        });
+#[inline]
+fn map_geometry_protocol(geo: GeometryProtocol) -> protocols::Geometry {
+    protocols::Geometry {
+        voxel: geo.voxel,
+        at: geo.at,
+        face_name: geo.face_name,
+        indices: compress_i32_array(&geo.indices),
+        positions: compress_f32_array(&geo.positions),
+        lights: compress_i32_array(&geo.lights),
+        uvs: compress_f32_array(&geo.uvs),
     }
-    let lights_data = match &chunk.lights {
+}
+
+#[inline]
+fn map_mesh_protocol(mesh: MeshProtocol) -> protocols::Mesh {
+    let level = mesh.level;
+    let geometries = mesh.geometries;
+    if geometries.is_empty() {
+        return protocols::Mesh {
+            level,
+            geometries: Vec::new(),
+        };
+    }
+    if geometries.len() == 1 {
+        let mut geometries = geometries;
+        let single_geometry = {
+            let Some(geometry) = geometries.pop() else {
+                unreachable!("single geometry length matched branch");
+            };
+            geometry
+        };
+        return protocols::Mesh {
+            level,
+            geometries: vec![map_geometry_protocol(single_geometry)],
+        };
+    }
+    let mut mapped_geometries = Vec::with_capacity(geometries.len());
+    for geo in geometries {
+        mapped_geometries.push(map_geometry_protocol(geo));
+    }
+    protocols::Mesh {
+        level,
+        geometries: mapped_geometries,
+    }
+}
+
+fn map_chunk_protocol(chunk: ChunkProtocol) -> protocols::Chunk {
+    let ChunkProtocol {
+        x,
+        z,
+        id,
+        meshes,
+        voxels,
+        lights,
+    } = chunk;
+    let mapped_meshes = if meshes.is_empty() {
+        Vec::new()
+    } else if meshes.len() == 1 {
+        let mut meshes = meshes;
+        let single_mesh = {
+            let Some(mesh) = meshes.pop() else {
+                unreachable!("single mesh length matched branch");
+            };
+            mesh
+        };
+        vec![map_mesh_protocol(single_mesh)]
+    } else {
+        let mut mapped_meshes = Vec::with_capacity(meshes.len());
+        for mesh in meshes {
+            mapped_meshes.push(map_mesh_protocol(mesh));
+        }
+        mapped_meshes
+    };
+    let lights_data = match &lights {
         Some(lights) => lights.data.as_slice(),
         None => &[][..],
     };
-    let voxels_data = match &chunk.voxels {
+    let voxels_data = match &voxels {
         Some(voxels) => voxels.data.as_slice(),
         None => &[][..],
     };
     protocols::Chunk {
-        id: chunk.id,
+        id,
         meshes: mapped_meshes,
         lights: compress_u32_array(lights_data),
         voxels: compress_u32_array(voxels_data),
-        x: chunk.x,
-        z: chunk.z,
+        x,
+        z,
     }
 }
 
@@ -600,8 +653,8 @@ impl MessageBuilder {
 #[cfg(test)]
 mod tests {
     use super::{
-        ChunkProtocol, EntityOperation, EntityProtocol, EventProtocol, Message, MessageType,
-        PeerProtocol, UpdateProtocol,
+        map_chunk_protocol, ChunkProtocol, EntityOperation, EntityProtocol, EventProtocol,
+        GeometryProtocol, Message, MessageType, MeshProtocol, PeerProtocol, UpdateProtocol,
     };
 
     #[test]
@@ -839,5 +892,61 @@ mod tests {
 
         assert_eq!(message.peers.len(), 1);
         assert_eq!(message.peers[0].id, "new");
+    }
+
+    #[test]
+    fn map_chunk_protocol_maps_single_mesh_and_geometry() {
+        let chunk = ChunkProtocol {
+            id: "chunk-1-2".to_owned(),
+            x: 1,
+            z: 2,
+            meshes: vec![MeshProtocol {
+                level: 3,
+                geometries: vec![GeometryProtocol {
+                    voxel: 7,
+                    at: vec![1, 2, 3],
+                    face_name: Some("top".to_owned()),
+                    positions: vec![0.5, 1.0, 1.5],
+                    indices: vec![0, 1, 2],
+                    uvs: vec![0.0, 1.0],
+                    lights: vec![15, 14, 13],
+                }],
+            }],
+            ..Default::default()
+        };
+
+        let mapped = map_chunk_protocol(chunk);
+        assert_eq!(mapped.id, "chunk-1-2");
+        assert_eq!(mapped.x, 1);
+        assert_eq!(mapped.z, 2);
+        assert_eq!(mapped.meshes.len(), 1);
+        assert_eq!(mapped.meshes[0].level, 3);
+        assert_eq!(mapped.meshes[0].geometries.len(), 1);
+        assert_eq!(mapped.meshes[0].geometries[0].voxel, 7);
+        assert_eq!(mapped.meshes[0].geometries[0].at, vec![1, 2, 3]);
+        assert_eq!(
+            mapped.meshes[0].geometries[0].face_name.as_deref(),
+            Some("top")
+        );
+        assert!(!mapped.meshes[0].geometries[0].indices.is_empty());
+        assert!(!mapped.meshes[0].geometries[0].positions.is_empty());
+        assert!(!mapped.meshes[0].geometries[0].uvs.is_empty());
+        assert!(!mapped.meshes[0].geometries[0].lights.is_empty());
+    }
+
+    #[test]
+    fn map_chunk_protocol_keeps_empty_payloads_for_empty_chunk_data() {
+        let chunk = ChunkProtocol {
+            id: "chunk-empty".to_owned(),
+            x: 0,
+            z: 0,
+            ..Default::default()
+        };
+
+        let mapped = map_chunk_protocol(chunk);
+        assert_eq!(mapped.id, "chunk-empty");
+        assert!(mapped.meshes.is_empty());
+        assert!(mapped.voxels.is_empty());
+        assert!(mapped.lights.is_empty());
     }
 }
