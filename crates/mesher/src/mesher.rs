@@ -848,7 +848,7 @@ fn has_standard_six_faces(block: &Block) -> bool {
         }
     }
     for face in &block.faces {
-        let face_name = lowercase_if_needed(face.get_name_lower());
+        let face_name = face_name_lower(face);
         if matches!(
             face_name.as_ref(),
             "py" | "ny" | "px" | "nx" | "pz" | "nz"
@@ -894,13 +894,22 @@ fn canonical_face_name_from_dir(dir: [i32; 3]) -> Option<&'static str> {
 }
 
 #[inline]
+fn face_name_lower(face: &BlockFace) -> Cow<'_, str> {
+    if face.name_lower.is_empty() {
+        lowercase_if_needed(face.name.as_str())
+    } else {
+        Cow::Borrowed(face.name_lower.as_str())
+    }
+}
+
+#[inline]
 fn canonical_or_face_name_lower(face: &BlockFace) -> Cow<'_, str> {
     if let Some(canonical) = canonical_face_name_from_dir(face.dir) {
         if face.name.is_empty() || face.get_name_lower() == canonical {
             return Cow::Borrowed(canonical);
         }
     }
-    lowercase_if_needed(face.get_name_lower())
+    face_name_lower(face)
 }
 
 #[inline]
@@ -920,7 +929,7 @@ fn collect_cardinal_face_ranges(original_faces: &[BlockFace]) -> [UV; 6] {
         let face_index = if let Some(face_index) = cardinal_face_index_from_dir(face.dir) {
             Some(face_index)
         } else {
-            let face_name = lowercase_if_needed(face.get_name_lower());
+            let face_name = face_name_lower(face);
             cardinal_face_index(face_name.as_ref())
         };
         if let Some(face_index) = face_index {
