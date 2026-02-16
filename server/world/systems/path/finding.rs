@@ -35,10 +35,13 @@ impl<'a> System<'a> for PathFindingSystem {
 
     fn run(&mut self, data: Self::SystemData) {
         use rayon::prelude::*;
-        use specs::ParJoin;
+        use specs::{Join, ParJoin};
 
         let (chunks, registry, _config, timing, bodies, targets, mut paths) = data;
         let _t = timing.timer("path-finding");
+        if (&bodies, &targets, &paths).join().next().is_none() {
+            return;
+        }
 
         let mut voxel_cache_map = std::mem::take(&mut self.voxel_cache_buffer);
         voxel_cache_map.clear();
