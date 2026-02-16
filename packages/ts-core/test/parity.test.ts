@@ -1566,16 +1566,35 @@ describe("BlockRotation", () => {
       BlockRotation.prototype,
       "axis"
     )?.set;
+    const axisGetter = Object.getOwnPropertyDescriptor(
+      BlockRotation.prototype,
+      "axis"
+    )?.get;
     if (typeof axisSetter !== "function") {
       throw new Error("Expected BlockRotation axis setter.");
+    }
+    if (typeof axisGetter !== "function") {
+      throw new Error("Expected BlockRotation axis getter.");
     }
     const revokedRotation = (() => {
       const rotationProxy = Proxy.revocable(BlockRotation.py(0), {});
       rotationProxy.revoke();
       return rotationProxy.proxy;
     })();
+    const trapValueContext = Object.create(null) as { readonly value: number };
+    Object.defineProperty(trapValueContext, "value", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("axis getter trap");
+      },
+    });
 
     expect(() => axisSetter.call(revokedRotation as never, 4)).not.toThrow();
+    expect(() => axisGetter.call(revokedRotation as never)).not.toThrow();
+    expect(axisGetter.call(revokedRotation as never)).toBe(PY_ROTATION);
+    expect(() => axisGetter.call(trapValueContext as never)).not.toThrow();
+    expect(axisGetter.call(trapValueContext as never)).toBe(PY_ROTATION);
   });
 
   it("supports uppercase constructor aliases", () => {

@@ -299,7 +299,14 @@ export class BlockRotation {
   }
 
   get axis(): number {
-    return this.value;
+    try {
+      const axisValue = this.value;
+      return typeof axisValue === "number" && Number.isFinite(axisValue)
+        ? axisValue
+        : PY_ROTATION;
+    } catch {
+      return PY_ROTATION;
+    }
   }
 
   set axis(axis: number) {
