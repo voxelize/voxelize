@@ -183,7 +183,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             if chunk_models_buffer.is_empty() {
                 continue;
             }
-            let next_chunk_buffer_capacity = chunk_models_buffer.len();
+            let next_chunk_buffer_capacity = chunk_models_buffer.capacity();
             let chunk_models_to_send = std::mem::replace(
                 chunk_models_buffer,
                 Vec::with_capacity(next_chunk_buffer_capacity),
