@@ -327,9 +327,10 @@ impl VoxelAccess for Space {
         }
 
         let chunk_size = self.chunk_size();
-        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        let (coords, local_coords) =
+            ChunkUtils::map_voxel_to_chunk_and_local(vx, vy, vz, chunk_size);
         if let Some(voxels) = self.voxels.get(&coords) {
-            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            let Vec3(lx, ly, lz) = local_coords;
             if !voxels.contains(&[lx, ly, lz]) {
                 return 0;
             }
@@ -377,9 +378,10 @@ impl VoxelAccess for Space {
         }
 
         let chunk_size = self.chunk_size();
-        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        let (coords, local_coords) =
+            ChunkUtils::map_voxel_to_chunk_and_local(vx, vy, vz, chunk_size);
         if let Some(lights) = self.lights.get(&coords) {
-            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            let Vec3(lx, ly, lz) = local_coords;
             if !lights.contains(&[lx, ly, lz]) {
                 return 0;
             }
@@ -402,9 +404,10 @@ impl VoxelAccess for Space {
         }
 
         let chunk_size = self.chunk_size();
-        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        let (coords, local_coords) =
+            ChunkUtils::map_voxel_to_chunk_and_local(vx, vy, vz, chunk_size);
         if let Some(lights) = self.lights.get_mut(&coords) {
-            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            let Vec3(lx, ly, lz) = local_coords;
             if !lights.contains(&[lx, ly, lz]) {
                 return false;
             }
@@ -447,9 +450,10 @@ impl VoxelAccess for Space {
         }
 
         let chunk_size = self.chunk_size();
-        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        let (coords, local_coords) =
+            ChunkUtils::map_voxel_to_chunk_and_local(vx, vy, vz, chunk_size);
         if let Some(lights) = self.lights.get(&coords) {
-            let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+            let Vec3(lx, ly, lz) = local_coords;
             if lights.contains(&[lx, ly, lz]) {
                 return LightUtils::extract_sunlight(lights[&[lx, ly, lz]]);
             }
@@ -464,9 +468,10 @@ impl VoxelAccess for Space {
             panic!("Space does not contain height map data.");
         }
         let chunk_size = self.chunk_size();
-        let coords = ChunkUtils::map_voxel_to_chunk(vx, 0, vz, chunk_size);
+        let (coords, local_coords) =
+            ChunkUtils::map_voxel_to_chunk_and_local(vx, 0, vz, chunk_size);
         if let Some(height_map) = self.height_maps.get(&coords) {
-            let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, 0, vz, chunk_size);
+            let Vec3(lx, _, lz) = local_coords;
             if !height_map.contains(&[lx, lz]) {
                 return 0;
             }
@@ -487,7 +492,8 @@ impl VoxelAccess for Space {
             return false;
         }
         let chunk_size = self.chunk_size();
-        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        let (coords, local_coords) =
+            ChunkUtils::map_voxel_to_chunk_and_local(vx, vy, vz, chunk_size);
         let lights = self.lights.get(&coords);
         let voxels = self.voxels.get(&coords);
         let height_map = self.height_maps.get(&coords);
@@ -495,7 +501,7 @@ impl VoxelAccess for Space {
             return false;
         }
 
-        let Vec3(lx, ly, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+        let Vec3(lx, ly, lz) = local_coords;
         if let Some(lights) = lights {
             if lights.contains(&[lx, ly, lz]) {
                 return true;
