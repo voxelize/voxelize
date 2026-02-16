@@ -199,6 +199,26 @@ fn push_dispatch_event(
 }
 
 #[inline]
+fn retain_active_dispatch_clients(
+    dispatch_map: &mut HashMap<String, Vec<EventProtocol>>,
+    clients: &Clients,
+) {
+    if dispatch_map.len() <= clients.len() {
+        return;
+    }
+    if clients.len() == 1 {
+        if let Some((single_client_id, _)) = clients.iter().next() {
+            let single_client_id = single_client_id.as_str();
+            dispatch_map.retain(|id, _| id.as_str() == single_client_id);
+        } else {
+            dispatch_map.clear();
+        }
+        return;
+    }
+    dispatch_map.retain(|id, _| clients.contains_key(id));
+}
+
+#[inline]
 fn send_to_transports(transports: &Transports, payload: Bytes) {
     let mut senders = transports.values();
     let Some(first_sender) = senders.next() else {
@@ -272,8 +292,8 @@ impl<'a> System<'a> for EventsSystem {
         }
         if client_count == 0 {
             dispatch_map.clear();
-        } else if dispatch_map.len() > client_count {
-            dispatch_map.retain(|id, _| clients.contains_key(id));
+        } else {
+            retain_active_dispatch_clients(dispatch_map, &clients);
         }
         if dispatch_map.capacity() < client_count && dispatch_map.len() < client_count {
             dispatch_map.reserve(client_count - dispatch_map.len());
