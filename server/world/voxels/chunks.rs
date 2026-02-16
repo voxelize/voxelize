@@ -654,6 +654,11 @@ impl Chunks {
         if voxels.is_empty() {
             return;
         }
+        if voxels.len() == 1 {
+            let (voxel, val) = voxels[0];
+            self.updates_staging.insert(voxel, val);
+            return;
+        }
         self.updates_staging.reserve(voxels.len());
         for (voxel, val) in voxels {
             self.updates_staging.insert(*voxel, *val);
