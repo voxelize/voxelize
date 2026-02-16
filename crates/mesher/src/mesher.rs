@@ -1036,11 +1036,10 @@ fn should_render_face<S: VoxelAccess>(
 fn compute_face_ao_and_light(
     dir: [i32; 3],
     block: &Block,
+    block_aabb: &AABB,
     neighbors: &NeighborCache,
     registry: &Registry,
 ) -> ([i32; 4], [i32; 4]) {
-    let block_aabb = AABB::union_all(&block.aabbs);
-
     let is_see_through = block.is_see_through;
     let is_all_transparent = block.is_transparent[0]
         && block.is_transparent[1]
@@ -2243,6 +2242,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         continue;
                     }
                     let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                    let block_aabb = AABB::union_all(&block.aabbs);
 
                     for_each_meshing_face(
                         block,
@@ -2283,7 +2283,13 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                                 return;
                             }
                             let (aos, lights) =
-                                compute_face_ao_and_light(dir, block, &neighbors, registry);
+                                compute_face_ao_and_light(
+                                    dir,
+                                    block,
+                                    &block_aabb,
+                                    &neighbors,
+                                    registry,
+                                );
 
                             let key = FaceKey {
                                 block_id: block.id,
