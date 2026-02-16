@@ -68,6 +68,12 @@ fn include_single_target(ids: &[String]) -> Option<&str> {
         [] => None,
         [id] => Some(id.as_str()),
         [first, second] if first == second => Some(first.as_str()),
+        [first, second, third] if first == second && first == third => Some(first.as_str()),
+        [first, second, third, fourth]
+            if first == second && first == third && first == fourth =>
+        {
+            Some(first.as_str())
+        }
         [first, rest @ ..] => {
             let first_id = first.as_str();
             if rest.iter().all(|id| id.as_str() == first_id) {
