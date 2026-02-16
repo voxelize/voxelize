@@ -1930,6 +1930,41 @@ describe("report-utils", () => {
     expect(lengthAndOwnKeysTrapOptionResolution.hasOption).toBe(false);
     expect(lengthAndOwnKeysTrapOptionResolution.value).toBeNull();
     expect(lengthAndOwnKeysTrapOptionResolution.error).toBeNull();
+    const trimmedOptionNameResolution = resolveLastOptionValue(
+      ["--json", "--output", "./report.json"],
+      " --output "
+    );
+    expect(trimmedOptionNameResolution.hasOption).toBe(true);
+    expect(trimmedOptionNameResolution.value).toBe("./report.json");
+    expect(trimmedOptionNameResolution.error).toBeNull();
+    expect(() =>
+      resolveLastOptionValue(["--output", "./report.json"], null as never)
+    ).not.toThrow();
+    const nullOptionNameResolution = resolveLastOptionValue(
+      ["--output", "./report.json"],
+      null as never
+    );
+    expect(nullOptionNameResolution.hasOption).toBe(false);
+    expect(nullOptionNameResolution.value).toBeNull();
+    expect(nullOptionNameResolution.error).toBeNull();
+    const trapDrivenOptionName = {
+      [Symbol.toPrimitive]() {
+        throw new Error("option trap");
+      },
+    };
+    expect(() =>
+      resolveLastOptionValue(
+        ["--output", "./report.json"],
+        trapDrivenOptionName as never
+      )
+    ).not.toThrow();
+    const trapDrivenOptionNameResolution = resolveLastOptionValue(
+      ["--output", "./report.json"],
+      trapDrivenOptionName as never
+    );
+    expect(trapDrivenOptionNameResolution.hasOption).toBe(false);
+    expect(trapDrivenOptionNameResolution.value).toBeNull();
+    expect(trapDrivenOptionNameResolution.error).toBeNull();
   });
 
   it("sanitizes malformed recognized option token lists in resolveLastOptionValue", () => {

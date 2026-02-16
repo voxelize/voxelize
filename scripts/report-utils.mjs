@@ -2728,6 +2728,15 @@ export const resolveLastOptionValue = (
   optionName,
   recognizedOptionTokens = []
 ) => {
+  const normalizedOptionName = toTrimmedStringOrNull(optionName);
+  if (normalizedOptionName === null) {
+    return {
+      hasOption: false,
+      value: null,
+      error: null,
+    };
+  }
+
   const { optionArgs } = splitCliArgs(args);
   const normalizedRecognizedOptionTokenMetadata =
     normalizeCliOptionTokenListWithAvailability(recognizedOptionTokens);
@@ -2752,7 +2761,7 @@ export const resolveLastOptionValue = (
 
     return recognizedOptionTokenSet.has(inlineOptionName);
   };
-  const inlineOptionPrefix = `${optionName}=`;
+  const inlineOptionPrefix = `${normalizedOptionName}=`;
   let hasOption = false;
   let resolvedValue = null;
   let missingValue = false;
@@ -2760,7 +2769,7 @@ export const resolveLastOptionValue = (
   for (let index = 0; index < optionArgs.length; index += 1) {
     const token = optionArgs[index];
 
-    if (token === optionName) {
+    if (token === normalizedOptionName) {
       hasOption = true;
       const nextArg = optionArgs[index + 1] ?? null;
       if (
@@ -2799,7 +2808,10 @@ export const resolveLastOptionValue = (
   return {
     hasOption,
     value: resolvedValue,
-    error: hasOption && missingValue ? `Missing value for ${optionName} option.` : null,
+    error:
+      hasOption && missingValue
+        ? `Missing value for ${normalizedOptionName} option.`
+        : null,
   };
 };
 
