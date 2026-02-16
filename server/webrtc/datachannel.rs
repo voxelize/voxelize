@@ -133,9 +133,6 @@ impl FragmentAssembler {
             let Some(id) = self.next_message_id.checked_sub(1) else {
                 return None;
             };
-            if !self.fragments.contains_key(&id) {
-                return None;
-            }
             id
         };
 
