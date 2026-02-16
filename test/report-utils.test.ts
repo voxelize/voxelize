@@ -688,6 +688,58 @@ describe("report-utils", () => {
     expect(
       emptyIteratorLengthZeroAndOwnKeysTrapRecognizedOutputInlineAliasMisuseResult.outputPath
     ).toBeNull();
+    const emptyIteratorLengthZeroAndIndexedRecognizedOutputTokens = new Proxy(
+      ["-l"],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const emptyIteratorLengthZeroAndIndexedRecognizedOutputTokenResult =
+      resolveOutputPath(
+        ["--output", "-l"],
+        "/workspace",
+        emptyIteratorLengthZeroAndIndexedRecognizedOutputTokens as never
+      );
+    expect(emptyIteratorLengthZeroAndIndexedRecognizedOutputTokenResult.error).toBe(
+      "Missing value for --output option."
+    );
+    expect(
+      emptyIteratorLengthZeroAndIndexedRecognizedOutputTokenResult.outputPath
+    ).toBeNull();
+    const emptyIteratorLengthZeroAndIndexedRecognizedOutputDashValueResult =
+      resolveOutputPath(
+        ["--output", "-artifact-report.json"],
+        "/workspace",
+        emptyIteratorLengthZeroAndIndexedRecognizedOutputTokens as never
+      );
+    expect(
+      emptyIteratorLengthZeroAndIndexedRecognizedOutputDashValueResult.error
+    ).toBeNull();
+    expect(
+      emptyIteratorLengthZeroAndIndexedRecognizedOutputDashValueResult.outputPath
+    ).toBe("/workspace/-artifact-report.json");
+    const emptyIteratorLengthZeroAndIndexedRecognizedOutputInlineAliasMisuseResult =
+      resolveOutputPath(
+        ["--output", "-l=1"],
+        "/workspace",
+        emptyIteratorLengthZeroAndIndexedRecognizedOutputTokens as never
+      );
+    expect(
+      emptyIteratorLengthZeroAndIndexedRecognizedOutputInlineAliasMisuseResult.error
+    ).toBe("Missing value for --output option.");
+    expect(
+      emptyIteratorLengthZeroAndIndexedRecognizedOutputInlineAliasMisuseResult.outputPath
+    ).toBeNull();
     const emptyIteratorLengthAndReadTrapRecognizedOutputTokens = new Proxy(
       ["-l"],
       {
@@ -1472,6 +1524,67 @@ describe("report-utils", () => {
     ).toBeNull();
     expect(
       resolvedInlineAliasMisuseFromEmptyIteratorLengthZeroAndOwnKeysTrapRecognizedOptionTokens.error
+    ).toBe("Missing value for --output option.");
+    const emptyIteratorLengthZeroAndIndexedRecognizedOptionTokens = new Proxy(
+      ["-l"],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const resolvedFromEmptyIteratorLengthZeroAndIndexedRecognizedOptionTokens =
+      resolveLastOptionValue(
+        ["--output", "-l"],
+        "--output",
+        emptyIteratorLengthZeroAndIndexedRecognizedOptionTokens as never
+      );
+    expect(
+      resolvedFromEmptyIteratorLengthZeroAndIndexedRecognizedOptionTokens.hasOption
+    ).toBe(true);
+    expect(
+      resolvedFromEmptyIteratorLengthZeroAndIndexedRecognizedOptionTokens.value
+    ).toBeNull();
+    expect(
+      resolvedFromEmptyIteratorLengthZeroAndIndexedRecognizedOptionTokens.error
+    ).toBe("Missing value for --output option.");
+    const resolvedUnknownDashValueFromEmptyIteratorLengthZeroAndIndexedRecognizedOptionTokens =
+      resolveLastOptionValue(
+        ["--output", "-artifact-report.json"],
+        "--output",
+        emptyIteratorLengthZeroAndIndexedRecognizedOptionTokens as never
+      );
+    expect(
+      resolvedUnknownDashValueFromEmptyIteratorLengthZeroAndIndexedRecognizedOptionTokens.hasOption
+    ).toBe(true);
+    expect(
+      resolvedUnknownDashValueFromEmptyIteratorLengthZeroAndIndexedRecognizedOptionTokens.value
+    ).toBe("-artifact-report.json");
+    expect(
+      resolvedUnknownDashValueFromEmptyIteratorLengthZeroAndIndexedRecognizedOptionTokens.error
+    ).toBeNull();
+    const resolvedInlineAliasMisuseFromEmptyIteratorLengthZeroAndIndexedRecognizedOptionTokens =
+      resolveLastOptionValue(
+        ["--output", "-l=1"],
+        "--output",
+        emptyIteratorLengthZeroAndIndexedRecognizedOptionTokens as never
+      );
+    expect(
+      resolvedInlineAliasMisuseFromEmptyIteratorLengthZeroAndIndexedRecognizedOptionTokens.hasOption
+    ).toBe(true);
+    expect(
+      resolvedInlineAliasMisuseFromEmptyIteratorLengthZeroAndIndexedRecognizedOptionTokens.value
+    ).toBeNull();
+    expect(
+      resolvedInlineAliasMisuseFromEmptyIteratorLengthZeroAndIndexedRecognizedOptionTokens.error
     ).toBe("Missing value for --output option.");
     const emptyIteratorLengthAndReadTrapRecognizedOptionTokens = new Proxy(
       ["-l"],
