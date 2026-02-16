@@ -161,7 +161,7 @@ fn process_pending_updates(
     let mut results: Option<Vec<UpdateProtocol>> = None;
 
     let mut updates_by_chunk: HashMap<Vec2<i32>, Vec<(Vec3<i32>, u32, u32, &crate::Block)>> =
-        HashMap::with_capacity(num_to_process);
+        HashMap::with_capacity(num_to_process.min(128));
     let mut last_updated_id: Option<u32> = None;
     let mut last_updated_type: Option<&crate::Block> = None;
 
