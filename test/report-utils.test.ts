@@ -20700,6 +20700,37 @@ describe("report-utils", () => {
       failedSteps: [],
       skippedSteps: [],
     });
+    const ownKeysTrappedEmptyIteratorSteps = new Proxy(
+      [{ name: "step-a", passed: true, skipped: false }],
+      {
+        ownKeys: () => {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(summarizeStepResults(ownKeysTrappedEmptyIteratorSteps as never)).toEqual(
+      {
+        totalSteps: 0,
+        passedStepCount: 0,
+        failedStepCount: 0,
+        skippedStepCount: 0,
+        firstFailedStep: null,
+        passedSteps: [],
+        failedSteps: [],
+        skippedSteps: [],
+      }
+    );
     const emptyIteratorLengthZeroIndexedSteps = new Proxy(
       [{ name: "step-a", passed: true, skipped: false }],
       {
@@ -23521,6 +23552,35 @@ describe("report-utils", () => {
       passedChecks: ["devEnvironment"],
       failedChecks: [],
     });
+    const ownKeysTrappedEmptyIteratorChecks = new Proxy(
+      [{ name: "devEnvironment", passed: true }],
+      {
+        ownKeys: () => {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(summarizeCheckResults(ownKeysTrappedEmptyIteratorChecks as never)).toEqual(
+      {
+        totalChecks: 0,
+        passedCheckCount: 0,
+        failedCheckCount: 0,
+        firstFailedCheck: null,
+        passedChecks: [],
+        failedChecks: [],
+      }
+    );
     const emptyIteratorLengthZeroIndexedChecks = new Proxy(
       [{ name: "devEnvironment", passed: true }],
       {
@@ -24075,6 +24135,37 @@ describe("report-utils", () => {
     expect(
       deriveFailureMessageFromReport({
         steps: lengthAndOwnKeysTrapSteps,
+      })
+    ).toBeNull();
+    const ownKeysTrappedEmptyIteratorFailureSteps = new Proxy(
+      [
+        {
+          name: "WASM artifact preflight",
+          passed: false,
+          skipped: false,
+          reason: "artifact missing",
+        },
+      ],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      deriveFailureMessageFromReport({
+        steps: ownKeysTrappedEmptyIteratorFailureSteps,
       })
     ).toBeNull();
 
