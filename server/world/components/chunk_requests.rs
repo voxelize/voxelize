@@ -252,6 +252,23 @@ impl ChunkRequestsComp {
                 }
                 return;
             }
+            5 => {
+                for i in 1..5 {
+                    let mut j = i;
+                    while j > 0 {
+                        let prev_distance =
+                            manhattan_distance(&self.requests[j - 1], &self.center);
+                        let curr_distance =
+                            manhattan_distance(&self.requests[j], &self.center);
+                        if prev_distance <= curr_distance {
+                            break;
+                        }
+                        self.requests.swap(j - 1, j);
+                        j -= 1;
+                    }
+                }
+                return;
+            }
             _ => {}
         }
         self.requests
@@ -475,6 +492,26 @@ mod tests {
         assert_eq!(
             requests.requests,
             vec![Vec2(1, 0), Vec2(2, 0), Vec2(3, 0), Vec2(4, 0)]
+        );
+    }
+
+    #[test]
+    fn sort_orders_five_requests_without_generic_sort() {
+        let mut requests = ChunkRequestsComp::new();
+        requests.center = Vec2(0, 0);
+        requests.requests = vec![
+            Vec2(5, 0),
+            Vec2(2, 0),
+            Vec2(1, 0),
+            Vec2(4, 0),
+            Vec2(3, 0),
+        ];
+
+        requests.sort();
+
+        assert_eq!(
+            requests.requests,
+            vec![Vec2(1, 0), Vec2(2, 0), Vec2(3, 0), Vec2(4, 0), Vec2(5, 0)]
         );
     }
 
