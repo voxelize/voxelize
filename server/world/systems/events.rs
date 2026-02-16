@@ -193,6 +193,9 @@ impl<'a> System<'a> for EventsSystem {
         } else if dispatch_map.len() > client_count {
             dispatch_map.retain(|id, _| clients.contains_key(id));
         }
+        if dispatch_map.capacity() < client_count && dispatch_map.len() < client_count {
+            dispatch_map.reserve(client_count - dispatch_map.len());
+        }
         let touched_clients = &mut self.touched_clients_buffer;
         touched_clients.clear();
         if touched_clients.capacity() < client_count {
