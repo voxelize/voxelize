@@ -568,7 +568,15 @@ describe("LightUtils", () => {
         throw new Error("index coercion trap");
       },
     };
+    const revokedIndex = (() => {
+      const indexProxy = Proxy.revocable({ value: 1 }, {});
+      indexProxy.revoke();
+      return indexProxy.proxy;
+    })();
     expect(() => lightColorFromIndex(trapDrivenIndex as never)).toThrowError(
+      RangeError
+    );
+    expect(() => lightColorFromIndex(revokedIndex as never)).toThrowError(
       RangeError
     );
   });
@@ -1684,9 +1692,16 @@ describe("Numeric helpers", () => {
         throw new Error("uint32 saturation trap");
       },
     };
+    const revokedValue = (() => {
+      const valueProxy = Proxy.revocable({ value: 1 }, {});
+      valueProxy.revoke();
+      return valueProxy.proxy;
+    })();
 
     expect(() => toSaturatedUint32(trapValue as never)).not.toThrow();
     expect(toSaturatedUint32(trapValue as never)).toBe(0);
+    expect(() => toSaturatedUint32(revokedValue as never)).not.toThrow();
+    expect(toSaturatedUint32(revokedValue as never)).toBe(0);
   });
 
   it("rejects malformed stage assertions with RangeError", () => {
@@ -1695,10 +1710,16 @@ describe("Numeric helpers", () => {
         throw new Error("stage assertion trap");
       },
     };
+    const revokedValue = (() => {
+      const valueProxy = Proxy.revocable({ value: 3 }, {});
+      valueProxy.revoke();
+      return valueProxy.proxy;
+    })();
 
     expect(() => assertStage(trapValue as never)).toThrowError(RangeError);
     expect(() => assertStage("3" as never)).toThrowError(RangeError);
     expect(() => assertStage(null as never)).toThrowError(RangeError);
+    expect(() => assertStage(revokedValue as never)).toThrowError(RangeError);
   });
 
   it("sanitizes trap-driven toUint32 coercion inputs", () => {
